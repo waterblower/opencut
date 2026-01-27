@@ -1,0 +1,8 @@
+/.zig-cache
+*.aac
+*.m4a
+*.mp3
+*.mp4
+*.html
+doc.md
+/zig-out
