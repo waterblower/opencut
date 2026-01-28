@@ -8,11 +8,145 @@ const c = @cImport({
     @cInclude("libswscale/swscale.h");
 });
 
-// Global state for event watch callback
+// Global state for event watch callback and video decoding
 var g_renderer: ?*c.SDL_Renderer = null;
 var g_texture: ?*c.SDL_Texture = null;
 var g_video_width: c_int = 0;
 var g_video_height: c_int = 0;
+var g_fmt_ctx: ?*c.AVFormatContext = null;
+var g_codec_ctx: ?*c.AVCodecContext = null;
+var g_frame: ?*c.AVFrame = null;
+var g_rgb_frame: ?*c.AVFrame = null;
+var g_packet: ?*c.AVPacket = null;
+var g_sws_ctx: ?*c.struct_SwsContext = null;
+var g_video_stream_idx: c_int = -1;
+var g_frame_duration_ms: u32 = 33;
+var g_last_frame_time: u64 = 0;
+var g_video_finished: bool = false;
+
+// Function to decode and update next frame
+fn updateNextFrame() void {
+    if (g_video_finished or g_fmt_ctx == null or g_codec_ctx == null or
+        g_frame == null or g_rgb_frame == null or g_packet == null or
+        g_sws_ctx == null or g_texture == null)
+    {
+        return;
+    }
+
+    const current_time = c.SDL_GetTicks();
+    if (current_time - g_last_frame_time < g_frame_duration_ms) {
+        return;
+    }
+    g_last_frame_time = current_time;
+
+    // Try to read and decode next frame
+    var frame_updated = false;
+    while (c.av_read_frame(g_fmt_ctx, g_packet) >= 0) {
+        if (g_packet.?.*.stream_index == g_video_stream_idx) {
+            // Send packet to decoder
+            if (c.avcodec_send_packet(g_codec_ctx, g_packet) >= 0) {
+                // Receive frame from decoder
+                if (c.avcodec_receive_frame(g_codec_ctx, g_frame) >= 0) {
+                    // Convert to RGB
+                    _ = c.sws_scale(
+                        g_sws_ctx,
+                        @ptrCast(&g_frame.?.*.data),
+                        @ptrCast(&g_frame.?.*.linesize),
+                        0,
+                        g_video_height,
+                        @ptrCast(&g_rgb_frame.?.*.data),
+                        @ptrCast(&g_rgb_frame.?.*.linesize),
+                    );
+
+                    // Update texture with new frame data
+                    const pitch: c_int = g_rgb_frame.?.*.linesize[0];
+                    _ = c.SDL_UpdateTexture(
+                        g_texture,
+                        null,
+                        g_rgb_frame.?.*.data[0],
+                        pitch,
+                    );
+
+                    frame_updated = true;
+                    c.av_packet_unref(g_packet);
+                    break;
+                }
+            }
+        }
+        c.av_packet_unref(g_packet);
+    }
+
+    if (!frame_updated) {
+        // Flush decoder to get remaining frames
+        _ = c.avcodec_send_packet(g_codec_ctx, null);
+        if (c.avcodec_receive_frame(g_codec_ctx, g_frame) >= 0) {
+            // Convert to RGB
+            _ = c.sws_scale(
+                g_sws_ctx,
+                @ptrCast(&g_frame.?.*.data),
+                @ptrCast(&g_frame.?.*.linesize),
+                0,
+                g_video_height,
+                @ptrCast(&g_rgb_frame.?.*.data),
+                @ptrCast(&g_rgb_frame.?.*.linesize),
+            );
+
+            // Update texture with new frame data
+            const pitch: c_int = g_rgb_frame.?.*.linesize[0];
+            _ = c.SDL_UpdateTexture(
+                g_texture,
+                null,
+                g_rgb_frame.?.*.data[0],
+                pitch,
+            );
+        } else {
+            std.debug.print("Video finished playing\n", .{});
+            g_video_finished = true;
+        }
+    }
+}
+
+// Function to render current frame
+fn renderFrame(window: ?*c.SDL_Window) void {
+    if (g_renderer == null or g_texture == null or window == null) {
+        return;
+    }
+
+    // Get current window size
+    var window_width: c_int = 0;
+    var window_height: c_int = 0;
+    _ = c.SDL_GetWindowSize(window, &window_width, &window_height);
+
+    // Calculate aspect ratio preserving destination rectangle
+    const frame_aspect = @as(f32, @floatFromInt(g_video_width)) / @as(f32, @floatFromInt(g_video_height));
+    const window_aspect = @as(f32, @floatFromInt(window_width)) / @as(f32, @floatFromInt(window_height));
+
+    var dst_rect: c.SDL_FRect = undefined;
+
+    if (window_aspect > frame_aspect) {
+        // Window is wider than frame - fit to height
+        dst_rect.h = @floatFromInt(window_height);
+        dst_rect.w = dst_rect.h * frame_aspect;
+        dst_rect.x = (@as(f32, @floatFromInt(window_width)) - dst_rect.w) / 2.0;
+        dst_rect.y = 0;
+    } else {
+        // Window is taller than frame - fit to width
+        dst_rect.w = @floatFromInt(window_width);
+        dst_rect.h = dst_rect.w / frame_aspect;
+        dst_rect.x = 0;
+        dst_rect.y = (@as(f32, @floatFromInt(window_height)) - dst_rect.h) / 2.0;
+    }
+
+    // Clear screen
+    _ = c.SDL_SetRenderDrawColor(g_renderer, 0, 0, 0, 255);
+    _ = c.SDL_RenderClear(g_renderer);
+
+    // Render texture with aspect ratio preserved
+    _ = c.SDL_RenderTexture(g_renderer, g_texture, null, &dst_rect);
+
+    // Present renderer
+    _ = c.SDL_RenderPresent(g_renderer);
+}
 
 // Event watch callback that runs even during blocking resize operations
 fn eventWatchCallback(userdata: ?*anyopaque, event: [*c]c.SDL_Event) callconv(.c) bool {
@@ -23,48 +157,15 @@ fn eventWatchCallback(userdata: ?*anyopaque, event: [*c]c.SDL_Event) callconv(.c
         event.*.type == c.SDL_EVENT_WINDOW_RESIZED or
         event.*.type == c.SDL_EVENT_WINDOW_EXPOSED)
     {
-        if (g_renderer != null and g_texture != null) {
-            // Get the window from the event
-            const window_id = event.*.window.windowID;
-            const window = c.SDL_GetWindowFromID(window_id);
+        // Get the window from the event
+        const window_id = event.*.window.windowID;
+        const window = c.SDL_GetWindowFromID(window_id);
 
-            if (window != null) {
-                // Get current window size
-                var window_width: c_int = 0;
-                var window_height: c_int = 0;
-                _ = c.SDL_GetWindowSize(window, &window_width, &window_height);
+        // Update to next frame if needed (continues playback during resize)
+        updateNextFrame();
 
-                // Calculate aspect ratio preserving destination rectangle
-                const frame_aspect = @as(f32, @floatFromInt(g_video_width)) / @as(f32, @floatFromInt(g_video_height));
-                const window_aspect = @as(f32, @floatFromInt(window_width)) / @as(f32, @floatFromInt(window_height));
-
-                var dst_rect: c.SDL_FRect = undefined;
-
-                if (window_aspect > frame_aspect) {
-                    // Window is wider than frame - fit to height
-                    dst_rect.h = @floatFromInt(window_height);
-                    dst_rect.w = dst_rect.h * frame_aspect;
-                    dst_rect.x = (@as(f32, @floatFromInt(window_width)) - dst_rect.w) / 2.0;
-                    dst_rect.y = 0;
-                } else {
-                    // Window is taller than frame - fit to width
-                    dst_rect.w = @floatFromInt(window_width);
-                    dst_rect.h = dst_rect.w / frame_aspect;
-                    dst_rect.x = 0;
-                    dst_rect.y = (@as(f32, @floatFromInt(window_height)) - dst_rect.h) / 2.0;
-                }
-
-                // Clear screen
-                _ = c.SDL_SetRenderDrawColor(g_renderer, 0, 0, 0, 255);
-                _ = c.SDL_RenderClear(g_renderer);
-
-                // Render texture with aspect ratio preserved
-                _ = c.SDL_RenderTexture(g_renderer, g_texture, null, &dst_rect);
-
-                // Present renderer
-                _ = c.SDL_RenderPresent(g_renderer);
-            }
-        }
+        // Render the current frame
+        renderFrame(window);
     }
 
     return true;
@@ -204,52 +305,21 @@ pub fn main() !void {
         1,
     );
 
-    // Read frames until we get the first video frame
-    var frame_decoded = false;
-    while (c.av_read_frame(fmt_ctx, packet) >= 0) {
-        if (packet.*.stream_index == video_stream_idx) {
-            // Send packet to decoder
-            if (c.avcodec_send_packet(codec_ctx, packet) < 0) {
-                std.debug.print("Error sending packet to decoder\n", .{});
-                c.av_packet_unref(packet);
-                continue;
-            }
+    // Get frame rate for timing
+    const stream = fmt_ctx.?.streams[@intCast(video_stream_idx)];
+    const frame_rate = stream.*.avg_frame_rate;
 
-            // Receive frame from decoder
-            while (c.avcodec_receive_frame(codec_ctx, frame) >= 0) {
-                // Convert to RGB
-                _ = c.sws_scale(
-                    sws_ctx,
-                    @ptrCast(&frame.*.data),
-                    @ptrCast(&frame.*.linesize),
-                    0,
-                    height,
-                    @ptrCast(&rgb_frame.*.data),
-                    @ptrCast(&rgb_frame.*.linesize),
-                );
+    // Calculate frame duration in milliseconds
+    const frame_duration_ms: u32 = if (frame_rate.den > 0 and frame_rate.num > 0)
+        @intCast(@divTrunc(1000 * frame_rate.den, frame_rate.num))
+    else
+        33; // Default to ~30 FPS if frame rate not available
 
-                frame_decoded = true;
-                break;
-            }
-
-            if (frame_decoded) {
-                c.av_packet_unref(packet);
-                break;
-            }
-        }
-        c.av_packet_unref(packet);
-    }
-
-    if (!frame_decoded) {
-        std.debug.print("Could not decode first frame\n", .{});
-        return error.CouldNotDecodeFrame;
-    }
-
-    std.debug.print("First frame decoded successfully!\n", .{});
+    std.debug.print("Frame rate: {}/{} fps, frame duration: {}ms\n", .{ frame_rate.num, frame_rate.den, frame_duration_ms });
 
     // Create SDL window
     const window = c.SDL_CreateWindow(
-        "Video Player - First Frame",
+        "Video Player",
         width,
         height,
         c.SDL_WINDOW_RESIZABLE,
@@ -268,10 +338,19 @@ pub fn main() !void {
     }
     defer c.SDL_DestroyRenderer(renderer);
 
-    // Store global references for event watch callback
+    // Store global references for event watch callback and frame updates
     g_renderer = renderer;
     g_video_width = width;
     g_video_height = height;
+    g_fmt_ctx = fmt_ctx;
+    g_codec_ctx = codec_ctx;
+    g_frame = frame;
+    g_rgb_frame = rgb_frame;
+    g_packet = packet;
+    g_sws_ctx = sws_ctx;
+    g_video_stream_idx = video_stream_idx;
+    g_frame_duration_ms = frame_duration_ms;
+    g_last_frame_time = c.SDL_GetTicks();
 
     // Register event watch to handle rendering during resize
     _ = c.SDL_AddEventWatch(eventWatchCallback, null);
@@ -294,16 +373,7 @@ pub fn main() !void {
     // Store texture reference for event watch callback
     g_texture = texture;
 
-    // Update texture with RGB data
-    const pitch: c_int = rgb_frame.*.linesize[0];
-    _ = c.SDL_UpdateTexture(
-        texture,
-        null,
-        rgb_frame.*.data[0],
-        pitch,
-    );
-
-    std.debug.print("Press ESC or close the window to quit.\n", .{});
+    std.debug.print("Playing video. Press ESC or close the window to quit.\n", .{});
 
     // Main loop
     var running = true;
@@ -329,43 +399,14 @@ pub fn main() !void {
             }
         }
 
-        // Get current window size
-        var window_width: c_int = 0;
-        var window_height: c_int = 0;
-        _ = c.SDL_GetWindowSize(window, &window_width, &window_height);
+        // Update to next frame if needed
+        updateNextFrame();
 
-        // Calculate aspect ratio preserving destination rectangle
-        const frame_aspect = @as(f32, @floatFromInt(width)) / @as(f32, @floatFromInt(height));
-        const window_aspect = @as(f32, @floatFromInt(window_width)) / @as(f32, @floatFromInt(window_height));
-
-        var dst_rect: c.SDL_FRect = undefined;
-
-        if (window_aspect > frame_aspect) {
-            // Window is wider than frame - fit to height
-            dst_rect.h = @floatFromInt(window_height);
-            dst_rect.w = dst_rect.h * frame_aspect;
-            dst_rect.x = (@as(f32, @floatFromInt(window_width)) - dst_rect.w) / 2.0;
-            dst_rect.y = 0;
-        } else {
-            // Window is taller than frame - fit to width
-            dst_rect.w = @floatFromInt(window_width);
-            dst_rect.h = dst_rect.w / frame_aspect;
-            dst_rect.x = 0;
-            dst_rect.y = (@as(f32, @floatFromInt(window_height)) - dst_rect.h) / 2.0;
-        }
-
-        // Clear screen
-        _ = c.SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
-        _ = c.SDL_RenderClear(renderer);
-
-        // Render texture with aspect ratio preserved
-        _ = c.SDL_RenderTexture(renderer, texture, null, &dst_rect);
-
-        // Present renderer
-        _ = c.SDL_RenderPresent(renderer);
+        // Render the current frame
+        renderFrame(window);
 
         // Small delay to reduce CPU usage
-        c.SDL_Delay(16); // ~60 FPS
+        c.SDL_Delay(1);
     }
 
     std.debug.print("Window closed. Goodbye!\n", .{});
