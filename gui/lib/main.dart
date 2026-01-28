@@ -1,6 +1,18 @@
 import 'package:flutter/material.dart';
+import 'dart:developer' as developer;
+import 'zig_ffi.dart';
 
 void main() {
+  // Initialize Zig FFI
+  final zigFFI = ZigFFI();
+
+  // Call the add function from Zig
+  final result = zigFFI.add(5, 3);
+
+  // Log the result
+  developer.log('Zig add(5, 3) = $result');
+  print('Zig add(5, 3) = $result');
+
   runApp(const MyApp());
 }
 

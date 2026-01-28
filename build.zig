@@ -148,6 +148,22 @@ pub fn build(b: *std.Build) void {
 
     b.installArtifact(player_exe);
 
+    // Create FFI shared library for Flutter
+    const ffi_lib = b.addLibrary(.{
+        .name = "zig_ffi",
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("src/ffi.zig"),
+            .target = target,
+            .optimize = optimize,
+        }),
+        .linkage = .dynamic,
+    });
+
+    b.installArtifact(ffi_lib);
+
+    const build_ffi_step = b.step("ffi", "Build the FFI shared library for Flutter");
+    build_ffi_step.dependOn(&b.addInstallArtifact(ffi_lib, .{}).step);
+
     // Create build steps for individual executables
     const build_main_step = b.step("main", "Build only the main executable");
     build_main_step.dependOn(&b.addInstallArtifact(exe, .{}).step);
