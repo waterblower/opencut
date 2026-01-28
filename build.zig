@@ -144,6 +144,7 @@ pub fn build(b: *std.Build) void {
     player_exe.linkSystemLibrary("avcodec");
     player_exe.linkSystemLibrary("avutil");
     player_exe.linkSystemLibrary("swscale");
+    player_exe.linkSystemLibrary("swresample");
 
     b.installArtifact(player_exe);
 

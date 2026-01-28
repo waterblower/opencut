@@ -6,6 +6,7 @@ const c = @cImport({
     @cInclude("libavutil/avutil.h");
     @cInclude("libavutil/imgutils.h");
     @cInclude("libswscale/swscale.h");
+    @cInclude("libswresample/swresample.h");
 });
 
 // Global state for event watch callback and video decoding
@@ -24,10 +25,42 @@ var g_frame_duration_ms: u32 = 33;
 var g_last_frame_time: u64 = 0;
 var g_video_finished: bool = false;
 
+// Audio state
+var g_audio_codec_ctx: ?*c.AVCodecContext = null;
+var g_audio_stream_idx: c_int = -1;
+var g_swr_ctx: ?*c.SwrContext = null;
+var g_audio_buf: [192000]u8 = undefined;
+var g_audio_buf_size: usize = 0;
+var g_audio_buf_index: usize = 0;
+var g_audio_packet: ?*c.AVPacket = null;
+var g_audio_frame: ?*c.AVFrame = null;
+
+// Function to read and dispatch packets to appropriate decoders
+fn readAndDispatchPacket() bool {
+    if (g_fmt_ctx == null or g_packet == null) {
+        return false;
+    }
+
+    if (c.av_read_frame(g_fmt_ctx, g_packet) < 0) {
+        return false;
+    }
+
+    const stream_idx = g_packet.?.*.stream_index;
+
+    if (stream_idx == g_video_stream_idx and g_codec_ctx != null) {
+        _ = c.avcodec_send_packet(g_codec_ctx, g_packet);
+    } else if (stream_idx == g_audio_stream_idx and g_audio_codec_ctx != null) {
+        _ = c.avcodec_send_packet(g_audio_codec_ctx, g_packet);
+    }
+
+    c.av_packet_unref(g_packet);
+    return true;
+}
+
 // Function to decode and update next frame
 fn updateNextFrame() void {
-    if (g_video_finished or g_fmt_ctx == null or g_codec_ctx == null or
-        g_frame == null or g_rgb_frame == null or g_packet == null or
+    if (g_video_finished or g_codec_ctx == null or
+        g_frame == null or g_rgb_frame == null or
         g_sws_ctx == null or g_texture == null)
     {
         return;
@@ -39,70 +72,39 @@ fn updateNextFrame() void {
     }
     g_last_frame_time = current_time;
 
-    // Try to read and decode next frame
-    var frame_updated = false;
-    while (c.av_read_frame(g_fmt_ctx, g_packet) >= 0) {
-        if (g_packet.?.*.stream_index == g_video_stream_idx) {
-            // Send packet to decoder
-            if (c.avcodec_send_packet(g_codec_ctx, g_packet) >= 0) {
-                // Receive frame from decoder
-                if (c.avcodec_receive_frame(g_codec_ctx, g_frame) >= 0) {
-                    // Convert to RGB
-                    _ = c.sws_scale(
-                        g_sws_ctx,
-                        @ptrCast(&g_frame.?.*.data),
-                        @ptrCast(&g_frame.?.*.linesize),
-                        0,
-                        g_video_height,
-                        @ptrCast(&g_rgb_frame.?.*.data),
-                        @ptrCast(&g_rgb_frame.?.*.linesize),
-                    );
+    // Try to receive a decoded video frame
+    var ret = c.avcodec_receive_frame(g_codec_ctx, g_frame);
 
-                    // Update texture with new frame data
-                    const pitch: c_int = g_rgb_frame.?.*.linesize[0];
-                    _ = c.SDL_UpdateTexture(
-                        g_texture,
-                        null,
-                        g_rgb_frame.?.*.data[0],
-                        pitch,
-                    );
-
-                    frame_updated = true;
-                    c.av_packet_unref(g_packet);
-                    break;
-                }
-            }
+    // If we need more data, read packets until we get a video frame
+    while (ret == c.AVERROR(c.EAGAIN)) {
+        if (!readAndDispatchPacket()) {
+            // End of file
+            g_video_finished = true;
+            return;
         }
-        c.av_packet_unref(g_packet);
+        ret = c.avcodec_receive_frame(g_codec_ctx, g_frame);
     }
 
-    if (!frame_updated) {
-        // Flush decoder to get remaining frames
-        _ = c.avcodec_send_packet(g_codec_ctx, null);
-        if (c.avcodec_receive_frame(g_codec_ctx, g_frame) >= 0) {
-            // Convert to RGB
-            _ = c.sws_scale(
-                g_sws_ctx,
-                @ptrCast(&g_frame.?.*.data),
-                @ptrCast(&g_frame.?.*.linesize),
-                0,
-                g_video_height,
-                @ptrCast(&g_rgb_frame.?.*.data),
-                @ptrCast(&g_rgb_frame.?.*.linesize),
-            );
+    if (ret >= 0) {
+        // Convert to RGB
+        _ = c.sws_scale(
+            g_sws_ctx,
+            @ptrCast(&g_frame.?.*.data),
+            @ptrCast(&g_frame.?.*.linesize),
+            0,
+            g_video_height,
+            @ptrCast(&g_rgb_frame.?.*.data),
+            @ptrCast(&g_rgb_frame.?.*.linesize),
+        );
 
-            // Update texture with new frame data
-            const pitch: c_int = g_rgb_frame.?.*.linesize[0];
-            _ = c.SDL_UpdateTexture(
-                g_texture,
-                null,
-                g_rgb_frame.?.*.data[0],
-                pitch,
-            );
-        } else {
-            std.debug.print("Video finished playing\n", .{});
-            g_video_finished = true;
-        }
+        // Update texture with new frame data
+        const pitch: c_int = g_rgb_frame.?.*.linesize[0];
+        _ = c.SDL_UpdateTexture(
+            g_texture,
+            null,
+            g_rgb_frame.?.*.data[0],
+            pitch,
+        );
     }
 }
 
@@ -171,9 +173,58 @@ fn eventWatchCallback(userdata: ?*anyopaque, event: [*c]c.SDL_Event) callconv(.c
     return true;
 }
 
+// Global audio stream for SDL3
+var g_audio_stream: ?*c.SDL_AudioStream = null;
+
+// Decode one audio frame
+fn decodeAudioFrame() c_int {
+    if (g_audio_codec_ctx == null or g_audio_frame == null or g_swr_ctx == null) {
+        return -1;
+    }
+
+    // Try to receive a frame from the audio decoder
+    var ret = c.avcodec_receive_frame(g_audio_codec_ctx, g_audio_frame);
+
+    // If we need more data, read packets
+    while (ret == c.AVERROR(c.EAGAIN)) {
+        if (!readAndDispatchPacket()) {
+            return -1;
+        }
+        ret = c.avcodec_receive_frame(g_audio_codec_ctx, g_audio_frame);
+    }
+
+    if (ret < 0) {
+        return -1;
+    }
+
+    // Safety check
+    if (g_audio_frame.?.*.nb_samples <= 0) {
+        return -1;
+    }
+
+    // Prepare output buffer pointer
+    var out_buf: [*c]u8 = &g_audio_buf;
+
+    // Convert audio to the format SDL expects
+    const out_samples = c.swr_convert(
+        g_swr_ctx,
+        @ptrCast(&out_buf),
+        g_audio_frame.?.*.nb_samples,
+        @ptrCast(@constCast(&g_audio_frame.?.*.data)),
+        g_audio_frame.?.*.nb_samples,
+    );
+
+    if (out_samples < 0) {
+        return -1;
+    }
+
+    const data_size = out_samples * 2 * 2; // 2 channels * 2 bytes per sample (S16)
+    return @intCast(data_size);
+}
+
 pub fn main() !void {
     // Initialize SDL
-    if (!c.SDL_Init(c.SDL_INIT_VIDEO)) {
+    if (!c.SDL_Init(c.SDL_INIT_VIDEO | c.SDL_INIT_AUDIO)) {
         std.debug.print("SDL could not initialize! SDL_Error: {s}\n", .{c.SDL_GetError()});
         return error.SDLInitializationFailed;
     }
@@ -193,13 +244,15 @@ pub fn main() !void {
         return error.CouldNotFindStreamInfo;
     }
 
-    // Find the first video stream
+    // Find the first video and audio streams
     var video_stream_idx: c_int = -1;
+    var audio_stream_idx: c_int = -1;
     var i: c_uint = 0;
     while (i < fmt_ctx.?.nb_streams) : (i += 1) {
-        if (fmt_ctx.?.streams[i].*.codecpar.*.codec_type == c.AVMEDIA_TYPE_VIDEO) {
+        if (fmt_ctx.?.streams[i].*.codecpar.*.codec_type == c.AVMEDIA_TYPE_VIDEO and video_stream_idx == -1) {
             video_stream_idx = @intCast(i);
-            break;
+        } else if (fmt_ctx.?.streams[i].*.codecpar.*.codec_type == c.AVMEDIA_TYPE_AUDIO and audio_stream_idx == -1) {
+            audio_stream_idx = @intCast(i);
         }
     }
 
@@ -305,6 +358,112 @@ pub fn main() !void {
         1,
     );
 
+    // Store global references early so audio setup can use them
+    g_fmt_ctx = fmt_ctx;
+    g_video_stream_idx = video_stream_idx;
+    g_codec_ctx = codec_ctx;
+    g_packet = packet;
+    g_frame = frame;
+    g_rgb_frame = rgb_frame;
+    g_sws_ctx = sws_ctx;
+    g_video_width = width;
+    g_video_height = height;
+
+    // Setup audio if available
+    var audio_codec_ctx: ?*c.AVCodecContext = null;
+    var audio_stream: ?*c.AVStream = null;
+    if (audio_stream_idx != -1) {
+        audio_stream = fmt_ctx.?.streams[@intCast(audio_stream_idx)];
+        const audio_codecpar = audio_stream.?.*.codecpar;
+
+        const audio_codec = c.avcodec_find_decoder(audio_codecpar.*.codec_id);
+        if (audio_codec != null) {
+            audio_codec_ctx = c.avcodec_alloc_context3(audio_codec);
+            if (audio_codec_ctx != null) {
+                _ = c.avcodec_parameters_to_context(audio_codec_ctx, audio_codecpar);
+                if (c.avcodec_open2(audio_codec_ctx, audio_codec, null) >= 0) {
+                    std.debug.print("Audio: {}Hz, {} channels\n", .{
+                        audio_codecpar.*.sample_rate,
+                        audio_codecpar.*.ch_layout.nb_channels,
+                    });
+
+                    // Setup audio resampler
+                    const swr_ctx = c.swr_alloc();
+                    if (swr_ctx == null) {
+                        std.debug.print("Failed to allocate swr context\n", .{});
+                        c.avcodec_free_context(@constCast(&audio_codec_ctx));
+                        audio_codec_ctx = null;
+                    } else {
+                        const swr_result = c.swr_alloc_set_opts2(
+                            @ptrCast(@constCast(&swr_ctx)),
+                            &c.AVChannelLayout{ .order = c.AV_CHANNEL_ORDER_NATIVE, .nb_channels = 2, .u = .{ .mask = c.AV_CH_LAYOUT_STEREO } },
+                            c.AV_SAMPLE_FMT_S16,
+                            audio_codecpar.*.sample_rate,
+                            &audio_codecpar.*.ch_layout,
+                            audio_codecpar.*.format,
+                            audio_codecpar.*.sample_rate,
+                            0,
+                            null,
+                        );
+
+                        if (swr_result < 0) {
+                            std.debug.print("Failed to set swr options\n", .{});
+                            c.swr_free(@ptrCast(@constCast(&swr_ctx)));
+                            c.avcodec_free_context(@constCast(&audio_codec_ctx));
+                            audio_codec_ctx = null;
+                        } else {
+                            const init_result = c.swr_init(swr_ctx);
+                            if (init_result < 0) {
+                                std.debug.print("Failed to initialize swr context\n", .{});
+                                c.swr_free(@ptrCast(@constCast(&swr_ctx)));
+                                c.avcodec_free_context(@constCast(&audio_codec_ctx));
+                                audio_codec_ctx = null;
+                            } else {
+
+                                // Allocate audio packet and frame
+                                const audio_packet = c.av_packet_alloc();
+                                const audio_frame = c.av_frame_alloc();
+
+                                // Store global audio state
+                                g_audio_codec_ctx = audio_codec_ctx;
+                                g_audio_stream_idx = audio_stream_idx;
+                                g_swr_ctx = swr_ctx;
+                                g_audio_packet = audio_packet;
+                                g_audio_frame = audio_frame;
+
+                                // Setup SDL3 audio stream
+                                const dst_spec = c.SDL_AudioSpec{
+                                    .format = c.SDL_AUDIO_S16,
+                                    .channels = 2,
+                                    .freq = audio_codecpar.*.sample_rate,
+                                };
+
+                                g_audio_stream = c.SDL_OpenAudioDeviceStream(
+                                    c.SDL_AUDIO_DEVICE_DEFAULT_PLAYBACK,
+                                    &dst_spec,
+                                    null,
+                                    null,
+                                );
+
+                                if (g_audio_stream == null) {
+                                    std.debug.print("Failed to open audio stream: {s}\n", .{c.SDL_GetError()});
+                                } else {
+                                    // Start audio playback immediately without priming
+                                    // Audio will be queued during the main loop
+                                    _ = c.SDL_ResumeAudioStreamDevice(g_audio_stream);
+                                    std.debug.print("Audio playback started\n", .{});
+                                }
+                            }
+                        }
+                    }
+                } else {
+                    c.avcodec_free_context(@constCast(&audio_codec_ctx));
+                    audio_codec_ctx = null;
+                }
+            }
+        }
+    }
+
     // Get frame rate for timing
     const stream = fmt_ctx.?.streams[@intCast(video_stream_idx)];
     const frame_rate = stream.*.avg_frame_rate;
@@ -338,17 +497,8 @@ pub fn main() !void {
     }
     defer c.SDL_DestroyRenderer(renderer);
 
-    // Store global references for event watch callback and frame updates
+    // Store renderer and timing references
     g_renderer = renderer;
-    g_video_width = width;
-    g_video_height = height;
-    g_fmt_ctx = fmt_ctx;
-    g_codec_ctx = codec_ctx;
-    g_frame = frame;
-    g_rgb_frame = rgb_frame;
-    g_packet = packet;
-    g_sws_ctx = sws_ctx;
-    g_video_stream_idx = video_stream_idx;
     g_frame_duration_ms = frame_duration_ms;
     g_last_frame_time = c.SDL_GetTicks();
 
@@ -399,6 +549,18 @@ pub fn main() !void {
             }
         }
 
+        // Decode and queue audio data
+        if (g_audio_stream != null and !g_video_finished) {
+            const queued = c.SDL_GetAudioStreamQueued(g_audio_stream);
+            // Keep audio buffer filled (less than 32KB means we should add more)
+            if (queued < 32768) {
+                const audio_size = decodeAudioFrame();
+                if (audio_size > 0) {
+                    _ = c.SDL_PutAudioStreamData(g_audio_stream, &g_audio_buf, audio_size);
+                }
+            }
+        }
+
         // Update to next frame if needed
         updateNextFrame();
 
@@ -407,6 +569,20 @@ pub fn main() !void {
 
         // Small delay to reduce CPU usage
         c.SDL_Delay(1);
+    }
+
+    // Cleanup audio resources
+    if (audio_codec_ctx != null) {
+        c.avcodec_free_context(@constCast(&audio_codec_ctx));
+    }
+    if (g_audio_packet != null) {
+        c.av_packet_free(@constCast(&g_audio_packet));
+    }
+    if (g_audio_frame != null) {
+        c.av_frame_free(@constCast(&g_audio_frame));
+    }
+    if (g_swr_ctx != null) {
+        c.swr_free(@ptrCast(@constCast(&g_swr_ctx)));
     }
 
     std.debug.print("Window closed. Goodbye!\n", .{});
