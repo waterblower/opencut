@@ -6,3 +6,4 @@
 *.html
 doc.md
 /zig-out
+.DS_Store

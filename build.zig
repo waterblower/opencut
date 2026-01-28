@@ -95,12 +95,55 @@ pub fn build(b: *std.Build) void {
     // by passing `--prefix` or `-p`.
     b.installArtifact(exe);
 
+    // Create grayscale converter executable
+    const grayscale_exe = b.addExecutable(.{
+        .name = "grayscale",
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("src/grayscale.zig"),
+            .target = target,
+            .optimize = optimize,
+        }),
+    });
+
+    grayscale_exe.linkLibC();
+    grayscale_exe.linkSystemLibrary("avformat");
+    grayscale_exe.linkSystemLibrary("avcodec");
+    grayscale_exe.linkSystemLibrary("avutil");
+    grayscale_exe.linkSystemLibrary("swscale");
+
+    b.installArtifact(grayscale_exe);
+
+    // Create SDL window executable
+    const sdl_window_exe = b.addExecutable(.{
+        .name = "sdl-window",
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("src/sdl-window.zig"),
+            .target = target,
+            .optimize = optimize,
+        }),
+    });
+
+    sdl_window_exe.linkLibC();
+    sdl_window_exe.linkSystemLibrary("SDL3");
+
+    b.installArtifact(sdl_window_exe);
+
+    // Create build steps for individual executables
+    const build_main_step = b.step("main", "Build only the main executable");
+    build_main_step.dependOn(&b.addInstallArtifact(exe, .{}).step);
+
+    const build_grayscale_step = b.step("grayscale", "Build only the grayscale converter");
+    build_grayscale_step.dependOn(&b.addInstallArtifact(grayscale_exe, .{}).step);
+
+    const build_sdl_window_step = b.step("sdl-window", "Build only the SDL window demo");
+    build_sdl_window_step.dependOn(&b.addInstallArtifact(sdl_window_exe, .{}).step);
+
     // This creates a top level step. Top level steps have a name and can be
     // invoked by name when running `zig build` (e.g. `zig build run`).
     // This will evaluate the `run` step rather than the default step.
     // For a top level step to actually do something, it must depend on other
     // steps (e.g. a Run step, as we will see in a moment).
-    const run_step = b.step("run", "Run the app");
+    const run_step = b.step("run", "Run the main app");
 
     // This creates a RunArtifact step in the build graph. A RunArtifact step
     // invokes an executable compiled by Zig. Steps will only be executed by the
@@ -110,6 +153,24 @@ pub fn build(b: *std.Build) void {
     // the user runs `zig build run`, so we create a dependency link.
     const run_cmd = b.addRunArtifact(exe);
     run_step.dependOn(&run_cmd.step);
+
+    // Create run step for grayscale converter
+    const run_grayscale_step = b.step("run-grayscale", "Run the grayscale converter");
+    const grayscale_run_cmd = b.addRunArtifact(grayscale_exe);
+    run_grayscale_step.dependOn(&grayscale_run_cmd.step);
+    grayscale_run_cmd.step.dependOn(b.getInstallStep());
+
+    // Create run step for SDL window demo
+    const run_sdl_window_step = b.step("run-sdl-window", "Run the SDL window demo");
+    const sdl_window_run_cmd = b.addRunArtifact(sdl_window_exe);
+    run_sdl_window_step.dependOn(&sdl_window_run_cmd.step);
+    sdl_window_run_cmd.step.dependOn(b.getInstallStep());
+
+    if (b.args) |args| {
+        run_cmd.addArgs(args);
+        grayscale_run_cmd.addArgs(args);
+        sdl_window_run_cmd.addArgs(args);
+    }
 
     // By making the run step depend on the default step, it will be run from the
     // installation directory rather than directly from within the cache directory.
