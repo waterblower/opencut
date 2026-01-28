@@ -7,3 +7,4 @@
 doc.md
 /zig-out
 .DS_Store
+*.dylib

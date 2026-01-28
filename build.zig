@@ -164,6 +164,22 @@ pub fn build(b: *std.Build) void {
     const build_ffi_step = b.step("ffi", "Build the FFI shared library for Flutter");
     build_ffi_step.dependOn(&b.addInstallArtifact(ffi_lib, .{}).step);
 
+    // Create a step to copy the FFI library to Flutter's macOS Frameworks directory
+    const copy_ffi_to_flutter = b.step("copy-ffi", "Copy FFI library to Flutter macOS Frameworks");
+    const copy_step = CopyFFIStep.create(b, ffi_lib);
+    copy_ffi_to_flutter.dependOn(&copy_step.step);
+
+    // Create a combined step that builds and copies the FFI library
+    const flutter_prep = b.step("flutter-prep", "Build FFI library and copy to Flutter Frameworks");
+    flutter_prep.dependOn(build_ffi_step);
+    flutter_prep.dependOn(copy_ffi_to_flutter);
+
+    // Create a step to run the Flutter app
+    const flutter_run_step = b.step("flutter-run", "Build FFI, copy to Flutter, and run Flutter app");
+    const flutter_run = FlutterRunStep.create(b);
+    flutter_run.step.dependOn(flutter_prep);
+    flutter_run_step.dependOn(&flutter_run.step);
+
     // Create build steps for individual executables
     const build_main_step = b.step("main", "Build only the main executable");
     build_main_step.dependOn(&b.addInstallArtifact(exe, .{}).step);
@@ -267,3 +283,108 @@ pub fn build(b: *std.Build) void {
     // Lastly, the Zig build system is relatively simple and self-contained,
     // and reading its source code will allow you to master it.
 }
+
+// Custom step to copy FFI library to Flutter's Frameworks directory
+const CopyFFIStep = struct {
+    step: std.Build.Step,
+    builder: *std.Build,
+    lib: *std.Build.Step.Compile,
+
+    pub fn create(builder: *std.Build, lib: *std.Build.Step.Compile) *CopyFFIStep {
+        const self = builder.allocator.create(CopyFFIStep) catch @panic("OOM");
+        self.* = .{
+            .step = std.Build.Step.init(.{
+                .id = .custom,
+                .name = "copy FFI library to Flutter",
+                .owner = builder,
+                .makeFn = make,
+            }),
+            .builder = builder,
+            .lib = lib,
+        };
+        self.step.dependOn(&lib.step);
+        return self;
+    }
+
+    fn make(step: *std.Build.Step, options: std.Build.Step.MakeOptions) !void {
+        _ = options;
+        const self: *CopyFFIStep = @fieldParentPtr("step", step);
+        const b = self.builder;
+
+        // Get the path to the built library
+        const lib_path = self.lib.getEmittedBin();
+
+        // Construct destination path
+        const dest_dir = "gui/macos/Runner/Frameworks";
+        const dest_path = b.fmt("{s}/libzig_ffi.dylib", .{dest_dir});
+
+        // Create destination directory
+        std.fs.cwd().makePath(dest_dir) catch |err| {
+            std.debug.print("Warning: Could not create directory {s}: {}\n", .{ dest_dir, err });
+        };
+
+        // Copy the file
+        const source = try std.fs.cwd().openFile(lib_path.getPath(b), .{});
+        defer source.close();
+
+        const dest = try std.fs.cwd().createFile(dest_path, .{});
+        defer dest.close();
+
+        var buf: [4096]u8 = undefined;
+        while (true) {
+            const bytes_read = try source.read(&buf);
+            if (bytes_read == 0) break;
+            try dest.writeAll(buf[0..bytes_read]);
+        }
+
+        std.debug.print("Copied FFI library to {s}\n", .{dest_path});
+    }
+};
+
+// Custom step to run Flutter app
+const FlutterRunStep = struct {
+    step: std.Build.Step,
+    builder: *std.Build,
+
+    pub fn create(builder: *std.Build) *FlutterRunStep {
+        const self = builder.allocator.create(FlutterRunStep) catch @panic("OOM");
+        self.* = .{
+            .step = std.Build.Step.init(.{
+                .id = .custom,
+                .name = "run Flutter app",
+                .owner = builder,
+                .makeFn = make,
+            }),
+            .builder = builder,
+        };
+        return self;
+    }
+
+    fn make(step: *std.Build.Step, options: std.Build.Step.MakeOptions) !void {
+        _ = options;
+        const self: *FlutterRunStep = @fieldParentPtr("step", step);
+        const b = self.builder;
+
+        std.debug.print("Running Flutter app...\n", .{});
+
+        // Run flutter from the gui directory
+        const result = try std.process.Child.run(.{
+            .allocator = b.allocator,
+            .argv = &[_][]const u8{ "flutter", "run", "-d", "macos" },
+            .cwd = "gui",
+        });
+        defer b.allocator.free(result.stdout);
+        defer b.allocator.free(result.stderr);
+
+        if (result.stdout.len > 0) {
+            std.debug.print("{s}", .{result.stdout});
+        }
+        if (result.stderr.len > 0) {
+            std.debug.print("{s}", .{result.stderr});
+        }
+
+        if (result.term.Exited != 0) {
+            return error.FlutterRunFailed;
+        }
+    }
+};
