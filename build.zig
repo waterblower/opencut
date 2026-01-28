@@ -128,6 +128,25 @@ pub fn build(b: *std.Build) void {
 
     b.installArtifact(sdl_window_exe);
 
+    // Create player executable
+    const player_exe = b.addExecutable(.{
+        .name = "player",
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("src/player.zig"),
+            .target = target,
+            .optimize = optimize,
+        }),
+    });
+
+    player_exe.linkLibC();
+    player_exe.linkSystemLibrary("SDL3");
+    player_exe.linkSystemLibrary("avformat");
+    player_exe.linkSystemLibrary("avcodec");
+    player_exe.linkSystemLibrary("avutil");
+    player_exe.linkSystemLibrary("swscale");
+
+    b.installArtifact(player_exe);
+
     // Create build steps for individual executables
     const build_main_step = b.step("main", "Build only the main executable");
     build_main_step.dependOn(&b.addInstallArtifact(exe, .{}).step);
@@ -137,6 +156,9 @@ pub fn build(b: *std.Build) void {
 
     const build_sdl_window_step = b.step("sdl-window", "Build only the SDL window demo");
     build_sdl_window_step.dependOn(&b.addInstallArtifact(sdl_window_exe, .{}).step);
+
+    const build_player_step = b.step("player", "Build only the video player");
+    build_player_step.dependOn(&b.addInstallArtifact(player_exe, .{}).step);
 
     // This creates a top level step. Top level steps have a name and can be
     // invoked by name when running `zig build` (e.g. `zig build run`).
@@ -166,10 +188,17 @@ pub fn build(b: *std.Build) void {
     run_sdl_window_step.dependOn(&sdl_window_run_cmd.step);
     sdl_window_run_cmd.step.dependOn(b.getInstallStep());
 
+    // Create run step for player
+    const run_player_step = b.step("run-player", "Run the video player");
+    const player_run_cmd = b.addRunArtifact(player_exe);
+    run_player_step.dependOn(&player_run_cmd.step);
+    player_run_cmd.step.dependOn(b.getInstallStep());
+
     if (b.args) |args| {
         run_cmd.addArgs(args);
         grayscale_run_cmd.addArgs(args);
         sdl_window_run_cmd.addArgs(args);
+        player_run_cmd.addArgs(args);
     }
 
     // By making the run step depend on the default step, it will be run from the
