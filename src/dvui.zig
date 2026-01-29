@@ -24,18 +24,19 @@ pub fn main() !void {
     defer _ = gpa_instance.deinit();
 
     // Initialize video
-    var video = vid.openVideo(gpa, "test-videos/test.mp4") catch |err| blk: {
+    const v = vid.openVideo(gpa, "test-videos/test.mp4") catch |err| blk: {
         std.debug.print("Could not open video: {}\n", .{err});
         std.debug.print("Make sure 'test-videos/test.mp4' exists\n", .{});
         break :blk null;
     };
-    if (video == null) {
+    if (v == null) {
         std.debug.panic("video is null", .{});
     }
+    var video: *vid.Video = v orelse unreachable;
+
     defer {
-        if (video) |v| {
-            v.deinit();
-        }
+        video.deinit();
+
         if (g_current_frame) |*frame| {
             frame.deinit(gpa);
         }
@@ -81,10 +82,10 @@ pub fn main() !void {
         _ = SDL.SDL_RenderClear(backend.renderer);
 
         // Update video frame if playing
-        updateNextFrame();
+        updateNextFrame(video);
 
         // Render GUI
-        const keep_running = guiFrame(&backend);
+        const keep_running = guiFrame(&backend, video);
         if (!keep_running) break;
 
         const end_micros = try win.end(.{});
@@ -96,9 +97,9 @@ pub fn main() !void {
 
         // When video is playing, we need continuous updates
         var wait_event_micros = win.waitTime(end_micros);
-        if (g_is_playing and video != null and !video.?.isFinished()) {
+        if (g_is_playing and !video.isFinished()) {
             // Limit wait to frame duration to ensure continuous playback
-            const frame_duration_ms = video.?.frameDurationMs();
+            const frame_duration_ms = video.frameDurationMs();
             const max_wait_micros = frame_duration_ms * 1000;
             if (wait_event_micros > max_wait_micros) {
                 wait_event_micros = max_wait_micros;
@@ -122,7 +123,7 @@ fn createTexture(renderer: *SDL.SDL_Renderer, width: i32, height: i32) !void {
 }
 
 fn updateNextFrame(video: *vid.Video) void {
-    if (video == null or !g_is_playing or video.?.isFinished() or g_texture == null) {
+    if (!g_is_playing or video.isFinished() or g_texture == null) {
         return;
     }
 
