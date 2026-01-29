@@ -13,7 +13,6 @@ const gpa = gpa_instance.allocator();
 var g_current_frame: ?vid.FrameData = null;
 
 // Rendering state
-var g_texture: ?*SDL.SDL_Texture = null;
 var g_backend: ?*SDLBackend = null;
 
 // Playback state
@@ -53,14 +52,10 @@ pub fn main() !void {
     g_backend = &backend;
     defer backend.deinit();
 
-    // Create texture if video was loaded
-
-    try createTexture(backend.renderer, video.width, video.height);
-
+    // Create texture after video was loaded
+    const texture = try createTexture(backend.renderer, video.width, video.height);
     defer {
-        if (g_texture) |t| {
-            SDL.SDL_DestroyTexture(t);
-        }
+        SDL.SDL_DestroyTexture(texture);
     }
 
     // Initialize dvui window
@@ -82,10 +77,10 @@ pub fn main() !void {
         _ = SDL.SDL_RenderClear(backend.renderer);
 
         // Update video frame if playing
-        updateNextFrame(video);
+        updateNextFrame(video, texture);
 
         // Render GUI
-        const keep_running = guiFrame(&backend, video);
+        const keep_running = guiFrame(&backend, video, texture);
         if (!keep_running) break;
 
         const end_micros = try win.end(.{});
@@ -109,21 +104,22 @@ pub fn main() !void {
     }
 }
 
-fn createTexture(renderer: *SDL.SDL_Renderer, width: i32, height: i32) !void {
-    g_texture = SDL.SDL_CreateTexture(
+fn createTexture(renderer: *SDL.SDL_Renderer, width: i32, height: i32) !*SDL.SDL_Texture {
+    const texture = SDL.SDL_CreateTexture(
         renderer,
         SDL.SDL_PIXELFORMAT_RGB24,
         SDL.SDL_TEXTUREACCESS_STREAMING,
         width,
         height,
     );
-    if (g_texture == null) {
+    if (texture == null) {
         return error.CouldNotCreateTexture;
     }
+    return texture.?;
 }
 
-fn updateNextFrame(video: *vid.Video) void {
-    if (!g_is_playing or video.isFinished() or g_texture == null) {
+fn updateNextFrame(video: *vid.Video, texture: *SDL.SDL_Texture) void {
+    if (!g_is_playing or video.isFinished()) {
         return;
     }
 
@@ -165,7 +161,7 @@ fn updateNextFrame(video: *vid.Video) void {
 
         // Update texture with new frame data
         _ = SDL.SDL_UpdateTexture(
-            g_texture,
+            texture,
             null,
             new_frame.data,
             new_frame.pitch,
@@ -176,7 +172,7 @@ fn updateNextFrame(video: *vid.Video) void {
     }
 }
 
-fn guiFrame(backend: *SDLBackend, video: *vid.Video) bool {
+fn guiFrame(backend: *SDLBackend, video: *vid.Video, texture: *SDL.SDL_Texture) bool {
     // Top menu bar
     {
         var hbox = dvui.box(@src(), .{ .dir = .horizontal }, .{ .style = .window, .background = true, .expand = .horizontal });
@@ -217,45 +213,40 @@ fn guiFrame(backend: *SDLBackend, video: *vid.Video) bool {
     info.deinit();
 
     // Video display area
-    if (g_texture != null) {
-        var video_box = dvui.box(@src(), .{}, .{
-            .expand = .horizontal,
-            .min_size_content = .{ .h = 400 },
-            .background = true,
-            .margin = .{ .x = 8, .w = 8, .y = 8, .h = 8 },
-        });
-        defer video_box.deinit();
 
-        // Get the screen rectangle for the box
-        const rs = video_box.data().contentRectScale();
+    var video_box = dvui.box(@src(), .{}, .{
+        .expand = .horizontal,
+        .min_size_content = .{ .h = 400 },
+        .background = true,
+        .margin = .{ .x = 8, .w = 8, .y = 8, .h = 8 },
+    });
+    defer video_box.deinit();
 
-        // Calculate aspect ratio preserving destination rectangle
-        const frame_aspect = @as(f32, @floatFromInt(video.width)) / @as(f32, @floatFromInt(video.height));
-        const box_aspect = rs.r.w / rs.r.h;
+    // Get the screen rectangle for the box
+    const rs = video_box.data().contentRectScale();
 
-        var dst_rect: SDL.SDL_FRect = undefined;
+    // Calculate aspect ratio preserving destination rectangle
+    const frame_aspect = @as(f32, @floatFromInt(video.width)) / @as(f32, @floatFromInt(video.height));
+    const box_aspect = rs.r.w / rs.r.h;
 
-        if (box_aspect > frame_aspect) {
-            // Box is wider than frame - fit to height
-            dst_rect.h = rs.r.h;
-            dst_rect.w = dst_rect.h * frame_aspect;
-            dst_rect.x = rs.r.x + (rs.r.w - dst_rect.w) / 2.0;
-            dst_rect.y = rs.r.y;
-        } else {
-            // Box is taller than frame - fit to width
-            dst_rect.w = rs.r.w;
-            dst_rect.h = dst_rect.w / frame_aspect;
-            dst_rect.x = rs.r.x;
-            dst_rect.y = rs.r.y + (rs.r.h - dst_rect.h) / 2.0;
-        }
+    var dst_rect: SDL.SDL_FRect = undefined;
 
-        // Render video texture
-        _ = SDL.SDL_RenderTexture(backend.renderer, g_texture, null, &dst_rect);
+    if (box_aspect > frame_aspect) {
+        // Box is wider than frame - fit to height
+        dst_rect.h = rs.r.h;
+        dst_rect.w = dst_rect.h * frame_aspect;
+        dst_rect.x = rs.r.x + (rs.r.w - dst_rect.w) / 2.0;
+        dst_rect.y = rs.r.y;
     } else {
-        var placeholder = dvui.textLayout(@src(), .{}, .{ .expand = .horizontal, .margin = .{ .y = 20 } });
-        placeholder.addText("No video loaded. Place 'test-videos/test.mp4' in the directory and restart.", .{});
-        placeholder.deinit();
+        // Box is taller than frame - fit to width
+        dst_rect.w = rs.r.w;
+        dst_rect.h = dst_rect.w / frame_aspect;
+        dst_rect.x = rs.r.x;
+        dst_rect.y = rs.r.y + (rs.r.h - dst_rect.h) / 2.0;
     }
+
+    // Render video texture
+    _ = SDL.SDL_RenderTexture(backend.renderer, texture, null, &dst_rect);
 
     // Playback controls
     {
