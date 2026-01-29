@@ -8,3 +8,5 @@ doc.md
 /zig-out
 .DS_Store
 *.dylib
+/zig/zig-out
+/zig/.zig-cache
