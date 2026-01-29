@@ -16,84 +16,17 @@ pub fn build(b: *std.Build) void {
     // between Debug, ReleaseSafe, ReleaseFast, and ReleaseSmall. Here we do not
     // set a preferred release mode, allowing the user to decide how to optimize.
     const optimize = b.standardOptimizeOption(.{});
+
+    // Import dvui dependency with SDL3 backend
+    const dvui_dep = b.dependency("dvui", .{
+        .target = target,
+        .optimize = optimize,
+        .backend = .sdl3,
+    });
     // It's also possible to define more custom flags to toggle optional features
     // of this build script using `b.option()`. All defined flags (including
     // target and optimize options) will be listed when running `zig build --help`
     // in this directory.
-
-    // This creates a module, which represents a collection of source files alongside
-    // some compilation options, such as optimization mode and linked system libraries.
-    // Zig modules are the preferred way of making Zig code available to consumers.
-    // addModule defines a module that we intend to make available for importing
-    // to our consumers. We must give it a name because a Zig package can expose
-    // multiple modules and consumers will need to be able to specify which
-    // module they want to access.
-    const mod = b.addModule("vid_demo", .{
-        // The root source file is the "entry point" of this module. Users of
-        // this module will only be able to access public declarations contained
-        // in this file, which means that if you have declarations that you
-        // intend to expose to consumers that were defined in other files part
-        // of this module, you will have to make sure to re-export them from
-        // the root file.
-        .root_source_file = b.path("src/root.zig"),
-        // Later on we'll use this module as the root module of a test executable
-        // which requires us to specify a target.
-        .target = target,
-    });
-
-    // Here we define an executable. An executable needs to have a root module
-    // which needs to expose a `main` function. While we could add a main function
-    // to the module defined above, it's sometimes preferable to split business
-    // logic and the CLI into two separate modules.
-    //
-    // If your goal is to create a Zig library for others to use, consider if
-    // it might benefit from also exposing a CLI tool. A parser library for a
-    // data serialization format could also bundle a CLI syntax checker, for example.
-    //
-    // If instead your goal is to create an executable, consider if users might
-    // be interested in also being able to embed the core functionality of your
-    // program in their own executable in order to avoid the overhead involved in
-    // subprocessing your CLI tool.
-    //
-    // If neither case applies to you, feel free to delete the declaration you
-    // don't need and to put everything under a single module.
-    const exe = b.addExecutable(.{
-        .name = "vid_demo",
-        .root_module = b.createModule(.{
-            // b.createModule defines a new module just like b.addModule but,
-            // unlike b.addModule, it does not expose the module to consumers of
-            // this package, which is why in this case we don't have to give it a name.
-            .root_source_file = b.path("src/main.zig"),
-            // Target and optimization levels must be explicitly wired in when
-            // defining an executable or library (in the root module), and you
-            // can also hardcode a specific target for an executable or library
-            // definition if desireable (e.g. firmware for embedded devices).
-            .target = target,
-            .optimize = optimize,
-            // List of modules available for import in source files part of the
-            // root module.
-            .imports = &.{
-                // Here "vid_demo" is the name you will use in your source code to
-                // import this module (e.g. `@import("vid_demo")`). The name is
-                // repeated because you are allowed to rename your imports, which
-                // can be extremely useful in case of collisions (which can happen
-                // importing modules from different packages).
-                .{ .name = "vid_demo", .module = mod },
-            },
-        }),
-    });
-
-    exe.linkLibC();
-    exe.linkSystemLibrary("avformat");
-    exe.linkSystemLibrary("avcodec");
-    exe.linkSystemLibrary("avutil");
-    exe.linkSystemLibrary("swscale");
-
-    // This declares intent for the executable to be installed into the
-    // install prefix when running `zig build` (i.e. when executing the default
-    // step). By default the install prefix is `zig-out/` but can be overridden
-    // by passing `--prefix` or `-p`.
-    b.installArtifact(exe);
 
     // Create grayscale converter executable
     const grayscale_exe = b.addExecutable(.{
@@ -148,6 +81,28 @@ pub fn build(b: *std.Build) void {
 
     b.installArtifact(player_exe);
 
+    // Create DVUI video player executable
+    const dvui_exe = b.addExecutable(.{
+        .name = "dvui-player",
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("src/dvui.zig"),
+            .target = target,
+            .optimize = optimize,
+        }),
+    });
+
+    dvui_exe.root_module.addImport("dvui", dvui_dep.module("dvui_sdl3"));
+    dvui_exe.root_module.addImport("SDLBackend", dvui_dep.module("sdl3"));
+
+    dvui_exe.linkLibC();
+    dvui_exe.linkSystemLibrary("SDL3");
+    dvui_exe.linkSystemLibrary("avformat");
+    dvui_exe.linkSystemLibrary("avcodec");
+    dvui_exe.linkSystemLibrary("avutil");
+    dvui_exe.linkSystemLibrary("swscale");
+
+    b.installArtifact(dvui_exe);
+
     // Create FFI shared library for Flutter
     const ffi_lib = b.addLibrary(.{
         .name = "zig_ffi",
@@ -187,9 +142,6 @@ pub fn build(b: *std.Build) void {
     flutter_run_step.dependOn(&flutter_run.step);
 
     // Create build steps for individual executables
-    const build_main_step = b.step("main", "Build only the main executable");
-    build_main_step.dependOn(&b.addInstallArtifact(exe, .{}).step);
-
     const build_grayscale_step = b.step("grayscale", "Build only the grayscale converter");
     build_grayscale_step.dependOn(&b.addInstallArtifact(grayscale_exe, .{}).step);
 
@@ -199,21 +151,8 @@ pub fn build(b: *std.Build) void {
     const build_player_step = b.step("player", "Build only the video player");
     build_player_step.dependOn(&b.addInstallArtifact(player_exe, .{}).step);
 
-    // This creates a top level step. Top level steps have a name and can be
-    // invoked by name when running `zig build` (e.g. `zig build run`).
-    // This will evaluate the `run` step rather than the default step.
-    // For a top level step to actually do something, it must depend on other
-    // steps (e.g. a Run step, as we will see in a moment).
-    const run_step = b.step("run", "Run the main app");
-
-    // This creates a RunArtifact step in the build graph. A RunArtifact step
-    // invokes an executable compiled by Zig. Steps will only be executed by the
-    // runner if invoked directly by the user (in the case of top level steps)
-    // or if another step depends on it, so it's up to you to define when and
-    // how this Run step will be executed. In our case we want to run it when
-    // the user runs `zig build run`, so we create a dependency link.
-    const run_cmd = b.addRunArtifact(exe);
-    run_step.dependOn(&run_cmd.step);
+    const build_dvui_step = b.step("dvui", "Build only the DVUI video player");
+    build_dvui_step.dependOn(&b.addInstallArtifact(dvui_exe, .{}).step);
 
     // Create run step for grayscale converter
     const run_grayscale_step = b.step("run-grayscale", "Run the grayscale converter");
@@ -233,49 +172,18 @@ pub fn build(b: *std.Build) void {
     run_player_step.dependOn(&player_run_cmd.step);
     player_run_cmd.step.dependOn(b.getInstallStep());
 
+    // Create run step for DVUI player
+    const run_dvui_step = b.step("run-dvui", "Run the DVUI video player");
+    const dvui_run_cmd = b.addRunArtifact(dvui_exe);
+    run_dvui_step.dependOn(&dvui_run_cmd.step);
+    dvui_run_cmd.step.dependOn(b.getInstallStep());
+
     if (b.args) |args| {
-        run_cmd.addArgs(args);
         grayscale_run_cmd.addArgs(args);
         sdl_window_run_cmd.addArgs(args);
         player_run_cmd.addArgs(args);
+        dvui_run_cmd.addArgs(args);
     }
-
-    // By making the run step depend on the default step, it will be run from the
-    // installation directory rather than directly from within the cache directory.
-    run_cmd.step.dependOn(b.getInstallStep());
-
-    // This allows the user to pass arguments to the application in the build
-    // command itself, like this: `zig build run -- arg1 arg2 etc`
-    if (b.args) |args| {
-        run_cmd.addArgs(args);
-    }
-
-    // Creates an executable that will run `test` blocks from the provided module.
-    // Here `mod` needs to define a target, which is why earlier we made sure to
-    // set the releative field.
-    const mod_tests = b.addTest(.{
-        .root_module = mod,
-    });
-
-    // A run step that will run the test executable.
-    const run_mod_tests = b.addRunArtifact(mod_tests);
-
-    // Creates an executable that will run `test` blocks from the executable's
-    // root module. Note that test executables only test one module at a time,
-    // hence why we have to create two separate ones.
-    const exe_tests = b.addTest(.{
-        .root_module = exe.root_module,
-    });
-
-    // A run step that will run the second test executable.
-    const run_exe_tests = b.addRunArtifact(exe_tests);
-
-    // A top level step for running all tests. dependOn can be called multiple
-    // times and since the two run steps do not depend on one another, this will
-    // make the two of them run in parallel.
-    const test_step = b.step("test", "Run tests");
-    test_step.dependOn(&run_mod_tests.step);
-    test_step.dependOn(&run_exe_tests.step);
 
     // Just like flags, top level steps are also listed in the `--help` menu.
     //
