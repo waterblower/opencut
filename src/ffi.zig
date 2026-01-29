@@ -4,6 +4,8 @@ const c = @cImport({
     @cInclude("libavformat/avformat.h");
     @cInclude("libavcodec/avcodec.h");
     @cInclude("libavutil/avutil.h");
+    @cInclude("libavutil/imgutils.h");
+    @cInclude("libswscale/swscale.h");
 });
 
 /// Simple add function that can be called from Flutter via FFI
@@ -14,6 +16,218 @@ export fn add(a: i32, b: i32) i32 {
 
 /// Global allocator for FFI functions
 var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+
+/// Structure to hold frame data information
+pub const FrameData = extern struct {
+    data: [*]u8,
+    width: i32,
+    height: i32,
+    size: i32,
+};
+
+/// Get the nth frame from a video file as RGB24 data
+/// Returns a pointer to FrameData structure (must be freed by caller using free_frame_data)
+/// Returns null if there's an error
+export fn get_nth_frame(file_path: [*:0]const u8, n: i32) ?*FrameData {
+    const allocator = gpa.allocator();
+
+    // Allocate format context with optimized settings
+    var fmt_ctx: ?*c.AVFormatContext = c.avformat_alloc_context();
+    if (fmt_ctx == null) {
+        return null;
+    }
+
+    // Optimize stream info retrieval for faster first frame extraction
+    fmt_ctx.?.*.probesize = 5000000; // 5MB instead of default
+    fmt_ctx.?.*.max_analyze_duration = 5000000; // 5 seconds in AV_TIME_BASE units
+
+    // Open input file
+    if (c.avformat_open_input(&fmt_ctx, file_path, null, null) < 0) {
+        return null;
+    }
+    defer c.avformat_close_input(&fmt_ctx);
+
+    // Retrieve stream information
+    if (c.avformat_find_stream_info(fmt_ctx, null) < 0) {
+        return null;
+    }
+
+    // Find video stream
+    var video_stream_idx: i32 = -1;
+    const nb_streams = fmt_ctx.?.*.nb_streams;
+    var i: u32 = 0;
+    while (i < nb_streams) : (i += 1) {
+        const stream = fmt_ctx.?.*.streams[i];
+        if (stream.*.codecpar.*.codec_type == c.AVMEDIA_TYPE_VIDEO) {
+            video_stream_idx = @intCast(i);
+            break;
+        }
+    }
+
+    if (video_stream_idx == -1) {
+        return null;
+    }
+
+    // Get codec parameters
+    const codecpar = fmt_ctx.?.*.streams[@intCast(video_stream_idx)].*.codecpar;
+    const codec = c.avcodec_find_decoder(codecpar.*.codec_id);
+    if (codec == null) {
+        return null;
+    }
+
+    // Allocate codec context
+    const codec_ctx = c.avcodec_alloc_context3(codec);
+    if (codec_ctx == null) {
+        return null;
+    }
+    defer c.avcodec_free_context(@constCast(&codec_ctx));
+
+    // Copy codec parameters to context
+    if (c.avcodec_parameters_to_context(codec_ctx, codecpar) < 0) {
+        return null;
+    }
+
+    // Open codec with threading for faster decoding
+    codec_ctx.*.thread_count = 0; // Auto-detect thread count
+    codec_ctx.*.thread_type = c.FF_THREAD_SLICE | c.FF_THREAD_FRAME;
+
+    if (c.avcodec_open2(codec_ctx, codec, null) < 0) {
+        return null;
+    }
+
+    // Allocate frame structures
+    const frame = c.av_frame_alloc();
+    if (frame == null) {
+        return null;
+    }
+    defer c.av_frame_free(@constCast(&frame));
+
+    const rgb_frame = c.av_frame_alloc();
+    if (rgb_frame == null) {
+        return null;
+    }
+    defer c.av_frame_free(@constCast(&rgb_frame));
+
+    // Allocate packet
+    const packet = c.av_packet_alloc();
+    if (packet == null) {
+        return null;
+    }
+    defer c.av_packet_free(@constCast(&packet));
+
+    // Setup RGB frame
+    const width = codec_ctx.*.width;
+    const height = codec_ctx.*.height;
+    const num_bytes = c.av_image_get_buffer_size(c.AV_PIX_FMT_RGB24, width, height, 1);
+    const buffer = c.av_malloc(@intCast(num_bytes));
+    if (buffer == null) {
+        return null;
+    }
+    defer c.av_free(buffer);
+
+    _ = c.av_image_fill_arrays(
+        @ptrCast(&rgb_frame.*.data),
+        @ptrCast(&rgb_frame.*.linesize),
+        @ptrCast(buffer),
+        c.AV_PIX_FMT_RGB24,
+        width,
+        height,
+        1,
+    );
+
+    // Initialize SWS context for color conversion
+    const sws_ctx = c.sws_getContext(
+        width,
+        height,
+        codec_ctx.*.pix_fmt,
+        width,
+        height,
+        c.AV_PIX_FMT_RGB24,
+        c.SWS_BILINEAR,
+        null,
+        null,
+        null,
+    );
+    if (sws_ctx == null) {
+        return null;
+    }
+    defer c.sws_freeContext(sws_ctx);
+
+    // Read frames until we reach the nth frame
+    var frame_count: i32 = 0;
+    var found = false;
+
+    while (c.av_read_frame(fmt_ctx, packet) >= 0) {
+        defer c.av_packet_unref(packet);
+
+        if (packet.*.stream_index != video_stream_idx) {
+            continue;
+        }
+
+        // Send packet to decoder
+        if (c.avcodec_send_packet(codec_ctx, packet) < 0) {
+            continue;
+        }
+
+        // Receive all frames from this packet
+        while (c.avcodec_receive_frame(codec_ctx, frame) >= 0) {
+            if (frame_count == n) {
+                // Convert to RGB24
+                _ = c.sws_scale(
+                    sws_ctx,
+                    @ptrCast(&frame.*.data),
+                    @ptrCast(&frame.*.linesize),
+                    0,
+                    height,
+                    @ptrCast(&rgb_frame.*.data),
+                    @ptrCast(&rgb_frame.*.linesize),
+                );
+
+                // Allocate and copy frame data
+                const frame_data = allocator.create(FrameData) catch return null;
+                const data_size: usize = @intCast(num_bytes);
+                const data_copy = allocator.alloc(u8, data_size) catch {
+                    allocator.destroy(frame_data);
+                    return null;
+                };
+
+                // Copy RGB data
+                const src_ptr: [*]u8 = @ptrCast(buffer);
+                @memcpy(data_copy, src_ptr[0..data_size]);
+
+                frame_data.* = FrameData{
+                    .data = data_copy.ptr,
+                    .width = width,
+                    .height = height,
+                    .size = @intCast(num_bytes),
+                };
+
+                found = true;
+                return frame_data;
+            }
+            frame_count += 1;
+        }
+
+        if (found) break;
+    }
+
+    return null;
+}
+
+/// Free frame data allocated by get_nth_frame
+export fn free_frame_data(frame_data: ?*FrameData) void {
+    if (frame_data == null) return;
+
+    const allocator = gpa.allocator();
+    const fd = frame_data.?;
+
+    // Free the data buffer
+    const data_slice = fd.data[0..@intCast(fd.size)];
+    allocator.free(data_slice);
+
+    // Free the FrameData structure
+    allocator.destroy(fd);
+}
 
 /// Get video information from an MP4 file
 /// Returns a C string containing video metadata (must be freed by caller using free_string)

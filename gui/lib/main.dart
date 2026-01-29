@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
 import 'dart:developer' as developer;
 import 'dart:io';
+import 'dart:typed_data';
+import 'dart:ui' as ui;
+import 'dart:async';
+import 'package:flutter/foundation.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:path/path.dart' as path;
 import 'zig_ffi.dart';
@@ -26,7 +30,7 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Canvas Demo',
+      title: 'Video Frame Viewer',
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.blue),
         useMaterial3: true,
@@ -46,9 +50,6 @@ class MainScreen extends StatefulWidget {
 }
 
 class _MainScreenState extends State<MainScreen> {
-  final List<DrawingPoint> _points = [];
-  Color _selectedColor = Colors.black;
-  double _strokeWidth = 5.0;
   final TextEditingController _chatController = TextEditingController();
   final List<ChatMessage> _messages = [];
 
@@ -56,6 +57,8 @@ class _MainScreenState extends State<MainScreen> {
   List<FileSystemEntity> _mp4Files = [];
   String? _selectedFile;
   String? _videoInfo;
+  ui.Image? _currentFrame;
+  bool _isLoadingFrame = false;
 
   @override
   void dispose() {
@@ -84,6 +87,7 @@ class _MainScreenState extends State<MainScreen> {
         _currentDirectory = selectedDirectory;
         _mp4Files = _scanForMp4Files(selectedDirectory);
         _selectedFile = null;
+        _currentFrame = null;
       });
     }
   }
@@ -111,7 +115,7 @@ class _MainScreenState extends State<MainScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Canvas Editor'),
+        title: const Text('Video Frame Viewer'),
         backgroundColor: Theme.of(context).colorScheme.inversePrimary,
       ),
       body: Row(
@@ -127,6 +131,7 @@ class _MainScreenState extends State<MainScreen> {
             flex: 3,
             child: _buildCanvasPanel(),
           ),
+
 
           // Divider
           const VerticalDivider(width: 1, thickness: 1),
@@ -259,9 +264,11 @@ class _MainScreenState extends State<MainScreen> {
         onTap: () {
           setState(() {
             _selectedFile = filePath;
-            _videoInfo = null; // Reset video info
+            _videoInfo = null;
+            _currentFrame = null;
           });
           _loadVideoInfo(filePath);
+          _loadFirstFrame(filePath);
         },
         selected: isSelected,
       ),
@@ -288,6 +295,103 @@ class _MainScreenState extends State<MainScreen> {
     });
   }
 
+  Future<void> _loadFirstFrame(String filePath) async {
+    setState(() {
+      _isLoadingFrame = true;
+    });
+
+    try {
+      final result = await compute(_extractFrameInIsolate, filePath);
+
+      if (result != null) {
+        final (data, width, height) = result;
+
+        if (data == null) {
+          setState(() {
+            _isLoadingFrame = false;
+            _messages.add(ChatMessage(
+              text: 'Failed to extract frame data',
+              isUser: false,
+              timestamp: DateTime.now(),
+            ));
+          });
+          return;
+        }
+
+        // Convert RGB24 data to RGBA
+        final rgbaData = _convertRgbToRgba(data);
+
+        // Create image from bytes
+        final image = await _createImageFromPixels(rgbaData, width, height);
+
+        setState(() {
+          _currentFrame = image;
+          _isLoadingFrame = false;
+          _messages.add(ChatMessage(
+            text: 'Loaded first frame: ${width}x$height',
+            isUser: false,
+            timestamp: DateTime.now(),
+          ));
+        });
+      } else {
+        setState(() {
+          _isLoadingFrame = false;
+          _messages.add(ChatMessage(
+            text: 'Failed to load first frame',
+            isUser: false,
+            timestamp: DateTime.now(),
+          ));
+        });
+      }
+    } catch (e) {
+      setState(() {
+        _isLoadingFrame = false;
+        _messages.add(ChatMessage(
+          text: 'Error loading frame: $e',
+          isUser: false,
+          timestamp: DateTime.now(),
+        ));
+      });
+    }
+  }
+
+  static (List<int>?, int, int)? _extractFrameInIsolate(String filePath) {
+    try {
+      final zigFFI = ZigFFI();
+      return zigFFI.getNthFrame(filePath, 0);
+    } catch (e) {
+      return null;
+    }
+  }
+
+  Future<ui.Image> _createImageFromPixels(
+    List<int> rgbaData,
+    int width,
+    int height,
+  ) {
+    final completer = Completer<ui.Image>();
+    ui.decodeImageFromPixels(
+      Uint8List.fromList(rgbaData),
+      width,
+      height,
+      ui.PixelFormat.rgba8888,
+      completer.complete,
+    );
+    return completer.future;
+  }
+
+  List<int> _convertRgbToRgba(List<int> rgb) =>
+      List.generate(
+        (rgb.length ~/ 3) * 4,
+        (i) {
+          final pixelIndex = i ~/ 4;
+          final componentIndex = i % 4;
+          return componentIndex < 3
+              ? rgb[pixelIndex * 3 + componentIndex]
+              : 255;
+        },
+      );
+
   Widget _buildCanvasPanel() {
     return Column(
       children: [
@@ -298,49 +402,18 @@ class _MainScreenState extends State<MainScreen> {
             color: Colors.grey[200],
             border: Border(bottom: BorderSide(color: Colors.grey[300]!)),
           ),
-          child: Column(
+          child: Row(
             children: [
-              Row(
-                children: [
-                  IconButton(
-                    icon: const Icon(Icons.clear),
-                    onPressed: () {
-                      setState(() {
-                        _points.clear();
-                      });
-                    },
-                    tooltip: 'Clear Canvas',
-                  ),
-                  const SizedBox(width: 16),
-                  const Text('Colors: '),
-                  const SizedBox(width: 8),
-                  _buildColorButton(Colors.black),
-                  _buildColorButton(Colors.red),
-                  _buildColorButton(Colors.blue),
-                  _buildColorButton(Colors.green),
-                  _buildColorButton(Colors.yellow),
-                  _buildColorButton(Colors.purple),
-                  _buildColorButton(Colors.orange),
-                ],
-              ),
-              Row(
-                children: [
-                  const Text('Stroke: '),
-                  Expanded(
-                    child: Slider(
-                      value: _strokeWidth,
-                      min: 1.0,
-                      max: 20.0,
-                      divisions: 19,
-                      label: _strokeWidth.round().toString(),
-                      onChanged: (value) {
-                        setState(() {
-                          _strokeWidth = value;
-                        });
-                      },
-                    ),
-                  ),
-                ],
+              const Icon(Icons.videocam, size: 20),
+              const SizedBox(width: 8),
+              Text(
+                _selectedFile != null
+                    ? 'File: ${path.basename(_selectedFile!)}'
+                    : 'No video selected',
+                style: const TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w500,
+                ),
               ),
             ],
           ),
@@ -354,39 +427,24 @@ class _MainScreenState extends State<MainScreen> {
               borderRadius: BorderRadius.circular(8),
               color: Colors.white,
             ),
-            child: GestureDetector(
-              onPanStart: (details) {
-                setState(() {
-                  _points.add(
-                    DrawingPoint(
-                      offset: details.localPosition,
-                      color: _selectedColor,
-                      strokeWidth: _strokeWidth,
-                    ),
-                  );
-                });
-              },
-              onPanUpdate: (details) {
-                setState(() {
-                  _points.add(
-                    DrawingPoint(
-                      offset: details.localPosition,
-                      color: _selectedColor,
-                      strokeWidth: _strokeWidth,
-                    ),
-                  );
-                });
-              },
-              onPanEnd: (details) {
-                setState(() {
-                  _points.add(DrawingPoint.end());
-                });
-              },
-              child: CustomPaint(
-                painter: CanvasPainter(points: _points),
-                size: Size.infinite,
-              ),
-            ),
+            child: _isLoadingFrame
+                ? const Center(
+                    child: CircularProgressIndicator(),
+                  )
+                : _currentFrame != null
+                    ? CustomPaint(
+                        painter: FramePainter(frame: _currentFrame!),
+                        size: Size.infinite,
+                      )
+                    : Center(
+                        child: Text(
+                          'Select a video file to view its first frame',
+                          style: TextStyle(
+                            color: Colors.grey[600],
+                            fontSize: 14,
+                          ),
+                        ),
+                      ),
           ),
         ),
       ],
@@ -477,32 +535,9 @@ class _MainScreenState extends State<MainScreen> {
           color: message.isUser ? Colors.blue[100] : Colors.grey[200],
           borderRadius: BorderRadius.circular(12),
         ),
-        child: Text(
+        child: SelectableText(
           message.text,
           style: const TextStyle(fontSize: 14),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildColorButton(Color color) {
-    return GestureDetector(
-      onTap: () {
-        setState(() {
-          _selectedColor = color;
-        });
-      },
-      child: Container(
-        width: 32,
-        height: 32,
-        margin: const EdgeInsets.symmetric(horizontal: 4),
-        decoration: BoxDecoration(
-          color: color,
-          shape: BoxShape.circle,
-          border: Border.all(
-            color: _selectedColor == color ? Colors.black : Colors.grey,
-            width: _selectedColor == color ? 3 : 1,
-          ),
         ),
       ),
     );
@@ -521,48 +556,37 @@ class ChatMessage {
   });
 }
 
-class DrawingPoint {
-  final Offset? offset;
-  final Color color;
-  final double strokeWidth;
+class FramePainter extends CustomPainter {
+  final ui.Image frame;
 
-  DrawingPoint({
-    this.offset,
-    required this.color,
-    required this.strokeWidth,
-  });
-
-  DrawingPoint.end()
-      : offset = null,
-        color = Colors.black,
-        strokeWidth = 1.0;
-}
-
-class CanvasPainter extends CustomPainter {
-  final List<DrawingPoint> points;
-
-  CanvasPainter({required this.points});
+  FramePainter({required this.frame});
 
   @override
   void paint(Canvas canvas, Size size) {
-    for (int i = 0; i < points.length - 1; i++) {
-      if (points[i].offset != null && points[i + 1].offset != null) {
-        final paint = Paint()
-          ..color = points[i].color
-          ..strokeWidth = points[i].strokeWidth
-          ..strokeCap = StrokeCap.round;
+    // Calculate scaling to fit frame within canvas while maintaining aspect ratio
+    final frameWidth = frame.width.toDouble();
+    final frameHeight = frame.height.toDouble();
+    final canvasWidth = size.width;
+    final canvasHeight = size.height;
 
-        canvas.drawLine(
-          points[i].offset!,
-          points[i + 1].offset!,
-          paint,
-        );
-      }
-    }
+    final scaleX = canvasWidth / frameWidth;
+    final scaleY = canvasHeight / frameHeight;
+    final scale = scaleX < scaleY ? scaleX : scaleY;
+
+    final scaledWidth = frameWidth * scale;
+    final scaledHeight = frameHeight * scale;
+
+    final offsetX = (canvasWidth - scaledWidth) / 2;
+    final offsetY = (canvasHeight - scaledHeight) / 2;
+
+    final srcRect = Rect.fromLTWH(0, 0, frameWidth, frameHeight);
+    final dstRect = Rect.fromLTWH(offsetX, offsetY, scaledWidth, scaledHeight);
+
+    canvas.drawImageRect(frame, srcRect, dstRect, Paint());
   }
 
   @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) {
-    return true;
+  bool shouldRepaint(covariant FramePainter oldDelegate) {
+    return oldDelegate.frame != frame;
   }
 }
