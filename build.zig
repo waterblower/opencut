@@ -159,6 +159,11 @@ pub fn build(b: *std.Build) void {
         .linkage = .dynamic,
     });
 
+    ffi_lib.linkLibC();
+    ffi_lib.linkSystemLibrary("avformat");
+    ffi_lib.linkSystemLibrary("avcodec");
+    ffi_lib.linkSystemLibrary("avutil");
+
     b.installArtifact(ffi_lib);
 
     const build_ffi_step = b.step("ffi", "Build the FFI shared library for Flutter");
