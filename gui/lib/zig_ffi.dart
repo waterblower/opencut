@@ -20,11 +20,36 @@ typedef FreeStringNative = ffi.Void Function(ffi.Pointer<ffi.Char> str);
 // Typedef for the Dart free_string function signature
 typedef FreeStringDart = void Function(ffi.Pointer<ffi.Char> str);
 
+// FrameData structure matching the Zig struct
+final class FrameData extends ffi.Struct {
+  external ffi.Pointer<ffi.Uint8> data;
+  @ffi.Int32()
+  external int width;
+  @ffi.Int32()
+  external int height;
+  @ffi.Int32()
+  external int size;
+}
+
+// Typedef for the native get_nth_frame function signature
+typedef GetNthFrameNative = ffi.Pointer<FrameData> Function(ffi.Pointer<ffi.Char> filePath, ffi.Int32 n);
+
+// Typedef for the Dart get_nth_frame function signature
+typedef GetNthFrameDart = ffi.Pointer<FrameData> Function(ffi.Pointer<ffi.Char> filePath, int n);
+
+// Typedef for the native free_frame_data function signature
+typedef FreeFrameDataNative = ffi.Void Function(ffi.Pointer<FrameData> frameData);
+
+// Typedef for the Dart free_frame_data function signature
+typedef FreeFrameDataDart = void Function(ffi.Pointer<FrameData> frameData);
+
 class ZigFFI {
   late final ffi.DynamicLibrary _lib;
   late final AddDart add;
   late final GetVideoInformationDart _getVideoInformationNative;
   late final FreeStringDart _freeStringNative;
+  late final GetNthFrameDart _getNthFrameNative;
+  late final FreeFrameDataDart _freeFrameDataNative;
 
   ZigFFI() {
     // Load the dynamic library
@@ -44,6 +69,16 @@ class ZigFFI {
     _freeStringNative = _lib
         .lookup<ffi.NativeFunction<FreeStringNative>>('free_string')
         .asFunction<FreeStringDart>();
+
+    // Look up the get_nth_frame function
+    _getNthFrameNative = _lib
+        .lookup<ffi.NativeFunction<GetNthFrameNative>>('get_nth_frame')
+        .asFunction<GetNthFrameDart>();
+
+    // Look up the free_frame_data function
+    _freeFrameDataNative = _lib
+        .lookup<ffi.NativeFunction<FreeFrameDataNative>>('free_frame_data')
+        .asFunction<FreeFrameDataDart>();
   }
 
   /// Get video information from an MP4 file
@@ -68,6 +103,42 @@ class ZigFFI {
       _freeStringNative(resultPtr);
 
       return result;
+    } finally {
+      // Free the input string
+      malloc.free(filePathPtr);
+    }
+  }
+
+  /// Get the nth frame from a video file as RGB24 data
+  /// Returns a list of bytes containing RGB24 pixel data, or null if there's an error
+  /// Also returns the width and height of the frame
+  (List<int>?, int, int)? getNthFrame(String filePath, int frameNumber) {
+    // Convert Dart string to C string
+    final filePathPtr = filePath.toNativeUtf8();
+
+    try {
+      // Call the native function
+      final frameDataPtr = _getNthFrameNative(filePathPtr.cast<ffi.Char>(), frameNumber);
+
+      // Check if the result is null
+      if (frameDataPtr.address == 0) {
+        return null;
+      }
+
+      // Extract frame data
+      final frameData = frameDataPtr.ref;
+      final width = frameData.width;
+      final height = frameData.height;
+      final size = frameData.size;
+
+      // Copy the data to a Dart list
+      final data = frameData.data.asTypedList(size);
+      final dataCopy = List<int>.from(data);
+
+      // Free the frame data
+      _freeFrameDataNative(frameDataPtr);
+
+      return (dataCopy, width, height);
     } finally {
       // Free the input string
       malloc.free(filePathPtr);

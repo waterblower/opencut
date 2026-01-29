@@ -163,6 +163,7 @@ pub fn build(b: *std.Build) void {
     ffi_lib.linkSystemLibrary("avformat");
     ffi_lib.linkSystemLibrary("avcodec");
     ffi_lib.linkSystemLibrary("avutil");
+    ffi_lib.linkSystemLibrary("swscale");
 
     b.installArtifact(ffi_lib);
 
