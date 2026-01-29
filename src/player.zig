@@ -232,7 +232,7 @@ pub fn main() !void {
 
     // Open video file
     var fmt_ctx: ?*c.AVFormatContext = null;
-    if (c.avformat_open_input(&fmt_ctx, "test.mp4", null, null) < 0) {
+    if (c.avformat_open_input(&fmt_ctx, "test-videos/test.mp4", null, null) < 0) {
         std.debug.print("Could not open video file\n", .{});
         return error.CouldNotOpenFile;
     }

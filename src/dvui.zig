@@ -66,6 +66,7 @@ pub fn main() !void {
 
     // Main loop
     while (true) {
+        const t0 = std.time.milliTimestamp();
         const nstime = win.beginWait(interrupted);
 
         try win.begin(nstime);
@@ -77,7 +78,9 @@ pub fn main() !void {
         _ = SDL.SDL_RenderClear(backend.renderer);
 
         // Update video frame if playing
+        std.debug.print("time cost t1: {}\n", .{std.time.milliTimestamp() - t0});
         updateNextFrame(video, texture);
+        std.debug.print("time cost t2: {}\n", .{std.time.milliTimestamp() - t0});
 
         // Render GUI
         const keep_running = guiFrame(&backend, video, texture);
@@ -101,6 +104,7 @@ pub fn main() !void {
             }
         }
         interrupted = try backend.waitEventTimeout(wait_event_micros);
+        std.debug.print("time cost end loop: {}\n\n", .{std.time.milliTimestamp() - t0});
     }
 }
 
@@ -146,11 +150,13 @@ fn updateNextFrame(video: *vid.Video, texture: *SDL.SDL_Texture) void {
     }
 
     // Get next frame
+    const t0 = std.time.milliTimestamp();
     const frame = video.nextFrame() catch |err| {
         std.debug.print("Error getting next frame: {}\n", .{err});
         g_is_playing = false;
         return;
     };
+    std.debug.print("time cost nextFrame: {}\n", .{std.time.milliTimestamp() - t0});
 
     if (frame) |new_frame| {
         // Free old frame if it exists
@@ -159,13 +165,27 @@ fn updateNextFrame(video: *vid.Video, texture: *SDL.SDL_Texture) void {
         }
         g_current_frame = new_frame;
 
-        // Update texture with new frame data
-        _ = SDL.SDL_UpdateTexture(
-            texture,
-            null,
-            new_frame.data,
-            new_frame.pitch,
-        );
+        // Update texture with new frame data using LockTexture for better performance
+        var pixels: ?*anyopaque = null;
+        var pitch: c_int = 0;
+
+        if (SDL.SDL_LockTexture(texture, null, &pixels, &pitch)) {
+            if (pixels) |dst| {
+                const src = new_frame.data;
+                const row_bytes = @as(usize, @intCast(new_frame.pitch));
+                const dst_pitch = @as(usize, @intCast(pitch));
+
+                // Copy row by row to handle different pitch values
+                var row: usize = 0;
+                while (row < @as(usize, @intCast(new_frame.height))) : (row += 1) {
+                    const src_row = src + row * row_bytes;
+                    const dst_row = @as([*]u8, @ptrCast(@alignCast(dst))) + row * dst_pitch;
+                    @memcpy(dst_row[0..row_bytes], src_row[0..row_bytes]);
+                }
+            }
+            SDL.SDL_UnlockTexture(texture);
+        }
+        std.debug.print("time cost SDL_UpdateTexture: {}\n", .{std.time.milliTimestamp() - t0});
     } else {
         // Video finished
         g_is_playing = false;
