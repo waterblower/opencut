@@ -61,22 +61,37 @@ pub fn build(b: *std.Build) void {
     }
 
     // Create grayscale converter executable
-    const grayscale_exe = b.addExecutable(.{
-        .name = "grayscale",
-        .root_module = b.createModule(.{
-            .root_source_file = b.path("src/grayscale.zig"),
-            .target = target,
-            .optimize = optimize,
-        }),
-    });
+    {
+        const grayscale_exe = b.addExecutable(.{
+            .name = "grayscale",
+            .root_module = b.createModule(.{
+                .root_source_file = b.path("attempts/grayscale.zig"),
+                .target = target,
+                .optimize = optimize,
+            }),
+        });
 
-    grayscale_exe.linkLibC();
-    grayscale_exe.linkSystemLibrary("avformat");
-    grayscale_exe.linkSystemLibrary("avcodec");
-    grayscale_exe.linkSystemLibrary("avutil");
-    grayscale_exe.linkSystemLibrary("swscale");
+        grayscale_exe.linkLibC();
+        grayscale_exe.linkSystemLibrary("avformat");
+        grayscale_exe.linkSystemLibrary("avcodec");
+        grayscale_exe.linkSystemLibrary("avutil");
+        grayscale_exe.linkSystemLibrary("swscale");
 
-    b.installArtifact(grayscale_exe);
+        b.installArtifact(grayscale_exe);
+
+        const build_grayscale_step = b.step("grayscale", "Build only the grayscale converter");
+        build_grayscale_step.dependOn(&b.addInstallArtifact(grayscale_exe, .{}).step);
+
+        // Create run step for grayscale converter
+        const run_grayscale_step = b.step("run-grayscale", "Run the grayscale converter");
+        const grayscale_run_cmd = b.addRunArtifact(grayscale_exe);
+        run_grayscale_step.dependOn(&grayscale_run_cmd.step);
+        grayscale_run_cmd.step.dependOn(b.getInstallStep());
+
+        if (b.args) |args| {
+            grayscale_run_cmd.addArgs(args);
+        }
+    }
 
     // Create SDL window executable
     const sdl_window_exe = b.addExecutable(.{
@@ -114,20 +129,12 @@ pub fn build(b: *std.Build) void {
     b.installArtifact(player_exe);
 
     // Create build steps for individual executables
-    const build_grayscale_step = b.step("grayscale", "Build only the grayscale converter");
-    build_grayscale_step.dependOn(&b.addInstallArtifact(grayscale_exe, .{}).step);
 
     const build_sdl_window_step = b.step("sdl-window", "Build only the SDL window demo");
     build_sdl_window_step.dependOn(&b.addInstallArtifact(sdl_window_exe, .{}).step);
 
     const build_player_step = b.step("player", "Build only the video player");
     build_player_step.dependOn(&b.addInstallArtifact(player_exe, .{}).step);
-
-    // Create run step for grayscale converter
-    const run_grayscale_step = b.step("run-grayscale", "Run the grayscale converter");
-    const grayscale_run_cmd = b.addRunArtifact(grayscale_exe);
-    run_grayscale_step.dependOn(&grayscale_run_cmd.step);
-    grayscale_run_cmd.step.dependOn(b.getInstallStep());
 
     // Create run step for SDL window demo
     const run_sdl_window_step = b.step("run-sdl-window", "Run the SDL window demo");
@@ -142,7 +149,6 @@ pub fn build(b: *std.Build) void {
     player_run_cmd.step.dependOn(b.getInstallStep());
 
     if (b.args) |args| {
-        grayscale_run_cmd.addArgs(args);
         sdl_window_run_cmd.addArgs(args);
         player_run_cmd.addArgs(args);
     }
