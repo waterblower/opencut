@@ -93,75 +93,40 @@ pub fn build(b: *std.Build) void {
         }
     }
 
-    // Create SDL window executable
-    const sdl_window_exe = b.addExecutable(.{
-        .name = "sdl-window",
-        .root_module = b.createModule(.{
-            .root_source_file = b.path("src/sdl-window.zig"),
-            .target = target,
-            .optimize = optimize,
-        }),
-    });
-
-    sdl_window_exe.linkLibC();
-    sdl_window_exe.linkSystemLibrary("SDL3");
-
-    b.installArtifact(sdl_window_exe);
-
     // Create player executable
-    const player_exe = b.addExecutable(.{
-        .name = "player",
-        .root_module = b.createModule(.{
-            .root_source_file = b.path("src/player.zig"),
-            .target = target,
-            .optimize = optimize,
-        }),
-    });
+    {
+        const player_exe = b.addExecutable(.{
+            .name = "sdl-player",
+            .root_module = b.createModule(.{
+                .root_source_file = b.path("attempts/sdl-player.zig"),
+                .target = target,
+                .optimize = optimize,
+            }),
+        });
 
-    player_exe.linkLibC();
-    player_exe.linkSystemLibrary("SDL3");
-    player_exe.linkSystemLibrary("avformat");
-    player_exe.linkSystemLibrary("avcodec");
-    player_exe.linkSystemLibrary("avutil");
-    player_exe.linkSystemLibrary("swscale");
-    player_exe.linkSystemLibrary("swresample");
+        player_exe.linkLibC();
+        player_exe.linkSystemLibrary("SDL3");
+        player_exe.linkSystemLibrary("avformat");
+        player_exe.linkSystemLibrary("avcodec");
+        player_exe.linkSystemLibrary("avutil");
+        player_exe.linkSystemLibrary("swscale");
+        player_exe.linkSystemLibrary("swresample");
 
-    b.installArtifact(player_exe);
+        b.installArtifact(player_exe);
 
-    // Create build steps for individual executables
+        // Create build steps for individual executables
 
-    const build_sdl_window_step = b.step("sdl-window", "Build only the SDL window demo");
-    build_sdl_window_step.dependOn(&b.addInstallArtifact(sdl_window_exe, .{}).step);
+        const build_player_step = b.step("sdl-player", "Build only the video player");
+        build_player_step.dependOn(&b.addInstallArtifact(player_exe, .{}).step);
 
-    const build_player_step = b.step("player", "Build only the video player");
-    build_player_step.dependOn(&b.addInstallArtifact(player_exe, .{}).step);
+        // Create run step for player
+        const run_player_step = b.step("run-sdl-player", "Run the video player");
+        const player_run_cmd = b.addRunArtifact(player_exe);
+        run_player_step.dependOn(&player_run_cmd.step);
+        player_run_cmd.step.dependOn(b.getInstallStep());
 
-    // Create run step for SDL window demo
-    const run_sdl_window_step = b.step("run-sdl-window", "Run the SDL window demo");
-    const sdl_window_run_cmd = b.addRunArtifact(sdl_window_exe);
-    run_sdl_window_step.dependOn(&sdl_window_run_cmd.step);
-    sdl_window_run_cmd.step.dependOn(b.getInstallStep());
-
-    // Create run step for player
-    const run_player_step = b.step("run-player", "Run the video player");
-    const player_run_cmd = b.addRunArtifact(player_exe);
-    run_player_step.dependOn(&player_run_cmd.step);
-    player_run_cmd.step.dependOn(b.getInstallStep());
-
-    if (b.args) |args| {
-        sdl_window_run_cmd.addArgs(args);
-        player_run_cmd.addArgs(args);
+        if (b.args) |args| {
+            player_run_cmd.addArgs(args);
+        }
     }
-
-    // Just like flags, top level steps are also listed in the `--help` menu.
-    //
-    // The Zig build system is entirely implemented in userland, which means
-    // that it cannot hook into private compiler APIs. All compilation work
-    // orchestrated by the build system will result in other Zig compiler
-    // subcommands being invoked with the right flags defined. You can observe
-    // these invocations when one fails (or you pass a flag to increase
-    // verbosity) to validate assumptions and diagnose problems.
-    //
-    // Lastly, the Zig build system is relatively simple and self-contained,
-    // and reading its source code will allow you to master it.
 }
