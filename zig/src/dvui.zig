@@ -3,6 +3,7 @@ const dvui = @import("dvui");
 const SDLBackend = @import("SDLBackend");
 const vid = @import("vid/lib.zig");
 const builtin = @import("builtin");
+const file = @import("file.zig");
 
 // Use SDL from the backend
 const SDL = SDLBackend.c;
@@ -342,6 +343,22 @@ pub fn dialogs(demo_win_id: dvui.Id) void {
                 break :blk null;
             };
             const f = filename.?;
+
+            var files = file.read_folder(gpa, f) catch |err| {
+                dvui.log.debug("Could not read folder, got {any}", .{err});
+                dvui.dialog(@src(), .{}, .{ .modal = false, .title = "Folder Select Error", .ok_label = "Done", .message = "Failed to read folder" });
+                return;
+            };
+            defer {
+                for (files.items) |file_name| {
+                    gpa.free(file_name);
+                }
+                files.deinit(gpa);
+            }
+            for (files.items) |file_name| {
+                std.debug.print("File: {s}\n", .{file_name});
+            }
+
             dvui.dialog(@src(), .{}, .{ .modal = false, .title = "Folder Select Result", .ok_label = "Done", .message = f });
         }
     }
