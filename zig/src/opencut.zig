@@ -78,8 +78,13 @@ pub fn main() !void {
 
     var interrupted = false;
 
-    // Main loop
+    var arena = std.heap.ArenaAllocator.init(gpa);
+    defer arena.deinit();
+
     while (true) {
+        const aa = arena.allocator();
+        defer _ = arena.reset(.retain_capacity);
+
         const t0 = std.time.milliTimestamp();
         const nstime = win.beginWait(interrupted);
 
@@ -97,7 +102,7 @@ pub fn main() !void {
         std.debug.print("time cost t2: {}\n", .{std.time.milliTimestamp() - t0});
 
         // Render GUI
-        dialogs(win.wd.id);
+        dialogs(aa, win.wd.id);
 
         const keep_running = guiFrame(&backend, video, texture);
         if (!keep_running) break;
@@ -328,7 +333,7 @@ fn guiFrame(backend: *SDLBackend, video: *vid.Video, texture: *SDL.SDL_Texture) 
     return true;
 }
 
-pub fn dialogs(demo_win_id: dvui.Id) void {
+pub fn dialogs(a: std.mem.Allocator, demo_win_id: dvui.Id) void {
     var hbox = dvui.box(@src(), .{ .dir = .horizontal }, .{});
     defer hbox.deinit();
 
@@ -344,17 +349,11 @@ pub fn dialogs(demo_win_id: dvui.Id) void {
             };
             const f = filename.?;
 
-            var files = file.read_folder(gpa, f) catch |err| {
+            const files = file.read_folder(a, f) catch |err| {
                 dvui.log.debug("Could not read folder, got {any}", .{err});
                 dvui.dialog(@src(), .{}, .{ .modal = false, .title = "Folder Select Error", .ok_label = "Done", .message = "Failed to read folder" });
                 return;
             };
-            defer {
-                for (files.items) |file_name| {
-                    gpa.free(file_name);
-                }
-                files.deinit(gpa);
-            }
             for (files.items) |file_name| {
                 std.debug.print("File: {s}\n", .{file_name});
             }
