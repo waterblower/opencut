@@ -17,16 +17,48 @@ pub fn build(b: *std.Build) void {
     // set a preferred release mode, allowing the user to decide how to optimize.
     const optimize = b.standardOptimizeOption(.{});
 
-    // Import dvui dependency with SDL3 backend
-    const dvui_dep = b.dependency("dvui", .{
-        .target = target,
-        .optimize = optimize,
-        .backend = .sdl3,
-    });
-    // It's also possible to define more custom flags to toggle optional features
-    // of this build script using `b.option()`. All defined flags (including
-    // target and optimize options) will be listed when running `zig build --help`
-    // in this directory.
+    {
+        // Import dvui dependency with SDL3 backend
+        const dvui_dep = b.dependency("dvui", .{
+            .target = target,
+            .optimize = optimize,
+            .backend = .sdl3,
+        });
+        // Create DVUI video player executable
+        const dvui_exe = b.addExecutable(.{
+            .name = "dvui-player",
+            .root_module = b.createModule(.{
+                .root_source_file = b.path("src/dvui.zig"),
+                .target = target,
+                .optimize = optimize,
+            }),
+        });
+
+        dvui_exe.root_module.addImport("dvui", dvui_dep.module("dvui_sdl3"));
+        dvui_exe.root_module.addImport("SDLBackend", dvui_dep.module("sdl3"));
+
+        dvui_exe.linkLibC();
+        dvui_exe.linkSystemLibrary("SDL3");
+        dvui_exe.linkSystemLibrary("avformat");
+        dvui_exe.linkSystemLibrary("avcodec");
+        dvui_exe.linkSystemLibrary("avutil");
+        dvui_exe.linkSystemLibrary("swscale");
+
+        b.installArtifact(dvui_exe);
+
+        const build_dvui_step = b.step("dvui", "Build only the DVUI video player");
+        build_dvui_step.dependOn(&b.addInstallArtifact(dvui_exe, .{}).step);
+
+        // Create run step for DVUI player
+        const run_dvui_step = b.step("run-dvui", "Run the DVUI video player");
+        const dvui_run_cmd = b.addRunArtifact(dvui_exe);
+        run_dvui_step.dependOn(&dvui_run_cmd.step);
+        dvui_run_cmd.step.dependOn(b.getInstallStep());
+
+        if (b.args) |args| {
+            dvui_run_cmd.addArgs(args);
+        }
+    }
 
     // Create grayscale converter executable
     const grayscale_exe = b.addExecutable(.{
@@ -108,43 +140,6 @@ pub fn build(b: *std.Build) void {
     const player_run_cmd = b.addRunArtifact(player_exe);
     run_player_step.dependOn(&player_run_cmd.step);
     player_run_cmd.step.dependOn(b.getInstallStep());
-
-    {
-        // Create DVUI video player executable
-        const dvui_exe = b.addExecutable(.{
-            .name = "dvui-player",
-            .root_module = b.createModule(.{
-                .root_source_file = b.path("src/dvui.zig"),
-                .target = target,
-                .optimize = optimize,
-            }),
-        });
-
-        dvui_exe.root_module.addImport("dvui", dvui_dep.module("dvui_sdl3"));
-        dvui_exe.root_module.addImport("SDLBackend", dvui_dep.module("sdl3"));
-
-        dvui_exe.linkLibC();
-        dvui_exe.linkSystemLibrary("SDL3");
-        dvui_exe.linkSystemLibrary("avformat");
-        dvui_exe.linkSystemLibrary("avcodec");
-        dvui_exe.linkSystemLibrary("avutil");
-        dvui_exe.linkSystemLibrary("swscale");
-
-        b.installArtifact(dvui_exe);
-
-        const build_dvui_step = b.step("dvui", "Build only the DVUI video player");
-        build_dvui_step.dependOn(&b.addInstallArtifact(dvui_exe, .{}).step);
-
-        // Create run step for DVUI player
-        const run_dvui_step = b.step("run-dvui", "Run the DVUI video player");
-        const dvui_run_cmd = b.addRunArtifact(dvui_exe);
-        run_dvui_step.dependOn(&dvui_run_cmd.step);
-        dvui_run_cmd.step.dependOn(b.getInstallStep());
-
-        if (b.args) |args| {
-            dvui_run_cmd.addArgs(args);
-        }
-    }
 
     if (b.args) |args| {
         grayscale_run_cmd.addArgs(args);
