@@ -8,6 +8,20 @@ const c = @cImport({
     @cInclude("libswscale/swscale.h");
 });
 
+pub fn main() !void {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    const allocator = gpa.allocator();
+    const args = try std.process.argsAlloc(allocator);
+    defer std.process.argsFree(allocator, args);
+
+    if (args.len != 3) {
+        std.debug.print("Usage: {s} <input.mp4> <output.mp4>\n", .{args[0]});
+        return error.InvalidArguments;
+    }
+    try convertToGrayscale(allocator, args[1], args[2]);
+}
+
 pub fn convertToGrayscale(allocator: std.mem.Allocator, input_path: []const u8, output_path: []const u8) !void {
     // Convert to C strings
     const input_cstr = try allocator.dupeZ(u8, input_path);
@@ -367,18 +381,4 @@ pub fn convertToGrayscale(allocator: std.mem.Allocator, input_path: []const u8, 
 
     _ = c.av_write_trailer(output_ctx);
     std.debug.print("\nDone. Saved to: {s}\n", .{output_path});
-}
-
-pub fn main() !void {
-    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-    defer _ = gpa.deinit();
-    const allocator = gpa.allocator();
-    const args = try std.process.argsAlloc(allocator);
-    defer std.process.argsFree(allocator, args);
-
-    if (args.len != 3) {
-        std.debug.print("Usage: {s} <input.mp4> <output.mp4>\n", .{args[0]});
-        return error.InvalidArguments;
-    }
-    try convertToGrayscale(allocator, args[1], args[2]);
 }
