@@ -2,7 +2,7 @@ const std = @import("std");
 const dvui = @import("dvui");
 const file = @import("file.zig");
 
-pub fn dialogs(a: std.mem.Allocator, demo_win_id: dvui.Id) void {
+pub fn dialogs(a: std.mem.Allocator, demo_win_id: dvui.Id) !void {
     var hbox = dvui.box(@src(), .{ .dir = .horizontal }, .{});
     defer hbox.deinit();
 
@@ -18,11 +18,7 @@ pub fn dialogs(a: std.mem.Allocator, demo_win_id: dvui.Id) void {
             };
             const f = filename.?;
 
-            const files = file.read_folder(a, f) catch |err| {
-                dvui.log.debug("Could not read folder, got {any}", .{err});
-                dvui.dialog(@src(), .{}, .{ .modal = false, .title = "Folder Select Error", .ok_label = "Done", .message = "Failed to read folder" });
-                return;
-            };
+            const files = try file.read_folder(a, f);
             for (files.items) |file_name| {
                 std.debug.print("File: {s}\n", .{file_name});
             }

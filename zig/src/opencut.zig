@@ -103,7 +103,9 @@ pub fn main() !void {
         std.debug.print("time cost t2: {}\n", .{std.time.milliTimestamp() - t0});
 
         // Render GUI
-        ui.dialogs(aa, win.wd.id);
+        ui.dialogs(aa, win.wd.id) catch |err| {
+            std.debug.print("{}\n", .{err});
+        };
 
         const keep_running = guiFrame(&backend, video, texture);
         if (!keep_running) break;
