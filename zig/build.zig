@@ -18,45 +18,45 @@ pub fn build(b: *std.Build) void {
     const optimize = b.standardOptimizeOption(.{});
 
     {
-        // Import dvui dependency with SDL3 backend
         const dvui_dep = b.dependency("dvui", .{
             .target = target,
             .optimize = optimize,
             .backend = .sdl3,
         });
-        // Create DVUI video player executable
-        const dvui_exe = b.addExecutable(.{
-            .name = "dvui-player",
+
+        // Create opencut executable
+        const opencut_exe = b.addExecutable(.{
+            .name = "opencut",
             .root_module = b.createModule(.{
-                .root_source_file = b.path("src/dvui.zig"),
+                .root_source_file = b.path("src/opencut.zig"),
                 .target = target,
                 .optimize = optimize,
             }),
         });
 
-        dvui_exe.root_module.addImport("dvui", dvui_dep.module("dvui_sdl3"));
-        dvui_exe.root_module.addImport("SDLBackend", dvui_dep.module("sdl3"));
+        opencut_exe.root_module.addImport("dvui", dvui_dep.module("dvui_sdl3"));
+        opencut_exe.root_module.addImport("SDLBackend", dvui_dep.module("sdl3"));
 
-        dvui_exe.linkLibC();
-        dvui_exe.linkSystemLibrary("SDL3");
-        dvui_exe.linkSystemLibrary("avformat");
-        dvui_exe.linkSystemLibrary("avcodec");
-        dvui_exe.linkSystemLibrary("avutil");
-        dvui_exe.linkSystemLibrary("swscale");
+        opencut_exe.linkLibC();
+        opencut_exe.linkSystemLibrary("SDL3");
+        opencut_exe.linkSystemLibrary("avformat");
+        opencut_exe.linkSystemLibrary("avcodec");
+        opencut_exe.linkSystemLibrary("avutil");
+        opencut_exe.linkSystemLibrary("swscale");
 
-        b.installArtifact(dvui_exe);
+        b.installArtifact(opencut_exe);
 
-        const build_dvui_step = b.step("dvui", "Build only the DVUI video player");
-        build_dvui_step.dependOn(&b.addInstallArtifact(dvui_exe, .{}).step);
+        const build_opencut_step = b.step("opencut", "Build Open Cut");
+        build_opencut_step.dependOn(&b.addInstallArtifact(opencut_exe, .{}).step);
 
-        // Create run step for DVUI player
-        const run_dvui_step = b.step("run-dvui", "Run the DVUI video player");
-        const dvui_run_cmd = b.addRunArtifact(dvui_exe);
-        run_dvui_step.dependOn(&dvui_run_cmd.step);
-        dvui_run_cmd.step.dependOn(b.getInstallStep());
+        const run_opencut = b.step("run-opencut", "Run the DVUI video player");
+        const opencut_cmd = b.addRunArtifact(opencut_exe);
+        run_opencut.dependOn(&opencut_cmd.step);
+
+        opencut_cmd.step.dependOn(b.getInstallStep());
 
         if (b.args) |args| {
-            dvui_run_cmd.addArgs(args);
+            opencut_cmd.addArgs(args);
         }
     }
 
