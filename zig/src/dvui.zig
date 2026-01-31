@@ -31,7 +31,10 @@ pub fn main() !void {
         std.debug.print("Arg: {s}\n", .{arg});
     }
 
-    const video_path = args[1];
+    const video_path = if (args.len > 1)
+        args[1]
+    else
+        "test-videos/test1.mp4";
 
     // Initialize video
     const v = vid.openVideo(gpa, video_path) catch |err| blk: {
@@ -338,9 +341,8 @@ pub fn dialogs(demo_win_id: dvui.Id) void {
                 dvui.log.debug("Could not open folder select dialog, got {any}", .{err});
                 break :blk null;
             };
-            if (filename) |f| {
-                dvui.dialog(@src(), .{}, .{ .modal = false, .title = "Folder Select Result", .ok_label = "Done", .message = f });
-            }
+            const f = filename.?;
+            dvui.dialog(@src(), .{}, .{ .modal = false, .title = "Folder Select Result", .ok_label = "Done", .message = f });
         }
     }
 
