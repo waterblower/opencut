@@ -22,10 +22,19 @@ var g_last_frame_time: u64 = 0;
 pub fn main() !void {
     defer _ = gpa_instance.deinit();
 
+    // Parse command line arguments
+    const args = try std.process.argsAlloc(gpa);
+    defer std.process.argsFree(gpa, args);
+
+    for (args) |arg| {
+        std.debug.print("Arg: {s}\n", .{arg});
+    }
+
+    const video_path = args[1];
+
     // Initialize video
-    const v = vid.openVideo(gpa, "test-videos/test.mp4") catch |err| blk: {
+    const v = vid.openVideo(gpa, video_path) catch |err| blk: {
         std.debug.print("Could not open video: {}\n", .{err});
-        std.debug.print("Make sure 'test-videos/test.mp4' exists\n", .{});
         break :blk null;
     };
     if (v == null) {
