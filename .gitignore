@@ -10,3 +10,5 @@ doc.md
 *.dylib
 /zig/zig-out
 /zig/.zig-cache
+*/Examples
+*/assets
