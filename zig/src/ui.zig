@@ -18,7 +18,6 @@ pub fn dialogs(_: std.mem.Allocator) !?[]const u8 {
             .{ .title = "Select File" },
         ) catch |err| return err;
 
-        // 3. Return the result (which is already ?[:0]const u8 from dvui)
         return result;
     }
 
