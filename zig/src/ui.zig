@@ -2,44 +2,24 @@ const std = @import("std");
 const dvui = @import("dvui");
 const file = @import("file.zig");
 
-pub fn dialogs(a: std.mem.Allocator, demo_win_id: dvui.Id) !void {
+pub fn dialogs(_: std.mem.Allocator) error{ NotImplemented, TinyFileDisabled, OutOfMemory, None }!([:0]const u8) {
     var hbox = dvui.box(@src(), .{ .dir = .horizontal }, .{});
     defer hbox.deinit();
 
     if (dvui.button(@src(), "Open Folder", .{}, .{})) {
         if (dvui.backend.kind == .web) {
-            dvui.toast(@src(), .{ .subwindow_id = demo_win_id, .message = "Not implemented for web" });
+            return error.NotImplemented;
         } else if (!dvui.useTinyFileDialogs) {
-            dvui.toast(@src(), .{ .subwindow_id = demo_win_id, .message = "Tiny File Dilaogs disabled" });
+            return error.TinyFileDisabled;
         } else {
-            const filename = dvui.dialogNativeFolderSelect(dvui.currentWindow().arena(), .{ .title = "dvui native folder select" }) catch |err| blk: {
-                dvui.log.debug("Could not open folder select dialog, got {any}", .{err});
-                break :blk null;
+            const filename = dvui.dialogNativeFileOpen(dvui.currentWindow().arena(), .{ .title = "dvui native folder select" }) catch |err| {
+                return err;
             };
-            const f = filename.?;
-
-            const files = try file.read_folder(a, f);
-            for (files.items) |file_name| {
-                std.debug.print("File: {s}\n", .{file_name});
+            if (filename == null) {
+                return error.None;
             }
-
-            dvui.dialog(@src(), .{}, .{ .modal = false, .title = "Folder Select Result", .ok_label = "Done", .message = f });
+            return filename.?;
         }
     }
-
-    if (dvui.button(@src(), "Save File", .{}, .{})) {
-        if (dvui.backend.kind == .web) {
-            dvui.dialog(@src(), .{}, .{ .modal = false, .title = "Save File", .ok_label = "Ok", .message = "Not available on the web.  For file download, see \"Save Plot\" in the plots example." });
-        } else if (!dvui.useTinyFileDialogs) {
-            dvui.toast(@src(), .{ .subwindow_id = demo_win_id, .message = "Tiny File Dilaogs disabled" });
-        } else {
-            const filename = dvui.dialogNativeFileSave(dvui.currentWindow().arena(), .{ .title = "dvui native file save" }) catch |err| blk: {
-                dvui.log.debug("Could not open file save dialog, got {any}", .{err});
-                break :blk null;
-            };
-            if (filename) |f| {
-                dvui.dialog(@src(), .{}, .{ .modal = false, .title = "File Save Result", .ok_label = "Done", .message = f });
-            }
-        }
-    }
+    return error.None;
 }
