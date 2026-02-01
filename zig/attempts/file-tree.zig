@@ -2,50 +2,53 @@ const std = @import("std");
 const dvui = @import("dvui");
 const SDLBackend = @import("SDLBackend");
 
-pub fn main() !void {
-    var gpa_instance = std.heap.GeneralPurposeAllocator(.{}){};
-    defer _ = gpa_instance.deinit();
-    const gpa = gpa_instance.allocator();
+pub const dvui_app: dvui.App = .{
+    .config = .{
+        .options = .{
+            .size = .{ .w = 800.0, .h = 600.0 },
+            .min_size = .{ .w = 250.0, .h = 350.0 },
+            .title = "DVUI App Example",
+            .icon = @embedFile("./icon.jpeg"),
+            .window_init_options = .{
+                // Could set a default theme here
+                // .theme = dvui.Theme.builtin.dracula,
 
-    var backend = try SDLBackend.initWindow(.{
-        .allocator = gpa,
-        .size = .{ .w = 600.0, .h = 800.0 },
-        .min_size = .{ .w = 400.0, .h = 500.0 },
-        .vsync = true,
-        .title = "File Tree Explorer - Mock Data",
-    });
-    defer backend.deinit();
+            },
+        },
+    },
+    .frameFn = AppFrame,
+    .initFn = AppInit,
+    .deinitFn = deinit,
+};
+fn deinit() void {}
+pub const main = dvui.App.main;
 
-    var win = try dvui.Window.init(@src(), gpa, backend.backend(), .{});
-    defer win.deinit();
+pub fn AppFrame() !dvui.App.Result {
+    try fileTree(
+        @src(),
+        ".",
+        .{},
+        .{},
+        .{},
+        .{},
+    );
+    return .ok;
+}
 
-    const interrupted = false;
+pub fn AppInit(win: *dvui.Window) !void {
+    // orig_content_scale = win.content_scale;
 
-    while (true) {
-        const nstime = win.beginWait(interrupted);
+    // Add your own bundled font files...:
+    // try dvui.addFont("NOTO", @embedFile("../src/fonts/NotoSansKR-Regular.ttf"), null);
 
-        try win.begin(nstime);
+    if (false) {
+        // If you need to set a theme based on the users preferred color scheme, do it here
+        const theme = switch (win.backend.preferredColorScheme() orelse .light) {
+            .light => dvui.Theme.builtin.adwaita_light,
+            .dark => dvui.Theme.builtin.adwaita_dark,
+        };
 
-        try backend.addAllEvents(&win);
-
-        try fileTree(
-            @src(),
-            ".",
-            .{},
-            .{},
-            .{},
-            .{},
-        );
-
-        const end_micros = try win.end(.{});
-
-        try backend.setCursor(win.cursorRequested());
-        try backend.textInputRect(win.textInputRequested());
-
-        try backend.renderPresent();
-
-        const wait_event_micros = win.waitTime(end_micros);
-        _ = try backend.waitEventTimeout(wait_event_micros);
+        win.themeSet(theme);
     }
 }
 
