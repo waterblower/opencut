@@ -86,7 +86,6 @@ pub fn main() !void {
         const aa = arena.allocator();
         defer _ = arena.reset(.retain_capacity);
 
-        const t0 = std.time.milliTimestamp();
         const nstime = win.beginWait(interrupted);
 
         try win.begin(nstime);
@@ -98,14 +97,14 @@ pub fn main() !void {
         _ = SDL.SDL_RenderClear(backend.renderer);
 
         // Update video frame if playing
-        std.debug.print("time cost t1: {}\n", .{std.time.milliTimestamp() - t0});
         updateNextFrame(video, texture);
-        std.debug.print("time cost t2: {}\n", .{std.time.milliTimestamp() - t0});
 
         // Render GUI
-        ui.dialogs(aa, win.wd.id) catch |err| {
+        const f = ui.dialogs(aa) catch |err| {
             std.debug.print("{}\n", .{err});
+            continue;
         };
+        std.debug.print("{s}\n", .{f});
 
         const keep_running = guiFrame(&backend, video, texture);
         if (!keep_running) break;
@@ -128,7 +127,6 @@ pub fn main() !void {
             }
         }
         interrupted = try backend.waitEventTimeout(wait_event_micros);
-        std.debug.print("time cost end loop: {}\n\n", .{std.time.milliTimestamp() - t0});
     }
 }
 
@@ -174,13 +172,11 @@ fn updateNextFrame(video: *vid.Video, texture: *SDL.SDL_Texture) void {
     }
 
     // Get next frame
-    const t0 = std.time.milliTimestamp();
     const frame = video.nextFrame() catch |err| {
         std.debug.print("Error getting next frame: {}\n", .{err});
         g_is_playing = false;
         return;
     };
-    std.debug.print("time cost nextFrame: {}\n", .{std.time.milliTimestamp() - t0});
 
     if (frame) |new_frame| {
         // Free old frame if it exists
@@ -209,7 +205,6 @@ fn updateNextFrame(video: *vid.Video, texture: *SDL.SDL_Texture) void {
             }
             SDL.SDL_UnlockTexture(texture);
         }
-        std.debug.print("time cost SDL_UpdateTexture: {}\n", .{std.time.milliTimestamp() - t0});
     } else {
         // Video finished
         g_is_playing = false;
