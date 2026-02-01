@@ -100,11 +100,14 @@ pub fn main() !void {
         updateNextFrame(video, texture);
 
         // Render GUI
-        const f = ui.dialogs(aa) catch |err| {
-            std.debug.print("{}\n", .{err});
-            continue;
-        };
-        std.debug.print("{s}\n", .{f});
+        // In your main loop or parent function:
+        if (try ui.dialogs(aa)) |path| {
+            // This block ONLY runs if:
+            // 1. Button was clicked
+            // 2. Dialog succeeded
+            // 3. User picked a path (didn't cancel)
+            std.debug.print("User selected: {s}\n", .{path});
+        }
 
         const keep_running = guiFrame(&backend, video, texture);
         if (!keep_running) break;
