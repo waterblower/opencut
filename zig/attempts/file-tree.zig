@@ -7,7 +7,7 @@ pub const dvui_app: dvui.App = .{
         .options = .{
             .size = .{ .w = 800.0, .h = 600.0 },
             .min_size = .{ .w = 250.0, .h = 350.0 },
-            .title = "DVUI App Example",
+            .title = "File Tree",
             .icon = @embedFile("./icon.jpeg"),
             .window_init_options = .{
                 // Could set a default theme here
