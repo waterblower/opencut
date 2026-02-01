@@ -129,4 +129,42 @@ pub fn build(b: *std.Build) void {
             player_run_cmd.addArgs(args);
         }
     }
+
+    // Create 3-panels example executable
+    {
+        const dvui_dep = b.dependency("dvui", .{
+            .target = target,
+            .optimize = optimize,
+            .backend = .sdl3,
+        });
+
+        const panels_exe = b.addExecutable(.{
+            .name = "3-panels",
+            .root_module = b.createModule(.{
+                .root_source_file = b.path("attempts/3-panels.zig"),
+                .target = target,
+                .optimize = optimize,
+            }),
+        });
+
+        panels_exe.root_module.addImport("dvui", dvui_dep.module("dvui_sdl3"));
+        panels_exe.root_module.addImport("SDLBackend", dvui_dep.module("sdl3"));
+
+        panels_exe.linkLibC();
+        panels_exe.linkSystemLibrary("SDL3");
+
+        b.installArtifact(panels_exe);
+
+        const build_panels_step = b.step("3-panels", "Build 3-panel IDE layout example");
+        build_panels_step.dependOn(&b.addInstallArtifact(panels_exe, .{}).step);
+
+        const run_panels_step = b.step("run-3-panels", "Run the 3-panel IDE layout example");
+        const panels_run_cmd = b.addRunArtifact(panels_exe);
+        run_panels_step.dependOn(&panels_run_cmd.step);
+        panels_run_cmd.step.dependOn(b.getInstallStep());
+
+        if (b.args) |args| {
+            panels_run_cmd.addArgs(args);
+        }
+    }
 }
