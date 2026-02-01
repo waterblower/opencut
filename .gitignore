@@ -12,3 +12,4 @@ doc.md
 /zig/.zig-cache
 */Examples
 */assets
+*.jpeg
