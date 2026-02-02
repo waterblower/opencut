@@ -24,16 +24,45 @@ fn deinit() void {}
 pub const main = dvui.App.main;
 
 pub fn AppFrame() !dvui.App.Result {
-    var pane = dvui.paned(@src(), .{ .direction = .horizontal, .collapsed_size = 600 }, .{ .expand = .both, .background = false, .min_size_content = .{ .h = 100 } });
-    if(pane.showFirst()) {
-        var tl = dvui.textLayout(@src(), .{}, .{});
-        tl.addText("Here is a textLayout with a bunch of text in it that would overflow the right edge but the dialog has a max_size_content", .{});
-        tl.deinit();
+    var pane = dvui.paned(
+        @src(),
+        .{
+            .direction = .horizontal,
+            .collapsed_size = 600,
+        },
+        .{
+            .expand = .both,
+            .background = true,
+            .min_size_content = .{ .h = 100 },
+            .color_fill = .{ .r = 255, .g = 255, .b = 255, .a = 255 },
+        },
+    );
+    if (pane.showFirst()) {
+        var box = dvui.box(
+            @src(),
+            .{},
+            .{
+                .expand = .both,
+                .color_border = .{ .r = 0, .g = 0, .b = 0, .a = 255 },
+                .border = .rect(0, 0, 1, 0),
+            },
+        );
+        defer box.deinit();
     }
-    if(pane.showSecond()) {
+    if (pane.showSecond()) {
+        var box = dvui.box(
+            @src(),
+            .{},
+            .{
+                .expand = .both,
+                .color_border = .{ .r = 0, .g = 0, .b = 0, .a = 255 },
+                .border = .rect(1, 0, 0, 0),
+            },
+        );
         var tl = dvui.textLayout(@src(), .{}, .{});
         tl.addText("Here is a textLayout with a bunch of text in it that would overflow the right edge but the dialog has a max_size_content", .{});
         tl.deinit();
+        defer box.deinit();
     }
     pane.deinit();
     return .ok;
