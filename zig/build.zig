@@ -204,4 +204,38 @@ pub fn build(b: *std.Build) void {
             panels_run_cmd.addArgs(args);
         }
     }
+
+    // Create play-audio executable
+    {
+        const zaudio_dep = b.dependency("zaudio", .{
+            .target = target,
+            .optimize = optimize,
+        });
+
+        const audio_exe = b.addExecutable(.{
+            .name = "play-audio",
+            .root_module = b.createModule(.{
+                .root_source_file = b.path("attempts/play-audio.zig"),
+                .target = target,
+                .optimize = optimize,
+            }),
+        });
+
+        audio_exe.root_module.addImport("zaudio", zaudio_dep.module("root"));
+        audio_exe.linkLibrary(zaudio_dep.artifact("miniaudio"));
+
+        b.installArtifact(audio_exe);
+
+        const build_audio_step = b.step("play-audio", "Build the audio player");
+        build_audio_step.dependOn(&b.addInstallArtifact(audio_exe, .{}).step);
+
+        const run_audio_step = b.step("run-play-audio", "Run the audio player");
+        const audio_run_cmd = b.addRunArtifact(audio_exe);
+        run_audio_step.dependOn(&audio_run_cmd.step);
+        audio_run_cmd.step.dependOn(b.getInstallStep());
+
+        if (b.args) |args| {
+            audio_run_cmd.addArgs(args);
+        }
+    }
 }
