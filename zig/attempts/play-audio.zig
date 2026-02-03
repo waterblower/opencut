@@ -18,13 +18,6 @@ pub fn main() !void {
 
     const audio_file = args[1];
 
-    // Check if file exists
-    const file = std.fs.cwd().openFile(audio_file, .{}) catch |err| {
-        std.debug.print("Error: Cannot open file '{s}': {}\n", .{ audio_file, err });
-        return err;
-    };
-    file.close();
-
     std.debug.print("Playing audio: {s}\n", .{audio_file});
     std.debug.print("Press Ctrl+C to stop...\n\n", .{});
 
