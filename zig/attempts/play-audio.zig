@@ -1,6 +1,8 @@
 const std = @import("std");
 const zaudio = @import("zaudio");
 
+const default_audio_data = @embedFile("test.mp3");
+
 pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     defer _ = gpa.deinit();
@@ -10,15 +12,14 @@ pub fn main() !void {
     const args = try std.process.argsAlloc(allocator);
     defer std.process.argsFree(allocator, args);
 
-    if (args.len != 2) {
-        std.debug.print("Usage: {s} <audio-file>\n", .{args[0]});
-        std.debug.print("Example: {s} input.mp4\n", .{args[0]});
-        return error.InvalidArguments;
+    const use_file = args.len == 2;
+    const audio_file_arg = if (use_file) args[1] else null;
+
+    if (audio_file_arg) |arg| {
+        std.debug.print("Playing audio file: {s}\n", .{arg});
+    } else {
+        std.debug.print("Playing embedded audio (test.mp3)\n", .{});
     }
-
-    const audio_file = args[1];
-
-    std.debug.print("Playing audio: {s}\n", .{audio_file});
     std.debug.print("Press Ctrl+C to stop...\n\n", .{});
 
     // Initialize zaudio
@@ -29,24 +30,8 @@ pub fn main() !void {
     const engine = try zaudio.Engine.create(null);
     defer engine.destroy();
 
-    // Load and play the sound
-    // Note: MP4 containers may not be directly supported by miniaudio
-    // For MP4 files, you may need to extract the audio stream first
-    const sound = engine.createSoundFromFile(
-        audio_file,
-        .{ .flags = .{ .stream = true } },
-    ) catch |err| {
-        std.debug.print("Error loading audio file: {}\n", .{err});
-        std.debug.print("\nNote: MP4 containers may not be directly supported.\n", .{});
-        std.debug.print("Try using a supported format like:\n", .{});
-        std.debug.print("  - WAV (.wav)\n", .{});
-        std.debug.print("  - MP3 (.mp3)\n", .{});
-        std.debug.print("  - FLAC (.flac)\n", .{});
-        std.debug.print("  - OGG Vorbis (.ogg)\n", .{});
-        std.debug.print("\nOr extract audio from MP4 using:\n", .{});
-        std.debug.print("  ffmpeg -i input.mp4 -vn -acodec libmp3lame output.mp3\n", .{});
-        return err;
-    };
+    // Load and play the sound based on whether a file argument was provided
+    const sound = try loadSound(engine, audio_file_arg);
     defer sound.destroy();
 
     // Get sound duration
@@ -105,4 +90,32 @@ pub fn main() !void {
     }
 
     std.debug.print("\n\nPlayback finished.\n", .{});
+}
+
+fn loadSound(engine: *zaudio.Engine, file_path: ?[:0]const u8) !*zaudio.Sound {
+    if (file_path) |path| {
+        return engine.createSoundFromFile(
+            path,
+            .{
+                .flags = .{ .stream = true },
+                .sgroup = null,
+                .done_fence = null,
+            },
+        );
+    }
+
+    const decoder_config = zaudio.Decoder.Config.initDefault();
+    const decoder = try zaudio.Decoder.createFromMemory(
+        default_audio_data.ptr,
+        default_audio_data.len,
+        decoder_config,
+    );
+    errdefer decoder.destroy();
+    // Convert decoder to data source
+    const data_source = decoder.asDataSourceMut();
+    return engine.createSoundFromDataSource(
+        data_source,
+        .{ .stream = true },
+        null,
+    );
 }
