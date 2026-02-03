@@ -32,6 +32,7 @@ pub fn AppFrame() !dvui.App.Result {
         },
         .{
             .expand = .both,
+
             .background = true,
             .min_size_content = .{ .h = 100 },
             .color_fill = .{ .r = 255, .g = 255, .b = 255, .a = 255 },
@@ -43,13 +44,14 @@ pub fn AppFrame() !dvui.App.Result {
             .{},
             .{
                 .expand = .both,
+                .background = true,
                 .color_border = .{ .r = 0, .g = 0, .b = 0, .a = 255 },
                 .border = .rect(0, 0, 1, 0),
             },
         );
         {
             var tl = dvui.textLayout(@src(), .{}, .{});
-            tl.addText("Here is a textLayout with a bunch of text in it that would overflow the right edge but the dialog has a max_size_content", .{});
+            tl.addText("这是中文", .{});
             tl.deinit();
         }
         defer box.deinit();
@@ -77,6 +79,7 @@ pub fn AppFrame() !dvui.App.Result {
                     .{},
                     .{
                         .expand = .both,
+                        .background = true,
                         .color_border = .{ .r = 0, .g = 0, .b = 0, .a = 255 },
                         .border = .rect(0, 0, 1, 0),
                     },
@@ -93,6 +96,7 @@ pub fn AppFrame() !dvui.App.Result {
                         .border = .rect(1, 0, 0, 0),
                     },
                 );
+                {}
                 box.deinit();
             }
         }
@@ -102,4 +106,22 @@ pub fn AppFrame() !dvui.App.Result {
     return .ok;
 }
 
-pub fn AppInit(_: *dvui.Window) !void {}
+pub fn AppInit(_: *dvui.Window) !void {
+    try dvui.addFont("中文", @embedFile("中文.otf"), dvui.currentWindow().gpa);
+
+    // Set the font globally in the theme
+    var theme = dvui.themeGet();
+
+    // Find the font in the database
+    for (dvui.currentWindow().fonts.database.items) |*dbs| {
+        if (std.mem.eql(u8, dbs.familyName(), "中文")) {
+            theme.font_body = dbs.font();
+            theme.font_heading = dbs.font();
+            break;
+        }
+    }
+
+    theme.font_body.size = 26;
+
+    dvui.themeSet(theme);
+}
