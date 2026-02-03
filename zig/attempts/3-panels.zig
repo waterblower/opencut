@@ -47,22 +47,56 @@ pub fn AppFrame() !dvui.App.Result {
                 .border = .rect(0, 0, 1, 0),
             },
         );
+        {
+            var tl = dvui.textLayout(@src(), .{}, .{});
+            tl.addText("Here is a textLayout with a bunch of text in it that would overflow the right edge but the dialog has a max_size_content", .{});
+            tl.deinit();
+        }
         defer box.deinit();
     }
     if (pane.showSecond()) {
-        var box = dvui.box(
+        var pane2 = dvui.paned(
             @src(),
-            .{},
+            .{
+                .direction = .horizontal,
+                .collapsed_size = 150,
+            },
             .{
                 .expand = .both,
+                .background = true,
+                .min_size_content = .{ .h = 100 },
+                .color_fill = .{ .r = 255, .g = 255, .b = 255, .a = 255 },
                 .color_border = .{ .r = 0, .g = 0, .b = 0, .a = 255 },
                 .border = .rect(1, 0, 0, 0),
             },
         );
-        var tl = dvui.textLayout(@src(), .{}, .{});
-        tl.addText("Here is a textLayout with a bunch of text in it that would overflow the right edge but the dialog has a max_size_content", .{});
-        tl.deinit();
-        defer box.deinit();
+        {
+            if (pane2.showFirst()) {
+                var box = dvui.box(
+                    @src(),
+                    .{},
+                    .{
+                        .expand = .both,
+                        .color_border = .{ .r = 0, .g = 0, .b = 0, .a = 255 },
+                        .border = .rect(0, 0, 1, 0),
+                    },
+                );
+                box.deinit();
+            }
+            if (pane2.showSecond()) {
+                var box = dvui.box(
+                    @src(),
+                    .{},
+                    .{
+                        .expand = .both,
+                        .color_border = .{ .r = 0, .g = 0, .b = 0, .a = 255 },
+                        .border = .rect(1, 0, 0, 0),
+                    },
+                );
+                box.deinit();
+            }
+        }
+        pane2.deinit();
     }
     pane.deinit();
     return .ok;
