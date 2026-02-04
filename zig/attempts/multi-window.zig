@@ -2,9 +2,11 @@ const std = @import("std");
 const c = @cImport({
     @cInclude("SDL3/SDL.h");
 });
+const sdl = @import("sdl");
 
 pub fn main() !void {
-    if (c.SDL_Init(c.SDL_INIT_VIDEO) == false) return error.InitFailed;
+    // if (c.SDL_Init(c.SDL_INIT_VIDEO) == false) return error.SDLInitFailed;
+    try sdl.Init(c.SDL_INIT_VIDEO);
     defer c.SDL_Quit();
 
     // --- 创建窗口 A (主界面) ---

@@ -9,6 +9,10 @@ pub fn build(b: *std.Build) void {
     assets.addOption([]const u8, "app_icon", @embedFile("assets/icon.jpeg"));
     const assets_module = assets.createModule();
 
+    const sdl_mod = b.createModule(.{ .root_source_file = b.path("src/sdl3.zig"), .target = target });
+    sdl_mod.link_libc = true;
+    sdl_mod.linkSystemLibrary("SDL3", .{});
+
     // 2. Define Steps (Modularly)
     // We pass the builder, target, and optimize options to each helper.
     setupOpencut(b, target, optimize, assets_module);
@@ -17,7 +21,7 @@ pub fn build(b: *std.Build) void {
     setup3Panels(b, target, optimize, assets_module);
     setupFileTree(b, target, optimize, assets_module);
     setupPlayAudio(b, target, optimize);
-    setupMultiWindow(b, target, optimize);
+    setupMultiWindow(b, target, optimize, sdl_mod);
 }
 
 // ============================================================
@@ -229,7 +233,7 @@ fn setupPlayAudio(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std
 // ============================================================
 // 7. Multi-Window Example
 // ============================================================
-fn setupMultiWindow(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.builtin.OptimizeMode) void {
+fn setupMultiWindow(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.builtin.OptimizeMode, sdl_mod: *std.Build.Module) void {
     const exe = b.addExecutable(.{
         .name = "multi-window",
         .root_module = b.createModule(.{
@@ -241,6 +245,8 @@ fn setupMultiWindow(b: *std.Build, target: std.Build.ResolvedTarget, optimize: s
 
     exe.linkLibC();
     exe.linkSystemLibrary("SDL3");
+
+    exe.root_module.addImport("sdl", sdl_mod);
 
     const build_step = b.step("multi-window", "Build multi-window example");
     build_step.dependOn(&b.addInstallArtifact(exe, .{}).step);
