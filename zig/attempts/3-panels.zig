@@ -108,7 +108,7 @@ pub fn AppFrame() !dvui.App.Result {
 }
 
 pub fn AppInit(_: *dvui.Window) !void {
-    try dvui.addFont("中文", @embedFile("中文.otf"), dvui.currentWindow().gpa);
+    try dvui.addFont("中文", assets.chinese_font, dvui.currentWindow().gpa);
 
     // Set the font globally in the theme
     var theme = dvui.themeGet();
