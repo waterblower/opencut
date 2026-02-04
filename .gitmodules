@@ -1,0 +1,3 @@
+[submodule "zig/vendor/zaudio"]
+	path = zig/vendor/zaudio
+	url = https://github.com/zig-gamedev/zaudio.git
