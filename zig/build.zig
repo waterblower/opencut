@@ -5,13 +5,17 @@ pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
 
+    const assets = b.addOptions();
+    assets.addOption([]const u8, "app_icon", @embedFile("assets/icon.jpeg"));
+    const assets_module = assets.createModule();
+
     // 2. Define Steps (Modularly)
     // We pass the builder, target, and optimize options to each helper.
-    setupOpencut(b, target, optimize);
+    setupOpencut(b, target, optimize, assets_module);
     setupGrayscale(b, target, optimize);
     setupSdlPlayer(b, target, optimize);
-    setup3Panels(b, target, optimize);
-    setupFileTree(b, target, optimize);
+    setup3Panels(b, target, optimize, assets_module);
+    setupFileTree(b, target, optimize, assets_module);
     setupPlayAudio(b, target, optimize);
     setupMultiWindow(b, target, optimize);
 }
@@ -29,7 +33,7 @@ fn linkFFmpeg(exe: *std.Build.Step.Compile) void {
 // ============================================================
 // 1. Opencut (Main App)
 // ============================================================
-fn setupOpencut(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.builtin.OptimizeMode) void {
+fn setupOpencut(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.builtin.OptimizeMode, assets: *std.Build.Module) void {
     // Lazy load dependency: If this block isn't run, dvui isn't fetched.
     const dvui_dep = b.lazyDependency("dvui", .{
         .target = target,
@@ -49,6 +53,7 @@ fn setupOpencut(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     // Imports & Linking
     exe.root_module.addImport("dvui", dvui_dep.module("dvui_sdl3"));
     exe.root_module.addImport("SDLBackend", dvui_dep.module("sdl3"));
+    exe.root_module.addImport("assets", assets);
     exe.linkLibC();
     exe.linkSystemLibrary("SDL3");
     linkFFmpeg(exe);
@@ -121,7 +126,7 @@ fn setupSdlPlayer(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std
 // ============================================================
 // 4. 3-Panels Example
 // ============================================================
-fn setup3Panels(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.builtin.OptimizeMode) void {
+fn setup3Panels(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.builtin.OptimizeMode, assets: *std.Build.Module) void {
     const dvui_dep = b.lazyDependency("dvui", .{
         .target = target,
         .optimize = optimize,
@@ -139,6 +144,7 @@ fn setup3Panels(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
 
     exe.root_module.addImport("dvui", dvui_dep.module("dvui_sdl3"));
     exe.root_module.addImport("SDLBackend", dvui_dep.module("sdl3"));
+    exe.root_module.addImport("assets", assets);
     exe.linkLibC();
     exe.linkSystemLibrary("SDL3");
 
@@ -154,7 +160,7 @@ fn setup3Panels(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
 // ============================================================
 // 5. File Tree Example
 // ============================================================
-fn setupFileTree(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.builtin.OptimizeMode) void {
+fn setupFileTree(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.builtin.OptimizeMode, assets: *std.Build.Module) void {
     // Note: We request dvui again here. Zig's build system deduplicates this automatically.
     const dvui_dep = b.lazyDependency("dvui", .{
         .target = target,
@@ -173,6 +179,7 @@ fn setupFileTree(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.
 
     exe.root_module.addImport("dvui", dvui_dep.module("dvui_sdl3"));
     exe.root_module.addImport("SDLBackend", dvui_dep.module("sdl3"));
+    exe.root_module.addImport("assets", assets);
     exe.linkLibC();
     exe.linkSystemLibrary("SDL3");
 

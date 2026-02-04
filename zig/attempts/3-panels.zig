@@ -1,6 +1,7 @@
 const std = @import("std");
 const dvui = @import("dvui");
 const SDLBackend = @import("SDLBackend");
+const assets = @import("assets");
 
 pub const dvui_app: dvui.App = .{
     .config = .{
@@ -8,7 +9,7 @@ pub const dvui_app: dvui.App = .{
             .size = .{ .w = 800.0, .h = 600.0 },
             .min_size = .{ .w = 250.0, .h = 350.0 },
             .title = "File Tree",
-            .icon = @embedFile("./icon.jpeg"),
+            .icon = assets.app_icon,
             .window_init_options = .{
                 // Could set a default theme here
                 // .theme = dvui.Theme.builtin.dracula,
