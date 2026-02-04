@@ -1,6 +1,6 @@
 const std = @import("std");
 const zaudio = @import("zaudio");
-
+const print = std.debug.print;
 const default_audio_data = @embedFile("test.mp3");
 
 pub fn main() !void {
