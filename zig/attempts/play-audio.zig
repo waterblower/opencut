@@ -1,7 +1,7 @@
 const std = @import("std");
 const zaudio = @import("zaudio");
 const print = std.debug.print;
-const default_audio_data = @embedFile("test.mp3");
+const default_audio_data = @import("default_audio").default_audio_data;
 
 pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};

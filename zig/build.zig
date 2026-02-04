@@ -212,6 +212,10 @@ pub fn build(b: *std.Build) void {
             .optimize = optimize,
         });
 
+        // Create options for embedding the audio file
+        const audio_options = b.addOptions();
+        audio_options.addOption([]const u8, "default_audio_data", @embedFile("test-videos/test.mp3"));
+
         const audio_exe = b.addExecutable(.{
             .name = "play-audio",
             .root_module = b.createModule(.{
@@ -222,6 +226,7 @@ pub fn build(b: *std.Build) void {
         });
 
         audio_exe.root_module.addImport("zaudio", zaudio_dep.module("root"));
+        audio_exe.root_module.addImport("default_audio", audio_options.createModule());
         audio_exe.linkLibrary(zaudio_dep.artifact("miniaudio"));
 
         b.installArtifact(audio_exe);
