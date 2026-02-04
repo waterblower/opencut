@@ -238,4 +238,33 @@ pub fn build(b: *std.Build) void {
             audio_run_cmd.addArgs(args);
         }
     }
+
+    // Create multi-window executable
+    {
+        const multi_window_exe = b.addExecutable(.{
+            .name = "multi-window",
+            .root_module = b.createModule(.{
+                .root_source_file = b.path("attempts/multi-window.zig"),
+                .target = target,
+                .optimize = optimize,
+            }),
+        });
+
+        multi_window_exe.linkLibC();
+        multi_window_exe.linkSystemLibrary("SDL3");
+
+        b.installArtifact(multi_window_exe);
+
+        const build_multi_window_step = b.step("multi-window", "Build the multi-window example");
+        build_multi_window_step.dependOn(&b.addInstallArtifact(multi_window_exe, .{}).step);
+
+        const run_multi_window_step = b.step("run-multi-window", "Run the multi-window example");
+        const multi_window_run_cmd = b.addRunArtifact(multi_window_exe);
+        run_multi_window_step.dependOn(&multi_window_run_cmd.step);
+        multi_window_run_cmd.step.dependOn(b.getInstallStep());
+
+        if (b.args) |args| {
+            multi_window_run_cmd.addArgs(args);
+        }
+    }
 }
