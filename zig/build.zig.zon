@@ -36,10 +36,7 @@
             .url = "git+https://github.com/david-vanderson/dvui?ref=main#a03c8df39dad5fd4158e1680a137b4bafa7fa7c6",
             .hash = "dvui-0.4.0-dev-AQFJmXPj2gAsbvBLIgHmsF5OfsxXHSS2cshJ_oCVG3h4",
         },
-        .zaudio = .{
-            .url = "git+https://github.com/zig-gamedev/zaudio#main",
-            .hash = "1220255bc302448e178936d37a286a07c66ca608aec3ee86aa0773e86073818aca99",
-        },
+        .zaudio = .{ .path = "vendor/zaudio" },
     },
     .paths = .{
         "build.zig",
