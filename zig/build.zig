@@ -7,6 +7,7 @@ pub fn build(b: *std.Build) void {
 
     const assets = b.addOptions();
     assets.addOption([]const u8, "app_icon", @embedFile("assets/icon.jpeg"));
+    assets.addOption([]const u8, "chinese_font", @embedFile("assets//中文.otf"));
     const assets_module = assets.createModule();
 
     const sdl_mod = b.createModule(.{ .root_source_file = b.path("src/sdl3.zig"), .target = target });
