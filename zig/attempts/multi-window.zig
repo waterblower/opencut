@@ -1,8 +1,6 @@
 const std = @import("std");
-const c = @cImport({
-    @cInclude("SDL3/SDL.h");
-});
 const sdl = @import("sdl");
+const c = sdl.c;
 
 pub fn main() !void {
     // if (c.SDL_Init(c.SDL_INIT_VIDEO) == false) return error.SDLInitFailed;
@@ -10,9 +8,12 @@ pub fn main() !void {
     defer c.SDL_Quit();
 
     // --- 创建窗口 A (主界面) ---
-    var winA: ?*c.SDL_Window = null;
-    var renA: ?*c.SDL_Renderer = null;
-    _ = c.SDL_CreateWindowAndRenderer("主窗口", 800, 600, 0, &winA, &renA);
+    // var winA: ?*c.SDL_Window = null;
+    // var renA: ?*c.SDL_Renderer = null;
+    // _ = c.SDL_CreateWindowAndRenderer("主窗口", 800, 600, 0, &winA, &renA);
+    const result = try sdl.CreateWindowAndRenderer("主窗口", 800, 600, 0);
+    const winA = result.window;
+    const renA = result.renderer;
 
     // --- 创建窗口 B (预览监视器) ---
     var winB: ?*c.SDL_Window = null;

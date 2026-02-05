@@ -1,5 +1,5 @@
 const std = @import("std");
-const c = @cImport({
+pub const c = @cImport({
     @cInclude("SDL3/SDL.h");
 });
 
@@ -12,6 +12,21 @@ pub fn getError() []const u8 {
 
 pub fn Init(flags: c.SDL_InitFlags) !void {
     if (!c.SDL_Init(flags)) {
-        return error.InitFailed;
+        return error.Failed;
     }
+}
+
+// _ = c.SDL_CreateWindowAndRenderer("主窗口", 800, 600, 0, &winA, &renA);
+pub fn CreateWindowAndRenderer(
+    title: [:0]const u8,
+    width: i32,
+    height: i32,
+    flags: c.SDL_WindowFlags,
+) !struct { window: ?*c.SDL_Window, renderer: ?*c.SDL_Renderer } {
+    var winA: ?*c.SDL_Window = null;
+    var renA: ?*c.SDL_Renderer = null;
+    if (!c.SDL_CreateWindowAndRenderer(title, width, height, flags, &winA, &renA)) {
+        return error.Failed;
+    }
+    return .{ .window = winA, .renderer = renA };
 }
