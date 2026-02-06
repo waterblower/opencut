@@ -1,9 +1,10 @@
 const std = @import("std");
+const print = std.debug.print;
 const dvui = @import("dvui");
 const SDLBackend = @import("SDLBackend");
 const vid = @import("vid/lib.zig");
 const builtin = @import("builtin");
-const file = @import("file.zig");
+const fs = @import("fs.zig");
 const ui = @import("ui.zig");
 
 // Use SDL from the backend
@@ -11,9 +12,6 @@ const SDL = SDLBackend.c;
 
 var gpa_instance = std.heap.GeneralPurposeAllocator(.{}){};
 const gpa = gpa_instance.allocator();
-
-// Video state
-var g_current_frame: ?vid.FrameData = null;
 
 // Rendering state
 var g_backend: ?*SDLBackend = null;
@@ -47,13 +45,8 @@ pub fn main() !void {
         std.debug.panic("video is null", .{});
     }
     var video: *vid.Video = v orelse unreachable;
-
     defer {
         video.deinit();
-
-        if (g_current_frame) |*frame| {
-            frame.deinit(gpa);
-        }
     }
 
     // Initialize SDL backend
@@ -97,7 +90,10 @@ pub fn main() !void {
         _ = SDL.SDL_RenderClear(backend.renderer);
 
         // Update video frame if playing
+
+        const t0 = std.time.milliTimestamp();
         updateNextFrame(video, texture);
+        print("updateNextFrame cost: {d}\n", .{(std.time.milliTimestamp() - t0)});
 
         // Render GUI
         // In your main loop or parent function:
@@ -109,8 +105,10 @@ pub fn main() !void {
             std.debug.print("User selected: {s}\n", .{path});
         }
 
+        const t1 = std.time.milliTimestamp();
         const keep_running = guiFrame(&backend, video, texture);
         if (!keep_running) break;
+        print("\rguiFrame cost: {d}\n", .{(std.time.milliTimestamp() - t1)});
 
         const end_micros = try win.end(.{});
 
@@ -166,7 +164,6 @@ fn updateNextFrame(video: *vid.Video, texture: *SDL.SDL_Texture) void {
     }
 
     // Advance by frame duration, not wall clock time
-    // This ensures consistent playback speed
     g_last_frame_time += frame_duration_ms;
 
     // If we've fallen too far behind (more than 1 second), resync to current time
@@ -174,43 +171,29 @@ fn updateNextFrame(video: *vid.Video, texture: *SDL.SDL_Texture) void {
         g_last_frame_time = current_time;
     }
 
-    // Get next frame
-    const frame = video.nextFrame() catch |err| {
-        std.debug.print("Error getting next frame: {}\n", .{err});
-        g_is_playing = false;
-        return;
-    };
+    // Lock texture to get the writeable buffer
+    var pixels: ?*anyopaque = null;
+    var pitch: c_int = 0;
 
-    if (frame) |new_frame| {
-        // Free old frame if it exists
-        if (g_current_frame) |*old_frame| {
-            old_frame.deinit(gpa);
-        }
-        g_current_frame = new_frame;
+    if (SDL.SDL_LockTexture(texture, null, &pixels, &pitch)) {
+        if (pixels) |dst| {
+            // Render directly into the texture
+            // We cast to [*]u8 because our video library expects a byte pointer
+            const dest_ptr = @as([*]u8, @ptrCast(@alignCast(dst)));
 
-        // Update texture with new frame data using LockTexture for better performance
-        var pixels: ?*anyopaque = null;
-        var pitch: c_int = 0;
+            const rendered = video.renderNextFrame(dest_ptr, pitch) catch |err| {
+                std.debug.print("Error rendering next frame: {}\n", .{err});
+                g_is_playing = false;
+                SDL.SDL_UnlockTexture(texture);
+                return;
+            };
 
-        if (SDL.SDL_LockTexture(texture, null, &pixels, &pitch)) {
-            if (pixels) |dst| {
-                const src = new_frame.data;
-                const row_bytes = @as(usize, @intCast(new_frame.pitch));
-                const dst_pitch = @as(usize, @intCast(pitch));
-
-                // Copy row by row to handle different pitch values
-                var row: usize = 0;
-                while (row < @as(usize, @intCast(new_frame.height))) : (row += 1) {
-                    const src_row = src + row * row_bytes;
-                    const dst_row = @as([*]u8, @ptrCast(@alignCast(dst))) + row * dst_pitch;
-                    @memcpy(dst_row[0..row_bytes], src_row[0..row_bytes]);
-                }
+            if (!rendered) {
+                // Video finished
+                g_is_playing = false;
             }
-            SDL.SDL_UnlockTexture(texture);
         }
-    } else {
-        // Video finished
-        g_is_playing = false;
+        SDL.SDL_UnlockTexture(texture);
     }
 }
 
@@ -288,7 +271,9 @@ fn guiFrame(backend: *SDLBackend, video: *vid.Video, texture: *SDL.SDL_Texture) 
     }
 
     // Render video texture
+    const t1 = std.time.milliTimestamp();
     _ = SDL.SDL_RenderTexture(backend.renderer, texture, null, &dst_rect);
+    print("\rDL_RenderTexture cost: {d}\n", .{(std.time.milliTimestamp() - t1)});
 
     // Playback controls
     {
