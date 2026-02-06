@@ -8,18 +8,6 @@ const c = @cImport({
     @cInclude("libswscale/swscale.h");
 });
 
-pub const FrameData = struct {
-    data: [*]u8,
-    width: i32,
-    height: i32,
-    pitch: i32,
-
-    pub fn deinit(self: *FrameData, allocator: std.mem.Allocator) void {
-        const size = @as(usize, @intCast(self.height * self.pitch));
-        allocator.free(self.data[0..size]);
-    }
-};
-
 pub const Video = struct {
     allocator: std.mem.Allocator,
     fmt_ctx: *c.AVFormatContext,
@@ -45,55 +33,6 @@ pub const Video = struct {
 
     pub fn isFinished(self: *const Video) bool {
         return self.finished;
-    }
-
-    pub fn nextFrame(self: *Video) !?FrameData {
-        if (self.finished) {
-            return null;
-        }
-
-        // Try to receive a decoded video frame
-        var ret = c.avcodec_receive_frame(self.codec_ctx, self.frame);
-
-        // If we need more data, read packets until we get a video frame
-        while (ret == c.AVERROR(c.EAGAIN)) {
-            if (!self.readAndDispatchPacket()) {
-                // End of file
-                self.finished = true;
-                return null;
-            }
-            ret = c.avcodec_receive_frame(self.codec_ctx, self.frame);
-        }
-
-        if (ret < 0) {
-            return error.FrameDecodeError;
-        }
-
-        // Convert to RGB
-        _ = c.sws_scale(
-            self.sws_ctx,
-            @ptrCast(&self.frame.*.data),
-            @ptrCast(&self.frame.*.linesize),
-            0,
-            self.height,
-            @ptrCast(&self.rgb_frame.*.data),
-            @ptrCast(&self.rgb_frame.*.linesize),
-        );
-
-        // Copy frame data to owned memory
-        const pitch = self.rgb_frame.*.linesize[0];
-        const size = @as(usize, @intCast(self.height * pitch));
-        const buffer = try self.allocator.alloc(u8, size);
-
-        const src_data: [*]const u8 = @ptrCast(self.rgb_frame.*.data[0]);
-        @memcpy(buffer, src_data[0..size]);
-
-        return FrameData{
-            .data = buffer.ptr,
-            .width = self.width,
-            .height = self.height,
-            .pitch = pitch,
-        };
     }
 
     pub fn restart(self: *Video) !void {
@@ -132,6 +71,57 @@ pub const Video = struct {
         }
 
         c.av_packet_unref(self.packet);
+        return true;
+    }
+
+    pub fn renderNextFrame(self: *Video, dest: [*]u8, dest_pitch: i32) !bool {
+        if (self.finished) {
+            return false;
+        }
+
+        // Try to receive a decoded video frame
+        var ret = c.avcodec_receive_frame(self.codec_ctx, self.frame);
+
+        // If we need more data, read packets until we get a video frame
+        while (ret == c.AVERROR(c.EAGAIN)) {
+            if (!self.readAndDispatchPacket()) {
+                // End of file
+                self.finished = true;
+                return false;
+            }
+            ret = c.avcodec_receive_frame(self.codec_ctx, self.frame);
+        }
+
+        if (ret < 0) {
+            return error.FrameDecodeError;
+        }
+
+        // Setup destination arrays for sws_scale
+        // sws_scale expects array of pointers and array of strides
+        var dst_data: [4]?[*]u8 = undefined;
+        var dst_linesize: [4]c_int = undefined;
+
+        dst_data[0] = dest;
+        dst_data[1] = null;
+        dst_data[2] = null;
+        dst_data[3] = null;
+
+        dst_linesize[0] = dest_pitch;
+        dst_linesize[1] = 0;
+        dst_linesize[2] = 0;
+        dst_linesize[3] = 0;
+
+        // Convert to RGB directly into destination
+        _ = c.sws_scale(
+            self.sws_ctx,
+            @ptrCast(&self.frame.*.data),
+            @ptrCast(&self.frame.*.linesize),
+            0,
+            self.height,
+            @ptrCast(&dst_data),
+            @ptrCast(&dst_linesize),
+        );
+
         return true;
     }
 };
