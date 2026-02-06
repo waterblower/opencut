@@ -134,7 +134,7 @@ pub fn main() !void {
 fn createTexture(renderer: *SDL.SDL_Renderer, width: i32, height: i32) !*SDL.SDL_Texture {
     const texture = SDL.SDL_CreateTexture(
         renderer,
-        SDL.SDL_PIXELFORMAT_RGB24,
+        SDL.SDL_PIXELFORMAT_ARGB8888,
         SDL.SDL_TEXTUREACCESS_STREAMING,
         width,
         height,
