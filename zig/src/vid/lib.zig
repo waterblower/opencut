@@ -1,4 +1,5 @@
 const std = @import("std");
+const print = std.debug.print;
 
 const c = @cImport({
     @cInclude("libavformat/avformat.h");
@@ -75,6 +76,7 @@ pub const Video = struct {
     }
 
     pub fn renderNextFrame(self: *Video, dest: [*]u8, dest_pitch: i32) !bool {
+        const t0 = std.time.milliTimestamp();
         if (self.finished) {
             return false;
         }
@@ -121,7 +123,7 @@ pub const Video = struct {
             @ptrCast(&dst_data),
             @ptrCast(&dst_linesize),
         );
-
+        print("renderNextFrame: {d}\n", .{std.time.milliTimestamp() - t0});
         return true;
     }
 };
