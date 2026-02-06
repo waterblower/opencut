@@ -146,6 +146,7 @@ fn createTexture(renderer: *SDL.SDL_Renderer, width: i32, height: i32) !*SDL.SDL
 }
 
 fn updateNextFrame(video: *vid.Video, texture: *SDL.SDL_Texture) void {
+    const t0 = std.time.milliTimestamp();
     if (!g_is_playing or video.isFinished()) {
         return;
     }
@@ -175,26 +176,34 @@ fn updateNextFrame(video: *vid.Video, texture: *SDL.SDL_Texture) void {
     var pixels: ?*anyopaque = null;
     var pitch: c_int = 0;
 
-    if (SDL.SDL_LockTexture(texture, null, &pixels, &pitch)) {
-        if (pixels) |dst| {
-            // Render directly into the texture
-            // We cast to [*]u8 because our video library expects a byte pointer
-            const dest_ptr = @as([*]u8, @ptrCast(@alignCast(dst)));
-
-            const rendered = video.renderNextFrame(dest_ptr, pitch) catch |err| {
-                std.debug.print("Error rendering next frame: {}\n", .{err});
-                g_is_playing = false;
-                SDL.SDL_UnlockTexture(texture);
-                return;
-            };
-
-            if (!rendered) {
-                // Video finished
-                g_is_playing = false;
-            }
-        }
-        SDL.SDL_UnlockTexture(texture);
+    const t2 = std.time.milliTimestamp();
+    const ok = SDL.SDL_LockTexture(texture, null, &pixels, &pitch);
+    if (!ok) {
+        return;
     }
+    print("SDL_LockTexture: {d}\n", .{std.time.milliTimestamp() - t2});
+    print("SDL_LockTexture: {d}\n", .{std.time.milliTimestamp() - t0});
+
+    if (pixels) |dst| {
+        // Render directly into the texture
+        // We cast to [*]u8 because our video library expects a byte pointer
+        const dest_ptr = @as([*]u8, @ptrCast(@alignCast(dst)));
+        const rendered = video.renderNextFrame(dest_ptr, pitch) catch |err| {
+            std.debug.print("Error rendering next frame: {}\n", .{err});
+            g_is_playing = false;
+            return;
+        };
+        print("rendered: {d}\n", .{std.time.milliTimestamp() - t0});
+
+        if (!rendered) {
+            // Video finished
+            g_is_playing = false;
+        }
+    }
+
+    const t3 = std.time.milliTimestamp();
+    SDL.SDL_UnlockTexture(texture);
+    print("SDL_UnlockTexture: {d}\n", .{std.time.milliTimestamp() - t3});
 }
 
 fn guiFrame(backend: *SDLBackend, video: *vid.Video, texture: *SDL.SDL_Texture) bool {
