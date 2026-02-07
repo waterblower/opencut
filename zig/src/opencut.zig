@@ -263,9 +263,7 @@ fn guiFrame(backend: *SDLBackend, video: *vid.Video, texture: *SDL.SDL_Texture) 
     }
 
     // Render video texture
-    const t1 = std.time.milliTimestamp();
     _ = SDL.SDL_RenderTexture(backend.renderer, texture, null, &dst_rect);
-    print("\rDL_RenderTexture cost: {d}\n", .{(std.time.milliTimestamp() - t1)});
 
     // Playback controls
     {
