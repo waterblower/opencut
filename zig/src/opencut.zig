@@ -1,5 +1,6 @@
 const std = @import("std");
 const print = std.debug.print;
+const now = std.time.milliTimestamp;
 const dvui = @import("dvui");
 const SDLBackend = @import("SDLBackend");
 const vid = @import("vid/lib.zig");
@@ -178,10 +179,14 @@ fn updateNextFrame(video: *vid.Video, texture: *SDL.SDL_Texture) !void {
 
     if (pixels) |p| {
         const dest = @as([*]u8, @ptrCast(p));
+        const t = now();
         _ = video.renderNextFrame(dest, pitch) catch |err| {
             print("Render error: {}\n", .{err});
         };
+        print("renderNextFrame: {d}\n", .{now() - t});
+
         _ = SDL.SDL_UpdateTexture(texture, null, p, pitch);
+        print("SDL_UpdateTexture: {d}\n", .{now() - t});
     }
 }
 
