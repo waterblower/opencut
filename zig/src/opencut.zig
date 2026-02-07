@@ -217,10 +217,9 @@ fn guiFrame(backend: *SDLBackend, video: *vid.Video, texture: *SDL.SDL_Texture) 
     var info = dvui.textLayout(@src(), .{}, .{ .expand = .horizontal, .margin = .{ .y = 10 } });
     info.addText("Video only playback (no audio)\n", .{});
 
-    const fps = video.fps();
     const status = if (g_is_playing) "Playing" else if (video.isFinished()) "Finished" else "Paused";
     var buf: [256]u8 = undefined;
-    const text = std.fmt.bufPrint(&buf, "Resolution: {}x{} | FPS: {d:.1} | Status: {s}\n\n", .{ video.width, video.height, fps, status }) catch "Error formatting";
+    const text = std.fmt.bufPrint(&buf, "Resolution: {}x{} | FPS: {d:.1} | Status: {s}\n\n", .{ video.width, video.height, video.fps(), status }) catch "Error formatting";
     info.addText(text, .{});
 
     info.deinit();
