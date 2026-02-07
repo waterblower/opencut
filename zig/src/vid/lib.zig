@@ -179,6 +179,10 @@ pub fn openVideo(allocator: std.mem.Allocator, file_path: []const u8) !*Video {
         return error.CouldNotCopyCodecParams;
     }
 
+    // Enable multithreading
+    print("thread: {d}\n", .{codec_ctx.?.*.thread_count});
+    codec_ctx.?.*.thread_count = 0;
+
     // Open codec
     if (c.avcodec_open2(codec_ctx, codec, null) < 0) {
         return error.CouldNotOpenCodec;
