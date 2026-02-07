@@ -18,15 +18,13 @@ const gpa = gpa_instance.allocator();
 var g_backend: ?*SDLBackend = null;
 
 // Playback state
-
-var g_last_frame_time: u64 = 0;
-
 const State = struct {
-    is_playing: bool,
+    is_playing: bool = true,
+    last_frame_time: u64 = 0,
 };
 
 pub fn main() !void {
-    var state: State = .{ .is_playing = true };
+    var state: State = .{};
     defer _ = gpa_instance.deinit();
 
     // Parse command line arguments
@@ -98,7 +96,7 @@ pub fn main() !void {
         // Update video frame if playing
 
         const t0 = std.time.milliTimestamp();
-        try updateNextFrame(video, texture, state.is_playing);
+        try updateNextFrame(video, texture, &state);
         print("updateNextFrame cost: {d}\n", .{(std.time.milliTimestamp() - t0)});
 
         // Render GUI
@@ -151,31 +149,31 @@ fn createTexture(renderer: *SDL.SDL_Renderer, width: i32, height: i32) !*SDL.SDL
     return texture.?;
 }
 
-fn updateNextFrame(video: *vid.Video, texture: *SDL.SDL_Texture, is_playing: bool) !void {
+fn updateNextFrame(video: *vid.Video, texture: *SDL.SDL_Texture, state: *State) !void {
     // const t0 = std.time.milliTimestamp();
-    if (!is_playing or video.isFinished()) {
+    if (!state.is_playing or video.isFinished()) {
         return;
     }
 
     const current_time = SDL.SDL_GetTicks();
 
     // Initialize timing on first frame
-    if (g_last_frame_time == 0) {
-        g_last_frame_time = current_time;
+    if (state.last_frame_time == 0) {
+        state.last_frame_time = current_time;
     }
 
     const frame_duration_ms = video.frameDurationMs();
 
-    if (current_time - g_last_frame_time < frame_duration_ms) {
+    if (current_time - state.last_frame_time < frame_duration_ms) {
         return;
     }
 
     // Advance by frame duration, not wall clock time
-    g_last_frame_time += frame_duration_ms;
+    state.last_frame_time += frame_duration_ms;
 
     // If we've fallen too far behind (more than 1 second), resync to current time
-    if (current_time > g_last_frame_time + 1000) {
-        g_last_frame_time = current_time;
+    if (current_time > state.last_frame_time + 1000) {
+        state.last_frame_time = current_time;
     }
 
     // Use internal video buffer and update texture
@@ -275,7 +273,7 @@ fn guiFrame(backend: *SDLBackend, video: *vid.Video, texture: *SDL.SDL_Texture, 
             if (dvui.button(@src(), button_label, .{}, .{})) {
                 state.is_playing = !state.is_playing;
                 if (state.is_playing) {
-                    g_last_frame_time = SDL.SDL_GetTicks();
+                    state.last_frame_time = SDL.SDL_GetTicks();
                 }
             }
         }
@@ -286,7 +284,7 @@ fn guiFrame(backend: *SDLBackend, video: *vid.Video, texture: *SDL.SDL_Texture, 
                     std.debug.print("Error restarting video: {}\n", .{err});
                 };
                 state.is_playing = true;
-                g_last_frame_time = SDL.SDL_GetTicks();
+                state.last_frame_time = SDL.SDL_GetTicks();
             }
         }
     }
