@@ -28,7 +28,6 @@ pub const Video = struct {
     }
 
     pub fn frameDurationMs(self: *const Video) u32 {
-        if (self.frame_rate <= 0) return 33;
         return @intFromFloat(1000.0 / self.frame_rate);
     }
 
