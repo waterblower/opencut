@@ -61,7 +61,7 @@ pub fn main() !void {
         .size = .{ .w = 1024.0, .h = 768.0 },
         .min_size = .{ .w = 640.0, .h = 480.0 },
         .vsync = true,
-        .title = "DVUI Video Player",
+        .title = "OpenCut",
     });
     g_backend = &backend;
     defer backend.deinit();
@@ -218,11 +218,6 @@ fn guiFrame(backend: *SDLBackend, video: *vid.Video, texture: *SDL.SDL_Texture, 
     var scroll = dvui.scrollArea(@src(), .{}, .{ .expand = .both });
     defer scroll.deinit();
 
-    // Title
-    var tl = dvui.textLayout(@src(), .{}, .{ .expand = .horizontal, .font = .theme(.title) });
-    tl.addText("DVUI Video Player", .{});
-    tl.deinit();
-
     // Info text
     var info = dvui.textLayout(@src(), .{}, .{ .expand = .horizontal, .margin = .{ .y = 10 } });
     info.addText("Video only playback (no audio)\n", .{});
@@ -294,10 +289,6 @@ fn guiFrame(backend: *SDLBackend, video: *vid.Video, texture: *SDL.SDL_Texture, 
                 g_last_frame_time = SDL.SDL_GetTicks();
             }
         }
-    }
-
-    if (dvui.button(@src(), "Debug Window", .{}, .{ .margin = .{ .y = 10 } })) {
-        dvui.toggleDebugWindow();
     }
 
     // Request continuous rendering when video is playing
