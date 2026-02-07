@@ -59,21 +59,6 @@ pub const Video = struct {
         self.allocator.destroy(self);
     }
 
-    fn readAndDispatchPacket(self: *Video) bool {
-        if (c.av_read_frame(self.fmt_ctx, self.packet) < 0) {
-            return false;
-        }
-
-        const stream_idx = self.packet.*.stream_index;
-
-        if (stream_idx == self.video_stream_idx) {
-            _ = c.avcodec_send_packet(self.codec_ctx, self.packet);
-        }
-
-        c.av_packet_unref(self.packet);
-        return true;
-    }
-
     pub fn renderNextFrame(self: *Video, dest: [*]u8, dest_pitch: i32) !bool {
         const t0 = std.time.milliTimestamp();
         if (self.finished) {
@@ -85,10 +70,18 @@ pub const Video = struct {
 
         // If we need more data, read packets until we get a video frame
         while (ret == c.AVERROR(c.EAGAIN)) {
-            if (!self.readAndDispatchPacket()) {
-                // End of file
-                self.finished = true;
-                return false;
+            while (true) {
+                if (c.av_read_frame(self.fmt_ctx, self.packet) < 0) {
+                    self.finished = true;
+                    return false;
+                }
+                const stream_idx = self.packet.*.stream_index;
+                if (stream_idx == self.video_stream_idx) {
+                    _ = c.avcodec_send_packet(self.codec_ctx, self.packet);
+                    c.av_packet_unref(self.packet);
+                    break;
+                }
+                c.av_packet_unref(self.packet);
             }
             ret = c.avcodec_receive_frame(self.codec_ctx, self.frame);
         }
@@ -96,6 +89,8 @@ pub const Video = struct {
         if (ret < 0) {
             return error.FrameDecodeError;
         }
+
+        const t1 = std.time.milliTimestamp();
 
         // Setup destination arrays for sws_scale
         // sws_scale expects array of pointers and array of strides
@@ -122,7 +117,8 @@ pub const Video = struct {
             @ptrCast(&dst_data),
             @ptrCast(&dst_linesize),
         );
-        print("renderNextFrame: {d}\n", .{std.time.milliTimestamp() - t0});
+        const t2 = std.time.milliTimestamp();
+        print("renderNextFrame total: {d}ms (decode: {d}ms, scale: {d}ms)\n", .{ t2 - t0, t1 - t0, t2 - t1 });
         return true;
     }
 };
