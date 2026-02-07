@@ -3,7 +3,7 @@ const print = std.debug.print;
 const now = std.time.milliTimestamp;
 const dvui = @import("dvui");
 const SDLBackend = @import("SDLBackend");
-const vid = @import("vid/lib.zig");
+const vid = @import("vid.zig");
 const builtin = @import("builtin");
 const fs = @import("fs.zig");
 const ui = @import("ui.zig");
@@ -18,10 +18,15 @@ const gpa = gpa_instance.allocator();
 var g_backend: ?*SDLBackend = null;
 
 // Playback state
-var g_is_playing: bool = true; // Auto-start playback
+
 var g_last_frame_time: u64 = 0;
 
+const State = struct {
+    is_playing: bool,
+};
+
 pub fn main() !void {
+    var state: State = .{ .is_playing = true };
     defer _ = gpa_instance.deinit();
 
     // Parse command line arguments
@@ -93,7 +98,7 @@ pub fn main() !void {
         // Update video frame if playing
 
         const t0 = std.time.milliTimestamp();
-        try updateNextFrame(video, texture);
+        try updateNextFrame(video, texture, state.is_playing);
         print("updateNextFrame cost: {d}\n", .{(std.time.milliTimestamp() - t0)});
 
         // Render GUI
@@ -107,7 +112,7 @@ pub fn main() !void {
         }
 
         const t1 = std.time.milliTimestamp();
-        const keep_running = guiFrame(&backend, video, texture);
+        const keep_running = guiFrame(&backend, video, texture, &state);
         if (!keep_running) break;
         print("\rguiFrame cost: {d}\n", .{(std.time.milliTimestamp() - t1)});
 
@@ -120,7 +125,7 @@ pub fn main() !void {
 
         // When video is playing, we need continuous updates
         var wait_event_micros = win.waitTime(end_micros);
-        if (g_is_playing and !video.isFinished()) {
+        if (state.is_playing and !video.isFinished()) {
             // Limit wait to frame duration to ensure continuous playback
             const frame_duration_ms = video.frameDurationMs();
             const max_wait_micros = frame_duration_ms * 1000;
@@ -146,9 +151,9 @@ fn createTexture(renderer: *SDL.SDL_Renderer, width: i32, height: i32) !*SDL.SDL
     return texture.?;
 }
 
-fn updateNextFrame(video: *vid.Video, texture: *SDL.SDL_Texture) !void {
+fn updateNextFrame(video: *vid.Video, texture: *SDL.SDL_Texture, is_playing: bool) !void {
     // const t0 = std.time.milliTimestamp();
-    if (!g_is_playing or video.isFinished()) {
+    if (!is_playing or video.isFinished()) {
         return;
     }
 
@@ -190,7 +195,7 @@ fn updateNextFrame(video: *vid.Video, texture: *SDL.SDL_Texture) !void {
     }
 }
 
-fn guiFrame(backend: *SDLBackend, video: *vid.Video, texture: *SDL.SDL_Texture) bool {
+fn guiFrame(backend: *SDLBackend, video: *vid.Video, texture: *SDL.SDL_Texture, state: *State) bool {
     // Top menu bar
     {
         var hbox = dvui.box(@src(), .{ .dir = .horizontal }, .{ .style = .window, .background = true, .expand = .horizontal });
@@ -222,7 +227,7 @@ fn guiFrame(backend: *SDLBackend, video: *vid.Video, texture: *SDL.SDL_Texture) 
     var info = dvui.textLayout(@src(), .{}, .{ .expand = .horizontal, .margin = .{ .y = 10 } });
     info.addText("Video only playback (no audio)\n", .{});
 
-    const status = if (g_is_playing) "Playing" else if (video.isFinished()) "Finished" else "Paused";
+    const status = if (state.is_playing) "Playing" else if (video.isFinished()) "Finished" else "Paused";
     var buf: [256]u8 = undefined;
     const text = std.fmt.bufPrint(&buf, "Resolution: {}x{} | FPS: {d:.1} | Status: {s}\n\n", .{ video.width, video.height, video.fps(), status }) catch "Error formatting";
     info.addText(text, .{});
@@ -271,10 +276,10 @@ fn guiFrame(backend: *SDLBackend, video: *vid.Video, texture: *SDL.SDL_Texture) 
         defer controls.deinit();
 
         if (!video.isFinished()) {
-            const button_label = if (g_is_playing) "Pause" else "Play";
+            const button_label = if (state.is_playing) "Pause" else "Play";
             if (dvui.button(@src(), button_label, .{}, .{})) {
-                g_is_playing = !g_is_playing;
-                if (g_is_playing) {
+                state.is_playing = !state.is_playing;
+                if (state.is_playing) {
                     g_last_frame_time = SDL.SDL_GetTicks();
                 }
             }
@@ -285,7 +290,7 @@ fn guiFrame(backend: *SDLBackend, video: *vid.Video, texture: *SDL.SDL_Texture) 
                 video.restart() catch |err| {
                     std.debug.print("Error restarting video: {}\n", .{err});
                 };
-                g_is_playing = true;
+                state.is_playing = true;
                 g_last_frame_time = SDL.SDL_GetTicks();
             }
         }
@@ -296,7 +301,7 @@ fn guiFrame(backend: *SDLBackend, video: *vid.Video, texture: *SDL.SDL_Texture) 
     }
 
     // Request continuous rendering when video is playing
-    if (g_is_playing and !video.isFinished()) {
+    if (state.is_playing and !video.isFinished()) {
         dvui.refresh(null, @src(), null);
     }
 
