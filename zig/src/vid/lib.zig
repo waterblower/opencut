@@ -251,7 +251,7 @@ pub fn openVideo(allocator: std.mem.Allocator, file_path: []const u8) !*Video {
     errdefer c.sws_freeContext(sws_ctx);
 
     // Allocate buffer for RGB frame
-    const num_bytes = c.av_image_get_buffer_size(c.AV_PIX_FMT_RGB24, video_width, video_height, 1);
+    const num_bytes = c.av_image_get_buffer_size(c.AV_PIX_FMT_BGRA, video_width, video_height, 1);
     const buffer = c.av_malloc(@intCast(num_bytes));
     if (buffer == null) {
         return error.CouldNotAllocateBuffer;
