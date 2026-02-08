@@ -14,9 +14,6 @@ const SDL = SDLBackend.c;
 var gpa_instance = std.heap.GeneralPurposeAllocator(.{}){};
 const gpa = gpa_instance.allocator();
 
-// Rendering state
-var g_backend: ?*SDLBackend = null;
-
 // Playback state
 const State = struct {
     is_playing: bool = true,
@@ -61,7 +58,6 @@ pub fn main() !void {
         .vsync = true,
         .title = "OpenCut",
     });
-    g_backend = &backend;
     defer backend.deinit();
 
     // Create texture after video was loaded
@@ -94,7 +90,6 @@ pub fn main() !void {
         _ = SDL.SDL_RenderClear(backend.renderer);
 
         // Update video frame if playing
-
         const t0 = std.time.milliTimestamp();
         try updateNextFrame(video, texture, &state);
         print("updateNextFrame cost: {d}\n", .{(std.time.milliTimestamp() - t0)});
