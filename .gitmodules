@@ -1,3 +1,6 @@
 [submodule "zig/vendor/zaudio"]
 	path = zig/vendor/zaudio
 	url = https://github.com/zig-gamedev/zaudio.git
+[submodule "zig/vendor/dvui"]
+	path = zig/vendor/dvui
+	url = https://github.com/david-vanderson/dvui.git
