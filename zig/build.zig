@@ -29,6 +29,14 @@ pub fn build(b: *std.Build) void {
 // Helper: FFmpeg Linking (Don't repeat yourself)
 // ============================================================
 fn linkFFmpeg(exe: *std.Build.Step.Compile) void {
+    const target = exe.root_module.resolved_target.?.result;
+
+    if (target.os.tag == .windows) {
+        const ffmpeg_path = "C:\\Program Files\\ffmpeg"; // Adjust to your path
+        exe.addLibraryPath(.{ .cwd_relative = ffmpeg_path ++ "\\lib" });
+        exe.addIncludePath(.{ .cwd_relative = ffmpeg_path ++ "\\include" });
+    }
+
     exe.linkSystemLibrary("avformat");
     exe.linkSystemLibrary("avcodec");
     exe.linkSystemLibrary("avutil");
