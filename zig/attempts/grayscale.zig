@@ -186,7 +186,7 @@ pub fn convertToGrayscale(allocator: std.mem.Allocator, input_path: []const u8, 
     encoder_ctx.*.max_b_frames = decoder_ctx.*.max_b_frames;
 
     // Force compatible profile for HEVC
-    encoder_ctx.*.profile = c.FF_PROFILE_HEVC_MAIN;
+    encoder_ctx.*.profile = c.AV_PROFILE_HEVC_MAIN;
 
     if (output_ctx.?.oformat.*.flags & c.AVFMT_GLOBALHEADER != 0) {
         encoder_ctx.*.flags |= c.AV_CODEC_FLAG_GLOBAL_HEADER;
