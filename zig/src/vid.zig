@@ -13,7 +13,6 @@ pub const Video = struct {
     allocator: std.mem.Allocator,
     fmt_ctx: *c.AVFormatContext,
     codec_ctx: *c.AVCodecContext,
-    frame: *c.AVFrame,
     rgb_frame: *c.AVFrame,
     packet: *c.AVPacket,
     sws_ctx: *c.struct_SwsContext,
@@ -47,8 +46,6 @@ pub const Video = struct {
         }
         var rgb_frame_ptr: ?*c.AVFrame = self.rgb_frame;
         c.av_frame_free(@ptrCast(&rgb_frame_ptr));
-        var frame_ptr: ?*c.AVFrame = self.frame;
-        c.av_frame_free(@ptrCast(&frame_ptr));
         var packet_ptr: ?*c.AVPacket = self.packet;
         c.av_packet_free(@ptrCast(&packet_ptr));
         c.sws_freeContext(self.sws_ctx);
@@ -65,8 +62,17 @@ pub const Video = struct {
             return false;
         }
 
+        // 1. Allocate the frame locally.
+        var frame = c.av_frame_alloc();
+        if (frame == null) {
+            return error.av_frame_alloc_failed;
+        }
+        // 2. Ensure it is freed when this function returns (CLEANUP).
+        // &frame passes the address of your pointer, allowing FFmpeg to set it to null after freeing.
+        defer c.av_frame_free(&frame);
+
         // Try to receive a decoded video frame
-        var ret = c.avcodec_receive_frame(self.codec_ctx, self.frame);
+        var ret = c.avcodec_receive_frame(self.codec_ctx, frame);
 
         // If we need more data, read packets until we get a video frame
         while (ret == c.AVERROR(c.EAGAIN)) {
@@ -83,7 +89,7 @@ pub const Video = struct {
                 }
                 c.av_packet_unref(self.packet);
             }
-            ret = c.avcodec_receive_frame(self.codec_ctx, self.frame);
+            ret = c.avcodec_receive_frame(self.codec_ctx, frame);
         }
 
         if (ret < 0) {
@@ -110,8 +116,8 @@ pub const Video = struct {
         // Convert to RGB directly into destination
         _ = c.sws_scale(
             self.sws_ctx,
-            @ptrCast(&self.frame.*.data),
-            @ptrCast(&self.frame.*.linesize),
+            @ptrCast(&frame.*.data),
+            @ptrCast(&frame.*.linesize),
             0,
             self.height,
             @ptrCast(&dst_data),
@@ -272,7 +278,6 @@ pub fn openVideo(allocator: std.mem.Allocator, file_path: []const u8) !*Video {
         .allocator = allocator,
         .fmt_ctx = fmt_ctx.?,
         .codec_ctx = codec_ctx.?,
-        .frame = frame.?,
         .rgb_frame = rgb_frame.?,
         .packet = packet.?,
         .sws_ctx = sws_ctx.?,
