@@ -38,14 +38,7 @@ pub fn main() !void {
         "test-videos/test1.mp4";
 
     // Initialize video
-    const v = vid.openVideo(gpa, video_path) catch |err| blk: {
-        std.debug.print("Could not open video: {}\n", .{err});
-        break :blk null;
-    };
-    if (v == null) {
-        std.debug.panic("video is null", .{});
-    }
-    var video: *vid.Video = v orelse unreachable;
+    var video = try vid.openVideo(gpa, video_path);
     defer {
         video.deinit();
     }
