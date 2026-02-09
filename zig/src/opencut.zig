@@ -71,18 +71,12 @@ pub fn main() !void {
     defer win.deinit();
 
     var interrupted = false;
-
     var arena = std.heap.ArenaAllocator.init(gpa);
     defer arena.deinit();
 
     while (true) {
-        const aa = arena.allocator();
-        defer _ = arena.reset(.retain_capacity);
-
         const nstime = win.beginWait(interrupted);
-
         try win.begin(nstime);
-
         try backend.addAllEvents(&win);
 
         // Clear background
@@ -95,15 +89,6 @@ pub fn main() !void {
         print("updateNextFrame cost: {d}\n", .{(std.time.milliTimestamp() - t0)});
 
         // Render GUI
-        // In your main loop or parent function:
-        if (try ui.dialogs(aa)) |path| {
-            // This block ONLY runs if:
-            // 1. Button was clicked
-            // 2. Dialog succeeded
-            // 3. User picked a path (didn't cancel)
-            std.debug.print("User selected: {s}\n", .{path});
-        }
-
         const t1 = std.time.milliTimestamp();
         const keep_running = guiFrame(&backend, video, texture, &state);
         if (!keep_running) break;
@@ -188,41 +173,8 @@ fn updateNextFrame(video: *vid.Video, texture: *SDL.SDL_Texture, state: *State) 
 }
 
 fn guiFrame(backend: *SDLBackend, video: *vid.Video, texture: *SDL.SDL_Texture, state: *State) bool {
-    // Top menu bar
-    {
-        var hbox = dvui.box(@src(), .{ .dir = .horizontal }, .{ .style = .window, .background = true, .expand = .horizontal });
-        defer hbox.deinit();
-
-        var m = dvui.menu(@src(), .horizontal, .{});
-        defer m.deinit();
-
-        if (dvui.menuItemLabel(@src(), "File", .{ .submenu = true }, .{})) |r| {
-            var fw = dvui.floatingMenu(@src(), .{ .from = r }, .{});
-            defer fw.deinit();
-
-            if (dvui.menuItemLabel(@src(), "Exit", .{}, .{ .expand = .horizontal }) != null) {
-                return false;
-            }
-        }
-    }
-
-    // Main content area
-    var scroll = dvui.scrollArea(@src(), .{}, .{ .expand = .both });
-    defer scroll.deinit();
-
-    // Info text
-    var info = dvui.textLayout(@src(), .{}, .{ .expand = .horizontal, .margin = .{ .y = 10 } });
-    info.addText("Video only playback (no audio)\n", .{});
-
-    const status = if (state.is_playing) "Playing" else if (video.isFinished()) "Finished" else "Paused";
-    var buf: [256]u8 = undefined;
-    const text = std.fmt.bufPrint(&buf, "Resolution: {}x{} | FPS: {d:.1} | Status: {s}\n\n", .{ video.width, video.height, video.fps, status }) catch "Error formatting";
-    info.addText(text, .{});
-
-    info.deinit();
 
     // Video display area
-
     var video_box = dvui.box(@src(), .{}, .{
         .expand = .horizontal,
         .min_size_content = .{ .h = 400 },
