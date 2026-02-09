@@ -16,7 +16,7 @@ const gpa = gpa_instance.allocator();
 
 // Playback state
 const State = struct {
-    is_playing: bool = true,
+    is_playing: bool = false,
     last_frame_time: u64 = 0,
 };
 
@@ -177,12 +177,11 @@ fn updateNextFrame(video: *vid.Video, texture: *SDL.SDL_Texture, state: *State) 
 
     if (pixels) |p| {
         const dest = @as([*]u8, @ptrCast(p));
-        const t = now();
         _ = video.renderNextFrame(dest, pitch) catch |err| {
             print("Render error: {}\n", .{err});
         };
-        print("renderNextFrame: {d}\n", .{now() - t});
 
+        const t = now();
         _ = SDL.SDL_UpdateTexture(texture, null, p, pitch);
         print("SDL_UpdateTexture: {d}\n", .{now() - t});
     }
@@ -217,7 +216,7 @@ fn guiFrame(backend: *SDLBackend, video: *vid.Video, texture: *SDL.SDL_Texture, 
 
     const status = if (state.is_playing) "Playing" else if (video.isFinished()) "Finished" else "Paused";
     var buf: [256]u8 = undefined;
-    const text = std.fmt.bufPrint(&buf, "Resolution: {}x{} | FPS: {d:.1} | Status: {s}\n\n", .{ video.width, video.height, video.fps(), status }) catch "Error formatting";
+    const text = std.fmt.bufPrint(&buf, "Resolution: {}x{} | FPS: {d:.1} | Status: {s}\n\n", .{ video.width, video.height, video.fps, status }) catch "Error formatting";
     info.addText(text, .{});
 
     info.deinit();
