@@ -52,6 +52,46 @@ pub const Video = struct {
         self.allocator.destroy(self);
     }
 
+    // --- 核心变化: 相对于 renderNextFrame ---
+    // 不再接受 dest/pitch，不再做 sws_scale
+    // 它的唯一职责就是把 self.frame 填满数据
+    pub fn read_next_frame(self: *Video) !?*c.AVFrame {
+        if (self.finished) return null;
+
+        const frame = c.av_frame_alloc();
+        if (frame == null) {
+            return error.av_frame_alloc_failed;
+        }
+
+        // 直接解码到 self.frame
+        var ret = c.avcodec_receive_frame(self.codec_ctx, frame);
+
+        while (ret == c.AVERROR(c.EAGAIN)) {
+            while (true) {
+                if (c.av_read_frame(self.fmt_ctx, self.packet) < 0) {
+                    self.finished = true;
+                    return null;
+                }
+                const stream_idx = self.packet.*.stream_index;
+                if (stream_idx == self.video_stream_idx) {
+                    _ = c.avcodec_send_packet(self.codec_ctx, self.packet);
+                    c.av_packet_unref(self.packet);
+                    break;
+                }
+                c.av_packet_unref(self.packet);
+            }
+            ret = c.avcodec_receive_frame(self.codec_ctx, frame);
+        }
+
+        if (ret < 0) {
+            return error.FrameDecodeError;
+        }
+
+        // 成功！此时 frame 里面是最新的 YUV 数据
+        // 外部可以通过 frame.data[0] 等访问
+        return frame;
+    }
+
     pub fn renderNextFrame(self: *Video, dest: [*]u8, dest_pitch: i32) !bool {
         const t0 = std.time.milliTimestamp();
         if (self.finished) {
