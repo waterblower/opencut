@@ -79,12 +79,10 @@ pub fn main() !void {
 
         // --- 2. Update Texture (Upload pixels to GPU)
         // In your video player, 'raw_pixels.ptr' will be 'video.frame.data[0]'
-
-        _ = try video.renderNextFrame(
-            video.rgb_frame.*.data[0],
-            video.rgb_frame.*.linesize[0],
-        );
-        _ = c.SDL_UpdateTexture(texture, null, raw_pixels.ptr, width * @sizeOf(u32));
+        const pixel = video.rgb_frame.*.data[0];
+        const pitch = video.rgb_frame.*.linesize[0];
+        _ = try video.renderNextFrame(pixel, pitch);
+        _ = c.SDL_UpdateTexture(texture, null, pixel, pitch);
 
         // --- 3. Render Texture (Draw it to the screen)
         // Passing 'null' for rects means "Draw entire texture to entire window"
