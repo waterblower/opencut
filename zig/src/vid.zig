@@ -19,15 +19,11 @@ pub const Video = struct {
     video_stream_idx: i32,
     width: i32,
     height: i32,
-    frame_rate: f64,
+    fps: f64,
     finished: bool,
 
-    pub fn fps(self: *const Video) f64 {
-        return self.frame_rate;
-    }
-
     pub fn frameDurationMs(self: *const Video) u32 {
-        return @intFromFloat(1000.0 / self.frame_rate);
+        return @intFromFloat(1000.0 / self.fps);
     }
 
     pub fn isFinished(self: *const Video) bool {
@@ -186,7 +182,6 @@ pub fn openVideo(allocator: std.mem.Allocator, file_path: []const u8) !*Video {
     }
 
     // Enable multithreading
-    print("thread: {d}\n", .{codec_ctx.?.*.thread_count});
     codec_ctx.?.*.thread_count = 0;
 
     // Open codec
@@ -205,16 +200,6 @@ pub fn openVideo(allocator: std.mem.Allocator, file_path: []const u8) !*Video {
         if (calc_fps > 0) {
             fps = calc_fps;
         }
-    }
-
-    // Allocate frame
-    const frame = c.av_frame_alloc();
-    if (frame == null) {
-        return error.CouldNotAllocateFrame;
-    }
-    errdefer {
-        var frame_ptr = frame;
-        c.av_frame_free(@ptrCast(&frame_ptr));
     }
 
     // Allocate RGB frame
@@ -242,10 +227,10 @@ pub fn openVideo(allocator: std.mem.Allocator, file_path: []const u8) !*Video {
         video_width,
         video_height,
         codec_ctx.?.*.pix_fmt,
-        @divTrunc(video_width, 2),
-        @divTrunc(video_height, 2),
+        video_width,
+        video_height,
         c.AV_PIX_FMT_BGRA,
-        c.SWS_BILINEAR,
+        c.SWS_POINT,
         null,
         null,
         null,
@@ -284,11 +269,39 @@ pub fn openVideo(allocator: std.mem.Allocator, file_path: []const u8) !*Video {
         .video_stream_idx = video_stream_idx,
         .width = video_width,
         .height = video_height,
-        .frame_rate = fps,
+        .fps = fps,
         .finished = false,
     };
 
-    std.debug.print("Video opened: {}x{} @ {d:.2} fps\n", .{ video_width, video_height, fps });
+    // Get codec name
+    const codec_name = if (codec.?.*.long_name != null)
+        std.mem.span(codec.?.*.long_name)
+    else if (codec.?.*.name != null)
+        std.mem.span(codec.?.*.name)
+    else
+        "unknown";
+
+    // Get container format name
+    const format_name = if (fmt_ctx.?.*.iformat.*.long_name != null)
+        std.mem.span(fmt_ctx.?.*.iformat.*.long_name)
+    else if (fmt_ctx.?.*.iformat.*.name != null)
+        std.mem.span(fmt_ctx.?.*.iformat.*.name)
+    else
+        "unknown";
+
+    // Get color space name
+    const pix_fmt = codec_ctx.?.*.pix_fmt;
+    const pix_fmt_name = c.av_get_pix_fmt_name(pix_fmt);
+    const color_space = if (pix_fmt_name != null)
+        std.mem.span(pix_fmt_name)
+    else
+        "unknown";
+
+    print("Video opened:\n", .{});
+    print("  Resolution:  {}x{} @ {d:.2} fps\n", .{ video_width, video_height, fps });
+    print("  Codec:       {s}\n", .{codec_name});
+    print("  Container:   {s}\n", .{format_name});
+    print("  Color Space: {s}\n", .{color_space});
 
     return video;
 }
