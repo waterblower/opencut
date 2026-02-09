@@ -17,6 +17,7 @@ pub fn build(b: *std.Build) void {
     // 2. Define Steps (Modularly)
     // We pass the builder, target, and optimize options to each helper.
     setupOpencut(b, target, optimize, assets_module);
+    setupOpencut2(b, target, optimize, assets_module, sdl_mod);
     setupGrayscale(b, target, optimize);
     setupSdlPlayer(b, target, optimize);
     setup3Panels(b, target, optimize, assets_module);
@@ -79,6 +80,42 @@ fn setupOpencut(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
 
     // Run Step: zig build run-opencut
     var run_step = b.step("run-opencut", "Run Opencut");
+    var run_cmd = b.addRunArtifact(exe);
+    if (b.args) |args| run_cmd.addArgs(args);
+    run_step.dependOn(&run_cmd.step);
+}
+
+fn setupOpencut2(
+    b: *std.Build,
+    target: std.Build.ResolvedTarget,
+    optimize: std.builtin.OptimizeMode,
+    assets: *std.Build.Module,
+    sdl_mod: *std.Build.Module,
+) void {
+    const exe = b.addExecutable(.{
+        .name = "opencut2",
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("src/opencut2.zig"),
+            .target = target,
+            .optimize = optimize,
+        }),
+    });
+
+    // Imports & Linking
+    exe.root_module.addImport("assets", assets);
+    exe.root_module.addImport("sdl", sdl_mod);
+    exe.linkLibC();
+    exe.linkSystemLibrary("SDL3");
+    linkFFmpeg(exe);
+
+    // Build Step: zig build opencut
+    const build_step = b.step("opencut2", "Build Open Cut");
+    // NOTE: using addInstallArtifact here (instead of b.installArtifact) prevents
+    // it from being built by default when running "zig build"
+    build_step.dependOn(&b.addInstallArtifact(exe, .{}).step);
+
+    // Run Step: zig build run-opencut
+    var run_step = b.step("run-opencut2", "Run Opencut");
     var run_cmd = b.addRunArtifact(exe);
     if (b.args) |args| run_cmd.addArgs(args);
     run_step.dependOn(&run_cmd.step);
