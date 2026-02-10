@@ -22,7 +22,7 @@ pub const Video = struct {
     fps: f64,
     finished: bool,
 
-    pub fn frameDurationMs(self: *const Video) u32 {
+    pub fn frameDurationMs(self: *const Video) u64 {
         return @intFromFloat(1000.0 / self.fps);
     }
 
@@ -167,6 +167,7 @@ pub const Video = struct {
 
 pub fn openVideo(allocator: std.mem.Allocator, file_path: []const u8) !*Video {
     // Ensure null-terminated string
+    print("open {s}\n", .{file_path});
     const path_z = try allocator.dupeZ(u8, file_path);
     defer allocator.free(path_z);
 
