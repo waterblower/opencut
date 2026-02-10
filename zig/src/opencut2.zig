@@ -56,14 +56,19 @@ pub fn main() !void {
 
     var running = true;
 
-    // 2. 预分配 8-bit 转换缓冲区 (为了避免每帧 malloc，我们在循环外分配)
-    // Y Plane: full size
-    const y_buf_size = @as(usize, @intCast(width * height));
+    // 预分配 Buffer (用于 10-bit 转换)
+    const y_buf_size = @as(
+        usize,
+        @intCast(video.width * video.height),
+    );
+    const uv_buf_size = @as(
+        usize,
+        @intCast(@divTrunc(video.width, 2) * @divTrunc(video.height, 2)),
+    );
+
     const y_buffer = try gpa.alloc(u8, y_buf_size);
     defer gpa.free(y_buffer);
 
-    // U/V Plane: quarter size (width/2 * height/2)
-    const uv_buf_size = @as(usize, @intCast((width / 2) * (height / 2)));
     const u_buffer = try gpa.alloc(u8, uv_buf_size);
     defer gpa.free(u_buffer);
 
@@ -105,22 +110,28 @@ pub fn main() !void {
         // print("depth: {d}\n", .{depth});
 
         if (f) |frame| {
+            // 1. 获取位深
+            // 注意：这里需要 @ptrCast 解决类型冲突
+            const depth = get_bit_depth(@ptrCast(frame));
 
-            // Upload YUV data directly to texture
-            // For YUV420p: Y plane is full size, U and V are half size
-            const result_code = c.SDL_UpdateYUVTexture(
-                texture,
-                null, // Update entire texture
-                frame.data[0], //       Y plane
-                frame.linesize[0], //   Y stride
-                frame.data[1], //       U plane
-                frame.linesize[1], //   U stride
-                frame.data[2], //       V plane
-                frame.linesize[2], //   V stride
-            );
+            if (depth == 10) {
+                // --- 路径 A: 10-bit 视频 (需要转换) ---
 
-            if (result_code) {
-                print("SDL_UpdateYUVTexture failed: {s}\n", .{c.SDL_GetError()});
+                // 转换 Y 平面
+                convert_plane_10_to_8(frame.data[0], y_buffer.ptr, video.width, video.height, frame.linesize[0], video.width);
+                // 转换 U 平面 (宽高减半)
+                convert_plane_10_to_8(frame.data[1], u_buffer.ptr, @divTrunc(video.width, 2), @divTrunc(video.height, 2), frame.linesize[1], @divTrunc(video.width, 2));
+                // 转换 V 平面
+                convert_plane_10_to_8(frame.data[2], v_buffer.ptr, @divTrunc(video.width, 2), @divTrunc(video.height, 2), frame.linesize[2], @divTrunc(video.width, 2));
+
+                // 上传转换后的 buffer
+                _ = c.SDL_UpdateYUVTexture(texture, null, y_buffer.ptr, video.width, u_buffer.ptr, @divTrunc(video.width, 2), v_buffer.ptr, @divTrunc(video.width, 2));
+            } else if (depth == 8) {
+                // --- 路径 B: 8-bit 视频 (直接上传，性能最高) ---
+                _ = c.SDL_UpdateYUVTexture(texture, null, frame.data[0], frame.linesize[0], frame.data[1], frame.linesize[1], frame.data[2], frame.linesize[2]);
+            } else {
+                print("do not support depth {d}\n", .{depth});
+                return error.DepthNotSupported;
             }
         }
 
@@ -196,4 +207,29 @@ fn compute_rect(win: *c.SDL_Window, video: *vid.Video) c.SDL_FRect {
         .h = draw_h,
     };
     return dst_rect;
+}
+
+// 安全的 10-bit 转 8-bit 函数 (防止 Bus Error)
+fn convert_plane_10_to_8(src: [*]u8, dst: [*]u8, width: i32, height: i32, src_stride: i32, dst_stride: i32) void {
+    const t = now();
+    var y: usize = 0;
+    while (y < @as(usize, @intCast(height))) : (y += 1) {
+        const src_row = src + y * @as(usize, @intCast(src_stride));
+        const dst_row = dst + y * @as(usize, @intCast(dst_stride));
+
+        var x: usize = 0;
+        while (x < @as(usize, @intCast(width))) : (x += 1) {
+            // 手动读取 2 个字节 (Little Endian)，不依赖指针对齐
+            // src 是 [*]u8，x*2 保证读取正确的位置
+            const low = src_row[x * 2];
+            const high = src_row[x * 2 + 1];
+
+            // 拼成 10-bit 值: low + (high << 8)
+            const val = @as(u16, low) | (@as(u16, high) << 8);
+
+            // 右移 2 位变成 8-bit
+            dst_row[x] = @intCast(val >> 2);
+        }
+    }
+    print("convert_plane_10_to_8: {d}\n", .{now() - t});
 }
