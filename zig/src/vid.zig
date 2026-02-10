@@ -13,7 +13,6 @@ pub const Video = struct {
     allocator: std.mem.Allocator,
     fmt_ctx: *c.AVFormatContext,
     codec_ctx: *c.AVCodecContext,
-    rgb_frame: *c.AVFrame,
     packet: *c.AVPacket,
     sws_ctx: *c.struct_SwsContext,
     video_stream_idx: i32,
@@ -37,11 +36,6 @@ pub const Video = struct {
     }
 
     pub fn deinit(self: *Video) void {
-        if (self.rgb_frame.*.data[0] != null) {
-            c.av_free(self.rgb_frame.*.data[0]);
-        }
-        var rgb_frame_ptr: ?*c.AVFrame = self.rgb_frame;
-        c.av_frame_free(@ptrCast(&rgb_frame_ptr));
         var packet_ptr: ?*c.AVPacket = self.packet;
         c.av_packet_free(@ptrCast(&packet_ptr));
         c.sws_freeContext(self.sws_ctx);
@@ -243,16 +237,6 @@ pub fn openVideo(allocator: std.mem.Allocator, file_path: []const u8) !*Video {
         }
     }
 
-    // Allocate RGB frame
-    const rgb_frame = c.av_frame_alloc();
-    if (rgb_frame == null) {
-        return error.CouldNotAllocateRGBFrame;
-    }
-    errdefer {
-        var rgb_frame_ptr = rgb_frame;
-        c.av_frame_free(@ptrCast(&rgb_frame_ptr));
-    }
-
     // Allocate packet
     const packet = c.av_packet_alloc();
     if (packet == null) {
@@ -264,22 +248,25 @@ pub fn openVideo(allocator: std.mem.Allocator, file_path: []const u8) !*Video {
     }
 
     // Initialize SWS context for color conversion
-    const sws_ctx = c.sws_getContext(
-        video_width,
-        video_height,
-        codec_ctx.?.*.pix_fmt,
-        video_width,
-        video_height,
-        c.AV_PIX_FMT_BGRA,
-        c.SWS_POINT,
-        null,
-        null,
-        null,
-    );
-    if (sws_ctx == null) {
-        return error.CouldNotInitSWSContext;
+    var sws_ctx: ?*c.SwsContext = null;
+    if (codec_ctx.?.*.pix_fmt == c.AV_PIX_FMT_YUV420P10LE) {
+        sws_ctx = c.sws_getContext(
+            video_width,
+            video_height,
+            c.AV_PIX_FMT_YUV420P10LE, // 源格式
+            video_width,
+            video_height,
+            c.AV_PIX_FMT_YUV420P, // 目标格式（8bit）
+            c.SWS_BILINEAR,
+            null,
+            null,
+            null,
+        );
+        if (sws_ctx == null) {
+            return error.CouldNotInitSWSContext;
+        }
+        errdefer c.sws_freeContext(sws_ctx);
     }
-    errdefer c.sws_freeContext(sws_ctx);
 
     // Allocate buffer for RGB frame
     const num_bytes = c.av_image_get_buffer_size(c.AV_PIX_FMT_BGRA, video_width, video_height, 1);
@@ -288,23 +275,12 @@ pub fn openVideo(allocator: std.mem.Allocator, file_path: []const u8) !*Video {
         return error.CouldNotAllocateBuffer;
     }
 
-    _ = c.av_image_fill_arrays(
-        @ptrCast(&rgb_frame.?.*.data),
-        @ptrCast(&rgb_frame.?.*.linesize),
-        @ptrCast(buffer),
-        c.AV_PIX_FMT_BGRA,
-        video_width,
-        video_height,
-        1,
-    );
-
     // Create and return Video instance
     const video = try allocator.create(Video);
     video.* = Video{
         .allocator = allocator,
         .fmt_ctx = fmt_ctx.?,
         .codec_ctx = codec_ctx.?,
-        .rgb_frame = rgb_frame.?,
         .packet = packet.?,
         .sws_ctx = sws_ctx.?,
         .video_stream_idx = video_stream_idx,
