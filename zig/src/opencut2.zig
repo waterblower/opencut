@@ -162,11 +162,10 @@ pub fn main() !void {
 
         // loop time
         const loop_time = now() - t0;
-        print("loop time: {d}\n", .{loop_time});
+        print("\r\x1b[K loop time: {d}ms", .{loop_time});
 
         if (loop_time < video.frameDurationMs()) {
             const sleep_duration = video.frameDurationMs() - @as(u64, @intCast(loop_time));
-            print("sleep_duration: {d}\n", .{sleep_duration});
             std.Thread.sleep(sleep_duration * 1000 * 1000);
         }
     }
