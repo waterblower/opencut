@@ -14,7 +14,8 @@ pub const Video = struct {
     fmt_ctx: *c.AVFormatContext,
     codec_ctx: *c.AVCodecContext,
     packet: *c.AVPacket,
-    sws_ctx: *c.struct_SwsContext,
+    sws_ctx: ?*c.struct_SwsContext,
+    sws_frame: *c.AVFrame,
     video_stream_idx: i32,
     width: i32,
     height: i32,
@@ -268,6 +269,21 @@ pub fn openVideo(allocator: std.mem.Allocator, file_path: []const u8) !*Video {
         errdefer c.sws_freeContext(sws_ctx);
     }
 
+    // 准备 sws_frame
+    var sws_frame: ?*c.AVFrame = c.av_frame_alloc();
+    if (sws_frame == null) {
+        return error.FrameAllocFailed;
+    }
+
+    sws_frame.?.format = c.AV_PIX_FMT_YUV420P;
+    sws_frame.?.width = video_width;
+    sws_frame.?.height = video_height;
+
+    const ret = c.av_frame_get_buffer(sws_frame, 32);
+    if (ret < 0) {
+        return error.FrameBufferAllocFailed;
+    }
+
     // Allocate buffer for RGB frame
     const num_bytes = c.av_image_get_buffer_size(c.AV_PIX_FMT_BGRA, video_width, video_height, 1);
     const buffer = c.av_malloc(@intCast(num_bytes));
@@ -283,6 +299,7 @@ pub fn openVideo(allocator: std.mem.Allocator, file_path: []const u8) !*Video {
         .codec_ctx = codec_ctx.?,
         .packet = packet.?,
         .sws_ctx = sws_ctx.?,
+        .sws_frame = sws_frame.?,
         .video_stream_idx = video_stream_idx,
         .width = video_width,
         .height = video_height,

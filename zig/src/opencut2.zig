@@ -117,15 +117,33 @@ pub fn main() !void {
             if (depth == 10) {
                 // --- 路径 A: 10-bit 视频 (需要转换) ---
 
-                // 转换 Y 平面
-                convert_plane_10_to_8(frame.data[0], y_buffer.ptr, video.width, video.height, frame.linesize[0], video.width);
-                // 转换 U 平面 (宽高减半)
-                convert_plane_10_to_8(frame.data[1], u_buffer.ptr, @divTrunc(video.width, 2), @divTrunc(video.height, 2), frame.linesize[1], @divTrunc(video.width, 2));
-                // 转换 V 平面
-                convert_plane_10_to_8(frame.data[2], v_buffer.ptr, @divTrunc(video.width, 2), @divTrunc(video.height, 2), frame.linesize[2], @divTrunc(video.width, 2));
+                const sws_ctx = video.sws_ctx;
+                const dst = video.sws_frame;
 
-                // 上传转换后的 buffer
-                _ = c.SDL_UpdateYUVTexture(texture, null, y_buffer.ptr, video.width, u_buffer.ptr, @divTrunc(video.width, 2), v_buffer.ptr, @divTrunc(video.width, 2));
+                _ = ffmpeg.sws_scale(
+                    @ptrCast(sws_ctx),
+                    &frame.data,
+                    &frame.linesize,
+                    0,
+                    video.height,
+                    &dst.data,
+                    &dst.linesize,
+                );
+                // 用转换后的 8bit frame 给 SDL
+                const ok = c.SDL_UpdateYUVTexture(
+                    texture,
+                    null,
+                    dst.data[0],
+                    dst.linesize[0],
+                    dst.data[1],
+                    dst.linesize[1],
+                    dst.data[2],
+                    dst.linesize[2],
+                );
+                if (!ok) {
+                    print("SDL_UpdateYUVTexture failed: {s}\n", .{c.SDL_GetError()});
+                    // return error.SDL_UpdateYUVTexture_Failed;
+                }
             } else if (depth == 8) {
                 // --- 路径 B: 8-bit 视频 (直接上传，性能最高) ---
                 _ = c.SDL_UpdateYUVTexture(texture, null, frame.data[0], frame.linesize[0], frame.data[1], frame.linesize[1], frame.data[2], frame.linesize[2]);
