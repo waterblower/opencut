@@ -85,7 +85,12 @@ fn setup_opencut(
         }),
     });
     linkFFmpeg(tests);
-    b.step("test", "Run tests").dependOn(&tests.step);
+    // Create a "Run" artifact so the build system executes the compiled tests
+    const run_tests = b.addRunArtifact(tests);
+
+    // Make the "zig build test" command depend on the RUN step, not just the compile step
+    const test_step = b.step("test", "Run tests");
+    test_step.dependOn(&run_tests.step);
 }
 
 // ============================================================

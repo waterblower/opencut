@@ -371,7 +371,7 @@ pub fn split_half(
 
     // 获取总时长并计算中点
     const total_duration = in_ctx.?.*.duration;
-    const half_duration = total_duration / 2;
+    const half_duration = @divTrunc(total_duration, 2);
     const av_time_base_q = c.AVRational{
         .num = 1,
         .den = c.AV_TIME_BASE,
@@ -437,9 +437,9 @@ pub fn split_half(
     if (c.avformat_write_header(out2_ctx, null) < 0) return error.WriteHeaderFailed;
 
     // --- 5. 核心逻辑：逐包读取并分发 ---
-    const packet = c.av_packet_alloc();
+    var packet = c.av_packet_alloc();
     if (packet == null) return error.PacketAllocFailed;
-    defer c.av_packet_free(@ptrCast(&packet));
+    defer c.av_packet_free(&packet);
 
     var is_second_half = false;
 
@@ -508,4 +508,112 @@ pub fn split_half(
     _ = c.av_write_trailer(out2_ctx);
 
     print("Split completed successfully!\n", .{});
+}
+
+pub fn split_half_v2(
+    input_path: [*:0]const u8,
+    output1_path: [*:0]const u8,
+    output2_path: [*:0]const u8,
+) !void {
+    var ifmt_ctx: ?*c.AVFormatContext = null;
+
+    if (c.avformat_open_input(&ifmt_ctx, input_path, null, null) < 0)
+        return error.OpenInputFailed;
+
+    defer c.avformat_close_input(&ifmt_ctx);
+
+    if (c.avformat_find_stream_info(ifmt_ctx, null) < 0)
+        return error.StreamInfoFailed;
+
+    const in_ctx = ifmt_ctx.?;
+
+    // Duration in AV_TIME_BASE units
+    const duration = in_ctx.duration;
+    if (duration <= 0)
+        return error.NoDuration;
+
+    const half_point = @divTrunc(duration, 2);
+
+    var out1: ?*c.AVFormatContext = null;
+    var out2: ?*c.AVFormatContext = null;
+
+    // Create output contexts
+    if (c.avformat_alloc_output_context2(&out1, null, null, output1_path) < 0)
+        return error.Output1AllocFailed;
+
+    if (c.avformat_alloc_output_context2(&out2, null, null, output2_path) < 0)
+        return error.Output2AllocFailed;
+
+    defer c.avformat_free_context(out1);
+    defer c.avformat_free_context(out2);
+
+    // Copy stream layout
+    var i: usize = 0;
+    while (i < in_ctx.nb_streams) : (i += 1) {
+        const in_stream = in_ctx.streams[i];
+
+        const s1 = c.avformat_new_stream(out1, null) orelse return error.StreamCreate;
+        const s2 = c.avformat_new_stream(out2, null) orelse return error.StreamCreate;
+
+        if (c.avcodec_parameters_copy(s1.*.codecpar, in_stream.*.codecpar) < 0)
+            return error.ParamCopy;
+
+        if (c.avcodec_parameters_copy(s2.*.codecpar, in_stream.*.codecpar) < 0)
+            return error.ParamCopy;
+
+        s1.*.codecpar.*.codec_tag = 0;
+        s2.*.codecpar.*.codec_tag = 0;
+    }
+
+    if (c.avio_open(&out1.?.pb, output1_path, c.AVIO_FLAG_WRITE) < 0)
+        return error.OpenOutput1;
+
+    if (c.avio_open(&out2.?.pb, output2_path, c.AVIO_FLAG_WRITE) < 0)
+        return error.OpenOutput2;
+
+    if (c.avformat_write_header(out1, null) < 0)
+        return error.WriteHeader1;
+
+    if (c.avformat_write_header(out2, null) < 0)
+        return error.WriteHeader2;
+
+    var pkt: c.AVPacket = undefined;
+    c.av_init_packet(&pkt);
+
+    defer c.av_packet_unref(&pkt);
+
+    while (c.av_read_frame(in_ctx, &pkt) >= 0) {
+        const stream = in_ctx.streams[@intCast(pkt.stream_index)];
+
+        // Convert packet timestamp to AV_TIME_BASE
+        const time = c.av_rescale_q(
+            pkt.pts,
+            stream.*.time_base,
+            c.AV_TIME_BASE_Q,
+        );
+
+        const target_ctx =
+            if (time < half_point) out1.? else out2.?;
+
+        const out_stream = target_ctx.streams[@intCast(pkt.stream_index)];
+
+        // Rescale timestamps
+        pkt.pts = c.av_rescale_q(pkt.pts, stream.*.time_base, out_stream.*.time_base);
+        pkt.dts = c.av_rescale_q(pkt.dts, stream.*.time_base, out_stream.*.time_base);
+        pkt.duration = c.av_rescale_q(pkt.duration, stream.*.time_base, out_stream.*.time_base);
+
+        pkt.pos = -1;
+
+        if (c.av_interleaved_write_frame(target_ctx, &pkt) < 0) {
+            return error.WritePacketFailed;
+        }
+
+        c.av_packet_unref(&pkt);
+    }
+
+    _ = c.av_write_trailer(out1);
+    _ = c.av_write_trailer(out2);
+
+    _ = c.avio_closep(&out1.?.pb);
+    _ = c.avio_closep(&out2.?.pb);
 }
