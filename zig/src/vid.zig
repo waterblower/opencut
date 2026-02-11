@@ -341,279 +341,98 @@ pub fn openVideo(allocator: std.mem.Allocator, file_path: []const u8) !*Video {
 }
 
 pub fn split_half(
-    allocator: std.mem.Allocator,
-    input_path: []const u8,
-    output1_path: []const u8,
-    output2_path: []const u8,
-) !void {
-    const in_path_z = try allocator.dupeZ(u8, input_path);
-    const out1_path_z = try allocator.dupeZ(u8, output1_path);
-    const out2_path_z = try allocator.dupeZ(u8, output2_path);
-    defer {
-        allocator.free(in_path_z);
-        allocator.free(out1_path_z);
-        allocator.free(out2_path_z);
-    }
-
-    // --- 1. 打开输入文件 ---
-    var in_ctx: ?*c.AVFormatContext = null;
-    if (c.avformat_open_input(
-        &in_ctx,
-        in_path_z.ptr,
-        null,
-        null,
-    ) < 0) {
-        return error.OpenInputFailed;
-    }
-    defer c.avformat_close_input(@ptrCast(&in_ctx));
-
-    if (c.avformat_find_stream_info(in_ctx, null) < 0) return error.FindStreamInfoFailed;
-
-    // 获取总时长并计算中点
-    const total_duration = in_ctx.?.*.duration;
-    const half_duration = @divTrunc(total_duration, 2);
-    const av_time_base_q = c.AVRational{
-        .num = 1,
-        .den = c.AV_TIME_BASE,
-    };
-
-    // --- 2. 准备输出文件 Context ---
-    var out1_ctx: ?*c.AVFormatContext = null;
-    var out2_ctx: ?*c.AVFormatContext = null;
-
-    _ = c.avformat_alloc_output_context2(
-        &out1_ctx,
-        null,
-        null,
-        out1_path_z.ptr,
-    );
-    _ = c.avformat_alloc_output_context2(
-        &out2_ctx,
-        null,
-        null,
-        out2_path_z.ptr,
-    );
-    if (out1_ctx == null or out2_ctx == null) return error.OutputContextFailed;
-
-    // 为了安全释放，使用 defer
-    defer if (out1_ctx != null) c.avformat_free_context(out1_ctx);
-    defer if (out2_ctx != null) c.avformat_free_context(out2_ctx);
-
-    // --- 3. 映射并克隆所有流 (Video, Audio, Subs) ---
-    const nb_streams = in_ctx.?.*.nb_streams;
-    var i: c_uint = 0;
-    while (i < nb_streams) : (i += 1) {
-        const in_stream = in_ctx.?.*.streams[i];
-
-        // Output 1 Stream
-        const out1_stream = c.avformat_new_stream(out1_ctx, null);
-        if (c.avcodec_parameters_copy(out1_stream.?.*.codecpar, in_stream.*.codecpar) < 0) return error.CopyParamsFailed;
-        out1_stream.?.*.codecpar.*.codec_tag = 0; // 让 FFmpeg 自动分配 Tag
-
-        // Output 2 Stream
-        const out2_stream = c.avformat_new_stream(out2_ctx, null);
-        if (c.avcodec_parameters_copy(out2_stream.?.*.codecpar, in_stream.*.codecpar) < 0) return error.CopyParamsFailed;
-        out2_stream.?.*.codecpar.*.codec_tag = 0;
-    }
-
-    // --- 4. 打开物理文件并写入 Header ---
-    if ((out1_ctx.?.*.oformat.*.flags & c.AVFMT_NOFILE) == 0) {
-        if (c.avio_open(&out1_ctx.?.*.pb, out1_path_z.ptr, c.AVIO_FLAG_WRITE) < 0) {
-            return error.IOOpenFailed;
-        }
-    }
-    if ((out1_ctx.?.*.oformat.*.flags & c.AVFMT_NOFILE) == 0) {
-        defer _ = c.avio_closep(&out1_ctx.?.*.pb);
-    }
-
-    if ((out2_ctx.?.*.oformat.*.flags & c.AVFMT_NOFILE) == 0) {
-        if (c.avio_open(&out2_ctx.?.*.pb, out2_path_z.ptr, c.AVIO_FLAG_WRITE) < 0) return error.IOOpenFailed;
-    }
-    if ((out2_ctx.?.*.oformat.*.flags & c.AVFMT_NOFILE) == 0) {
-        defer _ = c.avio_closep(&out2_ctx.?.*.pb);
-    }
-
-    if (c.avformat_write_header(out1_ctx, null) < 0) return error.WriteHeaderFailed;
-    if (c.avformat_write_header(out2_ctx, null) < 0) return error.WriteHeaderFailed;
-
-    // --- 5. 核心逻辑：逐包读取并分发 ---
-    var packet = c.av_packet_alloc();
-    if (packet == null) return error.PacketAllocFailed;
-    defer c.av_packet_free(&packet);
-
-    var is_second_half = false;
-
-    // 用于记录第二段视频中，各个流的初始时间戳，以便将其归零
-    const offset_pts = try allocator.alloc(i64, nb_streams);
-    const offset_dts = try allocator.alloc(i64, nb_streams);
-    const offset_set = try allocator.alloc(bool, nb_streams);
-    defer {
-        allocator.free(offset_pts);
-        allocator.free(offset_dts);
-        allocator.free(offset_set);
-    }
-    @memset(offset_set, false);
-
-    print("Splitting video... Half duration is {d} microseconds\n", .{half_duration});
-
-    while (c.av_read_frame(in_ctx, packet) >= 0) {
-        const stream_idx = @as(usize, @intCast(packet.*.stream_index));
-        const in_stream = in_ctx.?.*.streams[stream_idx];
-
-        // 计算当前包在全局时间轴上的微秒数
-        const ts_micros = c.av_rescale_q(packet.*.pts, in_stream.*.time_base, av_time_base_q);
-
-        // 检查是否跨越了一半的时间线，并且当前包是**视频的关键帧**
-        if (!is_second_half and ts_micros >= half_duration) {
-            if (in_stream.*.codecpar.*.codec_type == c.AVMEDIA_TYPE_VIDEO) {
-                if ((packet.*.flags & c.AV_PKT_FLAG_KEY) != 0) {
-                    print("Split triggered at video keyframe! (ts: {d})\n", .{ts_micros});
-                    is_second_half = true;
-                }
-            }
-        }
-
-        if (!is_second_half) {
-            // 写入第一半
-            const out_stream = out1_ctx.?.*.streams[stream_idx];
-            c.av_packet_rescale_ts(packet, in_stream.*.time_base, out_stream.*.time_base);
-            packet.*.pos = -1;
-            _ = c.av_interleaved_write_frame(out1_ctx, packet);
-        } else {
-            // 写入第二半 (需要调整时间戳)
-            const out_stream = out2_ctx.?.*.streams[stream_idx];
-
-            // 记录偏移量
-            if (!offset_set[stream_idx]) {
-                offset_pts[stream_idx] = packet.*.pts;
-                offset_dts[stream_idx] = packet.*.dts;
-                offset_set[stream_idx] = true;
-            }
-
-            // 将 PTS/DTS 归零偏移
-            packet.*.pts -= offset_pts[stream_idx];
-            packet.*.dts -= offset_dts[stream_idx];
-
-            // 转换到目标 TimeBase
-            c.av_packet_rescale_ts(packet, in_stream.*.time_base, out_stream.*.time_base);
-            packet.*.pos = -1;
-            _ = c.av_interleaved_write_frame(out2_ctx, packet);
-        }
-
-        c.av_packet_unref(packet);
-    }
-
-    // --- 6. 写入尾部收尾 ---
-    _ = c.av_write_trailer(out1_ctx);
-    _ = c.av_write_trailer(out2_ctx);
-
-    print("Split completed successfully!\n", .{});
-}
-
-pub fn split_half_v2(
     input_path: [*:0]const u8,
     output1_path: [*:0]const u8,
     output2_path: [*:0]const u8,
 ) !void {
     var ifmt_ctx: ?*c.AVFormatContext = null;
-
     if (c.avformat_open_input(&ifmt_ctx, input_path, null, null) < 0)
         return error.OpenInputFailed;
-
     defer c.avformat_close_input(&ifmt_ctx);
 
     if (c.avformat_find_stream_info(ifmt_ctx, null) < 0)
         return error.StreamInfoFailed;
 
     const in_ctx = ifmt_ctx.?;
-
-    // Duration in AV_TIME_BASE units
     const duration = in_ctx.duration;
-    if (duration <= 0)
-        return error.NoDuration;
+    if (duration <= 0) return error.NoDuration;
 
     const half_point = @divTrunc(duration, 2);
-
     var out1: ?*c.AVFormatContext = null;
     var out2: ?*c.AVFormatContext = null;
 
-    // Create output contexts
     if (c.avformat_alloc_output_context2(&out1, null, null, output1_path) < 0)
         return error.Output1AllocFailed;
-
     if (c.avformat_alloc_output_context2(&out2, null, null, output2_path) < 0)
         return error.Output2AllocFailed;
 
     defer c.avformat_free_context(out1);
     defer c.avformat_free_context(out2);
 
-    // Copy stream layout
+    // Track offsets for each stream to reset the second half to 0
+    var stream_offsets = try std.heap.page_allocator.alloc(?i64, in_ctx.nb_streams);
+    @memset(stream_offsets, null);
+    defer std.heap.page_allocator.free(stream_offsets);
+
     var i: usize = 0;
     while (i < in_ctx.nb_streams) : (i += 1) {
         const in_stream = in_ctx.streams[i];
-
         const s1 = c.avformat_new_stream(out1, null) orelse return error.StreamCreate;
         const s2 = c.avformat_new_stream(out2, null) orelse return error.StreamCreate;
-
-        if (c.avcodec_parameters_copy(s1.*.codecpar, in_stream.*.codecpar) < 0)
-            return error.ParamCopy;
-
-        if (c.avcodec_parameters_copy(s2.*.codecpar, in_stream.*.codecpar) < 0)
-            return error.ParamCopy;
-
+        if (c.avcodec_parameters_copy(s1.*.codecpar, in_stream.*.codecpar) < 0) return error.ParamCopy;
+        if (c.avcodec_parameters_copy(s2.*.codecpar, in_stream.*.codecpar) < 0) return error.ParamCopy;
         s1.*.codecpar.*.codec_tag = 0;
         s2.*.codecpar.*.codec_tag = 0;
     }
 
-    if (c.avio_open(&out1.?.pb, output1_path, c.AVIO_FLAG_WRITE) < 0)
-        return error.OpenOutput1;
-
-    if (c.avio_open(&out2.?.pb, output2_path, c.AVIO_FLAG_WRITE) < 0)
-        return error.OpenOutput2;
-
-    if (c.avformat_write_header(out1, null) < 0)
-        return error.WriteHeader1;
-
-    if (c.avformat_write_header(out2, null) < 0)
-        return error.WriteHeader2;
+    if (c.avio_open(&out1.?.pb, output1_path, c.AVIO_FLAG_WRITE) < 0) return error.OpenOutput1;
+    if (c.avio_open(&out2.?.pb, output2_path, c.AVIO_FLAG_WRITE) < 0) return error.OpenOutput2;
+    if (c.avformat_write_header(out1, null) < 0) return error.WriteHeader1;
+    if (c.avformat_write_header(out2, null) < 0) return error.WriteHeader2;
 
     var pkt: c.AVPacket = undefined;
     c.av_init_packet(&pkt);
 
-    defer c.av_packet_unref(&pkt);
-
     while (c.av_read_frame(in_ctx, &pkt) >= 0) {
-        const stream = in_ctx.streams[@intCast(pkt.stream_index)];
+        const stream_idx = @as(usize, @intCast(pkt.stream_index));
+        const in_stream = in_ctx.streams[stream_idx];
 
-        // Convert packet timestamp to AV_TIME_BASE
-        const time = c.av_rescale_q(
-            pkt.pts,
-            stream.*.time_base,
-            c.AV_TIME_BASE_Q,
-        );
+        // Convert current packet time to global microseconds for splitting logic
+        const time = c.av_rescale_q(pkt.pts, in_stream.*.time_base, c.AV_TIME_BASE_Q);
 
-        const target_ctx =
-            if (time < half_point) out1.? else out2.?;
+        if (time < half_point) {
+            // --- First Half ---
+            const out_stream = out1.?.streams[stream_idx];
+            pkt.pts = c.av_rescale_q(pkt.pts, in_stream.*.time_base, out_stream.*.time_base);
+            pkt.dts = c.av_rescale_q(pkt.dts, in_stream.*.time_base, out_stream.*.time_base);
+            pkt.duration = c.av_rescale_q(pkt.duration, in_stream.*.time_base, out_stream.*.time_base);
+            pkt.pos = -1;
+            if (c.av_interleaved_write_frame(out1, &pkt) < 0) return error.WritePacketFailed;
+        } else {
+            // --- Second Half ---
+            const out_stream = out2.?.streams[stream_idx];
 
-        const out_stream = target_ctx.streams[@intCast(pkt.stream_index)];
+            // If this is the first packet for this stream in the second half, record the offset
+            if (stream_offsets[stream_idx] == null) {
+                stream_offsets[stream_idx] = pkt.pts;
+            }
 
-        // Rescale timestamps
-        pkt.pts = c.av_rescale_q(pkt.pts, stream.*.time_base, out_stream.*.time_base);
-        pkt.dts = c.av_rescale_q(pkt.dts, stream.*.time_base, out_stream.*.time_base);
-        pkt.duration = c.av_rescale_q(pkt.duration, stream.*.time_base, out_stream.*.time_base);
+            // Subtract offset to normalize start to 0
+            pkt.pts -= stream_offsets[stream_idx].?;
+            pkt.dts -= stream_offsets[stream_idx].?;
 
-        pkt.pos = -1;
-
-        if (c.av_interleaved_write_frame(target_ctx, &pkt) < 0) {
-            return error.WritePacketFailed;
+            // Rescale to output stream timebase
+            pkt.pts = c.av_rescale_q(pkt.pts, in_stream.*.time_base, out_stream.*.time_base);
+            pkt.dts = c.av_rescale_q(pkt.dts, in_stream.*.time_base, out_stream.*.time_base);
+            pkt.duration = c.av_rescale_q(pkt.duration, in_stream.*.time_base, out_stream.*.time_base);
+            pkt.pos = -1;
+            if (c.av_interleaved_write_frame(out2, &pkt) < 0) return error.WritePacketFailed;
         }
-
         c.av_packet_unref(&pkt);
     }
 
     _ = c.av_write_trailer(out1);
     _ = c.av_write_trailer(out2);
-
     _ = c.avio_closep(&out1.?.pb);
     _ = c.avio_closep(&out2.?.pb);
 }
