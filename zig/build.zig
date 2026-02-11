@@ -10,14 +10,26 @@ pub fn build(b: *std.Build) void {
     assets.addOption([]const u8, "chinese_font", @embedFile("assets//中文.otf"));
     const assets_module = assets.createModule();
 
-    const sdl_mod = b.createModule(.{ .root_source_file = b.path("src/sdl3.zig"), .target = target });
+    const sdl_mod = b.createModule(.{
+        .root_source_file = b.path("src/sdl3.zig"),
+        .target = target,
+    });
     sdl_mod.link_libc = true;
     sdl_mod.linkSystemLibrary("SDL3", .{});
 
-    // 2. Define Steps (Modularly)
-    // We pass the builder, target, and optimize options to each helper.
-    setupOpencut(b, target, optimize, assets_module);
-    setupOpencut2(b, target, optimize, assets_module, sdl_mod);
+    const vid_mod = b.createModule(.{
+        .root_source_file = b.path("src/vid.zig"),
+        .target = target,
+    });
+    vid_mod.linkSystemLibrary("avformat", .{});
+    vid_mod.linkSystemLibrary("avcodec", .{});
+    vid_mod.linkSystemLibrary("avutil", .{});
+    vid_mod.linkSystemLibrary("swscale", .{});
+
+    // main program
+    setup_opencut(b, target, optimize, assets_module, sdl_mod);
+
+    // attempts
     setupGrayscale(b, target, optimize);
     setupSdlPlayer(b, target, optimize);
     setup3Panels(b, target, optimize, assets_module);
@@ -27,75 +39,20 @@ pub fn build(b: *std.Build) void {
 }
 
 // ============================================================
-// Helper: FFmpeg Linking (Don't repeat yourself)
+// Opencut (Main App)
 // ============================================================
-fn linkFFmpeg(exe: *std.Build.Step.Compile) void {
-    const target = exe.root_module.resolved_target.?.result;
-
-    if (target.os.tag == .windows) {
-        const ffmpeg_path = "C:\\Program Files\\ffmpeg"; // Adjust to your path
-        exe.addLibraryPath(.{ .cwd_relative = ffmpeg_path ++ "\\lib" });
-        exe.addIncludePath(.{ .cwd_relative = ffmpeg_path ++ "\\include" });
-    }
-
-    exe.linkSystemLibrary("avformat");
-    exe.linkSystemLibrary("avcodec");
-    exe.linkSystemLibrary("avutil");
-    exe.linkSystemLibrary("swscale");
-}
-
-// ============================================================
-// 1. Opencut (Main App)
-// ============================================================
-fn setupOpencut(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.builtin.OptimizeMode, assets: *std.Build.Module) void {
-    // Lazy load dependency: If this block isn't run, dvui isn't fetched.
-    const dvui_dep = b.lazyDependency("dvui", .{
-        .target = target,
-        .optimize = optimize,
-        .backend = .sdl3,
-    }) orelse return;
-
-    const exe = b.addExecutable(.{
-        .name = "opencut",
-        .root_module = b.createModule(.{
-            .root_source_file = b.path("src/opencut.zig"),
-            .target = target,
-            .optimize = optimize,
-        }),
-    });
-
-    // Imports & Linking
-    exe.root_module.addImport("dvui", dvui_dep.module("dvui_sdl3"));
-    exe.root_module.addImport("SDLBackend", dvui_dep.module("sdl3"));
-    exe.root_module.addImport("assets", assets);
-    exe.linkLibC();
-    exe.linkSystemLibrary("SDL3");
-    linkFFmpeg(exe);
-
-    // Build Step: zig build opencut
-    const build_step = b.step("opencut", "Build Open Cut");
-    // NOTE: using addInstallArtifact here (instead of b.installArtifact) prevents
-    // it from being built by default when running "zig build"
-    build_step.dependOn(&b.addInstallArtifact(exe, .{}).step);
-
-    // Run Step: zig build run-opencut
-    var run_step = b.step("run-opencut", "Run Opencut");
-    var run_cmd = b.addRunArtifact(exe);
-    if (b.args) |args| run_cmd.addArgs(args);
-    run_step.dependOn(&run_cmd.step);
-}
-
-fn setupOpencut2(
+fn setup_opencut(
     b: *std.Build,
     target: std.Build.ResolvedTarget,
     optimize: std.builtin.OptimizeMode,
     assets: *std.Build.Module,
     sdl_mod: *std.Build.Module,
 ) void {
+    const name = "opencut";
     const exe = b.addExecutable(.{
-        .name = "opencut2",
+        .name = name,
         .root_module = b.createModule(.{
-            .root_source_file = b.path("src/opencut2.zig"),
+            .root_source_file = b.path("src/opencut.zig"),
             .target = target,
             .optimize = optimize,
         }),
@@ -109,20 +66,30 @@ fn setupOpencut2(
     linkFFmpeg(exe);
 
     // Build Step: zig build opencut
-    const build_step = b.step("opencut2", "Build Open Cut");
+    const build_step = b.step(name, "Build Open Cut");
     // NOTE: using addInstallArtifact here (instead of b.installArtifact) prevents
     // it from being built by default when running "zig build"
     build_step.dependOn(&b.addInstallArtifact(exe, .{}).step);
 
     // Run Step: zig build run-opencut
-    var run_step = b.step("run-opencut2", "Run Opencut");
+    var run_step = b.step("run-" ++ name, "Run Opencut");
     var run_cmd = b.addRunArtifact(exe);
     if (b.args) |args| run_cmd.addArgs(args);
     run_step.dependOn(&run_cmd.step);
+
+    const tests = b.addTest(.{
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("src/vid.test.zig"), // 你的测试文件路径
+            .target = target,
+            .optimize = optimize,
+        }),
+    });
+    linkFFmpeg(tests);
+    b.step("test", "Run tests").dependOn(&tests.step);
 }
 
 // ============================================================
-// 2. Grayscale Converter
+// Attempts
 // ============================================================
 fn setupGrayscale(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.builtin.OptimizeMode) void {
     const exe = b.addExecutable(.{
@@ -301,4 +268,22 @@ fn setupMultiWindow(b: *std.Build, target: std.Build.ResolvedTarget, optimize: s
     const run_cmd = b.addRunArtifact(exe);
     if (b.args) |args| run_cmd.addArgs(args);
     run_step.dependOn(&run_cmd.step);
+}
+
+// ============================================================
+// Helper: FFmpeg Linking (Don't repeat yourself)
+// ============================================================
+fn linkFFmpeg(exe: *std.Build.Step.Compile) void {
+    const target = exe.root_module.resolved_target.?.result;
+
+    if (target.os.tag == .windows) {
+        const ffmpeg_path = "C:\\Program Files\\ffmpeg"; // Adjust to your path
+        exe.addLibraryPath(.{ .cwd_relative = ffmpeg_path ++ "\\lib" });
+        exe.addIncludePath(.{ .cwd_relative = ffmpeg_path ++ "\\include" });
+    }
+
+    exe.linkSystemLibrary("avformat");
+    exe.linkSystemLibrary("avcodec");
+    exe.linkSystemLibrary("avutil");
+    exe.linkSystemLibrary("swscale");
 }

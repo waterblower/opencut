@@ -339,3 +339,173 @@ pub fn openVideo(allocator: std.mem.Allocator, file_path: []const u8) !*Video {
 
     return video;
 }
+
+pub fn split_half(
+    allocator: std.mem.Allocator,
+    input_path: []const u8,
+    output1_path: []const u8,
+    output2_path: []const u8,
+) !void {
+    const in_path_z = try allocator.dupeZ(u8, input_path);
+    const out1_path_z = try allocator.dupeZ(u8, output1_path);
+    const out2_path_z = try allocator.dupeZ(u8, output2_path);
+    defer {
+        allocator.free(in_path_z);
+        allocator.free(out1_path_z);
+        allocator.free(out2_path_z);
+    }
+
+    // --- 1. 打开输入文件 ---
+    var in_ctx: ?*c.AVFormatContext = null;
+    if (c.avformat_open_input(
+        &in_ctx,
+        in_path_z.ptr,
+        null,
+        null,
+    ) < 0) {
+        return error.OpenInputFailed;
+    }
+    defer c.avformat_close_input(@ptrCast(&in_ctx));
+
+    if (c.avformat_find_stream_info(in_ctx, null) < 0) return error.FindStreamInfoFailed;
+
+    // 获取总时长并计算中点
+    const total_duration = in_ctx.?.*.duration;
+    const half_duration = total_duration / 2;
+    const av_time_base_q = c.AVRational{
+        .num = 1,
+        .den = c.AV_TIME_BASE,
+    };
+
+    // --- 2. 准备输出文件 Context ---
+    var out1_ctx: ?*c.AVFormatContext = null;
+    var out2_ctx: ?*c.AVFormatContext = null;
+
+    _ = c.avformat_alloc_output_context2(
+        &out1_ctx,
+        null,
+        null,
+        out1_path_z.ptr,
+    );
+    _ = c.avformat_alloc_output_context2(
+        &out2_ctx,
+        null,
+        null,
+        out2_path_z.ptr,
+    );
+    if (out1_ctx == null or out2_ctx == null) return error.OutputContextFailed;
+
+    // 为了安全释放，使用 defer
+    defer if (out1_ctx != null) c.avformat_free_context(out1_ctx);
+    defer if (out2_ctx != null) c.avformat_free_context(out2_ctx);
+
+    // --- 3. 映射并克隆所有流 (Video, Audio, Subs) ---
+    const nb_streams = in_ctx.?.*.nb_streams;
+    var i: c_uint = 0;
+    while (i < nb_streams) : (i += 1) {
+        const in_stream = in_ctx.?.*.streams[i];
+
+        // Output 1 Stream
+        const out1_stream = c.avformat_new_stream(out1_ctx, null);
+        if (c.avcodec_parameters_copy(out1_stream.?.*.codecpar, in_stream.*.codecpar) < 0) return error.CopyParamsFailed;
+        out1_stream.?.*.codecpar.*.codec_tag = 0; // 让 FFmpeg 自动分配 Tag
+
+        // Output 2 Stream
+        const out2_stream = c.avformat_new_stream(out2_ctx, null);
+        if (c.avcodec_parameters_copy(out2_stream.?.*.codecpar, in_stream.*.codecpar) < 0) return error.CopyParamsFailed;
+        out2_stream.?.*.codecpar.*.codec_tag = 0;
+    }
+
+    // --- 4. 打开物理文件并写入 Header ---
+    if ((out1_ctx.?.*.oformat.*.flags & c.AVFMT_NOFILE) == 0) {
+        if (c.avio_open(&out1_ctx.?.*.pb, out1_path_z.ptr, c.AVIO_FLAG_WRITE) < 0) {
+            return error.IOOpenFailed;
+        }
+    }
+    if ((out1_ctx.?.*.oformat.*.flags & c.AVFMT_NOFILE) == 0) {
+        defer _ = c.avio_closep(&out1_ctx.?.*.pb);
+    }
+
+    if ((out2_ctx.?.*.oformat.*.flags & c.AVFMT_NOFILE) == 0) {
+        if (c.avio_open(&out2_ctx.?.*.pb, out2_path_z.ptr, c.AVIO_FLAG_WRITE) < 0) return error.IOOpenFailed;
+    }
+    if ((out2_ctx.?.*.oformat.*.flags & c.AVFMT_NOFILE) == 0) {
+        defer _ = c.avio_closep(&out2_ctx.?.*.pb);
+    }
+
+    if (c.avformat_write_header(out1_ctx, null) < 0) return error.WriteHeaderFailed;
+    if (c.avformat_write_header(out2_ctx, null) < 0) return error.WriteHeaderFailed;
+
+    // --- 5. 核心逻辑：逐包读取并分发 ---
+    const packet = c.av_packet_alloc();
+    if (packet == null) return error.PacketAllocFailed;
+    defer c.av_packet_free(@ptrCast(&packet));
+
+    var is_second_half = false;
+
+    // 用于记录第二段视频中，各个流的初始时间戳，以便将其归零
+    const offset_pts = try allocator.alloc(i64, nb_streams);
+    const offset_dts = try allocator.alloc(i64, nb_streams);
+    const offset_set = try allocator.alloc(bool, nb_streams);
+    defer {
+        allocator.free(offset_pts);
+        allocator.free(offset_dts);
+        allocator.free(offset_set);
+    }
+    @memset(offset_set, false);
+
+    print("Splitting video... Half duration is {d} microseconds\n", .{half_duration});
+
+    while (c.av_read_frame(in_ctx, packet) >= 0) {
+        const stream_idx = @as(usize, @intCast(packet.*.stream_index));
+        const in_stream = in_ctx.?.*.streams[stream_idx];
+
+        // 计算当前包在全局时间轴上的微秒数
+        const ts_micros = c.av_rescale_q(packet.*.pts, in_stream.*.time_base, av_time_base_q);
+
+        // 检查是否跨越了一半的时间线，并且当前包是**视频的关键帧**
+        if (!is_second_half and ts_micros >= half_duration) {
+            if (in_stream.*.codecpar.*.codec_type == c.AVMEDIA_TYPE_VIDEO) {
+                if ((packet.*.flags & c.AV_PKT_FLAG_KEY) != 0) {
+                    print("Split triggered at video keyframe! (ts: {d})\n", .{ts_micros});
+                    is_second_half = true;
+                }
+            }
+        }
+
+        if (!is_second_half) {
+            // 写入第一半
+            const out_stream = out1_ctx.?.*.streams[stream_idx];
+            c.av_packet_rescale_ts(packet, in_stream.*.time_base, out_stream.*.time_base);
+            packet.*.pos = -1;
+            _ = c.av_interleaved_write_frame(out1_ctx, packet);
+        } else {
+            // 写入第二半 (需要调整时间戳)
+            const out_stream = out2_ctx.?.*.streams[stream_idx];
+
+            // 记录偏移量
+            if (!offset_set[stream_idx]) {
+                offset_pts[stream_idx] = packet.*.pts;
+                offset_dts[stream_idx] = packet.*.dts;
+                offset_set[stream_idx] = true;
+            }
+
+            // 将 PTS/DTS 归零偏移
+            packet.*.pts -= offset_pts[stream_idx];
+            packet.*.dts -= offset_dts[stream_idx];
+
+            // 转换到目标 TimeBase
+            c.av_packet_rescale_ts(packet, in_stream.*.time_base, out_stream.*.time_base);
+            packet.*.pos = -1;
+            _ = c.av_interleaved_write_frame(out2_ctx, packet);
+        }
+
+        c.av_packet_unref(packet);
+    }
+
+    // --- 6. 写入尾部收尾 ---
+    _ = c.av_write_trailer(out1_ctx);
+    _ = c.av_write_trailer(out2_ctx);
+
+    print("Split completed successfully!\n", .{});
+}
