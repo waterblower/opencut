@@ -16,3 +16,4 @@ doc.md
 *.otf
 /zig/test-videos
 *.dll
+/zig/vendor/SDL*
