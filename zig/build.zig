@@ -31,7 +31,6 @@ pub fn build(b: *std.Build) void {
 
     // attempts
     setupGrayscale(b, target, optimize);
-    setupSdlPlayer(b, target, optimize);
     setup3Panels(b, target, optimize, assets_module);
     setupFileTree(b, target, optimize, assets_module);
     setupPlayAudio(b, target, optimize);
@@ -113,33 +112,6 @@ fn setupGrayscale(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std
     build_step.dependOn(&b.addInstallArtifact(exe, .{}).step);
 
     const run_step = b.step("run-grayscale", "Run grayscale converter");
-    const run_cmd = b.addRunArtifact(exe);
-    if (b.args) |args| run_cmd.addArgs(args);
-    run_step.dependOn(&run_cmd.step);
-}
-
-// ============================================================
-// 3. SDL Player (No DVUI)
-// ============================================================
-fn setupSdlPlayer(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.builtin.OptimizeMode) void {
-    const exe = b.addExecutable(.{
-        .name = "sdl-player",
-        .root_module = b.createModule(.{
-            .root_source_file = b.path("attempts/sdl-player.zig"),
-            .target = target,
-            .optimize = optimize,
-        }),
-    });
-
-    exe.linkLibC();
-    exe.linkSystemLibrary("SDL3");
-    linkFFmpeg(exe);
-    exe.linkSystemLibrary("swresample");
-
-    const build_step = b.step("sdl-player", "Build video player");
-    build_step.dependOn(&b.addInstallArtifact(exe, .{}).step);
-
-    const run_step = b.step("run-sdl-player", "Run video player");
     const run_cmd = b.addRunArtifact(exe);
     if (b.args) |args| run_cmd.addArgs(args);
     run_step.dependOn(&run_cmd.step);
