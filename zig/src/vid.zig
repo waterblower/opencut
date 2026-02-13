@@ -26,10 +26,6 @@ pub const Video = struct {
         return @intFromFloat(1000.0 / self.fps);
     }
 
-    pub fn isFinished(self: *const Video) bool {
-        return self.finished;
-    }
-
     pub fn restart(self: *Video) !void {
         _ = c.av_seek_frame(self.fmt_ctx, self.video_stream_idx, 0, c.AVSEEK_FLAG_BACKWARD);
         c.avcodec_flush_buffers(self.codec_ctx);
@@ -58,11 +54,14 @@ pub const Video = struct {
             return error.av_frame_alloc_failed;
         }
 
-        // 直接解码到 self.frame
+        // 解码到 frame
         var ret = c.avcodec_receive_frame(self.codec_ctx, frame);
 
         while (ret == c.AVERROR(c.EAGAIN)) {
             while (true) {
+                // 这个函数名是 FFmpeg 历史遗留的超级大坑
+                // 它的名字叫“读帧”，但它实际上读出来的是 Packet（压缩包）！
+                // 它从硬盘把数据搬运到内存
                 if (c.av_read_frame(self.fmt_ctx, self.packet) < 0) {
                     self.finished = true;
                     return null;
