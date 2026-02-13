@@ -10,13 +10,6 @@ pub fn build(b: *std.Build) void {
     assets.addOption([]const u8, "chinese_font", @embedFile("assets//中文.otf"));
     const assets_module = assets.createModule();
 
-    const sdl_mod = b.createModule(.{
-        .root_source_file = b.path("src/sdl3.zig"),
-        .target = target,
-    });
-    sdl_mod.link_libc = true;
-    sdl_mod.linkSystemLibrary("SDL3", .{});
-
     const vid_mod = b.createModule(.{
         .root_source_file = b.path("src/vid.zig"),
         .target = target,
@@ -25,6 +18,8 @@ pub fn build(b: *std.Build) void {
     vid_mod.linkSystemLibrary("avcodec", .{});
     vid_mod.linkSystemLibrary("avutil", .{});
     vid_mod.linkSystemLibrary("swscale", .{});
+
+    const sdl_mod = link_sdl(b, target);
 
     // main program
     setup_opencut(b, target, optimize, assets_module, sdl_mod);
@@ -248,8 +243,26 @@ fn setupMultiWindow(b: *std.Build, target: std.Build.ResolvedTarget, optimize: s
 }
 
 // ============================================================
-// Helper: FFmpeg Linking (Don't repeat yourself)
+// Helper: Link C dependencies
 // ============================================================
+fn link_sdl(b: *std.Build, target: std.Build.ResolvedTarget) *std.Build.Module {
+    const sdl_mod = b.createModule(.{
+        .root_source_file = b.path("src/sdl3.zig"),
+        .target = target,
+    });
+    sdl_mod.link_libc = true;
+
+    const path = "./vendor/SDL3-3.4.0"; // Adjust to your path
+    sdl_mod.addIncludePath(.{ .cwd_relative = path ++ "/include" });
+    sdl_mod.addObjectFile(b.path(path ++ "/lib/x64/SDL3.lib"));
+
+    // sdl_mod.addLibraryPath(.{ .cwd_relative = path ++ "/lib/x64" });
+    sdl_mod.linkSystemLibrary("SDL3", .{});
+    const dll_source = "vendor/SDL3-3.4.0/lib/x64/SDL3.dll";
+    b.installFile(dll_source, "bin/SDL3.dll");
+    return sdl_mod;
+}
+
 fn linkFFmpeg(exe: *std.Build.Step.Compile) void {
     const target = exe.root_module.resolved_target.?.result;
 
