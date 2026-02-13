@@ -17,3 +17,4 @@ doc.md
 /zig/test-videos
 *.dll
 /zig/vendor/SDL*
+/zig/vendor/ffmpeg

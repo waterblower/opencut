@@ -254,11 +254,12 @@ fn linkFFmpeg(exe: *std.Build.Step.Compile) void {
     const target = exe.root_module.resolved_target.?.result;
 
     if (target.os.tag == .windows) {
-        const ffmpeg_path = "C:\\Program Files\\ffmpeg"; // Adjust to your path
-        exe.addLibraryPath(.{ .cwd_relative = ffmpeg_path ++ "\\lib" });
-        exe.addIncludePath(.{ .cwd_relative = ffmpeg_path ++ "\\include" });
+        const ffmpeg_path = "./vendor/ffmpeg/"; // Adjust to your path
+        exe.addLibraryPath(.{ .cwd_relative = ffmpeg_path ++ "/lib" });
+        exe.addIncludePath(.{ .cwd_relative = ffmpeg_path ++ "/include" });
     }
 
+    exe.linkLibC();
     exe.linkSystemLibrary("avformat");
     exe.linkSystemLibrary("avcodec");
     exe.linkSystemLibrary("avutil");
