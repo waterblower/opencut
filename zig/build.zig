@@ -252,14 +252,15 @@ fn link_sdl(b: *std.Build, target: std.Build.ResolvedTarget) *std.Build.Module {
     });
     sdl_mod.link_libc = true;
 
-    const path = "./vendor/SDL3-3.4.0"; // Adjust to your path
-    sdl_mod.addIncludePath(.{ .cwd_relative = path ++ "/include" });
-    sdl_mod.addObjectFile(b.path(path ++ "/lib/x64/SDL3.lib"));
+    if (target.result.os.tag == .windows) {
+        const path = "./vendor/SDL3-3.4.0"; // Adjust to your path
+        sdl_mod.addIncludePath(.{ .cwd_relative = path ++ "/include" });
+        sdl_mod.addObjectFile(b.path(path ++ "/lib/x64/SDL3.lib"));
+        const dll_source = "vendor/SDL3-3.4.0/lib/x64/SDL3.dll";
+        b.installFile(dll_source, "bin/SDL3.dll");
+    }
 
-    // sdl_mod.addLibraryPath(.{ .cwd_relative = path ++ "/lib/x64" });
     sdl_mod.linkSystemLibrary("SDL3", .{});
-    const dll_source = "vendor/SDL3-3.4.0/lib/x64/SDL3.dll";
-    b.installFile(dll_source, "bin/SDL3.dll");
     return sdl_mod;
 }
 

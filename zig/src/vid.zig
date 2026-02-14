@@ -435,3 +435,14 @@ pub fn split_half(
     _ = c.avio_closep(&out1.?.pb);
     _ = c.avio_closep(&out2.?.pb);
 }
+
+pub fn get_bit_depth(frame: *c.AVFrame) !i32 {
+    // 1. 获取描述符
+    const desc = c.av_pix_fmt_desc_get(@intCast(frame.format));
+
+    if (desc == null) return error.Format_DESC_NULL;
+
+    // 2. 读取第一个分量 (Component 0, 即 Y/Luma) 的深度
+    // desc.comp 是一个数组，存储了 RGBA 或 YUVA 各个分量的信息
+    return desc.*.comp[0].depth;
+}
