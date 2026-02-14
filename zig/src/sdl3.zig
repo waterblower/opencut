@@ -22,11 +22,11 @@ pub fn CreateWindowAndRenderer(
     width: i32,
     height: i32,
     flags: c.SDL_WindowFlags,
-) !struct { window: ?*c.SDL_Window, renderer: ?*c.SDL_Renderer } {
+) !struct { window: *c.SDL_Window, renderer: *c.SDL_Renderer } {
     var winA: ?*c.SDL_Window = null;
     var renA: ?*c.SDL_Renderer = null;
     if (!c.SDL_CreateWindowAndRenderer(title, width, height, flags, &winA, &renA)) {
         return error.Failed;
     }
-    return .{ .window = winA, .renderer = renA };
+    return .{ .window = winA.?, .renderer = renA.? };
 }

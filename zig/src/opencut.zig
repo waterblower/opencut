@@ -20,9 +20,7 @@ pub fn main() !void {
 
     // Initialize video
     var video = try vid.openVideo(gpa, video_path);
-    defer {
-        video.deinit();
-    }
+    defer video.deinit();
 
     try sdl.Init(c.SDL_INIT_VIDEO);
     defer c.SDL_Quit();
@@ -37,12 +35,12 @@ pub fn main() !void {
         height,
         c.SDL_WINDOW_RESIZABLE,
     );
-    const winA = result.window;
-    const renA = result.renderer;
+    const window = result.window;
+    const renderer = result.renderer;
 
     // 1. Create a Texture (Streaming access is for video/frequent updates)
     const texture = c.SDL_CreateTexture(
-        renA,
+        renderer,
         c.SDL_PIXELFORMAT_IYUV, // <--- 关键修改
         c.SDL_TEXTUREACCESS_STREAMING,
         video.width,
@@ -54,43 +52,32 @@ pub fn main() !void {
     }
     defer c.SDL_DestroyTexture(texture);
 
-    var running = true;
+    try UI(renderer, window, texture, video);
+}
 
-    // 预分配 Buffer (用于 10-bit 转换)
-    const y_buf_size = @as(
-        usize,
-        @intCast(video.width * video.height),
-    );
-    const uv_buf_size = @as(
-        usize,
-        @intCast(@divTrunc(video.width, 2) * @divTrunc(video.height, 2)),
-    );
-
-    const y_buffer = try gpa.alloc(u8, y_buf_size);
-    defer gpa.free(y_buffer);
-
-    const u_buffer = try gpa.alloc(u8, uv_buf_size);
-    defer gpa.free(u_buffer);
-
-    const v_buffer = try gpa.alloc(u8, uv_buf_size);
-    defer gpa.free(v_buffer);
-
+fn UI(
+    renderer: *c.SDL_Renderer,
+    window: *c.SDL_Window,
+    texture: *c.SDL_Texture,
+    video: *vid.Video,
+) !void {
     // Main Loop
     var event: c.SDL_Event = undefined;
-    while (running) {
+    while (true) {
         const t0 = now();
 
         if (c.SDL_PollEvent(&event)) {
             switch (event.type) {
-                c.SDL_EVENT_QUIT => running = false, // 强制退出整个程序
-
+                c.SDL_EVENT_QUIT => {
+                    return; // 退出UI
+                },
                 // 处理窗口关闭事件
                 c.SDL_EVENT_WINDOW_CLOSE_REQUESTED => {
                     const targetID = event.window.windowID;
 
-                    if (targetID == c.SDL_GetWindowID(winA)) {
-                        print("主窗口被关闭了，程序退出！\n", .{});
-                        running = false;
+                    if (targetID == c.SDL_GetWindowID(window)) {
+                        print("窗口被关闭了，退出UI！\n", .{});
+                        return;
                     }
                 },
                 else => {},
@@ -98,22 +85,17 @@ pub fn main() !void {
         }
 
         // --- 1. 渲染窗口 (白色) ---
-        // _ = c.SDL_SetRenderDrawColor(renA, 255, 255, 255, 255);
-        _ = c.SDL_RenderClear(renA);
+        _ = c.SDL_RenderClear(renderer);
 
         // --- 2. Update Texture (Upload pixels to GPU)
         // In your video player, 'raw_pixels.ptr' will be 'video.frame.data[0]'
 
         // 读取帧并转换
         const f = try video.read_next_frame();
-        // const depth = get_bit_depth(@ptrCast(f));
-        // print("depth: {d}\n", .{depth});
-
         if (f) |frame| {
             // 1. 获取位深
             // 注意：这里需要 @ptrCast 解决类型冲突
-            const depth = get_bit_depth(@ptrCast(frame));
-
+            const depth = try vid.get_bit_depth(@ptrCast(frame));
             if (depth == 10) {
                 // --- 路径 A: 10-bit 视频 (需要转换) ---
 
@@ -142,7 +124,7 @@ pub fn main() !void {
                 );
                 if (!ok) {
                     print("SDL_UpdateYUVTexture failed: {s}\n", .{c.SDL_GetError()});
-                    // return error.SDL_UpdateYUVTexture_Failed;
+                    return error.SDL_UpdateYUVTexture_Failed;
                 }
             } else if (depth == 8) {
                 // --- 路径 B: 8-bit 视频 (直接上传，性能最高) ---
@@ -154,11 +136,9 @@ pub fn main() !void {
         }
 
         // --- 3. Render Texture (Draw it to the screen)
-        const rect = compute_rect(winA.?, video);
-
-        _ = c.SDL_RenderTexture(renA, texture, null, &rect);
-
-        _ = c.SDL_RenderPresent(renA);
+        const rect = compute_rect(window, video);
+        _ = c.SDL_RenderTexture(renderer, texture, null, &rect);
+        _ = c.SDL_RenderPresent(renderer);
 
         // loop time
         const loop_time = now() - t0;
@@ -184,17 +164,6 @@ fn parse_args(a: std.mem.Allocator) ![]const u8 {
     else
         "test-videos/4k.mov";
     return video_path;
-}
-
-fn get_bit_depth(frame: *ffmpeg.AVFrame) i32 {
-    // 1. 获取描述符
-    const desc = ffmpeg.av_pix_fmt_desc_get(@intCast(frame.format));
-
-    if (desc == null) return 8; // 默认防崩
-
-    // 2. 读取第一个分量 (Component 0, 即 Y/Luma) 的深度
-    // desc.comp 是一个数组，存储了 RGBA 或 YUVA 各个分量的信息
-    return desc.*.comp[0].depth;
 }
 
 fn compute_rect(win: *c.SDL_Window, video: *vid.Video) c.SDL_FRect {
@@ -224,29 +193,4 @@ fn compute_rect(win: *c.SDL_Window, video: *vid.Video) c.SDL_FRect {
         .h = draw_h,
     };
     return dst_rect;
-}
-
-// 安全的 10-bit 转 8-bit 函数 (防止 Bus Error)
-fn convert_plane_10_to_8(src: [*]u8, dst: [*]u8, width: i32, height: i32, src_stride: i32, dst_stride: i32) void {
-    const t = now();
-    var y: usize = 0;
-    while (y < @as(usize, @intCast(height))) : (y += 1) {
-        const src_row = src + y * @as(usize, @intCast(src_stride));
-        const dst_row = dst + y * @as(usize, @intCast(dst_stride));
-
-        var x: usize = 0;
-        while (x < @as(usize, @intCast(width))) : (x += 1) {
-            // 手动读取 2 个字节 (Little Endian)，不依赖指针对齐
-            // src 是 [*]u8，x*2 保证读取正确的位置
-            const low = src_row[x * 2];
-            const high = src_row[x * 2 + 1];
-
-            // 拼成 10-bit 值: low + (high << 8)
-            const val = @as(u16, low) | (@as(u16, high) << 8);
-
-            // 右移 2 位变成 8-bit
-            dst_row[x] = @intCast(val >> 2);
-        }
-    }
-    print("convert_plane_10_to_8: {d}\n", .{now() - t});
 }
