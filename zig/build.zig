@@ -278,4 +278,5 @@ fn linkFFmpeg(exe: *std.Build.Step.Compile) void {
     exe.linkSystemLibrary("avcodec");
     exe.linkSystemLibrary("avutil");
     exe.linkSystemLibrary("swscale");
+    exe.linkSystemLibrary("libswresample");
 }
