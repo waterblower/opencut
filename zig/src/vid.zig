@@ -1,5 +1,5 @@
 const std = @import("std");
-const print = std.debug.print;
+const debug = std.debug.print;
 
 const c = @cImport({
     @cInclude("libavformat/avformat.h");
@@ -16,7 +16,7 @@ pub const Video = struct {
     packet: *c.AVPacket,
     sws_ctx: ?*c.struct_SwsContext,
     sws_frame: *c.AVFrame,
-    video_stream_idx: i32,
+    video_stream: c.AVStream,
     width: i32,
     height: i32,
     fps: f64,
@@ -27,7 +27,7 @@ pub const Video = struct {
     }
 
     pub fn restart(self: *Video) !void {
-        _ = c.av_seek_frame(self.fmt_ctx, self.video_stream_idx, 0, c.AVSEEK_FLAG_BACKWARD);
+        _ = c.av_seek_frame(self.fmt_ctx, self.video_stream.index, 0, c.AVSEEK_FLAG_BACKWARD);
         c.avcodec_flush_buffers(self.codec_ctx);
         self.finished = false;
     }
@@ -67,7 +67,7 @@ pub const Video = struct {
                     return null;
                 }
                 const stream_idx = self.packet.*.stream_index;
-                if (stream_idx == self.video_stream_idx) {
+                if (stream_idx == self.video_stream.index) {
                     _ = c.avcodec_send_packet(self.codec_ctx, self.packet);
                     c.av_packet_unref(self.packet);
                     break;
@@ -85,85 +85,13 @@ pub const Video = struct {
         // 外部可以通过 frame.data[0] 等访问
         return frame;
     }
-
-    pub fn renderNextFrame(self: *Video, dest: [*]u8, dest_pitch: i32) !bool {
-        const t0 = std.time.milliTimestamp();
-        if (self.finished) {
-            return false;
-        }
-
-        // 1. Allocate the frame locally.
-        var frame = c.av_frame_alloc();
-        if (frame == null) {
-            return error.av_frame_alloc_failed;
-        }
-        // 2. Ensure it is freed when this function returns (CLEANUP).
-        // &frame passes the address of your pointer, allowing FFmpeg to set it to null after freeing.
-        defer c.av_frame_free(&frame);
-
-        // Try to receive a decoded video frame
-        var ret = c.avcodec_receive_frame(self.codec_ctx, frame);
-
-        // If we need more data, read packets until we get a video frame
-        while (ret == c.AVERROR(c.EAGAIN)) {
-            while (true) {
-                if (c.av_read_frame(self.fmt_ctx, self.packet) < 0) {
-                    self.finished = true;
-                    return false;
-                }
-                const stream_idx = self.packet.*.stream_index;
-                if (stream_idx == self.video_stream_idx) {
-                    _ = c.avcodec_send_packet(self.codec_ctx, self.packet);
-                    c.av_packet_unref(self.packet);
-                    break;
-                }
-                c.av_packet_unref(self.packet);
-            }
-            ret = c.avcodec_receive_frame(self.codec_ctx, frame);
-        }
-
-        if (ret < 0) {
-            return error.FrameDecodeError;
-        }
-
-        const t1 = std.time.milliTimestamp();
-
-        // Setup destination arrays for sws_scale
-        // sws_scale expects array of pointers and array of strides
-        var dst_data: [4]?[*]u8 = undefined;
-        var dst_linesize: [4]c_int = undefined;
-
-        dst_data[0] = dest;
-        dst_data[1] = null;
-        dst_data[2] = null;
-        dst_data[3] = null;
-
-        dst_linesize[0] = dest_pitch;
-        dst_linesize[1] = 0;
-        dst_linesize[2] = 0;
-        dst_linesize[3] = 0;
-
-        // Convert to RGB directly into destination
-        _ = c.sws_scale(
-            self.sws_ctx,
-            @ptrCast(&frame.*.data),
-            @ptrCast(&frame.*.linesize),
-            0,
-            self.height,
-            @ptrCast(&dst_data),
-            @ptrCast(&dst_linesize),
-        );
-        const t2 = std.time.milliTimestamp();
-        print("renderNextFrame total: {d}ms (decode: {d}ms, scale: {d}ms)\n", .{ t2 - t0, t1 - t0, t2 - t1 });
-        return true;
-    }
 };
 
-pub fn openVideo(allocator: std.mem.Allocator, file_path: []const u8) !*Video {
+pub fn open(a: std.mem.Allocator, file_path: []const u8) !*Video {
     // Ensure null-terminated string
-    print("open {s}\n", .{file_path});
-    const path_z = try allocator.dupeZ(u8, file_path);
-    defer allocator.free(path_z);
+    debug("open {s}\n", .{file_path});
+    const path_z = try a.dupeZ(u8, file_path);
+    defer a.free(path_z);
 
     var fmt_ctx: ?*c.AVFormatContext = null;
 
@@ -179,21 +107,10 @@ pub fn openVideo(allocator: std.mem.Allocator, file_path: []const u8) !*Video {
     }
 
     // Find the first video stream
-    var video_stream_idx: i32 = -1;
-    var i: c_uint = 0;
-    while (i < fmt_ctx.?.nb_streams) : (i += 1) {
-        if (fmt_ctx.?.streams[i].*.codecpar.*.codec_type == c.AVMEDIA_TYPE_VIDEO) {
-            video_stream_idx = @intCast(i);
-            break;
-        }
-    }
-
-    if (video_stream_idx == -1) {
-        return error.NoVideoStream;
-    }
+    const video_stream = try find_1st_video_stream(fmt_ctx.?);
 
     // Get codec parameters
-    const codecpar = fmt_ctx.?.streams[@intCast(video_stream_idx)].*.codecpar;
+    const codecpar = video_stream.codecpar;
 
     // Find decoder
     const codec = c.avcodec_find_decoder(codecpar.*.codec_id);
@@ -228,10 +145,12 @@ pub fn openVideo(allocator: std.mem.Allocator, file_path: []const u8) !*Video {
     const video_height = codec_ctx.?.*.height;
 
     // Calculate frame rate (default to 30fps if we can't determine)
-    const stream = fmt_ctx.?.streams[@intCast(video_stream_idx)];
     var fps: f64 = 30.0;
-    if (stream.*.avg_frame_rate.den > 0) {
-        const calc_fps = @as(f64, @floatFromInt(stream.*.avg_frame_rate.num)) / @as(f64, @floatFromInt(stream.*.avg_frame_rate.den));
+    if (video_stream.avg_frame_rate.den > 0) {
+        const calc_fps = @as(f64, @floatFromInt(video_stream.avg_frame_rate.num)) / @as(
+            f64,
+            @floatFromInt(video_stream.avg_frame_rate.den),
+        );
         if (calc_fps > 0) {
             fps = calc_fps;
         }
@@ -291,15 +210,15 @@ pub fn openVideo(allocator: std.mem.Allocator, file_path: []const u8) !*Video {
     }
 
     // Create and return Video instance
-    const video = try allocator.create(Video);
+    const video = try a.create(Video);
     video.* = Video{
-        .allocator = allocator,
+        .allocator = a,
         .fmt_ctx = fmt_ctx.?,
         .codec_ctx = codec_ctx.?,
         .packet = packet.?,
         .sws_ctx = sws_ctx.?,
         .sws_frame = sws_frame.?,
-        .video_stream_idx = video_stream_idx,
+        .video_stream = video_stream,
         .width = video_width,
         .height = video_height,
         .fps = fps,
@@ -330,11 +249,11 @@ pub fn openVideo(allocator: std.mem.Allocator, file_path: []const u8) !*Video {
     else
         "unknown";
 
-    print("Video opened:\n", .{});
-    print("  Resolution:  {}x{} @ {d:.2} fps\n", .{ video_width, video_height, fps });
-    print("  Codec:       {s}\n", .{codec_name});
-    print("  Container:   {s}\n", .{format_name});
-    print("  Color Space: {s}\n", .{color_space});
+    debug("Video opened:\n", .{});
+    debug("  Resolution:  {}x{} @ {d:.2} fps\n", .{ video_width, video_height, fps });
+    debug("  Codec:       {s}\n", .{codec_name});
+    debug("  Container:   {s}\n", .{format_name});
+    debug("  Color Space: {s}\n", .{color_space});
 
     return video;
 }
@@ -445,4 +364,33 @@ pub fn get_bit_depth(frame: *c.AVFrame) !i32 {
     // 2. 读取第一个分量 (Component 0, 即 Y/Luma) 的深度
     // desc.comp 是一个数组，存储了 RGBA 或 YUVA 各个分量的信息
     return desc.*.comp[0].depth;
+}
+
+/// 查找所有视频流的索引
+pub fn find_1st_video_stream(fmt_ctx: *c.AVFormatContext) !c.AVStream {
+    var s: ?*c.AVStream = null;
+    var i: c_uint = 0;
+    // 遍历所有流
+    while (i < fmt_ctx.nb_streams) : (i += 1) {
+        const stream = fmt_ctx.streams[i];
+        const codec_par = stream.*.codecpar;
+
+        // 核心判断：是不是视频类型？
+        if (s == null and codec_par.*.codec_type == c.AVMEDIA_TYPE_VIDEO) {
+
+            // 【进阶技巧】：过滤掉封面图 (Cover Art)
+            // 很多 MP3/MP4 会把封面图当成一个单帧的 MJPEG 视频流
+            // 如果你只想要“能播的视频”，可以加上这个判断：
+            const is_attached_pic = (stream.*.disposition & c.AV_DISPOSITION_ATTACHED_PIC) != 0;
+            if (!is_attached_pic) {
+                s = stream;
+            }
+        }
+        debug("Stream #{d}: {d}\n", .{ i, stream.*.codecpar.*.codec_type });
+    }
+    if (s == null) {
+        return error.NoVideoStreamFound;
+    } else {
+        return s.?.*;
+    }
 }

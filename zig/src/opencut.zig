@@ -19,7 +19,7 @@ pub fn main() !void {
     const video_path = try parse_args(gpa);
 
     // Initialize video
-    var video = try vid.openVideo(gpa, video_path);
+    var video = try vid.open(gpa, video_path);
     defer video.deinit();
 
     try sdl.Init(c.SDL_INIT_VIDEO);
