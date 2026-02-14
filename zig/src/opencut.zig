@@ -1,7 +1,7 @@
 const std = @import("std");
 const sdl = @import("sdl");
 const c = sdl.c;
-const print = std.debug.print;
+const debug = std.debug.print;
 const vid = @import("vid.zig");
 const ffmpeg = @cImport({
     @cInclude("libavformat/avformat.h");
@@ -11,15 +11,29 @@ const ffmpeg = @cImport({
     @cInclude("libswscale/swscale.h");
 });
 const now = std.time.milliTimestamp;
+const play_audio = @import("audio.zig").play_audio;
 
 pub fn main() !void {
     var gpa_instance = std.heap.GeneralPurposeAllocator(.{}){};
     const gpa = gpa_instance.allocator();
 
-    const video_path = try parse_args(gpa);
+    const arg = try parse_args(gpa);
+    // 根据模式执行不同的逻辑
+    switch (arg) {
+        .video => |path| {
+            std.debug.print("Starting Video Mode: {s}\n", .{path});
+            try play_video(gpa, path);
+        },
+        .audio => |path| {
+            std.debug.print("Starting Audio Mode: {s}\n", .{path});
+            try play_audio(path);
+        },
+    }
+}
 
+fn play_video(a: std.mem.Allocator, path: []const u8) !void {
     // Initialize video
-    var video = try vid.open(gpa, video_path);
+    var video = try vid.open(a, path);
     defer video.deinit();
 
     try sdl.Init(c.SDL_INIT_VIDEO);
@@ -47,7 +61,7 @@ pub fn main() !void {
         video.height,
     );
     if (texture == null) {
-        print("Failed to create texture: {s}\n", .{c.SDL_GetError()});
+        debug("Failed to create texture: {s}\n", .{c.SDL_GetError()});
         return error.SDL_CreateTexture_Failed;
     }
     defer c.SDL_DestroyTexture(texture);
@@ -76,7 +90,7 @@ fn UI(
                     const targetID = event.window.windowID;
 
                     if (targetID == c.SDL_GetWindowID(window)) {
-                        print("窗口被关闭了，退出UI！\n", .{});
+                        debug("窗口被关闭了，退出UI！\n", .{});
                         return;
                     }
                 },
@@ -123,14 +137,14 @@ fn UI(
                     dst.linesize[2],
                 );
                 if (!ok) {
-                    print("SDL_UpdateYUVTexture failed: {s}\n", .{c.SDL_GetError()});
+                    debug("SDL_UpdateYUVTexture failed: {s}\n", .{c.SDL_GetError()});
                     return error.SDL_UpdateYUVTexture_Failed;
                 }
             } else if (depth == 8) {
                 // --- 路径 B: 8-bit 视频 (直接上传，性能最高) ---
                 _ = c.SDL_UpdateYUVTexture(texture, null, frame.data[0], frame.linesize[0], frame.data[1], frame.linesize[1], frame.data[2], frame.linesize[2]);
             } else {
-                print("do not support depth {d}\n", .{depth});
+                debug("do not support depth {d}\n", .{depth});
                 return error.DepthNotSupported;
             }
         }
@@ -142,7 +156,7 @@ fn UI(
 
         // loop time
         const loop_time = now() - t0;
-        print("\r\x1b[K loop time: {d}ms", .{loop_time});
+        debug("\r\x1b[K loop time: {d}ms", .{loop_time});
 
         if (loop_time < video.frameDurationMs()) {
             const sleep_duration = video.frameDurationMs() - @as(u64, @intCast(loop_time));
@@ -151,19 +165,42 @@ fn UI(
     }
 }
 
-fn parse_args(a: std.mem.Allocator) ![]const u8 {
-    // Parse command line arguments
+pub const Args = union(enum) {
+    video: []const u8, // 存视频路径
+    audio: []const u8, // 存音频路径
+};
+fn parse_args(a: std.mem.Allocator) !Args {
+    // 获取命令行参数
+    // 注意：这里分配的内存 args 在程序结束前不会被释放，
+    // 对于主函数这种一次性操作是可以接受的 (Operating System will clean up)。
     const args = try std.process.argsAlloc(a);
 
-    for (args) |arg| {
-        std.debug.print("Arg: {s}\n", .{arg});
+    // 1. 检查参数数量
+    // 期望格式: [程序名, 命令, 路径] -> 长度至少为 3
+    if (args.len < 3) {
+        print_usage();
+        return error.InvalidArguments;
     }
 
-    const video_path = if (args.len > 1)
-        args[1]
-    else
-        "test-videos/4k.mov";
-    return video_path;
+    const command = args[1];
+    const file_path = args[2];
+
+    // 2. 字符串匹配 (Zig 中不能用 == 比较字符串内容，要用 std.mem.eql)
+    if (std.mem.eql(u8, command, "video")) {
+        return Args{ .video = file_path };
+    } else if (std.mem.eql(u8, command, "audio")) {
+        return Args{ .audio = file_path };
+    } else {
+        debug("Unknown command: '{s}'. Expected 'video' or 'audio'.\n", .{command});
+        print_usage();
+        return error.UnknownCommand;
+    }
+}
+
+fn print_usage() void {
+    debug("Usage:\n", .{});
+    debug("  opencut video <file.mp4>\n", .{});
+    debug("  opencut audio <file.mp3>\n", .{});
 }
 
 fn compute_rect(win: *c.SDL_Window, video: *vid.Video) c.SDL_FRect {

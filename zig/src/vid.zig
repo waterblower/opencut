@@ -366,7 +366,6 @@ pub fn get_bit_depth(frame: *c.AVFrame) !i32 {
     return desc.*.comp[0].depth;
 }
 
-/// 查找所有视频流的索引
 pub fn find_1st_video_stream(fmt_ctx: *c.AVFormatContext) !c.AVStream {
     var s: ?*c.AVStream = null;
     var i: c_uint = 0;
