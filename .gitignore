@@ -18,3 +18,4 @@ doc.md
 *.dll
 /zig/vendor/SDL*
 /zig/vendor/ffmpeg
+/zig/zig-pkg
