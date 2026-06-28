@@ -85,7 +85,12 @@ pub fn play_audio(filename: []const u8) !void {
     };
 
     // 打开默认播放设备并创建一个流
-    const stream_handle = c.SDL_OpenAudioDeviceStream(c.SDL_AUDIO_DEVICE_DEFAULT_PLAYBACK, &audio_spec, null, null);
+    const stream_handle = c.SDL_OpenAudioDeviceStream(
+        c.SDL_AUDIO_DEVICE_DEFAULT_PLAYBACK,
+        &audio_spec,
+        null,
+        null,
+    );
     if (stream_handle == null) {
         std.debug.print("SDL_OpenAudioDeviceStream failed: {s}\n", .{c.SDL_GetError()});
         return error.SDLOpenAudioFailed;
@@ -167,8 +172,13 @@ pub fn play_audio(filename: []const u8) !void {
 
                     // 执行转换
                     // swr_convert 返回实际转换出的样本数
-                    const samples_converted = ffmpeg.swr_convert(swr_ctx, &out_buf, @intCast(dst_nb_samples), @ptrCast(&frame.*.data), // 输入数据
-                        frame.*.nb_samples);
+                    const samples_converted = ffmpeg.swr_convert(
+                        swr_ctx,
+                        &out_buf,
+                        @intCast(dst_nb_samples),
+                        @ptrCast(&frame.*.data), // 输入数据
+                        frame.*.nb_samples,
+                    );
 
                     if (samples_converted > 0) {
                         // --- 推送给 SDL ---
