@@ -33,6 +33,7 @@ impl Render for Player {
                 .on_action(cx.listener(Self::action_seek_backward))
                 .on_action(cx.listener(Self::action_seek_forward))
                 .on_action(cx.listener(Self::action_toggle_mute))
+                .on_action(cx.listener(Self::action_toggle_history))
                 .on_action(cx.listener(Self::action_toggle_fullscreen))
                 .on_action(cx.listener(Self::action_exit_fullscreen))
                 .on_action(cx.listener(Self::action_toggle_inspector))
@@ -68,8 +69,13 @@ impl Render for Player {
                 });
         }
 
+        let history_width = if self.history_open {
+            self.history_width
+        } else {
+            0.0
+        };
         let content_width = (viewport_width
-            - LIBRARY_WIDTH
+            - history_width
             - if self.inspector_open {
                 INSPECTOR_WIDTH
             } else {
@@ -170,7 +176,7 @@ impl Render for Player {
                 .into_any_element()
         };
 
-        let library_panel = self.library_panel(cx);
+        let history_panel = self.history_open.then(|| self.history_panel(cx));
         let speed_items =
             [0.5_f64, 1.0, 1.25, 1.5, 2.0]
                 .into_iter()
@@ -206,28 +212,38 @@ impl Render for Player {
             .on_action(cx.listener(Self::action_seek_backward))
             .on_action(cx.listener(Self::action_seek_forward))
             .on_action(cx.listener(Self::action_toggle_mute))
+            .on_action(cx.listener(Self::action_toggle_history))
             .on_action(cx.listener(Self::action_toggle_fullscreen))
             .on_action(cx.listener(Self::action_exit_fullscreen))
             .on_action(cx.listener(Self::action_toggle_inspector))
             .on_mouse_down(MouseButton::Left, cx.listener(Self::dismiss_settings))
             .on_mouse_move(cx.listener(Self::scrub_timeline))
             .on_mouse_move(cx.listener(Self::adjust_volume))
+            .on_mouse_move(cx.listener(Self::resize_history))
             .on_mouse_up(MouseButton::Left, cx.listener(Self::finish_scrubbing))
             .on_mouse_up(
                 MouseButton::Left,
                 cx.listener(Self::finish_volume_adjustment),
+            )
+            .on_mouse_up(
+                MouseButton::Left,
+                cx.listener(Self::finish_history_resize),
             )
             .on_mouse_up_out(MouseButton::Left, cx.listener(Self::finish_scrubbing))
             .on_mouse_up_out(
                 MouseButton::Left,
                 cx.listener(Self::finish_volume_adjustment),
             )
+            .on_mouse_up_out(
+                MouseButton::Left,
+                cx.listener(Self::finish_history_resize),
+            )
             .size_full()
             .flex()
             .overflow_hidden()
             .bg(rgb(BACKGROUND))
             .text_color(rgb(TEXT))
-            .child(library_panel)
+            .when_some(history_panel, |this, panel| this.child(panel))
             .child(
                 div()
                     .id("player-content")
@@ -249,56 +265,73 @@ impl Render for Player {
                             .child(
                                 div()
                                     .flex()
-                                    .flex_col()
-                                    .gap_1()
+                                    .items_center()
+                                    .gap_3()
                                     .child(
                                         div()
-                                            .text_lg()
-                                            .font_weight(gpui::FontWeight::SEMIBOLD)
-                                            .child(display_title),
-                                    )
-                                    .child(
-                                        div()
-                                            .text_xs()
-                                            .font_family("monospace")
-                                            .text_color(if self.error.is_some() {
-                                                rgb(ERROR)
-                                            } else {
-                                                rgb(0x55555d)
-                                            })
-                                            .child(metadata_text),
-                                    ),
-                            )
-                            .child(
-                                div()
-                                    .flex()
-                                    .flex_col()
-                                    .items_end()
-                                    .gap_2()
-                                    .child(
-                                        div()
-                                            .id("open-video")
+                                            .id("toggle-history")
+                                            .size_9()
+                                            .flex_shrink_0()
+                                            .flex()
+                                            .items_center()
+                                            .justify_center()
                                             .cursor(CursorStyle::PointingHand)
                                             .rounded_md()
                                             .border_1()
                                             .border_color(rgb(BORDER))
+                                            .text_color(if self.history_open {
+                                                rgb(TEXT)
+                                            } else {
+                                                rgb(MUTED)
+                                            })
                                             .hover(|style| style.bg(rgb(SURFACE_HOVER)))
-                                            .px_4()
-                                            .py_2()
-                                            .text_xs()
-                                            .child("OPEN MP4")
-                                            .on_click(
-                                                cx.listener(|this, _, _, cx| this.open_picker(cx)),
-                                            ),
+                                            .child("☰")
+                                            .on_click(cx.listener(|this, _, _, cx| {
+                                                this.history_open = !this.history_open;
+                                                cx.notify();
+                                            })),
                                     )
                                     .child(
                                         div()
-                                            .text_xs()
-                                            .font_family("monospace")
-                                            .text_color(rgb(0x4b4b52))
+                                            .min_w_0()
+                                            .flex()
+                                            .flex_col()
+                                            .gap_1()
                                             .child(
-                                                "space · ←/→ 1 frame · f fullscreen · m mute · ⌥⌘i inspector",
+                                                div()
+                                                    .text_lg()
+                                                    .font_weight(gpui::FontWeight::SEMIBOLD)
+                                                    .text_ellipsis()
+                                                    .child(display_title),
+                                            )
+                                            .child(
+                                                div()
+                                                    .text_xs()
+                                                    .font_family("monospace")
+                                                    .text_color(if self.error.is_some() {
+                                                        rgb(ERROR)
+                                                    } else {
+                                                        rgb(0x55555d)
+                                                    })
+                                                    .text_ellipsis()
+                                                    .child(metadata_text),
                                             ),
+                                    ),
+                            )
+                            .child(
+                                div()
+                                    .id("open-video")
+                                    .cursor(CursorStyle::PointingHand)
+                                    .rounded_md()
+                                    .border_1()
+                                    .border_color(rgb(BORDER))
+                                    .hover(|style| style.bg(rgb(SURFACE_HOVER)))
+                                    .px_4()
+                                    .py_2()
+                                    .text_xs()
+                                    .child("OPEN MP4")
+                                    .on_click(
+                                        cx.listener(|this, _, _, cx| this.open_picker(cx)),
                                     ),
                             ),
                     )
