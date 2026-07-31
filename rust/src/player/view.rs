@@ -86,7 +86,8 @@ impl Render for Player {
         let source_metadata = self.video.as_ref().map(|video| {
             let (width, height) = video.display_size();
             format!(
-                "{}×{} · {} · {}",
+                "{} · {}×{} · {} · {}",
+                self.video_codec.as_deref().unwrap_or("codec unavailable"),
                 width,
                 height,
                 format_source_fps(video.framerate()),

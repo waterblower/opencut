@@ -7,6 +7,6 @@ publish = false
 [dependencies]
 env_logger = "0.11"
 gpui = "0.2"
-gpui-video-player = "0.1.2"
+gpui-video-player = { path = "vendor/gpui-video-player" }
+gstreamer = "0.25"
 url = "2"
-
