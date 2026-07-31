@@ -80,6 +80,14 @@ impl Render for Player {
         let has_video = self.video.is_some();
         let is_paused = self.video.as_ref().is_none_or(Video::paused);
         let is_muted = self.video.as_ref().is_some_and(Video::muted);
+        let volume = self
+            .video
+            .as_ref()
+            .map_or(0.0, |video| video.volume().clamp(0.0, 1.0));
+        let displayed_volume = if is_muted { 0.0 } else { volume as f32 };
+        let volume_percent = (displayed_volume * 100.0).round() as u32;
+        let volume_fill_height = displayed_volume * VOLUME_TRACK_HEIGHT;
+        let volume_thumb_bottom = displayed_volume * (VOLUME_TRACK_HEIGHT - 20.0);
         let reported_position = self.video.as_ref().map_or(Duration::ZERO, Video::position);
         let duration = self.video.as_ref().map_or(Duration::ZERO, Video::duration);
         let speed = self.video.as_ref().map_or(1.0, Video::speed);
@@ -200,8 +208,17 @@ impl Render for Player {
             .on_action(cx.listener(Self::action_exit_fullscreen))
             .on_action(cx.listener(Self::action_toggle_inspector))
             .on_mouse_move(cx.listener(Self::scrub_timeline))
+            .on_mouse_move(cx.listener(Self::adjust_volume))
             .on_mouse_up(MouseButton::Left, cx.listener(Self::finish_scrubbing))
+            .on_mouse_up(
+                MouseButton::Left,
+                cx.listener(Self::finish_volume_adjustment),
+            )
             .on_mouse_up_out(MouseButton::Left, cx.listener(Self::finish_scrubbing))
+            .on_mouse_up_out(
+                MouseButton::Left,
+                cx.listener(Self::finish_volume_adjustment),
+            )
             .size_full()
             .flex()
             .overflow_hidden()
@@ -276,7 +293,7 @@ impl Render for Player {
                                             .font_family("monospace")
                                             .text_color(rgb(0x4b4b52))
                                             .child(
-                                                "space · ←/→ 5s · f fullscreen · m mute · ⌥⌘i inspector",
+                                                "space · ←/→ 1 frame · f fullscreen · m mute · ⌥⌘i inspector",
                                             ),
                                     ),
                             ),
@@ -402,18 +419,154 @@ impl Render for Player {
                                             .gap_2()
                                             .child(
                                                 div()
-                                                    .id("mute")
-                                                    .cursor(CursorStyle::PointingHand)
-                                                    .rounded_md()
-                                                    .hover(|style| style.bg(rgb(SURFACE_HOVER)))
-                                                    .px_3()
-                                                    .py_2()
-                                                    .text_sm()
-                                                    .child(if is_muted { "MUTED" } else { "VOL" })
-                                                    .on_click(cx.listener(|this, _, _, cx| {
-                                                        this.toggle_mute();
-                                                        cx.notify();
-                                                    })),
+                                                    .id("volume-control")
+                                                    .relative()
+                                                    .w(px(72.0))
+                                                    .h_12()
+                                                    .flex_shrink_0()
+                                                    .when(self.volume_open && has_video, |this| {
+                                                        this.child(
+                                                        div()
+                                                            .absolute()
+                                                            .left_0()
+                                                            .bottom(px(58.0))
+                                                            .w(px(72.0))
+                                                            .h(px(232.0))
+                                                            .flex()
+                                                            .flex_col()
+                                                            .items_center()
+                                                            .rounded(px(22.0))
+                                                            .border_1()
+                                                            .border_color(rgb(0x35353b))
+                                                            .bg(rgb(0x1a1a1d))
+                                                            .shadow_lg()
+                                                            .occlude()
+                                                            .on_mouse_move(
+                                                                cx.listener(Self::adjust_volume),
+                                                            )
+                                                            .on_mouse_up(
+                                                                MouseButton::Left,
+                                                                cx.listener(
+                                                                    Self::finish_volume_adjustment,
+                                                                ),
+                                                            )
+                                                            .on_mouse_up_out(
+                                                                MouseButton::Left,
+                                                                cx.listener(
+                                                                    Self::finish_volume_adjustment,
+                                                                ),
+                                                            )
+                                                            .child(
+                                                                div()
+                                                                    .absolute()
+                                                                    .top(px(18.0))
+                                                                    .font_family("monospace")
+                                                                    .text_lg()
+                                                                    .text_color(rgb(MUTED))
+                                                                    .child(volume_percent.to_string()),
+                                                            )
+                                                            .child(
+                                                                div()
+                                                                    .id("volume-track")
+                                                                    .absolute()
+                                                                    .top(px(64.0))
+                                                                    .w_6()
+                                                                    .h(px(VOLUME_TRACK_HEIGHT))
+                                                                    .flex()
+                                                                    .justify_center()
+                                                                    .cursor(CursorStyle::PointingHand)
+                                                                    .child(
+                                                                        div()
+                                                                            .w(px(5.0))
+                                                                            .h_full()
+                                                                            .rounded_full()
+                                                                            .bg(rgb(0x55555b)),
+                                                                    )
+                                                                    .child(
+                                                                        div()
+                                                                            .absolute()
+                                                                            .bottom_0()
+                                                                            .w(px(5.0))
+                                                                            .h(px(
+                                                                                volume_fill_height,
+                                                                            ))
+                                                                            .rounded_full()
+                                                                            .bg(rgb(0xdedee2)),
+                                                                    )
+                                                                    .child(
+                                                                        div()
+                                                                            .absolute()
+                                                                            .left(px(2.0))
+                                                                            .bottom(px(
+                                                                                volume_thumb_bottom,
+                                                                            ))
+                                                                            .size(px(20.0))
+                                                                            .rounded_full()
+                                                                            .bg(rgb(0xffffff)),
+                                                                    )
+                                                                    .on_mouse_down(
+                                                                        MouseButton::Left,
+                                                                        cx.listener(
+                                                                            Self::begin_volume_adjustment,
+                                                                        ),
+                                                                    ),
+                                                            ),
+                                                        )
+                                                    })
+                                                    .child(
+                                                        div()
+                                                            .id("volume-toggle")
+                                                            .absolute()
+                                                            .left(px(12.0))
+                                                            .bottom_0()
+                                                            .size(px(48.0))
+                                                            .flex()
+                                                            .items_center()
+                                                            .justify_center()
+                                                            .cursor(CursorStyle::PointingHand)
+                                                            .rounded_xl()
+                                                            .border_1()
+                                                            .border_color(rgb(BORDER))
+                                                            .bg(rgb(0x1a1a1d))
+                                                            .hover(|style| {
+                                                                style.bg(rgb(SURFACE_HOVER))
+                                                            })
+                                                            .child(
+                                                                div()
+                                                                    .h(px(28.0))
+                                                                    .flex()
+                                                                    .items_end()
+                                                                    .gap_1()
+                                                                    .children(
+                                                                        [10.0_f32, 18.0, 28.0]
+                                                                            .into_iter()
+                                                                            .map(|height| {
+                                                                                div()
+                                                                                    .w(px(5.0))
+                                                                                    .h(px(height))
+                                                                                    .rounded_full()
+                                                                                    .bg(if is_muted
+                                                                                        || volume
+                                                                                            <= 0.0
+                                                                                    {
+                                                                                        rgb(MUTED)
+                                                                                    } else {
+                                                                                        rgb(TEXT)
+                                                                                    })
+                                                                            }),
+                                                                    ),
+                                                            )
+                                                            .on_click(cx.listener(
+                                                                |this, _, _, cx| {
+                                                                    if this.video.is_some() {
+                                                                        this.volume_open =
+                                                                            !this.volume_open;
+                                                                        this.settings_open = false;
+                                                                    }
+                                                                    cx.notify();
+                                                                },
+                                                            )),
+                                                    ),
                                             )
                                             .child(
                                                 div()
