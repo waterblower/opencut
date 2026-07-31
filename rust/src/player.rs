@@ -10,14 +10,12 @@ use url::Url;
 mod inspector;
 mod view;
 
-const HEADER_HEIGHT: f32 = 72.0;
+const HEADER_HEIGHT: f32 = 92.0;
 const CONTROL_HEIGHT: f32 = 116.0;
-const FOOTER_HEIGHT: f32 = 92.0;
 const HORIZONTAL_PADDING: f32 = 22.0;
 const INSPECTOR_WIDTH: f32 = 320.0;
 
 const BACKGROUND: u32 = 0x070708;
-const SURFACE: u32 = 0x101012;
 const SURFACE_HOVER: u32 = 0x1b1b1f;
 const BORDER: u32 = 0x29292e;
 const TEXT: u32 = 0xf0f0f2;
@@ -52,6 +50,7 @@ pub(crate) fn bind_keys(cx: &mut App) {
 
 pub(crate) struct Player {
     video: Option<Video>,
+    bitrate_bps: Option<f64>,
     title: String,
     error: Option<String>,
     looping: bool,
@@ -74,12 +73,15 @@ impl Player {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> Self {
-        let (video, title, error) = match initial_media {
+        let (video, bitrate_bps, title, error) = match initial_media {
             Some((url, title)) => match create_video(&url, looping) {
-                Ok(video) => (Some(video), title, None),
-                Err(error) => (None, "No video selected".to_string(), Some(error)),
+                Ok(video) => {
+                    let bitrate = average_bitrate(&url, video.duration());
+                    (Some(video), bitrate, title, None)
+                }
+                Err(error) => (None, None, "No video selected".to_string(), Some(error)),
             },
-            None => (None, "No video selected".to_string(), None),
+            None => (None, None, "No video selected".to_string(), None),
         };
 
         let focus_handle = cx.focus_handle();
@@ -88,6 +90,7 @@ impl Player {
 
         Self {
             video,
+            bitrate_bps,
             title,
             error,
             looping,
@@ -193,6 +196,7 @@ impl Player {
 
         match create_video(&url, self.looping) {
             Ok(video) => {
+                self.bitrate_bps = average_bitrate(&url, video.duration());
                 self.video = Some(video);
                 self.title = title;
                 self.error = None;
@@ -431,6 +435,16 @@ fn create_video(url: &Url, looping: bool) -> Result<Video, String> {
     .map_err(|error| format!("Could not open video: {error}"))
 }
 
+fn average_bitrate(url: &Url, duration: Duration) -> Option<f64> {
+    if duration.is_zero() {
+        return None;
+    }
+
+    let path = url.to_file_path().ok()?;
+    let bytes = std::fs::metadata(path).ok()?.len();
+    Some(bytes as f64 * 8.0 / duration.as_secs_f64())
+}
+
 fn format_duration(duration: Duration) -> String {
     let total_seconds = duration.as_secs();
     let hours = total_seconds / 3600;
@@ -449,5 +463,21 @@ fn format_speed(speed: f64) -> String {
         format!("{speed:.0}.0×")
     } else {
         format!("{speed:.2}×").replace('0', "")
+    }
+}
+
+fn format_source_fps(fps: f64) -> String {
+    if (fps - fps.round()).abs() < 0.01 {
+        format!("{fps:.0} fps")
+    } else {
+        format!("{fps:.2} fps")
+    }
+}
+
+fn format_bitrate(bitrate_bps: Option<f64>) -> String {
+    match bitrate_bps {
+        Some(bitrate) if bitrate >= 1_000_000.0 => format!("{:.1} Mbps", bitrate / 1_000_000.0),
+        Some(bitrate) => format!("{:.0} kbps", bitrate / 1_000.0),
+        None => "bitrate unavailable".to_string(),
     }
 }
