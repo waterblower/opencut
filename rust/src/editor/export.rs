@@ -1,7 +1,11 @@
-use super::model::Project;
+use super::model::{MediaKind, Project};
 use std::{path::Path, process::Command};
 
-pub(super) fn export_project(project: &Project, output: &Path) -> Result<(), String> {
+pub(super) fn export_project(
+    project: &Project,
+    project_root: &Path,
+    output: &Path,
+) -> Result<(), String> {
     if project.timeline.is_empty() {
         return Err("Add at least one clip before exporting.".to_string());
     }
@@ -11,7 +15,13 @@ pub(super) fn export_project(project: &Project, output: &Path) -> Result<(), Str
         .ok_or_else(|| "The first timeline clip has no source media.".to_string())?;
     let width = even(first_asset.width.max(2));
     let height = even(first_asset.height.max(2));
-    let framerate = first_asset.framerate.clamp(1.0, 60.0);
+    let framerate = project
+        .timeline
+        .iter()
+        .filter_map(|clip| project.asset(clip.asset_id))
+        .find(|asset| asset.kind == MediaKind::Video)
+        .map(|asset| asset.framerate.clamp(1.0, 60.0))
+        .unwrap_or(30.0);
 
     let mut command = Command::new("ffmpeg");
     command.args(["-hide_banner", "-loglevel", "error", "-nostdin", "-y"]);
@@ -19,13 +29,21 @@ pub(super) fn export_project(project: &Project, output: &Path) -> Result<(), Str
         let asset = project
             .asset(clip.asset_id)
             .ok_or_else(|| format!("Clip {} has no source media.", clip.id))?;
-        command
-            .arg("-ss")
-            .arg(decimal(clip.source_in))
-            .arg("-t")
-            .arg(decimal(clip.duration()))
-            .arg("-i")
-            .arg(&asset.path);
+        if asset.kind == MediaKind::Image {
+            command
+                .args(["-loop", "1", "-t"])
+                .arg(decimal(clip.duration()))
+                .arg("-i")
+                .arg(project_root.join(&asset.path));
+        } else {
+            command
+                .arg("-ss")
+                .arg(decimal(clip.source_in))
+                .arg("-t")
+                .arg(decimal(clip.duration()))
+                .arg("-i")
+                .arg(project_root.join(&asset.path));
+        }
     }
 
     let mut filters = Vec::new();
@@ -33,7 +51,7 @@ pub(super) fn export_project(project: &Project, output: &Path) -> Result<(), Str
     for (index, clip) in project.timeline.iter().enumerate() {
         let asset = project.asset(clip.asset_id).unwrap();
         filters.push(format!(
-            "[{index}:v:0]scale={width}:{height}:force_original_aspect_ratio=decrease,pad={width}:{height}:(ow-iw)/2:(oh-ih)/2:black,setsar=1,fps={}[v{index}]",
+            "[{index}:v:0]scale={width}:{height}:force_original_aspect_ratio=decrease,pad={width}:{height}:(ow-iw)/2:(oh-ih)/2:black,setsar=1,fps={},setpts=PTS-STARTPTS[v{index}]",
             decimal(framerate)
         ));
         if asset.has_audio {
