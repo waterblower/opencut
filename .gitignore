@@ -19,3 +19,4 @@ doc.md
 /zig/vendor/SDL*
 /zig/vendor/ffmpeg
 /zig/zig-pkg
+/rust/target
