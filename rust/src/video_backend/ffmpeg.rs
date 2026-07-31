@@ -11,11 +11,10 @@ use gpui::{
     IntoElement, LayoutId, Length, Pixels, RenderImage, Style, Window,
 };
 use image::{ImageBuffer, Rgba};
-use rodio::{Decoder, DeviceSinkBuilder, MixerDeviceSink, Player as AudioPlayer};
 use smallvec::SmallVec;
 use std::{
-    fs::{self, File},
-    path::{Path, PathBuf},
+    fs,
+    path::Path,
     sync::{
         Arc, Condvar, Mutex,
         atomic::{AtomicBool, AtomicU64, Ordering},
@@ -24,6 +23,11 @@ use std::{
     time::{Duration, Instant},
 };
 use url::Url;
+
+#[path = "ffmpeg/audio.rs"]
+mod audio;
+
+use audio::{AudioOutput, decode_audio};
 
 const AV_TIME_BASE: f64 = 1_000_000.0;
 const FRAME_LATE_TOLERANCE: Duration = Duration::from_millis(100);
@@ -52,7 +56,8 @@ pub struct Video {
 
 struct Internal {
     state: Arc<PlaybackState>,
-    worker: Mutex<Option<JoinHandle<()>>>,
+    video_worker: Mutex<Option<JoinHandle<()>>>,
+    audio_worker: Mutex<Option<JoinHandle<()>>>,
     width: u32,
     height: u32,
     framerate: f64,
@@ -64,7 +69,10 @@ impl Drop for Internal {
     fn drop(&mut self) {
         self.state.exit.store(true, Ordering::Release);
         self.state.wake.notify_all();
-        if let Some(worker) = self.worker.lock().unwrap().take() {
+        if let Some(worker) = self.video_worker.lock().unwrap().take() {
+            let _ = worker.join();
+        }
+        if let Some(worker) = self.audio_worker.lock().unwrap().take() {
             let _ = worker.join();
         }
     }
@@ -77,7 +85,11 @@ struct PlaybackState {
     frame_ready: AtomicBool,
     sequence: AtomicU64,
     seek_serial: AtomicU64,
+    rendered_seek_serial: AtomicU64,
     seek_target_nanos: AtomicU64,
+    seek_accurate: AtomicBool,
+    audio_seek_serial: AtomicU64,
+    audio_seek_target_nanos: AtomicU64,
     eos: AtomicBool,
     exit: AtomicBool,
     looping: AtomicBool,
@@ -101,76 +113,40 @@ struct Frame {
     sequence: u64,
 }
 
-struct AudioOutput {
-    player: AudioPlayer,
-    _device: MixerDeviceSink,
-    path: PathBuf,
-}
-
-impl AudioOutput {
-    fn open(url: &Url, speed: f64) -> Option<Self> {
-        let path = url.to_file_path().ok()?;
-        let device = DeviceSinkBuilder::open_default_sink().ok()?;
-        let player = AudioPlayer::connect_new(device.mixer());
-        let decoder = Decoder::try_from(File::open(&path).ok()?).ok()?;
-        player.append(decoder);
-        player.set_speed(speed as f32);
-        Some(Self {
-            player,
-            _device: device,
-            path,
-        })
-    }
-
-    fn ensure_source(&self) {
-        if self.player.empty()
-            && let Ok(file) = File::open(&self.path)
-            && let Ok(decoder) = Decoder::try_from(file)
-        {
-            self.player.append(decoder);
-        }
-    }
-
-    fn seek(&self, position: Duration, paused: bool, speed: f64) {
-        self.ensure_source();
-        let _ = self.player.try_seek(position);
-        self.player.set_speed(speed as f32);
-        if paused {
-            self.player.pause();
-        } else {
-            self.player.play();
-        }
-    }
-}
-
 impl PlaybackState {
     fn position(&self, duration: Duration) -> Duration {
         let control = self.control.lock().unwrap();
         position_from_control(&control, duration)
     }
 
-    fn seek(&self, position: Duration, duration: Duration) {
+    fn seek(&self, position: Duration, duration: Duration, accurate: bool) {
         let position = position.min(duration);
-        let (paused, speed) = {
+        {
             let mut control = self.control.lock().unwrap();
             control.base_position = position;
             control.started_at = Instant::now();
-            (control.paused, control.speed)
-        };
+        }
         self.seek_target_nanos.store(
             position.as_nanos().min(u64::MAX as u128) as u64,
             Ordering::Release,
         );
+        self.seek_accurate.store(accurate, Ordering::Release);
         self.seek_serial.fetch_add(1, Ordering::AcqRel);
         self.eos.store(false, Ordering::Release);
-        if let Some(audio) = self.audio.lock().unwrap().as_ref() {
-            audio.seek(position, paused, speed);
+        // Scrub previews are intentionally video-only. The final accurate seek
+        // tells the FFmpeg audio worker to flush and restart at the target.
+        if accurate {
+            self.audio_seek_target_nanos.store(
+                position.as_nanos().min(u64::MAX as u128) as u64,
+                Ordering::Release,
+            );
+            self.audio_seek_serial.fetch_add(1, Ordering::AcqRel);
         }
         self.wake.notify_all();
     }
 
     fn restart_for_loop(&self, duration: Duration) -> u64 {
-        self.seek(Duration::ZERO, duration);
+        self.seek(Duration::ZERO, duration, true);
         self.seek_serial.load(Ordering::Acquire)
     }
 
@@ -188,7 +164,6 @@ impl PlaybackState {
             if paused {
                 audio.player.pause();
             } else {
-                audio.ensure_source();
                 audio.player.play();
             }
         }
@@ -208,7 +183,7 @@ impl PlaybackState {
         self.wake.notify_all();
     }
 
-    fn publish(&self, pixels: Vec<u8>, width: u32, height: u32) {
+    fn publish(&self, pixels: Vec<u8>, width: u32, height: u32, seek_serial: u64) {
         let sequence = self.sequence.fetch_add(1, Ordering::AcqRel) + 1;
         *self.frame.lock().unwrap() = Some(Frame {
             pixels: Arc::new(pixels),
@@ -216,7 +191,14 @@ impl PlaybackState {
             height,
             sequence,
         });
+        self.rendered_seek_serial
+            .store(seek_serial, Ordering::Release);
         self.frame_ready.store(true, Ordering::Release);
+    }
+
+    fn seek_frame_pending(&self) -> bool {
+        self.rendered_seek_serial.load(Ordering::Acquire)
+            != self.seek_serial.load(Ordering::Acquire)
     }
 }
 
@@ -254,33 +236,57 @@ impl Video {
             frame_ready: AtomicBool::new(false),
             sequence: AtomicU64::new(0),
             seek_serial: AtomicU64::new(0),
+            rendered_seek_serial: AtomicU64::new(0),
             seek_target_nanos: AtomicU64::new(0),
+            seek_accurate: AtomicBool::new(true),
+            audio_seek_serial: AtomicU64::new(0),
+            audio_seek_target_nanos: AtomicU64::new(0),
             eos: AtomicBool::new(false),
             exit: AtomicBool::new(false),
             looping: AtomicBool::new(options.looping.unwrap_or(false)),
             muted: AtomicBool::new(false),
             volume_bits: AtomicU64::new(1.0_f64.to_bits()),
-            audio: Mutex::new(AudioOutput::open(url, speed)),
+            audio: Mutex::new(AudioOutput::open(speed)),
         });
-        let worker_state = state.clone();
+        let video_worker_state = state.clone();
         let worker_duration = metadata.duration;
         let worker_framerate = metadata.framerate;
-        let worker = thread::Builder::new()
+        let video_source = source.clone();
+        let video_worker = thread::Builder::new()
             .name("opencut-ffmpeg-video".to_string())
             .spawn(move || {
-                if let Err(error) =
-                    decode_video(&source, worker_duration, worker_framerate, &worker_state)
-                {
+                if let Err(error) = decode_video(
+                    &video_source,
+                    worker_duration,
+                    worker_framerate,
+                    &video_worker_state,
+                ) {
                     eprintln!("FFmpeg video worker stopped: {error}");
-                    worker_state.eos.store(true, Ordering::Release);
+                    video_worker_state.eos.store(true, Ordering::Release);
                 }
             })
             .map_err(|error| format!("could not start FFmpeg decoder: {error}"))?;
+        let audio_worker = if state.audio.lock().unwrap().is_some() {
+            let audio_worker_state = state.clone();
+            Some(
+                thread::Builder::new()
+                    .name("opencut-ffmpeg-audio".to_string())
+                    .spawn(move || {
+                        if let Err(error) = decode_audio(&source, &audio_worker_state) {
+                            eprintln!("FFmpeg audio worker stopped: {error}");
+                        }
+                    })
+                    .map_err(|error| format!("could not start FFmpeg audio decoder: {error}"))?,
+            )
+        } else {
+            None
+        };
 
         Ok(Self {
             inner: Arc::new(Internal {
                 state,
-                worker: Mutex::new(Some(worker)),
+                video_worker: Mutex::new(Some(video_worker)),
+                audio_worker: Mutex::new(audio_worker),
                 width: metadata.width,
                 height: metadata.height,
                 framerate: metadata.framerate,
@@ -319,12 +325,16 @@ impl Video {
     }
 
     pub fn restart_stream(&self) -> Result<(), String> {
-        self.inner.state.seek(Duration::ZERO, self.inner.duration);
+        self.inner
+            .state
+            .seek(Duration::ZERO, self.inner.duration, true);
         Ok(())
     }
 
-    pub fn seek(&self, position: Duration, _accurate: bool) -> Result<(), String> {
-        self.inner.state.seek(position, self.inner.duration);
+    pub fn seek(&self, position: Duration, accurate: bool) -> Result<(), String> {
+        self.inner
+            .state
+            .seek(position, self.inner.duration, accurate);
         Ok(())
     }
 
@@ -377,6 +387,10 @@ impl Video {
     fn take_frame_ready(&self) -> bool {
         self.inner.state.frame_ready.swap(false, Ordering::AcqRel)
     }
+
+    fn seek_frame_pending(&self) -> bool {
+        self.inner.state.seek_frame_pending()
+    }
 }
 
 pub fn read_video_codec(video: &Video) -> Option<String> {
@@ -385,7 +399,11 @@ pub fn read_video_codec(video: &Video) -> Option<String> {
 
 pub fn current_frame_rgba(video: &Video) -> Option<(Vec<u8>, u32, u32)> {
     let frame = video.frame()?;
-    Some((frame.pixels.as_ref().clone(), frame.width, frame.height))
+    let mut rgba = frame.pixels.as_ref().clone();
+    for pixel in rgba.chunks_exact_mut(4) {
+        pixel.swap(0, 2);
+    }
+    Some((rgba, frame.width, frame.height))
 }
 
 pub fn video(video: Video) -> VideoElement {
@@ -493,7 +511,11 @@ impl Element for VideoElement {
         window: &mut Window,
         _: &mut App,
     ) {
-        if (!self.video.paused() && !self.video.eos()) || self.video.take_frame_ready() {
+        let seek_frame_pending = !self.video.eos() && self.video.seek_frame_pending();
+        if (!self.video.paused() && !self.video.eos())
+            || self.video.take_frame_ready()
+            || seek_frame_pending
+        {
             window.request_animation_frame();
         }
     }
@@ -625,7 +647,7 @@ fn decode_video(
         decoder.format(),
         decoder.width(),
         decoder.height(),
-        Pixel::RGBA,
+        Pixel::BGRA,
         decoder.width(),
         decoder.height(),
         ScalingFlags::BILINEAR,
@@ -633,6 +655,7 @@ fn decode_video(
     .map_err(|error| format!("could not create video scaler: {error}"))?;
     let mut packet = Packet::empty();
     let mut seen_seek = state.seek_serial.load(Ordering::Acquire);
+    let mut seen_seek_accurate = true;
     let mut fallback_position = Duration::ZERO;
 
     loop {
@@ -643,12 +666,23 @@ fn decode_video(
         let requested_seek = state.seek_serial.load(Ordering::Acquire);
         if requested_seek != seen_seek {
             let target = Duration::from_nanos(state.seek_target_nanos.load(Ordering::Acquire));
-            input
-                .seek(duration_to_av_time(target), ..duration_to_av_time(target))
-                .map_err(|error| format!("could not seek video: {error}"))?;
+            let target = duration_to_av_time(target);
+            seen_seek_accurate = state.seek_accurate.load(Ordering::Acquire);
+            let result = if seen_seek_accurate {
+                input.seek(target, ..target)
+            } else {
+                // Match GStreamer's KEY_UNIT + SNAP_AFTER preview behavior:
+                // jump directly to the next keyframe instead of decoding the
+                // whole GOP for every mouse movement.
+                input
+                    .seek(target, target..)
+                    .or_else(|_| input.seek(target, ..target))
+            };
+            result.map_err(|error| format!("could not seek video: {error}"))?;
             decoder.flush();
             packet = Packet::empty();
-            fallback_position = target;
+            fallback_position =
+                Duration::from_nanos(state.seek_target_nanos.load(Ordering::Acquire));
             seen_seek = requested_seek;
             state.eos.store(false, Ordering::Release);
         }
@@ -672,6 +706,7 @@ fn decode_video(
                     start_time,
                     framerate,
                     seen_seek,
+                    seen_seek_accurate,
                     &mut fallback_position,
                 )? {
                     continue;
@@ -688,6 +723,7 @@ fn decode_video(
                     start_time,
                     framerate,
                     seen_seek,
+                    seen_seek_accurate,
                     &mut fallback_position,
                 );
                 if state.looping.load(Ordering::Acquire) {
@@ -696,6 +732,9 @@ fn decode_video(
                 }
 
                 state.eos.store(true, Ordering::Release);
+                state
+                    .rendered_seek_serial
+                    .store(seen_seek, Ordering::Release);
                 let mut control = state.control.lock().unwrap();
                 while !state.exit.load(Ordering::Acquire)
                     && state.seek_serial.load(Ordering::Acquire) == seen_seek
@@ -718,23 +757,39 @@ fn receive_frames(
     start_time: i64,
     framerate: f64,
     seek_serial: u64,
+    accurate: bool,
     fallback_position: &mut Duration,
 ) -> Result<bool, String> {
     let mut decoded = DecodedFrame::empty();
     while decoder.receive_frame(&mut decoded).is_ok() {
+        if state.seek_serial.load(Ordering::Acquire) != seek_serial {
+            return Ok(false);
+        }
+
         let timestamp = decoded.timestamp().or_else(|| decoded.pts());
         let position = timestamp
             .and_then(|timestamp| timestamp_to_duration(timestamp, start_time, time_base))
             .unwrap_or(*fallback_position)
             .min(duration);
-        *fallback_position = position.saturating_add(Duration::from_secs_f64(1.0 / framerate));
+        let frame_duration = Duration::from_secs_f64(1.0 / framerate);
+        *fallback_position = position.saturating_add(frame_duration);
 
-        if !wait_for_frame(state, position, duration, seek_serial) {
-            return Ok(false);
-        }
         let current = state.position(duration);
-        if current > position.saturating_add(FRAME_LATE_TOLERANCE) {
-            continue;
+        let paused = state.control.lock().unwrap().paused;
+        if paused {
+            if accurate {
+                let nearest_frame_tolerance = frame_duration.div_f64(2.0);
+                if position.saturating_add(nearest_frame_tolerance) < current {
+                    continue;
+                }
+            }
+        } else {
+            if !wait_for_frame(state, position, duration, seek_serial) {
+                return Ok(false);
+            }
+            if state.position(duration) > position.saturating_add(FRAME_LATE_TOLERANCE) {
+                continue;
+            }
         }
 
         let mut rgba = DecodedFrame::empty();
@@ -742,10 +797,28 @@ fn receive_frames(
             .run(&decoded, &mut rgba)
             .map_err(|error| format!("could not convert video frame: {error}"))?;
         let pixels = copy_rgba(&rgba)?;
-        state.publish(pixels, rgba.width(), rgba.height());
+        if state.seek_serial.load(Ordering::Acquire) != seek_serial {
+            return Ok(false);
+        }
+        state.publish(pixels, rgba.width(), rgba.height(), seek_serial);
+
+        if paused {
+            wait_while_paused(state, seek_serial);
+            return Ok(false);
+        }
     }
 
     Ok(true)
+}
+
+fn wait_while_paused(state: &PlaybackState, seek_serial: u64) {
+    let mut control = state.control.lock().unwrap();
+    while control.paused
+        && !state.exit.load(Ordering::Acquire)
+        && state.seek_serial.load(Ordering::Acquire) == seek_serial
+    {
+        control = state.wake.wait(control).unwrap();
+    }
 }
 
 fn wait_for_frame(
