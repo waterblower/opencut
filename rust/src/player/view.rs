@@ -207,6 +207,7 @@ impl Render for Player {
             .on_action(cx.listener(Self::action_toggle_fullscreen))
             .on_action(cx.listener(Self::action_exit_fullscreen))
             .on_action(cx.listener(Self::action_toggle_inspector))
+            .on_mouse_down(MouseButton::Left, cx.listener(Self::dismiss_settings))
             .on_mouse_move(cx.listener(Self::scrub_timeline))
             .on_mouse_move(cx.listener(Self::adjust_volume))
             .on_mouse_up(MouseButton::Left, cx.listener(Self::finish_scrubbing))
@@ -571,6 +572,7 @@ impl Render for Player {
                                             .child(
                                                 div()
                                                     .id("speed")
+                                                    .occlude()
                                                     .cursor(CursorStyle::PointingHand)
                                                     .rounded_md()
                                                     .hover(|style| style.bg(rgb(SURFACE_HOVER)))
@@ -617,6 +619,7 @@ impl Render for Player {
                                         .bg(rgb(0x111113))
                                         .p_4()
                                         .shadow_lg()
+                                        .occlude()
                                         .child(
                                             div()
                                                 .text_xs()
