@@ -3,11 +3,10 @@ use gpui::{
     MouseMoveEvent, MouseUpEvent, ObjectFit, PathPromptOptions, Render, Window, actions, div, img,
     prelude::*, px, relative, rgb,
 };
-use gpui_video_player::{Video, VideoOptions, video};
-use gst::prelude::*;
-use gstreamer as gst;
 use std::{path::PathBuf, time::Duration, time::Instant};
 use url::Url;
+
+use crate::video_backend::{Video, VideoOptions, read_video_codec, video};
 
 mod history;
 mod inspector;
@@ -100,7 +99,7 @@ impl Player {
         let (video, video_codec, bitrate_bps, title, error) = match initial_media {
             Some((url, title)) => match create_video(&url, looping) {
                 Ok(video) => {
-                    let codec = read_video_codec(&video);
+                    let codec = read_video_codec(&video).map(|codec| format_codec_name(&codec));
                     let bitrate = average_bitrate(&url, video.duration());
                     if let Ok(path) = url.to_file_path() {
                         let path = std::fs::canonicalize(&path).unwrap_or(path);
@@ -242,7 +241,7 @@ impl Player {
 
         match create_video(&url, self.looping) {
             Ok(video) => {
-                self.video_codec = read_video_codec(&video);
+                self.video_codec = read_video_codec(&video).map(|codec| format_codec_name(&codec));
                 self.bitrate_bps = average_bitrate(&url, video.duration());
                 self.video = Some(video);
                 self.history.record(&path, title.clone());
@@ -638,19 +637,6 @@ fn create_video(url: &Url, looping: bool) -> Result<Video, String> {
         },
     )
     .map_err(|error| format!("Could not open video: {error}"))
-}
-
-fn read_video_codec(video: &Video) -> Option<String> {
-    let pipeline = video.pipeline();
-    let stream_index = pipeline.property::<i32>("current-video");
-    if stream_index < 0 {
-        return None;
-    }
-
-    let tags = pipeline.emit_by_name::<Option<gst::TagList>>("get-video-tags", &[&stream_index])?;
-    let codec_tag = tags.get::<gst::tags::VideoCodec>()?;
-    let codec = codec_tag.get();
-    Some(format_codec_name(codec))
 }
 
 fn format_codec_name(codec: &str) -> String {

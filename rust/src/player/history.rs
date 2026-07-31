@@ -1,7 +1,4 @@
 use super::*;
-use gst_video::VideoFrameExt as _;
-use gstreamer_app as gst_app;
-use gstreamer_video as gst_video;
 use serde::{Deserialize, Serialize};
 use std::{
     collections::hash_map::DefaultHasher,
@@ -184,95 +181,7 @@ fn schedule_thumbnail(video_path: PathBuf, thumbnail_path: PathBuf) {
 }
 
 fn generate_thumbnail(video_path: &Path, output_path: &Path) -> Result<(), String> {
-    gst::init().map_err(|error| format!("could not initialize GStreamer: {error}"))?;
-    if let Some(directory) = output_path.parent() {
-        fs::create_dir_all(directory)
-            .map_err(|error| format!("could not create {}: {error}", directory.display()))?;
-    }
-    if output_path.is_file() {
-        return Ok(());
-    }
-
-    let uri = Url::from_file_path(video_path)
-        .map_err(|_| format!("could not convert {} to a file URL", video_path.display()))?;
-    let description = format!(
-        "uridecodebin uri=\"{}\" name=decoder decoder. ! queue ! videoconvert ! videoscale ! video/x-raw,format=RGBA,width=320,height=180,pixel-aspect-ratio=1/1 ! appsink name=history_thumbnail sync=false max-buffers=1 drop=true",
-        uri.as_str()
-    );
-    let pipeline = gst::parse::launch(&description)
-        .map_err(|error| format!("could not create thumbnail pipeline: {error}"))?
-        .downcast::<gst::Pipeline>()
-        .map_err(|_| "thumbnail pipeline had an unexpected type".to_string())?;
-    let sink = pipeline
-        .by_name("history_thumbnail")
-        .ok_or_else(|| "thumbnail sink was not created".to_string())?
-        .downcast::<gst_app::AppSink>()
-        .map_err(|_| "thumbnail sink had an unexpected type".to_string())?;
-
-    pipeline
-        .set_state(gst::State::Paused)
-        .map_err(|error| format!("could not start thumbnail pipeline: {error}"))?;
-    let result = (|| -> Result<(), String> {
-        let sample = sink
-            .try_pull_preroll(gst::ClockTime::from_seconds(10))
-            .ok_or_else(|| "timed out waiting for the first frame".to_string())?;
-        let caps = sample
-            .caps()
-            .ok_or_else(|| "first frame had no video format".to_string())?;
-        let info = gst_video::VideoInfo::from_caps(caps)
-            .map_err(|error| format!("could not read first-frame format: {error}"))?;
-        let buffer = sample
-            .buffer()
-            .ok_or_else(|| "first frame had no pixel buffer".to_string())?;
-        let frame = gst_video::VideoFrameRef::from_buffer_ref_readable(buffer, &info)
-            .map_err(|error| format!("could not map first-frame pixels: {error}"))?;
-
-        let width = frame.width();
-        let height = frame.height();
-        let row_bytes = usize::try_from(width)
-            .ok()
-            .and_then(|width| width.checked_mul(4))
-            .ok_or_else(|| "thumbnail width was too large".to_string())?;
-        let stride = usize::try_from(
-            *frame
-                .info()
-                .stride()
-                .first()
-                .ok_or_else(|| "first frame had no row stride".to_string())?,
-        )
-        .map_err(|_| "first frame had a negative row stride".to_string())?;
-        let source = frame
-            .plane_data(0)
-            .map_err(|error| format!("could not read first-frame pixels: {error}"))?;
-        let mut pixels = Vec::with_capacity(row_bytes * height as usize);
-        for row in 0..height as usize {
-            let start = row
-                .checked_mul(stride)
-                .ok_or_else(|| "thumbnail row offset overflowed".to_string())?;
-            let end = start
-                .checked_add(row_bytes)
-                .ok_or_else(|| "thumbnail row size overflowed".to_string())?;
-            let bytes = source
-                .get(start..end)
-                .ok_or_else(|| "first-frame row was truncated".to_string())?;
-            pixels.extend_from_slice(bytes);
-        }
-
-        let temporary_path = output_path.with_extension("png.part");
-        image::save_buffer_with_format(
-            &temporary_path,
-            &pixels,
-            width,
-            height,
-            image::ColorType::Rgba8,
-            image::ImageFormat::Png,
-        )
-        .map_err(|error| format!("could not encode thumbnail: {error}"))?;
-        fs::rename(&temporary_path, output_path)
-            .map_err(|error| format!("could not finish thumbnail: {error}"))
-    })();
-    let _ = pipeline.set_state(gst::State::Null);
-    result
+    crate::video_backend::generate_thumbnail(video_path, output_path)
 }
 
 fn thumbnail_path(video_path: &Path) -> PathBuf {
