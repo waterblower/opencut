@@ -70,7 +70,9 @@ cargo editor
 
 The editor currently provides:
 
-- Importing multiple source videos
+- An IDE-style asset panel backed directly by an ordinary project folder
+- Automatic discovery of videos and PNG/JPEG images copied into the project
+  folder
 - One sequential timeline track with attached video and audio
 - GStreamer timeline preview and clip-to-clip playback
 - A scrollable, zoomable timeline and ruler-based seeking
@@ -91,9 +93,26 @@ Editor keyboard controls:
 - `Command` + `Shift` + `Z`: redo
 
 Edits do not modify or duplicate the source videos. The editor stores media
-references, clip order, and source in/out points in `data/editor-project.json`.
-Playback history and editor data under `data/` are local runtime files and are
-ignored by Git.
+references, clip order, and source in/out points in
+`<project folder>/.opencut/project.json`. Media paths are relative to the
+project folder, so the folder—including `.opencut`—can be committed to version
+control or backed up as a unit.
+
+Use **Open Folder** to choose a project. The left panel displays that folder as
+a live file tree; expand directories and use the `+` beside a video or image to
+append it to the timeline. There is no separate import or media copy step:
+placing supported media anywhere inside the project folder makes it appear in
+the panel. The last opened folder is remembered locally in
+`data/editor-settings.json`, which is ignored by Git.
+
+Images appear with thumbnails in the asset tree and open in the preview when
+clicked. Adding one creates a five-second still-image clip that supports
+preview playback, trimming, splitting, reordering, and mixed video/image
+export.
+
+Right-click any project-tree entry to reveal it in Finder or open it with the
+operating system's default application. The same actions are available with
+`Option` + `Command` + `R` and `Control` + `Shift` + `Enter`.
 
 During export, clips are trimmed from their original files, normalized to the
 first clip's output dimensions and frame rate, concatenated, and encoded as an

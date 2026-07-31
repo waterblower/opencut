@@ -8,10 +8,21 @@ use std::{
 };
 
 pub(super) const MIN_CLIP_DURATION: f64 = 1.0 / 30.0;
+pub(super) const DEFAULT_IMAGE_DURATION: f64 = 5.0;
+
+#[derive(Clone, Copy, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub(super) enum MediaKind {
+    #[default]
+    Video,
+    Image,
+}
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub(super) struct MediaAsset {
     pub id: u64,
+    #[serde(default)]
+    pub kind: MediaKind,
     pub path: PathBuf,
     pub name: String,
     pub duration: f64,
@@ -43,8 +54,8 @@ pub(super) struct Project {
 }
 
 impl Project {
-    pub fn load() -> Self {
-        let path = project_path();
+    pub fn load(project_root: &Path) -> Self {
+        let path = project_path(project_root);
         let contents = match fs::read_to_string(&path) {
             Ok(contents) => contents,
             Err(error) if error.kind() == ErrorKind::NotFound => return Self::default(),
@@ -65,8 +76,8 @@ impl Project {
         }
     }
 
-    pub fn save(&self) -> Result<(), String> {
-        let path = project_path();
+    pub fn save(&self, project_root: &Path) -> Result<(), String> {
+        let path = project_path(project_root);
         let directory = path
             .parent()
             .ok_or_else(|| "project path has no parent directory".to_string())?;
@@ -182,6 +193,7 @@ pub(super) fn probe_media(path: &Path, id: u64) -> Result<MediaAsset, String> {
 
     Ok(MediaAsset {
         id,
+        kind: MediaKind::Video,
         path: fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf()),
         name: path
             .file_stem()
@@ -196,11 +208,37 @@ pub(super) fn probe_media(path: &Path, id: u64) -> Result<MediaAsset, String> {
     })
 }
 
+pub(super) fn probe_image(path: &Path, id: u64) -> Result<MediaAsset, String> {
+    let (width, height) = image::image_dimensions(path)
+        .map_err(|error| format!("could not inspect {}: {error}", path.display()))?;
+    let codec = path
+        .extension()
+        .and_then(|extension| extension.to_str())
+        .map(|extension| extension.to_ascii_uppercase())
+        .unwrap_or_else(|| "IMAGE".to_string());
+
+    Ok(MediaAsset {
+        id,
+        kind: MediaKind::Image,
+        path: fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf()),
+        name: path
+            .file_stem()
+            .map(|name| name.to_string_lossy().into_owned())
+            .unwrap_or_else(|| path.display().to_string()),
+        duration: DEFAULT_IMAGE_DURATION,
+        width,
+        height,
+        framerate: 0.0,
+        codec,
+        has_audio: false,
+    })
+}
+
 fn rational_to_f64(value: ffmpeg::Rational) -> Option<f64> {
     let denominator = value.denominator();
     (denominator != 0).then(|| value.numerator() as f64 / denominator as f64)
 }
 
-fn project_path() -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("data/editor-project.json")
+fn project_path(project_root: &Path) -> PathBuf {
+    project_root.join(".opencut/project.json")
 }

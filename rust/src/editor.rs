@@ -1,18 +1,26 @@
 use crate::video_backend::{Video, VideoOptions, video};
 use gpui::{
     App, Context, CursorStyle, FocusHandle, KeyBinding, MouseButton, MouseDownEvent,
-    MouseMoveEvent, MouseUpEvent, PathPromptOptions, Render, ScrollHandle, Window, actions, div,
-    prelude::*, px, rgb,
+    MouseMoveEvent, MouseUpEvent, ObjectFit, PathPromptOptions, Render, ScrollHandle, Window,
+    actions, div, img, prelude::*, px, rgb,
 };
-use std::{path::PathBuf, time::Duration};
+use std::{
+    collections::HashSet,
+    path::PathBuf,
+    time::{Duration, Instant},
+};
 use url::Url;
 
 mod export;
 mod model;
 mod view;
+mod workspace;
 
 use export::export_project;
-use model::{MIN_CLIP_DURATION, MediaAsset, Project, TimelineClip, probe_media};
+use model::{
+    MIN_CLIP_DURATION, MediaAsset, MediaKind, Project, TimelineClip, probe_image, probe_media,
+};
+use workspace::{FileTreeEntry, load_project_root, save_project_root, visible_tree};
 
 const MEDIA_PANEL_WIDTH: f32 = 264.0;
 const INSPECTOR_WIDTH: f32 = 292.0;
@@ -34,7 +42,15 @@ const CLIP_BLUE: u32 = 0x294d75;
 
 actions!(
     opencut_editor,
-    [TogglePlayback, DeleteSelected, SplitClip, Undo, Redo]
+    [
+        TogglePlayback,
+        DeleteSelected,
+        SplitClip,
+        Undo,
+        Redo,
+        RevealInFinder,
+        OpenInDefaultApp
+    ]
 );
 
 pub(crate) fn bind_keys(cx: &mut App) {
@@ -45,6 +61,8 @@ pub(crate) fn bind_keys(cx: &mut App) {
         KeyBinding::new("cmd-b", SplitClip, None),
         KeyBinding::new("cmd-z", Undo, None),
         KeyBinding::new("cmd-shift-z", Redo, None),
+        KeyBinding::new("cmd-alt-r", RevealInFinder, None),
+        KeyBinding::new("ctrl-shift-enter", OpenInDefaultApp, None),
     ]);
 }
 
@@ -63,10 +81,25 @@ struct TrimDrag {
     asset_duration: f64,
 }
 
+#[derive(Clone)]
+struct FileContextMenu {
+    relative_path: PathBuf,
+    x: f32,
+    y: f32,
+}
+
 pub(crate) struct Editor {
+    project_root: PathBuf,
     project: Project,
+    file_tree: Vec<FileTreeEntry>,
+    expanded_directories: HashSet<PathBuf>,
+    selected_file: Option<PathBuf>,
+    file_context_menu: Option<FileContextMenu>,
+    last_tree_scan: Instant,
     video: Option<Video>,
     loaded_clip_id: Option<u64>,
+    still_playback_started: Option<Instant>,
+    still_playback_origin: f64,
     selected_asset_id: Option<u64>,
     selected_clip_id: Option<u64>,
     playhead: f64,
@@ -86,7 +119,10 @@ pub(crate) struct Editor {
 
 impl Editor {
     pub(crate) fn new(window: &mut Window, cx: &mut Context<Self>) -> Self {
-        let project = Project::load();
+        let project_root = load_project_root();
+        let expanded_directories = HashSet::new();
+        let file_tree = visible_tree(&project_root, &expanded_directories).unwrap_or_default();
+        let project = Project::load(&project_root);
         let next_id = project.next_id();
         let selected_asset_id = project.assets.first().map(|asset| asset.id);
         let selected_clip_id = project.timeline.first().map(|clip| clip.id);
@@ -95,9 +131,17 @@ impl Editor {
         Self::start_updates(cx);
 
         let mut editor = Self {
+            project_root,
             project,
+            file_tree,
+            expanded_directories,
+            selected_file: None,
+            file_context_menu: None,
+            last_tree_scan: Instant::now(),
             video: None,
             loaded_clip_id: None,
+            still_playback_started: None,
+            still_playback_origin: 0.0,
             selected_asset_id,
             selected_clip_id,
             playhead: 0.0,
@@ -128,9 +172,15 @@ impl Editor {
                     .await;
                 if editor
                     .update(cx, |editor, cx| {
-                        let should_render = editor.playing || editor.preview_refresh_ticks > 0;
+                        let refresh_tree =
+                            editor.last_tree_scan.elapsed() >= Duration::from_secs(1);
+                        let should_render =
+                            editor.playing || editor.preview_refresh_ticks > 0 || refresh_tree;
                         editor.preview_refresh_ticks =
                             editor.preview_refresh_ticks.saturating_sub(1);
+                        if refresh_tree {
+                            editor.refresh_file_tree();
+                        }
                         editor.update_playback();
                         if should_render {
                             cx.notify();
@@ -158,6 +208,33 @@ impl Editor {
             return;
         };
         let clip = &self.project.timeline[index];
+        let media_kind = self
+            .project
+            .asset(clip.asset_id)
+            .map(|asset| asset.kind)
+            .unwrap_or_default();
+
+        if media_kind == MediaKind::Image {
+            let Some(started) = self.still_playback_started else {
+                self.playing = false;
+                return;
+            };
+            let clip_end = self.project.timeline_start(index) + clip.duration();
+            self.playhead =
+                (self.still_playback_origin + started.elapsed().as_secs_f64()).clamp(0.0, clip_end);
+            if self.playhead + 1.0 / 120.0 >= clip_end {
+                if index + 1 < self.project.timeline.len() {
+                    let next_start = self.project.timeline_start(index + 1);
+                    self.load_timeline_position(next_start, true);
+                } else {
+                    self.still_playback_started = None;
+                    self.playing = false;
+                    self.playhead = self.project.timeline_duration();
+                }
+            }
+            return;
+        }
+
         let Some(video) = self.video.as_ref() else {
             self.playing = false;
             return;
@@ -184,6 +261,8 @@ impl Editor {
     }
 
     fn load_timeline_position(&mut self, position: f64, play: bool) {
+        self.selected_file = None;
+        self.file_context_menu = None;
         let duration = self.project.timeline_duration();
         let position = position.clamp(0.0, duration);
         let Some((index, local_position)) = self.project.clip_at_time(position) else {
@@ -200,9 +279,18 @@ impl Editor {
         };
         let source_position = (clip.source_in + local_position).min(clip.source_out);
 
-        if self.loaded_clip_id != Some(clip.id) {
-            let Ok(url) = Url::from_file_path(&asset.path) else {
-                self.error = Some(format!("Could not open {}", asset.path.display()));
+        if asset.kind == MediaKind::Image {
+            if let Some(video) = &self.video {
+                video.set_paused(true);
+            }
+            self.video = None;
+            self.loaded_clip_id = Some(clip.id);
+            self.still_playback_origin = position;
+            self.still_playback_started = play.then(Instant::now);
+        } else if self.loaded_clip_id != Some(clip.id) {
+            let source_path = self.project_root.join(&asset.path);
+            let Ok(url) = Url::from_file_path(&source_path) else {
+                self.error = Some(format!("Could not open {}", source_path.display()));
                 return;
             };
             match Video::new_with_options(
@@ -216,6 +304,7 @@ impl Editor {
                 Ok(video) => {
                     self.video = Some(video);
                     self.loaded_clip_id = Some(clip.id);
+                    self.still_playback_started = None;
                 }
                 Err(error) => {
                     self.error = Some(format!("Could not preview {}: {error}", asset.name));
@@ -224,7 +313,9 @@ impl Editor {
             }
         }
 
-        if let Some(video) = &self.video {
+        if asset.kind == MediaKind::Video
+            && let Some(video) = &self.video
+        {
             let _ = video.seek(Duration::from_secs_f64(source_position), true);
             video.set_paused(!play);
         }
@@ -244,6 +335,7 @@ impl Editor {
             if let Some(video) = &self.video {
                 video.set_paused(true);
             }
+            self.still_playback_started = None;
             self.playing = false;
             return;
         }
@@ -265,26 +357,22 @@ impl Editor {
         self.load_timeline_position(self.project.timeline_start(index), false);
     }
 
-    fn select_asset(&mut self, asset_id: u64) {
-        self.selected_asset_id = Some(asset_id);
-    }
-
-    fn import_media(&mut self, cx: &mut Context<Self>) {
+    fn open_project_folder(&mut self, cx: &mut Context<Self>) {
         self.error = None;
         let selection = cx.prompt_for_paths(PathPromptOptions {
-            files: true,
-            directories: false,
-            multiple: true,
-            prompt: Some("Import video files".into()),
+            files: false,
+            directories: true,
+            multiple: false,
+            prompt: Some("Open project folder".into()),
         });
         cx.spawn(async move |editor, cx| {
-            let paths = match selection.await {
-                Ok(Ok(Some(paths))) => paths,
+            let root = match selection.await {
+                Ok(Ok(Some(paths))) => paths.into_iter().next(),
                 Ok(Ok(None)) => return,
                 Ok(Err(error)) => {
                     editor
                         .update(cx, |editor, cx| {
-                            editor.error = Some(format!("Could not import media: {error}"));
+                            editor.error = Some(format!("Could not open project folder: {error}"));
                             cx.notify();
                         })
                         .ok();
@@ -293,25 +381,191 @@ impl Editor {
                 Err(error) => {
                     editor
                         .update(cx, |editor, cx| {
-                            editor.error = Some(format!("Import dialog failed: {error}"));
+                            editor.error = Some(format!("Folder dialog failed: {error}"));
                             cx.notify();
                         })
                         .ok();
                     return;
                 }
             };
-            let results = cx
+            if let Some(root) = root {
+                editor
+                    .update(cx, |editor, cx| {
+                        editor.set_project_root(root);
+                        cx.notify();
+                    })
+                    .ok();
+            }
+        })
+        .detach();
+    }
+
+    fn set_project_root(&mut self, root: PathBuf) {
+        let root = std::fs::canonicalize(&root).unwrap_or(root);
+        self.video = None;
+        self.loaded_clip_id = None;
+        self.still_playback_started = None;
+        self.playing = false;
+        self.playhead = 0.0;
+        self.project_root = root;
+        self.project = Project::load(&self.project_root);
+        self.next_id = self.project.next_id();
+        self.undo_stack.clear();
+        self.redo_stack.clear();
+        self.expanded_directories.clear();
+        self.selected_file = None;
+        self.file_context_menu = None;
+        self.selected_asset_id = self.project.assets.first().map(|asset| asset.id);
+        self.selected_clip_id = self.project.timeline.first().map(|clip| clip.id);
+        self.refresh_file_tree();
+        if let Err(error) = save_project_root(&self.project_root) {
+            self.error = Some(error);
+        } else {
+            self.error = None;
+        }
+        if !self.project.timeline.is_empty() {
+            self.load_timeline_position(0.0, false);
+        }
+    }
+
+    fn refresh_file_tree(&mut self) {
+        self.last_tree_scan = Instant::now();
+        match visible_tree(&self.project_root, &self.expanded_directories) {
+            Ok(entries) => self.file_tree = entries,
+            Err(error) => self.error = Some(error),
+        }
+    }
+
+    fn toggle_directory(&mut self, relative_path: PathBuf) {
+        if !self.expanded_directories.remove(&relative_path) {
+            self.expanded_directories.insert(relative_path);
+        }
+        self.refresh_file_tree();
+    }
+
+    fn select_file(&mut self, relative_path: PathBuf) {
+        if workspace::is_image_path(&relative_path) {
+            if let Some(video) = &self.video {
+                video.set_paused(true);
+            }
+            self.playing = false;
+            self.still_playback_started = None;
+            self.preview_refresh_ticks = 2;
+        }
+        self.selected_file = Some(relative_path.clone());
+        self.selected_asset_id = self
+            .project
+            .assets
+            .iter()
+            .find(|asset| asset.path == relative_path)
+            .map(|asset| asset.id);
+    }
+
+    fn show_file_context_menu(
+        &mut self,
+        relative_path: PathBuf,
+        event: &MouseDownEvent,
+        cx: &mut Context<Self>,
+    ) {
+        self.selected_file = Some(relative_path.clone());
+        self.file_context_menu = Some(FileContextMenu {
+            relative_path,
+            x: event.position.x.into(),
+            y: event.position.y.into(),
+        });
+        cx.stop_propagation();
+        cx.notify();
+    }
+
+    fn dismiss_file_context_menu(&mut self) {
+        self.file_context_menu = None;
+    }
+
+    fn reveal_selected_file(&mut self, cx: &mut Context<Self>) {
+        let Some(path) = self.file_action_path() else {
+            return;
+        };
+        self.file_context_menu = None;
+        cx.reveal_path(&path);
+    }
+
+    fn open_selected_file_in_default_app(&mut self, cx: &mut Context<Self>) {
+        let Some(path) = self.file_action_path() else {
+            return;
+        };
+        self.file_context_menu = None;
+        cx.open_with_system(&path);
+    }
+
+    fn file_action_path(&self) -> Option<PathBuf> {
+        let relative_path = self
+            .file_context_menu
+            .as_ref()
+            .map(|menu| &menu.relative_path)
+            .or(self.selected_file.as_ref())?;
+        Some(self.project_root.join(relative_path))
+    }
+
+    fn add_file_to_timeline(&mut self, relative_path: PathBuf, cx: &mut Context<Self>) {
+        if let Some(asset_id) = self
+            .project
+            .assets
+            .iter()
+            .find(|asset| asset.path == relative_path)
+            .map(|asset| asset.id)
+        {
+            self.append_asset_clip(asset_id);
+            cx.notify();
+            return;
+        }
+
+        let project_root = self.project_root.clone();
+        let absolute_path = project_root.join(&relative_path);
+        let is_image = workspace::is_image_path(&relative_path);
+        self.status = Some(format!("Inspecting {}…", relative_path.display()));
+        cx.spawn(async move |editor, cx| {
+            let result = cx
                 .background_executor()
                 .spawn(async move {
-                    paths
-                        .into_iter()
-                        .map(|path| probe_media(&path, 0))
-                        .collect::<Vec<_>>()
+                    if is_image {
+                        probe_image(&absolute_path, 0)
+                    } else {
+                        probe_media(&absolute_path, 0)
+                    }
                 })
                 .await;
             editor
                 .update(cx, |editor, cx| {
-                    editor.finish_import(results);
+                    if editor.project_root != project_root {
+                        return;
+                    }
+                    match result {
+                        Ok(mut asset) => {
+                            if let Some(asset_id) = editor
+                                .project
+                                .assets
+                                .iter()
+                                .find(|asset| asset.path == relative_path)
+                                .map(|asset| asset.id)
+                            {
+                                editor.append_asset_clip(asset_id);
+                                editor.status = Some("Added media to timeline.".to_string());
+                                cx.notify();
+                                return;
+                            }
+                            editor.checkpoint();
+                            asset.id = editor.take_id();
+                            asset.path = relative_path.clone();
+                            let asset_id = asset.id;
+                            editor.project.assets.push(asset);
+                            editor.append_asset_clip_without_checkpoint(asset_id);
+                            editor.selected_file = Some(relative_path);
+                            editor.save_project();
+                            editor.status = Some("Added media to timeline.".to_string());
+                            editor.error = None;
+                        }
+                        Err(error) => editor.error = Some(error),
+                    }
                     cx.notify();
                 })
                 .ok();
@@ -319,65 +573,16 @@ impl Editor {
         .detach();
     }
 
-    fn finish_import(&mut self, results: Vec<Result<MediaAsset, String>>) {
-        if results.is_empty() {
-            return;
-        }
+    fn append_asset_clip(&mut self, asset_id: u64) {
         self.checkpoint();
-        let mut imported = 0;
-        let mut errors = Vec::new();
-        for result in results {
-            match result {
-                Ok(mut asset) => {
-                    let canonical = asset.path.clone();
-                    let asset_id = if let Some(existing) = self
-                        .project
-                        .assets
-                        .iter()
-                        .find(|existing| existing.path == canonical)
-                    {
-                        existing.id
-                    } else {
-                        asset.id = self.take_id();
-                        let id = asset.id;
-                        self.project.assets.push(asset);
-                        id
-                    };
-                    let duration = self.project.asset(asset_id).unwrap().duration;
-                    let clip_id = self.take_id();
-                    self.project.timeline.push(TimelineClip {
-                        id: clip_id,
-                        asset_id,
-                        source_in: 0.0,
-                        source_out: duration,
-                    });
-                    self.selected_asset_id = Some(asset_id);
-                    self.selected_clip_id = Some(clip_id);
-                    imported += 1;
-                }
-                Err(error) => errors.push(error),
-            }
-        }
-        if imported == 0 {
-            self.undo_stack.pop();
-        } else {
-            self.save_project();
-            if self.video.is_none() {
-                self.load_timeline_position(0.0, false);
-            }
-        }
-        self.error = (!errors.is_empty()).then(|| errors.join("\n"));
-        self.status = (imported > 0).then(|| format!("Imported {imported} clip(s)."));
+        self.append_asset_clip_without_checkpoint(asset_id);
+        self.save_project();
     }
 
-    fn add_selected_asset(&mut self) {
-        let Some(asset_id) = self.selected_asset_id else {
-            return;
-        };
+    fn append_asset_clip_without_checkpoint(&mut self, asset_id: u64) {
         let Some(duration) = self.project.asset(asset_id).map(|asset| asset.duration) else {
             return;
         };
-        self.checkpoint();
         let id = self.take_id();
         self.project.timeline.push(TimelineClip {
             id,
@@ -385,8 +590,11 @@ impl Editor {
             source_in: 0.0,
             source_out: duration,
         });
+        self.selected_asset_id = Some(asset_id);
         self.selected_clip_id = Some(id);
-        self.save_project();
+        if self.loaded_clip_id.is_none() {
+            self.load_timeline_position(0.0, false);
+        }
     }
 
     fn split_selected(&mut self) {
@@ -433,6 +641,7 @@ impl Editor {
         self.project.timeline.remove(index);
         self.video = None;
         self.loaded_clip_id = None;
+        self.still_playback_started = None;
         self.playing = false;
         if self.project.timeline.is_empty() {
             self.selected_clip_id = None;
@@ -484,6 +693,7 @@ impl Editor {
         if let Some(video) = &self.video {
             video.set_paused(true);
         }
+        self.still_playback_started = None;
         self.playing = false;
         self.selected_clip_id = Some(clip_id);
         self.checkpoint();
@@ -538,8 +748,7 @@ impl Editor {
         if self.project.timeline.is_empty() || self.exporting {
             return;
         }
-        let directory =
-            std::env::current_dir().unwrap_or_else(|_| PathBuf::from(env!("CARGO_MANIFEST_DIR")));
+        let directory = self.project_root.clone();
         let selection = cx.prompt_for_new_path(&directory, Some("opencut-export.mp4"));
         cx.spawn(async move |editor, cx| {
             let path = match selection.await {
@@ -573,12 +782,12 @@ impl Editor {
                     return;
                 }
             };
-            let project = match editor.update(cx, |editor, cx| {
+            let (project, project_root) = match editor.update(cx, |editor, cx| {
                 editor.exporting = true;
                 editor.status = Some("Exporting…".to_string());
                 editor.error = None;
                 cx.notify();
-                editor.project.clone()
+                (editor.project.clone(), editor.project_root.clone())
             }) {
                 Ok(project) => project,
                 Err(_) => return,
@@ -586,7 +795,7 @@ impl Editor {
             let export_path = path.clone();
             let result = cx
                 .background_executor()
-                .spawn(async move { export_project(&project, &export_path) })
+                .spawn(async move { export_project(&project, &project_root, &export_path) })
                 .await;
             editor
                 .update(cx, |editor, cx| {
@@ -637,6 +846,7 @@ impl Editor {
     fn reset_after_history_change(&mut self) {
         self.video = None;
         self.loaded_clip_id = None;
+        self.still_playback_started = None;
         self.playing = false;
         self.playhead = 0.0;
         self.selected_clip_id = self.project.timeline.first().map(|clip| clip.id);
@@ -648,7 +858,7 @@ impl Editor {
     }
 
     fn save_project(&mut self) {
-        if let Err(error) = self.project.save() {
+        if let Err(error) = self.project.save(&self.project_root) {
             self.error = Some(format!("Could not autosave project: {error}"));
         }
     }
@@ -702,6 +912,26 @@ impl Editor {
 
     fn action_redo(&mut self, _: &Redo, _: &mut Window, cx: &mut Context<Self>) {
         self.redo();
+        cx.notify();
+    }
+
+    fn action_reveal_in_finder(
+        &mut self,
+        _: &RevealInFinder,
+        _: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        self.reveal_selected_file(cx);
+        cx.notify();
+    }
+
+    fn action_open_in_default_app(
+        &mut self,
+        _: &OpenInDefaultApp,
+        _: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        self.open_selected_file_in_default_app(cx);
         cx.notify();
     }
 }

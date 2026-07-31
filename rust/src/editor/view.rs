@@ -7,11 +7,39 @@ impl Render for Editor {
             (f32::from(viewport.width) - MEDIA_PANEL_WIDTH - INSPECTOR_WIDTH).max(320.0);
         let preview_height =
             (f32::from(viewport.height) - TOPBAR_HEIGHT - TIMELINE_HEIGHT).max(240.0);
-        let preview = if let Some(video_handle) = &self.video {
+        let file_menu = self
+            .file_context_menu
+            .as_ref()
+            .map(|menu| self.file_menu_overlay(menu, viewport, cx));
+        let selected_image_path = self
+            .selected_file
+            .as_ref()
+            .filter(|path| workspace::is_image_path(path))
+            .map(|path| self.project_root.join(path));
+        let timeline_image_path = self.loaded_clip_id.and_then(|clip_id| {
+            let clip = self.project.clip(clip_id)?;
+            let asset = self.project.asset(clip.asset_id)?;
+            (asset.kind == MediaKind::Image).then(|| self.project_root.join(&asset.path))
+        });
+        let preview = if let Some(image_path) = selected_image_path {
+            img(image_path)
+                .id("editor-selected-image-preview")
+                .w(px(preview_width))
+                .h(px(preview_height))
+                .object_fit(ObjectFit::Contain)
+                .into_any_element()
+        } else if let Some(video_handle) = &self.video {
             video(video_handle.clone())
                 .id("editor-preview-video")
                 .size(px(preview_width), px(preview_height))
                 .buffer_capacity(3)
+                .into_any_element()
+        } else if let Some(image_path) = timeline_image_path {
+            img(image_path)
+                .id("editor-preview-image")
+                .w(px(preview_width))
+                .h(px(preview_height))
+                .object_fit(ObjectFit::Contain)
                 .into_any_element()
         } else {
             div()
@@ -20,7 +48,7 @@ impl Render for Editor {
                 .items_center()
                 .justify_center()
                 .text_color(rgb(MUTED))
-                .child("Import a video to begin")
+                .child("Choose a video from the project folder to begin")
                 .into_any_element()
         };
 
@@ -32,7 +60,10 @@ impl Render for Editor {
             .on_action(cx.listener(Self::action_split_clip))
             .on_action(cx.listener(Self::action_undo))
             .on_action(cx.listener(Self::action_redo))
+            .on_action(cx.listener(Self::action_reveal_in_finder))
+            .on_action(cx.listener(Self::action_open_in_default_app))
             .size_full()
+            .relative()
             .flex()
             .flex_col()
             .overflow_hidden()
@@ -74,6 +105,7 @@ impl Render for Editor {
                     )
                     .child(self.inspector(cx)),
             )
+            .when_some(file_menu, |this, menu| this.child(menu))
     }
 }
 
@@ -152,9 +184,9 @@ impl Editor {
                             cx.notify();
                         },
                     )))
-                    .child(toolbar_button("Import", true).on_click(cx.listener(
+                    .child(toolbar_button("Open Folder", true).on_click(cx.listener(
                         |editor, _, _, cx| {
-                            editor.import_media(cx);
+                            editor.open_project_folder(cx);
                         },
                     )))
                     .child(
@@ -177,84 +209,107 @@ impl Editor {
     }
 
     fn media_panel(&self, cx: &mut Context<Self>) -> gpui::AnyElement {
-        let assets = self
-            .project
-            .assets
+        let project_name = self
+            .project_root
+            .file_name()
+            .map(|name| name.to_string_lossy().into_owned())
+            .unwrap_or_else(|| self.project_root.display().to_string());
+        let entries = self
+            .file_tree
             .iter()
             .enumerate()
-            .map(|(index, asset)| {
-                let id = asset.id;
-                let selected = self.selected_asset_id == Some(id);
+            .map(|(index, entry)| {
+                let path = entry.relative_path.clone();
+                let selection_path = path.clone();
+                let action_path = path.clone();
+                let context_path = path.clone();
+                let selected = self.selected_file.as_ref() == Some(&path);
+                let is_directory = entry.is_directory;
+                let is_video = entry.is_video;
+                let is_image = entry.is_image;
+                let is_media = is_video || is_image;
+                let thumbnail_path = is_image.then(|| self.project_root.join(&path));
+                let icon = if is_directory {
+                    if entry.expanded { "▾" } else { "▸" }
+                } else if is_video {
+                    "▶"
+                } else {
+                    "·"
+                };
                 div()
-                    .id(("editor-asset", index))
-                    .h(px(78.0))
+                    .id(("project-file", index))
+                    .h(px(34.0))
                     .flex_shrink_0()
                     .flex()
                     .items_center()
-                    .gap_3()
-                    .rounded_lg()
-                    .border_1()
-                    .border_color(rgb(if selected { ACCENT } else { BORDER }))
-                    .bg(rgb(if selected { 0x1b1916 } else { SURFACE }))
-                    .px_3()
+                    .gap_2()
+                    .rounded_md()
+                    .pr_2()
+                    .pl(px(8.0 + entry.depth as f32 * 16.0))
+                    .bg(rgb(if selected { 0x25221c } else { PANEL }))
                     .cursor(CursorStyle::PointingHand)
                     .hover(|style| style.bg(rgb(SURFACE_HOVER)))
                     .on_click(cx.listener(move |editor, _, _, cx| {
-                        editor.select_asset(id);
+                        if is_directory {
+                            editor.toggle_directory(selection_path.clone());
+                        } else {
+                            editor.select_file(selection_path.clone());
+                        }
                         cx.notify();
                     }))
+                    .on_mouse_down(
+                        MouseButton::Right,
+                        cx.listener(move |editor, event: &MouseDownEvent, _, cx| {
+                            editor.show_file_context_menu(context_path.clone(), event, cx);
+                        }),
+                    )
                     .child(
                         div()
-                            .w(px(56.0))
-                            .h(px(42.0))
+                            .size(px(18.0))
                             .flex_shrink_0()
                             .flex()
                             .items_center()
                             .justify_center()
-                            .rounded_md()
-                            .bg(rgb(0x09090a))
-                            .text_color(rgb(0x5d5d66))
-                            .child("▶"),
+                            .overflow_hidden()
+                            .rounded_sm()
+                            .text_color(rgb(if is_media { ACCENT } else { MUTED }))
+                            .when_some(thumbnail_path, |this, path| {
+                                this.child(img(path).size_full().object_fit(ObjectFit::Cover))
+                            })
+                            .when(!is_image, |this| this.child(icon)),
                     )
                     .child(
                         div()
                             .min_w_0()
                             .flex_1()
-                            .flex()
-                            .flex_col()
-                            .gap_1()
-                            .child(div().text_sm().text_ellipsis().child(asset.name.clone()))
-                            .child(
-                                div()
-                                    .text_xs()
-                                    .font_family("monospace")
-                                    .text_color(rgb(MUTED))
-                                    .child(format!(
-                                        "{}×{} · {}",
-                                        asset.width,
-                                        asset.height,
-                                        format_time(asset.duration)
-                                    )),
-                            ),
+                            .text_sm()
+                            .text_ellipsis()
+                            .text_color(rgb(if is_media || is_directory {
+                                TEXT
+                            } else {
+                                MUTED
+                            }))
+                            .child(entry.name.clone()),
                     )
-                    .child(
-                        div()
-                            .id(("add-asset", index))
-                            .size_8()
-                            .flex_shrink_0()
-                            .flex()
-                            .items_center()
-                            .justify_center()
-                            .rounded_md()
-                            .bg(rgb(0x25252a))
-                            .hover(|style| style.bg(rgb(ACCENT)).text_color(rgb(0x17120a)))
-                            .child("+")
-                            .on_click(cx.listener(move |editor, _, _, cx| {
-                                editor.selected_asset_id = Some(id);
-                                editor.add_selected_asset();
-                                cx.notify();
-                            })),
-                    )
+                    .when(is_media, |this| {
+                        this.child(
+                            div()
+                                .id(("add-project-file", index))
+                                .size_6()
+                                .flex_shrink_0()
+                                .flex()
+                                .items_center()
+                                .justify_center()
+                                .rounded_md()
+                                .occlude()
+                                .bg(rgb(0x25252a))
+                                .hover(|style| style.bg(rgb(ACCENT)).text_color(rgb(0x17120a)))
+                                .child("+")
+                                .on_click(cx.listener(move |editor, _, _, cx| {
+                                    editor.add_file_to_timeline(action_path.clone(), cx);
+                                })),
+                        )
+                    })
             })
             .collect::<Vec<_>>();
 
@@ -270,27 +325,32 @@ impl Editor {
             .bg(rgb(PANEL))
             .child(
                 div()
-                    .h(px(52.0))
+                    .h(px(62.0))
                     .flex_shrink_0()
                     .flex()
-                    .items_center()
+                    .flex_col()
+                    .justify_center()
+                    .gap_1()
                     .justify_between()
                     .px_4()
                     .border_b_1()
                     .border_color(rgb(BORDER))
                     .child(
                         div()
-                            .text_xs()
+                            .w_full()
+                            .text_sm()
                             .font_weight(gpui::FontWeight::SEMIBOLD)
-                            .text_color(rgb(MUTED))
-                            .child("MEDIA"),
+                            .text_ellipsis()
+                            .child(project_name),
                     )
                     .child(
                         div()
+                            .w_full()
                             .text_xs()
                             .font_family("monospace")
                             .text_color(rgb(MUTED))
-                            .child(self.project.assets.len().to_string()),
+                            .text_ellipsis()
+                            .child(self.project_root.display().to_string()),
                     ),
             )
             .child(
@@ -303,16 +363,86 @@ impl Editor {
                     .flex_col()
                     .gap_2()
                     .p_3()
-                    .when(assets.is_empty(), |this| {
+                    .when(entries.is_empty(), |this| {
                         this.child(
                             div()
                                 .p_3()
                                 .text_sm()
                                 .text_color(rgb(MUTED))
-                                .child("Imported videos appear here."),
+                                .child("This project folder is empty."),
                         )
                     })
-                    .children(assets),
+                    .children(entries),
+            )
+            .into_any_element()
+    }
+
+    fn file_menu_overlay(
+        &self,
+        menu: &FileContextMenu,
+        viewport: gpui::Size<gpui::Pixels>,
+        cx: &mut Context<Self>,
+    ) -> gpui::AnyElement {
+        let width = 268.0;
+        let height = 92.0;
+        let left = menu
+            .x
+            .clamp(8.0, (f32::from(viewport.width) - width - 8.0).max(8.0));
+        let top = menu
+            .y
+            .clamp(8.0, (f32::from(viewport.height) - height - 8.0).max(8.0));
+
+        div()
+            .id("file-context-menu-overlay")
+            .absolute()
+            .inset_0()
+            .occlude()
+            .on_mouse_down(
+                MouseButton::Left,
+                cx.listener(|editor, _, _, cx| {
+                    editor.dismiss_file_context_menu();
+                    cx.notify();
+                }),
+            )
+            .on_mouse_down(
+                MouseButton::Right,
+                cx.listener(|editor, _, _, cx| {
+                    editor.dismiss_file_context_menu();
+                    cx.notify();
+                }),
+            )
+            .child(
+                div()
+                    .id("file-context-menu")
+                    .absolute()
+                    .left(px(left))
+                    .top(px(top))
+                    .w(px(width))
+                    .p_1()
+                    .flex()
+                    .flex_col()
+                    .rounded_lg()
+                    .border_1()
+                    .border_color(rgb(BORDER))
+                    .bg(rgb(0x1b1b1e))
+                    .shadow_lg()
+                    .occlude()
+                    .child(
+                        file_menu_item("Reveal in Finder", "⌥⌘R").on_click(cx.listener(
+                            |editor, _, _, cx| {
+                                editor.reveal_selected_file(cx);
+                                cx.notify();
+                            },
+                        )),
+                    )
+                    .child(
+                        file_menu_item("Open in Default App", "⌃⇧↵").on_click(cx.listener(
+                            |editor, _, _, cx| {
+                                editor.open_selected_file_in_default_app(cx);
+                                cx.notify();
+                            },
+                        )),
+                    ),
             )
             .into_any_element()
     }
@@ -375,13 +505,7 @@ impl Editor {
                                 "Clip duration",
                                 format_time(clip.duration()),
                             ))
-                            .child(inspector_value(
-                                "Source",
-                                format!(
-                                    "{} · {}×{} · {:.2} fps",
-                                    asset.codec, asset.width, asset.height, asset.framerate
-                                ),
-                            ))
+                            .child(inspector_value("Source", asset_description(asset)))
                             .child(
                                 div()
                                     .mt_2()
@@ -554,7 +678,7 @@ impl Editor {
                                 div()
                                     .text_xs()
                                     .text_color(rgb(MUTED))
-                                    .child("Attached video + audio"),
+                                    .child("Video, audio, and still images"),
                             ),
                     )
                     .child(
@@ -681,6 +805,27 @@ fn panel_button(label: &'static str) -> gpui::Stateful<gpui::Div> {
         .child(label.to_string())
 }
 
+fn file_menu_item(label: &'static str, shortcut: &'static str) -> gpui::Stateful<gpui::Div> {
+    div()
+        .id(label)
+        .h(px(40.0))
+        .px_3()
+        .flex()
+        .items_center()
+        .justify_between()
+        .rounded_md()
+        .cursor(CursorStyle::PointingHand)
+        .hover(|style| style.bg(rgb(0x34343a)))
+        .child(div().text_sm().child(label))
+        .child(
+            div()
+                .font_family("monospace")
+                .text_sm()
+                .text_color(rgb(MUTED))
+                .child(shortcut),
+        )
+}
+
 fn inspector_value(label: &str, value: String) -> gpui::Div {
     div()
         .flex()
@@ -693,6 +838,17 @@ fn inspector_value(label: &str, value: String) -> gpui::Div {
                 .child(label.to_string()),
         )
         .child(div().text_sm().child(value))
+}
+
+fn asset_description(asset: &MediaAsset) -> String {
+    if asset.kind == MediaKind::Image {
+        format!("{} image · {}×{}", asset.codec, asset.width, asset.height)
+    } else {
+        format!(
+            "{} · {}×{} · {:.2} fps",
+            asset.codec, asset.width, asset.height, asset.framerate
+        )
+    }
 }
 
 fn trim_handle(id: impl Into<gpui::ElementId>, left: bool) -> gpui::Stateful<gpui::Div> {
