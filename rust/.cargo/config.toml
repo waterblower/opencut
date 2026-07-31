@@ -1,2 +1,3 @@
 [alias]
+ffmpeg = "run --no-default-features --features ffmpeg-backend --bin opencut-player-ffmpeg"
 loc = "run --quiet --bin loc"

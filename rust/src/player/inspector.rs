@@ -1,6 +1,6 @@
 use super::*;
+use crate::video_backend::current_frame_rgba;
 use std::path::{Path, PathBuf};
-use yuv::{YuvBiPlanarImage, YuvConversionMode, YuvRange, YuvStandardMatrix, yuv_nv12_to_rgba};
 
 impl Player {
     fn save_current_frame(&mut self, cx: &mut Context<Self>) {
@@ -11,7 +11,7 @@ impl Player {
             cx.notify();
             return;
         };
-        let Some(frame) = video.current_frame_data() else {
+        let Some(frame) = current_frame_rgba(video) else {
             self.error = Some("The current video frame is not ready yet.".to_string());
             cx.notify();
             return;
@@ -219,40 +219,7 @@ impl Player {
 }
 
 fn save_frame_as_png(frame: (Vec<u8>, u32, u32), path: &Path) -> Result<(), String> {
-    let (nv12, width, height) = frame;
-    let width_usize = width as usize;
-    let height_usize = height as usize;
-    let y_size = width_usize
-        .checked_mul(height_usize)
-        .ok_or_else(|| "The video frame is too large to save.".to_string())?;
-    let uv_size = width_usize
-        .checked_mul(height_usize.div_ceil(2))
-        .ok_or_else(|| "The video frame is too large to save.".to_string())?;
-    if width == 0 || height == 0 || nv12.len() < y_size + uv_size {
-        return Err("The current video frame is incomplete.".to_string());
-    }
-
-    let image = YuvBiPlanarImage {
-        y_plane: &nv12[..y_size],
-        y_stride: width,
-        uv_plane: &nv12[y_size..y_size + uv_size],
-        uv_stride: width,
-        width,
-        height,
-    };
-    let rgba_len = y_size
-        .checked_mul(4)
-        .ok_or_else(|| "The video frame is too large to save.".to_string())?;
-    let mut rgba = vec![0; rgba_len];
-    yuv_nv12_to_rgba(
-        &image,
-        &mut rgba,
-        width.saturating_mul(4),
-        YuvRange::Full,
-        YuvStandardMatrix::Bt709,
-        YuvConversionMode::Balanced,
-    )
-    .map_err(|error| format!("Could not convert the current frame: {error}"))?;
+    let (rgba, width, height) = frame;
 
     image::save_buffer_with_format(
         path,
