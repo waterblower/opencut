@@ -37,5 +37,14 @@ cargo run --release -- --loop /path/to/video.mp4
 ```
 
 The player accepts MP4 files from the OS picker and local paths plus `file:`,
-`http:`, and `https:` URLs on the command line. It has play/pause, ten-second
-seek, mute, resize-aware aspect-fit rendering, and audio playback.
+`http:`, and `https:` URLs on the command line. It has play/pause, timeline and
+five-second seeking, mute, playback speed, fullscreen, resize-aware aspect-fit
+rendering, and audio playback.
+
+Keyboard controls:
+
+- `Space`: play or pause
+- `Left` / `Right`: seek five seconds
+- `M`: mute or unmute
+- `F`: toggle fullscreen
+- `Esc`: exit fullscreen
