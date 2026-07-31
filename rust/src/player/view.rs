@@ -53,6 +53,14 @@ impl Render for Player {
                         .justify_center()
                         .overflow_hidden()
                         .bg(rgb(0x000000))
+                        .when(self.video.is_some(), |this| {
+                            this.cursor(CursorStyle::PointingHand).on_click(cx.listener(
+                                |this, _, _, cx| {
+                                    this.toggle_playback();
+                                    cx.notify();
+                                },
+                            ))
+                        })
                         .child(playback_area),
                 )
                 .when(self.inspector_open, |this| {
@@ -67,8 +75,7 @@ impl Render for Player {
                 0.0
             })
         .max(1.0);
-        let video_height =
-            (viewport_height - HEADER_HEIGHT - CONTROL_HEIGHT - FOOTER_HEIGHT).max(140.0);
+        let video_height = (viewport_height - HEADER_HEIGHT - CONTROL_HEIGHT).max(140.0);
 
         let has_video = self.video.is_some();
         let is_paused = self.video.as_ref().is_none_or(Video::paused);
@@ -76,6 +83,16 @@ impl Render for Player {
         let reported_position = self.video.as_ref().map_or(Duration::ZERO, Video::position);
         let duration = self.video.as_ref().map_or(Duration::ZERO, Video::duration);
         let speed = self.video.as_ref().map_or(1.0, Video::speed);
+        let source_metadata = self.video.as_ref().map(|video| {
+            let (width, height) = video.display_size();
+            format!(
+                "{}×{} · {} · {}",
+                width,
+                height,
+                format_source_fps(video.framerate()),
+                format_bitrate(self.bitrate_bps)
+            )
+        });
         let reported_progress = if duration.is_zero() {
             0.0
         } else {
@@ -86,6 +103,18 @@ impl Render for Player {
             duration.mul_f64(fraction as f64)
         });
         let display_title = self.display_title();
+        let metadata_text = self.error.clone().unwrap_or_else(|| {
+            if has_video {
+                format!(
+                    "MP4 · {} · {} · Original · {}",
+                    source_metadata.as_deref().unwrap_or("metadata unavailable"),
+                    format_duration(duration),
+                    if is_muted { "Muted" } else { "Audio enabled" }
+                )
+            } else {
+                "No media loaded".to_string()
+            }
+        });
 
         let video_content = if let Some(video_handle) = &self.video {
             video(video_handle.clone())
@@ -204,33 +233,56 @@ impl Render for Player {
                                         div()
                                             .text_lg()
                                             .font_weight(gpui::FontWeight::SEMIBOLD)
-                                            .child(display_title.clone()),
+                                            .child(display_title),
                                     )
-                                    .child(div().text_xs().text_color(rgb(MUTED)).child(
-                                        if has_video {
-                                            "LOCAL PLAYBACK · ORIGINAL FILE"
-                                        } else {
-                                            "GPUI · GSTREAMER"
-                                        },
-                                    )),
+                                    .child(
+                                        div()
+                                            .text_xs()
+                                            .font_family("monospace")
+                                            .text_color(if self.error.is_some() {
+                                                rgb(ERROR)
+                                            } else {
+                                                rgb(0x55555d)
+                                            })
+                                            .child(metadata_text),
+                                    ),
                             )
                             .child(
                                 div()
-                                    .id("open-video")
-                                    .cursor(CursorStyle::PointingHand)
-                                    .rounded_md()
-                                    .border_1()
-                                    .border_color(rgb(BORDER))
-                                    .hover(|style| style.bg(rgb(SURFACE_HOVER)))
-                                    .px_4()
-                                    .py_2()
-                                    .text_xs()
-                                    .child("OPEN MP4")
-                                    .on_click(cx.listener(|this, _, _, cx| this.open_picker(cx))),
+                                    .flex()
+                                    .flex_col()
+                                    .items_end()
+                                    .gap_2()
+                                    .child(
+                                        div()
+                                            .id("open-video")
+                                            .cursor(CursorStyle::PointingHand)
+                                            .rounded_md()
+                                            .border_1()
+                                            .border_color(rgb(BORDER))
+                                            .hover(|style| style.bg(rgb(SURFACE_HOVER)))
+                                            .px_4()
+                                            .py_2()
+                                            .text_xs()
+                                            .child("OPEN MP4")
+                                            .on_click(
+                                                cx.listener(|this, _, _, cx| this.open_picker(cx)),
+                                            ),
+                                    )
+                                    .child(
+                                        div()
+                                            .text_xs()
+                                            .font_family("monospace")
+                                            .text_color(rgb(0x4b4b52))
+                                            .child(
+                                                "space · ←/→ 5s · f fullscreen · m mute · ⌥⌘i inspector",
+                                            ),
+                                    ),
                             ),
                     )
                     .child(
                         div()
+                            .id("playback-area")
                             .h(px(video_height))
                             .flex_shrink_0()
                             .flex()
@@ -238,6 +290,14 @@ impl Render for Player {
                             .justify_center()
                             .overflow_hidden()
                             .bg(rgb(0x000000))
+                            .when(has_video, |this| {
+                                this.cursor(CursorStyle::PointingHand).on_click(cx.listener(
+                                    |this, _, _, cx| {
+                                        this.toggle_playback();
+                                        cx.notify();
+                                    },
+                                ))
+                            })
                             .child(video_content),
                     )
                     .child(
@@ -326,36 +386,6 @@ impl Render for Player {
                                                         cx.notify();
                                                     })),
                                             )
-                                            .child(
-                                                div()
-                                                    .id("seek-back")
-                                                    .cursor(CursorStyle::PointingHand)
-                                                    .rounded_md()
-                                                    .hover(|style| style.bg(rgb(SURFACE_HOVER)))
-                                                    .px_3()
-                                                    .py_2()
-                                                    .text_color(rgb(MUTED))
-                                                    .child("‹ 5")
-                                                    .on_click(cx.listener(|this, _, _, cx| {
-                                                        this.seek_by(-5);
-                                                        cx.notify();
-                                                    })),
-                                            )
-                                            .child(
-                                                div()
-                                                    .id("seek-forward")
-                                                    .cursor(CursorStyle::PointingHand)
-                                                    .rounded_md()
-                                                    .hover(|style| style.bg(rgb(SURFACE_HOVER)))
-                                                    .px_3()
-                                                    .py_2()
-                                                    .text_color(rgb(MUTED))
-                                                    .child("5 ›")
-                                                    .on_click(cx.listener(|this, _, _, cx| {
-                                                        this.seek_by(5);
-                                                        cx.notify();
-                                                    })),
-                                            )
                                             .child(div().text_sm().font_family("monospace").child(
                                                 format!(
                                                     "{} / {}",
@@ -395,41 +425,6 @@ impl Render for Player {
                                                     .text_sm()
                                                     .text_color(rgb(MUTED))
                                                     .child(format_speed(speed))
-                                                    .on_click(cx.listener(|this, _, _, cx| {
-                                                        this.settings_open = !this.settings_open;
-                                                        cx.notify();
-                                                    })),
-                                            )
-                                            .child(
-                                                div()
-                                                    .rounded_md()
-                                                    .px_3()
-                                                    .py_2()
-                                                    .text_sm()
-                                                    .text_color(rgb(0x4f4f56))
-                                                    .child("CC"),
-                                            )
-                                            .child(
-                                                div()
-                                                    .id("settings")
-                                                    .cursor(CursorStyle::PointingHand)
-                                                    .rounded_md()
-                                                    .border_1()
-                                                    .border_color(if self.settings_open {
-                                                        rgb(ACCENT)
-                                                    } else {
-                                                        rgb(BORDER)
-                                                    })
-                                                    .bg(if self.settings_open {
-                                                        rgb(SURFACE_HOVER)
-                                                    } else {
-                                                        rgb(SURFACE)
-                                                    })
-                                                    .hover(|style| style.bg(rgb(SURFACE_HOVER)))
-                                                    .px_4()
-                                                    .py_2()
-                                                    .text_sm()
-                                                    .child("Original")
                                                     .on_click(cx.listener(|this, _, _, cx| {
                                                         this.settings_open = !this.settings_open;
                                                         cx.notify();
@@ -528,61 +523,6 @@ impl Render for Player {
                                 )
                             }),
                     )
-                    .child(
-                        div()
-                            .h(px(FOOTER_HEIGHT))
-                            .flex_shrink_0()
-                            .flex()
-                            .items_center()
-                            .justify_between()
-                            .px(px(HORIZONTAL_PADDING))
-                            .child(
-                                div()
-                                    .flex()
-                                    .flex_col()
-                                    .gap_2()
-                                    .child(
-                                        div()
-                                            .text_lg()
-                                            .font_weight(gpui::FontWeight::MEDIUM)
-                                            .child(display_title),
-                                    )
-                                    .child(
-                                        div()
-                                            .text_xs()
-                                            .font_family("monospace")
-                                            .text_color(if self.error.is_some() {
-                                                rgb(ERROR)
-                                            } else {
-                                                rgb(0x55555d)
-                                            })
-                                            .child(self.error.clone().unwrap_or_else(|| {
-                                                if has_video {
-                                                    format!(
-                                                        "MP4 · {} · Original · {}",
-                                                        format_duration(duration),
-                                                        if is_muted {
-                                                            "Muted"
-                                                        } else {
-                                                            "Audio enabled"
-                                                        }
-                                                    )
-                                                } else {
-                                                    "No media loaded".to_string()
-                                                }
-                                            })),
-                                    ),
-                            )
-                            .child(
-                                div()
-                                    .text_xs()
-                                    .font_family("monospace")
-                                    .text_color(rgb(0x4b4b52))
-                                    .child(
-                                        "space · ←/→ 5s · f fullscreen · m mute · ⌥⌘i inspector",
-                                    ),
-                            ),
-                    ),
             )
             .when(self.inspector_open, |this| {
                 this.child(self.inspector_panel(cx))
