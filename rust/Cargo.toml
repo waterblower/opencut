@@ -9,4 +9,6 @@ env_logger = "0.11"
 gpui = "0.2"
 gpui-video-player = { path = "vendor/gpui-video-player" }
 gstreamer = "0.25"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
 url = "2"

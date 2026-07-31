@@ -69,6 +69,7 @@ impl Render for Player {
         }
 
         let content_width = (viewport_width
+            - LIBRARY_WIDTH
             - if self.inspector_open {
                 INSPECTOR_WIDTH
             } else {
@@ -169,6 +170,7 @@ impl Render for Player {
                 .into_any_element()
         };
 
+        let library_panel = self.library_panel(cx);
         let speed_items =
             [0.5_f64, 1.0, 1.25, 1.5, 2.0]
                 .into_iter()
@@ -225,6 +227,7 @@ impl Render for Player {
             .overflow_hidden()
             .bg(rgb(BACKGROUND))
             .text_color(rgb(TEXT))
+            .child(library_panel)
             .child(
                 div()
                     .id("player-content")
