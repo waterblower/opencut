@@ -469,7 +469,13 @@ impl Player {
             Ok(()) => self.error = None,
             Err(error) => self.error = Some(format!("Could not change speed: {error}")),
         }
-        self.settings_open = false;
+    }
+
+    fn dismiss_settings(&mut self, _: &MouseDownEvent, _: &mut Window, cx: &mut Context<Self>) {
+        if self.settings_open {
+            self.settings_open = false;
+            cx.notify();
+        }
     }
 
     fn action_toggle_playback(
