@@ -20,3 +20,4 @@ doc.md
 /zig/vendor/ffmpeg
 /zig/zig-pkg
 /rust/target
+data/

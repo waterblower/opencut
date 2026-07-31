@@ -10,12 +10,16 @@ use std::{path::PathBuf, time::Duration, time::Instant};
 use url::Url;
 
 mod inspector;
+mod library;
 mod view;
+
+use library::HistoryData;
 
 const HEADER_HEIGHT: f32 = 92.0;
 const CONTROL_HEIGHT: f32 = 116.0;
 const HORIZONTAL_PADDING: f32 = 22.0;
 const INSPECTOR_WIDTH: f32 = 320.0;
+const LIBRARY_WIDTH: f32 = 288.0;
 const VOLUME_TRACK_HEIGHT: f32 = 144.0;
 const VOLUME_TRACK_BOTTOM_OFFSET: f32 = 102.0;
 
@@ -56,6 +60,8 @@ pub(crate) struct Player {
     video: Option<Video>,
     video_codec: Option<String>,
     bitrate_bps: Option<f64>,
+    history: HistoryData,
+    current_media_path: Option<PathBuf>,
     title: String,
     error: Option<String>,
     looping: bool,
@@ -81,11 +87,18 @@ impl Player {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> Self {
+        let mut history = HistoryData::load();
+        let mut current_media_path = None;
         let (video, video_codec, bitrate_bps, title, error) = match initial_media {
             Some((url, title)) => match create_video(&url, looping) {
                 Ok(video) => {
                     let codec = read_video_codec(&video);
                     let bitrate = average_bitrate(&url, video.duration());
+                    if let Ok(path) = url.to_file_path() {
+                        let path = std::fs::canonicalize(&path).unwrap_or(path);
+                        history.record(&path, title.clone());
+                        current_media_path = Some(path);
+                    }
                     (Some(video), codec, bitrate, title, None)
                 }
                 Err(error) => (
@@ -107,6 +120,8 @@ impl Player {
             video,
             video_codec,
             bitrate_bps,
+            history,
+            current_media_path,
             title,
             error,
             looping,
@@ -204,6 +219,7 @@ impl Player {
             return;
         }
 
+        let path = std::fs::canonicalize(&path).unwrap_or(path);
         let title = path
             .file_name()
             .map(|name| name.to_string_lossy().into_owned())
@@ -218,6 +234,8 @@ impl Player {
                 self.video_codec = read_video_codec(&video);
                 self.bitrate_bps = average_bitrate(&url, video.duration());
                 self.video = Some(video);
+                self.history.record(&path, title.clone());
+                self.current_media_path = Some(path);
                 self.title = title;
                 self.error = None;
                 self.volume_open = false;
@@ -286,13 +304,14 @@ impl Player {
     fn timeline_fraction_from_x(&self, x: f32, window: &Window) -> f32 {
         let window_width: f32 = window.viewport_size().width.into();
         let content_width = window_width
+            - LIBRARY_WIDTH
             - if self.inspector_open {
                 INSPECTOR_WIDTH
             } else {
                 0.0
             };
         let usable_width = (content_width - HORIZONTAL_PADDING * 2.0).max(1.0);
-        ((x - HORIZONTAL_PADDING) / usable_width).clamp(0.0, 1.0)
+        ((x - LIBRARY_WIDTH - HORIZONTAL_PADDING) / usable_width).clamp(0.0, 1.0)
     }
 
     fn reconcile_pending_seek(&mut self) {

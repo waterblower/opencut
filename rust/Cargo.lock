@@ -3982,6 +3982,8 @@ dependencies = [
  "gpui",
  "gpui-video-player",
  "gstreamer",
+ "serde",
+ "serde_json",
  "url",
 ]
 
