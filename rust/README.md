@@ -48,3 +48,4 @@ Keyboard controls:
 - `M`: mute or unmute
 - `F`: toggle fullscreen
 - `Esc`: exit fullscreen
+- `Option` + `Command` + `I`: toggle the render inspector

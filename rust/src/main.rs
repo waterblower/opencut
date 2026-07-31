@@ -11,6 +11,7 @@ const HEADER_HEIGHT: f32 = 72.0;
 const CONTROL_HEIGHT: f32 = 116.0;
 const FOOTER_HEIGHT: f32 = 92.0;
 const HORIZONTAL_PADDING: f32 = 22.0;
+const INSPECTOR_WIDTH: f32 = 320.0;
 
 const BACKGROUND: u32 = 0x070708;
 const SURFACE: u32 = 0x101012;
@@ -29,7 +30,8 @@ actions!(
         SeekForward,
         ToggleMute,
         ToggleFullscreen,
-        ExitFullscreen
+        ExitFullscreen,
+        ToggleInspector
     ]
 );
 
@@ -43,6 +45,10 @@ struct Player {
     scrub_fraction: Option<f32>,
     pending_seek_started: Option<Instant>,
     last_scrub_seek: Option<Instant>,
+    inspector_open: bool,
+    render_fps: f32,
+    fps_frame_count: u32,
+    fps_sample_started: Instant,
     focus_handle: FocusHandle,
 }
 
@@ -65,6 +71,112 @@ impl Player {
             }
         })
         .detach();
+    }
+
+    fn record_render_frame(&mut self) {
+        self.fps_frame_count = self.fps_frame_count.saturating_add(1);
+        let elapsed = self.fps_sample_started.elapsed();
+        if elapsed >= Duration::from_secs(1) {
+            self.render_fps = self.fps_frame_count as f32 / elapsed.as_secs_f32();
+            self.fps_frame_count = 0;
+            self.fps_sample_started = Instant::now();
+        }
+    }
+
+    fn inspector_panel(&self, cx: &mut Context<Self>) -> gpui::AnyElement {
+        div()
+            .id("inspector-panel")
+            .w(px(INSPECTOR_WIDTH))
+            .h_full()
+            .flex_shrink_0()
+            .flex()
+            .flex_col()
+            .border_l_1()
+            .border_color(rgb(0x303036))
+            .bg(rgb(0x111114))
+            .child(
+                div()
+                    .h(px(52.0))
+                    .flex_shrink_0()
+                    .flex()
+                    .items_center()
+                    .justify_between()
+                    .px_4()
+                    .border_b_1()
+                    .border_color(rgb(BORDER))
+                    .child(
+                        div()
+                            .text_sm()
+                            .font_weight(gpui::FontWeight::SEMIBOLD)
+                            .child("Inspector"),
+                    )
+                    .child(
+                        div()
+                            .id("close-inspector")
+                            .size_8()
+                            .flex()
+                            .items_center()
+                            .justify_center()
+                            .cursor(CursorStyle::PointingHand)
+                            .rounded_md()
+                            .text_color(rgb(MUTED))
+                            .hover(|style| style.bg(rgb(SURFACE_HOVER)).text_color(rgb(TEXT)))
+                            .child("×")
+                            .on_click(cx.listener(|this, _, _, cx| {
+                                this.inspector_open = false;
+                                cx.notify();
+                            })),
+                    ),
+            )
+            .child(
+                div()
+                    .flex()
+                    .flex_col()
+                    .gap_3()
+                    .p_4()
+                    .child(
+                        div()
+                            .text_xs()
+                            .font_weight(gpui::FontWeight::SEMIBOLD)
+                            .text_color(rgb(0x777780))
+                            .child("RENDERING"),
+                    )
+                    .child(
+                        div()
+                            .h(px(64.0))
+                            .flex()
+                            .items_center()
+                            .justify_between()
+                            .rounded_lg()
+                            .border_1()
+                            .border_color(rgb(BORDER))
+                            .bg(rgb(0x17171a))
+                            .px_4()
+                            .child(
+                                div()
+                                    .flex()
+                                    .items_center()
+                                    .gap_2()
+                                    .child(div().size_2().rounded_full().bg(rgb(0x63d68b)))
+                                    .child("Render FPS"),
+                            )
+                            .child(
+                                div()
+                                    .font_family("monospace")
+                                    .text_lg()
+                                    .font_weight(gpui::FontWeight::SEMIBOLD)
+                                    .text_color(rgb(ACCENT))
+                                    .child(format!("{:.1}", self.render_fps)),
+                            ),
+                    )
+                    .child(
+                        div()
+                            .text_xs()
+                            .text_color(rgb(0x606068))
+                            .child("GPUI render passes per second"),
+                    ),
+            )
+            .into_any_element()
     }
 
     fn open_picker(&mut self, cx: &mut Context<Self>) {
@@ -173,7 +285,13 @@ impl Player {
 
     fn timeline_fraction_from_x(&self, x: f32, window: &Window) -> f32 {
         let window_width: f32 = window.viewport_size().width.into();
-        let usable_width = (window_width - HORIZONTAL_PADDING * 2.0).max(1.0);
+        let content_width = window_width
+            - if self.inspector_open {
+                INSPECTOR_WIDTH
+            } else {
+                0.0
+            };
+        let usable_width = (content_width - HORIZONTAL_PADDING * 2.0).max(1.0);
         ((x - HORIZONTAL_PADDING) / usable_width).clamp(0.0, 1.0)
     }
 
@@ -331,19 +449,41 @@ impl Player {
             cx.notify();
         }
     }
+
+    fn action_toggle_inspector(
+        &mut self,
+        _: &ToggleInspector,
+        _: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        self.inspector_open = !self.inspector_open;
+        self.render_fps = 0.0;
+        self.fps_frame_count = 0;
+        self.fps_sample_started = Instant::now();
+        cx.notify();
+    }
 }
 
 impl Render for Player {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        self.record_render_frame();
+
         let viewport = window.viewport_size();
         let viewport_width: f32 = viewport.width.into();
         let viewport_height: f32 = viewport.height.into();
 
         if window.is_fullscreen() {
+            let fullscreen_content_width = (viewport_width
+                - if self.inspector_open {
+                    INSPECTOR_WIDTH
+                } else {
+                    0.0
+                })
+            .max(1.0);
             let playback_area = if let Some(video_handle) = &self.video {
                 video(video_handle.clone())
                     .id("fullscreen-video")
-                    .size(px(viewport_width), px(viewport_height))
+                    .size(px(fullscreen_content_width), px(viewport_height))
                     .buffer_capacity(3)
                     .into_any_element()
             } else {
@@ -359,18 +499,38 @@ impl Render for Player {
                 .on_action(cx.listener(Self::action_toggle_mute))
                 .on_action(cx.listener(Self::action_toggle_fullscreen))
                 .on_action(cx.listener(Self::action_exit_fullscreen))
+                .on_action(cx.listener(Self::action_toggle_inspector))
                 .on_mouse_move(cx.listener(Self::scrub_timeline))
                 .on_mouse_up(MouseButton::Left, cx.listener(Self::finish_scrubbing))
                 .on_mouse_up_out(MouseButton::Left, cx.listener(Self::finish_scrubbing))
                 .size_full()
                 .flex()
-                .items_center()
-                .justify_center()
                 .overflow_hidden()
                 .bg(rgb(0x000000))
-                .child(playback_area);
+                .child(
+                    div()
+                        .id("fullscreen-playback-area")
+                        .h_full()
+                        .flex_1()
+                        .flex()
+                        .items_center()
+                        .justify_center()
+                        .overflow_hidden()
+                        .bg(rgb(0x000000))
+                        .child(playback_area),
+                )
+                .when(self.inspector_open, |this| {
+                    this.child(self.inspector_panel(cx))
+                });
         }
 
+        let content_width = (viewport_width
+            - if self.inspector_open {
+                INSPECTOR_WIDTH
+            } else {
+                0.0
+            })
+        .max(1.0);
         let video_height =
             (viewport_height - HEADER_HEIGHT - CONTROL_HEIGHT - FOOTER_HEIGHT).max(140.0);
 
@@ -394,7 +554,7 @@ impl Render for Player {
         let video_content = if let Some(video_handle) = &self.video {
             video(video_handle.clone())
                 .id("main-video")
-                .size(px(viewport_width), px(video_height))
+                .size(px(content_width), px(video_height))
                 .buffer_capacity(3)
                 .into_any_element()
         } else {
@@ -472,396 +632,425 @@ impl Render for Player {
             .on_action(cx.listener(Self::action_toggle_mute))
             .on_action(cx.listener(Self::action_toggle_fullscreen))
             .on_action(cx.listener(Self::action_exit_fullscreen))
+            .on_action(cx.listener(Self::action_toggle_inspector))
             .on_mouse_move(cx.listener(Self::scrub_timeline))
             .on_mouse_up(MouseButton::Left, cx.listener(Self::finish_scrubbing))
             .on_mouse_up_out(MouseButton::Left, cx.listener(Self::finish_scrubbing))
             .size_full()
             .flex()
-            .flex_col()
             .overflow_hidden()
             .bg(rgb(BACKGROUND))
             .text_color(rgb(TEXT))
             .child(
                 div()
-                    .h(px(HEADER_HEIGHT))
-                    .flex_shrink_0()
-                    .flex()
-                    .items_center()
-                    .justify_between()
-                    .px(px(HORIZONTAL_PADDING))
-                    .border_b_1()
-                    .border_color(rgb(BORDER))
-                    .child(
-                        div()
-                            .flex()
-                            .flex_col()
-                            .gap_1()
-                            .child(
-                                div()
-                                    .text_lg()
-                                    .font_weight(gpui::FontWeight::SEMIBOLD)
-                                    .child(display_title.clone()),
-                            )
-                            .child(div().text_xs().text_color(rgb(MUTED)).child(if has_video {
-                                "LOCAL PLAYBACK · ORIGINAL FILE"
-                            } else {
-                                "GPUI · GSTREAMER"
-                            })),
-                    )
-                    .child(
-                        div()
-                            .id("open-video")
-                            .cursor(CursorStyle::PointingHand)
-                            .rounded_md()
-                            .border_1()
-                            .border_color(rgb(BORDER))
-                            .hover(|style| style.bg(rgb(SURFACE_HOVER)))
-                            .px_4()
-                            .py_2()
-                            .text_xs()
-                            .child("OPEN MP4")
-                            .on_click(cx.listener(|this, _, _, cx| this.open_picker(cx))),
-                    ),
-            )
-            .child(
-                div()
-                    .h(px(video_height))
-                    .flex_shrink_0()
-                    .flex()
-                    .items_center()
-                    .justify_center()
-                    .overflow_hidden()
-                    .bg(rgb(0x000000))
-                    .child(video_content),
-            )
-            .child(
-                div()
-                    .relative()
-                    .h(px(CONTROL_HEIGHT))
-                    .flex_shrink_0()
+                    .id("player-content")
+                    .h_full()
+                    .flex_1()
                     .flex()
                     .flex_col()
-                    .justify_center()
-                    .gap_3()
-                    .px(px(HORIZONTAL_PADDING))
-                    .border_t_1()
-                    .border_b_1()
-                    .border_color(rgb(0x19191c))
-                    .bg(rgb(0x0b0b0d))
-                    .when(has_video, |this| {
-                        this.child(
-                            div()
-                                .id("timeline")
-                                .relative()
-                                .h_4()
-                                .flex()
-                                .items_center()
-                                .cursor(CursorStyle::PointingHand)
-                                .child(
-                                    div()
-                                        .w_full()
-                                        .h(px(3.0))
-                                        .rounded_full()
-                                        .bg(rgb(0x4a4a4f))
-                                        .child(
-                                            div()
-                                                .w(relative(progress))
-                                                .h_full()
-                                                .flex()
-                                                .items_center()
-                                                .justify_end()
-                                                .rounded_full()
-                                                .bg(rgb(ACCENT))
-                                                .child(
-                                                    div()
-                                                        .size(px(if self.is_scrubbing {
-                                                            16.0
-                                                        } else {
-                                                            12.0
-                                                        }))
-                                                        .flex_shrink_0()
-                                                        .rounded_full()
-                                                        .bg(rgb(ACCENT)),
-                                                ),
-                                        ),
-                                )
-                                .on_mouse_down(
-                                    MouseButton::Left,
-                                    cx.listener(Self::begin_scrubbing),
-                                ),
-                        )
-                    })
+                    .overflow_hidden()
                     .child(
                         div()
-                            .h_12()
+                            .h(px(HEADER_HEIGHT))
+                            .flex_shrink_0()
                             .flex()
                             .items_center()
                             .justify_between()
+                            .px(px(HORIZONTAL_PADDING))
+                            .border_b_1()
+                            .border_color(rgb(BORDER))
                             .child(
                                 div()
                                     .flex()
-                                    .items_center()
-                                    .gap_3()
+                                    .flex_col()
+                                    .gap_1()
                                     .child(
                                         div()
-                                            .id("play-pause")
-                                            .w_9()
-                                            .h_9()
-                                            .flex()
-                                            .items_center()
-                                            .justify_center()
-                                            .cursor(CursorStyle::PointingHand)
-                                            .rounded_full()
-                                            .hover(|style| style.bg(rgb(SURFACE_HOVER)))
                                             .text_lg()
-                                            .child(if is_paused { "▶" } else { "Ⅱ" })
-                                            .on_click(cx.listener(|this, _, _, cx| {
-                                                this.toggle_playback();
-                                                cx.notify();
-                                            })),
+                                            .font_weight(gpui::FontWeight::SEMIBOLD)
+                                            .child(display_title.clone()),
                                     )
-                                    .child(
-                                        div()
-                                            .id("seek-back")
-                                            .cursor(CursorStyle::PointingHand)
-                                            .rounded_md()
-                                            .hover(|style| style.bg(rgb(SURFACE_HOVER)))
-                                            .px_3()
-                                            .py_2()
-                                            .text_color(rgb(MUTED))
-                                            .child("‹ 5")
-                                            .on_click(cx.listener(|this, _, _, cx| {
-                                                this.seek_by(-5);
-                                                cx.notify();
-                                            })),
-                                    )
-                                    .child(
-                                        div()
-                                            .id("seek-forward")
-                                            .cursor(CursorStyle::PointingHand)
-                                            .rounded_md()
-                                            .hover(|style| style.bg(rgb(SURFACE_HOVER)))
-                                            .px_3()
-                                            .py_2()
-                                            .text_color(rgb(MUTED))
-                                            .child("5 ›")
-                                            .on_click(cx.listener(|this, _, _, cx| {
-                                                this.seek_by(5);
-                                                cx.notify();
-                                            })),
-                                    )
-                                    .child(div().text_sm().font_family("monospace").child(
-                                        format!(
-                                            "{} / {}",
-                                            format_duration(position),
-                                            format_duration(duration)
-                                        ),
+                                    .child(div().text_xs().text_color(rgb(MUTED)).child(
+                                        if has_video {
+                                            "LOCAL PLAYBACK · ORIGINAL FILE"
+                                        } else {
+                                            "GPUI · GSTREAMER"
+                                        },
                                     )),
                             )
                             .child(
                                 div()
+                                    .id("open-video")
+                                    .cursor(CursorStyle::PointingHand)
+                                    .rounded_md()
+                                    .border_1()
+                                    .border_color(rgb(BORDER))
+                                    .hover(|style| style.bg(rgb(SURFACE_HOVER)))
+                                    .px_4()
+                                    .py_2()
+                                    .text_xs()
+                                    .child("OPEN MP4")
+                                    .on_click(cx.listener(|this, _, _, cx| this.open_picker(cx))),
+                            ),
+                    )
+                    .child(
+                        div()
+                            .h(px(video_height))
+                            .flex_shrink_0()
+                            .flex()
+                            .items_center()
+                            .justify_center()
+                            .overflow_hidden()
+                            .bg(rgb(0x000000))
+                            .child(video_content),
+                    )
+                    .child(
+                        div()
+                            .relative()
+                            .h(px(CONTROL_HEIGHT))
+                            .flex_shrink_0()
+                            .flex()
+                            .flex_col()
+                            .justify_center()
+                            .gap_3()
+                            .px(px(HORIZONTAL_PADDING))
+                            .border_t_1()
+                            .border_b_1()
+                            .border_color(rgb(0x19191c))
+                            .bg(rgb(0x0b0b0d))
+                            .when(has_video, |this| {
+                                this.child(
+                                    div()
+                                        .id("timeline")
+                                        .relative()
+                                        .h_4()
+                                        .flex()
+                                        .items_center()
+                                        .cursor(CursorStyle::PointingHand)
+                                        .child(
+                                            div()
+                                                .w_full()
+                                                .h(px(3.0))
+                                                .rounded_full()
+                                                .bg(rgb(0x4a4a4f))
+                                                .child(
+                                                    div()
+                                                        .w(relative(progress))
+                                                        .h_full()
+                                                        .flex()
+                                                        .items_center()
+                                                        .justify_end()
+                                                        .rounded_full()
+                                                        .bg(rgb(ACCENT))
+                                                        .child(
+                                                            div()
+                                                                .size(px(if self.is_scrubbing {
+                                                                    16.0
+                                                                } else {
+                                                                    12.0
+                                                                }))
+                                                                .flex_shrink_0()
+                                                                .rounded_full()
+                                                                .bg(rgb(ACCENT)),
+                                                        ),
+                                                ),
+                                        )
+                                        .on_mouse_down(
+                                            MouseButton::Left,
+                                            cx.listener(Self::begin_scrubbing),
+                                        ),
+                                )
+                            })
+                            .child(
+                                div()
+                                    .h_12()
                                     .flex()
                                     .items_center()
+                                    .justify_between()
+                                    .child(
+                                        div()
+                                            .flex()
+                                            .items_center()
+                                            .gap_3()
+                                            .child(
+                                                div()
+                                                    .id("play-pause")
+                                                    .w_9()
+                                                    .h_9()
+                                                    .flex()
+                                                    .items_center()
+                                                    .justify_center()
+                                                    .cursor(CursorStyle::PointingHand)
+                                                    .rounded_full()
+                                                    .hover(|style| style.bg(rgb(SURFACE_HOVER)))
+                                                    .text_lg()
+                                                    .child(if is_paused { "▶" } else { "Ⅱ" })
+                                                    .on_click(cx.listener(|this, _, _, cx| {
+                                                        this.toggle_playback();
+                                                        cx.notify();
+                                                    })),
+                                            )
+                                            .child(
+                                                div()
+                                                    .id("seek-back")
+                                                    .cursor(CursorStyle::PointingHand)
+                                                    .rounded_md()
+                                                    .hover(|style| style.bg(rgb(SURFACE_HOVER)))
+                                                    .px_3()
+                                                    .py_2()
+                                                    .text_color(rgb(MUTED))
+                                                    .child("‹ 5")
+                                                    .on_click(cx.listener(|this, _, _, cx| {
+                                                        this.seek_by(-5);
+                                                        cx.notify();
+                                                    })),
+                                            )
+                                            .child(
+                                                div()
+                                                    .id("seek-forward")
+                                                    .cursor(CursorStyle::PointingHand)
+                                                    .rounded_md()
+                                                    .hover(|style| style.bg(rgb(SURFACE_HOVER)))
+                                                    .px_3()
+                                                    .py_2()
+                                                    .text_color(rgb(MUTED))
+                                                    .child("5 ›")
+                                                    .on_click(cx.listener(|this, _, _, cx| {
+                                                        this.seek_by(5);
+                                                        cx.notify();
+                                                    })),
+                                            )
+                                            .child(div().text_sm().font_family("monospace").child(
+                                                format!(
+                                                    "{} / {}",
+                                                    format_duration(position),
+                                                    format_duration(duration)
+                                                ),
+                                            )),
+                                    )
+                                    .child(
+                                        div()
+                                            .flex()
+                                            .items_center()
+                                            .gap_2()
+                                            .child(
+                                                div()
+                                                    .id("mute")
+                                                    .cursor(CursorStyle::PointingHand)
+                                                    .rounded_md()
+                                                    .hover(|style| style.bg(rgb(SURFACE_HOVER)))
+                                                    .px_3()
+                                                    .py_2()
+                                                    .text_sm()
+                                                    .child(if is_muted { "MUTED" } else { "VOL" })
+                                                    .on_click(cx.listener(|this, _, _, cx| {
+                                                        this.toggle_mute();
+                                                        cx.notify();
+                                                    })),
+                                            )
+                                            .child(
+                                                div()
+                                                    .id("speed")
+                                                    .cursor(CursorStyle::PointingHand)
+                                                    .rounded_md()
+                                                    .hover(|style| style.bg(rgb(SURFACE_HOVER)))
+                                                    .px_3()
+                                                    .py_2()
+                                                    .text_sm()
+                                                    .text_color(rgb(MUTED))
+                                                    .child(format_speed(speed))
+                                                    .on_click(cx.listener(|this, _, _, cx| {
+                                                        this.settings_open = !this.settings_open;
+                                                        cx.notify();
+                                                    })),
+                                            )
+                                            .child(
+                                                div()
+                                                    .rounded_md()
+                                                    .px_3()
+                                                    .py_2()
+                                                    .text_sm()
+                                                    .text_color(rgb(0x4f4f56))
+                                                    .child("CC"),
+                                            )
+                                            .child(
+                                                div()
+                                                    .id("settings")
+                                                    .cursor(CursorStyle::PointingHand)
+                                                    .rounded_md()
+                                                    .border_1()
+                                                    .border_color(if self.settings_open {
+                                                        rgb(ACCENT)
+                                                    } else {
+                                                        rgb(BORDER)
+                                                    })
+                                                    .bg(if self.settings_open {
+                                                        rgb(SURFACE_HOVER)
+                                                    } else {
+                                                        rgb(SURFACE)
+                                                    })
+                                                    .hover(|style| style.bg(rgb(SURFACE_HOVER)))
+                                                    .px_4()
+                                                    .py_2()
+                                                    .text_sm()
+                                                    .child("Original")
+                                                    .on_click(cx.listener(|this, _, _, cx| {
+                                                        this.settings_open = !this.settings_open;
+                                                        cx.notify();
+                                                    })),
+                                            )
+                                            .child(
+                                                div()
+                                                    .id("fullscreen")
+                                                    .cursor(CursorStyle::PointingHand)
+                                                    .rounded_md()
+                                                    .hover(|style| style.bg(rgb(SURFACE_HOVER)))
+                                                    .px_3()
+                                                    .py_2()
+                                                    .text_lg()
+                                                    .child("⛶")
+                                                    .on_click(cx.listener(|_, _, window, cx| {
+                                                        window.toggle_fullscreen();
+                                                        cx.notify();
+                                                    })),
+                                            ),
+                                    ),
+                            )
+                            .when(self.settings_open && has_video, |this| {
+                                this.child(
+                                    div()
+                                        .absolute()
+                                        .right(px(HORIZONTAL_PADDING))
+                                        .bottom(px(76.0))
+                                        .w(px(270.0))
+                                        .flex()
+                                        .flex_col()
+                                        .gap_2()
+                                        .rounded_xl()
+                                        .border_1()
+                                        .border_color(rgb(BORDER))
+                                        .bg(rgb(0x111113))
+                                        .p_4()
+                                        .shadow_lg()
+                                        .child(
+                                            div()
+                                                .text_xs()
+                                                .text_color(rgb(0x65656d))
+                                                .child("QUALITY"),
+                                        )
+                                        .child(
+                                            div()
+                                                .h_10()
+                                                .flex()
+                                                .items_center()
+                                                .justify_between()
+                                                .px_3()
+                                                .text_sm()
+                                                .child("Original file")
+                                                .child(
+                                                    div().size_2().rounded_full().bg(rgb(ACCENT)),
+                                                ),
+                                        )
+                                        .child(div().h_px().bg(rgb(BORDER)))
+                                        .child(
+                                            div()
+                                                .mt_2()
+                                                .text_xs()
+                                                .text_color(rgb(0x65656d))
+                                                .child("PLAYBACK SPEED"),
+                                        )
+                                        .children(speed_items)
+                                        .child(div().h_px().bg(rgb(BORDER)))
+                                        .child(
+                                            div()
+                                                .mt_2()
+                                                .text_xs()
+                                                .text_color(rgb(0x65656d))
+                                                .child("AUDIO"),
+                                        )
+                                        .child(
+                                            div()
+                                                .id("settings-audio")
+                                                .h_10()
+                                                .flex()
+                                                .items_center()
+                                                .justify_between()
+                                                .cursor(CursorStyle::PointingHand)
+                                                .rounded_md()
+                                                .px_3()
+                                                .text_sm()
+                                                .hover(|style| style.bg(rgb(SURFACE_HOVER)))
+                                                .child(if is_muted { "Muted" } else { "Enabled" })
+                                                .child(
+                                                    div().size_2().rounded_full().bg(rgb(ACCENT)),
+                                                )
+                                                .on_click(cx.listener(|this, _, _, cx| {
+                                                    this.toggle_mute();
+                                                    cx.notify();
+                                                })),
+                                        ),
+                                )
+                            }),
+                    )
+                    .child(
+                        div()
+                            .h(px(FOOTER_HEIGHT))
+                            .flex_shrink_0()
+                            .flex()
+                            .items_center()
+                            .justify_between()
+                            .px(px(HORIZONTAL_PADDING))
+                            .child(
+                                div()
+                                    .flex()
+                                    .flex_col()
                                     .gap_2()
                                     .child(
                                         div()
-                                            .id("mute")
-                                            .cursor(CursorStyle::PointingHand)
-                                            .rounded_md()
-                                            .hover(|style| style.bg(rgb(SURFACE_HOVER)))
-                                            .px_3()
-                                            .py_2()
-                                            .text_sm()
-                                            .child(if is_muted { "MUTED" } else { "VOL" })
-                                            .on_click(cx.listener(|this, _, _, cx| {
-                                                this.toggle_mute();
-                                                cx.notify();
-                                            })),
-                                    )
-                                    .child(
-                                        div()
-                                            .id("speed")
-                                            .cursor(CursorStyle::PointingHand)
-                                            .rounded_md()
-                                            .hover(|style| style.bg(rgb(SURFACE_HOVER)))
-                                            .px_3()
-                                            .py_2()
-                                            .text_sm()
-                                            .text_color(rgb(MUTED))
-                                            .child(format_speed(speed))
-                                            .on_click(cx.listener(|this, _, _, cx| {
-                                                this.settings_open = !this.settings_open;
-                                                cx.notify();
-                                            })),
-                                    )
-                                    .child(
-                                        div()
-                                            .rounded_md()
-                                            .px_3()
-                                            .py_2()
-                                            .text_sm()
-                                            .text_color(rgb(0x4f4f56))
-                                            .child("CC"),
-                                    )
-                                    .child(
-                                        div()
-                                            .id("settings")
-                                            .cursor(CursorStyle::PointingHand)
-                                            .rounded_md()
-                                            .border_1()
-                                            .border_color(if self.settings_open {
-                                                rgb(ACCENT)
-                                            } else {
-                                                rgb(BORDER)
-                                            })
-                                            .bg(if self.settings_open {
-                                                rgb(SURFACE_HOVER)
-                                            } else {
-                                                rgb(SURFACE)
-                                            })
-                                            .hover(|style| style.bg(rgb(SURFACE_HOVER)))
-                                            .px_4()
-                                            .py_2()
-                                            .text_sm()
-                                            .child("Original")
-                                            .on_click(cx.listener(|this, _, _, cx| {
-                                                this.settings_open = !this.settings_open;
-                                                cx.notify();
-                                            })),
-                                    )
-                                    .child(
-                                        div()
-                                            .id("fullscreen")
-                                            .cursor(CursorStyle::PointingHand)
-                                            .rounded_md()
-                                            .hover(|style| style.bg(rgb(SURFACE_HOVER)))
-                                            .px_3()
-                                            .py_2()
                                             .text_lg()
-                                            .child("⛶")
-                                            .on_click(cx.listener(|_, _, window, cx| {
-                                                window.toggle_fullscreen();
-                                                cx.notify();
+                                            .font_weight(gpui::FontWeight::MEDIUM)
+                                            .child(display_title),
+                                    )
+                                    .child(
+                                        div()
+                                            .text_xs()
+                                            .font_family("monospace")
+                                            .text_color(if self.error.is_some() {
+                                                rgb(ERROR)
+                                            } else {
+                                                rgb(0x55555d)
+                                            })
+                                            .child(self.error.clone().unwrap_or_else(|| {
+                                                if has_video {
+                                                    format!(
+                                                        "MP4 · {} · Original · {}",
+                                                        format_duration(duration),
+                                                        if is_muted {
+                                                            "Muted"
+                                                        } else {
+                                                            "Audio enabled"
+                                                        }
+                                                    )
+                                                } else {
+                                                    "No media loaded".to_string()
+                                                }
                                             })),
                                     ),
-                            ),
-                    )
-                    .when(self.settings_open && has_video, |this| {
-                        this.child(
-                            div()
-                                .absolute()
-                                .right(px(HORIZONTAL_PADDING))
-                                .bottom(px(76.0))
-                                .w(px(270.0))
-                                .flex()
-                                .flex_col()
-                                .gap_2()
-                                .rounded_xl()
-                                .border_1()
-                                .border_color(rgb(BORDER))
-                                .bg(rgb(0x111113))
-                                .p_4()
-                                .shadow_lg()
-                                .child(div().text_xs().text_color(rgb(0x65656d)).child("QUALITY"))
-                                .child(
-                                    div()
-                                        .h_10()
-                                        .flex()
-                                        .items_center()
-                                        .justify_between()
-                                        .px_3()
-                                        .text_sm()
-                                        .child("Original file")
-                                        .child(div().size_2().rounded_full().bg(rgb(ACCENT))),
-                                )
-                                .child(div().h_px().bg(rgb(BORDER)))
-                                .child(
-                                    div()
-                                        .mt_2()
-                                        .text_xs()
-                                        .text_color(rgb(0x65656d))
-                                        .child("PLAYBACK SPEED"),
-                                )
-                                .children(speed_items)
-                                .child(div().h_px().bg(rgb(BORDER)))
-                                .child(
-                                    div()
-                                        .mt_2()
-                                        .text_xs()
-                                        .text_color(rgb(0x65656d))
-                                        .child("AUDIO"),
-                                )
-                                .child(
-                                    div()
-                                        .id("settings-audio")
-                                        .h_10()
-                                        .flex()
-                                        .items_center()
-                                        .justify_between()
-                                        .cursor(CursorStyle::PointingHand)
-                                        .rounded_md()
-                                        .px_3()
-                                        .text_sm()
-                                        .hover(|style| style.bg(rgb(SURFACE_HOVER)))
-                                        .child(if is_muted { "Muted" } else { "Enabled" })
-                                        .child(div().size_2().rounded_full().bg(rgb(ACCENT)))
-                                        .on_click(cx.listener(|this, _, _, cx| {
-                                            this.toggle_mute();
-                                            cx.notify();
-                                        })),
-                                ),
-                        )
-                    }),
-            )
-            .child(
-                div()
-                    .h(px(FOOTER_HEIGHT))
-                    .flex_shrink_0()
-                    .flex()
-                    .items_center()
-                    .justify_between()
-                    .px(px(HORIZONTAL_PADDING))
-                    .child(
-                        div()
-                            .flex()
-                            .flex_col()
-                            .gap_2()
-                            .child(
-                                div()
-                                    .text_lg()
-                                    .font_weight(gpui::FontWeight::MEDIUM)
-                                    .child(display_title),
                             )
                             .child(
                                 div()
                                     .text_xs()
                                     .font_family("monospace")
-                                    .text_color(if self.error.is_some() {
-                                        rgb(ERROR)
-                                    } else {
-                                        rgb(0x55555d)
-                                    })
-                                    .child(self.error.clone().unwrap_or_else(|| {
-                                        if has_video {
-                                            format!(
-                                                "MP4 · {} · Original · {}",
-                                                format_duration(duration),
-                                                if is_muted { "Muted" } else { "Audio enabled" }
-                                            )
-                                        } else {
-                                            "No media loaded".to_string()
-                                        }
-                                    })),
+                                    .text_color(rgb(0x4b4b52))
+                                    .child(
+                                        "space · ←/→ 5s · f fullscreen · m mute · ⌥⌘i inspector",
+                                    ),
                             ),
-                    )
-                    .child(
-                        div()
-                            .text_xs()
-                            .font_family("monospace")
-                            .text_color(rgb(0x4b4b52))
-                            .child("space · ←/→ 5s · f fullscreen · m mute"),
                     ),
             )
+            .when(self.inspector_open, |this| {
+                this.child(self.inspector_panel(cx))
+            })
     }
 }
 
@@ -885,6 +1074,7 @@ fn main() {
             KeyBinding::new("m", ToggleMute, None),
             KeyBinding::new("f", ToggleFullscreen, None),
             KeyBinding::new("escape", ExitFullscreen, None),
+            KeyBinding::new("cmd-alt-i", ToggleInspector, None),
         ]);
 
         cx.on_window_closed(|cx| {
@@ -924,6 +1114,10 @@ fn main() {
                         scrub_fraction: None,
                         pending_seek_started: None,
                         last_scrub_seek: None,
+                        inspector_open: false,
+                        render_fps: 0.0,
+                        fps_frame_count: 0,
+                        fps_sample_started: Instant::now(),
                         focus_handle,
                     }
                 })
