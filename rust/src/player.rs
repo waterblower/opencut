@@ -16,6 +16,8 @@ const HEADER_HEIGHT: f32 = 92.0;
 const CONTROL_HEIGHT: f32 = 116.0;
 const HORIZONTAL_PADDING: f32 = 22.0;
 const INSPECTOR_WIDTH: f32 = 320.0;
+const VOLUME_TRACK_HEIGHT: f32 = 144.0;
+const VOLUME_TRACK_BOTTOM_OFFSET: f32 = 102.0;
 
 const BACKGROUND: u32 = 0x070708;
 const SURFACE_HOVER: u32 = 0x1b1b1f;
@@ -58,7 +60,10 @@ pub(crate) struct Player {
     error: Option<String>,
     looping: bool,
     settings_open: bool,
+    volume_open: bool,
     is_scrubbing: bool,
+    is_adjusting_volume: bool,
+    resume_after_scrub: bool,
     scrub_fraction: Option<f32>,
     pending_seek_started: Option<Instant>,
     last_scrub_seek: Option<Instant>,
@@ -106,7 +111,10 @@ impl Player {
             error,
             looping,
             settings_open: false,
+            volume_open: false,
             is_scrubbing: false,
+            is_adjusting_volume: false,
+            resume_after_scrub: false,
             scrub_fraction: None,
             pending_seek_started: None,
             last_scrub_seek: None,
@@ -212,7 +220,10 @@ impl Player {
                 self.video = Some(video);
                 self.title = title;
                 self.error = None;
+                self.volume_open = false;
                 self.is_scrubbing = false;
+                self.is_adjusting_volume = false;
+                self.resume_after_scrub = false;
                 self.scrub_fraction = None;
                 self.pending_seek_started = None;
                 self.last_scrub_seek = None;
@@ -232,18 +243,36 @@ impl Player {
             .unwrap_or_else(|| self.title.clone())
     }
 
-    fn seek_by(&self, seconds: i64) {
+    fn seek_by_frame(&mut self, direction: i8) {
         let Some(video) = &self.video else {
             return;
         };
-        let position = video.position();
-        let target = if seconds.is_negative() {
-            position.saturating_sub(Duration::from_secs(seconds.unsigned_abs()))
-        } else {
-            position.saturating_add(Duration::from_secs(seconds as u64))
-        };
 
-        let _ = video.seek(target.min(video.duration()), false);
+        let frames_per_second = video.framerate();
+        if !frames_per_second.is_finite() || frames_per_second <= 0.0 {
+            return;
+        }
+
+        let duration = video.duration();
+        if duration.is_zero() {
+            return;
+        }
+
+        let position = self.scrub_fraction.map_or_else(
+            || video.position(),
+            |fraction| duration.mul_f64(fraction as f64),
+        );
+        let frame_duration = Duration::from_secs_f64(1.0 / frames_per_second);
+        let target = if direction.is_negative() {
+            position.saturating_sub(frame_duration)
+        } else {
+            position.saturating_add(frame_duration)
+        }
+        .min(duration);
+
+        self.scrub_fraction = Some((target.as_secs_f64() / duration.as_secs_f64()) as f32);
+        self.pending_seek_started = Some(Instant::now());
+        let _ = video.seek(target, true);
     }
 
     fn seek_to_fraction(&self, fraction: f64, accurate: bool) {
@@ -282,7 +311,13 @@ impl Player {
         let duration = video.duration();
         let target = duration.mul_f64(target_fraction as f64);
         let actual = video.position();
-        let settled = actual.abs_diff(target) <= Duration::from_millis(750);
+        let frames_per_second = video.framerate();
+        let settle_tolerance = if frames_per_second.is_finite() && frames_per_second > 0.0 {
+            Duration::from_secs_f64(0.75 / frames_per_second)
+        } else {
+            Duration::from_millis(20)
+        };
+        let settled = actual.abs_diff(target) <= settle_tolerance;
         let timed_out = started.elapsed() >= Duration::from_secs(2);
 
         if settled || timed_out {
@@ -297,6 +332,11 @@ impl Player {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        self.resume_after_scrub = self.video.as_ref().is_some_and(|video| !video.paused());
+        if let Some(video) = &self.video {
+            video.set_paused(true);
+        }
+
         self.is_scrubbing = true;
         let fraction = self.timeline_fraction_from_x(event.position.x.into(), window);
         self.scrub_fraction = Some(fraction);
@@ -341,6 +381,12 @@ impl Player {
             self.last_scrub_seek = None;
             self.is_scrubbing = false;
             self.seek_to_fraction(fraction as f64, true);
+            if self.resume_after_scrub
+                && let Some(video) = &self.video
+            {
+                video.set_paused(false);
+            }
+            self.resume_after_scrub = false;
             cx.notify();
         }
     }
@@ -360,6 +406,58 @@ impl Player {
     fn toggle_mute(&self) {
         if let Some(video) = &self.video {
             video.set_muted(!video.muted());
+        }
+    }
+
+    fn volume_from_y(&self, y: f32, window: &Window) -> f64 {
+        let viewport_height: f32 = window.viewport_size().height.into();
+        let track_bottom = viewport_height - VOLUME_TRACK_BOTTOM_OFFSET;
+        ((track_bottom - y) / VOLUME_TRACK_HEIGHT).clamp(0.0, 1.0) as f64
+    }
+
+    fn set_volume_from_y(&self, y: f32, window: &Window) {
+        let Some(video) = &self.video else {
+            return;
+        };
+
+        let volume = self.volume_from_y(y, window);
+        video.set_volume(volume);
+        video.set_muted(volume <= f64::EPSILON);
+    }
+
+    fn begin_volume_adjustment(
+        &mut self,
+        event: &MouseDownEvent,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        self.is_adjusting_volume = true;
+        self.set_volume_from_y(event.position.y.into(), window);
+        cx.notify();
+    }
+
+    fn adjust_volume(
+        &mut self,
+        event: &MouseMoveEvent,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        if self.is_adjusting_volume && event.dragging() {
+            self.set_volume_from_y(event.position.y.into(), window);
+            cx.notify();
+        }
+    }
+
+    fn finish_volume_adjustment(
+        &mut self,
+        event: &MouseUpEvent,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        if self.is_adjusting_volume {
+            self.set_volume_from_y(event.position.y.into(), window);
+            self.is_adjusting_volume = false;
+            cx.notify();
         }
     }
 
@@ -385,12 +483,12 @@ impl Player {
     }
 
     fn action_seek_backward(&mut self, _: &SeekBackward, _: &mut Window, cx: &mut Context<Self>) {
-        self.seek_by(-5);
+        self.seek_by_frame(-1);
         cx.notify();
     }
 
     fn action_seek_forward(&mut self, _: &SeekForward, _: &mut Window, cx: &mut Context<Self>) {
-        self.seek_by(5);
+        self.seek_by_frame(1);
         cx.notify();
     }
 
