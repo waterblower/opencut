@@ -1,7 +1,7 @@
 use gpui::{
     App, Context, CursorStyle, FocusHandle, KeyBinding, MouseButton, MouseDownEvent,
-    MouseMoveEvent, MouseUpEvent, PathPromptOptions, Render, Window, actions, div, prelude::*, px,
-    relative, rgb,
+    MouseMoveEvent, MouseUpEvent, ObjectFit, PathPromptOptions, Render, Window, actions, div, img,
+    prelude::*, px, relative, rgb,
 };
 use gpui_video_player::{Video, VideoOptions, video};
 use gst::prelude::*;
@@ -9,17 +9,20 @@ use gstreamer as gst;
 use std::{path::PathBuf, time::Duration, time::Instant};
 use url::Url;
 
+mod history;
 mod inspector;
-mod library;
 mod view;
 
-use library::HistoryData;
+use history::{HistoryData, load_history_width, save_history_width};
 
 const HEADER_HEIGHT: f32 = 92.0;
 const CONTROL_HEIGHT: f32 = 116.0;
 const HORIZONTAL_PADDING: f32 = 22.0;
 const INSPECTOR_WIDTH: f32 = 320.0;
-const LIBRARY_WIDTH: f32 = 288.0;
+const DEFAULT_HISTORY_WIDTH: f32 = 288.0;
+const MIN_HISTORY_WIDTH: f32 = 220.0;
+const MAX_HISTORY_WIDTH: f32 = 480.0;
+const MIN_PLAYER_WIDTH: f32 = 360.0;
 const VOLUME_TRACK_HEIGHT: f32 = 144.0;
 const VOLUME_TRACK_BOTTOM_OFFSET: f32 = 102.0;
 
@@ -38,6 +41,7 @@ actions!(
         SeekBackward,
         SeekForward,
         ToggleMute,
+        ToggleHistory,
         ToggleFullscreen,
         ExitFullscreen,
         ToggleInspector
@@ -50,6 +54,7 @@ pub(crate) fn bind_keys(cx: &mut App) {
         KeyBinding::new("left", SeekBackward, None),
         KeyBinding::new("right", SeekForward, None),
         KeyBinding::new("m", ToggleMute, None),
+        KeyBinding::new("cmd-b", ToggleHistory, None),
         KeyBinding::new("f", ToggleFullscreen, None),
         KeyBinding::new("escape", ExitFullscreen, None),
         KeyBinding::new("cmd-alt-i", ToggleInspector, None),
@@ -65,6 +70,9 @@ pub(crate) struct Player {
     title: String,
     error: Option<String>,
     looping: bool,
+    history_open: bool,
+    history_width: f32,
+    is_resizing_history: bool,
     settings_open: bool,
     volume_open: bool,
     is_scrubbing: bool,
@@ -125,6 +133,9 @@ impl Player {
             title,
             error,
             looping,
+            history_open: true,
+            history_width: load_history_width(),
+            is_resizing_history: false,
             settings_open: false,
             volume_open: false,
             is_scrubbing: false,
@@ -303,15 +314,69 @@ impl Player {
 
     fn timeline_fraction_from_x(&self, x: f32, window: &Window) -> f32 {
         let window_width: f32 = window.viewport_size().width.into();
+        let history_width = if self.history_open {
+            self.history_width
+        } else {
+            0.0
+        };
         let content_width = window_width
-            - LIBRARY_WIDTH
+            - history_width
             - if self.inspector_open {
                 INSPECTOR_WIDTH
             } else {
                 0.0
             };
         let usable_width = (content_width - HORIZONTAL_PADDING * 2.0).max(1.0);
-        ((x - LIBRARY_WIDTH - HORIZONTAL_PADDING) / usable_width).clamp(0.0, 1.0)
+        ((x - history_width - HORIZONTAL_PADDING) / usable_width).clamp(0.0, 1.0)
+    }
+
+    fn set_history_width_from_x(&mut self, x: f32, window: &Window) {
+        let viewport_width: f32 = window.viewport_size().width.into();
+        let inspector_width = if self.inspector_open {
+            INSPECTOR_WIDTH
+        } else {
+            0.0
+        };
+        let available_max = (viewport_width - inspector_width - MIN_PLAYER_WIDTH)
+            .clamp(MIN_HISTORY_WIDTH, MAX_HISTORY_WIDTH);
+        self.history_width = x.clamp(MIN_HISTORY_WIDTH, available_max);
+    }
+
+    fn begin_history_resize(
+        &mut self,
+        event: &MouseDownEvent,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        self.is_resizing_history = true;
+        self.set_history_width_from_x(event.position.x.into(), window);
+        cx.notify();
+    }
+
+    fn resize_history(
+        &mut self,
+        event: &MouseMoveEvent,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        if self.is_resizing_history && event.dragging() {
+            self.set_history_width_from_x(event.position.x.into(), window);
+            cx.notify();
+        }
+    }
+
+    fn finish_history_resize(
+        &mut self,
+        event: &MouseUpEvent,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        if self.is_resizing_history {
+            self.set_history_width_from_x(event.position.x.into(), window);
+            self.is_resizing_history = false;
+            save_history_width(self.history_width);
+            cx.notify();
+        }
     }
 
     fn reconcile_pending_seek(&mut self) {
@@ -519,6 +584,11 @@ impl Player {
 
     fn action_toggle_mute(&mut self, _: &ToggleMute, _: &mut Window, cx: &mut Context<Self>) {
         self.toggle_mute();
+        cx.notify();
+    }
+
+    fn action_toggle_history(&mut self, _: &ToggleHistory, _: &mut Window, cx: &mut Context<Self>) {
+        self.history_open = !self.history_open;
         cx.notify();
     }
 
