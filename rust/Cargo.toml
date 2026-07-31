@@ -19,8 +19,14 @@ name = "opencut-player-ffmpeg"
 path = "src/main-ffmpeg.rs"
 required-features = ["ffmpeg-backend"]
 
+[[bin]]
+name = "opencut-editor"
+path = "src/main-editor.rs"
+required-features = ["editor"]
+
 [features]
 default = ["gstreamer-backend"]
+editor = ["gstreamer-backend", "dep:ffmpeg-next"]
 ffmpeg-backend = ["dep:ffmpeg-next", "dep:rodio", "dep:smallvec"]
 gstreamer-backend = [
     "dep:gpui-video-player",
