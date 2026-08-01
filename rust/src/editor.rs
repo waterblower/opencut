@@ -62,6 +62,7 @@ actions!(
         AddMarker,
         ToggleFullscreen,
         ExitFullscreen,
+        ToggleInspector,
         RevealInFinder,
         OpenInDefaultApp
     ]
@@ -79,6 +80,7 @@ pub(crate) fn bind_keys(cx: &mut App) {
         KeyBinding::new("shift-m", AddMarker, None),
         KeyBinding::new("f", ToggleFullscreen, None),
         KeyBinding::new("escape", ExitFullscreen, None),
+        KeyBinding::new("cmd-alt-i", ToggleInspector, None),
         KeyBinding::new("cmd-alt-r", RevealInFinder, None),
         KeyBinding::new("ctrl-shift-enter", OpenInDefaultApp, None),
     ]);
@@ -1321,6 +1323,15 @@ impl Editor {
             window.toggle_fullscreen();
             cx.notify();
         }
+    }
+
+    fn action_toggle_inspector(
+        &mut self,
+        _: &ToggleInspector,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        window.toggle_inspector(cx);
     }
 
     fn action_reveal_in_finder(

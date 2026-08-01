@@ -1,4 +1,5 @@
 mod editor;
+mod gpui_inspector;
 mod playback_view;
 #[allow(dead_code)]
 #[path = "video_backend/gstreamer.rs"]
@@ -11,6 +12,7 @@ fn main() {
     env_logger::init();
 
     Application::new().run(|cx: &mut App| {
+        gpui_inspector::init(cx);
         editor::bind_keys(cx);
         cx.on_window_closed(|cx| {
             if cx.windows().is_empty() {
