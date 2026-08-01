@@ -18,6 +18,7 @@ mod model;
 mod preview;
 mod settings;
 mod timeline;
+mod track;
 mod view;
 mod workspace;
 
