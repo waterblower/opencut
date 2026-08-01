@@ -78,7 +78,7 @@ fn read_directory(
         .filter_map(|entry| {
             let file_type = entry.file_type().ok()?;
             let name = entry.file_name().to_string_lossy().into_owned();
-            if matches!(name.as_str(), ".git" | ".opencut") {
+            if matches!(name.as_str(), ".DS_Store" | ".git" | ".opencut") {
                 return None;
             }
             Some((name, file_type.is_dir()))
