@@ -7,7 +7,7 @@ default-run = "opencut-player"
 
 [[bin]]
 name = "opencut-player"
-path = "src/main.rs"
+path = "src/main-player.rs"
 required-features = ["gstreamer-backend"]
 
 [[bin]]

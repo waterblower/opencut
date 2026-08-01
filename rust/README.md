@@ -26,7 +26,7 @@ Run commands below from this `rust` directory.
 ## Player
 
 ```sh
-cargo run
+cargo player
 ```
 
 The player supports local MP4 playback, scrubbing, frame stepping, volume and
