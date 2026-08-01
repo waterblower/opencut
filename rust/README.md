@@ -1,21 +1,19 @@
-# OpenCut for GPUI
+# OpenCut
 
-OpenCut is a Rust video player and basic non-destructive video editor built with
-[GPUI](https://gpui.rs/).
+OpenCut is an experimental desktop video tool written in Rust with
+[GPUI](https://gpui.rs/). This directory contains two applications:
 
-The project contains two applications:
+- `opencut-player`: a focused local MP4 player powered by GStreamer.
+- `opencut-editor`: a non-destructive, folder-based multi-track editor with
+  GStreamer preview and in-process FFmpeg export.
 
-- `opencut-player`: the primary GStreamer player.
-- `opencut-editor`: a non-destructive multi-track editor with GStreamer preview
-  and FFmpeg export.
+The project is an active prototype rather than a production-ready editor.
 
-## Prerequisites
+## Requirements
 
-- Latest stable Rust
-- macOS, Linux, or Windows supported by GPUI
-- GStreamer with the base, good, bad, and libav plugins for the primary player
-  and editor preview
-- FFmpeg libraries for editor media inspection, cache generation, and export
+- Latest stable Rust (edition 2024)
+- GStreamer and its base, good, bad, and libav plugins
+- FFmpeg development libraries
 
 On macOS with Homebrew:
 
@@ -23,103 +21,89 @@ On macOS with Homebrew:
 brew install gstreamer ffmpeg
 ```
 
-## GStreamer player
+Run commands below from this `rust` directory.
 
-From this directory, run:
+## Player
 
 ```sh
 cargo run
 ```
 
-The player includes playback controls, frame-by-frame seeking, timeline
-scrubbing, volume and speed controls, fullscreen playback, playback history,
-media metadata, an FPS inspector, and PNG frame capture.
+The player supports local MP4 playback, scrubbing, frame stepping, volume and
+speed controls, looping, fullscreen, resizable playback history, media
+metadata, render FPS inspection, PNG frame capture, and the GPUI element
+inspector.
 
-Player keyboard controls:
+| Shortcut | Action |
+| --- | --- |
+| `Space` | Play or pause |
+| `Left` / `Right` | Step backward or forward one frame |
+| `M` | Mute or unmute |
+| `Command-B` | Toggle playback history |
+| `F` / `Esc` | Enter / exit fullscreen |
+| `Option-Command-I` | Toggle the GPUI inspector |
 
-- `Space`: play or pause
-- `Left` / `Right`: move backward or forward by one frame
-- `M`: mute or unmute
-- `Command` + `B`: toggle playback history
-- `F`: toggle fullscreen
-- `Esc`: exit fullscreen
-- `Option` + `Command` + `I`: toggle the inspector
-
-## Video editor
-
-Run the editor with:
+## Editor
 
 ```sh
 cargo editor
 ```
 
-The editor currently provides:
+Current editor capabilities:
 
-- An IDE-style asset panel backed directly by an ordinary project folder
-- Automatic discovery of video, PNG/JPEG image, and common audio files copied
-  into the project folder
-- Freely positioned text, video/image, and audio tracks with overlapping clips
-- Layered image and text preview, synchronized overlapping audio preview, and
-  per-track visibility and mute controls
-- A scrollable, zoomable timeline with a time ruler, draggable playhead, and
-  markers
-- Dragging clips in time and between compatible tracks
-- Edge and playhead snapping while moving and trimming clips
-- Non-destructive left/right trimming, splitting, duplication, and deletion
-- Track creation, reordering, locking, visibility, muting, and deletion
-- Cached first-frame thumbnails and audio waveforms
-- Undo and redo
-- Clip metadata in the inspector
-- Versioned automatic project persistence with migration from the original
-  sequential timeline format
-- Layered H.264/AAC MP4 export with composited visual tracks and mixed audio
+- Open any ordinary folder as a project; supported media appears in a live file
+  tree without an import or copy step.
+- Video tracks accept video and still images; audio tracks accept video or audio.
+- Clips can be positioned, moved between compatible tracks, trimmed, split,
+  duplicated, and deleted without changing source files.
+- Multi-track preview includes layered video/images and synchronized overlapping
+  audio, with per-track visibility, mute, lock, reorder, creation, and deletion.
+- The timeline provides horizontal zoom and scrolling, vertical track scrolling,
+  a draggable playhead, markers, and snapping to the playhead, markers, and clip
+  edges.
+- First-frame thumbnails and audio waveforms are generated in the background.
+- Undo/redo, clip metadata, fullscreen preview, and the GPUI element inspector
+  are available in the editor UI.
+- Export composites visible visual tracks, mixes unmuted audio, and writes an
+  H.264/AAC MP4 directly through `ffmpeg-next`.
 
-Editor keyboard controls:
+Supported file extensions:
 
-- `Space`: play or pause
-- `Command` + `B`: split the selected clip at the playhead
-- `Backspace` / `Delete`: delete the selected clip
-- `Command` + `D`: duplicate the selected clip
-- `Shift` + `M`: add a marker at the playhead
-- `Command` + `Z`: undo
-- `Command` + `Shift` + `Z`: redo
+- Video: `.mp4`, `.mov`, `.m4v`, `.mkv`, `.webm`, `.avi`
+- Images: `.png`, `.jpg`, `.jpeg` (added as five-second still clips)
+- Audio: `.aac`, `.flac`, `.m4a`, `.mp3`, `.ogg`, `.wav`
 
-Edits do not modify or duplicate the source videos. The editor stores media
-references, clip order, and source in/out points in
+| Shortcut | Action |
+| --- | --- |
+| `Space` | Play or pause |
+| `Command-B` | Split the selected clip at the playhead |
+| `Backspace` / `Delete` | Delete the selected clip |
+| `Command-D` | Duplicate the selected clip |
+| `Shift-M` | Add a marker at the playhead |
+| `Command-Z` / `Command-Shift-Z` | Undo / redo |
+| `F` / `Esc` | Enter / exit fullscreen preview |
+| `Option-Command-I` | Toggle the GPUI inspector |
+| `Option-Command-R` | Reveal the selected project entry in Finder |
+| `Control-Shift-Enter` | Open the selected entry in its default app |
+
+## Project data
+
+Editor state is saved automatically to
 `<project folder>/.opencut/project.json`. Media paths are relative to the
-project folder, so the folder—including `.opencut`—can be committed to version
-control or backed up as a unit.
+project folder, so the media and project file can be moved, backed up, or
+committed together. The last opened folder is stored locally in
+`data/editor-settings.json`.
 
-Use **Open Folder** to choose a project. The left panel displays that folder as
-a live file tree; expand directories and use the `+` beside a media file to add
-it at the end of a compatible timeline track. There is no separate import or
-media copy step: placing supported media anywhere inside the project folder
-makes it appear in the panel. The last opened folder is remembered locally in
-`data/editor-settings.json`, which is ignored by Git.
+Disposable thumbnails and waveforms are stored in
+`<project folder>/.opencut/cache`; its generated `.gitignore` keeps the cache
+out of version control. Source media is referenced in place and never rewritten.
 
-Images appear with thumbnails in the asset tree and open in the preview when
-clicked. Adding one creates a five-second still-image clip that supports
-preview playback, trimming, splitting, positioning, and mixed video/image
-export.
-
-Generated thumbnails and waveforms live in `<project folder>/.opencut/cache`.
-The editor writes a nested `.gitignore` there so disposable cache files do not
-enter version control while `project.json` remains portable and commit-friendly.
-Cache generation and export call the FFmpeg libraries through `ffmpeg-next`;
-the editor never launches the `ffmpeg` command-line executable.
-
-Right-click any project-tree entry to reveal it in Finder or open it with the
-operating system's default application. The same actions are available with
-`Option` + `Command` + `R` and `Control` + `Shift` + `Enter`.
-
-During export, clips are trimmed directly from their original files. Visible
-visual tracks are composited in track order, unmuted audio is mixed, and the
-result is encoded as an H.264/AAC MP4. Source media is never rewritten.
-
-## Utilities
-
-Count Rust source lines in this project with:
+## Development
 
 ```sh
+cargo test --features editor
+cargo check --all-targets --all-features
 cargo loc
 ```
+
+`cargo loc` reports the Rust source line count for this project.
