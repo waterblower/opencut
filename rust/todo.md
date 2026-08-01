@@ -1,4 +1,44 @@
-# OpenCut editor TODO
+# OpenCut TODO
+
+## Confirmed bugs — recommended priority
+
+### P0 — UI responsiveness and resource safety
+
+- [ ] Move `AudioPreview` construction and GStreamer preroll off the UI thread.
+      Deduplicate pending loads and discard a completed load when its clip is no
+      longer requested.
+- [ ] Replace history thumbnail `std::thread::spawn` calls with a bounded worker
+      queue. Track in-flight paths so the same video cannot start two jobs, and
+      give each job an exclusive temporary output path.
+- [ ] Make the editor responsive below 724 px tall. The top bar, preview, and
+      timeline must fit the available height without fixed-size children
+      overlapping or clipping the playback controls.
+
+### P1 — visible correctness and resilience
+
+- [ ] Fix `format_speed` so it removes only trailing fractional zeros. It must
+      render `0.5×`, `1.25×`, `1.5×`, and `1.05×` without changing the value.
+- [ ] Crop and offset cached full-asset waveforms using each clip's `source_in`
+      and `source_out`, so split and trimmed clips show the correct source range.
+- [ ] Make file-tree traversal tolerate an unreadable or disconnected
+      subdirectory. Preserve readable entries and report the failing directory
+      inline instead of aborting the complete tree refresh.
+- [ ] Store application-global history, thumbnail cache, sidebar settings, and
+      last-project settings in the platform application-data/config directory
+      instead of the compile-time `CARGO_MANIFEST_DIR`. Keep project-owned state
+      in `<project>/.opencut`.
+
+### P2 — performance and cleanup
+
+- [ ] Stop querying every active GStreamer audio pipeline position every 33 ms.
+      Use a master playback clock and throttle drift checks or react to pipeline
+      timing messages.
+- [ ] Move periodic file-tree scanning off the UI thread or replace it with a
+      filesystem watcher plus a background fallback scan for the project root
+      and expanded directories.
+- [ ] Remove unreachable missing-asset and image branches from
+      `load_timeline_position`, or change `visual_clip_at_time` so those cases are
+      intentionally returned and handled there.
 
 ## Frame-based timeline math
 

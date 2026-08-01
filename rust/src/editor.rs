@@ -11,6 +11,7 @@ use std::{
 };
 
 mod audio_preview;
+mod explorer;
 mod export;
 mod media_cache;
 mod model;
@@ -21,6 +22,7 @@ mod workspace;
 
 use crate::playback_view::{DragPhase, PlaybackViewDelegate};
 use audio_preview::AudioPreview;
+use explorer::FileContextMenu;
 use export::export_project;
 use model::{
     MIN_CLIP_DURATION, MediaAsset, MediaKind, Project, TimelineClip, TimelineMarker, TimelineTrack,
@@ -110,13 +112,6 @@ struct ClipMoveDrag {
     original_timeline_start: f64,
     original_track_id: u64,
     changed: bool,
-}
-
-#[derive(Clone)]
-struct FileContextMenu {
-    relative_path: PathBuf,
-    x: f32,
-    y: f32,
 }
 
 pub(crate) struct Editor {
@@ -338,14 +333,6 @@ impl Editor {
         }
     }
 
-    fn refresh_file_tree(&mut self) {
-        self.last_tree_scan = Instant::now();
-        match visible_tree(&self.project_root, &self.expanded_directories) {
-            Ok(entries) => self.file_tree = entries,
-            Err(error) => self.error = Some(error),
-        }
-    }
-
     /// Refreshes which assets already have artwork on disk and starts one missing job.
     ///
     /// Runs on the file-tree tick rather than during rendering so the timeline can read
@@ -386,128 +373,6 @@ impl Editor {
                         }
                         cx.notify();
                     }
-                })
-                .ok();
-        })
-        .detach();
-    }
-
-    fn toggle_directory(&mut self, relative_path: PathBuf) {
-        if !self.expanded_directories.remove(&relative_path) {
-            self.expanded_directories.insert(relative_path);
-        }
-        self.refresh_file_tree();
-    }
-
-    fn show_file_context_menu(
-        &mut self,
-        relative_path: PathBuf,
-        event: &MouseDownEvent,
-        cx: &mut Context<Self>,
-    ) {
-        self.selected_file = Some(relative_path.clone());
-        self.file_context_menu = Some(FileContextMenu {
-            relative_path,
-            x: event.position.x.into(),
-            y: event.position.y.into(),
-        });
-        cx.stop_propagation();
-        cx.notify();
-    }
-
-    fn dismiss_file_context_menu(&mut self) {
-        self.file_context_menu = None;
-    }
-
-    fn reveal_selected_file(&mut self, cx: &mut Context<Self>) {
-        let Some(path) = self.file_action_path() else {
-            return;
-        };
-        self.file_context_menu = None;
-        cx.reveal_path(&path);
-    }
-
-    fn open_selected_file_in_default_app(&mut self, cx: &mut Context<Self>) {
-        let Some(path) = self.file_action_path() else {
-            return;
-        };
-        self.file_context_menu = None;
-        cx.open_with_system(&path);
-    }
-
-    fn file_action_path(&self) -> Option<PathBuf> {
-        let relative_path = self
-            .file_context_menu
-            .as_ref()
-            .map(|menu| &menu.relative_path)
-            .or(self.selected_file.as_ref())?;
-        Some(self.project_root.join(relative_path))
-    }
-
-    fn add_file_to_timeline(&mut self, relative_path: PathBuf, cx: &mut Context<Self>) {
-        if let Some(asset_id) = self
-            .project
-            .assets
-            .iter()
-            .find(|asset| asset.path == relative_path)
-            .map(|asset| asset.id)
-        {
-            self.append_asset_clip(asset_id);
-            cx.notify();
-            return;
-        }
-
-        let project_root = self.project_root.clone();
-        let absolute_path = project_root.join(&relative_path);
-        let is_image = workspace::is_image_path(&relative_path);
-        let is_audio = workspace::is_audio_path(&relative_path);
-        self.status = Some(format!("Inspecting {}…", relative_path.display()));
-        cx.spawn(async move |editor, cx| {
-            let result = cx
-                .background_executor()
-                .spawn(async move {
-                    if is_image {
-                        probe_image(&absolute_path, 0)
-                    } else if is_audio {
-                        probe_audio(&absolute_path, 0)
-                    } else {
-                        probe_media(&absolute_path, 0)
-                    }
-                })
-                .await;
-            editor
-                .update(cx, |editor, cx| {
-                    if editor.project_root != project_root {
-                        return;
-                    }
-                    match result {
-                        Ok(mut asset) => {
-                            if let Some(asset_id) = editor
-                                .project
-                                .assets
-                                .iter()
-                                .find(|asset| asset.path == relative_path)
-                                .map(|asset| asset.id)
-                            {
-                                editor.append_asset_clip(asset_id);
-                                editor.status = Some("Added media to timeline.".to_string());
-                                cx.notify();
-                                return;
-                            }
-                            editor.checkpoint();
-                            asset.id = editor.take_id();
-                            asset.path = relative_path.clone();
-                            let asset_id = asset.id;
-                            editor.project.assets.push(asset);
-                            editor.append_asset_clip_without_checkpoint(asset_id);
-                            editor.selected_file = Some(relative_path);
-                            editor.save_project();
-                            editor.status = Some("Added media to timeline.".to_string());
-                            editor.error = None;
-                        }
-                        Err(error) => editor.error = Some(error),
-                    }
-                    cx.notify();
                 })
                 .ok();
         })
@@ -1335,25 +1200,6 @@ impl Editor {
         window.toggle_inspector(cx);
     }
 
-    fn action_reveal_in_finder(
-        &mut self,
-        _: &RevealInFinder,
-        _: &mut Window,
-        cx: &mut Context<Self>,
-    ) {
-        self.reveal_selected_file(cx);
-        cx.notify();
-    }
-
-    fn action_open_in_default_app(
-        &mut self,
-        _: &OpenInDefaultApp,
-        _: &mut Window,
-        cx: &mut Context<Self>,
-    ) {
-        self.open_selected_file_in_default_app(cx);
-        cx.notify();
-    }
 }
 
 fn format_time(seconds: f64) -> String {
