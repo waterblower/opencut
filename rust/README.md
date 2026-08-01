@@ -3,11 +3,9 @@
 OpenCut is a Rust video player and basic non-destructive video editor built with
 [GPUI](https://gpui.rs/).
 
-The project contains three applications:
+The project contains two applications:
 
 - `opencut-player`: the primary GStreamer player.
-- `opencut-player-ffmpeg`: an experimental player that decodes audio and video
-  with FFmpeg.
 - `opencut-editor`: a non-destructive multi-track editor with GStreamer preview
   and FFmpeg export.
 
@@ -17,8 +15,7 @@ The project contains three applications:
 - macOS, Linux, or Windows supported by GPUI
 - GStreamer with the base, good, bad, and libav plugins for the primary player
   and editor preview
-- FFmpeg libraries for the FFmpeg player, editor media inspection, cache
-  generation, and export
+- FFmpeg libraries for editor media inspection, cache generation, and export
 
 On macOS with Homebrew:
 
@@ -47,18 +44,6 @@ Player keyboard controls:
 - `F`: toggle fullscreen
 - `Esc`: exit fullscreen
 - `Option` + `Command` + `I`: toggle the inspector
-
-## FFmpeg player
-
-Run the experimental FFmpeg playback implementation with:
-
-```sh
-cargo ffmpeg
-```
-
-It uses FFmpeg for demuxing and decoding both video and audio. Decoded PCM is
-sent through Rodio/CPAL to the operating system's audio output. Its interface
-and controls match the GStreamer player.
 
 ## Video editor
 
