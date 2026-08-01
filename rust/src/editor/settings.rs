@@ -1,0 +1,178 @@
+use super::*;
+
+const FRAME_RATE_PRESETS: [(FrameRate, &str); 8] = [
+    (FrameRate::new(24_000, 1_001), "23.976 fps"),
+    (FrameRate::new(24, 1), "24 fps"),
+    (FrameRate::new(25, 1), "25 fps"),
+    (FrameRate::new(30_000, 1_001), "29.97 fps"),
+    (FrameRate::new(30, 1), "30 fps"),
+    (FrameRate::new(50, 1), "50 fps"),
+    (FrameRate::new(60_000, 1_001), "59.94 fps"),
+    (FrameRate::new(60, 1), "60 fps"),
+];
+
+impl Editor {
+    pub(super) fn settings_modal(&self, cx: &mut Context<Self>) -> gpui::AnyElement {
+        let selected = self.project.settings.frame_rate;
+        let options = FRAME_RATE_PRESETS
+            .into_iter()
+            .enumerate()
+            .map(|(index, (frame_rate, label))| {
+                let active = frame_rate == selected;
+                div()
+                    .id(("timeline-frame-rate", index))
+                    .h(px(44.0))
+                    .px_3()
+                    .flex()
+                    .items_center()
+                    .justify_between()
+                    .rounded_lg()
+                    .border_1()
+                    .border_color(rgb(if active { ACCENT } else { BORDER }))
+                    .bg(rgb(if active { 0x2a241b } else { SURFACE }))
+                    .cursor(CursorStyle::PointingHand)
+                    .hover(|style| style.bg(rgb(SURFACE_HOVER)))
+                    .child(label)
+                    .child(div().size_2().rounded_full().bg(rgb(if active {
+                        ACCENT
+                    } else {
+                        0x45454d
+                    })))
+                    .on_click(cx.listener(move |editor, _, _, cx| {
+                        editor.set_timeline_frame_rate(frame_rate);
+                        cx.notify();
+                    }))
+            })
+            .collect::<Vec<_>>();
+
+        div()
+            .id("project-settings-overlay")
+            .absolute()
+            .inset_0()
+            .flex()
+            .items_center()
+            .justify_center()
+            .occlude()
+            .bg(gpui::rgba(0x000000b3))
+            .on_mouse_down(
+                MouseButton::Left,
+                cx.listener(|editor, _, _, cx| {
+                    editor.settings_open = false;
+                    cx.notify();
+                }),
+            )
+            .child(
+                div()
+                    .id("project-settings-modal")
+                    .w(px(460.0))
+                    .flex()
+                    .flex_col()
+                    .rounded_xl()
+                    .border_1()
+                    .border_color(rgb(BORDER))
+                    .bg(rgb(PANEL))
+                    .shadow_lg()
+                    .occlude()
+                    .on_mouse_down(
+                        MouseButton::Left,
+                        cx.listener(|_, _, _, cx| cx.stop_propagation()),
+                    )
+                    .child(
+                        div()
+                            .h(px(58.0))
+                            .px_5()
+                            .flex()
+                            .items_center()
+                            .justify_between()
+                            .border_b_1()
+                            .border_color(rgb(BORDER))
+                            .child(
+                                div()
+                                    .text_lg()
+                                    .font_weight(gpui::FontWeight::SEMIBOLD)
+                                    .child("Project Settings"),
+                            )
+                            .child(
+                                div()
+                                    .id("close-project-settings")
+                                    .size_8()
+                                    .flex()
+                                    .items_center()
+                                    .justify_center()
+                                    .rounded_md()
+                                    .cursor(CursorStyle::PointingHand)
+                                    .text_color(rgb(MUTED))
+                                    .hover(|style| {
+                                        style.bg(rgb(SURFACE_HOVER)).text_color(rgb(TEXT))
+                                    })
+                                    .child("×")
+                                    .on_click(cx.listener(|editor, _, _, cx| {
+                                        editor.settings_open = false;
+                                        cx.notify();
+                                    })),
+                            ),
+                    )
+                    .child(
+                        div()
+                            .p_5()
+                            .flex()
+                            .flex_col()
+                            .gap_4()
+                            .child(
+                                div()
+                                    .text_xs()
+                                    .font_weight(gpui::FontWeight::SEMIBOLD)
+                                    .text_color(rgb(MUTED))
+                                    .child("TIMELINE FRAME RATE"),
+                            )
+                            .child(div().grid().grid_cols(2).gap_2().children(options))
+                            .child(
+                                div()
+                                    .text_xs()
+                                    .text_color(rgb(MUTED))
+                                    .child(
+                                        "Existing edit points keep their elapsed time and snap to the nearest frame in the new rate.",
+                                    ),
+                            ),
+                    ),
+            )
+            .into_any_element()
+    }
+
+    fn set_timeline_frame_rate(&mut self, frame_rate: FrameRate) {
+        self.settings_open = false;
+        let previous = self.project.settings.frame_rate;
+        if previous == frame_rate {
+            return;
+        }
+
+        if let Some(video) = &self.video {
+            video.set_paused(true);
+        }
+        self.pause_audio_previews();
+        self.checkpoint();
+        let playhead = previous.rescale_nearest(self.playhead, frame_rate);
+        self.project.set_frame_rate(frame_rate);
+        self.playhead = playhead.clamp(TimelineTime::ZERO, self.project.timeline_duration());
+        self.video = None;
+        self.audio_previews.clear();
+        self.loaded_clip_id = None;
+        self.still_playback_started = None;
+        self.playing = false;
+        self.save_project();
+        if !self.project.clips.is_empty() {
+            self.load_timeline_position(self.playhead, false);
+        }
+        self.status = Some(format!(
+            "Timeline frame rate changed to {}.",
+            frame_rate_label(frame_rate)
+        ));
+    }
+}
+
+fn frame_rate_label(frame_rate: FrameRate) -> &'static str {
+    FRAME_RATE_PRESETS
+        .into_iter()
+        .find_map(|(candidate, label)| (candidate == frame_rate).then_some(label))
+        .unwrap_or("custom fps")
+}

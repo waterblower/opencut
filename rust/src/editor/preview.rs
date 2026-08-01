@@ -1,6 +1,6 @@
 use super::*;
 use crate::playback_view::{CONTROL_HEIGHT, PlaybackViewProps, playback_view};
-use crate::video_backend::{VideoOptions, video};
+use crate::video_backend::{VideoOptions, create_timeline_video, video};
 use url::Url;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -192,9 +192,7 @@ impl Editor {
         if let (Some(clip_id), Some(video)) = (self.loaded_clip_id, self.video.as_ref())
             && let Some(clip) = self.project.clip(clip_id)
         {
-            let expected = self
-                .project
-                .duration(clip.source_in + (self.playhead - clip.timeline_start));
+            let expected = self.project.source_position_at(clip, self.playhead);
             if video.position().abs_diff(expected) > Duration::from_millis(250) {
                 let _ = video.seek(expected, false);
             }
@@ -232,9 +230,14 @@ impl Editor {
             self.error = Some("The selected clip's source file is missing.".to_string());
             return;
         };
-        let local_position =
-            (position - clip.timeline_start).clamp(TimelineTime::ZERO, clip.duration());
-        let source_position = (clip.source_in + local_position).min(clip.source_out);
+        let source_position = self.project.source_position_at(&clip, position);
+        let loaded_clip = self
+            .loaded_clip_id
+            .and_then(|clip_id| self.project.clip(clip_id));
+        let reuses_loaded_source = self.video.is_some()
+            && loaded_clip.is_some_and(|loaded| loaded.asset_id == clip.asset_id);
+        let seamless_transition =
+            play && loaded_clip.is_some_and(|loaded| loaded.is_continuous_with(&clip));
 
         if asset.kind == MediaKind::Image {
             if let Some(video) = &self.video {
@@ -242,19 +245,22 @@ impl Editor {
             }
             self.video = None;
             self.loaded_clip_id = Some(clip.id);
-        } else if self.loaded_clip_id != Some(clip.id) {
+        } else if !reuses_loaded_source {
             let source_path = self.project_root.join(&asset.path);
             let Ok(url) = Url::from_file_path(&source_path) else {
                 self.error = Some(format!("Could not open {}", source_path.display()));
                 return;
             };
-            match Video::new_with_options(
+            let frame_rate = self.project.settings.frame_rate;
+            match create_timeline_video(
                 &url,
                 VideoOptions {
                     frame_buffer_capacity: Some(3),
                     looping: Some(false),
                     speed: Some(1.0),
                 },
+                frame_rate.numerator,
+                frame_rate.denominator,
             ) {
                 Ok(video) => {
                     video.set_volume(self.preview_volume);
@@ -267,11 +273,14 @@ impl Editor {
                 }
             }
         }
+        self.loaded_clip_id = Some(clip.id);
 
         if asset.kind == MediaKind::Video
             && let Some(video) = &self.video
         {
-            let _ = video.seek(self.project.duration(source_position), true);
+            if !seamless_transition {
+                let _ = video.seek(source_position, true);
+            }
             let muted = self
                 .project
                 .track(clip.track_id)

@@ -16,6 +16,7 @@ mod export;
 mod media_cache;
 mod model;
 mod preview;
+mod settings;
 mod timeline;
 mod view;
 mod workspace;
@@ -25,8 +26,8 @@ use audio_preview::AudioPreview;
 use explorer::FileContextMenu;
 use export::export_project;
 use model::{
-    MediaAsset, MediaKind, Project, TimelineClip, TimelineMarker, TimelineTime, TimelineTrack,
-    TrackKind, probe_audio, probe_image, probe_media,
+    FrameRate, MediaAsset, MediaKind, Project, TimelineClip, TimelineMarker, TimelineTime,
+    TimelineTrack, TrackKind, probe_audio, probe_image, probe_media,
 };
 use preview::PreviewTarget;
 use workspace::{FileTreeEntry, load_project_root, save_project_root, visible_tree};
@@ -147,6 +148,7 @@ pub(crate) struct Editor {
     preview_pending_seek_started: Option<Instant>,
     preview_last_scrub_seek: Option<Instant>,
     preview_refresh_ticks: u8,
+    settings_open: bool,
     pixels_per_second: f32,
     next_id: u64,
     undo_stack: Vec<Project>,
@@ -204,6 +206,7 @@ impl Editor {
             preview_pending_seek_started: None,
             preview_last_scrub_seek: None,
             preview_refresh_ticks: 0,
+            settings_open: false,
             pixels_per_second: 72.0,
             next_id,
             undo_stack: Vec::new(),

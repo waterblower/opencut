@@ -10,7 +10,7 @@ use std::{
 };
 
 pub(super) const DEFAULT_IMAGE_DURATION: f64 = 5.0;
-pub(super) const PROJECT_VERSION: u32 = 4;
+pub(super) const PROJECT_VERSION: u32 = 5;
 
 #[derive(Clone, Copy, Debug, Default, Deserialize, Eq, Ord, PartialEq, PartialOrd, Serialize)]
 #[serde(transparent)]
@@ -78,6 +78,13 @@ impl Default for FrameRate {
 }
 
 impl FrameRate {
+    pub const fn new(numerator: u32, denominator: u32) -> Self {
+        Self {
+            numerator,
+            denominator,
+        }
+    }
+
     pub fn frames_per_second(self) -> f64 {
         self.numerator as f64 / self.denominator.max(1) as f64
     }
@@ -127,6 +134,33 @@ impl FrameRate {
         }
         let frames = (seconds * self.frames_per_second()).round();
         TimelineTime::from_frames(frames.clamp(i64::MIN as f64, i64::MAX as f64) as i64)
+    }
+
+    pub fn rescale_nearest(self, time: TimelineTime, target: Self) -> TimelineTime {
+        self.rescale(time, target, divide_round)
+    }
+
+    pub fn rescale_floor(self, time: TimelineTime, target: Self) -> TimelineTime {
+        self.rescale(time, target, |numerator, denominator| {
+            numerator / denominator.max(1)
+        })
+    }
+
+    fn rescale(
+        self,
+        time: TimelineTime,
+        target: Self,
+        round: impl FnOnce(u128, u128) -> u128,
+    ) -> TimelineTime {
+        if time <= TimelineTime::ZERO {
+            return TimelineTime::ZERO;
+        }
+        let numerator = (time.frames() as u128)
+            .saturating_mul(self.denominator.max(1) as u128)
+            .saturating_mul(target.numerator.max(1) as u128);
+        let denominator =
+            (self.numerator.max(1) as u128).saturating_mul(target.denominator.max(1) as u128);
+        TimelineTime::from_frames(round(numerator, denominator).min(i64::MAX as u128) as i64)
     }
 
     fn quantize_seconds(self, seconds: f64, round: impl FnOnce(f64) -> f64) -> TimelineTime {
@@ -185,8 +219,27 @@ pub(super) struct MediaAsset {
     pub width: u32,
     pub height: u32,
     pub framerate: f64,
+    #[serde(default)]
+    pub frame_rate_numerator: u32,
+    #[serde(default)]
+    pub frame_rate_denominator: u32,
     pub codec: String,
     pub has_audio: bool,
+}
+
+impl MediaAsset {
+    pub fn frame_rate(&self) -> Option<FrameRate> {
+        if self.kind != MediaKind::Video {
+            return None;
+        }
+        if self.frame_rate_numerator > 0 && self.frame_rate_denominator > 0 {
+            return Some(FrameRate::new(
+                self.frame_rate_numerator,
+                self.frame_rate_denominator,
+            ));
+        }
+        approximate_frame_rate(self.framerate)
+    }
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -211,6 +264,13 @@ impl TimelineClip {
 
     pub fn contains(&self, time: TimelineTime) -> bool {
         time >= self.timeline_start && time < self.timeline_end()
+    }
+
+    pub fn is_continuous_with(&self, next: &Self) -> bool {
+        self.track_id == next.track_id
+            && self.asset_id == next.asset_id
+            && self.timeline_end() == next.timeline_start
+            && self.source_out == next.source_in
     }
 }
 
@@ -442,6 +502,74 @@ impl Project {
         self.audio_duration(time).as_secs_f64()
     }
 
+    /// Maps a timeline position within a clip to the source frame covering that instant.
+    pub fn source_frame_at(
+        &self,
+        clip: &TimelineClip,
+        timeline_position: TimelineTime,
+    ) -> Option<i64> {
+        let asset = clip.asset_id.and_then(|id| self.asset(id))?;
+        let source_rate = asset.frame_rate()?;
+        let local =
+            (timeline_position - clip.timeline_start).clamp(TimelineTime::ZERO, clip.duration());
+        let source_time = (clip.source_in + local).min(clip.source_out);
+        Some(
+            self.settings
+                .frame_rate
+                .rescale_floor(source_time, source_rate)
+                .frames(),
+        )
+    }
+
+    /// Returns an exact source-frame timestamp for video and a project-clock timestamp otherwise.
+    pub fn source_position_at(
+        &self,
+        clip: &TimelineClip,
+        timeline_position: TimelineTime,
+    ) -> Duration {
+        let Some(asset) = clip.asset_id.and_then(|id| self.asset(id)) else {
+            return Duration::ZERO;
+        };
+        if let (Some(source_rate), Some(source_frame)) = (
+            asset.frame_rate(),
+            self.source_frame_at(clip, timeline_position),
+        ) {
+            return source_rate.duration(TimelineTime::from_frames(source_frame));
+        }
+        let local =
+            (timeline_position - clip.timeline_start).clamp(TimelineTime::ZERO, clip.duration());
+        self.audio_duration((clip.source_in + local).min(clip.source_out))
+    }
+
+    pub fn source_start_seconds(&self, clip: &TimelineClip) -> f64 {
+        self.source_position_at(clip, clip.timeline_start)
+            .as_secs_f64()
+    }
+
+    pub fn set_frame_rate(&mut self, frame_rate: FrameRate) {
+        let frame_rate = FrameRate::new(frame_rate.numerator.max(1), frame_rate.denominator.max(1));
+        let previous = self.settings.frame_rate;
+        if previous == frame_rate {
+            return;
+        }
+
+        for clip in &mut self.clips {
+            let old_start = clip.timeline_start;
+            let old_end = clip.timeline_end();
+            let old_source_in = clip.source_in;
+            clip.timeline_start = previous.rescale_nearest(old_start, frame_rate);
+            let new_end = previous.rescale_nearest(old_end, frame_rate);
+            let new_duration = (new_end - clip.timeline_start).max(TimelineTime::ONE_FRAME);
+            clip.source_in = previous.rescale_nearest(old_source_in, frame_rate);
+            clip.source_out = clip.source_in + new_duration;
+        }
+        for marker in &mut self.markers {
+            marker.time = previous.rescale_nearest(marker.time, frame_rate);
+        }
+        self.settings.frame_rate = frame_rate;
+        self.normalize();
+    }
+
     pub fn ceil_time(&self, seconds: f64) -> TimelineTime {
         self.settings.frame_rate.ceil(seconds)
     }
@@ -564,9 +692,8 @@ pub(super) fn probe_media(path: &Path, id: u64) -> Result<MediaAsset, String> {
         .decoder()
         .video()
         .map_err(|error| format!("could not inspect video decoder: {error}"))?;
-    let framerate = rational_to_f64(stream.avg_frame_rate())
-        .filter(|fps| fps.is_finite() && *fps > 0.0)
-        .unwrap_or(30.0);
+    let source_frame_rate = frame_rate_from_ffmpeg(stream.avg_frame_rate()).unwrap_or_default();
+    let framerate = source_frame_rate.frames_per_second();
     let duration = if input.duration() > 0 {
         input.duration() as f64 / ffmpeg::ffi::AV_TIME_BASE as f64
     } else if stream.duration() > 0 {
@@ -596,6 +723,8 @@ pub(super) fn probe_media(path: &Path, id: u64) -> Result<MediaAsset, String> {
         width: decoder.width(),
         height: decoder.height(),
         framerate,
+        frame_rate_numerator: source_frame_rate.numerator,
+        frame_rate_denominator: source_frame_rate.denominator,
         codec: stream.parameters().id().name().to_string(),
         has_audio: input.streams().best(Type::Audio).is_some(),
     })
@@ -622,6 +751,8 @@ pub(super) fn probe_image(path: &Path, id: u64) -> Result<MediaAsset, String> {
         width,
         height,
         framerate: 0.0,
+        frame_rate_numerator: 0,
+        frame_rate_denominator: 0,
         codec,
         has_audio: false,
     })
@@ -660,6 +791,8 @@ pub(super) fn probe_audio(path: &Path, id: u64) -> Result<MediaAsset, String> {
         width: 0,
         height: 0,
         framerate: 0.0,
+        frame_rate_numerator: 0,
+        frame_rate_denominator: 0,
         codec: stream.parameters().id().name().to_string(),
         has_audio: true,
     })
@@ -668,6 +801,31 @@ pub(super) fn probe_audio(path: &Path, id: u64) -> Result<MediaAsset, String> {
 fn rational_to_f64(value: ffmpeg::Rational) -> Option<f64> {
     let denominator = value.denominator();
     (denominator != 0).then(|| value.numerator() as f64 / denominator as f64)
+}
+
+fn frame_rate_from_ffmpeg(value: ffmpeg::Rational) -> Option<FrameRate> {
+    let numerator = u32::try_from(value.numerator()).ok()?;
+    let denominator = u32::try_from(value.denominator()).ok()?;
+    (numerator > 0 && denominator > 0).then(|| FrameRate::new(numerator, denominator))
+}
+
+fn approximate_frame_rate(fps: f64) -> Option<FrameRate> {
+    if !fps.is_finite() || fps <= 0.0 {
+        return None;
+    }
+    for rate in [
+        FrameRate::new(24_000, 1_001),
+        FrameRate::new(30_000, 1_001),
+        FrameRate::new(60_000, 1_001),
+    ] {
+        if (rate.frames_per_second() - fps).abs() < 0.01 {
+            return Some(rate);
+        }
+    }
+    Some(FrameRate::new(
+        fps.round().clamp(1.0, u32::MAX as f64) as u32,
+        1,
+    ))
 }
 
 fn project_path(project_root: &Path) -> PathBuf {
@@ -703,6 +861,8 @@ mod tests {
             width: 1920,
             height: 1080,
             framerate: 30.0,
+            frame_rate_numerator: 30,
+            frame_rate_denominator: 1,
             codec: "h264".into(),
             has_audio: true,
         }
@@ -838,6 +998,57 @@ mod tests {
             denominator: 1_001,
         };
         assert_eq!(frame_rate.audio_samples(frames(30_000), 48_000), 48_048_000);
+    }
+
+    #[test]
+    fn maps_30_fps_source_frames_onto_a_24_fps_timeline() {
+        let project = Project {
+            settings: ProjectSettings {
+                frame_rate: FrameRate::new(24, 1),
+                ..ProjectSettings::default()
+            },
+            assets: vec![video_asset()],
+            clips: vec![video_clip(10, 0, 24)],
+            ..Project::default()
+        };
+        let clip = &project.clips[0];
+        let mapped = (0..=8)
+            .map(|frame| project.source_frame_at(clip, frames(frame)).unwrap())
+            .collect::<Vec<_>>();
+
+        assert_eq!(mapped, vec![0, 1, 2, 3, 5, 6, 7, 8, 10]);
+    }
+
+    #[test]
+    fn changing_timeline_rate_preserves_elapsed_edit_times() {
+        let mut project = Project {
+            assets: vec![video_asset()],
+            clips: vec![video_clip(10, 30, 300)],
+            markers: vec![TimelineMarker {
+                id: 20,
+                time: frames(150),
+                label: "Marker".into(),
+            }],
+            ..Project::default()
+        };
+
+        project.set_frame_rate(FrameRate::new(24, 1));
+
+        assert_eq!(project.clips[0].timeline_start, frames(24));
+        assert_eq!(project.clips[0].duration(), frames(240));
+        assert_eq!(project.markers[0].time, frames(120));
+    }
+
+    #[test]
+    fn recognizes_two_halves_of_a_split_as_continuous() {
+        let first = video_clip(10, 0, 120);
+        let mut second = video_clip(11, 120, 120);
+        second.source_in = frames(120);
+        second.source_out = frames(240);
+
+        assert!(first.is_continuous_with(&second));
+        second.source_in = frames(121);
+        assert!(!first.is_continuous_with(&second));
     }
 
     #[test]
