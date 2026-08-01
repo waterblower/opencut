@@ -1,4 +1,4 @@
-use crate::video_backend::{Video, VideoOptions, video};
+use crate::video_backend::Video;
 use gpui::{
     App, Context, CursorStyle, FocusHandle, KeyBinding, MouseButton, MouseDownEvent,
     MouseMoveEvent, MouseUpEvent, ObjectFit, PathPromptOptions, Render, ScrollHandle, Window,
@@ -9,21 +9,23 @@ use std::{
     path::PathBuf,
     time::{Duration, Instant},
 };
-use url::Url;
 
 mod audio_preview;
 mod export;
 mod media_cache;
 mod model;
+mod preview;
 mod view;
 mod workspace;
 
+use crate::playback_view::{DragPhase, PlaybackViewDelegate};
 use audio_preview::AudioPreview;
 use export::export_project;
 use model::{
     MIN_CLIP_DURATION, MediaAsset, MediaKind, Project, TimelineClip, TimelineMarker, TimelineTrack,
     TrackKind, probe_audio, probe_image, probe_media,
 };
+use preview::PreviewTarget;
 use workspace::{FileTreeEntry, load_project_root, save_project_root, visible_tree};
 
 const MEDIA_PANEL_WIDTH: f32 = 264.0;
@@ -58,6 +60,8 @@ actions!(
         Redo,
         DuplicateSelected,
         AddMarker,
+        ToggleFullscreen,
+        ExitFullscreen,
         RevealInFinder,
         OpenInDefaultApp
     ]
@@ -73,6 +77,8 @@ pub(crate) fn bind_keys(cx: &mut App) {
         KeyBinding::new("cmd-shift-z", Redo, None),
         KeyBinding::new("cmd-d", DuplicateSelected, None),
         KeyBinding::new("shift-m", AddMarker, None),
+        KeyBinding::new("f", ToggleFullscreen, None),
+        KeyBinding::new("escape", ExitFullscreen, None),
         KeyBinding::new("cmd-alt-r", RevealInFinder, None),
         KeyBinding::new("ctrl-shift-enter", OpenInDefaultApp, None),
     ]);
@@ -117,6 +123,7 @@ pub(crate) struct Editor {
     expanded_directories: HashSet<PathBuf>,
     selected_file: Option<PathBuf>,
     file_context_menu: Option<FileContextMenu>,
+    preview_target: PreviewTarget,
     media_cache_jobs: HashSet<u64>,
     media_cache_ready: HashSet<u64>,
     last_tree_scan: Instant,
@@ -129,6 +136,14 @@ pub(crate) struct Editor {
     selected_clip_id: Option<u64>,
     playhead: f64,
     playing: bool,
+    preview_volume: f64,
+    preview_volume_open: bool,
+    preview_is_scrubbing: bool,
+    preview_is_adjusting_volume: bool,
+    preview_resume_after_scrub: bool,
+    preview_scrub_fraction: Option<f32>,
+    preview_pending_seek_started: Option<Instant>,
+    preview_last_scrub_seek: Option<Instant>,
     preview_refresh_ticks: u8,
     pixels_per_second: f32,
     next_id: u64,
@@ -165,6 +180,7 @@ impl Editor {
             expanded_directories,
             selected_file: None,
             file_context_menu: None,
+            preview_target: PreviewTarget::Timeline,
             media_cache_jobs: HashSet::new(),
             media_cache_ready: HashSet::new(),
             last_tree_scan: Instant::now(),
@@ -177,6 +193,14 @@ impl Editor {
             selected_clip_id,
             playhead: 0.0,
             playing: false,
+            preview_volume: 1.0,
+            preview_volume_open: false,
+            preview_is_scrubbing: false,
+            preview_is_adjusting_volume: false,
+            preview_resume_after_scrub: false,
+            preview_scrub_fraction: None,
+            preview_pending_seek_started: None,
+            preview_last_scrub_seek: None,
             preview_refresh_ticks: 0,
             pixels_per_second: 72.0,
             next_id,
@@ -208,8 +232,13 @@ impl Editor {
                     .update(cx, |editor, cx| {
                         let refresh_tree =
                             editor.last_tree_scan.elapsed() >= Duration::from_secs(1);
-                        let should_render =
-                            editor.playing || editor.preview_refresh_ticks > 0 || refresh_tree;
+                        let file_preview_playing =
+                            matches!(editor.preview_target, PreviewTarget::VideoFile(_))
+                                && editor.video.as_ref().is_some_and(|video| !video.paused());
+                        let should_render = editor.playing
+                            || file_preview_playing
+                            || editor.preview_refresh_ticks > 0
+                            || refresh_tree;
                         editor.preview_refresh_ticks =
                             editor.preview_refresh_ticks.saturating_sub(1);
                         if refresh_tree {
@@ -217,6 +246,7 @@ impl Editor {
                             editor.schedule_missing_media_cache(cx);
                         }
                         editor.update_playback();
+                        editor.reconcile_preview_seek();
                         if should_render {
                             cx.notify();
                         }
@@ -228,209 +258,6 @@ impl Editor {
             }
         })
         .detach();
-    }
-
-    fn update_playback(&mut self) {
-        if !self.playing {
-            return;
-        }
-        let Some(started) = self.still_playback_started else {
-            self.playing = false;
-            self.pause_audio_previews();
-            return;
-        };
-        self.playhead = self.still_playback_origin + started.elapsed().as_secs_f64();
-        let duration = self.project.timeline_duration();
-        if self.playhead >= duration {
-            if let Some(video) = &self.video {
-                video.set_paused(true);
-            }
-            self.pause_audio_previews();
-            self.playhead = duration;
-            self.playing = false;
-            self.still_playback_started = None;
-            return;
-        }
-
-        let desired_clip_id = self
-            .project
-            .visual_clip_at_time(self.playhead)
-            .map(|clip| clip.id);
-        if desired_clip_id != self.loaded_clip_id {
-            self.load_timeline_position(self.playhead, true);
-            return;
-        }
-
-        if let (Some(clip_id), Some(video)) = (self.loaded_clip_id, self.video.as_ref())
-            && let Some(clip) = self.project.clip(clip_id)
-        {
-            let expected = clip.source_in + (self.playhead - clip.timeline_start);
-            if (video.position().as_secs_f64() - expected).abs() > 0.25 {
-                let _ = video.seek(Duration::from_secs_f64(expected.max(0.0)), false);
-            }
-        }
-        self.sync_audio_previews(self.playhead, true);
-    }
-
-    fn load_timeline_position(&mut self, position: f64, play: bool) {
-        self.selected_file = None;
-        self.file_context_menu = None;
-        let duration = self.project.timeline_duration();
-        let position = position.clamp(0.0, duration);
-        let clip = self.project.visual_clip_at_time(position).cloned();
-        self.still_playback_origin = position;
-        self.still_playback_started = play.then(Instant::now);
-        self.playhead = position;
-        self.playing = play;
-
-        let Some(clip) = clip else {
-            if let Some(video) = &self.video {
-                video.set_paused(true);
-            }
-            self.video = None;
-            self.loaded_clip_id = None;
-            self.sync_audio_previews(position, play);
-            self.preview_refresh_ticks = 2;
-            return;
-        };
-
-        let Some(asset_id) = clip.asset_id else {
-            return;
-        };
-        let Some(asset) = self.project.asset(asset_id).cloned() else {
-            self.error = Some("The selected clip's source file is missing.".to_string());
-            return;
-        };
-        let local_position = (position - clip.timeline_start).clamp(0.0, clip.duration());
-        let source_position = (clip.source_in + local_position).min(clip.source_out);
-
-        if asset.kind == MediaKind::Image {
-            if let Some(video) = &self.video {
-                video.set_paused(true);
-            }
-            self.video = None;
-            self.loaded_clip_id = Some(clip.id);
-        } else if self.loaded_clip_id != Some(clip.id) {
-            let source_path = self.project_root.join(&asset.path);
-            let Ok(url) = Url::from_file_path(&source_path) else {
-                self.error = Some(format!("Could not open {}", source_path.display()));
-                return;
-            };
-            match Video::new_with_options(
-                &url,
-                VideoOptions {
-                    frame_buffer_capacity: Some(3),
-                    looping: Some(false),
-                    speed: Some(1.0),
-                },
-            ) {
-                Ok(video) => {
-                    self.video = Some(video);
-                    self.loaded_clip_id = Some(clip.id);
-                }
-                Err(error) => {
-                    self.error = Some(format!("Could not preview {}: {error}", asset.name));
-                    return;
-                }
-            }
-        }
-
-        if asset.kind == MediaKind::Video
-            && let Some(video) = &self.video
-        {
-            let _ = video.seek(Duration::from_secs_f64(source_position), true);
-            let muted = self
-                .project
-                .track(clip.track_id)
-                .is_some_and(|track| track.muted);
-            video.set_muted(muted);
-            video.set_paused(!play);
-        }
-        self.preview_refresh_ticks = 12;
-        self.selected_asset_id = Some(asset_id);
-        self.error = None;
-        self.sync_audio_previews(position, play);
-    }
-
-    fn sync_audio_previews(&mut self, position: f64, play: bool) {
-        let loaded_clip_id = self.loaded_clip_id;
-        let desired = self
-            .project
-            .clips
-            .iter()
-            .filter(|clip| clip.contains(position) && Some(clip.id) != loaded_clip_id)
-            .filter_map(|clip| {
-                let track = self.project.track(clip.track_id)?;
-                let asset = self.project.asset(clip.asset_id?)?;
-                if track.muted || !asset.has_audio {
-                    return None;
-                }
-                let source_position =
-                    clip.source_in + (position - clip.timeline_start).clamp(0.0, clip.duration());
-                let path = self.project_root.join(&asset.path);
-                let url = Url::from_file_path(path).ok()?;
-                Some((clip.id, source_position, url))
-            })
-            .collect::<Vec<_>>();
-        let desired_ids = desired
-            .iter()
-            .map(|(clip_id, _, _)| *clip_id)
-            .collect::<HashSet<_>>();
-
-        self.audio_previews
-            .retain(|clip_id, _| desired_ids.contains(clip_id));
-        for (clip_id, source_position, url) in desired {
-            if let std::collections::hash_map::Entry::Vacant(entry) =
-                self.audio_previews.entry(clip_id)
-            {
-                match AudioPreview::new(&url) {
-                    Ok(preview) => {
-                        preview.seek(Duration::from_secs_f64(source_position.max(0.0)));
-                        preview.set_playing(play);
-                        entry.insert(preview);
-                    }
-                    Err(error) => {
-                        self.error = Some(error);
-                        continue;
-                    }
-                }
-            }
-            if let Some(preview) = self.audio_previews.get(&clip_id) {
-                let expected = Duration::from_secs_f64(source_position.max(0.0));
-                if preview.position().abs_diff(expected) > Duration::from_millis(250) {
-                    preview.seek(expected);
-                }
-                preview.set_playing(play);
-            }
-        }
-    }
-
-    fn pause_audio_previews(&self) {
-        for preview in self.audio_previews.values() {
-            preview.set_playing(false);
-        }
-    }
-
-    fn toggle_playback(&mut self) {
-        if self.project.clips.is_empty() {
-            return;
-        }
-        if self.playing {
-            if let Some(video) = &self.video {
-                video.set_paused(true);
-            }
-            self.pause_audio_previews();
-            self.still_playback_started = None;
-            self.playing = false;
-            return;
-        }
-        let duration = self.project.timeline_duration();
-        let start = if self.playhead >= duration {
-            0.0
-        } else {
-            self.playhead
-        };
-        self.load_timeline_position(start, true);
     }
 
     fn open_project_folder(&mut self, cx: &mut Context<Self>) {
@@ -494,6 +321,7 @@ impl Editor {
         self.expanded_directories.clear();
         self.selected_file = None;
         self.file_context_menu = None;
+        self.preview_target = PreviewTarget::Timeline;
         self.selected_asset_id = self.project.assets.first().map(|asset| asset.id);
         self.selected_clip_id = self.project.clips.first().map(|clip| clip.id);
         self.refresh_file_tree();
@@ -566,25 +394,6 @@ impl Editor {
             self.expanded_directories.insert(relative_path);
         }
         self.refresh_file_tree();
-    }
-
-    fn select_file(&mut self, relative_path: PathBuf) {
-        if workspace::is_image_path(&relative_path) {
-            if let Some(video) = &self.video {
-                video.set_paused(true);
-            }
-            self.playing = false;
-            self.pause_audio_previews();
-            self.still_playback_started = None;
-            self.preview_refresh_ticks = 2;
-        }
-        self.selected_file = Some(relative_path.clone());
-        self.selected_asset_id = self
-            .project
-            .assets
-            .iter()
-            .find(|asset| asset.path == relative_path)
-            .map(|asset| asset.id);
     }
 
     fn show_file_context_menu(
@@ -816,6 +625,7 @@ impl Editor {
         }
         self.checkpoint();
         self.project.clips.remove(index);
+        self.preview_target = PreviewTarget::Timeline;
         self.video = None;
         self.audio_previews.clear();
         self.loaded_clip_id = None;
@@ -1407,6 +1217,7 @@ impl Editor {
     }
 
     fn reset_after_history_change(&mut self) {
+        self.preview_target = PreviewTarget::Timeline;
         self.video = None;
         self.audio_previews.clear();
         self.loaded_clip_id = None;
@@ -1522,6 +1333,28 @@ impl Editor {
     fn action_add_marker(&mut self, _: &AddMarker, _: &mut Window, cx: &mut Context<Self>) {
         self.add_marker();
         cx.notify();
+    }
+
+    fn action_toggle_fullscreen(
+        &mut self,
+        _: &ToggleFullscreen,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        window.toggle_fullscreen();
+        cx.notify();
+    }
+
+    fn action_exit_fullscreen(
+        &mut self,
+        _: &ExitFullscreen,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        if window.is_fullscreen() {
+            window.toggle_fullscreen();
+            cx.notify();
+        }
     }
 
     fn action_reveal_in_finder(

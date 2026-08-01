@@ -52,6 +52,10 @@ impl AudioPreview {
             let _ = self.pipeline.set_state(state);
         }
     }
+
+    pub(super) fn set_volume(&self, volume: f64) {
+        self.pipeline.set_property("volume", volume.clamp(0.0, 1.0));
+    }
 }
 
 impl Drop for AudioPreview {

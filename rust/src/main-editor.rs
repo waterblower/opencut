@@ -1,4 +1,5 @@
 mod editor;
+mod playback_view;
 #[allow(dead_code)]
 #[path = "video_backend/gstreamer.rs"]
 mod video_backend;
