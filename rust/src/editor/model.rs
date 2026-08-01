@@ -4,12 +4,158 @@ use serde::{Deserialize, Serialize};
 use std::{
     fs,
     io::ErrorKind,
+    ops::{Add, AddAssign, Sub, SubAssign},
     path::{Path, PathBuf},
+    time::Duration,
 };
 
-pub(super) const MIN_CLIP_DURATION: f64 = 1.0 / 30.0;
 pub(super) const DEFAULT_IMAGE_DURATION: f64 = 5.0;
-pub(super) const PROJECT_VERSION: u32 = 3;
+pub(super) const PROJECT_VERSION: u32 = 4;
+
+#[derive(Clone, Copy, Debug, Default, Deserialize, Eq, Ord, PartialEq, PartialOrd, Serialize)]
+#[serde(transparent)]
+pub(super) struct TimelineTime(i64);
+
+impl TimelineTime {
+    pub const ZERO: Self = Self(0);
+    pub const ONE_FRAME: Self = Self(1);
+    pub const MAX: Self = Self(i64::MAX);
+
+    pub const fn from_frames(frames: i64) -> Self {
+        Self(frames)
+    }
+
+    pub const fn frames(self) -> i64 {
+        self.0
+    }
+
+    pub fn abs_diff(self, other: Self) -> u64 {
+        self.0.abs_diff(other.0)
+    }
+}
+
+impl Add for TimelineTime {
+    type Output = Self;
+
+    fn add(self, rhs: Self) -> Self::Output {
+        Self(self.0.saturating_add(rhs.0))
+    }
+}
+
+impl AddAssign for TimelineTime {
+    fn add_assign(&mut self, rhs: Self) {
+        *self = *self + rhs;
+    }
+}
+
+impl Sub for TimelineTime {
+    type Output = Self;
+
+    fn sub(self, rhs: Self) -> Self::Output {
+        Self(self.0.saturating_sub(rhs.0))
+    }
+}
+
+impl SubAssign for TimelineTime {
+    fn sub_assign(&mut self, rhs: Self) {
+        *self = *self - rhs;
+    }
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub(super) struct FrameRate {
+    pub numerator: u32,
+    pub denominator: u32,
+}
+
+impl Default for FrameRate {
+    fn default() -> Self {
+        Self {
+            numerator: 30,
+            denominator: 1,
+        }
+    }
+}
+
+impl FrameRate {
+    pub fn frames_per_second(self) -> f64 {
+        self.numerator as f64 / self.denominator.max(1) as f64
+    }
+
+    pub fn seconds(self, time: TimelineTime) -> f64 {
+        time.frames() as f64 * self.denominator.max(1) as f64 / self.numerator.max(1) as f64
+    }
+
+    pub fn duration(self, time: TimelineTime) -> Duration {
+        let frames = time.frames().max(0) as u128;
+        let numerator = frames
+            .saturating_mul(self.denominator.max(1) as u128)
+            .saturating_mul(1_000_000_000);
+        let nanos = divide_round(numerator, self.numerator.max(1) as u128);
+        Duration::from_nanos(nanos.min(u64::MAX as u128) as u64)
+    }
+
+    pub fn floor_duration(self, duration: Duration) -> TimelineTime {
+        let numerator = duration
+            .as_nanos()
+            .saturating_mul(self.numerator.max(1) as u128);
+        let denominator = (self.denominator.max(1) as u128).saturating_mul(1_000_000_000);
+        TimelineTime::from_frames((numerator / denominator).min(i64::MAX as u128) as i64)
+    }
+
+    pub fn audio_samples(self, time: TimelineTime, sample_rate: u32) -> u64 {
+        let frames = time.frames().max(0) as u128;
+        let numerator = frames
+            .saturating_mul(self.denominator.max(1) as u128)
+            .saturating_mul(sample_rate as u128);
+        divide_round(numerator, self.numerator.max(1) as u128).min(u64::MAX as u128) as u64
+    }
+
+    pub fn nearest(self, seconds: f64) -> TimelineTime {
+        // Pointer-driven seeks and edits select the closest project frame.
+        self.quantize_seconds(seconds, f64::round)
+    }
+
+    pub fn ceil(self, seconds: f64) -> TimelineTime {
+        // Imported media durations round outward so the last partial frame is retained.
+        self.quantize_seconds(seconds, f64::ceil)
+    }
+
+    pub fn delta(self, seconds: f64) -> TimelineTime {
+        if !seconds.is_finite() {
+            return TimelineTime::ZERO;
+        }
+        let frames = (seconds * self.frames_per_second()).round();
+        TimelineTime::from_frames(frames.clamp(i64::MIN as f64, i64::MAX as f64) as i64)
+    }
+
+    fn quantize_seconds(self, seconds: f64, round: impl FnOnce(f64) -> f64) -> TimelineTime {
+        if !seconds.is_finite() || seconds <= 0.0 {
+            return TimelineTime::ZERO;
+        }
+        let frames = round(seconds * self.frames_per_second());
+        TimelineTime::from_frames(frames.clamp(0.0, i64::MAX as f64) as i64)
+    }
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub(super) struct ProjectSettings {
+    pub frame_rate: FrameRate,
+    pub width: u32,
+    pub height: u32,
+    pub audio_sample_rate: u32,
+}
+
+impl Default for ProjectSettings {
+    fn default() -> Self {
+        Self {
+            frame_rate: FrameRate::default(),
+            width: 1920,
+            height: 1080,
+            audio_sample_rate: 48_000,
+        }
+    }
+}
 
 #[derive(Clone, Copy, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "snake_case")]
@@ -49,21 +195,21 @@ pub(super) struct TimelineClip {
     pub track_id: u64,
     #[serde(default)]
     pub asset_id: Option<u64>,
-    pub timeline_start: f64,
-    pub source_in: f64,
-    pub source_out: f64,
+    pub timeline_start: TimelineTime,
+    pub source_in: TimelineTime,
+    pub source_out: TimelineTime,
 }
 
 impl TimelineClip {
-    pub fn duration(&self) -> f64 {
-        (self.source_out - self.source_in).max(0.0)
+    pub fn duration(&self) -> TimelineTime {
+        (self.source_out - self.source_in).max(TimelineTime::ZERO)
     }
 
-    pub fn timeline_end(&self) -> f64 {
+    pub fn timeline_end(&self) -> TimelineTime {
         self.timeline_start + self.duration()
     }
 
-    pub fn contains(&self, time: f64) -> bool {
+    pub fn contains(&self, time: TimelineTime) -> bool {
         time >= self.timeline_start && time < self.timeline_end()
     }
 }
@@ -84,13 +230,14 @@ pub(super) struct TimelineTrack {
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub(super) struct TimelineMarker {
     pub id: u64,
-    pub time: f64,
+    pub time: TimelineTime,
     pub label: String,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub(super) struct Project {
     pub version: u32,
+    pub settings: ProjectSettings,
     pub assets: Vec<MediaAsset>,
     pub tracks: Vec<TimelineTrack>,
     pub clips: Vec<TimelineClip>,
@@ -101,6 +248,7 @@ impl Default for Project {
     fn default() -> Self {
         Self {
             version: PROJECT_VERSION,
+            settings: ProjectSettings::default(),
             assets: Vec::new(),
             tracks: default_tracks(),
             clips: Vec::new(),
@@ -182,20 +330,20 @@ impl Project {
         &self,
         track_id: u64,
         ignored_clip_id: Option<u64>,
-        desired_start: f64,
-        duration: f64,
-    ) -> f64 {
-        let desired_start = desired_start.max(0.0);
-        let duration = duration.max(MIN_CLIP_DURATION);
+        desired_start: TimelineTime,
+        duration: TimelineTime,
+    ) -> TimelineTime {
+        let desired_start = desired_start.max(TimelineTime::ZERO);
+        let duration = duration.max(TimelineTime::ONE_FRAME);
         let mut occupied = self
             .clips_on_track(track_id)
             .filter(|clip| Some(clip.id) != ignored_clip_id)
             .map(|clip| (clip.timeline_start, clip.timeline_end()))
             .collect::<Vec<_>>();
-        occupied.sort_by(|left, right| left.0.total_cmp(&right.0));
+        occupied.sort_by_key(|range| range.0);
 
         let mut candidates = Vec::new();
-        let mut gap_start = 0.0_f64;
+        let mut gap_start = TimelineTime::ZERO;
         for (occupied_start, occupied_end) in occupied {
             let latest_start = occupied_start - duration;
             if latest_start >= gap_start {
@@ -207,46 +355,49 @@ impl Project {
         candidates
             .into_iter()
             .min_by(|left, right| {
-                (left - desired_start)
-                    .abs()
-                    .total_cmp(&(right - desired_start).abs())
+                left.abs_diff(desired_start)
+                    .cmp(&right.abs_diff(desired_start))
             })
             .unwrap_or(desired_start)
     }
 
-    pub fn trim_limits(&self, clip_id: u64) -> Option<(f64, f64)> {
+    pub fn trim_limits(&self, clip_id: u64) -> Option<(TimelineTime, TimelineTime)> {
         let clip = self.clip(clip_id)?;
         let previous_end = self
             .clips_on_track(clip.track_id)
             .filter(|other| other.id != clip_id && other.timeline_start < clip.timeline_start)
             .map(TimelineClip::timeline_end)
-            .fold(0.0, f64::max);
+            .max()
+            .unwrap_or(TimelineTime::ZERO);
         let next_start = self
             .clips_on_track(clip.track_id)
             .filter(|other| other.id != clip_id && other.timeline_start >= clip.timeline_end())
             .map(|other| other.timeline_start)
-            .min_by(f64::total_cmp)
-            .unwrap_or(f64::INFINITY);
+            .min()
+            .unwrap_or(TimelineTime::MAX);
         Some((previous_end, next_start))
     }
 
     /// The end of the rendered content, ignoring markers past the last clip.
-    pub fn content_duration(&self) -> f64 {
+    pub fn content_duration(&self) -> TimelineTime {
         self.clips
             .iter()
             .map(TimelineClip::timeline_end)
-            .fold(0.0, f64::max)
+            .max()
+            .unwrap_or(TimelineTime::ZERO)
     }
 
     /// How far the timeline is scrubbable, which includes markers left beyond the clips.
-    pub fn timeline_duration(&self) -> f64 {
+    pub fn timeline_duration(&self) -> TimelineTime {
         self.markers
             .iter()
             .map(|marker| marker.time)
-            .fold(self.content_duration(), f64::max)
+            .max()
+            .unwrap_or_else(|| self.content_duration())
+            .max(self.content_duration())
     }
 
-    pub fn visual_clip_at_time(&self, time: f64) -> Option<&TimelineClip> {
+    pub fn visual_clip_at_time(&self, time: TimelineTime) -> Option<&TimelineClip> {
         self.tracks
             .iter()
             .filter(|track| track.visible && track.kind == TrackKind::Video)
@@ -259,8 +410,40 @@ impl Project {
                                 .and_then(|id| self.asset(id))
                                 .is_some_and(|asset| asset.kind == MediaKind::Video)
                     })
-                    .max_by(|left, right| left.timeline_start.total_cmp(&right.timeline_start))
+                    .max_by_key(|clip| clip.timeline_start)
             })
+    }
+
+    pub fn seconds(&self, time: TimelineTime) -> f64 {
+        self.settings.frame_rate.seconds(time)
+    }
+
+    pub fn duration(&self, time: TimelineTime) -> Duration {
+        self.settings.frame_rate.duration(time)
+    }
+
+    pub fn nearest_time(&self, seconds: f64) -> TimelineTime {
+        self.settings.frame_rate.nearest(seconds)
+    }
+
+    pub fn floor_duration(&self, duration: Duration) -> TimelineTime {
+        self.settings.frame_rate.floor_duration(duration)
+    }
+
+    pub fn audio_duration(&self, time: TimelineTime) -> Duration {
+        let samples = self
+            .settings
+            .frame_rate
+            .audio_samples(time, self.settings.audio_sample_rate);
+        Duration::from_secs_f64(samples as f64 / self.settings.audio_sample_rate as f64)
+    }
+
+    pub fn audio_seconds(&self, time: TimelineTime) -> f64 {
+        self.audio_duration(time).as_secs_f64()
+    }
+
+    pub fn ceil_time(&self, seconds: f64) -> TimelineTime {
+        self.settings.frame_rate.ceil(seconds)
     }
 
     pub fn next_id(&self) -> u64 {
@@ -277,6 +460,15 @@ impl Project {
 
     fn normalize(&mut self) {
         self.version = PROJECT_VERSION;
+        if self.settings.frame_rate.numerator == 0 {
+            self.settings.frame_rate.numerator = 30;
+        }
+        if self.settings.frame_rate.denominator == 0 {
+            self.settings.frame_rate.denominator = 1;
+        }
+        self.settings.width = self.settings.width.max(2);
+        self.settings.height = self.settings.height.max(2);
+        self.settings.audio_sample_rate = self.settings.audio_sample_rate.max(8_000);
         if self.tracks.is_empty() {
             self.tracks = default_tracks();
         }
@@ -285,22 +477,22 @@ impl Project {
                 && clip
                     .asset_id
                     .is_some_and(|id| self.assets.iter().any(|asset| asset.id == id))
-                && clip.timeline_start.is_finite()
-                && clip.timeline_start >= 0.0
-                && clip.source_in.is_finite()
-                && clip.source_out.is_finite()
-                && clip.source_out - clip.source_in >= MIN_CLIP_DURATION
+                && clip.timeline_start >= TimelineTime::ZERO
+                && clip.source_in >= TimelineTime::ZERO
+                && clip.source_out - clip.source_in >= TimelineTime::ONE_FRAME
         });
+        let frame_rate = self.settings.frame_rate;
         for clip in &mut self.clips {
             if let Some(asset) = clip
                 .asset_id
                 .and_then(|id| self.assets.iter().find(|asset| asset.id == id))
             {
-                let maximum_in = (asset.duration - MIN_CLIP_DURATION).max(0.0);
-                clip.source_in = clip.source_in.clamp(0.0, maximum_in);
+                let asset_duration = frame_rate.ceil(asset.duration);
+                let maximum_in = (asset_duration - TimelineTime::ONE_FRAME).max(TimelineTime::ZERO);
+                clip.source_in = clip.source_in.clamp(TimelineTime::ZERO, maximum_in);
                 clip.source_out = clip
                     .source_out
-                    .clamp(clip.source_in + MIN_CLIP_DURATION, asset.duration);
+                    .clamp(clip.source_in + TimelineTime::ONE_FRAME, asset_duration);
             }
         }
         for track in &self.tracks {
@@ -314,10 +506,10 @@ impl Project {
             indices.sort_by(|left, right| {
                 self.clips[*left]
                     .timeline_start
-                    .total_cmp(&self.clips[*right].timeline_start)
+                    .cmp(&self.clips[*right].timeline_start)
                     .then_with(|| self.clips[*left].id.cmp(&self.clips[*right].id))
             });
-            let mut next_available = 0.0_f64;
+            let mut next_available = TimelineTime::ZERO;
             for index in indices {
                 self.clips[index].timeline_start =
                     self.clips[index].timeline_start.max(next_available);
@@ -325,12 +517,16 @@ impl Project {
             }
         }
         self.markers
-            .retain(|marker| marker.time.is_finite() && marker.time >= 0.0);
+            .retain(|marker| marker.time >= TimelineTime::ZERO);
     }
 }
 
 fn default_visible() -> bool {
     true
+}
+
+fn divide_round(numerator: u128, denominator: u128) -> u128 {
+    numerator.saturating_add(denominator / 2) / denominator.max(1)
 }
 
 fn default_tracks() -> Vec<TimelineTrack> {
@@ -384,7 +580,7 @@ pub(super) fn probe_media(path: &Path, id: u64) -> Result<MediaAsset, String> {
             path.display()
         ));
     }
-    if duration < MIN_CLIP_DURATION {
+    if duration < 1.0 / 30.0 {
         return Err(format!("{} is shorter than one frame", path.display()));
     }
 
@@ -482,14 +678,18 @@ fn project_path(project_root: &Path) -> PathBuf {
 mod tests {
     use super::*;
 
-    fn video_clip(id: u64, start: f64, duration: f64) -> TimelineClip {
+    fn frames(value: i64) -> TimelineTime {
+        TimelineTime::from_frames(value)
+    }
+
+    fn video_clip(id: u64, start: i64, duration: i64) -> TimelineClip {
         TimelineClip {
             id,
             track_id: 1,
             asset_id: Some(100),
-            timeline_start: start,
-            source_in: 0.0,
-            source_out: duration,
+            timeline_start: frames(start),
+            source_in: TimelineTime::ZERO,
+            source_out: frames(duration),
         }
     }
 
@@ -512,43 +712,145 @@ mod tests {
     fn finds_the_nearest_gap_without_overlapping_a_track() {
         let project = Project {
             assets: vec![video_asset()],
-            clips: vec![video_clip(10, 0.0, 5.0), video_clip(11, 10.0, 5.0)],
+            clips: vec![video_clip(10, 0, 150), video_clip(11, 300, 150)],
             ..Project::default()
         };
 
-        assert_eq!(project.nearest_available_start(1, None, 4.0, 3.0), 5.0);
-        assert_eq!(project.nearest_available_start(1, None, 8.0, 3.0), 7.0);
-        assert_eq!(project.nearest_available_start(1, None, 14.0, 3.0), 15.0);
+        assert_eq!(
+            project.nearest_available_start(1, None, frames(120), frames(90)),
+            frames(150)
+        );
+        assert_eq!(
+            project.nearest_available_start(1, None, frames(240), frames(90)),
+            frames(210)
+        );
+        assert_eq!(
+            project.nearest_available_start(1, None, frames(420), frames(90)),
+            frames(450)
+        );
     }
 
     #[test]
     fn repairs_overlapping_clips_when_loading_a_project() {
         let mut project = Project {
             assets: vec![video_asset()],
-            clips: vec![video_clip(10, 0.0, 5.0), video_clip(11, 3.0, 4.0)],
+            clips: vec![video_clip(10, 0, 150), video_clip(11, 90, 120)],
             ..Project::default()
         };
 
         project.normalize();
 
-        assert_eq!(project.clips[0].timeline_start, 0.0);
-        assert_eq!(project.clips[1].timeline_start, 5.0);
+        assert_eq!(project.clips[0].timeline_start, frames(0));
+        assert_eq!(project.clips[1].timeline_start, frames(150));
     }
 
     #[test]
     fn keeps_markers_out_of_the_rendered_duration() {
         let project = Project {
             assets: vec![video_asset()],
-            clips: vec![video_clip(10, 0.0, 5.0)],
+            clips: vec![video_clip(10, 0, 150)],
             markers: vec![TimelineMarker {
                 id: 20,
-                time: 42.0,
+                time: frames(1260),
                 label: "Marker 1".into(),
             }],
             ..Project::default()
         };
 
-        assert_eq!(project.content_duration(), 5.0);
-        assert_eq!(project.timeline_duration(), 42.0);
+        assert_eq!(project.content_duration(), frames(150));
+        assert_eq!(project.timeline_duration(), frames(1260));
+    }
+
+    #[test]
+    fn fractional_frame_rates_round_trip_without_drift() {
+        for frame_rate in [
+            FrameRate {
+                numerator: 24_000,
+                denominator: 1_001,
+            },
+            FrameRate {
+                numerator: 30_000,
+                denominator: 1_001,
+            },
+            FrameRate {
+                numerator: 60_000,
+                denominator: 1_001,
+            },
+        ] {
+            let original = frames(1_000_003);
+            let seconds = frame_rate.seconds(original);
+            assert_eq!(frame_rate.nearest(seconds), original);
+        }
+    }
+
+    #[test]
+    fn repeated_frame_splits_preserve_the_total_duration() {
+        let original = frames(10_000);
+        let mut remaining = original;
+        let mut pieces = Vec::new();
+        for split in [1, 17, 301, 999, 2_048] {
+            let piece = frames(split);
+            remaining -= piece;
+            pieces.push(piece);
+        }
+        let reconstructed = pieces
+            .into_iter()
+            .fold(remaining, |duration, piece| duration + piece);
+        assert_eq!(reconstructed, original);
+    }
+
+    #[test]
+    fn long_timeline_duration_uses_exact_frame_counts() {
+        let frame_rate = FrameRate {
+            numerator: 30_000,
+            denominator: 1_001,
+        };
+        let ten_hours = frame_rate.nearest(10.0 * 60.0 * 60.0);
+        assert_eq!(frame_rate.nearest(frame_rate.seconds(ten_hours)), ten_hours);
+        assert_eq!(
+            frame_rate.floor_duration(frame_rate.duration(ten_hours)),
+            ten_hours
+        );
+    }
+
+    #[test]
+    fn preview_and_export_boundaries_share_the_same_frame_time() {
+        let project = Project {
+            settings: ProjectSettings {
+                frame_rate: FrameRate {
+                    numerator: 24_000,
+                    denominator: 1_001,
+                },
+                ..ProjectSettings::default()
+            },
+            ..Project::default()
+        };
+        let boundary = frames(98_765);
+        let preview_duration = project.duration(boundary).as_secs_f64();
+        let export_seconds = project.seconds(boundary);
+        assert!((preview_duration - export_seconds).abs() <= 1.0e-9);
+    }
+
+    #[test]
+    fn project_frames_map_to_exact_audio_samples() {
+        let frame_rate = FrameRate {
+            numerator: 30_000,
+            denominator: 1_001,
+        };
+        assert_eq!(frame_rate.audio_samples(frames(30_000), 48_000), 48_048_000);
+    }
+
+    #[test]
+    fn project_serialization_stores_integer_frames_and_rational_rate() {
+        let project = Project {
+            assets: vec![video_asset()],
+            clips: vec![video_clip(10, 17, 83)],
+            ..Project::default()
+        };
+        let json = serde_json::to_value(project).unwrap();
+        assert_eq!(json["settings"]["frame_rate"]["numerator"], 30);
+        assert_eq!(json["settings"]["frame_rate"]["denominator"], 1);
+        assert_eq!(json["clips"][0]["timeline_start"], 17);
+        assert_eq!(json["clips"][0]["source_out"], 83);
     }
 }

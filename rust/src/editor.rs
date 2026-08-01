@@ -25,7 +25,7 @@ use audio_preview::AudioPreview;
 use explorer::FileContextMenu;
 use export::export_project;
 use model::{
-    MIN_CLIP_DURATION, MediaAsset, MediaKind, Project, TimelineClip, TimelineMarker, TimelineTrack,
+    MediaAsset, MediaKind, Project, TimelineClip, TimelineMarker, TimelineTime, TimelineTrack,
     TrackKind, probe_audio, probe_image, probe_media,
 };
 use preview::PreviewTarget;
@@ -57,6 +57,8 @@ actions!(
     opencut_editor,
     [
         TogglePlayback,
+        StepBackwardFrame,
+        StepForwardFrame,
         DeleteSelected,
         SplitClip,
         Undo,
@@ -74,6 +76,8 @@ actions!(
 pub(crate) fn bind_keys(cx: &mut App) {
     cx.bind_keys([
         KeyBinding::new("space", TogglePlayback, None),
+        KeyBinding::new("left", StepBackwardFrame, None),
+        KeyBinding::new("right", StepForwardFrame, None),
         KeyBinding::new("backspace", DeleteSelected, None),
         KeyBinding::new("delete", DeleteSelected, None),
         KeyBinding::new("cmd-b", SplitClip, None),
@@ -99,17 +103,17 @@ struct TrimDrag {
     clip_id: u64,
     edge: TrimEdge,
     start_x: f32,
-    original_in: f64,
-    original_out: f64,
-    original_timeline_start: f64,
-    asset_duration: f64,
+    original_in: TimelineTime,
+    original_out: TimelineTime,
+    original_timeline_start: TimelineTime,
+    asset_duration: TimelineTime,
     changed: bool,
 }
 
 struct ClipMoveDrag {
     clip_id: u64,
     start_x: f32,
-    original_timeline_start: f64,
+    original_timeline_start: TimelineTime,
     original_track_id: u64,
     changed: bool,
 }
@@ -129,10 +133,10 @@ pub(crate) struct Editor {
     audio_previews: HashMap<u64, AudioPreview>,
     loaded_clip_id: Option<u64>,
     still_playback_started: Option<Instant>,
-    still_playback_origin: f64,
+    still_playback_origin: TimelineTime,
     selected_asset_id: Option<u64>,
     selected_clip_id: Option<u64>,
-    playhead: f64,
+    playhead: TimelineTime,
     playing: bool,
     preview_volume: f64,
     preview_volume_open: bool,
@@ -186,10 +190,10 @@ impl Editor {
             audio_previews: HashMap::new(),
             loaded_clip_id: None,
             still_playback_started: None,
-            still_playback_origin: 0.0,
+            still_playback_origin: TimelineTime::ZERO,
             selected_asset_id,
             selected_clip_id,
-            playhead: 0.0,
+            playhead: TimelineTime::ZERO,
             playing: false,
             preview_volume: 1.0,
             preview_volume_open: false,
@@ -215,7 +219,7 @@ impl Editor {
             focus_handle,
         };
         if !editor.project.clips.is_empty() {
-            editor.load_timeline_position(0.0, false);
+            editor.load_timeline_position(TimelineTime::ZERO, false);
         }
         editor
     }
@@ -310,7 +314,7 @@ impl Editor {
         self.loaded_clip_id = None;
         self.still_playback_started = None;
         self.playing = false;
-        self.playhead = 0.0;
+        self.playhead = TimelineTime::ZERO;
         self.project_root = root;
         self.project = Project::load(&self.project_root);
         self.next_id = self.project.next_id();
@@ -329,7 +333,7 @@ impl Editor {
             self.error = None;
         }
         if !self.project.clips.is_empty() {
-            self.load_timeline_position(0.0, false);
+            self.load_timeline_position(TimelineTime::ZERO, false);
         }
     }
 
@@ -433,13 +437,13 @@ impl Editor {
             track_id,
             asset_id: Some(asset_id),
             timeline_start: self.project.content_duration(),
-            source_in: 0.0,
-            source_out: duration,
+            source_in: TimelineTime::ZERO,
+            source_out: self.project.ceil_time(duration),
         });
         self.selected_asset_id = Some(asset_id);
         self.selected_clip_id = Some(id);
         if self.loaded_clip_id.is_none() {
-            self.load_timeline_position(0.0, false);
+            self.load_timeline_position(TimelineTime::ZERO, false);
         }
     }
 
@@ -456,7 +460,7 @@ impl Editor {
         let timeline_start = self.project.clips[index].timeline_start;
         let clip = self.project.clips[index].clone();
         let local = self.playhead - timeline_start;
-        if local <= MIN_CLIP_DURATION || local >= clip.duration() - MIN_CLIP_DURATION {
+        if local < TimelineTime::ONE_FRAME || local > clip.duration() - TimelineTime::ONE_FRAME {
             self.error =
                 Some("Move the playhead inside the selected clip before splitting.".into());
             return;
@@ -498,7 +502,7 @@ impl Editor {
         self.playing = false;
         if self.project.clips.is_empty() {
             self.selected_clip_id = None;
-            self.playhead = 0.0;
+            self.playhead = TimelineTime::ZERO;
         } else {
             let next_index = index.min(self.project.clips.len() - 1);
             self.selected_clip_id = Some(self.project.clips[next_index].id);
@@ -515,24 +519,18 @@ impl Editor {
         if self.clip_locked(clip_id) {
             return;
         }
-        let frame_duration = self
-            .project
-            .clip(clip_id)
-            .and_then(|clip| clip.asset_id)
-            .and_then(|asset_id| self.project.asset(asset_id))
-            .map(|asset| 1.0 / asset.framerate.max(1.0))
-            .unwrap_or(1.0 / 30.0);
         let Some(clip) = self.project.clip(clip_id) else {
             return;
         };
-        let desired_start = (clip.timeline_start + f64::from(direction) * frame_duration).max(0.0);
+        let desired_start = (clip.timeline_start + TimelineTime::from_frames(i64::from(direction)))
+            .max(TimelineTime::ZERO);
         let start = self.project.nearest_available_start(
             clip.track_id,
             Some(clip_id),
             desired_start,
             clip.duration(),
         );
-        if (start - clip.timeline_start).abs() <= f64::EPSILON {
+        if start == clip.timeline_start {
             return;
         }
         self.checkpoint();
@@ -737,14 +735,15 @@ impl Editor {
             return;
         };
         let clip_id = drag.clip_id;
-        let raw_start = (drag.original_timeline_start
-            + (f32::from(event.position.x) - drag.start_x) as f64 / self.pixels_per_second as f64)
-            .max(0.0);
+        let raw_delta = self.project.settings.frame_rate.delta(
+            (f32::from(event.position.x) - drag.start_x) as f64 / self.pixels_per_second as f64,
+        );
+        let raw_start = (drag.original_timeline_start + raw_delta).max(TimelineTime::ZERO);
         let clip_duration = self
             .project
             .clip(clip_id)
             .map(TimelineClip::duration)
-            .unwrap_or(0.0);
+            .unwrap_or(TimelineTime::ZERO);
         let snapped_start = self.snap_clip_start(raw_start, clip_duration, clip_id);
         let viewport_height = f32::from(window.viewport_size().height);
         let track_top = viewport_height - TIMELINE_HEIGHT + TIMELINE_HEADER_HEIGHT + RULER_HEIGHT;
@@ -816,9 +815,15 @@ impl Editor {
         }
     }
 
-    fn snap_time(&self, time: f64, ignored_clip: Option<u64>) -> f64 {
-        let threshold = SNAP_DISTANCE_PX as f64 / self.pixels_per_second as f64;
-        let mut candidates = vec![0.0, self.playhead];
+    fn snap_time(&self, time: TimelineTime, ignored_clip: Option<u64>) -> TimelineTime {
+        let threshold = self
+            .project
+            .settings
+            .frame_rate
+            .ceil(SNAP_DISTANCE_PX as f64 / self.pixels_per_second as f64)
+            .frames()
+            .max(1) as u64;
+        let mut candidates = vec![TimelineTime::ZERO, self.playhead];
         candidates.extend(self.project.markers.iter().map(|marker| marker.time));
         for clip in &self.project.clips {
             if Some(clip.id) != ignored_clip {
@@ -828,19 +833,24 @@ impl Editor {
         }
         candidates
             .into_iter()
-            .filter(|candidate| (candidate - time).abs() <= threshold)
-            .min_by(|left, right| (left - time).abs().total_cmp(&(right - time).abs()))
+            .filter(|candidate| candidate.abs_diff(time) <= threshold)
+            .min_by_key(|candidate| candidate.abs_diff(time))
             .unwrap_or(time)
-            .max(0.0)
+            .max(TimelineTime::ZERO)
     }
 
-    fn snap_clip_start(&self, start: f64, duration: f64, clip_id: u64) -> f64 {
+    fn snap_clip_start(
+        &self,
+        start: TimelineTime,
+        duration: TimelineTime,
+        clip_id: u64,
+    ) -> TimelineTime {
         let start_candidate = self.snap_time(start, Some(clip_id));
         let end_candidate = self.snap_time(start + duration, Some(clip_id)) - duration;
-        if (end_candidate - start).abs() < (start_candidate - start).abs() {
-            end_candidate.max(0.0)
+        if end_candidate.abs_diff(start) < start_candidate.abs_diff(start) {
+            end_candidate.max(TimelineTime::ZERO)
         } else {
-            start_candidate.max(0.0)
+            start_candidate.max(TimelineTime::ZERO)
         }
     }
 
@@ -861,8 +871,8 @@ impl Editor {
         let asset_duration = clip
             .asset_id
             .and_then(|id| self.project.asset(id))
-            .map(|asset| asset.duration)
-            .unwrap_or(f64::INFINITY);
+            .map(|asset| self.project.ceil_time(asset.duration))
+            .unwrap_or(TimelineTime::MAX);
         if let Some(video) = &self.video {
             video.set_paused(true);
         }
@@ -898,9 +908,10 @@ impl Editor {
         let Some((previous_end, next_start)) = self.project.trim_limits(clip_id) else {
             return;
         };
-        let raw_delta =
-            (f32::from(event.position.x) - drag.start_x) as f64 / self.pixels_per_second as f64;
-        if raw_delta.abs() <= f64::EPSILON {
+        let raw_delta = self.project.settings.frame_rate.delta(
+            (f32::from(event.position.x) - drag.start_x) as f64 / self.pixels_per_second as f64,
+        );
+        if raw_delta == TimelineTime::ZERO {
             return;
         }
         if !drag.changed {
@@ -914,10 +925,10 @@ impl Editor {
         };
         match edge {
             TrimEdge::Left => {
-                let raw_start = (original_timeline_start + raw_delta).max(0.0);
+                let raw_start = (original_timeline_start + raw_delta).max(TimelineTime::ZERO);
                 let original_end = original_timeline_start + original_out - original_in;
                 let earliest_start = previous_end.max(original_timeline_start - original_in);
-                let latest_start = original_end - MIN_CLIP_DURATION;
+                let latest_start = original_end - TimelineTime::ONE_FRAME;
                 let start = self
                     .snap_time(raw_start, Some(clip_id))
                     .clamp(earliest_start, latest_start);
@@ -926,9 +937,10 @@ impl Editor {
             }
             TrimEdge::Right => {
                 let original_end = original_timeline_start + original_out - original_in;
-                let earliest_end = original_timeline_start + MIN_CLIP_DURATION;
+                let earliest_end = original_timeline_start + TimelineTime::ONE_FRAME;
                 let latest_end = next_start.min(
-                    original_timeline_start + (asset_duration - original_in).max(MIN_CLIP_DURATION),
+                    original_timeline_start
+                        + (asset_duration - original_in).max(TimelineTime::ONE_FRAME),
                 );
                 let end = self
                     .snap_time(original_end + raw_delta, Some(clip_id))
@@ -1057,10 +1069,10 @@ impl Editor {
         self.loaded_clip_id = None;
         self.still_playback_started = None;
         self.playing = false;
-        self.playhead = 0.0;
+        self.playhead = TimelineTime::ZERO;
         self.selected_clip_id = self.project.clips.first().map(|clip| clip.id);
         if !self.project.clips.is_empty() {
-            self.load_timeline_position(0.0, false);
+            self.load_timeline_position(TimelineTime::ZERO, false);
         }
         self.next_id = self.next_id.max(self.project.next_id());
         self.save_project();
@@ -1085,7 +1097,9 @@ impl Editor {
     fn seek_from_timeline_x(&mut self, x: f32) {
         let scroll_x: f32 = self.timeline_scroll.offset().x.into();
         let content_x = x - TRACK_HEADER_WIDTH - scroll_x - TIMELINE_PADDING;
-        let position = content_x as f64 / self.pixels_per_second as f64;
+        let position = self
+            .project
+            .nearest_time(content_x as f64 / self.pixels_per_second as f64);
         self.load_timeline_position(position, false);
     }
 
@@ -1119,6 +1133,17 @@ impl Editor {
         }
     }
 
+    fn step_playhead(&mut self, frames: i64) {
+        if self.project.clips.is_empty() {
+            return;
+        }
+        let target = (self.playhead + TimelineTime::from_frames(frames))
+            .clamp(TimelineTime::ZERO, self.project.timeline_duration());
+        if target != self.playhead || self.preview_target != PreviewTarget::Timeline {
+            self.load_timeline_position(target, false);
+        }
+    }
+
     fn action_toggle_playback(
         &mut self,
         _: &TogglePlayback,
@@ -1126,6 +1151,26 @@ impl Editor {
         cx: &mut Context<Self>,
     ) {
         self.toggle_playback();
+        cx.notify();
+    }
+
+    fn action_step_backward_frame(
+        &mut self,
+        _: &StepBackwardFrame,
+        _: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        self.step_playhead(-1);
+        cx.notify();
+    }
+
+    fn action_step_forward_frame(
+        &mut self,
+        _: &StepForwardFrame,
+        _: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        self.step_playhead(1);
         cx.notify();
     }
 
@@ -1199,7 +1244,6 @@ impl Editor {
     ) {
         window.toggle_inspector(cx);
     }
-
 }
 
 fn format_time(seconds: f64) -> String {

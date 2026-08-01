@@ -76,6 +76,7 @@ Supported file extensions:
 | Shortcut | Action |
 | --- | --- |
 | `Space` | Play or pause |
+| `Left` / `Right` | Move the playhead backward or forward one project frame |
 | `Command-B` | Split the selected clip at the playhead |
 | `Backspace` / `Delete` | Delete the selected clip |
 | `Command-D` | Duplicate the selected clip |
