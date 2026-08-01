@@ -18,6 +18,7 @@ impl Render for Editor {
                 .on_action(cx.listener(Self::action_toggle_playback))
                 .on_action(cx.listener(Self::action_toggle_fullscreen))
                 .on_action(cx.listener(Self::action_exit_fullscreen))
+                .on_action(cx.listener(Self::action_toggle_inspector))
                 .size_full()
                 .overflow_hidden()
                 .bg(rgb(0x000000))
@@ -47,6 +48,7 @@ impl Render for Editor {
             .on_action(cx.listener(Self::action_add_marker))
             .on_action(cx.listener(Self::action_toggle_fullscreen))
             .on_action(cx.listener(Self::action_exit_fullscreen))
+            .on_action(cx.listener(Self::action_toggle_inspector))
             .on_action(cx.listener(Self::action_reveal_in_finder))
             .on_action(cx.listener(Self::action_open_in_default_app))
             .on_mouse_down(
