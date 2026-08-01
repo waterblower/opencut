@@ -470,10 +470,8 @@ impl Editor {
                     .overflow_y_scroll()
                     .p_4()
                     .when_some(selected, |this, (clip, asset, track)| {
-                        let title = clip
-                            .text
-                            .clone()
-                            .or_else(|| asset.map(|asset| asset.name.clone()))
+                        let title = asset
+                            .map(|asset| asset.name.clone())
                             .unwrap_or_else(|| "Missing media".to_string());
                         this.flex()
                             .flex_col()
@@ -713,16 +711,13 @@ impl Editor {
                         let clip_id = clip.id;
                         let selected = self.selected_clip_id == Some(clip_id);
                         let asset = clip.asset_id.and_then(|id| self.project.asset(id));
-                        let name = clip
-                            .text
-                            .clone()
-                            .or_else(|| asset.map(|asset| asset.name.clone()))
+                        let name = asset
+                            .map(|asset| asset.name.clone())
                             .unwrap_or_else(|| "Missing media".to_string());
                         let left =
                             TIMELINE_PADDING + clip.timeline_start as f32 * self.pixels_per_second;
                         let width = (clip.duration() as f32 * self.pixels_per_second).max(4.0);
                         let color = match track.kind {
-                            TrackKind::Text => 0x9a4f3c,
                             TrackKind::Video => CLIP_BLUE,
                             TrackKind::Audio => 0x24656b,
                         };
@@ -918,18 +913,6 @@ impl Editor {
                                     cx.notify();
                                 }),
                             ))
-                            .child(timeline_icon_button("add-text-track", "+T").on_click(
-                                cx.listener(|editor, _, _, cx| {
-                                    editor.add_track(TrackKind::Text);
-                                    cx.notify();
-                                }),
-                            ))
-                            .child(timeline_icon_button("add-title", "Title").on_click(
-                                cx.listener(|editor, _, _, cx| {
-                                    editor.add_text_clip();
-                                    cx.notify();
-                                }),
-                            ))
                             .child(
                                 timeline_icon_button("add-marker", "◆").on_click(cx.listener(
                                     |editor, _, _, cx| {
@@ -1114,7 +1097,6 @@ fn track_button(id: impl Into<gpui::ElementId>, label: &'static str) -> gpui::St
 
 fn track_kind_label(kind: TrackKind) -> &'static str {
     match kind {
-        TrackKind::Text => "T",
         TrackKind::Video => "V",
         TrackKind::Audio => "A",
     }

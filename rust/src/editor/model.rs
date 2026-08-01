@@ -9,7 +9,7 @@ use std::{
 
 pub(super) const MIN_CLIP_DURATION: f64 = 1.0 / 30.0;
 pub(super) const DEFAULT_IMAGE_DURATION: f64 = 5.0;
-pub(super) const PROJECT_VERSION: u32 = 2;
+pub(super) const PROJECT_VERSION: u32 = 3;
 
 #[derive(Clone, Copy, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "snake_case")]
@@ -23,7 +23,6 @@ pub(super) enum MediaKind {
 #[derive(Clone, Copy, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub(super) enum TrackKind {
-    Text,
     #[default]
     Video,
     Audio,
@@ -50,8 +49,6 @@ pub(super) struct TimelineClip {
     pub track_id: u64,
     #[serde(default)]
     pub asset_id: Option<u64>,
-    #[serde(default)]
-    pub text: Option<String>,
     pub timeline_start: f64,
     pub source_in: f64,
     pub source_out: f64,
@@ -91,37 +88,13 @@ pub(super) struct TimelineMarker {
     pub label: String,
 }
 
-#[derive(Clone, Debug, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub(super) struct Project {
     pub version: u32,
     pub assets: Vec<MediaAsset>,
     pub tracks: Vec<TimelineTrack>,
     pub clips: Vec<TimelineClip>,
     pub markers: Vec<TimelineMarker>,
-}
-
-#[derive(Deserialize)]
-struct ProjectFile {
-    #[serde(default)]
-    version: u32,
-    #[serde(default)]
-    assets: Vec<MediaAsset>,
-    #[serde(default)]
-    tracks: Vec<TimelineTrack>,
-    #[serde(default)]
-    clips: Vec<TimelineClip>,
-    #[serde(default)]
-    timeline: Vec<LegacyClip>,
-    #[serde(default)]
-    markers: Vec<TimelineMarker>,
-}
-
-#[derive(Deserialize)]
-struct LegacyClip {
-    id: u64,
-    asset_id: u64,
-    source_in: f64,
-    source_out: f64,
 }
 
 impl Default for Project {
@@ -147,9 +120,8 @@ impl Project {
                 return Self::default();
             }
         };
-        match serde_json::from_str::<ProjectFile>(&contents) {
-            Ok(file) => {
-                let mut project = Self::from_file(file);
+        match serde_json::from_str::<Self>(&contents) {
+            Ok(mut project) => {
                 project.normalize();
                 project
             }
@@ -310,10 +282,9 @@ impl Project {
         }
         self.clips.retain(|clip| {
             self.tracks.iter().any(|track| track.id == clip.track_id)
-                && (clip.text.is_some()
-                    || clip
-                        .asset_id
-                        .is_some_and(|id| self.assets.iter().any(|asset| asset.id == id)))
+                && clip
+                    .asset_id
+                    .is_some_and(|id| self.assets.iter().any(|asset| asset.id == id))
                 && clip.timeline_start.is_finite()
                 && clip.timeline_start >= 0.0
                 && clip.source_in.is_finite()
@@ -356,51 +327,6 @@ impl Project {
         self.markers
             .retain(|marker| marker.time.is_finite() && marker.time >= 0.0);
     }
-
-    fn from_file(file: ProjectFile) -> Self {
-        if file.version >= PROJECT_VERSION || !file.tracks.is_empty() || !file.clips.is_empty() {
-            return Self {
-                version: PROJECT_VERSION,
-                assets: file.assets,
-                tracks: file.tracks,
-                clips: file.clips,
-                markers: file.markers,
-            };
-        }
-
-        let tracks = default_tracks();
-        let video_track_id = tracks
-            .iter()
-            .find(|track| track.kind == TrackKind::Video)
-            .map(|track| track.id)
-            .unwrap_or(2);
-        let mut timeline_start = 0.0;
-        let clips = file
-            .timeline
-            .into_iter()
-            .map(|clip| {
-                let duration = (clip.source_out - clip.source_in).max(0.0);
-                let migrated = TimelineClip {
-                    id: clip.id,
-                    track_id: video_track_id,
-                    asset_id: Some(clip.asset_id),
-                    text: None,
-                    timeline_start,
-                    source_in: clip.source_in,
-                    source_out: clip.source_out,
-                };
-                timeline_start += duration;
-                migrated
-            })
-            .collect();
-        Self {
-            version: PROJECT_VERSION,
-            assets: file.assets,
-            tracks,
-            clips,
-            markers: file.markers,
-        }
-    }
 }
 
 fn default_visible() -> bool {
@@ -411,14 +337,6 @@ fn default_tracks() -> Vec<TimelineTrack> {
     vec![
         TimelineTrack {
             id: 1,
-            name: "Text 1".into(),
-            kind: TrackKind::Text,
-            locked: false,
-            muted: false,
-            visible: true,
-        },
-        TimelineTrack {
-            id: 2,
             name: "Video 1".into(),
             kind: TrackKind::Video,
             locked: false,
@@ -426,7 +344,7 @@ fn default_tracks() -> Vec<TimelineTrack> {
             visible: true,
         },
         TimelineTrack {
-            id: 3,
+            id: 2,
             name: "Audio 1".into(),
             kind: TrackKind::Audio,
             locked: false,
@@ -564,57 +482,37 @@ fn project_path(project_root: &Path) -> PathBuf {
 mod tests {
     use super::*;
 
-    fn text_clip(id: u64, start: f64, duration: f64) -> TimelineClip {
+    fn video_clip(id: u64, start: f64, duration: f64) -> TimelineClip {
         TimelineClip {
             id,
             track_id: 1,
-            asset_id: None,
-            text: Some(format!("Clip {id}")),
+            asset_id: Some(100),
             timeline_start: start,
             source_in: 0.0,
             source_out: duration,
         }
     }
 
-    #[test]
-    fn migrates_sequential_project_to_positioned_video_track() {
-        let file: ProjectFile = serde_json::from_str(
-            r#"{
-                "assets": [{
-                    "id": 10,
-                    "path": "clip.mp4",
-                    "name": "clip",
-                    "duration": 8.0,
-                    "width": 1920,
-                    "height": 1080,
-                    "framerate": 30.0,
-                    "codec": "h264",
-                    "has_audio": true
-                }],
-                "timeline": [
-                    {"id": 20, "asset_id": 10, "source_in": 1.0, "source_out": 4.0},
-                    {"id": 21, "asset_id": 10, "source_in": 2.0, "source_out": 6.0}
-                ]
-            }"#,
-        )
-        .unwrap();
-        let project = Project::from_file(file);
-
-        assert_eq!(project.version, PROJECT_VERSION);
-        assert_eq!(project.clips.len(), 2);
-        assert_eq!(project.clips[0].timeline_start, 0.0);
-        assert_eq!(project.clips[1].timeline_start, 3.0);
-        assert_eq!(project.timeline_duration(), 7.0);
-        assert_eq!(
-            project.track(project.clips[0].track_id).unwrap().kind,
-            TrackKind::Video
-        );
+    fn video_asset() -> MediaAsset {
+        MediaAsset {
+            id: 100,
+            kind: MediaKind::Video,
+            path: "clip.mp4".into(),
+            name: "clip".into(),
+            duration: 30.0,
+            width: 1920,
+            height: 1080,
+            framerate: 30.0,
+            codec: "h264".into(),
+            has_audio: true,
+        }
     }
 
     #[test]
     fn finds_the_nearest_gap_without_overlapping_a_track() {
         let project = Project {
-            clips: vec![text_clip(10, 0.0, 5.0), text_clip(11, 10.0, 5.0)],
+            assets: vec![video_asset()],
+            clips: vec![video_clip(10, 0.0, 5.0), video_clip(11, 10.0, 5.0)],
             ..Project::default()
         };
 
@@ -626,7 +524,8 @@ mod tests {
     #[test]
     fn repairs_overlapping_clips_when_loading_a_project() {
         let mut project = Project {
-            clips: vec![text_clip(10, 0.0, 5.0), text_clip(11, 3.0, 4.0)],
+            assets: vec![video_asset()],
+            clips: vec![video_clip(10, 0.0, 5.0), video_clip(11, 3.0, 4.0)],
             ..Project::default()
         };
 
@@ -639,7 +538,8 @@ mod tests {
     #[test]
     fn keeps_markers_out_of_the_rendered_duration() {
         let project = Project {
-            clips: vec![text_clip(10, 0.0, 5.0)],
+            assets: vec![video_asset()],
+            clips: vec![video_clip(10, 0.0, 5.0)],
             markers: vec![TimelineMarker {
                 id: 20,
                 time: 42.0,

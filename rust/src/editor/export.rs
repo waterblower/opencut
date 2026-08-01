@@ -25,7 +25,7 @@ pub(super) fn export_project(
     let first_visual_asset = project
         .tracks
         .iter()
-        .filter(|track| track.kind != TrackKind::Audio)
+        .filter(|track| track.kind == TrackKind::Video)
         .flat_map(|track| project.clips_on_track(track.id))
         .filter_map(|clip| clip.asset_id.and_then(|id| project.asset(id)))
         .next();
@@ -171,50 +171,41 @@ fn build_video_graph(
         .tracks
         .iter()
         .rev()
-        .filter(|track| track.visible && track.kind != TrackKind::Audio)
+        .filter(|track| track.visible && track.kind == TrackKind::Video)
     {
         let mut clips = project.clips_on_track(track.id).collect::<Vec<_>>();
         clips.sort_by(|left, right| left.timeline_start.total_cmp(&right.timeline_start));
         for clip in clips {
             visual_number += 1;
             let output_label = format!("visual{visual_number}");
-            if let Some(text) = &clip.text {
-                filters.push(format!(
-                    "[{visual_label}]drawtext=text='{}':expansion=none:fontcolor=white:fontsize=h/12:x=(w-text_w)/2:y=(h-text_h)/2:enable='between(t,{},{})'[{output_label}]",
-                    escape_filter_value(text),
-                    decimal(clip.timeline_start),
-                    decimal(clip.timeline_end())
-                ));
+            let asset = clip
+                .asset_id
+                .and_then(|id| project.asset(id))
+                .ok_or_else(|| format!("Clip {} has no source media.", clip.id))?;
+            let source = escape_filter_value(&project_root.join(&asset.path).to_string_lossy());
+            let prepared = format!("prepared{visual_number}");
+            let source_filter = if asset.kind == MediaKind::Image {
+                format!(
+                    "movie=filename='{source}',setpts=PTS-STARTPTS,tpad=stop_mode=clone:stop_duration={},trim=duration={}",
+                    decimal(clip.duration()),
+                    decimal(clip.duration())
+                )
             } else {
-                let asset = clip
-                    .asset_id
-                    .and_then(|id| project.asset(id))
-                    .ok_or_else(|| format!("Clip {} has no source media.", clip.id))?;
-                let source = escape_filter_value(&project_root.join(&asset.path).to_string_lossy());
-                let prepared = format!("prepared{visual_number}");
-                let source_filter = if asset.kind == MediaKind::Image {
-                    format!(
-                        "movie=filename='{source}',setpts=PTS-STARTPTS,tpad=stop_mode=clone:stop_duration={},trim=duration={}",
-                        decimal(clip.duration()),
-                        decimal(clip.duration())
-                    )
-                } else {
-                    format!(
-                        "movie=filename='{source}',trim=start={}:duration={},setpts=PTS-STARTPTS",
-                        decimal(clip.source_in),
-                        decimal(clip.duration())
-                    )
-                };
-                filters.push(format!(
-                    "{source_filter},scale={width}:{height}:force_original_aspect_ratio=decrease,format=rgba,setpts=PTS+{}/TB[{prepared}]",
-                    decimal(clip.timeline_start)
-                ));
-                filters.push(format!(
-                    "[{visual_label}][{prepared}]overlay=x=(W-w)/2:y=(H-h)/2:eof_action=pass:enable='between(t,{},{})'[{output_label}]",
-                    decimal(clip.timeline_start),
-                    decimal(clip.timeline_end())
-                ));
-            }
+                format!(
+                    "movie=filename='{source}',trim=start={}:duration={},setpts=PTS-STARTPTS",
+                    decimal(clip.source_in),
+                    decimal(clip.duration())
+                )
+            };
+            filters.push(format!(
+                "{source_filter},scale={width}:{height}:force_original_aspect_ratio=decrease,format=rgba,setpts=PTS+{}/TB[{prepared}]",
+                decimal(clip.timeline_start)
+            ));
+            filters.push(format!(
+                "[{visual_label}][{prepared}]overlay=x=(W-w)/2:y=(H-h)/2:eof_action=pass:enable='between(t,{},{})'[{output_label}]",
+                decimal(clip.timeline_start),
+                decimal(clip.timeline_end())
+            ));
             visual_label = output_label;
         }
     }
@@ -541,7 +532,6 @@ mod tests {
             id: 11,
             track_id: video_track,
             asset_id: Some(10),
-            text: None,
             timeline_start: 0.0,
             source_in: 0.0,
             source_out: 0.1,
@@ -594,12 +584,6 @@ mod tests {
             .find(|track| track.kind == TrackKind::Video)
             .unwrap()
             .id;
-        let text_track = project
-            .tracks
-            .iter()
-            .find(|track| track.kind == TrackKind::Text)
-            .unwrap()
-            .id;
         project.assets.push(MediaAsset {
             id: 10,
             kind: MediaKind::Video,
@@ -616,16 +600,6 @@ mod tests {
             id: 11,
             track_id: video_track,
             asset_id: Some(10),
-            text: None,
-            timeline_start: 0.0,
-            source_in: 0.0,
-            source_out: 0.1,
-        });
-        project.clips.push(TimelineClip {
-            id: 12,
-            track_id: text_track,
-            asset_id: None,
-            text: Some("It's a title".to_string()),
             timeline_start: 0.0,
             source_in: 0.0,
             source_out: 0.1,
