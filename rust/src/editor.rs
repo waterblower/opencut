@@ -5,29 +5,37 @@ use gpui::{
     actions, div, img, prelude::*, px, rgb,
 };
 use std::{
-    collections::HashSet,
+    collections::{HashMap, HashSet},
     path::PathBuf,
     time::{Duration, Instant},
 };
 use url::Url;
 
+mod audio_preview;
 mod export;
+mod media_cache;
 mod model;
 mod view;
 mod workspace;
 
+use audio_preview::AudioPreview;
 use export::export_project;
 use model::{
-    MIN_CLIP_DURATION, MediaAsset, MediaKind, Project, TimelineClip, probe_image, probe_media,
+    MIN_CLIP_DURATION, MediaAsset, MediaKind, Project, TimelineClip, TimelineMarker, TimelineTrack,
+    TrackKind, probe_audio, probe_image, probe_media,
 };
 use workspace::{FileTreeEntry, load_project_root, save_project_root, visible_tree};
 
 const MEDIA_PANEL_WIDTH: f32 = 264.0;
 const INSPECTOR_WIDTH: f32 = 292.0;
 const TOPBAR_HEIGHT: f32 = 64.0;
-const TIMELINE_HEIGHT: f32 = 238.0;
+const TIMELINE_HEIGHT: f32 = 420.0;
 const TIMELINE_HEADER_HEIGHT: f32 = 46.0;
 const TIMELINE_PADDING: f32 = 20.0;
+const TRACK_HEADER_WIDTH: f32 = 190.0;
+const TRACK_HEIGHT: f32 = 74.0;
+const RULER_HEIGHT: f32 = 28.0;
+const SNAP_DISTANCE_PX: f32 = 8.0;
 
 const BACKGROUND: u32 = 0x080809;
 const PANEL: u32 = 0x0d0d0f;
@@ -48,6 +56,8 @@ actions!(
         SplitClip,
         Undo,
         Redo,
+        DuplicateSelected,
+        AddMarker,
         RevealInFinder,
         OpenInDefaultApp
     ]
@@ -61,6 +71,8 @@ pub(crate) fn bind_keys(cx: &mut App) {
         KeyBinding::new("cmd-b", SplitClip, None),
         KeyBinding::new("cmd-z", Undo, None),
         KeyBinding::new("cmd-shift-z", Redo, None),
+        KeyBinding::new("cmd-d", DuplicateSelected, None),
+        KeyBinding::new("shift-m", AddMarker, None),
         KeyBinding::new("cmd-alt-r", RevealInFinder, None),
         KeyBinding::new("ctrl-shift-enter", OpenInDefaultApp, None),
     ]);
@@ -78,7 +90,17 @@ struct TrimDrag {
     start_x: f32,
     original_in: f64,
     original_out: f64,
+    original_timeline_start: f64,
     asset_duration: f64,
+    changed: bool,
+}
+
+struct ClipMoveDrag {
+    clip_id: u64,
+    start_x: f32,
+    original_timeline_start: f64,
+    original_track_id: u64,
+    changed: bool,
 }
 
 #[derive(Clone)]
@@ -95,8 +117,11 @@ pub(crate) struct Editor {
     expanded_directories: HashSet<PathBuf>,
     selected_file: Option<PathBuf>,
     file_context_menu: Option<FileContextMenu>,
+    media_cache_jobs: HashSet<u64>,
+    media_cache_ready: HashSet<u64>,
     last_tree_scan: Instant,
     video: Option<Video>,
+    audio_previews: HashMap<u64, AudioPreview>,
     loaded_clip_id: Option<u64>,
     still_playback_started: Option<Instant>,
     still_playback_origin: f64,
@@ -110,7 +135,10 @@ pub(crate) struct Editor {
     undo_stack: Vec<Project>,
     redo_stack: Vec<Project>,
     trim_drag: Option<TrimDrag>,
+    clip_move_drag: Option<ClipMoveDrag>,
+    is_scrubbing_playhead: bool,
     timeline_scroll: ScrollHandle,
+    timeline_vertical_scroll: ScrollHandle,
     exporting: bool,
     status: Option<String>,
     error: Option<String>,
@@ -125,7 +153,7 @@ impl Editor {
         let project = Project::load(&project_root);
         let next_id = project.next_id();
         let selected_asset_id = project.assets.first().map(|asset| asset.id);
-        let selected_clip_id = project.timeline.first().map(|clip| clip.id);
+        let selected_clip_id = project.clips.first().map(|clip| clip.id);
         let focus_handle = cx.focus_handle();
         focus_handle.focus(window);
         Self::start_updates(cx);
@@ -137,8 +165,11 @@ impl Editor {
             expanded_directories,
             selected_file: None,
             file_context_menu: None,
+            media_cache_jobs: HashSet::new(),
+            media_cache_ready: HashSet::new(),
             last_tree_scan: Instant::now(),
             video: None,
+            audio_previews: HashMap::new(),
             loaded_clip_id: None,
             still_playback_started: None,
             still_playback_origin: 0.0,
@@ -152,13 +183,16 @@ impl Editor {
             undo_stack: Vec::new(),
             redo_stack: Vec::new(),
             trim_drag: None,
+            clip_move_drag: None,
+            is_scrubbing_playhead: false,
             timeline_scroll: ScrollHandle::new(),
+            timeline_vertical_scroll: ScrollHandle::new(),
             exporting: false,
             status: None,
             error: None,
             focus_handle,
         };
-        if !editor.project.timeline.is_empty() {
+        if !editor.project.clips.is_empty() {
             editor.load_timeline_position(0.0, false);
         }
         editor
@@ -180,6 +214,7 @@ impl Editor {
                             editor.preview_refresh_ticks.saturating_sub(1);
                         if refresh_tree {
                             editor.refresh_file_tree();
+                            editor.schedule_missing_media_cache(cx);
                         }
                         editor.update_playback();
                         if should_render {
@@ -199,65 +234,42 @@ impl Editor {
         if !self.playing {
             return;
         }
-        let Some(clip_id) = self.loaded_clip_id else {
+        let Some(started) = self.still_playback_started else {
             self.playing = false;
+            self.pause_audio_previews();
             return;
         };
-        let Some(index) = self.project.clip_index(clip_id) else {
-            self.playing = false;
-            return;
-        };
-        let clip = &self.project.timeline[index];
-        let media_kind = self
-            .project
-            .asset(clip.asset_id)
-            .map(|asset| asset.kind)
-            .unwrap_or_default();
-
-        if media_kind == MediaKind::Image {
-            let Some(started) = self.still_playback_started else {
-                self.playing = false;
-                return;
-            };
-            let clip_end = self.project.timeline_start(index) + clip.duration();
-            self.playhead =
-                (self.still_playback_origin + started.elapsed().as_secs_f64()).clamp(0.0, clip_end);
-            if self.playhead + 1.0 / 120.0 >= clip_end {
-                if index + 1 < self.project.timeline.len() {
-                    let next_start = self.project.timeline_start(index + 1);
-                    self.load_timeline_position(next_start, true);
-                } else {
-                    self.still_playback_started = None;
-                    self.playing = false;
-                    self.playhead = self.project.timeline_duration();
-                }
-            }
-            return;
-        }
-
-        let Some(video) = self.video.as_ref() else {
-            self.playing = false;
-            return;
-        };
-        let source_position = video.position().as_secs_f64();
-        self.playhead = self.project.timeline_start(index)
-            + (source_position - clip.source_in).clamp(0.0, clip.duration());
-
-        let tolerance = self
-            .project
-            .asset(clip.asset_id)
-            .map(|asset| 0.5 / asset.framerate.max(1.0))
-            .unwrap_or(1.0 / 60.0);
-        if source_position + tolerance >= clip.source_out || video.eos() {
-            if index + 1 < self.project.timeline.len() {
-                let next_start = self.project.timeline_start(index + 1);
-                self.load_timeline_position(next_start, true);
-            } else {
+        self.playhead = self.still_playback_origin + started.elapsed().as_secs_f64();
+        let duration = self.project.timeline_duration();
+        if self.playhead >= duration {
+            if let Some(video) = &self.video {
                 video.set_paused(true);
-                self.playing = false;
-                self.playhead = self.project.timeline_duration();
+            }
+            self.pause_audio_previews();
+            self.playhead = duration;
+            self.playing = false;
+            self.still_playback_started = None;
+            return;
+        }
+
+        let desired_clip_id = self
+            .project
+            .visual_clip_at_time(self.playhead)
+            .map(|clip| clip.id);
+        if desired_clip_id != self.loaded_clip_id {
+            self.load_timeline_position(self.playhead, true);
+            return;
+        }
+
+        if let (Some(clip_id), Some(video)) = (self.loaded_clip_id, self.video.as_ref())
+            && let Some(clip) = self.project.clip(clip_id)
+        {
+            let expected = clip.source_in + (self.playhead - clip.timeline_start);
+            if (video.position().as_secs_f64() - expected).abs() > 0.25 {
+                let _ = video.seek(Duration::from_secs_f64(expected.max(0.0)), false);
             }
         }
+        self.sync_audio_previews(self.playhead, true);
     }
 
     fn load_timeline_position(&mut self, position: f64, play: bool) {
@@ -265,18 +277,31 @@ impl Editor {
         self.file_context_menu = None;
         let duration = self.project.timeline_duration();
         let position = position.clamp(0.0, duration);
-        let Some((index, local_position)) = self.project.clip_at_time(position) else {
+        let clip = self.project.visual_clip_at_time(position).cloned();
+        self.still_playback_origin = position;
+        self.still_playback_started = play.then(Instant::now);
+        self.playhead = position;
+        self.playing = play;
+
+        let Some(clip) = clip else {
+            if let Some(video) = &self.video {
+                video.set_paused(true);
+            }
             self.video = None;
             self.loaded_clip_id = None;
-            self.playhead = 0.0;
-            self.playing = false;
+            self.sync_audio_previews(position, play);
+            self.preview_refresh_ticks = 2;
             return;
         };
-        let clip = self.project.timeline[index].clone();
-        let Some(asset) = self.project.asset(clip.asset_id).cloned() else {
+
+        let Some(asset_id) = clip.asset_id else {
+            return;
+        };
+        let Some(asset) = self.project.asset(asset_id).cloned() else {
             self.error = Some("The selected clip's source file is missing.".to_string());
             return;
         };
+        let local_position = (position - clip.timeline_start).clamp(0.0, clip.duration());
         let source_position = (clip.source_in + local_position).min(clip.source_out);
 
         if asset.kind == MediaKind::Image {
@@ -285,8 +310,6 @@ impl Editor {
             }
             self.video = None;
             self.loaded_clip_id = Some(clip.id);
-            self.still_playback_origin = position;
-            self.still_playback_started = play.then(Instant::now);
         } else if self.loaded_clip_id != Some(clip.id) {
             let source_path = self.project_root.join(&asset.path);
             let Ok(url) = Url::from_file_path(&source_path) else {
@@ -304,7 +327,6 @@ impl Editor {
                 Ok(video) => {
                     self.video = Some(video);
                     self.loaded_clip_id = Some(clip.id);
-                    self.still_playback_started = None;
                 }
                 Err(error) => {
                     self.error = Some(format!("Could not preview {}: {error}", asset.name));
@@ -317,24 +339,87 @@ impl Editor {
             && let Some(video) = &self.video
         {
             let _ = video.seek(Duration::from_secs_f64(source_position), true);
+            let muted = self
+                .project
+                .track(clip.track_id)
+                .is_some_and(|track| track.muted);
+            video.set_muted(muted);
             video.set_paused(!play);
         }
-        self.playhead = position;
-        self.playing = play;
         self.preview_refresh_ticks = 12;
-        self.selected_clip_id = Some(clip.id);
-        self.selected_asset_id = Some(clip.asset_id);
+        self.selected_asset_id = Some(asset_id);
         self.error = None;
+        self.sync_audio_previews(position, play);
+    }
+
+    fn sync_audio_previews(&mut self, position: f64, play: bool) {
+        let loaded_clip_id = self.loaded_clip_id;
+        let desired = self
+            .project
+            .clips
+            .iter()
+            .filter(|clip| clip.contains(position) && Some(clip.id) != loaded_clip_id)
+            .filter_map(|clip| {
+                let track = self.project.track(clip.track_id)?;
+                let asset = self.project.asset(clip.asset_id?)?;
+                if track.muted || !asset.has_audio {
+                    return None;
+                }
+                let source_position =
+                    clip.source_in + (position - clip.timeline_start).clamp(0.0, clip.duration());
+                let path = self.project_root.join(&asset.path);
+                let url = Url::from_file_path(path).ok()?;
+                Some((clip.id, source_position, url))
+            })
+            .collect::<Vec<_>>();
+        let desired_ids = desired
+            .iter()
+            .map(|(clip_id, _, _)| *clip_id)
+            .collect::<HashSet<_>>();
+
+        self.audio_previews
+            .retain(|clip_id, _| desired_ids.contains(clip_id));
+        for (clip_id, source_position, url) in desired {
+            if let std::collections::hash_map::Entry::Vacant(entry) =
+                self.audio_previews.entry(clip_id)
+            {
+                match AudioPreview::new(&url) {
+                    Ok(preview) => {
+                        preview.seek(Duration::from_secs_f64(source_position.max(0.0)));
+                        preview.set_playing(play);
+                        entry.insert(preview);
+                    }
+                    Err(error) => {
+                        self.error = Some(error);
+                        continue;
+                    }
+                }
+            }
+            if let Some(preview) = self.audio_previews.get(&clip_id) {
+                let expected = Duration::from_secs_f64(source_position.max(0.0));
+                if preview.position().abs_diff(expected) > Duration::from_millis(250) {
+                    preview.seek(expected);
+                }
+                preview.set_playing(play);
+            }
+        }
+    }
+
+    fn pause_audio_previews(&self) {
+        for preview in self.audio_previews.values() {
+            preview.set_playing(false);
+        }
     }
 
     fn toggle_playback(&mut self) {
-        if self.project.timeline.is_empty() {
+        if self.project.clips.is_empty() {
             return;
         }
         if self.playing {
             if let Some(video) = &self.video {
                 video.set_paused(true);
             }
+            self.pause_audio_previews();
             self.still_playback_started = None;
             self.playing = false;
             return;
@@ -346,15 +431,6 @@ impl Editor {
             self.playhead
         };
         self.load_timeline_position(start, true);
-    }
-
-    fn select_clip(&mut self, clip_id: u64) {
-        let Some(index) = self.project.clip_index(clip_id) else {
-            return;
-        };
-        self.selected_clip_id = Some(clip_id);
-        self.selected_asset_id = Some(self.project.timeline[index].asset_id);
-        self.load_timeline_position(self.project.timeline_start(index), false);
     }
 
     fn open_project_folder(&mut self, cx: &mut Context<Self>) {
@@ -403,6 +479,9 @@ impl Editor {
     fn set_project_root(&mut self, root: PathBuf) {
         let root = std::fs::canonicalize(&root).unwrap_or(root);
         self.video = None;
+        self.audio_previews.clear();
+        self.media_cache_jobs.clear();
+        self.media_cache_ready.clear();
         self.loaded_clip_id = None;
         self.still_playback_started = None;
         self.playing = false;
@@ -416,14 +495,14 @@ impl Editor {
         self.selected_file = None;
         self.file_context_menu = None;
         self.selected_asset_id = self.project.assets.first().map(|asset| asset.id);
-        self.selected_clip_id = self.project.timeline.first().map(|clip| clip.id);
+        self.selected_clip_id = self.project.clips.first().map(|clip| clip.id);
         self.refresh_file_tree();
         if let Err(error) = save_project_root(&self.project_root) {
             self.error = Some(error);
         } else {
             self.error = None;
         }
-        if !self.project.timeline.is_empty() {
+        if !self.project.clips.is_empty() {
             self.load_timeline_position(0.0, false);
         }
     }
@@ -434,6 +513,52 @@ impl Editor {
             Ok(entries) => self.file_tree = entries,
             Err(error) => self.error = Some(error),
         }
+    }
+
+    /// Refreshes which assets already have artwork on disk and starts one missing job.
+    ///
+    /// Runs on the file-tree tick rather than during rendering so the timeline can read
+    /// `media_cache_ready` without touching the filesystem on every frame.
+    fn schedule_missing_media_cache(&mut self, cx: &mut Context<Self>) {
+        self.media_cache_ready = self
+            .project
+            .assets
+            .iter()
+            .filter(|asset| media_cache::cache_is_ready(&self.project_root, asset))
+            .map(|asset| asset.id)
+            .collect();
+        let Some(asset) = self
+            .project
+            .assets
+            .iter()
+            .find(|asset| {
+                !self.media_cache_jobs.contains(&asset.id)
+                    && !self.media_cache_ready.contains(&asset.id)
+            })
+            .cloned()
+        else {
+            return;
+        };
+        self.media_cache_jobs.insert(asset.id);
+        let project_root = self.project_root.clone();
+        cx.spawn(async move |editor, cx| {
+            let cache_root = project_root.clone();
+            let result = cx
+                .background_executor()
+                .spawn(async move { media_cache::generate(&cache_root, &asset) })
+                .await;
+            editor
+                .update(cx, |editor, cx| {
+                    if editor.project_root == project_root {
+                        if let Err(error) = result {
+                            eprintln!("Media cache: {error}");
+                        }
+                        cx.notify();
+                    }
+                })
+                .ok();
+        })
+        .detach();
     }
 
     fn toggle_directory(&mut self, relative_path: PathBuf) {
@@ -449,6 +574,7 @@ impl Editor {
                 video.set_paused(true);
             }
             self.playing = false;
+            self.pause_audio_previews();
             self.still_playback_started = None;
             self.preview_refresh_ticks = 2;
         }
@@ -522,6 +648,7 @@ impl Editor {
         let project_root = self.project_root.clone();
         let absolute_path = project_root.join(&relative_path);
         let is_image = workspace::is_image_path(&relative_path);
+        let is_audio = workspace::is_audio_path(&relative_path);
         self.status = Some(format!("Inspecting {}…", relative_path.display()));
         cx.spawn(async move |editor, cx| {
             let result = cx
@@ -529,6 +656,8 @@ impl Editor {
                 .spawn(async move {
                     if is_image {
                         probe_image(&absolute_path, 0)
+                    } else if is_audio {
+                        probe_audio(&absolute_path, 0)
                     } else {
                         probe_media(&absolute_path, 0)
                     }
@@ -583,10 +712,52 @@ impl Editor {
         let Some(duration) = self.project.asset(asset_id).map(|asset| asset.duration) else {
             return;
         };
+        let target_kind = if self
+            .project
+            .asset(asset_id)
+            .is_some_and(|asset| asset.kind == MediaKind::Audio)
+        {
+            TrackKind::Audio
+        } else {
+            TrackKind::Video
+        };
+        let track_id = self
+            .project
+            .tracks
+            .iter()
+            .find(|track| track.kind == target_kind && !track.locked)
+            .map(|track| track.id)
+            .unwrap_or_else(|| {
+                let id = self.take_id();
+                let number = self
+                    .project
+                    .tracks
+                    .iter()
+                    .filter(|track| track.kind == target_kind)
+                    .count()
+                    + 1;
+                let prefix = match target_kind {
+                    TrackKind::Text => "Text",
+                    TrackKind::Video => "Video",
+                    TrackKind::Audio => "Audio",
+                };
+                self.project.tracks.push(TimelineTrack {
+                    id,
+                    name: format!("{prefix} {number}"),
+                    kind: target_kind,
+                    locked: false,
+                    muted: false,
+                    visible: true,
+                });
+                id
+            });
         let id = self.take_id();
-        self.project.timeline.push(TimelineClip {
+        self.project.clips.push(TimelineClip {
             id,
-            asset_id,
+            track_id,
+            asset_id: Some(asset_id),
+            text: None,
+            timeline_start: self.project.content_duration(),
             source_in: 0.0,
             source_out: duration,
         });
@@ -604,8 +775,11 @@ impl Editor {
         let Some(index) = self.project.clip_index(clip_id) else {
             return;
         };
-        let timeline_start = self.project.timeline_start(index);
-        let clip = self.project.timeline[index].clone();
+        if self.clip_locked(clip_id) {
+            return;
+        }
+        let timeline_start = self.project.clips[index].timeline_start;
+        let clip = self.project.clips[index].clone();
         let local = self.playhead - timeline_start;
         if local <= MIN_CLIP_DURATION || local >= clip.duration() - MIN_CLIP_DURATION {
             self.error =
@@ -614,17 +788,17 @@ impl Editor {
         }
         let source_split = clip.source_in + local;
         self.checkpoint();
-        self.project.timeline[index].source_out = source_split;
+        self.project.clips[index].source_out = source_split;
         let new_id = self.take_id();
-        self.project.timeline.insert(
-            index + 1,
-            TimelineClip {
-                id: new_id,
-                asset_id: clip.asset_id,
-                source_in: source_split,
-                source_out: clip.source_out,
-            },
-        );
+        self.project.clips.push(TimelineClip {
+            id: new_id,
+            track_id: clip.track_id,
+            asset_id: clip.asset_id,
+            text: clip.text.clone(),
+            timeline_start: self.playhead,
+            source_in: source_split,
+            source_out: clip.source_out,
+        });
         self.selected_clip_id = Some(new_id);
         self.save_project();
         self.load_timeline_position(self.playhead, false);
@@ -637,19 +811,23 @@ impl Editor {
         let Some(index) = self.project.clip_index(clip_id) else {
             return;
         };
+        if self.clip_locked(clip_id) {
+            return;
+        }
         self.checkpoint();
-        self.project.timeline.remove(index);
+        self.project.clips.remove(index);
         self.video = None;
+        self.audio_previews.clear();
         self.loaded_clip_id = None;
         self.still_playback_started = None;
         self.playing = false;
-        if self.project.timeline.is_empty() {
+        if self.project.clips.is_empty() {
             self.selected_clip_id = None;
             self.playhead = 0.0;
         } else {
-            let next_index = index.min(self.project.timeline.len() - 1);
-            self.selected_clip_id = Some(self.project.timeline[next_index].id);
-            let start = self.project.timeline_start(next_index);
+            let next_index = index.min(self.project.clips.len() - 1);
+            self.selected_clip_id = Some(self.project.clips[next_index].id);
+            let start = self.project.clips[next_index].timeline_start;
             self.load_timeline_position(start, false);
         }
         self.save_project();
@@ -659,12 +837,179 @@ impl Editor {
         let Some(clip_id) = self.selected_clip_id else {
             return;
         };
-        let Some(index) = self.project.clip_index(clip_id) else {
+        if self.clip_locked(clip_id) {
+            return;
+        }
+        let frame_duration = self
+            .project
+            .clip(clip_id)
+            .and_then(|clip| clip.asset_id)
+            .and_then(|asset_id| self.project.asset(asset_id))
+            .map(|asset| 1.0 / asset.framerate.max(1.0))
+            .unwrap_or(1.0 / 30.0);
+        let Some(clip) = self.project.clip(clip_id) else {
+            return;
+        };
+        let desired_start = (clip.timeline_start + f64::from(direction) * frame_duration).max(0.0);
+        let start = self.project.nearest_available_start(
+            clip.track_id,
+            Some(clip_id),
+            desired_start,
+            clip.duration(),
+        );
+        if (start - clip.timeline_start).abs() <= f64::EPSILON {
+            return;
+        }
+        self.checkpoint();
+        let Some(clip) = self.project.clip_mut(clip_id) else {
+            return;
+        };
+        clip.timeline_start = start;
+        self.save_project();
+        self.load_timeline_position(start, false);
+    }
+
+    fn duplicate_selected(&mut self) {
+        let Some(clip_id) = self.selected_clip_id else {
+            return;
+        };
+        let Some(mut clip) = self.project.clip(clip_id).cloned() else {
+            return;
+        };
+        if self
+            .project
+            .track(clip.track_id)
+            .is_some_and(|track| track.locked)
+        {
+            return;
+        }
+        let start = self.project.nearest_available_start(
+            clip.track_id,
+            None,
+            clip.timeline_end(),
+            clip.duration(),
+        );
+        self.checkpoint();
+        clip.id = self.take_id();
+        clip.timeline_start = start;
+        self.selected_clip_id = Some(clip.id);
+        self.project.clips.push(clip);
+        self.save_project();
+    }
+
+    fn add_marker(&mut self) {
+        self.checkpoint();
+        let id = self.take_id();
+        self.project.markers.push(TimelineMarker {
+            id,
+            time: self.playhead,
+            label: format!("Marker {}", self.project.markers.len() + 1),
+        });
+        self.save_project();
+    }
+
+    fn add_track(&mut self, kind: TrackKind) {
+        self.checkpoint();
+        let number = self
+            .project
+            .tracks
+            .iter()
+            .filter(|track| track.kind == kind)
+            .count()
+            + 1;
+        let prefix = match kind {
+            TrackKind::Text => "Text",
+            TrackKind::Video => "Video",
+            TrackKind::Audio => "Audio",
+        };
+        let id = self.take_id();
+        self.project.tracks.push(TimelineTrack {
+            id,
+            name: format!("{prefix} {number}"),
+            kind,
+            locked: false,
+            muted: false,
+            visible: true,
+        });
+        self.save_project();
+    }
+
+    fn add_text_clip(&mut self) {
+        let Some(track_id) = self
+            .project
+            .tracks
+            .iter()
+            .find(|track| track.kind == TrackKind::Text && !track.locked)
+            .map(|track| track.id)
+        else {
+            return;
+        };
+        self.checkpoint();
+        let id = self.take_id();
+        self.project.clips.push(TimelineClip {
+            id,
+            track_id,
+            asset_id: None,
+            text: Some("Title".to_string()),
+            timeline_start: self.playhead,
+            source_in: 0.0,
+            source_out: 5.0,
+        });
+        self.selected_clip_id = Some(id);
+        self.save_project();
+        self.load_timeline_position(self.playhead, false);
+    }
+
+    fn toggle_track_lock(&mut self, track_id: u64) {
+        self.checkpoint();
+        if let Some(track) = self.project.track_mut(track_id) {
+            track.locked = !track.locked;
+        }
+        self.save_project();
+    }
+
+    fn toggle_track_visibility(&mut self, track_id: u64) {
+        self.checkpoint();
+        if let Some(track) = self.project.track_mut(track_id) {
+            track.visible = !track.visible;
+        }
+        self.save_project();
+        self.load_timeline_position(self.playhead, false);
+    }
+
+    fn toggle_track_mute(&mut self, track_id: u64) {
+        self.checkpoint();
+        if let Some(track) = self.project.track_mut(track_id) {
+            track.muted = !track.muted;
+        }
+        self.save_project();
+        let muted = self
+            .project
+            .track(track_id)
+            .is_some_and(|track| track.muted);
+        if self
+            .loaded_clip_id
+            .and_then(|id| self.project.clip(id))
+            .is_some_and(|clip| clip.track_id == track_id)
+            && let Some(video) = &self.video
+        {
+            video.set_muted(muted);
+        }
+        self.sync_audio_previews(self.playhead, self.playing);
+    }
+
+    fn move_track(&mut self, track_id: u64, direction: i8) {
+        let Some(index) = self
+            .project
+            .tracks
+            .iter()
+            .position(|track| track.id == track_id)
+        else {
             return;
         };
         let target = if direction < 0 {
             index.checked_sub(1)
-        } else if index + 1 < self.project.timeline.len() {
+        } else if index + 1 < self.project.tracks.len() {
             Some(index + 1)
         } else {
             None
@@ -673,37 +1018,223 @@ impl Editor {
             return;
         };
         self.checkpoint();
-        self.project.timeline.swap(index, target);
+        self.project.tracks.swap(index, target);
         self.save_project();
-        let start = self.project.timeline_start(target);
-        self.load_timeline_position(start, false);
+        self.load_timeline_position(self.playhead, false);
+    }
+
+    fn delete_track(&mut self, track_id: u64) {
+        let Some(index) = self
+            .project
+            .tracks
+            .iter()
+            .position(|track| track.id == track_id)
+        else {
+            return;
+        };
+        if self.project.tracks[index].locked {
+            return;
+        }
+        self.checkpoint();
+        self.project.tracks.remove(index);
+        self.project.clips.retain(|clip| clip.track_id != track_id);
+        if self
+            .selected_clip_id
+            .is_some_and(|id| self.project.clip(id).is_none())
+        {
+            self.selected_clip_id = None;
+        }
+        self.save_project();
+        self.load_timeline_position(self.playhead, false);
+    }
+
+    fn begin_clip_move(&mut self, clip_id: u64, event: &MouseDownEvent, cx: &mut Context<Self>) {
+        let Some(clip) = self.project.clip(clip_id).cloned() else {
+            return;
+        };
+        if self
+            .project
+            .track(clip.track_id)
+            .is_some_and(|track| track.locked)
+        {
+            return;
+        }
+        if let Some(video) = &self.video {
+            video.set_paused(true);
+        }
+        self.pause_audio_previews();
+        self.playing = false;
+        self.still_playback_started = None;
+        self.selected_clip_id = Some(clip_id);
+        self.clip_move_drag = Some(ClipMoveDrag {
+            clip_id,
+            start_x: event.position.x.into(),
+            original_timeline_start: clip.timeline_start,
+            original_track_id: clip.track_id,
+            changed: false,
+        });
+        cx.stop_propagation();
+    }
+
+    fn update_clip_move(
+        &mut self,
+        event: &MouseMoveEvent,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        if !event.dragging() {
+            return;
+        }
+        let Some(drag) = self.clip_move_drag.as_ref() else {
+            return;
+        };
+        let clip_id = drag.clip_id;
+        let raw_start = (drag.original_timeline_start
+            + (f32::from(event.position.x) - drag.start_x) as f64 / self.pixels_per_second as f64)
+            .max(0.0);
+        let clip_duration = self
+            .project
+            .clip(clip_id)
+            .map(TimelineClip::duration)
+            .unwrap_or(0.0);
+        let snapped_start = self.snap_clip_start(raw_start, clip_duration, clip_id);
+        let viewport_height = f32::from(window.viewport_size().height);
+        let track_top = viewport_height - TIMELINE_HEIGHT + TIMELINE_HEADER_HEIGHT + RULER_HEIGHT;
+        let scroll_y: f32 = self.timeline_vertical_scroll.offset().y.into();
+        let track_index =
+            ((f32::from(event.position.y) - track_top - scroll_y) / TRACK_HEIGHT).floor() as isize;
+        let target_track_id = usize::try_from(track_index)
+            .ok()
+            .and_then(|index| self.project.tracks.get(index))
+            .map(|track| track.id)
+            .unwrap_or(drag.original_track_id);
+        let compatible = self.clip_track_compatible(clip_id, target_track_id);
+        let actual_track_id = if compatible {
+            target_track_id
+        } else {
+            drag.original_track_id
+        };
+        let available_start = self.project.nearest_available_start(
+            actual_track_id,
+            Some(clip_id),
+            snapped_start,
+            clip_duration,
+        );
+        let already_there = self.project.clip(clip_id).is_some_and(|clip| {
+            clip.timeline_start == available_start && clip.track_id == actual_track_id
+        });
+        if already_there {
+            return;
+        }
+        let moved_from_origin = available_start != drag.original_timeline_start
+            || actual_track_id != drag.original_track_id;
+        if !drag.changed && moved_from_origin {
+            self.checkpoint();
+            if let Some(drag) = &mut self.clip_move_drag {
+                drag.changed = true;
+            }
+        }
+        if let Some(clip) = self.project.clip_mut(clip_id) {
+            clip.timeline_start = available_start;
+            clip.track_id = actual_track_id;
+        }
+        cx.notify();
+    }
+
+    fn finish_clip_move(&mut self, _: &MouseUpEvent, _: &mut Window, cx: &mut Context<Self>) {
+        if self.clip_move_drag.take().is_some_and(|drag| drag.changed) {
+            self.save_project();
+            self.load_timeline_position(self.playhead, false);
+            cx.notify();
+        }
+    }
+
+    fn clip_track_compatible(&self, clip_id: u64, track_id: u64) -> bool {
+        let Some(clip) = self.project.clip(clip_id) else {
+            return false;
+        };
+        let Some(track) = self.project.track(track_id) else {
+            return false;
+        };
+        if track.locked {
+            return false;
+        }
+        if clip.text.is_some() {
+            return track.kind == TrackKind::Text;
+        }
+        let Some(asset) = clip.asset_id.and_then(|id| self.project.asset(id)) else {
+            return false;
+        };
+        match track.kind {
+            TrackKind::Text => false,
+            TrackKind::Video => asset.kind != MediaKind::Audio,
+            TrackKind::Audio => asset.has_audio,
+        }
+    }
+
+    fn snap_time(&self, time: f64, ignored_clip: Option<u64>) -> f64 {
+        let threshold = SNAP_DISTANCE_PX as f64 / self.pixels_per_second as f64;
+        let mut candidates = vec![0.0, self.playhead];
+        candidates.extend(self.project.markers.iter().map(|marker| marker.time));
+        for clip in &self.project.clips {
+            if Some(clip.id) != ignored_clip {
+                candidates.push(clip.timeline_start);
+                candidates.push(clip.timeline_end());
+            }
+        }
+        candidates
+            .into_iter()
+            .filter(|candidate| (candidate - time).abs() <= threshold)
+            .min_by(|left, right| (left - time).abs().total_cmp(&(right - time).abs()))
+            .unwrap_or(time)
+            .max(0.0)
+    }
+
+    fn snap_clip_start(&self, start: f64, duration: f64, clip_id: u64) -> f64 {
+        let start_candidate = self.snap_time(start, Some(clip_id));
+        let end_candidate = self.snap_time(start + duration, Some(clip_id)) - duration;
+        if (end_candidate - start).abs() < (start_candidate - start).abs() {
+            end_candidate.max(0.0)
+        } else {
+            start_candidate.max(0.0)
+        }
+    }
+
+    fn clip_locked(&self, clip_id: u64) -> bool {
+        self.project
+            .clip(clip_id)
+            .and_then(|clip| self.project.track(clip.track_id))
+            .is_some_and(|track| track.locked)
     }
 
     fn begin_trim(&mut self, clip_id: u64, edge: TrimEdge, x: f32) {
         let Some(clip) = self.project.clip(clip_id).cloned() else {
             return;
         };
-        let Some(asset_duration) = self
-            .project
-            .asset(clip.asset_id)
-            .map(|asset| asset.duration)
-        else {
+        if self.clip_locked(clip_id) {
             return;
-        };
+        }
+        let asset_duration = clip
+            .asset_id
+            .and_then(|id| self.project.asset(id))
+            .map(|asset| asset.duration)
+            .unwrap_or(f64::INFINITY);
         if let Some(video) = &self.video {
             video.set_paused(true);
         }
+        self.pause_audio_previews();
         self.still_playback_started = None;
         self.playing = false;
         self.selected_clip_id = Some(clip_id);
-        self.checkpoint();
         self.trim_drag = Some(TrimDrag {
             clip_id,
             edge,
             start_x: x,
             original_in: clip.source_in,
             original_out: clip.source_out,
+            original_timeline_start: clip.timeline_start,
             asset_duration,
+            changed: false,
         });
     }
 
@@ -714,38 +1245,70 @@ impl Editor {
         let Some(drag) = self.trim_drag.as_ref() else {
             return;
         };
-        let delta =
-            (f32::from(event.position.x) - drag.start_x) as f64 / self.pixels_per_second as f64;
-        let Some(index) = self.project.clip_index(drag.clip_id) else {
+        let clip_id = drag.clip_id;
+        let edge = drag.edge;
+        let original_in = drag.original_in;
+        let original_out = drag.original_out;
+        let original_timeline_start = drag.original_timeline_start;
+        let asset_duration = drag.asset_duration;
+        let Some((previous_end, next_start)) = self.project.trim_limits(clip_id) else {
             return;
         };
-        match drag.edge {
+        let raw_delta =
+            (f32::from(event.position.x) - drag.start_x) as f64 / self.pixels_per_second as f64;
+        if raw_delta.abs() <= f64::EPSILON {
+            return;
+        }
+        if !drag.changed {
+            self.checkpoint();
+            if let Some(drag) = &mut self.trim_drag {
+                drag.changed = true;
+            }
+        }
+        let Some(index) = self.project.clip_index(clip_id) else {
+            return;
+        };
+        match edge {
             TrimEdge::Left => {
-                self.project.timeline[index].source_in =
-                    (drag.original_in + delta).clamp(0.0, drag.original_out - MIN_CLIP_DURATION);
+                let raw_start = (original_timeline_start + raw_delta).max(0.0);
+                let original_end = original_timeline_start + original_out - original_in;
+                let earliest_start = previous_end.max(original_timeline_start - original_in);
+                let latest_start = original_end - MIN_CLIP_DURATION;
+                let start = self
+                    .snap_time(raw_start, Some(clip_id))
+                    .clamp(earliest_start, latest_start);
+                self.project.clips[index].source_in = original_in + start - original_timeline_start;
+                self.project.clips[index].timeline_start = start;
             }
             TrimEdge::Right => {
-                self.project.timeline[index].source_out = (drag.original_out + delta)
-                    .clamp(drag.original_in + MIN_CLIP_DURATION, drag.asset_duration);
+                let original_end = original_timeline_start + original_out - original_in;
+                let earliest_end = original_timeline_start + MIN_CLIP_DURATION;
+                let latest_end = next_start.min(
+                    original_timeline_start + (asset_duration - original_in).max(MIN_CLIP_DURATION),
+                );
+                let end = self
+                    .snap_time(original_end + raw_delta, Some(clip_id))
+                    .clamp(earliest_end, latest_end);
+                self.project.clips[index].source_out = original_in + end - original_timeline_start;
             }
         }
         cx.notify();
     }
 
     fn finish_trim(&mut self, _: &MouseUpEvent, _: &mut Window, cx: &mut Context<Self>) {
-        if self.trim_drag.take().is_some() {
+        if self.trim_drag.take().is_some_and(|drag| drag.changed) {
             self.save_project();
             if let Some(clip_id) = self.selected_clip_id
                 && let Some(index) = self.project.clip_index(clip_id)
             {
-                self.load_timeline_position(self.project.timeline_start(index), false);
+                self.load_timeline_position(self.project.clips[index].timeline_start, false);
             }
             cx.notify();
         }
     }
 
     fn export(&mut self, cx: &mut Context<Self>) {
-        if self.project.timeline.is_empty() || self.exporting {
+        if self.project.clips.is_empty() || self.exporting {
             return;
         }
         let directory = self.project_root.clone();
@@ -845,12 +1408,13 @@ impl Editor {
 
     fn reset_after_history_change(&mut self) {
         self.video = None;
+        self.audio_previews.clear();
         self.loaded_clip_id = None;
         self.still_playback_started = None;
         self.playing = false;
         self.playhead = 0.0;
-        self.selected_clip_id = self.project.timeline.first().map(|clip| clip.id);
-        if !self.project.timeline.is_empty() {
+        self.selected_clip_id = self.project.clips.first().map(|clip| clip.id);
+        if !self.project.clips.is_empty() {
             self.load_timeline_position(0.0, false);
         }
         self.next_id = self.next_id.max(self.project.next_id());
@@ -875,9 +1439,39 @@ impl Editor {
 
     fn seek_from_timeline_x(&mut self, x: f32) {
         let scroll_x: f32 = self.timeline_scroll.offset().x.into();
-        let content_x = x - MEDIA_PANEL_WIDTH - scroll_x - TIMELINE_PADDING;
+        let content_x = x - MEDIA_PANEL_WIDTH - TRACK_HEADER_WIDTH - scroll_x - TIMELINE_PADDING;
         let position = content_x as f64 / self.pixels_per_second as f64;
         self.load_timeline_position(position, false);
+    }
+
+    fn begin_playhead_scrub(&mut self, event: &MouseDownEvent) {
+        self.is_scrubbing_playhead = true;
+        if let Some(video) = &self.video {
+            video.set_paused(true);
+        }
+        self.pause_audio_previews();
+        self.playing = false;
+        self.still_playback_started = None;
+        self.seek_from_timeline_x(event.position.x.into());
+    }
+
+    fn update_playhead_scrub(
+        &mut self,
+        event: &MouseMoveEvent,
+        _: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        if self.is_scrubbing_playhead && event.dragging() {
+            self.seek_from_timeline_x(event.position.x.into());
+            cx.notify();
+        }
+    }
+
+    fn finish_playhead_scrub(&mut self, _: &MouseUpEvent, _: &mut Window, cx: &mut Context<Self>) {
+        if self.is_scrubbing_playhead {
+            self.is_scrubbing_playhead = false;
+            cx.notify();
+        }
     }
 
     fn action_toggle_playback(
@@ -912,6 +1506,21 @@ impl Editor {
 
     fn action_redo(&mut self, _: &Redo, _: &mut Window, cx: &mut Context<Self>) {
         self.redo();
+        cx.notify();
+    }
+
+    fn action_duplicate_selected(
+        &mut self,
+        _: &DuplicateSelected,
+        _: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        self.duplicate_selected();
+        cx.notify();
+    }
+
+    fn action_add_marker(&mut self, _: &AddMarker, _: &mut Window, cx: &mut Context<Self>) {
+        self.add_marker();
         cx.notify();
     }
 

@@ -9,6 +9,7 @@ use std::{
 
 pub(super) const MIN_CLIP_DURATION: f64 = 1.0 / 30.0;
 pub(super) const DEFAULT_IMAGE_DURATION: f64 = 5.0;
+pub(super) const PROJECT_VERSION: u32 = 2;
 
 #[derive(Clone, Copy, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "snake_case")]
@@ -16,6 +17,16 @@ pub(super) enum MediaKind {
     #[default]
     Video,
     Image,
+    Audio,
+}
+
+#[derive(Clone, Copy, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub(super) enum TrackKind {
+    Text,
+    #[default]
+    Video,
+    Audio,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -36,7 +47,12 @@ pub(super) struct MediaAsset {
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub(super) struct TimelineClip {
     pub id: u64,
-    pub asset_id: u64,
+    pub track_id: u64,
+    #[serde(default)]
+    pub asset_id: Option<u64>,
+    #[serde(default)]
+    pub text: Option<String>,
+    pub timeline_start: f64,
     pub source_in: f64,
     pub source_out: f64,
 }
@@ -45,12 +61,79 @@ impl TimelineClip {
     pub fn duration(&self) -> f64 {
         (self.source_out - self.source_in).max(0.0)
     }
+
+    pub fn timeline_end(&self) -> f64 {
+        self.timeline_start + self.duration()
+    }
+
+    pub fn contains(&self, time: f64) -> bool {
+        time >= self.timeline_start && time < self.timeline_end()
+    }
 }
 
-#[derive(Clone, Debug, Default, Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub(super) struct TimelineTrack {
+    pub id: u64,
+    pub name: String,
+    pub kind: TrackKind,
+    #[serde(default)]
+    pub locked: bool,
+    #[serde(default)]
+    pub muted: bool,
+    #[serde(default = "default_visible")]
+    pub visible: bool,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub(super) struct TimelineMarker {
+    pub id: u64,
+    pub time: f64,
+    pub label: String,
+}
+
+#[derive(Clone, Debug, Serialize)]
 pub(super) struct Project {
+    pub version: u32,
     pub assets: Vec<MediaAsset>,
-    pub timeline: Vec<TimelineClip>,
+    pub tracks: Vec<TimelineTrack>,
+    pub clips: Vec<TimelineClip>,
+    pub markers: Vec<TimelineMarker>,
+}
+
+#[derive(Deserialize)]
+struct ProjectFile {
+    #[serde(default)]
+    version: u32,
+    #[serde(default)]
+    assets: Vec<MediaAsset>,
+    #[serde(default)]
+    tracks: Vec<TimelineTrack>,
+    #[serde(default)]
+    clips: Vec<TimelineClip>,
+    #[serde(default)]
+    timeline: Vec<LegacyClip>,
+    #[serde(default)]
+    markers: Vec<TimelineMarker>,
+}
+
+#[derive(Deserialize)]
+struct LegacyClip {
+    id: u64,
+    asset_id: u64,
+    source_in: f64,
+    source_out: f64,
+}
+
+impl Default for Project {
+    fn default() -> Self {
+        Self {
+            version: PROJECT_VERSION,
+            assets: Vec::new(),
+            tracks: default_tracks(),
+            clips: Vec::new(),
+            markers: Vec::new(),
+        }
+    }
 }
 
 impl Project {
@@ -64,8 +147,9 @@ impl Project {
                 return Self::default();
             }
         };
-        match serde_json::from_str::<Self>(&contents) {
-            Ok(mut project) => {
+        match serde_json::from_str::<ProjectFile>(&contents) {
+            Ok(file) => {
+                let mut project = Self::from_file(file);
                 project.normalize();
                 project
             }
@@ -97,56 +181,150 @@ impl Project {
     }
 
     pub fn clip(&self, id: u64) -> Option<&TimelineClip> {
-        self.timeline.iter().find(|clip| clip.id == id)
+        self.clips.iter().find(|clip| clip.id == id)
+    }
+
+    pub fn clip_mut(&mut self, id: u64) -> Option<&mut TimelineClip> {
+        self.clips.iter_mut().find(|clip| clip.id == id)
     }
 
     pub fn clip_index(&self, id: u64) -> Option<usize> {
-        self.timeline.iter().position(|clip| clip.id == id)
+        self.clips.iter().position(|clip| clip.id == id)
     }
 
-    pub fn timeline_start(&self, index: usize) -> f64 {
-        self.timeline
+    pub fn track(&self, id: u64) -> Option<&TimelineTrack> {
+        self.tracks.iter().find(|track| track.id == id)
+    }
+
+    pub fn track_mut(&mut self, id: u64) -> Option<&mut TimelineTrack> {
+        self.tracks.iter_mut().find(|track| track.id == id)
+    }
+
+    pub fn clips_on_track(&self, track_id: u64) -> impl Iterator<Item = &TimelineClip> {
+        self.clips
             .iter()
-            .take(index)
-            .map(TimelineClip::duration)
-            .sum()
+            .filter(move |clip| clip.track_id == track_id)
     }
 
-    pub fn timeline_duration(&self) -> f64 {
-        self.timeline.iter().map(TimelineClip::duration).sum()
-    }
+    pub fn nearest_available_start(
+        &self,
+        track_id: u64,
+        ignored_clip_id: Option<u64>,
+        desired_start: f64,
+        duration: f64,
+    ) -> f64 {
+        let desired_start = desired_start.max(0.0);
+        let duration = duration.max(MIN_CLIP_DURATION);
+        let mut occupied = self
+            .clips_on_track(track_id)
+            .filter(|clip| Some(clip.id) != ignored_clip_id)
+            .map(|clip| (clip.timeline_start, clip.timeline_end()))
+            .collect::<Vec<_>>();
+        occupied.sort_by(|left, right| left.0.total_cmp(&right.0));
 
-    pub fn clip_at_time(&self, time: f64) -> Option<(usize, f64)> {
-        let mut start = 0.0;
-        for (index, clip) in self.timeline.iter().enumerate() {
-            let end = start + clip.duration();
-            if time < end || (index + 1 == self.timeline.len() && time <= end) {
-                return Some((index, (time - start).clamp(0.0, clip.duration())));
+        let mut candidates = Vec::new();
+        let mut gap_start = 0.0_f64;
+        for (occupied_start, occupied_end) in occupied {
+            let latest_start = occupied_start - duration;
+            if latest_start >= gap_start {
+                candidates.push(desired_start.clamp(gap_start, latest_start));
             }
-            start = end;
+            gap_start = gap_start.max(occupied_end);
         }
-        None
+        candidates.push(desired_start.max(gap_start));
+        candidates
+            .into_iter()
+            .min_by(|left, right| {
+                (left - desired_start)
+                    .abs()
+                    .total_cmp(&(right - desired_start).abs())
+            })
+            .unwrap_or(desired_start)
+    }
+
+    pub fn trim_limits(&self, clip_id: u64) -> Option<(f64, f64)> {
+        let clip = self.clip(clip_id)?;
+        let previous_end = self
+            .clips_on_track(clip.track_id)
+            .filter(|other| other.id != clip_id && other.timeline_start < clip.timeline_start)
+            .map(TimelineClip::timeline_end)
+            .fold(0.0, f64::max);
+        let next_start = self
+            .clips_on_track(clip.track_id)
+            .filter(|other| other.id != clip_id && other.timeline_start >= clip.timeline_end())
+            .map(|other| other.timeline_start)
+            .min_by(f64::total_cmp)
+            .unwrap_or(f64::INFINITY);
+        Some((previous_end, next_start))
+    }
+
+    /// The end of the rendered content, ignoring markers past the last clip.
+    pub fn content_duration(&self) -> f64 {
+        self.clips
+            .iter()
+            .map(TimelineClip::timeline_end)
+            .fold(0.0, f64::max)
+    }
+
+    /// How far the timeline is scrubbable, which includes markers left beyond the clips.
+    pub fn timeline_duration(&self) -> f64 {
+        self.markers
+            .iter()
+            .map(|marker| marker.time)
+            .fold(self.content_duration(), f64::max)
+    }
+
+    pub fn visual_clip_at_time(&self, time: f64) -> Option<&TimelineClip> {
+        self.tracks
+            .iter()
+            .filter(|track| track.visible && track.kind == TrackKind::Video)
+            .find_map(|track| {
+                self.clips_on_track(track.id)
+                    .filter(|clip| {
+                        clip.contains(time)
+                            && clip
+                                .asset_id
+                                .and_then(|id| self.asset(id))
+                                .is_some_and(|asset| asset.kind == MediaKind::Video)
+                    })
+                    .max_by(|left, right| left.timeline_start.total_cmp(&right.timeline_start))
+            })
     }
 
     pub fn next_id(&self) -> u64 {
         self.assets
             .iter()
             .map(|asset| asset.id)
-            .chain(self.timeline.iter().map(|clip| clip.id))
+            .chain(self.tracks.iter().map(|track| track.id))
+            .chain(self.clips.iter().map(|clip| clip.id))
+            .chain(self.markers.iter().map(|marker| marker.id))
             .max()
             .unwrap_or(0)
             + 1
     }
 
     fn normalize(&mut self) {
-        self.timeline.retain(|clip| {
-            self.assets.iter().any(|asset| asset.id == clip.asset_id)
+        self.version = PROJECT_VERSION;
+        if self.tracks.is_empty() {
+            self.tracks = default_tracks();
+        }
+        self.clips.retain(|clip| {
+            self.tracks.iter().any(|track| track.id == clip.track_id)
+                && (clip.text.is_some()
+                    || clip
+                        .asset_id
+                        .is_some_and(|id| self.assets.iter().any(|asset| asset.id == id)))
+                && clip.timeline_start.is_finite()
+                && clip.timeline_start >= 0.0
                 && clip.source_in.is_finite()
                 && clip.source_out.is_finite()
                 && clip.source_out - clip.source_in >= MIN_CLIP_DURATION
         });
-        for clip in &mut self.timeline {
-            if let Some(asset) = self.assets.iter().find(|asset| asset.id == clip.asset_id) {
+        for clip in &mut self.clips {
+            if let Some(asset) = clip
+                .asset_id
+                .and_then(|id| self.assets.iter().find(|asset| asset.id == id))
+            {
                 let maximum_in = (asset.duration - MIN_CLIP_DURATION).max(0.0);
                 clip.source_in = clip.source_in.clamp(0.0, maximum_in);
                 clip.source_out = clip
@@ -154,7 +332,108 @@ impl Project {
                     .clamp(clip.source_in + MIN_CLIP_DURATION, asset.duration);
             }
         }
+        for track in &self.tracks {
+            let mut indices = self
+                .clips
+                .iter()
+                .enumerate()
+                .filter(|(_, clip)| clip.track_id == track.id)
+                .map(|(index, _)| index)
+                .collect::<Vec<_>>();
+            indices.sort_by(|left, right| {
+                self.clips[*left]
+                    .timeline_start
+                    .total_cmp(&self.clips[*right].timeline_start)
+                    .then_with(|| self.clips[*left].id.cmp(&self.clips[*right].id))
+            });
+            let mut next_available = 0.0_f64;
+            for index in indices {
+                self.clips[index].timeline_start =
+                    self.clips[index].timeline_start.max(next_available);
+                next_available = self.clips[index].timeline_end();
+            }
+        }
+        self.markers
+            .retain(|marker| marker.time.is_finite() && marker.time >= 0.0);
     }
+
+    fn from_file(file: ProjectFile) -> Self {
+        if file.version >= PROJECT_VERSION || !file.tracks.is_empty() || !file.clips.is_empty() {
+            return Self {
+                version: PROJECT_VERSION,
+                assets: file.assets,
+                tracks: file.tracks,
+                clips: file.clips,
+                markers: file.markers,
+            };
+        }
+
+        let tracks = default_tracks();
+        let video_track_id = tracks
+            .iter()
+            .find(|track| track.kind == TrackKind::Video)
+            .map(|track| track.id)
+            .unwrap_or(2);
+        let mut timeline_start = 0.0;
+        let clips = file
+            .timeline
+            .into_iter()
+            .map(|clip| {
+                let duration = (clip.source_out - clip.source_in).max(0.0);
+                let migrated = TimelineClip {
+                    id: clip.id,
+                    track_id: video_track_id,
+                    asset_id: Some(clip.asset_id),
+                    text: None,
+                    timeline_start,
+                    source_in: clip.source_in,
+                    source_out: clip.source_out,
+                };
+                timeline_start += duration;
+                migrated
+            })
+            .collect();
+        Self {
+            version: PROJECT_VERSION,
+            assets: file.assets,
+            tracks,
+            clips,
+            markers: file.markers,
+        }
+    }
+}
+
+fn default_visible() -> bool {
+    true
+}
+
+fn default_tracks() -> Vec<TimelineTrack> {
+    vec![
+        TimelineTrack {
+            id: 1,
+            name: "Text 1".into(),
+            kind: TrackKind::Text,
+            locked: false,
+            muted: false,
+            visible: true,
+        },
+        TimelineTrack {
+            id: 2,
+            name: "Video 1".into(),
+            kind: TrackKind::Video,
+            locked: false,
+            muted: false,
+            visible: true,
+        },
+        TimelineTrack {
+            id: 3,
+            name: "Audio 1".into(),
+            kind: TrackKind::Audio,
+            locked: false,
+            muted: false,
+            visible: true,
+        },
+    ]
 }
 
 pub(super) fn probe_media(path: &Path, id: u64) -> Result<MediaAsset, String> {
@@ -234,6 +513,44 @@ pub(super) fn probe_image(path: &Path, id: u64) -> Result<MediaAsset, String> {
     })
 }
 
+pub(super) fn probe_audio(path: &Path, id: u64) -> Result<MediaAsset, String> {
+    ffmpeg::init().map_err(|error| format!("could not initialize FFmpeg: {error}"))?;
+    let input = format::input(path)
+        .map_err(|error| format!("could not inspect {}: {error}", path.display()))?;
+    let stream = input
+        .streams()
+        .best(Type::Audio)
+        .ok_or_else(|| format!("{} has no audio stream", path.display()))?;
+    let duration = if input.duration() > 0 {
+        input.duration() as f64 / ffmpeg::ffi::AV_TIME_BASE as f64
+    } else if stream.duration() > 0 {
+        stream.duration() as f64 * rational_to_f64(stream.time_base()).unwrap_or(0.0)
+    } else {
+        0.0
+    };
+    if !duration.is_finite() || duration <= 0.0 {
+        return Err(format!(
+            "could not determine duration of {}",
+            path.display()
+        ));
+    }
+    Ok(MediaAsset {
+        id,
+        kind: MediaKind::Audio,
+        path: fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf()),
+        name: path
+            .file_stem()
+            .map(|name| name.to_string_lossy().into_owned())
+            .unwrap_or_else(|| path.display().to_string()),
+        duration,
+        width: 0,
+        height: 0,
+        framerate: 0.0,
+        codec: stream.parameters().id().name().to_string(),
+        has_audio: true,
+    })
+}
+
 fn rational_to_f64(value: ffmpeg::Rational) -> Option<f64> {
     let denominator = value.denominator();
     (denominator != 0).then(|| value.numerator() as f64 / denominator as f64)
@@ -241,4 +558,97 @@ fn rational_to_f64(value: ffmpeg::Rational) -> Option<f64> {
 
 fn project_path(project_root: &Path) -> PathBuf {
     project_root.join(".opencut/project.json")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn text_clip(id: u64, start: f64, duration: f64) -> TimelineClip {
+        TimelineClip {
+            id,
+            track_id: 1,
+            asset_id: None,
+            text: Some(format!("Clip {id}")),
+            timeline_start: start,
+            source_in: 0.0,
+            source_out: duration,
+        }
+    }
+
+    #[test]
+    fn migrates_sequential_project_to_positioned_video_track() {
+        let file: ProjectFile = serde_json::from_str(
+            r#"{
+                "assets": [{
+                    "id": 10,
+                    "path": "clip.mp4",
+                    "name": "clip",
+                    "duration": 8.0,
+                    "width": 1920,
+                    "height": 1080,
+                    "framerate": 30.0,
+                    "codec": "h264",
+                    "has_audio": true
+                }],
+                "timeline": [
+                    {"id": 20, "asset_id": 10, "source_in": 1.0, "source_out": 4.0},
+                    {"id": 21, "asset_id": 10, "source_in": 2.0, "source_out": 6.0}
+                ]
+            }"#,
+        )
+        .unwrap();
+        let project = Project::from_file(file);
+
+        assert_eq!(project.version, PROJECT_VERSION);
+        assert_eq!(project.clips.len(), 2);
+        assert_eq!(project.clips[0].timeline_start, 0.0);
+        assert_eq!(project.clips[1].timeline_start, 3.0);
+        assert_eq!(project.timeline_duration(), 7.0);
+        assert_eq!(
+            project.track(project.clips[0].track_id).unwrap().kind,
+            TrackKind::Video
+        );
+    }
+
+    #[test]
+    fn finds_the_nearest_gap_without_overlapping_a_track() {
+        let project = Project {
+            clips: vec![text_clip(10, 0.0, 5.0), text_clip(11, 10.0, 5.0)],
+            ..Project::default()
+        };
+
+        assert_eq!(project.nearest_available_start(1, None, 4.0, 3.0), 5.0);
+        assert_eq!(project.nearest_available_start(1, None, 8.0, 3.0), 7.0);
+        assert_eq!(project.nearest_available_start(1, None, 14.0, 3.0), 15.0);
+    }
+
+    #[test]
+    fn repairs_overlapping_clips_when_loading_a_project() {
+        let mut project = Project {
+            clips: vec![text_clip(10, 0.0, 5.0), text_clip(11, 3.0, 4.0)],
+            ..Project::default()
+        };
+
+        project.normalize();
+
+        assert_eq!(project.clips[0].timeline_start, 0.0);
+        assert_eq!(project.clips[1].timeline_start, 5.0);
+    }
+
+    #[test]
+    fn keeps_markers_out_of_the_rendered_duration() {
+        let project = Project {
+            clips: vec![text_clip(10, 0.0, 5.0)],
+            markers: vec![TimelineMarker {
+                id: 20,
+                time: 42.0,
+                label: "Marker 1".into(),
+            }],
+            ..Project::default()
+        };
+
+        assert_eq!(project.content_duration(), 5.0);
+        assert_eq!(project.timeline_duration(), 42.0);
+    }
 }
