@@ -183,7 +183,7 @@ fn build_video_graph(
             } else {
                 format!(
                     "movie=filename='{source}',trim=start={}:duration={},setpts=PTS-STARTPTS",
-                    decimal(project.seconds(clip.source_in)),
+                    decimal(project.source_start_seconds(clip)),
                     decimal(project.seconds(clip.duration()))
                 )
             };
@@ -516,6 +516,8 @@ mod tests {
             width: 320,
             height: 180,
             framerate: 30.0,
+            frame_rate_numerator: 30,
+            frame_rate_denominator: 1,
             codec: "h264".into(),
             has_audio: true,
         });
@@ -584,6 +586,8 @@ mod tests {
             width: 320,
             height: 180,
             framerate: 30.0,
+            frame_rate_numerator: 30,
+            frame_rate_denominator: 1,
             codec: "h264".into(),
             has_audio: true,
         });

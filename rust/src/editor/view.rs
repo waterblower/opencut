@@ -96,6 +96,9 @@ impl Render for Editor {
                     .child(self.timeline(cx)),
             )
             .when_some(file_menu, |this, menu| this.child(menu))
+            .when(self.settings_open, |this| {
+                this.child(self.settings_modal(cx))
+            })
     }
 }
 
@@ -179,6 +182,12 @@ impl Editor {
                             editor.open_project_folder(cx);
                         },
                     )))
+                    .child(toolbar_button("Settings", true).on_click(cx.listener(
+                        |editor, _, _, cx| {
+                            editor.settings_open = true;
+                            cx.notify();
+                        },
+                    )))
                     .child(
                         toolbar_button(
                             if self.exporting {
@@ -258,11 +267,15 @@ impl Editor {
                             ))
                             .child(inspector_value(
                                 "Source in",
-                                format_time(self.project.seconds(clip.source_in)),
+                                format_time(self.project.source_start_seconds(clip)),
                             ))
                             .child(inspector_value(
                                 "Source out",
-                                format_time(self.project.seconds(clip.source_out)),
+                                format_time(
+                                    self.project
+                                        .source_position_at(clip, clip.timeline_end())
+                                        .as_secs_f64(),
+                                ),
                             ))
                             .child(inspector_value(
                                 "Clip duration",
