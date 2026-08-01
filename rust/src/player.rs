@@ -1,11 +1,12 @@
 use gpui::{
     App, Context, CursorStyle, FocusHandle, KeyBinding, MouseButton, MouseDownEvent,
     MouseMoveEvent, MouseUpEvent, ObjectFit, PathPromptOptions, Render, Window, actions, div, img,
-    prelude::*, px, relative, rgb,
+    prelude::*, px, rgb,
 };
 use std::{path::PathBuf, time::Duration, time::Instant};
 use url::Url;
 
+use crate::playback_view::{DragPhase, PlaybackViewDelegate};
 use crate::video_backend::{Video, VideoOptions, read_video_codec, video};
 
 mod history;
@@ -15,15 +16,13 @@ mod view;
 use history::{HistoryData, load_history_width, save_history_width};
 
 const HEADER_HEIGHT: f32 = 92.0;
-const CONTROL_HEIGHT: f32 = 116.0;
-const HORIZONTAL_PADDING: f32 = 22.0;
+const CONTROL_HEIGHT: f32 = crate::playback_view::CONTROL_HEIGHT;
+const HORIZONTAL_PADDING: f32 = crate::playback_view::HORIZONTAL_PADDING;
 const INSPECTOR_WIDTH: f32 = 320.0;
 const DEFAULT_HISTORY_WIDTH: f32 = 288.0;
 const MIN_HISTORY_WIDTH: f32 = 220.0;
 const MAX_HISTORY_WIDTH: f32 = 480.0;
 const MIN_PLAYER_WIDTH: f32 = 360.0;
-const VOLUME_TRACK_HEIGHT: f32 = 144.0;
-const VOLUME_TRACK_BOTTOM_OFFSET: f32 = 102.0;
 
 const BACKGROUND: u32 = 0x070708;
 const SURFACE_HOVER: u32 = 0x1b1b1f;
@@ -311,24 +310,6 @@ impl Player {
         let _ = video.seek(target, accurate);
     }
 
-    fn timeline_fraction_from_x(&self, x: f32, window: &Window) -> f32 {
-        let window_width: f32 = window.viewport_size().width.into();
-        let history_width = if self.history_open {
-            self.history_width
-        } else {
-            0.0
-        };
-        let content_width = window_width
-            - history_width
-            - if self.inspector_open {
-                INSPECTOR_WIDTH
-            } else {
-                0.0
-            };
-        let usable_width = (content_width - HORIZONTAL_PADDING * 2.0).max(1.0);
-        ((x - history_width - HORIZONTAL_PADDING) / usable_width).clamp(0.0, 1.0)
-    }
-
     fn set_history_width_from_x(&mut self, x: f32, window: &Window) {
         let viewport_width: f32 = window.viewport_size().width.into();
         let inspector_width = if self.inspector_open {
@@ -409,71 +390,6 @@ impl Player {
         }
     }
 
-    fn begin_scrubbing(
-        &mut self,
-        event: &MouseDownEvent,
-        window: &mut Window,
-        cx: &mut Context<Self>,
-    ) {
-        self.resume_after_scrub = self.video.as_ref().is_some_and(|video| !video.paused());
-        if let Some(video) = &self.video {
-            video.set_paused(true);
-        }
-
-        self.is_scrubbing = true;
-        let fraction = self.timeline_fraction_from_x(event.position.x.into(), window);
-        self.scrub_fraction = Some(fraction);
-        self.pending_seek_started = None;
-        self.last_scrub_seek = Some(Instant::now());
-        self.seek_to_fraction(fraction as f64, false);
-        cx.notify();
-    }
-
-    fn scrub_timeline(
-        &mut self,
-        event: &MouseMoveEvent,
-        window: &mut Window,
-        cx: &mut Context<Self>,
-    ) {
-        if self.is_scrubbing && event.dragging() {
-            let fraction = self.timeline_fraction_from_x(event.position.x.into(), window);
-            self.scrub_fraction = Some(fraction);
-
-            let now = Instant::now();
-            let should_seek = self
-                .last_scrub_seek
-                .is_none_or(|last_seek| now.duration_since(last_seek) >= Duration::from_millis(50));
-            if should_seek {
-                self.last_scrub_seek = Some(now);
-                self.seek_to_fraction(fraction as f64, false);
-            }
-            cx.notify();
-        }
-    }
-
-    fn finish_scrubbing(
-        &mut self,
-        event: &MouseUpEvent,
-        window: &mut Window,
-        cx: &mut Context<Self>,
-    ) {
-        if self.is_scrubbing {
-            let fraction = self.timeline_fraction_from_x(event.position.x.into(), window);
-            self.scrub_fraction = Some(fraction);
-            self.pending_seek_started = Some(Instant::now());
-            self.last_scrub_seek = None;
-            self.is_scrubbing = false;
-            self.seek_to_fraction(fraction as f64, true);
-            if self.resume_after_scrub
-                && let Some(video) = &self.video
-            {
-                video.set_paused(false);
-            }
-            self.resume_after_scrub = false;
-            cx.notify();
-        }
-    }
-
     fn toggle_playback(&self) {
         let Some(video) = &self.video else {
             return;
@@ -489,58 +405,6 @@ impl Player {
     fn toggle_mute(&self) {
         if let Some(video) = &self.video {
             video.set_muted(!video.muted());
-        }
-    }
-
-    fn volume_from_y(&self, y: f32, window: &Window) -> f64 {
-        let viewport_height: f32 = window.viewport_size().height.into();
-        let track_bottom = viewport_height - VOLUME_TRACK_BOTTOM_OFFSET;
-        ((track_bottom - y) / VOLUME_TRACK_HEIGHT).clamp(0.0, 1.0) as f64
-    }
-
-    fn set_volume_from_y(&self, y: f32, window: &Window) {
-        let Some(video) = &self.video else {
-            return;
-        };
-
-        let volume = self.volume_from_y(y, window);
-        video.set_volume(volume);
-        video.set_muted(volume <= f64::EPSILON);
-    }
-
-    fn begin_volume_adjustment(
-        &mut self,
-        event: &MouseDownEvent,
-        window: &mut Window,
-        cx: &mut Context<Self>,
-    ) {
-        self.is_adjusting_volume = true;
-        self.set_volume_from_y(event.position.y.into(), window);
-        cx.notify();
-    }
-
-    fn adjust_volume(
-        &mut self,
-        event: &MouseMoveEvent,
-        window: &mut Window,
-        cx: &mut Context<Self>,
-    ) {
-        if self.is_adjusting_volume && event.dragging() {
-            self.set_volume_from_y(event.position.y.into(), window);
-            cx.notify();
-        }
-    }
-
-    fn finish_volume_adjustment(
-        &mut self,
-        event: &MouseUpEvent,
-        window: &mut Window,
-        cx: &mut Context<Self>,
-    ) {
-        if self.is_adjusting_volume {
-            self.set_volume_from_y(event.position.y.into(), window);
-            self.is_adjusting_volume = false;
-            cx.notify();
         }
     }
 
@@ -623,6 +487,90 @@ impl Player {
         self.render_fps = 0.0;
         self.fps_frame_count = 0;
         self.fps_sample_started = Instant::now();
+        cx.notify();
+    }
+}
+
+impl PlaybackViewDelegate for Player {
+    fn playback_toggle(&mut self, _: &mut Window, cx: &mut Context<Self>) {
+        self.toggle_playback();
+        cx.notify();
+    }
+
+    fn playback_seek(
+        &mut self,
+        fraction: f32,
+        phase: DragPhase,
+        _: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        match phase {
+            DragPhase::Start => {
+                self.resume_after_scrub = self.video.as_ref().is_some_and(|video| !video.paused());
+                if let Some(video) = &self.video {
+                    video.set_paused(true);
+                }
+                self.is_scrubbing = true;
+                self.scrub_fraction = Some(fraction);
+                self.pending_seek_started = None;
+                self.last_scrub_seek = Some(Instant::now());
+                self.seek_to_fraction(fraction as f64, false);
+            }
+            DragPhase::Update if self.is_scrubbing => {
+                self.scrub_fraction = Some(fraction);
+                let now = Instant::now();
+                let should_seek = self.last_scrub_seek.is_none_or(|last_seek| {
+                    now.duration_since(last_seek) >= Duration::from_millis(50)
+                });
+                if should_seek {
+                    self.last_scrub_seek = Some(now);
+                    self.seek_to_fraction(fraction as f64, false);
+                }
+            }
+            DragPhase::End if self.is_scrubbing => {
+                self.scrub_fraction = Some(fraction);
+                self.pending_seek_started = Some(Instant::now());
+                self.last_scrub_seek = None;
+                self.is_scrubbing = false;
+                self.seek_to_fraction(fraction as f64, true);
+                if self.resume_after_scrub
+                    && let Some(video) = &self.video
+                {
+                    video.set_paused(false);
+                }
+                self.resume_after_scrub = false;
+            }
+            _ => return,
+        }
+        cx.notify();
+    }
+
+    fn playback_set_volume(
+        &mut self,
+        volume: f64,
+        phase: DragPhase,
+        _: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        match phase {
+            DragPhase::Start => self.is_adjusting_volume = true,
+            DragPhase::Update if !self.is_adjusting_volume => return,
+            DragPhase::End if !self.is_adjusting_volume => return,
+            DragPhase::End => self.is_adjusting_volume = false,
+            DragPhase::Update => {}
+        }
+        if let Some(video) = &self.video {
+            video.set_volume(volume);
+            video.set_muted(volume <= f64::EPSILON);
+        }
+        cx.notify();
+    }
+
+    fn playback_toggle_volume(&mut self, _: &mut Window, cx: &mut Context<Self>) {
+        if self.video.is_some() {
+            self.volume_open = !self.volume_open;
+            self.settings_open = false;
+        }
         cx.notify();
     }
 }

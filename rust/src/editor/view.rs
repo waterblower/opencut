@@ -10,88 +10,30 @@ impl Render for Editor {
             (f32::from(viewport.width) - MEDIA_PANEL_WIDTH - INSPECTOR_WIDTH).max(320.0);
         let preview_height =
             (f32::from(viewport.height) - TOPBAR_HEIGHT - TIMELINE_HEIGHT).max(240.0);
+
+        if window.is_fullscreen() {
+            return div()
+                .id("editor-fullscreen-preview")
+                .track_focus(&self.focus_handle)
+                .on_action(cx.listener(Self::action_toggle_playback))
+                .on_action(cx.listener(Self::action_toggle_fullscreen))
+                .on_action(cx.listener(Self::action_exit_fullscreen))
+                .size_full()
+                .overflow_hidden()
+                .bg(rgb(0x000000))
+                .text_color(rgb(TEXT))
+                .child(self.preview_player(
+                    0.0,
+                    0.0,
+                    f32::from(viewport.width),
+                    f32::from(viewport.height),
+                    cx,
+                ));
+        }
         let file_menu = self
             .file_context_menu
             .as_ref()
             .map(|menu| self.file_menu_overlay(menu, viewport, cx));
-        let selected_image_path = self
-            .selected_file
-            .as_ref()
-            .filter(|path| workspace::is_image_path(path))
-            .map(|path| self.project_root.join(path));
-        let timeline_visual_overlays = if selected_image_path.is_none() {
-            let base_track_index = self
-                .project
-                .visual_clip_at_time(self.playhead)
-                .and_then(|clip| {
-                    self.project
-                        .tracks
-                        .iter()
-                        .position(|track| track.id == clip.track_id)
-                })
-                .unwrap_or(self.project.tracks.len());
-            self.project.tracks[..base_track_index]
-                .iter()
-                .rev()
-                .filter(|track| track.visible)
-                .flat_map(|track| {
-                    self.project
-                        .clips_on_track(track.id)
-                        .filter(|clip| clip.contains(self.playhead))
-                        .filter_map(|clip| {
-                            if track.kind == TrackKind::Text {
-                                return clip.text.clone().map(|text| {
-                                    div()
-                                        .absolute()
-                                        .inset_0()
-                                        .flex()
-                                        .items_center()
-                                        .justify_center()
-                                        .p_8()
-                                        .text_3xl()
-                                        .font_weight(gpui::FontWeight::BOLD)
-                                        .child(text)
-                                        .into_any_element()
-                                });
-                            }
-                            let asset = clip.asset_id.and_then(|id| self.project.asset(id))?;
-                            (asset.kind == MediaKind::Image).then(|| {
-                                img(self.project_root.join(&asset.path))
-                                    .absolute()
-                                    .inset_0()
-                                    .size_full()
-                                    .object_fit(ObjectFit::Contain)
-                                    .into_any_element()
-                            })
-                        })
-                })
-                .collect::<Vec<_>>()
-        } else {
-            Vec::new()
-        };
-        let preview = if let Some(image_path) = selected_image_path {
-            img(image_path)
-                .id("editor-selected-image-preview")
-                .w(px(preview_width))
-                .h(px(preview_height))
-                .object_fit(ObjectFit::Contain)
-                .into_any_element()
-        } else if let Some(video_handle) = &self.video {
-            video(video_handle.clone())
-                .id("editor-preview-video")
-                .size(px(preview_width), px(preview_height))
-                .buffer_capacity(3)
-                .into_any_element()
-        } else {
-            div()
-                .size_full()
-                .flex()
-                .items_center()
-                .justify_center()
-                .text_color(rgb(MUTED))
-                .child("Choose a video from the project folder to begin")
-                .into_any_element()
-        };
 
         div()
             .id("editor-root")
@@ -103,6 +45,8 @@ impl Render for Editor {
             .on_action(cx.listener(Self::action_redo))
             .on_action(cx.listener(Self::action_duplicate_selected))
             .on_action(cx.listener(Self::action_add_marker))
+            .on_action(cx.listener(Self::action_toggle_fullscreen))
+            .on_action(cx.listener(Self::action_exit_fullscreen))
             .on_action(cx.listener(Self::action_reveal_in_finder))
             .on_action(cx.listener(Self::action_open_in_default_app))
             .size_full()
@@ -127,25 +71,13 @@ impl Render for Editor {
                             .h_full()
                             .flex()
                             .flex_col()
-                            .child(
-                                div()
-                                    .id("editor-preview")
-                                    .min_h_0()
-                                    .flex_1()
-                                    .relative()
-                                    .flex()
-                                    .items_center()
-                                    .justify_center()
-                                    .overflow_hidden()
-                                    .bg(rgb(0x000000))
-                                    .cursor(CursorStyle::PointingHand)
-                                    .on_click(cx.listener(|editor, _, _, cx| {
-                                        editor.toggle_playback();
-                                        cx.notify();
-                                    }))
-                                    .child(preview)
-                                    .children(timeline_visual_overlays),
-                            )
+                            .child(self.preview_player(
+                                MEDIA_PANEL_WIDTH,
+                                TOPBAR_HEIGHT,
+                                preview_width,
+                                preview_height,
+                                cx,
+                            ))
                             .child(self.timeline(cx)),
                     )
                     .child(self.inspector(cx)),
@@ -301,7 +233,7 @@ impl Editor {
                         if is_directory {
                             editor.toggle_directory(selection_path.clone());
                         } else {
-                            editor.select_file(selection_path.clone());
+                            editor.select_file(selection_path.clone(), cx);
                         }
                         cx.notify();
                     }))
