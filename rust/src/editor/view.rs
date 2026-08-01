@@ -70,18 +70,19 @@ impl Render for Editor {
             .child(self.topbar(cx))
             .child(
                 div()
-                    .id("editor-media-scroll")
+                    .id("editor-workspace")
                     .flex_1()
                     .min_h_0()
                     .flex()
-                    .child(self.media_panel(cx))
+                    .flex_col()
                     .child(
                         div()
+                            .id("editor-upper-workspace")
                             .min_w_0()
                             .flex_1()
-                            .h_full()
+                            .min_h_0()
                             .flex()
-                            .flex_col()
+                            .child(self.media_panel(cx))
                             .child(self.preview_player(
                                 MEDIA_PANEL_WIDTH,
                                 TOPBAR_HEIGHT,
@@ -89,9 +90,9 @@ impl Render for Editor {
                                 preview_height,
                                 cx,
                             ))
-                            .child(self.timeline(cx)),
+                            .child(self.inspector(cx)),
                     )
-                    .child(self.inspector(cx)),
+                    .child(self.timeline(cx)),
             )
             .when_some(file_menu, |this, menu| this.child(menu))
     }

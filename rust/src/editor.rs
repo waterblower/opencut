@@ -1218,7 +1218,7 @@ impl Editor {
 
     fn seek_from_timeline_x(&mut self, x: f32) {
         let scroll_x: f32 = self.timeline_scroll.offset().x.into();
-        let content_x = x - MEDIA_PANEL_WIDTH - TRACK_HEADER_WIDTH - scroll_x - TIMELINE_PADDING;
+        let content_x = x - TRACK_HEADER_WIDTH - scroll_x - TIMELINE_PADDING;
         let position = content_x as f64 / self.pixels_per_second as f64;
         self.load_timeline_position(position, false);
     }
