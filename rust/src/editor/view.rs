@@ -1,5 +1,8 @@
 use super::*;
 
+const MAX_RULER_TICKS: usize = 240;
+const TICK_STEPS: [f64; 10] = [1.0, 2.0, 5.0, 10.0, 15.0, 30.0, 60.0, 300.0, 600.0, 1800.0];
+
 impl Render for Editor {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let viewport = window.viewport_size();
@@ -16,11 +19,56 @@ impl Render for Editor {
             .as_ref()
             .filter(|path| workspace::is_image_path(path))
             .map(|path| self.project_root.join(path));
-        let timeline_image_path = self.loaded_clip_id.and_then(|clip_id| {
-            let clip = self.project.clip(clip_id)?;
-            let asset = self.project.asset(clip.asset_id)?;
-            (asset.kind == MediaKind::Image).then(|| self.project_root.join(&asset.path))
-        });
+        let timeline_visual_overlays = if selected_image_path.is_none() {
+            let base_track_index = self
+                .project
+                .visual_clip_at_time(self.playhead)
+                .and_then(|clip| {
+                    self.project
+                        .tracks
+                        .iter()
+                        .position(|track| track.id == clip.track_id)
+                })
+                .unwrap_or(self.project.tracks.len());
+            self.project.tracks[..base_track_index]
+                .iter()
+                .rev()
+                .filter(|track| track.visible)
+                .flat_map(|track| {
+                    self.project
+                        .clips_on_track(track.id)
+                        .filter(|clip| clip.contains(self.playhead))
+                        .filter_map(|clip| {
+                            if track.kind == TrackKind::Text {
+                                return clip.text.clone().map(|text| {
+                                    div()
+                                        .absolute()
+                                        .inset_0()
+                                        .flex()
+                                        .items_center()
+                                        .justify_center()
+                                        .p_8()
+                                        .text_3xl()
+                                        .font_weight(gpui::FontWeight::BOLD)
+                                        .child(text)
+                                        .into_any_element()
+                                });
+                            }
+                            let asset = clip.asset_id.and_then(|id| self.project.asset(id))?;
+                            (asset.kind == MediaKind::Image).then(|| {
+                                img(self.project_root.join(&asset.path))
+                                    .absolute()
+                                    .inset_0()
+                                    .size_full()
+                                    .object_fit(ObjectFit::Contain)
+                                    .into_any_element()
+                            })
+                        })
+                })
+                .collect::<Vec<_>>()
+        } else {
+            Vec::new()
+        };
         let preview = if let Some(image_path) = selected_image_path {
             img(image_path)
                 .id("editor-selected-image-preview")
@@ -33,13 +81,6 @@ impl Render for Editor {
                 .id("editor-preview-video")
                 .size(px(preview_width), px(preview_height))
                 .buffer_capacity(3)
-                .into_any_element()
-        } else if let Some(image_path) = timeline_image_path {
-            img(image_path)
-                .id("editor-preview-image")
-                .w(px(preview_width))
-                .h(px(preview_height))
-                .object_fit(ObjectFit::Contain)
                 .into_any_element()
         } else {
             div()
@@ -60,6 +101,8 @@ impl Render for Editor {
             .on_action(cx.listener(Self::action_split_clip))
             .on_action(cx.listener(Self::action_undo))
             .on_action(cx.listener(Self::action_redo))
+            .on_action(cx.listener(Self::action_duplicate_selected))
+            .on_action(cx.listener(Self::action_add_marker))
             .on_action(cx.listener(Self::action_reveal_in_finder))
             .on_action(cx.listener(Self::action_open_in_default_app))
             .size_full()
@@ -89,6 +132,7 @@ impl Render for Editor {
                                     .id("editor-preview")
                                     .min_h_0()
                                     .flex_1()
+                                    .relative()
                                     .flex()
                                     .items_center()
                                     .justify_center()
@@ -99,7 +143,8 @@ impl Render for Editor {
                                         editor.toggle_playback();
                                         cx.notify();
                                     }))
-                                    .child(preview),
+                                    .child(preview)
+                                    .children(timeline_visual_overlays),
                             )
                             .child(self.timeline(cx)),
                     )
@@ -113,7 +158,7 @@ impl Editor {
     fn topbar(&self, cx: &mut Context<Self>) -> gpui::AnyElement {
         let undo_enabled = !self.undo_stack.is_empty();
         let redo_enabled = !self.redo_stack.is_empty();
-        let export_enabled = !self.project.timeline.is_empty() && !self.exporting;
+        let export_enabled = !self.project.clips.is_empty() && !self.exporting;
         let has_error = self.error.is_some();
         let message = self
             .error
@@ -227,12 +272,15 @@ impl Editor {
                 let is_directory = entry.is_directory;
                 let is_video = entry.is_video;
                 let is_image = entry.is_image;
-                let is_media = is_video || is_image;
+                let is_audio = entry.is_audio;
+                let is_media = is_video || is_image || is_audio;
                 let thumbnail_path = is_image.then(|| self.project_root.join(&path));
                 let icon = if is_directory {
                     if entry.expanded { "▾" } else { "▸" }
                 } else if is_video {
                     "▶"
+                } else if is_audio {
+                    "♪"
                 } else {
                     "·"
                 };
@@ -359,6 +407,7 @@ impl Editor {
                     .flex_1()
                     .min_h_0()
                     .overflow_y_scroll()
+                    .track_scroll(&self.timeline_vertical_scroll)
                     .flex()
                     .flex_col()
                     .gap_2()
@@ -450,9 +499,12 @@ impl Editor {
     fn inspector(&self, cx: &mut Context<Self>) -> gpui::AnyElement {
         let selected = self.selected_clip_id.and_then(|id| {
             let index = self.project.clip_index(id)?;
-            let clip = &self.project.timeline[index];
-            let asset = self.project.asset(clip.asset_id)?;
-            Some((index, clip, asset))
+            let clip = &self.project.clips[index];
+            let asset = clip
+                .asset_id
+                .and_then(|asset_id| self.project.asset(asset_id));
+            let track = self.project.track(clip.track_id)?;
+            Some((clip, asset, track))
         });
 
         div()
@@ -485,7 +537,12 @@ impl Editor {
                     .min_h_0()
                     .overflow_y_scroll()
                     .p_4()
-                    .when_some(selected, |this, (index, clip, asset)| {
+                    .when_some(selected, |this, (clip, asset, track)| {
+                        let title = clip
+                            .text
+                            .clone()
+                            .or_else(|| asset.map(|asset| asset.name.clone()))
+                            .unwrap_or_else(|| "Missing media".to_string());
                         this.flex()
                             .flex_col()
                             .gap_4()
@@ -493,11 +550,11 @@ impl Editor {
                                 div()
                                     .text_lg()
                                     .font_weight(gpui::FontWeight::SEMIBOLD)
-                                    .child(asset.name.clone()),
+                                    .child(title),
                             )
                             .child(inspector_value(
                                 "Timeline start",
-                                format_time(self.project.timeline_start(index)),
+                                format_time(clip.timeline_start),
                             ))
                             .child(inspector_value("Source in", format_time(clip.source_in)))
                             .child(inspector_value("Source out", format_time(clip.source_out)))
@@ -505,19 +562,22 @@ impl Editor {
                                 "Clip duration",
                                 format_time(clip.duration()),
                             ))
-                            .child(inspector_value("Source", asset_description(asset)))
+                            .child(inspector_value("Track", track.name.clone()))
+                            .when_some(asset, |this, asset| {
+                                this.child(inspector_value("Source", asset_description(asset)))
+                            })
                             .child(
                                 div()
                                     .mt_2()
                                     .flex()
                                     .gap_2()
-                                    .child(panel_button("Move left").on_click(cx.listener(
+                                    .child(panel_button("Nudge left").on_click(cx.listener(
                                         |editor, _, _, cx| {
                                             editor.move_selected(-1);
                                             cx.notify();
                                         },
                                     )))
-                                    .child(panel_button("Move right").on_click(cx.listener(
+                                    .child(panel_button("Nudge right").on_click(cx.listener(
                                         |editor, _, _, cx| {
                                             editor.move_selected(1);
                                             cx.notify();
@@ -527,6 +587,12 @@ impl Editor {
                             .child(panel_button("Split at playhead").on_click(cx.listener(
                                 |editor, _, _, cx| {
                                     editor.split_selected();
+                                    cx.notify();
+                                },
+                            )))
+                            .child(panel_button("Duplicate clip").on_click(cx.listener(
+                                |editor, _, _, cx| {
+                                    editor.duplicate_selected();
                                     cx.notify();
                                 },
                             )))
@@ -547,82 +613,313 @@ impl Editor {
     }
 
     fn timeline(&self, cx: &mut Context<Self>) -> gpui::AnyElement {
-        let timeline_width = (self.project.timeline_duration() as f32 * self.pixels_per_second
-            + TIMELINE_PADDING * 2.0)
-            .max(640.0);
-        let clip_elements = self
+        let duration = self.project.timeline_duration().max(12.0);
+        let timeline_width =
+            (duration as f32 * self.pixels_per_second + TIMELINE_PADDING * 2.0).max(900.0);
+        let zoom_step = if self.pixels_per_second >= 120.0 {
+            1.0
+        } else if self.pixels_per_second >= 60.0 {
+            2.0
+        } else if self.pixels_per_second >= 36.0 {
+            5.0
+        } else {
+            10.0
+        };
+        // The ruler is not virtualised, so coarsen the step until a long project stays
+        // within a bounded number of labels rather than one per second.
+        let tick_step = TICK_STEPS
+            .iter()
+            .copied()
+            .find(|step| *step >= zoom_step && duration / step <= MAX_RULER_TICKS as f64)
+            .unwrap_or(duration / MAX_RULER_TICKS as f64);
+        let tick_count = (duration / tick_step).ceil() as usize + 1;
+        let ruler_ticks = (0..tick_count).map(|index| {
+            let time = index as f64 * tick_step;
+            div()
+                .absolute()
+                .left(px(TIMELINE_PADDING + time as f32 * self.pixels_per_second))
+                .top_0()
+                .h_full()
+                .border_l_1()
+                .border_color(rgb(0x333338))
+                .pl_1()
+                .font_family("monospace")
+                .text_xs()
+                .text_color(rgb(MUTED))
+                .child(format_time_precise(time))
+        });
+        let marker_elements = self
             .project
-            .timeline
+            .markers
             .iter()
             .enumerate()
-            .map(|(index, clip)| {
-                let clip_id = clip.id;
-                let selected = self.selected_clip_id == Some(clip_id);
-                let asset_name = self
-                    .project
-                    .asset(clip.asset_id)
-                    .map(|asset| asset.name.clone())
-                    .unwrap_or_else(|| "Missing media".to_string());
-                let width = (clip.duration() as f32 * self.pixels_per_second).max(2.0);
+            .map(|(index, marker)| {
+                let marker_time = marker.time;
                 div()
-                    .id(("timeline-clip", index))
-                    .relative()
-                    .w(px(width))
-                    .h(px(86.0))
-                    .flex_shrink_0()
-                    .overflow_hidden()
-                    .rounded_lg()
-                    .border_2()
-                    .border_color(rgb(if selected { ACCENT } else { 0x3a6695 }))
-                    .bg(rgb(CLIP_BLUE))
+                    .id(("timeline-marker", index))
+                    .absolute()
+                    .left(px(TIMELINE_PADDING
+                        + marker.time as f32 * self.pixels_per_second
+                        - 4.0))
+                    .top_0()
+                    .size_2()
+                    .bg(rgb(ACCENT))
                     .cursor(CursorStyle::PointingHand)
                     .on_click(cx.listener(move |editor, _, _, cx| {
-                        editor.select_clip(clip_id);
+                        editor.load_timeline_position(marker_time, false);
                         cx.notify();
                     }))
-                    .child(
+            });
+
+        let track_headers =
+            self.project
+                .tracks
+                .iter()
+                .enumerate()
+                .map(|(index, track)| {
+                    let track_id = track.id;
+                    div()
+                        .id(("track-header", index))
+                        .h(px(TRACK_HEIGHT))
+                        .flex_shrink_0()
+                        .flex()
+                        .flex_col()
+                        .justify_center()
+                        .gap_2()
+                        .px_3()
+                        .border_b_1()
+                        .border_color(rgb(BORDER))
+                        .child(
+                            div()
+                                .flex()
+                                .items_center()
+                                .justify_between()
+                                .child(
+                                    div()
+                                        .text_sm()
+                                        .font_weight(gpui::FontWeight::SEMIBOLD)
+                                        .child(track.name.clone()),
+                                )
+                                .child(
+                                    div()
+                                        .text_xs()
+                                        .text_color(rgb(MUTED))
+                                        .child(track_kind_label(track.kind)),
+                                ),
+                        )
+                        .child(
+                            div()
+                                .flex()
+                                .gap_1()
+                                .child(
+                                    track_button(
+                                        ("track-lock", index),
+                                        if track.locked { "🔒" } else { "♢" },
+                                    )
+                                    .on_click(cx.listener(
+                                        move |editor, _, _, cx| {
+                                            editor.toggle_track_lock(track_id);
+                                            cx.notify();
+                                        },
+                                    )),
+                                )
+                                .child(
+                                    track_button(
+                                        ("track-visible", index),
+                                        if track.visible { "◉" } else { "○" },
+                                    )
+                                    .on_click(cx.listener(
+                                        move |editor, _, _, cx| {
+                                            editor.toggle_track_visibility(track_id);
+                                            cx.notify();
+                                        },
+                                    )),
+                                )
+                                .child(
+                                    track_button(
+                                        ("track-mute", index),
+                                        if track.muted { "M×" } else { "M" },
+                                    )
+                                    .on_click(cx.listener(
+                                        move |editor, _, _, cx| {
+                                            editor.toggle_track_mute(track_id);
+                                            cx.notify();
+                                        },
+                                    )),
+                                )
+                                .child(track_button(("track-up", index), "↑").on_click(
+                                    cx.listener(move |editor, _, _, cx| {
+                                        editor.move_track(track_id, -1);
+                                        cx.notify();
+                                    }),
+                                ))
+                                .child(track_button(("track-down", index), "↓").on_click(
+                                    cx.listener(move |editor, _, _, cx| {
+                                        editor.move_track(track_id, 1);
+                                        cx.notify();
+                                    }),
+                                ))
+                                .child(track_button(("track-delete", index), "×").on_click(
+                                    cx.listener(move |editor, _, _, cx| {
+                                        editor.delete_track(track_id);
+                                        cx.notify();
+                                    }),
+                                )),
+                        )
+                });
+
+        let track_rows = self
+            .project
+            .tracks
+            .iter()
+            .enumerate()
+            .map(|(track_index, track)| {
+                let clip_elements = self
+                    .project
+                    .clips_on_track(track.id)
+                    .map(|clip| {
+                        let clip_id = clip.id;
+                        let selected = self.selected_clip_id == Some(clip_id);
+                        let asset = clip.asset_id.and_then(|id| self.project.asset(id));
+                        let name = clip
+                            .text
+                            .clone()
+                            .or_else(|| asset.map(|asset| asset.name.clone()))
+                            .unwrap_or_else(|| "Missing media".to_string());
+                        let left =
+                            TIMELINE_PADDING + clip.timeline_start as f32 * self.pixels_per_second;
+                        let width = (clip.duration() as f32 * self.pixels_per_second).max(4.0);
+                        let color = match track.kind {
+                            TrackKind::Text => 0x9a4f3c,
+                            TrackKind::Video => CLIP_BLUE,
+                            TrackKind::Audio => 0x24656b,
+                        };
+                        let cached =
+                            asset.is_some_and(|asset| self.media_cache_ready.contains(&asset.id));
+                        let thumbnail = asset.and_then(|asset| match asset.kind {
+                            MediaKind::Image => Some(self.project_root.join(&asset.path)),
+                            MediaKind::Video => cached
+                                .then(|| media_cache::thumbnail_path(&self.project_root, asset)),
+                            MediaKind::Audio => None,
+                        });
+                        let waveform = asset.and_then(|asset| {
+                            (cached && asset.has_audio)
+                                .then(|| media_cache::waveform_path(&self.project_root, asset))
+                        });
+                        let has_audio = asset.is_some_and(|asset| asset.has_audio);
                         div()
+                            .id(("timeline-clip", clip_id))
                             .absolute()
-                            .inset_0()
-                            .flex()
-                            .flex_col()
-                            .justify_between()
-                            .p_3()
-                            .child(
-                                div()
-                                    .text_sm()
-                                    .font_weight(gpui::FontWeight::SEMIBOLD)
-                                    .text_ellipsis()
-                                    .child(asset_name),
+                            .left(px(left))
+                            .top(px(5.0))
+                            .w(px(width))
+                            .h(px(TRACK_HEIGHT - 10.0))
+                            .overflow_hidden()
+                            .rounded_md()
+                            .border_2()
+                            .border_color(rgb(if selected { ACCENT } else { color + 0x101010 }))
+                            .bg(rgb(color))
+                            .cursor(CursorStyle::PointingHand)
+                            .on_mouse_down(
+                                MouseButton::Left,
+                                cx.listener(move |editor, event: &MouseDownEvent, _, cx| {
+                                    editor.begin_clip_move(clip_id, event, cx);
+                                    cx.notify();
+                                }),
                             )
                             .child(
                                 div()
-                                    .text_xs()
-                                    .font_family("monospace")
-                                    .text_color(rgb(0xb9cee5))
-                                    .child(format!(
-                                        "{} – {}",
-                                        format_time(clip.source_in),
-                                        format_time(clip.source_out)
-                                    )),
-                            ),
-                    )
-                    .child(trim_handle(("left-trim", index), true).on_mouse_down(
-                        MouseButton::Left,
-                        cx.listener(move |editor, event: &MouseDownEvent, _, cx| {
-                            editor.begin_trim(clip_id, TrimEdge::Left, event.position.x.into());
-                            cx.notify();
-                        }),
-                    ))
-                    .child(trim_handle(("right-trim", index), false).on_mouse_down(
-                        MouseButton::Left,
-                        cx.listener(move |editor, event: &MouseDownEvent, _, cx| {
-                            editor.begin_trim(clip_id, TrimEdge::Right, event.position.x.into());
-                            cx.notify();
-                        }),
-                    ))
-            })
-            .collect::<Vec<_>>();
+                                    .absolute()
+                                    .inset_0()
+                                    .when_some(thumbnail, |this, path| {
+                                        this.child(
+                                            img(path)
+                                                .size_full()
+                                                .object_fit(ObjectFit::Cover)
+                                                .opacity(0.45),
+                                        )
+                                    }),
+                            )
+                            .when_some(waveform, |this, path| {
+                                this.child(
+                                    div()
+                                        .absolute()
+                                        .left_0()
+                                        .right_0()
+                                        .bottom_0()
+                                        .h(px(24.0))
+                                        .opacity(0.82)
+                                        .child(img(path).size_full().object_fit(ObjectFit::Fill)),
+                                )
+                            })
+                            .child(
+                                div()
+                                    .absolute()
+                                    .inset_0()
+                                    .p_2()
+                                    .flex()
+                                    .flex_col()
+                                    .justify_between()
+                                    .child(
+                                        div()
+                                            .text_xs()
+                                            .font_weight(gpui::FontWeight::SEMIBOLD)
+                                            .text_ellipsis()
+                                            .child(name),
+                                    )
+                                    .child(
+                                        div()
+                                            .font_family("monospace")
+                                            .text_xs()
+                                            .text_color(rgb(0xc8d8e8))
+                                            .child(if has_audio {
+                                                "Audio".to_string()
+                                            } else {
+                                                format!("{}s", clip.duration().round())
+                                            }),
+                                    ),
+                            )
+                            .child(trim_handle(("left-trim", clip_id), true).on_mouse_down(
+                                MouseButton::Left,
+                                cx.listener(move |editor, event: &MouseDownEvent, _, cx| {
+                                    cx.stop_propagation();
+                                    editor.begin_trim(
+                                        clip_id,
+                                        TrimEdge::Left,
+                                        event.position.x.into(),
+                                    );
+                                    cx.notify();
+                                }),
+                            ))
+                            .child(trim_handle(("right-trim", clip_id), false).on_mouse_down(
+                                MouseButton::Left,
+                                cx.listener(move |editor, event: &MouseDownEvent, _, cx| {
+                                    cx.stop_propagation();
+                                    editor.begin_trim(
+                                        clip_id,
+                                        TrimEdge::Right,
+                                        event.position.x.into(),
+                                    );
+                                    cx.notify();
+                                }),
+                            ))
+                    })
+                    .collect::<Vec<_>>();
+                div()
+                    .id(("track-row", track_index))
+                    .relative()
+                    .w(px(timeline_width))
+                    .h(px(TRACK_HEIGHT))
+                    .flex_shrink_0()
+                    .border_b_1()
+                    .border_color(rgb(BORDER))
+                    .bg(rgb(if track_index % 2 == 0 {
+                        0x101012
+                    } else {
+                        0x0d0d0f
+                    }))
+                    .children(clip_elements)
+            });
         let playhead_left = TIMELINE_PADDING + self.playhead as f32 * self.pixels_per_second;
 
         div()
@@ -635,8 +932,14 @@ impl Editor {
             .border_color(rgb(BORDER))
             .bg(rgb(0x0a0a0c))
             .on_mouse_move(cx.listener(Self::update_trim))
+            .on_mouse_move(cx.listener(Self::update_clip_move))
+            .on_mouse_move(cx.listener(Self::update_playhead_scrub))
             .on_mouse_up(MouseButton::Left, cx.listener(Self::finish_trim))
+            .on_mouse_up(MouseButton::Left, cx.listener(Self::finish_clip_move))
+            .on_mouse_up(MouseButton::Left, cx.listener(Self::finish_playhead_scrub))
             .on_mouse_up_out(MouseButton::Left, cx.listener(Self::finish_trim))
+            .on_mouse_up_out(MouseButton::Left, cx.listener(Self::finish_clip_move))
+            .on_mouse_up_out(MouseButton::Left, cx.listener(Self::finish_playhead_scrub))
             .child(
                 div()
                     .h(px(TIMELINE_HEADER_HEIGHT))
@@ -644,41 +947,64 @@ impl Editor {
                     .flex()
                     .items_center()
                     .justify_between()
-                    .px_4()
+                    .px_3()
                     .border_b_1()
                     .border_color(rgb(BORDER))
                     .child(
                         div()
                             .flex()
                             .items_center()
-                            .gap_3()
+                            .gap_2()
                             .child(
-                                div()
-                                    .id("timeline-play")
-                                    .size_8()
-                                    .flex()
-                                    .items_center()
-                                    .justify_center()
-                                    .rounded_md()
-                                    .bg(rgb(SURFACE))
-                                    .cursor(CursorStyle::PointingHand)
-                                    .hover(|style| style.bg(rgb(SURFACE_HOVER)))
-                                    .child(if self.playing { "Ⅱ" } else { "▶" })
-                                    .on_click(cx.listener(|editor, _, _, cx| {
+                                timeline_icon_button(
+                                    "timeline-play",
+                                    if self.playing { "Ⅱ" } else { "▶" },
+                                )
+                                .on_click(cx.listener(
+                                    |editor, _, _, cx| {
                                         editor.toggle_playback();
                                         cx.notify();
-                                    })),
+                                    },
+                                )),
                             )
-                            .child(div().font_family("monospace").text_sm().child(format!(
-                                "{} / {}",
-                                format_time(self.playhead),
-                                format_time(self.project.timeline_duration())
-                            )))
+                            .child(div().w(px(108.0)).font_family("monospace").text_sm().child(
+                                format!(
+                                    "{} / {}",
+                                    format_time(self.playhead),
+                                    format_time(self.project.timeline_duration())
+                                ),
+                            ))
+                            .child(timeline_icon_button("add-video-track", "+V").on_click(
+                                cx.listener(|editor, _, _, cx| {
+                                    editor.add_track(TrackKind::Video);
+                                    cx.notify();
+                                }),
+                            ))
+                            .child(timeline_icon_button("add-audio-track", "+A").on_click(
+                                cx.listener(|editor, _, _, cx| {
+                                    editor.add_track(TrackKind::Audio);
+                                    cx.notify();
+                                }),
+                            ))
+                            .child(timeline_icon_button("add-text-track", "+T").on_click(
+                                cx.listener(|editor, _, _, cx| {
+                                    editor.add_track(TrackKind::Text);
+                                    cx.notify();
+                                }),
+                            ))
+                            .child(timeline_icon_button("add-title", "Title").on_click(
+                                cx.listener(|editor, _, _, cx| {
+                                    editor.add_text_clip();
+                                    cx.notify();
+                                }),
+                            ))
                             .child(
-                                div()
-                                    .text_xs()
-                                    .text_color(rgb(MUTED))
-                                    .child("Video, audio, and still images"),
+                                timeline_icon_button("add-marker", "◆").on_click(cx.listener(
+                                    |editor, _, _, cx| {
+                                        editor.add_marker();
+                                        cx.notify();
+                                    },
+                                )),
                             ),
                     )
                     .child(
@@ -686,10 +1012,12 @@ impl Editor {
                             .flex()
                             .items_center()
                             .gap_2()
-                            .child(panel_button("−").on_click(cx.listener(|editor, _, _, cx| {
-                                editor.zoom(0.8);
-                                cx.notify();
-                            })))
+                            .child(timeline_icon_button("zoom-out", "−").on_click(cx.listener(
+                                |editor, _, _, cx| {
+                                    editor.zoom(0.8);
+                                    cx.notify();
+                                },
+                            )))
                             .child(
                                 div()
                                     .w(px(58.0))
@@ -699,66 +1027,171 @@ impl Editor {
                                     .text_color(rgb(MUTED))
                                     .child(format!("{:.0}px/s", self.pixels_per_second)),
                             )
-                            .child(panel_button("+").on_click(cx.listener(|editor, _, _, cx| {
-                                editor.zoom(1.25);
-                                cx.notify();
-                            }))),
+                            .child(timeline_icon_button("zoom-in", "+").on_click(cx.listener(
+                                |editor, _, _, cx| {
+                                    editor.zoom(1.25);
+                                    cx.notify();
+                                },
+                            ))),
                     ),
             )
             .child(
                 div()
-                    .id("editor-timeline-scroll")
+                    .id("timeline-tracks-vertical-scroll")
                     .flex_1()
                     .min_h_0()
-                    .overflow_x_scroll()
-                    .track_scroll(&self.timeline_scroll)
+                    .overflow_y_scroll()
                     .child(
                         div()
-                            .relative()
-                            .w(px(timeline_width))
-                            .h_full()
-                            .pt_8()
-                            .px(px(TIMELINE_PADDING))
+                            .h(px(
+                                RULER_HEIGHT + self.project.tracks.len() as f32 * TRACK_HEIGHT,
+                            ))
+                            .w_full()
+                            .flex()
                             .child(
                                 div()
-                                    .id("timeline-seek-ruler")
-                                    .absolute()
-                                    .top_0()
-                                    .left_0()
-                                    .w_full()
-                                    .h(px(24.0))
-                                    .cursor(CursorStyle::PointingHand)
-                                    .on_mouse_down(
-                                        MouseButton::Left,
-                                        cx.listener(|editor, event: &MouseDownEvent, _, cx| {
-                                            editor.seek_from_timeline_x(event.position.x.into());
-                                            cx.notify();
-                                        }),
-                                    ),
-                            )
-                            .child(div().h(px(86.0)).flex().gap_0().children(clip_elements))
-                            .child(
-                                div()
-                                    .absolute()
-                                    .top_3()
-                                    .bottom_3()
-                                    .left(px(playhead_left))
-                                    .w(px(2.0))
-                                    .bg(rgb(ACCENT))
+                                    .w(px(TRACK_HEADER_WIDTH))
+                                    .h_full()
+                                    .flex_shrink_0()
+                                    .flex()
+                                    .flex_col()
+                                    .border_r_1()
+                                    .border_color(rgb(BORDER))
                                     .child(
                                         div()
-                                            .absolute()
-                                            .top_0()
-                                            .left(px(-5.0))
-                                            .w(px(12.0))
-                                            .h(px(8.0))
-                                            .bg(rgb(ACCENT)),
-                                    ),
+                                            .h(px(RULER_HEIGHT))
+                                            .flex_shrink_0()
+                                            .border_b_1()
+                                            .border_color(rgb(BORDER)),
+                                    )
+                                    .children(track_headers),
+                            )
+                            .child(
+                                div()
+                                    .id("editor-timeline-scroll")
+                                    .min_w_0()
+                                    .flex_1()
+                                    .h_full()
+                                    .overflow_x_scroll()
+                                    .track_scroll(&self.timeline_scroll)
+                                    .child(
+                                        div()
+                                            .relative()
+                                            .w(px(timeline_width))
+                                            .min_h_full()
+                                            .child(
+                                                div()
+                                                    .id("timeline-seek-ruler")
+                                                    .relative()
+                                                    .w_full()
+                                                    .h(px(RULER_HEIGHT))
+                                                    .border_b_1()
+                                                    .border_color(rgb(BORDER))
+                                                    .cursor(CursorStyle::PointingHand)
+                                                    .children(ruler_ticks)
+                                                    .children(marker_elements)
+                                                    .on_mouse_down(
+                                                        MouseButton::Left,
+                                                        cx.listener(
+                                                            |editor,
+                                                             event: &MouseDownEvent,
+                                                             _,
+                                                             cx| {
+                                                                editor.begin_playhead_scrub(event);
+                                                                cx.notify();
+                                                            },
+                                                        ),
+                                                    ),
+                                            )
+                                            .children(track_rows)
+                                            .child(
+                                                div()
+                                                    .absolute()
+                                                    .top_0()
+                                                    .bottom_0()
+                                                    .left(px(playhead_left))
+                                                    .w(px(2.0))
+                                                    .bg(rgb(ACCENT))
+                                                    .cursor(CursorStyle::ResizeLeftRight)
+                                                    .on_mouse_down(
+                                                        MouseButton::Left,
+                                                        cx.listener(
+                                                            |editor,
+                                                             event: &MouseDownEvent,
+                                                             _,
+                                                             cx| {
+                                                                editor.begin_playhead_scrub(event);
+                                                                cx.stop_propagation();
+                                                                cx.notify();
+                                                            },
+                                                        ),
+                                                    )
+                                                    .child(
+                                                        div()
+                                                            .absolute()
+                                                            .top_0()
+                                                            .left(px(-4.0))
+                                                            .size_2()
+                                                            .bg(rgb(ACCENT)),
+                                                    ),
+                                            ),
+                                    )
                             ),
                     ),
             )
             .into_any_element()
     }
+}
+
+fn timeline_icon_button(
+    id: impl Into<gpui::ElementId>,
+    label: &'static str,
+) -> gpui::Stateful<gpui::Div> {
+    div()
+        .id(id)
+        .h_7()
+        .min_w(px(28.0))
+        .px_2()
+        .flex()
+        .items_center()
+        .justify_center()
+        .rounded_md()
+        .bg(rgb(SURFACE))
+        .cursor(CursorStyle::PointingHand)
+        .text_xs()
+        .hover(|style| style.bg(rgb(SURFACE_HOVER)))
+        .child(label)
+}
+
+fn track_button(id: impl Into<gpui::ElementId>, label: &'static str) -> gpui::Stateful<gpui::Div> {
+    div()
+        .id(id)
+        .h_5()
+        .min_w(px(24.0))
+        .px_1()
+        .flex()
+        .items_center()
+        .justify_center()
+        .rounded_sm()
+        .bg(rgb(SURFACE))
+        .cursor(CursorStyle::PointingHand)
+        .text_xs()
+        .hover(|style| style.bg(rgb(SURFACE_HOVER)))
+        .child(label)
+}
+
+fn track_kind_label(kind: TrackKind) -> &'static str {
+    match kind {
+        TrackKind::Text => "T",
+        TrackKind::Video => "V",
+        TrackKind::Audio => "A",
+    }
+}
+
+fn format_time_precise(seconds: f64) -> String {
+    let minutes = (seconds / 60.0).floor() as u64;
+    let seconds = seconds % 60.0;
+    format!("{minutes:02}:{seconds:04.1}")
 }
 
 fn toolbar_button(label: &'static str, enabled: bool) -> gpui::Stateful<gpui::Div> {
@@ -841,13 +1274,13 @@ fn inspector_value(label: &str, value: String) -> gpui::Div {
 }
 
 fn asset_description(asset: &MediaAsset) -> String {
-    if asset.kind == MediaKind::Image {
-        format!("{} image · {}×{}", asset.codec, asset.width, asset.height)
-    } else {
-        format!(
+    match asset.kind {
+        MediaKind::Image => format!("{} image · {}×{}", asset.codec, asset.width, asset.height),
+        MediaKind::Audio => format!("{} audio", asset.codec),
+        MediaKind::Video => format!(
             "{} · {}×{} · {:.2} fps",
             asset.codec, asset.width, asset.height, asset.framerate
-        )
+        ),
     }
 }
 

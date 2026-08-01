@@ -13,6 +13,7 @@ pub(super) struct FileTreeEntry {
     pub is_directory: bool,
     pub is_video: bool,
     pub is_image: bool,
+    pub is_audio: bool,
     pub expanded: bool,
 }
 
@@ -99,6 +100,7 @@ fn read_directory(
             is_directory,
             is_video: !is_directory && is_video_path(&relative_path),
             is_image: !is_directory && is_image_path(&relative_path),
+            is_audio: !is_directory && is_audio_path(&relative_path),
             expanded,
         });
         if expanded {
@@ -132,6 +134,17 @@ pub(super) fn is_video_path(path: &Path) -> bool {
             matches!(
                 extension.to_ascii_lowercase().as_str(),
                 "mp4" | "mov" | "m4v" | "mkv" | "webm" | "avi"
+            )
+        })
+}
+
+pub(super) fn is_audio_path(path: &Path) -> bool {
+    path.extension()
+        .and_then(|extension| extension.to_str())
+        .is_some_and(|extension| {
+            matches!(
+                extension.to_ascii_lowercase().as_str(),
+                "aac" | "flac" | "m4a" | "mp3" | "ogg" | "wav"
             )
         })
 }
