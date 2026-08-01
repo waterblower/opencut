@@ -419,8 +419,9 @@ impl Player {
     }
 
     fn dismiss_settings(&mut self, _: &MouseDownEvent, _: &mut Window, cx: &mut Context<Self>) {
-        if self.settings_open {
+        if self.settings_open || self.volume_open {
             self.settings_open = false;
+            self.volume_open = false;
             cx.notify();
         }
     }
@@ -572,6 +573,13 @@ impl PlaybackViewDelegate for Player {
             self.settings_open = false;
         }
         cx.notify();
+    }
+
+    fn playback_dismiss_volume(&mut self, _: &mut Window, cx: &mut Context<Self>) {
+        if self.volume_open {
+            self.volume_open = false;
+            cx.notify();
+        }
     }
 }
 

@@ -631,4 +631,11 @@ impl PlaybackViewDelegate for Editor {
             cx.notify();
         }
     }
+
+    fn playback_dismiss_volume(&mut self, _: &mut Window, cx: &mut Context<Self>) {
+        if self.preview_volume_open {
+            self.preview_volume_open = false;
+            cx.notify();
+        }
+    }
 }

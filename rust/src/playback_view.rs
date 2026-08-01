@@ -39,6 +39,7 @@ pub(crate) trait PlaybackViewDelegate: Sized + 'static {
         cx: &mut Context<Self>,
     );
     fn playback_toggle_volume(&mut self, window: &mut Window, cx: &mut Context<Self>);
+    fn playback_dismiss_volume(&mut self, window: &mut Window, cx: &mut Context<Self>);
 
     fn playback_toggle_fullscreen(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         window.toggle_fullscreen();
@@ -90,6 +91,10 @@ pub(crate) fn playback_view<T: PlaybackViewDelegate>(
         .flex_col()
         .overflow_hidden()
         .bg(rgb(0x000000))
+        .on_mouse_down(
+            MouseButton::Left,
+            cx.listener(|owner, _, window, cx| owner.playback_dismiss_volume(window, cx)),
+        )
         .on_mouse_move(cx.listener(move |owner, event: &MouseMoveEvent, window, cx| {
             if event.dragging() {
                 let fraction = ((f32::from(event.position.x) - timeline_left) / usable_width)
@@ -270,6 +275,55 @@ pub(crate) fn playback_view<T: PlaybackViewDelegate>(
                                                     .bg(rgb(0x1a1a1d))
                                                     .shadow_lg()
                                                     .occlude()
+                                                    .on_mouse_down(
+                                                        MouseButton::Left,
+                                                        cx.listener(|_, _, _, cx| {
+                                                            cx.stop_propagation()
+                                                        }),
+                                                    )
+                                                    .on_mouse_move(cx.listener(
+                                                        move |owner,
+                                                              event: &MouseMoveEvent,
+                                                              window,
+                                                              cx| {
+                                                            if event.dragging() {
+                                                                let volume = ((volume_track_bottom
+                                                                    - f32::from(event.position.y))
+                                                                    / VOLUME_TRACK_HEIGHT)
+                                                                    .clamp(0.0, 1.0)
+                                                                    as f64;
+                                                                owner.playback_set_volume(
+                                                                    volume,
+                                                                    DragPhase::Update,
+                                                                    window,
+                                                                    cx,
+                                                                );
+                                                            }
+                                                            cx.stop_propagation();
+                                                        },
+                                                    ))
+                                                    .on_mouse_up(
+                                                        MouseButton::Left,
+                                                        cx.listener(
+                                                            move |owner,
+                                                                  event: &MouseUpEvent,
+                                                                  window,
+                                                                  cx| {
+                                                                let volume = ((volume_track_bottom
+                                                                    - f32::from(event.position.y))
+                                                                    / VOLUME_TRACK_HEIGHT)
+                                                                    .clamp(0.0, 1.0)
+                                                                    as f64;
+                                                                owner.playback_set_volume(
+                                                                    volume,
+                                                                    DragPhase::End,
+                                                                    window,
+                                                                    cx,
+                                                                );
+                                                                cx.stop_propagation();
+                                                            },
+                                                        ),
+                                                    )
                                                     .child(
                                                         div()
                                                             .absolute()
@@ -344,6 +398,12 @@ pub(crate) fn playback_view<T: PlaybackViewDelegate>(
                                                 .border_color(rgb(BORDER))
                                                 .bg(rgb(0x1a1a1d))
                                                 .hover(|style| style.bg(rgb(SURFACE_HOVER)))
+                                                .on_mouse_down(
+                                                    MouseButton::Left,
+                                                    cx.listener(|_, _, _, cx| {
+                                                        cx.stop_propagation()
+                                                    }),
+                                                )
                                                 .child(
                                                     div()
                                                         .h(px(28.0))

@@ -49,6 +49,15 @@ impl Render for Editor {
             .on_action(cx.listener(Self::action_exit_fullscreen))
             .on_action(cx.listener(Self::action_reveal_in_finder))
             .on_action(cx.listener(Self::action_open_in_default_app))
+            .on_mouse_down(
+                MouseButton::Left,
+                cx.listener(|editor, _, _, cx| {
+                    if editor.preview_volume_open {
+                        editor.preview_volume_open = false;
+                        cx.notify();
+                    }
+                }),
+            )
             .size_full()
             .relative()
             .flex()
