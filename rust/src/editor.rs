@@ -15,6 +15,7 @@ mod export;
 mod media_cache;
 mod model;
 mod preview;
+mod timeline;
 mod view;
 mod workspace;
 
