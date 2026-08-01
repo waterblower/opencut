@@ -546,7 +546,6 @@ impl Editor {
                     .count()
                     + 1;
                 let prefix = match target_kind {
-                    TrackKind::Text => "Text",
                     TrackKind::Video => "Video",
                     TrackKind::Audio => "Audio",
                 };
@@ -565,7 +564,6 @@ impl Editor {
             id,
             track_id,
             asset_id: Some(asset_id),
-            text: None,
             timeline_start: self.project.content_duration(),
             source_in: 0.0,
             source_out: duration,
@@ -603,7 +601,6 @@ impl Editor {
             id: new_id,
             track_id: clip.track_id,
             asset_id: clip.asset_id,
-            text: clip.text.clone(),
             timeline_start: self.playhead,
             source_in: source_split,
             source_out: clip.source_out,
@@ -728,7 +725,6 @@ impl Editor {
             .count()
             + 1;
         let prefix = match kind {
-            TrackKind::Text => "Text",
             TrackKind::Video => "Video",
             TrackKind::Audio => "Audio",
         };
@@ -742,32 +738,6 @@ impl Editor {
             visible: true,
         });
         self.save_project();
-    }
-
-    fn add_text_clip(&mut self) {
-        let Some(track_id) = self
-            .project
-            .tracks
-            .iter()
-            .find(|track| track.kind == TrackKind::Text && !track.locked)
-            .map(|track| track.id)
-        else {
-            return;
-        };
-        self.checkpoint();
-        let id = self.take_id();
-        self.project.clips.push(TimelineClip {
-            id,
-            track_id,
-            asset_id: None,
-            text: Some("Title".to_string()),
-            timeline_start: self.playhead,
-            source_in: 0.0,
-            source_out: 5.0,
-        });
-        self.selected_clip_id = Some(id);
-        self.save_project();
-        self.load_timeline_position(self.playhead, false);
     }
 
     fn toggle_track_lock(&mut self, track_id: u64) {
@@ -969,14 +939,10 @@ impl Editor {
         if track.locked {
             return false;
         }
-        if clip.text.is_some() {
-            return track.kind == TrackKind::Text;
-        }
         let Some(asset) = clip.asset_id.and_then(|id| self.project.asset(id)) else {
             return false;
         };
         match track.kind {
-            TrackKind::Text => false,
             TrackKind::Video => asset.kind != MediaKind::Audio,
             TrackKind::Audio => asset.has_audio,
         }

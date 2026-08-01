@@ -57,21 +57,6 @@ impl Editor {
                         .clips_on_track(track.id)
                         .filter(|clip| clip.contains(self.playhead))
                         .filter_map(|clip| {
-                            if track.kind == TrackKind::Text {
-                                return clip.text.clone().map(|text| {
-                                    div()
-                                        .absolute()
-                                        .inset_0()
-                                        .flex()
-                                        .items_center()
-                                        .justify_center()
-                                        .p_8()
-                                        .text_3xl()
-                                        .font_weight(gpui::FontWeight::BOLD)
-                                        .child(text)
-                                        .into_any_element()
-                                });
-                            }
                             let asset = clip.asset_id.and_then(|id| self.project.asset(id))?;
                             (asset.kind == MediaKind::Image).then(|| {
                                 img(self.project_root.join(&asset.path))
