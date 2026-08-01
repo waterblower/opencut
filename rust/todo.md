@@ -40,29 +40,6 @@
       `load_timeline_position`, or change `visual_clip_at_time` so those cases are
       intentionally returned and handled there.
 
-## Frame-based timeline math
-
-Replace floating-point seconds as the canonical timeline representation with
-integer frame/tick values and an explicit rational project frame rate.
-
-- [ ] Add project video settings containing the frame-rate numerator and
-      denominator, resolution, and audio sample rate.
-- [ ] Introduce a `TimelineTime` or `FrameNumber` newtype backed by an integer.
-- [ ] Store `timeline_start`, `source_in`, and `source_out` using the new timeline
-      type instead of `f64` seconds.
-- [ ] Define conversions between timeline frames, media timestamps, seconds,
-      `Duration`, FFmpeg time bases, and GStreamer clock time.
-- [ ] Define one rounding policy for seeking, trimming, splitting, snapping, and
-      export boundaries.
-- [ ] Make the playhead, markers, clip edges, snapping, ruler labels, and frame
-      stepping use the same timeline type.
-- [ ] Handle source media whose frame rate differs from the project frame rate.
-- [ ] Handle variable-frame-rate sources without accumulating timing drift.
-- [ ] Keep audio timing sample-accurate while mapping it onto the video timeline.
-- [ ] Update project serialization to store exact integer/rational values.
-- [ ] Add tests for fractional frame rates such as 23.976, 29.97, and 59.94 fps,
-      long timelines, repeated splits, and preview/export boundary agreement.
-
 ## Editing modes
 
 Expand the current move, trim, split, duplicate, and delete operations into a

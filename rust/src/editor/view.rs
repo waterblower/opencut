@@ -13,6 +13,8 @@ impl Render for Editor {
                 .id("editor-fullscreen-preview")
                 .track_focus(&self.focus_handle)
                 .on_action(cx.listener(Self::action_toggle_playback))
+                .on_action(cx.listener(Self::action_step_backward_frame))
+                .on_action(cx.listener(Self::action_step_forward_frame))
                 .on_action(cx.listener(Self::action_toggle_fullscreen))
                 .on_action(cx.listener(Self::action_exit_fullscreen))
                 .on_action(cx.listener(Self::action_toggle_inspector))
@@ -37,6 +39,8 @@ impl Render for Editor {
             .id("editor-root")
             .track_focus(&self.focus_handle)
             .on_action(cx.listener(Self::action_toggle_playback))
+            .on_action(cx.listener(Self::action_step_backward_frame))
+            .on_action(cx.listener(Self::action_step_forward_frame))
             .on_action(cx.listener(Self::action_delete_selected))
             .on_action(cx.listener(Self::action_split_clip))
             .on_action(cx.listener(Self::action_undo))
@@ -250,13 +254,19 @@ impl Editor {
                             )
                             .child(inspector_value(
                                 "Timeline start",
-                                format_time(clip.timeline_start),
+                                format_time(self.project.seconds(clip.timeline_start)),
                             ))
-                            .child(inspector_value("Source in", format_time(clip.source_in)))
-                            .child(inspector_value("Source out", format_time(clip.source_out)))
+                            .child(inspector_value(
+                                "Source in",
+                                format_time(self.project.seconds(clip.source_in)),
+                            ))
+                            .child(inspector_value(
+                                "Source out",
+                                format_time(self.project.seconds(clip.source_out)),
+                            ))
                             .child(inspector_value(
                                 "Clip duration",
-                                format_time(clip.duration()),
+                                format_time(self.project.seconds(clip.duration())),
                             ))
                             .child(inspector_value("Track", track.name.clone()))
                             .when_some(asset, |this, asset| {

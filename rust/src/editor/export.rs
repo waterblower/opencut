@@ -9,8 +9,6 @@ use ffmpeg::{
 use ffmpeg_next as ffmpeg;
 use std::path::Path;
 
-const AUDIO_RATE: i32 = 48_000;
-
 pub(super) fn export_project(
     project: &Project,
     project_root: &Path,
@@ -21,25 +19,17 @@ pub(super) fn export_project(
     }
     ffmpeg::init().map_err(|error| format!("could not initialize FFmpeg: {error}"))?;
 
-    let duration = project.content_duration();
-    let first_visual_asset = project
-        .tracks
-        .iter()
-        .filter(|track| track.kind == TrackKind::Video)
-        .flat_map(|track| project.clips_on_track(track.id))
-        .filter_map(|clip| clip.asset_id.and_then(|id| project.asset(id)))
-        .next();
-    let width = even(first_visual_asset.map_or(1920, |asset| asset.width).max(2));
-    let height = even(first_visual_asset.map_or(1080, |asset| asset.height).max(2));
-    let fps = project
-        .clips
-        .iter()
-        .filter_map(|clip| clip.asset_id.and_then(|id| project.asset(id)))
-        .find(|asset| asset.kind == MediaKind::Video)
-        .map(|asset| asset.framerate.clamp(1.0, 60.0))
-        .unwrap_or(30.0);
-    let frame_rate = Rational((fps * 1_000.0).round() as i32, 1_000);
+    let duration = project.seconds(project.content_duration());
+    let width = even(project.settings.width.max(2));
+    let height = even(project.settings.height.max(2));
+    let fps = project.settings.frame_rate.frames_per_second();
+    let frame_rate = Rational(
+        project.settings.frame_rate.numerator as i32,
+        project.settings.frame_rate.denominator as i32,
+    );
     let video_time_base = Rational(frame_rate.denominator(), frame_rate.numerator());
+    let audio_rate = i32::try_from(project.settings.audio_sample_rate)
+        .map_err(|_| "project audio sample rate is too large".to_string())?;
 
     let mut video_graph = build_video_graph(
         project,
@@ -50,7 +40,7 @@ pub(super) fn export_project(
         video_time_base,
         duration,
     )?;
-    let mut audio_graph = build_audio_graph(project, project_root, duration)?;
+    let mut audio_graph = build_audio_graph(project, project_root, duration, audio_rate)?;
     let mut output_context = format::output(output)
         .map_err(|error| format!("could not create {}: {error}", output.display()))?;
     let global_header = output_context
@@ -99,12 +89,12 @@ pub(super) fn export_project(
     let audio_format = audio_formats
         .next()
         .ok_or_else(|| "the AAC encoder reports no supported sample format".to_string())?;
-    let audio_time_base = Rational(1, AUDIO_RATE);
+    let audio_time_base = Rational(1, audio_rate);
     let mut audio_encoder = codec::context::Context::new_with_codec(audio_codec)
         .encoder()
         .audio()
         .map_err(|error| format!("could not configure AAC encoder: {error}"))?;
-    audio_encoder.set_rate(AUDIO_RATE);
+    audio_encoder.set_rate(audio_rate);
     audio_encoder.set_channel_layout(ChannelLayout::STEREO);
     audio_encoder.set_format(audio_format);
     audio_encoder.set_bit_rate(192_000);
@@ -174,7 +164,7 @@ fn build_video_graph(
         .filter(|track| track.visible && track.kind == TrackKind::Video)
     {
         let mut clips = project.clips_on_track(track.id).collect::<Vec<_>>();
-        clips.sort_by(|left, right| left.timeline_start.total_cmp(&right.timeline_start));
+        clips.sort_by_key(|clip| clip.timeline_start);
         for clip in clips {
             visual_number += 1;
             let output_label = format!("visual{visual_number}");
@@ -187,24 +177,24 @@ fn build_video_graph(
             let source_filter = if asset.kind == MediaKind::Image {
                 format!(
                     "movie=filename='{source}',setpts=PTS-STARTPTS,tpad=stop_mode=clone:stop_duration={},trim=duration={}",
-                    decimal(clip.duration()),
-                    decimal(clip.duration())
+                    decimal(project.seconds(clip.duration())),
+                    decimal(project.seconds(clip.duration()))
                 )
             } else {
                 format!(
                     "movie=filename='{source}',trim=start={}:duration={},setpts=PTS-STARTPTS",
-                    decimal(clip.source_in),
-                    decimal(clip.duration())
+                    decimal(project.seconds(clip.source_in)),
+                    decimal(project.seconds(clip.duration()))
                 )
             };
             filters.push(format!(
                 "{source_filter},scale={width}:{height}:force_original_aspect_ratio=decrease,format=rgba,setpts=PTS+{}/TB[{prepared}]",
-                decimal(clip.timeline_start)
+                decimal(project.seconds(clip.timeline_start))
             ));
             filters.push(format!(
                 "[{visual_label}][{prepared}]overlay=x=(W-w)/2:y=(H-h)/2:eof_action=pass:enable='between(t,{},{})'[{output_label}]",
-                decimal(clip.timeline_start),
-                decimal(clip.timeline_end())
+                decimal(project.seconds(clip.timeline_start)),
+                decimal(project.seconds(clip.timeline_end()))
             ));
             visual_label = output_label;
         }
@@ -222,6 +212,7 @@ fn build_audio_graph(
     project: &Project,
     project_root: &Path,
     duration: f64,
+    audio_rate: i32,
 ) -> Result<filter::Graph, String> {
     let audio_clips = project
         .tracks
@@ -233,7 +224,7 @@ fn build_audio_graph(
     let mut filters = Vec::new();
     if audio_clips.is_empty() {
         filters.push(format!(
-            "anullsrc=r={AUDIO_RATE}:cl=stereo,atrim=duration={},asetpts=N/SR/TB",
+            "anullsrc=r={audio_rate}:cl=stereo,atrim=duration={},asetpts=N/SR/TB",
             decimal(duration)
         ));
     } else {
@@ -245,10 +236,10 @@ fn build_audio_graph(
                 .ok_or_else(|| format!("Clip {} has no audio source.", clip.id))?;
             let source = escape_filter_value(&project_root.join(&asset.path).to_string_lossy());
             filters.push(format!(
-                "amovie=filename='{source}',atrim=start={}:duration={},aresample={AUDIO_RATE},aformat=sample_fmts=fltp:channel_layouts=stereo,asetpts=PTS-STARTPTS+{}/TB[audio{number}]",
-                decimal(clip.source_in),
-                decimal(clip.duration()),
-                decimal(clip.timeline_start)
+                "amovie=filename='{source}',atrim=start={}:duration={},aresample={audio_rate},aformat=sample_fmts=fltp:channel_layouts=stereo,asetpts=PTS-STARTPTS+{}/TB[audio{number}]",
+                decimal(project.audio_seconds(clip.source_in)),
+                decimal(project.audio_seconds(clip.duration())),
+                decimal(project.audio_seconds(clip.timeline_start))
             ));
             inputs.push_str(&format!("[audio{number}]"));
         }
@@ -461,7 +452,7 @@ fn decimal(value: f64) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::editor::model::MediaAsset;
+    use crate::editor::model::{MediaAsset, TimelineTime};
 
     #[test]
     fn builds_and_reads_source_only_video_graph() {
@@ -532,15 +523,15 @@ mod tests {
             id: 11,
             track_id: video_track,
             asset_id: Some(10),
-            timeline_start: 0.0,
-            source_in: 0.0,
-            source_out: 0.1,
+            timeline_start: TimelineTime::ZERO,
+            source_in: TimelineTime::ZERO,
+            source_out: TimelineTime::from_frames(3),
         });
 
         let mut video =
             build_video_graph(&project, project_root, 320, 180, 30.0, Rational(1, 30), 0.1)
                 .unwrap();
-        let mut audio = build_audio_graph(&project, project_root, 0.1).unwrap();
+        let mut audio = build_audio_graph(&project, project_root, 0.1, 48_000).unwrap();
 
         assert!(pull_video_frame(&mut video).is_some());
         assert!(pull_audio_frame(&mut audio).is_some());
@@ -600,9 +591,9 @@ mod tests {
             id: 11,
             track_id: video_track,
             asset_id: Some(10),
-            timeline_start: 0.0,
-            source_in: 0.0,
-            source_out: 0.1,
+            timeline_start: TimelineTime::ZERO,
+            source_in: TimelineTime::ZERO,
+            source_out: TimelineTime::from_frames(3),
         });
 
         let mut video = build_video_graph(
@@ -615,7 +606,7 @@ mod tests {
             0.1,
         )
         .unwrap();
-        let mut audio = build_audio_graph(&project, &project_root, 0.1).unwrap();
+        let mut audio = build_audio_graph(&project, &project_root, 0.1, 48_000).unwrap();
         assert!(pull_video_frame(&mut video).is_some());
         assert!(pull_audio_frame(&mut audio).is_some());
 

@@ -1,13 +1,46 @@
 use super::*;
 
 const MAX_RULER_TICKS: usize = 240;
+const MAX_FRAME_TICKS: usize = 2_000;
+const MIN_FRAME_TICK_SPACING: f32 = 4.0;
 const TICK_STEPS: [f64; 10] = [1.0, 2.0, 5.0, 10.0, 15.0, 30.0, 60.0, 300.0, 600.0, 1800.0];
 
 impl Editor {
     pub(super) fn timeline(&self, cx: &mut Context<Self>) -> gpui::AnyElement {
-        let duration = self.project.timeline_duration().max(12.0);
+        let duration = self
+            .project
+            .seconds(self.project.timeline_duration())
+            .max(12.0);
         let timeline_width =
             (duration as f32 * self.pixels_per_second + TIMELINE_PADDING * 2.0).max(900.0);
+        let frame_rate = self.project.settings.frame_rate;
+        let frames_per_second = frame_rate.frames_per_second();
+        let displayed_frames = frame_rate.ceil(duration).frames().max(1);
+        let pixels_per_frame = self.pixels_per_second / frames_per_second as f32;
+        let frame_step = frame_tick_step(displayed_frames, pixels_per_frame);
+        let frame_tick_count = displayed_frames / frame_step;
+        let nominal_fps = frames_per_second.round().max(1.0) as i64;
+        let frame_ticks = (1..=frame_tick_count).map(|index| {
+            let frame = index * frame_step;
+            let emphasized = frame % nominal_fps == 0;
+            let medium = !emphasized && frame % 5 == 0;
+            let height = if emphasized {
+                12.0
+            } else if medium {
+                8.0
+            } else {
+                5.0
+            };
+            div()
+                .absolute()
+                .left(px(TIMELINE_PADDING
+                    + frame_rate.seconds(TimelineTime::from_frames(frame)) as f32
+                        * self.pixels_per_second))
+                .bottom_0()
+                .h(px(height))
+                .border_l_1()
+                .border_color(rgb(if emphasized { 0x5a5a62 } else { 0x3a3a40 }))
+        });
         let zoom_step = if self.pixels_per_second >= 120.0 {
             1.0
         } else if self.pixels_per_second >= 60.0 {
@@ -51,7 +84,8 @@ impl Editor {
                     .id(("timeline-marker", index))
                     .absolute()
                     .left(px(TIMELINE_PADDING
-                        + marker.time as f32 * self.pixels_per_second
+                        + self.project.seconds(marker.time) as f32
+                            * self.pixels_per_second
                         - 4.0))
                     .top_0()
                     .size_2()
@@ -176,9 +210,12 @@ impl Editor {
                         let name = asset
                             .map(|asset| asset.name.clone())
                             .unwrap_or_else(|| "Missing media".to_string());
-                        let left =
-                            TIMELINE_PADDING + clip.timeline_start as f32 * self.pixels_per_second;
-                        let width = (clip.duration() as f32 * self.pixels_per_second).max(4.0);
+                        let left = TIMELINE_PADDING
+                            + self.project.seconds(clip.timeline_start) as f32
+                                * self.pixels_per_second;
+                        let width = (self.project.seconds(clip.duration()) as f32
+                            * self.pixels_per_second)
+                            .max(4.0);
                         let color = match track.kind {
                             TrackKind::Video => CLIP_BLUE,
                             TrackKind::Audio => 0x24656b,
@@ -264,7 +301,10 @@ impl Editor {
                                             .child(if has_audio {
                                                 "Audio".to_string()
                                             } else {
-                                                format!("{}s", clip.duration().round())
+                                                format!(
+                                                    "{}s",
+                                                    self.project.seconds(clip.duration()).round()
+                                                )
                                             }),
                                     ),
                             )
@@ -309,7 +349,8 @@ impl Editor {
                     }))
                     .children(clip_elements)
             });
-        let playhead_left = TIMELINE_PADDING + self.playhead as f32 * self.pixels_per_second;
+        let playhead_left =
+            TIMELINE_PADDING + self.project.seconds(self.playhead) as f32 * self.pixels_per_second;
 
         div()
             .id("editor-timeline")
@@ -359,8 +400,10 @@ impl Editor {
                             .child(div().w(px(108.0)).font_family("monospace").text_sm().child(
                                 format!(
                                     "{} / {}",
-                                    format_time(self.playhead),
-                                    format_time(self.project.timeline_duration())
+                                    format_time(self.project.seconds(self.playhead)),
+                                    format_time(
+                                        self.project.seconds(self.project.timeline_duration())
+                                    )
                                 ),
                             ))
                             .child(timeline_icon_button("add-video-track", "+V").on_click(
@@ -403,6 +446,15 @@ impl Editor {
                                     .text_xs()
                                     .text_color(rgb(MUTED))
                                     .child(format!("{:.0}px/s", self.pixels_per_second)),
+                            )
+                            .child(
+                                div()
+                                    .w(px(66.0))
+                                    .text_center()
+                                    .font_family("monospace")
+                                    .text_xs()
+                                    .text_color(rgb(MUTED))
+                                    .child(format!("{frames_per_second:.2} fps")),
                             )
                             .child(timeline_icon_button("zoom-in", "+").on_click(cx.listener(
                                 |editor, _, _, cx| {
@@ -465,6 +517,7 @@ impl Editor {
                                                     .border_b_1()
                                                     .border_color(rgb(BORDER))
                                                     .cursor(CursorStyle::PointingHand)
+                                                    .children(frame_ticks)
                                                     .children(ruler_ticks)
                                                     .children(marker_elements)
                                                     .on_mouse_down(
@@ -518,6 +571,14 @@ impl Editor {
             )
             .into_any_element()
     }
+}
+
+fn frame_tick_step(total_frames: i64, pixels_per_frame: f32) -> i64 {
+    let spacing_step = (MIN_FRAME_TICK_SPACING / pixels_per_frame.max(f32::EPSILON))
+        .ceil()
+        .max(1.0) as i64;
+    let count_step = ((total_frames.max(1) as f64 / MAX_FRAME_TICKS as f64).ceil() as i64).max(1);
+    spacing_step.max(count_step)
 }
 
 fn timeline_icon_button(

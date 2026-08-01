@@ -111,8 +111,8 @@ impl Editor {
 
         let (reported_position, duration, paused) = match self.preview_target {
             PreviewTarget::Timeline => (
-                Duration::from_secs_f64(self.playhead.max(0.0)),
-                Duration::from_secs_f64(self.project.timeline_duration().max(0.0)),
+                self.project.duration(self.playhead),
+                self.project.duration(self.project.timeline_duration()),
                 !self.playing,
             ),
             PreviewTarget::VideoFile(_) => self
@@ -167,7 +167,7 @@ impl Editor {
             self.pause_audio_previews();
             return;
         };
-        self.playhead = self.still_playback_origin + started.elapsed().as_secs_f64();
+        self.playhead = self.still_playback_origin + self.project.floor_duration(started.elapsed());
         let duration = self.project.timeline_duration();
         if self.playhead >= duration {
             if let Some(video) = &self.video {
@@ -192,20 +192,22 @@ impl Editor {
         if let (Some(clip_id), Some(video)) = (self.loaded_clip_id, self.video.as_ref())
             && let Some(clip) = self.project.clip(clip_id)
         {
-            let expected = clip.source_in + (self.playhead - clip.timeline_start);
-            if (video.position().as_secs_f64() - expected).abs() > 0.25 {
-                let _ = video.seek(Duration::from_secs_f64(expected.max(0.0)), false);
+            let expected = self
+                .project
+                .duration(clip.source_in + (self.playhead - clip.timeline_start));
+            if video.position().abs_diff(expected) > Duration::from_millis(250) {
+                let _ = video.seek(expected, false);
             }
         }
         self.sync_audio_previews(self.playhead, true);
     }
 
-    pub(super) fn load_timeline_position(&mut self, position: f64, play: bool) {
+    pub(super) fn load_timeline_position(&mut self, position: TimelineTime, play: bool) {
         self.preview_target = PreviewTarget::Timeline;
         self.selected_file = None;
         self.file_context_menu = None;
         let duration = self.project.timeline_duration();
-        let position = position.clamp(0.0, duration);
+        let position = position.clamp(TimelineTime::ZERO, duration);
         let clip = self.project.visual_clip_at_time(position).cloned();
         self.still_playback_origin = position;
         self.still_playback_started = play.then(Instant::now);
@@ -230,7 +232,8 @@ impl Editor {
             self.error = Some("The selected clip's source file is missing.".to_string());
             return;
         };
-        let local_position = (position - clip.timeline_start).clamp(0.0, clip.duration());
+        let local_position =
+            (position - clip.timeline_start).clamp(TimelineTime::ZERO, clip.duration());
         let source_position = (clip.source_in + local_position).min(clip.source_out);
 
         if asset.kind == MediaKind::Image {
@@ -268,7 +271,7 @@ impl Editor {
         if asset.kind == MediaKind::Video
             && let Some(video) = &self.video
         {
-            let _ = video.seek(Duration::from_secs_f64(source_position), true);
+            let _ = video.seek(self.project.duration(source_position), true);
             let muted = self
                 .project
                 .track(clip.track_id)
@@ -282,7 +285,7 @@ impl Editor {
         self.sync_audio_previews(position, play);
     }
 
-    pub(super) fn sync_audio_previews(&mut self, position: f64, play: bool) {
+    pub(super) fn sync_audio_previews(&mut self, position: TimelineTime, play: bool) {
         let loaded_clip_id = self.loaded_clip_id;
         let desired = self
             .project
@@ -295,11 +298,11 @@ impl Editor {
                 if track.muted || !asset.has_audio {
                     return None;
                 }
-                let source_position =
-                    clip.source_in + (position - clip.timeline_start).clamp(0.0, clip.duration());
+                let source_position = clip.source_in
+                    + (position - clip.timeline_start).clamp(TimelineTime::ZERO, clip.duration());
                 let path = self.project_root.join(&asset.path);
                 let url = Url::from_file_path(path).ok()?;
-                Some((clip.id, source_position, url))
+                Some((clip.id, self.project.audio_duration(source_position), url))
             })
             .collect::<Vec<_>>();
         let desired_ids = desired
@@ -316,7 +319,7 @@ impl Editor {
                 match AudioPreview::new(&url) {
                     Ok(preview) => {
                         preview.set_volume(self.preview_volume);
-                        preview.seek(Duration::from_secs_f64(source_position.max(0.0)));
+                        preview.seek(source_position);
                         preview.set_playing(play);
                         entry.insert(preview);
                     }
@@ -327,7 +330,7 @@ impl Editor {
                 }
             }
             if let Some(preview) = self.audio_previews.get(&clip_id) {
-                let expected = Duration::from_secs_f64(source_position.max(0.0));
+                let expected = source_position;
                 if preview.position().abs_diff(expected) > Duration::from_millis(250) {
                     preview.seek(expected);
                 }
@@ -375,7 +378,7 @@ impl Editor {
         }
         let duration = self.project.timeline_duration();
         let start = if self.playhead >= duration {
-            0.0
+            TimelineTime::ZERO
         } else {
             self.playhead
         };
@@ -491,7 +494,9 @@ impl Editor {
         let fraction = fraction.clamp(0.0, 1.0);
         match self.preview_target.clone() {
             PreviewTarget::Timeline => {
-                let position = self.project.timeline_duration() * fraction as f64;
+                let duration = self.project.timeline_duration().frames();
+                let position =
+                    TimelineTime::from_frames((duration as f64 * fraction as f64).round() as i64);
                 self.load_timeline_position(position, play);
             }
             PreviewTarget::VideoFile(_) => {
