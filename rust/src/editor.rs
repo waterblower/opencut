@@ -47,6 +47,7 @@ const RULER_HEIGHT: f32 = 28.0;
 const SNAP_DISTANCE_PX: f32 = 8.0;
 const MIN_TIMELINE_PIXELS_PER_SECOND: f32 = 24.0;
 const MAX_TIMELINE_PIXELS_PER_SECOND: f32 = 240.0;
+const SCRUB_SEEK_INTERVAL: Duration = Duration::from_millis(50);
 
 const BACKGROUND: u32 = 0x080809;
 const PANEL: u32 = 0x0d0d0f;
@@ -173,6 +174,7 @@ pub(crate) struct Editor {
     trim_drag: Option<TrimDrag>,
     clip_move_drag: Option<ClipMoveDrag>,
     is_scrubbing_playhead: bool,
+    last_playhead_scrub_seek: Option<Instant>,
     timeline_scroll: ScrollHandle,
     timeline_vertical_scroll: ScrollHandle,
     exporting: bool,
@@ -243,6 +245,7 @@ impl Editor {
             trim_drag: None,
             clip_move_drag: None,
             is_scrubbing_playhead: false,
+            last_playhead_scrub_seek: None,
             timeline_scroll: ScrollHandle::new(),
             timeline_vertical_scroll: ScrollHandle::new(),
             exporting: false,
@@ -1189,13 +1192,12 @@ impl Editor {
         self.pixels_per_second != previous_zoom
     }
 
-    fn seek_from_timeline_x(&mut self, x: f32) {
+    fn timeline_position_from_x(&self, x: f32) -> TimelineTime {
         let scroll_x: f32 = self.timeline_scroll.offset().x.into();
         let content_x = x - TRACK_HEADER_WIDTH - scroll_x - TIMELINE_PADDING;
-        let position = self
-            .project
-            .nearest_time(content_x as f64 / self.pixels_per_second as f64);
-        self.load_timeline_position(position, false);
+        self.project
+            .nearest_time(content_x as f64 / self.pixels_per_second as f64)
+            .clamp(TimelineTime::ZERO, self.project.timeline_duration())
     }
 
     fn begin_playhead_scrub(&mut self, event: &MouseDownEvent) {
@@ -1206,7 +1208,9 @@ impl Editor {
         self.pause_audio_previews();
         self.playing = false;
         self.still_playback_started = None;
-        self.seek_from_timeline_x(event.position.x.into());
+        let position = self.timeline_position_from_x(event.position.x.into());
+        self.last_playhead_scrub_seek = Some(Instant::now());
+        self.load_timeline_position_for_scrub(position, false, false);
     }
 
     fn update_playhead_scrub(
@@ -1216,14 +1220,32 @@ impl Editor {
         cx: &mut Context<Self>,
     ) {
         if self.is_scrubbing_playhead && event.dragging() {
-            self.seek_from_timeline_x(event.position.x.into());
+            let position = self.timeline_position_from_x(event.position.x.into());
+            self.playhead = position;
+
+            let now = Instant::now();
+            let should_seek = self
+                .last_playhead_scrub_seek
+                .is_none_or(|last_seek| now.duration_since(last_seek) >= SCRUB_SEEK_INTERVAL);
+            if should_seek {
+                self.last_playhead_scrub_seek = Some(now);
+                self.load_timeline_position_for_scrub(position, false, false);
+            }
             cx.notify();
         }
     }
 
-    fn finish_playhead_scrub(&mut self, _: &MouseUpEvent, _: &mut Window, cx: &mut Context<Self>) {
+    fn finish_playhead_scrub(
+        &mut self,
+        event: &MouseUpEvent,
+        _: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
         if self.is_scrubbing_playhead {
             self.is_scrubbing_playhead = false;
+            self.last_playhead_scrub_seek = None;
+            let position = self.timeline_position_from_x(event.position.x.into());
+            self.load_timeline_position_for_scrub(position, true, true);
             cx.notify();
         }
     }
