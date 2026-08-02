@@ -28,6 +28,7 @@ mod view;
 mod workspace;
 
 use crate::playback_view::{DragPhase, PlaybackViewDelegate};
+use editing::ClipClipboard;
 use explorer::FileContextMenu;
 use explorer_filter::ExplorerFilter;
 use export::export_project;
@@ -80,6 +81,9 @@ actions!(
         Undo,
         Redo,
         DuplicateSelected,
+        CopySelectedClips,
+        CutSelectedClips,
+        PasteClips,
         ActivateSelectionTool,
         ActivateBladeTool,
         ActivateTrimTool,
@@ -103,6 +107,9 @@ pub(crate) fn bind_keys(cx: &mut App) {
         KeyBinding::new("cmd-z", Undo, Some(EDITOR_SHORTCUT_CONTEXT)),
         KeyBinding::new("cmd-shift-z", Redo, Some(EDITOR_SHORTCUT_CONTEXT)),
         KeyBinding::new("cmd-d", DuplicateSelected, Some(EDITOR_SHORTCUT_CONTEXT)),
+        KeyBinding::new("cmd-c", CopySelectedClips, Some(EDITOR_SHORTCUT_CONTEXT)),
+        KeyBinding::new("cmd-x", CutSelectedClips, Some(EDITOR_SHORTCUT_CONTEXT)),
+        KeyBinding::new("cmd-v", PasteClips, Some(EDITOR_SHORTCUT_CONTEXT)),
         KeyBinding::new("v", ActivateSelectionTool, Some(EDITOR_SHORTCUT_CONTEXT)),
         KeyBinding::new("b", ActivateBladeTool, Some(EDITOR_SHORTCUT_CONTEXT)),
         KeyBinding::new("t", ActivateTrimTool, Some(EDITOR_SHORTCUT_CONTEXT)),
@@ -151,6 +158,7 @@ pub(crate) struct Editor {
     selected_asset_id: Option<u64>,
     selected_clip_id: Option<u64>,
     selected_clip_ids: HashSet<u64>,
+    clip_clipboard: Option<ClipClipboard>,
     playhead: TimelineTime,
     playing: bool,
     preview_volume: f64,
@@ -231,6 +239,7 @@ impl Editor {
             selected_asset_id,
             selected_clip_id,
             selected_clip_ids,
+            clip_clipboard: None,
             playhead: TimelineTime::ZERO,
             playing: false,
             preview_volume: 1.0,
@@ -367,6 +376,7 @@ impl Editor {
         self.media_cache_jobs.clear();
         self.media_cache_ready.clear();
         self.waveform_cache.clear();
+        self.clip_clipboard = None;
         self.loaded_clip_id = None;
         self.still_playback_started = None;
         self.playing = false;
@@ -603,6 +613,31 @@ impl Editor {
         cx: &mut Context<Self>,
     ) {
         self.duplicate_selected();
+        cx.notify();
+    }
+
+    fn action_copy_selected_clips(
+        &mut self,
+        _: &CopySelectedClips,
+        _: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        self.copy_selected_clips();
+        cx.notify();
+    }
+
+    fn action_cut_selected_clips(
+        &mut self,
+        _: &CutSelectedClips,
+        _: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        self.cut_selected_clips();
+        cx.notify();
+    }
+
+    fn action_paste_clips(&mut self, _: &PasteClips, _: &mut Window, cx: &mut Context<Self>) {
+        self.paste_clips();
         cx.notify();
     }
 
