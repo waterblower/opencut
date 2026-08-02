@@ -1,6 +1,7 @@
 use super::*;
 use crate::playback_view::{CONTROL_HEIGHT, PlaybackViewProps, playback_view};
 use crate::video_backend::{VideoOptions, create_timeline_video, video};
+use std::path::Path;
 use url::Url;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -19,62 +20,65 @@ impl Editor {
         height: f32,
         cx: &mut Context<Self>,
     ) -> gpui::AnyElement {
-        let selected_image_path = match &self.preview_target {
-            PreviewTarget::ImageFile(path) => Some(self.project_root.join(path)),
-            PreviewTarget::Timeline => self
-                .project
-                .visual_clip_at_time(self.playhead)
-                .and_then(|clip| clip.asset_id)
-                .and_then(|id| self.project.asset(id))
-                .filter(|asset| asset.kind == MediaKind::Image)
-                .map(|asset| self.project_root.join(&asset.path)),
-            _ => None,
-        };
-        let preview_uses_timeline = self.preview_target == PreviewTarget::Timeline;
-        let preview_can_toggle_playback = match self.preview_target {
-            PreviewTarget::Timeline => !self.project.clips.is_empty(),
-            PreviewTarget::VideoFile(_) => self.video.is_some(),
-            PreviewTarget::ImageFile(_) => false,
-        };
+        match &self.preview_target {
+            PreviewTarget::Timeline => self.timeline_preview(origin_x, origin_y, width, height, cx),
+            PreviewTarget::VideoFile(_) => {
+                self.video_file_preview(origin_x, origin_y, width, height, cx)
+            }
+            PreviewTarget::ImageFile(path) => self.image_file_preview(path, width, height),
+        }
+    }
+
+    fn timeline_preview(
+        &self,
+        origin_x: f32,
+        origin_y: f32,
+        width: f32,
+        height: f32,
+        cx: &mut Context<Self>,
+    ) -> gpui::AnyElement {
         let surface_height = (height - CONTROL_HEIGHT).max(1.0);
-        let timeline_visual_overlays = if preview_uses_timeline {
-            let base_track_index = self
-                .project
-                .visual_clip_at_time(self.playhead)
-                .and_then(|clip| {
-                    self.project
-                        .tracks
-                        .iter()
-                        .position(|track| track.id == clip.track_id)
-                })
-                .unwrap_or(self.project.tracks.len());
-            self.project.tracks[..base_track_index]
-                .iter()
-                .rev()
-                .filter(|track| track.visible)
-                .flat_map(|track| {
-                    self.project
-                        .clips_on_track(track.id)
-                        .filter(|clip| clip.contains(self.playhead))
-                        .filter_map(|clip| {
-                            let asset = clip.asset_id.and_then(|id| self.project.asset(id))?;
-                            (asset.kind == MediaKind::Image).then(|| {
-                                img(self.project_root.join(&asset.path))
-                                    .absolute()
-                                    .inset_0()
-                                    .size_full()
-                                    .object_fit(ObjectFit::Contain)
-                                    .into_any_element()
-                            })
+        let selected_image_path = self
+            .project
+            .visual_clip_at_time(self.playhead)
+            .and_then(|clip| clip.asset_id)
+            .and_then(|id| self.project.asset(id))
+            .filter(|asset| asset.kind == MediaKind::Image)
+            .map(|asset| self.project_root.join(&asset.path));
+        let base_track_index = self
+            .project
+            .visual_clip_at_time(self.playhead)
+            .and_then(|clip| {
+                self.project
+                    .tracks
+                    .iter()
+                    .position(|track| track.id == clip.track_id)
+            })
+            .unwrap_or(self.project.tracks.len());
+        let visual_overlays = self.project.tracks[..base_track_index]
+            .iter()
+            .rev()
+            .filter(|track| track.visible)
+            .flat_map(|track| {
+                self.project
+                    .clips_on_track(track.id)
+                    .filter(|clip| clip.contains(self.playhead))
+                    .filter_map(|clip| {
+                        let asset = clip.asset_id.and_then(|id| self.project.asset(id))?;
+                        (asset.kind == MediaKind::Image).then(|| {
+                            img(self.project_root.join(&asset.path))
+                                .absolute()
+                                .inset_0()
+                                .size_full()
+                                .object_fit(ObjectFit::Contain)
+                                .into_any_element()
                         })
-                })
-                .collect::<Vec<_>>()
-        } else {
-            Vec::new()
-        };
-        let preview = if let Some(image_path) = selected_image_path {
+                    })
+            })
+            .collect::<Vec<_>>();
+        let media = if let Some(image_path) = selected_image_path {
             img(image_path)
-                .id("editor-selected-image-preview")
+                .id("editor-timeline-image-preview")
                 .w(px(width))
                 .h(px(surface_height))
                 .object_fit(ObjectFit::Contain)
@@ -96,7 +100,7 @@ impl Editor {
                 .into_any_element()
         };
         let content = div()
-            .id("editor-preview-content")
+            .id("editor-timeline-preview-content")
             .relative()
             .w(px(width))
             .h(px(surface_height))
@@ -105,24 +109,114 @@ impl Editor {
             .justify_center()
             .overflow_hidden()
             .bg(rgb(0x000000))
-            .child(preview)
-            .children(timeline_visual_overlays)
+            .child(media)
+            .children(visual_overlays)
             .into_any_element();
+        let reported_position = self.project.duration(self.playhead);
+        let duration = self.project.duration(self.project.timeline_duration());
+        self.playable_preview(
+            origin_x,
+            origin_y,
+            width,
+            height,
+            !self.project.clips.is_empty(),
+            !self.playing,
+            reported_position,
+            duration,
+            content,
+            cx,
+        )
+    }
 
-        let (reported_position, duration, paused) = match self.preview_target {
-            PreviewTarget::Timeline => (
-                self.project.duration(self.playhead),
-                self.project.duration(self.project.timeline_duration()),
-                !self.playing,
-            ),
-            PreviewTarget::VideoFile(_) => self
-                .video
-                .as_ref()
-                .map_or((Duration::ZERO, Duration::ZERO, true), |video| {
-                    (video.position(), video.duration(), video.paused())
-                }),
-            PreviewTarget::ImageFile(_) => (Duration::ZERO, Duration::ZERO, true),
-        };
+    fn video_file_preview(
+        &self,
+        origin_x: f32,
+        origin_y: f32,
+        width: f32,
+        height: f32,
+        cx: &mut Context<Self>,
+    ) -> gpui::AnyElement {
+        let surface_height = (height - CONTROL_HEIGHT).max(1.0);
+        let content = div()
+            .id("editor-video-file-preview-content")
+            .relative()
+            .w(px(width))
+            .h(px(surface_height))
+            .flex()
+            .items_center()
+            .justify_center()
+            .overflow_hidden()
+            .bg(rgb(0x000000))
+            .child(if let Some(video_handle) = &self.video {
+                video(video_handle.clone())
+                    .id("editor-video-file-preview")
+                    .size(px(width), px(surface_height))
+                    .buffer_capacity(3)
+                    .into_any_element()
+            } else {
+                div()
+                    .size_full()
+                    .flex()
+                    .items_center()
+                    .justify_center()
+                    .text_color(rgb(MUTED))
+                    .child("Loading video preview…")
+                    .into_any_element()
+            })
+            .into_any_element();
+        let (position, duration, paused) = self
+            .video
+            .as_ref()
+            .map_or((Duration::ZERO, Duration::ZERO, true), |video| {
+                (video.position(), video.duration(), video.paused())
+            });
+        self.playable_preview(
+            origin_x,
+            origin_y,
+            width,
+            height,
+            self.video.is_some(),
+            paused,
+            position,
+            duration,
+            content,
+            cx,
+        )
+    }
+
+    fn image_file_preview(&self, path: &Path, width: f32, height: f32) -> gpui::AnyElement {
+        div()
+            .id("editor-image-file-preview")
+            .w(px(width))
+            .h(px(height))
+            .flex_shrink_0()
+            .flex()
+            .items_center()
+            .justify_center()
+            .overflow_hidden()
+            .bg(rgb(0x000000))
+            .child(
+                img(self.project_root.join(path))
+                    .size_full()
+                    .object_fit(ObjectFit::Contain),
+            )
+            .into_any_element()
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn playable_preview(
+        &self,
+        origin_x: f32,
+        origin_y: f32,
+        width: f32,
+        height: f32,
+        has_media: bool,
+        paused: bool,
+        reported_position: Duration,
+        duration: Duration,
+        content: gpui::AnyElement,
+        cx: &mut Context<Self>,
+    ) -> gpui::AnyElement {
         let reported_progress = if duration.is_zero() {
             0.0
         } else {
@@ -141,8 +235,8 @@ impl Editor {
                 origin_y,
                 width,
                 height,
-                has_media: preview_can_toggle_playback,
-                can_play: preview_can_toggle_playback,
+                has_media,
+                can_play: has_media,
                 paused,
                 scrubbing: self.preview_is_scrubbing,
                 progress,

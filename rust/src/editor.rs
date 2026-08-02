@@ -135,7 +135,11 @@ pub(crate) struct Editor {
     project: Project,
     file_tree: Vec<FileTreeEntry>,
     expanded_directories: HashSet<PathBuf>,
+    explorer_root_expanded: bool,
     explorer_filter: Entity<ExplorerFilter>,
+    explorer_search_query: Option<String>,
+    explorer_search_results: Vec<FileTreeEntry>,
+    explorer_search_pending: bool,
     explorer_scroll: ScrollHandle,
     selected_file: Option<PathBuf>,
     file_context_menu: Option<FileContextMenu>,
@@ -188,8 +192,11 @@ impl Editor {
         let selected_clip_id = project.clips.first().map(|clip| clip.id);
         let focus_handle = cx.focus_handle();
         let explorer_filter = cx.new(|cx| ExplorerFilter::new(focus_handle.clone(), cx));
-        cx.observe(&explorer_filter, |_, _, cx| cx.notify())
-            .detach();
+        cx.observe(&explorer_filter, |editor, _, cx| {
+            editor.schedule_explorer_search(cx);
+            cx.notify();
+        })
+        .detach();
         focus_handle.focus(window);
         Self::start_updates(cx);
 
@@ -198,7 +205,11 @@ impl Editor {
             project,
             file_tree,
             expanded_directories,
+            explorer_root_expanded: true,
             explorer_filter,
+            explorer_search_query: None,
+            explorer_search_results: Vec::new(),
+            explorer_search_pending: false,
             explorer_scroll: ScrollHandle::new(),
             selected_file: None,
             file_context_menu: None,
@@ -319,7 +330,7 @@ impl Editor {
             if let Some(root) = root {
                 editor
                     .update(cx, |editor, cx| {
-                        editor.set_project_root(root);
+                        editor.set_project_root(root, cx);
                         cx.notify();
                     })
                     .ok();
@@ -328,7 +339,7 @@ impl Editor {
         .detach();
     }
 
-    fn set_project_root(&mut self, root: PathBuf) {
+    fn set_project_root(&mut self, root: PathBuf, cx: &mut Context<Self>) {
         let root = std::fs::canonicalize(&root).unwrap_or(root);
         self.video = None;
         self.audio_previews.clear();
@@ -344,6 +355,12 @@ impl Editor {
         self.undo_stack.clear();
         self.redo_stack.clear();
         self.expanded_directories.clear();
+        self.explorer_root_expanded = true;
+        self.explorer_search_query = None;
+        self.explorer_search_results.clear();
+        self.explorer_search_pending = false;
+        self.explorer_filter
+            .update(cx, |filter, cx| filter.clear(cx));
         self.selected_file = None;
         self.file_context_menu = None;
         self.preview_target = PreviewTarget::Timeline;

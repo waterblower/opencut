@@ -80,6 +80,14 @@ impl ExplorerFilter {
         self.content.as_ref()
     }
 
+    pub(super) fn clear(&mut self, cx: &mut Context<Self>) {
+        self.content = "".into();
+        self.selected_range = 0..0;
+        self.selection_reversed = false;
+        self.marked_range = None;
+        cx.notify();
+    }
+
     fn cursor_offset(&self) -> usize {
         if self.selection_reversed {
             self.selected_range.start
@@ -165,12 +173,8 @@ impl ExplorerFilter {
     }
 
     fn clear_on_mouse_down(&mut self, _: &MouseDownEvent, _: &mut Window, cx: &mut Context<Self>) {
-        self.content = "".into();
-        self.selected_range = 0..0;
-        self.selection_reversed = false;
-        self.marked_range = None;
+        self.clear(cx);
         cx.stop_propagation();
-        cx.notify();
     }
 
     fn left(&mut self, _: &Left, _: &mut Window, cx: &mut Context<Self>) {
@@ -248,11 +252,8 @@ impl ExplorerFilter {
     }
 
     fn dismiss(&mut self, _: &Dismiss, window: &mut Window, cx: &mut Context<Self>) {
-        self.content = "".into();
-        self.selected_range = 0..0;
-        self.marked_range = None;
+        self.clear(cx);
         self.return_focus.focus(window);
-        cx.notify();
     }
 
     fn confirm(&mut self, _: &Confirm, window: &mut Window, _: &mut Context<Self>) {
@@ -602,10 +603,8 @@ impl Element for FilterTextElement {
 impl Render for ExplorerFilter {
     fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         div()
-            .h(px(58.0))
+            .h(px(38.0))
             .flex_shrink_0()
-            .p_2()
-            .border_b_1()
             .border_color(rgb(BORDER))
             .child(
                 div()
@@ -617,11 +616,10 @@ impl Render for ExplorerFilter {
                     .flex()
                     .items_center()
                     .px_3()
-                    .border_1()
+                    .border_b_1()
                     .border_color(rgb(BORDER))
                     .bg(rgb(SURFACE))
                     .cursor(CursorStyle::IBeam)
-                    .focus(|style| style.border_color(rgb(0x52779a)))
                     .on_action(cx.listener(Self::backspace))
                     .on_action(cx.listener(Self::delete))
                     .on_action(cx.listener(Self::left))
