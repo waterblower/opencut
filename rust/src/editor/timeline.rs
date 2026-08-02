@@ -149,6 +149,14 @@ impl Editor {
                                     .relative()
                                     .w(px(timeline_width))
                                     .min_h_full()
+                                    .on_drag_move::<ExplorerMediaDrag>(
+                                        cx.listener(Self::update_explorer_media_drag),
+                                    )
+                                    .on_drop(cx.listener(
+                                        |editor, drag: &ExplorerMediaDrag, _, cx| {
+                                            editor.drop_explorer_media(drag, cx);
+                                        },
+                                    ))
                                     .child(self.timeline_ruler(duration, cx))
                                     .children(track_rows)
                                     .child(

@@ -1,8 +1,8 @@
 use crate::video_backend::Video;
 use gpui::{
-    App, Context, CursorStyle, Entity, FocusHandle, KeyBinding, MouseButton, MouseDownEvent,
-    MouseMoveEvent, MouseUpEvent, ObjectFit, PathPromptOptions, Render, ScrollHandle,
-    ScrollWheelEvent, Window, actions, div, img, prelude::*, px, rgb,
+    App, Context, CursorStyle, DragMoveEvent, Entity, FocusHandle, KeyBinding, MouseButton,
+    MouseDownEvent, MouseMoveEvent, MouseUpEvent, ObjectFit, PathPromptOptions, Render,
+    ScrollHandle, ScrollWheelEvent, Window, actions, div, img, prelude::*, px, rgb,
 };
 use std::{
     collections::{HashMap, HashSet},
@@ -29,12 +29,12 @@ mod workspace;
 
 use crate::playback_view::{DragPhase, PlaybackViewDelegate};
 use editing::ClipClipboard;
-use explorer::FileContextMenu;
+use explorer::{ExplorerDropPreview, ExplorerMediaDrag, FileContextMenu, PendingExplorerDrop};
 use explorer_filter::ExplorerFilter;
 use export::export_project;
 use model::{
-    FrameRate, MediaAsset, MediaKind, Project, TimelineClip, TimelineTime, TimelineTrack,
-    TrackKind, probe_audio, probe_image, probe_media,
+    DEFAULT_IMAGE_DURATION, FrameRate, MediaAsset, MediaKind, Project, TimelineClip, TimelineTime,
+    TimelineTrack, TrackKind, probe_audio, probe_image, probe_media,
 };
 use preview::PreviewTarget;
 use preview_audio::AudioPreview;
@@ -144,6 +144,10 @@ pub(crate) struct Editor {
     explorer_scroll: ScrollHandle,
     selected_file: Option<PathBuf>,
     file_context_menu: Option<FileContextMenu>,
+    explorer_drag_assets: HashMap<PathBuf, MediaAsset>,
+    explorer_drag_probe_jobs: HashSet<PathBuf>,
+    explorer_drop_preview: Option<ExplorerDropPreview>,
+    pending_explorer_drop: Option<PendingExplorerDrop>,
     preview_target: PreviewTarget,
     media_cache_jobs: HashSet<u64>,
     media_cache_ready: HashSet<u64>,
@@ -225,6 +229,10 @@ impl Editor {
             explorer_scroll: ScrollHandle::new(),
             selected_file: None,
             file_context_menu: None,
+            explorer_drag_assets: HashMap::new(),
+            explorer_drag_probe_jobs: HashSet::new(),
+            explorer_drop_preview: None,
+            pending_explorer_drop: None,
             preview_target: PreviewTarget::Timeline,
             media_cache_jobs: HashSet::new(),
             media_cache_ready: HashSet::new(),
@@ -299,11 +307,17 @@ impl Editor {
                             _ => false,
                         };
                         let pinch_zoomed = editor.apply_timeline_pinch();
+                        let ended_explorer_drag =
+                            !cx.has_active_drag() && editor.explorer_drop_preview.take().is_some();
+                        if ended_explorer_drag {
+                            editor.snap_guide = None;
+                        }
                         let should_render = editor.playing
                             || file_preview_playing
                             || editor.preview_refresh_ticks > 0
                             || refresh_tree
-                            || pinch_zoomed;
+                            || pinch_zoomed
+                            || ended_explorer_drag;
                         editor.preview_refresh_ticks =
                             editor.preview_refresh_ticks.saturating_sub(1);
                         if refresh_tree {
@@ -376,6 +390,10 @@ impl Editor {
         self.media_cache_jobs.clear();
         self.media_cache_ready.clear();
         self.waveform_cache.clear();
+        self.explorer_drag_assets.clear();
+        self.explorer_drag_probe_jobs.clear();
+        self.explorer_drop_preview = None;
+        self.pending_explorer_drop = None;
         self.clip_clipboard = None;
         self.loaded_clip_id = None;
         self.still_playback_started = None;
