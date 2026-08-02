@@ -26,11 +26,19 @@ impl AudioPreview {
     }
 
     pub(super) fn seek(&self, position: Duration) {
+        self.seek_with_accuracy(position, true);
+    }
+
+    pub(super) fn seek_with_accuracy(&self, position: Duration, accurate: bool) {
         let nanos = position.as_nanos().min(u64::MAX as u128) as u64;
-        let _ = self.pipeline.seek_simple(
-            gst::SeekFlags::FLUSH | gst::SeekFlags::ACCURATE,
-            gst::ClockTime::from_nseconds(nanos),
-        );
+        let flags = if accurate {
+            gst::SeekFlags::FLUSH | gst::SeekFlags::ACCURATE
+        } else {
+            gst::SeekFlags::FLUSH
+        };
+        let _ = self
+            .pipeline
+            .seek_simple(flags, gst::ClockTime::from_nseconds(nanos));
     }
 
     pub(super) fn position(&self) -> Duration {
@@ -51,6 +59,24 @@ impl AudioPreview {
         if self.pipeline.current_state() != state {
             let _ = self.pipeline.set_state(state);
         }
+    }
+
+    pub(super) fn duration(&self) -> Duration {
+        Duration::from_nanos(
+            self.pipeline
+                .query_duration::<gst::ClockTime>()
+                .map(|duration| duration.nseconds())
+                .unwrap_or(0),
+        )
+    }
+
+    pub(super) fn playing(&self) -> bool {
+        self.pipeline.current_state() == gst::State::Playing
+    }
+
+    pub(super) fn finished(&self) -> bool {
+        let duration = self.duration();
+        !duration.is_zero() && self.position().saturating_add(Duration::from_millis(20)) >= duration
     }
 
     pub(super) fn set_volume(&self, volume: f64) {

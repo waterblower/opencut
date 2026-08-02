@@ -10,13 +10,13 @@ use std::{
     time::{Duration, Instant},
 };
 
-mod audio_preview;
 mod explorer;
 mod explorer_filter;
 mod export;
 mod media_cache;
 mod model;
 mod preview;
+mod preview_audio;
 mod settings;
 mod timeline;
 mod track;
@@ -24,7 +24,6 @@ mod view;
 mod workspace;
 
 use crate::playback_view::{DragPhase, PlaybackViewDelegate};
-use audio_preview::AudioPreview;
 use explorer::FileContextMenu;
 use explorer_filter::ExplorerFilter;
 use export::export_project;
@@ -33,6 +32,7 @@ use model::{
     TimelineTrack, TrackKind, probe_audio, probe_image, probe_media,
 };
 use preview::PreviewTarget;
+use preview_audio::AudioPreview;
 use workspace::{FileTreeEntry, load_project_root, save_project_root, visible_tree};
 
 const MEDIA_PANEL_WIDTH: f32 = 340.0;
@@ -149,6 +149,7 @@ pub(crate) struct Editor {
     media_cache_ready: HashSet<u64>,
     last_tree_scan: Instant,
     video: Option<Video>,
+    standalone_audio: Option<AudioPreview>,
     audio_previews: HashMap<u64, AudioPreview>,
     loaded_clip_id: Option<u64>,
     still_playback_started: Option<Instant>,
@@ -220,6 +221,7 @@ impl Editor {
             media_cache_ready: HashSet::new(),
             last_tree_scan: Instant::now(),
             video: None,
+            standalone_audio: None,
             audio_previews: HashMap::new(),
             loaded_clip_id: None,
             still_playback_started: None,
@@ -269,9 +271,16 @@ impl Editor {
                     .update(cx, |editor, cx| {
                         let refresh_tree =
                             editor.last_tree_scan.elapsed() >= Duration::from_secs(1);
-                        let file_preview_playing =
-                            matches!(editor.preview_target, PreviewTarget::VideoFile(_))
-                                && editor.video.as_ref().is_some_and(|video| !video.paused());
+                        let file_preview_playing = match editor.preview_target {
+                            PreviewTarget::VideoFile(_) => {
+                                editor.video.as_ref().is_some_and(|video| !video.paused())
+                            }
+                            PreviewTarget::AudioFile(_) => editor
+                                .standalone_audio
+                                .as_ref()
+                                .is_some_and(AudioPreview::playing),
+                            _ => false,
+                        };
                         let pinch_zoomed = editor.apply_timeline_pinch();
                         let should_render = editor.playing
                             || file_preview_playing
@@ -345,6 +354,7 @@ impl Editor {
     fn set_project_root(&mut self, root: PathBuf, cx: &mut Context<Self>) {
         let root = std::fs::canonicalize(&root).unwrap_or(root);
         self.video = None;
+        self.standalone_audio = None;
         self.audio_previews.clear();
         self.media_cache_jobs.clear();
         self.media_cache_ready.clear();
@@ -539,6 +549,7 @@ impl Editor {
         self.project.clips.remove(index);
         self.preview_target = PreviewTarget::Timeline;
         self.video = None;
+        self.standalone_audio = None;
         self.audio_previews.clear();
         self.loaded_clip_id = None;
         self.still_playback_started = None;
@@ -1108,6 +1119,7 @@ impl Editor {
     fn reset_after_history_change(&mut self) {
         self.preview_target = PreviewTarget::Timeline;
         self.video = None;
+        self.standalone_audio = None;
         self.audio_previews.clear();
         self.loaded_clip_id = None;
         self.still_playback_started = None;
