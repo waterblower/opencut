@@ -14,6 +14,7 @@ pub(super) struct FileTreeEntry {
     pub is_video: bool,
     pub is_image: bool,
     pub is_audio: bool,
+    pub size_bytes: Option<u64>,
     pub expanded: bool,
 }
 
@@ -77,20 +78,23 @@ fn read_directory(
         .filter_map(Result::ok)
         .filter_map(|entry| {
             let file_type = entry.file_type().ok()?;
+            let size_bytes = (!file_type.is_dir())
+                .then(|| entry.metadata().ok().map(|metadata| metadata.len()))
+                .flatten();
             let name = entry.file_name().to_string_lossy().into_owned();
             if matches!(name.as_str(), ".DS_Store" | ".git" | ".opencut") {
                 return None;
             }
-            Some((name, file_type.is_dir()))
+            Some((name, file_type.is_dir(), size_bytes))
         })
         .collect::<Vec<_>>();
-    children.sort_by(|(left_name, left_dir), (right_name, right_dir)| {
+    children.sort_by(|(left_name, left_dir, _), (right_name, right_dir, _)| {
         right_dir
             .cmp(left_dir)
             .then_with(|| left_name.to_lowercase().cmp(&right_name.to_lowercase()))
     });
 
-    for (name, is_directory) in children {
+    for (name, is_directory, size_bytes) in children {
         let relative_path = relative_directory.join(&name);
         let expanded = is_directory && expanded_directories.contains(&relative_path);
         entries.push(FileTreeEntry {
@@ -101,6 +105,7 @@ fn read_directory(
             is_video: !is_directory && is_video_path(&relative_path),
             is_image: !is_directory && is_image_path(&relative_path),
             is_audio: !is_directory && is_audio_path(&relative_path),
+            size_bytes,
             expanded,
         });
         if expanded {

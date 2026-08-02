@@ -1,6 +1,6 @@
 use crate::video_backend::Video;
 use gpui::{
-    App, Context, CursorStyle, FocusHandle, KeyBinding, MouseButton, MouseDownEvent,
+    App, Context, CursorStyle, FocusHandle, KeyBinding, KeyDownEvent, MouseButton, MouseDownEvent,
     MouseMoveEvent, MouseUpEvent, ObjectFit, PathPromptOptions, Render, ScrollHandle,
     ScrollWheelEvent, Window, actions, div, img, prelude::*, px, rgb,
 };
@@ -33,7 +33,7 @@ use model::{
 use preview::PreviewTarget;
 use workspace::{FileTreeEntry, load_project_root, save_project_root, visible_tree};
 
-const MEDIA_PANEL_WIDTH: f32 = 264.0;
+const MEDIA_PANEL_WIDTH: f32 = 340.0;
 const INSPECTOR_WIDTH: f32 = 292.0;
 const TOPBAR_HEIGHT: f32 = 64.0;
 const TIMELINE_HEIGHT: f32 = 420.0;
@@ -56,6 +56,7 @@ const MUTED: u32 = 0x777780;
 const ACCENT: u32 = 0xf0b75e;
 const ERROR: u32 = 0xff8b8b;
 const CLIP_BLUE: u32 = 0x294d75;
+const EDITOR_SHORTCUT_CONTEXT: &str = "!ExplorerFilter";
 
 actions!(
     opencut_editor,
@@ -79,21 +80,25 @@ actions!(
 
 pub(crate) fn bind_keys(cx: &mut App) {
     cx.bind_keys([
-        KeyBinding::new("space", TogglePlayback, None),
-        KeyBinding::new("left", StepBackwardFrame, None),
-        KeyBinding::new("right", StepForwardFrame, None),
-        KeyBinding::new("backspace", DeleteSelected, None),
-        KeyBinding::new("delete", DeleteSelected, None),
-        KeyBinding::new("cmd-b", SplitClip, None),
-        KeyBinding::new("cmd-z", Undo, None),
-        KeyBinding::new("cmd-shift-z", Redo, None),
-        KeyBinding::new("cmd-d", DuplicateSelected, None),
-        KeyBinding::new("shift-m", AddMarker, None),
-        KeyBinding::new("f", ToggleFullscreen, None),
-        KeyBinding::new("escape", ExitFullscreen, None),
-        KeyBinding::new("cmd-alt-i", ToggleInspector, None),
-        KeyBinding::new("cmd-alt-r", RevealInFinder, None),
-        KeyBinding::new("ctrl-shift-enter", OpenInDefaultApp, None),
+        KeyBinding::new("space", TogglePlayback, Some(EDITOR_SHORTCUT_CONTEXT)),
+        KeyBinding::new("left", StepBackwardFrame, Some(EDITOR_SHORTCUT_CONTEXT)),
+        KeyBinding::new("right", StepForwardFrame, Some(EDITOR_SHORTCUT_CONTEXT)),
+        KeyBinding::new("backspace", DeleteSelected, Some(EDITOR_SHORTCUT_CONTEXT)),
+        KeyBinding::new("delete", DeleteSelected, Some(EDITOR_SHORTCUT_CONTEXT)),
+        KeyBinding::new("cmd-b", SplitClip, Some(EDITOR_SHORTCUT_CONTEXT)),
+        KeyBinding::new("cmd-z", Undo, Some(EDITOR_SHORTCUT_CONTEXT)),
+        KeyBinding::new("cmd-shift-z", Redo, Some(EDITOR_SHORTCUT_CONTEXT)),
+        KeyBinding::new("cmd-d", DuplicateSelected, Some(EDITOR_SHORTCUT_CONTEXT)),
+        KeyBinding::new("shift-m", AddMarker, Some(EDITOR_SHORTCUT_CONTEXT)),
+        KeyBinding::new("f", ToggleFullscreen, Some(EDITOR_SHORTCUT_CONTEXT)),
+        KeyBinding::new("escape", ExitFullscreen, Some(EDITOR_SHORTCUT_CONTEXT)),
+        KeyBinding::new("cmd-alt-i", ToggleInspector, Some(EDITOR_SHORTCUT_CONTEXT)),
+        KeyBinding::new("cmd-alt-r", RevealInFinder, Some(EDITOR_SHORTCUT_CONTEXT)),
+        KeyBinding::new(
+            "ctrl-shift-enter",
+            OpenInDefaultApp,
+            Some(EDITOR_SHORTCUT_CONTEXT),
+        ),
     ]);
 }
 
@@ -127,6 +132,9 @@ pub(crate) struct Editor {
     project: Project,
     file_tree: Vec<FileTreeEntry>,
     expanded_directories: HashSet<PathBuf>,
+    explorer_filter: String,
+    explorer_filter_focus: FocusHandle,
+    explorer_scroll: ScrollHandle,
     selected_file: Option<PathBuf>,
     file_context_menu: Option<FileContextMenu>,
     preview_target: PreviewTarget,
@@ -177,6 +185,7 @@ impl Editor {
         let selected_asset_id = project.assets.first().map(|asset| asset.id);
         let selected_clip_id = project.clips.first().map(|clip| clip.id);
         let focus_handle = cx.focus_handle();
+        let explorer_filter_focus = cx.focus_handle().tab_stop(true);
         focus_handle.focus(window);
         Self::start_updates(cx);
 
@@ -185,6 +194,9 @@ impl Editor {
             project,
             file_tree,
             expanded_directories,
+            explorer_filter: String::new(),
+            explorer_filter_focus,
+            explorer_scroll: ScrollHandle::new(),
             selected_file: None,
             file_context_menu: None,
             preview_target: PreviewTarget::Timeline,
