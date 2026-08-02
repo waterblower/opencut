@@ -117,6 +117,12 @@ impl Editor {
             } else {
                 0x0d0d0f
             }))
+            .on_mouse_down(
+                MouseButton::Left,
+                cx.listener(|editor, event: &MouseDownEvent, window, cx| {
+                    editor.begin_marquee_selection(event, window, cx);
+                }),
+            )
             .children(clips)
             .into_any_element()
     }
@@ -128,7 +134,7 @@ impl Editor {
         cx: &mut Context<Self>,
     ) -> gpui::AnyElement {
         let clip_id = clip.id;
-        let selected = self.selected_clip_id == Some(clip_id);
+        let selected = self.selected_clip_ids.contains(&clip_id);
         let asset = clip.asset_id.and_then(|id| self.project.asset(id));
         let name = asset
             .map(|asset| asset.name.clone())
