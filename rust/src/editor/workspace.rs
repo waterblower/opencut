@@ -65,6 +65,74 @@ pub(super) fn visible_tree(
     Ok(entries)
 }
 
+/// Searches the complete project tree, independently of which folders are expanded.
+/// Matching ancestor directories are included so results retain their hierarchy.
+pub(super) fn search_tree(project_root: &Path, query: &str) -> Result<Vec<FileTreeEntry>, String> {
+    let query = query.trim().to_lowercase();
+    if query.is_empty() {
+        return Ok(Vec::new());
+    }
+
+    search_directory(project_root, Path::new(""), 0, &query, true)
+}
+
+fn search_directory(
+    project_root: &Path,
+    relative_directory: &Path,
+    depth: usize,
+    query: &str,
+    is_root: bool,
+) -> Result<Vec<FileTreeEntry>, String> {
+    let directory = project_root.join(relative_directory);
+    let children = match directory_children(&directory) {
+        Ok(children) => children,
+        Err(error) if !is_root => {
+            eprintln!("{error}");
+            return Ok(Vec::new());
+        }
+        Err(error) => return Err(error),
+    };
+    let mut matches = Vec::new();
+
+    for (name, is_directory, size_bytes) in children {
+        let relative_path = relative_directory.join(&name);
+        if is_directory {
+            let descendants =
+                search_directory(project_root, &relative_path, depth + 1, query, false)?;
+            let directory_matches = relative_path
+                .to_string_lossy()
+                .to_lowercase()
+                .contains(query);
+            if directory_matches || !descendants.is_empty() {
+                matches.push(file_tree_entry(
+                    relative_path,
+                    name,
+                    depth,
+                    true,
+                    None,
+                    !descendants.is_empty(),
+                ));
+                matches.extend(descendants);
+            }
+        } else if relative_path
+            .to_string_lossy()
+            .to_lowercase()
+            .contains(query)
+        {
+            matches.push(file_tree_entry(
+                relative_path,
+                name,
+                depth,
+                false,
+                size_bytes,
+                false,
+            ));
+        }
+    }
+
+    Ok(matches)
+}
+
 fn read_directory(
     project_root: &Path,
     relative_directory: &Path,
@@ -73,7 +141,34 @@ fn read_directory(
     entries: &mut Vec<FileTreeEntry>,
 ) -> Result<(), String> {
     let directory = project_root.join(relative_directory);
-    let mut children = fs::read_dir(&directory)
+    let children = directory_children(&directory)?;
+
+    for (name, is_directory, size_bytes) in children {
+        let relative_path = relative_directory.join(&name);
+        let expanded = is_directory && expanded_directories.contains(&relative_path);
+        entries.push(file_tree_entry(
+            relative_path.clone(),
+            name,
+            depth,
+            is_directory,
+            size_bytes,
+            expanded,
+        ));
+        if expanded {
+            read_directory(
+                project_root,
+                &relative_path,
+                depth + 1,
+                expanded_directories,
+                entries,
+            )?;
+        }
+    }
+    Ok(())
+}
+
+fn directory_children(directory: &Path) -> Result<Vec<(String, bool, Option<u64>)>, String> {
+    let mut children = fs::read_dir(directory)
         .map_err(|error| format!("could not read {}: {error}", directory.display()))?
         .filter_map(Result::ok)
         .filter_map(|entry| {
@@ -93,32 +188,28 @@ fn read_directory(
             .cmp(left_dir)
             .then_with(|| left_name.to_lowercase().cmp(&right_name.to_lowercase()))
     });
+    Ok(children)
+}
 
-    for (name, is_directory, size_bytes) in children {
-        let relative_path = relative_directory.join(&name);
-        let expanded = is_directory && expanded_directories.contains(&relative_path);
-        entries.push(FileTreeEntry {
-            relative_path: relative_path.clone(),
-            name,
-            depth,
-            is_directory,
-            is_video: !is_directory && is_video_path(&relative_path),
-            is_image: !is_directory && is_image_path(&relative_path),
-            is_audio: !is_directory && is_audio_path(&relative_path),
-            size_bytes,
-            expanded,
-        });
-        if expanded {
-            read_directory(
-                project_root,
-                &relative_path,
-                depth + 1,
-                expanded_directories,
-                entries,
-            )?;
-        }
+fn file_tree_entry(
+    relative_path: PathBuf,
+    name: String,
+    depth: usize,
+    is_directory: bool,
+    size_bytes: Option<u64>,
+    expanded: bool,
+) -> FileTreeEntry {
+    FileTreeEntry {
+        is_video: !is_directory && is_video_path(&relative_path),
+        is_image: !is_directory && is_image_path(&relative_path),
+        is_audio: !is_directory && is_audio_path(&relative_path),
+        relative_path,
+        name,
+        depth,
+        is_directory,
+        size_bytes,
+        expanded,
     }
-    Ok(())
 }
 
 pub(super) fn is_image_path(path: &Path) -> bool {

@@ -16,18 +16,54 @@ impl Editor {
             .unwrap_or_else(|| self.project_root.display().to_string());
         let filter_query = self.explorer_filter.read(cx).query().to_string();
         let filter = filter_query.trim().to_lowercase();
-        let entries = self
-            .file_tree
+        let show_root_contents = self.explorer_root_expanded || !filter.is_empty();
+        let visible_entries = if filter.is_empty() {
+            &self.file_tree
+        } else {
+            &self.explorer_search_results
+        };
+        let root_context_path = PathBuf::new();
+        let root_row = div()
+            .id("project-root")
+            .h(px(38.0))
+            .flex_shrink_0()
+            .flex()
+            .items_center()
+            .gap_2()
+            .px_3()
+            .cursor(CursorStyle::PointingHand)
+            .hover(|style| style.bg(rgb(SURFACE_HOVER)))
+            .on_click(cx.listener(|editor, _, _, cx| {
+                editor.explorer_root_expanded = !editor.explorer_root_expanded;
+                cx.notify();
+            }))
+            .on_mouse_down(
+                MouseButton::Right,
+                cx.listener(move |editor, event: &MouseDownEvent, _, cx| {
+                    editor.show_file_context_menu(root_context_path.clone(), event, cx);
+                }),
+            )
+            .child(
+                div()
+                    .w(px(14.0))
+                    .flex_shrink_0()
+                    .text_color(rgb(MUTED))
+                    .child(if show_root_contents { "▾" } else { "▸" }),
+            )
+            .child(
+                div()
+                    .min_w_0()
+                    .flex_1()
+                    .font_family("monospace")
+                    .text_sm()
+                    .font_weight(gpui::FontWeight::SEMIBOLD)
+                    .text_ellipsis()
+                    .child(project_name),
+            );
+        let entries = visible_entries
             .iter()
             .enumerate()
-            .filter(|(_, entry)| {
-                filter.is_empty()
-                    || entry
-                        .relative_path
-                        .to_string_lossy()
-                        .to_lowercase()
-                        .contains(&filter)
-            })
+            .filter(|_| show_root_contents)
             .map(|(index, entry)| {
                 let path = entry.relative_path.clone();
                 let selection_path = path.clone();
@@ -52,7 +88,7 @@ impl Editor {
                     .items_center()
                     .gap_2()
                     .pr_2()
-                    .pl(px(10.0 + entry.depth as f32 * 16.0))
+                    .pl(px(10.0 + (entry.depth + 1) as f32 * 16.0))
                     .bg(rgb(if selected { 0x1e1b13 } else { PANEL }))
                     .cursor(CursorStyle::PointingHand)
                     .hover(|style| style.bg(rgb(SURFACE_HOVER)))
@@ -162,50 +198,6 @@ impl Editor {
                     .flex_col()
                     .overflow_hidden()
                     .bg(rgb(PANEL))
-                    .child(
-                        div()
-                            .h(px(52.0))
-                            .flex_shrink_0()
-                            .flex()
-                            .items_center()
-                            .gap_2()
-                            .px_3()
-                            .border_b_1()
-                            .border_color(rgb(BORDER))
-                            .child(div().text_color(rgb(MUTED)).child("▾"))
-                            .child(
-                                div()
-                                    .min_w_0()
-                                    .flex_1()
-                                    .font_family("monospace")
-                                    .text_sm()
-                                    .font_weight(gpui::FontWeight::SEMIBOLD)
-                                    .text_ellipsis()
-                                    .child(project_name),
-                            )
-                            .child(
-                                explorer_header_button("refresh-project-tree", "↻").on_click(
-                                    cx.listener(|editor, _, _, cx| {
-                                        editor.refresh_file_tree();
-                                        cx.notify();
-                                    }),
-                                ),
-                            )
-                            .child(
-                                explorer_header_button("collapse-project-tree", "↤").on_click(
-                                    cx.listener(|editor, _, _, cx| {
-                                        editor.expanded_directories.clear();
-                                        editor.refresh_file_tree();
-                                        cx.notify();
-                                    }),
-                                ),
-                            )
-                            .child(explorer_header_button("project-tree-menu", "•••").on_click(
-                                cx.listener(|editor, _, _, cx| {
-                                    editor.open_project_folder(cx);
-                                }),
-                            )),
-                    )
                     .child(self.explorer_filter())
                     .child(
                         div()
@@ -217,10 +209,13 @@ impl Editor {
                             .flex()
                             .flex_col()
                             .py_2()
-                            .when(entries.is_empty(), |this| {
+                            .child(root_row)
+                            .when(show_root_contents && entries.is_empty(), |this| {
                                 this.child(div().p_4().text_sm().text_color(rgb(MUTED)).child(
-                                    if filter_query.is_empty() {
+                                    if filter.is_empty() {
                                         "This project folder is empty.".to_string()
+                                    } else if self.explorer_search_pending {
+                                        "Searching project…".to_string()
                                     } else {
                                         format!("No files match “{filter_query}”.")
                                     },
@@ -234,6 +229,69 @@ impl Editor {
 
     fn explorer_filter(&self) -> gpui::AnyElement {
         self.explorer_filter.clone().into_any_element()
+    }
+
+    pub(super) fn schedule_explorer_search(&mut self, cx: &mut Context<Self>) {
+        let query = self.explorer_filter.read(cx).query().trim().to_string();
+        if query.is_empty() {
+            self.explorer_search_query = None;
+            self.explorer_search_results.clear();
+            self.explorer_search_pending = false;
+            return;
+        }
+        if self.explorer_search_query.as_deref() == Some(query.as_str()) {
+            return;
+        }
+
+        self.explorer_search_query = Some(query.clone());
+        self.explorer_search_results.clear();
+        self.explorer_search_pending = true;
+
+        let project_root = self.project_root.clone();
+        cx.spawn(async move |editor, cx| {
+            cx.background_executor()
+                .timer(Duration::from_millis(120))
+                .await;
+
+            let still_requested = editor
+                .update(cx, |editor, _| {
+                    editor.project_root == project_root
+                        && editor.explorer_search_query.as_deref() == Some(query.as_str())
+                })
+                .unwrap_or(false);
+            if !still_requested {
+                return;
+            }
+
+            let scan_root = project_root.clone();
+            let scan_query = query.clone();
+            let result = cx
+                .background_executor()
+                .spawn(async move { workspace::search_tree(&scan_root, &scan_query) })
+                .await;
+
+            editor
+                .update(cx, |editor, cx| {
+                    if editor.project_root != project_root
+                        || editor.explorer_search_query.as_deref() != Some(query.as_str())
+                    {
+                        return;
+                    }
+                    editor.explorer_search_pending = false;
+                    match result {
+                        Ok(entries) => {
+                            editor.explorer_search_results = entries;
+                        }
+                        Err(error) => {
+                            editor.explorer_search_results.clear();
+                            editor.error = Some(error);
+                        }
+                    }
+                    cx.notify();
+                })
+                .ok();
+        })
+        .detach();
     }
 
     pub(super) fn file_menu_overlay(
@@ -476,27 +534,6 @@ fn file_menu_item(label: &'static str, shortcut: &'static str) -> gpui::Stateful
                 .text_color(rgb(MUTED))
                 .child(shortcut),
         )
-}
-
-fn explorer_header_button(
-    id: impl Into<gpui::ElementId>,
-    label: &'static str,
-) -> gpui::Stateful<gpui::Div> {
-    div()
-        .id(id)
-        .h_6()
-        .min_w(px(22.0))
-        .px_1()
-        .flex()
-        .items_center()
-        .justify_center()
-        .rounded_md()
-        .cursor(CursorStyle::PointingHand)
-        .font_family("monospace")
-        .text_xs()
-        .text_color(rgb(MUTED))
-        .hover(|style| style.bg(rgb(SURFACE_HOVER)).text_color(rgb(TEXT)))
-        .child(label)
 }
 
 fn explorer_file_badge(entry: &FileTreeEntry) -> gpui::Div {
