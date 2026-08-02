@@ -127,7 +127,9 @@ pub(crate) fn bind_keys(cx: &mut App) {
         let Some(window) = cx.active_window() else {
             return;
         };
-        let _ = window.update(cx, |_, window, cx| window.toggle_inspector(cx));
+        let _ = window.update(cx, |_, window, cx| {
+            crate::gpui_inspector::toggle(window, cx)
+        });
     });
 }
 
@@ -717,7 +719,7 @@ impl Editor {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        window.toggle_inspector(cx);
+        crate::gpui_inspector::toggle(window, cx);
     }
 }
 

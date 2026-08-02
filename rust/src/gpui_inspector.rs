@@ -2,6 +2,7 @@ use gpui::{
     AnyElement, App, Context, CursorStyle, DivInspectorState, Inspector, InspectorElementId,
     MouseButton, Window, div, prelude::*, px, rgb,
 };
+use std::sync::atomic::{AtomicBool, Ordering};
 
 const PANEL: u32 = 0x111114;
 const SURFACE: u32 = 0x18181c;
@@ -10,6 +11,10 @@ const BORDER: u32 = 0x303036;
 const TEXT: u32 = 0xf0f0f2;
 const MUTED: u32 = 0x777780;
 const ACCENT: u32 = 0xf0b75e;
+// GPUI reserves this width for its docked inspector in `Window::draw_roots`.
+const INSPECTOR_WIDTH_REMS: f32 = 30.0;
+
+static INSPECTOR_OPEN: AtomicBool = AtomicBool::new(false);
 
 pub(crate) fn init(cx: &mut App) {
     cx.register_inspector_element(|_: InspectorElementId, state: &DivInspectorState, _, _| {
@@ -18,11 +23,30 @@ pub(crate) fn init(cx: &mut App) {
     cx.set_inspector_renderer(Box::new(render_inspector));
 }
 
+pub(crate) fn toggle(window: &mut Window, cx: &mut App) {
+    INSPECTOR_OPEN.fetch_xor(true, Ordering::Relaxed);
+    window.toggle_inspector(cx);
+}
+
+pub(crate) fn close(window: &mut Window, cx: &mut App) {
+    INSPECTOR_OPEN.store(false, Ordering::Relaxed);
+    window.toggle_inspector(cx);
+}
+
+pub(crate) fn docked_width(window: &Window) -> f32 {
+    if INSPECTOR_OPEN.load(Ordering::Relaxed) {
+        f32::from(window.rem_size()) * INSPECTOR_WIDTH_REMS
+    } else {
+        0.0
+    }
+}
+
 fn render_inspector(
     inspector: &mut Inspector,
     window: &mut Window,
     cx: &mut Context<Inspector>,
 ) -> AnyElement {
+    INSPECTOR_OPEN.store(true, Ordering::Relaxed);
     let selected = inspector.active_element_id().cloned();
     let states = inspector.render_inspector_states(window, cx);
 
@@ -105,7 +129,7 @@ fn render_inspector(
                         .child("×")
                         .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
                         .on_click(|_, window, cx| {
-                            window.defer(cx, |window, cx| window.toggle_inspector(cx));
+                            window.defer(cx, close);
                         }),
                 ),
         )
