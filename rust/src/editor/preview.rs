@@ -295,6 +295,25 @@ impl Editor {
     }
 
     pub(super) fn load_timeline_position(&mut self, position: TimelineTime, play: bool) {
+        self.load_timeline_position_with_options(position, play, true, true);
+    }
+
+    pub(super) fn load_timeline_position_for_scrub(
+        &mut self,
+        position: TimelineTime,
+        accurate: bool,
+        synchronize_audio: bool,
+    ) {
+        self.load_timeline_position_with_options(position, false, accurate, synchronize_audio);
+    }
+
+    fn load_timeline_position_with_options(
+        &mut self,
+        position: TimelineTime,
+        play: bool,
+        accurate: bool,
+        synchronize_audio: bool,
+    ) {
         self.preview_target = PreviewTarget::Timeline;
         self.selected_file = None;
         self.file_context_menu = None;
@@ -312,7 +331,9 @@ impl Editor {
             }
             self.video = None;
             self.loaded_clip_id = None;
-            self.sync_audio_previews(position, play);
+            if synchronize_audio {
+                self.sync_audio_previews(position, play);
+            }
             self.preview_refresh_ticks = 2;
             return;
         };
@@ -373,7 +394,7 @@ impl Editor {
             && let Some(video) = &self.video
         {
             if !seamless_transition {
-                let _ = video.seek(source_position, true);
+                let _ = video.seek(source_position, accurate);
             }
             let muted = self
                 .project
@@ -385,7 +406,9 @@ impl Editor {
         self.preview_refresh_ticks = 12;
         self.selected_asset_id = Some(asset_id);
         self.error = None;
-        self.sync_audio_previews(position, play);
+        if synchronize_audio {
+            self.sync_audio_previews(position, play);
+        }
     }
 
     pub(super) fn sync_audio_previews(&mut self, position: TimelineTime, play: bool) {
@@ -600,7 +623,7 @@ impl Editor {
                 let duration = self.project.timeline_duration().frames();
                 let position =
                     TimelineTime::from_frames((duration as f64 * fraction as f64).round() as i64);
-                self.load_timeline_position(position, play);
+                self.load_timeline_position_with_options(position, play, accurate, accurate);
             }
             PreviewTarget::VideoFile(_) => {
                 if let Some(video) = &self.video {
@@ -680,9 +703,9 @@ impl PlaybackViewDelegate for Editor {
             DragPhase::Update if self.preview_is_scrubbing => {
                 self.preview_scrub_fraction = Some(fraction);
                 let now = Instant::now();
-                let should_seek = self.preview_last_scrub_seek.is_none_or(|last_seek| {
-                    now.duration_since(last_seek) >= Duration::from_millis(50)
-                });
+                let should_seek = self
+                    .preview_last_scrub_seek
+                    .is_none_or(|last_seek| now.duration_since(last_seek) >= SCRUB_SEEK_INTERVAL);
                 if should_seek {
                     self.preview_last_scrub_seek = Some(now);
                     self.seek_preview_to_fraction(fraction, false, false);
