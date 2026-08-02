@@ -17,6 +17,7 @@ mod media_cache;
 mod model;
 mod preview;
 mod preview_audio;
+mod properties;
 mod settings;
 mod timeline;
 mod track;
@@ -36,7 +37,7 @@ use preview_audio::AudioPreview;
 use workspace::{FileTreeEntry, load_project_root, save_project_root, visible_tree};
 
 const MEDIA_PANEL_WIDTH: f32 = 340.0;
-const INSPECTOR_WIDTH: f32 = 292.0;
+const PROPERTIES_PANEL_WIDTH: f32 = 292.0;
 const TOPBAR_HEIGHT: f32 = 64.0;
 const TIMELINE_HEIGHT: f32 = 420.0;
 const TIMELINE_HEADER_HEIGHT: f32 = 46.0;
