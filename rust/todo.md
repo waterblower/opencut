@@ -50,11 +50,16 @@
 Expand the current move, trim, split, duplicate, and delete operations into a
 consistent editing toolset.
 
-- [ ] Add multi-selection with Command-click and rectangular selection.
-- [ ] Add copy, cut, paste, and duplicate for multiple selected clips.
-- [ ] Add linked clip groups so video and its audio move and trim together.
+- [x] Add multi-selection with Command-click and rectangular selection.
+- [ ] Show collision feedback while moving selected clips instead of silently
+      refusing invalid positions. Keep multi-clip moves atomic.
+- [ ] Add copy, cut, and paste for multiple selected clips. Preserve relative
+      timing and track placement, and keep paste as one atomic undo operation.
+- [ ] Add linked video/audio clip groups so related clips select, move, trim,
+      split, and delete together.
 - [ ] Add explicit link and unlink commands.
-- [ ] Add ripple delete, closing the resulting timeline gap.
+- [ ] Add ripple delete for single and multi-clip selections, closing the
+      resulting timeline gaps without introducing overlaps.
 - [ ] Add ripple trim, shifting later clips by the trim delta.
 - [ ] Add insert editing, shifting existing clips to make room.
 - [ ] Add overwrite editing, replacing content in the destination range.
@@ -63,7 +68,8 @@ consistent editing toolset.
 - [ ] Add slip editing that changes a clip's source range without moving it.
 - [ ] Add slide editing that moves a clip while adjusting its neighbours.
 - [ ] Allow project files to be dragged from the asset explorer onto compatible
-      tracks at a chosen timeline position.
+      tracks at a chosen timeline position, with a visible placement preview and
+      collision feedback.
 - [ ] Add a snapping toggle and visible guides for playhead and clip-edge
       snap targets.
 - [ ] Add tool modes and cursor feedback for selection, blade, trim, and hand/pan.

@@ -154,12 +154,13 @@ struct ClipPlacement {
     duration: TimelineTime,
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 struct MarqueeSelection {
     start_x: f32,
     start_y: f32,
     current_x: f32,
     current_y: f32,
+    initial_selection: HashSet<u64>,
 }
 
 pub(crate) struct Editor {
@@ -841,6 +842,22 @@ impl Editor {
         self.selected_clip_id = clip_id;
     }
 
+    fn toggle_clip_selection(&mut self, clip_id: u64) {
+        if self.selected_clip_ids.remove(&clip_id) {
+            if self.selected_clip_id == Some(clip_id) {
+                self.selected_clip_id = self
+                    .project
+                    .clips
+                    .iter()
+                    .find(|clip| self.selected_clip_ids.contains(&clip.id))
+                    .map(|clip| clip.id);
+            }
+        } else if self.project.clip(clip_id).is_some() {
+            self.selected_clip_ids.insert(clip_id);
+            self.selected_clip_id = Some(clip_id);
+        }
+    }
+
     fn selected_clip_ids_in_project_order(&self) -> Vec<u64> {
         self.project
             .clips
@@ -916,13 +933,21 @@ impl Editor {
             event.position.y.into(),
             window,
         );
+        let initial_selection = if event.modifiers.secondary() {
+            self.selected_clip_ids.clone()
+        } else {
+            HashSet::new()
+        };
         self.marquee_selection = Some(MarqueeSelection {
             start_x: x,
             start_y: y,
             current_x: x,
             current_y: y,
+            initial_selection,
         });
-        self.select_only_clip(None);
+        if !event.modifiers.secondary() {
+            self.select_only_clip(None);
+        }
         cx.stop_propagation();
         cx.notify();
     }
@@ -984,7 +1009,7 @@ impl Editor {
     }
 
     fn select_clips_in_marquee(&mut self) {
-        let Some(selection) = self.marquee_selection else {
+        let Some(selection) = self.marquee_selection.as_ref() else {
             return;
         };
         let left = selection.start_x.min(selection.current_x);
@@ -994,7 +1019,7 @@ impl Editor {
         let scroll_x = f32::from(self.timeline_scroll.offset().x);
         let scroll_y = f32::from(self.timeline_vertical_scroll.offset().y);
 
-        let mut selected = HashSet::new();
+        let mut selected = selection.initial_selection.clone();
         for (track_index, track) in self.project.tracks.iter().enumerate() {
             let clip_top = TIMELINE_HEADER_HEIGHT
                 + RULER_HEIGHT
@@ -1030,6 +1055,10 @@ impl Editor {
 
     fn begin_clip_move(&mut self, clip_id: u64, event: &MouseDownEvent, cx: &mut Context<Self>) {
         cx.stop_propagation();
+        if event.modifiers.secondary() {
+            self.toggle_clip_selection(clip_id);
+            return;
+        }
         if !self.selected_clip_ids.contains(&clip_id) {
             self.select_only_clip(Some(clip_id));
         }
