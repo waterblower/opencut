@@ -204,6 +204,8 @@ pub(crate) struct Editor {
     preview_refresh_ticks: u8,
     settings_open: bool,
     pixels_per_second: f32,
+    snapping_enabled: bool,
+    snap_guide: Option<TimelineTime>,
     next_id: u64,
     undo_stack: Vec<Project>,
     redo_stack: Vec<Project>,
@@ -279,6 +281,8 @@ impl Editor {
             preview_refresh_ticks: 0,
             settings_open: false,
             pixels_per_second: 72.0,
+            snapping_enabled: true,
+            snap_guide: None,
             next_id,
             undo_stack: Vec::new(),
             redo_stack: Vec::new(),
@@ -1135,6 +1139,7 @@ impl Editor {
         self.pause_audio_previews();
         self.playing = false;
         self.still_playback_started = None;
+        self.snap_guide = None;
         self.clip_move_drag = Some(ClipMoveDrag {
             anchor_clip_id: clip_id,
             start_x: event.position.x.into(),
@@ -1191,7 +1196,7 @@ impl Editor {
             .clip(anchor_clip_id)
             .map(TimelineClip::duration)
             .unwrap_or(TimelineTime::ZERO);
-        let snapped_start = self.snap_clip_start_ignoring(
+        let (snapped_start, snap_guide) = self.snap_clip_start_ignoring(
             raw_anchor_start,
             anchor_duration,
             &self.selected_clip_ids,
@@ -1257,6 +1262,7 @@ impl Editor {
             drag.invalid_reason = invalid_reason;
             drag.changed = moved_from_origin;
         }
+        self.snap_guide = snap_guide;
         cx.notify();
     }
 
@@ -1264,6 +1270,7 @@ impl Editor {
         let Some(drag) = self.clip_move_drag.take() else {
             return;
         };
+        self.snap_guide = None;
         if drag.changed && drag.invalid_reason.is_none() {
             self.checkpoint();
             for placement in drag.placements {
@@ -1278,7 +1285,11 @@ impl Editor {
         cx.notify();
     }
 
-    fn snap_time(&self, time: TimelineTime, ignored_clip: Option<u64>) -> TimelineTime {
+    fn snap_time(
+        &self,
+        time: TimelineTime,
+        ignored_clip: Option<u64>,
+    ) -> (TimelineTime, Option<TimelineTime>) {
         let ignored = ignored_clip.into_iter().collect::<HashSet<_>>();
         self.snap_time_ignoring(time, &ignored)
     }
@@ -1287,7 +1298,10 @@ impl Editor {
         &self,
         time: TimelineTime,
         ignored_clip_ids: &HashSet<u64>,
-    ) -> TimelineTime {
+    ) -> (TimelineTime, Option<TimelineTime>) {
+        if !self.snapping_enabled {
+            return (time.max(TimelineTime::ZERO), None);
+        }
         let threshold = self
             .project
             .settings
@@ -1302,12 +1316,12 @@ impl Editor {
                 candidates.push(clip.timeline_end());
             }
         }
-        candidates
+        let snapped = candidates
             .into_iter()
             .filter(|candidate| candidate.abs_diff(time) <= threshold)
             .min_by_key(|candidate| candidate.abs_diff(time))
-            .unwrap_or(time)
-            .max(TimelineTime::ZERO)
+            .map(|candidate| (candidate.max(TimelineTime::ZERO), Some(candidate)));
+        snapped.unwrap_or((time.max(TimelineTime::ZERO), None))
     }
 
     fn snap_clip_start_ignoring(
@@ -1315,13 +1329,14 @@ impl Editor {
         start: TimelineTime,
         duration: TimelineTime,
         ignored_clip_ids: &HashSet<u64>,
-    ) -> TimelineTime {
-        let start_candidate = self.snap_time_ignoring(start, ignored_clip_ids);
-        let end_candidate = self.snap_time_ignoring(start + duration, ignored_clip_ids) - duration;
+    ) -> (TimelineTime, Option<TimelineTime>) {
+        let (start_candidate, start_guide) = self.snap_time_ignoring(start, ignored_clip_ids);
+        let (snapped_end, end_guide) = self.snap_time_ignoring(start + duration, ignored_clip_ids);
+        let end_candidate = snapped_end - duration;
         if end_candidate.abs_diff(start) < start_candidate.abs_diff(start) {
-            end_candidate.max(TimelineTime::ZERO)
+            (end_candidate.max(TimelineTime::ZERO), end_guide)
         } else {
-            start_candidate.max(TimelineTime::ZERO)
+            (start_candidate.max(TimelineTime::ZERO), start_guide)
         }
     }
 
@@ -1354,6 +1369,7 @@ impl Editor {
         self.still_playback_started = None;
         self.playing = false;
         self.select_only_clip(Some(clip_id));
+        self.snap_guide = None;
         self.trim_drag = Some(TrimDrag {
             clip_id,
             edge,
@@ -1386,6 +1402,8 @@ impl Editor {
             (f32::from(event.position.x) - drag.start_x) as f64 / self.pixels_per_second as f64,
         );
         if raw_delta == TimelineTime::ZERO {
+            self.snap_guide = None;
+            cx.notify();
             return;
         }
         if !drag.changed {
@@ -1397,17 +1415,17 @@ impl Editor {
         let Some(index) = self.project.clip_index(clip_id) else {
             return;
         };
-        match edge {
+        self.snap_guide = match edge {
             TrimEdge::Left => {
                 let raw_start = (original_timeline_start + raw_delta).max(TimelineTime::ZERO);
                 let original_end = original_timeline_start + original_out - original_in;
                 let earliest_start = previous_end.max(original_timeline_start - original_in);
                 let latest_start = original_end - TimelineTime::ONE_FRAME;
-                let start = self
-                    .snap_time(raw_start, Some(clip_id))
-                    .clamp(earliest_start, latest_start);
+                let (snapped_start, guide) = self.snap_time(raw_start, Some(clip_id));
+                let start = snapped_start.clamp(earliest_start, latest_start);
                 self.project.clips[index].source_in = original_in + start - original_timeline_start;
                 self.project.clips[index].timeline_start = start;
+                (start == snapped_start).then_some(guide).flatten()
             }
             TrimEdge::Right => {
                 let original_end = original_timeline_start + original_out - original_in;
@@ -1416,25 +1434,27 @@ impl Editor {
                     original_timeline_start
                         + (asset_duration - original_in).max(TimelineTime::ONE_FRAME),
                 );
-                let end = self
-                    .snap_time(original_end + raw_delta, Some(clip_id))
-                    .clamp(earliest_end, latest_end);
+                let (snapped_end, guide) = self.snap_time(original_end + raw_delta, Some(clip_id));
+                let end = snapped_end.clamp(earliest_end, latest_end);
                 self.project.clips[index].source_out = original_in + end - original_timeline_start;
+                (end == snapped_end).then_some(guide).flatten()
             }
-        }
+        };
         cx.notify();
     }
 
     fn finish_trim(&mut self, _: &MouseUpEvent, _: &mut Window, cx: &mut Context<Self>) {
-        if self.trim_drag.take().is_some_and(|drag| drag.changed) {
+        let changed = self.trim_drag.take().is_some_and(|drag| drag.changed);
+        self.snap_guide = None;
+        if changed {
             self.save_project();
             if let Some(clip_id) = self.selected_clip_id
                 && let Some(index) = self.project.clip_index(clip_id)
             {
                 self.load_timeline_position(self.project.clips[index].timeline_start, false);
             }
-            cx.notify();
         }
+        cx.notify();
     }
 
     fn export(&mut self, cx: &mut Context<Self>) {
@@ -1570,6 +1590,11 @@ impl Editor {
             MIN_TIMELINE_PIXELS_PER_SECOND,
             MAX_TIMELINE_PIXELS_PER_SECOND,
         );
+    }
+
+    fn toggle_snapping(&mut self) {
+        self.snapping_enabled = !self.snapping_enabled;
+        self.snap_guide = None;
     }
 
     fn log_timeline_trackpad_scroll(
