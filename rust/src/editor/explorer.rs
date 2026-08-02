@@ -14,7 +14,7 @@ impl Editor {
             .file_name()
             .map(|name| name.to_string_lossy().into_owned())
             .unwrap_or_else(|| self.project_root.display().to_string());
-        let filter = self.explorer_filter.trim().to_lowercase();
+        let filter = self.explorer_filter_query.trim().to_lowercase();
         let entries = self
             .file_tree
             .iter()
@@ -205,75 +205,7 @@ impl Editor {
                                 }),
                             )),
                     )
-                    .child(
-                        div()
-                            .h(px(58.0))
-                            .flex_shrink_0()
-                            .p_2()
-                            .border_b_1()
-                            .border_color(rgb(BORDER))
-                            .child(
-                                div()
-                                    .id("explorer-filter")
-                                    .h_full()
-                                    .w_full()
-                                    .key_context("ExplorerFilter")
-                                    .track_focus(&self.explorer_filter_focus)
-                                    .flex()
-                                    .items_center()
-                                    .gap_2()
-                                    .px_3()
-                                    .rounded_lg()
-                                    .border_1()
-                                    .border_color(rgb(BORDER))
-                                    .bg(rgb(SURFACE))
-                                    .cursor(CursorStyle::IBeam)
-                                    .focus(|style| style.border_color(rgb(0x52779a)))
-                                    .on_click(cx.listener(|editor, _, window, cx| {
-                                        editor.explorer_filter_focus.focus(window);
-                                        cx.stop_propagation();
-                                    }))
-                                    .on_key_down(cx.listener(Self::handle_explorer_filter_key))
-                                    .child(
-                                        div()
-                                            .min_w_0()
-                                            .flex_1()
-                                            .font_family("monospace")
-                                            .text_sm()
-                                            .text_ellipsis()
-                                            .text_color(rgb(if self.explorer_filter.is_empty() {
-                                                MUTED
-                                            } else {
-                                                TEXT
-                                            }))
-                                            .child(if self.explorer_filter.is_empty() {
-                                                "Filter files…".to_string()
-                                            } else {
-                                                self.explorer_filter.clone()
-                                            }),
-                                    )
-                                    .when(!self.explorer_filter.is_empty(), |this| {
-                                        this.child(
-                                            div()
-                                                .id("clear-explorer-filter")
-                                                .size_5()
-                                                .flex()
-                                                .items_center()
-                                                .justify_center()
-                                                .rounded_md()
-                                                .cursor(CursorStyle::PointingHand)
-                                                .text_color(rgb(MUTED))
-                                                .hover(|style| style.bg(rgb(SURFACE_HOVER)))
-                                                .child("×")
-                                                .on_click(cx.listener(|editor, _, _, cx| {
-                                                    editor.explorer_filter.clear();
-                                                    cx.stop_propagation();
-                                                    cx.notify();
-                                                })),
-                                        )
-                                    }),
-                            ),
-                    )
+                    .child(self.explorer_filter(cx))
                     .child(
                         div()
                             .id("editor-media-scroll")
@@ -286,15 +218,84 @@ impl Editor {
                             .py_2()
                             .when(entries.is_empty(), |this| {
                                 this.child(div().p_4().text_sm().text_color(rgb(MUTED)).child(
-                                    if self.explorer_filter.is_empty() {
+                                    if self.explorer_filter_query.is_empty() {
                                         "This project folder is empty.".to_string()
                                     } else {
-                                        format!("No files match “{}”.", self.explorer_filter)
+                                        format!("No files match “{}”.", self.explorer_filter_query)
                                     },
                                 ))
                             })
                             .children(entries),
                     ),
+            )
+            .into_any_element()
+    }
+
+    fn explorer_filter(&self, cx: &mut Context<Self>) -> gpui::AnyElement {
+        div()
+            .h(px(58.0))
+            .flex_shrink_0()
+            .p_2()
+            .border_b_1()
+            .border_color(rgb(BORDER))
+            .child(
+                div()
+                    .id("explorer-filter")
+                    .h_full()
+                    .w_full()
+                    .key_context("ExplorerFilter")
+                    .track_focus(&self.explorer_filter_focus)
+                    .flex()
+                    .items_center()
+                    .px_3()
+                    .border_1()
+                    .border_color(rgb(BORDER))
+                    .bg(rgb(SURFACE))
+                    .cursor(CursorStyle::IBeam)
+                    .focus(|style| style.border_color(rgb(0x52779a)))
+                    .on_click(cx.listener(|editor, _, window, cx| {
+                        editor.explorer_filter_focus.focus(window);
+                        cx.stop_propagation();
+                    }))
+                    .on_key_down(cx.listener(Self::handle_explorer_filter_key))
+                    .child(
+                        div()
+                            .min_w_0()
+                            .flex_1()
+                            .font_family("monospace")
+                            .text_sm()
+                            .text_ellipsis()
+                            .text_color(rgb(if self.explorer_filter_query.is_empty() {
+                                MUTED
+                            } else {
+                                TEXT
+                            }))
+                            .child(if self.explorer_filter_query.is_empty() {
+                                "Filter files…".to_string()
+                            } else {
+                                self.explorer_filter_query.clone()
+                            }),
+                    )
+                    .when(!self.explorer_filter_query.is_empty(), |this| {
+                        this.child(
+                            div()
+                                .id("clear-explorer-filter")
+                                .size_5()
+                                .flex()
+                                .items_center()
+                                .justify_center()
+                                .rounded_md()
+                                .cursor(CursorStyle::PointingHand)
+                                .text_color(rgb(MUTED))
+                                .hover(|style| style.bg(rgb(SURFACE_HOVER)))
+                                .child("×")
+                                .on_click(cx.listener(|editor, _, _, cx| {
+                                    editor.explorer_filter_query.clear();
+                                    cx.stop_propagation();
+                                    cx.notify();
+                                })),
+                        )
+                    }),
             )
             .into_any_element()
     }
@@ -386,15 +387,15 @@ impl Editor {
         match event.keystroke.key.as_str() {
             "escape" | "enter" => {
                 if event.keystroke.key == "escape" {
-                    self.explorer_filter.clear();
+                    self.explorer_filter_query.clear();
                 }
                 self.focus_handle.focus(window);
             }
             "backspace" => {
                 if event.keystroke.modifiers.platform {
-                    self.explorer_filter.clear();
+                    self.explorer_filter_query.clear();
                 } else {
-                    self.explorer_filter.pop();
+                    self.explorer_filter_query.pop();
                 }
             }
             _ if !event.keystroke.modifiers.control
@@ -404,7 +405,7 @@ impl Editor {
                 if let Some(text) = event.keystroke.key_char.as_deref()
                     && !text.chars().any(char::is_control)
                 {
-                    self.explorer_filter.push_str(text);
+                    self.explorer_filter_query.push_str(text);
                 }
             }
             _ => return,
