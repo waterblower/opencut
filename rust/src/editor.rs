@@ -1,6 +1,6 @@
 use crate::video_backend::Video;
 use gpui::{
-    App, Context, CursorStyle, FocusHandle, KeyBinding, KeyDownEvent, MouseButton, MouseDownEvent,
+    App, Context, CursorStyle, Entity, FocusHandle, KeyBinding, MouseButton, MouseDownEvent,
     MouseMoveEvent, MouseUpEvent, ObjectFit, PathPromptOptions, Render, ScrollHandle,
     ScrollWheelEvent, Window, actions, div, img, prelude::*, px, rgb,
 };
@@ -12,6 +12,7 @@ use std::{
 
 mod audio_preview;
 mod explorer;
+mod explorer_filter;
 mod export;
 mod media_cache;
 mod model;
@@ -25,6 +26,7 @@ mod workspace;
 use crate::playback_view::{DragPhase, PlaybackViewDelegate};
 use audio_preview::AudioPreview;
 use explorer::FileContextMenu;
+use explorer_filter::ExplorerFilter;
 use export::export_project;
 use model::{
     FrameRate, MediaAsset, MediaKind, Project, TimelineClip, TimelineMarker, TimelineTime,
@@ -79,6 +81,7 @@ actions!(
 );
 
 pub(crate) fn bind_keys(cx: &mut App) {
+    explorer_filter::bind_keys(cx);
     cx.bind_keys([
         KeyBinding::new("space", TogglePlayback, Some(EDITOR_SHORTCUT_CONTEXT)),
         KeyBinding::new("left", StepBackwardFrame, Some(EDITOR_SHORTCUT_CONTEXT)),
@@ -132,8 +135,7 @@ pub(crate) struct Editor {
     project: Project,
     file_tree: Vec<FileTreeEntry>,
     expanded_directories: HashSet<PathBuf>,
-    explorer_filter_query: String,
-    explorer_filter_focus: FocusHandle,
+    explorer_filter: Entity<ExplorerFilter>,
     explorer_scroll: ScrollHandle,
     selected_file: Option<PathBuf>,
     file_context_menu: Option<FileContextMenu>,
@@ -185,7 +187,9 @@ impl Editor {
         let selected_asset_id = project.assets.first().map(|asset| asset.id);
         let selected_clip_id = project.clips.first().map(|clip| clip.id);
         let focus_handle = cx.focus_handle();
-        let explorer_filter_focus = cx.focus_handle().tab_stop(true);
+        let explorer_filter = cx.new(|cx| ExplorerFilter::new(focus_handle.clone(), cx));
+        cx.observe(&explorer_filter, |_, _, cx| cx.notify())
+            .detach();
         focus_handle.focus(window);
         Self::start_updates(cx);
 
@@ -194,8 +198,7 @@ impl Editor {
             project,
             file_tree,
             expanded_directories,
-            explorer_filter_query: String::new(),
-            explorer_filter_focus,
+            explorer_filter,
             explorer_scroll: ScrollHandle::new(),
             selected_file: None,
             file_context_menu: None,
