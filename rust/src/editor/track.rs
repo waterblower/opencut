@@ -119,6 +119,11 @@ impl Editor {
                     .collect::<Vec<_>>()
             })
             .unwrap_or_default();
+        let explorer_drop_preview = self
+            .explorer_drop_preview
+            .as_ref()
+            .filter(|preview| preview.track_id == track.id)
+            .map(|preview| self.explorer_drop_preview(preview));
 
         div()
             .id(("track-row", index))
@@ -139,6 +144,7 @@ impl Editor {
             })
             .children(clips)
             .children(move_previews)
+            .when_some(explorer_drop_preview, |this, preview| this.child(preview))
             .into_any_element()
     }
 
@@ -357,6 +363,67 @@ impl Editor {
                             .text_xs()
                             .text_ellipsis()
                             .child(invalid_reason.unwrap_or("Move")),
+                    ),
+            )
+            .into_any_element()
+    }
+
+    fn explorer_drop_preview(&self, preview: &ExplorerDropPreview) -> gpui::AnyElement {
+        let left =
+            TIMELINE_PADDING + self.project.seconds(preview.start) as f32 * self.pixels_per_second;
+        let width =
+            (self.project.seconds(preview.duration) as f32 * self.pixels_per_second).max(4.0);
+        let invalid = preview.invalid_reason.is_some();
+        let feedback_color = if invalid { ERROR } else { ACCENT };
+        let detail = preview
+            .invalid_reason
+            .as_deref()
+            .unwrap_or(if preview.analyzing {
+                "Inspecting media…"
+            } else {
+                "Drop to add"
+            })
+            .to_string();
+
+        div()
+            .id("explorer-media-drop-preview")
+            .absolute()
+            .left(px(left))
+            .top(px(5.0))
+            .w(px(width))
+            .h(px(TRACK_HEIGHT - 10.0))
+            .overflow_hidden()
+            .rounded_md()
+            .border_2()
+            .border_color(rgb(feedback_color))
+            .bg(gpui::rgba(if invalid { 0xff8b8b38 } else { 0xf0b75e38 }))
+            .cursor(if invalid {
+                CursorStyle::OperationNotAllowed
+            } else {
+                CursorStyle::DragCopy
+            })
+            .child(
+                div()
+                    .absolute()
+                    .inset_0()
+                    .p_2()
+                    .flex()
+                    .flex_col()
+                    .justify_between()
+                    .text_color(rgb(feedback_color))
+                    .child(
+                        div()
+                            .text_xs()
+                            .font_weight(gpui::FontWeight::SEMIBOLD)
+                            .text_ellipsis()
+                            .child(preview.name.clone()),
+                    )
+                    .child(
+                        div()
+                            .font_family("monospace")
+                            .text_xs()
+                            .text_ellipsis()
+                            .child(detail),
                     ),
             )
             .into_any_element()

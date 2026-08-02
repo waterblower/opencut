@@ -57,7 +57,7 @@ consistent editing toolset.
 - [x] Add tool modes and cursor feedback for selection, blade, and trim.
 - [x] Add copy, cut, and paste for multiple selected clips. Preserve relative
       timing and track placement, and keep paste as one atomic undo operation.
-- [ ] Allow project files to be dragged from the asset explorer onto compatible
+- [x] Allow project files to be dragged from the asset explorer onto compatible
       tracks at a chosen timeline position, with a visible placement preview and
       collision feedback.
 - [ ] Make every compound edit create one atomic undo/redo transaction.
