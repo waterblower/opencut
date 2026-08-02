@@ -519,6 +519,32 @@ impl Editor {
             .iter()
             .map(|(clip_id, _, _)| *clip_id)
             .collect::<HashSet<_>>();
+        let mut seamless_transitions = HashSet::new();
+
+        if play {
+            for (next_clip_id, _, _) in &desired {
+                if self.audio_previews.contains_key(next_clip_id) {
+                    continue;
+                }
+                let previous_clip_id = self.audio_previews.keys().copied().find(|previous_id| {
+                    let Some(previous) = self.project.clip(*previous_id) else {
+                        return false;
+                    };
+                    let Some(next) = self.project.clip(*next_clip_id) else {
+                        return false;
+                    };
+                    previous.is_continuous_with(next)
+                });
+                let Some(previous_clip_id) = previous_clip_id else {
+                    continue;
+                };
+                let Some(preview) = self.audio_previews.remove(&previous_clip_id) else {
+                    continue;
+                };
+                self.audio_previews.insert(*next_clip_id, preview);
+                seamless_transitions.insert(*next_clip_id);
+            }
+        }
 
         self.audio_previews
             .retain(|clip_id, _| desired_ids.contains(clip_id));
@@ -541,7 +567,9 @@ impl Editor {
             }
             if let Some(preview) = self.audio_previews.get(&clip_id) {
                 let expected = source_position;
-                if preview.position().abs_diff(expected) > Duration::from_millis(250) {
+                if !seamless_transitions.contains(&clip_id)
+                    && preview.position().abs_diff(expected) > Duration::from_millis(250)
+                {
                     preview.seek(expected);
                 }
                 preview.set_playing(play);
