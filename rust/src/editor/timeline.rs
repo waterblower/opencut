@@ -47,7 +47,7 @@ impl Editor {
     }
 
     fn timeline_marquee(&self) -> Option<gpui::AnyElement> {
-        let selection = self.marquee_selection?;
+        let selection = self.marquee_selection.as_ref()?;
         let left = selection.start_x.min(selection.current_x);
         let top = selection.start_y.min(selection.current_y);
         let width = (selection.start_x - selection.current_x).abs();
