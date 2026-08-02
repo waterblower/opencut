@@ -2,8 +2,11 @@ use super::*;
 
 const MAX_RULER_TICKS: usize = 240;
 const MAX_FRAME_TICKS: usize = 2_000;
+const MIN_RULER_LABEL_SPACING: f32 = 72.0;
 const MIN_FRAME_TICK_SPACING: f32 = 4.0;
-const TICK_STEPS: [f64; 10] = [1.0, 2.0, 5.0, 10.0, 15.0, 30.0, 60.0, 300.0, 600.0, 1800.0];
+const TICK_STEPS: [f64; 12] = [
+    1.0, 2.0, 5.0, 10.0, 15.0, 20.0, 30.0, 60.0, 120.0, 300.0, 600.0, 1800.0,
+];
 
 impl Editor {
     pub(super) fn timeline(&self, cx: &mut Context<Self>) -> gpui::AnyElement {
@@ -166,22 +169,7 @@ impl Editor {
                 .border_l_1()
                 .border_color(rgb(if emphasized { 0x5a5a62 } else { 0x3a3a40 }))
         });
-        let zoom_step = if self.pixels_per_second >= 120.0 {
-            1.0
-        } else if self.pixels_per_second >= 60.0 {
-            2.0
-        } else if self.pixels_per_second >= 36.0 {
-            5.0
-        } else {
-            10.0
-        };
-        // The ruler is not virtualised, so coarsen the step until a long project stays
-        // within a bounded number of labels rather than one per second.
-        let tick_step = TICK_STEPS
-            .iter()
-            .copied()
-            .find(|step| *step >= zoom_step && duration / step <= MAX_RULER_TICKS as f64)
-            .unwrap_or(duration / MAX_RULER_TICKS as f64);
+        let tick_step = ruler_tick_step(duration, self.pixels_per_second);
         let tick_count = (duration / tick_step).ceil() as usize + 1;
         let ruler_ticks = (0..tick_count).map(|index| {
             let time = index as f64 * tick_step;
@@ -349,6 +337,23 @@ fn frame_tick_step(total_frames: i64, pixels_per_frame: f32) -> i64 {
         .max(1.0) as i64;
     let count_step = ((total_frames.max(1) as f64 / MAX_FRAME_TICKS as f64).ceil() as i64).max(1);
     spacing_step.max(count_step)
+}
+
+fn ruler_tick_step(duration: f64, pixels_per_second: f32) -> f64 {
+    let spacing_step = MIN_RULER_LABEL_SPACING as f64 / pixels_per_second.max(f32::EPSILON) as f64;
+    let count_step = duration.max(0.0) / MAX_RULER_TICKS as f64;
+    let minimum_step = spacing_step.max(count_step);
+
+    TICK_STEPS
+        .iter()
+        .copied()
+        .find(|step| *step >= minimum_step)
+        .unwrap_or_else(|| {
+            let largest_step = *TICK_STEPS
+                .last()
+                .expect("timeline tick steps are not empty");
+            (minimum_step / largest_step).ceil() * largest_step
+        })
 }
 
 fn timeline_icon_button(
