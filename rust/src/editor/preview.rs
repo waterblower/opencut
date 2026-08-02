@@ -8,6 +8,7 @@ use url::Url;
 pub(super) enum PreviewTarget {
     Timeline,
     VideoFile(PathBuf),
+    AudioFile(PathBuf),
     ImageFile(PathBuf),
 }
 
@@ -24,6 +25,9 @@ impl Editor {
             PreviewTarget::Timeline => self.timeline_preview(origin_x, origin_y, width, height, cx),
             PreviewTarget::VideoFile(_) => {
                 self.video_file_preview(origin_x, origin_y, width, height, cx)
+            }
+            PreviewTarget::AudioFile(path) => {
+                self.audio_file_preview(path, origin_x, origin_y, width, height, cx)
             }
             PreviewTarget::ImageFile(path) => self.image_file_preview(path, width, height),
         }
@@ -203,6 +207,85 @@ impl Editor {
             .into_any_element()
     }
 
+    fn audio_file_preview(
+        &self,
+        path: &Path,
+        origin_x: f32,
+        origin_y: f32,
+        width: f32,
+        height: f32,
+        cx: &mut Context<Self>,
+    ) -> gpui::AnyElement {
+        let surface_height = (height - CONTROL_HEIGHT).max(1.0);
+        let file_name = path
+            .file_name()
+            .map(|name| name.to_string_lossy().into_owned())
+            .unwrap_or_else(|| path.display().to_string());
+        let content = div()
+            .id("editor-audio-file-preview-content")
+            .w(px(width))
+            .h(px(surface_height))
+            .flex()
+            .flex_col()
+            .items_center()
+            .justify_center()
+            .gap_4()
+            .overflow_hidden()
+            .bg(rgb(0x09090b))
+            .child(
+                div()
+                    .size(px(96.0))
+                    .flex()
+                    .items_center()
+                    .justify_center()
+                    .rounded_full()
+                    .border_1()
+                    .border_color(rgb(BORDER))
+                    .bg(rgb(SURFACE))
+                    .text_3xl()
+                    .text_color(rgb(ACCENT))
+                    .child("♪"),
+            )
+            .child(
+                div()
+                    .max_w(px((width - 48.0).max(1.0)))
+                    .text_lg()
+                    .font_weight(gpui::FontWeight::SEMIBOLD)
+                    .text_ellipsis()
+                    .child(file_name),
+            )
+            .child(div().text_xs().text_color(rgb(MUTED)).child(
+                if self.standalone_audio.is_some() {
+                    "Audio preview"
+                } else {
+                    "Loading audio preview…"
+                },
+            ))
+            .into_any_element();
+        let (position, duration, paused) = self.standalone_audio.as_ref().map_or(
+            (Duration::ZERO, Duration::ZERO, true),
+            |audio| {
+                (
+                    audio.position(),
+                    audio.duration(),
+                    !audio.playing() || audio.finished(),
+                )
+            },
+        );
+        self.playable_preview(
+            origin_x,
+            origin_y,
+            width,
+            height,
+            self.standalone_audio.is_some(),
+            paused,
+            position,
+            duration,
+            content,
+            cx,
+        )
+    }
+
     #[allow(clippy::too_many_arguments)]
     fn playable_preview(
         &self,
@@ -314,6 +397,7 @@ impl Editor {
         accurate: bool,
         synchronize_audio: bool,
     ) {
+        self.standalone_audio = None;
         self.preview_target = PreviewTarget::Timeline;
         self.selected_file = None;
         self.file_context_menu = None;
@@ -487,6 +571,19 @@ impl Editor {
                 self.preview_refresh_ticks = 12;
                 return;
             }
+            PreviewTarget::AudioFile(_) => {
+                let Some(audio) = &self.standalone_audio else {
+                    return;
+                };
+                if audio.finished() {
+                    audio.seek(Duration::ZERO);
+                    audio.set_playing(true);
+                } else {
+                    audio.set_playing(!audio.playing());
+                }
+                self.preview_refresh_ticks = 12;
+                return;
+            }
             PreviewTarget::Timeline => {}
         }
 
@@ -514,6 +611,7 @@ impl Editor {
     pub(super) fn select_file(&mut self, relative_path: PathBuf, cx: &mut Context<Self>) {
         let is_image = workspace::is_image_path(&relative_path);
         let is_video = workspace::is_video_path(&relative_path);
+        let is_audio = workspace::is_audio_path(&relative_path);
 
         self.selected_file = Some(relative_path.clone());
         self.selected_asset_id = self
@@ -523,11 +621,11 @@ impl Editor {
             .find(|asset| asset.path == relative_path)
             .map(|asset| asset.id);
 
-        if is_image || is_video {
-            self.preview_target = if is_video {
-                PreviewTarget::VideoFile(relative_path.clone())
-            } else {
-                PreviewTarget::ImageFile(relative_path.clone())
+        if is_image || is_video || is_audio {
+            self.preview_target = match (is_video, is_audio) {
+                (true, _) => PreviewTarget::VideoFile(relative_path.clone()),
+                (_, true) => PreviewTarget::AudioFile(relative_path.clone()),
+                _ => PreviewTarget::ImageFile(relative_path.clone()),
             };
             self.status = None;
             self.error = None;
@@ -535,6 +633,7 @@ impl Editor {
                 video.set_paused(true);
             }
             self.video = None;
+            self.standalone_audio = None;
             self.loaded_clip_id = None;
             self.playing = false;
             self.pause_audio_previews();
@@ -550,7 +649,7 @@ impl Editor {
             self.preview_refresh_ticks = 2;
         }
 
-        if !is_video {
+        if !is_video && !is_audio {
             return;
         }
 
@@ -562,6 +661,45 @@ impl Editor {
         };
         self.status = Some(format!("Loading preview for {}…", relative_path.display()));
         self.error = None;
+
+        if is_audio {
+            cx.spawn(async move |editor, cx| {
+                let result = cx
+                    .background_executor()
+                    .spawn(async move { AudioPreview::new(&url) })
+                    .await;
+
+                editor
+                    .update(cx, |editor, cx| {
+                        let still_requested = matches!(
+                            &editor.preview_target,
+                            PreviewTarget::AudioFile(path) if path == &relative_path
+                        );
+                        if editor.project_root != project_root || !still_requested {
+                            return;
+                        }
+
+                        match result {
+                            Ok(audio) => {
+                                audio.set_volume(editor.preview_volume);
+                                audio.set_playing(false);
+                                editor.standalone_audio = Some(audio);
+                                editor.status = Some("Audio preview ready.".to_string());
+                                editor.error = None;
+                                editor.preview_refresh_ticks = 12;
+                            }
+                            Err(error) => {
+                                editor.status = None;
+                                editor.error = Some(error);
+                            }
+                        }
+                        cx.notify();
+                    })
+                    .ok();
+            })
+            .detach();
+            return;
+        }
 
         cx.spawn(async move |editor, cx| {
             let result = cx
@@ -632,6 +770,13 @@ impl Editor {
                     video.set_paused(!play);
                 }
             }
+            PreviewTarget::AudioFile(_) => {
+                if let Some(audio) = &self.standalone_audio {
+                    let target = audio.duration().mul_f64(fraction as f64);
+                    audio.seek_with_accuracy(target, accurate);
+                    audio.set_playing(play);
+                }
+            }
             PreviewTarget::ImageFile(_) => {}
         }
     }
@@ -652,6 +797,10 @@ impl Editor {
             PreviewTarget::VideoFile(_) => self.video.as_ref().is_some_and(|video| {
                 let target = video.duration().mul_f64(fraction as f64);
                 video.position().abs_diff(target) <= Duration::from_millis(40)
+            }),
+            PreviewTarget::AudioFile(_) => self.standalone_audio.as_ref().is_some_and(|audio| {
+                let target = audio.duration().mul_f64(fraction as f64);
+                audio.position().abs_diff(target) <= Duration::from_millis(40)
             }),
             PreviewTarget::ImageFile(_) => true,
         };
@@ -686,10 +835,17 @@ impl PlaybackViewDelegate for Editor {
                     PreviewTarget::VideoFile(_) => {
                         self.video.as_ref().is_some_and(|video| !video.paused())
                     }
+                    PreviewTarget::AudioFile(_) => self
+                        .standalone_audio
+                        .as_ref()
+                        .is_some_and(AudioPreview::playing),
                     PreviewTarget::ImageFile(_) => false,
                 };
                 if let Some(video) = &self.video {
                     video.set_paused(true);
+                }
+                if let Some(audio) = &self.standalone_audio {
+                    audio.set_playing(false);
                 }
                 self.pause_audio_previews();
                 self.playing = false;
@@ -745,6 +901,9 @@ impl PlaybackViewDelegate for Editor {
             video.set_volume(self.preview_volume);
             video.set_muted(self.preview_volume <= f64::EPSILON);
         }
+        if let Some(audio) = &self.standalone_audio {
+            audio.set_volume(self.preview_volume);
+        }
         for preview in self.audio_previews.values() {
             preview.set_volume(self.preview_volume);
         }
@@ -755,6 +914,7 @@ impl PlaybackViewDelegate for Editor {
         let has_playable_target = match self.preview_target {
             PreviewTarget::Timeline => !self.project.clips.is_empty(),
             PreviewTarget::VideoFile(_) => self.video.is_some(),
+            PreviewTarget::AudioFile(_) => self.standalone_audio.is_some(),
             PreviewTarget::ImageFile(_) => false,
         };
         if has_playable_target {
