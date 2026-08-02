@@ -143,6 +143,8 @@ struct ClipMoveDrag {
     original_anchor_start: TimelineTime,
     original_anchor_track_index: usize,
     items: Vec<ClipMoveItem>,
+    placements: Vec<ClipPlacement>,
+    invalid_reason: Option<&'static str>,
     changed: bool,
 }
 
@@ -891,11 +893,41 @@ impl Editor {
         placements: &[ClipPlacement],
         ignored_clip_ids: &HashSet<u64>,
     ) -> bool {
-        if placements.iter().any(|placement| {
-            placement.start < TimelineTime::ZERO
-                || !self.clip_track_compatible(placement.clip_id, placement.track_id)
-        }) {
-            return false;
+        self.clip_placement_error(placements, ignored_clip_ids)
+            .is_none()
+    }
+
+    fn clip_placement_error(
+        &self,
+        placements: &[ClipPlacement],
+        ignored_clip_ids: &HashSet<u64>,
+    ) -> Option<&'static str> {
+        for placement in placements {
+            if placement.start < TimelineTime::ZERO {
+                return Some("Cannot move before the timeline start");
+            }
+            if placement.duration < TimelineTime::ONE_FRAME {
+                return Some("Clip duration is invalid");
+            }
+            let Some(clip) = self.project.clip(placement.clip_id) else {
+                return Some("Clip is no longer available");
+            };
+            let Some(track) = self.project.track(placement.track_id) else {
+                return Some("Destination track is unavailable");
+            };
+            if track.locked {
+                return Some("Destination track is locked");
+            }
+            let Some(asset) = clip.asset_id.and_then(|id| self.project.asset(id)) else {
+                return Some("Source media is unavailable");
+            };
+            let compatible = match track.kind {
+                TrackKind::Video => asset.kind != MediaKind::Audio,
+                TrackKind::Audio => asset.has_audio,
+            };
+            if !compatible {
+                return Some("Clip type is incompatible with this track");
+            }
         }
 
         for (index, placement) in placements.iter().enumerate() {
@@ -905,7 +937,7 @@ impl Editor {
                     && placement.start < other.start + other.duration
                     && other.start < end
             }) {
-                return false;
+                return Some("Selected clips would overlap each other");
             }
             if self.project.clips.iter().any(|other| {
                 !ignored_clip_ids.contains(&other.id)
@@ -913,10 +945,10 @@ impl Editor {
                     && placement.start < other.timeline_end()
                     && other.timeline_start < end
             }) {
-                return false;
+                return Some("Overlaps another clip");
             }
         }
-        true
+        None
     }
 
     fn begin_marquee_selection(
@@ -1108,7 +1140,20 @@ impl Editor {
             start_x: event.position.x.into(),
             original_anchor_start: anchor.timeline_start,
             original_anchor_track_index,
+            placements: items
+                .iter()
+                .filter_map(|item| {
+                    let clip = self.project.clip(item.clip_id)?;
+                    Some(ClipPlacement {
+                        clip_id: item.clip_id,
+                        track_id: item.original_track_id,
+                        start: item.original_timeline_start,
+                        duration: clip.duration(),
+                    })
+                })
+                .collect(),
             items,
+            invalid_reason: None,
             changed: false,
         });
     }
@@ -1161,6 +1206,21 @@ impl Editor {
             .ok()
             .map(|target| target as isize - original_anchor_track_index as isize)
             .unwrap_or(0);
+        let first_track_index = items
+            .iter()
+            .map(|item| item.original_track_index)
+            .min()
+            .unwrap_or(0);
+        let last_track_index = items
+            .iter()
+            .map(|item| item.original_track_index)
+            .max()
+            .unwrap_or(0);
+        let maximum_track_index = self.project.tracks.len().saturating_sub(1);
+        let track_delta = requested_track_delta.clamp(
+            -(first_track_index as isize),
+            maximum_track_index.saturating_sub(last_track_index) as isize,
+        );
         let placements_for_delta = |track_delta: isize| {
             items
                 .iter()
@@ -1177,20 +1237,12 @@ impl Editor {
                 })
                 .collect::<Vec<_>>()
         };
-        let placements = placements_for_delta(requested_track_delta);
-        if placements.len() != items.len()
-            || !self.clip_placements_fit(&placements, &self.selected_clip_ids)
-        {
-            return;
-        }
-        let already_there = placements.iter().all(|placement| {
-            self.project.clip(placement.clip_id).is_some_and(|clip| {
-                clip.timeline_start == placement.start && clip.track_id == placement.track_id
-            })
-        });
-        if already_there {
-            return;
-        }
+        let placements = placements_for_delta(track_delta);
+        let invalid_reason = if placements.len() != items.len() {
+            Some("Destination track is unavailable")
+        } else {
+            self.clip_placement_error(&placements, &self.selected_clip_ids)
+        };
         let moved_from_origin = placements.iter().any(|placement| {
             items
                 .iter()
@@ -1200,46 +1252,30 @@ impl Editor {
                         || placement.track_id != item.original_track_id
                 })
         });
-        if !drag.changed && moved_from_origin {
-            self.checkpoint();
-            if let Some(drag) = &mut self.clip_move_drag {
-                drag.changed = true;
-            }
-        }
-        for placement in placements {
-            if let Some(clip) = self.project.clip_mut(placement.clip_id) {
-                clip.timeline_start = placement.start;
-                clip.track_id = placement.track_id;
-            }
+        if let Some(drag) = &mut self.clip_move_drag {
+            drag.placements = placements;
+            drag.invalid_reason = invalid_reason;
+            drag.changed = moved_from_origin;
         }
         cx.notify();
     }
 
     fn finish_clip_move(&mut self, _: &MouseUpEvent, _: &mut Window, cx: &mut Context<Self>) {
-        if self.clip_move_drag.take().is_some_and(|drag| drag.changed) {
+        let Some(drag) = self.clip_move_drag.take() else {
+            return;
+        };
+        if drag.changed && drag.invalid_reason.is_none() {
+            self.checkpoint();
+            for placement in drag.placements {
+                if let Some(clip) = self.project.clip_mut(placement.clip_id) {
+                    clip.timeline_start = placement.start;
+                    clip.track_id = placement.track_id;
+                }
+            }
             self.save_project();
             self.load_timeline_position(self.playhead, false);
-            cx.notify();
         }
-    }
-
-    fn clip_track_compatible(&self, clip_id: u64, track_id: u64) -> bool {
-        let Some(clip) = self.project.clip(clip_id) else {
-            return false;
-        };
-        let Some(track) = self.project.track(track_id) else {
-            return false;
-        };
-        if track.locked {
-            return false;
-        }
-        let Some(asset) = clip.asset_id.and_then(|id| self.project.asset(id)) else {
-            return false;
-        };
-        match track.kind {
-            TrackKind::Video => asset.kind != MediaKind::Audio,
-            TrackKind::Audio => asset.has_audio,
-        }
+        cx.notify();
     }
 
     fn snap_time(&self, time: TimelineTime, ignored_clip: Option<u64>) -> TimelineTime {
