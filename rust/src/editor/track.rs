@@ -1,4 +1,6 @@
 use super::*;
+use gpui::{Bounds, canvas, fill, point, rgba, size};
+use std::sync::Arc;
 
 impl Editor {
     pub(super) fn track_header(
@@ -165,10 +167,9 @@ impl Editor {
             }
             MediaKind::Audio => None,
         });
-        let waveform = asset.and_then(|asset| {
-            (cached && asset.has_audio)
-                .then(|| media_cache::waveform_path(&self.project_root, asset))
-        });
+        let waveform = asset.and_then(|asset| self.waveform_cache.get(&asset.id).cloned());
+        let source_start = self.project.seconds(clip.source_in);
+        let source_end = self.project.seconds(clip.source_out);
         let detail = if asset.is_some_and(|asset| asset.has_audio) {
             "Audio".to_string()
         } else {
@@ -191,7 +192,7 @@ impl Editor {
                     }),
             )
             .when_some(waveform, |this, path| {
-                this.child(timeline_clip_waveform(path))
+                this.child(timeline_clip_waveform(path, source_start, source_end))
             })
             .child(timeline_clip_label(name, detail));
 
@@ -203,11 +204,9 @@ impl Editor {
         let name = asset
             .map(|asset| asset.name.clone())
             .unwrap_or_else(|| "Missing media".to_string());
-        let cached = asset.is_some_and(|asset| self.media_cache_ready.contains(&asset.id));
-        let waveform = asset.and_then(|asset| {
-            (cached && asset.has_audio)
-                .then(|| media_cache::waveform_path(&self.project_root, asset))
-        });
+        let waveform = asset.and_then(|asset| self.waveform_cache.get(&asset.id).cloned());
+        let source_start = self.project.seconds(clip.source_in);
+        let source_end = self.project.seconds(clip.source_out);
         let detail = if asset.is_some_and(|asset| asset.has_audio) {
             "Audio".to_string()
         } else {
@@ -217,7 +216,7 @@ impl Editor {
             .absolute()
             .inset_0()
             .when_some(waveform, |this, path| {
-                this.child(timeline_clip_waveform(path))
+                this.child(timeline_clip_waveform(path, source_start, source_end))
             })
             .child(timeline_clip_label(name, detail));
 
@@ -364,15 +363,48 @@ impl Editor {
     }
 }
 
-fn timeline_clip_waveform(path: PathBuf) -> gpui::Div {
-    div()
-        .absolute()
-        .left_0()
-        .right_0()
-        .bottom_0()
-        .h(px(24.0))
-        .opacity(0.82)
-        .child(img(path).size_full().object_fit(ObjectFit::Fill))
+fn timeline_clip_waveform(
+    waveform: Arc<media_cache::WaveformData>,
+    source_start: f64,
+    source_end: f64,
+) -> gpui::AnyElement {
+    canvas(
+        move |bounds, _, _| {
+            let width = f32::from(bounds.size.width).ceil().max(1.0) as usize;
+            waveform.columns(source_start, source_end, width)
+        },
+        move |bounds: Bounds<gpui::Pixels>, columns, window, _| {
+            if columns.is_empty() {
+                return;
+            }
+            let width = f32::from(bounds.size.width);
+            let height = f32::from(bounds.size.height);
+            let column_width = width / columns.len() as f32;
+            let center = height / 2.0;
+            let amplitude = (height / 2.0 - 1.0).max(0.0);
+            for (index, peak) in columns.into_iter().enumerate() {
+                let top = (center - peak.max * amplitude).clamp(0.0, height);
+                let bottom = (center - peak.min * amplitude).clamp(top, height);
+                let bar_height = (bottom - top).max(1.0);
+                window.paint_quad(fill(
+                    Bounds::new(
+                        point(
+                            bounds.left() + px(index as f32 * column_width),
+                            bounds.top() + px(top),
+                        ),
+                        size(px(column_width.max(1.0)), px(bar_height)),
+                    ),
+                    rgba(0x69c5cfd1),
+                ));
+            }
+        },
+    )
+    .absolute()
+    .left_0()
+    .right_0()
+    .bottom_0()
+    .h(px(24.0))
+    .into_any_element()
 }
 
 fn timeline_clip_label(name: String, detail: String) -> gpui::Div {

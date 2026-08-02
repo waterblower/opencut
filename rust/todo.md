@@ -18,8 +18,8 @@
 
 - [ ] Fix `format_speed` so it removes only trailing fractional zeros. It must
       render `0.5×`, `1.25×`, `1.5×`, and `1.05×` without changing the value.
-- [ ] Crop and offset cached full-asset waveforms using each clip's `source_in`
-      and `source_out`, so split and trimmed clips show the correct source range.
+- [x] Replace fixed full-asset waveform images with a multiresolution peak-data
+      cache, and render each clip's `source_in` to `source_out` range dynamically.
 - [ ] Make file-tree traversal tolerate an unreadable or disconnected
       subdirectory. Preserve readable entries and report the failing directory
       inline instead of aborting the complete tree refresh.
