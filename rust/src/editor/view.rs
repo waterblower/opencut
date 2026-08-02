@@ -48,7 +48,6 @@ impl Render for Editor {
             .on_action(cx.listener(Self::action_undo))
             .on_action(cx.listener(Self::action_redo))
             .on_action(cx.listener(Self::action_duplicate_selected))
-            .on_action(cx.listener(Self::action_add_marker))
             .on_action(cx.listener(Self::action_toggle_fullscreen))
             .on_action(cx.listener(Self::action_exit_fullscreen))
             .on_action(cx.listener(Self::action_toggle_inspector))

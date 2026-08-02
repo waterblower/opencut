@@ -46,6 +46,69 @@ impl Editor {
     }
 
     fn timeline_properties(&self, cx: &mut Context<Self>) -> gpui::AnyElement {
+        let selection_count = self.selected_clip_ids.len();
+        if selection_count > 1 {
+            let editable = self.selected_clips_editable();
+            let can_split = self.can_split_selected();
+            return div()
+                .id("timeline-multi-properties")
+                .flex()
+                .flex_col()
+                .gap_4()
+                .child(properties_title(
+                    format!("{selection_count} clips selected"),
+                    "Timeline selection",
+                ))
+                .child(
+                    div()
+                        .flex()
+                        .gap_2()
+                        .child(
+                            panel_button("Nudge left", editable).when(editable, |button| {
+                                button.on_click(cx.listener(|editor, _, _, cx| {
+                                    editor.move_selected(-1);
+                                    cx.notify();
+                                }))
+                            }),
+                        )
+                        .child(
+                            panel_button("Nudge right", editable).when(editable, |button| {
+                                button.on_click(cx.listener(|editor, _, _, cx| {
+                                    editor.move_selected(1);
+                                    cx.notify();
+                                }))
+                            }),
+                        ),
+                )
+                .child(
+                    panel_button("Split all at playhead", can_split).when(can_split, |button| {
+                        button.on_click(cx.listener(|editor, _, _, cx| {
+                            editor.split_selected();
+                            cx.notify();
+                        }))
+                    }),
+                )
+                .child(
+                    panel_button("Duplicate clips", editable).when(editable, |button| {
+                        button.on_click(cx.listener(|editor, _, _, cx| {
+                            editor.duplicate_selected();
+                            cx.notify();
+                        }))
+                    }),
+                )
+                .child(
+                    panel_button("Delete clips", editable)
+                        .text_color(if editable { rgb(ERROR) } else { rgb(MUTED) })
+                        .when(editable, |button| {
+                            button.on_click(cx.listener(|editor, _, _, cx| {
+                                editor.delete_selected();
+                                cx.notify();
+                            }))
+                        }),
+                )
+                .into_any_element();
+        }
+
         let selected = self.selected_clip_id.and_then(|id| {
             let index = self.project.clip_index(id)?;
             let clip = &self.project.clips[index];
@@ -55,6 +118,8 @@ impl Editor {
             let track = self.project.track(clip.track_id)?;
             Some((clip, asset, track))
         });
+        let editable = self.selected_clips_editable();
+        let can_split = self.can_split_selected();
 
         div()
             .id("timeline-properties")
@@ -95,37 +160,50 @@ impl Editor {
                             .mt_2()
                             .flex()
                             .gap_2()
-                            .child(panel_button("Nudge left").on_click(cx.listener(
-                                |editor, _, _, cx| {
-                                    editor.move_selected(-1);
-                                    cx.notify();
+                            .child(
+                                panel_button("Nudge left", editable).when(editable, |button| {
+                                    button.on_click(cx.listener(|editor, _, _, cx| {
+                                        editor.move_selected(-1);
+                                        cx.notify();
+                                    }))
+                                }),
+                            )
+                            .child(panel_button("Nudge right", editable).when(
+                                editable,
+                                |button| {
+                                    button.on_click(cx.listener(|editor, _, _, cx| {
+                                        editor.move_selected(1);
+                                        cx.notify();
+                                    }))
                                 },
-                            )))
-                            .child(panel_button("Nudge right").on_click(cx.listener(
-                                |editor, _, _, cx| {
-                                    editor.move_selected(1);
-                                    cx.notify();
-                                },
-                            ))),
+                            )),
                     )
-                    .child(panel_button("Split at playhead").on_click(cx.listener(
-                        |editor, _, _, cx| {
-                            editor.split_selected();
-                            cx.notify();
-                        },
-                    )))
-                    .child(panel_button("Duplicate clip").on_click(cx.listener(
-                        |editor, _, _, cx| {
-                            editor.duplicate_selected();
-                            cx.notify();
-                        },
-                    )))
-                    .child(panel_button("Delete clip").text_color(rgb(ERROR)).on_click(
-                        cx.listener(|editor, _, _, cx| {
-                            editor.delete_selected();
-                            cx.notify();
+                    .child(
+                        panel_button("Split at playhead", can_split).when(can_split, |button| {
+                            button.on_click(cx.listener(|editor, _, _, cx| {
+                                editor.split_selected();
+                                cx.notify();
+                            }))
                         }),
-                    ))
+                    )
+                    .child(
+                        panel_button("Duplicate clip", editable).when(editable, |button| {
+                            button.on_click(cx.listener(|editor, _, _, cx| {
+                                editor.duplicate_selected();
+                                cx.notify();
+                            }))
+                        }),
+                    )
+                    .child(
+                        panel_button("Delete clip", editable)
+                            .text_color(if editable { rgb(ERROR) } else { rgb(MUTED) })
+                            .when(editable, |button| {
+                                button.on_click(cx.listener(|editor, _, _, cx| {
+                                    editor.delete_selected();
+                                    cx.notify();
+                                }))
+                            }),
+                    )
             })
             .when(selected.is_none(), |this| {
                 this.text_sm()
@@ -248,7 +326,7 @@ fn unsigned_size((width, height): (i32, i32)) -> Option<(u32, u32)> {
     (width > 0 && height > 0).then(|| (width as u32, height as u32))
 }
 
-fn panel_button(label: &'static str) -> gpui::Stateful<gpui::Div> {
+fn panel_button(label: &'static str, enabled: bool) -> gpui::Stateful<gpui::Div> {
     div()
         .id(label)
         .h_9()
@@ -261,9 +339,16 @@ fn panel_button(label: &'static str) -> gpui::Stateful<gpui::Div> {
         .border_1()
         .border_color(rgb(BORDER))
         .bg(rgb(SURFACE))
-        .cursor(CursorStyle::PointingHand)
+        .cursor(if enabled {
+            CursorStyle::PointingHand
+        } else {
+            CursorStyle::Arrow
+        })
         .text_sm()
-        .hover(|style| style.bg(rgb(SURFACE_HOVER)))
+        .text_color(rgb(if enabled { TEXT } else { MUTED }))
+        .when(enabled, |this| {
+            this.hover(|style| style.bg(rgb(SURFACE_HOVER)))
+        })
         .child(label.to_string())
 }
 

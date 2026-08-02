@@ -64,7 +64,7 @@ consistent editing toolset.
 - [ ] Add slide editing that moves a clip while adjusting its neighbours.
 - [ ] Allow project files to be dragged from the asset explorer onto compatible
       tracks at a chosen timeline position.
-- [ ] Add a snapping toggle and visible guides for playhead, marker, and clip-edge
+- [ ] Add a snapping toggle and visible guides for playhead and clip-edge
       snap targets.
 - [ ] Add tool modes and cursor feedback for selection, blade, trim, and hand/pan.
 - [ ] Make every compound edit create one atomic undo/redo transaction.

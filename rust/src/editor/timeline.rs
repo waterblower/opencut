@@ -235,31 +235,6 @@ impl Editor {
                 .text_color(rgb(MUTED))
                 .child(format_time_precise(time))
         });
-        let marker_elements = self
-            .project
-            .markers
-            .iter()
-            .enumerate()
-            .map(|(index, marker)| {
-                let marker_time = marker.time;
-                div()
-                    .id(("timeline-marker", index))
-                    .absolute()
-                    .left(px(TIMELINE_PADDING
-                        + self.project.seconds(marker.time) as f32
-                            * self.pixels_per_second
-                        - 4.0))
-                    .top_0()
-                    .size_2()
-                    .bg(rgb(ACCENT))
-                    .cursor(CursorStyle::PointingHand)
-                    .on_click(cx.listener(move |editor, _, _, cx| {
-                        editor.load_timeline_position(marker_time, false);
-                        cx.notify();
-                    }))
-            })
-            .collect::<Vec<_>>();
-
         div()
             .id("timeline-ruler")
             .relative()
@@ -270,7 +245,6 @@ impl Editor {
             .cursor(CursorStyle::PointingHand)
             .children(frame_ticks)
             .children(ruler_ticks)
-            .children(marker_elements)
             .on_mouse_down(
                 MouseButton::Left,
                 cx.listener(|editor, event: &MouseDownEvent, _, cx| {
@@ -327,14 +301,6 @@ impl Editor {
                         timeline_icon_button("add-audio-track", "+A").on_click(cx.listener(
                             |editor, _, _, cx| {
                                 editor.add_track(TrackKind::Audio);
-                                cx.notify();
-                            },
-                        )),
-                    )
-                    .child(
-                        timeline_icon_button("add-marker", "◆").on_click(cx.listener(
-                            |editor, _, _, cx| {
-                                editor.add_marker();
                                 cx.notify();
                             },
                         )),

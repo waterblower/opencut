@@ -233,22 +233,24 @@ impl Editor {
                             }),
                     ),
             )
-            .child(trim_handle(("left-trim", clip_id), true).on_mouse_down(
-                MouseButton::Left,
-                cx.listener(move |editor, event: &MouseDownEvent, _, cx| {
-                    cx.stop_propagation();
-                    editor.begin_trim(clip_id, TrimEdge::Left, event.position.x.into());
-                    cx.notify();
-                }),
-            ))
-            .child(trim_handle(("right-trim", clip_id), false).on_mouse_down(
-                MouseButton::Left,
-                cx.listener(move |editor, event: &MouseDownEvent, _, cx| {
-                    cx.stop_propagation();
-                    editor.begin_trim(clip_id, TrimEdge::Right, event.position.x.into());
-                    cx.notify();
-                }),
-            ))
+            .when(selected && self.selected_clip_ids.len() == 1, |this| {
+                this.child(trim_handle(("left-trim", clip_id), true).on_mouse_down(
+                    MouseButton::Left,
+                    cx.listener(move |editor, event: &MouseDownEvent, _, cx| {
+                        cx.stop_propagation();
+                        editor.begin_trim(clip_id, TrimEdge::Left, event.position.x.into());
+                        cx.notify();
+                    }),
+                ))
+                .child(trim_handle(("right-trim", clip_id), false).on_mouse_down(
+                    MouseButton::Left,
+                    cx.listener(move |editor, event: &MouseDownEvent, _, cx| {
+                        cx.stop_propagation();
+                        editor.begin_trim(clip_id, TrimEdge::Right, event.position.x.into());
+                        cx.notify();
+                    }),
+                ))
+            })
             .into_any_element()
     }
 }
