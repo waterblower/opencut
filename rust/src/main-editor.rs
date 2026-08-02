@@ -1,5 +1,6 @@
 mod editor;
 mod gpui_inspector;
+mod macos_pinch;
 mod playback_view;
 #[allow(dead_code)]
 #[path = "video_backend/gstreamer.rs"]
@@ -12,6 +13,7 @@ fn main() {
     env_logger::init();
 
     Application::new().run(|cx: &mut App| {
+        macos_pinch::install();
         gpui_inspector::init(cx);
         editor::bind_keys(cx);
         cx.on_window_closed(|cx| {
