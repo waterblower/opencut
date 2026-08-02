@@ -47,7 +47,7 @@ const TRACK_HEIGHT: f32 = 74.0;
 const RULER_HEIGHT: f32 = 28.0;
 const SNAP_DISTANCE_PX: f32 = 8.0;
 const MIN_TIMELINE_PIXELS_PER_SECOND: f32 = 1.0;
-const MAX_TIMELINE_PIXELS_PER_SECOND: f32 = 240.0;
+const MAX_TIMELINE_PIXELS_PER_SECOND: f32 = 1000.0;
 const SCRUB_SEEK_INTERVAL: Duration = Duration::from_millis(50);
 
 const BACKGROUND: u32 = 0x080809;
@@ -60,6 +60,7 @@ const MUTED: u32 = 0x777780;
 const ACCENT: u32 = 0xf0b75e;
 const ERROR: u32 = 0xff8b8b;
 const CLIP_BLUE: u32 = 0x294d75;
+const EDITOR_KEY_CONTEXT: &str = "Editor";
 const EDITOR_SHORTCUT_CONTEXT: &str = "!ExplorerFilter";
 
 actions!(

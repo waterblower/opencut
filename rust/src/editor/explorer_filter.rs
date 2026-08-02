@@ -172,7 +172,13 @@ impl ExplorerFilter {
         }
     }
 
-    fn clear_on_mouse_down(&mut self, _: &MouseDownEvent, _: &mut Window, cx: &mut Context<Self>) {
+    fn clear_on_mouse_down(
+        &mut self,
+        _: &MouseDownEvent,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        self.focus_handle.focus(window);
         self.clear(cx);
         cx.stop_propagation();
     }
