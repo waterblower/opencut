@@ -97,7 +97,7 @@ pub(crate) fn bind_keys(cx: &mut App) {
         KeyBinding::new("shift-m", AddMarker, Some(EDITOR_SHORTCUT_CONTEXT)),
         KeyBinding::new("f", ToggleFullscreen, Some(EDITOR_SHORTCUT_CONTEXT)),
         KeyBinding::new("escape", ExitFullscreen, Some(EDITOR_SHORTCUT_CONTEXT)),
-        KeyBinding::new("cmd-alt-i", ToggleInspector, Some(EDITOR_SHORTCUT_CONTEXT)),
+        KeyBinding::new("cmd-alt-i", ToggleInspector, None),
         KeyBinding::new("cmd-alt-r", RevealInFinder, Some(EDITOR_SHORTCUT_CONTEXT)),
         KeyBinding::new(
             "ctrl-shift-enter",
@@ -105,6 +105,12 @@ pub(crate) fn bind_keys(cx: &mut App) {
             Some(EDITOR_SHORTCUT_CONTEXT),
         ),
     ]);
+    cx.on_action::<ToggleInspector>(|_, cx| {
+        let Some(window) = cx.active_window() else {
+            return;
+        };
+        let _ = window.update(cx, |_, window, cx| window.toggle_inspector(cx));
+    });
 }
 
 #[derive(Clone, Copy)]
