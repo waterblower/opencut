@@ -1,8 +1,8 @@
 use crate::video_backend::Video;
 use gpui::{
     App, Context, CursorStyle, FocusHandle, KeyBinding, MouseButton, MouseDownEvent,
-    MouseMoveEvent, MouseUpEvent, ObjectFit, PathPromptOptions, Render, ScrollHandle, Window,
-    actions, div, img, prelude::*, px, rgb,
+    MouseMoveEvent, MouseUpEvent, ObjectFit, PathPromptOptions, Render, ScrollHandle,
+    ScrollWheelEvent, Window, actions, div, img, prelude::*, px, rgb,
 };
 use std::{
     collections::{HashMap, HashSet},
@@ -241,10 +241,12 @@ impl Editor {
                         let file_preview_playing =
                             matches!(editor.preview_target, PreviewTarget::VideoFile(_))
                                 && editor.video.as_ref().is_some_and(|video| !video.paused());
+                        let pinch_zoomed = editor.apply_timeline_pinch();
                         let should_render = editor.playing
                             || file_preview_playing
                             || editor.preview_refresh_ticks > 0
-                            || refresh_tree;
+                            || refresh_tree
+                            || pinch_zoomed;
                         editor.preview_refresh_ticks =
                             editor.preview_refresh_ticks.saturating_sub(1);
                         if refresh_tree {
@@ -1096,6 +1098,58 @@ impl Editor {
 
     fn zoom(&mut self, factor: f32) {
         self.pixels_per_second = (self.pixels_per_second * factor).clamp(24.0, 240.0);
+    }
+
+    fn log_timeline_trackpad_scroll(
+        &mut self,
+        event: &ScrollWheelEvent,
+        _: &mut Window,
+        _: &mut Context<Self>,
+    ) {
+        if !event.delta.precise() {
+            return;
+        }
+
+        let delta = event.delta.pixel_delta(px(16.0));
+        let horizontal = f32::from(delta.x);
+        let vertical = f32::from(delta.y);
+        let action = if horizontal.abs() < f32::EPSILON && vertical.abs() < f32::EPSILON {
+            "idle"
+        } else {
+            "pan"
+        };
+        log::debug!(
+            target: "opencut::timeline",
+            "trackpad-scroll phase={:?} delta=({horizontal:.2}, {vertical:.2}) action={action}",
+            event.touch_phase,
+        );
+    }
+
+    fn apply_timeline_pinch(&mut self) -> bool {
+        let Some(gesture) = crate::macos_pinch::take() else {
+            return false;
+        };
+        if !(0.0..=TIMELINE_HEIGHT as f64).contains(&gesture.location_y) {
+            log::debug!(
+                target: "opencut::timeline",
+                "trackpad-pinch magnification={:.4} location_y={:.1} action=ignored",
+                gesture.magnification,
+                gesture.location_y,
+            );
+            return false;
+        }
+
+        let previous_zoom = self.pixels_per_second;
+        let factor = (gesture.magnification as f32).exp().clamp(0.5, 2.0);
+        self.zoom(factor);
+        log::debug!(
+            target: "opencut::timeline",
+            "trackpad-pinch magnification={:.4} location_y={:.1} action=zoom factor={factor:.4} px_per_second={previous_zoom:.2}->{:.2}",
+            gesture.magnification,
+            gesture.location_y,
+            self.pixels_per_second,
+        );
+        self.pixels_per_second != previous_zoom
     }
 
     fn seek_from_timeline_x(&mut self, x: f32) {

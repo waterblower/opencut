@@ -266,6 +266,9 @@ impl Editor {
                                     .h_full()
                                     .overflow_x_scroll()
                                     .track_scroll(&self.timeline_scroll)
+                                    .on_scroll_wheel(
+                                        cx.listener(Self::log_timeline_trackpad_scroll),
+                                    )
                                     .child(
                                         div()
                                             .relative()
