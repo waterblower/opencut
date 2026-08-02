@@ -137,7 +137,13 @@ impl Editor {
                             .h_full()
                             .overflow_x_scroll()
                             .track_scroll(&self.timeline_scroll)
+                            .cursor(match self.active_timeline_tool {
+                                TimelineTool::Blade => CursorStyle::Crosshair,
+                                TimelineTool::Selection | TimelineTool::Trim => CursorStyle::Arrow,
+                            })
                             .on_scroll_wheel(cx.listener(Self::log_timeline_trackpad_scroll))
+                            .on_mouse_move(cx.listener(Self::update_blade_guide))
+                            .on_hover(cx.listener(Self::update_blade_guide_hover))
                             .child(
                                 div()
                                     .relative()
@@ -193,6 +199,29 @@ impl Editor {
                                                         .size_2()
                                                         .rounded_full()
                                                         .bg(rgb(0x63c8ff)),
+                                                ),
+                                        )
+                                    })
+                                    .when_some(self.blade_guide_position, |this, position| {
+                                        let guide_left = TIMELINE_PADDING
+                                            + self.project.seconds(position) as f32
+                                                * self.pixels_per_second;
+                                        this.child(
+                                            div()
+                                                .absolute()
+                                                .top_0()
+                                                .bottom_0()
+                                                .left(px(guide_left))
+                                                .w(px(2.0))
+                                                .bg(rgb(ERROR))
+                                                .cursor(CursorStyle::Crosshair)
+                                                .child(
+                                                    div()
+                                                        .absolute()
+                                                        .top_0()
+                                                        .left(px(-4.0))
+                                                        .size_2()
+                                                        .bg(rgb(ERROR)),
                                                 ),
                                         )
                                     }),
@@ -302,6 +331,39 @@ impl Editor {
                     .flex()
                     .items_center()
                     .gap_2()
+                    .child(
+                        timeline_tool_button(
+                            "timeline-selection-tool",
+                            "V Select",
+                            self.active_timeline_tool == TimelineTool::Selection,
+                        )
+                        .on_click(cx.listener(|editor, _, _, cx| {
+                            editor.activate_timeline_tool(TimelineTool::Selection);
+                            cx.notify();
+                        })),
+                    )
+                    .child(
+                        timeline_tool_button(
+                            "timeline-blade-tool",
+                            "B Blade",
+                            self.active_timeline_tool == TimelineTool::Blade,
+                        )
+                        .on_click(cx.listener(|editor, _, _, cx| {
+                            editor.activate_timeline_tool(TimelineTool::Blade);
+                            cx.notify();
+                        })),
+                    )
+                    .child(
+                        timeline_tool_button(
+                            "timeline-trim-tool",
+                            "T Trim",
+                            self.active_timeline_tool == TimelineTool::Trim,
+                        )
+                        .on_click(cx.listener(|editor, _, _, cx| {
+                            editor.activate_timeline_tool(TimelineTool::Trim);
+                            cx.notify();
+                        })),
+                    )
                     .child(
                         timeline_icon_button("timeline-play", if self.playing { "Ⅱ" } else { "▶" })
                             .on_click(cx.listener(|editor, _, _, cx| {
@@ -439,6 +501,17 @@ fn timeline_icon_button(
         .text_xs()
         .hover(|style| style.bg(rgb(SURFACE_HOVER)))
         .child(label)
+}
+
+fn timeline_tool_button(
+    id: impl Into<gpui::ElementId>,
+    label: &'static str,
+    active: bool,
+) -> gpui::Stateful<gpui::Div> {
+    timeline_icon_button(id, label)
+        .border_1()
+        .border_color(rgb(if active { ACCENT } else { BORDER }))
+        .text_color(rgb(if active { ACCENT } else { MUTED }))
 }
 
 fn format_time_precise(seconds: f64) -> String {

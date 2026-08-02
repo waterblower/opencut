@@ -131,6 +131,10 @@ impl Editor {
             } else {
                 0x0d0d0f
             }))
+            .cursor(match self.active_timeline_tool {
+                TimelineTool::Blade => CursorStyle::Crosshair,
+                TimelineTool::Selection | TimelineTool::Trim => CursorStyle::Arrow,
+            })
             .children(clips)
             .children(move_previews)
             .into_any_element()
@@ -186,11 +190,15 @@ impl Editor {
             .border_color(rgb(if selected { ACCENT } else { color + 0x101010 }))
             .bg(rgb(color))
             .opacity(if moving { 0.3 } else { 1.0 })
-            .cursor(CursorStyle::PointingHand)
+            .cursor(match self.active_timeline_tool {
+                TimelineTool::Selection => CursorStyle::PointingHand,
+                TimelineTool::Blade => CursorStyle::Crosshair,
+                TimelineTool::Trim => CursorStyle::Arrow,
+            })
             .on_mouse_down(
                 MouseButton::Left,
                 cx.listener(move |editor, event: &MouseDownEvent, _, cx| {
-                    editor.begin_clip_move(clip_id, event, cx);
+                    editor.begin_clip_interaction(clip_id, event, cx);
                     cx.notify();
                 }),
             )
@@ -247,7 +255,10 @@ impl Editor {
                     ),
             )
             .when(
-                selected && self.selected_clip_ids.len() == 1 && !moving,
+                selected
+                    && self.selected_clip_ids.len() == 1
+                    && !moving
+                    && self.active_timeline_tool == TimelineTool::Trim,
                 |this| {
                     this.child(trim_handle(("left-trim", clip_id), true).on_mouse_down(
                         MouseButton::Left,
@@ -375,7 +386,11 @@ fn trim_handle(id: impl Into<gpui::ElementId>, left: bool) -> gpui::Stateful<gpu
         .w(px(10.0))
         .bg(rgb(ACCENT))
         .opacity(0.72)
-        .cursor(CursorStyle::ResizeLeftRight)
+        .cursor(if left {
+            CursorStyle::ResizeLeft
+        } else {
+            CursorStyle::ResizeRight
+        })
         .occlude()
         .hover(|style| style.opacity(1.0))
 }

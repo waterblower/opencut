@@ -50,7 +50,7 @@
 Expand the current move, trim, split, duplicate, and delete operations into a
 consistent editing toolset.
 
-- [ ] Add tool modes and cursor feedback for selection, blade, trim, and hand/pan.
+- [x] Add tool modes and cursor feedback for selection, blade, and trim.
 - [ ] Add copy, cut, and paste for multiple selected clips. Preserve relative
       timing and track placement, and keep paste as one atomic undo operation.
 - [ ] Allow project files to be dragged from the asset explorer onto compatible

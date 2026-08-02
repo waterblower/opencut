@@ -1,5 +1,12 @@
 use super::*;
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(super) enum TimelineTool {
+    Selection,
+    Blade,
+    Trim,
+}
+
 #[derive(Clone, Copy)]
 pub(super) enum TrimEdge {
     Left,
@@ -54,12 +61,73 @@ pub(super) struct MarqueeSelection {
 }
 
 impl Editor {
+    pub(super) fn activate_timeline_tool(&mut self, tool: TimelineTool) {
+        self.active_timeline_tool = tool;
+        self.blade_guide_position = None;
+        self.trim_drag = None;
+        self.clip_move_drag = None;
+        self.marquee_selection = None;
+        self.snap_guide = None;
+    }
+
+    pub(super) fn update_blade_guide(
+        &mut self,
+        event: &MouseMoveEvent,
+        _: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        if self.active_timeline_tool != TimelineTool::Blade {
+            return;
+        }
+        let position = self
+            .timeline_position_from_x(event.position.x.into())
+            .clamp(TimelineTime::ZERO, self.project.timeline_duration());
+        if self.blade_guide_position != Some(position) {
+            self.blade_guide_position = Some(position);
+            cx.notify();
+        }
+    }
+
+    pub(super) fn update_blade_guide_hover(
+        &mut self,
+        hovered: &bool,
+        _: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        if !*hovered && self.blade_guide_position.take().is_some() {
+            cx.notify();
+        }
+    }
+
+    pub(super) fn begin_clip_interaction(
+        &mut self,
+        clip_id: u64,
+        event: &MouseDownEvent,
+        cx: &mut Context<Self>,
+    ) {
+        match self.active_timeline_tool {
+            TimelineTool::Selection => self.begin_clip_move(clip_id, event, cx),
+            TimelineTool::Blade => {
+                cx.stop_propagation();
+                let position = self.timeline_position_from_x(event.position.x.into());
+                self.blade_split_clip_at(clip_id, position);
+            }
+            TimelineTool::Trim => {
+                cx.stop_propagation();
+                self.select_only_clip(Some(clip_id));
+            }
+        }
+    }
+
     pub(super) fn begin_marquee_selection(
         &mut self,
         event: &MouseDownEvent,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        if self.active_timeline_tool != TimelineTool::Selection {
+            return;
+        }
         if f32::from(event.position.x) < TRACK_HEADER_WIDTH {
             return;
         }
