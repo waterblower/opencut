@@ -3,8 +3,10 @@ use super::*;
 impl Render for Editor {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let viewport = window.viewport_size();
-        let preview_width =
-            (f32::from(viewport.width) - MEDIA_PANEL_WIDTH - PROPERTIES_PANEL_WIDTH).max(320.0);
+        let editor_width =
+            (f32::from(viewport.width) - crate::gpui_inspector::docked_width(window)).max(0.0);
+        let editor_viewport = gpui::size(px(editor_width), viewport.height);
+        let preview_width = (editor_width - MEDIA_PANEL_WIDTH - PROPERTIES_PANEL_WIDTH).max(320.0);
         let preview_height =
             (f32::from(viewport.height) - TOPBAR_HEIGHT - TIMELINE_HEIGHT).max(240.0);
 
@@ -26,7 +28,7 @@ impl Render for Editor {
                 .child(self.preview_player(
                     0.0,
                     0.0,
-                    f32::from(viewport.width),
+                    editor_width,
                     f32::from(viewport.height),
                     cx,
                 ));
@@ -34,7 +36,7 @@ impl Render for Editor {
         let file_menu = self
             .file_context_menu
             .as_ref()
-            .map(|menu| self.file_menu_overlay(menu, viewport, cx));
+            .map(|menu| self.file_menu_overlay(menu, editor_viewport, cx));
 
         div()
             .id("editor-root")
