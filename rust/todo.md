@@ -61,7 +61,7 @@
 Add static per-clip transforms and audio controls before introducing keyframes
 or an effects system.
 
-- [ ] Extend `TimelineClip` with defaulted video and audio property structures.
+- [x] Extend `TimelineClip` with defaulted video and audio property structures.
       Video properties should include position X/Y, scale, rotation, and opacity;
       audio properties should include gain in dB, mute, and stereo pan.
 - [ ] Add reusable numeric fields, sliders, and reset buttons for editing one

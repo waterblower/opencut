@@ -452,7 +452,9 @@ fn decimal(value: f64) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::editor::model::{MediaAsset, TimelineTime};
+    use crate::editor::model::{
+        AudioClipProperties, MediaAsset, TimelineTime, VideoClipProperties,
+    };
 
     #[test]
     fn builds_and_reads_source_only_video_graph() {
@@ -528,6 +530,8 @@ mod tests {
             timeline_start: TimelineTime::ZERO,
             source_in: TimelineTime::ZERO,
             source_out: TimelineTime::from_frames(3),
+            video_properties: VideoClipProperties::default(),
+            audio_properties: AudioClipProperties::default(),
         });
 
         let mut video =
@@ -598,6 +602,8 @@ mod tests {
             timeline_start: TimelineTime::ZERO,
             source_in: TimelineTime::ZERO,
             source_out: TimelineTime::from_frames(3),
+            video_properties: VideoClipProperties::default(),
+            audio_properties: AudioClipProperties::default(),
         });
 
         let mut video = build_video_graph(
