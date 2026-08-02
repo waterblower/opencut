@@ -442,11 +442,13 @@ impl Editor {
         let (start_candidate, start_guide) = self.snap_time_ignoring(start, ignored_clip_ids);
         let (snapped_end, end_guide) = self.snap_time_ignoring(start + duration, ignored_clip_ids);
         let end_candidate = snapped_end - duration;
-        if end_candidate.abs_diff(start) < start_candidate.abs_diff(start) {
-            (end_candidate.max(TimelineTime::ZERO), end_guide)
-        } else {
-            (start_candidate.max(TimelineTime::ZERO), start_guide)
-        }
+        choose_clip_snap(
+            start,
+            start_candidate,
+            start_guide,
+            end_candidate,
+            end_guide,
+        )
     }
 
     pub(super) fn clip_locked(&self, clip_id: u64) -> bool {
@@ -702,5 +704,50 @@ impl Editor {
         if target != self.playhead || self.preview_target != PreviewTarget::Timeline {
             self.load_timeline_position(target, false);
         }
+    }
+}
+
+fn choose_clip_snap(
+    original_start: TimelineTime,
+    start_candidate: TimelineTime,
+    start_guide: Option<TimelineTime>,
+    end_candidate: TimelineTime,
+    end_guide: Option<TimelineTime>,
+) -> (TimelineTime, Option<TimelineTime>) {
+    match (start_guide, end_guide) {
+        (None, None) => (original_start.max(TimelineTime::ZERO), None),
+        (Some(guide), None) => (start_candidate.max(TimelineTime::ZERO), Some(guide)),
+        (None, Some(guide)) => (end_candidate.max(TimelineTime::ZERO), Some(guide)),
+        (Some(start_guide), Some(end_guide)) => {
+            if end_candidate.abs_diff(original_start) < start_candidate.abs_diff(original_start) {
+                (end_candidate.max(TimelineTime::ZERO), Some(end_guide))
+            } else {
+                (start_candidate.max(TimelineTime::ZERO), Some(start_guide))
+            }
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn snaps_a_moving_clip_end_when_its_start_has_no_target() {
+        let original_start = TimelineTime::from_frames(100);
+        let unsnapped_start = original_start;
+        let snapped_start_from_end = TimelineTime::from_frames(102);
+        let target_edge = TimelineTime::from_frames(202);
+
+        assert_eq!(
+            choose_clip_snap(
+                original_start,
+                unsnapped_start,
+                None,
+                snapped_start_from_end,
+                Some(target_edge),
+            ),
+            (snapped_start_from_end, Some(target_edge))
+        );
     }
 }
