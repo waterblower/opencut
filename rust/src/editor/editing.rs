@@ -109,6 +109,37 @@ impl Editor {
         self.load_timeline_position(self.playhead, false);
     }
 
+    pub(super) fn blade_split_clip_at(&mut self, clip_id: u64, position: TimelineTime) {
+        let Some(index) = self.project.clip_index(clip_id) else {
+            return;
+        };
+        if self.clip_locked(clip_id) {
+            return;
+        }
+        let clip = self.project.clips[index].clone();
+        let local = position - clip.timeline_start;
+        if local < TimelineTime::ONE_FRAME || local > clip.duration() - TimelineTime::ONE_FRAME {
+            return;
+        }
+
+        let source_split = clip.source_in + local;
+        self.checkpoint();
+        self.project.clips[index].source_out = source_split;
+        let right_clip_id = self.take_id();
+        self.project.clips.push(TimelineClip {
+            id: right_clip_id,
+            track_id: clip.track_id,
+            asset_id: clip.asset_id,
+            timeline_start: position,
+            source_in: source_split,
+            source_out: clip.source_out,
+        });
+        self.select_only_clip(Some(right_clip_id));
+        self.error = None;
+        self.save_project();
+        self.load_timeline_position(self.playhead, false);
+    }
+
     pub(super) fn delete_selected(&mut self) {
         if self.selected_clip_ids.is_empty() || !self.selected_clips_editable() {
             return;

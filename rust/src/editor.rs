@@ -36,7 +36,9 @@ use model::{
 };
 use preview::PreviewTarget;
 use preview_audio::AudioPreview;
-use timeline_interactions::{ClipMoveDrag, ClipPlacement, MarqueeSelection, TrimDrag, TrimEdge};
+use timeline_interactions::{
+    ClipMoveDrag, ClipPlacement, MarqueeSelection, TimelineTool, TrimDrag, TrimEdge,
+};
 use workspace::{FileTreeEntry, load_project_root, save_project_root, visible_tree};
 
 const MEDIA_PANEL_WIDTH: f32 = 340.0;
@@ -77,6 +79,9 @@ actions!(
         Undo,
         Redo,
         DuplicateSelected,
+        ActivateSelectionTool,
+        ActivateBladeTool,
+        ActivateTrimTool,
         ToggleFullscreen,
         ExitFullscreen,
         ToggleInspector,
@@ -97,6 +102,9 @@ pub(crate) fn bind_keys(cx: &mut App) {
         KeyBinding::new("cmd-z", Undo, Some(EDITOR_SHORTCUT_CONTEXT)),
         KeyBinding::new("cmd-shift-z", Redo, Some(EDITOR_SHORTCUT_CONTEXT)),
         KeyBinding::new("cmd-d", DuplicateSelected, Some(EDITOR_SHORTCUT_CONTEXT)),
+        KeyBinding::new("v", ActivateSelectionTool, Some(EDITOR_SHORTCUT_CONTEXT)),
+        KeyBinding::new("b", ActivateBladeTool, Some(EDITOR_SHORTCUT_CONTEXT)),
+        KeyBinding::new("t", ActivateTrimTool, Some(EDITOR_SHORTCUT_CONTEXT)),
         KeyBinding::new("f", ToggleFullscreen, Some(EDITOR_SHORTCUT_CONTEXT)),
         KeyBinding::new("escape", ExitFullscreen, Some(EDITOR_SHORTCUT_CONTEXT)),
         KeyBinding::new("cmd-alt-i", ToggleInspector, None),
@@ -154,6 +162,8 @@ pub(crate) struct Editor {
     preview_refresh_ticks: u8,
     settings_open: bool,
     pixels_per_second: f32,
+    active_timeline_tool: TimelineTool,
+    blade_guide_position: Option<TimelineTime>,
     snapping_enabled: bool,
     snap_guide: Option<TimelineTime>,
     next_id: u64,
@@ -231,6 +241,8 @@ impl Editor {
             preview_refresh_ticks: 0,
             settings_open: false,
             pixels_per_second: 72.0,
+            active_timeline_tool: TimelineTool::Selection,
+            blade_guide_position: None,
             snapping_enabled: true,
             snap_guide: None,
             next_id,
@@ -564,6 +576,36 @@ impl Editor {
         cx: &mut Context<Self>,
     ) {
         self.duplicate_selected();
+        cx.notify();
+    }
+
+    fn action_activate_selection_tool(
+        &mut self,
+        _: &ActivateSelectionTool,
+        _: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        self.activate_timeline_tool(TimelineTool::Selection);
+        cx.notify();
+    }
+
+    fn action_activate_blade_tool(
+        &mut self,
+        _: &ActivateBladeTool,
+        _: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        self.activate_timeline_tool(TimelineTool::Blade);
+        cx.notify();
+    }
+
+    fn action_activate_trim_tool(
+        &mut self,
+        _: &ActivateTrimTool,
+        _: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        self.activate_timeline_tool(TimelineTool::Trim);
         cx.notify();
     }
 
