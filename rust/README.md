@@ -59,7 +59,7 @@ Current editor capabilities:
 - Multi-track preview includes layered video/images and synchronized overlapping
   audio, with per-track visibility, mute, lock, reorder, creation, and deletion.
 - The timeline provides horizontal zoom and scrolling, vertical track scrolling,
-  a draggable playhead, markers, and snapping to the playhead, markers, and clip
+  a draggable playhead and snapping to the playhead and clip
   edges.
 - First-frame thumbnails and audio waveforms are generated in the background.
 - Undo/redo, clip metadata, fullscreen preview, and the GPUI element inspector
@@ -80,7 +80,6 @@ Supported file extensions:
 | `Command-B` | Split the selected clip at the playhead |
 | `Backspace` / `Delete` | Delete the selected clip |
 | `Command-D` | Duplicate the selected clip |
-| `Shift-M` | Add a marker at the playhead |
 | `Command-Z` / `Command-Shift-Z` | Undo / redo |
 | `F` / `Esc` | Enter / exit fullscreen preview |
 | `Option-Command-I` | Toggle the GPUI inspector |

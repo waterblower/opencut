@@ -288,20 +288,12 @@ pub(super) struct TimelineTrack {
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
-pub(super) struct TimelineMarker {
-    pub id: u64,
-    pub time: TimelineTime,
-    pub label: String,
-}
-
-#[derive(Clone, Debug, Deserialize, Serialize)]
 pub(super) struct Project {
     pub version: u32,
     pub settings: ProjectSettings,
     pub assets: Vec<MediaAsset>,
     pub tracks: Vec<TimelineTrack>,
     pub clips: Vec<TimelineClip>,
-    pub markers: Vec<TimelineMarker>,
 }
 
 impl Default for Project {
@@ -312,7 +304,6 @@ impl Default for Project {
             assets: Vec::new(),
             tracks: default_tracks(),
             clips: Vec::new(),
-            markers: Vec::new(),
         }
     }
 }
@@ -386,41 +377,6 @@ impl Project {
             .filter(move |clip| clip.track_id == track_id)
     }
 
-    pub fn nearest_available_start(
-        &self,
-        track_id: u64,
-        ignored_clip_id: Option<u64>,
-        desired_start: TimelineTime,
-        duration: TimelineTime,
-    ) -> TimelineTime {
-        let desired_start = desired_start.max(TimelineTime::ZERO);
-        let duration = duration.max(TimelineTime::ONE_FRAME);
-        let mut occupied = self
-            .clips_on_track(track_id)
-            .filter(|clip| Some(clip.id) != ignored_clip_id)
-            .map(|clip| (clip.timeline_start, clip.timeline_end()))
-            .collect::<Vec<_>>();
-        occupied.sort_by_key(|range| range.0);
-
-        let mut candidates = Vec::new();
-        let mut gap_start = TimelineTime::ZERO;
-        for (occupied_start, occupied_end) in occupied {
-            let latest_start = occupied_start - duration;
-            if latest_start >= gap_start {
-                candidates.push(desired_start.clamp(gap_start, latest_start));
-            }
-            gap_start = gap_start.max(occupied_end);
-        }
-        candidates.push(desired_start.max(gap_start));
-        candidates
-            .into_iter()
-            .min_by(|left, right| {
-                left.abs_diff(desired_start)
-                    .cmp(&right.abs_diff(desired_start))
-            })
-            .unwrap_or(desired_start)
-    }
-
     pub fn trim_limits(&self, clip_id: u64) -> Option<(TimelineTime, TimelineTime)> {
         let clip = self.clip(clip_id)?;
         let previous_end = self
@@ -438,7 +394,6 @@ impl Project {
         Some((previous_end, next_start))
     }
 
-    /// The end of the rendered content, ignoring markers past the last clip.
     pub fn content_duration(&self) -> TimelineTime {
         self.clips
             .iter()
@@ -447,14 +402,8 @@ impl Project {
             .unwrap_or(TimelineTime::ZERO)
     }
 
-    /// How far the timeline is scrubbable, which includes markers left beyond the clips.
     pub fn timeline_duration(&self) -> TimelineTime {
-        self.markers
-            .iter()
-            .map(|marker| marker.time)
-            .max()
-            .unwrap_or_else(|| self.content_duration())
-            .max(self.content_duration())
+        self.content_duration()
     }
 
     pub fn visual_clip_at_time(&self, time: TimelineTime) -> Option<&TimelineClip> {
@@ -563,9 +512,6 @@ impl Project {
             clip.source_in = previous.rescale_nearest(old_source_in, frame_rate);
             clip.source_out = clip.source_in + new_duration;
         }
-        for marker in &mut self.markers {
-            marker.time = previous.rescale_nearest(marker.time, frame_rate);
-        }
         self.settings.frame_rate = frame_rate;
         self.normalize();
     }
@@ -580,7 +526,6 @@ impl Project {
             .map(|asset| asset.id)
             .chain(self.tracks.iter().map(|track| track.id))
             .chain(self.clips.iter().map(|clip| clip.id))
-            .chain(self.markers.iter().map(|marker| marker.id))
             .max()
             .unwrap_or(0)
             + 1
@@ -644,8 +589,6 @@ impl Project {
                 next_available = self.clips[index].timeline_end();
             }
         }
-        self.markers
-            .retain(|marker| marker.time >= TimelineTime::ZERO);
     }
 }
 
@@ -869,28 +812,6 @@ mod tests {
     }
 
     #[test]
-    fn finds_the_nearest_gap_without_overlapping_a_track() {
-        let project = Project {
-            assets: vec![video_asset()],
-            clips: vec![video_clip(10, 0, 150), video_clip(11, 300, 150)],
-            ..Project::default()
-        };
-
-        assert_eq!(
-            project.nearest_available_start(1, None, frames(120), frames(90)),
-            frames(150)
-        );
-        assert_eq!(
-            project.nearest_available_start(1, None, frames(240), frames(90)),
-            frames(210)
-        );
-        assert_eq!(
-            project.nearest_available_start(1, None, frames(420), frames(90)),
-            frames(450)
-        );
-    }
-
-    #[test]
     fn repairs_overlapping_clips_when_loading_a_project() {
         let mut project = Project {
             assets: vec![video_asset()],
@@ -902,23 +823,6 @@ mod tests {
 
         assert_eq!(project.clips[0].timeline_start, frames(0));
         assert_eq!(project.clips[1].timeline_start, frames(150));
-    }
-
-    #[test]
-    fn keeps_markers_out_of_the_rendered_duration() {
-        let project = Project {
-            assets: vec![video_asset()],
-            clips: vec![video_clip(10, 0, 150)],
-            markers: vec![TimelineMarker {
-                id: 20,
-                time: frames(1260),
-                label: "Marker 1".into(),
-            }],
-            ..Project::default()
-        };
-
-        assert_eq!(project.content_duration(), frames(150));
-        assert_eq!(project.timeline_duration(), frames(1260));
     }
 
     #[test]
@@ -1024,11 +928,6 @@ mod tests {
         let mut project = Project {
             assets: vec![video_asset()],
             clips: vec![video_clip(10, 30, 300)],
-            markers: vec![TimelineMarker {
-                id: 20,
-                time: frames(150),
-                label: "Marker".into(),
-            }],
             ..Project::default()
         };
 
@@ -1036,7 +935,6 @@ mod tests {
 
         assert_eq!(project.clips[0].timeline_start, frames(24));
         assert_eq!(project.clips[0].duration(), frames(240));
-        assert_eq!(project.markers[0].time, frames(120));
     }
 
     #[test]
