@@ -4035,6 +4035,7 @@ dependencies = [
  "objc2-app-kit",
  "serde",
  "serde_json",
+ "unicode-segmentation",
  "url",
  "yuv",
 ]
