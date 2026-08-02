@@ -139,6 +139,14 @@ struct ClipMoveDrag {
     changed: bool,
 }
 
+#[derive(Clone, Copy)]
+struct MarqueeSelection {
+    start_x: f32,
+    start_y: f32,
+    current_x: f32,
+    current_y: f32,
+}
+
 pub(crate) struct Editor {
     project_root: PathBuf,
     project: Project,
@@ -164,6 +172,7 @@ pub(crate) struct Editor {
     still_playback_origin: TimelineTime,
     selected_asset_id: Option<u64>,
     selected_clip_id: Option<u64>,
+    selected_clip_ids: HashSet<u64>,
     playhead: TimelineTime,
     playing: bool,
     preview_volume: f64,
@@ -182,6 +191,7 @@ pub(crate) struct Editor {
     redo_stack: Vec<Project>,
     trim_drag: Option<TrimDrag>,
     clip_move_drag: Option<ClipMoveDrag>,
+    marquee_selection: Option<MarqueeSelection>,
     is_scrubbing_playhead: bool,
     last_playhead_scrub_seek: Option<Instant>,
     timeline_scroll: ScrollHandle,
@@ -201,6 +211,7 @@ impl Editor {
         let next_id = project.next_id();
         let selected_asset_id = project.assets.first().map(|asset| asset.id);
         let selected_clip_id = project.clips.first().map(|clip| clip.id);
+        let selected_clip_ids = selected_clip_id.into_iter().collect();
         let focus_handle = cx.focus_handle();
         let explorer_filter = cx.new(|cx| ExplorerFilter::new(focus_handle.clone(), cx));
         cx.observe(&explorer_filter, |editor, _, cx| {
@@ -236,6 +247,7 @@ impl Editor {
             still_playback_origin: TimelineTime::ZERO,
             selected_asset_id,
             selected_clip_id,
+            selected_clip_ids,
             playhead: TimelineTime::ZERO,
             playing: false,
             preview_volume: 1.0,
@@ -254,6 +266,7 @@ impl Editor {
             redo_stack: Vec::new(),
             trim_drag: None,
             clip_move_drag: None,
+            marquee_selection: None,
             is_scrubbing_playhead: false,
             last_playhead_scrub_seek: None,
             timeline_scroll: ScrollHandle::new(),
@@ -386,7 +399,7 @@ impl Editor {
         self.file_context_menu = None;
         self.preview_target = PreviewTarget::Timeline;
         self.selected_asset_id = self.project.assets.first().map(|asset| asset.id);
-        self.selected_clip_id = self.project.clips.first().map(|clip| clip.id);
+        self.select_only_clip(self.project.clips.first().map(|clip| clip.id));
         self.refresh_file_tree();
         if let Err(error) = save_project_root(&self.project_root) {
             self.error = Some(error);
@@ -502,7 +515,7 @@ impl Editor {
             source_out: self.project.ceil_time(duration),
         });
         self.selected_asset_id = Some(asset_id);
-        self.selected_clip_id = Some(id);
+        self.select_only_clip(Some(id));
         if self.loaded_clip_id.is_none() {
             self.load_timeline_position(TimelineTime::ZERO, false);
         }
@@ -538,7 +551,7 @@ impl Editor {
             source_in: source_split,
             source_out: clip.source_out,
         });
-        self.selected_clip_id = Some(new_id);
+        self.select_only_clip(Some(new_id));
         self.save_project();
         self.load_timeline_position(self.playhead, false);
     }
@@ -563,11 +576,11 @@ impl Editor {
         self.still_playback_started = None;
         self.playing = false;
         if self.project.clips.is_empty() {
-            self.selected_clip_id = None;
+            self.select_only_clip(None);
             self.playhead = TimelineTime::ZERO;
         } else {
             let next_index = index.min(self.project.clips.len() - 1);
-            self.selected_clip_id = Some(self.project.clips[next_index].id);
+            self.select_only_clip(Some(self.project.clips[next_index].id));
             let start = self.project.clips[next_index].timeline_start;
             self.load_timeline_position(start, false);
         }
@@ -627,7 +640,7 @@ impl Editor {
         self.checkpoint();
         clip.id = self.take_id();
         clip.timeline_start = start;
-        self.selected_clip_id = Some(clip.id);
+        self.select_only_clip(Some(clip.id));
         self.project.clips.push(clip);
         self.save_project();
     }
@@ -746,14 +759,152 @@ impl Editor {
         self.checkpoint();
         self.project.tracks.remove(index);
         self.project.clips.retain(|clip| clip.track_id != track_id);
+        self.selected_clip_ids
+            .retain(|id| self.project.clip(*id).is_some());
         if self
             .selected_clip_id
             .is_some_and(|id| self.project.clip(id).is_none())
         {
-            self.selected_clip_id = None;
+            self.selected_clip_id = self
+                .project
+                .clips
+                .iter()
+                .find(|clip| self.selected_clip_ids.contains(&clip.id))
+                .map(|clip| clip.id);
         }
         self.save_project();
         self.load_timeline_position(self.playhead, false);
+    }
+
+    fn select_only_clip(&mut self, clip_id: Option<u64>) {
+        self.selected_clip_ids.clear();
+        if let Some(clip_id) = clip_id {
+            self.selected_clip_ids.insert(clip_id);
+        }
+        self.selected_clip_id = clip_id;
+    }
+
+    fn begin_marquee_selection(
+        &mut self,
+        event: &MouseDownEvent,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let (x, y) = Self::timeline_pointer_position(
+            event.position.x.into(),
+            event.position.y.into(),
+            window,
+        );
+        self.marquee_selection = Some(MarqueeSelection {
+            start_x: x,
+            start_y: y,
+            current_x: x,
+            current_y: y,
+        });
+        self.select_only_clip(None);
+        cx.stop_propagation();
+        cx.notify();
+    }
+
+    fn update_marquee_selection(
+        &mut self,
+        event: &MouseMoveEvent,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        if self.marquee_selection.is_none() || !event.dragging() {
+            return;
+        }
+        let (x, y) = Self::timeline_pointer_position(
+            event.position.x.into(),
+            event.position.y.into(),
+            window,
+        );
+        if let Some(selection) = self.marquee_selection.as_mut() {
+            selection.current_x = x;
+            selection.current_y = y;
+        }
+        self.select_clips_in_marquee();
+        cx.notify();
+    }
+
+    fn finish_marquee_selection(
+        &mut self,
+        event: &MouseUpEvent,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        if self.marquee_selection.is_none() {
+            return;
+        }
+        let (x, y) = Self::timeline_pointer_position(
+            event.position.x.into(),
+            event.position.y.into(),
+            window,
+        );
+        if let Some(selection) = self.marquee_selection.as_mut() {
+            selection.current_x = x;
+            selection.current_y = y;
+        }
+        self.select_clips_in_marquee();
+        self.marquee_selection = None;
+        cx.notify();
+    }
+
+    fn timeline_pointer_position(x: f32, y: f32, window: &Window) -> (f32, f32) {
+        let viewport = window.viewport_size();
+        let viewport_width = f32::from(viewport.width);
+        let viewport_height = f32::from(viewport.height);
+        let timeline_top = (viewport_height - TIMELINE_HEIGHT).max(0.0);
+        (
+            x.clamp(TRACK_HEADER_WIDTH, viewport_width),
+            (y - timeline_top).clamp(TIMELINE_HEADER_HEIGHT + RULER_HEIGHT, TIMELINE_HEIGHT),
+        )
+    }
+
+    fn select_clips_in_marquee(&mut self) {
+        let Some(selection) = self.marquee_selection else {
+            return;
+        };
+        let left = selection.start_x.min(selection.current_x);
+        let right = selection.start_x.max(selection.current_x);
+        let top = selection.start_y.min(selection.current_y);
+        let bottom = selection.start_y.max(selection.current_y);
+        let scroll_x = f32::from(self.timeline_scroll.offset().x);
+        let scroll_y = f32::from(self.timeline_vertical_scroll.offset().y);
+
+        let mut selected = HashSet::new();
+        for (track_index, track) in self.project.tracks.iter().enumerate() {
+            let clip_top = TIMELINE_HEADER_HEIGHT
+                + RULER_HEIGHT
+                + track_index as f32 * TRACK_HEIGHT
+                + scroll_y
+                + 5.0;
+            let clip_bottom = clip_top + TRACK_HEIGHT - 10.0;
+            for clip in self.project.clips_on_track(track.id) {
+                let clip_left = TRACK_HEADER_WIDTH
+                    + scroll_x
+                    + TIMELINE_PADDING
+                    + self.project.seconds(clip.timeline_start) as f32 * self.pixels_per_second;
+                let clip_right = clip_left
+                    + (self.project.seconds(clip.duration()) as f32 * self.pixels_per_second)
+                        .max(4.0);
+                if clip_left <= right
+                    && clip_right >= left
+                    && clip_top <= bottom
+                    && clip_bottom >= top
+                {
+                    selected.insert(clip.id);
+                }
+            }
+        }
+        self.selected_clip_id = self
+            .project
+            .clips
+            .iter()
+            .find(|clip| selected.contains(&clip.id))
+            .map(|clip| clip.id);
+        self.selected_clip_ids = selected;
     }
 
     fn begin_clip_move(&mut self, clip_id: u64, event: &MouseDownEvent, cx: &mut Context<Self>) {
@@ -773,7 +924,7 @@ impl Editor {
         self.pause_audio_previews();
         self.playing = false;
         self.still_playback_started = None;
-        self.selected_clip_id = Some(clip_id);
+        self.select_only_clip(Some(clip_id));
         self.clip_move_drag = Some(ClipMoveDrag {
             clip_id,
             start_x: event.position.x.into(),
@@ -941,7 +1092,7 @@ impl Editor {
         self.pause_audio_previews();
         self.still_playback_started = None;
         self.playing = false;
-        self.selected_clip_id = Some(clip_id);
+        self.select_only_clip(Some(clip_id));
         self.trim_drag = Some(TrimDrag {
             clip_id,
             edge,
@@ -1133,7 +1284,7 @@ impl Editor {
         self.still_playback_started = None;
         self.playing = false;
         self.playhead = TimelineTime::ZERO;
-        self.selected_clip_id = self.project.clips.first().map(|clip| clip.id);
+        self.select_only_clip(self.project.clips.first().map(|clip| clip.id));
         if !self.project.clips.is_empty() {
             self.load_timeline_position(TimelineTime::ZERO, false);
         }

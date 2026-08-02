@@ -14,6 +14,7 @@ impl Editor {
 
         div()
             .id("editor-timeline")
+            .relative()
             .h(px(TIMELINE_HEIGHT))
             .flex_shrink_0()
             .flex()
@@ -24,15 +25,46 @@ impl Editor {
             .on_mouse_move(cx.listener(Self::update_trim))
             .on_mouse_move(cx.listener(Self::update_clip_move))
             .on_mouse_move(cx.listener(Self::update_playhead_scrub))
+            .on_mouse_move(cx.listener(Self::update_marquee_selection))
             .on_mouse_up(MouseButton::Left, cx.listener(Self::finish_trim))
             .on_mouse_up(MouseButton::Left, cx.listener(Self::finish_clip_move))
             .on_mouse_up(MouseButton::Left, cx.listener(Self::finish_playhead_scrub))
+            .on_mouse_up(
+                MouseButton::Left,
+                cx.listener(Self::finish_marquee_selection),
+            )
             .on_mouse_up_out(MouseButton::Left, cx.listener(Self::finish_trim))
             .on_mouse_up_out(MouseButton::Left, cx.listener(Self::finish_clip_move))
             .on_mouse_up_out(MouseButton::Left, cx.listener(Self::finish_playhead_scrub))
+            .on_mouse_up_out(
+                MouseButton::Left,
+                cx.listener(Self::finish_marquee_selection),
+            )
             .child(self.timeline_toolbar(frames_per_second, cx))
             .child(self.timeline_tracks_container(cx))
+            .when_some(self.timeline_marquee(), |this, marquee| this.child(marquee))
             .into_any_element()
+    }
+
+    fn timeline_marquee(&self) -> Option<gpui::AnyElement> {
+        let selection = self.marquee_selection?;
+        let left = selection.start_x.min(selection.current_x);
+        let top = selection.start_y.min(selection.current_y);
+        let width = (selection.start_x - selection.current_x).abs();
+        let height = (selection.start_y - selection.current_y).abs();
+
+        Some(
+            div()
+                .absolute()
+                .left(px(left))
+                .top(px(top))
+                .w(px(width))
+                .h(px(height))
+                .border_1()
+                .border_color(rgb(ACCENT))
+                .bg(gpui::rgba(0xf0b75e24))
+                .into_any_element(),
+        )
     }
 
     fn timeline_tracks_container(&self, cx: &mut Context<Self>) -> gpui::AnyElement {
