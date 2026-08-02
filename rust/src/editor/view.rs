@@ -11,6 +11,7 @@ impl Render for Editor {
         if window.is_fullscreen() {
             return div()
                 .id("editor-fullscreen-preview")
+                .key_context(EDITOR_KEY_CONTEXT)
                 .track_focus(&self.focus_handle)
                 .on_action(cx.listener(Self::action_toggle_playback))
                 .on_action(cx.listener(Self::action_step_backward_frame))
@@ -37,6 +38,7 @@ impl Render for Editor {
 
         div()
             .id("editor-root")
+            .key_context(EDITOR_KEY_CONTEXT)
             .track_focus(&self.focus_handle)
             .on_action(cx.listener(Self::action_toggle_playback))
             .on_action(cx.listener(Self::action_step_backward_frame))
@@ -52,15 +54,15 @@ impl Render for Editor {
             .on_action(cx.listener(Self::action_toggle_inspector))
             .on_action(cx.listener(Self::action_reveal_in_finder))
             .on_action(cx.listener(Self::action_open_in_default_app))
-            .on_mouse_down(
-                MouseButton::Left,
-                cx.listener(|editor, _, _, cx| {
+            .capture_any_mouse_down(cx.listener(|editor, event: &MouseDownEvent, window, cx| {
+                if event.button == MouseButton::Left {
+                    editor.focus_handle.focus(window);
                     if editor.preview_volume_open {
                         editor.preview_volume_open = false;
                         cx.notify();
                     }
-                }),
-            )
+                }
+            }))
             .size_full()
             .relative()
             .flex()

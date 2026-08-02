@@ -1,9 +1,9 @@
 use super::*;
 
 const MAX_RULER_TICKS: usize = 240;
-const MAX_FRAME_TICKS: usize = 2_000;
 const MIN_RULER_LABEL_SPACING: f32 = 72.0;
 const MIN_FRAME_TICK_SPACING: f32 = 4.0;
+const FRAME_TICK_OVERSCAN: f32 = 120.0;
 const TICK_STEPS: [f64; 12] = [
     1.0, 2.0, 5.0, 10.0, 15.0, 20.0, 30.0, 60.0, 120.0, 300.0, 600.0, 1800.0,
 ];
@@ -145,30 +145,47 @@ impl Editor {
         let frames_per_second = frame_rate.frames_per_second();
         let displayed_frames = frame_rate.ceil(duration).frames().max(1);
         let pixels_per_frame = self.pixels_per_second / frames_per_second as f32;
-        let frame_step = frame_tick_step(displayed_frames, pixels_per_frame);
-        let frame_tick_count = displayed_frames / frame_step;
+        let frame_step = frame_tick_step(pixels_per_frame);
+        let scroll_left = (-f32::from(self.timeline_scroll.offset().x)).max(0.0);
+        let viewport_width = {
+            let width = f32::from(self.timeline_scroll.bounds().size.width);
+            if width > 0.0 { width } else { 1_200.0 }
+        };
+        let visible_start = ((scroll_left - FRAME_TICK_OVERSCAN - TIMELINE_PADDING).max(0.0)
+            / pixels_per_frame.max(f32::EPSILON))
+        .floor() as i64;
+        let visible_end = ((scroll_left + viewport_width + FRAME_TICK_OVERSCAN - TIMELINE_PADDING)
+            .max(0.0)
+            / pixels_per_frame.max(f32::EPSILON))
+        .ceil() as i64;
+        let first_frame = visible_start
+            .div_euclid(frame_step)
+            .saturating_mul(frame_step)
+            .max(frame_step);
+        let last_frame = visible_end.min(displayed_frames);
         let nominal_fps = frames_per_second.round().max(1.0) as i64;
-        let frame_ticks = (1..=frame_tick_count).map(|index| {
-            let frame = index * frame_step;
-            let emphasized = frame % nominal_fps == 0;
-            let medium = !emphasized && frame % 5 == 0;
-            let height = if emphasized {
-                12.0
-            } else if medium {
-                8.0
-            } else {
-                5.0
-            };
-            div()
-                .absolute()
-                .left(px(TIMELINE_PADDING
-                    + frame_rate.seconds(TimelineTime::from_frames(frame)) as f32
-                        * self.pixels_per_second))
-                .bottom_0()
-                .h(px(height))
-                .border_l_1()
-                .border_color(rgb(if emphasized { 0x5a5a62 } else { 0x3a3a40 }))
-        });
+        let frame_ticks = (first_frame..=last_frame)
+            .step_by(frame_step as usize)
+            .map(|frame| {
+                let emphasized = frame % nominal_fps == 0;
+                let medium = !emphasized && frame % 5 == 0;
+                let height = if emphasized {
+                    12.0
+                } else if medium {
+                    8.0
+                } else {
+                    5.0
+                };
+                div()
+                    .absolute()
+                    .left(px(TIMELINE_PADDING
+                        + frame_rate.seconds(TimelineTime::from_frames(frame)) as f32
+                            * self.pixels_per_second))
+                    .bottom_0()
+                    .h(px(height))
+                    .border_l_1()
+                    .border_color(rgb(if emphasized { 0x5a5a62 } else { 0x3a3a40 }))
+            });
         let tick_step = ruler_tick_step(duration, self.pixels_per_second);
         let tick_count = (duration / tick_step).ceil() as usize + 1;
         let ruler_ticks = (0..tick_count).map(|index| {
@@ -331,12 +348,10 @@ impl Editor {
     }
 }
 
-fn frame_tick_step(total_frames: i64, pixels_per_frame: f32) -> i64 {
-    let spacing_step = (MIN_FRAME_TICK_SPACING / pixels_per_frame.max(f32::EPSILON))
+fn frame_tick_step(pixels_per_frame: f32) -> i64 {
+    (MIN_FRAME_TICK_SPACING / pixels_per_frame.max(f32::EPSILON))
         .ceil()
-        .max(1.0) as i64;
-    let count_step = ((total_frames.max(1) as f64 / MAX_FRAME_TICKS as f64).ceil() as i64).max(1);
-    spacing_step.max(count_step)
+        .max(1.0) as i64
 }
 
 fn ruler_tick_step(duration: f64, pixels_per_second: f32) -> f64 {
