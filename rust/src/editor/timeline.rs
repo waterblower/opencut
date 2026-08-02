@@ -172,7 +172,30 @@ impl Editor {
                                                     .size_2()
                                                     .bg(rgb(ACCENT)),
                                             ),
-                                    ),
+                                    )
+                                    .when_some(self.snap_guide, |this, guide| {
+                                        let guide_left = TIMELINE_PADDING
+                                            + self.project.seconds(guide) as f32
+                                                * self.pixels_per_second;
+                                        this.child(
+                                            div()
+                                                .absolute()
+                                                .top_0()
+                                                .bottom_0()
+                                                .left(px(guide_left))
+                                                .w(px(2.0))
+                                                .bg(rgb(0x63c8ff))
+                                                .child(
+                                                    div()
+                                                        .absolute()
+                                                        .top_0()
+                                                        .left(px(-3.0))
+                                                        .size_2()
+                                                        .rounded_full()
+                                                        .bg(rgb(0x63c8ff)),
+                                                ),
+                                        )
+                                    }),
                             ),
                     ),
             )
@@ -312,6 +335,27 @@ impl Editor {
                                 cx.notify();
                             },
                         )),
+                    )
+                    .child(
+                        timeline_icon_button(
+                            "toggle-timeline-snapping",
+                            if self.snapping_enabled {
+                                "Snap on"
+                            } else {
+                                "Snap off"
+                            },
+                        )
+                        .border_1()
+                        .border_color(rgb(if self.snapping_enabled {
+                            ACCENT
+                        } else {
+                            BORDER
+                        }))
+                        .text_color(rgb(if self.snapping_enabled { ACCENT } else { MUTED }))
+                        .on_click(cx.listener(|editor, _, _, cx| {
+                            editor.toggle_snapping();
+                            cx.notify();
+                        })),
                     ),
             )
             .child(

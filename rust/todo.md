@@ -50,11 +50,6 @@
 Expand the current move, trim, split, duplicate, and delete operations into a
 consistent editing toolset.
 
-- [x] Add multi-selection with Command-click and rectangular selection.
-- [x] Show collision feedback while moving selected clips instead of silently
-      refusing invalid positions. Keep multi-clip moves atomic.
-- [ ] Add a snapping toggle and visible guides for playhead and clip-edge
-      snap targets.
 - [ ] Add tool modes and cursor feedback for selection, blade, trim, and hand/pan.
 - [ ] Add copy, cut, and paste for multiple selected clips. Preserve relative
       timing and track placement, and keep paste as one atomic undo operation.
