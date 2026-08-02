@@ -51,10 +51,17 @@ Expand the current move, trim, split, duplicate, and delete operations into a
 consistent editing toolset.
 
 - [x] Add multi-selection with Command-click and rectangular selection.
-- [ ] Show collision feedback while moving selected clips instead of silently
+- [x] Show collision feedback while moving selected clips instead of silently
       refusing invalid positions. Keep multi-clip moves atomic.
+- [ ] Add a snapping toggle and visible guides for playhead and clip-edge
+      snap targets.
+- [ ] Add tool modes and cursor feedback for selection, blade, trim, and hand/pan.
 - [ ] Add copy, cut, and paste for multiple selected clips. Preserve relative
       timing and track placement, and keep paste as one atomic undo operation.
+- [ ] Allow project files to be dragged from the asset explorer onto compatible
+      tracks at a chosen timeline position, with a visible placement preview and
+      collision feedback.
+- [ ] Make every compound edit create one atomic undo/redo transaction.
 - [ ] Add linked video/audio clip groups so related clips select, move, trim,
       split, and delete together.
 - [ ] Add explicit link and unlink commands.
@@ -67,12 +74,5 @@ consistent editing toolset.
       timeline duration.
 - [ ] Add slip editing that changes a clip's source range without moving it.
 - [ ] Add slide editing that moves a clip while adjusting its neighbours.
-- [ ] Allow project files to be dragged from the asset explorer onto compatible
-      tracks at a chosen timeline position, with a visible placement preview and
-      collision feedback.
-- [ ] Add a snapping toggle and visible guides for playhead and clip-edge
-      snap targets.
-- [ ] Add tool modes and cursor feedback for selection, blade, trim, and hand/pan.
-- [ ] Make every compound edit create one atomic undo/redo transaction.
 - [ ] Add collision, locked-track, track-compatibility, and minimum-duration tests
       for every editing mode.

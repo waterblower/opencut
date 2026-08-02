@@ -103,6 +103,20 @@ impl Editor {
             .clips_on_track(track.id)
             .map(|clip| self.timeline_clip(track, clip, cx))
             .collect::<Vec<_>>();
+        let move_previews = self
+            .clip_move_drag
+            .as_ref()
+            .filter(|drag| drag.changed)
+            .map(|drag| {
+                drag.placements
+                    .iter()
+                    .filter(|placement| placement.track_id == track.id)
+                    .map(|placement| {
+                        self.timeline_clip_move_preview(placement, drag.invalid_reason)
+                    })
+                    .collect::<Vec<_>>()
+            })
+            .unwrap_or_default();
 
         div()
             .id(("track-row", index))
@@ -118,6 +132,7 @@ impl Editor {
                 0x0d0d0f
             }))
             .children(clips)
+            .children(move_previews)
             .into_any_element()
     }
 
@@ -129,6 +144,9 @@ impl Editor {
     ) -> gpui::AnyElement {
         let clip_id = clip.id;
         let selected = self.selected_clip_ids.contains(&clip_id);
+        let moving = self.clip_move_drag.as_ref().is_some_and(|drag| {
+            drag.changed && drag.items.iter().any(|item| item.clip_id == clip_id)
+        });
         let asset = clip.asset_id.and_then(|id| self.project.asset(id));
         let name = asset
             .map(|asset| asset.name.clone())
@@ -167,6 +185,7 @@ impl Editor {
             .border_2()
             .border_color(rgb(if selected { ACCENT } else { color + 0x101010 }))
             .bg(rgb(color))
+            .opacity(if moving { 0.3 } else { 1.0 })
             .cursor(CursorStyle::PointingHand)
             .on_mouse_down(
                 MouseButton::Left,
@@ -227,24 +246,96 @@ impl Editor {
                             }),
                     ),
             )
-            .when(selected && self.selected_clip_ids.len() == 1, |this| {
-                this.child(trim_handle(("left-trim", clip_id), true).on_mouse_down(
-                    MouseButton::Left,
-                    cx.listener(move |editor, event: &MouseDownEvent, _, cx| {
-                        cx.stop_propagation();
-                        editor.begin_trim(clip_id, TrimEdge::Left, event.position.x.into());
-                        cx.notify();
-                    }),
-                ))
-                .child(trim_handle(("right-trim", clip_id), false).on_mouse_down(
-                    MouseButton::Left,
-                    cx.listener(move |editor, event: &MouseDownEvent, _, cx| {
-                        cx.stop_propagation();
-                        editor.begin_trim(clip_id, TrimEdge::Right, event.position.x.into());
-                        cx.notify();
-                    }),
-                ))
+            .when(
+                selected && self.selected_clip_ids.len() == 1 && !moving,
+                |this| {
+                    this.child(trim_handle(("left-trim", clip_id), true).on_mouse_down(
+                        MouseButton::Left,
+                        cx.listener(move |editor, event: &MouseDownEvent, _, cx| {
+                            cx.stop_propagation();
+                            editor.begin_trim(clip_id, TrimEdge::Left, event.position.x.into());
+                            cx.notify();
+                        }),
+                    ))
+                    .child(
+                        trim_handle(("right-trim", clip_id), false).on_mouse_down(
+                            MouseButton::Left,
+                            cx.listener(move |editor, event: &MouseDownEvent, _, cx| {
+                                cx.stop_propagation();
+                                editor.begin_trim(
+                                    clip_id,
+                                    TrimEdge::Right,
+                                    event.position.x.into(),
+                                );
+                                cx.notify();
+                            }),
+                        ),
+                    )
+                },
+            )
+            .into_any_element()
+    }
+
+    fn timeline_clip_move_preview(
+        &self,
+        placement: &ClipPlacement,
+        invalid_reason: Option<&'static str>,
+    ) -> gpui::AnyElement {
+        let name = self
+            .project
+            .clip(placement.clip_id)
+            .and_then(|clip| clip.asset_id)
+            .and_then(|asset_id| self.project.asset(asset_id))
+            .map(|asset| asset.name.clone())
+            .unwrap_or_else(|| "Missing media".to_string());
+        let left = TIMELINE_PADDING
+            + self.project.seconds(placement.start) as f32 * self.pixels_per_second;
+        let width =
+            (self.project.seconds(placement.duration) as f32 * self.pixels_per_second).max(4.0);
+        let valid = invalid_reason.is_none();
+        let feedback_color = if valid { ACCENT } else { ERROR };
+
+        div()
+            .id(("timeline-clip-move-preview", placement.clip_id))
+            .absolute()
+            .left(px(left))
+            .top(px(5.0))
+            .w(px(width))
+            .h(px(TRACK_HEIGHT - 10.0))
+            .overflow_hidden()
+            .rounded_md()
+            .border_2()
+            .border_color(rgb(feedback_color))
+            .bg(gpui::rgba(if valid { 0xf0b75e38 } else { 0xff8b8b38 }))
+            .cursor(if valid {
+                CursorStyle::ClosedHand
+            } else {
+                CursorStyle::OperationNotAllowed
             })
+            .child(
+                div()
+                    .absolute()
+                    .inset_0()
+                    .p_2()
+                    .flex()
+                    .flex_col()
+                    .justify_between()
+                    .text_color(rgb(feedback_color))
+                    .child(
+                        div()
+                            .text_xs()
+                            .font_weight(gpui::FontWeight::SEMIBOLD)
+                            .text_ellipsis()
+                            .child(name),
+                    )
+                    .child(
+                        div()
+                            .font_family("monospace")
+                            .text_xs()
+                            .text_ellipsis()
+                            .child(invalid_reason.unwrap_or("Move")),
+                    ),
+            )
             .into_any_element()
     }
 }
