@@ -35,6 +35,10 @@
 
 ### P2 — performance and cleanup
 
+- [ ] Reduce multiresolution waveform-cache disk and memory usage if it becomes
+      material for long projects. Measure first, then consider increasing the
+      finest level from 64 to 128 samples per peak, packing peaks as `i8`, or
+      compressing levels independently without sacrificing efficient range access.
 - [ ] Stop querying every active GStreamer audio pipeline position every 33 ms.
       Use a master playback clock and throttle drift checks or react to pipeline
       timing messages.
