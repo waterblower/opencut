@@ -27,6 +27,11 @@
       last-project settings in the platform application-data/config directory
       instead of the compile-time `CARGO_MANIFEST_DIR`. Keep project-owned state
       in `<project>/.opencut`.
+- [ ] Make explorer metadata consistent for audio and video files. Probe media
+      duration in the background and cache it for files that have not been added
+      to the timeline, rather than showing duration only for registered assets
+      and file size for everything else. Bound and deduplicate probe jobs, and
+      discard stale results when the project changes.
 
 ### P2 — performance and cleanup
 
