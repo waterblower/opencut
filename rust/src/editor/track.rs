@@ -146,23 +146,17 @@ impl Editor {
         clip: &TimelineClip,
         cx: &mut Context<Self>,
     ) -> gpui::AnyElement {
-        let clip_id = clip.id;
-        let selected = self.selected_clip_ids.contains(&clip_id);
-        let moving = self.clip_move_drag.as_ref().is_some_and(|drag| {
-            drag.changed && drag.items.iter().any(|item| item.clip_id == clip_id)
-        });
+        match track.kind {
+            TrackKind::Video => self.video_clip(clip, cx),
+            TrackKind::Audio => self.audio_clip(clip, cx),
+        }
+    }
+
+    fn video_clip(&self, clip: &TimelineClip, cx: &mut Context<Self>) -> gpui::AnyElement {
         let asset = clip.asset_id.and_then(|id| self.project.asset(id));
         let name = asset
             .map(|asset| asset.name.clone())
             .unwrap_or_else(|| "Missing media".to_string());
-        let left = TIMELINE_PADDING
-            + self.project.seconds(clip.timeline_start) as f32 * self.pixels_per_second;
-        let width =
-            (self.project.seconds(clip.duration()) as f32 * self.pixels_per_second).max(4.0);
-        let color = match track.kind {
-            TrackKind::Video => CLIP_BLUE,
-            TrackKind::Audio => 0x24656b,
-        };
         let cached = asset.is_some_and(|asset| self.media_cache_ready.contains(&asset.id));
         let thumbnail = asset.and_then(|asset| match asset.kind {
             MediaKind::Image => Some(self.project_root.join(&asset.path)),
@@ -175,7 +169,77 @@ impl Editor {
             (cached && asset.has_audio)
                 .then(|| media_cache::waveform_path(&self.project_root, asset))
         });
-        let has_audio = asset.is_some_and(|asset| asset.has_audio);
+        let detail = if asset.is_some_and(|asset| asset.has_audio) {
+            "Audio".to_string()
+        } else {
+            format!("{}s", self.project.seconds(clip.duration()).round())
+        };
+        let content = div()
+            .absolute()
+            .inset_0()
+            .child(
+                div()
+                    .absolute()
+                    .inset_0()
+                    .when_some(thumbnail, |this, path| {
+                        this.child(
+                            img(path)
+                                .size_full()
+                                .object_fit(ObjectFit::Cover)
+                                .opacity(0.45),
+                        )
+                    }),
+            )
+            .when_some(waveform, |this, path| {
+                this.child(timeline_clip_waveform(path))
+            })
+            .child(timeline_clip_label(name, detail));
+
+        self.timeline_clip_frame(clip, CLIP_BLUE, content.into_any_element(), cx)
+    }
+
+    fn audio_clip(&self, clip: &TimelineClip, cx: &mut Context<Self>) -> gpui::AnyElement {
+        let asset = clip.asset_id.and_then(|id| self.project.asset(id));
+        let name = asset
+            .map(|asset| asset.name.clone())
+            .unwrap_or_else(|| "Missing media".to_string());
+        let cached = asset.is_some_and(|asset| self.media_cache_ready.contains(&asset.id));
+        let waveform = asset.and_then(|asset| {
+            (cached && asset.has_audio)
+                .then(|| media_cache::waveform_path(&self.project_root, asset))
+        });
+        let detail = if asset.is_some_and(|asset| asset.has_audio) {
+            "Audio".to_string()
+        } else {
+            format!("{}s", self.project.seconds(clip.duration()).round())
+        };
+        let content = div()
+            .absolute()
+            .inset_0()
+            .when_some(waveform, |this, path| {
+                this.child(timeline_clip_waveform(path))
+            })
+            .child(timeline_clip_label(name, detail));
+
+        self.timeline_clip_frame(clip, 0x24656b, content.into_any_element(), cx)
+    }
+
+    fn timeline_clip_frame(
+        &self,
+        clip: &TimelineClip,
+        color: u32,
+        content: gpui::AnyElement,
+        cx: &mut Context<Self>,
+    ) -> gpui::AnyElement {
+        let clip_id = clip.id;
+        let selected = self.selected_clip_ids.contains(&clip_id);
+        let moving = self.clip_move_drag.as_ref().is_some_and(|drag| {
+            drag.changed && drag.items.iter().any(|item| item.clip_id == clip_id)
+        });
+        let left = TIMELINE_PADDING
+            + self.project.seconds(clip.timeline_start) as f32 * self.pixels_per_second;
+        let width =
+            (self.project.seconds(clip.duration()) as f32 * self.pixels_per_second).max(4.0);
 
         div()
             .id(("timeline-clip", clip_id))
@@ -202,58 +266,7 @@ impl Editor {
                     cx.notify();
                 }),
             )
-            .child(
-                div()
-                    .absolute()
-                    .inset_0()
-                    .when_some(thumbnail, |this, path| {
-                        this.child(
-                            img(path)
-                                .size_full()
-                                .object_fit(ObjectFit::Cover)
-                                .opacity(0.45),
-                        )
-                    }),
-            )
-            .when_some(waveform, |this, path| {
-                this.child(
-                    div()
-                        .absolute()
-                        .left_0()
-                        .right_0()
-                        .bottom_0()
-                        .h(px(24.0))
-                        .opacity(0.82)
-                        .child(img(path).size_full().object_fit(ObjectFit::Fill)),
-                )
-            })
-            .child(
-                div()
-                    .absolute()
-                    .inset_0()
-                    .p_2()
-                    .flex()
-                    .flex_col()
-                    .justify_between()
-                    .child(
-                        div()
-                            .text_xs()
-                            .font_weight(gpui::FontWeight::SEMIBOLD)
-                            .text_ellipsis()
-                            .child(name),
-                    )
-                    .child(
-                        div()
-                            .font_family("monospace")
-                            .text_xs()
-                            .text_color(rgb(0xc8d8e8))
-                            .child(if has_audio {
-                                "Audio".to_string()
-                            } else {
-                                format!("{}s", self.project.seconds(clip.duration()).round())
-                            }),
-                    ),
-            )
+            .child(content)
             .when(
                 selected
                     && self.selected_clip_ids.len() == 1
@@ -349,6 +362,41 @@ impl Editor {
             )
             .into_any_element()
     }
+}
+
+fn timeline_clip_waveform(path: PathBuf) -> gpui::Div {
+    div()
+        .absolute()
+        .left_0()
+        .right_0()
+        .bottom_0()
+        .h(px(24.0))
+        .opacity(0.82)
+        .child(img(path).size_full().object_fit(ObjectFit::Fill))
+}
+
+fn timeline_clip_label(name: String, detail: String) -> gpui::Div {
+    div()
+        .absolute()
+        .inset_0()
+        .p_2()
+        .flex()
+        .flex_col()
+        .justify_between()
+        .child(
+            div()
+                .text_xs()
+                .font_weight(gpui::FontWeight::SEMIBOLD)
+                .text_ellipsis()
+                .child(name),
+        )
+        .child(
+            div()
+                .font_family("monospace")
+                .text_xs()
+                .text_color(rgb(0xc8d8e8))
+                .child(detail),
+        )
 }
 
 fn track_button(id: impl Into<gpui::ElementId>, label: &'static str) -> gpui::Stateful<gpui::Div> {
