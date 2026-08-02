@@ -133,100 +133,7 @@ impl Editor {
             .on_mouse_up_out(MouseButton::Left, cx.listener(Self::finish_trim))
             .on_mouse_up_out(MouseButton::Left, cx.listener(Self::finish_clip_move))
             .on_mouse_up_out(MouseButton::Left, cx.listener(Self::finish_playhead_scrub))
-            .child(
-                div()
-                    .h(px(TIMELINE_HEADER_HEIGHT))
-                    .flex_shrink_0()
-                    .flex()
-                    .items_center()
-                    .justify_between()
-                    .px_3()
-                    .border_b_1()
-                    .border_color(rgb(BORDER))
-                    .child(
-                        div()
-                            .flex()
-                            .items_center()
-                            .gap_2()
-                            .child(
-                                timeline_icon_button(
-                                    "timeline-play",
-                                    if self.playing { "Ⅱ" } else { "▶" },
-                                )
-                                .on_click(cx.listener(
-                                    |editor, _, _, cx| {
-                                        editor.toggle_playback();
-                                        cx.notify();
-                                    },
-                                )),
-                            )
-                            .child(div().w(px(108.0)).font_family("monospace").text_sm().child(
-                                format!(
-                                    "{} / {}",
-                                    format_time(self.project.seconds(self.playhead)),
-                                    format_time(
-                                        self.project.seconds(self.project.timeline_duration())
-                                    )
-                                ),
-                            ))
-                            .child(timeline_icon_button("add-video-track", "+V").on_click(
-                                cx.listener(|editor, _, _, cx| {
-                                    editor.add_track(TrackKind::Video);
-                                    cx.notify();
-                                }),
-                            ))
-                            .child(timeline_icon_button("add-audio-track", "+A").on_click(
-                                cx.listener(|editor, _, _, cx| {
-                                    editor.add_track(TrackKind::Audio);
-                                    cx.notify();
-                                }),
-                            ))
-                            .child(
-                                timeline_icon_button("add-marker", "◆").on_click(cx.listener(
-                                    |editor, _, _, cx| {
-                                        editor.add_marker();
-                                        cx.notify();
-                                    },
-                                )),
-                            ),
-                    )
-                    .child(
-                        div()
-                            .flex()
-                            .items_center()
-                            .gap_2()
-                            .child(timeline_icon_button("zoom-out", "−").on_click(cx.listener(
-                                |editor, _, _, cx| {
-                                    editor.zoom(0.8);
-                                    cx.notify();
-                                },
-                            )))
-                            .child(
-                                div()
-                                    .w(px(58.0))
-                                    .text_center()
-                                    .font_family("monospace")
-                                    .text_xs()
-                                    .text_color(rgb(MUTED))
-                                    .child(format!("{:.0}px/s", self.pixels_per_second)),
-                            )
-                            .child(
-                                div()
-                                    .w(px(66.0))
-                                    .text_center()
-                                    .font_family("monospace")
-                                    .text_xs()
-                                    .text_color(rgb(MUTED))
-                                    .child(format!("{frames_per_second:.2} fps")),
-                            )
-                            .child(timeline_icon_button("zoom-in", "+").on_click(cx.listener(
-                                |editor, _, _, cx| {
-                                    editor.zoom(1.25);
-                                    cx.notify();
-                                },
-                            ))),
-                    ),
-            )
+            .child(self.timeline_toolbar(frames_per_second, cx))
             .child(
                 div()
                     .id("timeline-tracks-vertical-scroll")
@@ -335,6 +242,104 @@ impl Editor {
                                     )
                             ),
                     ),
+            )
+            .into_any_element()
+    }
+
+    fn timeline_toolbar(&self, frames_per_second: f64, cx: &mut Context<Self>) -> gpui::AnyElement {
+        div()
+            .id("timeline-toolbar")
+            .h(px(TIMELINE_HEADER_HEIGHT))
+            .flex_shrink_0()
+            .flex()
+            .items_center()
+            .justify_between()
+            .px_3()
+            .border_b_1()
+            .border_color(rgb(BORDER))
+            .child(
+                div()
+                    .flex()
+                    .items_center()
+                    .gap_2()
+                    .child(
+                        timeline_icon_button("timeline-play", if self.playing { "Ⅱ" } else { "▶" })
+                            .on_click(cx.listener(|editor, _, _, cx| {
+                                editor.toggle_playback();
+                                cx.notify();
+                            })),
+                    )
+                    .child(
+                        div()
+                            .w(px(108.0))
+                            .font_family("monospace")
+                            .text_sm()
+                            .child(format!(
+                                "{} / {}",
+                                format_time(self.project.seconds(self.playhead)),
+                                format_time(self.project.seconds(self.project.timeline_duration()))
+                            )),
+                    )
+                    .child(
+                        timeline_icon_button("add-video-track", "+V").on_click(cx.listener(
+                            |editor, _, _, cx| {
+                                editor.add_track(TrackKind::Video);
+                                cx.notify();
+                            },
+                        )),
+                    )
+                    .child(
+                        timeline_icon_button("add-audio-track", "+A").on_click(cx.listener(
+                            |editor, _, _, cx| {
+                                editor.add_track(TrackKind::Audio);
+                                cx.notify();
+                            },
+                        )),
+                    )
+                    .child(
+                        timeline_icon_button("add-marker", "◆").on_click(cx.listener(
+                            |editor, _, _, cx| {
+                                editor.add_marker();
+                                cx.notify();
+                            },
+                        )),
+                    ),
+            )
+            .child(
+                div()
+                    .flex()
+                    .items_center()
+                    .gap_2()
+                    .child(timeline_icon_button("zoom-out", "−").on_click(cx.listener(
+                        |editor, _, _, cx| {
+                            editor.zoom(0.8);
+                            cx.notify();
+                        },
+                    )))
+                    .child(
+                        div()
+                            .w(px(58.0))
+                            .text_center()
+                            .font_family("monospace")
+                            .text_xs()
+                            .text_color(rgb(MUTED))
+                            .child(format!("{:.0}px/s", self.pixels_per_second)),
+                    )
+                    .child(
+                        div()
+                            .w(px(66.0))
+                            .text_center()
+                            .font_family("monospace")
+                            .text_xs()
+                            .text_color(rgb(MUTED))
+                            .child(format!("{frames_per_second:.2} fps")),
+                    )
+                    .child(timeline_icon_button("zoom-in", "+").on_click(cx.listener(
+                        |editor, _, _, cx| {
+                            editor.zoom(1.25);
+                            cx.notify();
+                        },
+                    ))),
             )
             .into_any_element()
     }
