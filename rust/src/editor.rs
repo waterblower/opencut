@@ -33,8 +33,9 @@ use explorer::{ExplorerDropPreview, ExplorerMediaDrag, FileContextMenu, PendingE
 use explorer_filter::ExplorerFilter;
 use export::export_project;
 use model::{
-    DEFAULT_IMAGE_DURATION, FrameRate, MediaAsset, MediaKind, Project, TimelineClip, TimelineTime,
-    TimelineTrack, TrackKind, probe_audio, probe_image, probe_media,
+    AudioClipProperties, DEFAULT_IMAGE_DURATION, FrameRate, MediaAsset, MediaKind, Project,
+    TimelineClip, TimelineTime, TimelineTrack, TrackKind, VideoClipProperties, probe_audio,
+    probe_image, probe_media,
 };
 use preview::PreviewTarget;
 use preview_audio::AudioPreview;

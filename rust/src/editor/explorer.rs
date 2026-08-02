@@ -779,6 +779,8 @@ impl Editor {
             timeline_start: start,
             source_in: TimelineTime::ZERO,
             source_out: duration,
+            video_properties: VideoClipProperties::default(),
+            audio_properties: AudioClipProperties::default(),
         });
         self.preview_target = PreviewTarget::Timeline;
         self.load_timeline_position(self.playhead, false);
@@ -1103,6 +1105,8 @@ mod tests {
             timeline_start: TimelineTime::from_frames(30),
             source_in: TimelineTime::ZERO,
             source_out: TimelineTime::from_frames(30),
+            video_properties: VideoClipProperties::default(),
+            audio_properties: AudioClipProperties::default(),
         });
         let audio = asset(MediaKind::Audio, true);
 

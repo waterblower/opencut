@@ -105,6 +105,8 @@ impl Editor {
             timeline_start: self.project.content_duration(),
             source_in: TimelineTime::ZERO,
             source_out: self.project.ceil_time(duration),
+            video_properties: VideoClipProperties::default(),
+            audio_properties: AudioClipProperties::default(),
         });
         self.selected_asset_id = Some(asset_id);
         self.select_only_clip(Some(id));
@@ -147,6 +149,8 @@ impl Editor {
                 timeline_start: self.playhead,
                 source_in: source_split,
                 source_out: clip.source_out,
+                video_properties: clip.video_properties,
+                audio_properties: clip.audio_properties,
             });
         }
         self.selected_clip_ids = right_halves.iter().map(|clip| clip.id).collect();
@@ -181,6 +185,8 @@ impl Editor {
             timeline_start: position,
             source_in: source_split,
             source_out: clip.source_out,
+            video_properties: clip.video_properties,
+            audio_properties: clip.audio_properties,
         });
         self.select_only_clip(Some(right_clip_id));
         self.error = None;
@@ -765,6 +771,8 @@ mod tests {
             timeline_start: TimelineTime::from_frames(start),
             source_in: TimelineTime::ZERO,
             source_out: TimelineTime::from_frames(duration),
+            video_properties: VideoClipProperties::default(),
+            audio_properties: AudioClipProperties::default(),
         }
     }
 

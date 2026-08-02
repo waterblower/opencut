@@ -10,7 +10,7 @@ use std::{
 };
 
 pub(super) const DEFAULT_IMAGE_DURATION: f64 = 5.0;
-pub(super) const PROJECT_VERSION: u32 = 5;
+pub(super) const PROJECT_VERSION: u32 = 6;
 
 #[derive(Clone, Copy, Debug, Default, Deserialize, Eq, Ord, PartialEq, PartialOrd, Serialize)]
 #[serde(transparent)]
@@ -242,6 +242,53 @@ impl MediaAsset {
     }
 }
 
+/// Static visual adjustments for one timeline clip.
+///
+/// Position is an offset in project pixels from the clip's centered placement. Scale and
+/// opacity are normalized multipliers, so `1.0` means 100%.
+#[derive(Clone, Copy, Debug, Deserialize, PartialEq, Serialize)]
+#[serde(default)]
+pub(super) struct VideoClipProperties {
+    pub position_x: f64,
+    pub position_y: f64,
+    pub scale: f64,
+    pub rotation_degrees: f64,
+    pub opacity: f64,
+}
+
+impl Default for VideoClipProperties {
+    fn default() -> Self {
+        Self {
+            position_x: 0.0,
+            position_y: 0.0,
+            scale: 1.0,
+            rotation_degrees: 0.0,
+            opacity: 1.0,
+        }
+    }
+}
+
+/// Static audio adjustments for one timeline clip.
+///
+/// `0 dB` is unity gain and pan ranges from `-1.0` (left) to `1.0` (right).
+#[derive(Clone, Copy, Debug, Deserialize, PartialEq, Serialize)]
+#[serde(default)]
+pub(super) struct AudioClipProperties {
+    pub gain_db: f64,
+    pub muted: bool,
+    pub pan: f64,
+}
+
+impl Default for AudioClipProperties {
+    fn default() -> Self {
+        Self {
+            gain_db: 0.0,
+            muted: false,
+            pan: 0.0,
+        }
+    }
+}
+
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub(super) struct TimelineClip {
     pub id: u64,
@@ -251,6 +298,10 @@ pub(super) struct TimelineClip {
     pub timeline_start: TimelineTime,
     pub source_in: TimelineTime,
     pub source_out: TimelineTime,
+    #[serde(default)]
+    pub video_properties: VideoClipProperties,
+    #[serde(default)]
+    pub audio_properties: AudioClipProperties,
 }
 
 impl TimelineClip {
@@ -791,6 +842,8 @@ mod tests {
             timeline_start: frames(start),
             source_in: TimelineTime::ZERO,
             source_out: frames(duration),
+            video_properties: VideoClipProperties::default(),
+            audio_properties: AudioClipProperties::default(),
         }
     }
 
@@ -961,5 +1014,65 @@ mod tests {
         assert_eq!(json["settings"]["frame_rate"]["denominator"], 1);
         assert_eq!(json["clips"][0]["timeline_start"], 17);
         assert_eq!(json["clips"][0]["source_out"], 83);
+    }
+
+    #[test]
+    fn clip_properties_have_neutral_defaults() {
+        assert_eq!(
+            VideoClipProperties::default(),
+            VideoClipProperties {
+                position_x: 0.0,
+                position_y: 0.0,
+                scale: 1.0,
+                rotation_degrees: 0.0,
+                opacity: 1.0,
+            }
+        );
+        assert_eq!(
+            AudioClipProperties::default(),
+            AudioClipProperties {
+                gain_db: 0.0,
+                muted: false,
+                pan: 0.0,
+            }
+        );
+    }
+
+    #[test]
+    fn clips_without_property_objects_deserialize_with_defaults() {
+        let legacy = serde_json::json!({
+            "id": 10,
+            "track_id": 1,
+            "asset_id": 100,
+            "timeline_start": 0,
+            "source_in": 0,
+            "source_out": 30
+        });
+        let clip = serde_json::from_value::<TimelineClip>(legacy).unwrap();
+
+        assert_eq!(clip.video_properties, VideoClipProperties::default());
+        assert_eq!(clip.audio_properties, AudioClipProperties::default());
+    }
+
+    #[test]
+    fn clip_properties_round_trip_through_project_json() {
+        let mut clip = video_clip(10, 0, 30);
+        clip.video_properties = VideoClipProperties {
+            position_x: 120.0,
+            position_y: -45.0,
+            scale: 1.25,
+            rotation_degrees: 12.5,
+            opacity: 0.8,
+        };
+        clip.audio_properties = AudioClipProperties {
+            gain_db: -6.0,
+            muted: true,
+            pan: 0.35,
+        };
+        let value = serde_json::to_value(&clip).unwrap();
+        let restored = serde_json::from_value::<TimelineClip>(value).unwrap();
+
+        assert_eq!(restored.video_properties, clip.video_properties);
+        assert_eq!(restored.audio_properties, clip.audio_properties);
     }
 }
