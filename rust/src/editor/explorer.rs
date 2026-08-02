@@ -14,10 +14,19 @@ impl Editor {
             .file_name()
             .map(|name| name.to_string_lossy().into_owned())
             .unwrap_or_else(|| self.project_root.display().to_string());
+        let filter = self.explorer_filter.trim().to_lowercase();
         let entries = self
             .file_tree
             .iter()
             .enumerate()
+            .filter(|(_, entry)| {
+                filter.is_empty()
+                    || entry
+                        .relative_path
+                        .to_string_lossy()
+                        .to_lowercase()
+                        .contains(&filter)
+            })
             .map(|(index, entry)| {
                 let path = entry.relative_path.clone();
                 let selection_path = path.clone();
@@ -29,27 +38,21 @@ impl Editor {
                 let is_image = entry.is_image;
                 let is_audio = entry.is_audio;
                 let is_media = is_video || is_image || is_audio;
-                let thumbnail_path = is_image.then(|| self.project_root.join(&path));
-                let icon = if is_directory {
-                    if entry.expanded { "▾" } else { "▸" }
-                } else if is_video {
-                    "▶"
-                } else if is_audio {
-                    "♪"
-                } else {
-                    "·"
-                };
+                let metadata = explorer_metadata(
+                    entry,
+                    self.project.assets.iter().find(|asset| asset.path == path),
+                );
                 div()
                     .id(("project-file", index))
-                    .h(px(34.0))
+                    .relative()
+                    .h(px(38.0))
                     .flex_shrink_0()
                     .flex()
                     .items_center()
                     .gap_2()
-                    .rounded_md()
                     .pr_2()
-                    .pl(px(8.0 + entry.depth as f32 * 16.0))
-                    .bg(rgb(if selected { 0x25221c } else { PANEL }))
+                    .pl(px(10.0 + entry.depth as f32 * 16.0))
+                    .bg(rgb(if selected { 0x1e1b13 } else { PANEL }))
                     .cursor(CursorStyle::PointingHand)
                     .hover(|style| style.bg(rgb(SURFACE_HOVER)))
                     .on_click(cx.listener(move |editor, _, _, cx| {
@@ -66,26 +69,40 @@ impl Editor {
                             editor.show_file_context_menu(context_path.clone(), event, cx);
                         }),
                     )
+                    .when(selected, |this| {
+                        this.child(
+                            div()
+                                .absolute()
+                                .left_0()
+                                .top_0()
+                                .bottom_0()
+                                .w(px(2.0))
+                                .bg(rgb(ACCENT)),
+                        )
+                    })
                     .child(
                         div()
-                            .size(px(18.0))
+                            .w(px(if is_directory { 14.0 } else { 38.0 }))
+                            .h(px(20.0))
                             .flex_shrink_0()
                             .flex()
                             .items_center()
                             .justify_center()
-                            .overflow_hidden()
-                            .rounded_sm()
-                            .text_color(rgb(if is_media { ACCENT } else { MUTED }))
-                            .when_some(thumbnail_path, |this, path| {
-                                this.child(img(path).size_full().object_fit(ObjectFit::Cover))
+                            .when(is_directory, |this| {
+                                this.text_color(rgb(MUTED)).child(if entry.expanded {
+                                    "▾"
+                                } else {
+                                    "▸"
+                                })
                             })
-                            .when(!is_image, |this| this.child(icon)),
+                            .when(!is_directory, |this| this.child(explorer_file_badge(entry))),
                     )
                     .child(
                         div()
                             .min_w_0()
                             .flex_1()
                             .text_sm()
+                            .font_family("monospace")
                             .text_ellipsis()
                             .text_color(rgb(if is_media || is_directory {
                                 TEXT
@@ -94,7 +111,7 @@ impl Editor {
                             }))
                             .child(entry.name.clone()),
                     )
-                    .when(is_media, |this| {
+                    .when(is_media && selected, |this| {
                         this.child(
                             div()
                                 .id(("add-project-file", index))
@@ -105,12 +122,25 @@ impl Editor {
                                 .justify_center()
                                 .rounded_md()
                                 .occlude()
-                                .bg(rgb(0x25252a))
+                                .text_color(rgb(MUTED))
                                 .hover(|style| style.bg(rgb(ACCENT)).text_color(rgb(0x17120a)))
                                 .child("+")
                                 .on_click(cx.listener(move |editor, _, _, cx| {
                                     editor.add_file_to_timeline(action_path.clone(), cx);
+                                    cx.stop_propagation();
                                 })),
+                        )
+                    })
+                    .when_some(metadata, |this, metadata| {
+                        this.child(
+                            div()
+                                .max_w(px(58.0))
+                                .flex_shrink_0()
+                                .font_family("monospace")
+                                .text_xs()
+                                .text_ellipsis()
+                                .text_color(rgb(0x55555e))
+                                .child(metadata),
                         )
                     })
             })
@@ -121,62 +151,150 @@ impl Editor {
             .w(px(MEDIA_PANEL_WIDTH))
             .h_full()
             .flex_shrink_0()
-            .flex()
-            .flex_col()
             .border_r_1()
             .border_color(rgb(BORDER))
             .bg(rgb(PANEL))
             .child(
                 div()
-                    .h(px(62.0))
-                    .flex_shrink_0()
+                    .size_full()
                     .flex()
                     .flex_col()
-                    .justify_center()
-                    .gap_1()
-                    .justify_between()
-                    .px_4()
-                    .border_b_1()
-                    .border_color(rgb(BORDER))
+                    .overflow_hidden()
+                    .bg(rgb(PANEL))
                     .child(
                         div()
-                            .w_full()
-                            .text_sm()
-                            .font_weight(gpui::FontWeight::SEMIBOLD)
-                            .text_ellipsis()
-                            .child(project_name),
+                            .h(px(52.0))
+                            .flex_shrink_0()
+                            .flex()
+                            .items_center()
+                            .gap_2()
+                            .px_3()
+                            .border_b_1()
+                            .border_color(rgb(BORDER))
+                            .child(div().text_color(rgb(MUTED)).child("▾"))
+                            .child(
+                                div()
+                                    .min_w_0()
+                                    .flex_1()
+                                    .font_family("monospace")
+                                    .text_sm()
+                                    .font_weight(gpui::FontWeight::SEMIBOLD)
+                                    .text_ellipsis()
+                                    .child(project_name),
+                            )
+                            .child(
+                                explorer_header_button("refresh-project-tree", "↻").on_click(
+                                    cx.listener(|editor, _, _, cx| {
+                                        editor.refresh_file_tree();
+                                        cx.notify();
+                                    }),
+                                ),
+                            )
+                            .child(
+                                explorer_header_button("collapse-project-tree", "↤").on_click(
+                                    cx.listener(|editor, _, _, cx| {
+                                        editor.expanded_directories.clear();
+                                        editor.refresh_file_tree();
+                                        cx.notify();
+                                    }),
+                                ),
+                            )
+                            .child(explorer_header_button("project-tree-menu", "•••").on_click(
+                                cx.listener(|editor, _, _, cx| {
+                                    editor.open_project_folder(cx);
+                                }),
+                            )),
                     )
                     .child(
                         div()
-                            .w_full()
-                            .text_xs()
-                            .font_family("monospace")
-                            .text_color(rgb(MUTED))
-                            .text_ellipsis()
-                            .child(self.project_root.display().to_string()),
+                            .h(px(58.0))
+                            .flex_shrink_0()
+                            .p_2()
+                            .border_b_1()
+                            .border_color(rgb(BORDER))
+                            .child(
+                                div()
+                                    .id("explorer-filter")
+                                    .h_full()
+                                    .w_full()
+                                    .key_context("ExplorerFilter")
+                                    .track_focus(&self.explorer_filter_focus)
+                                    .flex()
+                                    .items_center()
+                                    .gap_2()
+                                    .px_3()
+                                    .rounded_lg()
+                                    .border_1()
+                                    .border_color(rgb(BORDER))
+                                    .bg(rgb(SURFACE))
+                                    .cursor(CursorStyle::IBeam)
+                                    .focus(|style| style.border_color(rgb(0x52779a)))
+                                    .on_click(cx.listener(|editor, _, window, cx| {
+                                        editor.explorer_filter_focus.focus(window);
+                                        cx.stop_propagation();
+                                    }))
+                                    .on_key_down(cx.listener(Self::handle_explorer_filter_key))
+                                    .child(
+                                        div()
+                                            .min_w_0()
+                                            .flex_1()
+                                            .font_family("monospace")
+                                            .text_sm()
+                                            .text_ellipsis()
+                                            .text_color(rgb(if self.explorer_filter.is_empty() {
+                                                MUTED
+                                            } else {
+                                                TEXT
+                                            }))
+                                            .child(if self.explorer_filter.is_empty() {
+                                                "Filter files…".to_string()
+                                            } else {
+                                                self.explorer_filter.clone()
+                                            }),
+                                    )
+                                    .when(!self.explorer_filter.is_empty(), |this| {
+                                        this.child(
+                                            div()
+                                                .id("clear-explorer-filter")
+                                                .size_5()
+                                                .flex()
+                                                .items_center()
+                                                .justify_center()
+                                                .rounded_md()
+                                                .cursor(CursorStyle::PointingHand)
+                                                .text_color(rgb(MUTED))
+                                                .hover(|style| style.bg(rgb(SURFACE_HOVER)))
+                                                .child("×")
+                                                .on_click(cx.listener(|editor, _, _, cx| {
+                                                    editor.explorer_filter.clear();
+                                                    cx.stop_propagation();
+                                                    cx.notify();
+                                                })),
+                                        )
+                                    }),
+                            ),
+                    )
+                    .child(
+                        div()
+                            .id("editor-media-scroll")
+                            .flex_1()
+                            .min_h_0()
+                            .overflow_y_scroll()
+                            .track_scroll(&self.explorer_scroll)
+                            .flex()
+                            .flex_col()
+                            .py_2()
+                            .when(entries.is_empty(), |this| {
+                                this.child(div().p_4().text_sm().text_color(rgb(MUTED)).child(
+                                    if self.explorer_filter.is_empty() {
+                                        "This project folder is empty.".to_string()
+                                    } else {
+                                        format!("No files match “{}”.", self.explorer_filter)
+                                    },
+                                ))
+                            })
+                            .children(entries),
                     ),
-            )
-            .child(
-                div()
-                    .id("editor-media-scroll")
-                    .flex_1()
-                    .min_h_0()
-                    .overflow_y_scroll()
-                    .track_scroll(&self.timeline_vertical_scroll)
-                    .flex()
-                    .flex_col()
-                    .gap_2()
-                    .p_3()
-                    .when(entries.is_empty(), |this| {
-                        this.child(
-                            div()
-                                .p_3()
-                                .text_sm()
-                                .text_color(rgb(MUTED))
-                                .child("This project folder is empty."),
-                        )
-                    })
-                    .children(entries),
             )
             .into_any_element()
     }
@@ -257,6 +375,42 @@ impl Editor {
             Ok(entries) => self.file_tree = entries,
             Err(error) => self.error = Some(error),
         }
+    }
+
+    fn handle_explorer_filter_key(
+        &mut self,
+        event: &KeyDownEvent,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        match event.keystroke.key.as_str() {
+            "escape" | "enter" => {
+                if event.keystroke.key == "escape" {
+                    self.explorer_filter.clear();
+                }
+                self.focus_handle.focus(window);
+            }
+            "backspace" => {
+                if event.keystroke.modifiers.platform {
+                    self.explorer_filter.clear();
+                } else {
+                    self.explorer_filter.pop();
+                }
+            }
+            _ if !event.keystroke.modifiers.control
+                && !event.keystroke.modifiers.platform
+                && !event.keystroke.modifiers.function =>
+            {
+                if let Some(text) = event.keystroke.key_char.as_deref()
+                    && !text.chars().any(char::is_control)
+                {
+                    self.explorer_filter.push_str(text);
+                }
+            }
+            _ => return,
+        }
+        cx.stop_propagation();
+        cx.notify();
     }
 
     fn toggle_directory(&mut self, relative_path: PathBuf) {
@@ -421,4 +575,103 @@ fn file_menu_item(label: &'static str, shortcut: &'static str) -> gpui::Stateful
                 .text_color(rgb(MUTED))
                 .child(shortcut),
         )
+}
+
+fn explorer_header_button(
+    id: impl Into<gpui::ElementId>,
+    label: &'static str,
+) -> gpui::Stateful<gpui::Div> {
+    div()
+        .id(id)
+        .h_6()
+        .min_w(px(22.0))
+        .px_1()
+        .flex()
+        .items_center()
+        .justify_center()
+        .rounded_md()
+        .cursor(CursorStyle::PointingHand)
+        .font_family("monospace")
+        .text_xs()
+        .text_color(rgb(MUTED))
+        .hover(|style| style.bg(rgb(SURFACE_HOVER)).text_color(rgb(TEXT)))
+        .child(label)
+}
+
+fn explorer_file_badge(entry: &FileTreeEntry) -> gpui::Div {
+    let extension = entry
+        .relative_path
+        .extension()
+        .and_then(|extension| extension.to_str())
+        .map(|extension| {
+            extension
+                .chars()
+                .take(4)
+                .collect::<String>()
+                .to_ascii_uppercase()
+        })
+        .filter(|extension| !extension.is_empty())
+        .unwrap_or_else(|| "FILE".to_string());
+    let (text, border) = if entry.is_video {
+        (0x8fb9dd, 0x355b78)
+    } else if entry.is_audio {
+        (0x7fd0ae, 0x32725a)
+    } else if entry.is_image {
+        (0xc3a9e8, 0x665184)
+    } else {
+        (0x8b8b94, 0x46464e)
+    };
+
+    div()
+        .w_full()
+        .h(px(18.0))
+        .flex()
+        .items_center()
+        .justify_center()
+        .rounded_sm()
+        .border_1()
+        .border_color(rgb(border))
+        .font_family("monospace")
+        .text_xs()
+        .text_color(rgb(text))
+        .child(extension)
+}
+
+fn explorer_metadata(entry: &FileTreeEntry, asset: Option<&MediaAsset>) -> Option<String> {
+    if let Some(asset) = asset
+        && asset.kind != MediaKind::Image
+        && asset.duration.is_finite()
+        && asset.duration > 0.0
+    {
+        return Some(format_explorer_duration(asset.duration));
+    }
+    entry.size_bytes.map(format_file_size)
+}
+
+fn format_explorer_duration(seconds: f64) -> String {
+    let total = seconds.round().max(0.0) as u64;
+    let hours = total / 3600;
+    let minutes = (total % 3600) / 60;
+    let seconds = total % 60;
+    if hours > 0 {
+        format!("{hours}:{minutes:02}:{seconds:02}")
+    } else {
+        format!("{minutes:02}:{seconds:02}")
+    }
+}
+
+fn format_file_size(bytes: u64) -> String {
+    const KIB: f64 = 1024.0;
+    const MIB: f64 = KIB * 1024.0;
+    const GIB: f64 = MIB * 1024.0;
+    let bytes = bytes as f64;
+    if bytes >= GIB {
+        format!("{:.1} GB", bytes / GIB)
+    } else if bytes >= MIB {
+        format!("{:.1} MB", bytes / MIB)
+    } else if bytes >= KIB {
+        format!("{:.0} KB", bytes / KIB)
+    } else {
+        format!("{bytes:.0} B")
+    }
 }

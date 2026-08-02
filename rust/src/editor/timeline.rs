@@ -233,6 +233,7 @@ impl Editor {
                     .flex_1()
                     .min_h_0()
                     .overflow_y_scroll()
+                    .track_scroll(&self.timeline_vertical_scroll)
                     .child(
                         div()
                             .h(px(
