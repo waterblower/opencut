@@ -43,6 +43,8 @@ const TRACK_HEADER_WIDTH: f32 = 190.0;
 const TRACK_HEIGHT: f32 = 74.0;
 const RULER_HEIGHT: f32 = 28.0;
 const SNAP_DISTANCE_PX: f32 = 8.0;
+const MIN_TIMELINE_PIXELS_PER_SECOND: f32 = 24.0;
+const MAX_TIMELINE_PIXELS_PER_SECOND: f32 = 240.0;
 
 const BACKGROUND: u32 = 0x080809;
 const PANEL: u32 = 0x0d0d0f;
@@ -1097,7 +1099,10 @@ impl Editor {
     }
 
     fn zoom(&mut self, factor: f32) {
-        self.pixels_per_second = (self.pixels_per_second * factor).clamp(24.0, 240.0);
+        self.pixels_per_second = (self.pixels_per_second * factor).clamp(
+            MIN_TIMELINE_PIXELS_PER_SECOND,
+            MAX_TIMELINE_PIXELS_PER_SECOND,
+        );
     }
 
     fn log_timeline_trackpad_scroll(
