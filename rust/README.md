@@ -52,18 +52,28 @@ cargo editor
 Current editor capabilities:
 
 - Open any ordinary folder as a project; supported media appears in a live file
-  tree without an import or copy step.
+  tree without an import or copy step. Filter the complete folder tree, preview
+  media in place, or drag media directly onto compatible timeline tracks.
 - Video tracks accept video and still images; audio tracks accept video or audio.
-- Clips can be positioned, moved between compatible tracks, trimmed, split,
-  duplicated, and deleted without changing source files.
+- Select clips individually, with Command-click, or by drawing a selection
+  rectangle. Multi-clip move, duplicate, copy, cut, paste, and delete operations
+  preserve relative timing and are recorded as single undo steps.
+- Selection, blade, and trim tools support positioning clips, moving them between
+  compatible tracks, splitting them, and trimming their source ranges without
+  changing source files. Invalid moves show collision or compatibility feedback.
 - Multi-track preview includes layered video/images and synchronized overlapping
   audio, with per-track visibility, mute, lock, reorder, creation, and deletion.
-- The timeline provides horizontal zoom and scrolling, vertical track scrolling,
-  a draggable playhead and snapping to the playhead and clip
-  edges.
-- First-frame thumbnails and audio waveforms are generated in the background.
-- Undo/redo, clip metadata, fullscreen preview, and the GPUI element inspector
-  are available in the editor UI.
+- The frame-based timeline supports horizontal scroll and zoom (including macOS
+  trackpad pinch), vertical track scrolling, frame ticks at high zoom, frame
+  stepping, a draggable playhead, and optional snapping with visible guides for
+  the playhead and clip edges.
+- First-frame thumbnails and multiresolution waveform peak caches are generated
+  in the background. Each clip renders only its selected source range.
+- Undo/redo, clip metadata, fullscreen preview, and a docked GPUI element
+  inspector with render FPS are available in the editor UI.
+- The project model stores default video transform properties (position, scale,
+  rotation, and opacity) and audio properties (gain, mute, and stereo pan).
+  Property controls and preview/export application are still under development.
 - Export composites visible visual tracks, mixes unmuted audio, and writes an
   H.264/AAC MP4 directly through `ffmpeg-next`.
 
@@ -77,9 +87,12 @@ Supported file extensions:
 | --- | --- |
 | `Space` | Play or pause |
 | `Left` / `Right` | Move the playhead backward or forward one project frame |
-| `Command-B` | Split the selected clip at the playhead |
-| `Backspace` / `Delete` | Delete the selected clip |
-| `Command-D` | Duplicate the selected clip |
+| `V` / `B` / `T` | Activate the selection, blade, or trim tool |
+| `Command-click` | Add or remove a clip from the current selection |
+| `Command-B` | Split every compatible selected clip at the playhead |
+| `Backspace` / `Delete` | Delete the selected clips |
+| `Command-D` | Duplicate the selected clips |
+| `Command-C` / `Command-X` / `Command-V` | Copy / cut / paste selected clips |
 | `Command-Z` / `Command-Shift-Z` | Undo / redo |
 | `F` / `Esc` | Enter / exit fullscreen preview |
 | `Option-Command-I` | Toggle the GPUI inspector |
@@ -94,7 +107,7 @@ project folder, so the media and project file can be moved, backed up, or
 committed together. The last opened folder is stored locally in
 `data/editor-settings.json`.
 
-Disposable thumbnails and waveforms are stored in
+Disposable thumbnails and multiresolution `.ocwf` waveform peak caches are stored in
 `<project folder>/.opencut/cache`; its generated `.gitignore` keeps the cache
 out of version control. Source media is referenced in place and never rewritten.
 
