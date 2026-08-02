@@ -49,6 +49,13 @@
       `load_timeline_position`, or change `visual_clip_at_time` so those cases are
       intentionally returned and handled there.
 
+### P3 — future scalability
+
+- [ ] Revisit snapshot-based undo history only if project snapshots become
+      materially expensive. Measure memory usage and checkpoint latency first;
+      then consider structural sharing, deltas, or an operation log while
+      preserving atomic undo for compound edits.
+
 ## Editing modes
 
 Expand the current move, trim, split, duplicate, and delete operations into a
@@ -60,7 +67,6 @@ consistent editing toolset.
 - [x] Allow project files to be dragged from the asset explorer onto compatible
       tracks at a chosen timeline position, with a visible placement preview and
       collision feedback.
-- [ ] Make every compound edit create one atomic undo/redo transaction.
 - [ ] Add linked video/audio clip groups so related clips select, move, trim,
       split, and delete together.
 - [ ] Add explicit link and unlink commands.
