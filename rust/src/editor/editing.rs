@@ -1,5 +1,53 @@
 use super::*;
 
+#[derive(Clone)]
+pub(super) struct ClipClipboard {
+    clips: Vec<TimelineClip>,
+    selection_start: TimelineTime,
+    primary_index: Option<usize>,
+}
+
+impl ClipClipboard {
+    fn from_selection(
+        project: &Project,
+        selected_clip_ids: &HashSet<u64>,
+        primary_clip_id: Option<u64>,
+    ) -> Option<Self> {
+        let clips = project
+            .clips
+            .iter()
+            .filter(|clip| selected_clip_ids.contains(&clip.id))
+            .cloned()
+            .collect::<Vec<_>>();
+        if clips.is_empty() || clips.len() != selected_clip_ids.len() {
+            return None;
+        }
+        let selection_start = clips
+            .iter()
+            .map(|clip| clip.timeline_start)
+            .min()
+            .unwrap_or(TimelineTime::ZERO);
+        let primary_index =
+            primary_clip_id.and_then(|clip_id| clips.iter().position(|clip| clip.id == clip_id));
+        Some(Self {
+            clips,
+            selection_start,
+            primary_index,
+        })
+    }
+
+    fn clips_at(&self, position: TimelineTime) -> Vec<TimelineClip> {
+        self.clips
+            .iter()
+            .cloned()
+            .map(|mut clip| {
+                clip.timeline_start = position + clip.timeline_start - self.selection_start;
+                clip
+            })
+            .collect()
+    }
+}
+
 impl Editor {
     pub(super) fn append_asset_clip(&mut self, asset_id: u64) {
         self.checkpoint();
@@ -144,10 +192,82 @@ impl Editor {
         if self.selected_clip_ids.is_empty() || !self.selected_clips_editable() {
             return;
         }
+        let clip_ids = self.selected_clip_ids.clone();
         self.checkpoint();
+        self.remove_clips(&clip_ids);
+    }
+
+    pub(super) fn copy_selected_clips(&mut self) {
+        let Some(clipboard) = ClipClipboard::from_selection(
+            &self.project,
+            &self.selected_clip_ids,
+            self.selected_clip_id,
+        ) else {
+            return;
+        };
+        let count = clipboard.clips.len();
+        self.clip_clipboard = Some(clipboard);
+        self.error = None;
+        self.status = Some(format!("Copied {count} clip{}.", plural_suffix(count)));
+    }
+
+    pub(super) fn cut_selected_clips(&mut self) {
+        if self.selected_clip_ids.is_empty() {
+            return;
+        }
+        if !self.selected_clips_editable() {
+            self.error = Some("Cannot cut clips from a locked track.".to_string());
+            return;
+        }
+        let Some(clipboard) = ClipClipboard::from_selection(
+            &self.project,
+            &self.selected_clip_ids,
+            self.selected_clip_id,
+        ) else {
+            return;
+        };
+        let count = clipboard.clips.len();
+        let clip_ids = self.selected_clip_ids.clone();
+        self.checkpoint();
+        self.clip_clipboard = Some(clipboard);
+        self.remove_clips(&clip_ids);
+        self.error = None;
+        self.status = Some(format!("Cut {count} clip{}.", plural_suffix(count)));
+    }
+
+    pub(super) fn paste_clips(&mut self) {
+        let Some(clipboard) = self.clip_clipboard.clone() else {
+            return;
+        };
+        let mut clips = clipboard.clips_at(self.playhead);
+        if let Some(reason) = clipboard_paste_error(&self.project, &clips) {
+            self.error = Some(format!("Cannot paste clips: {reason}."));
+            return;
+        }
+
+        self.checkpoint();
+        for clip in &mut clips {
+            clip.id = self.take_id();
+        }
+        let count = clips.len();
+        self.selected_clip_ids = clips.iter().map(|clip| clip.id).collect();
+        self.selected_clip_id = clipboard
+            .primary_index
+            .and_then(|index| clips.get(index))
+            .or_else(|| clips.first())
+            .map(|clip| clip.id);
+        self.project.clips.extend(clips);
+        self.preview_target = PreviewTarget::Timeline;
+        self.error = None;
+        self.status = Some(format!("Pasted {count} clip{}.", plural_suffix(count)));
+        self.save_project();
+        self.load_timeline_position(self.playhead, false);
+    }
+
+    fn remove_clips(&mut self, clip_ids: &HashSet<u64>) {
         self.project
             .clips
-            .retain(|clip| !self.selected_clip_ids.contains(&clip.id));
+            .retain(|clip| !clip_ids.contains(&clip.id));
         self.select_only_clip(None);
         self.preview_target = PreviewTarget::Timeline;
         self.video = None;
@@ -561,5 +681,119 @@ impl Editor {
         let id = self.next_id;
         self.next_id += 1;
         id
+    }
+}
+
+fn clipboard_paste_error(project: &Project, clips: &[TimelineClip]) -> Option<&'static str> {
+    if clips.is_empty() {
+        return Some("the clipboard is empty");
+    }
+    for clip in clips {
+        if clip.timeline_start < TimelineTime::ZERO {
+            return Some("a clip would be placed before the timeline start");
+        }
+        if clip.duration() < TimelineTime::ONE_FRAME {
+            return Some("a clip has an invalid duration");
+        }
+        let Some(track) = project.track(clip.track_id) else {
+            return Some("an original destination track no longer exists");
+        };
+        if track.locked {
+            return Some("an original destination track is locked");
+        }
+        let Some(asset) = clip.asset_id.and_then(|asset_id| project.asset(asset_id)) else {
+            return Some("source media is no longer available");
+        };
+        let compatible = match track.kind {
+            TrackKind::Video => asset.kind != MediaKind::Audio,
+            TrackKind::Audio => asset.has_audio,
+        };
+        if !compatible {
+            return Some("a clip is incompatible with its original track");
+        }
+    }
+
+    for (index, clip) in clips.iter().enumerate() {
+        if clips[index + 1..].iter().any(|other| {
+            clip.track_id == other.track_id
+                && clip.timeline_start < other.timeline_end()
+                && other.timeline_start < clip.timeline_end()
+        }) {
+            return Some("the copied clips would overlap each other");
+        }
+        if project.clips.iter().any(|other| {
+            clip.track_id == other.track_id
+                && clip.timeline_start < other.timeline_end()
+                && other.timeline_start < clip.timeline_end()
+        }) {
+            return Some("a copied clip would overlap an existing clip");
+        }
+    }
+    None
+}
+
+fn plural_suffix(count: usize) -> &'static str {
+    if count == 1 { "" } else { "s" }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn audio_asset(id: u64) -> MediaAsset {
+        MediaAsset {
+            id,
+            kind: MediaKind::Audio,
+            path: PathBuf::from("audio.mp3"),
+            name: "Audio".to_string(),
+            duration: 10.0,
+            width: 0,
+            height: 0,
+            framerate: 0.0,
+            frame_rate_numerator: 0,
+            frame_rate_denominator: 0,
+            codec: "mp3".to_string(),
+            has_audio: true,
+        }
+    }
+
+    fn audio_clip(id: u64, start: i64, duration: i64) -> TimelineClip {
+        TimelineClip {
+            id,
+            track_id: 2,
+            asset_id: Some(100),
+            timeline_start: TimelineTime::from_frames(start),
+            source_in: TimelineTime::ZERO,
+            source_out: TimelineTime::from_frames(duration),
+        }
+    }
+
+    #[test]
+    fn clipboard_preserves_relative_timing_tracks_and_primary_selection() {
+        let mut project = Project::default();
+        project.assets.push(audio_asset(100));
+        project.clips = vec![audio_clip(10, 20, 8), audio_clip(11, 40, 12)];
+        let selected = HashSet::from([10, 11]);
+        let clipboard = ClipClipboard::from_selection(&project, &selected, Some(11)).unwrap();
+
+        let pasted = clipboard.clips_at(TimelineTime::from_frames(100));
+        assert_eq!(pasted[0].timeline_start, TimelineTime::from_frames(100));
+        assert_eq!(pasted[1].timeline_start, TimelineTime::from_frames(120));
+        assert_eq!(pasted[0].track_id, 2);
+        assert_eq!(pasted[1].track_id, 2);
+        assert_eq!(clipboard.primary_index, Some(1));
+    }
+
+    #[test]
+    fn clipboard_paste_rejects_the_complete_selection_on_collision() {
+        let mut project = Project::default();
+        project.assets.push(audio_asset(100));
+        project.clips = vec![audio_clip(20, 105, 10)];
+        let candidates = vec![audio_clip(10, 100, 8), audio_clip(11, 120, 12)];
+
+        assert_eq!(
+            clipboard_paste_error(&project, &candidates),
+            Some("a copied clip would overlap an existing clip")
+        );
     }
 }
