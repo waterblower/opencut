@@ -7,6 +7,7 @@ use gpui::{
 use std::{
     collections::{HashMap, HashSet},
     path::PathBuf,
+    sync::Arc,
     time::{Duration, Instant},
 };
 
@@ -139,6 +140,7 @@ pub(crate) struct Editor {
     preview_target: PreviewTarget,
     media_cache_jobs: HashSet<u64>,
     media_cache_ready: HashSet<u64>,
+    waveform_cache: HashMap<u64, Arc<media_cache::WaveformData>>,
     last_tree_scan: Instant,
     video: Option<Video>,
     standalone_audio: Option<AudioPreview>,
@@ -218,6 +220,7 @@ impl Editor {
             preview_target: PreviewTarget::Timeline,
             media_cache_jobs: HashSet::new(),
             media_cache_ready: HashSet::new(),
+            waveform_cache: HashMap::new(),
             last_tree_scan: Instant::now(),
             video: None,
             standalone_audio: None,
@@ -363,6 +366,7 @@ impl Editor {
         self.audio_previews.clear();
         self.media_cache_jobs.clear();
         self.media_cache_ready.clear();
+        self.waveform_cache.clear();
         self.loaded_clip_id = None;
         self.still_playback_started = None;
         self.playing = false;
@@ -395,43 +399,66 @@ impl Editor {
         }
     }
 
-    /// Refreshes which assets already have artwork on disk and starts one missing job.
+    /// Refreshes derived media caches and starts one missing generation/load job.
     ///
     /// Runs on the file-tree tick rather than during rendering so the timeline can read
     /// `media_cache_ready` without touching the filesystem on every frame.
     fn schedule_missing_media_cache(&mut self, cx: &mut Context<Self>) {
+        let referenced_asset_ids = self
+            .project
+            .clips
+            .iter()
+            .filter_map(|clip| clip.asset_id)
+            .collect::<HashSet<_>>();
         self.media_cache_ready = self
             .project
             .assets
             .iter()
-            .filter(|asset| media_cache::cache_is_ready(&self.project_root, asset))
+            .filter(|asset| {
+                referenced_asset_ids.contains(&asset.id)
+                    && media_cache::cache_is_ready(&self.project_root, asset)
+            })
             .map(|asset| asset.id)
             .collect();
+        self.waveform_cache.retain(|asset_id, _| {
+            referenced_asset_ids.contains(asset_id) && self.media_cache_ready.contains(asset_id)
+        });
         let Some(asset) = self
             .project
             .assets
             .iter()
             .find(|asset| {
-                !self.media_cache_jobs.contains(&asset.id)
-                    && !self.media_cache_ready.contains(&asset.id)
+                referenced_asset_ids.contains(&asset.id)
+                    && !self.media_cache_jobs.contains(&asset.id)
+                    && (!self.media_cache_ready.contains(&asset.id)
+                        || asset.has_audio && !self.waveform_cache.contains_key(&asset.id))
             })
             .cloned()
         else {
             return;
         };
-        self.media_cache_jobs.insert(asset.id);
+        let asset_id = asset.id;
+        self.media_cache_jobs.insert(asset_id);
         let project_root = self.project_root.clone();
         cx.spawn(async move |editor, cx| {
             let cache_root = project_root.clone();
             let result = cx
                 .background_executor()
-                .spawn(async move { media_cache::generate(&cache_root, &asset) })
+                .spawn(async move { media_cache::prepare(&cache_root, &asset) })
                 .await;
             editor
                 .update(cx, |editor, cx| {
                     if editor.project_root == project_root {
-                        if let Err(error) = result {
-                            eprintln!("Media cache: {error}");
+                        editor.media_cache_jobs.remove(&asset_id);
+                        match result {
+                            Ok(Some(waveform)) => {
+                                editor.waveform_cache.insert(asset_id, Arc::new(waveform));
+                                editor.media_cache_ready.insert(asset_id);
+                            }
+                            Ok(None) => {
+                                editor.media_cache_ready.insert(asset_id);
+                            }
+                            Err(error) => eprintln!("Media cache: {error}"),
                         }
                         cx.notify();
                     }
