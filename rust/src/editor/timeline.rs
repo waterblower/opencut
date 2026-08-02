@@ -97,11 +97,18 @@ impl Editor {
             .min_h_0()
             .overflow_y_scroll()
             .track_scroll(&self.timeline_vertical_scroll)
+            .on_mouse_down(
+                MouseButton::Left,
+                cx.listener(|editor, event: &MouseDownEvent, window, cx| {
+                    editor.begin_marquee_selection(event, window, cx);
+                }),
+            )
             .child(
                 div()
                     .h(px(
                         RULER_HEIGHT + self.project.tracks.len() as f32 * TRACK_HEIGHT
                     ))
+                    .min_h_full()
                     .w_full()
                     .flex()
                     .child(
@@ -249,6 +256,7 @@ impl Editor {
                 MouseButton::Left,
                 cx.listener(|editor, event: &MouseDownEvent, _, cx| {
                     editor.begin_playhead_scrub(event);
+                    cx.stop_propagation();
                     cx.notify();
                 }),
             )

@@ -908,6 +908,9 @@ impl Editor {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        if f32::from(event.position.x) < TRACK_HEADER_WIDTH {
+            return;
+        }
         let (x, y) = Self::timeline_pointer_position(
             event.position.x.into(),
             event.position.y.into(),

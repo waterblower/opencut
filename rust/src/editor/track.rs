@@ -117,12 +117,6 @@ impl Editor {
             } else {
                 0x0d0d0f
             }))
-            .on_mouse_down(
-                MouseButton::Left,
-                cx.listener(|editor, event: &MouseDownEvent, window, cx| {
-                    editor.begin_marquee_selection(event, window, cx);
-                }),
-            )
             .children(clips)
             .into_any_element()
     }
