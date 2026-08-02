@@ -7,6 +7,32 @@ const TICK_STEPS: [f64; 10] = [1.0, 2.0, 5.0, 10.0, 15.0, 30.0, 60.0, 300.0, 600
 
 impl Editor {
     pub(super) fn timeline(&self, cx: &mut Context<Self>) -> gpui::AnyElement {
+        let frames_per_second = self.project.settings.frame_rate.frames_per_second();
+
+        div()
+            .id("editor-timeline")
+            .h(px(TIMELINE_HEIGHT))
+            .flex_shrink_0()
+            .flex()
+            .flex_col()
+            .border_t_1()
+            .border_color(rgb(BORDER))
+            .bg(rgb(0x0a0a0c))
+            .on_mouse_move(cx.listener(Self::update_trim))
+            .on_mouse_move(cx.listener(Self::update_clip_move))
+            .on_mouse_move(cx.listener(Self::update_playhead_scrub))
+            .on_mouse_up(MouseButton::Left, cx.listener(Self::finish_trim))
+            .on_mouse_up(MouseButton::Left, cx.listener(Self::finish_clip_move))
+            .on_mouse_up(MouseButton::Left, cx.listener(Self::finish_playhead_scrub))
+            .on_mouse_up_out(MouseButton::Left, cx.listener(Self::finish_trim))
+            .on_mouse_up_out(MouseButton::Left, cx.listener(Self::finish_clip_move))
+            .on_mouse_up_out(MouseButton::Left, cx.listener(Self::finish_playhead_scrub))
+            .child(self.timeline_toolbar(frames_per_second, cx))
+            .child(self.timeline_tracks_container(cx))
+            .into_any_element()
+    }
+
+    fn timeline_tracks_container(&self, cx: &mut Context<Self>) -> gpui::AnyElement {
         let duration = self
             .project
             .seconds(self.project.timeline_duration())
@@ -97,7 +123,6 @@ impl Editor {
                     }))
             })
             .collect::<Vec<_>>();
-
         let track_headers = self
             .project
             .tracks
@@ -116,130 +141,101 @@ impl Editor {
             TIMELINE_PADDING + self.project.seconds(self.playhead) as f32 * self.pixels_per_second;
 
         div()
-            .id("editor-timeline")
-            .h(px(TIMELINE_HEIGHT))
-            .flex_shrink_0()
-            .flex()
-            .flex_col()
-            .border_t_1()
-            .border_color(rgb(BORDER))
-            .bg(rgb(0x0a0a0c))
-            .on_mouse_move(cx.listener(Self::update_trim))
-            .on_mouse_move(cx.listener(Self::update_clip_move))
-            .on_mouse_move(cx.listener(Self::update_playhead_scrub))
-            .on_mouse_up(MouseButton::Left, cx.listener(Self::finish_trim))
-            .on_mouse_up(MouseButton::Left, cx.listener(Self::finish_clip_move))
-            .on_mouse_up(MouseButton::Left, cx.listener(Self::finish_playhead_scrub))
-            .on_mouse_up_out(MouseButton::Left, cx.listener(Self::finish_trim))
-            .on_mouse_up_out(MouseButton::Left, cx.listener(Self::finish_clip_move))
-            .on_mouse_up_out(MouseButton::Left, cx.listener(Self::finish_playhead_scrub))
-            .child(self.timeline_toolbar(frames_per_second, cx))
+            .id("timeline-tracks-vertical-scroll")
+            .flex_1()
+            .min_h_0()
+            .overflow_y_scroll()
+            .track_scroll(&self.timeline_vertical_scroll)
             .child(
                 div()
-                    .id("timeline-tracks-vertical-scroll")
-                    .flex_1()
-                    .min_h_0()
-                    .overflow_y_scroll()
-                    .track_scroll(&self.timeline_vertical_scroll)
+                    .h(px(
+                        RULER_HEIGHT + self.project.tracks.len() as f32 * TRACK_HEIGHT
+                    ))
+                    .w_full()
+                    .flex()
                     .child(
                         div()
-                            .h(px(
-                                RULER_HEIGHT + self.project.tracks.len() as f32 * TRACK_HEIGHT,
-                            ))
-                            .w_full()
+                            .w(px(TRACK_HEADER_WIDTH))
+                            .h_full()
+                            .flex_shrink_0()
                             .flex()
+                            .flex_col()
+                            .border_r_1()
+                            .border_color(rgb(BORDER))
                             .child(
                                 div()
-                                    .w(px(TRACK_HEADER_WIDTH))
-                                    .h_full()
+                                    .h(px(RULER_HEIGHT))
                                     .flex_shrink_0()
-                                    .flex()
-                                    .flex_col()
-                                    .border_r_1()
-                                    .border_color(rgb(BORDER))
-                                    .child(
-                                        div()
-                                            .h(px(RULER_HEIGHT))
-                                            .flex_shrink_0()
-                                            .border_b_1()
-                                            .border_color(rgb(BORDER)),
-                                    )
-                                    .children(track_headers),
+                                    .border_b_1()
+                                    .border_color(rgb(BORDER)),
                             )
+                            .children(track_headers),
+                    )
+                    .child(
+                        div()
+                            .id("editor-timeline-scroll")
+                            .min_w_0()
+                            .flex_1()
+                            .h_full()
+                            .overflow_x_scroll()
+                            .track_scroll(&self.timeline_scroll)
+                            .on_scroll_wheel(cx.listener(Self::log_timeline_trackpad_scroll))
                             .child(
                                 div()
-                                    .id("editor-timeline-scroll")
-                                    .min_w_0()
-                                    .flex_1()
-                                    .h_full()
-                                    .overflow_x_scroll()
-                                    .track_scroll(&self.timeline_scroll)
-                                    .on_scroll_wheel(
-                                        cx.listener(Self::log_timeline_trackpad_scroll),
-                                    )
+                                    .relative()
+                                    .w(px(timeline_width))
+                                    .min_h_full()
                                     .child(
                                         div()
+                                            .id("timeline-seek-ruler")
                                             .relative()
-                                            .w(px(timeline_width))
-                                            .min_h_full()
-                                            .child(
-                                                div()
-                                                    .id("timeline-seek-ruler")
-                                                    .relative()
-                                                    .w_full()
-                                                    .h(px(RULER_HEIGHT))
-                                                    .border_b_1()
-                                                    .border_color(rgb(BORDER))
-                                                    .cursor(CursorStyle::PointingHand)
-                                                    .children(frame_ticks)
-                                                    .children(ruler_ticks)
-                                                    .children(marker_elements)
-                                                    .on_mouse_down(
-                                                        MouseButton::Left,
-                                                        cx.listener(
-                                                            |editor,
-                                                             event: &MouseDownEvent,
-                                                             _,
-                                                             cx| {
-                                                                editor.begin_playhead_scrub(event);
-                                                                cx.notify();
-                                                            },
-                                                        ),
-                                                    ),
+                                            .w_full()
+                                            .h(px(RULER_HEIGHT))
+                                            .border_b_1()
+                                            .border_color(rgb(BORDER))
+                                            .cursor(CursorStyle::PointingHand)
+                                            .children(frame_ticks)
+                                            .children(ruler_ticks)
+                                            .children(marker_elements)
+                                            .on_mouse_down(
+                                                MouseButton::Left,
+                                                cx.listener(
+                                                    |editor, event: &MouseDownEvent, _, cx| {
+                                                        editor.begin_playhead_scrub(event);
+                                                        cx.notify();
+                                                    },
+                                                ),
+                                            ),
+                                    )
+                                    .children(track_rows)
+                                    .child(
+                                        div()
+                                            .absolute()
+                                            .top_0()
+                                            .bottom_0()
+                                            .left(px(playhead_left))
+                                            .w(px(2.0))
+                                            .bg(rgb(ACCENT))
+                                            .cursor(CursorStyle::ResizeLeftRight)
+                                            .on_mouse_down(
+                                                MouseButton::Left,
+                                                cx.listener(
+                                                    |editor, event: &MouseDownEvent, _, cx| {
+                                                        editor.begin_playhead_scrub(event);
+                                                        cx.stop_propagation();
+                                                        cx.notify();
+                                                    },
+                                                ),
                                             )
-                                            .children(track_rows)
                                             .child(
                                                 div()
                                                     .absolute()
                                                     .top_0()
-                                                    .bottom_0()
-                                                    .left(px(playhead_left))
-                                                    .w(px(2.0))
-                                                    .bg(rgb(ACCENT))
-                                                    .cursor(CursorStyle::ResizeLeftRight)
-                                                    .on_mouse_down(
-                                                        MouseButton::Left,
-                                                        cx.listener(
-                                                            |editor,
-                                                             event: &MouseDownEvent,
-                                                             _,
-                                                             cx| {
-                                                                editor.begin_playhead_scrub(event);
-                                                                cx.stop_propagation();
-                                                                cx.notify();
-                                                            },
-                                                        ),
-                                                    )
-                                                    .child(
-                                                        div()
-                                                            .absolute()
-                                                            .top_0()
-                                                            .left(px(-4.0))
-                                                            .size_2()
-                                                            .bg(rgb(ACCENT)),
-                                                    ),
+                                                    .left(px(-4.0))
+                                                    .size_2()
+                                                    .bg(rgb(ACCENT)),
                                             ),
-                                    )
+                                    ),
                             ),
                     ),
             )
