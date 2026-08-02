@@ -2,7 +2,13 @@ use gpui::{
     AnyElement, App, Context, CursorStyle, DivInspectorState, Inspector, InspectorElementId,
     MouseButton, Window, div, prelude::*, px, rgb,
 };
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::{
+    sync::{
+        Mutex, OnceLock,
+        atomic::{AtomicBool, Ordering},
+    },
+    time::{Duration, Instant},
+};
 
 const PANEL: u32 = 0x111114;
 const SURFACE: u32 = 0x18181c;
@@ -15,6 +21,23 @@ const ACCENT: u32 = 0xf0b75e;
 const INSPECTOR_WIDTH_REMS: f32 = 30.0;
 
 static INSPECTOR_OPEN: AtomicBool = AtomicBool::new(false);
+static RENDER_FPS: OnceLock<Mutex<RenderFps>> = OnceLock::new();
+
+struct RenderFps {
+    frames: u32,
+    value: f32,
+    sample_started: Instant,
+}
+
+impl RenderFps {
+    fn new() -> Self {
+        Self {
+            frames: 0,
+            value: 0.0,
+            sample_started: Instant::now(),
+        }
+    }
+}
 
 pub(crate) fn init(cx: &mut App) {
     cx.register_inspector_element(|_: InspectorElementId, state: &DivInspectorState, _, _| {
@@ -24,7 +47,10 @@ pub(crate) fn init(cx: &mut App) {
 }
 
 pub(crate) fn toggle(window: &mut Window, cx: &mut App) {
-    INSPECTOR_OPEN.fetch_xor(true, Ordering::Relaxed);
+    let was_open = INSPECTOR_OPEN.fetch_xor(true, Ordering::Relaxed);
+    if !was_open {
+        reset_render_fps();
+    }
     window.toggle_inspector(cx);
 }
 
@@ -47,6 +73,7 @@ fn render_inspector(
     cx: &mut Context<Inspector>,
 ) -> AnyElement {
     INSPECTOR_OPEN.store(true, Ordering::Relaxed);
+    let render_fps = record_render_frame();
     let selected = inspector.active_element_id().cloned();
     let states = inspector.render_inspector_states(window, cx);
 
@@ -143,6 +170,7 @@ fn render_inspector(
                 .flex_col()
                 .gap_3()
                 .p_3()
+                .child(render_fps_section(render_fps))
                 .when_some(selected, |this, id| this.child(render_element_id(&id)))
                 .when(states.is_empty(), |this| {
                     this.child(
@@ -164,6 +192,67 @@ fn render_inspector(
                 .children(states),
         )
         .into_any_element()
+}
+
+fn record_render_frame() -> f32 {
+    let mut fps = RENDER_FPS
+        .get_or_init(|| Mutex::new(RenderFps::new()))
+        .lock()
+        .unwrap_or_else(|error| error.into_inner());
+    fps.frames = fps.frames.saturating_add(1);
+    let elapsed = fps.sample_started.elapsed();
+    if elapsed >= Duration::from_secs(1) {
+        fps.value = fps.frames as f32 / elapsed.as_secs_f32();
+        fps.frames = 0;
+        fps.sample_started = Instant::now();
+    }
+    fps.value
+}
+
+fn reset_render_fps() {
+    let mut fps = RENDER_FPS
+        .get_or_init(|| Mutex::new(RenderFps::new()))
+        .lock()
+        .unwrap_or_else(|error| error.into_inner());
+    *fps = RenderFps::new();
+}
+
+fn render_fps_section(render_fps: f32) -> gpui::Div {
+    section("RENDERING")
+        .child(
+            div()
+                .h(px(64.0))
+                .flex()
+                .items_center()
+                .justify_between()
+                .rounded_lg()
+                .border_1()
+                .border_color(rgb(BORDER))
+                .bg(rgb(0x0d0d10))
+                .px_4()
+                .child(
+                    div()
+                        .flex()
+                        .items_center()
+                        .gap_2()
+                        .child(div().size_2().rounded_full().bg(rgb(0x63d68b)))
+                        .child("Render FPS"),
+                )
+                .child(
+                    div()
+                        .font_family("monospace")
+                        .text_lg()
+                        .font_weight(gpui::FontWeight::SEMIBOLD)
+                        .text_color(rgb(ACCENT))
+                        .child(format!("{render_fps:.1}")),
+                ),
+        )
+        .child(
+            div()
+                .text_xs()
+                .text_color(rgb(MUTED))
+                .child("GPUI render passes per second"),
+        )
 }
 
 fn render_element_id(id: &InspectorElementId) -> AnyElement {
