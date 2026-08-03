@@ -11,6 +11,7 @@ use std::{
     time::{Duration, Instant},
 };
 
+mod clip_render_plan;
 mod editing;
 mod explorer;
 mod explorer_filter;

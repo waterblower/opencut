@@ -1,3 +1,4 @@
+use super::clip_render_plan::{resolve_audio_clip_render_plan, resolve_visual_clip_render_plan};
 use super::preview_transform::{transformed_image, transformed_video};
 use super::timeline_video::create_timeline_video;
 use super::*;
@@ -12,63 +13,6 @@ pub(super) enum PreviewTarget {
     VideoFile(PathBuf),
     AudioFile(PathBuf),
     ImageFile(PathBuf),
-}
-
-#[derive(Clone, Copy, Debug, PartialEq)]
-struct VisualLayerRect {
-    left: f32,
-    top: f32,
-    width: f32,
-    height: f32,
-}
-
-fn sanitized_video_properties(mut properties: VideoClipProperties) -> VideoClipProperties {
-    properties.position_x = finite_or(properties.position_x, 0.0);
-    properties.position_y = finite_or(properties.position_y, 0.0);
-    properties.scale = finite_or(properties.scale, 1.0).max(0.0);
-    properties.opacity = finite_or(properties.opacity, 1.0).clamp(0.0, 1.0);
-    properties.crop_left = finite_or(properties.crop_left, 0.0).clamp(0.0, 0.99);
-    properties.crop_right =
-        finite_or(properties.crop_right, 0.0).clamp(0.0, 0.99 - properties.crop_left);
-    properties.crop_top = finite_or(properties.crop_top, 0.0).clamp(0.0, 0.99);
-    properties.crop_bottom =
-        finite_or(properties.crop_bottom, 0.0).clamp(0.0, 0.99 - properties.crop_top);
-    properties
-}
-
-fn visual_layer_rect(
-    properties: VideoClipProperties,
-    project_width: u32,
-    project_height: u32,
-    surface_width: f32,
-    surface_height: f32,
-) -> VisualLayerRect {
-    let project_width = project_width.max(1) as f32;
-    let project_height = project_height.max(1) as f32;
-    let project_scale = (surface_width / project_width)
-        .min(surface_height / project_height)
-        .max(0.0);
-    let clip_scale = properties.scale as f32;
-    let width = project_width * project_scale * clip_scale;
-    let height = project_height * project_scale * clip_scale;
-    VisualLayerRect {
-        left: (surface_width - width) * 0.5 + properties.position_x as f32 * project_scale,
-        top: (surface_height - height) * 0.5 + properties.position_y as f32 * project_scale,
-        width,
-        height,
-    }
-}
-
-fn requires_rasterized_video(properties: VideoClipProperties) -> bool {
-    (properties.opacity - 1.0).abs() > 0.000_001
-        || properties.crop_left > 0.000_001
-        || properties.crop_right > 0.000_001
-        || properties.crop_top > 0.000_001
-        || properties.crop_bottom > 0.000_001
-}
-
-fn finite_or(value: f64, fallback: f64) -> f64 {
-    value.is_finite().then_some(value).unwrap_or(fallback)
 }
 
 impl Editor {
@@ -185,13 +129,21 @@ impl Editor {
         let Some(asset) = clip.asset_id.and_then(|id| self.project.asset(id)) else {
             return div().into_any_element();
         };
-        let properties = sanitized_video_properties(clip.video_properties);
-        if requires_rasterized_video(properties) {
+        let plan = resolve_visual_clip_render_plan(
+            clip.video_properties,
+            asset.width,
+            asset.height,
+            self.project.settings.width,
+            self.project.settings.height,
+            width as f64,
+            height as f64,
+        );
+        if plan.requires_rasterization() {
             return transformed_video(
                 clip.id,
                 self.project_root.join(&asset.path),
                 video_handle.clone(),
-                properties,
+                plan.properties,
                 self.project.settings.width,
                 self.project.settings.height,
                 width,
@@ -200,24 +152,18 @@ impl Editor {
             .into_any_element();
         }
 
-        let rect = visual_layer_rect(
-            properties,
-            self.project.settings.width,
-            self.project.settings.height,
-            width,
-            height,
-        );
+        let rect = plan.uncropped;
         div()
             .id(("editor-timeline-video-layer", clip.id))
             .absolute()
-            .left(px(rect.left))
-            .top(px(rect.top))
-            .w(px(rect.width))
-            .h(px(rect.height))
+            .left(px(rect.left as f32))
+            .top(px(rect.top as f32))
+            .w(px(rect.width as f32))
+            .h(px(rect.height as f32))
             .child(
                 video(video_handle.clone())
                     .id(("editor-preview-video", clip.id))
-                    .size(px(rect.width), px(rect.height))
+                    .size(px(rect.width as f32), px(rect.height as f32))
                     .buffer_capacity(3),
             )
             .into_any_element()
@@ -230,12 +176,23 @@ impl Editor {
         width: f32,
         height: f32,
     ) -> gpui::AnyElement {
-        let properties = sanitized_video_properties(clip.video_properties);
-        if requires_rasterized_video(properties) {
+        let Some(asset) = clip.asset_id.and_then(|id| self.project.asset(id)) else {
+            return div().into_any_element();
+        };
+        let plan = resolve_visual_clip_render_plan(
+            clip.video_properties,
+            asset.width,
+            asset.height,
+            self.project.settings.width,
+            self.project.settings.height,
+            width as f64,
+            height as f64,
+        );
+        if plan.requires_rasterization() {
             return transformed_image(
                 clip.id,
                 path,
-                properties,
+                plan.properties,
                 self.project.settings.width,
                 self.project.settings.height,
                 width,
@@ -244,21 +201,15 @@ impl Editor {
             .into_any_element();
         }
 
-        let rect = visual_layer_rect(
-            properties,
-            self.project.settings.width,
-            self.project.settings.height,
-            width,
-            height,
-        );
+        let rect = plan.uncropped;
         div()
             .id(("editor-timeline-image-layer", clip.id))
             .absolute()
-            .left(px(rect.left))
-            .top(px(rect.top))
-            .w(px(rect.width))
-            .h(px(rect.height))
-            .opacity(properties.opacity as f32)
+            .left(px(rect.left as f32))
+            .top(px(rect.top as f32))
+            .w(px(rect.width as f32))
+            .h(px(rect.height as f32))
+            .opacity(plan.opacity as f32)
             .child(img(path).size_full().object_fit(ObjectFit::Contain))
             .into_any_element()
     }
@@ -611,11 +562,13 @@ impl Editor {
             if !seamless_transition {
                 let _ = video.seek(source_position, accurate);
             }
-            let muted = self
+            let track_muted = self
                 .project
                 .track(clip.track_id)
                 .is_some_and(|track| track.muted);
-            video.set_muted(muted);
+            let audio_plan = resolve_audio_clip_render_plan(track_muted, clip.audio_properties);
+            video.set_volume(self.preview_volume * audio_plan.gain_linear);
+            video.set_muted(audio_plan.muted);
             video.set_paused(!play);
         }
         self.preview_refresh_ticks = 12;
@@ -636,24 +589,33 @@ impl Editor {
             .filter_map(|clip| {
                 let track = self.project.track(clip.track_id)?;
                 let asset = self.project.asset(clip.asset_id?)?;
-                if track.muted || !asset.has_audio {
+                if !asset.has_audio {
+                    return None;
+                }
+                let audio_plan = resolve_audio_clip_render_plan(track.muted, clip.audio_properties);
+                if audio_plan.muted {
                     return None;
                 }
                 let source_position = clip.source_in
                     + (position - clip.timeline_start).clamp(TimelineTime::ZERO, clip.duration());
                 let path = self.project_root.join(&asset.path);
                 let url = Url::from_file_path(path).ok()?;
-                Some((clip.id, self.project.audio_duration(source_position), url))
+                Some((
+                    clip.id,
+                    self.project.audio_duration(source_position),
+                    url,
+                    audio_plan,
+                ))
             })
             .collect::<Vec<_>>();
         let desired_ids = desired
             .iter()
-            .map(|(clip_id, _, _)| *clip_id)
+            .map(|(clip_id, _, _, _)| *clip_id)
             .collect::<HashSet<_>>();
         let mut seamless_transitions = HashSet::new();
 
         if play {
-            for (next_clip_id, _, _) in &desired {
+            for (next_clip_id, _, _, _) in &desired {
                 if self.audio_previews.contains_key(next_clip_id) {
                     continue;
                 }
@@ -679,13 +641,13 @@ impl Editor {
 
         self.audio_previews
             .retain(|clip_id, _| desired_ids.contains(clip_id));
-        for (clip_id, source_position, url) in desired {
+        for (clip_id, source_position, url, audio_plan) in desired {
             if let std::collections::hash_map::Entry::Vacant(entry) =
                 self.audio_previews.entry(clip_id)
             {
                 match AudioPreview::new(&url) {
                     Ok(preview) => {
-                        preview.set_volume(self.preview_volume);
+                        preview.set_volume(self.preview_volume * audio_plan.gain_linear);
                         preview.seek(source_position);
                         preview.set_playing(play);
                         entry.insert(preview);
@@ -697,6 +659,7 @@ impl Editor {
                 }
             }
             if let Some(preview) = self.audio_previews.get(&clip_id) {
+                preview.set_volume(self.preview_volume * audio_plan.gain_linear);
                 let expected = source_position;
                 if !seamless_transitions.contains(&clip_id)
                     && preview.position().abs_diff(expected) > Duration::from_millis(250)
@@ -1057,14 +1020,40 @@ impl PlaybackViewDelegate for Editor {
         }
         self.preview_volume = volume.clamp(0.0, 1.0);
         if let Some(video) = &self.video {
-            video.set_volume(self.preview_volume);
-            video.set_muted(self.preview_volume <= f64::EPSILON);
+            let audio_plan = if self.preview_target == PreviewTarget::Timeline {
+                self.loaded_clip_id
+                    .and_then(|clip_id| self.project.clip(clip_id))
+                    .map(|clip| {
+                        let track_muted = self
+                            .project
+                            .track(clip.track_id)
+                            .is_some_and(|track| track.muted);
+                        resolve_audio_clip_render_plan(track_muted, clip.audio_properties)
+                    })
+            } else {
+                None
+            };
+            let gain = audio_plan.map_or(1.0, |plan| plan.gain_linear);
+            let muted = audio_plan.is_some_and(|plan| plan.muted);
+            video.set_volume(self.preview_volume * gain);
+            video.set_muted(muted || self.preview_volume <= f64::EPSILON);
         }
         if let Some(audio) = &self.standalone_audio {
             audio.set_volume(self.preview_volume);
         }
-        for preview in self.audio_previews.values() {
-            preview.set_volume(self.preview_volume);
+        for (clip_id, preview) in &self.audio_previews {
+            let gain = self
+                .project
+                .clip(*clip_id)
+                .map(|clip| {
+                    let track_muted = self
+                        .project
+                        .track(clip.track_id)
+                        .is_some_and(|track| track.muted);
+                    resolve_audio_clip_render_plan(track_muted, clip.audio_properties).gain_linear
+                })
+                .unwrap_or(1.0);
+            preview.set_volume(self.preview_volume * gain);
         }
         cx.notify();
     }
@@ -1096,7 +1085,7 @@ mod tests {
 
     #[test]
     fn visual_layout_maps_project_position_and_scale_to_preview_pixels() {
-        let rect = visual_layer_rect(
+        let plan = resolve_visual_clip_render_plan(
             VideoClipProperties {
                 position_x: 100.0,
                 position_y: -50.0,
@@ -1105,36 +1094,45 @@ mod tests {
             },
             1920,
             1080,
+            1920,
+            1080,
             960.0,
             540.0,
         );
 
-        assert_eq!(
-            rect,
-            VisualLayerRect {
-                left: 290.0,
-                top: 110.0,
-                width: 480.0,
-                height: 270.0,
-            }
-        );
+        assert_eq!(plan.uncropped.left, 290.0);
+        assert_eq!(plan.uncropped.top, 110.0);
+        assert_eq!(plan.uncropped.width, 480.0);
+        assert_eq!(plan.uncropped.height, 270.0);
     }
 
     #[test]
     fn video_rasterization_is_reserved_for_opacity_and_crop() {
-        assert!(!requires_rasterized_video(VideoClipProperties {
-            position_x: 20.0,
-            position_y: -20.0,
-            scale: 1.5,
-            ..VideoClipProperties::default()
-        }));
-        assert!(requires_rasterized_video(VideoClipProperties {
-            opacity: 0.5,
-            ..VideoClipProperties::default()
-        }));
-        assert!(requires_rasterized_video(VideoClipProperties {
-            crop_left: 0.1,
-            ..VideoClipProperties::default()
-        }));
+        let plan_for = |properties| {
+            resolve_visual_clip_render_plan(properties, 1920, 1080, 1920, 1080, 960.0, 540.0)
+        };
+        assert!(
+            !plan_for(VideoClipProperties {
+                position_x: 20.0,
+                position_y: -20.0,
+                scale: 1.5,
+                ..VideoClipProperties::default()
+            })
+            .requires_rasterization()
+        );
+        assert!(
+            plan_for(VideoClipProperties {
+                opacity: 0.5,
+                ..VideoClipProperties::default()
+            })
+            .requires_rasterization()
+        );
+        assert!(
+            plan_for(VideoClipProperties {
+                crop_left: 0.1,
+                ..VideoClipProperties::default()
+            })
+            .requires_rasterization()
+        );
     }
 }
