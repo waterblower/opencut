@@ -306,7 +306,7 @@ fn file_properties(path: &Path, kind: &'static str) -> gpui::Div {
 }
 
 fn unsigned_size((width, height): (i32, i32)) -> Option<(u32, u32)> {
-    (width > 0 && height > 0).then(|| (width as u32, height as u32))
+    (width > 0 && height > 0).then_some((width as u32, height as u32))
 }
 
 fn properties_value(label: &str, value: String) -> gpui::Div {

@@ -1,3 +1,4 @@
+use super::clip_render_plan::resolve_visual_clip_render_plan;
 use super::*;
 use crate::video_backend::current_frame_rgba;
 use gpui::{
@@ -58,6 +59,7 @@ pub(super) fn transformed_image(
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 pub(super) fn transformed_video(
     clip_id: u64,
     path: PathBuf,
@@ -189,9 +191,7 @@ impl Element for TransformedMedia {
                     }
                 }
 
-                let Some(source) = state.source_frame.as_ref() else {
-                    return None;
-                };
+                let source = state.source_frame.as_ref()?;
                 let mut output = transform_frame(
                     source,
                     canvas_width,
@@ -244,43 +244,36 @@ fn transform_frame(
         return output;
     }
 
-    let project_width = project_width.max(1) as f64;
-    let project_height = project_height.max(1) as f64;
-    let canvas_width_f = canvas_width as f64;
-    let canvas_height_f = canvas_height as f64;
-    let project_scale = (canvas_width_f / project_width).min(canvas_height_f / project_height);
-    let fitted_scale = (project_width * project_scale / source.width() as f64)
-        .min(project_height * project_scale / source.height() as f64);
-    let clip_scale = finite_or(properties.scale, 1.0).max(0.0);
-    let scale = fitted_scale * clip_scale;
-    if scale <= f64::EPSILON {
+    let plan = resolve_visual_clip_render_plan(
+        properties,
+        source.width(),
+        source.height(),
+        project_width,
+        project_height,
+        canvas_width as f64,
+        canvas_height as f64,
+    );
+    if plan.hidden() {
         return output;
     }
 
-    let center_x = canvas_width_f * 0.5 + finite_or(properties.position_x, 0.0) * project_scale;
-    let center_y = canvas_height_f * 0.5 + finite_or(properties.position_y, 0.0) * project_scale;
-    let half_width = source.width() as f64 * scale * 0.5;
-    let half_height = source.height() as f64 * scale * 0.5;
-    let min_x = (center_x - half_width).floor().max(0.0) as u32;
-    let max_x = (center_x + half_width).ceil().min(canvas_width_f) as u32;
-    let min_y = (center_y - half_height).floor().max(0.0) as u32;
-    let max_y = (center_y + half_height).ceil().min(canvas_height_f) as u32;
-    let opacity = finite_or(properties.opacity, 1.0).clamp(0.0, 1.0);
-    let crop_left = finite_or(properties.crop_left, 0.0).clamp(0.0, 0.99);
-    let crop_right = finite_or(properties.crop_right, 0.0).clamp(0.0, 0.99 - crop_left);
-    let crop_top = finite_or(properties.crop_top, 0.0).clamp(0.0, 0.99);
-    let crop_bottom = finite_or(properties.crop_bottom, 0.0).clamp(0.0, 0.99 - crop_top);
-    let source_left = source.width() as f64 * crop_left;
-    let source_right = source.width() as f64 * (1.0 - crop_right);
-    let source_top = source.height() as f64 * crop_top;
-    let source_bottom = source.height() as f64 * (1.0 - crop_bottom);
+    let min_x = plan.visible.left.floor().max(0.0) as u32;
+    let max_x = (plan.visible.left + plan.visible.width)
+        .ceil()
+        .min(canvas_width as f64) as u32;
+    let min_y = plan.visible.top.floor().max(0.0) as u32;
+    let max_y = (plan.visible.top + plan.visible.height)
+        .ceil()
+        .min(canvas_height as f64) as u32;
+    let source_left = plan.crop.left as f64;
+    let source_right = source.width().saturating_sub(plan.crop.right) as f64;
+    let source_top = plan.crop.top as f64;
+    let source_bottom = source.height().saturating_sub(plan.crop.bottom) as f64;
 
     for y in min_y..max_y {
         for x in min_x..max_x {
-            let delta_x = x as f64 + 0.5 - center_x;
-            let delta_y = y as f64 + 0.5 - center_y;
-            let source_x = delta_x / scale + source.width() as f64 * 0.5 - 0.5;
-            let source_y = delta_y / scale + source.height() as f64 * 0.5 - 0.5;
+            let source_x = (x as f64 + 0.5 - plan.uncropped.left) / plan.source_scale - 0.5;
+            let source_y = (y as f64 + 0.5 - plan.uncropped.top) / plan.source_scale - 0.5;
             let sample_center_x = source_x + 0.5;
             let sample_center_y = source_y + 0.5;
             if sample_center_x < source_left
@@ -292,7 +285,7 @@ fn transform_frame(
             }
             if let Some(pixel) = bilinear_sample(source, source_x, source_y) {
                 let mut pixel = pixel;
-                pixel[3] = (pixel[3] as f64 * opacity).round() as u8;
+                pixel[3] = (pixel[3] as f64 * plan.opacity).round() as u8;
                 output.put_pixel(x, y, pixel);
             }
         }
@@ -333,10 +326,6 @@ fn rgba_to_bgra(image: &mut RgbaImage) {
     for pixel in image.pixels_mut() {
         pixel.0.swap(0, 2);
     }
-}
-
-fn finite_or(value: f64, fallback: f64) -> f64 {
-    value.is_finite().then_some(value).unwrap_or(fallback)
 }
 
 #[cfg(test)]
