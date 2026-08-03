@@ -3,9 +3,14 @@ use super::*;
 use std::{
     env,
     path::{Path, PathBuf},
+    sync::{
+        Arc,
+        atomic::{AtomicU32, Ordering},
+    },
 };
 
 const EXPORT_AUDIO_BIT_RATE: usize = 192_000;
+const EXPORT_PROGRESS_SCALE: u32 = 1_000;
 const RESOLUTION_PRESETS: [(u32, u32, &str); 6] = [
     (3840, 2160, "3840 × 2160 · 4K UHD"),
     (2560, 1440, "2560 × 1440 · QHD"),
@@ -32,6 +37,14 @@ pub(super) struct ExportDialogState {
     frame_rate_menu_open: bool,
     bitrate: Entity<ExplorerFilter>,
     destination: Entity<ExplorerFilter>,
+    status: ExportDialogStatus,
+}
+
+enum ExportDialogStatus {
+    Idle,
+    Exporting(Arc<AtomicU32>),
+    Complete(PathBuf),
+    Failed { message: String, progress: u32 },
 }
 
 struct ValidatedExport {
@@ -80,6 +93,7 @@ impl Editor {
             frame_rate_menu_open: false,
             bitrate,
             destination,
+            status: ExportDialogStatus::Idle,
         });
     }
 
@@ -102,6 +116,38 @@ impl Editor {
             .map(|validated| validated.options.video_bit_rate)
             .unwrap_or(DEFAULT_VIDEO_BIT_RATE);
         let start_enabled = validated.is_ok() && !self.exporting;
+        let idle_summary = validation_error.clone().unwrap_or_else(|| {
+            format!(
+                "Est. {} · H.264 video · AAC audio",
+                format_estimated_size(duration_seconds, video_bit_rate)
+            )
+        });
+        let (progress_fraction, progress_label, footer_message, footer_is_error) =
+            match &state.status {
+                ExportDialogStatus::Idle => (None, None, idle_summary, validation_error.is_some()),
+                ExportDialogStatus::Exporting(progress) => {
+                    let progress = load_export_progress(progress);
+                    let percentage = (progress * 100.0).round() as u32;
+                    (
+                        Some(progress),
+                        Some("Exporting…".to_string()),
+                        format!("Encoding timeline · {percentage}%"),
+                        false,
+                    )
+                }
+                ExportDialogStatus::Complete(path) => (
+                    Some(1.0),
+                    Some("Export complete".to_string()),
+                    format!("Exported {}", path.display()),
+                    false,
+                ),
+                ExportDialogStatus::Failed { message, progress } => (
+                    Some(*progress as f32 / EXPORT_PROGRESS_SCALE as f32),
+                    Some("Export failed".to_string()),
+                    message.clone(),
+                    true,
+                ),
+            };
 
         div()
             .id("export-dialog-overlay")
@@ -115,8 +161,10 @@ impl Editor {
             .on_mouse_down(
                 MouseButton::Left,
                 cx.listener(|editor, _, _, cx| {
-                    editor.export_dialog_state = None;
-                    cx.notify();
+                    if !editor.exporting {
+                        editor.export_dialog_state = None;
+                        cx.notify();
+                    }
                 }),
             )
             .child(
@@ -180,17 +228,25 @@ impl Editor {
                                     .items_center()
                                     .justify_center()
                                     .rounded_md()
-                                    .cursor(CursorStyle::PointingHand)
+                                    .cursor(if self.exporting {
+                                        CursorStyle::Arrow
+                                    } else {
+                                        CursorStyle::PointingHand
+                                    })
                                     .text_2xl()
                                     .text_color(rgb(MUTED))
-                                    .hover(|style| {
-                                        style.bg(rgb(SURFACE_HOVER)).text_color(rgb(TEXT))
+                                    .when(!self.exporting, |button| {
+                                        button.hover(|style| {
+                                            style.bg(rgb(SURFACE_HOVER)).text_color(rgb(TEXT))
+                                        })
                                     })
                                     .child("×")
-                                    .on_click(cx.listener(|editor, _, _, cx| {
-                                        editor.export_dialog_state = None;
-                                        cx.notify();
-                                    })),
+                                    .when(!self.exporting, |button| {
+                                        button.on_click(cx.listener(|editor, _, _, cx| {
+                                            editor.export_dialog_state = None;
+                                            cx.notify();
+                                        }))
+                                    }),
                             ),
                     )
                     .child(
@@ -240,6 +296,15 @@ impl Editor {
                                     ),
                             ),
                     )
+                    .when_some(progress_fraction, |dialog, progress| {
+                        dialog.child(export_progress_view(
+                            progress,
+                            progress_label
+                                .clone()
+                                .unwrap_or_else(|| "Exporting…".to_string()),
+                            footer_is_error,
+                        ))
+                    })
                     .child(
                         div()
                             .min_h(px(86.0))
@@ -256,18 +321,13 @@ impl Editor {
                                     .min_w_0()
                                     .font_family("monospace")
                                     .text_sm()
-                                    .text_color(if validation_error.is_some() {
+                                    .text_color(if footer_is_error {
                                         rgb(ERROR)
                                     } else {
                                         rgb(MUTED)
                                     })
                                     .text_ellipsis()
-                                    .child(validation_error.unwrap_or_else(|| {
-                                        format!(
-                                            "Est. {} · H.264 video · AAC audio",
-                                            format_estimated_size(duration_seconds, video_bit_rate)
-                                        )
-                                    })),
+                                    .child(footer_message),
                             )
                             .child(
                                 div()
@@ -275,19 +335,44 @@ impl Editor {
                                     .flex()
                                     .items_center()
                                     .gap_3()
-                                    .child(export_dialog_button("Cancel", false, true).on_click(
-                                        cx.listener(|editor, _, _, cx| {
-                                            editor.export_dialog_state = None;
-                                            cx.notify();
-                                        }),
-                                    ))
                                     .child(
-                                        export_dialog_button("Start export", true, start_enabled)
-                                            .when(start_enabled, |button| {
+                                        export_dialog_button(
+                                            if matches!(&state.status, ExportDialogStatus::Idle) {
+                                                "Cancel"
+                                            } else {
+                                                "Close"
+                                            },
+                                            false,
+                                            !self.exporting,
+                                        )
+                                        .when(
+                                            !self.exporting,
+                                            |button| {
+                                                button.on_click(cx.listener(|editor, _, _, cx| {
+                                                    editor.export_dialog_state = None;
+                                                    cx.notify();
+                                                }))
+                                            },
+                                        ),
+                                    )
+                                    .child(
+                                        export_dialog_button(
+                                            if self.exporting {
+                                                "Exporting…"
+                                            } else {
+                                                "Start export"
+                                            },
+                                            true,
+                                            start_enabled,
+                                        )
+                                        .when(
+                                            start_enabled,
+                                            |button| {
                                                 button.on_click(cx.listener(|editor, _, _, cx| {
                                                     editor.start_export(cx);
                                                 }))
-                                            }),
+                                            },
+                                        ),
                                     ),
                             ),
                     ),
@@ -469,33 +554,50 @@ impl Editor {
             }
         };
 
-        self.export_dialog_state = None;
         let path = validated.destination;
         let options = validated.options;
         let project = self.project.clone();
         let project_root = self.project_root.clone();
         let export_path = path.clone();
+        let progress = Arc::new(AtomicU32::new(0));
+        if let Some(state) = self.export_dialog_state.as_mut() {
+            state.resolution_menu_open = false;
+            state.frame_rate_menu_open = false;
+            state.status = ExportDialogStatus::Exporting(progress.clone());
+        }
         self.exporting = true;
         self.status = Some("Exporting…".to_string());
         self.error = None;
         cx.notify();
 
         cx.spawn(async move |editor, cx| {
+            let encoder_progress = progress.clone();
             let result = cx
                 .background_executor()
-                .spawn(
-                    async move { export_project(&project, &project_root, &export_path, options) },
-                )
+                .spawn(async move {
+                    export_project(&project, &project_root, &export_path, options, |fraction| {
+                        store_export_progress(&encoder_progress, fraction)
+                    })
+                })
                 .await;
             editor
                 .update(cx, |editor, cx| {
                     editor.exporting = false;
                     match result {
                         Ok(()) => {
+                            if let Some(state) = editor.export_dialog_state.as_mut() {
+                                state.status = ExportDialogStatus::Complete(path.clone());
+                            }
                             editor.status = Some(format!("Exported {}", path.display()));
                             editor.error = None;
                         }
                         Err(error) => {
+                            if let Some(state) = editor.export_dialog_state.as_mut() {
+                                state.status = ExportDialogStatus::Failed {
+                                    message: error.clone(),
+                                    progress: progress.load(Ordering::Relaxed),
+                                };
+                            }
                             editor.status = None;
                             editor.error = Some(error);
                         }
@@ -516,6 +618,55 @@ fn export_editable_field(label: &'static str, input: Entity<ExplorerFilter>) -> 
         .gap_2()
         .child(div().text_sm().text_color(rgb(MUTED)).child(label))
         .child(input)
+}
+
+fn export_progress_view(progress: f32, label: String, failed: bool) -> gpui::Div {
+    let progress = progress.clamp(0.0, 1.0);
+    div()
+        .px_8()
+        .pb_7()
+        .flex()
+        .flex_col()
+        .gap_3()
+        .child(
+            div()
+                .flex()
+                .items_center()
+                .justify_between()
+                .text_sm()
+                .child(label)
+                .child(
+                    div()
+                        .font_family("monospace")
+                        .text_color(if failed { rgb(ERROR) } else { rgb(MUTED) })
+                        .child(format!("{:.0}%", progress * 100.0)),
+                ),
+        )
+        .child(
+            div()
+                .h(px(6.0))
+                .w_full()
+                .overflow_hidden()
+                .rounded_full()
+                .bg(rgb(0x29292f))
+                .child(
+                    div()
+                        .h_full()
+                        .w(gpui::relative(progress))
+                        .rounded_full()
+                        .bg(if failed { rgb(ERROR) } else { rgb(ACCENT) }),
+                ),
+        )
+}
+
+fn load_export_progress(progress: &AtomicU32) -> f32 {
+    progress.load(Ordering::Relaxed).min(EXPORT_PROGRESS_SCALE) as f32
+        / EXPORT_PROGRESS_SCALE as f32
+}
+
+fn store_export_progress(progress: &AtomicU32, fraction: f32) {
+    let scaled = (fraction.clamp(0.0, 1.0) * EXPORT_PROGRESS_SCALE as f32).round() as u32;
+    progress.store(scaled, Ordering::Relaxed);
 }
 
 fn export_dropdown_field(

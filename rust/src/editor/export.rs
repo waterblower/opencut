@@ -36,10 +36,25 @@ pub(super) fn export_project(
     project_root: &Path,
     output: &Path,
     options: ExportOptions,
+    report_progress: impl FnMut(f32),
+) -> Result<(), String> {
+    if std::env::var_os("OPENCUT_FFMPEG_EXPORT").is_some() {
+        return export_project_ffmpeg(project, project_root, output, options, report_progress);
+    }
+    super::export_gstreamer::export_project(project, project_root, output, options, report_progress)
+}
+
+fn export_project_ffmpeg(
+    project: &Project,
+    project_root: &Path,
+    output: &Path,
+    options: ExportOptions,
+    mut report_progress: impl FnMut(f32),
 ) -> Result<(), String> {
     if project.clips.is_empty() {
         return Err("Add at least one clip before exporting.".to_string());
     }
+    report_progress(0.0);
     ffmpeg::init().map_err(|error| format!("could not initialize FFmpeg: {error}"))?;
 
     let duration = project.seconds(project.content_duration());
@@ -86,11 +101,8 @@ pub(super) fn export_project(
     if global_header {
         video_encoder.set_flags(codec::Flags::GLOBAL_HEADER);
     }
-    let mut video_options = Dictionary::new();
-    video_options.set("preset", "medium");
-    video_options.set("crf", "18");
     let video_encoder = video_encoder
-        .open_with(video_options)
+        .open_with(video_encoder_options())
         .map_err(|error| format!("could not open H.264 encoder: {error}"))?;
     let (video_stream_index, video_stream_time_base) = {
         let mut stream = output_context
@@ -158,10 +170,14 @@ pub(super) fn export_project(
         audio_time_base,
         audio_stream_time_base,
         &mut output_context,
+        duration,
+        &mut report_progress,
     )?;
     output_context
         .write_trailer()
-        .map_err(|error| format!("could not finish MP4 export: {error}"))
+        .map_err(|error| format!("could not finish MP4 export: {error}"))?;
+    report_progress(1.0);
+    Ok(())
 }
 
 fn build_video_graph(
@@ -309,6 +325,8 @@ fn encode_media(
     audio_encoder_time_base: Rational,
     audio_stream_time_base: Rational,
     output: &mut format::context::Output,
+    duration: f64,
+    report_progress: &mut dyn FnMut(f32),
 ) -> Result<(), String> {
     let video_filter_time_base = video_graph
         .get("video_out")
@@ -358,6 +376,10 @@ fn encode_media(
                 output,
             )?;
             audio_frame = pull_audio_frame(audio_graph);
+        }
+
+        if duration > 0.0 {
+            report_progress((video_time.min(audio_time) / duration).clamp(0.0, 0.999) as f32);
         }
     }
 
@@ -468,6 +490,14 @@ fn even(value: u32) -> u32 {
     value - value % 2
 }
 
+fn video_encoder_options<'a>() -> Dictionary<'a> {
+    let mut options = Dictionary::new();
+    options.set("preset", "medium");
+    // CRF selects constant-quality rate control and overrides the bitrate set
+    // on AVCodecContext. Omitting it leaves libx264 in average-bitrate mode.
+    options
+}
+
 fn decimal(value: f64) -> String {
     format!("{value:.6}")
 }
@@ -478,6 +508,13 @@ mod tests {
     use crate::editor::model::{
         AudioClipProperties, MediaAsset, TimelineTime, VideoClipProperties,
     };
+
+    #[test]
+    fn video_encoder_options_do_not_override_the_requested_bitrate() {
+        let options = video_encoder_options();
+        assert_eq!(options.get("preset"), Some("medium"));
+        assert_eq!(options.get("crf"), None);
+    }
 
     #[test]
     fn builds_and_reads_source_only_video_graph() {
@@ -570,13 +607,18 @@ mod tests {
             .unwrap()
             .as_nanos();
         let output = std::env::temp_dir().join(format!("opencut-api-export-{unique}.mp4"));
+        let mut progress = Vec::new();
         export_project(
             &project,
             project_root,
             &output,
             ExportOptions::from_project(&project),
+            |fraction| progress.push(fraction),
         )
         .unwrap();
+        assert_eq!(progress.first(), Some(&0.0));
+        assert_eq!(progress.last(), Some(&1.0));
+        assert!(progress.windows(2).all(|pair| pair[0] <= pair[1]));
         assert!(std::fs::metadata(&output).unwrap().len() > 0);
         std::fs::remove_file(output).unwrap();
     }

@@ -16,6 +16,7 @@ mod explorer;
 mod explorer_filter;
 mod export;
 mod export_dialog;
+mod export_gstreamer;
 mod media_cache;
 mod model;
 mod preview;
@@ -329,6 +330,7 @@ impl Editor {
                     }
                     let should_render = editor.playing
                         || file_preview_playing
+                        || editor.exporting
                         || editor.preview_refresh_ticks > 0
                         || refresh_tree
                         || pinch_zoomed

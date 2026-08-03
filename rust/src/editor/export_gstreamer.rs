@@ -1,0 +1,534 @@
+use super::{
+    export::ExportOptions,
+    model::{MediaKind, Project, TimelineClip, TrackKind},
+};
+use ges::prelude::*;
+use gstreamer as gst;
+use gstreamer_editing_services as ges;
+use gstreamer_pbutils as gst_pbutils;
+use std::{collections::HashMap, fs, path::Path, time::Duration};
+use url::Url;
+
+const AUDIO_BIT_RATE: i32 = 192_000;
+
+pub(super) fn export_project(
+    project: &Project,
+    project_root: &Path,
+    output: &Path,
+    options: ExportOptions,
+    mut report_progress: impl FnMut(f32),
+) -> Result<(), String> {
+    if project.clips.is_empty() {
+        return Err("Add at least one clip before exporting.".to_string());
+    }
+    ges::init()
+        .map_err(|error| format!("could not initialize GStreamer Editing Services: {error}"))?;
+    report_progress(0.0);
+
+    let timeline = build_timeline(project, project_root, options)?;
+    let profile = encoding_profile(options);
+    let _encoder_selection = EncoderSelection::for_export()?;
+    let pipeline = ges::Pipeline::new();
+    configure_encoder_bitrates(&pipeline, options.video_bit_rate);
+    pipeline
+        .set_timeline(&timeline)
+        .map_err(|error| format!("could not attach the export timeline: {error}"))?;
+
+    let temporary_output = TemporaryOutput::new(temporary_output_path(output))?;
+    let output_uri = Url::from_file_path(&temporary_output.path).map_err(|_| {
+        format!(
+            "could not convert {} to a file URL",
+            temporary_output.path.display()
+        )
+    })?;
+    pipeline
+        .set_render_settings(output_uri.as_str(), &profile)
+        .map_err(|error| format!("could not configure GStreamer export: {error}"))?;
+    pipeline
+        .set_mode(ges::PipelineFlags::RENDER)
+        .map_err(|error| format!("could not enable GStreamer render mode: {error}"))?;
+
+    let result = render_pipeline(
+        &pipeline,
+        project.duration(project.content_duration()),
+        &mut report_progress,
+    );
+    let _ = pipeline.set_state(gst::State::Null);
+    if let Err(error) = result {
+        return Err(error);
+    }
+
+    if output.is_file() {
+        fs::remove_file(output)
+            .map_err(|error| format!("could not replace {}: {error}", output.display()))?;
+    }
+    fs::rename(&temporary_output.path, output).map_err(|error| {
+        format!(
+            "could not move completed export to {}: {error}",
+            output.display()
+        )
+    })?;
+    report_progress(1.0);
+    Ok(())
+}
+
+fn build_timeline(
+    project: &Project,
+    project_root: &Path,
+    options: ExportOptions,
+) -> Result<ges::Timeline, String> {
+    let timeline = ges::Timeline::new_audio_video();
+    let video_caps = gst::Caps::builder("video/x-raw")
+        .field("width", options.width.max(2) as i32)
+        .field("height", options.height.max(2) as i32)
+        .field(
+            "framerate",
+            gst::Fraction::new(
+                options.frame_rate.numerator as i32,
+                options.frame_rate.denominator as i32,
+            ),
+        )
+        .field("pixel-aspect-ratio", gst::Fraction::new(1, 1))
+        .build();
+    for track in timeline.tracks() {
+        if track.track_type().contains(ges::TrackType::VIDEO) {
+            track.set_restriction_caps(&video_caps);
+        }
+        track.set_mixing(true);
+    }
+
+    let mut assets: HashMap<u64, ges::UriClipAsset> = HashMap::new();
+    for project_track in &project.tracks {
+        let layer = timeline.append_layer();
+        let mut clips = project.clips_on_track(project_track.id).collect::<Vec<_>>();
+        clips.sort_by_key(|clip| clip.timeline_start);
+        for clip in clips {
+            let asset = clip
+                .asset_id
+                .and_then(|id| project.asset(id))
+                .ok_or_else(|| format!("Clip {} has no source media.", clip.id))?;
+            let track_types =
+                exported_track_types(project_track, clip, asset.kind, asset.has_audio);
+            if track_types.is_empty() {
+                continue;
+            }
+            let uri_asset = if let Some(asset) = assets.get(&asset.id) {
+                asset.clone()
+            } else {
+                let source = project_root.join(&asset.path);
+                let uri = Url::from_file_path(&source)
+                    .map_err(|_| format!("could not convert {} to a file URL", source.display()))?;
+                let uri_asset = ges::UriClipAsset::request_sync(uri.as_str())
+                    .map_err(|error| format!("could not inspect {}: {error}", source.display()))?;
+                assets.insert(asset.id, uri_asset.clone());
+                uri_asset
+            };
+
+            let start = clock_time(project.duration(clip.timeline_start));
+            let inpoint = source_in(project, clip, asset.kind, track_types);
+            let duration = clock_time(project.duration(clip.duration()));
+            let ges_clip = layer
+                .add_asset(&uri_asset, start, inpoint, duration, track_types)
+                .map_err(|error| {
+                    format!(
+                        "could not add {} to the export timeline: {error}",
+                        asset.name
+                    )
+                })?;
+            if track_types.contains(ges::TrackType::AUDIO) {
+                let gain = if clip.audio_properties.muted {
+                    0.0
+                } else {
+                    10.0f64.powf(clip.audio_properties.gain_db / 20.0)
+                };
+                // URI clips expose the audio source's `volume` child property.
+                let _ = ges_clip.set_child_property("volume", &gain);
+            }
+        }
+    }
+    if !timeline.commit_sync() {
+        return Err("GStreamer could not commit the export timeline.".to_string());
+    }
+    Ok(timeline)
+}
+
+fn exported_track_types(
+    track: &super::model::TimelineTrack,
+    clip: &TimelineClip,
+    asset_kind: MediaKind,
+    has_audio: bool,
+) -> ges::TrackType {
+    let mut types = ges::TrackType::empty();
+    if track.kind == TrackKind::Video
+        && track.visible
+        && matches!(asset_kind, MediaKind::Video | MediaKind::Image)
+    {
+        types |= ges::TrackType::VIDEO;
+    }
+    if !track.muted && has_audio && !clip.audio_properties.muted {
+        types |= ges::TrackType::AUDIO;
+    }
+    types
+}
+
+fn source_in(
+    project: &Project,
+    clip: &TimelineClip,
+    asset_kind: MediaKind,
+    track_types: ges::TrackType,
+) -> gst::ClockTime {
+    if asset_kind == MediaKind::Image {
+        return gst::ClockTime::ZERO;
+    }
+    if track_types.contains(ges::TrackType::VIDEO) {
+        return clock_time(Duration::from_secs_f64(project.source_start_seconds(clip)));
+    }
+    clock_time(project.audio_duration(clip.source_in))
+}
+
+fn encoding_profile(options: ExportOptions) -> gst_pbutils::EncodingContainerProfile {
+    let container_caps = gst::Caps::builder("video/quicktime")
+        .field("variant", "iso")
+        .build();
+    let video_caps = gst::Caps::builder("video/x-h264")
+        .field("stream-format", "avc")
+        .field("alignment", "au")
+        .build();
+    let video_restriction = gst::Caps::builder("video/x-raw")
+        .field("width", options.width.max(2) as i32)
+        .field("height", options.height.max(2) as i32)
+        .field(
+            "framerate",
+            gst::Fraction::new(
+                options.frame_rate.numerator as i32,
+                options.frame_rate.denominator as i32,
+            ),
+        )
+        .field("pixel-aspect-ratio", gst::Fraction::new(1, 1))
+        .build();
+    let audio_caps = gst::Caps::builder("audio/mpeg")
+        .field("mpegversion", 4i32)
+        .field("stream-format", "raw")
+        .build();
+
+    let video = gst_pbutils::EncodingVideoProfile::builder(&video_caps)
+        .name("OpenCut H.264")
+        .restriction(&video_restriction)
+        .presence(1)
+        .build();
+    let audio = gst_pbutils::EncodingAudioProfile::builder(&audio_caps)
+        .name("OpenCut AAC")
+        .presence(1)
+        .build();
+    gst_pbutils::EncodingContainerProfile::builder(&container_caps)
+        .name("OpenCut MP4")
+        .add_profile(video)
+        .add_profile(audio)
+        .build()
+}
+
+fn configure_encoder_bitrates(pipeline: &ges::Pipeline, video_bit_rate: usize) {
+    let kilobits_per_second = (video_bit_rate / 1_000).clamp(1, u32::MAX as usize) as u32;
+    pipeline.connect_deep_element_added(move |_, _, element| {
+        let Some(factory) = element.factory() else {
+            return;
+        };
+        match factory.name().as_str() {
+            "x264enc" => {
+                element.set_property("bitrate", kilobits_per_second);
+                element.set_property_from_str("pass", "cbr");
+            }
+            "faac" => element.set_property("bitrate", AUDIO_BIT_RATE),
+            _ => {}
+        }
+    });
+}
+
+struct EncoderSelection {
+    previous_ranks: Vec<(gst::ElementFactory, gst::Rank)>,
+}
+
+impl EncoderSelection {
+    fn for_export() -> Result<Self, String> {
+        let x264 = gst::ElementFactory::find("x264enc").ok_or_else(|| {
+            "GStreamer H.264 encoder `x264enc` is unavailable; install the ugly plugin set."
+                .to_string()
+        })?;
+        let faac = gst::ElementFactory::find("faac").ok_or_else(|| {
+            "GStreamer AAC encoder `faac` is unavailable; install the bad plugin set.".to_string()
+        })?;
+        let mut previous_ranks = vec![(x264.clone(), x264.rank()), (faac.clone(), faac.rank())];
+        x264.set_rank(gst::Rank::PRIMARY + 100);
+        faac.set_rank(gst::Rank::PRIMARY + 100);
+        if let Some(atenc) = gst::ElementFactory::find("atenc") {
+            previous_ranks.push((atenc.clone(), atenc.rank()));
+            atenc.set_rank(gst::Rank::NONE);
+        }
+        for name in ["vtenc_h264", "vtenc_h264_hw"] {
+            if let Some(vtenc) = gst::ElementFactory::find(name) {
+                previous_ranks.push((vtenc.clone(), vtenc.rank()));
+                vtenc.set_rank(gst::Rank::NONE);
+            }
+        }
+        Ok(Self { previous_ranks })
+    }
+}
+
+impl Drop for EncoderSelection {
+    fn drop(&mut self) {
+        for (factory, rank) in self.previous_ranks.drain(..) {
+            factory.set_rank(rank);
+        }
+    }
+}
+
+fn render_pipeline(
+    pipeline: &ges::Pipeline,
+    duration: Duration,
+    report_progress: &mut impl FnMut(f32),
+) -> Result<(), String> {
+    pipeline
+        .set_state(gst::State::Playing)
+        .map_err(|error| format!("could not start GStreamer export: {error}"))?;
+    let bus = pipeline
+        .bus()
+        .ok_or_else(|| "GStreamer export pipeline has no message bus.".to_string())?;
+    let total = duration.as_secs_f64().max(f64::EPSILON);
+    loop {
+        if let Some(message) = bus.timed_pop(gst::ClockTime::from_mseconds(100)) {
+            match message.view() {
+                gst::MessageView::Eos(..) => return Ok(()),
+                gst::MessageView::Error(error) => {
+                    return Err(format!(
+                        "GStreamer export failed: {}{}",
+                        error.error(),
+                        error
+                            .debug()
+                            .map(|debug| format!(" ({debug})"))
+                            .unwrap_or_default()
+                    ));
+                }
+                _ => {}
+            }
+        }
+        let position = pipeline
+            .query_position::<gst::ClockTime>()
+            .map(|position| position.seconds_f64())
+            .unwrap_or(0.0);
+        report_progress((position / total).clamp(0.0, 0.999) as f32);
+    }
+}
+
+fn clock_time(duration: Duration) -> gst::ClockTime {
+    gst::ClockTime::from_nseconds(duration.as_nanos().min(u64::MAX as u128) as u64)
+}
+
+fn temporary_output_path(output: &Path) -> std::path::PathBuf {
+    let name = output
+        .file_stem()
+        .map(|name| name.to_string_lossy())
+        .unwrap_or_else(|| "export".into());
+    output.with_file_name(format!(".{name}.opencut-exporting.mp4"))
+}
+
+struct TemporaryOutput {
+    path: std::path::PathBuf,
+}
+
+impl TemporaryOutput {
+    fn new(path: std::path::PathBuf) -> Result<Self, String> {
+        if path.is_file() {
+            fs::remove_file(&path).map_err(|error| {
+                format!(
+                    "could not replace temporary export {}: {error}",
+                    path.display()
+                )
+            })?;
+        }
+        Ok(Self { path })
+    }
+}
+
+impl Drop for TemporaryOutput {
+    fn drop(&mut self) {
+        let _ = fs::remove_file(&self.path);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::editor::model::{
+        AudioClipProperties, MediaAsset, TimelineTime, VideoClipProperties,
+    };
+
+    #[test]
+    fn video_track_exports_visible_video_and_unmuted_audio() {
+        let project = Project::default();
+        let track = project
+            .tracks
+            .iter()
+            .find(|track| track.kind == TrackKind::Video)
+            .unwrap();
+        let clip = TimelineClip {
+            id: 1,
+            track_id: track.id,
+            asset_id: Some(2),
+            timeline_start: TimelineTime::ZERO,
+            source_in: TimelineTime::ZERO,
+            source_out: TimelineTime::ONE_FRAME,
+            video_properties: VideoClipProperties::default(),
+            audio_properties: AudioClipProperties::default(),
+        };
+        let types = exported_track_types(track, &clip, MediaKind::Video, true);
+        assert!(types.contains(ges::TrackType::VIDEO));
+        assert!(types.contains(ges::TrackType::AUDIO));
+    }
+
+    #[test]
+    fn hidden_video_track_can_still_export_audio() {
+        let mut project = Project::default();
+        let track = project
+            .tracks
+            .iter_mut()
+            .find(|track| track.kind == TrackKind::Video)
+            .unwrap();
+        track.visible = false;
+        let clip = TimelineClip {
+            id: 1,
+            track_id: track.id,
+            asset_id: Some(2),
+            timeline_start: TimelineTime::ZERO,
+            source_in: TimelineTime::ZERO,
+            source_out: TimelineTime::ONE_FRAME,
+            video_properties: VideoClipProperties::default(),
+            audio_properties: AudioClipProperties::default(),
+        };
+        assert_eq!(
+            exported_track_types(track, &clip, MediaKind::Video, true),
+            ges::TrackType::AUDIO
+        );
+    }
+
+    #[test]
+    fn applies_the_requested_bitrate_to_x264() {
+        ges::init().unwrap();
+        let pipeline = ges::Pipeline::new();
+        configure_encoder_bitrates(&pipeline, 12_345_000);
+        let encoder = gst::ElementFactory::make("x264enc").build().unwrap();
+        pipeline.add(&encoder).unwrap();
+        assert_eq!(encoder.property::<u32>("bitrate"), 12_345);
+        let audio_encoder = gst::ElementFactory::make("faac").build().unwrap();
+        pipeline.add(&audio_encoder).unwrap();
+        assert_eq!(audio_encoder.property::<i32>("bitrate"), AUDIO_BIT_RATE);
+    }
+
+    #[test]
+    fn creates_gstreamer_timeline_from_real_media() {
+        ges::init().unwrap();
+        let project_root = Path::new(env!("CARGO_MANIFEST_DIR"));
+        let mut project = Project::default();
+        let video_track = project
+            .tracks
+            .iter()
+            .find(|track| track.kind == TrackKind::Video)
+            .unwrap()
+            .id;
+        project.assets.push(MediaAsset {
+            id: 10,
+            kind: MediaKind::Video,
+            path: "vendor/gpui-video-player/assets/test1.mp4".into(),
+            name: "test1".into(),
+            duration: 5.0,
+            width: 320,
+            height: 180,
+            framerate: 30.0,
+            frame_rate_numerator: 30,
+            frame_rate_denominator: 1,
+            codec: "h264".into(),
+            has_audio: true,
+        });
+        project.clips.push(TimelineClip {
+            id: 11,
+            track_id: video_track,
+            asset_id: Some(10),
+            timeline_start: TimelineTime::ZERO,
+            source_in: TimelineTime::ZERO,
+            source_out: TimelineTime::from_frames(3),
+            video_properties: VideoClipProperties::default(),
+            audio_properties: AudioClipProperties::default(),
+        });
+        let timeline = build_timeline(
+            &project,
+            project_root,
+            ExportOptions::from_project(&project),
+        )
+        .unwrap();
+        assert_eq!(timeline.layers().len(), project.tracks.len());
+    }
+
+    #[test]
+    fn exports_an_image_only_timeline() {
+        let unique = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let project_root = std::env::temp_dir().join(format!("opencut-ges-image-{unique}"));
+        std::fs::create_dir_all(&project_root).unwrap();
+        let image_path = project_root.join("still.png");
+        image::save_buffer(
+            &image_path,
+            &[0x20; 64 * 64 * 4],
+            64,
+            64,
+            image::ColorType::Rgba8,
+        )
+        .unwrap();
+
+        let mut project = Project::default();
+        project.settings.width = 64;
+        project.settings.height = 64;
+        let video_track = project
+            .tracks
+            .iter()
+            .find(|track| track.kind == TrackKind::Video)
+            .unwrap()
+            .id;
+        project.assets.push(MediaAsset {
+            id: 10,
+            kind: MediaKind::Image,
+            path: "still.png".into(),
+            name: "still".into(),
+            duration: 5.0,
+            width: 64,
+            height: 64,
+            framerate: 0.0,
+            frame_rate_numerator: 0,
+            frame_rate_denominator: 0,
+            codec: "png".into(),
+            has_audio: false,
+        });
+        project.clips.push(TimelineClip {
+            id: 11,
+            track_id: video_track,
+            asset_id: Some(10),
+            timeline_start: TimelineTime::ZERO,
+            source_in: TimelineTime::ZERO,
+            source_out: TimelineTime::from_frames(3),
+            video_properties: VideoClipProperties::default(),
+            audio_properties: AudioClipProperties::default(),
+        });
+
+        let output = project_root.join("image-export.mp4");
+        export_project(
+            &project,
+            &project_root,
+            &output,
+            ExportOptions::from_project(&project),
+            |_| {},
+        )
+        .unwrap();
+        assert!(std::fs::metadata(&output).unwrap().len() > 0);
+        std::fs::remove_dir_all(project_root).unwrap();
+    }
+}
