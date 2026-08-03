@@ -5,14 +5,15 @@ OpenCut is an experimental desktop video tool written in Rust with
 
 - `opencut-player`: a focused local MP4 player powered by GStreamer.
 - `opencut-editor`: a non-destructive, folder-based multi-track editor with
-  GStreamer preview and in-process FFmpeg export.
+  GStreamer preview and GStreamer Editing Services export.
 
 The project is an active prototype rather than a production-ready editor.
 
 ## Requirements
 
 - Latest stable Rust (edition 2024)
-- GStreamer and its base, good, bad, and libav plugins
+- GStreamer with Editing Services and the base, good, bad, ugly, and libav
+  plugins
 - FFmpeg development libraries
 
 On macOS with Homebrew:
@@ -74,8 +75,9 @@ Current editor capabilities:
 - The project model stores default video transform properties (position, scale,
   rotation, and opacity) and audio properties (gain, mute, and stereo pan).
   Property controls and preview/export application are still under development.
-- Export composites visible visual tracks, mixes unmuted audio, and writes an
-  H.264/AAC MP4 directly through `ffmpeg-next`.
+- Export maps editor tracks and clips to a GStreamer Editing Services timeline,
+  composites visible visual tracks, mixes unmuted audio, and writes an
+  H.264/AAC MP4 with configurable resolution, frame rate, and bitrate.
 
 Supported file extensions:
 

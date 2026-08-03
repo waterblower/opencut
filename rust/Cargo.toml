@@ -21,7 +21,12 @@ required-features = ["editor"]
 
 [features]
 default = ["editor"]
-editor = ["gstreamer-backend", "dep:ffmpeg-next"]
+editor = [
+    "gstreamer-backend",
+    "dep:ffmpeg-next",
+    "dep:gstreamer-editing-services",
+    "dep:gstreamer-pbutils",
+]
 gstreamer-backend = [
     "dep:gpui-video-player",
     "dep:gstreamer",
@@ -37,6 +42,8 @@ gpui = { version = "0.2", features = ["inspector"] }
 gpui-video-player = { path = "vendor/gpui-video-player", optional = true }
 gstreamer = { version = "0.25", optional = true }
 gstreamer-app = { version = "0.25", optional = true }
+gstreamer-editing-services = { version = "0.25", optional = true }
+gstreamer-pbutils = { version = "0.25", optional = true }
 gstreamer-video = { version = "0.25", optional = true }
 image = { version = "0.25", default-features = false, features = ["jpeg", "png"] }
 log = "0.4"
