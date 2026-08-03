@@ -19,6 +19,10 @@ enum VideoTransformProperty {
     Scale,
     Rotation,
     Opacity,
+    CropLeft,
+    CropRight,
+    CropTop,
+    CropBottom,
 }
 
 impl Editor {
@@ -54,7 +58,6 @@ impl Editor {
                     .flex_1()
                     .min_h_0()
                     .overflow_y_scroll()
-                    .p_4()
                     .child(content),
             )
             .child(
@@ -158,44 +161,44 @@ impl Editor {
                     .unwrap_or_else(|| "Missing media".to_string());
                 let has_video_transform = track.kind == TrackKind::Video
                     && asset.is_some_and(|asset| asset.kind != MediaKind::Audio);
+
                 this.flex()
                     .flex_col()
-                    .gap_4()
                     .when(has_video_transform, |this| {
                         this.child(self.video_transform_panel(
                             clip.id,
-                            title.clone(),
                             clip.video_properties,
                             editable,
                             cx,
                         ))
                     })
                     .when(!has_video_transform, |this| {
-                        this.child(properties_title(title, "Timeline clip"))
-                    })
-                    .child(properties_value(
-                        "Timeline start",
-                        format_time(self.project.seconds(clip.timeline_start)),
-                    ))
-                    .child(properties_value(
-                        "Source in",
-                        format_time(self.project.source_start_seconds(clip)),
-                    ))
-                    .child(properties_value(
-                        "Source out",
-                        format_time(
-                            self.project
-                                .source_position_at(clip, clip.timeline_end())
-                                .as_secs_f64(),
-                        ),
-                    ))
-                    .child(properties_value(
-                        "Clip duration",
-                        format_time(self.project.seconds(clip.duration())),
-                    ))
-                    .child(properties_value("Track", track.name.clone()))
-                    .when_some(asset, |this, asset| {
-                        this.child(properties_value("Source", asset_description(asset)))
+                        this.gap_4()
+                            .child(properties_title(title, "Timeline clip"))
+                            .child(properties_value(
+                                "Timeline start",
+                                format_time(self.project.seconds(clip.timeline_start)),
+                            ))
+                            .child(properties_value(
+                                "Source in",
+                                format_time(self.project.source_start_seconds(clip)),
+                            ))
+                            .child(properties_value(
+                                "Source out",
+                                format_time(
+                                    self.project
+                                        .source_position_at(clip, clip.timeline_end())
+                                        .as_secs_f64(),
+                                ),
+                            ))
+                            .child(properties_value(
+                                "Clip duration",
+                                format_time(self.project.seconds(clip.duration())),
+                            ))
+                            .child(properties_value("Track", track.name.clone()))
+                            .when_some(asset, |this, asset| {
+                                this.child(properties_value("Source", asset_description(asset)))
+                            })
                     })
             })
             .when(selected.is_none(), |this| {
@@ -209,7 +212,6 @@ impl Editor {
     fn video_transform_panel(
         &self,
         clip_id: u64,
-        title: String,
         properties: VideoClipProperties,
         editable: bool,
         cx: &mut Context<Self>,
@@ -218,80 +220,129 @@ impl Editor {
             .id("video-transform-properties")
             .flex()
             .flex_col()
-            .gap_4()
+            .overflow_hidden()
+            .bg(rgb(PANEL))
             .child(
                 div()
+                    .h(px(58.0))
+                    .flex_shrink_0()
                     .flex()
                     .items_center()
-                    .gap_3()
+                    .gap_5()
+                    .px_5()
                     .border_b_1()
                     .border_color(rgb(BORDER))
                     .child(properties_tab("Transform", true)),
             )
-            .child(properties_title(title, "Timeline clip"))
-            .child(properties_section_label("POSITION & SCALE"))
-            .child(self.video_transform_field(
-                clip_id,
-                VideoTransformProperty::PositionX,
-                "Position X",
-                format!("{:.1}", properties.position_x),
-                "px",
-                10.0,
-                "transform-position-x-minus",
-                "transform-position-x-plus",
-                editable,
-                cx,
-            ))
-            .child(self.video_transform_field(
-                clip_id,
-                VideoTransformProperty::PositionY,
-                "Position Y",
-                format!("{:.1}", properties.position_y),
-                "px",
-                10.0,
-                "transform-position-y-minus",
-                "transform-position-y-plus",
-                editable,
-                cx,
-            ))
-            .child(self.video_transform_field(
-                clip_id,
-                VideoTransformProperty::Scale,
-                "Scale",
-                format!("{:.1}", properties.scale * 100.0),
-                "%",
-                0.05,
-                "transform-scale-minus",
-                "transform-scale-plus",
-                editable,
-                cx,
-            ))
-            .child(self.video_transform_field(
-                clip_id,
-                VideoTransformProperty::Rotation,
-                "Rotation",
-                format!("{:.1}", properties.rotation_degrees),
-                "°",
-                5.0,
-                "transform-rotation-minus",
-                "transform-rotation-plus",
-                editable,
-                cx,
-            ))
-            .child(self.video_opacity_control(clip_id, properties.opacity, editable, cx))
             .child(
                 div()
-                    .mt_1()
                     .flex()
-                    .items_center()
-                    .justify_between()
-                    .child(properties_section_label("TRANSFORM"))
-                    .child(transform_reset_button(editable).when(editable, |button| {
-                        button.on_click(cx.listener(move |editor, _, _, cx| {
-                            editor.reset_video_transform(clip_id);
-                            cx.notify();
-                        }))
-                    })),
+                    .flex_col()
+                    .gap_3()
+                    .px_5()
+                    .py_5()
+                    .child(properties_section_label("POSITION & SCALE"))
+                    .child(self.video_transform_field(
+                        clip_id,
+                        VideoTransformProperty::PositionX,
+                        "Position X",
+                        format!("{:.1}", properties.position_x),
+                        "px",
+                        1.0,
+                        "transform-position-x",
+                        editable,
+                        cx,
+                    ))
+                    .child(self.video_transform_field(
+                        clip_id,
+                        VideoTransformProperty::PositionY,
+                        "Position Y",
+                        format!("{:.1}", properties.position_y),
+                        "px",
+                        1.0,
+                        "transform-position-y",
+                        editable,
+                        cx,
+                    ))
+                    .child(self.video_transform_field(
+                        clip_id,
+                        VideoTransformProperty::Scale,
+                        "Scale",
+                        format!("{:.1}", properties.scale * 100.0),
+                        "%",
+                        0.01,
+                        "transform-scale",
+                        editable,
+                        cx,
+                    ))
+                    .child(self.video_transform_field(
+                        clip_id,
+                        VideoTransformProperty::Rotation,
+                        "Rotation",
+                        format!("{:.1}", properties.rotation_degrees),
+                        "°",
+                        1.0,
+                        "transform-rotation",
+                        editable,
+                        cx,
+                    ))
+                    .child(self.video_opacity_control(clip_id, properties.opacity, editable, cx))
+                    .child(
+                        div()
+                            .mt_2()
+                            .flex()
+                            .items_center()
+                            .justify_between()
+                            .child(properties_section_label("CROP"))
+                            .child(crop_reset_button(editable).when(editable, |button| {
+                                button.on_click(cx.listener(move |editor, _, _, cx| {
+                                    editor.reset_video_crop(clip_id);
+                                    cx.notify();
+                                }))
+                            })),
+                    )
+                    .child(
+                        div()
+                            .grid()
+                            .grid_cols(2)
+                            .gap_3()
+                            .child(self.video_crop_field(
+                                clip_id,
+                                VideoTransformProperty::CropLeft,
+                                "Left",
+                                properties.crop_left,
+                                "transform-crop-left",
+                                editable,
+                                cx,
+                            ))
+                            .child(self.video_crop_field(
+                                clip_id,
+                                VideoTransformProperty::CropRight,
+                                "Right",
+                                properties.crop_right,
+                                "transform-crop-right",
+                                editable,
+                                cx,
+                            ))
+                            .child(self.video_crop_field(
+                                clip_id,
+                                VideoTransformProperty::CropTop,
+                                "Top",
+                                properties.crop_top,
+                                "transform-crop-top",
+                                editable,
+                                cx,
+                            ))
+                            .child(self.video_crop_field(
+                                clip_id,
+                                VideoTransformProperty::CropBottom,
+                                "Bottom",
+                                properties.crop_bottom,
+                                "transform-crop-bottom",
+                                editable,
+                                cx,
+                            )),
+                    ),
             )
             .into_any_element()
     }
@@ -305,19 +356,19 @@ impl Editor {
         value: String,
         unit: &'static str,
         step: f64,
-        minus_id: &'static str,
-        plus_id: &'static str,
+        field_id: &'static str,
         editable: bool,
         cx: &mut Context<Self>,
     ) -> gpui::AnyElement {
+        let decrement_property = property;
         div()
+            .h(px(48.0))
             .flex()
             .items_center()
-            .justify_between()
-            .gap_3()
+            .gap_4()
             .child(
                 div()
-                    .w(px(82.0))
+                    .w(px(112.0))
                     .flex_shrink_0()
                     .text_sm()
                     .text_color(rgb(MUTED))
@@ -325,43 +376,130 @@ impl Editor {
             )
             .child(
                 div()
-                    .h(px(42.0))
+                    .id(field_id)
+                    .h(px(48.0))
                     .min_w_0()
                     .flex_1()
                     .flex()
                     .items_center()
+                    .justify_between()
+                    .px_3()
                     .rounded_md()
                     .border_1()
                     .border_color(rgb(BORDER))
                     .bg(rgb(SURFACE))
-                    .child(transform_step_button(minus_id, "−", editable).when(
-                        editable,
-                        |button| {
-                            button.on_click(cx.listener(move |editor, _, _, cx| {
-                                editor.adjust_video_transform(clip_id, property, -step);
-                                cx.notify();
-                            }))
-                        },
-                    ))
+                    .cursor(if editable {
+                        CursorStyle::ResizeLeftRight
+                    } else {
+                        CursorStyle::Arrow
+                    })
                     .child(
                         div()
                             .min_w_0()
-                            .flex_1()
                             .font_family("monospace")
-                            .text_sm()
+                            .text_base()
                             .text_color(rgb(if editable { TEXT } else { MUTED }))
                             .child(value),
                     )
-                    .child(div().mr_1().text_sm().text_color(rgb(MUTED)).child(unit))
-                    .child(transform_step_button(plus_id, "+", editable).when(
-                        editable,
-                        |button| {
-                            button.on_click(cx.listener(move |editor, _, _, cx| {
-                                editor.adjust_video_transform(clip_id, property, step);
-                                cx.notify();
-                            }))
-                        },
-                    )),
+                    .child(div().text_sm().text_color(rgb(MUTED)).child(unit))
+                    .when(editable, |field| {
+                        field
+                            .hover(|style| style.border_color(rgb(0x4a4a52)))
+                            .on_mouse_down(
+                                MouseButton::Left,
+                                cx.listener(move |editor, _, _, cx| {
+                                    editor.adjust_video_transform(clip_id, property, step);
+                                    cx.notify();
+                                }),
+                            )
+                            .on_mouse_down(
+                                MouseButton::Right,
+                                cx.listener(move |editor, _, _, cx| {
+                                    editor.adjust_video_transform(
+                                        clip_id,
+                                        decrement_property,
+                                        -step,
+                                    );
+                                    cx.notify();
+                                }),
+                            )
+                    }),
+            )
+            .into_any_element()
+    }
+
+    fn video_crop_field(
+        &self,
+        clip_id: u64,
+        property: VideoTransformProperty,
+        label: &'static str,
+        value: f64,
+        field_id: &'static str,
+        editable: bool,
+        cx: &mut Context<Self>,
+    ) -> gpui::AnyElement {
+        let decrement_property = property;
+        div()
+            .min_w_0()
+            .flex()
+            .items_center()
+            .gap_2()
+            .child(
+                div()
+                    .w(px(58.0))
+                    .flex_shrink_0()
+                    .text_sm()
+                    .text_color(rgb(MUTED))
+                    .child(label),
+            )
+            .child(
+                div()
+                    .id(field_id)
+                    .h(px(46.0))
+                    .min_w_0()
+                    .flex_1()
+                    .flex()
+                    .items_center()
+                    .justify_between()
+                    .px_3()
+                    .rounded_md()
+                    .border_1()
+                    .border_color(rgb(BORDER))
+                    .bg(rgb(SURFACE))
+                    .cursor(if editable {
+                        CursorStyle::ResizeLeftRight
+                    } else {
+                        CursorStyle::Arrow
+                    })
+                    .child(
+                        div()
+                            .font_family("monospace")
+                            .text_sm()
+                            .text_color(rgb(if editable { TEXT } else { MUTED }))
+                            .child(format!("{:.1}%", value.clamp(0.0, 0.99) * 100.0)),
+                    )
+                    .when(editable, |field| {
+                        field
+                            .hover(|style| style.border_color(rgb(0x4a4a52)))
+                            .on_mouse_down(
+                                MouseButton::Left,
+                                cx.listener(move |editor, _, _, cx| {
+                                    editor.adjust_video_transform(clip_id, property, 0.01);
+                                    cx.notify();
+                                }),
+                            )
+                            .on_mouse_down(
+                                MouseButton::Right,
+                                cx.listener(move |editor, _, _, cx| {
+                                    editor.adjust_video_transform(
+                                        clip_id,
+                                        decrement_property,
+                                        -0.01,
+                                    );
+                                    cx.notify();
+                                }),
+                            )
+                    }),
             )
             .into_any_element()
     }
@@ -375,13 +513,13 @@ impl Editor {
     ) -> gpui::AnyElement {
         let opacity = opacity.clamp(0.0, 1.0);
         div()
+            .h(px(42.0))
             .flex()
             .items_center()
-            .justify_between()
-            .gap_3()
+            .gap_4()
             .child(
                 div()
-                    .w(px(82.0))
+                    .w(px(112.0))
                     .flex_shrink_0()
                     .text_sm()
                     .text_color(rgb(MUTED))
@@ -393,30 +531,21 @@ impl Editor {
                     .flex_1()
                     .flex()
                     .items_center()
-                    .gap_2()
-                    .child(
-                        transform_step_button("transform-opacity-minus", "−", editable).when(
-                            editable,
-                            |button| {
-                                button.on_click(cx.listener(move |editor, _, _, cx| {
-                                    editor.adjust_video_transform(
-                                        clip_id,
-                                        VideoTransformProperty::Opacity,
-                                        -0.05,
-                                    );
-                                    cx.notify();
-                                }))
-                            },
-                        ),
-                    )
+                    .gap_3()
                     .child(
                         div()
+                            .id("transform-opacity-slider")
                             .relative()
-                            .h(px(18.0))
+                            .h(px(24.0))
                             .min_w_0()
                             .flex_1()
                             .flex()
                             .items_center()
+                            .cursor(if editable {
+                                CursorStyle::PointingHand
+                            } else {
+                                CursorStyle::Arrow
+                            })
                             .child(
                                 div()
                                     .absolute()
@@ -439,32 +568,42 @@ impl Editor {
                                 div()
                                     .absolute()
                                     .left(gpui::relative(opacity as f32))
-                                    .ml(px(-5.0))
-                                    .size(px(10.0))
+                                    .ml(px(-8.0))
+                                    .size(px(16.0))
                                     .rounded_full()
-                                    .bg(rgb(ACCENT)),
-                            ),
-                    )
-                    .child(
-                        transform_step_button("transform-opacity-plus", "+", editable).when(
-                            editable,
-                            |button| {
-                                button.on_click(cx.listener(move |editor, _, _, cx| {
-                                    editor.adjust_video_transform(
-                                        clip_id,
-                                        VideoTransformProperty::Opacity,
-                                        0.05,
-                                    );
-                                    cx.notify();
-                                }))
-                            },
-                        ),
+                                    .bg(rgb(0xf7f7f8)),
+                            )
+                            .when(editable, |slider| {
+                                slider
+                                    .on_mouse_down(
+                                        MouseButton::Left,
+                                        cx.listener(move |editor, _, _, cx| {
+                                            editor.adjust_video_transform(
+                                                clip_id,
+                                                VideoTransformProperty::Opacity,
+                                                0.05,
+                                            );
+                                            cx.notify();
+                                        }),
+                                    )
+                                    .on_mouse_down(
+                                        MouseButton::Right,
+                                        cx.listener(move |editor, _, _, cx| {
+                                            editor.adjust_video_transform(
+                                                clip_id,
+                                                VideoTransformProperty::Opacity,
+                                                -0.05,
+                                            );
+                                            cx.notify();
+                                        }),
+                                    )
+                            }),
                     )
                     .child(
                         div()
-                            .w(px(30.0))
+                            .w(px(38.0))
                             .font_family("monospace")
-                            .text_sm()
+                            .text_base()
                             .text_color(rgb(if editable { TEXT } else { MUTED }))
                             .child(format!("{:.0}", opacity * 100.0)),
                     ),
@@ -495,6 +634,22 @@ impl Editor {
             VideoTransformProperty::Opacity => {
                 properties.opacity = (properties.opacity + delta).clamp(0.0, 1.0)
             }
+            VideoTransformProperty::CropLeft => {
+                properties.crop_left = (properties.crop_left + delta)
+                    .clamp(0.0, 0.99 - properties.crop_right.clamp(0.0, 0.99))
+            }
+            VideoTransformProperty::CropRight => {
+                properties.crop_right = (properties.crop_right + delta)
+                    .clamp(0.0, 0.99 - properties.crop_left.clamp(0.0, 0.99))
+            }
+            VideoTransformProperty::CropTop => {
+                properties.crop_top = (properties.crop_top + delta)
+                    .clamp(0.0, 0.99 - properties.crop_bottom.clamp(0.0, 0.99))
+            }
+            VideoTransformProperty::CropBottom => {
+                properties.crop_bottom = (properties.crop_bottom + delta)
+                    .clamp(0.0, 0.99 - properties.crop_top.clamp(0.0, 0.99))
+            }
         }
         if properties == self.project.clips[index].video_properties {
             return;
@@ -505,17 +660,25 @@ impl Editor {
         self.save_project();
     }
 
-    fn reset_video_transform(&mut self, clip_id: u64) {
+    fn reset_video_crop(&mut self, clip_id: u64) {
         if self.clip_locked(clip_id) {
             return;
         }
         let Some(index) = self.project.clip_index(clip_id) else {
             return;
         };
-        let properties = VideoClipProperties::default();
-        if self.project.clips[index].video_properties == properties {
+        let mut properties = self.project.clips[index].video_properties;
+        if properties.crop_left == 0.0
+            && properties.crop_right == 0.0
+            && properties.crop_top == 0.0
+            && properties.crop_bottom == 0.0
+        {
             return;
         }
+        properties.crop_left = 0.0;
+        properties.crop_right = 0.0;
+        properties.crop_top = 0.0;
+        properties.crop_bottom = 0.0;
         self.checkpoint();
         self.project.clips[index].video_properties = properties;
         self.preview_refresh_ticks = 2;
@@ -618,7 +781,7 @@ fn properties_title(title: String, subtitle: &'static str) -> gpui::Div {
 
 fn properties_tab(label: &'static str, active: bool) -> gpui::Div {
     div()
-        .h(px(38.0))
+        .h_full()
         .flex()
         .items_center()
         .border_b_2()
@@ -636,33 +799,9 @@ fn properties_section_label(label: &'static str) -> gpui::Div {
         .child(label)
 }
 
-fn transform_step_button(
-    id: &'static str,
-    label: &'static str,
-    enabled: bool,
-) -> gpui::Stateful<gpui::Div> {
+fn crop_reset_button(enabled: bool) -> gpui::Stateful<gpui::Div> {
     div()
-        .id(id)
-        .size(px(32.0))
-        .flex_shrink_0()
-        .flex()
-        .items_center()
-        .justify_center()
-        .cursor(if enabled {
-            CursorStyle::PointingHand
-        } else {
-            CursorStyle::Arrow
-        })
-        .text_color(rgb(if enabled { MUTED } else { 0x45454d }))
-        .when(enabled, |this| {
-            this.hover(|style| style.bg(rgb(SURFACE_HOVER)).text_color(rgb(TEXT)))
-        })
-        .child(label)
-}
-
-fn transform_reset_button(enabled: bool) -> gpui::Stateful<gpui::Div> {
-    div()
-        .id("reset-video-transform")
+        .id("reset-video-crop")
         .h_8()
         .px_2()
         .flex()

@@ -28,6 +28,12 @@ fn sanitized_video_properties(mut properties: VideoClipProperties) -> VideoClipP
     properties.scale = finite_or(properties.scale, 1.0).max(0.0);
     properties.rotation_degrees = finite_or(properties.rotation_degrees, 0.0);
     properties.opacity = finite_or(properties.opacity, 1.0).clamp(0.0, 1.0);
+    properties.crop_left = finite_or(properties.crop_left, 0.0).clamp(0.0, 0.99);
+    properties.crop_right =
+        finite_or(properties.crop_right, 0.0).clamp(0.0, 0.99 - properties.crop_left);
+    properties.crop_top = finite_or(properties.crop_top, 0.0).clamp(0.0, 0.99);
+    properties.crop_bottom =
+        finite_or(properties.crop_bottom, 0.0).clamp(0.0, 0.99 - properties.crop_top);
     properties
 }
 
@@ -55,7 +61,12 @@ fn visual_layer_rect(
 }
 
 fn requires_rasterized_video(properties: VideoClipProperties) -> bool {
-    has_rotation(properties.rotation_degrees) || (properties.opacity - 1.0).abs() > 0.000_001
+    has_rotation(properties.rotation_degrees)
+        || (properties.opacity - 1.0).abs() > 0.000_001
+        || properties.crop_left > 0.000_001
+        || properties.crop_right > 0.000_001
+        || properties.crop_top > 0.000_001
+        || properties.crop_bottom > 0.000_001
 }
 
 fn has_rotation(degrees: f64) -> bool {
@@ -227,7 +238,7 @@ impl Editor {
         height: f32,
     ) -> gpui::AnyElement {
         let properties = sanitized_video_properties(clip.video_properties);
-        if has_rotation(properties.rotation_degrees) {
+        if requires_rasterized_video(properties) {
             return transformed_image(
                 clip.id,
                 path,
@@ -1117,7 +1128,7 @@ mod tests {
     }
 
     #[test]
-    fn video_rasterization_is_reserved_for_rotation_and_opacity() {
+    fn video_rasterization_is_reserved_for_rotation_opacity_and_crop() {
         assert!(!requires_rasterized_video(VideoClipProperties {
             position_x: 20.0,
             position_y: -20.0,
@@ -1130,6 +1141,10 @@ mod tests {
         }));
         assert!(requires_rasterized_video(VideoClipProperties {
             opacity: 0.5,
+            ..VideoClipProperties::default()
+        }));
+        assert!(requires_rasterized_video(VideoClipProperties {
+            crop_left: 0.1,
             ..VideoClipProperties::default()
         }));
     }

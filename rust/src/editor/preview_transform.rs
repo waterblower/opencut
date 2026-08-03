@@ -271,6 +271,14 @@ fn transform_frame(
     let min_y = (center_y - extent_y).floor().max(0.0) as u32;
     let max_y = (center_y + extent_y).ceil().min(canvas_height_f) as u32;
     let opacity = finite_or(properties.opacity, 1.0).clamp(0.0, 1.0);
+    let crop_left = finite_or(properties.crop_left, 0.0).clamp(0.0, 0.99);
+    let crop_right = finite_or(properties.crop_right, 0.0).clamp(0.0, 0.99 - crop_left);
+    let crop_top = finite_or(properties.crop_top, 0.0).clamp(0.0, 0.99);
+    let crop_bottom = finite_or(properties.crop_bottom, 0.0).clamp(0.0, 0.99 - crop_top);
+    let source_left = source.width() as f64 * crop_left;
+    let source_right = source.width() as f64 * (1.0 - crop_right);
+    let source_top = source.height() as f64 * crop_top;
+    let source_bottom = source.height() as f64 * (1.0 - crop_bottom);
 
     for y in min_y..max_y {
         for x in min_x..max_x {
@@ -280,6 +288,15 @@ fn transform_frame(
                 (cosine * delta_x + sine * delta_y) / scale + source.width() as f64 * 0.5 - 0.5;
             let source_y =
                 (-sine * delta_x + cosine * delta_y) / scale + source.height() as f64 * 0.5 - 0.5;
+            let sample_center_x = source_x + 0.5;
+            let sample_center_y = source_y + 0.5;
+            if sample_center_x < source_left
+                || sample_center_x >= source_right
+                || sample_center_y < source_top
+                || sample_center_y >= source_bottom
+            {
+                continue;
+            }
             if let Some(pixel) = bilinear_sample(source, source_x, source_y) {
                 let mut pixel = pixel;
                 pixel[3] = (pixel[3] as f64 * opacity).round() as u8;
@@ -366,5 +383,27 @@ mod tests {
         );
         assert_eq!(output.get_pixel(3, 1), &Rgba([255, 0, 0, 255]));
         assert_eq!(output.get_pixel(1, 1), &Rgba([0, 0, 0, 0]));
+    }
+
+    #[test]
+    fn crop_removes_pixels_outside_the_visible_source_area() {
+        let source = RgbaImage::from_pixel(4, 1, Rgba([255, 0, 0, 255]));
+        let output = transform_frame(
+            &source,
+            4,
+            1,
+            4,
+            1,
+            VideoClipProperties {
+                crop_left: 0.25,
+                crop_right: 0.25,
+                ..VideoClipProperties::default()
+            },
+        );
+
+        assert_eq!(output.get_pixel(0, 0), &Rgba([0, 0, 0, 0]));
+        assert_eq!(output.get_pixel(1, 0), &Rgba([255, 0, 0, 255]));
+        assert_eq!(output.get_pixel(2, 0), &Rgba([255, 0, 0, 255]));
+        assert_eq!(output.get_pixel(3, 0), &Rgba([0, 0, 0, 0]));
     }
 }
