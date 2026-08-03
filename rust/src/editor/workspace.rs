@@ -21,6 +21,8 @@ pub(super) struct FileTreeEntry {
 #[derive(Deserialize, Serialize)]
 struct WorkspaceSettings {
     project_root: PathBuf,
+    #[serde(default = "default_timeline_pixels_per_second")]
+    timeline_pixels_per_second: f32,
 }
 
 pub(super) fn load_project_root() -> PathBuf {
@@ -36,18 +38,23 @@ pub(super) fn load_project_root() -> PathBuf {
 }
 
 pub(super) fn save_project_root(project_root: &Path) -> Result<(), String> {
-    let path = settings_path();
-    if let Some(directory) = path.parent() {
-        fs::create_dir_all(directory)
-            .map_err(|error| format!("could not create {}: {error}", directory.display()))?;
-    }
-    let settings = WorkspaceSettings {
-        project_root: project_root.to_path_buf(),
-    };
-    let json = serde_json::to_string_pretty(&settings)
-        .map_err(|error| format!("could not serialize workspace settings: {error}"))?;
-    fs::write(&path, format!("{json}\n"))
-        .map_err(|error| format!("could not write {}: {error}", path.display()))
+    let mut settings = load_settings().unwrap_or_else(|| default_settings(project_root));
+    settings.project_root = project_root.to_path_buf();
+    save_settings(&settings)
+}
+
+pub(super) fn load_timeline_zoom() -> f32 {
+    load_settings()
+        .map(|settings| settings.timeline_pixels_per_second)
+        .filter(|zoom| zoom.is_finite())
+        .unwrap_or_else(default_timeline_pixels_per_second)
+}
+
+pub(super) fn save_timeline_zoom(pixels_per_second: f32) -> Result<(), String> {
+    let project_root = load_project_root();
+    let mut settings = load_settings().unwrap_or_else(|| default_settings(&project_root));
+    settings.timeline_pixels_per_second = pixels_per_second;
+    save_settings(&settings)
 }
 
 pub(super) fn visible_tree(
@@ -247,4 +254,47 @@ pub(super) fn is_audio_path(path: &Path) -> bool {
 
 fn settings_path() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("data/editor-settings.json")
+}
+
+fn load_settings() -> Option<WorkspaceSettings> {
+    let contents = fs::read_to_string(settings_path()).ok()?;
+    serde_json::from_str(&contents).ok()
+}
+
+fn default_settings(project_root: &Path) -> WorkspaceSettings {
+    WorkspaceSettings {
+        project_root: project_root.to_path_buf(),
+        timeline_pixels_per_second: default_timeline_pixels_per_second(),
+    }
+}
+
+fn default_timeline_pixels_per_second() -> f32 {
+    super::DEFAULT_TIMELINE_PIXELS_PER_SECOND
+}
+
+fn save_settings(settings: &WorkspaceSettings) -> Result<(), String> {
+    let path = settings_path();
+    if let Some(directory) = path.parent() {
+        fs::create_dir_all(directory)
+            .map_err(|error| format!("could not create {}: {error}", directory.display()))?;
+    }
+    let json = serde_json::to_string_pretty(settings)
+        .map_err(|error| format!("could not serialize workspace settings: {error}"))?;
+    fs::write(&path, format!("{json}\n"))
+        .map_err(|error| format!("could not write {}: {error}", path.display()))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn older_settings_use_the_default_timeline_zoom() {
+        let settings: WorkspaceSettings =
+            serde_json::from_str(r#"{"project_root":"/tmp/project"}"#).unwrap();
+        assert_eq!(
+            settings.timeline_pixels_per_second,
+            super::super::DEFAULT_TIMELINE_PIXELS_PER_SECOND
+        );
+    }
 }
