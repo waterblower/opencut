@@ -489,6 +489,7 @@ impl Editor {
             self.selected_clip_ids.insert(clip_id);
         }
         self.selected_clip_id = clip_id;
+        self.video_transform_input_clip_id = None;
     }
 
     pub(super) fn toggle_clip_selection(&mut self, clip_id: u64) {
@@ -505,6 +506,7 @@ impl Editor {
             self.selected_clip_ids.insert(clip_id);
             self.selected_clip_id = Some(clip_id);
         }
+        self.video_transform_input_clip_id = None;
     }
 
     pub(super) fn selected_clip_ids_in_project_order(&self) -> Vec<u64> {

@@ -73,7 +73,7 @@ Current editor capabilities:
 - Undo/redo, clip metadata, fullscreen preview, and a docked GPUI element
   inspector with render FPS are available in the editor UI.
 - The project model stores default video transform properties (position, scale,
-  rotation, and opacity) and audio properties (gain, mute, and stereo pan).
+  opacity, and crop) and audio properties (gain, mute, and stereo pan).
   Property controls and preview/export application are still under development.
 - Export maps editor tracks and clips to a GStreamer Editing Services timeline,
   composites visible visual tracks, mixes unmuted audio, and writes an

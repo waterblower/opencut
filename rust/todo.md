@@ -110,12 +110,12 @@ Add static per-clip transforms and audio controls before introducing keyframes
 or an effects system.
 
 - [x] Extend `TimelineClip` with defaulted video and audio property structures.
-      Video properties should include position X/Y, scale, rotation, and opacity;
+      Video properties include position X/Y, scale, opacity, and crop;
       audio properties should include gain in dB, mute, and stereo pan.
 - [ ] Add reusable numeric fields, sliders, and reset buttons for editing one
       clip in the video and audio properties panels.
 - [ ] Apply audio gain and mute during standalone audio preview playback.
-- [x] Apply video position, scale, rotation, and opacity in the preview renderer.
+- [x] Apply video position, scale, opacity, and crop in the preview renderer.
 - [ ] Add tests for property defaults, serialization, controls, and preview value
       mapping.
 - [ ] Add stereo pan and apply audio properties consistently across simultaneous

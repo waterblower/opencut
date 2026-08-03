@@ -259,17 +259,12 @@ fn transform_frame(
 
     let center_x = canvas_width_f * 0.5 + finite_or(properties.position_x, 0.0) * project_scale;
     let center_y = canvas_height_f * 0.5 + finite_or(properties.position_y, 0.0) * project_scale;
-    let angle = finite_or(properties.rotation_degrees, 0.0).to_radians();
-    let cosine = angle.cos();
-    let sine = angle.sin();
     let half_width = source.width() as f64 * scale * 0.5;
     let half_height = source.height() as f64 * scale * 0.5;
-    let extent_x = cosine.abs() * half_width + sine.abs() * half_height;
-    let extent_y = sine.abs() * half_width + cosine.abs() * half_height;
-    let min_x = (center_x - extent_x).floor().max(0.0) as u32;
-    let max_x = (center_x + extent_x).ceil().min(canvas_width_f) as u32;
-    let min_y = (center_y - extent_y).floor().max(0.0) as u32;
-    let max_y = (center_y + extent_y).ceil().min(canvas_height_f) as u32;
+    let min_x = (center_x - half_width).floor().max(0.0) as u32;
+    let max_x = (center_x + half_width).ceil().min(canvas_width_f) as u32;
+    let min_y = (center_y - half_height).floor().max(0.0) as u32;
+    let max_y = (center_y + half_height).ceil().min(canvas_height_f) as u32;
     let opacity = finite_or(properties.opacity, 1.0).clamp(0.0, 1.0);
     let crop_left = finite_or(properties.crop_left, 0.0).clamp(0.0, 0.99);
     let crop_right = finite_or(properties.crop_right, 0.0).clamp(0.0, 0.99 - crop_left);
@@ -284,10 +279,8 @@ fn transform_frame(
         for x in min_x..max_x {
             let delta_x = x as f64 + 0.5 - center_x;
             let delta_y = y as f64 + 0.5 - center_y;
-            let source_x =
-                (cosine * delta_x + sine * delta_y) / scale + source.width() as f64 * 0.5 - 0.5;
-            let source_y =
-                (-sine * delta_x + cosine * delta_y) / scale + source.height() as f64 * 0.5 - 0.5;
+            let source_x = delta_x / scale + source.width() as f64 * 0.5 - 0.5;
+            let source_y = delta_y / scale + source.height() as f64 * 0.5 - 0.5;
             let sample_center_x = source_x + 0.5;
             let sample_center_y = source_y + 0.5;
             if sample_center_x < source_left

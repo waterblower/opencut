@@ -69,12 +69,14 @@ pub(super) struct ExplorerFilter {
 enum InputAppearance {
     ExplorerFilter,
     Field,
+    InlineField,
 }
 
 #[derive(Clone, Copy, Eq, PartialEq)]
 enum InputConstraint {
     Any,
     UnsignedInteger,
+    Number,
 }
 
 impl ExplorerFilter {
@@ -126,6 +128,24 @@ impl ExplorerFilter {
         )
     }
 
+    pub(super) fn new_inline_field(
+        element_id: &'static str,
+        content: String,
+        placeholder: &'static str,
+        return_focus: FocusHandle,
+        cx: &mut Context<Self>,
+    ) -> Self {
+        Self::new_with_appearance(
+            element_id,
+            &content,
+            placeholder,
+            InputAppearance::InlineField,
+            InputConstraint::Number,
+            return_focus,
+            cx,
+        )
+    }
+
     fn new_with_appearance(
         element_id: &'static str,
         content: &str,
@@ -165,12 +185,16 @@ impl ExplorerFilter {
     }
 
     pub(super) fn set_text(&mut self, text: String, cx: &mut Context<Self>) {
+        self.set_text_silently(text);
+        cx.notify();
+    }
+
+    pub(super) fn set_text_silently(&mut self, text: String) {
         let cursor = text.len();
         self.content = text.into();
         self.selected_range = cursor..cursor;
         self.selection_reversed = false;
         self.marked_range = None;
-        cx.notify();
     }
 
     fn cursor_offset(&self) -> usize {
@@ -178,6 +202,17 @@ impl ExplorerFilter {
             self.selected_range.start
         } else {
             self.selected_range.end
+        }
+    }
+
+    fn filtered_input(&self, text: &str) -> String {
+        match self.constraint {
+            InputConstraint::Any => text.to_string(),
+            InputConstraint::UnsignedInteger => text.chars().filter(char::is_ascii_digit).collect(),
+            InputConstraint::Number => text
+                .chars()
+                .filter(|character| character.is_ascii_digit() || matches!(character, '.' | '-'))
+                .collect(),
         }
     }
 
@@ -343,7 +378,9 @@ impl ExplorerFilter {
     }
 
     fn dismiss(&mut self, _: &Dismiss, window: &mut Window, cx: &mut Context<Self>) {
-        self.clear(cx);
+        if self.appearance == InputAppearance::ExplorerFilter {
+            self.clear(cx);
+        }
         self.return_focus.focus(window);
     }
 
@@ -436,16 +473,7 @@ impl EntityInputHandler for ExplorerFilter {
         _: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        let filtered_text;
-        let new_text = if self.constraint == InputConstraint::UnsignedInteger {
-            filtered_text = new_text
-                .chars()
-                .filter(char::is_ascii_digit)
-                .collect::<String>();
-            filtered_text.as_str()
-        } else {
-            new_text
-        };
+        let new_text = self.filtered_input(new_text);
         let range = range_utf16
             .as_ref()
             .map(|range| self.range_from_utf16(range))
@@ -454,7 +482,7 @@ impl EntityInputHandler for ExplorerFilter {
         self.content = format!(
             "{}{}{}",
             &self.content[..range.start],
-            new_text,
+            &new_text,
             &self.content[range.end..]
         )
         .into();
@@ -473,16 +501,7 @@ impl EntityInputHandler for ExplorerFilter {
         _: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        let filtered_text;
-        let new_text = if self.constraint == InputConstraint::UnsignedInteger {
-            filtered_text = new_text
-                .chars()
-                .filter(char::is_ascii_digit)
-                .collect::<String>();
-            filtered_text.as_str()
-        } else {
-            new_text
-        };
+        let new_text = self.filtered_input(new_text);
         let range = range_utf16
             .as_ref()
             .map(|range| self.range_from_utf16(range))
@@ -491,7 +510,7 @@ impl EntityInputHandler for ExplorerFilter {
         self.content = format!(
             "{}{}{}",
             &self.content[..range.start],
-            new_text,
+            &new_text,
             &self.content[range.end..]
         )
         .into();
@@ -500,8 +519,8 @@ impl EntityInputHandler for ExplorerFilter {
         self.selected_range = new_selected_range_utf16
             .as_ref()
             .map(|selection| {
-                range.start + utf8_offset_from_utf16(new_text, selection.start)
-                    ..range.start + utf8_offset_from_utf16(new_text, selection.end)
+                range.start + utf8_offset_from_utf16(&new_text, selection.start)
+                    ..range.start + utf8_offset_from_utf16(&new_text, selection.end)
             })
             .unwrap_or_else(|| {
                 let cursor = range.start + new_text.len();
@@ -714,9 +733,17 @@ impl Element for FilterTextElement {
 impl Render for ExplorerFilter {
     fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let is_field = self.appearance == InputAppearance::Field;
+        let is_inline_field = self.appearance == InputAppearance::InlineField;
         div()
-            .h(px(if is_field { 54.0 } else { 38.0 }))
-            .flex_shrink_0()
+            .h(px(if is_field {
+                54.0
+            } else if is_inline_field {
+                46.0
+            } else {
+                38.0
+            }))
+            .when(is_inline_field, |this| this.min_w_0().flex_1())
+            .when(!is_inline_field, |this| this.flex_shrink_0())
             .border_color(rgb(BORDER))
             .child(
                 div()
@@ -727,11 +754,12 @@ impl Render for ExplorerFilter {
                     .track_focus(&self.focus_handle(cx))
                     .flex()
                     .items_center()
-                    .px_4()
+                    .when(is_inline_field, |this| this.px_0())
+                    .when(!is_inline_field, |this| this.px_4())
                     .border_color(rgb(BORDER))
                     .bg(rgb(SURFACE))
                     .when(is_field, |this| this.rounded_lg().border_1())
-                    .when(!is_field, |this| this.border_b_1())
+                    .when(!is_field && !is_inline_field, |this| this.border_b_1())
                     .cursor(CursorStyle::IBeam)
                     .on_action(cx.listener(Self::backspace))
                     .on_action(cx.listener(Self::delete))
@@ -757,8 +785,8 @@ impl Render for ExplorerFilter {
                             .flex_1()
                             .overflow_hidden()
                             .font_family("monospace")
-                            .when(is_field, |this| this.text_base())
-                            .when(!is_field, |this| this.text_sm())
+                            .when(is_field || is_inline_field, |this| this.text_base())
+                            .when(!is_field && !is_inline_field, |this| this.text_sm())
                             .text_color(rgb(TEXT))
                             .child(FilterTextElement { input: cx.entity() }),
                     )

@@ -45,6 +45,7 @@ use model::{
 use preview::PreviewTarget;
 use preview_audio::AudioPreview;
 use properties::PropertiesPanelResizeDrag;
+use properties_transform::{OpacityDrag, VideoTransformInputs};
 use timeline_interactions::{
     ClipMoveDrag, ClipPlacement, MarqueeSelection, TimelineTool, TrimDrag, TrimEdge,
 };
@@ -189,6 +190,9 @@ pub(crate) struct Editor {
     preview_refresh_ticks: u8,
     properties_panel_width: f32,
     is_resizing_properties_panel: bool,
+    video_transform_inputs: VideoTransformInputs,
+    video_transform_input_clip_id: Option<u64>,
+    opacity_drag: Option<OpacityDrag>,
     settings_open: bool,
     export_dialog_state: Option<ExportDialogState>,
     pixels_per_second: f32,
@@ -224,6 +228,8 @@ impl Editor {
         let selected_clip_ids = selected_clip_id.into_iter().collect();
         let focus_handle = cx.focus_handle();
         let explorer_filter = cx.new(|cx| ExplorerFilter::new(focus_handle.clone(), cx));
+        let video_transform_inputs = VideoTransformInputs::new(focus_handle.clone(), cx);
+        Self::observe_video_transform_inputs(&video_transform_inputs, cx);
         cx.observe(&explorer_filter, |editor, _, cx| {
             editor.schedule_explorer_search(cx);
             cx.notify();
@@ -277,6 +283,9 @@ impl Editor {
             preview_refresh_ticks: 0,
             properties_panel_width: DEFAULT_PROPERTIES_PANEL_WIDTH,
             is_resizing_properties_panel: false,
+            video_transform_inputs,
+            video_transform_input_clip_id: None,
+            opacity_drag: None,
             settings_open: false,
             export_dialog_state: None,
             pixels_per_second: 72.0,
