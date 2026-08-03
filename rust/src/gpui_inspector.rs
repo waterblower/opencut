@@ -1,8 +1,9 @@
 use gpui::{
     AnyElement, App, Context, CursorStyle, DivInspectorState, Inspector, InspectorElementId,
-    MouseButton, Window, div, prelude::*, px, rgb,
+    MouseButton, SharedString, StyleRefinement, Window, div, prelude::*, px, rgb,
 };
 use std::{
+    cell::RefCell,
     sync::{
         Mutex, OnceLock,
         atomic::{AtomicBool, Ordering},
@@ -23,6 +24,16 @@ const INSPECTOR_WIDTH_REMS: f32 = 30.0;
 static INSPECTOR_OPEN: AtomicBool = AtomicBool::new(false);
 static RENDER_FPS: OnceLock<Mutex<RenderFps>> = OnceLock::new();
 
+thread_local! {
+    static DIV_STYLE_CACHE: RefCell<Option<DivStyleCache>> = const { RefCell::new(None) };
+}
+
+struct DivStyleCache {
+    element_key: String,
+    style: Box<StyleRefinement>,
+    formatted: SharedString,
+}
+
 struct RenderFps {
     frames: u32,
     value: f32,
@@ -40,8 +51,8 @@ impl RenderFps {
 }
 
 pub(crate) fn init(cx: &mut App) {
-    cx.register_inspector_element(|_: InspectorElementId, state: &DivInspectorState, _, _| {
-        render_div_state(state)
+    cx.register_inspector_element(|id: InspectorElementId, state: &DivInspectorState, _, _| {
+        render_div_state(&id, state)
     });
     cx.set_inspector_renderer(Box::new(render_inspector));
 }
@@ -272,9 +283,10 @@ fn render_element_id(id: &InspectorElementId) -> AnyElement {
         .into_any_element()
 }
 
-fn render_div_state(state: &DivInspectorState) -> AnyElement {
+fn render_div_state(id: &InspectorElementId, state: &DivInspectorState) -> AnyElement {
     let bounds = state.bounds;
     let content = state.content_size;
+    let formatted_style = cached_div_style(id, &state.base_style);
     section("DIV")
         .child(property(
             "Position",
@@ -311,9 +323,29 @@ fn render_div_state(state: &DivInspectorState) -> AnyElement {
                 .font_family("monospace")
                 .text_xs()
                 .text_color(rgb(0xa8a8b0))
-                .child(format!("{:#?}", state.base_style)),
+                .child(formatted_style),
         )
         .into_any_element()
+}
+
+fn cached_div_style(id: &InspectorElementId, style: &StyleRefinement) -> SharedString {
+    let element_key = format!("{}:{}", id.path.global_id, id.instance_id);
+    DIV_STYLE_CACHE.with_borrow_mut(|cache| {
+        if let Some(cache) = cache.as_ref()
+            && cache.element_key == element_key
+            && cache.style.as_ref() == style
+        {
+            return cache.formatted.clone();
+        }
+
+        let formatted = SharedString::from(format!("{style:#?}"));
+        *cache = Some(DivStyleCache {
+            element_key,
+            style: Box::new(style.clone()),
+            formatted: formatted.clone(),
+        });
+        formatted
+    })
 }
 
 fn section(title: &'static str) -> gpui::Div {

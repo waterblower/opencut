@@ -9,7 +9,7 @@ use std::{
     time::Duration,
 };
 
-pub(super) const DEFAULT_IMAGE_DURATION: f64 = 5.0;
+pub(super) const DEFAULT_IMAGE_CLIP_DURATION: f64 = 5.0;
 pub(super) const PROJECT_VERSION: u32 = 6;
 
 #[derive(Clone, Copy, Debug, Default, Deserialize, Eq, Ord, PartialEq, PartialOrd, Serialize)]
@@ -611,12 +611,22 @@ impl Project {
                 .asset_id
                 .and_then(|id| self.assets.iter().find(|asset| asset.id == id))
             {
-                let asset_duration = frame_rate.ceil(asset.duration);
-                let maximum_in = (asset_duration - TimelineTime::ONE_FRAME).max(TimelineTime::ZERO);
-                clip.source_in = clip.source_in.clamp(TimelineTime::ZERO, maximum_in);
-                clip.source_out = clip
-                    .source_out
-                    .clamp(clip.source_in + TimelineTime::ONE_FRAME, asset_duration);
+                if asset.kind == MediaKind::Image {
+                    // An image has no time-based source to exhaust. Its five-second
+                    // asset duration is only the initial clip length, not a maximum.
+                    clip.source_in = clip.source_in.max(TimelineTime::ZERO);
+                    clip.source_out = clip
+                        .source_out
+                        .max(clip.source_in + TimelineTime::ONE_FRAME);
+                } else {
+                    let asset_duration = frame_rate.ceil(asset.duration);
+                    let maximum_in =
+                        (asset_duration - TimelineTime::ONE_FRAME).max(TimelineTime::ZERO);
+                    clip.source_in = clip.source_in.clamp(TimelineTime::ZERO, maximum_in);
+                    clip.source_out = clip
+                        .source_out
+                        .clamp(clip.source_in + TimelineTime::ONE_FRAME, asset_duration);
+                }
             }
         }
         for track in &self.tracks {
@@ -741,7 +751,7 @@ pub(super) fn probe_image(path: &Path, id: u64) -> Result<MediaAsset, String> {
             .file_stem()
             .map(|name| name.to_string_lossy().into_owned())
             .unwrap_or_else(|| path.display().to_string()),
-        duration: DEFAULT_IMAGE_DURATION,
+        duration: DEFAULT_IMAGE_CLIP_DURATION,
         width,
         height,
         framerate: 0.0,
@@ -864,6 +874,23 @@ mod tests {
         }
     }
 
+    fn image_asset() -> MediaAsset {
+        MediaAsset {
+            id: 100,
+            kind: MediaKind::Image,
+            path: "still.png".into(),
+            name: "still".into(),
+            duration: DEFAULT_IMAGE_CLIP_DURATION,
+            width: 1920,
+            height: 1080,
+            framerate: 0.0,
+            frame_rate_numerator: 0,
+            frame_rate_denominator: 0,
+            codec: "PNG".into(),
+            has_audio: false,
+        }
+    }
+
     #[test]
     fn repairs_overlapping_clips_when_loading_a_project() {
         let mut project = Project {
@@ -876,6 +903,33 @@ mod tests {
 
         assert_eq!(project.clips[0].timeline_start, frames(0));
         assert_eq!(project.clips[1].timeline_start, frames(150));
+    }
+
+    #[test]
+    fn still_image_clips_can_extend_beyond_their_default_duration() {
+        let mut project = Project {
+            assets: vec![image_asset()],
+            clips: vec![video_clip(10, 0, 300)],
+            ..Project::default()
+        };
+
+        project.normalize();
+
+        assert_eq!(project.clips[0].duration(), frames(300));
+        assert_eq!(project.seconds(project.clips[0].duration()), 10.0);
+    }
+
+    #[test]
+    fn time_based_media_remains_bounded_by_its_source_duration() {
+        let mut project = Project {
+            assets: vec![video_asset()],
+            clips: vec![video_clip(10, 0, 1_200)],
+            ..Project::default()
+        };
+
+        project.normalize();
+
+        assert_eq!(project.clips[0].duration(), frames(900));
     }
 
     #[test]

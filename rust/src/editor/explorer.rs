@@ -575,7 +575,7 @@ impl Editor {
         let duration = asset
             .as_ref()
             .map(|asset| self.project.ceil_time(asset.duration))
-            .unwrap_or_else(|| self.project.ceil_time(DEFAULT_IMAGE_DURATION));
+            .unwrap_or_else(|| self.project.ceil_time(DEFAULT_IMAGE_CLIP_DURATION));
         let (start, snap_guide) =
             self.snap_clip_start_ignoring(raw_start, duration, &HashSet::new());
         let invalid_reason = if let Some(asset) = asset.as_ref() {
