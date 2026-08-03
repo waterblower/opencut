@@ -15,6 +15,7 @@ mod editing;
 mod explorer;
 mod explorer_filter;
 mod export;
+mod export_dialog;
 mod media_cache;
 mod model;
 mod preview;
@@ -34,7 +35,7 @@ use crate::playback_view::{DragPhase, PlaybackViewDelegate};
 use editing::ClipClipboard;
 use explorer::{ExplorerDropPreview, ExplorerMediaDrag, FileContextMenu, PendingExplorerDrop};
 use explorer_filter::ExplorerFilter;
-use export::export_project;
+use export_dialog::ExportDialogState;
 use model::{
     AudioClipProperties, DEFAULT_IMAGE_CLIP_DURATION, FrameRate, MediaAsset, MediaKind, Project,
     TimelineClip, TimelineTime, TimelineTrack, TrackKind, VideoClipProperties, probe_audio,
@@ -188,6 +189,7 @@ pub(crate) struct Editor {
     properties_panel_width: f32,
     is_resizing_properties_panel: bool,
     settings_open: bool,
+    export_dialog_state: Option<ExportDialogState>,
     pixels_per_second: f32,
     active_timeline_tool: TimelineTool,
     blade_guide_position: Option<TimelineTime>,
@@ -275,6 +277,7 @@ impl Editor {
             properties_panel_width: DEFAULT_PROPERTIES_PANEL_WIDTH,
             is_resizing_properties_panel: false,
             settings_open: false,
+            export_dialog_state: None,
             pixels_per_second: 72.0,
             active_timeline_tool: TimelineTool::Selection,
             blade_guide_position: None,
@@ -509,79 +512,6 @@ impl Editor {
                         }
                         cx.notify();
                     }
-                })
-                .ok();
-        })
-        .detach();
-    }
-
-    fn export(&mut self, cx: &mut Context<Self>) {
-        if self.project.clips.is_empty() || self.exporting {
-            return;
-        }
-        let directory = self.project_root.clone();
-        let selection = cx.prompt_for_new_path(&directory, Some("opencut-export.mp4"));
-        cx.spawn(async move |editor, cx| {
-            let path = match selection.await {
-                Ok(Ok(Some(mut path))) => {
-                    if !path
-                        .extension()
-                        .and_then(|extension| extension.to_str())
-                        .is_some_and(|extension| extension.eq_ignore_ascii_case("mp4"))
-                    {
-                        path.set_extension("mp4");
-                    }
-                    path
-                }
-                Ok(Ok(None)) => return,
-                Ok(Err(error)) => {
-                    editor
-                        .update(cx, |editor, cx| {
-                            editor.error = Some(format!("Could not open export dialog: {error}"));
-                            cx.notify();
-                        })
-                        .ok();
-                    return;
-                }
-                Err(error) => {
-                    editor
-                        .update(cx, |editor, cx| {
-                            editor.error = Some(format!("Export dialog failed: {error}"));
-                            cx.notify();
-                        })
-                        .ok();
-                    return;
-                }
-            };
-            let (project, project_root) = match editor.update(cx, |editor, cx| {
-                editor.exporting = true;
-                editor.status = Some("Exporting…".to_string());
-                editor.error = None;
-                cx.notify();
-                (editor.project.clone(), editor.project_root.clone())
-            }) {
-                Ok(project) => project,
-                Err(_) => return,
-            };
-            let export_path = path.clone();
-            let result = cx
-                .background_executor()
-                .spawn(async move { export_project(&project, &project_root, &export_path) })
-                .await;
-            editor
-                .update(cx, |editor, cx| {
-                    editor.exporting = false;
-                    match result {
-                        Ok(()) => {
-                            editor.status = Some(format!("Exported {}", path.display()));
-                            editor.error = None;
-                        }
-                        Err(error) => {
-                            editor.status = None;
-                            editor.error = Some(error);
-                        }
-                    }
-                    cx.notify();
                 })
                 .ok();
         })

@@ -1,4 +1,4 @@
-use super::model::{MediaKind, Project, TimelineClip, TrackKind};
+use super::model::{FrameRate, MediaKind, Project, TimelineClip, TrackKind};
 use ffmpeg::{
     Dictionary, Packet, Rational,
     channel_layout::ChannelLayout,
@@ -9,10 +9,33 @@ use ffmpeg::{
 use ffmpeg_next as ffmpeg;
 use std::path::Path;
 
+pub(super) const DEFAULT_VIDEO_BIT_RATE: usize = 8_000_000;
+
+#[derive(Clone, Copy, Debug)]
+pub(super) struct ExportOptions {
+    pub width: u32,
+    pub height: u32,
+    pub frame_rate: FrameRate,
+    pub video_bit_rate: usize,
+}
+
+impl ExportOptions {
+    #[cfg(test)]
+    pub fn from_project(project: &Project) -> Self {
+        Self {
+            width: project.settings.width,
+            height: project.settings.height,
+            frame_rate: project.settings.frame_rate,
+            video_bit_rate: DEFAULT_VIDEO_BIT_RATE,
+        }
+    }
+}
+
 pub(super) fn export_project(
     project: &Project,
     project_root: &Path,
     output: &Path,
+    options: ExportOptions,
 ) -> Result<(), String> {
     if project.clips.is_empty() {
         return Err("Add at least one clip before exporting.".to_string());
@@ -20,12 +43,12 @@ pub(super) fn export_project(
     ffmpeg::init().map_err(|error| format!("could not initialize FFmpeg: {error}"))?;
 
     let duration = project.seconds(project.content_duration());
-    let width = even(project.settings.width.max(2));
-    let height = even(project.settings.height.max(2));
-    let fps = project.settings.frame_rate.frames_per_second();
+    let width = even(options.width.max(2));
+    let height = even(options.height.max(2));
+    let fps = options.frame_rate.frames_per_second();
     let frame_rate = Rational(
-        project.settings.frame_rate.numerator as i32,
-        project.settings.frame_rate.denominator as i32,
+        options.frame_rate.numerator as i32,
+        options.frame_rate.denominator as i32,
     );
     let video_time_base = Rational(frame_rate.denominator(), frame_rate.numerator());
     let audio_rate = i32::try_from(project.settings.audio_sample_rate)
@@ -59,7 +82,7 @@ pub(super) fn export_project(
     video_encoder.set_format(Pixel::YUV420P);
     video_encoder.set_frame_rate(Some(frame_rate));
     video_encoder.set_time_base(video_time_base);
-    video_encoder.set_bit_rate(8_000_000);
+    video_encoder.set_bit_rate(options.video_bit_rate);
     if global_header {
         video_encoder.set_flags(codec::Flags::GLOBAL_HEADER);
     }
@@ -547,7 +570,13 @@ mod tests {
             .unwrap()
             .as_nanos();
         let output = std::env::temp_dir().join(format!("opencut-api-export-{unique}.mp4"));
-        export_project(&project, project_root, &output).unwrap();
+        export_project(
+            &project,
+            project_root,
+            &output,
+            ExportOptions::from_project(&project),
+        )
+        .unwrap();
         assert!(std::fs::metadata(&output).unwrap().len() > 0);
         std::fs::remove_file(output).unwrap();
     }
