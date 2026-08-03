@@ -1,3 +1,4 @@
+use super::preview_transform::{transformed_image, transformed_video};
 use super::*;
 use crate::playback_view::{CONTROL_HEIGHT, PlaybackViewProps, playback_view};
 use crate::video_backend::{VideoOptions, create_timeline_video, video};
@@ -10,6 +11,59 @@ pub(super) enum PreviewTarget {
     VideoFile(PathBuf),
     AudioFile(PathBuf),
     ImageFile(PathBuf),
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+struct VisualLayerRect {
+    left: f32,
+    top: f32,
+    width: f32,
+    height: f32,
+}
+
+fn sanitized_video_properties(mut properties: VideoClipProperties) -> VideoClipProperties {
+    properties.position_x = finite_or(properties.position_x, 0.0);
+    properties.position_y = finite_or(properties.position_y, 0.0);
+    properties.scale = finite_or(properties.scale, 1.0).max(0.0);
+    properties.rotation_degrees = finite_or(properties.rotation_degrees, 0.0);
+    properties.opacity = finite_or(properties.opacity, 1.0).clamp(0.0, 1.0);
+    properties
+}
+
+fn visual_layer_rect(
+    properties: VideoClipProperties,
+    project_width: u32,
+    project_height: u32,
+    surface_width: f32,
+    surface_height: f32,
+) -> VisualLayerRect {
+    let project_width = project_width.max(1) as f32;
+    let project_height = project_height.max(1) as f32;
+    let project_scale = (surface_width / project_width)
+        .min(surface_height / project_height)
+        .max(0.0);
+    let clip_scale = properties.scale as f32;
+    let width = project_width * project_scale * clip_scale;
+    let height = project_height * project_scale * clip_scale;
+    VisualLayerRect {
+        left: (surface_width - width) * 0.5 + properties.position_x as f32 * project_scale,
+        top: (surface_height - height) * 0.5 + properties.position_y as f32 * project_scale,
+        width,
+        height,
+    }
+}
+
+fn requires_rasterized_video(properties: VideoClipProperties) -> bool {
+    has_rotation(properties.rotation_degrees) || (properties.opacity - 1.0).abs() > 0.000_001
+}
+
+fn has_rotation(degrees: f64) -> bool {
+    let normalized = degrees.rem_euclid(360.0);
+    normalized.min(360.0 - normalized) > 0.000_001
+}
+
+fn finite_or(value: f64, fallback: f64) -> f64 {
+    value.is_finite().then_some(value).unwrap_or(fallback)
 }
 
 impl Editor {
@@ -42,16 +96,8 @@ impl Editor {
         cx: &mut Context<Self>,
     ) -> gpui::AnyElement {
         let surface_height = (height - CONTROL_HEIGHT).max(1.0);
-        let selected_image_path = self
-            .project
-            .visual_clip_at_time(self.playhead)
-            .and_then(|clip| clip.asset_id)
-            .and_then(|id| self.project.asset(id))
-            .filter(|asset| asset.kind == MediaKind::Image)
-            .map(|asset| self.project_root.join(&asset.path));
-        let base_track_index = self
-            .project
-            .visual_clip_at_time(self.playhead)
+        let base_clip = self.project.visual_clip_at_time(self.playhead);
+        let base_track_index = base_clip
             .and_then(|clip| {
                 self.project
                     .tracks
@@ -70,29 +116,21 @@ impl Editor {
                     .filter_map(|clip| {
                         let asset = clip.asset_id.and_then(|id| self.project.asset(id))?;
                         (asset.kind == MediaKind::Image).then(|| {
-                            img(self.project_root.join(&asset.path))
-                                .absolute()
-                                .inset_0()
-                                .size_full()
-                                .object_fit(ObjectFit::Contain)
-                                .into_any_element()
+                            self.timeline_image_layer(
+                                clip,
+                                self.project_root.join(&asset.path),
+                                width,
+                                surface_height,
+                            )
                         })
                     })
             })
             .collect::<Vec<_>>();
-        let media = if let Some(image_path) = selected_image_path {
-            img(image_path)
-                .id("editor-timeline-image-preview")
-                .w(px(width))
-                .h(px(surface_height))
-                .object_fit(ObjectFit::Contain)
-                .into_any_element()
-        } else if let Some(video_handle) = &self.video {
-            video(video_handle.clone())
-                .id("editor-preview-video")
-                .size(px(width), px(surface_height))
-                .buffer_capacity(3)
-                .into_any_element()
+        let has_visual_overlays = !visual_overlays.is_empty();
+        let media = if let (Some(clip), Some(video_handle)) = (base_clip, self.video.as_ref()) {
+            self.timeline_video_layer(clip, video_handle, width, surface_height)
+        } else if has_visual_overlays {
+            div().size_full().into_any_element()
         } else {
             div()
                 .size_full()
@@ -130,6 +168,94 @@ impl Editor {
             content,
             cx,
         )
+    }
+
+    fn timeline_video_layer(
+        &self,
+        clip: &TimelineClip,
+        video_handle: &Video,
+        width: f32,
+        height: f32,
+    ) -> gpui::AnyElement {
+        let Some(asset) = clip.asset_id.and_then(|id| self.project.asset(id)) else {
+            return div().into_any_element();
+        };
+        let properties = sanitized_video_properties(clip.video_properties);
+        if requires_rasterized_video(properties) {
+            return transformed_video(
+                clip.id,
+                self.project_root.join(&asset.path),
+                video_handle.clone(),
+                properties,
+                self.project.settings.width,
+                self.project.settings.height,
+                width,
+                height,
+            )
+            .into_any_element();
+        }
+
+        let rect = visual_layer_rect(
+            properties,
+            self.project.settings.width,
+            self.project.settings.height,
+            width,
+            height,
+        );
+        div()
+            .id(("editor-timeline-video-layer", clip.id))
+            .absolute()
+            .left(px(rect.left))
+            .top(px(rect.top))
+            .w(px(rect.width))
+            .h(px(rect.height))
+            .child(
+                video(video_handle.clone())
+                    .id(("editor-preview-video", clip.id))
+                    .size(px(rect.width), px(rect.height))
+                    .buffer_capacity(3),
+            )
+            .into_any_element()
+    }
+
+    fn timeline_image_layer(
+        &self,
+        clip: &TimelineClip,
+        path: PathBuf,
+        width: f32,
+        height: f32,
+    ) -> gpui::AnyElement {
+        let properties = sanitized_video_properties(clip.video_properties);
+        if has_rotation(properties.rotation_degrees) {
+            return transformed_image(
+                clip.id,
+                path,
+                properties,
+                self.project.settings.width,
+                self.project.settings.height,
+                width,
+                height,
+            )
+            .into_any_element();
+        }
+
+        let rect = visual_layer_rect(
+            properties,
+            self.project.settings.width,
+            self.project.settings.height,
+            width,
+            height,
+        );
+        div()
+            .id(("editor-timeline-image-layer", clip.id))
+            .absolute()
+            .left(px(rect.left))
+            .top(px(rect.top))
+            .w(px(rect.width))
+            .h(px(rect.height))
+            .opacity(properties.opacity as f32)
+            .child(img(path).size_full().object_fit(ObjectFit::Contain))
+            .into_any_element()
     }
 
     fn video_file_preview(
@@ -956,5 +1082,54 @@ impl PlaybackViewDelegate for Editor {
             self.preview_volume_open = false;
             cx.notify();
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn visual_layout_maps_project_position_and_scale_to_preview_pixels() {
+        let rect = visual_layer_rect(
+            VideoClipProperties {
+                position_x: 100.0,
+                position_y: -50.0,
+                scale: 0.5,
+                ..VideoClipProperties::default()
+            },
+            1920,
+            1080,
+            960.0,
+            540.0,
+        );
+
+        assert_eq!(
+            rect,
+            VisualLayerRect {
+                left: 290.0,
+                top: 110.0,
+                width: 480.0,
+                height: 270.0,
+            }
+        );
+    }
+
+    #[test]
+    fn video_rasterization_is_reserved_for_rotation_and_opacity() {
+        assert!(!requires_rasterized_video(VideoClipProperties {
+            position_x: 20.0,
+            position_y: -20.0,
+            scale: 1.5,
+            ..VideoClipProperties::default()
+        }));
+        assert!(requires_rasterized_video(VideoClipProperties {
+            rotation_degrees: 45.0,
+            ..VideoClipProperties::default()
+        }));
+        assert!(requires_rasterized_video(VideoClipProperties {
+            opacity: 0.5,
+            ..VideoClipProperties::default()
+        }));
     }
 }
