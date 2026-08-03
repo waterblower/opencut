@@ -113,6 +113,9 @@ impl Render for Editor {
             .when(self.settings_open, |this| {
                 this.child(self.settings_modal(cx))
             })
+            .when(self.export_dialog_state.is_some(), |this| {
+                this.child(self.export_dialog(cx))
+            })
     }
 }
 
@@ -214,7 +217,8 @@ impl Editor {
                         .bg(rgb(ACCENT))
                         .text_color(rgb(0x17120a))
                         .on_click(cx.listener(|editor, _, _, cx| {
-                            editor.export(cx);
+                            editor.open_export_dialog(cx);
+                            cx.notify();
                         })),
                     ),
             )
