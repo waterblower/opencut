@@ -19,6 +19,7 @@ mod media_cache;
 mod model;
 mod preview;
 mod preview_audio;
+mod preview_transform;
 mod properties;
 mod settings;
 mod timeline;
@@ -39,13 +40,17 @@ use model::{
 };
 use preview::PreviewTarget;
 use preview_audio::AudioPreview;
+use properties::PropertiesPanelResizeDrag;
 use timeline_interactions::{
     ClipMoveDrag, ClipPlacement, MarqueeSelection, TimelineTool, TrimDrag, TrimEdge,
 };
 use workspace::{FileTreeEntry, load_project_root, save_project_root, visible_tree};
 
 const MEDIA_PANEL_WIDTH: f32 = 340.0;
-const PROPERTIES_PANEL_WIDTH: f32 = 292.0;
+const DEFAULT_PROPERTIES_PANEL_WIDTH: f32 = 292.0;
+const MIN_PROPERTIES_PANEL_WIDTH: f32 = 240.0;
+const MAX_PROPERTIES_PANEL_WIDTH: f32 = 600.0;
+const MIN_PREVIEW_WIDTH: f32 = 320.0;
 const TOPBAR_HEIGHT: f32 = 64.0;
 const TIMELINE_HEIGHT: f32 = 420.0;
 const TIMELINE_HEADER_HEIGHT: f32 = 46.0;
@@ -178,6 +183,8 @@ pub(crate) struct Editor {
     preview_pending_seek_started: Option<Instant>,
     preview_last_scrub_seek: Option<Instant>,
     preview_refresh_ticks: u8,
+    properties_panel_width: f32,
+    is_resizing_properties_panel: bool,
     settings_open: bool,
     pixels_per_second: f32,
     active_timeline_tool: TimelineTool,
@@ -263,6 +270,8 @@ impl Editor {
             preview_pending_seek_started: None,
             preview_last_scrub_seek: None,
             preview_refresh_ticks: 0,
+            properties_panel_width: DEFAULT_PROPERTIES_PANEL_WIDTH,
+            is_resizing_properties_panel: false,
             settings_open: false,
             pixels_per_second: 72.0,
             active_timeline_tool: TimelineTool::Selection,

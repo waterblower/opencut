@@ -115,7 +115,7 @@ or an effects system.
 - [ ] Add reusable numeric fields, sliders, and reset buttons for editing one
       clip in the video and audio properties panels.
 - [ ] Apply audio gain and mute during standalone audio preview playback.
-- [ ] Apply video position, scale, rotation, and opacity in the preview renderer.
+- [x] Apply video position, scale, rotation, and opacity in the preview renderer.
 - [ ] Add tests for property defaults, serialization, controls, and preview value
       mapping.
 - [ ] Add stereo pan and apply audio properties consistently across simultaneous

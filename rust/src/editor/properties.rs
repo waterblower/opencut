@@ -1,6 +1,26 @@
 use super::*;
 use std::path::Path;
 
+#[derive(Clone)]
+pub(super) struct PropertiesPanelResizeDrag;
+
+struct PropertiesPanelResizeDragView;
+
+impl Render for PropertiesPanelResizeDragView {
+    fn render(&mut self, _: &mut Window, _: &mut Context<Self>) -> impl IntoElement {
+        div().size(px(1.0)).opacity(0.0)
+    }
+}
+
+#[derive(Clone, Copy)]
+enum VideoTransformProperty {
+    PositionX,
+    PositionY,
+    Scale,
+    Rotation,
+    Opacity,
+}
+
 impl Editor {
     pub(super) fn properties_panel(&self, cx: &mut Context<Self>) -> gpui::AnyElement {
         let content = match &self.preview_target {
@@ -12,13 +32,21 @@ impl Editor {
 
         div()
             .id("editor-properties-panel")
-            .w(px(PROPERTIES_PANEL_WIDTH))
+            .relative()
+            .w(px(self.properties_panel_width))
             .h_full()
             .flex_shrink_0()
             .flex()
             .flex_col()
             .border_l_1()
-            .border_color(rgb(BORDER))
+            .border_color(if self.is_resizing_properties_panel {
+                rgb(ACCENT)
+            } else {
+                rgb(BORDER)
+            })
+            .group_hover("properties-panel-resize", |style| {
+                style.border_color(rgb(ACCENT))
+            })
             .bg(rgb(PANEL))
             .child(
                 div()
@@ -42,7 +70,71 @@ impl Editor {
                     .p_4()
                     .child(content),
             )
+            .child(
+                div()
+                    .id("properties-panel-resize-handle")
+                    .absolute()
+                    .top_0()
+                    .left(px(-3.0))
+                    .w(px(6.0))
+                    .h_full()
+                    .group("properties-panel-resize")
+                    .cursor(CursorStyle::ResizeLeftRight)
+                    .occlude()
+                    .on_mouse_down(
+                        MouseButton::Left,
+                        cx.listener(Self::begin_properties_panel_resize),
+                    )
+                    .on_drag(PropertiesPanelResizeDrag, |_, _, _, cx| {
+                        cx.new(|_| PropertiesPanelResizeDragView)
+                    }),
+            )
             .into_any_element()
+    }
+
+    fn set_properties_panel_width_from_x(&mut self, x: f32, window: &Window) {
+        let viewport_width: f32 = window.viewport_size().width.into();
+        let editor_width = (viewport_width - crate::gpui_inspector::docked_width(window)).max(0.0);
+        let available_max = (editor_width - MEDIA_PANEL_WIDTH - MIN_PREVIEW_WIDTH)
+            .clamp(MIN_PROPERTIES_PANEL_WIDTH, MAX_PROPERTIES_PANEL_WIDTH);
+        self.properties_panel_width =
+            (editor_width - x).clamp(MIN_PROPERTIES_PANEL_WIDTH, available_max);
+    }
+
+    pub(super) fn begin_properties_panel_resize(
+        &mut self,
+        event: &MouseDownEvent,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        self.is_resizing_properties_panel = true;
+        self.set_properties_panel_width_from_x(event.position.x.into(), window);
+        cx.notify();
+    }
+
+    pub(super) fn resize_properties_panel_drag(
+        &mut self,
+        event: &DragMoveEvent<PropertiesPanelResizeDrag>,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        if self.is_resizing_properties_panel {
+            self.set_properties_panel_width_from_x(event.event.position.x.into(), window);
+            cx.notify();
+        }
+    }
+
+    pub(super) fn finish_properties_panel_resize(
+        &mut self,
+        event: &MouseUpEvent,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        if self.is_resizing_properties_panel && event.button == MouseButton::Left {
+            self.set_properties_panel_width_from_x(event.position.x.into(), window);
+            self.is_resizing_properties_panel = false;
+            cx.notify();
+        }
     }
 
     fn timeline_properties(&self, cx: &mut Context<Self>) -> gpui::AnyElement {
@@ -127,10 +219,23 @@ impl Editor {
                 let title = asset
                     .map(|asset| asset.name.clone())
                     .unwrap_or_else(|| "Missing media".to_string());
+                let has_video_transform = track.kind == TrackKind::Video
+                    && asset.is_some_and(|asset| asset.kind != MediaKind::Audio);
                 this.flex()
                     .flex_col()
                     .gap_4()
-                    .child(properties_title(title, "Timeline clip"))
+                    .when(has_video_transform, |this| {
+                        this.child(self.video_transform_panel(
+                            clip.id,
+                            title.clone(),
+                            clip.video_properties,
+                            editable,
+                            cx,
+                        ))
+                    })
+                    .when(!has_video_transform, |this| {
+                        this.child(properties_title(title, "Timeline clip"))
+                    })
                     .child(properties_value(
                         "Timeline start",
                         format_time(self.project.seconds(clip.timeline_start)),
@@ -211,6 +316,325 @@ impl Editor {
                     .child("Select a timeline clip to view its properties.")
             })
             .into_any_element()
+    }
+
+    fn video_transform_panel(
+        &self,
+        clip_id: u64,
+        title: String,
+        properties: VideoClipProperties,
+        editable: bool,
+        cx: &mut Context<Self>,
+    ) -> gpui::AnyElement {
+        div()
+            .id("video-transform-properties")
+            .flex()
+            .flex_col()
+            .gap_4()
+            .child(
+                div()
+                    .flex()
+                    .items_center()
+                    .gap_3()
+                    .border_b_1()
+                    .border_color(rgb(BORDER))
+                    .child(properties_tab("Transform", true))
+                    .child(properties_tab("Speed", false))
+                    .child(properties_tab("Audio", false))
+                    .child(properties_tab("Captions", false)),
+            )
+            .child(properties_title(title, "Timeline clip"))
+            .child(properties_section_label("POSITION & SCALE"))
+            .child(self.video_transform_field(
+                clip_id,
+                VideoTransformProperty::PositionX,
+                "Position X",
+                format!("{:.1}", properties.position_x),
+                "px",
+                10.0,
+                "transform-position-x-minus",
+                "transform-position-x-plus",
+                editable,
+                cx,
+            ))
+            .child(self.video_transform_field(
+                clip_id,
+                VideoTransformProperty::PositionY,
+                "Position Y",
+                format!("{:.1}", properties.position_y),
+                "px",
+                10.0,
+                "transform-position-y-minus",
+                "transform-position-y-plus",
+                editable,
+                cx,
+            ))
+            .child(self.video_transform_field(
+                clip_id,
+                VideoTransformProperty::Scale,
+                "Scale",
+                format!("{:.1}", properties.scale * 100.0),
+                "%",
+                0.05,
+                "transform-scale-minus",
+                "transform-scale-plus",
+                editable,
+                cx,
+            ))
+            .child(self.video_transform_field(
+                clip_id,
+                VideoTransformProperty::Rotation,
+                "Rotation",
+                format!("{:.1}", properties.rotation_degrees),
+                "°",
+                5.0,
+                "transform-rotation-minus",
+                "transform-rotation-plus",
+                editable,
+                cx,
+            ))
+            .child(self.video_opacity_control(clip_id, properties.opacity, editable, cx))
+            .child(
+                div()
+                    .mt_1()
+                    .flex()
+                    .items_center()
+                    .justify_between()
+                    .child(properties_section_label("TRANSFORM"))
+                    .child(transform_reset_button(editable).when(editable, |button| {
+                        button.on_click(cx.listener(move |editor, _, _, cx| {
+                            editor.reset_video_transform(clip_id);
+                            cx.notify();
+                        }))
+                    })),
+            )
+            .into_any_element()
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn video_transform_field(
+        &self,
+        clip_id: u64,
+        property: VideoTransformProperty,
+        label: &'static str,
+        value: String,
+        unit: &'static str,
+        step: f64,
+        minus_id: &'static str,
+        plus_id: &'static str,
+        editable: bool,
+        cx: &mut Context<Self>,
+    ) -> gpui::AnyElement {
+        div()
+            .flex()
+            .items_center()
+            .justify_between()
+            .gap_3()
+            .child(
+                div()
+                    .w(px(82.0))
+                    .flex_shrink_0()
+                    .text_sm()
+                    .text_color(rgb(MUTED))
+                    .child(label),
+            )
+            .child(
+                div()
+                    .h(px(42.0))
+                    .min_w_0()
+                    .flex_1()
+                    .flex()
+                    .items_center()
+                    .rounded_md()
+                    .border_1()
+                    .border_color(rgb(BORDER))
+                    .bg(rgb(SURFACE))
+                    .child(transform_step_button(minus_id, "−", editable).when(
+                        editable,
+                        |button| {
+                            button.on_click(cx.listener(move |editor, _, _, cx| {
+                                editor.adjust_video_transform(clip_id, property, -step);
+                                cx.notify();
+                            }))
+                        },
+                    ))
+                    .child(
+                        div()
+                            .min_w_0()
+                            .flex_1()
+                            .font_family("monospace")
+                            .text_sm()
+                            .text_color(rgb(if editable { TEXT } else { MUTED }))
+                            .child(value),
+                    )
+                    .child(div().mr_1().text_sm().text_color(rgb(MUTED)).child(unit))
+                    .child(transform_step_button(plus_id, "+", editable).when(
+                        editable,
+                        |button| {
+                            button.on_click(cx.listener(move |editor, _, _, cx| {
+                                editor.adjust_video_transform(clip_id, property, step);
+                                cx.notify();
+                            }))
+                        },
+                    )),
+            )
+            .into_any_element()
+    }
+
+    fn video_opacity_control(
+        &self,
+        clip_id: u64,
+        opacity: f64,
+        editable: bool,
+        cx: &mut Context<Self>,
+    ) -> gpui::AnyElement {
+        let opacity = opacity.clamp(0.0, 1.0);
+        div()
+            .flex()
+            .items_center()
+            .justify_between()
+            .gap_3()
+            .child(
+                div()
+                    .w(px(82.0))
+                    .flex_shrink_0()
+                    .text_sm()
+                    .text_color(rgb(MUTED))
+                    .child("Opacity"),
+            )
+            .child(
+                div()
+                    .min_w_0()
+                    .flex_1()
+                    .flex()
+                    .items_center()
+                    .gap_2()
+                    .child(
+                        transform_step_button("transform-opacity-minus", "−", editable).when(
+                            editable,
+                            |button| {
+                                button.on_click(cx.listener(move |editor, _, _, cx| {
+                                    editor.adjust_video_transform(
+                                        clip_id,
+                                        VideoTransformProperty::Opacity,
+                                        -0.05,
+                                    );
+                                    cx.notify();
+                                }))
+                            },
+                        ),
+                    )
+                    .child(
+                        div()
+                            .relative()
+                            .h(px(18.0))
+                            .min_w_0()
+                            .flex_1()
+                            .flex()
+                            .items_center()
+                            .child(
+                                div()
+                                    .absolute()
+                                    .left_0()
+                                    .right_0()
+                                    .h(px(4.0))
+                                    .rounded_full()
+                                    .bg(rgb(0x45454d)),
+                            )
+                            .child(
+                                div()
+                                    .absolute()
+                                    .left_0()
+                                    .w(gpui::relative(opacity as f32))
+                                    .h(px(4.0))
+                                    .rounded_full()
+                                    .bg(rgb(ACCENT)),
+                            )
+                            .child(
+                                div()
+                                    .absolute()
+                                    .left(gpui::relative(opacity as f32))
+                                    .ml(px(-5.0))
+                                    .size(px(10.0))
+                                    .rounded_full()
+                                    .bg(rgb(ACCENT)),
+                            ),
+                    )
+                    .child(
+                        transform_step_button("transform-opacity-plus", "+", editable).when(
+                            editable,
+                            |button| {
+                                button.on_click(cx.listener(move |editor, _, _, cx| {
+                                    editor.adjust_video_transform(
+                                        clip_id,
+                                        VideoTransformProperty::Opacity,
+                                        0.05,
+                                    );
+                                    cx.notify();
+                                }))
+                            },
+                        ),
+                    )
+                    .child(
+                        div()
+                            .w(px(30.0))
+                            .font_family("monospace")
+                            .text_sm()
+                            .text_color(rgb(if editable { TEXT } else { MUTED }))
+                            .child(format!("{:.0}", opacity * 100.0)),
+                    ),
+            )
+            .into_any_element()
+    }
+
+    fn adjust_video_transform(
+        &mut self,
+        clip_id: u64,
+        property: VideoTransformProperty,
+        delta: f64,
+    ) {
+        if self.clip_locked(clip_id) {
+            return;
+        }
+        let Some(index) = self.project.clip_index(clip_id) else {
+            return;
+        };
+        let mut properties = self.project.clips[index].video_properties;
+        match property {
+            VideoTransformProperty::PositionX => properties.position_x += delta,
+            VideoTransformProperty::PositionY => properties.position_y += delta,
+            VideoTransformProperty::Scale => {
+                properties.scale = (properties.scale + delta).clamp(0.0, 100.0)
+            }
+            VideoTransformProperty::Rotation => properties.rotation_degrees += delta,
+            VideoTransformProperty::Opacity => {
+                properties.opacity = (properties.opacity + delta).clamp(0.0, 1.0)
+            }
+        }
+        if properties == self.project.clips[index].video_properties {
+            return;
+        }
+        self.checkpoint();
+        self.project.clips[index].video_properties = properties;
+        self.preview_refresh_ticks = 2;
+        self.save_project();
+    }
+
+    fn reset_video_transform(&mut self, clip_id: u64) {
+        if self.clip_locked(clip_id) {
+            return;
+        }
+        let Some(index) = self.project.clip_index(clip_id) else {
+            return;
+        };
+        let properties = VideoClipProperties::default();
+        if self.project.clips[index].video_properties == properties {
+            return;
+        }
+        self.checkpoint();
+        self.project.clips[index].video_properties = properties;
+        self.preview_refresh_ticks = 2;
+        self.save_project();
     }
 
     fn video_file_properties(&self, path: &Path) -> gpui::AnyElement {
@@ -305,6 +729,72 @@ fn properties_title(title: String, subtitle: &'static str) -> gpui::Div {
                 .child(title),
         )
         .child(div().text_xs().text_color(rgb(MUTED)).child(subtitle))
+}
+
+fn properties_tab(label: &'static str, active: bool) -> gpui::Div {
+    div()
+        .h(px(38.0))
+        .flex()
+        .items_center()
+        .border_b_2()
+        .border_color(if active { rgb(ACCENT) } else { rgb(0x00000000) })
+        .text_sm()
+        .text_color(rgb(if active { TEXT } else { MUTED }))
+        .child(label)
+}
+
+fn properties_section_label(label: &'static str) -> gpui::Div {
+    div()
+        .text_xs()
+        .font_weight(gpui::FontWeight::SEMIBOLD)
+        .text_color(rgb(MUTED))
+        .child(label)
+}
+
+fn transform_step_button(
+    id: &'static str,
+    label: &'static str,
+    enabled: bool,
+) -> gpui::Stateful<gpui::Div> {
+    div()
+        .id(id)
+        .size(px(32.0))
+        .flex_shrink_0()
+        .flex()
+        .items_center()
+        .justify_center()
+        .cursor(if enabled {
+            CursorStyle::PointingHand
+        } else {
+            CursorStyle::Arrow
+        })
+        .text_color(rgb(if enabled { MUTED } else { 0x45454d }))
+        .when(enabled, |this| {
+            this.hover(|style| style.bg(rgb(SURFACE_HOVER)).text_color(rgb(TEXT)))
+        })
+        .child(label)
+}
+
+fn transform_reset_button(enabled: bool) -> gpui::Stateful<gpui::Div> {
+    div()
+        .id("reset-video-transform")
+        .h_8()
+        .px_2()
+        .flex()
+        .items_center()
+        .justify_center()
+        .rounded_md()
+        .cursor(if enabled {
+            CursorStyle::PointingHand
+        } else {
+            CursorStyle::Arrow
+        })
+        .text_sm()
+        .text_color(rgb(if enabled { ACCENT } else { MUTED }))
+        .when(enabled, |this| {
+            this.hover(|style| style.bg(rgb(SURFACE_HOVER)))
+        })
+        .child("Reset")
 }
 
 fn file_properties(path: &Path, kind: &'static str) -> gpui::Div {

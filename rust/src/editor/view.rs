@@ -6,7 +6,8 @@ impl Render for Editor {
         let editor_width =
             (f32::from(viewport.width) - crate::gpui_inspector::docked_width(window)).max(0.0);
         let editor_viewport = gpui::size(px(editor_width), viewport.height);
-        let preview_width = (editor_width - MEDIA_PANEL_WIDTH - PROPERTIES_PANEL_WIDTH).max(320.0);
+        let preview_width =
+            (editor_width - MEDIA_PANEL_WIDTH - self.properties_panel_width).max(MIN_PREVIEW_WIDTH);
         let preview_height =
             (f32::from(viewport.height) - TOPBAR_HEIGHT - TIMELINE_HEIGHT).max(240.0);
 
@@ -61,6 +62,10 @@ impl Render for Editor {
             .on_action(cx.listener(Self::action_toggle_inspector))
             .on_action(cx.listener(Self::action_reveal_in_finder))
             .on_action(cx.listener(Self::action_open_in_default_app))
+            .on_drag_move::<PropertiesPanelResizeDrag>(
+                cx.listener(Self::resize_properties_panel_drag),
+            )
+            .capture_any_mouse_up(cx.listener(Self::finish_properties_panel_resize))
             .capture_any_mouse_down(cx.listener(|editor, event: &MouseDownEvent, window, cx| {
                 if event.button == MouseButton::Left {
                     editor.focus_handle.focus(window);
