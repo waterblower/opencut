@@ -53,3 +53,6 @@ objc2-app-kit = { version = "0.3", default-features = false, features = [
     "block2",
     "objc2-core-foundation",
 ] }
+
+[profile.dev.package."*"]
+opt-level = 1
