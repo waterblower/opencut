@@ -50,19 +50,6 @@ impl Editor {
             .bg(rgb(PANEL))
             .child(
                 div()
-                    .h(px(52.0))
-                    .flex_shrink_0()
-                    .flex()
-                    .items_center()
-                    .px_4()
-                    .border_b_1()
-                    .border_color(rgb(BORDER))
-                    .text_sm()
-                    .font_weight(gpui::FontWeight::SEMIBOLD)
-                    .child("Properties"),
-            )
-            .child(
-                div()
                     .id("editor-properties-scroll")
                     .flex_1()
                     .min_h_0()
@@ -140,8 +127,6 @@ impl Editor {
     fn timeline_properties(&self, cx: &mut Context<Self>) -> gpui::AnyElement {
         let selection_count = self.selected_clip_ids.len();
         if selection_count > 1 {
-            let editable = self.selected_clips_editable();
-            let can_split = self.can_split_selected();
             return div()
                 .id("timeline-multi-properties")
                 .flex()
@@ -151,53 +136,6 @@ impl Editor {
                     format!("{selection_count} clips selected"),
                     "Timeline selection",
                 ))
-                .child(
-                    div()
-                        .flex()
-                        .gap_2()
-                        .child(
-                            panel_button("Nudge left", editable).when(editable, |button| {
-                                button.on_click(cx.listener(|editor, _, _, cx| {
-                                    editor.move_selected(-1);
-                                    cx.notify();
-                                }))
-                            }),
-                        )
-                        .child(
-                            panel_button("Nudge right", editable).when(editable, |button| {
-                                button.on_click(cx.listener(|editor, _, _, cx| {
-                                    editor.move_selected(1);
-                                    cx.notify();
-                                }))
-                            }),
-                        ),
-                )
-                .child(
-                    panel_button("Split all at playhead", can_split).when(can_split, |button| {
-                        button.on_click(cx.listener(|editor, _, _, cx| {
-                            editor.split_selected();
-                            cx.notify();
-                        }))
-                    }),
-                )
-                .child(
-                    panel_button("Duplicate clips", editable).when(editable, |button| {
-                        button.on_click(cx.listener(|editor, _, _, cx| {
-                            editor.duplicate_selected();
-                            cx.notify();
-                        }))
-                    }),
-                )
-                .child(
-                    panel_button("Delete clips", editable)
-                        .text_color(if editable { rgb(ERROR) } else { rgb(MUTED) })
-                        .when(editable, |button| {
-                            button.on_click(cx.listener(|editor, _, _, cx| {
-                                editor.delete_selected();
-                                cx.notify();
-                            }))
-                        }),
-                )
                 .into_any_element();
         }
 
@@ -211,7 +149,6 @@ impl Editor {
             Some((clip, asset, track))
         });
         let editable = self.selected_clips_editable();
-        let can_split = self.can_split_selected();
 
         div()
             .id("timeline-properties")
@@ -260,55 +197,6 @@ impl Editor {
                     .when_some(asset, |this, asset| {
                         this.child(properties_value("Source", asset_description(asset)))
                     })
-                    .child(
-                        div()
-                            .mt_2()
-                            .flex()
-                            .gap_2()
-                            .child(
-                                panel_button("Nudge left", editable).when(editable, |button| {
-                                    button.on_click(cx.listener(|editor, _, _, cx| {
-                                        editor.move_selected(-1);
-                                        cx.notify();
-                                    }))
-                                }),
-                            )
-                            .child(panel_button("Nudge right", editable).when(
-                                editable,
-                                |button| {
-                                    button.on_click(cx.listener(|editor, _, _, cx| {
-                                        editor.move_selected(1);
-                                        cx.notify();
-                                    }))
-                                },
-                            )),
-                    )
-                    .child(
-                        panel_button("Split at playhead", can_split).when(can_split, |button| {
-                            button.on_click(cx.listener(|editor, _, _, cx| {
-                                editor.split_selected();
-                                cx.notify();
-                            }))
-                        }),
-                    )
-                    .child(
-                        panel_button("Duplicate clip", editable).when(editable, |button| {
-                            button.on_click(cx.listener(|editor, _, _, cx| {
-                                editor.duplicate_selected();
-                                cx.notify();
-                            }))
-                        }),
-                    )
-                    .child(
-                        panel_button("Delete clip", editable)
-                            .text_color(if editable { rgb(ERROR) } else { rgb(MUTED) })
-                            .when(editable, |button| {
-                                button.on_click(cx.listener(|editor, _, _, cx| {
-                                    editor.delete_selected();
-                                    cx.notify();
-                                }))
-                            }),
-                    )
             })
             .when(selected.is_none(), |this| {
                 this.text_sm()
@@ -338,10 +226,7 @@ impl Editor {
                     .gap_3()
                     .border_b_1()
                     .border_color(rgb(BORDER))
-                    .child(properties_tab("Transform", true))
-                    .child(properties_tab("Speed", false))
-                    .child(properties_tab("Audio", false))
-                    .child(properties_tab("Captions", false)),
+                    .child(properties_tab("Transform", true)),
             )
             .child(properties_title(title, "Timeline clip"))
             .child(properties_section_label("POSITION & SCALE"))
@@ -814,32 +699,6 @@ fn file_properties(path: &Path, kind: &'static str) -> gpui::Div {
 
 fn unsigned_size((width, height): (i32, i32)) -> Option<(u32, u32)> {
     (width > 0 && height > 0).then(|| (width as u32, height as u32))
-}
-
-fn panel_button(label: &'static str, enabled: bool) -> gpui::Stateful<gpui::Div> {
-    div()
-        .id(label)
-        .h_9()
-        .px_3()
-        .flex_1()
-        .flex()
-        .items_center()
-        .justify_center()
-        .rounded_lg()
-        .border_1()
-        .border_color(rgb(BORDER))
-        .bg(rgb(SURFACE))
-        .cursor(if enabled {
-            CursorStyle::PointingHand
-        } else {
-            CursorStyle::Arrow
-        })
-        .text_sm()
-        .text_color(rgb(if enabled { TEXT } else { MUTED }))
-        .when(enabled, |this| {
-            this.hover(|style| style.bg(rgb(SURFACE_HOVER)))
-        })
-        .child(label.to_string())
 }
 
 fn properties_value(label: &str, value: String) -> gpui::Div {
