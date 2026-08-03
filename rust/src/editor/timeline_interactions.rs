@@ -648,10 +648,14 @@ impl Editor {
     }
 
     pub(super) fn zoom(&mut self, factor: f32) {
-        self.pixels_per_second = (self.pixels_per_second * factor).clamp(
+        let pixels_per_second = (self.pixels_per_second * factor).clamp(
             MIN_TIMELINE_PIXELS_PER_SECOND,
             MAX_TIMELINE_PIXELS_PER_SECOND,
         );
+        if pixels_per_second != self.pixels_per_second {
+            self.pixels_per_second = pixels_per_second;
+            self.timeline_zoom_save_due = Some(Instant::now() + TIMELINE_ZOOM_SAVE_DELAY);
+        }
     }
 
     pub(super) fn toggle_snapping(&mut self) {

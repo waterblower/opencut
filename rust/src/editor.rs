@@ -50,7 +50,10 @@ use properties_transform::{OpacityDrag, VideoTransformInputs};
 use timeline_interactions::{
     ClipMoveDrag, ClipPlacement, MarqueeSelection, TimelineTool, TrimDrag, TrimEdge,
 };
-use workspace::{FileTreeEntry, load_project_root, save_project_root, visible_tree};
+use workspace::{
+    FileTreeEntry, load_project_root, load_timeline_zoom, save_project_root, save_timeline_zoom,
+    visible_tree,
+};
 
 const MEDIA_PANEL_WIDTH: f32 = 340.0;
 const DEFAULT_PROPERTIES_PANEL_WIDTH: f32 = 420.0;
@@ -67,6 +70,8 @@ const RULER_HEIGHT: f32 = 28.0;
 const SNAP_DISTANCE_PX: f32 = 8.0;
 const MIN_TIMELINE_PIXELS_PER_SECOND: f32 = 1.0;
 const MAX_TIMELINE_PIXELS_PER_SECOND: f32 = 1000.0;
+const DEFAULT_TIMELINE_PIXELS_PER_SECOND: f32 = 72.0;
+const TIMELINE_ZOOM_SAVE_DELAY: Duration = Duration::from_millis(500);
 const SCRUB_SEEK_INTERVAL: Duration = Duration::from_millis(50);
 const IDLE_UPDATE_INTERVAL: Duration = Duration::from_millis(33);
 
@@ -197,6 +202,7 @@ pub(crate) struct Editor {
     settings_open: bool,
     export_dialog_state: Option<ExportDialogState>,
     pixels_per_second: f32,
+    timeline_zoom_save_due: Option<Instant>,
     active_timeline_tool: TimelineTool,
     blade_guide_position: Option<TimelineTime>,
     snapping_enabled: bool,
@@ -220,6 +226,10 @@ pub(crate) struct Editor {
 impl Editor {
     pub(crate) fn new(window: &mut Window, cx: &mut Context<Self>) -> Self {
         let project_root = load_project_root();
+        let pixels_per_second = load_timeline_zoom().clamp(
+            MIN_TIMELINE_PIXELS_PER_SECOND,
+            MAX_TIMELINE_PIXELS_PER_SECOND,
+        );
         let expanded_directories = HashSet::new();
         let file_tree = visible_tree(&project_root, &expanded_directories).unwrap_or_default();
         let project = Project::load(&project_root);
@@ -289,7 +299,8 @@ impl Editor {
             opacity_drag: None,
             settings_open: false,
             export_dialog_state: None,
-            pixels_per_second: 72.0,
+            pixels_per_second,
+            timeline_zoom_save_due: None,
             active_timeline_tool: TimelineTool::Selection,
             blade_guide_position: None,
             snapping_enabled: true,
@@ -333,6 +344,15 @@ impl Editor {
                         _ => false,
                     };
                     let pinch_zoomed = editor.apply_timeline_pinch();
+                    if editor
+                        .timeline_zoom_save_due
+                        .is_some_and(|due| Instant::now() >= due)
+                    {
+                        if let Err(error) = save_timeline_zoom(editor.pixels_per_second) {
+                            editor.error = Some(error);
+                        }
+                        editor.timeline_zoom_save_due = None;
+                    }
                     let ended_explorer_drag =
                         !cx.has_active_drag() && editor.explorer_drop_preview.take().is_some();
                     if ended_explorer_drag {
