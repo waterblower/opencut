@@ -48,7 +48,7 @@ use timeline_interactions::{
 use workspace::{FileTreeEntry, load_project_root, save_project_root, visible_tree};
 
 const MEDIA_PANEL_WIDTH: f32 = 340.0;
-const DEFAULT_PROPERTIES_PANEL_WIDTH: f32 = 292.0;
+const DEFAULT_PROPERTIES_PANEL_WIDTH: f32 = 420.0;
 const MIN_PROPERTIES_PANEL_WIDTH: f32 = 240.0;
 const MAX_PROPERTIES_PANEL_WIDTH: f32 = 600.0;
 const MIN_PREVIEW_WIDTH: f32 = 320.0;

@@ -254,6 +254,10 @@ pub(super) struct VideoClipProperties {
     pub scale: f64,
     pub rotation_degrees: f64,
     pub opacity: f64,
+    pub crop_left: f64,
+    pub crop_right: f64,
+    pub crop_top: f64,
+    pub crop_bottom: f64,
 }
 
 impl Default for VideoClipProperties {
@@ -264,6 +268,10 @@ impl Default for VideoClipProperties {
             scale: 1.0,
             rotation_degrees: 0.0,
             opacity: 1.0,
+            crop_left: 0.0,
+            crop_right: 0.0,
+            crop_top: 0.0,
+            crop_bottom: 0.0,
         }
     }
 }
@@ -1080,6 +1088,10 @@ mod tests {
                 scale: 1.0,
                 rotation_degrees: 0.0,
                 opacity: 1.0,
+                crop_left: 0.0,
+                crop_right: 0.0,
+                crop_top: 0.0,
+                crop_bottom: 0.0,
             }
         );
         assert_eq!(
@@ -1117,6 +1129,10 @@ mod tests {
             scale: 1.25,
             rotation_degrees: 12.5,
             opacity: 0.8,
+            crop_left: 0.1,
+            crop_right: 0.2,
+            crop_top: 0.05,
+            crop_bottom: 0.15,
         };
         clip.audio_properties = AudioClipProperties {
             gain_db: -6.0,
