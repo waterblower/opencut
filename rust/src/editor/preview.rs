@@ -1,7 +1,8 @@
 use super::preview_transform::{transformed_image, transformed_video};
+use super::timeline_video::create_timeline_video;
 use super::*;
 use crate::playback_view::{CONTROL_HEIGHT, PlaybackViewProps, playback_view};
-use crate::video_backend::{VideoOptions, create_timeline_video, video};
+use crate::video_backend::{VideoOptions, video};
 use std::path::Path;
 use url::Url;
 

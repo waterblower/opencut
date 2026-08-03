@@ -3,7 +3,7 @@ name = "opencut-player"
 version = "0.1.0"
 edition = "2024"
 publish = false
-default-run = "opencut-player"
+default-run = "opencut-editor"
 
 [[bin]]
 name = "opencut-player"
@@ -20,7 +20,7 @@ path = "src/main-editor.rs"
 required-features = ["editor"]
 
 [features]
-default = ["gstreamer-backend"]
+default = ["editor"]
 editor = ["gstreamer-backend", "dep:ffmpeg-next"]
 gstreamer-backend = [
     "dep:gpui-video-player",

@@ -290,42 +290,6 @@ impl Editor {
         self.save_project();
     }
 
-    pub(super) fn move_selected(&mut self, direction: i8) {
-        let clip_ids = self.selected_clip_ids_in_project_order();
-        if clip_ids.is_empty() || !self.selected_clips_editable() {
-            return;
-        }
-        let delta = TimelineTime::from_frames(i64::from(direction));
-        let placements = clip_ids
-            .iter()
-            .filter_map(|clip_id| {
-                let clip = self.project.clip(*clip_id)?;
-                Some(ClipPlacement {
-                    clip_id: *clip_id,
-                    track_id: clip.track_id,
-                    start: clip.timeline_start + delta,
-                    duration: clip.duration(),
-                })
-            })
-            .collect::<Vec<_>>();
-        if placements.len() != clip_ids.len()
-            || placements
-                .iter()
-                .any(|placement| placement.start < TimelineTime::ZERO)
-            || !self.clip_placements_fit(&placements, &self.selected_clip_ids)
-        {
-            return;
-        }
-        self.checkpoint();
-        for placement in placements {
-            if let Some(clip) = self.project.clip_mut(placement.clip_id) {
-                clip.timeline_start = placement.start;
-            }
-        }
-        self.save_project();
-        self.load_timeline_position(self.playhead, false);
-    }
-
     pub(super) fn duplicate_selected(&mut self) {
         let clip_ids = self.selected_clip_ids_in_project_order();
         if clip_ids.is_empty() || !self.selected_clips_editable() {
@@ -558,17 +522,6 @@ impl Editor {
                 .selected_clip_ids
                 .iter()
                 .all(|clip_id| self.project.clip(*clip_id).is_some() && !self.clip_locked(*clip_id))
-    }
-
-    pub(super) fn can_split_selected(&self) -> bool {
-        self.selected_clips_editable()
-            && self.selected_clip_ids.iter().all(|clip_id| {
-                self.project.clip(*clip_id).is_some_and(|clip| {
-                    let local = self.playhead - clip.timeline_start;
-                    local >= TimelineTime::ONE_FRAME
-                        && local <= clip.duration() - TimelineTime::ONE_FRAME
-                })
-            })
     }
 
     pub(super) fn clip_placements_fit(

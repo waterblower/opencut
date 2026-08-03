@@ -24,6 +24,7 @@ mod properties;
 mod settings;
 mod timeline;
 mod timeline_interactions;
+mod timeline_video;
 mod track;
 mod view;
 mod workspace;
