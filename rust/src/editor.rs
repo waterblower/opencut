@@ -21,6 +21,7 @@ mod preview;
 mod preview_audio;
 mod preview_transform;
 mod properties;
+mod properties_transform;
 mod settings;
 mod timeline;
 mod timeline_interactions;
