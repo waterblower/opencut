@@ -1,6 +1,6 @@
 use super::{
     export::ExportOptions,
-    model::{MediaKind, Project, TimelineClip, TrackKind},
+    model::{MediaAsset, MediaKind, Project, TimelineClip, TrackKind, VideoClipProperties},
 };
 use ges::prelude::*;
 use gstreamer as gst;
@@ -135,6 +135,9 @@ fn build_timeline(
                         asset.name
                     )
                 })?;
+            if track_types.contains(ges::TrackType::VIDEO) {
+                apply_video_transform(&ges_clip, project, asset, options, clip.video_properties)?;
+            }
             if track_types.contains(ges::TrackType::AUDIO) {
                 let gain = if clip.audio_properties.muted {
                     0.0
@@ -150,6 +153,124 @@ fn build_timeline(
         return Err("GStreamer could not commit the export timeline.".to_string());
     }
     Ok(timeline)
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+struct ExportVideoTransform {
+    posx: i32,
+    posy: i32,
+    width: i32,
+    height: i32,
+    alpha: f64,
+    crop_left: i32,
+    crop_right: i32,
+    crop_top: i32,
+    crop_bottom: i32,
+}
+
+fn apply_video_transform(
+    clip: &ges::Clip,
+    project: &Project,
+    asset: &MediaAsset,
+    options: ExportOptions,
+    properties: VideoClipProperties,
+) -> Result<(), String> {
+    let transform = export_video_transform(project, asset, options, properties);
+
+    if transform.crop_left != 0
+        || transform.crop_right != 0
+        || transform.crop_top != 0
+        || transform.crop_bottom != 0
+    {
+        let effect = ges::Effect::new(&format!(
+            "videocrop left={} right={} top={} bottom={}",
+            transform.crop_left, transform.crop_right, transform.crop_top, transform.crop_bottom
+        ))
+        .map_err(|error| format!("could not create video crop effect: {error}"))?;
+        clip.add_top_effect(&effect, 0)
+            .map_err(|error| format!("could not apply video crop: {error}"))?;
+    }
+
+    for (name, value) in [
+        ("posx", transform.posx),
+        ("posy", transform.posy),
+        ("width", transform.width),
+        ("height", transform.height),
+    ] {
+        clip.set_child_property(name, value)
+            .map_err(|error| format!("could not apply video {name}: {error}"))?;
+    }
+    clip.set_child_property("alpha", transform.alpha)
+        .map_err(|error| format!("could not apply video opacity: {error}"))?;
+    Ok(())
+}
+
+fn export_video_transform(
+    project: &Project,
+    asset: &MediaAsset,
+    options: ExportOptions,
+    properties: VideoClipProperties,
+) -> ExportVideoTransform {
+    let source_width = asset.width.max(1);
+    let source_height = asset.height.max(1);
+    let project_width = project.settings.width.max(1) as f64;
+    let project_height = project.settings.height.max(1) as f64;
+    let output_width = options.width.max(2) as f64;
+    let output_height = options.height.max(2) as f64;
+    let project_scale = (output_width / project_width).min(output_height / project_height);
+    let fitted_scale = (project_width * project_scale / source_width as f64)
+        .min(project_height * project_scale / source_height as f64);
+    let clip_scale = finite_or(properties.scale, 1.0).max(0.0);
+    let pixel_scale = fitted_scale * clip_scale;
+
+    let crop_left_fraction = finite_or(properties.crop_left, 0.0).clamp(0.0, 0.99);
+    let crop_right_fraction =
+        finite_or(properties.crop_right, 0.0).clamp(0.0, 0.99 - crop_left_fraction);
+    let crop_top_fraction = finite_or(properties.crop_top, 0.0).clamp(0.0, 0.99);
+    let crop_bottom_fraction =
+        finite_or(properties.crop_bottom, 0.0).clamp(0.0, 0.99 - crop_top_fraction);
+    let crop_left = crop_pixels(source_width, crop_left_fraction, 0);
+    let crop_right = crop_pixels(source_width, crop_right_fraction, crop_left);
+    let crop_top = crop_pixels(source_height, crop_top_fraction, 0);
+    let crop_bottom = crop_pixels(source_height, crop_bottom_fraction, crop_top);
+
+    let visible_source_width = source_width.saturating_sub(crop_left + crop_right).max(1);
+    let visible_source_height = source_height.saturating_sub(crop_top + crop_bottom).max(1);
+    let full_width = source_width as f64 * pixel_scale;
+    let full_height = source_height as f64 * pixel_scale;
+    let center_x = output_width * 0.5 + finite_or(properties.position_x, 0.0) * project_scale;
+    let center_y = output_height * 0.5 + finite_or(properties.position_y, 0.0) * project_scale;
+    let posx = center_x - full_width * 0.5 + crop_left as f64 * pixel_scale;
+    let posy = center_y - full_height * 0.5 + crop_top as f64 * pixel_scale;
+    let hidden_by_scale = pixel_scale <= f64::EPSILON;
+
+    ExportVideoTransform {
+        posx: rounded_i32(posx),
+        posy: rounded_i32(posy),
+        width: rounded_i32(visible_source_width as f64 * pixel_scale).max(1),
+        height: rounded_i32(visible_source_height as f64 * pixel_scale).max(1),
+        alpha: if hidden_by_scale {
+            0.0
+        } else {
+            finite_or(properties.opacity, 1.0).clamp(0.0, 1.0)
+        },
+        crop_left: crop_left as i32,
+        crop_right: crop_right as i32,
+        crop_top: crop_top as i32,
+        crop_bottom: crop_bottom as i32,
+    }
+}
+
+fn crop_pixels(size: u32, fraction: f64, already_cropped: u32) -> u32 {
+    ((size as f64 * fraction).round() as u32).min(size.saturating_sub(already_cropped + 1))
+}
+
+fn rounded_i32(value: f64) -> i32 {
+    value.round().clamp(i32::MIN as f64, i32::MAX as f64) as i32
+}
+
+fn finite_or(value: f64, fallback: f64) -> f64 {
+    value.is_finite().then_some(value).unwrap_or(fallback)
 }
 
 fn exported_track_types(
@@ -424,6 +545,55 @@ mod tests {
     }
 
     #[test]
+    fn maps_project_video_transform_to_export_pixels() {
+        let project = Project::default();
+        let asset = MediaAsset {
+            id: 1,
+            kind: MediaKind::Video,
+            path: "video.mp4".into(),
+            name: "video".into(),
+            duration: 1.0,
+            width: 320,
+            height: 180,
+            framerate: 30.0,
+            frame_rate_numerator: 30,
+            frame_rate_denominator: 1,
+            codec: "h264".into(),
+            has_audio: false,
+        };
+        let transform = export_video_transform(
+            &project,
+            &asset,
+            ExportOptions::from_project(&project),
+            VideoClipProperties {
+                position_x: 120.0,
+                position_y: -60.0,
+                scale: 0.5,
+                opacity: 0.25,
+                crop_left: 0.1,
+                crop_right: 0.2,
+                crop_top: 0.1,
+                crop_bottom: 0.2,
+            },
+        );
+
+        assert_eq!(
+            transform,
+            ExportVideoTransform {
+                posx: 696,
+                posy: 264,
+                width: 672,
+                height: 378,
+                alpha: 0.25,
+                crop_left: 32,
+                crop_right: 64,
+                crop_top: 18,
+                crop_bottom: 36,
+            }
+        );
+    }
+
+    #[test]
     fn creates_gstreamer_timeline_from_real_media() {
         ges::init().unwrap();
         let project_root = Path::new(env!("CARGO_MANIFEST_DIR"));
@@ -448,6 +618,16 @@ mod tests {
             codec: "h264".into(),
             has_audio: true,
         });
+        let video_properties = VideoClipProperties {
+            position_x: 120.0,
+            position_y: -60.0,
+            scale: 0.5,
+            opacity: 0.25,
+            crop_left: 0.1,
+            crop_right: 0.2,
+            crop_top: 0.1,
+            crop_bottom: 0.2,
+        };
         project.clips.push(TimelineClip {
             id: 11,
             track_id: video_track,
@@ -455,7 +635,7 @@ mod tests {
             timeline_start: TimelineTime::ZERO,
             source_in: TimelineTime::ZERO,
             source_out: TimelineTime::from_frames(3),
-            video_properties: VideoClipProperties::default(),
+            video_properties,
             audio_properties: AudioClipProperties::default(),
         });
         let timeline = build_timeline(
@@ -465,6 +645,62 @@ mod tests {
         )
         .unwrap();
         assert_eq!(timeline.layers().len(), project.tracks.len());
+        let exported_clip = timeline
+            .layers()
+            .into_iter()
+            .flat_map(|layer| layer.clips())
+            .next()
+            .unwrap();
+        assert_eq!(
+            exported_clip
+                .child_property("posx")
+                .unwrap()
+                .get::<i32>()
+                .unwrap(),
+            696
+        );
+        assert_eq!(
+            exported_clip
+                .child_property("posy")
+                .unwrap()
+                .get::<i32>()
+                .unwrap(),
+            264
+        );
+        assert_eq!(
+            exported_clip
+                .child_property("width")
+                .unwrap()
+                .get::<i32>()
+                .unwrap(),
+            672
+        );
+        assert_eq!(
+            exported_clip
+                .child_property("height")
+                .unwrap()
+                .get::<i32>()
+                .unwrap(),
+            378
+        );
+        assert_eq!(
+            exported_clip
+                .child_property("alpha")
+                .unwrap()
+                .get::<f64>()
+                .unwrap(),
+            0.25
+        );
+        for (name, expected) in [("left", 32), ("right", 64), ("top", 18), ("bottom", 36)] {
+            assert_eq!(
+                exported_clip
+                    .child_property(name)
+                    .unwrap()
+                    .get::<i32>()
+                    .unwrap(),
+                expected
+            );
+        }
     }
 
     #[test]

@@ -42,7 +42,7 @@ gpui = { version = "0.2", features = ["inspector"] }
 gpui-video-player = { path = "vendor/gpui-video-player", optional = true }
 gstreamer = { version = "0.25", optional = true }
 gstreamer-app = { version = "0.25", optional = true }
-gstreamer-editing-services = { version = "0.25", optional = true }
+gstreamer-editing-services = { version = "0.25", optional = true, features = ["v1_18"] }
 gstreamer-pbutils = { version = "0.25", optional = true }
 gstreamer-video = { version = "0.25", optional = true }
 image = { version = "0.25", default-features = false, features = ["jpeg", "png"] }
