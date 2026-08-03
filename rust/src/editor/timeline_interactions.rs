@@ -20,7 +20,9 @@ pub(super) struct TrimDrag {
     pub(super) original_in: TimelineTime,
     pub(super) original_out: TimelineTime,
     pub(super) original_timeline_start: TimelineTime,
-    pub(super) asset_duration: TimelineTime,
+    /// The last valid source frame for time-based media. Still images have no
+    /// intrinsic source duration, so their right edge is intentionally unbounded.
+    pub(super) maximum_source_out: Option<TimelineTime>,
     pub(super) changed: bool,
 }
 
@@ -536,11 +538,12 @@ impl Editor {
         if self.clip_locked(clip_id) {
             return;
         }
-        let asset_duration = clip
+        let maximum_source_out = clip
             .asset_id
             .and_then(|id| self.project.asset(id))
-            .map(|asset| self.project.ceil_time(asset.duration))
-            .unwrap_or(TimelineTime::MAX);
+            .and_then(|asset| {
+                (asset.kind != MediaKind::Image).then(|| self.project.ceil_time(asset.duration))
+            });
         if let Some(video) = &self.video {
             video.set_paused(true);
         }
@@ -556,7 +559,7 @@ impl Editor {
             original_in: clip.source_in,
             original_out: clip.source_out,
             original_timeline_start: clip.timeline_start,
-            asset_duration,
+            maximum_source_out,
             changed: false,
         });
     }
@@ -578,7 +581,7 @@ impl Editor {
         let original_in = drag.original_in;
         let original_out = drag.original_out;
         let original_timeline_start = drag.original_timeline_start;
-        let asset_duration = drag.asset_duration;
+        let maximum_source_out = drag.maximum_source_out;
         let Some((previous_end, next_start)) = self.project.trim_limits(clip_id) else {
             return;
         };
@@ -614,10 +617,13 @@ impl Editor {
             TrimEdge::Right => {
                 let original_end = original_timeline_start + original_out - original_in;
                 let earliest_end = original_timeline_start + TimelineTime::ONE_FRAME;
-                let latest_end = next_start.min(
-                    original_timeline_start
-                        + (asset_duration - original_in).max(TimelineTime::ONE_FRAME),
-                );
+                let latest_source_end = maximum_source_out
+                    .map(|source_out| {
+                        original_timeline_start
+                            + (source_out - original_in).max(TimelineTime::ONE_FRAME)
+                    })
+                    .unwrap_or(TimelineTime::MAX);
+                let latest_end = next_start.min(latest_source_end);
                 let (snapped_end, guide) = self.snap_time(original_end + raw_delta, Some(clip_id));
                 let end = snapped_end.clamp(earliest_end, latest_end);
                 self.project.clips[index].source_out = original_in + end - original_timeline_start;

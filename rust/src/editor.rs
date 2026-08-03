@@ -33,7 +33,7 @@ use explorer::{ExplorerDropPreview, ExplorerMediaDrag, FileContextMenu, PendingE
 use explorer_filter::ExplorerFilter;
 use export::export_project;
 use model::{
-    AudioClipProperties, DEFAULT_IMAGE_DURATION, FrameRate, MediaAsset, MediaKind, Project,
+    AudioClipProperties, DEFAULT_IMAGE_CLIP_DURATION, FrameRate, MediaAsset, MediaKind, Project,
     TimelineClip, TimelineTime, TimelineTrack, TrackKind, VideoClipProperties, probe_audio,
     probe_image, probe_media,
 };
@@ -57,6 +57,7 @@ const SNAP_DISTANCE_PX: f32 = 8.0;
 const MIN_TIMELINE_PIXELS_PER_SECOND: f32 = 1.0;
 const MAX_TIMELINE_PIXELS_PER_SECOND: f32 = 1000.0;
 const SCRUB_SEEK_INTERVAL: Duration = Duration::from_millis(50);
+const IDLE_UPDATE_INTERVAL: Duration = Duration::from_millis(33);
 
 const BACKGROUND: u32 = 0x080809;
 const PANEL: u32 = 0x0d0d0f;
@@ -291,55 +292,59 @@ impl Editor {
 
     fn start_updates(cx: &mut Context<Self>) {
         cx.spawn(async move |editor, cx| {
+            let mut update_interval = IDLE_UPDATE_INTERVAL;
             loop {
-                cx.background_executor()
-                    .timer(Duration::from_millis(33))
-                    .await;
-                if editor
-                    .update(cx, |editor, cx| {
-                        let refresh_tree =
-                            editor.last_tree_scan.elapsed() >= Duration::from_secs(1);
-                        let file_preview_playing = match editor.preview_target {
-                            PreviewTarget::VideoFile(_) => {
-                                editor.video.as_ref().is_some_and(|video| !video.paused())
-                            }
-                            PreviewTarget::AudioFile(_) => editor
-                                .standalone_audio
-                                .as_ref()
-                                .is_some_and(AudioPreview::playing),
-                            _ => false,
-                        };
-                        let pinch_zoomed = editor.apply_timeline_pinch();
-                        let ended_explorer_drag =
-                            !cx.has_active_drag() && editor.explorer_drop_preview.take().is_some();
-                        if ended_explorer_drag {
-                            editor.snap_guide = None;
+                cx.background_executor().timer(update_interval).await;
+                match editor.update(cx, |editor, cx| {
+                    let refresh_tree = editor.last_tree_scan.elapsed() >= Duration::from_secs(1);
+                    let file_preview_playing = match editor.preview_target {
+                        PreviewTarget::VideoFile(_) => {
+                            editor.video.as_ref().is_some_and(|video| !video.paused())
                         }
-                        let should_render = editor.playing
-                            || file_preview_playing
-                            || editor.preview_refresh_ticks > 0
-                            || refresh_tree
-                            || pinch_zoomed
-                            || ended_explorer_drag;
-                        editor.preview_refresh_ticks =
-                            editor.preview_refresh_ticks.saturating_sub(1);
-                        if refresh_tree {
-                            editor.refresh_file_tree();
-                            editor.schedule_missing_media_cache(cx);
-                        }
-                        editor.update_playback();
-                        editor.reconcile_preview_seek();
-                        if should_render {
-                            cx.notify();
-                        }
-                    })
-                    .is_err()
-                {
-                    break;
+                        PreviewTarget::AudioFile(_) => editor
+                            .standalone_audio
+                            .as_ref()
+                            .is_some_and(AudioPreview::playing),
+                        _ => false,
+                    };
+                    let pinch_zoomed = editor.apply_timeline_pinch();
+                    let ended_explorer_drag =
+                        !cx.has_active_drag() && editor.explorer_drop_preview.take().is_some();
+                    if ended_explorer_drag {
+                        editor.snap_guide = None;
+                    }
+                    let should_render = editor.playing
+                        || file_preview_playing
+                        || editor.preview_refresh_ticks > 0
+                        || refresh_tree
+                        || pinch_zoomed
+                        || ended_explorer_drag;
+                    editor.preview_refresh_ticks = editor.preview_refresh_ticks.saturating_sub(1);
+                    if refresh_tree {
+                        editor.refresh_file_tree();
+                        editor.schedule_missing_media_cache(cx);
+                    }
+                    editor.update_playback();
+                    editor.reconcile_preview_seek();
+                    if should_render {
+                        cx.notify();
+                    }
+                    editor.update_interval()
+                }) {
+                    Ok(next_interval) => update_interval = next_interval,
+                    Err(_) => break,
                 }
             }
         })
         .detach();
+    }
+
+    fn update_interval(&self) -> Duration {
+        if self.playing {
+            self.project.duration(TimelineTime::ONE_FRAME)
+        } else {
+            IDLE_UPDATE_INTERVAL
+        }
     }
 
     fn open_project_folder(&mut self, cx: &mut Context<Self>) {

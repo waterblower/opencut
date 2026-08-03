@@ -87,7 +87,7 @@ release path.
 - [ ] Avoid rebuilding timeline elements for clips and tracks completely outside
       the visible horizontal or vertical viewport. Use GPUI virtualization or a
       viewport-indexed visible-item query for large projects.
-- [ ] Cache the GPUI inspector's formatted debug style until the selected element
+- [x] Cache the GPUI inspector's formatted debug style until the selected element
       or its style changes instead of formatting the complete `base_style` on
       every inspected window render.
 
