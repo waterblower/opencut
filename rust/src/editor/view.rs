@@ -2,6 +2,7 @@ use super::*;
 
 impl Render for Editor {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        self.sync_video_transform_inputs(cx);
         let viewport = window.viewport_size();
         let editor_width =
             (f32::from(viewport.width) - crate::gpui_inspector::docked_width(window)).max(0.0);
@@ -65,7 +66,9 @@ impl Render for Editor {
             .on_drag_move::<PropertiesPanelResizeDrag>(
                 cx.listener(Self::resize_properties_panel_drag),
             )
+            .on_mouse_move(cx.listener(Self::update_video_opacity_drag))
             .capture_any_mouse_up(cx.listener(Self::finish_properties_panel_resize))
+            .capture_any_mouse_up(cx.listener(Self::finish_video_opacity_drag))
             .capture_any_mouse_down(cx.listener(|editor, event: &MouseDownEvent, window, cx| {
                 if event.button == MouseButton::Left {
                     editor.focus_handle.focus(window);

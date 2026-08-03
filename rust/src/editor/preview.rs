@@ -26,7 +26,6 @@ fn sanitized_video_properties(mut properties: VideoClipProperties) -> VideoClipP
     properties.position_x = finite_or(properties.position_x, 0.0);
     properties.position_y = finite_or(properties.position_y, 0.0);
     properties.scale = finite_or(properties.scale, 1.0).max(0.0);
-    properties.rotation_degrees = finite_or(properties.rotation_degrees, 0.0);
     properties.opacity = finite_or(properties.opacity, 1.0).clamp(0.0, 1.0);
     properties.crop_left = finite_or(properties.crop_left, 0.0).clamp(0.0, 0.99);
     properties.crop_right =
@@ -61,17 +60,11 @@ fn visual_layer_rect(
 }
 
 fn requires_rasterized_video(properties: VideoClipProperties) -> bool {
-    has_rotation(properties.rotation_degrees)
-        || (properties.opacity - 1.0).abs() > 0.000_001
+    (properties.opacity - 1.0).abs() > 0.000_001
         || properties.crop_left > 0.000_001
         || properties.crop_right > 0.000_001
         || properties.crop_top > 0.000_001
         || properties.crop_bottom > 0.000_001
-}
-
-fn has_rotation(degrees: f64) -> bool {
-    let normalized = degrees.rem_euclid(360.0);
-    normalized.min(360.0 - normalized) > 0.000_001
 }
 
 fn finite_or(value: f64, fallback: f64) -> f64 {
@@ -1128,15 +1121,11 @@ mod tests {
     }
 
     #[test]
-    fn video_rasterization_is_reserved_for_rotation_opacity_and_crop() {
+    fn video_rasterization_is_reserved_for_opacity_and_crop() {
         assert!(!requires_rasterized_video(VideoClipProperties {
             position_x: 20.0,
             position_y: -20.0,
             scale: 1.5,
-            ..VideoClipProperties::default()
-        }));
-        assert!(requires_rasterized_video(VideoClipProperties {
-            rotation_degrees: 45.0,
             ..VideoClipProperties::default()
         }));
         assert!(requires_rasterized_video(VideoClipProperties {
