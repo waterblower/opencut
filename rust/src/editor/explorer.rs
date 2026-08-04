@@ -391,7 +391,8 @@ impl Editor {
         cx: &mut Context<Self>,
     ) -> gpui::AnyElement {
         let width = 268.0;
-        let height = 92.0;
+        let can_trash = !menu.relative_path.as_os_str().is_empty();
+        let height = if can_trash { 132.0 } else { 92.0 };
         let left = menu
             .x
             .clamp(8.0, (f32::from(viewport.width) - width - 8.0).max(8.0));
@@ -449,7 +450,17 @@ impl Editor {
                                 cx.notify();
                             },
                         )),
-                    ),
+                    )
+                    .when(can_trash, |this| {
+                        this.child(
+                            file_menu_item("Move to Trash", "")
+                                .text_color(rgb(ERROR))
+                                .on_click(cx.listener(|editor, _, _, cx| {
+                                    editor.trash_selected_file(cx);
+                                    cx.notify();
+                                })),
+                        )
+                    }),
             )
             .into_any_element()
     }
@@ -503,6 +514,47 @@ impl Editor {
         };
         self.file_context_menu = None;
         cx.open_with_system(&path);
+    }
+
+    fn trash_selected_file(&mut self, cx: &mut Context<Self>) {
+        let Some(relative_path) = self
+            .file_context_menu
+            .as_ref()
+            .map(|menu| menu.relative_path.clone())
+        else {
+            return;
+        };
+        self.file_context_menu = None;
+
+        // The project root is the workspace itself, not an entry within it.
+        if relative_path.as_os_str().is_empty() {
+            self.error = Some("The project folder cannot be moved to Trash here.".to_string());
+            return;
+        }
+
+        let path = self.project_root.join(&relative_path);
+        let display_name = path
+            .file_name()
+            .map(|name| name.to_string_lossy().into_owned())
+            .unwrap_or_else(|| relative_path.display().to_string());
+        match move_path_to_trash(&path) {
+            Ok(()) => {
+                self.expanded_directories
+                    .retain(|directory| !directory.starts_with(&relative_path));
+                self.selected_file = None;
+                self.explorer_search_query = None;
+                self.explorer_search_results.clear();
+                self.explorer_search_pending = false;
+                self.refresh_file_tree();
+                self.schedule_explorer_search(cx);
+                self.status = Some(format!("Moved {display_name} to Trash."));
+                self.error = None;
+            }
+            Err(error) => {
+                self.status = None;
+                self.error = Some(format!("Could not move {display_name} to Trash: {error}"));
+            }
+        }
     }
 
     fn file_action_path(&self) -> Option<PathBuf> {
@@ -902,6 +954,24 @@ fn file_menu_item(label: &'static str, shortcut: &'static str) -> gpui::Stateful
                 .text_color(rgb(MUTED))
                 .child(shortcut),
         )
+}
+
+#[cfg(target_os = "macos")]
+fn move_path_to_trash(path: &std::path::Path) -> Result<(), String> {
+    use objc2_foundation::{NSFileManager, NSString, NSURL};
+
+    let path = path
+        .to_str()
+        .ok_or_else(|| "the path is not valid UTF-8".to_string())?;
+    let url = NSURL::fileURLWithPath(&NSString::from_str(path));
+    NSFileManager::defaultManager()
+        .trashItemAtURL_resultingItemURL_error(&url, None)
+        .map_err(|error| error.to_string())
+}
+
+#[cfg(not(target_os = "macos"))]
+fn move_path_to_trash(_path: &std::path::Path) -> Result<(), String> {
+    Err("moving files to the system Trash is not supported on this platform".to_string())
 }
 
 fn explorer_file_badge(entry: &FileTreeEntry) -> gpui::Div {

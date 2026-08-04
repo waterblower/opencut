@@ -7,10 +7,26 @@ use ges::prelude::*;
 use gstreamer as gst;
 use gstreamer_editing_services as ges;
 use gstreamer_pbutils as gst_pbutils;
-use std::{collections::HashMap, fs, path::Path, time::Duration};
+use std::{collections::HashMap, fs, path::Path, sync::Mutex, time::Duration};
 use url::Url;
 
 const AUDIO_BIT_RATE: i32 = 192_000;
+static EXPORT_ENCODER_LOCK: Mutex<()> = Mutex::new(());
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum VideoEncoder {
+    VideoToolbox,
+    X264,
+}
+
+impl VideoEncoder {
+    fn factory_name(self) -> &'static str {
+        match self {
+            Self::VideoToolbox => "vtenc_h264_hw",
+            Self::X264 => "x264enc",
+        }
+    }
+}
 
 pub(super) fn export_project(
     project: &Project,
@@ -26,36 +42,37 @@ pub(super) fn export_project(
         .map_err(|error| format!("could not initialize GStreamer Editing Services: {error}"))?;
     report_progress(0.0);
 
-    let timeline = build_timeline(project, project_root, options)?;
-    let profile = encoding_profile(options);
-    let _encoder_selection = EncoderSelection::for_export()?;
-    let pipeline = ges::Pipeline::new();
-    configure_encoder_bitrates(&pipeline, options.video_bit_rate);
-    pipeline
-        .set_timeline(&timeline)
-        .map_err(|error| format!("could not attach the export timeline: {error}"))?;
-
     let temporary_output = TemporaryOutput::new(temporary_output_path(output))?;
-    let output_uri = Url::from_file_path(&temporary_output.path).map_err(|_| {
-        format!(
-            "could not convert {} to a file URL",
-            temporary_output.path.display()
-        )
-    })?;
-    pipeline
-        .set_render_settings(output_uri.as_str(), &profile)
-        .map_err(|error| format!("could not configure GStreamer export: {error}"))?;
-    pipeline
-        .set_mode(ges::PipelineFlags::RENDER)
-        .map_err(|error| format!("could not enable GStreamer render mode: {error}"))?;
-
-    let result = render_pipeline(
-        &pipeline,
-        project.duration(project.content_duration()),
-        &mut report_progress,
-    );
-    let _ = pipeline.set_state(gst::State::Null);
-    result?;
+    let _encoder_lock = EXPORT_ENCODER_LOCK
+        .lock()
+        .unwrap_or_else(|error| error.into_inner());
+    let mut hardware_error = None;
+    for encoder in export_encoder_attempts() {
+        temporary_output.clear()?;
+        report_progress(0.0);
+        match export_project_with_encoder(
+            project,
+            project_root,
+            &temporary_output.path,
+            options,
+            encoder,
+            &mut report_progress,
+        ) {
+            Ok(()) => break,
+            Err(error) if encoder == VideoEncoder::VideoToolbox => {
+                log::warn!("VideoToolbox export failed; retrying with x264: {error}");
+                hardware_error = Some(error);
+            }
+            Err(error) => {
+                return Err(match hardware_error {
+                    Some(hardware_error) => format!(
+                        "Hardware export failed: {hardware_error}. Software fallback failed: {error}"
+                    ),
+                    None => error,
+                });
+            }
+        }
+    }
 
     if output.is_file() {
         fs::remove_file(output)
@@ -69,6 +86,56 @@ pub(super) fn export_project(
     })?;
     report_progress(1.0);
     Ok(())
+}
+
+fn export_encoder_attempts() -> Vec<VideoEncoder> {
+    let mut encoders = Vec::with_capacity(2);
+    #[cfg(target_os = "macos")]
+    if gst::ElementFactory::find(VideoEncoder::VideoToolbox.factory_name()).is_some() {
+        encoders.push(VideoEncoder::VideoToolbox);
+    }
+    encoders.push(VideoEncoder::X264);
+    encoders
+}
+
+fn export_project_with_encoder(
+    project: &Project,
+    project_root: &Path,
+    temporary_output: &Path,
+    options: ExportOptions,
+    encoder: VideoEncoder,
+    report_progress: &mut impl FnMut(f32),
+) -> Result<(), String> {
+    let timeline = build_timeline(project, project_root, options)?;
+    let profile = encoding_profile(options);
+    let _encoder_selection = EncoderSelection::for_export(encoder)?;
+    let pipeline = ges::Pipeline::new();
+    configure_encoders(&pipeline, options.video_bit_rate);
+    pipeline
+        .set_timeline(&timeline)
+        .map_err(|error| format!("could not attach the export timeline: {error}"))?;
+
+    let output_uri = Url::from_file_path(temporary_output).map_err(|_| {
+        format!(
+            "could not convert {} to a file URL",
+            temporary_output.display()
+        )
+    })?;
+    pipeline
+        .set_render_settings(output_uri.as_str(), &profile)
+        .map_err(|error| format!("could not configure GStreamer export: {error}"))?;
+    pipeline
+        .set_mode(ges::PipelineFlags::RENDER)
+        .map_err(|error| format!("could not enable GStreamer render mode: {error}"))?;
+
+    log::info!("Starting GStreamer export with {}", encoder.factory_name());
+    let result = render_pipeline(
+        &pipeline,
+        project.duration(project.content_duration()),
+        report_progress,
+    );
+    let _ = pipeline.set_state(gst::State::Null);
+    result
 }
 
 fn build_timeline(
@@ -276,7 +343,7 @@ fn encoding_profile(options: ExportOptions) -> gst_pbutils::EncodingContainerPro
         .build()
 }
 
-fn configure_encoder_bitrates(pipeline: &ges::Pipeline, video_bit_rate: usize) {
+fn configure_encoders(pipeline: &ges::Pipeline, video_bit_rate: usize) {
     let kilobits_per_second = (video_bit_rate / 1_000).clamp(1, u32::MAX as usize) as u32;
     pipeline.connect_deep_element_added(move |_, _, element| {
         let Some(factory) = element.factory() else {
@@ -288,10 +355,19 @@ fn configure_encoder_bitrates(pipeline: &ges::Pipeline, video_bit_rate: usize) {
                 element.set_property_from_str("pass", "cbr");
                 element.set_property_from_str("speed-preset", "veryfast");
             }
+            "vtenc_h264" | "vtenc_h264_hw" => {
+                element.set_property("bitrate", kilobits_per_second);
+                // Avoid reordered frames because qtmux requires stable PTS/DTS
+                // when GES switches or trims timeline sources.
+                element.set_property("allow-frame-reordering", false);
+            }
             "faac" => element.set_property("bitrate", AUDIO_BIT_RATE),
             _ => {}
         }
-        if factory.name() == "x264enc" {
+        if matches!(
+            factory.name().as_str(),
+            "x264enc" | "vtenc_h264" | "vtenc_h264_hw"
+        ) {
             log::info!("GStreamer export is using {}", factory.name());
         }
     });
@@ -302,26 +378,35 @@ struct EncoderSelection {
 }
 
 impl EncoderSelection {
-    fn for_export() -> Result<Self, String> {
-        let x264 = gst::ElementFactory::find("x264enc").ok_or_else(|| {
-            "GStreamer H.264 encoder `x264enc` is unavailable; install the ugly plugin set."
-                .to_string()
-        })?;
+    fn for_export(video_encoder: VideoEncoder) -> Result<Self, String> {
+        let selected_video =
+            gst::ElementFactory::find(video_encoder.factory_name()).ok_or_else(|| {
+                format!(
+                    "GStreamer H.264 encoder `{}` is unavailable.",
+                    video_encoder.factory_name()
+                )
+            })?;
         let faac = gst::ElementFactory::find("faac").ok_or_else(|| {
             "GStreamer AAC encoder `faac` is unavailable; install the bad plugin set.".to_string()
         })?;
-        let mut previous_ranks = vec![(x264.clone(), x264.rank()), (faac.clone(), faac.rank())];
-        x264.set_rank(gst::Rank::PRIMARY + 100);
+        let mut previous_ranks = vec![
+            (selected_video.clone(), selected_video.rank()),
+            (faac.clone(), faac.rank()),
+        ];
+        selected_video.set_rank(gst::Rank::PRIMARY + 100);
         faac.set_rank(gst::Rank::PRIMARY + 100);
         if let Some(atenc) = gst::ElementFactory::find("atenc") {
             previous_ranks.push((atenc.clone(), atenc.rank()));
             atenc.set_rank(gst::Rank::NONE);
         }
 
-        for name in ["vtenc_h264", "vtenc_h264_hw"] {
-            if let Some(vtenc) = gst::ElementFactory::find(name) {
-                previous_ranks.push((vtenc.clone(), vtenc.rank()));
-                vtenc.set_rank(gst::Rank::NONE);
+        for name in ["x264enc", "vtenc_h264", "vtenc_h264_hw"] {
+            if name == video_encoder.factory_name() {
+                continue;
+            }
+            if let Some(other_encoder) = gst::ElementFactory::find(name) {
+                previous_ranks.push((other_encoder.clone(), other_encoder.rank()));
+                other_encoder.set_rank(gst::Rank::NONE);
             }
         }
         Ok(Self { previous_ranks })
@@ -401,6 +486,18 @@ impl TemporaryOutput {
         }
         Ok(Self { path })
     }
+
+    fn clear(&self) -> Result<(), String> {
+        if self.path.is_file() {
+            fs::remove_file(&self.path).map_err(|error| {
+                format!(
+                    "could not clear temporary export {}: {error}",
+                    self.path.display()
+                )
+            })?;
+        }
+        Ok(())
+    }
 }
 
 impl Drop for TemporaryOutput {
@@ -468,13 +565,28 @@ mod tests {
     fn applies_the_requested_bitrate_to_x264() {
         ges::init().unwrap();
         let pipeline = ges::Pipeline::new();
-        configure_encoder_bitrates(&pipeline, 12_345_000);
+        configure_encoders(&pipeline, 12_345_000);
         let encoder = gst::ElementFactory::make("x264enc").build().unwrap();
         pipeline.add(&encoder).unwrap();
         assert_eq!(encoder.property::<u32>("bitrate"), 12_345);
         let audio_encoder = gst::ElementFactory::make("faac").build().unwrap();
         pipeline.add(&audio_encoder).unwrap();
         assert_eq!(audio_encoder.property::<i32>("bitrate"), AUDIO_BIT_RATE);
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn configures_videotoolbox_for_mp4_timeline_export() {
+        ges::init().unwrap();
+        let Some(factory) = gst::ElementFactory::find("vtenc_h264_hw") else {
+            return;
+        };
+        let pipeline = ges::Pipeline::new();
+        configure_encoders(&pipeline, 12_345_000);
+        let encoder = factory.create().build().unwrap();
+        pipeline.add(&encoder).unwrap();
+        assert_eq!(encoder.property::<u32>("bitrate"), 12_345);
+        assert!(!encoder.property::<bool>("allow-frame-reordering"));
     }
 
     #[test]
