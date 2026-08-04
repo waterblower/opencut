@@ -2,6 +2,9 @@ use super::*;
 use gpui::{Bounds, canvas, fill, point, rgba, size};
 use std::sync::Arc;
 
+const CLIP_WAVEFORM_HEIGHT: f32 = 80.0;
+const CLIP_WAVEFORM_VISUAL_GAIN: f32 = 2.0;
+
 impl Editor {
     pub(super) fn track_header(
         &self,
@@ -450,8 +453,10 @@ fn timeline_clip_waveform(
             let center = height / 2.0;
             let amplitude = (height / 2.0 - 1.0).max(0.0);
             for (index, peak) in columns.into_iter().enumerate() {
-                let top = (center - peak.max * amplitude).clamp(0.0, height);
-                let bottom = (center - peak.min * amplitude).clamp(top, height);
+                let visible_max = (peak.max * CLIP_WAVEFORM_VISUAL_GAIN).clamp(-1.0, 1.0);
+                let visible_min = (peak.min * CLIP_WAVEFORM_VISUAL_GAIN).clamp(-1.0, 1.0);
+                let top = (center - visible_max * amplitude).clamp(0.0, height);
+                let bottom = (center - visible_min * amplitude).clamp(top, height);
                 let bar_height = (bottom - top).max(1.0);
                 window.paint_quad(fill(
                     Bounds::new(
@@ -470,7 +475,7 @@ fn timeline_clip_waveform(
     .left_0()
     .right_0()
     .bottom_0()
-    .h(px(24.0))
+    .h(px(CLIP_WAVEFORM_HEIGHT))
     .into_any_element()
 }
 
