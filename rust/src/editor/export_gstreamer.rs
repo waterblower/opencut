@@ -286,9 +286,13 @@ fn configure_encoder_bitrates(pipeline: &ges::Pipeline, video_bit_rate: usize) {
             "x264enc" => {
                 element.set_property("bitrate", kilobits_per_second);
                 element.set_property_from_str("pass", "cbr");
+                element.set_property_from_str("speed-preset", "veryfast");
             }
             "faac" => element.set_property("bitrate", AUDIO_BIT_RATE),
             _ => {}
+        }
+        if factory.name() == "x264enc" {
+            log::info!("GStreamer export is using {}", factory.name());
         }
     });
 }
@@ -313,6 +317,7 @@ impl EncoderSelection {
             previous_ranks.push((atenc.clone(), atenc.rank()));
             atenc.set_rank(gst::Rank::NONE);
         }
+
         for name in ["vtenc_h264", "vtenc_h264_hw"] {
             if let Some(vtenc) = gst::ElementFactory::find(name) {
                 previous_ranks.push((vtenc.clone(), vtenc.rank()));
@@ -580,6 +585,57 @@ mod tests {
                 expected
             );
         }
+    }
+
+    #[test]
+    fn exports_real_media_with_audio() {
+        let project_root = Path::new(env!("CARGO_MANIFEST_DIR"));
+        let mut project = Project::default();
+        project.settings.width = 320;
+        project.settings.height = 180;
+        let video_track = project
+            .tracks
+            .iter()
+            .find(|track| track.kind == TrackKind::Video)
+            .unwrap()
+            .id;
+        project.assets.push(MediaAsset {
+            id: 10,
+            kind: MediaKind::Video,
+            path: "vendor/gpui-video-player/assets/test1.mp4".into(),
+            name: "test1".into(),
+            duration: 5.0,
+            width: 320,
+            height: 180,
+            framerate: 30.0,
+            frame_rate_numerator: 30,
+            frame_rate_denominator: 1,
+            codec: "h264".into(),
+            has_audio: true,
+        });
+        project.clips.push(TimelineClip {
+            id: 11,
+            track_id: video_track,
+            asset_id: Some(10),
+            timeline_start: TimelineTime::ZERO,
+            source_in: TimelineTime::ZERO,
+            source_out: TimelineTime::from_frames(30),
+            video_properties: VideoClipProperties::default(),
+            audio_properties: AudioClipProperties::default(),
+        });
+
+        let output =
+            std::env::temp_dir().join(format!("opencut-ges-video-{}.mp4", std::process::id()));
+        export_project(
+            &project,
+            project_root,
+            &output,
+            ExportOptions::from_project(&project),
+            |_| {},
+        )
+        .unwrap();
+        assert!(std::fs::metadata(&output).unwrap().len() > 0);
+        std::fs::remove_file(output).unwrap();
     }
 
     #[test]
