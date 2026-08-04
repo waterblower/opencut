@@ -23,6 +23,16 @@ struct WorkspaceSettings {
     project_root: PathBuf,
     #[serde(default = "default_timeline_pixels_per_second")]
     timeline_pixels_per_second: f32,
+    #[serde(default)]
+    timeline_views: Vec<TimelineViewState>,
+}
+
+#[derive(Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
+pub(super) struct TimelineViewState {
+    project_root: PathBuf,
+    pub(super) playhead_frame: i64,
+    pub(super) horizontal_scroll: f32,
+    pub(super) vertical_scroll: f32,
 }
 
 pub(super) fn load_project_root() -> PathBuf {
@@ -55,6 +65,53 @@ pub(super) fn save_timeline_zoom(pixels_per_second: f32) -> Result<(), String> {
     let mut settings = load_settings().unwrap_or_else(|| default_settings(&project_root));
     settings.timeline_pixels_per_second = pixels_per_second;
     save_settings(&settings)
+}
+
+pub(super) fn load_timeline_view(project_root: &Path) -> TimelineViewState {
+    let mut view = load_settings()
+        .and_then(|settings| {
+            settings
+                .timeline_views
+                .into_iter()
+                .find(|view| view.project_root == project_root)
+        })
+        .unwrap_or_else(|| TimelineViewState {
+            project_root: project_root.to_path_buf(),
+            ..TimelineViewState::default()
+        });
+    view.playhead_frame = view.playhead_frame.max(0);
+    view.horizontal_scroll = finite_nonnegative(view.horizontal_scroll);
+    view.vertical_scroll = finite_nonnegative(view.vertical_scroll);
+    view
+}
+
+pub(super) fn save_timeline_view(view: &TimelineViewState) -> Result<(), String> {
+    let project_root = load_project_root();
+    let mut settings = load_settings().unwrap_or_else(|| default_settings(&project_root));
+    if let Some(existing) = settings
+        .timeline_views
+        .iter_mut()
+        .find(|existing| existing.project_root == view.project_root)
+    {
+        *existing = view.clone();
+    } else {
+        settings.timeline_views.push(view.clone());
+    }
+    save_settings(&settings)
+}
+
+pub(super) fn timeline_view_state(
+    project_root: &Path,
+    playhead_frame: i64,
+    horizontal_scroll: f32,
+    vertical_scroll: f32,
+) -> TimelineViewState {
+    TimelineViewState {
+        project_root: project_root.to_path_buf(),
+        playhead_frame: playhead_frame.max(0),
+        horizontal_scroll: finite_nonnegative(horizontal_scroll),
+        vertical_scroll: finite_nonnegative(vertical_scroll),
+    }
 }
 
 pub(super) fn visible_tree(
@@ -265,11 +322,20 @@ fn default_settings(project_root: &Path) -> WorkspaceSettings {
     WorkspaceSettings {
         project_root: project_root.to_path_buf(),
         timeline_pixels_per_second: default_timeline_pixels_per_second(),
+        timeline_views: Vec::new(),
     }
 }
 
 fn default_timeline_pixels_per_second() -> f32 {
     super::DEFAULT_TIMELINE_PIXELS_PER_SECOND
+}
+
+fn finite_nonnegative(value: f32) -> f32 {
+    if value.is_finite() {
+        value.max(0.0)
+    } else {
+        0.0
+    }
 }
 
 fn save_settings(settings: &WorkspaceSettings) -> Result<(), String> {
@@ -296,5 +362,14 @@ mod tests {
             settings.timeline_pixels_per_second,
             super::super::DEFAULT_TIMELINE_PIXELS_PER_SECOND
         );
+        assert!(settings.timeline_views.is_empty());
+    }
+
+    #[test]
+    fn timeline_view_state_sanitizes_values_before_persistence() {
+        let view = timeline_view_state(Path::new("/tmp/project"), -10, f32::NAN, -20.0);
+        assert_eq!(view.playhead_frame, 0);
+        assert_eq!(view.horizontal_scroll, 0.0);
+        assert_eq!(view.vertical_scroll, 0.0);
     }
 }

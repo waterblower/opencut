@@ -426,6 +426,31 @@ impl Editor {
                             editor.toggle_snapping();
                             cx.notify();
                         })),
+                    )
+                    .child(
+                        timeline_icon_button(
+                            "toggle-track-magnet",
+                            if self.track_magnet_enabled {
+                                "Magnet on"
+                            } else {
+                                "Magnet off"
+                            },
+                        )
+                        .border_1()
+                        .border_color(rgb(if self.track_magnet_enabled {
+                            ACCENT
+                        } else {
+                            BORDER
+                        }))
+                        .text_color(rgb(if self.track_magnet_enabled {
+                            ACCENT
+                        } else {
+                            MUTED
+                        }))
+                        .on_click(cx.listener(|editor, _, _, cx| {
+                            editor.toggle_track_magnet();
+                            cx.notify();
+                        })),
                     ),
             )
             .child(
