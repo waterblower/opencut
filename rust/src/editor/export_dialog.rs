@@ -7,6 +7,7 @@ use std::{
         Arc,
         atomic::{AtomicU32, Ordering},
     },
+    time::{Duration, Instant},
 };
 
 const EXPORT_AUDIO_BIT_RATE: usize = 192_000;
@@ -43,7 +44,7 @@ pub(super) struct ExportDialogState {
 enum ExportDialogStatus {
     Idle,
     Exporting(Arc<AtomicU32>),
-    Complete(PathBuf),
+    Complete { path: PathBuf, elapsed: Duration },
     Failed { message: String, progress: u32 },
 }
 
@@ -135,9 +136,9 @@ impl Editor {
                         false,
                     )
                 }
-                ExportDialogStatus::Complete(path) => (
+                ExportDialogStatus::Complete { path, elapsed } => (
                     Some(1.0),
-                    Some("Export complete".to_string()),
+                    Some(format!("Finished in {}", format_export_duration(*elapsed))),
                     format!("Exported {}", path.display()),
                     false,
                 ),
@@ -570,6 +571,7 @@ impl Editor {
         self.error = None;
         cx.notify();
 
+        let started_at = Instant::now();
         cx.spawn(async move |editor, cx| {
             let encoder_progress = progress.clone();
             let result = cx
@@ -580,15 +582,23 @@ impl Editor {
                     })
                 })
                 .await;
+            let elapsed = started_at.elapsed();
             editor
                 .update(cx, |editor, cx| {
                     editor.exporting = false;
                     match result {
                         Ok(()) => {
                             if let Some(state) = editor.export_dialog_state.as_mut() {
-                                state.status = ExportDialogStatus::Complete(path.clone());
+                                state.status = ExportDialogStatus::Complete {
+                                    path: path.clone(),
+                                    elapsed,
+                                };
                             }
-                            editor.status = Some(format!("Exported {}", path.display()));
+                            editor.status = Some(format!(
+                                "Exported {} in {}",
+                                path.display(),
+                                format_export_duration(elapsed)
+                            ));
                             editor.error = None;
                         }
                         Err(error) => {
@@ -914,6 +924,23 @@ fn format_estimated_size(duration_seconds: f64, video_bit_rate: usize) -> String
     }
 }
 
+fn format_export_duration(duration: Duration) -> String {
+    let total_seconds = duration.as_secs_f64().round().max(1.0) as u64;
+    let minutes = total_seconds / 60;
+    let seconds = total_seconds % 60;
+    if minutes == 0 {
+        format!(
+            "{seconds} {}",
+            if seconds == 1 { "second" } else { "seconds" }
+        )
+    } else {
+        format!(
+            "{minutes} min {seconds} {}",
+            if seconds == 1 { "second" } else { "seconds" }
+        )
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -927,5 +954,18 @@ mod tests {
     fn rejects_invalid_bitrate() {
         assert!(parse_bitrate("8 Mb/s").is_err());
         assert!(parse_bitrate("fast").is_err());
+    }
+
+    #[test]
+    fn formats_export_duration() {
+        assert_eq!(format_export_duration(Duration::from_secs(1)), "1 second");
+        assert_eq!(
+            format_export_duration(Duration::from_secs(42)),
+            "42 seconds"
+        );
+        assert_eq!(
+            format_export_duration(Duration::from_secs(128)),
+            "2 min 8 seconds"
+        );
     }
 }
