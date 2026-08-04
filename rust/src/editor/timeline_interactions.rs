@@ -648,11 +648,21 @@ impl Editor {
     }
 
     pub(super) fn zoom(&mut self, factor: f32) {
+        let previous_pixels_per_second = self.pixels_per_second;
         let pixels_per_second = (self.pixels_per_second * factor).clamp(
             MIN_TIMELINE_PIXELS_PER_SECOND,
             MAX_TIMELINE_PIXELS_PER_SECOND,
         );
-        if pixels_per_second != self.pixels_per_second {
+        if pixels_per_second != previous_pixels_per_second {
+            let mut scroll_offset = self.timeline_scroll.offset();
+            let playhead_seconds = self.project.seconds(self.playhead);
+            scroll_offset.x = px(zoom_scroll_offset(
+                f32::from(scroll_offset.x),
+                playhead_seconds,
+                previous_pixels_per_second,
+                pixels_per_second,
+            ));
+            self.timeline_scroll.set_offset(scroll_offset);
             self.pixels_per_second = pixels_per_second;
             self.timeline_zoom_save_due = Some(Instant::now() + TIMELINE_ZOOM_SAVE_DELAY);
         }
@@ -785,6 +795,16 @@ impl Editor {
     }
 }
 
+fn zoom_scroll_offset(
+    previous_offset: f32,
+    anchor_seconds: f64,
+    previous_pixels_per_second: f32,
+    pixels_per_second: f32,
+) -> f32 {
+    let anchor_seconds = anchor_seconds as f32;
+    (previous_offset + anchor_seconds * (previous_pixels_per_second - pixels_per_second)).min(0.0)
+}
+
 fn choose_clip_snap(
     original_start: TimelineTime,
     start_candidate: TimelineTime,
@@ -809,6 +829,26 @@ fn choose_clip_snap(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn zoom_keeps_the_playhead_at_the_same_viewport_position() {
+        let playhead_seconds = 10.0;
+        let previous_zoom = 50.0;
+        let new_zoom = 100.0;
+        let previous_offset = -200.0;
+        let previous_viewport_x = playhead_seconds as f32 * previous_zoom + previous_offset;
+
+        let new_offset =
+            zoom_scroll_offset(previous_offset, playhead_seconds, previous_zoom, new_zoom);
+        let new_viewport_x = playhead_seconds as f32 * new_zoom + new_offset;
+
+        assert_eq!(new_viewport_x, previous_viewport_x);
+    }
+
+    #[test]
+    fn zoom_does_not_scroll_past_the_timeline_origin() {
+        assert_eq!(zoom_scroll_offset(-20.0, 10.0, 100.0, 10.0), 0.0);
+    }
 
     #[test]
     fn snaps_a_moving_clip_end_when_its_start_has_no_target() {

@@ -2,7 +2,7 @@ use crate::video_backend::Video;
 use gpui::{
     App, Context, CursorStyle, DragMoveEvent, Entity, FocusHandle, KeyBinding, MouseButton,
     MouseDownEvent, MouseMoveEvent, MouseUpEvent, ObjectFit, PathPromptOptions, Render,
-    ScrollHandle, ScrollWheelEvent, Window, actions, div, img, prelude::*, px, rgb,
+    ScrollHandle, ScrollWheelEvent, Window, actions, div, img, point, prelude::*, px, rgb,
 };
 use std::{
     collections::{HashMap, HashSet},
@@ -51,8 +51,8 @@ use timeline_interactions::{
     ClipMoveDrag, ClipPlacement, MarqueeSelection, TimelineTool, TrimDrag, TrimEdge,
 };
 use workspace::{
-    FileTreeEntry, load_project_root, load_timeline_zoom, save_project_root, save_timeline_zoom,
-    visible_tree,
+    FileTreeEntry, TimelineViewState, load_project_root, load_timeline_view, load_timeline_zoom,
+    save_project_root, save_timeline_view, save_timeline_zoom, timeline_view_state, visible_tree,
 };
 
 const MEDIA_PANEL_WIDTH: f32 = 340.0;
@@ -72,6 +72,7 @@ const MIN_TIMELINE_PIXELS_PER_SECOND: f32 = 1.0;
 const MAX_TIMELINE_PIXELS_PER_SECOND: f32 = 1000.0;
 const DEFAULT_TIMELINE_PIXELS_PER_SECOND: f32 = 72.0;
 const TIMELINE_ZOOM_SAVE_DELAY: Duration = Duration::from_millis(500);
+const TIMELINE_VIEW_SAVE_DELAY: Duration = Duration::from_secs(1);
 const SCRUB_SEEK_INTERVAL: Duration = Duration::from_millis(50);
 const IDLE_UPDATE_INTERVAL: Duration = Duration::from_millis(33);
 
@@ -203,9 +204,12 @@ pub(crate) struct Editor {
     export_dialog_state: Option<ExportDialogState>,
     pixels_per_second: f32,
     timeline_zoom_save_due: Option<Instant>,
+    timeline_view_state: TimelineViewState,
+    timeline_view_save_due: Option<Instant>,
     active_timeline_tool: TimelineTool,
     blade_guide_position: Option<TimelineTime>,
     snapping_enabled: bool,
+    track_magnet_enabled: bool,
     snap_guide: Option<TimelineTime>,
     next_id: u64,
     undo_stack: Vec<Project>,
@@ -233,6 +237,14 @@ impl Editor {
         let expanded_directories = HashSet::new();
         let file_tree = visible_tree(&project_root, &expanded_directories).unwrap_or_default();
         let project = Project::load(&project_root);
+        let timeline_view_state = load_timeline_view(&project_root);
+        let playhead = TimelineTime::from_frames(timeline_view_state.playhead_frame)
+            .clamp(TimelineTime::ZERO, project.timeline_duration());
+        let timeline_scroll = ScrollHandle::new();
+        timeline_scroll.set_offset(point(px(-timeline_view_state.horizontal_scroll), px(0.0)));
+        let timeline_vertical_scroll = ScrollHandle::new();
+        timeline_vertical_scroll
+            .set_offset(point(px(0.0), px(-timeline_view_state.vertical_scroll)));
         let next_id = project.next_id();
         let selected_asset_id = project.assets.first().map(|asset| asset.id);
         let selected_clip_id = project.clips.first().map(|clip| clip.id);
@@ -276,12 +288,12 @@ impl Editor {
             audio_previews: HashMap::new(),
             loaded_clip_id: None,
             still_playback_started: None,
-            still_playback_origin: TimelineTime::ZERO,
+            still_playback_origin: playhead,
             selected_asset_id,
             selected_clip_id,
             selected_clip_ids,
             clip_clipboard: None,
-            playhead: TimelineTime::ZERO,
+            playhead,
             playing: false,
             preview_volume: 1.0,
             preview_volume_open: false,
@@ -301,9 +313,12 @@ impl Editor {
             export_dialog_state: None,
             pixels_per_second,
             timeline_zoom_save_due: None,
+            timeline_view_state,
+            timeline_view_save_due: None,
             active_timeline_tool: TimelineTool::Selection,
             blade_guide_position: None,
             snapping_enabled: true,
+            track_magnet_enabled: false,
             snap_guide: None,
             next_id,
             undo_stack: Vec::new(),
@@ -313,15 +328,15 @@ impl Editor {
             marquee_selection: None,
             is_scrubbing_playhead: false,
             last_playhead_scrub_seek: None,
-            timeline_scroll: ScrollHandle::new(),
-            timeline_vertical_scroll: ScrollHandle::new(),
+            timeline_scroll,
+            timeline_vertical_scroll,
             exporting: false,
             status: None,
             error: None,
             focus_handle,
         };
         if !editor.project.clips.is_empty() {
-            editor.load_timeline_position(TimelineTime::ZERO, false);
+            editor.load_timeline_position(editor.playhead, false);
         }
         editor
     }
@@ -372,6 +387,23 @@ impl Editor {
                     }
                     editor.update_playback();
                     editor.reconcile_preview_seek();
+                    let current_timeline_view = editor.current_timeline_view_state();
+                    if current_timeline_view != editor.timeline_view_state {
+                        editor.timeline_view_state = current_timeline_view;
+                        if editor.timeline_view_save_due.is_none() {
+                            editor.timeline_view_save_due =
+                                Some(Instant::now() + TIMELINE_VIEW_SAVE_DELAY);
+                        }
+                    }
+                    if editor
+                        .timeline_view_save_due
+                        .is_some_and(|due| Instant::now() >= due)
+                    {
+                        if let Err(error) = save_timeline_view(&editor.timeline_view_state) {
+                            editor.error = Some(error);
+                        }
+                        editor.timeline_view_save_due = None;
+                    }
                     if should_render {
                         cx.notify();
                     }
@@ -391,6 +423,17 @@ impl Editor {
         } else {
             IDLE_UPDATE_INTERVAL
         }
+    }
+
+    fn current_timeline_view_state(&self) -> TimelineViewState {
+        let horizontal_scroll = (-f32::from(self.timeline_scroll.offset().x)).max(0.0);
+        let vertical_scroll = (-f32::from(self.timeline_vertical_scroll.offset().y)).max(0.0);
+        timeline_view_state(
+            &self.project_root,
+            self.playhead.frames(),
+            horizontal_scroll,
+            vertical_scroll,
+        )
     }
 
     fn open_project_folder(&mut self, cx: &mut Context<Self>) {
@@ -438,6 +481,9 @@ impl Editor {
 
     fn set_project_root(&mut self, root: PathBuf, cx: &mut Context<Self>) {
         let root = std::fs::canonicalize(&root).unwrap_or(root);
+        if let Err(error) = save_timeline_view(&self.current_timeline_view_state()) {
+            self.error = Some(error);
+        }
         self.video = None;
         self.standalone_audio = None;
         self.audio_previews.clear();
@@ -452,9 +498,20 @@ impl Editor {
         self.loaded_clip_id = None;
         self.still_playback_started = None;
         self.playing = false;
-        self.playhead = TimelineTime::ZERO;
         self.project_root = root;
         self.project = Project::load(&self.project_root);
+        self.timeline_view_state = load_timeline_view(&self.project_root);
+        self.timeline_view_save_due = None;
+        self.playhead = TimelineTime::from_frames(self.timeline_view_state.playhead_frame)
+            .clamp(TimelineTime::ZERO, self.project.timeline_duration());
+        self.timeline_scroll.set_offset(point(
+            px(-self.timeline_view_state.horizontal_scroll),
+            px(0.0),
+        ));
+        self.timeline_vertical_scroll.set_offset(point(
+            px(0.0),
+            px(-self.timeline_view_state.vertical_scroll),
+        ));
         self.next_id = self.project.next_id();
         self.undo_stack.clear();
         self.redo_stack.clear();
@@ -477,7 +534,7 @@ impl Editor {
             self.error = None;
         }
         if !self.project.clips.is_empty() {
-            self.load_timeline_position(TimelineTime::ZERO, false);
+            self.load_timeline_position(self.playhead, false);
         }
     }
 
@@ -699,6 +756,14 @@ impl Editor {
         cx: &mut Context<Self>,
     ) {
         crate::gpui_inspector::toggle(window, cx);
+    }
+}
+
+impl Drop for Editor {
+    fn drop(&mut self) {
+        if let Err(error) = save_timeline_view(&self.current_timeline_view_state()) {
+            eprintln!("Could not save timeline view state: {error}");
+        }
     }
 }
 

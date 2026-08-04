@@ -148,7 +148,7 @@ consistent editing toolset.
 - [ ] Add linked video/audio clip groups so related clips select, move, trim,
       split, and delete together.
 - [ ] Add explicit link and unlink commands.
-- [ ] Add ripple delete for single and multi-clip selections, closing the
+- [x] Add ripple delete for single and multi-clip selections, closing the
       resulting timeline gaps without introducing overlaps.
 - [ ] Add ripple trim, shifting later clips by the trim delta.
 - [ ] Add insert editing, shifting existing clips to make room.

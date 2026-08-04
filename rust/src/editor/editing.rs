@@ -199,8 +199,18 @@ impl Editor {
             return;
         }
         let clip_ids = self.selected_clip_ids.clone();
+        let clip_count = clip_ids.len();
         self.checkpoint();
-        self.remove_clips(&clip_ids);
+        self.remove_clips(&clip_ids, self.track_magnet_enabled);
+        self.status = Some(if self.track_magnet_enabled {
+            format!(
+                "Deleted {clip_count} clip{} and closed the track gap{}.",
+                plural_suffix(clip_count),
+                plural_suffix(clip_count)
+            )
+        } else {
+            format!("Deleted {clip_count} clip{}.", plural_suffix(clip_count))
+        });
     }
 
     pub(super) fn copy_selected_clips(&mut self) {
@@ -236,7 +246,7 @@ impl Editor {
         let clip_ids = self.selected_clip_ids.clone();
         self.checkpoint();
         self.clip_clipboard = Some(clipboard);
-        self.remove_clips(&clip_ids);
+        self.remove_clips(&clip_ids, false);
         self.error = None;
         self.status = Some(format!("Cut {count} clip{}.", plural_suffix(count)));
     }
@@ -270,7 +280,10 @@ impl Editor {
         self.load_timeline_position(self.playhead, false);
     }
 
-    fn remove_clips(&mut self, clip_ids: &HashSet<u64>) {
+    fn remove_clips(&mut self, clip_ids: &HashSet<u64>, close_track_gaps: bool) {
+        if close_track_gaps {
+            ripple_clips_after_deletion(&mut self.project.clips, clip_ids);
+        }
         self.project
             .clips
             .retain(|clip| !clip_ids.contains(&clip.id));
@@ -643,6 +656,33 @@ impl Editor {
         self.next_id += 1;
         id
     }
+
+    pub(super) fn toggle_track_magnet(&mut self) {
+        self.track_magnet_enabled = !self.track_magnet_enabled;
+    }
+}
+
+fn ripple_clips_after_deletion(clips: &mut [TimelineClip], deleted_ids: &HashSet<u64>) {
+    let deleted = clips
+        .iter()
+        .filter(|clip| deleted_ids.contains(&clip.id))
+        .map(|clip| (clip.track_id, clip.timeline_end(), clip.duration()))
+        .collect::<Vec<_>>();
+
+    for clip in clips
+        .iter_mut()
+        .filter(|clip| !deleted_ids.contains(&clip.id))
+    {
+        let shift = deleted
+            .iter()
+            .filter(|(track_id, deleted_end, _)| {
+                *track_id == clip.track_id && *deleted_end <= clip.timeline_start
+            })
+            .fold(TimelineTime::ZERO, |total, (_, _, duration)| {
+                total + *duration
+            });
+        clip.timeline_start -= shift;
+    }
 }
 
 fn clipboard_paste_error(project: &Project, clips: &[TimelineClip]) -> Option<&'static str> {
@@ -758,5 +798,23 @@ mod tests {
             clipboard_paste_error(&project, &candidates),
             Some("a copied clip would overlap an existing clip")
         );
+    }
+
+    #[test]
+    fn track_magnet_closes_deleted_durations_independently_per_track() {
+        let mut clips = vec![
+            audio_clip(1, 10, 10),
+            audio_clip(2, 30, 5),
+            audio_clip(3, 50, 10),
+            TimelineClip {
+                track_id: 3,
+                ..audio_clip(4, 50, 10)
+            },
+        ];
+
+        ripple_clips_after_deletion(&mut clips, &HashSet::from([1, 2]));
+
+        assert_eq!(clips[2].timeline_start, TimelineTime::from_frames(35));
+        assert_eq!(clips[3].timeline_start, TimelineTime::from_frames(50));
     }
 }
