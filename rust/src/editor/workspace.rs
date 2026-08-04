@@ -27,12 +27,29 @@ struct WorkspaceSettings {
     timeline_views: Vec<TimelineViewState>,
 }
 
-#[derive(Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
+#[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
 pub(super) struct TimelineViewState {
     project_root: PathBuf,
     pub(super) playhead_frame: i64,
     pub(super) horizontal_scroll: f32,
     pub(super) vertical_scroll: f32,
+    #[serde(default = "default_enabled")]
+    pub(super) snapping_enabled: bool,
+    #[serde(default = "default_enabled")]
+    pub(super) track_magnet_enabled: bool,
+}
+
+impl Default for TimelineViewState {
+    fn default() -> Self {
+        Self {
+            project_root: PathBuf::new(),
+            playhead_frame: 0,
+            horizontal_scroll: 0.0,
+            vertical_scroll: 0.0,
+            snapping_enabled: true,
+            track_magnet_enabled: true,
+        }
+    }
 }
 
 pub(super) fn load_project_root() -> PathBuf {
@@ -105,12 +122,16 @@ pub(super) fn timeline_view_state(
     playhead_frame: i64,
     horizontal_scroll: f32,
     vertical_scroll: f32,
+    snapping_enabled: bool,
+    track_magnet_enabled: bool,
 ) -> TimelineViewState {
     TimelineViewState {
         project_root: project_root.to_path_buf(),
         playhead_frame: playhead_frame.max(0),
         horizontal_scroll: finite_nonnegative(horizontal_scroll),
         vertical_scroll: finite_nonnegative(vertical_scroll),
+        snapping_enabled,
+        track_magnet_enabled,
     }
 }
 
@@ -330,6 +351,10 @@ fn default_timeline_pixels_per_second() -> f32 {
     super::DEFAULT_TIMELINE_PIXELS_PER_SECOND
 }
 
+fn default_enabled() -> bool {
+    true
+}
+
 fn finite_nonnegative(value: f32) -> f32 {
     if value.is_finite() {
         value.max(0.0)
@@ -367,9 +392,34 @@ mod tests {
 
     #[test]
     fn timeline_view_state_sanitizes_values_before_persistence() {
-        let view = timeline_view_state(Path::new("/tmp/project"), -10, f32::NAN, -20.0);
+        let view = timeline_view_state(
+            Path::new("/tmp/project"),
+            -10,
+            f32::NAN,
+            -20.0,
+            false,
+            false,
+        );
         assert_eq!(view.playhead_frame, 0);
         assert_eq!(view.horizontal_scroll, 0.0);
         assert_eq!(view.vertical_scroll, 0.0);
+        assert!(!view.snapping_enabled);
+        assert!(!view.track_magnet_enabled);
+    }
+
+    #[test]
+    fn older_timeline_views_enable_snap_and_magnet_by_default() {
+        let view: TimelineViewState = serde_json::from_str(
+            r#"{
+                "project_root": "/tmp/project",
+                "playhead_frame": 10,
+                "horizontal_scroll": 20.0,
+                "vertical_scroll": 30.0
+            }"#,
+        )
+        .unwrap();
+
+        assert!(view.snapping_enabled);
+        assert!(view.track_magnet_enabled);
     }
 }

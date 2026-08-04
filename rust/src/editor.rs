@@ -313,12 +313,12 @@ impl Editor {
             export_dialog_state: None,
             pixels_per_second,
             timeline_zoom_save_due: None,
-            timeline_view_state,
+            timeline_view_state: timeline_view_state.clone(),
             timeline_view_save_due: None,
             active_timeline_tool: TimelineTool::Selection,
             blade_guide_position: None,
-            snapping_enabled: true,
-            track_magnet_enabled: false,
+            snapping_enabled: timeline_view_state.snapping_enabled,
+            track_magnet_enabled: timeline_view_state.track_magnet_enabled,
             snap_guide: None,
             next_id,
             undo_stack: Vec::new(),
@@ -433,6 +433,8 @@ impl Editor {
             self.playhead.frames(),
             horizontal_scroll,
             vertical_scroll,
+            self.snapping_enabled,
+            self.track_magnet_enabled,
         )
     }
 
@@ -504,6 +506,8 @@ impl Editor {
         self.timeline_view_save_due = None;
         self.playhead = TimelineTime::from_frames(self.timeline_view_state.playhead_frame)
             .clamp(TimelineTime::ZERO, self.project.timeline_duration());
+        self.snapping_enabled = self.timeline_view_state.snapping_enabled;
+        self.track_magnet_enabled = self.timeline_view_state.track_magnet_enabled;
         self.timeline_scroll.set_offset(point(
             px(-self.timeline_view_state.horizontal_scroll),
             px(0.0),
