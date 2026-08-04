@@ -167,16 +167,31 @@ impl Editor {
                                             .left(px(playhead_left))
                                             .w(px(2.0))
                                             .bg(rgb(ACCENT))
-                                            .cursor(CursorStyle::ResizeLeftRight)
-                                            .on_mouse_down(
-                                                MouseButton::Left,
-                                                cx.listener(
-                                                    |editor, event: &MouseDownEvent, _, cx| {
-                                                        editor.begin_playhead_scrub(event);
-                                                        cx.stop_propagation();
-                                                        cx.notify();
-                                                    },
-                                                ),
+                                            .cursor(
+                                                if self.active_timeline_tool == TimelineTool::Blade
+                                                {
+                                                    CursorStyle::Crosshair
+                                                } else {
+                                                    CursorStyle::ResizeLeftRight
+                                                },
+                                            )
+                                            .when(
+                                                self.active_timeline_tool != TimelineTool::Blade,
+                                                |this| {
+                                                    this.on_mouse_down(
+                                                        MouseButton::Left,
+                                                        cx.listener(
+                                                            |editor,
+                                                             event: &MouseDownEvent,
+                                                             _,
+                                                             cx| {
+                                                                editor.begin_playhead_scrub(event);
+                                                                cx.stop_propagation();
+                                                                cx.notify();
+                                                            },
+                                                        ),
+                                                    )
+                                                },
                                             )
                                             .child(
                                                 div()
