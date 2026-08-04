@@ -115,22 +115,10 @@ impl Editor {
         }
     }
 
-    pub(super) fn split_selected(&mut self) {
-        let clip_ids = self.selected_clip_ids_in_project_order();
-        if clip_ids.is_empty() || !self.selected_clips_editable() {
-            return;
-        }
-        let clips = clip_ids
-            .iter()
-            .filter_map(|clip_id| self.project.clip(*clip_id).cloned())
-            .collect::<Vec<_>>();
-        let all_contain_playhead = clips.iter().all(|clip| {
-            let local = self.playhead - clip.timeline_start;
-            local >= TimelineTime::ONE_FRAME && local <= clip.duration() - TimelineTime::ONE_FRAME
-        });
-        if !all_contain_playhead {
-            self.error =
-                Some("The playhead must be inside every selected clip before splitting.".into());
+    pub(super) fn blade_at_playhead(&mut self) {
+        let clips = clips_crossing_playhead(&self.project, self.playhead);
+        if clips.is_empty() {
+            self.error = Some("No unlocked clip crosses the playhead.".into());
             return;
         }
 
@@ -155,8 +143,13 @@ impl Editor {
         }
         self.selected_clip_ids = right_halves.iter().map(|clip| clip.id).collect();
         self.selected_clip_id = right_halves.first().map(|clip| clip.id);
+        let split_count = right_halves.len();
         self.project.clips.extend(right_halves);
         self.error = None;
+        self.status = Some(format!(
+            "Bladed {split_count} clip{} at the playhead.",
+            plural_suffix(split_count)
+        ));
         self.save_project();
         self.load_timeline_position(self.playhead, false);
     }
@@ -685,6 +678,23 @@ fn ripple_clips_after_deletion(clips: &mut [TimelineClip], deleted_ids: &HashSet
     }
 }
 
+fn clips_crossing_playhead(project: &Project, playhead: TimelineTime) -> Vec<TimelineClip> {
+    project
+        .clips
+        .iter()
+        .filter(|clip| {
+            let local = playhead - clip.timeline_start;
+            let crosses_playhead = local >= TimelineTime::ONE_FRAME
+                && local <= clip.duration() - TimelineTime::ONE_FRAME;
+            let track_is_editable = project
+                .track(clip.track_id)
+                .is_some_and(|track| !track.locked);
+            crosses_playhead && track_is_editable
+        })
+        .cloned()
+        .collect()
+}
+
 fn clipboard_paste_error(project: &Project, clips: &[TimelineClip]) -> Option<&'static str> {
     if clips.is_empty() {
         return Some("the clipboard is empty");
@@ -816,5 +826,16 @@ mod tests {
 
         assert_eq!(clips[2].timeline_start, TimelineTime::from_frames(35));
         assert_eq!(clips[3].timeline_start, TimelineTime::from_frames(50));
+    }
+
+    #[test]
+    fn blade_targets_unselected_clips_crossing_the_playhead() {
+        let mut project = Project::default();
+        project.assets.push(audio_asset(100));
+        project.clips = vec![audio_clip(10, 0, 20), audio_clip(11, 30, 20)];
+
+        let targets = clips_crossing_playhead(&project, TimelineTime::from_frames(10));
+
+        assert_eq!(targets.iter().map(|clip| clip.id).collect::<Vec<_>>(), [10]);
     }
 }

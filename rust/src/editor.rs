@@ -648,7 +648,7 @@ impl Editor {
     }
 
     fn action_split_clip(&mut self, _: &SplitClip, _: &mut Window, cx: &mut Context<Self>) {
-        self.split_selected();
+        self.blade_at_playhead();
         cx.notify();
     }
 
