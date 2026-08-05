@@ -463,6 +463,10 @@ impl Drop for TemporaryOutput {
 #[path = "export_gstreamer.test.rs"]
 mod integration_tests;
 
+#[cfg(all(test, target_os = "macos"))]
+#[path = "export_gstreamer_videotoolbox.test.rs"]
+mod videotoolbox_integration_tests;
+
 #[cfg(test)]
 mod tests {
     use super::*;
