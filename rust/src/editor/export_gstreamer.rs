@@ -460,6 +460,10 @@ impl Drop for TemporaryOutput {
 }
 
 #[cfg(test)]
+#[path = "export_gstreamer.test.rs"]
+mod integration_tests;
+
+#[cfg(test)]
 mod tests {
     use super::*;
     use crate::editor::model::{
