@@ -1,6 +1,6 @@
 use super::{
     clip_render_plan::{resolve_audio_clip_render_plan, resolve_visual_clip_render_plan},
-    export::ExportOptions,
+    export::{ExportEncoder, ExportOptions},
     model::{MediaAsset, MediaKind, Project, TimelineClip, TrackKind, VideoClipProperties},
 };
 use ges::prelude::*;
@@ -13,17 +13,11 @@ use url::Url;
 const AUDIO_BIT_RATE: i32 = 192_000;
 static EXPORT_ENCODER_LOCK: Mutex<()> = Mutex::new(());
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-enum VideoEncoder {
-    VideoToolbox,
-    X264,
-}
-
-impl VideoEncoder {
+impl ExportEncoder {
     fn factory_name(self) -> &'static str {
         match self {
-            Self::VideoToolbox => "vtenc_h264_hw",
-            Self::X264 => "x264enc",
+            Self::Hardware => "vtenc_h264_hw",
+            Self::Software => "x264enc",
         }
     }
 }
@@ -46,33 +40,14 @@ pub(super) fn export_project(
     let _encoder_lock = EXPORT_ENCODER_LOCK
         .lock()
         .unwrap_or_else(|error| error.into_inner());
-    let mut hardware_error = None;
-    for encoder in export_encoder_attempts() {
-        temporary_output.clear()?;
-        report_progress(0.0);
-        match export_project_with_encoder(
-            project,
-            project_root,
-            &temporary_output.path,
-            options,
-            encoder,
-            &mut report_progress,
-        ) {
-            Ok(()) => break,
-            Err(error) if encoder == VideoEncoder::VideoToolbox => {
-                log::warn!("VideoToolbox export failed; retrying with x264: {error}");
-                hardware_error = Some(error);
-            }
-            Err(error) => {
-                return Err(match hardware_error {
-                    Some(hardware_error) => format!(
-                        "Hardware export failed: {hardware_error}. Software fallback failed: {error}"
-                    ),
-                    None => error,
-                });
-            }
-        }
-    }
+    export_project_with_encoder(
+        project,
+        project_root,
+        &temporary_output.path,
+        options,
+        options.encoder,
+        &mut report_progress,
+    )?;
 
     if output.is_file() {
         fs::remove_file(output)
@@ -88,22 +63,12 @@ pub(super) fn export_project(
     Ok(())
 }
 
-fn export_encoder_attempts() -> Vec<VideoEncoder> {
-    let mut encoders = Vec::with_capacity(2);
-    #[cfg(target_os = "macos")]
-    if gst::ElementFactory::find(VideoEncoder::VideoToolbox.factory_name()).is_some() {
-        encoders.push(VideoEncoder::VideoToolbox);
-    }
-    encoders.push(VideoEncoder::X264);
-    encoders
-}
-
 fn export_project_with_encoder(
     project: &Project,
     project_root: &Path,
     temporary_output: &Path,
     options: ExportOptions,
-    encoder: VideoEncoder,
+    encoder: ExportEncoder,
     report_progress: &mut impl FnMut(f32),
 ) -> Result<(), String> {
     let timeline = build_timeline(project, project_root, options)?;
@@ -378,7 +343,7 @@ struct EncoderSelection {
 }
 
 impl EncoderSelection {
-    fn for_export(video_encoder: VideoEncoder) -> Result<Self, String> {
+    fn for_export(video_encoder: ExportEncoder) -> Result<Self, String> {
         let selected_video =
             gst::ElementFactory::find(video_encoder.factory_name()).ok_or_else(|| {
                 format!(
@@ -485,18 +450,6 @@ impl TemporaryOutput {
             })?;
         }
         Ok(Self { path })
-    }
-
-    fn clear(&self) -> Result<(), String> {
-        if self.path.is_file() {
-            fs::remove_file(&self.path).map_err(|error| {
-                format!(
-                    "could not clear temporary export {}: {error}",
-                    self.path.display()
-                )
-            })?;
-        }
-        Ok(())
     }
 }
 
