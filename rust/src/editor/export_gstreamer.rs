@@ -75,7 +75,7 @@ fn export_project_with_encoder(
     let profile = encoding_profile(options);
     let _encoder_selection = EncoderSelection::for_export(encoder)?;
     let pipeline = ges::Pipeline::new();
-    configure_encoders(&pipeline, options.video_bit_rate);
+    configure_export_elements(&pipeline, options.video_bit_rate);
     pipeline
         .set_timeline(&timeline)
         .map_err(|error| format!("could not attach the export timeline: {error}"))?;
@@ -308,13 +308,14 @@ fn encoding_profile(options: ExportOptions) -> gst_pbutils::EncodingContainerPro
         .build()
 }
 
-fn configure_encoders(pipeline: &ges::Pipeline, video_bit_rate: usize) {
+fn configure_export_elements(pipeline: &ges::Pipeline, video_bit_rate: usize) {
     let kilobits_per_second = (video_bit_rate / 1_000).clamp(1, u32::MAX as usize) as u32;
     pipeline.connect_deep_element_added(move |_, _, element| {
         let Some(factory) = element.factory() else {
             return;
         };
-        match factory.name().as_str() {
+        let factory_name = factory.name();
+        match factory_name.as_str() {
             "x264enc" => {
                 element.set_property("bitrate", kilobits_per_second);
                 element.set_property_from_str("pass", "cbr");
@@ -329,11 +330,21 @@ fn configure_encoders(pipeline: &ges::Pipeline, video_bit_rate: usize) {
             "faac" => element.set_property("bitrate", AUDIO_BIT_RATE),
             _ => {}
         }
+
         if matches!(
-            factory.name().as_str(),
+            factory_name.as_str(),
+            "videoconvert" | "videoscale" | "videoconvertscale"
+        ) && element.find_property("n-threads").is_some()
+        {
+            // Zero lets GStreamer select a thread count based on the machine.
+            element.set_property("n-threads", 0u32);
+        }
+
+        if matches!(
+            factory_name.as_str(),
             "x264enc" | "vtenc_h264" | "vtenc_h264_hw"
         ) {
-            log::info!("GStreamer export is using {}", factory.name());
+            log::info!("GStreamer export is using {factory_name}");
         }
     });
 }
@@ -526,7 +537,7 @@ mod tests {
     fn applies_the_requested_bitrate_to_x264() {
         ges::init().unwrap();
         let pipeline = ges::Pipeline::new();
-        configure_encoders(&pipeline, 12_345_000);
+        configure_export_elements(&pipeline, 12_345_000);
         let encoder = gst::ElementFactory::make("x264enc").build().unwrap();
         pipeline.add(&encoder).unwrap();
         assert_eq!(encoder.property::<u32>("bitrate"), 12_345);
@@ -543,11 +554,28 @@ mod tests {
             return;
         };
         let pipeline = ges::Pipeline::new();
-        configure_encoders(&pipeline, 12_345_000);
+        configure_export_elements(&pipeline, 12_345_000);
         let encoder = factory.create().build().unwrap();
         pipeline.add(&encoder).unwrap();
         assert_eq!(encoder.property::<u32>("bitrate"), 12_345);
         assert!(!encoder.property::<bool>("allow-frame-reordering"));
+    }
+
+    #[test]
+    fn enables_automatic_threading_for_video_conversion_and_scaling() {
+        ges::init().unwrap();
+        let pipeline = ges::Pipeline::new();
+        configure_export_elements(&pipeline, 12_345_000);
+
+        for factory_name in ["videoconvert", "videoscale", "videoconvertscale"] {
+            let element = gst::ElementFactory::make(factory_name).build().unwrap();
+            pipeline.add(&element).unwrap();
+            assert_eq!(
+                element.property::<u32>("n-threads"),
+                0,
+                "{factory_name} should choose its thread count automatically"
+            );
+        }
     }
 
     #[test]
