@@ -1,4 +1,4 @@
-use super::export::{DEFAULT_VIDEO_BIT_RATE, ExportOptions, export_project};
+use super::export::{DEFAULT_VIDEO_BIT_RATE, ExportEncoder, ExportOptions, export_project};
 use super::*;
 use std::{
     env,
@@ -30,12 +30,16 @@ const EXPORT_FRAME_RATE_PRESETS: [(FrameRate, &str); 8] = [
     (FrameRate::new(60_000, 1_001), "59.94 fps"),
     (FrameRate::new(60, 1), "60 fps"),
 ];
+const EXPORT_ENCODER_PRESETS: [ExportEncoder; 2] =
+    [ExportEncoder::Hardware, ExportEncoder::Software];
 
 pub(super) struct ExportDialogState {
     resolution: (u32, u32),
     frame_rate: FrameRate,
+    encoder: ExportEncoder,
     resolution_menu_open: bool,
     frame_rate_menu_open: bool,
+    encoder_menu_open: bool,
     bitrate: Entity<ExplorerFilter>,
     destination: Entity<ExplorerFilter>,
     status: ExportDialogStatus,
@@ -90,8 +94,10 @@ impl Editor {
         self.export_dialog_state = Some(ExportDialogState {
             resolution: (self.project.settings.width, self.project.settings.height),
             frame_rate: self.project.settings.frame_rate,
+            encoder: ExportEncoder::default_for_platform(),
             resolution_menu_open: false,
             frame_rate_menu_open: false,
+            encoder_menu_open: false,
             bitrate,
             destination,
             status: ExportDialogStatus::Idle,
@@ -260,10 +266,11 @@ impl Editor {
                             .child(
                                 div()
                                     .grid()
-                                    .grid_cols(3)
+                                    .grid_cols(4)
                                     .gap_4()
                                     .child(self.export_resolution_dropdown(cx))
                                     .child(self.export_frame_rate_dropdown(cx))
+                                    .child(self.export_encoder_dropdown(cx))
                                     .child(export_editable_field(
                                         "Bitrate (Mb/s)",
                                         state.bitrate.clone(),
@@ -396,6 +403,7 @@ impl Editor {
                 height: state.resolution.1,
                 frame_rate: state.frame_rate,
                 video_bit_rate,
+                encoder: state.encoder,
             },
             destination,
         })
@@ -446,6 +454,7 @@ impl Editor {
             if let Some(state) = editor.export_dialog_state.as_mut() {
                 state.resolution_menu_open = !state.resolution_menu_open;
                 state.frame_rate_menu_open = false;
+                state.encoder_menu_open = false;
             }
             cx.notify();
         }))
@@ -490,6 +499,51 @@ impl Editor {
             if let Some(state) = editor.export_dialog_state.as_mut() {
                 state.frame_rate_menu_open = !state.frame_rate_menu_open;
                 state.resolution_menu_open = false;
+                state.encoder_menu_open = false;
+            }
+            cx.notify();
+        }))
+        .into_any_element()
+    }
+
+    fn export_encoder_dropdown(&self, cx: &mut Context<Self>) -> gpui::AnyElement {
+        let state = self
+            .export_dialog_state
+            .as_ref()
+            .expect("encoder dropdown rendered without export state");
+        let selected = state.encoder;
+        let options = EXPORT_ENCODER_PRESETS
+            .into_iter()
+            .enumerate()
+            .map(|(index, encoder)| {
+                export_dropdown_option(
+                    ("export-encoder-option", index),
+                    encoder.label().to_string(),
+                    encoder.implementation(),
+                    selected == encoder,
+                )
+                .on_click(cx.listener(move |editor, _, _, cx| {
+                    if let Some(state) = editor.export_dialog_state.as_mut() {
+                        state.encoder = encoder;
+                        state.encoder_menu_open = false;
+                    }
+                    cx.stop_propagation();
+                    cx.notify();
+                }))
+            })
+            .collect::<Vec<_>>();
+
+        export_dropdown_field(
+            "Encoder",
+            format!("{} · {}", selected.label(), selected.implementation()),
+            state.encoder_menu_open,
+            options,
+        )
+        .on_click(cx.listener(|editor, _, _, cx| {
+            if let Some(state) = editor.export_dialog_state.as_mut() {
+                state.encoder_menu_open = !state.encoder_menu_open;
+                state.resolution_menu_open = false;
+                state.frame_rate_menu_open = false;
             }
             cx.notify();
         }))
@@ -564,6 +618,7 @@ impl Editor {
         if let Some(state) = self.export_dialog_state.as_mut() {
             state.resolution_menu_open = false;
             state.frame_rate_menu_open = false;
+            state.encoder_menu_open = false;
             state.status = ExportDialogStatus::Exporting(progress.clone());
         }
         self.exporting = true;
@@ -954,6 +1009,19 @@ mod tests {
     fn rejects_invalid_bitrate() {
         assert!(parse_bitrate("8 Mb/s").is_err());
         assert!(parse_bitrate("fast").is_err());
+    }
+
+    #[test]
+    fn offers_hardware_and_software_encoders_with_distinct_labels() {
+        assert_eq!(EXPORT_ENCODER_PRESETS.len(), 2);
+        assert_ne!(
+            ExportEncoder::Hardware.label(),
+            ExportEncoder::Software.label()
+        );
+        assert_ne!(
+            ExportEncoder::Hardware.implementation(),
+            ExportEncoder::Software.implementation()
+        );
     }
 
     #[test]
