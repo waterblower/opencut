@@ -39,6 +39,10 @@ impl Render for Editor {
             .file_context_menu
             .as_ref()
             .map(|menu| self.file_menu_overlay(menu, editor_viewport, cx));
+        let rename_dialog = self
+            .rename_dialog_state
+            .as_ref()
+            .map(|_| self.rename_dialog(cx));
 
         div()
             .id("editor-root")
@@ -113,6 +117,7 @@ impl Render for Editor {
                     .child(self.timeline(cx)),
             )
             .when_some(file_menu, |this, menu| this.child(menu))
+            .when_some(rename_dialog, |this, dialog| this.child(dialog))
             .when(self.settings_open, |this| {
                 this.child(self.settings_modal(cx))
             })
@@ -134,6 +139,11 @@ impl Editor {
             .or(self.status.as_deref())
             .unwrap_or("Ready")
             .to_string();
+        let timeline_name = self
+            .timeline_path
+            .file_name()
+            .map(|name| name.to_string_lossy().into_owned())
+            .unwrap_or_else(|| self.timeline_path.display().to_string());
 
         div()
             .id("editor-topbar")
@@ -162,7 +172,7 @@ impl Editor {
                             .text_xs()
                             .font_family("monospace")
                             .text_color(rgb(MUTED))
-                            .child("EDITOR · AUTOSAVED"),
+                            .child(format!("EDITOR · {timeline_name} · AUTOSAVED")),
                     ),
             )
             .child(
@@ -200,6 +210,12 @@ impl Editor {
                     .child(toolbar_button("Open Folder", true).on_click(cx.listener(
                         |editor, _, _, cx| {
                             editor.open_project_folder(cx);
+                        },
+                    )))
+                    .child(toolbar_button("New Timeline", true).on_click(cx.listener(
+                        |editor, _, _, cx| {
+                            editor.create_timeline(cx);
+                            cx.notify();
                         },
                     )))
                     .child(toolbar_button("Settings", true).on_click(cx.listener(

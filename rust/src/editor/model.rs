@@ -3,7 +3,6 @@ use ffmpeg_next as ffmpeg;
 use serde::{Deserialize, Serialize};
 use std::{
     fs,
-    io::ErrorKind,
     ops::{Add, AddAssign, Sub, SubAssign},
     path::{Path, PathBuf},
     time::Duration,
@@ -366,37 +365,23 @@ impl Default for Project {
 }
 
 impl Project {
-    pub fn load(project_root: &Path) -> Self {
-        let path = project_path(project_root);
-        let contents = match fs::read_to_string(&path) {
-            Ok(contents) => contents,
-            Err(error) if error.kind() == ErrorKind::NotFound => return Self::default(),
-            Err(error) => {
-                eprintln!("Could not read {}: {error}", path.display());
-                return Self::default();
-            }
-        };
-        match serde_json::from_str::<Self>(&contents) {
-            Ok(mut project) => {
-                project.normalize();
-                project
-            }
-            Err(error) => {
-                eprintln!("Could not parse {}: {error}", path.display());
-                Self::default()
-            }
-        }
+    pub fn load(path: &Path) -> Result<Self, String> {
+        let contents = fs::read_to_string(path)
+            .map_err(|error| format!("could not read {}: {error}", path.display()))?;
+        let mut project = serde_json::from_str::<Self>(&contents)
+            .map_err(|error| format!("could not parse {}: {error}", path.display()))?;
+        project.normalize();
+        Ok(project)
     }
 
-    pub fn save(&self, project_root: &Path) -> Result<(), String> {
-        let path = project_path(project_root);
+    pub fn save(&self, path: &Path) -> Result<(), String> {
         let directory = path
             .parent()
-            .ok_or_else(|| "project path has no parent directory".to_string())?;
+            .ok_or_else(|| "timeline path has no parent directory".to_string())?;
         fs::create_dir_all(directory)
             .map_err(|error| format!("could not create {}: {error}", directory.display()))?;
         let json = serde_json::to_string_pretty(self)
-            .map_err(|error| format!("could not serialize project: {error}"))?;
+            .map_err(|error| format!("could not serialize timeline: {error}"))?;
         let temporary = path.with_extension("json.tmp");
         fs::write(&temporary, format!("{json}\n"))
             .map_err(|error| format!("could not write {}: {error}", temporary.display()))?;
@@ -836,10 +821,6 @@ fn approximate_frame_rate(fps: f64) -> Option<FrameRate> {
         fps.round().clamp(1.0, u32::MAX as f64) as u32,
         1,
     ))
-}
-
-fn project_path(project_root: &Path) -> PathBuf {
-    project_root.join(".opencut/project.json")
 }
 
 #[cfg(test)]

@@ -55,6 +55,9 @@ Current editor capabilities:
 - Open any ordinary folder as a project; supported media appears in a live file
   tree without an import or copy step. Filter the complete folder tree, preview
   media in place, or drag media directly onto compatible timeline tracks.
+- Timelines are ordinary root-level `*.timeline.json` files. Create multiple
+  independent timelines with **New Timeline** and switch between them by clicking
+  their `TL` entries in the project Explorer.
 - Video tracks accept video and still images; audio tracks accept video or audio.
 - Select clips individually, with Command-click, or by drawing a selection
   rectangle. Multi-clip move, duplicate, copy, cut, paste, and delete operations
@@ -72,7 +75,7 @@ Current editor capabilities:
   in the background. Each clip renders only its selected source range.
 - Undo/redo, clip metadata, fullscreen preview, and a docked GPUI element
   inspector with render FPS are available in the editor UI.
-- The project model stores default video transform properties (position, scale,
+- The timeline model stores default video transform properties (position, scale,
   opacity, and crop) and audio properties (gain, mute, and stereo pan).
   Property controls and preview/export application are still under development.
 - Export maps editor tracks and clips to a GStreamer Editing Services timeline,
@@ -103,11 +106,12 @@ Supported file extensions:
 
 ## Project data
 
-Editor state is saved automatically to
-`<project folder>/.opencut/project.json`. Media paths are relative to the
-project folder, so the media and project file can be moved, backed up, or
-committed together. The last opened folder is stored locally in
-`data/editor-settings.json`.
+Each timeline is saved automatically as a root-level JSON document such as
+`<project folder>/main.timeline.json`. A project can contain multiple timeline
+files; each stores its own settings, media metadata, tracks, and clips. Media
+paths are relative to the project folder, so timelines and source media can be
+moved, backed up, or committed together. The last opened folder and active
+timeline are stored locally in `data/editor-settings.json`.
 
 Disposable thumbnails and multiresolution `.ocwf` waveform peak caches are stored in
 `<project folder>/.opencut/cache`; its generated `.gitignore` keeps the cache
