@@ -7,6 +7,11 @@ pub(super) struct FileContextMenu {
     y: f32,
 }
 
+pub(super) struct RenameDialogState {
+    relative_path: PathBuf,
+    input: Entity<ExplorerFilter>,
+}
+
 #[derive(Clone, Debug)]
 pub(super) struct ExplorerMediaDrag {
     pub(super) relative_path: PathBuf,
@@ -141,6 +146,7 @@ impl Editor {
                 let is_video = entry.is_video;
                 let is_image = entry.is_image;
                 let is_audio = entry.is_audio;
+                let is_timeline = entry.is_timeline;
                 let is_media = is_video || is_image || is_audio;
                 let media_drag = is_media.then(|| ExplorerMediaDrag {
                     relative_path: path.clone(),
@@ -153,10 +159,14 @@ impl Editor {
                         MediaKind::Video
                     },
                 });
-                let metadata = explorer_metadata(
-                    entry,
-                    self.project.assets.iter().find(|asset| asset.path == path),
-                );
+                let metadata = if is_timeline && path == self.timeline_path {
+                    Some("ACTIVE".to_string())
+                } else {
+                    explorer_metadata(
+                        entry,
+                        self.project.assets.iter().find(|asset| asset.path == path),
+                    )
+                };
                 div()
                     .id(("project-file", index))
                     .relative()
@@ -185,6 +195,8 @@ impl Editor {
                     .on_click(cx.listener(move |editor, _, _, cx| {
                         if is_directory {
                             editor.toggle_directory(selection_path.clone());
+                        } else if is_timeline {
+                            editor.open_timeline(selection_path.clone(), cx);
                         } else {
                             editor.select_file(selection_path.clone(), cx);
                         }
@@ -231,7 +243,7 @@ impl Editor {
                             .text_sm()
                             .font_family("monospace")
                             .text_ellipsis()
-                            .text_color(rgb(if is_media || is_directory {
+                            .text_color(rgb(if is_media || is_timeline || is_directory {
                                 TEXT
                             } else {
                                 MUTED
@@ -391,8 +403,10 @@ impl Editor {
         cx: &mut Context<Self>,
     ) -> gpui::AnyElement {
         let width = 268.0;
-        let can_trash = !menu.relative_path.as_os_str().is_empty();
-        let height = if can_trash { 132.0 } else { 92.0 };
+        let can_rename = !menu.relative_path.as_os_str().is_empty();
+        let can_trash = can_rename && menu.relative_path != self.timeline_path;
+        let height =
+            92.0 + if can_rename { 40.0 } else { 0.0 } + if can_trash { 40.0 } else { 0.0 };
         let left = menu
             .x
             .clamp(8.0, (f32::from(viewport.width) - width - 8.0).max(8.0));
@@ -451,6 +465,13 @@ impl Editor {
                             },
                         )),
                     )
+                    .when(can_rename, |this| {
+                        this.child(file_menu_item("Rename", "").on_click(cx.listener(
+                            |editor, _, window, cx| {
+                                editor.begin_rename(window, cx);
+                            },
+                        )))
+                    })
                     .when(can_trash, |this| {
                         this.child(
                             file_menu_item("Move to Trash", "")
@@ -461,6 +482,78 @@ impl Editor {
                                 })),
                         )
                     }),
+            )
+            .into_any_element()
+    }
+
+    pub(super) fn rename_dialog(&self, cx: &mut Context<Self>) -> gpui::AnyElement {
+        let state = self
+            .rename_dialog_state
+            .as_ref()
+            .expect("rename dialog rendered without state");
+        let input = state.input.clone();
+        let original_name = state
+            .relative_path
+            .file_name()
+            .map(|name| name.to_string_lossy().into_owned())
+            .unwrap_or_default();
+
+        div()
+            .id("rename-dialog-overlay")
+            .absolute()
+            .inset_0()
+            .occlude()
+            .flex()
+            .items_center()
+            .justify_center()
+            .bg(gpui::rgba(0x00000088))
+            .on_mouse_down(
+                MouseButton::Left,
+                cx.listener(|editor, _, _, cx| {
+                    editor.rename_dialog_state = None;
+                    cx.notify();
+                }),
+            )
+            .child(
+                div()
+                    .id("rename-dialog")
+                    .w(px(480.0))
+                    .p_5()
+                    .flex()
+                    .flex_col()
+                    .gap_4()
+                    .rounded_xl()
+                    .border_1()
+                    .border_color(rgb(BORDER))
+                    .bg(rgb(PANEL))
+                    .shadow_lg()
+                    .occlude()
+                    .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
+                    .child(
+                        div()
+                            .text_lg()
+                            .font_weight(gpui::FontWeight::SEMIBOLD)
+                            .child(format!("Rename {original_name}")),
+                    )
+                    .child(input)
+                    .child(
+                        div()
+                            .flex()
+                            .justify_end()
+                            .gap_2()
+                            .child(rename_dialog_button("Cancel", false).on_click(cx.listener(
+                                |editor, _, _, cx| {
+                                    editor.rename_dialog_state = None;
+                                    cx.notify();
+                                },
+                            )))
+                            .child(rename_dialog_button("Rename", true).on_click(cx.listener(
+                                |editor, _, _, cx| {
+                                    editor.finish_rename(cx);
+                                    cx.notify();
+                                },
+                            ))),
+                    ),
             )
             .into_any_element()
     }
@@ -498,6 +591,130 @@ impl Editor {
 
     pub(super) fn dismiss_file_context_menu(&mut self) {
         self.file_context_menu = None;
+    }
+
+    fn begin_rename(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let Some(relative_path) = self
+            .file_context_menu
+            .as_ref()
+            .map(|menu| menu.relative_path.clone())
+        else {
+            return;
+        };
+        self.file_context_menu = None;
+        let Some(name) = relative_path
+            .file_name()
+            .map(|name| name.to_string_lossy().into_owned())
+        else {
+            self.error = Some("The project folder cannot be renamed here.".to_string());
+            return;
+        };
+        let input = cx.new(|cx| {
+            ExplorerFilter::new_field(
+                "rename-project-entry",
+                name,
+                "New name",
+                self.focus_handle.clone(),
+                cx,
+            )
+        });
+        input.update(cx, |input, cx| input.focus_and_select_all(window, cx));
+        self.rename_dialog_state = Some(RenameDialogState {
+            relative_path,
+            input,
+        });
+        self.error = None;
+        cx.notify();
+    }
+
+    fn finish_rename(&mut self, cx: &mut Context<Self>) {
+        let Some(state) = self.rename_dialog_state.as_ref() else {
+            return;
+        };
+        let old_relative = state.relative_path.clone();
+        let new_name = state.input.read(cx).query().trim().to_string();
+        let Some(new_relative) = renamed_relative_path(&old_relative, &new_name) else {
+            self.error = Some("Enter a single non-empty file or folder name.".to_string());
+            return;
+        };
+        if new_relative == old_relative {
+            self.rename_dialog_state = None;
+            return;
+        }
+
+        let old_path = self.project_root.join(&old_relative);
+        let new_path = self.project_root.join(&new_relative);
+        if new_path.exists() {
+            self.error = Some(format!(
+                "Cannot rename: {} already exists.",
+                new_relative.display()
+            ));
+            return;
+        }
+        if let Err(error) = std::fs::rename(&old_path, &new_path) {
+            self.error = Some(format!(
+                "Could not rename {}: {error}",
+                old_relative.display()
+            ));
+            return;
+        }
+
+        for project in std::iter::once(&mut self.project)
+            .chain(self.undo_stack.iter_mut())
+            .chain(self.redo_stack.iter_mut())
+        {
+            for asset in &mut project.assets {
+                if let Some(path) = remap_relative_path(&asset.path, &old_relative, &new_relative) {
+                    asset.path = path;
+                }
+            }
+        }
+        self.expanded_directories = self
+            .expanded_directories
+            .iter()
+            .map(|path| {
+                remap_relative_path(path, &old_relative, &new_relative)
+                    .unwrap_or_else(|| path.clone())
+            })
+            .collect();
+        if let Some(selected) = self.selected_file.as_mut()
+            && let Some(path) = remap_relative_path(selected, &old_relative, &new_relative)
+        {
+            *selected = path;
+        }
+        match &mut self.preview_target {
+            PreviewTarget::VideoFile(path)
+            | PreviewTarget::AudioFile(path)
+            | PreviewTarget::ImageFile(path) => {
+                if let Some(new_path) = remap_relative_path(path, &old_relative, &new_relative) {
+                    *path = new_path;
+                }
+            }
+            PreviewTarget::Timeline => {}
+        }
+
+        self.error = None;
+        if self.timeline_path == old_relative {
+            self.timeline_path = new_relative.clone();
+            if let Err(error) = save_active_timeline(&self.project_root, &self.timeline_path) {
+                self.error = Some(error);
+            }
+            if let Err(error) = save_timeline_view(&self.current_timeline_view_state()) {
+                self.error = Some(error);
+            }
+        }
+        self.save_project();
+        self.rename_dialog_state = None;
+        self.explorer_search_query = None;
+        self.explorer_search_results.clear();
+        self.explorer_search_pending = false;
+        self.refresh_file_tree();
+        self.schedule_explorer_search(cx);
+        self.status = Some(format!(
+            "Renamed {} to {}.",
+            old_relative.display(),
+            new_relative.display()
+        ));
     }
 
     fn reveal_selected_file(&mut self, cx: &mut Context<Self>) {
@@ -956,6 +1173,82 @@ fn file_menu_item(label: &'static str, shortcut: &'static str) -> gpui::Stateful
         )
 }
 
+fn rename_dialog_button(label: &'static str, primary: bool) -> gpui::Stateful<gpui::Div> {
+    div()
+        .id(label)
+        .h_10()
+        .px_4()
+        .flex()
+        .items_center()
+        .justify_center()
+        .rounded_lg()
+        .border_1()
+        .border_color(rgb(if primary { ACCENT } else { BORDER }))
+        .bg(rgb(if primary { ACCENT } else { SURFACE }))
+        .text_color(rgb(if primary { 0x17120a } else { TEXT }))
+        .cursor(CursorStyle::PointingHand)
+        .hover(|style| style.opacity(0.85))
+        .child(label)
+}
+
+fn renamed_relative_path(old_path: &std::path::Path, new_name: &str) -> Option<PathBuf> {
+    let mut components = std::path::Path::new(new_name).components();
+    let component = components.next()?;
+    if components.next().is_some() || !matches!(component, std::path::Component::Normal(_)) {
+        return None;
+    }
+    Some(
+        old_path
+            .parent()
+            .unwrap_or_else(|| std::path::Path::new(""))
+            .join(new_name),
+    )
+}
+
+fn remap_relative_path(
+    path: &std::path::Path,
+    old_path: &std::path::Path,
+    new_path: &std::path::Path,
+) -> Option<PathBuf> {
+    if path == old_path {
+        return Some(new_path.to_path_buf());
+    }
+    path.strip_prefix(old_path)
+        .ok()
+        .filter(|suffix| !suffix.as_os_str().is_empty())
+        .map(|suffix| new_path.join(suffix))
+}
+
+#[cfg(test)]
+mod rename_tests {
+    use super::*;
+    use std::path::Path;
+
+    #[test]
+    fn renamed_path_stays_in_the_same_directory() {
+        assert_eq!(
+            renamed_relative_path(Path::new("media/old.mp4"), "new.mp4"),
+            Some(PathBuf::from("media/new.mp4"))
+        );
+        assert_eq!(
+            renamed_relative_path(Path::new("old.mp4"), "../new.mp4"),
+            None
+        );
+    }
+
+    #[test]
+    fn directory_rename_remaps_descendants() {
+        assert_eq!(
+            remap_relative_path(
+                Path::new("old/nested/clip.mp4"),
+                Path::new("old"),
+                Path::new("new")
+            ),
+            Some(PathBuf::from("new/nested/clip.mp4"))
+        );
+    }
+}
+
 #[cfg(target_os = "macos")]
 fn move_path_to_trash(path: &std::path::Path) -> Result<(), String> {
     use objc2_foundation::{NSFileManager, NSString, NSURL};
@@ -988,14 +1281,16 @@ fn explorer_file_badge(entry: &FileTreeEntry) -> gpui::Div {
         })
         .filter(|extension| !extension.is_empty())
         .unwrap_or_else(|| "FILE".to_string());
-    let (text, border) = if entry.is_video {
-        (0x8fb9dd, 0x355b78)
+    let (extension, text, border) = if entry.is_timeline {
+        ("TL".to_string(), 0xf0b75e, 0x8a652d)
+    } else if entry.is_video {
+        (extension, 0x8fb9dd, 0x355b78)
     } else if entry.is_audio {
-        (0x7fd0ae, 0x32725a)
+        (extension, 0x7fd0ae, 0x32725a)
     } else if entry.is_image {
-        (0xc3a9e8, 0x665184)
+        (extension, 0xc3a9e8, 0x665184)
     } else {
-        (0x8b8b94, 0x46464e)
+        (extension, 0x8b8b94, 0x46464e)
     };
 
     div()

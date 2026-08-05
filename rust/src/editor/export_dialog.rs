@@ -76,7 +76,7 @@ impl Editor {
         let destination = cx.new(|cx| {
             ExplorerFilter::new_field(
                 "export-destination-input",
-                default_export_destination(&self.project_root)
+                default_export_destination(&self.project_root, &self.timeline_path)
                     .display()
                     .to_string(),
                 "/path/to/export.mp4",
@@ -110,10 +110,15 @@ impl Editor {
             .as_ref()
             .expect("export dialog rendered without state");
         let project_name = self
-            .project_root
+            .timeline_path
             .file_name()
             .map(|name| name.to_string_lossy().into_owned())
-            .unwrap_or_else(|| "OpenCut project".to_string());
+            .map(|name| {
+                name.strip_suffix(".timeline.json")
+                    .unwrap_or(&name)
+                    .to_string()
+            })
+            .unwrap_or_else(|| "OpenCut timeline".to_string());
         let duration = self.project.content_duration();
         let duration_seconds = self.project.seconds(duration);
         let validated = self.validated_export(cx);
@@ -907,10 +912,11 @@ fn parse_destination(value: &str, project_root: &Path) -> Result<PathBuf, String
     Ok(path)
 }
 
-fn default_export_destination(project_root: &Path) -> PathBuf {
-    let stem = project_root
+fn default_export_destination(project_root: &Path, timeline_path: &Path) -> PathBuf {
+    let stem = timeline_path
         .file_name()
         .map(|name| name.to_string_lossy().into_owned())
+        .and_then(|name| name.strip_suffix(".timeline.json").map(str::to_string))
         .filter(|name| !name.is_empty())
         .unwrap_or_else(|| "opencut".to_string());
     let candidate = project_root.join(format!("{stem}-export.mp4"));

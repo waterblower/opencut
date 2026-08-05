@@ -27,6 +27,7 @@ mod properties;
 mod properties_transform;
 mod settings;
 mod timeline;
+mod timeline_document;
 mod timeline_interactions;
 mod timeline_video;
 mod track;
@@ -35,7 +36,9 @@ mod workspace;
 
 use crate::playback_view::{DragPhase, PlaybackViewDelegate};
 use editing::ClipClipboard;
-use explorer::{ExplorerDropPreview, ExplorerMediaDrag, FileContextMenu, PendingExplorerDrop};
+use explorer::{
+    ExplorerDropPreview, ExplorerMediaDrag, FileContextMenu, PendingExplorerDrop, RenameDialogState,
+};
 use explorer_filter::ExplorerFilter;
 use export_dialog::ExportDialogState;
 use model::{
@@ -47,12 +50,14 @@ use preview::PreviewTarget;
 use preview_audio::AudioPreview;
 use properties::PropertiesPanelResizeDrag;
 use properties_transform::{OpacityDrag, VideoTransformInputs};
+use timeline_document::{create as create_timeline_document, load_or_create};
 use timeline_interactions::{
     ClipMoveDrag, ClipPlacement, MarqueeSelection, TimelineTool, TrimDrag, TrimEdge,
 };
 use workspace::{
-    FileTreeEntry, TimelineViewState, load_project_root, load_timeline_view, load_timeline_zoom,
-    save_project_root, save_timeline_view, save_timeline_zoom, timeline_view_state, visible_tree,
+    FileTreeEntry, TimelineViewState, load_active_timeline, load_project_root, load_timeline_view,
+    load_timeline_zoom, save_active_timeline, save_project_root, save_timeline_view,
+    save_timeline_zoom, timeline_view_state, visible_tree,
 };
 
 const MEDIA_PANEL_WIDTH: f32 = 340.0;
@@ -154,6 +159,7 @@ pub(crate) fn bind_keys(cx: &mut App) {
 
 pub(crate) struct Editor {
     project_root: PathBuf,
+    timeline_path: PathBuf,
     project: Project,
     file_tree: Vec<FileTreeEntry>,
     expanded_directories: HashSet<PathBuf>,
@@ -165,6 +171,7 @@ pub(crate) struct Editor {
     explorer_scroll: ScrollHandle,
     selected_file: Option<PathBuf>,
     file_context_menu: Option<FileContextMenu>,
+    rename_dialog_state: Option<RenameDialogState>,
     explorer_drag_assets: HashMap<PathBuf, MediaAsset>,
     explorer_drag_probe_jobs: HashSet<PathBuf>,
     explorer_drop_preview: Option<ExplorerDropPreview>,
@@ -236,8 +243,20 @@ impl Editor {
         );
         let expanded_directories = HashSet::new();
         let file_tree = visible_tree(&project_root, &expanded_directories).unwrap_or_default();
-        let project = Project::load(&project_root);
-        let timeline_view_state = load_timeline_view(&project_root);
+        let preferred_timeline = load_active_timeline(&project_root);
+        let (timeline_path, project, mut startup_error) =
+            match load_or_create(&project_root, preferred_timeline.as_deref()) {
+                Ok((path, project)) => (path, project, None),
+                Err(error) => (
+                    PathBuf::from("main.timeline.json"),
+                    Project::default(),
+                    Some(format!("Could not open timeline: {error}")),
+                ),
+            };
+        if let Err(error) = save_active_timeline(&project_root, &timeline_path) {
+            startup_error = Some(error);
+        }
+        let timeline_view_state = load_timeline_view(&project_root.join(&timeline_path));
         let playhead = TimelineTime::from_frames(timeline_view_state.playhead_frame)
             .clamp(TimelineTime::ZERO, project.timeline_duration());
         let timeline_scroll = ScrollHandle::new();
@@ -263,6 +282,7 @@ impl Editor {
 
         let mut editor = Self {
             project_root,
+            timeline_path: timeline_path.clone(),
             project,
             file_tree,
             expanded_directories,
@@ -272,8 +292,9 @@ impl Editor {
             explorer_search_results: Vec::new(),
             explorer_search_pending: false,
             explorer_scroll: ScrollHandle::new(),
-            selected_file: None,
+            selected_file: Some(timeline_path),
             file_context_menu: None,
+            rename_dialog_state: None,
             explorer_drag_assets: HashMap::new(),
             explorer_drag_probe_jobs: HashSet::new(),
             explorer_drop_preview: None,
@@ -332,7 +353,7 @@ impl Editor {
             timeline_vertical_scroll,
             exporting: false,
             status: None,
-            error: None,
+            error: startup_error,
             focus_handle,
         };
         if !editor.project.clips.is_empty() {
@@ -429,13 +450,17 @@ impl Editor {
         let horizontal_scroll = (-f32::from(self.timeline_scroll.offset().x)).max(0.0);
         let vertical_scroll = (-f32::from(self.timeline_vertical_scroll.offset().y)).max(0.0);
         timeline_view_state(
-            &self.project_root,
+            &self.timeline_file_path(),
             self.playhead.frames(),
             horizontal_scroll,
             vertical_scroll,
             self.snapping_enabled,
             self.track_magnet_enabled,
         )
+    }
+
+    pub(super) fn timeline_file_path(&self) -> PathBuf {
+        self.project_root.join(&self.timeline_path)
     }
 
     fn open_project_folder(&mut self, cx: &mut Context<Self>) {
@@ -483,9 +508,72 @@ impl Editor {
 
     fn set_project_root(&mut self, root: PathBuf, cx: &mut Context<Self>) {
         let root = std::fs::canonicalize(&root).unwrap_or(root);
+        let preferred_timeline = load_active_timeline(&root);
+        let (timeline_path, project) = match load_or_create(&root, preferred_timeline.as_deref()) {
+            Ok(timeline) => timeline,
+            Err(error) => {
+                self.error = Some(format!("Could not open timeline: {error}"));
+                return;
+            }
+        };
         if let Err(error) = save_timeline_view(&self.current_timeline_view_state()) {
             self.error = Some(error);
         }
+        self.save_project();
+        self.project_root = root;
+        self.expanded_directories.clear();
+        self.explorer_root_expanded = true;
+        self.activate_timeline(timeline_path, project, cx);
+        if let Err(error) = save_project_root(&self.project_root) {
+            self.error = Some(error);
+        }
+    }
+
+    pub(super) fn open_timeline(&mut self, relative_path: PathBuf, cx: &mut Context<Self>) {
+        if relative_path == self.timeline_path {
+            self.selected_file = Some(relative_path);
+            self.preview_target = PreviewTarget::Timeline;
+            cx.notify();
+            return;
+        }
+        let path = self.project_root.join(&relative_path);
+        let project = match Project::load(&path) {
+            Ok(project) => project,
+            Err(error) => {
+                self.error = Some(format!("Could not open timeline: {error}"));
+                return;
+            }
+        };
+        self.save_project();
+        if let Err(error) = save_timeline_view(&self.current_timeline_view_state()) {
+            self.error = Some(error);
+        }
+        self.activate_timeline(relative_path, project, cx);
+        self.status = Some(format!("Opened {}", self.timeline_path.display()));
+    }
+
+    pub(super) fn create_timeline(&mut self, cx: &mut Context<Self>) {
+        let (relative_path, project) = match create_timeline_document(&self.project_root) {
+            Ok(timeline) => timeline,
+            Err(error) => {
+                self.error = Some(format!("Could not create timeline: {error}"));
+                return;
+            }
+        };
+        self.save_project();
+        if let Err(error) = save_timeline_view(&self.current_timeline_view_state()) {
+            self.error = Some(error);
+        }
+        self.activate_timeline(relative_path.clone(), project, cx);
+        self.status = Some(format!("Created {}", relative_path.display()));
+    }
+
+    fn activate_timeline(
+        &mut self,
+        timeline_path: PathBuf,
+        project: Project,
+        cx: &mut Context<Self>,
+    ) {
         self.video = None;
         self.standalone_audio = None;
         self.audio_previews.clear();
@@ -500,12 +588,30 @@ impl Editor {
         self.loaded_clip_id = None;
         self.still_playback_started = None;
         self.playing = false;
-        self.project_root = root;
-        self.project = Project::load(&self.project_root);
-        self.timeline_view_state = load_timeline_view(&self.project_root);
+        self.preview_volume_open = false;
+        self.preview_is_scrubbing = false;
+        self.preview_is_adjusting_volume = false;
+        self.preview_resume_after_scrub = false;
+        self.preview_scrub_fraction = None;
+        self.preview_pending_seek_started = None;
+        self.preview_last_scrub_seek = None;
+        self.video_transform_input_clip_id = None;
+        self.opacity_drag = None;
+        self.trim_drag = None;
+        self.clip_move_drag = None;
+        self.marquee_selection = None;
+        self.is_scrubbing_playhead = false;
+        self.last_playhead_scrub_seek = None;
+        self.blade_guide_position = None;
+        self.snap_guide = None;
+        self.timeline_path = timeline_path;
+        self.project = project;
+        self.timeline_view_state = load_timeline_view(&self.timeline_file_path());
         self.timeline_view_save_due = None;
         self.playhead = TimelineTime::from_frames(self.timeline_view_state.playhead_frame)
             .clamp(TimelineTime::ZERO, self.project.timeline_duration());
+        self.still_playback_origin = self.playhead;
+        self.preview_refresh_ticks = 2;
         self.snapping_enabled = self.timeline_view_state.snapping_enabled;
         self.track_magnet_enabled = self.timeline_view_state.track_magnet_enabled;
         self.timeline_scroll.set_offset(point(
@@ -519,20 +625,18 @@ impl Editor {
         self.next_id = self.project.next_id();
         self.undo_stack.clear();
         self.redo_stack.clear();
-        self.expanded_directories.clear();
-        self.explorer_root_expanded = true;
         self.explorer_search_query = None;
         self.explorer_search_results.clear();
         self.explorer_search_pending = false;
         self.explorer_filter
             .update(cx, |filter, cx| filter.clear(cx));
-        self.selected_file = None;
+        self.selected_file = Some(self.timeline_path.clone());
         self.file_context_menu = None;
         self.preview_target = PreviewTarget::Timeline;
         self.selected_asset_id = self.project.assets.first().map(|asset| asset.id);
         self.select_only_clip(self.project.clips.first().map(|clip| clip.id));
         self.refresh_file_tree();
-        if let Err(error) = save_project_root(&self.project_root) {
+        if let Err(error) = save_active_timeline(&self.project_root, &self.timeline_path) {
             self.error = Some(error);
         } else {
             self.error = None;

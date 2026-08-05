@@ -197,6 +197,14 @@ impl ExplorerFilter {
         self.marked_range = None;
     }
 
+    pub(super) fn focus_and_select_all(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        self.selected_range = 0..self.content.len();
+        self.selection_reversed = false;
+        self.marked_range = None;
+        self.focus_handle.focus(window);
+        cx.notify();
+    }
+
     fn cursor_offset(&self) -> usize {
         if self.selection_reversed {
             self.selected_range.start

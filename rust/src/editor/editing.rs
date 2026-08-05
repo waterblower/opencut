@@ -639,8 +639,8 @@ impl Editor {
     }
 
     pub(super) fn save_project(&mut self) {
-        if let Err(error) = self.project.save(&self.project_root) {
-            self.error = Some(format!("Could not autosave project: {error}"));
+        if let Err(error) = self.project.save(&self.timeline_file_path()) {
+            self.error = Some(format!("Could not autosave timeline: {error}"));
         }
     }
 

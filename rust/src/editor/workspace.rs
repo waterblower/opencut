@@ -14,6 +14,7 @@ pub(super) struct FileTreeEntry {
     pub is_video: bool,
     pub is_image: bool,
     pub is_audio: bool,
+    pub is_timeline: bool,
     pub size_bytes: Option<u64>,
     pub expanded: bool,
 }
@@ -21,6 +22,8 @@ pub(super) struct FileTreeEntry {
 #[derive(Deserialize, Serialize)]
 struct WorkspaceSettings {
     project_root: PathBuf,
+    #[serde(default)]
+    active_timeline: Option<PathBuf>,
     #[serde(default = "default_timeline_pixels_per_second")]
     timeline_pixels_per_second: f32,
     #[serde(default)]
@@ -29,7 +32,8 @@ struct WorkspaceSettings {
 
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
 pub(super) struct TimelineViewState {
-    project_root: PathBuf,
+    #[serde(alias = "project_root")]
+    timeline_path: PathBuf,
     pub(super) playhead_frame: i64,
     pub(super) horizontal_scroll: f32,
     pub(super) vertical_scroll: f32,
@@ -42,7 +46,7 @@ pub(super) struct TimelineViewState {
 impl Default for TimelineViewState {
     fn default() -> Self {
         Self {
-            project_root: PathBuf::new(),
+            timeline_path: PathBuf::new(),
             playhead_frame: 0,
             horizontal_scroll: 0.0,
             vertical_scroll: 0.0,
@@ -66,7 +70,28 @@ pub(super) fn load_project_root() -> PathBuf {
 
 pub(super) fn save_project_root(project_root: &Path) -> Result<(), String> {
     let mut settings = load_settings().unwrap_or_else(|| default_settings(project_root));
+    if settings.project_root != project_root {
+        settings.active_timeline = None;
+    }
     settings.project_root = project_root.to_path_buf();
+    save_settings(&settings)
+}
+
+pub(super) fn load_active_timeline(project_root: &Path) -> Option<PathBuf> {
+    load_settings().and_then(|settings| {
+        (settings.project_root == project_root)
+            .then_some(settings.active_timeline)
+            .flatten()
+    })
+}
+
+pub(super) fn save_active_timeline(
+    project_root: &Path,
+    timeline_path: &Path,
+) -> Result<(), String> {
+    let mut settings = load_settings().unwrap_or_else(|| default_settings(project_root));
+    settings.project_root = project_root.to_path_buf();
+    settings.active_timeline = Some(timeline_path.to_path_buf());
     save_settings(&settings)
 }
 
@@ -84,16 +109,16 @@ pub(super) fn save_timeline_zoom(pixels_per_second: f32) -> Result<(), String> {
     save_settings(&settings)
 }
 
-pub(super) fn load_timeline_view(project_root: &Path) -> TimelineViewState {
+pub(super) fn load_timeline_view(timeline_path: &Path) -> TimelineViewState {
     let mut view = load_settings()
         .and_then(|settings| {
             settings
                 .timeline_views
                 .into_iter()
-                .find(|view| view.project_root == project_root)
+                .find(|view| view.timeline_path == timeline_path)
         })
         .unwrap_or_else(|| TimelineViewState {
-            project_root: project_root.to_path_buf(),
+            timeline_path: timeline_path.to_path_buf(),
             ..TimelineViewState::default()
         });
     view.playhead_frame = view.playhead_frame.max(0);
@@ -108,7 +133,7 @@ pub(super) fn save_timeline_view(view: &TimelineViewState) -> Result<(), String>
     if let Some(existing) = settings
         .timeline_views
         .iter_mut()
-        .find(|existing| existing.project_root == view.project_root)
+        .find(|existing| existing.timeline_path == view.timeline_path)
     {
         *existing = view.clone();
     } else {
@@ -118,7 +143,7 @@ pub(super) fn save_timeline_view(view: &TimelineViewState) -> Result<(), String>
 }
 
 pub(super) fn timeline_view_state(
-    project_root: &Path,
+    timeline_path: &Path,
     playhead_frame: i64,
     horizontal_scroll: f32,
     vertical_scroll: f32,
@@ -126,7 +151,7 @@ pub(super) fn timeline_view_state(
     track_magnet_enabled: bool,
 ) -> TimelineViewState {
     TimelineViewState {
-        project_root: project_root.to_path_buf(),
+        timeline_path: timeline_path.to_path_buf(),
         playhead_frame: playhead_frame.max(0),
         horizontal_scroll: finite_nonnegative(horizontal_scroll),
         vertical_scroll: finite_nonnegative(vertical_scroll),
@@ -288,6 +313,9 @@ fn file_tree_entry(
         is_video: !is_directory && is_video_path(&relative_path),
         is_image: !is_directory && is_image_path(&relative_path),
         is_audio: !is_directory && is_audio_path(&relative_path),
+        is_timeline: !is_directory
+            && relative_path.components().count() == 1
+            && super::timeline_document::is_timeline_path(&relative_path),
         relative_path,
         name,
         depth,
@@ -342,6 +370,7 @@ fn load_settings() -> Option<WorkspaceSettings> {
 fn default_settings(project_root: &Path) -> WorkspaceSettings {
     WorkspaceSettings {
         project_root: project_root.to_path_buf(),
+        active_timeline: None,
         timeline_pixels_per_second: default_timeline_pixels_per_second(),
         timeline_views: Vec::new(),
     }
@@ -411,7 +440,7 @@ mod tests {
     fn older_timeline_views_enable_snap_and_magnet_by_default() {
         let view: TimelineViewState = serde_json::from_str(
             r#"{
-                "project_root": "/tmp/project",
+                "timeline_path": "/tmp/project/main.timeline.json",
                 "playhead_frame": 10,
                 "horizontal_scroll": 20.0,
                 "vertical_scroll": 30.0

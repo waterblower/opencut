@@ -115,11 +115,28 @@ struct WaveformHeader {
 }
 
 pub(super) fn thumbnail_path(project_root: &Path, asset: &MediaAsset) -> PathBuf {
-    cache_directory(project_root).join(format!("asset-{}-thumbnail.png", asset.id))
+    cache_directory(project_root).join(format!(
+        "media-{:016x}-thumbnail.png",
+        media_key(&asset.path)
+    ))
 }
 
 pub(super) fn waveform_path(project_root: &Path, asset: &MediaAsset) -> PathBuf {
-    cache_directory(project_root).join(format!("asset-{}-waveform.ocwf", asset.id))
+    cache_directory(project_root).join(format!(
+        "media-{:016x}-waveform.ocwf",
+        media_key(&asset.path)
+    ))
+}
+
+fn media_key(path: &Path) -> u64 {
+    // FNV-1a is fixed across Rust/toolchain releases and makes the cache key
+    // independent of timeline-local asset IDs.
+    path.to_string_lossy()
+        .as_bytes()
+        .iter()
+        .fold(0xcbf29ce484222325u64, |hash, byte| {
+            (hash ^ u64::from(*byte)).wrapping_mul(0x100000001b3)
+        })
 }
 
 pub(super) fn cache_is_ready(project_root: &Path, asset: &MediaAsset) -> bool {
@@ -683,5 +700,12 @@ mod tests {
         );
         assert_eq!(waveform_data.columns(0.0, 1.0, 320).len(), 320);
         fs::remove_dir_all(directory).unwrap();
+    }
+
+    #[test]
+    fn cache_keys_are_stable_and_source_path_based() {
+        let first = media_key(Path::new("media/first.mp4"));
+        assert_eq!(first, media_key(Path::new("media/first.mp4")));
+        assert_ne!(first, media_key(Path::new("media/second.mp4")));
     }
 }

@@ -179,11 +179,6 @@ impl Editor {
         let waveform = asset.and_then(|asset| self.waveform_cache.get(&asset.id).cloned());
         let source_start = self.project.seconds(clip.source_in);
         let source_end = self.project.seconds(clip.source_out);
-        let detail = if asset.is_some_and(|asset| asset.has_audio) {
-            "Audio".to_string()
-        } else {
-            format!("{}s", self.project.seconds(clip.duration()).round())
-        };
         let content = div()
             .absolute()
             .inset_0()
@@ -203,7 +198,7 @@ impl Editor {
             .when_some(waveform, |this, path| {
                 this.child(timeline_clip_waveform(path, source_start, source_end))
             })
-            .child(timeline_clip_label(name, detail));
+            .child(video_timeline_clip_label(name));
 
         self.timeline_clip_frame(clip, CLIP_BLUE, content.into_any_element(), cx)
     }
@@ -501,6 +496,19 @@ fn timeline_clip_label(name: String, detail: String) -> gpui::Div {
                 .text_color(rgb(0xc8d8e8))
                 .child(detail),
         )
+}
+
+fn video_timeline_clip_label(name: String) -> gpui::Div {
+    div()
+        .absolute()
+        .left_0()
+        .right_0()
+        .bottom_0()
+        .p_2()
+        .text_xs()
+        .font_weight(gpui::FontWeight::SEMIBOLD)
+        .text_ellipsis()
+        .child(name)
 }
 
 fn track_button(id: impl Into<gpui::ElementId>, label: &'static str) -> gpui::Stateful<gpui::Div> {
