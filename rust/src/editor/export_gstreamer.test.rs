@@ -6,13 +6,21 @@ use std::path::Path;
 
 #[test]
 fn exports_every_video_in_the_mini_fixture_as_one_sequence() {
+    export_mini_fixture(ExportEncoder::Software, "assembled-export.mp4");
+}
+
+pub(super) fn export_mini_fixture(encoder: ExportEncoder, output_name: &str) {
     let project_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("data/tests/mini测试");
-    let output = project_root.join("assembled-export.mp4");
+    let output = project_root.join(output_name);
     let mut source_paths = std::fs::read_dir(&project_root)
         .unwrap()
         .filter_map(Result::ok)
         .map(|entry| entry.path())
-        .filter(|path| path != &output)
+        .filter(|path| {
+            path.file_name()
+                .and_then(|name| name.to_str())
+                .is_some_and(|name| !name.starts_with('.') && !name.starts_with("assembled-export"))
+        })
         .filter(|path| {
             path.extension()
                 .and_then(|extension| extension.to_str())
@@ -23,10 +31,10 @@ fn exports_every_video_in_the_mini_fixture_as_one_sequence() {
     assert!(!source_paths.is_empty(), "mini fixture has no videos");
 
     let mut project = Project::default();
-    // The fixture mixes 480p and 720p inputs. A small, fixed output keeps this
-    // regression test fast while exercising GES source transitions and muxing.
-    project.settings.width = 640;
-    project.settings.height = 360;
+    // The fixture mixes 480p and 720p inputs. A fixed Full HD output exercises
+    // GES source transitions, scaling, encoding, and muxing.
+    project.settings.width = 1920;
+    project.settings.height = 1080;
     let video_track = project
         .tracks
         .iter()
@@ -59,17 +67,15 @@ fn exports_every_video_in_the_mini_fixture_as_one_sequence() {
     assert_eq!(project.content_duration(), timeline_start);
     let expected_duration = project.seconds(timeline_start);
 
-    export_project(
-        &project,
-        &project_root,
-        &output,
-        ExportOptions::from_project(&project),
-        |_| {},
-    )
-    .unwrap();
+    let mut options = ExportOptions::from_project(&project);
+    options.encoder = encoder;
+    export_project(&project, &project_root, &output, options, |_| {}).unwrap();
 
     let exported = probe_media(&output, u64::MAX).unwrap();
-    assert_eq!((exported.width, exported.height), (640, 360));
+    assert_eq!(
+        (exported.width, exported.height),
+        (project.settings.width, project.settings.height)
+    );
     assert!(
         (exported.duration - expected_duration).abs() <= 0.1,
         "expected a {expected_duration:.3}s sequence, got {:.3}s",
