@@ -23,11 +23,14 @@ const SKIPPED_DIRECTORIES: &[&str] = &[
     "zig-pkg",
 ];
 
+const LARGE_FILE_THRESHOLD: usize = 1000;
+
 #[derive(Default)]
 struct Count {
     files: usize,
     lines: usize,
     non_blank: usize,
+    large_files: Vec<PathBuf>,
 }
 
 fn main() {
@@ -47,14 +50,19 @@ fn main() {
     println!("{:-<10} {:->8} {:->12} {:->12}", "", "", "", "");
 
     let mut total = Count::default();
+    let mut total_large_files = 0usize;
     for (extension, count) in &counts {
         println!(
             "{:<10} {:>8} {:>12} {:>12}",
-            extension, count.files, count.lines, count.non_blank
+            extension,
+            count.files,
+            count.lines,
+            count.non_blank
         );
         total.files += count.files;
         total.lines += count.lines;
         total.non_blank += count.non_blank;
+        total_large_files += count.large_files.len();
     }
 
     println!("{:-<10} {:->8} {:->12} {:->12}", "", "", "", "");
@@ -62,6 +70,21 @@ fn main() {
         "{:<10} {:>8} {:>12} {:>12}",
         "Total", total.files, total.lines, total.non_blank
     );
+    println!();
+    println!("Files with more than {LARGE_FILE_THRESHOLD} lines:");
+    if total_large_files == 0 {
+        println!("  (none)");
+    } else {
+        for (_extension, count) in &counts {
+            for path in &count.large_files {
+                if let Ok(relative) = path.strip_prefix(&root) {
+                    println!("  {}", relative.display());
+                } else {
+                    println!("  {}", path.display());
+                }
+            }
+        }
+    }
 }
 
 fn count_directory(path: &Path, counts: &mut BTreeMap<String, Count>) -> io::Result<()> {
@@ -92,9 +115,13 @@ fn count_directory(path: &Path, counts: &mut BTreeMap<String, Count>) -> io::Res
 
         let bytes = fs::read(&path)?;
         let source = String::from_utf8_lossy(&bytes);
+        let line_count = source.lines().count();
         let count = counts.entry(extension).or_default();
         count.files += 1;
-        count.lines += source.lines().count();
+        count.lines += line_count;
+        if line_count > LARGE_FILE_THRESHOLD {
+            count.large_files.push(path);
+        }
         count.non_blank += source
             .lines()
             .filter(|line| !line.trim().is_empty())
