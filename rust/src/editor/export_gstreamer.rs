@@ -134,9 +134,8 @@ fn build_timeline(
         let mut clips = project.clips_on_track(project_track.id).collect::<Vec<_>>();
         clips.sort_by_key(|clip| clip.timeline_start);
         for clip in clips {
-            let asset = clip
-                .asset_id
-                .and_then(|id| project.asset(id))
+            let asset = project
+                .asset(clip.asset_id)
                 .ok_or_else(|| format!("Clip {} has no source media.", clip.id))?;
             let track_types =
                 exported_track_types(project_track, clip, asset.kind, asset.has_audio);
@@ -496,7 +495,7 @@ mod tests {
         let clip = TimelineClip {
             id: 1,
             track_id: track.id,
-            asset_id: Some(2),
+            asset_id: 2,
             timeline_start: TimelineTime::ZERO,
             source_in: TimelineTime::ZERO,
             source_out: TimelineTime::ONE_FRAME,
@@ -520,7 +519,7 @@ mod tests {
         let clip = TimelineClip {
             id: 1,
             track_id: track.id,
-            asset_id: Some(2),
+            asset_id: 2,
             timeline_start: TimelineTime::ZERO,
             source_in: TimelineTime::ZERO,
             source_out: TimelineTime::ONE_FRAME,
@@ -616,7 +615,7 @@ mod tests {
         project.clips.push(TimelineClip {
             id: 11,
             track_id: video_track,
-            asset_id: Some(10),
+            asset_id: 10,
             timeline_start: TimelineTime::ZERO,
             source_in: TimelineTime::ZERO,
             source_out: TimelineTime::from_frames(3),
@@ -717,7 +716,7 @@ mod tests {
         project.clips.push(TimelineClip {
             id: 11,
             track_id: video_track,
-            asset_id: Some(10),
+            asset_id: 10,
             timeline_start: TimelineTime::ZERO,
             source_in: TimelineTime::ZERO,
             source_out: TimelineTime::from_frames(30),
@@ -783,7 +782,7 @@ mod tests {
         project.clips.push(TimelineClip {
             id: 11,
             track_id: video_track,
-            asset_id: Some(10),
+            asset_id: 10,
             timeline_start: TimelineTime::ZERO,
             source_in: TimelineTime::ZERO,
             source_out: TimelineTime::from_frames(3),

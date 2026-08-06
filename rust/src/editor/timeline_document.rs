@@ -72,8 +72,7 @@ pub(super) fn timeline_file_name(name: &str) -> Option<String> {
 /// The next unused `timeline-N` name for `relative_directory`, without the extension,
 /// suitable for pre-filling the create dialog.
 pub(super) fn default_timeline_name(project_root: &Path, relative_directory: &Path) -> String {
-    let existing =
-        timeline_file_names(&project_root.join(relative_directory)).unwrap_or_default();
+    let existing = timeline_file_names(&project_root.join(relative_directory)).unwrap_or_default();
     (1usize..)
         .map(|index| format!("timeline-{index}"))
         .find(|candidate| !existing.contains(&format!("{candidate}{TIMELINE_SUFFIX}")))
@@ -190,7 +189,10 @@ mod tests {
             timeline_file_name("Opening Scene.timeline.json").unwrap(),
             "Opening Scene.timeline.json"
         );
-        assert_eq!(timeline_file_name("  spaced  ").unwrap(), "spaced.timeline.json");
+        assert_eq!(
+            timeline_file_name("  spaced  ").unwrap(),
+            "spaced.timeline.json"
+        );
         assert!(timeline_file_name("").is_none());
         assert!(timeline_file_name("   ").is_none());
         assert!(timeline_file_name(".timeline.json").is_none());

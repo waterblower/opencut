@@ -101,7 +101,7 @@ impl Editor {
         self.project.clips.push(TimelineClip {
             id,
             track_id,
-            asset_id: Some(asset_id),
+            asset_id,
             timeline_start: self.project.content_duration(),
             source_in: TimelineTime::ZERO,
             source_out: self.project.ceil_time(duration),
@@ -562,7 +562,7 @@ impl Editor {
             if track.locked {
                 return Some("Destination track is locked");
             }
-            let Some(asset) = clip.asset_id.and_then(|id| self.project.asset(id)) else {
+            let Some(asset) = self.project.asset(clip.asset_id) else {
                 return Some("Source media is unavailable");
             };
             let compatible = match track.kind {
@@ -712,7 +712,7 @@ fn clipboard_paste_error(project: &Project, clips: &[TimelineClip]) -> Option<&'
         if track.locked {
             return Some("an original destination track is locked");
         }
-        let Some(asset) = clip.asset_id.and_then(|asset_id| project.asset(asset_id)) else {
+        let Some(asset) = project.asset(clip.asset_id) else {
             return Some("source media is no longer available");
         };
         let compatible = match track.kind {
@@ -772,7 +772,7 @@ mod tests {
         TimelineClip {
             id,
             track_id: 2,
-            asset_id: Some(100),
+            asset_id: 100,
             timeline_start: TimelineTime::from_frames(start),
             source_in: TimelineTime::ZERO,
             source_out: TimelineTime::from_frames(duration),

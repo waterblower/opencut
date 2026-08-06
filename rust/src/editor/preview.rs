@@ -63,7 +63,7 @@ impl Editor {
                     .clips_on_track(track.id)
                     .filter(|clip| clip.contains(self.playhead))
                     .filter_map(|clip| {
-                        let asset = clip.asset_id.and_then(|id| self.project.asset(id))?;
+                        let asset = self.project.asset(clip.asset_id)?;
                         (asset.kind == MediaKind::Image).then(|| {
                             self.timeline_image_layer(
                                 clip,
@@ -126,7 +126,7 @@ impl Editor {
         width: f32,
         height: f32,
     ) -> gpui::AnyElement {
-        let Some(asset) = clip.asset_id.and_then(|id| self.project.asset(id)) else {
+        let Some(asset) = self.project.asset(clip.asset_id) else {
             return div().into_any_element();
         };
         let plan = resolve_visual_clip_render_plan(
@@ -176,7 +176,7 @@ impl Editor {
         width: f32,
         height: f32,
     ) -> gpui::AnyElement {
-        let Some(asset) = clip.asset_id.and_then(|id| self.project.asset(id)) else {
+        let Some(asset) = self.project.asset(clip.asset_id) else {
             return div().into_any_element();
         };
         let plan = resolve_visual_clip_render_plan(
@@ -504,10 +504,7 @@ impl Editor {
             return;
         };
 
-        let Some(asset_id) = clip.asset_id else {
-            return;
-        };
-        let Some(asset) = self.project.asset(asset_id).cloned() else {
+        let Some(asset) = self.project.asset(clip.asset_id).cloned() else {
             self.error = Some("The selected clip's source file is missing.".to_string());
             return;
         };
@@ -572,7 +569,7 @@ impl Editor {
             video.set_paused(!play);
         }
         self.preview_refresh_ticks = 12;
-        self.selected_asset_id = Some(asset_id);
+        self.selected_asset_id = Some(clip.asset_id);
         self.error = None;
         if synchronize_audio {
             self.sync_audio_previews(position, play);
@@ -588,7 +585,7 @@ impl Editor {
             .filter(|clip| clip.contains(position) && Some(clip.id) != loaded_clip_id)
             .filter_map(|clip| {
                 let track = self.project.track(clip.track_id)?;
-                let asset = self.project.asset(clip.asset_id?)?;
+                let asset = self.project.asset(clip.asset_id)?;
                 if !asset.has_audio {
                     return None;
                 }

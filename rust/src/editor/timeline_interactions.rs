@@ -538,12 +538,9 @@ impl Editor {
         if self.clip_locked(clip_id) {
             return;
         }
-        let maximum_source_out = clip
-            .asset_id
-            .and_then(|id| self.project.asset(id))
-            .and_then(|asset| {
-                (asset.kind != MediaKind::Image).then(|| self.project.ceil_time(asset.duration))
-            });
+        let maximum_source_out = self.project.asset(clip.asset_id).and_then(|asset| {
+            (asset.kind != MediaKind::Image).then(|| self.project.ceil_time(asset.duration))
+        });
         if let Some(video) = &self.video {
             video.set_paused(true);
         }

@@ -833,7 +833,7 @@ impl Editor {
         self.project.clips.push(TimelineClip {
             id: clip_id,
             track_id,
-            asset_id: Some(asset_id),
+            asset_id,
             timeline_start: start,
             source_in: TimelineTime::ZERO,
             source_out: duration,
@@ -1214,7 +1214,7 @@ mod tests {
         project.clips.push(TimelineClip {
             id: 20,
             track_id: 2,
-            asset_id: Some(10),
+            asset_id: 10,
             timeline_start: TimelineTime::from_frames(30),
             source_in: TimelineTime::ZERO,
             source_out: TimelineTime::from_frames(30),
