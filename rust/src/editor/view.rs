@@ -43,6 +43,10 @@ impl Render for Editor {
             .rename_dialog_state
             .as_ref()
             .map(|_| self.rename_dialog(cx));
+        let new_timeline_dialog = self
+            .new_timeline_dialog_state
+            .as_ref()
+            .map(|_| self.new_timeline_dialog(cx));
 
         div()
             .id("editor-root")
@@ -118,6 +122,7 @@ impl Render for Editor {
             )
             .when_some(file_menu, |this, menu| this.child(menu))
             .when_some(rename_dialog, |this, dialog| this.child(dialog))
+            .when_some(new_timeline_dialog, |this, dialog| this.child(dialog))
             .when(self.settings_open, |this| {
                 this.child(self.settings_modal(cx))
             })
@@ -213,9 +218,8 @@ impl Editor {
                         },
                     )))
                     .child(toolbar_button("New Timeline", true).on_click(cx.listener(
-                        |editor, _, _, cx| {
-                            editor.create_timeline(cx);
-                            cx.notify();
+                        |editor, _, window, cx| {
+                            editor.begin_create_timeline(PathBuf::new(), window, cx);
                         },
                     )))
                     .child(toolbar_button("Settings", true).on_click(cx.listener(

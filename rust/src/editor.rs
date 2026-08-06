@@ -37,7 +37,8 @@ mod workspace;
 use crate::playback_view::{DragPhase, PlaybackViewDelegate};
 use editing::ClipClipboard;
 use explorer::{
-    ExplorerDropPreview, ExplorerMediaDrag, FileContextMenu, PendingExplorerDrop, RenameDialogState,
+    ExplorerDropPreview, ExplorerMediaDrag, FileContextMenu, NewTimelineDialogState,
+    PendingExplorerDrop, RenameDialogState,
 };
 use explorer_filter::ExplorerFilter;
 use export_dialog::ExportDialogState;
@@ -50,7 +51,7 @@ use preview::PreviewTarget;
 use preview_audio::AudioPreview;
 use properties::PropertiesPanelResizeDrag;
 use properties_transform::{OpacityDrag, VideoTransformInputs};
-use timeline_document::{create as create_timeline_document, load_or_create};
+use timeline_document::load_or_create;
 use timeline_interactions::{
     ClipMoveDrag, ClipPlacement, MarqueeSelection, TimelineTool, TrimDrag, TrimEdge,
 };
@@ -172,6 +173,7 @@ pub(crate) struct Editor {
     selected_file: Option<PathBuf>,
     file_context_menu: Option<FileContextMenu>,
     rename_dialog_state: Option<RenameDialogState>,
+    new_timeline_dialog_state: Option<NewTimelineDialogState>,
     explorer_drag_assets: HashMap<PathBuf, MediaAsset>,
     explorer_drag_probe_jobs: HashSet<PathBuf>,
     explorer_drop_preview: Option<ExplorerDropPreview>,
@@ -295,6 +297,7 @@ impl Editor {
             selected_file: Some(timeline_path),
             file_context_menu: None,
             rename_dialog_state: None,
+            new_timeline_dialog_state: None,
             explorer_drag_assets: HashMap::new(),
             explorer_drag_probe_jobs: HashSet::new(),
             explorer_drop_preview: None,
@@ -552,19 +555,25 @@ impl Editor {
         self.status = Some(format!("Opened {}", self.timeline_path.display()));
     }
 
-    pub(super) fn create_timeline(&mut self, cx: &mut Context<Self>) {
-        let (relative_path, project) = match create_timeline_document(&self.project_root) {
-            Ok(timeline) => timeline,
-            Err(error) => {
-                self.error = Some(format!("Could not create timeline: {error}"));
-                return;
-            }
-        };
+    /// Saves the current timeline, switches to a freshly created one, and reveals it in
+    /// the file tree. `relative_directory` is only used to expand the containing folder.
+    fn activate_created_timeline(
+        &mut self,
+        relative_directory: PathBuf,
+        relative_path: PathBuf,
+        project: Project,
+        cx: &mut Context<Self>,
+    ) {
         self.save_project();
         if let Err(error) = save_timeline_view(&self.current_timeline_view_state()) {
             self.error = Some(error);
         }
+        // Expand the target folder so the new timeline is visible in the tree.
+        if !relative_directory.as_os_str().is_empty() {
+            self.expanded_directories.insert(relative_directory);
+        }
         self.activate_timeline(relative_path.clone(), project, cx);
+        self.refresh_file_tree();
         self.status = Some(format!("Created {}", relative_path.display()));
     }
 
