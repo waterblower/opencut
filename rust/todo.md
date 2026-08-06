@@ -37,13 +37,6 @@
       `load_timeline_position`, or change `visual_clip_at_time` so those cases are
       intentionally returned and handled there.
 
-### P3 — future scalability
-
-- [ ] Revisit snapshot-based undo history only if project snapshots become
-      materially expensive. Measure memory usage and checkpoint latency first;
-      then consider structural sharing, deltas, or an operation log while
-      preserving atomic undo for compound edits.
-
 ## Performance
 
 Keep the debug build responsive enough for rapid POC development. Measure each
@@ -62,10 +55,6 @@ release path.
 - [ ] Cull timeline waveforms to the visible horizontal range and cache computed
       columns by asset, source range, zoom, and viewport. Do not regenerate and
       issue up to 4,096 waveform quads for every clip on every window redraw.
-- [ ] Split the monolithic `Editor` view into retained preview, timeline,
-      explorer, and properties entities, or cache equivalent stable subtrees.
-      Playback ticks should invalidate the preview, playhead, and transport—not
-      rebuild the complete editor hierarchy.
 
 ### P1 — main-thread scheduling
 
@@ -91,9 +80,6 @@ release path.
 - [ ] Add lightweight timings for update, layout, waveform preparation, video
       upload, and paint, plus repeatable small/medium/large timeline scenarios.
       Track debug and release frame-time budgets separately.
-- [ ] Add indexed project lookups for assets, clips, tracks, and clips per track
-      once linear scans become measurable. Cache timeline duration and active
-      clip queries instead of repeatedly nesting full-vector scans.
 - [ ] Reduce multiresolution waveform-cache disk and memory usage if it becomes
       material for long projects. Measure first, then consider increasing the
       finest level from 64 to 128 samples per peak, packing peaks as `i8`, or
