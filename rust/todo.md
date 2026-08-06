@@ -25,11 +25,6 @@
       last-project settings in the platform application-data/config directory
       instead of the compile-time `CARGO_MANIFEST_DIR`. Keep project-owned state
       in `<project>/.opencut`.
-- [ ] Make explorer metadata consistent for audio and video files. Probe media
-      duration in the background and cache it for files that have not been added
-      to the timeline, rather than showing duration only for registered assets
-      and file size for everything else. Bound and deduplicate probe jobs, and
-      discard stale results when the project changes.
 
 ### P2 — cleanup
 
@@ -52,9 +47,6 @@ release path.
 - [ ] Drain buffered video samples without packing every discarded frame into a
       new NV12 `Vec`. Pack or map only the newest frame that will actually be
       presented, and pursue a zero-copy GStreamer-to-CoreVideo path on macOS.
-- [ ] Cull timeline waveforms to the visible horizontal range and cache computed
-      columns by asset, source range, zoom, and viewport. Do not regenerate and
-      issue up to 4,096 waveform quads for every clip on every window redraw.
 
 ### P1 — main-thread scheduling
 
@@ -77,9 +69,6 @@ release path.
 
 ### P2 — scaling and measurement
 
-- [ ] Add lightweight timings for update, layout, waveform preparation, video
-      upload, and paint, plus repeatable small/medium/large timeline scenarios.
-      Track debug and release frame-time budgets separately.
 - [ ] Reduce multiresolution waveform-cache disk and memory usage if it becomes
       material for long projects. Measure first, then consider increasing the
       finest level from 64 to 128 samples per peak, packing peaks as `i8`, or
