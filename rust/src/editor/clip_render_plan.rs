@@ -189,7 +189,6 @@ mod tests {
             AudioClipProperties {
                 gain_db: 6.0,
                 muted: false,
-                pan: 0.0,
             },
         );
         assert!((plan.gain_linear - 1.995_262_314_968_879_5).abs() < 0.000_001);
