@@ -18,8 +18,6 @@
 
 - [ ] Fix `format_speed` so it removes only trailing fractional zeros. It must
       render `0.5×`, `1.25×`, `1.5×`, and `1.05×` without changing the value.
-- [x] Replace fixed full-asset waveform images with a multiresolution peak-data
-      cache, and render each clip's `source_in` to `source_out` range dynamically.
 - [ ] Make file-tree traversal tolerate an unreadable or disconnected
       subdirectory. Preserve readable entries and report the failing directory
       inline instead of aborting the complete tree refresh.
@@ -87,9 +85,6 @@ release path.
 - [ ] Avoid rebuilding timeline elements for clips and tracks completely outside
       the visible horizontal or vertical viewport. Use GPUI virtualization or a
       viewport-indexed visible-item query for large projects.
-- [x] Cache the GPUI inspector's formatted debug style until the selected element
-      or its style changes instead of formatting the complete `base_style` on
-      every inspected window render.
 
 ### P2 — scaling and measurement
 
@@ -109,13 +104,9 @@ release path.
 Add static per-clip transforms and audio controls before introducing keyframes
 or an effects system.
 
-- [x] Extend `TimelineClip` with defaulted video and audio property structures.
-      Video properties include position X/Y, scale, opacity, and crop;
-      audio properties should include gain in dB, mute, and stereo pan.
 - [ ] Add reusable numeric fields, sliders, and reset buttons for editing one
       clip in the video and audio properties panels.
 - [ ] Apply audio gain and mute during standalone audio preview playback.
-- [x] Apply video position, scale, opacity, and crop in the preview renderer.
 - [ ] Add tests for property defaults, serialization, controls, and preview value
       mapping.
 - [ ] Add stereo pan and apply audio properties consistently across simultaneous
@@ -139,17 +130,9 @@ or an effects system.
 Expand the current move, trim, split, duplicate, and delete operations into a
 consistent editing toolset.
 
-- [x] Add tool modes and cursor feedback for selection, blade, and trim.
-- [x] Add copy, cut, and paste for multiple selected clips. Preserve relative
-      timing and track placement, and keep paste as one atomic undo operation.
-- [x] Allow project files to be dragged from the asset explorer onto compatible
-      tracks at a chosen timeline position, with a visible placement preview and
-      collision feedback.
 - [ ] Add linked video/audio clip groups so related clips select, move, trim,
       split, and delete together.
 - [ ] Add explicit link and unlink commands.
-- [x] Add ripple delete for single and multi-clip selections, closing the
-      resulting timeline gaps without introducing overlaps.
 - [ ] Add ripple trim, shifting later clips by the trim delta.
 - [ ] Add insert editing, shifting existing clips to make room.
 - [ ] Add overwrite editing, replacing content in the destination range.
