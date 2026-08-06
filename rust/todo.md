@@ -74,6 +74,40 @@ release path.
       finest level from 64 to 128 samples per peak, packing peaks as `i8`, or
       compressing levels independently without sacrificing efficient range access.
 
+### Export throughput
+
+Baselines from `gst-launch-1.0` pipelines matching the export graph, on 120 s of
+1280×720 24 fps rendered to 1920×1080. Decode plus convert costs 1.5 s and the
+compositor 0.7 s; scaling is the dominant stage at 10.8 s single-threaded and
+3.1 s once threaded. A full export lands near 15 s on either encoder, so once
+scaling is threaded the encoder is the wall — the remaining wins come from doing
+less work rather than encoding faster.
+
+- [ ] Skip the scaler when the source already matches the export resolution.
+      `build_timeline` calls `track.set_restriction_caps` unconditionally, so
+      every frame passes through videoscale even when the dimensions are
+      identical. Skipping the stage costs 1.5 s instead of 3.1 s threaded, and
+      is the largest guaranteed win available.
+- [ ] Skip the compositor on tracks that do not need mixing. `build_timeline`
+      calls `track.set_mixing(true)` unconditionally, which routes every frame
+      through a software blend and its conversions. Mixing is only required when
+      clips overlap in time or carry a non-identity transform; `posx`, `posy`,
+      `width`, `height`, and `alpha` are compositor pad properties, so gate this
+      on `resolve_visual_clip_render_plan` returning identity for every clip on
+      the track.
+- [ ] Pass qualifying timeline segments through with
+      `ges::PipelineFlags::SMART_RENDER` instead of re-encoding them. Export uses
+      `PipelineFlags::RENDER`, which decodes, scales, and encodes every frame.
+      Smart rendering copies the encoded stream for plain cuts whose source codec,
+      resolution, and frame rate already match the export profile, collapsing
+      those segments to demux and remux — decoding alone costs 1.5 s and a stream
+      copy does not decode at all. Detect eligibility per clip from an identity
+      `resolve_visual_clip_render_plan` plus the asset's `codec`, `width`,
+      `height`, and frame-rate fields against `ExportOptions`, then re-encode only
+      the segments that fail the check and the cuts that do not land on a
+      keyframe boundary. Validate against `data/tests/mini测试` before designing
+      around it; GES smart-render support has historically been incomplete.
+
 ## Clip properties
 
 Add static per-clip transforms and audio controls before introducing keyframes

@@ -3,12 +3,18 @@ use super::*;
 #[derive(Clone)]
 pub(super) struct FileContextMenu {
     relative_path: PathBuf,
+    is_directory: bool,
     x: f32,
     y: f32,
 }
 
 pub(super) struct RenameDialogState {
     relative_path: PathBuf,
+    input: Entity<ExplorerFilter>,
+}
+
+pub(super) struct NewTimelineDialogState {
+    relative_directory: PathBuf,
     input: Entity<ExplorerFilter>,
 }
 
@@ -112,7 +118,7 @@ impl Editor {
             .on_mouse_down(
                 MouseButton::Right,
                 cx.listener(move |editor, event: &MouseDownEvent, _, cx| {
-                    editor.show_file_context_menu(root_context_path.clone(), event, cx);
+                    editor.show_file_context_menu(root_context_path.clone(), true, event, cx);
                 }),
             )
             .child(
@@ -205,7 +211,12 @@ impl Editor {
                     .on_mouse_down(
                         MouseButton::Right,
                         cx.listener(move |editor, event: &MouseDownEvent, _, cx| {
-                            editor.show_file_context_menu(context_path.clone(), event, cx);
+                            editor.show_file_context_menu(
+                                context_path.clone(),
+                                is_directory,
+                                event,
+                                cx,
+                            );
                         }),
                     )
                     .when(selected, |this| {
@@ -403,10 +414,13 @@ impl Editor {
         cx: &mut Context<Self>,
     ) -> gpui::AnyElement {
         let width = 268.0;
+        let can_create_timeline = menu.is_directory;
         let can_rename = !menu.relative_path.as_os_str().is_empty();
         let can_trash = can_rename && menu.relative_path != self.timeline_path;
-        let height =
-            92.0 + if can_rename { 40.0 } else { 0.0 } + if can_trash { 40.0 } else { 0.0 };
+        let height = 92.0
+            + if can_create_timeline { 40.0 } else { 0.0 }
+            + if can_rename { 40.0 } else { 0.0 }
+            + if can_trash { 40.0 } else { 0.0 };
         let left = menu
             .x
             .clamp(8.0, (f32::from(viewport.width) - width - 8.0).max(8.0));
@@ -449,6 +463,16 @@ impl Editor {
                     .bg(rgb(0x1b1b1e))
                     .shadow_lg()
                     .occlude()
+                    .when(can_create_timeline, |this| {
+                        let directory = menu.relative_path.clone();
+                        this.child(
+                            file_menu_item("Create New Timeline", "").on_click(cx.listener(
+                                move |editor, _, window, cx| {
+                                    editor.begin_create_timeline(directory.clone(), window, cx);
+                                },
+                            )),
+                        )
+                    })
                     .child(
                         file_menu_item("Reveal in Finder", "⌥⌘R").on_click(cx.listener(
                             |editor, _, _, cx| {
@@ -558,6 +582,88 @@ impl Editor {
             .into_any_element()
     }
 
+    pub(super) fn new_timeline_dialog(&self, cx: &mut Context<Self>) -> gpui::AnyElement {
+        let state = self
+            .new_timeline_dialog_state
+            .as_ref()
+            .expect("new timeline dialog rendered without state");
+        let input = state.input.clone();
+        let location = if state.relative_directory.as_os_str().is_empty() {
+            self.project_root
+                .file_name()
+                .map(|name| name.to_string_lossy().into_owned())
+                .unwrap_or_else(|| "project root".to_string())
+        } else {
+            state.relative_directory.display().to_string()
+        };
+
+        div()
+            .id("new-timeline-dialog-overlay")
+            .absolute()
+            .inset_0()
+            .occlude()
+            .flex()
+            .items_center()
+            .justify_center()
+            .bg(gpui::rgba(0x00000088))
+            .on_mouse_down(
+                MouseButton::Left,
+                cx.listener(|editor, _, _, cx| {
+                    editor.new_timeline_dialog_state = None;
+                    cx.notify();
+                }),
+            )
+            .child(
+                div()
+                    .id("new-timeline-dialog")
+                    .w(px(480.0))
+                    .p_5()
+                    .flex()
+                    .flex_col()
+                    .gap_4()
+                    .rounded_xl()
+                    .border_1()
+                    .border_color(rgb(BORDER))
+                    .bg(rgb(PANEL))
+                    .shadow_lg()
+                    .occlude()
+                    .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
+                    .child(
+                        div()
+                            .text_lg()
+                            .font_weight(gpui::FontWeight::SEMIBOLD)
+                            .child("New timeline"),
+                    )
+                    .child(
+                        div()
+                            .text_sm()
+                            .text_color(rgb(MUTED))
+                            .text_ellipsis()
+                            .child(format!("In {location} · saved as .timeline.json")),
+                    )
+                    .child(input)
+                    .child(
+                        div()
+                            .flex()
+                            .justify_end()
+                            .gap_2()
+                            .child(rename_dialog_button("Cancel", false).on_click(cx.listener(
+                                |editor, _, _, cx| {
+                                    editor.new_timeline_dialog_state = None;
+                                    cx.notify();
+                                },
+                            )))
+                            .child(rename_dialog_button("Create", true).on_click(cx.listener(
+                                |editor, _, _, cx| {
+                                    editor.finish_create_timeline(cx);
+                                    cx.notify();
+                                },
+                            ))),
+                    ),
+            )
+            .into_any_element()
+    }
+
     pub(super) fn refresh_file_tree(&mut self) {
         self.last_tree_scan = Instant::now();
         match visible_tree(&self.project_root, &self.expanded_directories) {
@@ -576,12 +682,14 @@ impl Editor {
     fn show_file_context_menu(
         &mut self,
         relative_path: PathBuf,
+        is_directory: bool,
         event: &MouseDownEvent,
         cx: &mut Context<Self>,
     ) {
         self.selected_file = Some(relative_path.clone());
         self.file_context_menu = Some(FileContextMenu {
             relative_path,
+            is_directory,
             x: event.position.x.into(),
             y: event.position.y.into(),
         });
@@ -591,6 +699,54 @@ impl Editor {
 
     pub(super) fn dismiss_file_context_menu(&mut self) {
         self.file_context_menu = None;
+    }
+
+    /// Opens the new-timeline dialog for `relative_directory`, pre-filled with the next
+    /// unused default name so the user can accept it without typing.
+    pub(super) fn begin_create_timeline(
+        &mut self,
+        relative_directory: PathBuf,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        self.file_context_menu = None;
+        let default_name =
+            timeline_document::default_timeline_name(&self.project_root, &relative_directory);
+        let input = cx.new(|cx| {
+            ExplorerFilter::new_field(
+                "new-timeline-name",
+                default_name,
+                "Timeline name",
+                self.focus_handle.clone(),
+                cx,
+            )
+        });
+        input.update(cx, |input, cx| input.focus_and_select_all(window, cx));
+        self.new_timeline_dialog_state = Some(NewTimelineDialogState {
+            relative_directory,
+            input,
+        });
+        self.error = None;
+        cx.notify();
+    }
+
+    fn finish_create_timeline(&mut self, cx: &mut Context<Self>) {
+        let Some(state) = self.new_timeline_dialog_state.as_ref() else {
+            return;
+        };
+        let relative_directory = state.relative_directory.clone();
+        let name = state.input.read(cx).query().trim().to_string();
+        let (relative_path, project) =
+            match timeline_document::create(&self.project_root, &relative_directory, &name) {
+                Ok(timeline) => timeline,
+                Err(error) => {
+                    // Keep the dialog open so the name can be corrected.
+                    self.error = Some(format!("Could not create timeline: {error}"));
+                    return;
+                }
+            };
+        self.new_timeline_dialog_state = None;
+        self.activate_created_timeline(relative_directory, relative_path, project, cx);
     }
 
     fn begin_rename(&mut self, window: &mut Window, cx: &mut Context<Self>) {
