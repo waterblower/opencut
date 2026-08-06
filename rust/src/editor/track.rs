@@ -168,33 +168,14 @@ impl Editor {
         let name = asset
             .map(|asset| asset.name.clone())
             .unwrap_or_else(|| "Missing media".to_string());
-        let cached = asset.is_some_and(|asset| self.media_cache_ready.contains(&asset.id));
-        let thumbnail = asset.and_then(|asset| match asset.kind {
-            MediaKind::Image => Some(self.project_root.join(&asset.path)),
-            MediaKind::Video => {
-                cached.then(|| media_cache::thumbnail_path(&self.project_root, asset))
-            }
-            MediaKind::Audio => None,
-        });
+
         let waveform = asset.and_then(|asset| self.waveform_cache.get(&asset.id).cloned());
         let source_start = self.project.seconds(clip.source_in);
         let source_end = self.project.seconds(clip.source_out);
         let content = div()
             .absolute()
             .inset_0()
-            .child(
-                div()
-                    .absolute()
-                    .inset_0()
-                    .when_some(thumbnail, |this, path| {
-                        this.child(
-                            img(path)
-                                .size_full()
-                                .object_fit(ObjectFit::Cover)
-                                .opacity(0.45),
-                        )
-                    }),
-            )
+            .child(div().absolute().inset_0())
             .when_some(waveform, |this, path| {
                 this.child(timeline_clip_waveform(path, source_start, source_end))
             })
