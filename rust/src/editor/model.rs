@@ -281,7 +281,6 @@ impl Default for VideoClipProperties {
 pub(super) struct AudioClipProperties {
     pub gain_db: f64,
     pub muted: bool,
-    pub pan: f64,
 }
 
 impl Default for AudioClipProperties {
@@ -289,7 +288,6 @@ impl Default for AudioClipProperties {
         Self {
             gain_db: 0.0,
             muted: false,
-            pan: 0.0,
         }
     }
 }
@@ -1071,7 +1069,6 @@ mod tests {
             AudioClipProperties {
                 gain_db: 0.0,
                 muted: false,
-                pan: 0.0,
             }
         );
     }
@@ -1108,7 +1105,6 @@ mod tests {
         clip.audio_properties = AudioClipProperties {
             gain_db: -6.0,
             muted: true,
-            pan: 0.35,
         };
         let value = serde_json::to_value(&clip).unwrap();
         let restored = serde_json::from_value::<TimelineClip>(value).unwrap();
