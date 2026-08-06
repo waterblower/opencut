@@ -299,7 +299,7 @@ pub(super) struct TimelineClip {
     pub id: u64,
     pub track_id: u64,
     #[serde(default)]
-    pub asset_id: Option<u64>,
+    pub asset_id: u64,
     pub timeline_start: TimelineTime,
     pub source_in: TimelineTime,
     pub source_out: TimelineTime,
@@ -456,9 +456,8 @@ impl Project {
                 self.clips_on_track(track.id)
                     .filter(|clip| {
                         clip.contains(time)
-                            && clip
-                                .asset_id
-                                .and_then(|id| self.asset(id))
+                            && self
+                                .asset(clip.asset_id)
                                 .is_some_and(|asset| asset.kind == MediaKind::Video)
                     })
                     .max_by_key(|clip| clip.timeline_start)
@@ -499,7 +498,7 @@ impl Project {
         clip: &TimelineClip,
         timeline_position: TimelineTime,
     ) -> Option<i64> {
-        let asset = clip.asset_id.and_then(|id| self.asset(id))?;
+        let asset = self.asset(clip.asset_id)?;
         let source_rate = asset.frame_rate()?;
         let local =
             (timeline_position - clip.timeline_start).clamp(TimelineTime::ZERO, clip.duration());
@@ -518,7 +517,7 @@ impl Project {
         clip: &TimelineClip,
         timeline_position: TimelineTime,
     ) -> Duration {
-        let Some(asset) = clip.asset_id.and_then(|id| self.asset(id)) else {
+        let Some(asset) = self.asset(clip.asset_id) else {
             return Duration::ZERO;
         };
         if let (Some(source_rate), Some(source_frame)) = (
@@ -589,19 +588,14 @@ impl Project {
         }
         self.clips.retain(|clip| {
             self.tracks.iter().any(|track| track.id == clip.track_id)
-                && clip
-                    .asset_id
-                    .is_some_and(|id| self.assets.iter().any(|asset| asset.id == id))
+                && self.assets.iter().any(|asset| asset.id == clip.asset_id)
                 && clip.timeline_start >= TimelineTime::ZERO
                 && clip.source_in >= TimelineTime::ZERO
                 && clip.source_out - clip.source_in >= TimelineTime::ONE_FRAME
         });
         let frame_rate = self.settings.frame_rate;
         for clip in &mut self.clips {
-            if let Some(asset) = clip
-                .asset_id
-                .and_then(|id| self.assets.iter().find(|asset| asset.id == id))
-            {
+            if let Some(asset) = self.assets.iter().find(|asset| asset.id == clip.asset_id) {
                 if asset.kind == MediaKind::Image {
                     // An image has no time-based source to exhaust. Its five-second
                     // asset duration is only the initial clip length, not a maximum.
@@ -835,7 +829,7 @@ mod tests {
         TimelineClip {
             id,
             track_id: 1,
-            asset_id: Some(100),
+            asset_id: 100,
             timeline_start: frames(start),
             source_in: TimelineTime::ZERO,
             source_out: frames(duration),

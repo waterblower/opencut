@@ -239,9 +239,8 @@ fn build_video_graph(
         for clip in clips {
             visual_number += 1;
             let output_label = format!("visual{visual_number}");
-            let asset = clip
-                .asset_id
-                .and_then(|id| project.asset(id))
+            let asset = project
+                .asset(clip.asset_id)
                 .ok_or_else(|| format!("Clip {} has no source media.", clip.id))?;
             let source = escape_filter_value(&project_root.join(&asset.path).to_string_lossy());
             let prepared = format!("prepared{visual_number}");
@@ -301,9 +300,8 @@ fn build_audio_graph(
     } else {
         let mut inputs = String::new();
         for (number, clip) in audio_clips.iter().enumerate() {
-            let asset = clip
-                .asset_id
-                .and_then(|id| project.asset(id))
+            let asset = project
+                .asset(clip.asset_id)
                 .ok_or_else(|| format!("Clip {} has no audio source.", clip.id))?;
             let source = escape_filter_value(&project_root.join(&asset.path).to_string_lossy());
             filters.push(format!(
@@ -498,8 +496,8 @@ fn write_audio_packets(
 }
 
 fn clip_has_audio(project: &Project, clip: &TimelineClip) -> bool {
-    clip.asset_id
-        .and_then(|id| project.asset(id))
+    project
+        .asset(clip.asset_id)
         .is_some_and(|asset| asset.has_audio)
 }
 
@@ -618,7 +616,7 @@ mod tests {
         project.clips.push(TimelineClip {
             id: 11,
             track_id: video_track,
-            asset_id: Some(10),
+            asset_id: 10,
             timeline_start: TimelineTime::ZERO,
             source_in: TimelineTime::ZERO,
             source_out: TimelineTime::from_frames(3),
@@ -701,7 +699,7 @@ mod tests {
         project.clips.push(TimelineClip {
             id: 11,
             track_id: video_track,
-            asset_id: Some(10),
+            asset_id: 10,
             timeline_start: TimelineTime::ZERO,
             source_in: TimelineTime::ZERO,
             source_out: TimelineTime::from_frames(3),

@@ -54,10 +54,7 @@ fn main() {
     for (extension, count) in &counts {
         println!(
             "{:<10} {:>8} {:>12} {:>12}",
-            extension,
-            count.files,
-            count.lines,
-            count.non_blank
+            extension, count.files, count.lines, count.non_blank
         );
         total.files += count.files;
         total.lines += count.lines;
@@ -75,7 +72,7 @@ fn main() {
     if total_large_files == 0 {
         println!("  (none)");
     } else {
-        for (_extension, count) in &counts {
+        for count in counts.values() {
             for path in &count.large_files {
                 if let Ok(relative) = path.strip_prefix(&root) {
                     println!("  {}", relative.display());

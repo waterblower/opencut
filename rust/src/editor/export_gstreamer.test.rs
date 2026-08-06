@@ -53,7 +53,7 @@ pub(super) fn export_mini_fixture(encoder: ExportEncoder, output_name: &str) {
         project.clips.push(TimelineClip {
             id: clip_id,
             track_id: video_track,
-            asset_id: Some(asset_id),
+            asset_id: asset_id,
             timeline_start,
             source_in: TimelineTime::ZERO,
             source_out: duration,

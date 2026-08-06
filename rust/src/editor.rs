@@ -664,7 +664,7 @@ impl Editor {
             .project
             .clips
             .iter()
-            .filter_map(|clip| clip.asset_id)
+            .map(|clip| clip.asset_id)
             .collect::<HashSet<_>>();
         self.media_cache_ready = self
             .project

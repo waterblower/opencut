@@ -132,9 +132,7 @@ impl Editor {
         let selected = self.selected_clip_id.and_then(|id| {
             let index = self.project.clip_index(id)?;
             let clip = &self.project.clips[index];
-            let asset = clip
-                .asset_id
-                .and_then(|asset_id| self.project.asset(asset_id));
+            let asset = self.project.asset(clip.asset_id);
             let track = self.project.track(clip.track_id)?;
             Some((clip, asset, track))
         });

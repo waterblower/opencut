@@ -164,7 +164,7 @@ impl Editor {
     }
 
     fn video_clip(&self, clip: &TimelineClip, cx: &mut Context<Self>) -> gpui::AnyElement {
-        let asset = clip.asset_id.and_then(|id| self.project.asset(id));
+        let asset = self.project.asset(clip.asset_id);
         let name = asset
             .map(|asset| asset.name.clone())
             .unwrap_or_else(|| "Missing media".to_string());
@@ -185,7 +185,7 @@ impl Editor {
     }
 
     fn audio_clip(&self, clip: &TimelineClip, cx: &mut Context<Self>) -> gpui::AnyElement {
-        let asset = clip.asset_id.and_then(|id| self.project.asset(id));
+        let asset = self.project.asset(clip.asset_id);
         let name = asset
             .map(|asset| asset.name.clone())
             .unwrap_or_else(|| "Missing media".to_string());
@@ -292,8 +292,7 @@ impl Editor {
         let name = self
             .project
             .clip(placement.clip_id)
-            .and_then(|clip| clip.asset_id)
-            .and_then(|asset_id| self.project.asset(asset_id))
+            .and_then(|clip| self.project.asset(clip.asset_id))
             .map(|asset| asset.name.clone())
             .unwrap_or_else(|| "Missing media".to_string());
         let left = TIMELINE_PADDING
