@@ -385,7 +385,7 @@ impl Project {
         let temporary = path.with_extension("json.tmp");
         fs::write(&temporary, format!("{json}\n"))
             .map_err(|error| format!("could not write {}: {error}", temporary.display()))?;
-        fs::rename(&temporary, &path)
+        fs::rename(&temporary, path)
             .map_err(|error| format!("could not replace {}: {error}", path.display()))
     }
 
