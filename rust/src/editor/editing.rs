@@ -104,21 +104,15 @@ impl Editor {
         self.checkpoint();
         let mut right_halves = Vec::with_capacity(clips.len());
         for clip in clips {
-            let source_split = clip.source_in + self.playhead - clip.timeline_start;
-            if let Some(index) = self.project.clip_index(clip.id) {
-                self.project.clips[index].source_out = source_split;
-            }
+            let Some(index) = self.project.clip_index(clip.id) else {
+                continue;
+            };
             let new_id = self.take_id();
-            right_halves.push(TimelineClip {
-                id: new_id,
-                track_id: clip.track_id,
-                asset_id: clip.asset_id,
-                timeline_start: self.playhead,
-                source_in: source_split,
-                source_out: clip.source_out,
-                video_properties: clip.video_properties,
-                audio_properties: clip.audio_properties,
-            });
+            let Some((left, right)) = clip.split_at(self.playhead, new_id) else {
+                continue;
+            };
+            self.project.clips[index] = left;
+            right_halves.push(right);
         }
         self.selected_clip_ids = right_halves.iter().map(|clip| clip.id).collect();
         self.selected_clip_id = right_halves.first().map(|clip| clip.id);
@@ -141,25 +135,14 @@ impl Editor {
             return;
         }
         let clip = self.project.clips[index].clone();
-        let local = position - clip.timeline_start;
-        if local < TimelineTime::ONE_FRAME || local > clip.duration() - TimelineTime::ONE_FRAME {
-            return;
-        }
-
-        let source_split = clip.source_in + local;
-        self.checkpoint();
-        self.project.clips[index].source_out = source_split;
         let right_clip_id = self.take_id();
-        self.project.clips.push(TimelineClip {
-            id: right_clip_id,
-            track_id: clip.track_id,
-            asset_id: clip.asset_id,
-            timeline_start: position,
-            source_in: source_split,
-            source_out: clip.source_out,
-            video_properties: clip.video_properties,
-            audio_properties: clip.audio_properties,
-        });
+        let Some((left, right)) = clip.split_at(position, right_clip_id) else {
+            return;
+        };
+
+        self.checkpoint();
+        self.project.clips[index] = left;
+        self.project.clips.push(right);
         self.select_only_clip(Some(right_clip_id));
         self.error = None;
         self.save_project();

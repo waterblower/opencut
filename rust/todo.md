@@ -34,9 +34,6 @@
 
 #### Deduplicate editor domain logic
 
-- [ ] Extract one pure clip-splitting operation that preserves source ranges and
-      clip properties. Keep checkpointing, multi-clip batching, selection, and UI
-      feedback in the existing editing commands.
 - [ ] Replace the separate explorer-drop, clip-move, and clipboard-paste
       validators with one pure clip-placement validator. Cover timeline bounds,
       minimum duration, missing or locked tracks, track compatibility, overlap
