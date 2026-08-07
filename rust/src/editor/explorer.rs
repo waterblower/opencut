@@ -1113,11 +1113,14 @@ fn explorer_drop_error(
             _ => "Media type is incompatible with this track",
         });
     }
-    let end = start + duration;
-    if project
-        .clips_on_track(track_id)
-        .any(|clip| start < clip.timeline_end() && clip.timeline_start < end)
-    {
+    if project.clips_on_track(track_id).any(|clip| {
+        timeline_ranges_overlap(
+            start,
+            start + duration,
+            clip.timeline_start,
+            clip.timeline_end(),
+        )
+    }) {
         return Some("Placement overlaps another clip on this track");
     }
     None

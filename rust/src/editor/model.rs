@@ -328,6 +328,15 @@ impl TimelineClip {
     }
 }
 
+pub fn timeline_ranges_overlap(
+    left_start: TimelineTime,
+    left_end: TimelineTime,
+    right_start: TimelineTime,
+    right_end: TimelineTime,
+) -> bool {
+    left_start < right_end && right_start < left_end
+}
+
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub(super) struct TimelineTrack {
     pub id: u64,

@@ -45,7 +45,7 @@ use export_dialog::ExportDialogState;
 use model::{
     AudioClipProperties, DEFAULT_IMAGE_CLIP_DURATION, FrameRate, MediaAsset, MediaKind, Project,
     TimelineClip, TimelineTime, TimelineTrack, TrackKind, VideoClipProperties, probe_audio,
-    probe_image, probe_media,
+    probe_image, probe_media, timeline_ranges_overlap,
 };
 use preview::PreviewTarget;
 use preview_audio::AudioPreview;
