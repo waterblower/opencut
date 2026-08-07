@@ -117,6 +117,7 @@ actions!(
         CopySelectedClips,
         CutSelectedClips,
         PasteClips,
+        SelectAllUnlockedClips,
         ActivateSelectionTool,
         ActivateBladeTool,
         ActivateTrimTool,
@@ -143,6 +144,11 @@ pub(crate) fn bind_keys(cx: &mut App) {
         KeyBinding::new("cmd-c", CopySelectedClips, Some(EDITOR_SHORTCUT_CONTEXT)),
         KeyBinding::new("cmd-x", CutSelectedClips, Some(EDITOR_SHORTCUT_CONTEXT)),
         KeyBinding::new("cmd-v", PasteClips, Some(EDITOR_SHORTCUT_CONTEXT)),
+        KeyBinding::new(
+            "cmd-a",
+            SelectAllUnlockedClips,
+            Some(EDITOR_SHORTCUT_CONTEXT),
+        ),
         KeyBinding::new("v", ActivateSelectionTool, Some(EDITOR_SHORTCUT_CONTEXT)),
         KeyBinding::new("b", ActivateBladeTool, Some(EDITOR_SHORTCUT_CONTEXT)),
         KeyBinding::new("t", ActivateTrimTool, Some(EDITOR_SHORTCUT_CONTEXT)),
@@ -819,6 +825,16 @@ impl Editor {
 
     fn action_paste_clips(&mut self, _: &PasteClips, _: &mut Window, cx: &mut Context<Self>) {
         self.paste_clips();
+        cx.notify();
+    }
+
+    fn action_select_all_unlocked_clips(
+        &mut self,
+        _: &SelectAllUnlockedClips,
+        _: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        self.select_all_unlocked_clips();
         cx.notify();
     }
 
