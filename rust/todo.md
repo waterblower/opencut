@@ -131,26 +131,20 @@ less work rather than encoding faster.
 Add static per-clip transforms and audio controls before introducing keyframes
 or an effects system.
 
-- [ ] Add reusable numeric fields, sliders, and reset buttons for editing one
-      clip in the video and audio properties panels.
-- [ ] Apply audio gain and mute during standalone audio preview playback.
-- [ ] Add tests for property defaults, serialization, controls, and preview value
-      mapping.
-- [ ] Add stereo pan and apply audio properties consistently across simultaneous
-      timeline audio previews.
+- [ ] Add audio gain and mute controls to the properties panel, reusing the
+      existing numeric-field, slider, and reset-button patterns from the video
+      controls.
+- [ ] Add stereo pan controls and apply pan consistently across simultaneous
+      timeline audio previews and export.
 - [ ] Edit the complete compatible clip selection or make no change. Disable a
       property when any selected clip is incompatible, and display mixed-value
       states when compatible clips have different values.
-- [ ] Coalesce continuous slider and pointer gestures into one snapshot-based
-      undo checkpoint instead of creating an undo entry for every update.
-- [ ] Apply the same video and audio properties during export so preview and
-      exported output remain consistent.
 - [ ] Add integration tests for multi-selection compatibility, preview/export
       parity, timeline audio mixing, and atomic undo behavior.
 - [ ] Add keyframes and interpolation for transform and audio properties after
       static properties work end-to-end.
-- [ ] Add cropping, anchor-point controls, compositing modes, color correction,
-      and extensible effects after the core property pipeline is stable.
+- [ ] Add anchor-point controls, compositing modes, color correction, and
+      extensible effects after the core property pipeline is stable.
 
 ## Editing modes
 
