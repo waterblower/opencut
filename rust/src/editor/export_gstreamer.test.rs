@@ -1,7 +1,10 @@
 //! Integration-style tests for the GStreamer exporter.
 
 use super::*;
-use crate::editor::model::{AudioClipProperties, TimelineTime, VideoClipProperties, probe_media};
+use crate::editor::{
+    media_probe::probe_video,
+    model::{AudioClipProperties, TimelineTime, VideoClipProperties},
+};
 use std::path::Path;
 
 #[test]
@@ -46,7 +49,7 @@ pub(super) fn export_mini_fixture(encoder: ExportEncoder, output_name: &str) {
     for (index, source_path) in source_paths.iter().enumerate() {
         let asset_id = 100 + index as u64 * 2;
         let clip_id = asset_id + 1;
-        let mut asset = probe_media(source_path, asset_id).unwrap();
+        let mut asset = probe_video(source_path, asset_id).unwrap();
         asset.path = source_path.strip_prefix(&project_root).unwrap().into();
         let duration = project.ceil_time(asset.duration);
         project.assets.push(asset);
@@ -71,7 +74,7 @@ pub(super) fn export_mini_fixture(encoder: ExportEncoder, output_name: &str) {
     options.encoder = encoder;
     export_project(&project, &project_root, &output, options, |_| {}).unwrap();
 
-    let exported = probe_media(&output, u64::MAX).unwrap();
+    let exported = probe_video(&output, u64::MAX).unwrap();
     assert_eq!(
         (exported.width, exported.height),
         (project.settings.width, project.settings.height)

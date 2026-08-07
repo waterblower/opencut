@@ -708,20 +708,10 @@ impl Editor {
 
         let project_root = self.project_root.clone();
         let source_path = project_root.join(&relative_path);
-        let is_image = workspace::is_image_path(&relative_path);
-        let is_audio = workspace::is_audio_path(&relative_path);
         cx.spawn(async move |editor, cx| {
             let result = cx
                 .background_executor()
-                .spawn(async move {
-                    if is_image {
-                        probe_image(&source_path, 0)
-                    } else if is_audio {
-                        probe_audio(&source_path, 0)
-                    } else {
-                        probe_media(&source_path, 0)
-                    }
-                })
+                .spawn(async move { probe_asset(&source_path, 0) })
                 .await;
 
             editor
@@ -865,21 +855,11 @@ impl Editor {
 
         let project_root = self.project_root.clone();
         let absolute_path = project_root.join(&relative_path);
-        let is_image = workspace::is_image_path(&relative_path);
-        let is_audio = workspace::is_audio_path(&relative_path);
         self.status = Some(format!("Inspecting {}…", relative_path.display()));
         cx.spawn(async move |editor, cx| {
             let result = cx
                 .background_executor()
-                .spawn(async move {
-                    if is_image {
-                        probe_image(&absolute_path, 0)
-                    } else if is_audio {
-                        probe_audio(&absolute_path, 0)
-                    } else {
-                        probe_media(&absolute_path, 0)
-                    }
-                })
+                .spawn(async move { probe_asset(&absolute_path, 0) })
                 .await;
             editor
                 .update(cx, |editor, cx| {

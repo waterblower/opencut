@@ -19,6 +19,7 @@ mod export;
 mod export_dialog;
 mod export_gstreamer;
 mod media_cache;
+mod media_probe;
 mod model;
 mod preview;
 mod preview_audio;
@@ -42,10 +43,11 @@ use explorer::{
 };
 use explorer_filter::ExplorerFilter;
 use export_dialog::ExportDialogState;
+use media_probe::probe_asset;
 use model::{
     AudioClipProperties, DEFAULT_IMAGE_CLIP_DURATION, FrameRate, MediaAsset, MediaKind, Project,
-    TimelineClip, TimelineTime, TimelineTrack, TrackKind, VideoClipProperties, probe_audio,
-    asset_is_compatible_with_track, probe_image, probe_media, timeline_ranges_overlap,
+    TimelineClip, TimelineTime, TimelineTrack, TrackKind, VideoClipProperties,
+    asset_is_compatible_with_track, timeline_ranges_overlap,
 };
 use preview::PreviewTarget;
 use preview_audio::AudioPreview;
