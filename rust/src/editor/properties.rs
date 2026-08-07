@@ -162,11 +162,11 @@ impl Editor {
                             .child(properties_title(title, "Timeline clip"))
                             .child(properties_value(
                                 "Timeline start",
-                                format_time(self.project.seconds(clip.timeline_start)),
+                                format_time(self.project.seconds(clip.timeline_start), false),
                             ))
                             .child(properties_value(
                                 "Source in",
-                                format_time(self.project.source_start_seconds(clip)),
+                                format_time(self.project.source_start_seconds(clip), false),
                             ))
                             .child(properties_value(
                                 "Source out",
@@ -174,11 +174,12 @@ impl Editor {
                                     self.project
                                         .source_position_at(clip, clip.timeline_end())
                                         .as_secs_f64(),
+                                    false,
                                 ),
                             ))
                             .child(properties_value(
                                 "Clip duration",
-                                format_time(self.project.seconds(clip.duration())),
+                                format_time(self.project.seconds(clip.duration()), false),
                             ))
                             .child(properties_value("Track", track.name.clone()))
                             .when_some(asset, |this, asset| {
@@ -228,7 +229,7 @@ impl Editor {
                 ))
             })
             .when_some(duration, |this, duration| {
-                this.child(properties_value("Duration", format_time(duration)))
+                this.child(properties_value("Duration", format_time(duration, false)))
             })
             .into_any_element()
     }
@@ -246,7 +247,7 @@ impl Editor {
                 this.child(properties_value("Codec", asset.codec.clone()))
             })
             .when_some(duration, |this, duration| {
-                this.child(properties_value("Duration", format_time(duration)))
+                this.child(properties_value("Duration", format_time(duration, false)))
             })
             .into_any_element()
     }
