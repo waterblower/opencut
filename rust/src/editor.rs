@@ -11,6 +11,7 @@ use std::{
     time::{Duration, Instant},
 };
 
+mod clip_placement;
 mod clip_render_plan;
 mod editing;
 mod explorer;
@@ -36,6 +37,7 @@ mod view;
 mod workspace;
 
 use crate::playback_view::{DragPhase, PlaybackViewDelegate};
+use clip_placement::{ClipPlacementRejection, validate_clip_placement};
 use editing::ClipClipboard;
 use explorer::{
     ExplorerDropPreview, ExplorerMediaDrag, FileContextMenu, NewTimelineDialogState,
@@ -47,16 +49,14 @@ use media_probe::probe_asset;
 use model::{
     AudioClipProperties, DEFAULT_IMAGE_CLIP_DURATION, FRAME_RATE_PRESETS, FrameRate, MediaAsset,
     MediaKind, Project, TimelineClip, TimelineTime, TimelineTrack, TrackKind, VideoClipProperties,
-    asset_is_compatible_with_track, timeline_ranges_overlap,
+    timeline_ranges_overlap,
 };
 use preview::PreviewTarget;
 use preview_audio::AudioPreview;
 use properties::PropertiesPanelResizeDrag;
 use properties_transform::{OpacityDrag, VideoTransformInputs};
 use timeline_document::load_or_create;
-use timeline_interactions::{
-    ClipMoveDrag, ClipPlacement, MarqueeSelection, TimelineTool, TrimDrag, TrimEdge,
-};
+use timeline_interactions::{ClipMoveDrag, MarqueeSelection, TimelineTool, TrimDrag, TrimEdge};
 use workspace::{
     FileTreeEntry, TimelineViewState, load_active_timeline, load_project_root, load_timeline_view,
     load_timeline_zoom, save_active_timeline, save_project_root, save_timeline_view,

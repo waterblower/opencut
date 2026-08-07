@@ -211,8 +211,8 @@ impl Editor {
             return;
         };
         let mut clips = clipboard.clips_at(self.playhead);
-        if let Some(reason) = clipboard_paste_error(&self.project, &clips) {
-            self.error = Some(format!("Cannot paste clips: {reason}."));
+        if let Err(rejection) = validate_clipboard_placements(&self.project, &clips) {
+            self.error = Some(format!("Cannot paste clips: {}.", rejection.message()));
             return;
         }
 
@@ -284,27 +284,22 @@ impl Editor {
         let placements = loop {
             let candidate = clips
                 .iter()
-                .map(|clip| ClipPlacement {
-                    clip_id: clip.id,
-                    track_id: clip.track_id,
-                    start: clip.timeline_start + delta,
-                    duration: clip.duration(),
-                })
+                .map(|clip| (clip.id, clip.track_id, clip.timeline_start + delta))
                 .collect::<Vec<_>>();
             if self.clip_placements_fit(&candidate, &HashSet::new()) {
                 break candidate;
             }
             let mut next_delta = delta + TimelineTime::ONE_FRAME;
-            for (clip, placement) in clips.iter().zip(&candidate) {
+            for (clip, (_, track_id, start)) in clips.iter().zip(&candidate) {
                 for other in self
                     .project
                     .clips
                     .iter()
-                    .filter(|other| other.track_id == placement.track_id)
+                    .filter(|other| other.track_id == *track_id)
                 {
                     if timeline_ranges_overlap(
-                        placement.start,
-                        placement.start + placement.duration,
+                        *start,
+                        *start + clip.duration(),
                         other.timeline_start,
                         other.timeline_end(),
                     ) {
@@ -320,9 +315,9 @@ impl Editor {
             .selected_clip_id
             .and_then(|id| clips.iter().position(|clip| clip.id == id));
         let mut duplicates = Vec::with_capacity(clips.len());
-        for (mut clip, placement) in clips.into_iter().zip(placements) {
+        for (mut clip, (_, _, start)) in clips.into_iter().zip(placements) {
             clip.id = self.take_id();
-            clip.timeline_start = placement.start;
+            clip.timeline_start = start;
             duplicates.push(clip);
         }
         self.selected_clip_ids = duplicates.iter().map(|clip| clip.id).collect();
@@ -499,68 +494,64 @@ impl Editor {
 
     pub(super) fn clip_placements_fit(
         &self,
-        placements: &[ClipPlacement],
+        placements: &[(u64, u64, TimelineTime)],
         ignored_clip_ids: &HashSet<u64>,
     ) -> bool {
-        self.clip_placement_error(placements, ignored_clip_ids)
-            .is_none()
+        self.validate_clip_move_placements(placements, ignored_clip_ids)
+            .is_ok()
     }
 
-    pub(super) fn clip_placement_error(
+    pub(super) fn validate_clip_move_placements(
         &self,
-        placements: &[ClipPlacement],
+        placements: &[(u64, u64, TimelineTime)],
         ignored_clip_ids: &HashSet<u64>,
-    ) -> Option<&'static str> {
-        for placement in placements {
-            if placement.start < TimelineTime::ZERO {
-                return Some("Cannot move before the timeline start");
-            }
-            if placement.duration < TimelineTime::ONE_FRAME {
-                return Some("Clip duration is invalid");
-            }
-            let Some(clip) = self.project.clip(placement.clip_id) else {
-                return Some("Clip is no longer available");
+    ) -> Result<(), ClipPlacementRejection> {
+        if placements.is_empty() {
+            return Err(ClipPlacementRejection::NoPlacements);
+        }
+        for (clip_id, track_id, start) in placements {
+            let Some(clip) = self.project.clip(*clip_id) else {
+                return Err(ClipPlacementRejection::MissingClip);
             };
-            let Some(track) = self.project.track(placement.track_id) else {
-                return Some("Destination track is unavailable");
-            };
-            if track.locked {
-                return Some("Destination track is locked");
-            }
             let Some(asset) = self.project.asset(clip.asset_id) else {
-                return Some("Source media is unavailable");
+                return Err(ClipPlacementRejection::MissingAsset);
             };
-            if !asset_is_compatible_with_track(asset, track) {
-                return Some("Clip type is incompatible with this track");
+            validate_clip_placement(
+                &self.project,
+                *track_id,
+                asset.kind,
+                clip.duration(),
+                *start,
+                ignored_clip_ids,
+            )?;
+        }
+        for (index, (clip_id, track_id, start)) in placements.iter().enumerate() {
+            let duration = self
+                .project
+                .clip(*clip_id)
+                .map(TimelineClip::duration)
+                .ok_or(ClipPlacementRejection::MissingClip)?;
+            if placements[index + 1..]
+                .iter()
+                .any(|(other_id, other_track_id, other_start)| {
+                    let other_duration = self
+                        .project
+                        .clip(*other_id)
+                        .map(TimelineClip::duration)
+                        .unwrap_or(TimelineTime::ZERO);
+                    track_id == other_track_id
+                        && timeline_ranges_overlap(
+                            *start,
+                            *start + duration,
+                            *other_start,
+                            *other_start + other_duration,
+                        )
+                })
+            {
+                return Err(ClipPlacementRejection::ProposedClipsOverlap);
             }
         }
-
-        for (index, placement) in placements.iter().enumerate() {
-            if placements[index + 1..].iter().any(|other| {
-                placement.track_id == other.track_id
-                    && timeline_ranges_overlap(
-                        placement.start,
-                        placement.start + placement.duration,
-                        other.start,
-                        other.start + other.duration,
-                    )
-            }) {
-                return Some("Selected clips would overlap each other");
-            }
-            if self.project.clips.iter().any(|other| {
-                !ignored_clip_ids.contains(&other.id)
-                    && placement.track_id == other.track_id
-                    && timeline_ranges_overlap(
-                        placement.start,
-                        placement.start + placement.duration,
-                        other.timeline_start,
-                        other.timeline_end(),
-                    )
-            }) {
-                return Some("Overlaps another clip");
-            }
-        }
-        None
+        Ok(())
     }
 
     pub(super) fn checkpoint(&mut self) {
@@ -683,31 +674,26 @@ fn clips_crossing_playhead(project: &Project, playhead: TimelineTime) -> Vec<Tim
         .collect()
 }
 
-fn clipboard_paste_error(project: &Project, clips: &[TimelineClip]) -> Option<&'static str> {
+fn validate_clipboard_placements(
+    project: &Project,
+    clips: &[TimelineClip],
+) -> Result<(), ClipPlacementRejection> {
     if clips.is_empty() {
-        return Some("the clipboard is empty");
+        return Err(ClipPlacementRejection::NoPlacements);
     }
     for clip in clips {
-        if clip.timeline_start < TimelineTime::ZERO {
-            return Some("a clip would be placed before the timeline start");
-        }
-        if clip.duration() < TimelineTime::ONE_FRAME {
-            return Some("a clip has an invalid duration");
-        }
-        let Some(track) = project.track(clip.track_id) else {
-            return Some("an original destination track no longer exists");
-        };
-        if track.locked {
-            return Some("an original destination track is locked");
-        }
         let Some(asset) = project.asset(clip.asset_id) else {
-            return Some("source media is no longer available");
+            return Err(ClipPlacementRejection::MissingAsset);
         };
-        if !asset_is_compatible_with_track(asset, track) {
-            return Some("a clip is incompatible with its original track");
-        }
+        validate_clip_placement(
+            project,
+            clip.track_id,
+            asset.kind,
+            clip.duration(),
+            clip.timeline_start,
+            &HashSet::new(),
+        )?;
     }
-
     for (index, clip) in clips.iter().enumerate() {
         if clips[index + 1..].iter().any(|other| {
             clip.track_id == other.track_id
@@ -718,21 +704,10 @@ fn clipboard_paste_error(project: &Project, clips: &[TimelineClip]) -> Option<&'
                     other.timeline_end(),
                 )
         }) {
-            return Some("the copied clips would overlap each other");
-        }
-        if project.clips.iter().any(|other| {
-            clip.track_id == other.track_id
-                && timeline_ranges_overlap(
-                    clip.timeline_start,
-                    clip.timeline_end(),
-                    other.timeline_start,
-                    other.timeline_end(),
-                )
-        }) {
-            return Some("a copied clip would overlap an existing clip");
+            return Err(ClipPlacementRejection::ProposedClipsOverlap);
         }
     }
-    None
+    Ok(())
 }
 
 fn plural_suffix(count: usize) -> &'static str {
@@ -806,11 +781,10 @@ mod tests {
         project.assets.push(audio_asset(100));
         project.clips = vec![audio_clip(20, 105, 10)];
         let candidates = vec![audio_clip(10, 100, 8), audio_clip(11, 120, 12)];
+        let rejection = validate_clipboard_placements(&project, &candidates).unwrap_err();
 
-        assert_eq!(
-            clipboard_paste_error(&project, &candidates),
-            Some("a copied clip would overlap an existing clip")
-        );
+        assert_eq!(rejection, ClipPlacementRejection::ExistingClipOverlap);
+        assert_eq!(rejection.message(), "Placement overlaps an existing clip");
     }
 
     #[test]
