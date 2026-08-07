@@ -47,21 +47,18 @@ impl Editor {
                     .flex()
                     .gap_1()
                     .child(
-                        track_button(("track-lock", index), if track.locked { "🔒" } else { "♢" })
+                        track_icon_button(("track-lock", index), "icons/lock.svg", track.locked)
                             .on_click(cx.listener(move |editor, _, _, cx| {
                                 editor.toggle_track_lock(track_id);
                                 cx.notify();
                             })),
                     )
                     .child(
-                        track_button(
-                            ("track-visible", index),
-                            if track.visible { "◉" } else { "○" },
-                        )
-                        .on_click(cx.listener(move |editor, _, _, cx| {
-                            editor.toggle_track_visibility(track_id);
-                            cx.notify();
-                        })),
+                        track_icon_button(("track-visible", index), "icons/eye.svg", track.visible)
+                            .on_click(cx.listener(move |editor, _, _, cx| {
+                                editor.toggle_track_visibility(track_id);
+                                cx.notify();
+                            })),
                     )
                     .child(
                         track_button(("track-mute", index), if track.muted { "M×" } else { "M" })
@@ -496,6 +493,22 @@ fn video_timeline_clip_label(name: String) -> gpui::Div {
 }
 
 fn track_button(id: impl Into<gpui::ElementId>, label: &'static str) -> gpui::Stateful<gpui::Div> {
+    track_button_base(id).text_xs().child(label)
+}
+
+fn track_icon_button(
+    id: impl Into<gpui::ElementId>,
+    path: &'static str,
+    active: bool,
+) -> gpui::Stateful<gpui::Div> {
+    track_button_base(id).child(gpui::svg().path(path).size_4().text_color(rgb(if active {
+        ACCENT
+    } else {
+        MUTED
+    })))
+}
+
+fn track_button_base(id: impl Into<gpui::ElementId>) -> gpui::Stateful<gpui::Div> {
     div()
         .id(id)
         .h_5()
@@ -507,9 +520,7 @@ fn track_button(id: impl Into<gpui::ElementId>, label: &'static str) -> gpui::St
         .rounded_sm()
         .bg(rgb(SURFACE))
         .cursor(CursorStyle::PointingHand)
-        .text_xs()
         .hover(|style| style.bg(rgb(SURFACE_HOVER)))
-        .child(label)
 }
 
 fn track_kind_label(kind: TrackKind) -> &'static str {
