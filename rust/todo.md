@@ -34,10 +34,21 @@
 
 #### Deduplicate editor domain logic
 
+- [ ] Define video-property normalization once on `VideoClipProperties` and use
+      it for property editing, project loading, preview rendering, and export.
+      Keep finite-value, scale, opacity, and paired crop limits consistent so
+      stored values cannot behave differently between UI and rendering paths.
+- [ ] Define media-to-track compatibility once and use it for placement,
+      append-target selection, and property availability. Keep audio restricted
+      to audio tracks and video/images restricted to video tracks.
 - [ ] Centralize asset-probe scheduling for explorer drag-and-drop and
       add-to-timeline actions. Share cached results and one in-flight path set,
       reject results from stale projects, and let each caller handle the
       completed asset without launching a duplicate probe.
+- [ ] Add one narrowly scoped timeline-playback pause operation that pauses the
+      video and audio pipelines and clears shared playback timing state. Use it
+      when moving or trimming clips, scrubbing, changing project settings, and
+      switching preview targets without combining unrelated UI reset behavior.
 
 ## Performance
 
