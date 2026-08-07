@@ -32,6 +32,27 @@
       `load_timeline_position`, or change `visual_clip_at_time` so those cases are
       intentionally returned and handled there.
 
+#### Deduplicate editor domain logic
+
+- [ ] Centralize timeline-track construction, including default state, numbering,
+      and generated Video/Audio names, and use it for initial and newly added
+      tracks.
+- [ ] Add a single `TimelineClip::source_time_at` calculation and use it for
+      source-frame lookup, audio positioning, preview synchronization, and any
+      later export timing instead of recomputing clip-local source time.
+- [ ] Extract one pure clip-splitting operation that preserves source ranges and
+      clip properties. Keep checkpointing, multi-clip batching, selection, and UI
+      feedback in the existing editing commands.
+- [ ] Replace the separate explorer-drop, clip-move, and clipboard-paste
+      validators with one pure clip-placement validator. Cover timeline bounds,
+      minimum duration, missing or locked tracks, track compatibility, overlap
+      within the proposed placements, and overlap with existing clips; return a
+      reason enum so each UI can supply its own localized message.
+- [ ] Centralize asset-probe scheduling for explorer drag-and-drop and
+      add-to-timeline actions. Share cached results and one in-flight path set,
+      reject results from stale projects, and let each caller handle the
+      completed asset without launching a duplicate probe.
+
 ## Performance
 
 Keep the debug build responsive enough for rapid POC development. Measure each
