@@ -534,6 +534,7 @@ mod tests {
 
     #[test]
     fn applies_the_requested_bitrate_to_x264() {
+        let _gstreamer_test = crate::editor::lock_gstreamer_test();
         ges::init().unwrap();
         let pipeline = ges::Pipeline::new();
         configure_export_elements(&pipeline, 12_345_000);
@@ -548,6 +549,7 @@ mod tests {
     #[cfg(target_os = "macos")]
     #[test]
     fn configures_videotoolbox_for_mp4_timeline_export() {
+        let _gstreamer_test = crate::editor::lock_gstreamer_test();
         ges::init().unwrap();
         let Some(factory) = gst::ElementFactory::find("vtenc_h264_hw") else {
             return;
@@ -562,6 +564,7 @@ mod tests {
 
     #[test]
     fn enables_automatic_threading_for_video_conversion_and_scaling() {
+        let _gstreamer_test = crate::editor::lock_gstreamer_test();
         ges::init().unwrap();
         let pipeline = ges::Pipeline::new();
         configure_export_elements(&pipeline, 12_345_000);
@@ -579,6 +582,7 @@ mod tests {
 
     #[test]
     fn creates_gstreamer_timeline_from_real_media() {
+        let _gstreamer_test = crate::editor::lock_gstreamer_test();
         ges::init().unwrap();
         let project_root = Path::new(env!("CARGO_MANIFEST_DIR"));
         let mut project = Project::default();
@@ -689,6 +693,7 @@ mod tests {
 
     #[test]
     fn exports_real_media_with_audio() {
+        let _gstreamer_test = crate::editor::lock_gstreamer_test();
         let project_root = Path::new(env!("CARGO_MANIFEST_DIR"));
         let mut project = Project::default();
         project.settings.width = 320;
@@ -740,6 +745,7 @@ mod tests {
 
     #[test]
     fn exports_an_image_only_timeline() {
+        let _gstreamer_test = crate::editor::lock_gstreamer_test();
         let unique = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap()

@@ -84,6 +84,12 @@ const TIMELINE_VIEW_SAVE_DELAY: Duration = Duration::from_secs(1);
 const SCRUB_SEEK_INTERVAL: Duration = Duration::from_millis(50);
 const IDLE_UPDATE_INTERVAL: Duration = Duration::from_millis(33);
 
+#[cfg(test)]
+fn lock_gstreamer_test() -> std::sync::MutexGuard<'static, ()> {
+    static LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+    LOCK.lock().unwrap_or_else(|error| error.into_inner())
+}
+
 const BACKGROUND: u32 = 0x080809;
 const PANEL: u32 = 0x0d0d0f;
 const SURFACE: u32 = 0x17171a;

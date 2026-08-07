@@ -500,10 +500,6 @@ impl Project {
         Duration::from_secs_f64(samples as f64 / self.settings.audio_sample_rate as f64)
     }
 
-    pub fn audio_seconds(&self, time: TimelineTime) -> f64 {
-        self.audio_duration(time).as_secs_f64()
-    }
-
     /// Maps a timeline position within a clip to the source frame covering that instant.
     pub fn source_frame_at(
         &self,
