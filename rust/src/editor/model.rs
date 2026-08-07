@@ -370,13 +370,6 @@ impl TimelineClip {
     pub fn contains(&self, time: TimelineTime) -> bool {
         time >= self.timeline_start && time < self.timeline_end()
     }
-
-    pub fn is_continuous_with(&self, next: &Self) -> bool {
-        self.track_id == next.track_id
-            && self.asset_id == next.asset_id
-            && self.timeline_end() == next.timeline_start
-            && self.source_out == next.source_in
-    }
 }
 
 pub fn timeline_ranges_overlap(

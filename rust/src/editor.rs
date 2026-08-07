@@ -24,7 +24,6 @@ mod media_probe;
 mod model;
 mod preview;
 mod preview_audio;
-mod preview_transform;
 mod properties;
 mod properties_transform;
 mod settings;
@@ -199,10 +198,8 @@ pub(crate) struct Editor {
     last_tree_scan: Instant,
     video: Option<Video>,
     standalone_audio: Option<AudioPreview>,
-    audio_previews: HashMap<u64, AudioPreview>,
-    loaded_clip_id: Option<u64>,
-    still_playback_started: Option<Instant>,
-    still_playback_origin: TimelineTime,
+    timeline_preview_needs_rebuild: bool,
+    timeline_playback_clock: Option<(TimelineTime, Instant)>,
     selected_asset_id: Option<u64>,
     selected_clip_id: Option<u64>,
     selected_clip_ids: HashSet<u64>,
@@ -323,10 +320,8 @@ impl Editor {
             last_tree_scan: Instant::now(),
             video: None,
             standalone_audio: None,
-            audio_previews: HashMap::new(),
-            loaded_clip_id: None,
-            still_playback_started: None,
-            still_playback_origin: playhead,
+            timeline_preview_needs_rebuild: true,
+            timeline_playback_clock: None,
             selected_asset_id,
             selected_clip_id,
             selected_clip_ids,
@@ -599,7 +594,6 @@ impl Editor {
     ) {
         self.video = None;
         self.standalone_audio = None;
-        self.audio_previews.clear();
         self.media_cache_jobs.clear();
         self.media_cache_ready.clear();
         self.waveform_cache.clear();
@@ -608,8 +602,8 @@ impl Editor {
         self.explorer_drop_preview = None;
         self.pending_explorer_drop = None;
         self.clip_clipboard = None;
-        self.loaded_clip_id = None;
-        self.still_playback_started = None;
+        self.timeline_preview_needs_rebuild = true;
+        self.timeline_playback_clock = None;
         self.playing = false;
         self.preview_volume_open = false;
         self.preview_is_scrubbing = false;
@@ -633,7 +627,6 @@ impl Editor {
         self.timeline_view_save_due = None;
         self.playhead = TimelineTime::from_frames(self.timeline_view_state.playhead_frame)
             .clamp(TimelineTime::ZERO, self.project.timeline_duration());
-        self.still_playback_origin = self.playhead;
         self.preview_refresh_ticks = 2;
         self.snapping_enabled = self.timeline_view_state.snapping_enabled;
         self.track_magnet_enabled = self.timeline_view_state.track_magnet_enabled;

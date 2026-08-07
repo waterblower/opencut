@@ -138,16 +138,14 @@ impl Editor {
         if let Some(video) = &self.video {
             video.set_paused(true);
         }
-        self.pause_audio_previews();
         self.checkpoint();
         let playhead = previous.rescale_nearest(self.playhead, frame_rate);
         self.project.set_frame_rate(frame_rate);
         self.playhead = playhead.clamp(TimelineTime::ZERO, self.project.timeline_duration());
         self.video = None;
-        self.audio_previews.clear();
-        self.loaded_clip_id = None;
-        self.still_playback_started = None;
+        self.timeline_preview_needs_rebuild = true;
         self.playing = false;
+        self.timeline_playback_clock = None;
         self.save_project();
         if !self.project.clips.is_empty() {
             self.load_timeline_position(self.playhead, false);

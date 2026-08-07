@@ -26,16 +26,6 @@ pub(super) struct VisualClipRenderPlan {
     pub(super) opacity: f64,
 }
 
-impl VisualClipRenderPlan {
-    pub(super) fn hidden(self) -> bool {
-        self.source_scale <= f64::EPSILON || self.opacity <= f64::EPSILON
-    }
-
-    pub(super) fn requires_rasterization(self) -> bool {
-        (self.opacity - 1.0).abs() > 0.000_001 || self.crop != SourceCrop::default()
-    }
-}
-
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(super) struct AudioClipRenderPlan {
     pub(super) gain_linear: f64,

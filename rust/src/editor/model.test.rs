@@ -221,18 +221,6 @@ fn changing_timeline_rate_preserves_elapsed_edit_times() {
 }
 
 #[test]
-fn recognizes_two_halves_of_a_split_as_continuous() {
-    let first = video_clip(10, 0, 120);
-    let mut second = video_clip(11, 120, 120);
-    second.source_in = frames(120);
-    second.source_out = frames(240);
-
-    assert!(first.is_continuous_with(&second));
-    second.source_in = frames(121);
-    assert!(!first.is_continuous_with(&second));
-}
-
-#[test]
 fn clip_source_time_clamps_to_its_source_range() {
     let mut clip = video_clip(10, 100, 60);
     clip.source_in = frames(30);
