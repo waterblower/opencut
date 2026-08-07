@@ -97,3 +97,19 @@ fn blade_targets_unselected_clips_crossing_the_playhead() {
 
     assert_eq!(targets.iter().map(|clip| clip.id).collect::<Vec<_>>(), [10]);
 }
+
+#[test]
+fn select_all_excludes_clips_on_locked_tracks() {
+    let mut project = Project::with_test_tracks();
+    project.clips = vec![
+        audio_clip(10, 0, 10),
+        TimelineClip {
+            id: 11,
+            track_id: 1,
+            ..audio_clip(11, 10, 10)
+        },
+    ];
+    project.track_mut(2).unwrap().locked = true;
+
+    assert_eq!(unlocked_clip_ids(&project), HashSet::from([11]));
+}

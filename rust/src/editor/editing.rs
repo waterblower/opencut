@@ -458,6 +458,17 @@ impl Editor {
         self.video_transform_input_clip_id = None;
     }
 
+    pub(super) fn select_all_unlocked_clips(&mut self) {
+        self.selected_clip_ids = unlocked_clip_ids(&self.project);
+        self.selected_clip_id = self
+            .project
+            .clips
+            .iter()
+            .find(|clip| self.selected_clip_ids.contains(&clip.id))
+            .map(|clip| clip.id);
+        self.video_transform_input_clip_id = None;
+    }
+
     pub(super) fn toggle_clip_selection(&mut self, clip_id: u64) {
         if self.selected_clip_ids.remove(&clip_id) {
             if self.selected_clip_id == Some(clip_id) {
@@ -612,6 +623,19 @@ impl Editor {
     pub(super) fn toggle_track_magnet(&mut self) {
         self.track_magnet_enabled = !self.track_magnet_enabled;
     }
+}
+
+fn unlocked_clip_ids(project: &Project) -> HashSet<u64> {
+    project
+        .clips
+        .iter()
+        .filter(|clip| {
+            project
+                .track(clip.track_id)
+                .is_some_and(|track| !track.locked)
+        })
+        .map(|clip| clip.id)
+        .collect()
 }
 
 fn find_append_track(project: &Project, asset: &MediaAsset) -> Result<u64, String> {
