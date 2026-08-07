@@ -593,8 +593,7 @@ impl Editor {
                 if audio_plan.muted {
                     return None;
                 }
-                let source_position = clip.source_in
-                    + (position - clip.timeline_start).clamp(TimelineTime::ZERO, clip.duration());
+                let source_position = clip.source_time_at(position);
                 let path = self.project_root.join(&asset.path);
                 let url = Url::from_file_path(path).ok()?;
                 Some((
