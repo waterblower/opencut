@@ -568,11 +568,7 @@ impl Editor {
             let Some(asset) = self.project.asset(clip.asset_id) else {
                 return Some("Source media is unavailable");
             };
-            let compatible = match track.kind {
-                TrackKind::Video => asset.kind != MediaKind::Audio,
-                TrackKind::Audio => asset.has_audio,
-            };
-            if !compatible {
+            if !asset_is_compatible_with_track(asset, track) {
                 return Some("Clip type is incompatible with this track");
             }
         }
@@ -725,11 +721,7 @@ fn clipboard_paste_error(project: &Project, clips: &[TimelineClip]) -> Option<&'
         let Some(asset) = project.asset(clip.asset_id) else {
             return Some("source media is no longer available");
         };
-        let compatible = match track.kind {
-            TrackKind::Video => asset.kind != MediaKind::Audio,
-            TrackKind::Audio => asset.has_audio,
-        };
-        if !compatible {
+        if !asset_is_compatible_with_track(asset, track) {
             return Some("a clip is incompatible with its original track");
         }
     }

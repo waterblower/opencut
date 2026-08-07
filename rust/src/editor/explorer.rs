@@ -1097,11 +1097,7 @@ fn explorer_drop_error(
     if track.locked {
         return Some("Destination track is locked");
     }
-    let compatible = match track.kind {
-        TrackKind::Video => asset.kind != MediaKind::Audio,
-        TrackKind::Audio => asset.has_audio,
-    };
-    if !compatible {
+    if !asset_is_compatible_with_track(asset, track) {
         return Some(match (track.kind, asset.kind) {
             (TrackKind::Video, MediaKind::Audio) => {
                 "Audio files can only be placed on audio tracks"
