@@ -347,6 +347,26 @@ impl TimelineClip {
         (self.source_in + local).min(self.source_out)
     }
 
+    pub fn split_at(
+        &self,
+        timeline_position: TimelineTime,
+        right_clip_id: u64,
+    ) -> Option<(Self, Self)> {
+        let local = timeline_position - self.timeline_start;
+        if local < TimelineTime::ONE_FRAME || local > self.duration() - TimelineTime::ONE_FRAME {
+            return None;
+        }
+
+        let source_split = self.source_time_at(timeline_position);
+        let mut left = self.clone();
+        left.source_out = source_split;
+        let mut right = self.clone();
+        right.id = right_clip_id;
+        right.timeline_start = timeline_position;
+        right.source_in = source_split;
+        Some((left, right))
+    }
+
     pub fn contains(&self, time: TimelineTime) -> bool {
         time >= self.timeline_start && time < self.timeline_end()
     }
@@ -859,18 +879,21 @@ mod tests {
 
     #[test]
     fn repeated_frame_splits_preserve_the_total_duration() {
-        let original = frames(10_000);
-        let mut remaining = original;
+        let mut remaining = video_clip(10, 0, 10_000);
+        let original_duration = remaining.duration();
         let mut pieces = Vec::new();
+        let mut next_id = 11;
         for split in [1, 17, 301, 999, 2_048] {
-            let piece = frames(split);
-            remaining -= piece;
-            pieces.push(piece);
+            let position = remaining.timeline_start + frames(split);
+            let (left, right) = remaining.split_at(position, next_id).unwrap();
+            pieces.push(left.duration());
+            remaining = right;
+            next_id += 1;
         }
         let reconstructed = pieces
             .into_iter()
-            .fold(remaining, |duration, piece| duration + piece);
-        assert_eq!(reconstructed, original);
+            .fold(remaining.duration(), |duration, piece| duration + piece);
+        assert_eq!(reconstructed, original_duration);
     }
 
     #[test]
@@ -970,6 +993,42 @@ mod tests {
         assert_eq!(clip.source_time_at(frames(125)), frames(55));
         assert_eq!(clip.source_time_at(frames(160)), frames(90));
         assert_eq!(clip.source_time_at(frames(200)), frames(90));
+    }
+
+    #[test]
+    fn splitting_clip_preserves_ranges_and_properties() {
+        let mut clip = video_clip(10, 100, 60);
+        clip.source_in = frames(30);
+        clip.source_out = frames(90);
+        clip.video_properties.position_x = 42.0;
+        clip.video_properties.opacity = 0.5;
+        clip.audio_properties.gain_db = -6.0;
+        clip.audio_properties.muted = true;
+
+        let (left, right) = clip.split_at(frames(125), 11).unwrap();
+
+        assert_eq!(left.id, 10);
+        assert_eq!(left.timeline_start, frames(100));
+        assert_eq!(left.source_in, frames(30));
+        assert_eq!(left.source_out, frames(55));
+        assert_eq!(right.id, 11);
+        assert_eq!(right.timeline_start, frames(125));
+        assert_eq!(right.source_in, frames(55));
+        assert_eq!(right.source_out, frames(90));
+        assert_eq!(left.video_properties, clip.video_properties);
+        assert_eq!(right.video_properties, clip.video_properties);
+        assert_eq!(left.audio_properties, clip.audio_properties);
+        assert_eq!(right.audio_properties, clip.audio_properties);
+    }
+
+    #[test]
+    fn splitting_clip_rejects_its_outer_frames() {
+        let clip = video_clip(10, 100, 60);
+
+        assert!(clip.split_at(frames(100), 11).is_none());
+        assert!(clip.split_at(frames(160), 11).is_none());
+        assert!(clip.split_at(frames(101), 11).is_some());
+        assert!(clip.split_at(frames(159), 11).is_some());
     }
 
     #[test]
