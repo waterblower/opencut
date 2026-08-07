@@ -636,11 +636,17 @@ impl Editor {
             .unwrap_or_else(|| self.project.ceil_time(DEFAULT_IMAGE_CLIP_DURATION));
         let (start, snap_guide) =
             self.snap_clip_start_ignoring(raw_start, duration, &HashSet::new());
-        let invalid_reason = if let Some(asset) = asset.as_ref() {
-            explorer_drop_error(&self.project, asset, track_id, start, duration).map(str::to_string)
-        } else {
-            explorer_unprobed_drop_error(&self.project, drag.kind, track_id).map(str::to_string)
-        };
+        let kind = asset.as_ref().map_or(drag.kind, |asset| asset.kind);
+        let invalid_reason = validate_clip_placement(
+            &self.project,
+            track_id,
+            kind,
+            duration,
+            start,
+            &HashSet::new(),
+        )
+        .err()
+        .map(|rejection| rejection.message().to_string());
         self.snap_guide = snap_guide;
         self.explorer_drop_preview = Some(ExplorerDropPreview {
             relative_path: drag.relative_path.clone(),
@@ -796,8 +802,15 @@ impl Editor {
     ) {
         let duration = self.project.ceil_time(asset.duration);
         let (start, _) = self.snap_clip_start_ignoring(raw_start, duration, &HashSet::new());
-        if let Some(reason) = explorer_drop_error(&self.project, &asset, track_id, start, duration)
-        {
+        if let Err(rejection) = validate_clip_placement(
+            &self.project,
+            track_id,
+            asset.kind,
+            duration,
+            start,
+            &HashSet::new(),
+        ) {
+            let reason = rejection.message();
             self.status = None;
             self.error = Some(format!("Cannot add {}: {reason}.", asset.name));
             return;
@@ -1047,72 +1060,6 @@ fn explorer_file_badge(entry: &FileTreeEntry) -> gpui::Div {
         .child(extension)
 }
 
-fn explorer_unprobed_drop_error(
-    project: &Project,
-    kind: MediaKind,
-    track_id: u64,
-) -> Option<&'static str> {
-    let Some(track) = project.track(track_id) else {
-        return Some("Destination track is unavailable");
-    };
-    if track.locked {
-        return Some("Destination track is locked");
-    }
-    match (track.kind, kind) {
-        (TrackKind::Video, MediaKind::Audio) => {
-            Some("Audio files can only be placed on audio tracks")
-        }
-        (TrackKind::Audio, MediaKind::Image) => {
-            Some("Image files can only be placed on video tracks")
-        }
-        _ => None,
-    }
-}
-
-fn explorer_drop_error(
-    project: &Project,
-    asset: &MediaAsset,
-    track_id: u64,
-    start: TimelineTime,
-    duration: TimelineTime,
-) -> Option<&'static str> {
-    if start < TimelineTime::ZERO {
-        return Some("Cannot place media before the timeline start");
-    }
-    if duration < TimelineTime::ONE_FRAME {
-        return Some("Media duration is shorter than one timeline frame");
-    }
-    let Some(track) = project.track(track_id) else {
-        return Some("Destination track is unavailable");
-    };
-    if track.locked {
-        return Some("Destination track is locked");
-    }
-    if !asset_is_compatible_with_track(asset, track) {
-        return Some(match (track.kind, asset.kind) {
-            (TrackKind::Video, MediaKind::Audio) => {
-                "Audio files can only be placed on audio tracks"
-            }
-            (TrackKind::Audio, MediaKind::Image) => {
-                "Image files can only be placed on video tracks"
-            }
-            (TrackKind::Audio, MediaKind::Video) => "This video has no audio stream",
-            _ => "Media type is incompatible with this track",
-        });
-    }
-    if project.clips_on_track(track_id).any(|clip| {
-        timeline_ranges_overlap(
-            start,
-            start + duration,
-            clip.timeline_start,
-            clip.timeline_end(),
-        )
-    }) {
-        return Some("Placement overlaps another clip on this track");
-    }
-    None
-}
-
 fn explorer_metadata(entry: &FileTreeEntry, asset: Option<&MediaAsset>) -> Option<String> {
     if let Some(asset) = asset
         && asset.kind != MediaKind::Image
@@ -1164,25 +1111,34 @@ mod tests {
     #[test]
     fn explorer_drop_rejects_incompatible_tracks() {
         let project = Project::with_test_tracks();
+        let audio = asset(MediaKind::Audio, true);
+        let audio_rejection = validate_clip_placement(
+            &project,
+            1,
+            audio.kind,
+            TimelineTime::from_frames(30),
+            TimelineTime::ZERO,
+            &HashSet::new(),
+        )
+        .unwrap_err();
         assert_eq!(
-            explorer_drop_error(
-                &project,
-                &asset(MediaKind::Audio, true),
-                1,
-                TimelineTime::ZERO,
-                TimelineTime::from_frames(30),
-            ),
-            Some("Audio files can only be placed on audio tracks")
+            audio_rejection.message(),
+            "Media is incompatible with the destination track"
         );
+
+        let silent_video = asset(MediaKind::Video, false);
+        let video_rejection = validate_clip_placement(
+            &project,
+            2,
+            silent_video.kind,
+            TimelineTime::from_frames(30),
+            TimelineTime::ZERO,
+            &HashSet::new(),
+        )
+        .unwrap_err();
         assert_eq!(
-            explorer_drop_error(
-                &project,
-                &asset(MediaKind::Video, false),
-                2,
-                TimelineTime::ZERO,
-                TimelineTime::from_frames(30),
-            ),
-            Some("This video has no audio stream")
+            video_rejection.message(),
+            "Media is incompatible with the destination track"
         );
     }
 
@@ -1202,24 +1158,26 @@ mod tests {
         let audio = asset(MediaKind::Audio, true);
 
         assert_eq!(
-            explorer_drop_error(
+            validate_clip_placement(
                 &project,
-                &audio,
                 2,
-                TimelineTime::from_frames(15),
+                audio.kind,
                 TimelineTime::from_frames(30),
+                TimelineTime::from_frames(15),
+                &HashSet::new(),
             ),
-            Some("Placement overlaps another clip on this track")
+            Err(ClipPlacementRejection::ExistingClipOverlap)
         );
         assert_eq!(
-            explorer_drop_error(
+            validate_clip_placement(
                 &project,
-                &audio,
                 2,
-                TimelineTime::ZERO,
+                audio.kind,
                 TimelineTime::from_frames(30),
+                TimelineTime::ZERO,
+                &HashSet::new(),
             ),
-            None
+            Ok(())
         );
     }
 }

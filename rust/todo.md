@@ -34,11 +34,6 @@
 
 #### Deduplicate editor domain logic
 
-- [ ] Replace the separate explorer-drop, clip-move, and clipboard-paste
-      validators with one pure clip-placement validator. Cover timeline bounds,
-      minimum duration, missing or locked tracks, track compatibility, overlap
-      within the proposed placements, and overlap with existing clips; return a
-      reason enum so each UI can supply its own localized message.
 - [ ] Centralize asset-probe scheduling for explorer drag-and-drop and
       add-to-timeline actions. Share cached results and one in-flight path set,
       reject results from stale projects, and let each caller handle the

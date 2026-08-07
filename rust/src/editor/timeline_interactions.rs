@@ -40,17 +40,9 @@ pub(super) struct ClipMoveDrag {
     pub(super) original_anchor_start: TimelineTime,
     pub(super) original_anchor_track_index: usize,
     pub(super) items: Vec<ClipMoveItem>,
-    pub(super) placements: Vec<ClipPlacement>,
+    pub(super) placements: Vec<(u64, u64, TimelineTime)>,
     pub(super) invalid_reason: Option<&'static str>,
     pub(super) changed: bool,
-}
-
-#[derive(Clone, Copy)]
-pub(super) struct ClipPlacement {
-    pub(super) clip_id: u64,
-    pub(super) track_id: u64,
-    pub(super) start: TimelineTime,
-    pub(super) duration: TimelineTime,
 }
 
 #[derive(Clone)]
@@ -322,13 +314,12 @@ impl Editor {
             placements: items
                 .iter()
                 .filter_map(|item| {
-                    let clip = self.project.clip(item.clip_id)?;
-                    Some(ClipPlacement {
-                        clip_id: item.clip_id,
-                        track_id: item.original_track_id,
-                        start: item.original_timeline_start,
-                        duration: clip.duration(),
-                    })
+                    self.project.clip(item.clip_id)?;
+                    Some((
+                        item.clip_id,
+                        item.original_track_id,
+                        item.original_timeline_start,
+                    ))
                 })
                 .collect(),
             items,
@@ -406,13 +397,12 @@ impl Editor {
                 .filter_map(|item| {
                     let target_index = item.original_track_index.checked_add_signed(track_delta)?;
                     let track_id = self.project.tracks.get(target_index)?.id;
-                    let clip = self.project.clip(item.clip_id)?;
-                    Some(ClipPlacement {
-                        clip_id: item.clip_id,
+                    self.project.clip(item.clip_id)?;
+                    Some((
+                        item.clip_id,
                         track_id,
-                        start: item.original_timeline_start + timeline_delta,
-                        duration: clip.duration(),
-                    })
+                        item.original_timeline_start + timeline_delta,
+                    ))
                 })
                 .collect::<Vec<_>>()
         };
@@ -420,15 +410,16 @@ impl Editor {
         let invalid_reason = if placements.len() != items.len() {
             Some("Destination track is unavailable")
         } else {
-            self.clip_placement_error(&placements, &self.selected_clip_ids)
+            self.validate_clip_move_placements(&placements, &self.selected_clip_ids)
+                .err()
+                .map(ClipPlacementRejection::message)
         };
-        let moved_from_origin = placements.iter().any(|placement| {
+        let moved_from_origin = placements.iter().any(|(clip_id, track_id, start)| {
             items
                 .iter()
-                .find(|item| item.clip_id == placement.clip_id)
+                .find(|item| item.clip_id == *clip_id)
                 .is_some_and(|item| {
-                    placement.start != item.original_timeline_start
-                        || placement.track_id != item.original_track_id
+                    *start != item.original_timeline_start || *track_id != item.original_track_id
                 })
         });
         if let Some(drag) = &mut self.clip_move_drag {
@@ -452,10 +443,10 @@ impl Editor {
         self.snap_guide = None;
         if drag.changed && drag.invalid_reason.is_none() {
             self.checkpoint();
-            for placement in drag.placements {
-                if let Some(clip) = self.project.clip_mut(placement.clip_id) {
-                    clip.timeline_start = placement.start;
-                    clip.track_id = placement.track_id;
+            for (clip_id, track_id, start) in drag.placements {
+                if let Some(clip) = self.project.clip_mut(clip_id) {
+                    clip.timeline_start = start;
+                    clip.track_id = track_id;
                 }
             }
             self.save_project();

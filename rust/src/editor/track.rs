@@ -115,9 +115,9 @@ impl Editor {
             .map(|drag| {
                 drag.placements
                     .iter()
-                    .filter(|placement| placement.track_id == track.id)
-                    .map(|placement| {
-                        self.timeline_clip_move_preview(placement, drag.invalid_reason)
+                    .filter(|(_, track_id, _)| *track_id == track.id)
+                    .map(|(clip_id, _, start)| {
+                        self.timeline_clip_move_preview(*clip_id, *start, drag.invalid_reason)
                     })
                     .collect::<Vec<_>>()
             })
@@ -286,24 +286,28 @@ impl Editor {
 
     fn timeline_clip_move_preview(
         &self,
-        placement: &ClipPlacement,
+        clip_id: u64,
+        start: TimelineTime,
         invalid_reason: Option<&'static str>,
     ) -> gpui::AnyElement {
         let name = self
             .project
-            .clip(placement.clip_id)
+            .clip(clip_id)
             .and_then(|clip| self.project.asset(clip.asset_id))
             .map(|asset| asset.name.clone())
             .unwrap_or_else(|| "Missing media".to_string());
-        let left = TIMELINE_PADDING
-            + self.project.seconds(placement.start) as f32 * self.pixels_per_second;
-        let width =
-            (self.project.seconds(placement.duration) as f32 * self.pixels_per_second).max(4.0);
+        let left = TIMELINE_PADDING + self.project.seconds(start) as f32 * self.pixels_per_second;
+        let duration = self
+            .project
+            .clip(clip_id)
+            .map(TimelineClip::duration)
+            .unwrap_or(TimelineTime::ZERO);
+        let width = (self.project.seconds(duration) as f32 * self.pixels_per_second).max(4.0);
         let valid = invalid_reason.is_none();
         let feedback_color = if valid { ACCENT } else { ERROR };
 
         div()
-            .id(("timeline-clip-move-preview", placement.clip_id))
+            .id(("timeline-clip-move-preview", clip_id))
             .absolute()
             .left(px(left))
             .top(px(5.0))

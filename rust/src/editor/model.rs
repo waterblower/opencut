@@ -401,13 +401,6 @@ pub(super) struct TimelineTrack {
     pub visible: bool,
 }
 
-pub fn asset_is_compatible_with_track(asset: &MediaAsset, track: &TimelineTrack) -> bool {
-    match track.kind {
-        TrackKind::Video => asset.kind != MediaKind::Audio,
-        TrackKind::Audio => asset.has_audio,
-    }
-}
-
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub(super) struct Project {
     pub version: u32,
