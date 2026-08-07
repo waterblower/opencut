@@ -34,9 +34,6 @@
 
 #### Deduplicate editor domain logic
 
-- [ ] Add a single `TimelineClip::source_time_at` calculation and use it for
-      source-frame lookup, audio positioning, preview synchronization, and any
-      later export timing instead of recomputing clip-local source time.
 - [ ] Extract one pure clip-splitting operation that preserves source ranges and
       clip properties. Keep checkpointing, multi-clip batching, selection, and UI
       feedback in the existing editing commands.

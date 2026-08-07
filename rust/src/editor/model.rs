@@ -341,6 +341,12 @@ impl TimelineClip {
         self.timeline_start + self.duration()
     }
 
+    pub fn source_time_at(&self, timeline_position: TimelineTime) -> TimelineTime {
+        let local =
+            (timeline_position - self.timeline_start).clamp(TimelineTime::ZERO, self.duration());
+        (self.source_in + local).min(self.source_out)
+    }
+
     pub fn contains(&self, time: TimelineTime) -> bool {
         time >= self.timeline_start && time < self.timeline_end()
     }
@@ -562,9 +568,7 @@ impl Project {
     ) -> Option<i64> {
         let asset = self.asset(clip.asset_id)?;
         let source_rate = asset.frame_rate()?;
-        let local =
-            (timeline_position - clip.timeline_start).clamp(TimelineTime::ZERO, clip.duration());
-        let source_time = (clip.source_in + local).min(clip.source_out);
+        let source_time = clip.source_time_at(timeline_position);
         Some(
             self.settings
                 .frame_rate
@@ -588,9 +592,7 @@ impl Project {
         ) {
             return source_rate.duration(TimelineTime::from_frames(source_frame));
         }
-        let local =
-            (timeline_position - clip.timeline_start).clamp(TimelineTime::ZERO, clip.duration());
-        self.audio_duration((clip.source_in + local).min(clip.source_out))
+        self.audio_duration(clip.source_time_at(timeline_position))
     }
 
     pub fn source_start_seconds(&self, clip: &TimelineClip) -> f64 {
@@ -955,6 +957,19 @@ mod tests {
         assert!(first.is_continuous_with(&second));
         second.source_in = frames(121);
         assert!(!first.is_continuous_with(&second));
+    }
+
+    #[test]
+    fn clip_source_time_clamps_to_its_source_range() {
+        let mut clip = video_clip(10, 100, 60);
+        clip.source_in = frames(30);
+        clip.source_out = frames(90);
+
+        assert_eq!(clip.source_time_at(frames(50)), frames(30));
+        assert_eq!(clip.source_time_at(frames(100)), frames(30));
+        assert_eq!(clip.source_time_at(frames(125)), frames(55));
+        assert_eq!(clip.source_time_at(frames(160)), frames(90));
+        assert_eq!(clip.source_time_at(frames(200)), frames(90));
     }
 
     #[test]
