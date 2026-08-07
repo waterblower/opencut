@@ -1129,21 +1129,9 @@ fn explorer_metadata(entry: &FileTreeEntry, asset: Option<&MediaAsset>) -> Optio
         && asset.duration.is_finite()
         && asset.duration > 0.0
     {
-        return Some(format_explorer_duration(asset.duration));
+        return Some(format_time(asset.duration, true));
     }
     entry.size_bytes.map(format_file_size)
-}
-
-fn format_explorer_duration(seconds: f64) -> String {
-    let total = seconds.round().max(0.0) as u64;
-    let hours = total / 3600;
-    let minutes = (total % 3600) / 60;
-    let seconds = total % 60;
-    if hours > 0 {
-        format!("{hours}:{minutes:02}:{seconds:02}")
-    } else {
-        format!("{minutes:02}:{seconds:02}")
-    }
 }
 
 fn format_file_size(bytes: u64) -> String {
