@@ -71,8 +71,8 @@ Current editor capabilities:
   trackpad pinch), vertical track scrolling, frame ticks at high zoom, frame
   stepping, a draggable playhead, and optional snapping with visible guides for
   the playhead and clip edges.
-- First-frame thumbnails and multiresolution waveform peak caches are generated
-  in the background. Each clip renders only its selected source range.
+- Multiresolution waveform peak caches are generated in the background. Each
+  clip renders only its selected source range.
 - Undo/redo, clip metadata, fullscreen preview, and a docked GPUI element
   inspector with render FPS are available in the editor UI.
 - The timeline model stores default video transform properties (position, scale,
@@ -113,9 +113,9 @@ paths are relative to the project folder, so timelines and source media can be
 moved, backed up, or committed together. The last opened folder and active
 timeline are stored locally in `data/editor-settings.json`.
 
-Disposable thumbnails and multiresolution `.ocwf` waveform peak caches are stored in
-`<project folder>/.opencut/cache`; its generated `.gitignore` keeps the cache
-out of version control. Source media is referenced in place and never rewritten.
+Disposable multiresolution `.ocwf` waveform peak caches are stored in `<project
+folder>/.opencut/cache`; its generated `.gitignore` keeps the cache out of
+version control. Source media is referenced in place and never rewritten.
 
 ## Development
 
