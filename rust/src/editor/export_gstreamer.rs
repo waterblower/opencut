@@ -486,7 +486,7 @@ mod tests {
 
     #[test]
     fn video_track_exports_visible_video_and_unmuted_audio() {
-        let project = Project::default();
+        let project = Project::with_test_tracks();
         let track = project
             .tracks
             .iter()
@@ -509,7 +509,7 @@ mod tests {
 
     #[test]
     fn hidden_video_track_can_still_export_audio() {
-        let mut project = Project::default();
+        let mut project = Project::with_test_tracks();
         let track = project
             .tracks
             .iter_mut()
@@ -585,7 +585,7 @@ mod tests {
         let _gstreamer_test = crate::editor::lock_gstreamer_test();
         ges::init().unwrap();
         let project_root = Path::new(env!("CARGO_MANIFEST_DIR"));
-        let mut project = Project::default();
+        let mut project = Project::with_test_tracks();
         let video_track = project
             .tracks
             .iter()
@@ -695,7 +695,7 @@ mod tests {
     fn exports_real_media_with_audio() {
         let _gstreamer_test = crate::editor::lock_gstreamer_test();
         let project_root = Path::new(env!("CARGO_MANIFEST_DIR"));
-        let mut project = Project::default();
+        let mut project = Project::with_test_tracks();
         project.settings.width = 320;
         project.settings.height = 180;
         let video_track = project
@@ -762,7 +762,7 @@ mod tests {
         )
         .unwrap();
 
-        let mut project = Project::default();
+        let mut project = Project::with_test_tracks();
         project.settings.width = 64;
         project.settings.height = 64;
         let video_track = project

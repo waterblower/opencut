@@ -34,9 +34,6 @@
 
 #### Deduplicate editor domain logic
 
-- [ ] Centralize timeline-track construction, including default state, numbering,
-      and generated Video/Audio names, and use it for initial and newly added
-      tracks.
 - [ ] Add a single `TimelineClip::source_time_at` calculation and use it for
       source-frame lookup, audio positioning, preview synchronization, and any
       later export timing instead of recomputing clip-local source time.

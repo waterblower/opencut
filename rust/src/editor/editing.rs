@@ -50,53 +50,32 @@ impl ClipClipboard {
 
 impl Editor {
     pub(super) fn append_asset_clip(&mut self, asset_id: u64) {
+        let Some(asset) = self.project.asset(asset_id).cloned() else {
+            return;
+        };
+        let track_id = match self.find_append_track_for_asset(&asset) {
+            Ok(track_id) => track_id,
+            Err(error) => {
+                self.status = None;
+                self.error = Some(error);
+                return;
+            }
+        };
         self.checkpoint();
-        self.append_asset_clip_without_checkpoint(asset_id);
+        self.append_asset_clip_without_checkpoint(asset_id, track_id, asset.duration);
         self.save_project();
     }
 
-    pub(super) fn append_asset_clip_without_checkpoint(&mut self, asset_id: u64) {
-        let Some(duration) = self.project.asset(asset_id).map(|asset| asset.duration) else {
-            return;
-        };
-        let target_kind = if self
-            .project
-            .asset(asset_id)
-            .is_some_and(|asset| asset.kind == MediaKind::Audio)
-        {
-            TrackKind::Audio
-        } else {
-            TrackKind::Video
-        };
-        let track_id = self
-            .project
-            .tracks
-            .iter()
-            .find(|track| track.kind == target_kind && !track.locked)
-            .map(|track| track.id)
-            .unwrap_or_else(|| {
-                let id = self.take_id();
-                let number = self
-                    .project
-                    .tracks
-                    .iter()
-                    .filter(|track| track.kind == target_kind)
-                    .count()
-                    + 1;
-                let prefix = match target_kind {
-                    TrackKind::Video => "Video",
-                    TrackKind::Audio => "Audio",
-                };
-                self.project.tracks.push(TimelineTrack {
-                    id,
-                    name: format!("{prefix} {number}"),
-                    kind: target_kind,
-                    locked: false,
-                    muted: false,
-                    visible: true,
-                });
-                id
-            });
+    pub(super) fn find_append_track_for_asset(&self, asset: &MediaAsset) -> Result<u64, String> {
+        find_append_track(&self.project, asset)
+    }
+
+    pub(super) fn append_asset_clip_without_checkpoint(
+        &mut self,
+        asset_id: u64,
+        track_id: u64,
+        duration: f64,
+    ) {
         let id = self.take_id();
         self.project.clips.push(TimelineClip {
             id,
@@ -661,6 +640,26 @@ impl Editor {
     }
 }
 
+fn find_append_track(project: &Project, asset: &MediaAsset) -> Result<u64, String> {
+    let target_kind = if asset.kind == MediaKind::Audio {
+        TrackKind::Audio
+    } else {
+        TrackKind::Video
+    };
+    project
+        .tracks
+        .iter()
+        .find(|track| track.kind == target_kind && !track.locked)
+        .map(|track| track.id)
+        .ok_or_else(|| {
+            let kind = match target_kind {
+                TrackKind::Video => "video",
+                TrackKind::Audio => "audio",
+            };
+            format!("Add an unlocked {kind} track before adding media to the timeline.")
+        })
+}
+
 fn ripple_clips_after_deletion(clips: &mut [TimelineClip], deleted_ids: &HashSet<u64>) {
     let deleted = clips
         .iter()
@@ -792,8 +791,19 @@ mod tests {
     }
 
     #[test]
+    fn appending_media_requires_a_manually_created_track() {
+        let project = Project::default();
+
+        assert_eq!(
+            find_append_track(&project, &audio_asset(100)).unwrap_err(),
+            "Add an unlocked audio track before adding media to the timeline."
+        );
+        assert!(project.tracks.is_empty());
+    }
+
+    #[test]
     fn clipboard_preserves_relative_timing_tracks_and_primary_selection() {
-        let mut project = Project::default();
+        let mut project = Project::with_test_tracks();
         project.assets.push(audio_asset(100));
         project.clips = vec![audio_clip(10, 20, 8), audio_clip(11, 40, 12)];
         let selected = HashSet::from([10, 11]);
@@ -809,7 +819,7 @@ mod tests {
 
     #[test]
     fn clipboard_paste_rejects_the_complete_selection_on_collision() {
-        let mut project = Project::default();
+        let mut project = Project::with_test_tracks();
         project.assets.push(audio_asset(100));
         project.clips = vec![audio_clip(20, 105, 10)];
         let candidates = vec![audio_clip(10, 100, 8), audio_clip(11, 120, 12)];
@@ -840,7 +850,7 @@ mod tests {
 
     #[test]
     fn blade_targets_unselected_clips_crossing_the_playhead() {
-        let mut project = Project::default();
+        let mut project = Project::with_test_tracks();
         project.assets.push(audio_asset(100));
         project.clips = vec![audio_clip(10, 0, 20), audio_clip(11, 30, 20)];
 
