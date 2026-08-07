@@ -1,16 +1,12 @@
-use super::model::{MediaAsset, MediaKind};
+use super::model::MediaAsset;
 use ffmpeg::{
     channel_layout::ChannelLayout,
     codec, format, frame,
     media::Type,
-    software::{
-        resampling::Context as ResamplingContext,
-        scaling::{context::Context as ScalingContext, flag::Flags as ScalingFlags},
-    },
-    util::format::{Pixel, Sample, sample::Type as SampleType},
+    software::resampling::Context as ResamplingContext,
+    util::format::{Sample, sample::Type as SampleType},
 };
 use ffmpeg_next as ffmpeg;
-use image::RgbImage;
 use std::{
     fs::{self, File},
     io::{BufReader, BufWriter, Read, Seek, SeekFrom, Write},
@@ -19,7 +15,6 @@ use std::{
     time::UNIX_EPOCH,
 };
 
-const THUMBNAIL_WIDTH: u32 = 480;
 const WAVEFORM_MAGIC: [u8; 4] = *b"OCWF";
 const WAVEFORM_VERSION: u32 = 1;
 const WAVEFORM_HEADER_SIZE: u64 = 40;
@@ -114,13 +109,6 @@ struct WaveformHeader {
     total_samples: u64,
 }
 
-pub(super) fn thumbnail_path(project_root: &Path, asset: &MediaAsset) -> PathBuf {
-    cache_directory(project_root).join(format!(
-        "media-{:016x}-thumbnail.png",
-        media_key(&asset.path)
-    ))
-}
-
 pub(super) fn waveform_path(project_root: &Path, asset: &MediaAsset) -> PathBuf {
     cache_directory(project_root).join(format!(
         "media-{:016x}-waveform.ocwf",
@@ -140,12 +128,8 @@ fn media_key(path: &Path) -> u64 {
 }
 
 pub(super) fn cache_is_ready(project_root: &Path, asset: &MediaAsset) -> bool {
-    let thumbnail_ready =
-        asset.kind != MediaKind::Video || thumbnail_path(project_root, asset).is_file();
     let source = project_root.join(&asset.path);
-    let waveform_ready =
-        !asset.has_audio || waveform_cache_is_valid(&source, &waveform_path(project_root, asset));
-    thumbnail_ready && waveform_ready
+    !asset.has_audio || waveform_cache_is_valid(&source, &waveform_path(project_root, asset))
 }
 
 pub(super) fn prepare(
@@ -163,9 +147,6 @@ pub(super) fn prepare(
     }
     let source = project_root.join(&asset.path);
 
-    if asset.kind == MediaKind::Video && !thumbnail_path(project_root, asset).is_file() {
-        generate_thumbnail(&source, &thumbnail_path(project_root, asset))?;
-    }
     if !asset.has_audio {
         return Ok(None);
     }
@@ -181,85 +162,6 @@ pub(super) fn prepare(
             load_waveform_file(&source, &waveform).map(Some)
         }
     }
-}
-
-fn generate_thumbnail(source: &Path, output: &Path) -> Result<(), String> {
-    let mut input = format::input(source)
-        .map_err(|error| format!("could not open {}: {error}", source.display()))?;
-    let stream = input
-        .streams()
-        .best(Type::Video)
-        .ok_or_else(|| format!("{} has no video stream", source.display()))?;
-    let stream_index = stream.index();
-    let mut decoder = codec::context::Context::from_parameters(stream.parameters())
-        .and_then(|context| context.decoder().video())
-        .map_err(|error| format!("could not create video decoder: {error}"))?;
-    let height = ((decoder.height() as f64 * THUMBNAIL_WIDTH as f64 / decoder.width() as f64)
-        .round() as u32)
-        .max(1);
-    let mut scaler = ScalingContext::get(
-        decoder.format(),
-        decoder.width(),
-        decoder.height(),
-        Pixel::RGB24,
-        THUMBNAIL_WIDTH,
-        height,
-        ScalingFlags::BILINEAR,
-    )
-    .map_err(|error| format!("could not create thumbnail scaler: {error}"))?;
-
-    for (packet_stream, packet) in input.packets() {
-        if packet_stream.index() != stream_index {
-            continue;
-        }
-        decoder
-            .send_packet(&packet)
-            .map_err(|error| format!("could not decode thumbnail packet: {error}"))?;
-        if let Some(image) = receive_thumbnail(&mut decoder, &mut scaler)? {
-            return image
-                .save(output)
-                .map_err(|error| format!("could not write {}: {error}", output.display()));
-        }
-    }
-    let _ = decoder.send_eof();
-    if let Some(image) = receive_thumbnail(&mut decoder, &mut scaler)? {
-        image
-            .save(output)
-            .map_err(|error| format!("could not write {}: {error}", output.display()))
-    } else {
-        Err(format!(
-            "could not decode a frame from {}",
-            source.display()
-        ))
-    }
-}
-
-fn receive_thumbnail(
-    decoder: &mut ffmpeg::decoder::Video,
-    scaler: &mut ScalingContext,
-) -> Result<Option<RgbImage>, String> {
-    let mut decoded = frame::Video::empty();
-    if decoder.receive_frame(&mut decoded).is_err() {
-        return Ok(None);
-    }
-    let mut rgb = frame::Video::empty();
-    scaler
-        .run(&decoded, &mut rgb)
-        .map_err(|error| format!("could not scale thumbnail: {error}"))?;
-    let row_bytes = rgb.width() as usize * 3;
-    let mut pixels = Vec::with_capacity(row_bytes * rgb.height() as usize);
-    for row in 0..rgb.height() as usize {
-        let start = row * rgb.stride(0);
-        let end = start + row_bytes;
-        pixels.extend_from_slice(
-            rgb.data(0)
-                .get(start..end)
-                .ok_or_else(|| "thumbnail frame has an invalid stride".to_string())?,
-        );
-    }
-    RgbImage::from_raw(rgb.width(), rgb.height(), pixels)
-        .map(Some)
-        .ok_or_else(|| "could not construct thumbnail image".to_string())
 }
 
 fn generate_waveform(source: &Path, output: &Path) -> Result<(), String> {
@@ -662,11 +564,10 @@ mod tests {
     use std::time::{SystemTime, UNIX_EPOCH};
 
     #[test]
-    fn generates_thumbnail_and_waveform_without_a_subprocess() {
+    fn generates_waveform_without_a_subprocess() {
         ffmpeg::init().unwrap();
         let assets =
             PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("vendor/gpui-video-player/assets");
-        let video_source = assets.join("test1.mp4");
         let audio_source = [assets.join("test1.mp4"), assets.join("test3.mp4")]
             .into_iter()
             .find(|path| {
@@ -681,15 +582,11 @@ mod tests {
             .as_nanos();
         let directory = std::env::temp_dir().join(format!("opencut-media-cache-{unique}"));
         fs::create_dir_all(&directory).unwrap();
-        let thumbnail = directory.join("thumbnail.png");
         let waveform = directory.join("waveform.ocwf");
 
-        generate_thumbnail(&video_source, &thumbnail).unwrap();
         generate_waveform(&audio_source, &waveform).unwrap();
 
-        let thumbnail_image = image::open(&thumbnail).unwrap();
         let waveform_data = load_waveform_file(&audio_source, &waveform).unwrap();
-        assert_eq!(thumbnail_image.width(), THUMBNAIL_WIDTH);
         assert!(waveform_data.sample_rate > 0);
         assert!(waveform_data.total_samples > 0);
         assert!(waveform_data.levels.len() > 1);
