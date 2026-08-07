@@ -43,7 +43,6 @@ pub(super) struct ExportOptions {
 }
 
 impl ExportOptions {
-    #[cfg(test)]
     pub fn from_project(project: &Project) -> Self {
         Self {
             width: project.settings.width,

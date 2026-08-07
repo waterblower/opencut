@@ -258,6 +258,7 @@ impl Editor {
                 }
             }
         }
+        self.timeline_preview_needs_rebuild = true;
         self.expanded_directories = self
             .expanded_directories
             .iter()

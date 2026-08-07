@@ -4,9 +4,9 @@
 
 ### P0 — UI responsiveness and resource safety
 
-- [ ] Move `AudioPreview` construction and GStreamer preroll off the UI thread.
-      Deduplicate pending loads and discard a completed load when its clip is no
-      longer requested.
+- [ ] Move GES timeline construction, source discovery, and preview preroll off
+      the UI thread. Coalesce edits into one pending rebuild and discard a
+      completed graph when its project snapshot is no longer current.
 - [ ] Replace history thumbnail `std::thread::spawn` calls with a bounded worker
       queue. Track in-flight paths so the same video cannot start two jobs, and
       give each job an exclusive temporary output path.
@@ -28,10 +28,6 @@
 
 ### P2 — cleanup
 
-- [ ] Remove unreachable missing-asset and image branches from
-      `load_timeline_position`, or change `visual_clip_at_time` so those cases are
-      intentionally returned and handled there.
-
 #### Deduplicate editor domain logic
 
 - [ ] Define video-property normalization once on `VideoClipProperties` and use
@@ -45,8 +41,8 @@
       add-to-timeline actions. Share cached results and one in-flight path set,
       reject results from stale projects, and let each caller handle the
       completed asset without launching a duplicate probe.
-- [ ] Add one narrowly scoped timeline-playback pause operation that pauses the
-      video and audio pipelines and clears shared playback timing state. Use it
+- [ ] Add one narrowly scoped timeline-playback pause operation for the GES
+      preview pipeline and standalone file previews. Use it
       when moving or trimming clips, scrubbing, changing project settings, and
       switching preview targets without combining unrelated UI reset behavior.
 
@@ -68,12 +64,7 @@ release path.
 
 ### P1 — main-thread scheduling
 
-- [ ] Complete the P0 `AudioPreview` background-preroll task above; timeline
-      playback currently constructs a pipeline and can wait up to two seconds
-      from the main-thread update path.
-- [ ] Stop querying every active GStreamer audio pipeline position every 33 ms.
-      Use a master playback clock and throttle drift checks or react to pipeline
-      timing messages. Cache standalone audio duration instead of querying it
+- [ ] Cache standalone audio duration instead of querying its GStreamer pipeline
       again while rendering the properties panel.
 - [ ] Move periodic file-tree scanning off the UI thread or replace it with a
       filesystem watcher plus a background fallback scan for the project root

@@ -302,9 +302,8 @@ impl Editor {
         if let Some(video) = &self.video {
             video.set_paused(true);
         }
-        self.pause_audio_previews();
         self.playing = false;
-        self.still_playback_started = None;
+        self.timeline_playback_clock = None;
         self.snap_guide = None;
         self.clip_move_drag = Some(ClipMoveDrag {
             anchor_clip_id: clip_id,
@@ -535,9 +534,8 @@ impl Editor {
         if let Some(video) = &self.video {
             video.set_paused(true);
         }
-        self.pause_audio_previews();
-        self.still_playback_started = None;
         self.playing = false;
+        self.timeline_playback_clock = None;
         self.select_only_clip(Some(clip_id));
         self.snap_guide = None;
         self.trim_drag = Some(TrimDrag {
@@ -726,9 +724,8 @@ impl Editor {
         if let Some(video) = &self.video {
             video.set_paused(true);
         }
-        self.pause_audio_previews();
         self.playing = false;
-        self.still_playback_started = None;
+        self.timeline_playback_clock = None;
         let position = self.timeline_position_from_x(event.position.x.into());
         self.last_playhead_scrub_seek = Some(Instant::now());
         self.load_timeline_position_for_scrub(position, false, false);

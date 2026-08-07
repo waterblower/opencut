@@ -103,7 +103,7 @@ fn export_project_with_encoder(
     result
 }
 
-fn build_timeline(
+pub(super) fn build_timeline(
     project: &Project,
     project_root: &Path,
     options: ExportOptions,

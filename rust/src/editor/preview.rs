@@ -1,6 +1,4 @@
-use super::clip_render_plan::{resolve_audio_clip_render_plan, resolve_visual_clip_render_plan};
-use super::preview_transform::{transformed_image, transformed_video};
-use super::timeline_video::create_timeline_video;
+use super::timeline_video::{create_timeline_video, set_timeline_audio};
 use super::*;
 use crate::playback_view::{CONTROL_HEIGHT, PlaybackViewProps, playback_view};
 use crate::video_backend::{VideoOptions, video};
@@ -45,41 +43,12 @@ impl Editor {
         cx: &mut Context<Self>,
     ) -> gpui::AnyElement {
         let surface_height = (height - CONTROL_HEIGHT).max(1.0);
-        let base_clip = self.project.visual_clip_at_time(self.playhead);
-        let base_track_index = base_clip
-            .and_then(|clip| {
-                self.project
-                    .tracks
-                    .iter()
-                    .position(|track| track.id == clip.track_id)
-            })
-            .unwrap_or(self.project.tracks.len());
-        let visual_overlays = self.project.tracks[..base_track_index]
-            .iter()
-            .rev()
-            .filter(|track| track.visible)
-            .flat_map(|track| {
-                self.project
-                    .clips_on_track(track.id)
-                    .filter(|clip| clip.contains(self.playhead))
-                    .filter_map(|clip| {
-                        let asset = self.project.asset(clip.asset_id)?;
-                        (asset.kind == MediaKind::Image).then(|| {
-                            self.timeline_image_layer(
-                                clip,
-                                self.project_root.join(&asset.path),
-                                width,
-                                surface_height,
-                            )
-                        })
-                    })
-            })
-            .collect::<Vec<_>>();
-        let has_visual_overlays = !visual_overlays.is_empty();
-        let media = if let (Some(clip), Some(video_handle)) = (base_clip, self.video.as_ref()) {
-            self.timeline_video_layer(clip, video_handle, width, surface_height)
-        } else if has_visual_overlays {
-            div().size_full().into_any_element()
+        let media = if let Some(video_handle) = self.video.as_ref() {
+            video(video_handle.clone())
+                .id("editor-timeline-video")
+                .size(px(width), px(surface_height))
+                .buffer_capacity(3)
+                .into_any_element()
         } else {
             div()
                 .size_full()
@@ -101,7 +70,6 @@ impl Editor {
             .overflow_hidden()
             .bg(rgb(0x000000))
             .child(media)
-            .children(visual_overlays)
             .into_any_element();
         let reported_position = self.project.duration(self.playhead);
         let duration = self.project.duration(self.project.timeline_duration());
@@ -117,101 +85,6 @@ impl Editor {
             content,
             cx,
         )
-    }
-
-    fn timeline_video_layer(
-        &self,
-        clip: &TimelineClip,
-        video_handle: &Video,
-        width: f32,
-        height: f32,
-    ) -> gpui::AnyElement {
-        let Some(asset) = self.project.asset(clip.asset_id) else {
-            return div().into_any_element();
-        };
-        let plan = resolve_visual_clip_render_plan(
-            clip.video_properties,
-            asset.width,
-            asset.height,
-            self.project.settings.width,
-            self.project.settings.height,
-            width as f64,
-            height as f64,
-        );
-        if plan.requires_rasterization() {
-            return transformed_video(
-                clip.id,
-                self.project_root.join(&asset.path),
-                video_handle.clone(),
-                plan.properties,
-                self.project.settings.width,
-                self.project.settings.height,
-                width,
-                height,
-            )
-            .into_any_element();
-        }
-
-        let rect = plan.uncropped;
-        div()
-            .id(("editor-timeline-video-layer", clip.id))
-            .absolute()
-            .left(px(rect.left as f32))
-            .top(px(rect.top as f32))
-            .w(px(rect.width as f32))
-            .h(px(rect.height as f32))
-            .child(
-                video(video_handle.clone())
-                    .id(("editor-preview-video", clip.id))
-                    .size(px(rect.width as f32), px(rect.height as f32))
-                    .buffer_capacity(3),
-            )
-            .into_any_element()
-    }
-
-    fn timeline_image_layer(
-        &self,
-        clip: &TimelineClip,
-        path: PathBuf,
-        width: f32,
-        height: f32,
-    ) -> gpui::AnyElement {
-        let Some(asset) = self.project.asset(clip.asset_id) else {
-            return div().into_any_element();
-        };
-        let plan = resolve_visual_clip_render_plan(
-            clip.video_properties,
-            asset.width,
-            asset.height,
-            self.project.settings.width,
-            self.project.settings.height,
-            width as f64,
-            height as f64,
-        );
-        if plan.requires_rasterization() {
-            return transformed_image(
-                clip.id,
-                path,
-                plan.properties,
-                self.project.settings.width,
-                self.project.settings.height,
-                width,
-                height,
-            )
-            .into_any_element();
-        }
-
-        let rect = plan.uncropped;
-        div()
-            .id(("editor-timeline-image-layer", clip.id))
-            .absolute()
-            .left(px(rect.left as f32))
-            .top(px(rect.top as f32))
-            .w(px(rect.width as f32))
-            .h(px(rect.height as f32))
-            .opacity(plan.opacity as f32)
-            .child(img(path).size_full().object_fit(ObjectFit::Contain))
-            .into_any_element()
     }
 
     fn video_file_preview(
@@ -419,57 +292,39 @@ impl Editor {
 
     pub(super) fn update_playback(&mut self) {
         if !self.playing {
+            self.timeline_playback_clock = None;
             return;
         }
-        let Some(started) = self.still_playback_started else {
+        let Some(video) = self.video.as_ref() else {
             self.playing = false;
-            self.pause_audio_previews();
+            self.timeline_playback_clock = None;
             return;
         };
-        self.playhead = self.still_playback_origin + self.project.floor_duration(started.elapsed());
         let duration = self.project.timeline_duration();
-        if self.playhead >= duration {
-            if let Some(video) = &self.video {
-                video.set_paused(true);
-            }
-            self.pause_audio_previews();
+        let (origin, started_at) = *self
+            .timeline_playback_clock
+            .get_or_insert((self.playhead, Instant::now()));
+        self.playhead = timeline_playhead_from_elapsed(&self.project, origin, started_at.elapsed())
+            .clamp(TimelineTime::ZERO, duration);
+        if video.eos() || self.playhead >= duration {
+            video.set_paused(true);
             self.playhead = duration;
             self.playing = false;
-            self.still_playback_started = None;
-            return;
+            self.timeline_playback_clock = None;
         }
-
-        let desired_clip_id = self
-            .project
-            .visual_clip_at_time(self.playhead)
-            .map(|clip| clip.id);
-        if desired_clip_id != self.loaded_clip_id {
-            self.load_timeline_position(self.playhead, true);
-            return;
-        }
-
-        if let (Some(clip_id), Some(video)) = (self.loaded_clip_id, self.video.as_ref())
-            && let Some(clip) = self.project.clip(clip_id)
-        {
-            let expected = self.project.source_position_at(clip, self.playhead);
-            if video.position().abs_diff(expected) > Duration::from_millis(250) {
-                let _ = video.seek(expected, false);
-            }
-        }
-        self.sync_audio_previews(self.playhead, true);
     }
 
     pub(super) fn load_timeline_position(&mut self, position: TimelineTime, play: bool) {
-        self.load_timeline_position_with_options(position, play, true, true);
+        self.load_timeline_position_with_options(position, play, true);
     }
 
     pub(super) fn load_timeline_position_for_scrub(
         &mut self,
         position: TimelineTime,
         accurate: bool,
-        synchronize_audio: bool,
+        _synchronize_audio: bool,
     ) {
-        self.load_timeline_position_with_options(position, false, accurate, synchronize_audio);
+        self.load_timeline_position_with_options(position, false, accurate);
     }
 
     fn load_timeline_position_with_options(
@@ -477,200 +332,86 @@ impl Editor {
         position: TimelineTime,
         play: bool,
         accurate: bool,
-        synchronize_audio: bool,
     ) {
+        let was_timeline = self.preview_target == PreviewTarget::Timeline;
         self.standalone_audio = None;
         self.preview_target = PreviewTarget::Timeline;
         self.selected_file = None;
         self.file_context_menu = None;
         let duration = self.project.timeline_duration();
         let position = position.clamp(TimelineTime::ZERO, duration);
-        let clip = self.project.visual_clip_at_time(position).cloned();
-        self.still_playback_origin = position;
-        self.still_playback_started = play.then(Instant::now);
         self.playhead = position;
         self.playing = play;
+        self.timeline_playback_clock = None;
 
-        let Some(clip) = clip else {
+        if self.project.clips.is_empty() {
             if let Some(video) = &self.video {
                 video.set_paused(true);
             }
             self.video = None;
-            self.loaded_clip_id = None;
-            if synchronize_audio {
-                self.sync_audio_previews(position, play);
-            }
+            self.timeline_preview_needs_rebuild = true;
+            self.playing = false;
             self.preview_refresh_ticks = 2;
             return;
-        };
+        }
 
-        let Some(asset) = self.project.asset(clip.asset_id).cloned() else {
-            self.error = Some("The selected clip's source file is missing.".to_string());
-            return;
-        };
-        let source_position = self.project.source_position_at(&clip, position);
-        let loaded_clip = self
-            .loaded_clip_id
-            .and_then(|clip_id| self.project.clip(clip_id));
-        let reuses_loaded_source = self.video.is_some()
-            && loaded_clip.is_some_and(|loaded| loaded.asset_id == clip.asset_id);
-        let seamless_transition =
-            play && loaded_clip.is_some_and(|loaded| loaded.is_continuous_with(&clip));
-
-        if asset.kind == MediaKind::Image {
+        if !was_timeline {
             if let Some(video) = &self.video {
                 video.set_paused(true);
             }
             self.video = None;
-            self.loaded_clip_id = Some(clip.id);
-        } else if !reuses_loaded_source {
-            let source_path = self.project_root.join(&asset.path);
-            let Ok(url) = Url::from_file_path(&source_path) else {
-                self.error = Some(format!("Could not open {}", source_path.display()));
-                return;
-            };
-            let frame_rate = self.project.settings.frame_rate;
+            self.timeline_preview_needs_rebuild = true;
+        }
+
+        if self.video.is_none() || self.timeline_preview_needs_rebuild {
+            if let Some(video) = &self.video {
+                video.set_paused(true);
+            }
+            self.video = None;
             match create_timeline_video(
-                &url,
+                &self.project,
+                &self.project_root,
                 VideoOptions {
                     frame_buffer_capacity: Some(3),
                     looping: Some(false),
                     speed: Some(1.0),
                 },
-                frame_rate.numerator,
-                frame_rate.denominator,
             ) {
                 Ok(video) => {
-                    video.set_volume(self.preview_volume);
+                    set_timeline_audio(
+                        &video,
+                        self.preview_volume,
+                        self.preview_volume <= f64::EPSILON,
+                    );
                     self.video = Some(video);
-                    self.loaded_clip_id = Some(clip.id);
+                    self.timeline_preview_needs_rebuild = false;
                 }
                 Err(error) => {
-                    self.error = Some(format!("Could not preview {}: {error}", asset.name));
+                    self.error = Some(error);
+                    self.playing = false;
                     return;
                 }
             }
         }
-        self.loaded_clip_id = Some(clip.id);
 
-        if asset.kind == MediaKind::Video
-            && let Some(video) = &self.video
-        {
-            if !seamless_transition {
-                let _ = video.seek(source_position, accurate);
-            }
-            let track_muted = self
-                .project
-                .track(clip.track_id)
-                .is_some_and(|track| track.muted);
-            let audio_plan = resolve_audio_clip_render_plan(track_muted, clip.audio_properties);
-            video.set_volume(self.preview_volume * audio_plan.gain_linear);
-            video.set_muted(audio_plan.muted);
+        if let Some(video) = &self.video {
+            let _ = video.seek(self.project.duration(position), accurate);
+            set_timeline_audio(
+                video,
+                self.preview_volume,
+                self.preview_volume <= f64::EPSILON,
+            );
             video.set_paused(!play);
+            if play {
+                self.timeline_playback_clock = Some((position, Instant::now()));
+            }
         }
         self.preview_refresh_ticks = 12;
-        self.selected_asset_id = Some(clip.asset_id);
-        self.error = None;
-        if synchronize_audio {
-            self.sync_audio_previews(position, play);
-        }
-    }
-
-    pub(super) fn sync_audio_previews(&mut self, position: TimelineTime, play: bool) {
-        let loaded_clip_id = self.loaded_clip_id;
-        let desired = self
+        self.selected_asset_id = self
             .project
-            .clips
-            .iter()
-            .filter(|clip| clip.contains(position) && Some(clip.id) != loaded_clip_id)
-            .filter_map(|clip| {
-                let track = self.project.track(clip.track_id)?;
-                let asset = self.project.asset(clip.asset_id)?;
-                if !asset.has_audio {
-                    return None;
-                }
-                let audio_plan = resolve_audio_clip_render_plan(track.muted, clip.audio_properties);
-                if audio_plan.muted {
-                    return None;
-                }
-                let source_position = clip.source_time_at(position);
-                let path = self.project_root.join(&asset.path);
-                let url = Url::from_file_path(path).ok()?;
-                Some((
-                    clip.id,
-                    self.project.audio_duration(source_position),
-                    url,
-                    audio_plan,
-                ))
-            })
-            .collect::<Vec<_>>();
-        let desired_ids = desired
-            .iter()
-            .map(|(clip_id, _, _, _)| *clip_id)
-            .collect::<HashSet<_>>();
-        let mut seamless_transitions = HashSet::new();
-
-        if play {
-            for (next_clip_id, _, _, _) in &desired {
-                if self.audio_previews.contains_key(next_clip_id) {
-                    continue;
-                }
-                let previous_clip_id = self.audio_previews.keys().copied().find(|previous_id| {
-                    let Some(previous) = self.project.clip(*previous_id) else {
-                        return false;
-                    };
-                    let Some(next) = self.project.clip(*next_clip_id) else {
-                        return false;
-                    };
-                    previous.is_continuous_with(next)
-                });
-                let Some(previous_clip_id) = previous_clip_id else {
-                    continue;
-                };
-                let Some(preview) = self.audio_previews.remove(&previous_clip_id) else {
-                    continue;
-                };
-                self.audio_previews.insert(*next_clip_id, preview);
-                seamless_transitions.insert(*next_clip_id);
-            }
-        }
-
-        self.audio_previews
-            .retain(|clip_id, _| desired_ids.contains(clip_id));
-        for (clip_id, source_position, url, audio_plan) in desired {
-            if let std::collections::hash_map::Entry::Vacant(entry) =
-                self.audio_previews.entry(clip_id)
-            {
-                match AudioPreview::new(&url) {
-                    Ok(preview) => {
-                        preview.set_volume(self.preview_volume * audio_plan.gain_linear);
-                        preview.seek(source_position);
-                        preview.set_playing(play);
-                        entry.insert(preview);
-                    }
-                    Err(error) => {
-                        self.error = Some(error);
-                        continue;
-                    }
-                }
-            }
-            if let Some(preview) = self.audio_previews.get(&clip_id) {
-                preview.set_volume(self.preview_volume * audio_plan.gain_linear);
-                let expected = source_position;
-                if !seamless_transitions.contains(&clip_id)
-                    && preview.position().abs_diff(expected) > Duration::from_millis(250)
-                {
-                    preview.seek(expected);
-                }
-                preview.set_playing(play);
-            }
-        }
-    }
-
-    pub(super) fn pause_audio_previews(&self) {
-        for preview in self.audio_previews.values() {
-            preview.set_playing(false);
-        }
+            .visual_clip_at_time(position)
+            .map(|clip| clip.asset_id);
+        self.error = None;
     }
 
     pub(super) fn toggle_playback(&mut self) {
@@ -709,12 +450,12 @@ impl Editor {
             return;
         }
         if self.playing {
+            self.update_playback();
             if let Some(video) = &self.video {
                 video.set_paused(true);
             }
-            self.pause_audio_previews();
-            self.still_playback_started = None;
             self.playing = false;
+            self.timeline_playback_clock = None;
             return;
         }
         let duration = self.project.timeline_duration();
@@ -752,11 +493,8 @@ impl Editor {
             }
             self.video = None;
             self.standalone_audio = None;
-            self.loaded_clip_id = None;
             self.playing = false;
-            self.pause_audio_previews();
-            self.audio_previews.clear();
-            self.still_playback_started = None;
+            self.timeline_playback_clock = None;
             self.preview_volume_open = false;
             self.preview_is_scrubbing = false;
             self.preview_is_adjusting_volume = false;
@@ -871,6 +609,14 @@ impl Editor {
     }
 }
 
+fn timeline_playhead_from_elapsed(
+    project: &Project,
+    origin: TimelineTime,
+    elapsed: Duration,
+) -> TimelineTime {
+    origin + project.floor_duration(elapsed)
+}
+
 impl Editor {
     fn seek_preview_to_fraction(&mut self, fraction: f32, accurate: bool, play: bool) {
         let fraction = fraction.clamp(0.0, 1.0);
@@ -879,7 +625,7 @@ impl Editor {
                 let duration = self.project.timeline_duration().frames();
                 let position =
                     TimelineTime::from_frames((duration as f64 * fraction as f64).round() as i64);
-                self.load_timeline_position_with_options(position, play, accurate, accurate);
+                self.load_timeline_position_with_options(position, play, accurate);
             }
             PreviewTarget::VideoFile(_) => {
                 if let Some(video) = &self.video {
@@ -965,9 +711,8 @@ impl PlaybackViewDelegate for Editor {
                 if let Some(audio) = &self.standalone_audio {
                     audio.set_playing(false);
                 }
-                self.pause_audio_previews();
                 self.playing = false;
-                self.still_playback_started = None;
+                self.timeline_playback_clock = None;
                 self.preview_is_scrubbing = true;
                 self.preview_scrub_fraction = Some(fraction);
                 self.preview_pending_seek_started = None;
@@ -1016,40 +761,19 @@ impl PlaybackViewDelegate for Editor {
         }
         self.preview_volume = volume.clamp(0.0, 1.0);
         if let Some(video) = &self.video {
-            let audio_plan = if self.preview_target == PreviewTarget::Timeline {
-                self.loaded_clip_id
-                    .and_then(|clip_id| self.project.clip(clip_id))
-                    .map(|clip| {
-                        let track_muted = self
-                            .project
-                            .track(clip.track_id)
-                            .is_some_and(|track| track.muted);
-                        resolve_audio_clip_render_plan(track_muted, clip.audio_properties)
-                    })
+            if self.preview_target == PreviewTarget::Timeline {
+                set_timeline_audio(
+                    video,
+                    self.preview_volume,
+                    self.preview_volume <= f64::EPSILON,
+                );
             } else {
-                None
-            };
-            let gain = audio_plan.map_or(1.0, |plan| plan.gain_linear);
-            let muted = audio_plan.is_some_and(|plan| plan.muted);
-            video.set_volume(self.preview_volume * gain);
-            video.set_muted(muted || self.preview_volume <= f64::EPSILON);
+                video.set_volume(self.preview_volume);
+                video.set_muted(self.preview_volume <= f64::EPSILON);
+            }
         }
         if let Some(audio) = &self.standalone_audio {
             audio.set_volume(self.preview_volume);
-        }
-        for (clip_id, preview) in &self.audio_previews {
-            let gain = self
-                .project
-                .clip(*clip_id)
-                .map(|clip| {
-                    let track_muted = self
-                        .project
-                        .track(clip.track_id)
-                        .is_some_and(|track| track.muted);
-                    resolve_audio_clip_render_plan(track_muted, clip.audio_properties).gain_linear
-                })
-                .unwrap_or(1.0);
-            preview.set_volume(self.preview_volume * gain);
         }
         cx.notify();
     }

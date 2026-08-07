@@ -89,7 +89,7 @@ impl Editor {
         });
         self.selected_asset_id = Some(asset_id);
         self.select_only_clip(Some(id));
-        if self.loaded_clip_id.is_none() {
+        if self.video.is_none() {
             self.load_timeline_position(TimelineTime::ZERO, false);
         }
     }
@@ -246,10 +246,9 @@ impl Editor {
         self.preview_target = PreviewTarget::Timeline;
         self.video = None;
         self.standalone_audio = None;
-        self.audio_previews.clear();
-        self.loaded_clip_id = None;
-        self.still_playback_started = None;
+        self.timeline_preview_needs_rebuild = true;
         self.playing = false;
+        self.timeline_playback_clock = None;
         if self.project.clips.is_empty() {
             self.playhead = TimelineTime::ZERO;
         } else {
@@ -377,19 +376,7 @@ impl Editor {
             track.muted = !track.muted;
         }
         self.save_project();
-        let muted = self
-            .project
-            .track(track_id)
-            .is_some_and(|track| track.muted);
-        if self
-            .loaded_clip_id
-            .and_then(|id| self.project.clip(id))
-            .is_some_and(|clip| clip.track_id == track_id)
-            && let Some(video) = &self.video
-        {
-            video.set_muted(muted);
-        }
-        self.sync_audio_previews(self.playhead, self.playing);
+        self.load_timeline_position(self.playhead, self.playing);
     }
 
     pub(super) fn move_track(&mut self, track_id: u64, direction: i8) {
@@ -571,6 +558,7 @@ impl Editor {
             self.undo_stack.remove(0);
         }
         self.redo_stack.clear();
+        self.timeline_preview_needs_rebuild = true;
     }
 
     pub(super) fn undo(&mut self) {
@@ -595,10 +583,9 @@ impl Editor {
         self.preview_target = PreviewTarget::Timeline;
         self.video = None;
         self.standalone_audio = None;
-        self.audio_previews.clear();
-        self.loaded_clip_id = None;
-        self.still_playback_started = None;
+        self.timeline_preview_needs_rebuild = true;
         self.playing = false;
+        self.timeline_playback_clock = None;
         self.playhead = TimelineTime::ZERO;
         self.select_only_clip(self.project.clips.first().map(|clip| clip.id));
         if !self.project.clips.is_empty() {
@@ -611,6 +598,10 @@ impl Editor {
     pub(super) fn save_project(&mut self) {
         if let Err(error) = self.project.save(&self.timeline_file_path()) {
             self.error = Some(format!("Could not autosave timeline: {error}"));
+            return;
+        }
+        if self.timeline_preview_needs_rebuild && self.preview_target == PreviewTarget::Timeline {
+            self.load_timeline_position(self.playhead, self.playing);
         }
     }
 

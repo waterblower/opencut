@@ -1,17 +1,81 @@
 use super::*;
+use crate::editor::model::{
+    AudioClipProperties, MediaAsset, MediaKind, TimelineClip, TimelineTime, VideoClipProperties,
+};
 use std::{path::Path, sync::mpsc, time::Duration};
 
 fn headless_test_pipeline() -> (gst::Pipeline, gst_app::AppSink) {
-    let path =
-        Path::new(env!("CARGO_MANIFEST_DIR")).join("vendor/gpui-video-player/assets/test1.mp4");
-    let url = Url::from_file_path(path).unwrap();
-    let (pipeline, sink) = create_timeline_pipeline(&url, 24, 1).unwrap();
+    ges::init().unwrap();
+    let project_root = Path::new(env!("CARGO_MANIFEST_DIR"));
+    let mut project = Project::with_test_tracks();
+    project.settings.frame_rate = super::super::model::FrameRate::new(24, 1);
+    project.assets.push(MediaAsset {
+        id: 10,
+        kind: MediaKind::Video,
+        path: "vendor/gpui-video-player/assets/test1.mp4".into(),
+        name: "test1".into(),
+        duration: 5.0,
+        width: 320,
+        height: 180,
+        framerate: 30.0,
+        frame_rate_numerator: 30,
+        frame_rate_denominator: 1,
+        codec: "h264".into(),
+        has_audio: true,
+    });
+    project.clips.push(TimelineClip {
+        id: 11,
+        track_id: 1,
+        asset_id: 10,
+        timeline_start: TimelineTime::ZERO,
+        source_in: TimelineTime::ZERO,
+        source_out: TimelineTime::from_frames(12),
+        video_properties: VideoClipProperties::default(),
+        audio_properties: AudioClipProperties::default(),
+    });
+    project.clips.push(TimelineClip {
+        id: 12,
+        track_id: 1,
+        asset_id: 10,
+        timeline_start: TimelineTime::from_frames(12),
+        source_in: TimelineTime::from_frames(48),
+        source_out: TimelineTime::from_frames(60),
+        video_properties: VideoClipProperties::default(),
+        audio_properties: AudioClipProperties::default(),
+    });
     let audio_sink = gst::ElementFactory::make("fakesink")
         .property("sync", false)
         .build()
         .unwrap();
-    pipeline.set_property("audio-sink", &audio_sink);
-    (pipeline, sink)
+    create_timeline_pipeline(&project, project_root, &audio_sink).unwrap()
+}
+
+#[test]
+fn timeline_pipeline_plays_across_a_discontinuous_source_cut() {
+    let _gstreamer_test = crate::editor::lock_gstreamer_test();
+    let (pipeline, sink) = headless_test_pipeline();
+    pipeline.set_state(gst::State::Playing).unwrap();
+
+    let deadline = std::time::Instant::now() + Duration::from_secs(3);
+    let crossed_cut = loop {
+        if let Some(sample) = sink.try_pull_sample(gst::ClockTime::from_mseconds(100))
+            && sample
+                .buffer()
+                .and_then(|buffer| buffer.pts())
+                .is_some_and(|pts| pts >= gst::ClockTime::from_mseconds(600))
+        {
+            break true;
+        }
+        if std::time::Instant::now() >= deadline {
+            break false;
+        }
+    };
+    let _ = pipeline.set_state(gst::State::Null);
+
+    assert!(
+        crossed_cut,
+        "preview did not produce frames after the source cut"
+    );
 }
 
 #[test]
