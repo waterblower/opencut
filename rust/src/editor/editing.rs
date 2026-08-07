@@ -340,9 +340,12 @@ impl Editor {
                     .iter()
                     .filter(|other| other.track_id == placement.track_id)
                 {
-                    if placement.start < other.timeline_end()
-                        && other.timeline_start < placement.start + placement.duration
-                    {
+                    if timeline_ranges_overlap(
+                        placement.start,
+                        placement.start + placement.duration,
+                        other.timeline_start,
+                        other.timeline_end(),
+                    ) {
                         next_delta = next_delta.max(other.timeline_end() - clip.timeline_start);
                     }
                 }
@@ -575,19 +578,26 @@ impl Editor {
         }
 
         for (index, placement) in placements.iter().enumerate() {
-            let end = placement.start + placement.duration;
             if placements[index + 1..].iter().any(|other| {
                 placement.track_id == other.track_id
-                    && placement.start < other.start + other.duration
-                    && other.start < end
+                    && timeline_ranges_overlap(
+                        placement.start,
+                        placement.start + placement.duration,
+                        other.start,
+                        other.start + other.duration,
+                    )
             }) {
                 return Some("Selected clips would overlap each other");
             }
             if self.project.clips.iter().any(|other| {
                 !ignored_clip_ids.contains(&other.id)
                     && placement.track_id == other.track_id
-                    && placement.start < other.timeline_end()
-                    && other.timeline_start < end
+                    && timeline_ranges_overlap(
+                        placement.start,
+                        placement.start + placement.duration,
+                        other.timeline_start,
+                        other.timeline_end(),
+                    )
             }) {
                 return Some("Overlaps another clip");
             }
@@ -727,15 +737,23 @@ fn clipboard_paste_error(project: &Project, clips: &[TimelineClip]) -> Option<&'
     for (index, clip) in clips.iter().enumerate() {
         if clips[index + 1..].iter().any(|other| {
             clip.track_id == other.track_id
-                && clip.timeline_start < other.timeline_end()
-                && other.timeline_start < clip.timeline_end()
+                && timeline_ranges_overlap(
+                    clip.timeline_start,
+                    clip.timeline_end(),
+                    other.timeline_start,
+                    other.timeline_end(),
+                )
         }) {
             return Some("the copied clips would overlap each other");
         }
         if project.clips.iter().any(|other| {
             clip.track_id == other.track_id
-                && clip.timeline_start < other.timeline_end()
-                && other.timeline_start < clip.timeline_end()
+                && timeline_ranges_overlap(
+                    clip.timeline_start,
+                    clip.timeline_end(),
+                    other.timeline_start,
+                    other.timeline_end(),
+                )
         }) {
             return Some("a copied clip would overlap an existing clip");
         }
