@@ -6,7 +6,7 @@ use gpui::{
 use std::{path::PathBuf, time::Duration, time::Instant};
 use url::Url;
 
-use crate::playback_view::{DragPhase, PlaybackViewDelegate};
+use crate::playback_view::{format_duration, DragPhase, PlaybackViewDelegate};
 use crate::video_backend::{Video, VideoOptions, read_video_codec, video};
 
 mod history;
@@ -632,19 +632,6 @@ fn average_bitrate(url: &Url, duration: Duration) -> Option<f64> {
     let path = url.to_file_path().ok()?;
     let bytes = std::fs::metadata(path).ok()?.len();
     Some(bytes as f64 * 8.0 / duration.as_secs_f64())
-}
-
-fn format_duration(duration: Duration) -> String {
-    let total_seconds = duration.as_secs();
-    let hours = total_seconds / 3600;
-    let minutes = (total_seconds % 3600) / 60;
-    let seconds = total_seconds % 60;
-
-    if hours > 0 {
-        format!("{hours}:{minutes:02}:{seconds:02}")
-    } else {
-        format!("{minutes}:{seconds:02}")
-    }
 }
 
 fn format_speed(speed: f64) -> String {
