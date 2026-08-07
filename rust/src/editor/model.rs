@@ -397,8 +397,35 @@ impl Default for Project {
             version: PROJECT_VERSION,
             settings: ProjectSettings::default(),
             assets: Vec::new(),
-            tracks: default_tracks(),
+            tracks: Vec::new(),
             clips: Vec::new(),
+        }
+    }
+}
+
+#[cfg(test)]
+impl Project {
+    pub fn with_test_tracks() -> Self {
+        Self {
+            tracks: vec![
+                TimelineTrack {
+                    id: 1,
+                    name: "Video 1".into(),
+                    kind: TrackKind::Video,
+                    locked: false,
+                    muted: false,
+                    visible: true,
+                },
+                TimelineTrack {
+                    id: 2,
+                    name: "Audio 1".into(),
+                    kind: TrackKind::Audio,
+                    locked: false,
+                    muted: false,
+                    visible: true,
+                },
+            ],
+            ..Self::default()
         }
     }
 }
@@ -618,9 +645,6 @@ impl Project {
         self.settings.width = self.settings.width.max(2);
         self.settings.height = self.settings.height.max(2);
         self.settings.audio_sample_rate = self.settings.audio_sample_rate.max(8_000);
-        if self.tracks.is_empty() {
-            self.tracks = default_tracks();
-        }
         self.clips.retain(|clip| {
             self.tracks.iter().any(|track| track.id == clip.track_id)
                 && self.assets.iter().any(|asset| asset.id == clip.asset_id)
@@ -679,27 +703,6 @@ fn default_visible() -> bool {
 
 fn divide_round(numerator: u128, denominator: u128) -> u128 {
     numerator.saturating_add(denominator / 2) / denominator.max(1)
-}
-
-fn default_tracks() -> Vec<TimelineTrack> {
-    vec![
-        TimelineTrack {
-            id: 1,
-            name: "Video 1".into(),
-            kind: TrackKind::Video,
-            locked: false,
-            muted: false,
-            visible: true,
-        },
-        TimelineTrack {
-            id: 2,
-            name: "Audio 1".into(),
-            kind: TrackKind::Audio,
-            locked: false,
-            muted: false,
-            visible: true,
-        },
-    ]
 }
 
 fn approximate_frame_rate(fps: f64) -> Option<FrameRate> {
@@ -777,6 +780,11 @@ mod tests {
     }
 
     #[test]
+    fn new_projects_have_no_tracks() {
+        assert!(Project::default().tracks.is_empty());
+    }
+
+    #[test]
     fn frame_rate_labels_use_presets_and_format_custom_rates() {
         assert_eq!(FrameRate::new(24_000, 1_001).label(), "23.976 fps");
         assert_eq!(FrameRate::new(15, 1).label(), "15 fps");
@@ -789,7 +797,7 @@ mod tests {
         let mut project = Project {
             assets: vec![video_asset()],
             clips: vec![video_clip(10, 0, 150), video_clip(11, 90, 120)],
-            ..Project::default()
+            ..Project::with_test_tracks()
         };
 
         project.normalize();
@@ -803,7 +811,7 @@ mod tests {
         let mut project = Project {
             assets: vec![image_asset()],
             clips: vec![video_clip(10, 0, 300)],
-            ..Project::default()
+            ..Project::with_test_tracks()
         };
 
         project.normalize();
@@ -817,7 +825,7 @@ mod tests {
         let mut project = Project {
             assets: vec![video_asset()],
             clips: vec![video_clip(10, 0, 1_200)],
-            ..Project::default()
+            ..Project::with_test_tracks()
         };
 
         project.normalize();
@@ -928,7 +936,7 @@ mod tests {
         let mut project = Project {
             assets: vec![video_asset()],
             clips: vec![video_clip(10, 30, 300)],
-            ..Project::default()
+            ..Project::with_test_tracks()
         };
 
         project.set_frame_rate(FrameRate::new(24, 1));

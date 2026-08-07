@@ -34,7 +34,7 @@ pub(super) fn export_mini_fixture(encoder: ExportEncoder, output_name: &str) {
     source_paths.sort();
     assert!(!source_paths.is_empty(), "mini fixture has no videos");
 
-    let mut project = Project::default();
+    let mut project = Project::with_test_tracks();
     // The fixture mixes 480p and 720p inputs. A fixed Full HD output exercises
     // GES source transitions, scaling, encoding, and muxing.
     project.settings.width = 1920;

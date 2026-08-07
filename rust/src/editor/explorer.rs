@@ -880,12 +880,23 @@ impl Editor {
                                 cx.notify();
                                 return;
                             }
+                            let track_id = match editor.find_append_track_for_asset(&asset) {
+                                Ok(track_id) => track_id,
+                                Err(error) => {
+                                    editor.status = None;
+                                    editor.error = Some(error);
+                                    cx.notify();
+                                    return;
+                                }
+                            };
                             editor.checkpoint();
+                            let duration = asset.duration;
                             asset.id = editor.take_id();
                             asset.path = relative_path.clone();
                             let asset_id = asset.id;
                             editor.project.assets.push(asset);
-                            editor.append_asset_clip_without_checkpoint(asset_id);
+                            editor
+                                .append_asset_clip_without_checkpoint(asset_id, track_id, duration);
                             editor.selected_file = Some(relative_path);
                             editor.save_project();
                             editor.status = Some("Added media to timeline.".to_string());
@@ -1152,7 +1163,7 @@ mod tests {
 
     #[test]
     fn explorer_drop_rejects_incompatible_tracks() {
-        let project = Project::default();
+        let project = Project::with_test_tracks();
         assert_eq!(
             explorer_drop_error(
                 &project,
@@ -1177,7 +1188,7 @@ mod tests {
 
     #[test]
     fn explorer_drop_detects_collisions_but_allows_adjacent_clips() {
-        let mut project = Project::default();
+        let mut project = Project::with_test_tracks();
         project.clips.push(TimelineClip {
             id: 20,
             track_id: 2,
