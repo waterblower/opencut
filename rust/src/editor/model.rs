@@ -65,6 +65,17 @@ pub(super) struct FrameRate {
     pub denominator: u32,
 }
 
+pub(super) const FRAME_RATE_PRESETS: [(FrameRate, &str); 8] = [
+    (FrameRate::new(24_000, 1_001), "23.976 fps"),
+    (FrameRate::new(24, 1), "24 fps"),
+    (FrameRate::new(25, 1), "25 fps"),
+    (FrameRate::new(30_000, 1_001), "29.97 fps"),
+    (FrameRate::new(30, 1), "30 fps"),
+    (FrameRate::new(50, 1), "50 fps"),
+    (FrameRate::new(60_000, 1_001), "59.94 fps"),
+    (FrameRate::new(60, 1), "60 fps"),
+];
+
 impl Default for FrameRate {
     fn default() -> Self {
         Self {
@@ -79,6 +90,22 @@ impl FrameRate {
         Self {
             numerator,
             denominator,
+        }
+    }
+
+    pub fn label(self) -> String {
+        if let Some(label) = FRAME_RATE_PRESETS
+            .iter()
+            .find_map(|(candidate, label)| (*candidate == self).then_some(*label))
+        {
+            return label.to_string();
+        }
+
+        let frames_per_second = self.frames_per_second();
+        if frames_per_second.fract().abs() < f64::EPSILON {
+            format!("{frames_per_second:.0} fps")
+        } else {
+            format!("{frames_per_second:.2} fps")
         }
     }
 
@@ -747,6 +774,14 @@ mod tests {
             codec: "PNG".into(),
             has_audio: false,
         }
+    }
+
+    #[test]
+    fn frame_rate_labels_use_presets_and_format_custom_rates() {
+        assert_eq!(FrameRate::new(24_000, 1_001).label(), "23.976 fps");
+        assert_eq!(FrameRate::new(15, 1).label(), "15 fps");
+        assert_eq!(FrameRate::new(31, 2).label(), "15.50 fps");
+        assert_eq!(FrameRate::new(2_469, 200).label(), "12.35 fps");
     }
 
     #[test]

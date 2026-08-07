@@ -20,16 +20,6 @@ const RESOLUTION_PRESETS: [(u32, u32, &str); 6] = [
     (1080, 1920, "1080 × 1920 · Vertical"),
     (1080, 1080, "1080 × 1080 · Square"),
 ];
-const EXPORT_FRAME_RATE_PRESETS: [(FrameRate, &str); 8] = [
-    (FrameRate::new(24_000, 1_001), "23.976 fps"),
-    (FrameRate::new(24, 1), "24 fps"),
-    (FrameRate::new(25, 1), "25 fps"),
-    (FrameRate::new(30_000, 1_001), "29.97 fps"),
-    (FrameRate::new(30, 1), "30 fps"),
-    (FrameRate::new(50, 1), "50 fps"),
-    (FrameRate::new(60_000, 1_001), "59.94 fps"),
-    (FrameRate::new(60, 1), "60 fps"),
-];
 const EXPORT_ENCODER_PRESETS: [ExportEncoder; 2] =
     [ExportEncoder::Hardware, ExportEncoder::Software];
 
@@ -472,7 +462,7 @@ impl Editor {
             .as_ref()
             .expect("frame-rate dropdown rendered without export state");
         let selected = state.frame_rate;
-        let options = EXPORT_FRAME_RATE_PRESETS
+        let options = FRAME_RATE_PRESETS
             .into_iter()
             .enumerate()
             .map(|(index, (frame_rate, label))| {
@@ -496,7 +486,7 @@ impl Editor {
 
         export_dropdown_field(
             "Frame rate",
-            format_frame_rate(selected),
+            selected.label(),
             state.frame_rate_menu_open,
             options,
         )
@@ -956,13 +946,6 @@ fn with_mp4_extension(mut path: PathBuf) -> PathBuf {
         path.set_extension("mp4");
     }
     path
-}
-
-fn format_frame_rate(frame_rate: FrameRate) -> String {
-    EXPORT_FRAME_RATE_PRESETS
-        .into_iter()
-        .find_map(|(candidate, label)| (candidate == frame_rate).then_some(label.to_string()))
-        .unwrap_or_else(|| format!("{:.3} fps", frame_rate.frames_per_second()))
 }
 
 fn format_export_timecode(duration: TimelineTime, frame_rate: FrameRate) -> String {

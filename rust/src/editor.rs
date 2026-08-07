@@ -45,8 +45,8 @@ use explorer_filter::ExplorerFilter;
 use export_dialog::ExportDialogState;
 use media_probe::probe_asset;
 use model::{
-    AudioClipProperties, DEFAULT_IMAGE_CLIP_DURATION, FrameRate, MediaAsset, MediaKind, Project,
-    TimelineClip, TimelineTime, TimelineTrack, TrackKind, VideoClipProperties,
+    AudioClipProperties, DEFAULT_IMAGE_CLIP_DURATION, FRAME_RATE_PRESETS, FrameRate, MediaAsset,
+    MediaKind, Project, TimelineClip, TimelineTime, TimelineTrack, TrackKind, VideoClipProperties,
     asset_is_compatible_with_track, timeline_ranges_overlap,
 };
 use preview::PreviewTarget;

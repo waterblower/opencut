@@ -1,16 +1,5 @@
 use super::*;
 
-const FRAME_RATE_PRESETS: [(FrameRate, &str); 8] = [
-    (FrameRate::new(24_000, 1_001), "23.976 fps"),
-    (FrameRate::new(24, 1), "24 fps"),
-    (FrameRate::new(25, 1), "25 fps"),
-    (FrameRate::new(30_000, 1_001), "29.97 fps"),
-    (FrameRate::new(30, 1), "30 fps"),
-    (FrameRate::new(50, 1), "50 fps"),
-    (FrameRate::new(60_000, 1_001), "59.94 fps"),
-    (FrameRate::new(60, 1), "60 fps"),
-];
-
 impl Editor {
     pub(super) fn settings_modal(&self, cx: &mut Context<Self>) -> gpui::AnyElement {
         let selected = self.project.settings.frame_rate;
@@ -165,14 +154,7 @@ impl Editor {
         }
         self.status = Some(format!(
             "Timeline frame rate changed to {}.",
-            frame_rate_label(frame_rate)
+            frame_rate.label()
         ));
     }
-}
-
-fn frame_rate_label(frame_rate: FrameRate) -> &'static str {
-    FRAME_RATE_PRESETS
-        .into_iter()
-        .find_map(|(candidate, label)| (candidate == frame_rate).then_some(label))
-        .unwrap_or("custom fps")
 }
