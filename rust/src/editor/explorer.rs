@@ -161,14 +161,15 @@ impl Editor {
                         MediaKind::Video
                     },
                 });
-                let metadata = if is_timeline && self.timeline_path.as_ref() == Some(&path) {
-                    Some("ACTIVE".to_string())
-                } else {
-                    explorer_metadata(
-                        entry,
-                        self.project.assets.iter().find(|asset| asset.path == path),
-                    )
-                };
+                let metadata =
+                    if is_timeline && self.timeline.active_timeline.as_ref() == Some(&path) {
+                        Some("ACTIVE".to_string())
+                    } else {
+                        explorer_metadata(
+                            entry,
+                            self.project.assets.iter().find(|asset| asset.path == path),
+                        )
+                    };
                 div()
                     .id(("project-file", index))
                     .relative()

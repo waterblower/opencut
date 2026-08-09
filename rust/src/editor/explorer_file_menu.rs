@@ -18,7 +18,8 @@ impl Editor {
         let width = 268.0;
         let can_create_timeline = menu.is_directory;
         let can_rename = !menu.relative_path.as_os_str().is_empty();
-        let can_trash = can_rename && self.timeline_path.as_ref() != Some(&menu.relative_path);
+        let can_trash =
+            can_rename && self.timeline.active_timeline.as_ref() != Some(&menu.relative_path);
         let height = 92.0
             + if can_create_timeline { 40.0 } else { 0.0 }
             + if can_rename { 40.0 } else { 0.0 }
@@ -286,8 +287,8 @@ impl Editor {
         }
 
         self.error = None;
-        if self.timeline_path.as_ref() == Some(&old_relative) {
-            self.timeline_path = Some(new_relative.clone());
+        if self.timeline.active_timeline.as_ref() == Some(&old_relative) {
+            self.timeline.active_timeline = Some(new_relative.clone());
             if let Err(error) = save_active_timeline(&self.project_root, &new_relative) {
                 self.error = Some(error);
             }
