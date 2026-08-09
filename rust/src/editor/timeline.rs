@@ -402,7 +402,10 @@ impl Editor {
                             .child(format!(
                                 "{} / {}",
                                 format_time(self.project.seconds(self.playhead), false),
-                                format_time(self.project.seconds(self.project.timeline_duration()), false)
+                                format_time(
+                                    self.project.seconds(self.project.timeline_duration()),
+                                    false
+                                )
                             )),
                     )
                     .child(
