@@ -12,7 +12,7 @@ fn headless_test_pipeline() -> (gst::Pipeline, gst_app::AppSink) {
     project.assets.push(MediaAsset {
         id: 10,
         kind: MediaKind::Video,
-        path: "vendor/gpui-video-player/assets/test1.mp4".into(),
+        path: "data/tests/mini测试/地铁-出站-mini-480.mp4".into(),
         name: "test1".into(),
         duration: 5.0,
         width: 320,
@@ -107,9 +107,7 @@ fn timeline_pipeline_converts_the_output_frame_rate() {
 fn timeline_video_shutdown_does_not_wait_on_the_frame_worker() {
     let _gstreamer_test = crate::editor::lock_gstreamer_test();
     let (pipeline, sink) = headless_test_pipeline();
-    let video =
-        Video::from_gst_pipeline_with_options(pipeline, sink, None, VideoOptions::default())
-            .unwrap();
+    let video = Video::from_pipeline(pipeline, sink, false).unwrap();
     let (finished, completion) = mpsc::channel();
     std::thread::spawn(move || {
         drop(video);

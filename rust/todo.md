@@ -55,7 +55,7 @@ release path.
 
 ### P0 — per-frame rendering
 
-- [ ] Make `gpui-video-player` upload a video surface only when a new decoded
+- [ ] Make the shared video renderer upload a video surface only when a new decoded
       frame arrives. Retain and repaint the previous `CVPixelBuffer` otherwise,
       and stop requesting full frame copies merely because playback is active.
 - [ ] Drain buffered video samples without packing every discarded frame into a

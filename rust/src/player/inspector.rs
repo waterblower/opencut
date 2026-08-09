@@ -1,6 +1,6 @@
-use super::video::current_frame_rgba;
 use super::*;
 use std::path::{Path, PathBuf};
+use yuv::{YuvBiPlanarImage, YuvConversionMode, YuvRange, YuvStandardMatrix};
 
 impl Player {
     fn save_current_frame(&mut self, cx: &mut Context<Self>) {
@@ -216,6 +216,31 @@ impl Player {
             )
             .into_any_element()
     }
+}
+
+fn current_frame_rgba(video: &Video) -> Option<(Vec<u8>, u32, u32)> {
+    let (nv12, width, height) = video.current_frame_data()?;
+    let y_size = width as usize * height as usize;
+    let uv_size = width as usize * (height as usize).div_ceil(2);
+    let image = YuvBiPlanarImage {
+        y_plane: nv12.get(..y_size)?,
+        y_stride: width,
+        uv_plane: nv12.get(y_size..y_size.checked_add(uv_size)?)?,
+        uv_stride: width,
+        width,
+        height,
+    };
+    let mut rgba = vec![0; y_size.checked_mul(4)?];
+    yuv::yuv_nv12_to_rgba(
+        &image,
+        &mut rgba,
+        width.checked_mul(4)?,
+        YuvRange::Full,
+        YuvStandardMatrix::Bt709,
+        YuvConversionMode::Balanced,
+    )
+    .ok()?;
+    Some((rgba, width, height))
 }
 
 fn save_frame_as_png(frame: (Vec<u8>, u32, u32), path: &Path) -> Result<(), String> {

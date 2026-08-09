@@ -4,6 +4,8 @@ mod app;
 mod playback_view;
 #[path = "mod.rs"]
 mod player;
+#[path = "../video.rs"]
+mod video;
 
 fn main() {
     app::run("opencut-player");

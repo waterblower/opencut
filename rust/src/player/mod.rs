@@ -3,15 +3,16 @@ use gpui::{
     MouseMoveEvent, MouseUpEvent, ObjectFit, PathPromptOptions, Render, Window, actions, div, img,
     prelude::*, px, rgb,
 };
+use gst::prelude::*;
+use gstreamer as gst;
 use std::{path::PathBuf, time::Duration, time::Instant};
 use url::Url;
 
 use crate::playback_view::{DragPhase, PlaybackViewDelegate, format_duration};
-use video::{Video, read_video_codec, video};
+use crate::video::{Video, video};
 
 mod history;
 mod inspector;
-mod video;
 mod view;
 
 use history::{HistoryData, load_history_width, save_history_width};
@@ -586,6 +587,16 @@ impl PlaybackViewDelegate for Player {
 
 fn create_video(url: &Url, looping: bool) -> Result<Video, String> {
     Video::open(url, looping).map_err(|error| format!("Could not open video: {error}"))
+}
+
+fn read_video_codec(video: &Video) -> Option<String> {
+    let pipeline = video.pipeline();
+    let stream_index = pipeline.property::<i32>("current-video");
+    if stream_index < 0 {
+        return None;
+    }
+    let tags = pipeline.emit_by_name::<Option<gst::TagList>>("get-video-tags", &[&stream_index])?;
+    Some(tags.get::<gst::tags::VideoCodec>()?.get().to_string())
 }
 
 fn format_codec_name(codec: &str) -> String {

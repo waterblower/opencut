@@ -20,7 +20,7 @@ use gstreamer as gst;
 use gstreamer_app as gst_app;
 use gstreamer_video as gst_video;
 use parking_lot::Mutex;
-use std::{fs, path::Path, sync::Arc, thread::JoinHandle, time::Duration};
+use std::{sync::Arc, thread::JoinHandle, time::Duration};
 use url::Url;
 use yuv::{YuvBiPlanarImage, YuvConversionMode, YuvRange, YuvStandardMatrix, yuv_nv12_to_bgra};
 
@@ -58,10 +58,10 @@ impl Drop for VideoInner {
 }
 
 #[derive(Clone)]
-pub(super) struct Video(Arc<VideoInner>);
+pub(crate) struct Video(Arc<VideoInner>);
 
 impl Video {
-    pub(super) fn open(uri: &Url, looping: bool) -> Result<Self, String> {
+    pub(crate) fn open(uri: &Url, looping: bool) -> Result<Self, String> {
         gst::init().map_err(|error| format!("could not initialize GStreamer: {error}"))?;
         let video_sink = gst::parse::bin_from_description(
             "videoconvert ! appsink name=opencut_player_video drop=true max-buffers=3 enable-last-sample=false caps=video/x-raw,format=NV12,pixel-aspect-ratio=1/1",
@@ -82,6 +82,17 @@ impl Video {
             .downcast::<gst::Pipeline>()
             .map_err(|_| "video pipeline had an unexpected type".to_string())?;
 
+        let video = Self::from_pipeline(pipeline, sink, looping)?;
+        video.set_paused(false);
+        Ok(video)
+    }
+
+    pub(crate) fn from_pipeline(
+        pipeline: gst::Pipeline,
+        sink: gst_app::AppSink,
+        looping: bool,
+    ) -> Result<Self, String> {
+        gst::init().map_err(|error| format!("could not initialize GStreamer: {error}"))?;
         pipeline
             .set_state(gst::State::Paused)
             .map_err(|error| format!("could not prepare video: {error}"))?;
@@ -90,12 +101,17 @@ impl Video {
             return Err(format!("video did not finish preparing: {error}"));
         }
 
-        let caps = sink
-            .static_pad("sink")
-            .and_then(|pad| pad.current_caps())
-            .ok_or_else(|| "video format is unavailable".to_string())?;
-        let info = gst_video::VideoInfo::from_caps(&caps)
-            .map_err(|error| format!("could not read video format: {error}"))?;
+        let Some(caps) = sink.static_pad("sink").and_then(|pad| pad.current_caps()) else {
+            let _ = pipeline.set_state(gst::State::Null);
+            return Err("video format is unavailable".to_string());
+        };
+        let info = match gst_video::VideoInfo::from_caps(&caps) {
+            Ok(info) => info,
+            Err(error) => {
+                let _ = pipeline.set_state(gst::State::Null);
+                return Err(format!("could not read video format: {error}"));
+            }
+        };
         let framerate = info.fps().numer() as f64 / info.fps().denom() as f64;
         if !framerate.is_finite() || framerate <= 0.0 {
             let _ = pipeline.set_state(gst::State::Null);
@@ -124,23 +140,22 @@ impl Video {
             framerate,
             duration,
         }));
-        video.set_paused(false);
         Ok(video)
     }
 
-    pub(super) fn display_size(&self) -> (u32, u32) {
+    pub(crate) fn display_size(&self) -> (u32, u32) {
         (self.0.width, self.0.height)
     }
 
-    pub(super) fn framerate(&self) -> f64 {
+    pub(crate) fn framerate(&self) -> f64 {
         self.0.framerate
     }
 
-    pub(super) fn duration(&self) -> Duration {
+    pub(crate) fn duration(&self) -> Duration {
         self.0.duration
     }
 
-    pub(super) fn position(&self) -> Duration {
+    pub(crate) fn position(&self) -> Duration {
         Duration::from_nanos(
             self.0
                 .pipeline
@@ -149,11 +164,11 @@ impl Video {
         )
     }
 
-    pub(super) fn paused(&self) -> bool {
+    pub(crate) fn paused(&self) -> bool {
         self.0.pipeline.state(gst::ClockTime::ZERO).1 != gst::State::Playing
     }
 
-    pub(super) fn set_paused(&self, paused: bool) {
+    pub(crate) fn set_paused(&self, paused: bool) {
         let state = if paused {
             gst::State::Paused
         } else {
@@ -164,7 +179,7 @@ impl Video {
         }
     }
 
-    pub(super) fn seek(&self, position: Duration, accurate: bool) -> Result<(), String> {
+    pub(crate) fn seek(&self, position: Duration, accurate: bool) -> Result<(), String> {
         self.0.state.eos.store(false, Ordering::Release);
         let speed = self.speed();
         let mut flags = gst::SeekFlags::FLUSH;
@@ -188,21 +203,22 @@ impl Video {
         Ok(())
     }
 
-    pub(super) fn restart_stream(&self) -> Result<(), String> {
+    pub(crate) fn restart_stream(&self) -> Result<(), String> {
         self.seek(Duration::ZERO, false)?;
         self.set_paused(false);
         Ok(())
     }
 
-    pub(super) fn eos(&self) -> bool {
+    pub(crate) fn eos(&self) -> bool {
         self.0.state.eos.load(Ordering::Acquire)
     }
 
-    pub(super) fn speed(&self) -> f64 {
+    pub(crate) fn speed(&self) -> f64 {
         f64::from_bits(self.0.state.speed.load(Ordering::Acquire))
     }
 
-    pub(super) fn set_speed(&self, speed: f64) -> Result<(), String> {
+    #[allow(dead_code)] // Used by the player binary, but not the editor binary.
+    pub(crate) fn set_speed(&self, speed: f64) -> Result<(), String> {
         if !speed.is_finite() || speed <= 0.0 {
             return Err("playback speed must be greater than zero".to_string());
         }
@@ -226,25 +242,27 @@ impl Video {
         Ok(())
     }
 
-    pub(super) fn volume(&self) -> f64 {
+    #[allow(dead_code)] // Used by the player binary, but not the editor binary.
+    pub(crate) fn volume(&self) -> f64 {
         self.0.pipeline.property("volume")
     }
 
-    pub(super) fn set_volume(&self, volume: f64) {
+    pub(crate) fn set_volume(&self, volume: f64) {
         self.0
             .pipeline
             .set_property("volume", volume.clamp(0.0, 1.0));
     }
 
-    pub(super) fn muted(&self) -> bool {
+    #[allow(dead_code)] // Used by the player binary, but not the editor binary.
+    pub(crate) fn muted(&self) -> bool {
         self.0.pipeline.property("mute")
     }
 
-    pub(super) fn set_muted(&self, muted: bool) {
+    pub(crate) fn set_muted(&self, muted: bool) {
         self.0.pipeline.set_property("mute", muted);
     }
 
-    fn current_frame_nv12(&self) -> Option<(Vec<u8>, u32, u32)> {
+    pub(crate) fn current_frame_data(&self) -> Option<(Vec<u8>, u32, u32)> {
         pack_nv12(self.0.state.frame.lock().as_ref()?)
     }
 
@@ -252,8 +270,8 @@ impl Video {
         self.0.state.frame_ready.swap(false, Ordering::AcqRel)
     }
 
-    fn pipeline(&self) -> &gst::Pipeline {
-        &self.0.pipeline
+    pub(crate) fn pipeline(&self) -> gst::Pipeline {
+        self.0.pipeline.clone()
     }
 }
 
@@ -334,43 +352,7 @@ fn pack_nv12(sample: &gst::Sample) -> Option<(Vec<u8>, u32, u32)> {
     Some((packed, frame.width(), frame.height()))
 }
 
-pub(super) fn read_video_codec(video: &Video) -> Option<String> {
-    let stream_index = video.pipeline().property::<i32>("current-video");
-    if stream_index < 0 {
-        return None;
-    }
-    let tags = video
-        .pipeline()
-        .emit_by_name::<Option<gst::TagList>>("get-video-tags", &[&stream_index])?;
-    Some(tags.get::<gst::tags::VideoCodec>()?.get().to_string())
-}
-
-pub(super) fn current_frame_rgba(video: &Video) -> Option<(Vec<u8>, u32, u32)> {
-    let (nv12, width, height) = video.current_frame_nv12()?;
-    let y_size = width as usize * height as usize;
-    let uv_size = width as usize * (height as usize).div_ceil(2);
-    let image = YuvBiPlanarImage {
-        y_plane: nv12.get(..y_size)?,
-        y_stride: width,
-        uv_plane: nv12.get(y_size..y_size.checked_add(uv_size)?)?,
-        uv_stride: width,
-        width,
-        height,
-    };
-    let mut rgba = vec![0; y_size.checked_mul(4)?];
-    yuv::yuv_nv12_to_rgba(
-        &image,
-        &mut rgba,
-        width.checked_mul(4)?,
-        YuvRange::Full,
-        YuvStandardMatrix::Bt709,
-        YuvConversionMode::Balanced,
-    )
-    .ok()?;
-    Some((rgba, width, height))
-}
-
-pub(super) struct VideoElement {
+pub(crate) struct VideoElement {
     video: Video,
     width: gpui::Pixels,
     height: gpui::Pixels,
@@ -378,12 +360,12 @@ pub(super) struct VideoElement {
 }
 
 impl VideoElement {
-    pub(super) fn id(mut self, id: impl Into<ElementId>) -> Self {
+    pub(crate) fn id(mut self, id: impl Into<ElementId>) -> Self {
         self.id = Some(id.into());
         self
     }
 
-    pub(super) fn size(mut self, width: gpui::Pixels, height: gpui::Pixels) -> Self {
+    pub(crate) fn size(mut self, width: gpui::Pixels, height: gpui::Pixels) -> Self {
         self.width = width;
         self.height = height;
         self
@@ -602,7 +584,7 @@ impl Element for VideoElement {
         window: &mut Window,
         cx: &mut gpui::App,
     ) {
-        let Some((nv12, width, height)) = self.video.current_frame_nv12() else {
+        let Some((nv12, width, height)) = self.video.current_frame_data() else {
             return;
         };
         #[cfg(target_os = "macos")]
@@ -621,7 +603,7 @@ impl IntoElement for VideoElement {
     }
 }
 
-pub(super) fn video(video: Video) -> VideoElement {
+pub(crate) fn video(video: Video) -> VideoElement {
     let (width, height) = video.display_size();
     VideoElement {
         video,
@@ -629,79 +611,4 @@ pub(super) fn video(video: Video) -> VideoElement {
         height: gpui::px(height as f32),
         id: None,
     }
-}
-
-pub(super) fn generate_thumbnail(video_path: &Path, output_path: &Path) -> Result<(), String> {
-    gst::init().map_err(|error| format!("could not initialize GStreamer: {error}"))?;
-    if let Some(directory) = output_path.parent() {
-        fs::create_dir_all(directory)
-            .map_err(|error| format!("could not create {}: {error}", directory.display()))?;
-    }
-    if output_path.is_file() {
-        return Ok(());
-    }
-    let uri = Url::from_file_path(video_path)
-        .map_err(|_| format!("could not convert {} to a file URL", video_path.display()))?;
-    let pipeline = gst::parse::launch(&format!(
-        "uridecodebin uri=\"{}\" name=decoder decoder. ! queue ! videoconvert ! videoscale ! video/x-raw,format=RGBA,width=320,height=180,pixel-aspect-ratio=1/1 ! appsink name=history_thumbnail sync=false max-buffers=1 drop=true",
-        uri.as_str()
-    ))
-    .map_err(|error| format!("could not create thumbnail pipeline: {error}"))?
-    .downcast::<gst::Pipeline>()
-    .map_err(|_| "thumbnail pipeline had an unexpected type".to_string())?;
-    let sink = pipeline
-        .by_name("history_thumbnail")
-        .ok_or_else(|| "thumbnail sink was not created".to_string())?
-        .downcast::<gst_app::AppSink>()
-        .map_err(|_| "thumbnail sink had an unexpected type".to_string())?;
-    pipeline
-        .set_state(gst::State::Paused)
-        .map_err(|error| format!("could not start thumbnail pipeline: {error}"))?;
-    let result = (|| -> Result<(), String> {
-        let sample = sink
-            .try_pull_preroll(gst::ClockTime::from_seconds(10))
-            .ok_or_else(|| "timed out waiting for the first frame".to_string())?;
-        let info = gst_video::VideoInfo::from_caps(
-            sample
-                .caps()
-                .ok_or_else(|| "first frame had no video format".to_string())?,
-        )
-        .map_err(|error| format!("could not read first-frame format: {error}"))?;
-        let buffer = sample
-            .buffer()
-            .ok_or_else(|| "first frame had no pixel buffer".to_string())?;
-        let frame = gst_video::VideoFrameRef::from_buffer_ref_readable(buffer, &info)
-            .map_err(|error| format!("could not map first-frame pixels: {error}"))?;
-        let row_bytes = frame.width() as usize * 4;
-        let stride = usize::try_from(frame.info().stride()[0])
-            .map_err(|_| "first frame had a negative row stride".to_string())?;
-        let source = frame
-            .plane_data(0)
-            .map_err(|error| format!("could not read first-frame pixels: {error}"))?;
-        let mut pixels = Vec::with_capacity(row_bytes * frame.height() as usize);
-        for row in 0..frame.height() as usize {
-            let start = row * stride;
-            pixels.extend_from_slice(
-                source
-                    .get(start..start + row_bytes)
-                    .ok_or_else(|| "first-frame row was truncated".to_string())?,
-            );
-        }
-        let temporary = output_path.with_extension("png.part");
-        image::save_buffer_with_format(
-            &temporary,
-            &pixels,
-            frame.width(),
-            frame.height(),
-            image::ColorType::Rgba8,
-            image::ImageFormat::Png,
-        )
-        .map_err(|error| format!("could not encode thumbnail: {error}"))?;
-        fs::rename(&temporary, output_path)
-            .map_err(|error| format!("could not finish thumbnail: {error}"))
-    })();
-    if let Err(error) = pipeline.set_state(gst::State::Null) {
-        log::error!("could not stop thumbnail pipeline: {error}");
-    }
-    result
 }

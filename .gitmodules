@@ -4,6 +4,3 @@
 [submodule "zig/vendor/dvui"]
 	path = zig/vendor/dvui
 	url = https://github.com/david-vanderson/dvui.git
-[submodule "rust/vendor/gpui-video-player"]
-	path = rust/vendor/gpui-video-player
-	url = https://github.com/waterblower/gpui-video-player

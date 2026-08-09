@@ -1,5 +1,8 @@
-use super::video::generate_thumbnail;
 use super::*;
+use gst_video::VideoFrameExt as _;
+use gstreamer as gst;
+use gstreamer_app as gst_app;
+use gstreamer_video as gst_video;
 use serde::{Deserialize, Serialize};
 use std::{
     collections::hash_map::DefaultHasher,
@@ -179,6 +182,81 @@ fn schedule_thumbnail(video_path: PathBuf, thumbnail_path: PathBuf) {
             );
         }
     });
+}
+
+fn generate_thumbnail(video_path: &Path, output_path: &Path) -> Result<(), String> {
+    gst::init().map_err(|error| format!("could not initialize GStreamer: {error}"))?;
+    if let Some(directory) = output_path.parent() {
+        fs::create_dir_all(directory)
+            .map_err(|error| format!("could not create {}: {error}", directory.display()))?;
+    }
+    if output_path.is_file() {
+        return Ok(());
+    }
+    let uri = Url::from_file_path(video_path)
+        .map_err(|_| format!("could not convert {} to a file URL", video_path.display()))?;
+    let pipeline = gst::parse::launch(&format!(
+        "uridecodebin uri=\"{}\" name=decoder decoder. ! queue ! videoconvert ! videoscale ! video/x-raw,format=RGBA,width=320,height=180,pixel-aspect-ratio=1/1 ! appsink name=history_thumbnail sync=false max-buffers=1 drop=true",
+        uri.as_str()
+    ))
+    .map_err(|error| format!("could not create thumbnail pipeline: {error}"))?
+    .downcast::<gst::Pipeline>()
+    .map_err(|_| "thumbnail pipeline had an unexpected type".to_string())?;
+    let sink = pipeline
+        .by_name("history_thumbnail")
+        .ok_or_else(|| "thumbnail sink was not created".to_string())?
+        .downcast::<gst_app::AppSink>()
+        .map_err(|_| "thumbnail sink had an unexpected type".to_string())?;
+    pipeline
+        .set_state(gst::State::Paused)
+        .map_err(|error| format!("could not start thumbnail pipeline: {error}"))?;
+    let result = (|| -> Result<(), String> {
+        let sample = sink
+            .try_pull_preroll(gst::ClockTime::from_seconds(10))
+            .ok_or_else(|| "timed out waiting for the first frame".to_string())?;
+        let info = gst_video::VideoInfo::from_caps(
+            sample
+                .caps()
+                .ok_or_else(|| "first frame had no video format".to_string())?,
+        )
+        .map_err(|error| format!("could not read first-frame format: {error}"))?;
+        let buffer = sample
+            .buffer()
+            .ok_or_else(|| "first frame had no pixel buffer".to_string())?;
+        let frame = gst_video::VideoFrameRef::from_buffer_ref_readable(buffer, &info)
+            .map_err(|error| format!("could not map first-frame pixels: {error}"))?;
+        let row_bytes = frame.width() as usize * 4;
+        let stride = usize::try_from(frame.info().stride()[0])
+            .map_err(|_| "first frame had a negative row stride".to_string())?;
+        let source = frame
+            .plane_data(0)
+            .map_err(|error| format!("could not read first-frame pixels: {error}"))?;
+        let mut pixels = Vec::with_capacity(row_bytes * frame.height() as usize);
+        for row in 0..frame.height() as usize {
+            let start = row * stride;
+            pixels.extend_from_slice(
+                source
+                    .get(start..start + row_bytes)
+                    .ok_or_else(|| "first-frame row was truncated".to_string())?,
+            );
+        }
+        let temporary = output_path.with_extension("png.part");
+        image::save_buffer_with_format(
+            &temporary,
+            &pixels,
+            frame.width(),
+            frame.height(),
+            image::ColorType::Rgba8,
+            image::ImageFormat::Png,
+        )
+        .map_err(|error| format!("could not encode thumbnail: {error}"))?;
+        fs::rename(&temporary, output_path)
+            .map_err(|error| format!("could not finish thumbnail: {error}"))
+    })();
+    if let Err(error) = pipeline.set_state(gst::State::Null) {
+        log::error!("could not stop thumbnail pipeline: {error}");
+    }
+    result
 }
 
 fn thumbnail_path(video_path: &Path) -> PathBuf {

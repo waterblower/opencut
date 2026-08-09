@@ -203,7 +203,7 @@ impl Editor {
             .or_else(|| runtime.map(|video| video.duration().as_secs_f64()));
         let resolution = asset
             .map(|asset| (asset.width, asset.height))
-            .or_else(|| runtime.map(|video| video.size()).and_then(unsigned_size));
+            .or_else(|| runtime.map(|video| video.display_size()));
         let framerate = asset
             .map(|asset| asset.framerate)
             .or_else(|| runtime.map(|video| video.framerate()));
@@ -302,10 +302,6 @@ fn file_properties(path: &Path, kind: &'static str) -> gpui::Div {
         .child(properties_title(title, "Project file"))
         .child(properties_value("Type", kind.to_string()))
         .child(properties_value("Path", path.display().to_string()))
-}
-
-fn unsigned_size((width, height): (i32, i32)) -> Option<(u32, u32)> {
-    (width > 0 && height > 0).then_some((width as u32, height as u32))
 }
 
 fn properties_value(label: &str, value: String) -> gpui::Div {

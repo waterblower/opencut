@@ -4,15 +4,14 @@ use std::time::{SystemTime, UNIX_EPOCH};
 #[test]
 fn generates_waveform_without_a_subprocess() {
     ffmpeg::init().unwrap();
-    let assets = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("vendor/gpui-video-player/assets");
-    let audio_source = [assets.join("test1.mp4"), assets.join("test3.mp4")]
-        .into_iter()
-        .find(|path| {
-            format::input(path)
-                .ok()
-                .is_some_and(|input| input.streams().best(Type::Audio).is_some())
-        })
-        .expect("test video with audio");
+    let audio_source = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("data/tests/mini测试/地铁-出站-mini-480.mp4");
+    assert!(
+        format::input(&audio_source)
+            .ok()
+            .is_some_and(|input| input.streams().best(Type::Audio).is_some()),
+        "test video must contain audio"
+    );
     let unique = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .unwrap()

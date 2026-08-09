@@ -210,7 +210,7 @@ fn creates_gstreamer_timeline_from_real_media() {
     project.assets.push(MediaAsset {
         id: 10,
         kind: MediaKind::Video,
-        path: "vendor/gpui-video-player/assets/test1.mp4".into(),
+        path: "data/tests/mini测试/地铁-出站-mini-480.mp4".into(),
         name: "test1".into(),
         duration: 5.0,
         width: 320,
@@ -322,7 +322,7 @@ fn exports_real_media_with_audio() {
     project.assets.push(MediaAsset {
         id: 10,
         kind: MediaKind::Video,
-        path: "vendor/gpui-video-player/assets/test1.mp4".into(),
+        path: "data/tests/mini测试/地铁-出站-mini-480.mp4".into(),
         name: "test1".into(),
         duration: 5.0,
         width: 320,
