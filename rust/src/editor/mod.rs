@@ -383,7 +383,7 @@ impl Editor {
                     let ended_explorer_drag =
                         !cx.has_active_drag() && editor.explorer.drop_preview.take().is_some();
                     if ended_explorer_drag && let Some(timeline) = editor.timeline.as_mut() {
-                        timeline.snap_guide = None;
+                        timeline.interaction.snap_guide = None;
                     }
                     let should_render = editor.preview.playing
                         || file_preview_playing
@@ -453,8 +453,8 @@ impl Editor {
             timeline.playhead.frames(),
             horizontal_scroll,
             vertical_scroll,
-            timeline.snapping_enabled,
-            timeline.magnet_enabled,
+            timeline.interaction.snapping_enabled,
+            timeline.interaction.magnet_enabled,
         ))
     }
 

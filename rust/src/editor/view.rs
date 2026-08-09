@@ -43,7 +43,7 @@ impl Render for Editor {
         let clip_menu = self
             .timeline
             .as_ref()
-            .and_then(|timeline| timeline.context_menu.as_ref())
+            .and_then(|timeline| timeline.interaction.context_menu.as_ref())
             .map(|menu| self.timeline_clip_menu_overlay(menu, editor_viewport, cx));
         let rename_dialog = self
             .explorer

@@ -98,11 +98,11 @@ impl Editor {
             self.properties.transform_input_clip_id = None;
             return;
         };
-        let Some(clip_id) = timeline.selected_clip_id else {
+        let Some(clip_id) = timeline.interaction.selected_clip_id else {
             self.properties.transform_input_clip_id = None;
             return;
         };
-        if timeline.selected_clip_ids.len() != 1
+        if timeline.interaction.selected_clip_ids.len() != 1
             || self.properties.transform_input_clip_id == Some(clip_id)
         {
             return;

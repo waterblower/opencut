@@ -258,6 +258,22 @@ impl Timeline {
     }
 }
 
+pub(super) struct TimelineInteractionState {
+    pub(super) active_tool: TimelineTool,
+    pub(super) snapping_enabled: bool,
+    pub(super) magnet_enabled: bool,
+    pub(super) selected_clip_id: Option<u64>,
+    pub(super) selected_clip_ids: HashSet<u64>,
+    pub(super) blade_guide: Option<TimelineTime>,
+    pub(super) snap_guide: Option<TimelineTime>,
+    pub(super) trim_drag: Option<TrimDrag>,
+    pub(super) clip_move_drag: Option<ClipMoveDrag>,
+    pub(super) marquee_selection: Option<MarqueeSelection>,
+    pub(super) scrubbing_playhead: bool,
+    pub(super) last_scrub_seek: Option<Instant>,
+    pub(super) context_menu: Option<TimelineClipContextMenu>,
+}
+
 pub(super) struct TimelineState {
     pub(super) path: PathBuf,
     pub(super) data: Timeline,
@@ -266,21 +282,9 @@ pub(super) struct TimelineState {
     pub(super) zoom_save_due: Option<Instant>,
     pub(super) view_state: TimelineViewState,
     pub(super) view_save_due: Option<Instant>,
-    pub(super) active_tool: TimelineTool,
-    pub(super) blade_guide: Option<TimelineTime>,
-    pub(super) snapping_enabled: bool,
-    pub(super) magnet_enabled: bool,
-    pub(super) snap_guide: Option<TimelineTime>,
-    pub(super) trim_drag: Option<TrimDrag>,
-    pub(super) clip_move_drag: Option<ClipMoveDrag>,
-    pub(super) marquee_selection: Option<MarqueeSelection>,
-    pub(super) scrubbing_playhead: bool,
-    pub(super) last_scrub_seek: Option<Instant>,
+    pub(super) interaction: TimelineInteractionState,
     pub(super) scroll: ScrollHandle,
     pub(super) vertical_scroll: ScrollHandle,
-    pub(super) selected_clip_id: Option<u64>,
-    pub(super) selected_clip_ids: HashSet<u64>,
-    pub(super) context_menu: Option<TimelineClipContextMenu>,
     pub(super) clipboard: Option<ClipClipboard>,
     pub(super) next_id: u64,
     pub(super) undo_stack: Vec<Timeline>,
@@ -313,21 +317,23 @@ impl TimelineState {
             zoom_save_due: None,
             view_state: view_state.clone(),
             view_save_due: None,
-            active_tool: TimelineTool::Selection,
-            blade_guide: None,
-            snapping_enabled: view_state.snapping_enabled,
-            magnet_enabled: view_state.track_magnet_enabled,
-            snap_guide: None,
-            trim_drag: None,
-            clip_move_drag: None,
-            marquee_selection: None,
-            scrubbing_playhead: false,
-            last_scrub_seek: None,
+            interaction: TimelineInteractionState {
+                active_tool: TimelineTool::Selection,
+                snapping_enabled: view_state.snapping_enabled,
+                magnet_enabled: view_state.track_magnet_enabled,
+                selected_clip_id,
+                selected_clip_ids,
+                blade_guide: None,
+                snap_guide: None,
+                trim_drag: None,
+                clip_move_drag: None,
+                marquee_selection: None,
+                scrubbing_playhead: false,
+                last_scrub_seek: None,
+                context_menu: None,
+            },
             scroll,
             vertical_scroll,
-            selected_clip_id,
-            selected_clip_ids,
-            context_menu: None,
             clipboard: None,
             next_id,
             undo_stack: Vec::new(),
@@ -398,7 +404,12 @@ impl Editor {
     }
 
     fn timeline_marquee(&self) -> Option<gpui::AnyElement> {
-        let selection = self.timeline.as_ref()?.marquee_selection.as_ref()?;
+        let selection = self
+            .timeline
+            .as_ref()?
+            .interaction
+            .marquee_selection
+            .as_ref()?;
         let left = selection.start_x.min(selection.current_x);
         let top = selection.start_y.min(selection.current_y);
         let width = (selection.start_x - selection.current_x).abs();
@@ -489,7 +500,7 @@ impl Editor {
                             .h_full()
                             .overflow_x_scroll()
                             .track_scroll(&timeline.scroll)
-                            .cursor(match timeline.active_tool {
+                            .cursor(match timeline.interaction.active_tool {
                                 TimelineTool::Blade => CursorStyle::Crosshair,
                                 TimelineTool::Selection | TimelineTool::Trim => CursorStyle::Arrow,
                             })
@@ -512,7 +523,7 @@ impl Editor {
                                     .child(self.timeline_ruler(duration, cx))
                                     .children(track_rows)
                                     .child(self.timeline_playhead(cx))
-                                    .when_some(timeline.snap_guide, |this, guide| {
+                                    .when_some(timeline.interaction.snap_guide, |this, guide| {
                                         let guide_left = TIMELINE_PADDING
                                             + timeline.data.seconds(guide) as f32
                                                 * timeline.pixels_per_second;
@@ -535,29 +546,32 @@ impl Editor {
                                                 ),
                                         )
                                     })
-                                    .when_some(timeline.blade_guide, |this, position| {
-                                        let guide_left = TIMELINE_PADDING
-                                            + timeline.data.seconds(position) as f32
-                                                * timeline.pixels_per_second;
-                                        this.child(
-                                            div()
-                                                .absolute()
-                                                .top_0()
-                                                .bottom_0()
-                                                .left(px(guide_left))
-                                                .w(px(2.0))
-                                                .bg(rgb(ERROR))
-                                                .cursor(CursorStyle::Crosshair)
-                                                .child(
-                                                    div()
-                                                        .absolute()
-                                                        .top_0()
-                                                        .left(px(-4.0))
-                                                        .size_2()
-                                                        .bg(rgb(ERROR)),
-                                                ),
-                                        )
-                                    }),
+                                    .when_some(
+                                        timeline.interaction.blade_guide,
+                                        |this, position| {
+                                            let guide_left = TIMELINE_PADDING
+                                                + timeline.data.seconds(position) as f32
+                                                    * timeline.pixels_per_second;
+                                            this.child(
+                                                div()
+                                                    .absolute()
+                                                    .top_0()
+                                                    .bottom_0()
+                                                    .left(px(guide_left))
+                                                    .w(px(2.0))
+                                                    .bg(rgb(ERROR))
+                                                    .cursor(CursorStyle::Crosshair)
+                                                    .child(
+                                                        div()
+                                                            .absolute()
+                                                            .top_0()
+                                                            .left(px(-4.0))
+                                                            .size_2()
+                                                            .bg(rgb(ERROR)),
+                                                    ),
+                                            )
+                                        },
+                                    ),
                             ),
                     ),
             )
@@ -579,21 +593,24 @@ impl Editor {
             .left(px(left))
             .w(px(1.0))
             .bg(rgb(ACCENT))
-            .cursor(if timeline.active_tool == TimelineTool::Blade {
+            .cursor(if timeline.interaction.active_tool == TimelineTool::Blade {
                 CursorStyle::Crosshair
             } else {
                 CursorStyle::ResizeLeftRight
             })
-            .when(timeline.active_tool != TimelineTool::Blade, |this| {
-                this.on_mouse_down(
-                    MouseButton::Left,
-                    cx.listener(|editor, event: &MouseDownEvent, _, cx| {
-                        editor.begin_playhead_scrub(event);
-                        cx.stop_propagation();
-                        cx.notify();
-                    }),
-                )
-            })
+            .when(
+                timeline.interaction.active_tool != TimelineTool::Blade,
+                |this| {
+                    this.on_mouse_down(
+                        MouseButton::Left,
+                        cx.listener(|editor, event: &MouseDownEvent, _, cx| {
+                            editor.begin_playhead_scrub(event);
+                            cx.stop_propagation();
+                            cx.notify();
+                        }),
+                    )
+                },
+            )
             .child(
                 div()
                     .absolute()
@@ -719,7 +736,7 @@ impl Editor {
                         timeline_tool_button(
                             "timeline-selection-tool",
                             "V Select",
-                            timeline.active_tool == TimelineTool::Selection,
+                            timeline.interaction.active_tool == TimelineTool::Selection,
                         )
                         .on_click(cx.listener(|editor, _, _, cx| {
                             editor.activate_timeline_tool(TimelineTool::Selection);
@@ -730,7 +747,7 @@ impl Editor {
                         timeline_tool_button(
                             "timeline-blade-tool",
                             "B Blade",
-                            timeline.active_tool == TimelineTool::Blade,
+                            timeline.interaction.active_tool == TimelineTool::Blade,
                         )
                         .on_click(cx.listener(|editor, _, _, cx| {
                             editor.activate_timeline_tool(TimelineTool::Blade);
@@ -741,7 +758,7 @@ impl Editor {
                         timeline_tool_button(
                             "timeline-trim-tool",
                             "T Trim",
-                            timeline.active_tool == TimelineTool::Trim,
+                            timeline.interaction.active_tool == TimelineTool::Trim,
                         )
                         .on_click(cx.listener(|editor, _, _, cx| {
                             editor.activate_timeline_tool(TimelineTool::Trim);
@@ -791,19 +808,19 @@ impl Editor {
                     .child(
                         timeline_icon_button(
                             "toggle-timeline-snapping",
-                            if timeline.snapping_enabled {
+                            if timeline.interaction.snapping_enabled {
                                 "Snap on"
                             } else {
                                 "Snap off"
                             },
                         )
                         .border_1()
-                        .border_color(rgb(if timeline.snapping_enabled {
+                        .border_color(rgb(if timeline.interaction.snapping_enabled {
                             ACCENT
                         } else {
                             BORDER
                         }))
-                        .text_color(rgb(if timeline.snapping_enabled {
+                        .text_color(rgb(if timeline.interaction.snapping_enabled {
                             ACCENT
                         } else {
                             MUTED
@@ -816,19 +833,19 @@ impl Editor {
                     .child(
                         timeline_icon_button(
                             "toggle-track-magnet",
-                            if timeline.magnet_enabled {
+                            if timeline.interaction.magnet_enabled {
                                 "Magnet on"
                             } else {
                                 "Magnet off"
                             },
                         )
                         .border_1()
-                        .border_color(rgb(if timeline.magnet_enabled {
+                        .border_color(rgb(if timeline.interaction.magnet_enabled {
                             ACCENT
                         } else {
                             BORDER
                         }))
-                        .text_color(rgb(if timeline.magnet_enabled {
+                        .text_color(rgb(if timeline.interaction.magnet_enabled {
                             ACCENT
                         } else {
                             MUTED
