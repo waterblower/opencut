@@ -277,9 +277,10 @@ impl Editor {
                     + scroll_x
                     + TIMELINE_PADDING
                     + timeline.data.seconds(clip.timeline_start) as f32
-                        * timeline.pixels_per_second;
+                        * timeline.data.view.pixels_per_second;
                 let clip_right = clip_left
-                    + (timeline.data.seconds(clip.duration()) as f32 * timeline.pixels_per_second)
+                    + (timeline.data.seconds(clip.duration()) as f32
+                        * timeline.data.view.pixels_per_second)
                         .max(4.0);
                 if clip_left <= right
                     && clip_right >= left
@@ -418,7 +419,8 @@ impl Editor {
         let original_anchor_track_index = drag.original_anchor_track_index;
         let items = drag.items.clone();
         let raw_delta = timeline.data.settings.frame_rate.delta(
-            (f32::from(event.position.x) - start_x) as f64 / timeline.pixels_per_second as f64,
+            (f32::from(event.position.x) - start_x) as f64
+                / timeline.data.view.pixels_per_second as f64,
         );
         let earliest_start = items
             .iter()
@@ -563,7 +565,7 @@ impl Editor {
             .data
             .settings
             .frame_rate
-            .ceil(SNAP_DISTANCE_PX as f64 / timeline.pixels_per_second as f64)
+            .ceil(SNAP_DISTANCE_PX as f64 / timeline.data.view.pixels_per_second as f64)
             .frames()
             .max(1) as u64;
         let mut candidates = vec![TimelineTime::ZERO, timeline.playhead];
@@ -672,7 +674,8 @@ impl Editor {
             return;
         };
         let raw_delta = timeline.data.settings.frame_rate.delta(
-            (f32::from(event.position.x) - drag.start_x) as f64 / timeline.pixels_per_second as f64,
+            (f32::from(event.position.x) - drag.start_x) as f64
+                / timeline.data.view.pixels_per_second as f64,
         );
         if raw_delta == TimelineTime::ZERO {
             self.timeline
@@ -769,8 +772,8 @@ impl Editor {
         let Some(timeline) = self.timeline.as_mut() else {
             return;
         };
-        let previous_pixels_per_second = timeline.pixels_per_second;
-        let pixels_per_second = (timeline.pixels_per_second * factor).clamp(
+        let previous_pixels_per_second = timeline.data.view.pixels_per_second;
+        let pixels_per_second = (timeline.data.view.pixels_per_second * factor).clamp(
             MIN_TIMELINE_PIXELS_PER_SECOND,
             MAX_TIMELINE_PIXELS_PER_SECOND,
         );
@@ -784,8 +787,7 @@ impl Editor {
                 pixels_per_second,
             ));
             timeline.scroll.set_offset(scroll_offset);
-            timeline.pixels_per_second = pixels_per_second;
-            timeline.zoom_save_due = Some(Instant::now() + TIMELINE_ZOOM_SAVE_DELAY);
+            timeline.data.view.pixels_per_second = pixels_per_second;
         }
     }
 
@@ -793,8 +795,9 @@ impl Editor {
         if let Some(timeline) = self.timeline.as_mut() {
             timeline.interaction.snapping_enabled = !timeline.interaction.snapping_enabled;
             timeline.interaction.snap_guide = None;
+            timeline.data.view.snapping_enabled = timeline.interaction.snapping_enabled;
         }
-        self.save_timeline_view();
+        self.save_timeline();
     }
 
     pub(super) fn finish_timeline_scroll(
@@ -819,7 +822,7 @@ impl Editor {
             );
         }
         if !event.delta.precise() || matches!(event.touch_phase, TouchPhase::Ended) {
-            self.save_timeline_view();
+            self.save_timeline_scroll();
         }
     }
 
@@ -840,7 +843,7 @@ impl Editor {
         let Some(previous_zoom) = self
             .timeline
             .as_ref()
-            .map(|timeline| timeline.pixels_per_second)
+            .map(|timeline| timeline.data.view.pixels_per_second)
         else {
             return false;
         };
@@ -848,16 +851,22 @@ impl Editor {
         self.zoom(factor);
         log::debug!(
             target: "opencut::timeline",
-            "trackpad-pinch magnification={:.4} location_y={:.1} action=zoom factor={factor:.4} px_per_second={previous_zoom:.2}->{:.2}",
+            "trackpad-pinch magnification={:.4} location_y={:.1} ended={} action=zoom factor={factor:.4} px_per_second={previous_zoom:.2}->{:.2}",
             gesture.magnification,
             gesture.location_y,
+            gesture.ended,
             self.timeline
                 .as_ref()
-                .map_or(previous_zoom, |timeline| timeline.pixels_per_second),
+                .map_or(previous_zoom, |timeline| timeline.data.view.pixels_per_second),
         );
-        self.timeline
+        let changed = self
+            .timeline
             .as_ref()
-            .is_some_and(|timeline| timeline.pixels_per_second != previous_zoom)
+            .is_some_and(|timeline| timeline.data.view.pixels_per_second != previous_zoom);
+        if gesture.ended {
+            self.save_timeline_scroll();
+        }
+        changed
     }
 
     pub(super) fn timeline_position_from_x(&self, x: f32) -> TimelineTime {
@@ -868,7 +877,7 @@ impl Editor {
         let content_x = x - TRACK_HEADER_WIDTH - scroll_x - TIMELINE_PADDING;
         timeline
             .data
-            .nearest_time(content_x as f64 / timeline.pixels_per_second as f64)
+            .nearest_time(content_x as f64 / timeline.data.view.pixels_per_second as f64)
             .clamp(TimelineTime::ZERO, timeline.data.timeline_duration())
     }
 
@@ -948,7 +957,7 @@ impl Editor {
             timeline.interaction.last_scrub_seek = None;
             let position = self.timeline_position_from_x(event.position.x.into());
             self.load_timeline_position_for_scrub(position, true, true);
-            self.save_timeline_view();
+            self.save_timeline_playhead();
             cx.notify();
         }
     }
@@ -964,7 +973,7 @@ impl Editor {
             .clamp(TimelineTime::ZERO, timeline.data.timeline_duration());
         if target != timeline.playhead || self.preview.target != PreviewTarget::Timeline {
             self.load_timeline_position(target, false);
-            self.save_timeline_view();
+            self.save_timeline_playhead();
         }
     }
 }

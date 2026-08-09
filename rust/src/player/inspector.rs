@@ -4,16 +4,12 @@ use yuv::{YuvBiPlanarImage, YuvConversionMode, YuvRange, YuvStandardMatrix};
 
 impl Player {
     fn save_current_frame(&mut self, cx: &mut Context<Self>) {
-        self.error = None;
-
         let Some(video) = &self.video else {
-            self.error = Some("Open a video before saving a frame.".to_string());
-            cx.notify();
+            eprintln!("Open a video before saving a frame.");
             return;
         };
         let Some(frame) = current_frame_rgba(video) else {
-            self.error = Some("The current video frame is not ready yet.".to_string());
-            cx.notify();
+            eprintln!("The current video frame is not ready yet.");
             return;
         };
 
@@ -27,7 +23,7 @@ impl Player {
         let suggested_name = self.frame_filename();
         let selection = cx.prompt_for_new_path(&directory, Some(&suggested_name));
 
-        cx.spawn(async move |player, cx| {
+        cx.spawn(async move |_, cx| {
             let path = match selection.await {
                 Ok(Ok(Some(mut path))) => {
                     if !path
@@ -41,22 +37,11 @@ impl Player {
                 }
                 Ok(Ok(None)) => return,
                 Ok(Err(error)) => {
-                    player
-                        .update(cx, |player, cx| {
-                            player.error = Some(format!("Could not open save dialog: {error}"));
-                            cx.notify();
-                        })
-                        .ok();
+                    eprintln!("Could not open save dialog: {error}");
                     return;
                 }
                 Err(error) => {
-                    player
-                        .update(cx, |player, cx| {
-                            player.error =
-                                Some(format!("Save dialog closed unexpectedly: {error}"));
-                            cx.notify();
-                        })
-                        .ok();
+                    eprintln!("Save dialog closed unexpectedly: {error}");
                     return;
                 }
             };
@@ -65,12 +50,9 @@ impl Player {
                 .background_executor()
                 .spawn(async move { save_frame_as_png(frame, &path) })
                 .await;
-            player
-                .update(cx, |player, cx| {
-                    player.error = save_result.err();
-                    cx.notify();
-                })
-                .ok();
+            if let Err(error) = save_result {
+                eprintln!("{error}");
+            }
         })
         .detach();
     }

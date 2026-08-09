@@ -258,7 +258,7 @@ impl Editor {
                 && let Err(error) =
                     update_timeline_video_position(video, &timeline.data, drag.clip_id, false)
             {
-                self.error = Some(error);
+                eprintln!("{error}");
             }
         }
         self.preview.timeline_drag = Some(drag);
@@ -280,7 +280,7 @@ impl Editor {
                 };
                 match update_timeline_video_position(video, &timeline.data, drag.clip_id, true) {
                     Ok(()) => self.preview.timeline_needs_rebuild = false,
-                    Err(error) => self.error = Some(error),
+                    Err(error) => eprintln!("{error}"),
                 }
             }
             self.save_timeline();

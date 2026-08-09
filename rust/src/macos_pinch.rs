@@ -2,13 +2,14 @@
 pub(crate) struct PinchGesture {
     pub(crate) magnification: f64,
     pub(crate) location_y: f64,
+    pub(crate) ended: bool,
 }
 
 #[cfg(target_os = "macos")]
 mod platform {
     use super::PinchGesture;
     use block2::RcBlock;
-    use objc2_app_kit::{NSEvent, NSEventMask};
+    use objc2_app_kit::{NSEvent, NSEventMask, NSEventPhase};
     use std::{ptr::NonNull, sync::Mutex, sync::Once};
 
     static INSTALL: Once = Once::new();
@@ -22,14 +23,19 @@ mod platform {
                 let event_ref = unsafe { event.as_ref() };
                 let magnification = event_ref.magnification();
                 let location = event_ref.locationInWindow();
+                let ended = event_ref
+                    .phase()
+                    .intersects(NSEventPhase::Ended | NSEventPhase::Cancelled);
                 let mut pending = PENDING.lock().unwrap_or_else(|error| error.into_inner());
                 if let Some(pending) = pending.as_mut() {
                     pending.magnification += magnification;
                     pending.location_y = location.y;
+                    pending.ended |= ended;
                 } else {
                     *pending = Some(PinchGesture {
                         magnification,
                         location_y: location.y,
+                        ended,
                     });
                 }
                 event.as_ptr()

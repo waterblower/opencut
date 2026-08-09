@@ -133,7 +133,7 @@ impl Editor {
                     self.preview.timeline_needs_rebuild = false;
                 }
                 Err(error) => {
-                    self.error = Some(error);
+                    eprintln!("{error}");
                     self.preview.playing = false;
                     return;
                 }
@@ -153,8 +153,6 @@ impl Editor {
             }
         }
         self.preview.refresh_ticks = 12;
-
-        self.error = None;
     }
 
     pub(super) fn toggle_playback(&mut self) {
@@ -227,7 +225,6 @@ impl Editor {
                 _ => PreviewTarget::ImageFile(relative_path.clone()),
             };
             self.status = None;
-            self.error = None;
             if let Some(video) = &self.preview.video {
                 video.set_paused(true);
             }
@@ -253,11 +250,10 @@ impl Editor {
         let project_root = self.project_root.clone();
         let source_path = project_root.join(&relative_path);
         let Ok(url) = Url::from_file_path(&source_path) else {
-            self.error = Some(format!("Could not open {}", source_path.display()));
+            eprintln!("Could not open {}", source_path.display());
             return;
         };
         self.status = Some(format!("Loading preview for {}…", relative_path.display()));
-        self.error = None;
 
         if is_audio {
             cx.spawn(async move |editor, cx| {
@@ -282,12 +278,11 @@ impl Editor {
                                 audio.set_playing(false);
                                 editor.preview.audio = Some(audio);
                                 editor.status = Some("Audio preview ready.".to_string());
-                                editor.error = None;
                                 editor.preview.refresh_ticks = 12;
                             }
                             Err(error) => {
                                 editor.status = None;
-                                editor.error = Some(error);
+                                eprintln!("{error}");
                             }
                         }
                         cx.notify();
@@ -326,12 +321,11 @@ impl Editor {
                             video.set_volume(editor.preview.volume);
                             editor.preview.video = Some(video);
                             editor.status = Some("Video preview ready.".to_string());
-                            editor.error = None;
                             editor.preview.refresh_ticks = 12;
                         }
                         Err(error) => {
                             editor.status = None;
-                            editor.error = Some(error);
+                            eprintln!("{error}");
                         }
                     }
                     cx.notify();
@@ -467,7 +461,7 @@ impl PlaybackViewDelegate for Editor {
                 self.seek_preview_to_fraction(fraction, true, resume);
                 self.preview.resume_after_scrub = false;
                 if self.preview.target == PreviewTarget::Timeline {
-                    self.save_timeline_view();
+                    self.save_timeline_playhead();
                 }
             }
             _ => return,

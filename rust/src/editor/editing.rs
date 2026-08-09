@@ -62,7 +62,7 @@ impl Editor {
             Ok(track_id) => track_id,
             Err(error) => {
                 self.status = None;
-                self.error = Some(error);
+                eprintln!("{error}");
                 return;
             }
         };
@@ -119,7 +119,7 @@ impl Editor {
         let playhead = timeline.playhead;
         let clips = clips_crossing_playhead(&timeline.data, playhead);
         if clips.is_empty() {
-            self.error = Some("No unlocked clip crosses the playhead.".into());
+            eprintln!("No unlocked clip crosses the playhead.");
             return;
         }
 
@@ -149,7 +149,6 @@ impl Editor {
         timeline.interaction.selected_clip_ids = right_halves.iter().map(|clip| clip.id).collect();
         timeline.interaction.selected_clip_id = right_halves.first().map(|clip| clip.id);
         timeline.data.clips.extend(right_halves);
-        self.error = None;
         self.status = Some(format!(
             "Bladed {split_count} clip{} at the playhead.",
             plural_suffix(split_count)
@@ -179,7 +178,6 @@ impl Editor {
         timeline.data.clips[index] = left;
         timeline.data.clips.push(right);
         self.select_only_clip(Some(right_clip_id));
-        self.error = None;
         self.save_timeline();
         let playhead = self
             .timeline
@@ -228,7 +226,6 @@ impl Editor {
             .as_mut()
             .expect("timeline was checked above")
             .clipboard = Some(clipboard);
-        self.error = None;
         self.status = Some(format!("Copied {count} clip{}.", plural_suffix(count)));
     }
 
@@ -240,7 +237,7 @@ impl Editor {
             return;
         }
         if !self.selected_clips_editable() {
-            self.error = Some("Cannot cut clips from a locked track.".to_string());
+            eprintln!("Cannot cut clips from a locked track.");
             return;
         }
         let Some(clipboard) = ClipClipboard::from_selection(
@@ -258,7 +255,6 @@ impl Editor {
             .expect("timeline was checked above")
             .clipboard = Some(clipboard);
         self.remove_clips(&clip_ids, false);
-        self.error = None;
         self.status = Some(format!("Cut {count} clip{}.", plural_suffix(count)));
     }
 
@@ -272,7 +268,7 @@ impl Editor {
         let playhead = timeline.playhead;
         let mut clips = clipboard.clips_at(playhead);
         if let Err(rejection) = validate_clipboard_placements(&timeline.data, &clips) {
-            self.error = Some(format!("Cannot paste clips: {}.", rejection.message()));
+            eprintln!("Cannot paste clips: {}.", rejection.message());
             return;
         }
 
@@ -290,7 +286,6 @@ impl Editor {
             .map(|clip| clip.id);
         timeline.data.clips.extend(clips);
         self.preview.target = PreviewTarget::Timeline;
-        self.error = None;
         self.status = Some(format!("Pasted {count} clip{}.", plural_suffix(count)));
         self.save_timeline();
         self.load_timeline_position(playhead, false);
@@ -415,7 +410,7 @@ impl Editor {
 
     pub(super) fn add_track(&mut self, kind: TrackKind) {
         let Some(timeline) = self.timeline.as_ref() else {
-            self.error = Some("Create or select a timeline before adding tracks.".to_string());
+            eprintln!("Create or select a timeline before adding tracks.");
             return;
         };
         let number = timeline
@@ -800,7 +795,7 @@ impl Editor {
         if let Some(timeline) = self.timeline.as_ref()
             && let Err(error) = timeline.data.save(&self.project_root.join(&timeline.path))
         {
-            self.error = Some(format!("Could not autosave timeline: {error}"));
+            eprintln!("Could not autosave timeline: {error}");
             return;
         }
         if self.preview.timeline_needs_rebuild && self.preview.target == PreviewTarget::Timeline {
@@ -811,9 +806,16 @@ impl Editor {
         }
     }
 
-    pub(super) fn save_timeline_view(&mut self) {
+    pub(super) fn save_timeline_playhead(&mut self) {
         if let Some(timeline) = self.timeline.as_mut() {
-            timeline.capture_view();
+            timeline.capture_playhead();
+        }
+        self.save_timeline();
+    }
+
+    pub(super) fn save_timeline_scroll(&mut self) {
+        if let Some(timeline) = self.timeline.as_mut() {
+            timeline.capture_scroll();
         }
         self.save_timeline();
     }
@@ -831,8 +833,9 @@ impl Editor {
     pub(super) fn toggle_track_magnet(&mut self) {
         if let Some(timeline) = self.timeline.as_mut() {
             timeline.interaction.magnet_enabled = !timeline.interaction.magnet_enabled;
+            timeline.data.view.track_magnet_enabled = timeline.interaction.magnet_enabled;
         }
-        self.save_timeline_view();
+        self.save_timeline();
     }
 }
 

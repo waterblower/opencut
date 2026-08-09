@@ -157,13 +157,7 @@ impl Editor {
             .as_ref()
             .is_some_and(|timeline| !timeline.data.clips.is_empty())
             && !self.export.running;
-        let has_error = self.error.is_some();
-        let message = self
-            .error
-            .as_deref()
-            .or(self.status.as_deref())
-            .unwrap_or("Ready")
-            .to_string();
+        let message = self.status.as_deref().unwrap_or("Ready").to_string();
         let timeline_name = self
             .timeline
             .as_ref()
@@ -213,7 +207,7 @@ impl Editor {
                         div()
                             .text_sm()
                             .text_ellipsis()
-                            .text_color(if has_error { rgb(ERROR) } else { rgb(MUTED) })
+                            .text_color(rgb(MUTED))
                             .child(message),
                     ),
             )

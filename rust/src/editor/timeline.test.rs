@@ -7,6 +7,7 @@ fn timeline_view_state_is_sanitized_when_the_timeline_is_normalized() {
             saved_playhead_frame: -10,
             horizontal_scroll: f32::NAN,
             vertical_scroll: -20.0,
+            pixels_per_second: f32::NAN,
             snapping_enabled: false,
             track_magnet_enabled: false,
         },
@@ -18,6 +19,10 @@ fn timeline_view_state_is_sanitized_when_the_timeline_is_normalized() {
     assert_eq!(timeline.view.saved_playhead_frame, 0);
     assert_eq!(timeline.view.horizontal_scroll, 0.0);
     assert_eq!(timeline.view.vertical_scroll, 0.0);
+    assert_eq!(
+        timeline.view.pixels_per_second,
+        DEFAULT_TIMELINE_PIXELS_PER_SECOND
+    );
     assert!(!timeline.view.snapping_enabled);
     assert!(!timeline.view.track_magnet_enabled);
 }
@@ -46,6 +51,42 @@ fn timeline_view_defaults_enable_snap_and_magnet() {
 
     assert!(timeline.view.snapping_enabled);
     assert!(timeline.view.track_magnet_enabled);
+    assert_eq!(
+        timeline.view.pixels_per_second,
+        DEFAULT_TIMELINE_PIXELS_PER_SECOND
+    );
+}
+
+#[test]
+fn missing_timeline_view_fields_use_defaults() {
+    let timeline: Timeline = serde_json::from_str(
+        r#"{
+            "settings": {
+                "frame_rate": { "numerator": 30, "denominator": 1 },
+                "width": 1920,
+                "height": 1080,
+                "audio_sample_rate": 48000
+            },
+            "assets": [],
+            "tracks": [],
+            "clips": [],
+            "view": {}
+        }"#,
+    )
+    .unwrap();
+
+    assert_eq!(timeline.view, TimelineViewState::default());
+}
+
+#[test]
+fn timeline_view_zoom_round_trips_through_timeline_json() {
+    let mut timeline = Timeline::default();
+    timeline.view.pixels_per_second = 144.0;
+
+    let json = serde_json::to_string(&timeline).unwrap();
+    let restored: Timeline = serde_json::from_str(&json).unwrap();
+
+    assert_eq!(restored.view.pixels_per_second, 144.0);
 }
 
 #[cfg(test)]
