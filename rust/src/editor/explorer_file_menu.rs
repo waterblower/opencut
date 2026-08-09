@@ -314,11 +314,6 @@ impl Editor {
             if let Err(error) = save_active_timeline(&self.project_root, &renamed_active_timeline) {
                 self.error = Some(error);
             }
-            if let Some(view_state) = self.current_timeline_view_state()
-                && let Err(error) = save_timeline_view(&view_state)
-            {
-                self.error = Some(error);
-            }
         }
         self.save_timeline();
         self.explorer.rename_dialog = None;

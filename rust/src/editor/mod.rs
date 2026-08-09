@@ -2,7 +2,7 @@ use crate::video::Video;
 use gpui::{
     App, Context, CursorStyle, DragMoveEvent, Entity, FocusHandle, KeyBinding, MouseButton,
     MouseDownEvent, MouseMoveEvent, MouseUpEvent, ObjectFit, PathPromptOptions, Render,
-    ScrollHandle, ScrollWheelEvent, Window, actions, div, img, prelude::*, px, rgb,
+    ScrollHandle, ScrollWheelEvent, TouchPhase, Window, actions, div, img, prelude::*, px, rgb,
 };
 use std::{
     collections::{HashMap, HashSet},
@@ -64,9 +64,8 @@ use timeline_clip_menu::TimelineClipContextMenu;
 use timeline_document::load_existing;
 use timeline_interactions::{ClipMoveDrag, MarqueeSelection, TimelineTool, TrimDrag, TrimEdge};
 use workspace::{
-    FileTreeEntry, TimelineViewState, load_active_timeline, load_project_root, load_timeline_view,
-    load_timeline_zoom, save_active_timeline, save_project_root, save_timeline_view,
-    save_timeline_zoom, timeline_view_state, visible_tree,
+    FileTreeEntry, load_active_timeline, load_project_root, load_timeline_zoom,
+    save_active_timeline, save_project_root, save_timeline_zoom, visible_tree,
 };
 
 const MEDIA_PANEL_WIDTH: f32 = 340.0;
@@ -86,7 +85,6 @@ const MIN_TIMELINE_PIXELS_PER_SECOND: f32 = 1.0;
 const MAX_TIMELINE_PIXELS_PER_SECOND: f32 = 1000.0;
 const DEFAULT_TIMELINE_PIXELS_PER_SECOND: f32 = 72.0;
 const TIMELINE_ZOOM_SAVE_DELAY: Duration = Duration::from_millis(500);
-const TIMELINE_VIEW_SAVE_DELAY: Duration = Duration::from_secs(1);
 const SCRUB_SEEK_INTERVAL: Duration = Duration::from_millis(50);
 const IDLE_UPDATE_INTERVAL: Duration = Duration::from_millis(33);
 
@@ -266,8 +264,8 @@ impl Editor {
         {
             startup_error = Some(error);
         }
-        let timeline = active_timeline
-            .map(|(path, data)| TimelineState::new(path, data, &project_root, pixels_per_second));
+        let timeline =
+            active_timeline.map(|(path, data)| TimelineState::new(path, data, pixels_per_second));
         let selected_file = timeline.as_ref().map(|timeline| timeline.path.clone());
         let focus_handle = cx.focus_handle();
         let explorer_filter = cx.new(|cx| ExplorerFilter::new(focus_handle.clone(), cx));
@@ -399,27 +397,6 @@ impl Editor {
                     }
                     editor.update_playback();
                     editor.reconcile_preview_seek();
-                    let current_timeline_view = editor.current_timeline_view_state();
-                    if let (Some(current_timeline_view), Some(timeline)) =
-                        (current_timeline_view, editor.timeline.as_mut())
-                        && current_timeline_view != timeline.view_state
-                    {
-                        timeline.view_state = current_timeline_view;
-                        if timeline.view_save_due.is_none() {
-                            timeline.view_save_due =
-                                Some(Instant::now() + TIMELINE_VIEW_SAVE_DELAY);
-                        }
-                    }
-                    if let Some(timeline) = editor.timeline.as_mut()
-                        && timeline
-                            .view_save_due
-                            .is_some_and(|due| Instant::now() >= due)
-                    {
-                        if let Err(error) = save_timeline_view(&timeline.view_state) {
-                            editor.error = Some(error);
-                        }
-                        timeline.view_save_due = None;
-                    }
                     if should_render {
                         cx.notify();
                     }
@@ -442,20 +419,6 @@ impl Editor {
         } else {
             IDLE_UPDATE_INTERVAL
         }
-    }
-
-    fn current_timeline_view_state(&self) -> Option<TimelineViewState> {
-        let timeline = self.timeline.as_ref()?;
-        let horizontal_scroll = (-f32::from(timeline.scroll.offset().x)).max(0.0);
-        let vertical_scroll = (-f32::from(timeline.vertical_scroll.offset().y)).max(0.0);
-        Some(timeline_view_state(
-            &self.project_root.join(&timeline.path),
-            timeline.playhead.frames(),
-            horizontal_scroll,
-            vertical_scroll,
-            timeline.interaction.snapping_enabled,
-            timeline.interaction.magnet_enabled,
-        ))
     }
 
     fn open_project_folder(&mut self, cx: &mut Context<Self>) {
@@ -511,11 +474,6 @@ impl Editor {
                 return;
             }
         };
-        if let Some(view_state) = self.current_timeline_view_state()
-            && let Err(error) = save_timeline_view(&view_state)
-        {
-            self.error = Some(error);
-        }
         self.save_timeline();
         self.project_root = root;
         self.explorer.expanded_directories.clear();
@@ -546,11 +504,6 @@ impl Editor {
             }
         };
         self.save_timeline();
-        if let Some(view_state) = self.current_timeline_view_state()
-            && let Err(error) = save_timeline_view(&view_state)
-        {
-            self.error = Some(error);
-        }
         self.activate_timeline(Some((relative_path.clone(), timeline)), cx);
         self.status = Some(format!("Opened {}", relative_path.display()));
     }
@@ -565,11 +518,6 @@ impl Editor {
         cx: &mut Context<Self>,
     ) {
         self.save_timeline();
-        if let Some(view_state) = self.current_timeline_view_state()
-            && let Err(error) = save_timeline_view(&view_state)
-        {
-            self.error = Some(error);
-        }
         // Expand the target folder so the new timeline is visible in the tree.
         if !relative_directory.as_os_str().is_empty() {
             self.explorer
@@ -619,9 +567,8 @@ impl Editor {
                     MAX_TIMELINE_PIXELS_PER_SECOND,
                 )
             });
-        self.timeline = active_timeline.map(|(path, data)| {
-            TimelineState::new(path, data, &self.project_root, pixels_per_second)
-        });
+        self.timeline =
+            active_timeline.map(|(path, data)| TimelineState::new(path, data, pixels_per_second));
         self.explorer.search_query = None;
         self.explorer.search_results.clear();
         self.explorer.search_pending = false;
@@ -876,16 +823,6 @@ impl Editor {
         cx: &mut Context<Self>,
     ) {
         crate::gpui_inspector::toggle(window, cx);
-    }
-}
-
-impl Drop for Editor {
-    fn drop(&mut self) {
-        if let Some(view_state) = self.current_timeline_view_state()
-            && let Err(error) = save_timeline_view(&view_state)
-        {
-            eprintln!("Could not save timeline view state: {error}");
-        }
     }
 }
 

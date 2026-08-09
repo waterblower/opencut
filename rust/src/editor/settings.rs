@@ -155,7 +155,7 @@ impl Editor {
         self.preview.timeline_needs_rebuild = true;
         self.preview.playing = false;
         self.preview.timeline_clock = None;
-        self.save_timeline();
+        self.save_timeline_view();
         if has_clips {
             self.load_timeline_position(playhead, false);
         }

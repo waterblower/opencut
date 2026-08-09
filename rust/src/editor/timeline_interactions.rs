@@ -794,31 +794,33 @@ impl Editor {
             timeline.interaction.snapping_enabled = !timeline.interaction.snapping_enabled;
             timeline.interaction.snap_guide = None;
         }
+        self.save_timeline_view();
     }
 
-    pub(super) fn log_timeline_trackpad_scroll(
+    pub(super) fn finish_timeline_scroll(
         &mut self,
         event: &ScrollWheelEvent,
         _: &mut Window,
         _: &mut Context<Self>,
     ) {
-        if !event.delta.precise() {
-            return;
+        if event.delta.precise() {
+            let delta = event.delta.pixel_delta(px(16.0));
+            let horizontal = f32::from(delta.x);
+            let vertical = f32::from(delta.y);
+            let action = if horizontal.abs() < f32::EPSILON && vertical.abs() < f32::EPSILON {
+                "idle"
+            } else {
+                "pan"
+            };
+            log::debug!(
+                target: "opencut::timeline",
+                "trackpad-scroll phase={:?} delta=({horizontal:.2}, {vertical:.2}) action={action}",
+                event.touch_phase,
+            );
         }
-
-        let delta = event.delta.pixel_delta(px(16.0));
-        let horizontal = f32::from(delta.x);
-        let vertical = f32::from(delta.y);
-        let action = if horizontal.abs() < f32::EPSILON && vertical.abs() < f32::EPSILON {
-            "idle"
-        } else {
-            "pan"
-        };
-        log::debug!(
-            target: "opencut::timeline",
-            "trackpad-scroll phase={:?} delta=({horizontal:.2}, {vertical:.2}) action={action}",
-            event.touch_phase,
-        );
+        if !event.delta.precise() || matches!(event.touch_phase, TouchPhase::Ended) {
+            self.save_timeline_view();
+        }
     }
 
     pub(super) fn apply_timeline_pinch(&mut self) -> bool {
@@ -946,6 +948,7 @@ impl Editor {
             timeline.interaction.last_scrub_seek = None;
             let position = self.timeline_position_from_x(event.position.x.into());
             self.load_timeline_position_for_scrub(position, true, true);
+            self.save_timeline_view();
             cx.notify();
         }
     }
@@ -961,6 +964,7 @@ impl Editor {
             .clamp(TimelineTime::ZERO, timeline.data.timeline_duration());
         if target != timeline.playhead || self.preview.target != PreviewTarget::Timeline {
             self.load_timeline_position(target, false);
+            self.save_timeline_view();
         }
     }
 }

@@ -729,9 +729,10 @@ impl Editor {
         let Some(timeline) = self.timeline.as_mut() else {
             return;
         };
-        let Some(snapshot) = timeline.undo_stack.pop() else {
+        let Some(mut snapshot) = timeline.undo_stack.pop() else {
             return;
         };
+        snapshot.view = timeline.data.view.clone();
         let current = std::mem::replace(&mut timeline.data, snapshot);
         timeline.redo_stack.push(current);
         self.reset_after_history_change();
@@ -741,9 +742,10 @@ impl Editor {
         let Some(timeline) = self.timeline.as_mut() else {
             return;
         };
-        let Some(snapshot) = timeline.redo_stack.pop() else {
+        let Some(mut snapshot) = timeline.redo_stack.pop() else {
             return;
         };
+        snapshot.view = timeline.data.view.clone();
         let current = std::mem::replace(&mut timeline.data, snapshot);
         timeline.undo_stack.push(current);
         self.reset_after_history_change();
@@ -809,6 +811,13 @@ impl Editor {
         }
     }
 
+    pub(super) fn save_timeline_view(&mut self) {
+        if let Some(timeline) = self.timeline.as_mut() {
+            timeline.capture_view();
+        }
+        self.save_timeline();
+    }
+
     pub(super) fn take_id(&mut self) -> u64 {
         let timeline = self
             .timeline
@@ -823,6 +832,7 @@ impl Editor {
         if let Some(timeline) = self.timeline.as_mut() {
             timeline.interaction.magnet_enabled = !timeline.interaction.magnet_enabled;
         }
+        self.save_timeline_view();
     }
 }
 
