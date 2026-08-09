@@ -2,7 +2,7 @@ use super::*;
 
 impl Editor {
     pub(super) fn settings_modal(&self, cx: &mut Context<Self>) -> gpui::AnyElement {
-        let selected = self.project.settings.frame_rate;
+        let selected = self.timeline.settings.frame_rate;
         let options = FRAME_RATE_PRESETS
             .into_iter()
             .enumerate()
@@ -79,7 +79,7 @@ impl Editor {
                                 div()
                                     .text_lg()
                                     .font_weight(gpui::FontWeight::SEMIBOLD)
-                                    .child("Project Settings"),
+                                    .child("Timeline Settings"),
                             )
                             .child(
                                 div()
@@ -130,7 +130,10 @@ impl Editor {
 
     fn set_timeline_frame_rate(&mut self, frame_rate: FrameRate) {
         self.settings_open = false;
-        let previous = self.project.settings.frame_rate;
+        if self.timeline.active_timeline.is_none() {
+            return;
+        }
+        let previous = self.timeline.settings.frame_rate;
         if previous == frame_rate {
             return;
         }
@@ -140,15 +143,15 @@ impl Editor {
         }
         self.checkpoint();
         let playhead = previous.rescale_nearest(self.timeline.playhead, frame_rate);
-        self.project.set_frame_rate(frame_rate);
+        self.timeline.set_frame_rate(frame_rate);
         self.timeline.playhead =
-            playhead.clamp(TimelineTime::ZERO, self.project.timeline_duration());
+            playhead.clamp(TimelineTime::ZERO, self.timeline.timeline_duration());
         self.preview.video = None;
         self.preview.timeline_needs_rebuild = true;
         self.preview.playing = false;
         self.preview.timeline_clock = None;
-        self.save_project();
-        if !self.project.clips.is_empty() {
+        self.save_timeline();
+        if !self.timeline.clips.is_empty() {
             self.load_timeline_position(self.timeline.playhead, false);
         }
         self.status = Some(format!(

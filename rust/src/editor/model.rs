@@ -7,7 +7,6 @@ use std::{
 };
 
 pub(super) const DEFAULT_IMAGE_CLIP_DURATION: f64 = 5.0;
-pub(super) const PROJECT_VERSION: u32 = 6;
 
 #[derive(Clone, Copy, Debug, Default, Deserialize, Eq, Ord, PartialEq, PartialOrd, Serialize)]
 #[serde(transparent)]
@@ -143,7 +142,7 @@ impl FrameRate {
     }
 
     pub fn nearest(self, seconds: f64) -> TimelineTime {
-        // Pointer-driven seeks and edits select the closest project frame.
+        // Pointer-driven seeks and edits select the closest timeline frame.
         self.quantize_seconds(seconds, f64::round)
     }
 
@@ -197,14 +196,14 @@ impl FrameRate {
 }
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
-pub(super) struct ProjectSettings {
+pub(super) struct TimelineSettings {
     pub frame_rate: FrameRate,
     pub width: u32,
     pub height: u32,
     pub audio_sample_rate: u32,
 }
 
-impl Default for ProjectSettings {
+impl Default for TimelineSettings {
     fn default() -> Self {
         Self {
             frame_rate: FrameRate::default(),
@@ -268,7 +267,7 @@ impl MediaAsset {
 
 /// Static visual adjustments for one timeline clip.
 ///
-/// Position is an offset in project pixels from the clip's centered placement. Scale and
+/// Position is an offset in timeline pixels from the clip's centered placement. Scale and
 /// opacity are normalized multipliers, so `1.0` means 100%.
 #[derive(Clone, Copy, Debug, Deserialize, PartialEq, Serialize)]
 #[serde(default)]
@@ -390,29 +389,16 @@ pub(super) struct TimelineTrack {
     pub visible: bool,
 }
 
-#[derive(Clone, Debug, Deserialize, Serialize)]
-pub(super) struct Project {
-    pub version: u32,
-    pub settings: ProjectSettings,
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
+pub(super) struct Timeline {
+    pub settings: TimelineSettings,
     pub assets: Vec<MediaAsset>,
     pub tracks: Vec<TimelineTrack>,
     pub clips: Vec<TimelineClip>,
 }
 
-impl Default for Project {
-    fn default() -> Self {
-        Self {
-            version: PROJECT_VERSION,
-            settings: ProjectSettings::default(),
-            assets: Vec::new(),
-            tracks: Vec::new(),
-            clips: Vec::new(),
-        }
-    }
-}
-
 #[cfg(test)]
-impl Project {
+impl Timeline {
     pub fn with_test_tracks() -> Self {
         Self {
             tracks: vec![
@@ -438,14 +424,14 @@ impl Project {
     }
 }
 
-impl Project {
+impl Timeline {
     pub fn load(path: &Path) -> Result<Self, String> {
         let contents = fs::read_to_string(path)
             .map_err(|error| format!("could not read {}: {error}", path.display()))?;
-        let mut project = serde_json::from_str::<Self>(&contents)
+        let mut timeline = serde_json::from_str::<Self>(&contents)
             .map_err(|error| format!("could not parse {}: {error}", path.display()))?;
-        project.normalize();
-        Ok(project)
+        timeline.normalize();
+        Ok(timeline)
     }
 
     pub fn save(&self, path: &Path) -> Result<(), String> {
@@ -563,7 +549,7 @@ impl Project {
         )
     }
 
-    /// Returns an exact source-frame timestamp for video and a project-clock timestamp otherwise.
+    /// Returns an exact source-frame timestamp for video and a timeline-clock timestamp otherwise.
     pub fn source_position_at(
         &self,
         clip: &TimelineClip,
@@ -623,7 +609,6 @@ impl Project {
     }
 
     fn normalize(&mut self) {
-        self.version = PROJECT_VERSION;
         if self.settings.frame_rate.numerator == 0 {
             self.settings.frame_rate.numerator = 30;
         }

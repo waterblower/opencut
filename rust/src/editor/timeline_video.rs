@@ -1,6 +1,6 @@
 use super::{
     clip_render_plan::resolve_visual_clip_render_plan, export::ExportOptions,
-    export_gstreamer::build_timeline, model::Project,
+    export_gstreamer::build_timeline, model::Timeline,
 };
 use crate::video::Video;
 use ges::prelude::*;
@@ -10,12 +10,12 @@ use gstreamer_editing_services as ges;
 use std::path::Path;
 
 pub(super) fn create_timeline_video(
-    project: &Project,
+    timeline: &Timeline,
     project_root: &Path,
 ) -> Result<Video, String> {
     initialize_gstreamer()?;
     let audio_sink = preview_audio_sink()?;
-    let (pipeline, sink) = create_timeline_pipeline(project, project_root, &audio_sink)?;
+    let (pipeline, sink) = create_timeline_pipeline(timeline, project_root, &audio_sink)?;
     Video::from_pipeline(pipeline, sink, false)
         .map_err(|error| format!("could not initialize timeline video: {error}"))
 }
@@ -29,14 +29,14 @@ pub(super) fn set_timeline_audio(video: &Video, volume: f64, muted: bool) {
 
 pub(super) fn update_timeline_video_position(
     video: &Video,
-    project: &Project,
+    timeline_data: &Timeline,
     clip_id: u64,
     refresh_frame: bool,
 ) -> Result<(), String> {
-    let clip = project
+    let clip = timeline_data
         .clip(clip_id)
         .ok_or_else(|| format!("Clip {clip_id} is unavailable."))?;
-    let asset = project
+    let asset = timeline_data
         .asset(clip.asset_id)
         .ok_or_else(|| format!("Clip {clip_id} has no source media."))?;
     let pipeline = video
@@ -53,13 +53,13 @@ pub(super) fn update_timeline_video_position(
         .flat_map(|layer| layer.clips())
         .find(|rendered_clip| rendered_clip.name().as_deref() == Some(clip_name.as_str()))
         .ok_or_else(|| format!("timeline preview has no rendered clip for {clip_id}"))?;
-    let options = ExportOptions::from_project(project);
+    let options = ExportOptions::from_timeline(timeline_data);
     let plan = resolve_visual_clip_render_plan(
         clip.video_properties,
         asset.width,
         asset.height,
-        project.settings.width,
-        project.settings.height,
+        timeline_data.settings.width,
+        timeline_data.settings.height,
         options.width.max(2) as f64,
         options.height.max(2) as f64,
     );
@@ -93,13 +93,13 @@ pub(super) fn update_timeline_video_position(
 }
 
 fn create_timeline_pipeline(
-    project: &Project,
+    timeline: &Timeline,
     project_root: &Path,
     audio_sink: &gst::Element,
 ) -> Result<(gst::Pipeline, gst_app::AppSink), String> {
     initialize_gstreamer()?;
-    let options = ExportOptions::from_project(project);
-    let timeline = build_timeline(project, project_root, options)?;
+    let options = ExportOptions::from_timeline(timeline);
+    let ges_timeline = build_timeline(timeline, project_root, options)?;
     let video_sink = gst::parse::bin_from_description(
         "queue ! videoconvert ! appsink name=opencut_timeline_video drop=true max-buffers=3 enable-last-sample=false caps=video/x-raw,format=NV12,pixel-aspect-ratio=1/1",
         true,
@@ -115,7 +115,7 @@ fn create_timeline_pipeline(
     pipeline.preview_set_video_sink(Some(&video_sink));
     pipeline.preview_set_audio_sink(Some(audio_sink));
     pipeline
-        .set_timeline(&timeline)
+        .set_timeline(&ges_timeline)
         .map_err(|error| format!("could not attach the preview timeline: {error}"))?;
     pipeline
         .set_mode(ges::PipelineFlags::FULL_PREVIEW)

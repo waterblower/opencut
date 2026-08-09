@@ -32,7 +32,7 @@ impl ClipPlacementRejection {
 }
 
 pub(super) fn validate_clip_placement(
-    project: &Project,
+    timeline: &Timeline,
     target_track_id: u64,
     media_kind: MediaKind,
     clip_length: TimelineTime,
@@ -45,7 +45,7 @@ pub(super) fn validate_clip_placement(
     if clip_length < TimelineTime::ONE_FRAME {
         return Err(ClipPlacementRejection::DurationTooShort);
     }
-    let Some(track) = project.track(target_track_id) else {
+    let Some(track) = timeline.track(target_track_id) else {
         return Err(ClipPlacementRejection::MissingTrack);
     };
     if track.locked {
@@ -58,7 +58,7 @@ pub(super) fn validate_clip_placement(
     if !compatible {
         return Err(ClipPlacementRejection::IncompatibleTrack);
     }
-    if project.clips.iter().any(|clip| {
+    if timeline.clips.iter().any(|clip| {
         !ignored_clip_ids.contains(&clip.id)
             && clip.track_id == target_track_id
             && timeline_ranges_overlap(

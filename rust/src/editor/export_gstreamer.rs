@@ -1,7 +1,7 @@
 use super::{
     clip_render_plan::{resolve_audio_clip_render_plan, resolve_visual_clip_render_plan},
     export::{ExportEncoder, ExportOptions},
-    model::{MediaAsset, MediaKind, Project, TimelineClip, TrackKind, VideoClipProperties},
+    model::{MediaAsset, MediaKind, Timeline, TimelineClip, TrackKind, VideoClipProperties},
 };
 use ges::prelude::*;
 use gstreamer as gst;
@@ -22,14 +22,14 @@ impl ExportEncoder {
     }
 }
 
-pub(super) fn export_project(
-    project: &Project,
+pub(super) fn export_timeline(
+    timeline: &Timeline,
     project_root: &Path,
     output: &Path,
     options: ExportOptions,
     mut report_progress: impl FnMut(f32),
 ) -> Result<(), String> {
-    if project.clips.is_empty() {
+    if timeline.clips.is_empty() {
         return Err("Add at least one clip before exporting.".to_string());
     }
     ges::init()
@@ -40,8 +40,8 @@ pub(super) fn export_project(
     let _encoder_lock = EXPORT_ENCODER_LOCK
         .lock()
         .unwrap_or_else(|error| error.into_inner());
-    export_project_with_encoder(
-        project,
+    export_timeline_with_encoder(
+        timeline,
         project_root,
         &temporary_output.path,
         options,
@@ -63,15 +63,15 @@ pub(super) fn export_project(
     Ok(())
 }
 
-fn export_project_with_encoder(
-    project: &Project,
+fn export_timeline_with_encoder(
+    timeline_data: &Timeline,
     project_root: &Path,
     temporary_output: &Path,
     options: ExportOptions,
     encoder: ExportEncoder,
     report_progress: &mut impl FnMut(f32),
 ) -> Result<(), String> {
-    let timeline = build_timeline(project, project_root, options)?;
+    let timeline = build_timeline(timeline_data, project_root, options)?;
     let profile = encoding_profile(options);
     let _encoder_selection = EncoderSelection::for_export(encoder)?;
     let pipeline = ges::Pipeline::new();
@@ -96,7 +96,7 @@ fn export_project_with_encoder(
     log::info!("Starting GStreamer export with {}", encoder.factory_name());
     let result = render_pipeline(
         &pipeline,
-        project.duration(project.content_duration()),
+        timeline_data.duration(timeline_data.content_duration()),
         report_progress,
     );
     let _ = pipeline.set_state(gst::State::Null);
@@ -104,7 +104,7 @@ fn export_project_with_encoder(
 }
 
 pub(super) fn build_timeline(
-    project: &Project,
+    timeline_data: &Timeline,
     project_root: &Path,
     options: ExportOptions,
 ) -> Result<ges::Timeline, String> {
@@ -129,16 +129,18 @@ pub(super) fn build_timeline(
     }
 
     let mut assets: HashMap<u64, ges::UriClipAsset> = HashMap::new();
-    for project_track in &project.tracks {
+    for timeline_track in &timeline_data.tracks {
         let layer = timeline.append_layer();
-        let mut clips = project.clips_on_track(project_track.id).collect::<Vec<_>>();
+        let mut clips = timeline_data
+            .clips_on_track(timeline_track.id)
+            .collect::<Vec<_>>();
         clips.sort_by_key(|clip| clip.timeline_start);
         for clip in clips {
-            let asset = project
+            let asset = timeline_data
                 .asset(clip.asset_id)
                 .ok_or_else(|| format!("Clip {} has no source media.", clip.id))?;
             let track_types =
-                exported_track_types(project_track, clip, asset.kind, asset.has_audio);
+                exported_track_types(timeline_track, clip, asset.kind, asset.has_audio);
             if track_types.is_empty() {
                 continue;
             }
@@ -154,9 +156,9 @@ pub(super) fn build_timeline(
                 uri_asset
             };
 
-            let start = clock_time(project.duration(clip.timeline_start));
-            let inpoint = source_in(project, clip, asset.kind, track_types);
-            let duration = clock_time(project.duration(clip.duration()));
+            let start = clock_time(timeline_data.duration(clip.timeline_start));
+            let inpoint = source_in(timeline_data, clip, asset.kind, track_types);
+            let duration = clock_time(timeline_data.duration(clip.duration()));
             let ges_clip = layer
                 .add_asset(&uri_asset, start, inpoint, duration, track_types)
                 .map_err(|error| {
@@ -169,11 +171,17 @@ pub(super) fn build_timeline(
                 .set_name(Some(&format!("opencut-clip-{}", clip.id)))
                 .map_err(|error| format!("could not identify clip {}: {error}", clip.id))?;
             if track_types.contains(ges::TrackType::VIDEO) {
-                apply_video_transform(&ges_clip, project, asset, options, clip.video_properties)?;
+                apply_video_transform(
+                    &ges_clip,
+                    timeline_data,
+                    asset,
+                    options,
+                    clip.video_properties,
+                )?;
             }
             if track_types.contains(ges::TrackType::AUDIO) {
                 let audio_plan =
-                    resolve_audio_clip_render_plan(project_track.muted, clip.audio_properties);
+                    resolve_audio_clip_render_plan(timeline_track.muted, clip.audio_properties);
                 let gain = if audio_plan.muted {
                     0.0
                 } else {
@@ -192,7 +200,7 @@ pub(super) fn build_timeline(
 
 pub(super) fn apply_video_transform(
     clip: &ges::Clip,
-    project: &Project,
+    timeline: &Timeline,
     asset: &MediaAsset,
     options: ExportOptions,
     properties: VideoClipProperties,
@@ -201,8 +209,8 @@ pub(super) fn apply_video_transform(
         properties,
         asset.width,
         asset.height,
-        project.settings.width,
-        project.settings.height,
+        timeline.settings.width,
+        timeline.settings.height,
         options.width.max(2) as f64,
         options.height.max(2) as f64,
     );
@@ -255,7 +263,7 @@ fn exported_track_types(
 }
 
 fn source_in(
-    project: &Project,
+    timeline: &Timeline,
     clip: &TimelineClip,
     asset_kind: MediaKind,
     track_types: ges::TrackType,
@@ -264,9 +272,9 @@ fn source_in(
         return gst::ClockTime::ZERO;
     }
     if track_types.contains(ges::TrackType::VIDEO) {
-        return clock_time(Duration::from_secs_f64(project.source_start_seconds(clip)));
+        return clock_time(Duration::from_secs_f64(timeline.source_start_seconds(clip)));
     }
-    clock_time(project.audio_duration(clip.source_in))
+    clock_time(timeline.audio_duration(clip.source_in))
 }
 
 fn encoding_profile(options: ExportOptions) -> gst_pbutils::EncodingContainerProfile {

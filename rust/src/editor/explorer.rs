@@ -161,15 +161,14 @@ impl Editor {
                         MediaKind::Video
                     },
                 });
-                let metadata =
-                    if is_timeline && self.timeline.active_timeline.as_ref() == Some(&path) {
-                        Some("ACTIVE".to_string())
-                    } else {
-                        explorer_metadata(
-                            entry,
-                            self.project.assets.iter().find(|asset| asset.path == path),
-                        )
-                    };
+                let metadata = if is_timeline && self.timeline.active_path() == Some(&path) {
+                    Some("ACTIVE".to_string())
+                } else {
+                    explorer_metadata(
+                        entry,
+                        self.timeline.assets.iter().find(|asset| asset.path == path),
+                    )
+                };
                 div()
                     .id(("project-file", index))
                     .relative()
@@ -588,7 +587,7 @@ impl Editor {
         let Some(track_id) = inside_timeline
             .then_some(track_index)
             .and_then(|index| usize::try_from(index).ok())
-            .and_then(|index| self.project.tracks.get(index))
+            .and_then(|index| self.timeline.tracks.get(index))
             .map(|track| track.id)
         else {
             if self.explorer.drop_preview.take().is_some() {
@@ -601,7 +600,7 @@ impl Editor {
 
         let drag = event.drag(cx).clone();
         let local_x = f32::from(pointer.x) - f32::from(event.bounds.left());
-        let raw_start = self.project.nearest_time(
+        let raw_start = self.timeline.nearest_time(
             ((local_x - TIMELINE_PADDING) / self.timeline.pixels_per_second).max(0.0) as f64,
         );
         self.refresh_explorer_drop_preview(&drag, track_id, raw_start);
@@ -636,13 +635,13 @@ impl Editor {
         let analyzing = asset.is_none();
         let duration = asset
             .as_ref()
-            .map(|asset| self.project.ceil_time(asset.duration))
-            .unwrap_or_else(|| self.project.ceil_time(DEFAULT_IMAGE_CLIP_DURATION));
+            .map(|asset| self.timeline.ceil_time(asset.duration))
+            .unwrap_or_else(|| self.timeline.ceil_time(DEFAULT_IMAGE_CLIP_DURATION));
         let (start, snap_guide) =
             self.snap_clip_start_ignoring(raw_start, duration, &HashSet::new());
         let kind = asset.as_ref().map_or(drag.kind, |asset| asset.kind);
         let invalid_reason = validate_clip_placement(
-            &self.project,
+            &self.timeline,
             track_id,
             kind,
             duration,
@@ -667,7 +666,7 @@ impl Editor {
     pub(super) fn drop_explorer_media(&mut self, drag: &ExplorerMediaDrag, cx: &mut Context<Self>) {
         let Some(preview) = self.explorer.drop_preview.take().filter(|preview| {
             preview.relative_path == drag.relative_path
-                && self.project.track(preview.track_id).is_some()
+                && self.timeline.track(preview.track_id).is_some()
         }) else {
             self.timeline.snap_guide = None;
             return;
@@ -702,7 +701,7 @@ impl Editor {
     }
 
     fn explorer_asset_for_path(&self, relative_path: &std::path::Path) -> Option<&MediaAsset> {
-        self.project
+        self.timeline
             .assets
             .iter()
             .find(|asset| asset.path == relative_path)
@@ -809,10 +808,10 @@ impl Editor {
         raw_start: TimelineTime,
         mut asset: MediaAsset,
     ) {
-        let duration = self.project.ceil_time(asset.duration);
+        let duration = self.timeline.ceil_time(asset.duration);
         let (start, _) = self.snap_clip_start_ignoring(raw_start, duration, &HashSet::new());
         if let Err(rejection) = validate_clip_placement(
-            &self.project,
+            &self.timeline,
             track_id,
             asset.kind,
             duration,
@@ -827,7 +826,7 @@ impl Editor {
 
         self.checkpoint();
         let asset_id = if let Some(asset_id) = self
-            .project
+            .timeline
             .assets
             .iter()
             .find(|existing| existing.path == relative_path)
@@ -838,11 +837,11 @@ impl Editor {
             asset.id = self.take_id();
             asset.path = relative_path.clone();
             let asset_id = asset.id;
-            self.project.assets.push(asset);
+            self.timeline.assets.push(asset);
             asset_id
         };
         let clip_id = self.take_id();
-        self.project.clips.push(TimelineClip {
+        self.timeline.clips.push(TimelineClip {
             id: clip_id,
             track_id,
             asset_id,
@@ -856,14 +855,14 @@ impl Editor {
         self.load_timeline_position(self.timeline.playhead, false);
         self.explorer.selected_file = Some(relative_path);
         self.select_only_clip(Some(clip_id));
-        self.save_project();
+        self.save_timeline();
         self.status = Some("Added media at the selected timeline position.".to_string());
         self.error = None;
     }
 
     fn add_file_to_timeline(&mut self, relative_path: PathBuf, cx: &mut Context<Self>) {
         if let Some(asset_id) = self
-            .project
+            .timeline
             .assets
             .iter()
             .find(|asset| asset.path == relative_path)
@@ -890,7 +889,7 @@ impl Editor {
                     match result {
                         Ok(mut asset) => {
                             if let Some(asset_id) = editor
-                                .project
+                                .timeline
                                 .assets
                                 .iter()
                                 .find(|asset| asset.path == relative_path)
@@ -915,11 +914,11 @@ impl Editor {
                             asset.id = editor.take_id();
                             asset.path = relative_path.clone();
                             let asset_id = asset.id;
-                            editor.project.assets.push(asset);
+                            editor.timeline.assets.push(asset);
                             editor
                                 .append_asset_clip_without_checkpoint(asset_id, track_id, duration);
                             editor.explorer.selected_file = Some(relative_path);
-                            editor.save_project();
+                            editor.save_timeline();
                             editor.status = Some("Added media to timeline.".to_string());
                             editor.error = None;
                         }

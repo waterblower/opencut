@@ -2,7 +2,7 @@ use super::*;
 
 #[test]
 fn timeline_playhead_clock_crosses_clip_boundaries_without_a_position_query() {
-    let mut project = Project::default();
+    let mut project = Timeline::default();
     project.settings.frame_rate = FrameRate::new(24, 1);
 
     let position = timeline_playhead_from_elapsed(
@@ -16,7 +16,7 @@ fn timeline_playhead_clock_crosses_clip_boundaries_without_a_position_query() {
 
 #[test]
 fn timeline_playhead_clock_stays_at_its_anchor_without_elapsed_time() {
-    let project = Project::default();
+    let project = Timeline::default();
     let origin = TimelineTime::from_frames(20);
 
     assert_eq!(
