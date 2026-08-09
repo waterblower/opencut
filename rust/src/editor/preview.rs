@@ -86,6 +86,7 @@ impl Editor {
         self.timeline.playhead = position;
         self.preview.playing = play;
         self.preview.timeline_clock = None;
+        self.preview.timeline_drag = None;
 
         if self.project.clips.is_empty() {
             if let Some(video) = &self.preview.video {
@@ -228,6 +229,7 @@ impl Editor {
             self.preview.scrub_fraction = None;
             self.preview.pending_seek_started = None;
             self.preview.last_scrub_seek = None;
+            self.preview.timeline_drag = None;
             self.preview.refresh_ticks = 2;
         }
 

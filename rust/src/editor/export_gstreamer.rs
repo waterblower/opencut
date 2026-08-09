@@ -165,6 +165,9 @@ pub(super) fn build_timeline(
                         asset.name
                     )
                 })?;
+            ges_clip
+                .set_name(Some(&format!("opencut-clip-{}", clip.id)))
+                .map_err(|error| format!("could not identify clip {}: {error}", clip.id))?;
             if track_types.contains(ges::TrackType::VIDEO) {
                 apply_video_transform(&ges_clip, project, asset, options, clip.video_properties)?;
             }
@@ -187,7 +190,7 @@ pub(super) fn build_timeline(
     Ok(timeline)
 }
 
-fn apply_video_transform(
+pub(super) fn apply_video_transform(
     clip: &ges::Clip,
     project: &Project,
     asset: &MediaAsset,
