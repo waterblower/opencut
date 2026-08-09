@@ -6,11 +6,12 @@ use gpui::{
 use std::{path::PathBuf, time::Duration, time::Instant};
 use url::Url;
 
-use crate::playback_view::{format_duration, DragPhase, PlaybackViewDelegate};
-use crate::video_backend::{Video, VideoOptions, read_video_codec, video};
+use crate::playback_view::{DragPhase, PlaybackViewDelegate, format_duration};
+use video::{Video, read_video_codec, video};
 
 mod history;
 mod inspector;
+mod video;
 mod view;
 
 use history::{HistoryData, load_history_width, save_history_width};
@@ -584,15 +585,7 @@ impl PlaybackViewDelegate for Player {
 }
 
 fn create_video(url: &Url, looping: bool) -> Result<Video, String> {
-    Video::new_with_options(
-        url,
-        VideoOptions {
-            frame_buffer_capacity: Some(3),
-            looping: Some(looping),
-            ..VideoOptions::default()
-        },
-    )
-    .map_err(|error| format!("Could not open video: {error}"))
+    Video::open(url, looping).map_err(|error| format!("Could not open video: {error}"))
 }
 
 fn format_codec_name(codec: &str) -> String {

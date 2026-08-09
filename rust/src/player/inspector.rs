@@ -1,5 +1,5 @@
+use super::video::current_frame_rgba;
 use super::*;
-use crate::video_backend::current_frame_rgba;
 use std::path::{Path, PathBuf};
 
 impl Player {

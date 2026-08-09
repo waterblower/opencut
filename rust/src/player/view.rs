@@ -21,7 +21,6 @@ impl Render for Player {
                 video(video_handle.clone())
                     .id("fullscreen-video")
                     .size(px(fullscreen_content_width), px(viewport_height))
-                    .buffer_capacity(3)
                     .into_any_element()
             } else {
                 div().size_full().bg(rgb(0x000000)).into_any_element()
@@ -130,7 +129,6 @@ impl Render for Player {
             video(video_handle.clone())
                 .id("main-video")
                 .size(px(content_width), px(video_height))
-                .buffer_capacity(3)
                 .into_any_element()
         } else {
             div()
