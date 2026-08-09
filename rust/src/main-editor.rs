@@ -2,9 +2,7 @@ mod editor;
 mod gpui_inspector;
 mod macos_pinch;
 mod playback_view;
-#[allow(dead_code)]
-#[path = "video_backend/gstreamer.rs"]
-mod video_backend;
+mod video;
 
 use editor::Editor;
 use gpui::{

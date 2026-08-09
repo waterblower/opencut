@@ -1,7 +1,7 @@
 use super::timeline_video::{create_timeline_video, set_timeline_audio};
 use super::*;
 use crate::playback_view::{CONTROL_HEIGHT, PlaybackViewProps, playback_view};
-use crate::video_backend::{VideoOptions, video};
+use crate::video::video;
 use std::path::Path;
 use url::Url;
 
@@ -47,7 +47,6 @@ impl Editor {
             video(video_handle.clone())
                 .id("editor-timeline-video")
                 .size(px(width), px(surface_height))
-                .buffer_capacity(3)
                 .into_any_element()
         } else {
             div()
@@ -110,7 +109,6 @@ impl Editor {
                 video(video_handle.clone())
                     .id("editor-video-file-preview")
                     .size(px(width), px(surface_height))
-                    .buffer_capacity(3)
                     .into_any_element()
             } else {
                 div()
@@ -368,15 +366,7 @@ impl Editor {
                 video.set_paused(true);
             }
             self.video = None;
-            match create_timeline_video(
-                &self.project,
-                &self.project_root,
-                VideoOptions {
-                    frame_buffer_capacity: Some(3),
-                    looping: Some(false),
-                    speed: Some(1.0),
-                },
-            ) {
+            match create_timeline_video(&self.project, &self.project_root) {
                 Ok(video) => {
                     set_timeline_audio(
                         &video,
@@ -561,15 +551,7 @@ impl Editor {
             let result = cx
                 .background_executor()
                 .spawn(async move {
-                    let video = Video::new_with_options(
-                        &url,
-                        VideoOptions {
-                            frame_buffer_capacity: Some(3),
-                            looping: Some(false),
-                            speed: Some(1.0),
-                        },
-                    )
-                    .map_err(|error| {
+                    let video = Video::open(&url, false).map_err(|error| {
                         format!("Could not preview {}: {error}", source_path.display())
                     })?;
                     video.set_paused(true);

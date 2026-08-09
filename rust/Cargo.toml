@@ -24,7 +24,6 @@ default = ["editor"]
 editor = [
     "gstreamer-backend",
     "dep:ffmpeg-next",
-    "dep:gpui-video-player",
     "dep:gstreamer-editing-services",
     "dep:gstreamer-pbutils",
 ]
@@ -43,7 +42,6 @@ gstreamer-backend = [
 env_logger = "0.11"
 ffmpeg-next = { version = "8.1", optional = true }
 gpui = { version = "0.2", features = ["inspector"] }
-gpui-video-player = { path = "vendor/gpui-video-player", optional = true }
 gstreamer = { version = "0.25", optional = true }
 gstreamer-app = { version = "0.25", optional = true }
 gstreamer-editing-services = { version = "0.25", optional = true, features = ["v1_18"] }

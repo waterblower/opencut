@@ -2410,27 +2410,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "gpui-video-player"
-version = "0.1.2"
-dependencies = [
- "core-foundation 0.10.1",
- "core-video",
- "glib",
- "gpui",
- "gstreamer",
- "gstreamer-app",
- "gstreamer-base",
- "gstreamer-video",
- "image",
- "log",
- "parking_lot",
- "smallvec",
- "thiserror 2.0.19",
- "url",
- "yuv",
-]
-
-[[package]]
 name = "gpui_collections"
 version = "0.2.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4134,7 +4113,6 @@ dependencies = [
  "env_logger",
  "ffmpeg-next",
  "gpui",
- "gpui-video-player",
  "gstreamer",
  "gstreamer-app",
  "gstreamer-editing-services",

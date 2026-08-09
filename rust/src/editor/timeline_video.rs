@@ -1,5 +1,5 @@
 use super::{export::ExportOptions, export_gstreamer::build_timeline, model::Project};
-use crate::video_backend::{Video, VideoOptions};
+use crate::video::Video;
 use ges::prelude::*;
 use gstreamer as gst;
 use gstreamer_app as gst_app;
@@ -9,12 +9,11 @@ use std::path::Path;
 pub(super) fn create_timeline_video(
     project: &Project,
     project_root: &Path,
-    options: VideoOptions,
 ) -> Result<Video, String> {
     initialize_gstreamer()?;
     let audio_sink = preview_audio_sink()?;
     let (pipeline, sink) = create_timeline_pipeline(project, project_root, &audio_sink)?;
-    Video::from_gst_pipeline_with_options(pipeline, sink, None, options)
+    Video::from_pipeline(pipeline, sink, false)
         .map_err(|error| format!("could not initialize timeline video: {error}"))
 }
 
@@ -34,12 +33,12 @@ fn create_timeline_pipeline(
     let options = ExportOptions::from_project(project);
     let timeline = build_timeline(project, project_root, options)?;
     let video_sink = gst::parse::bin_from_description(
-        "queue ! videoconvert ! appsink name=gpui_video drop=true max-buffers=200 enable-last-sample=false caps=video/x-raw,format=NV12,pixel-aspect-ratio=1/1",
+        "queue ! videoconvert ! appsink name=opencut_timeline_video drop=true max-buffers=3 enable-last-sample=false caps=video/x-raw,format=NV12,pixel-aspect-ratio=1/1",
         true,
     )
     .map_err(|error| format!("could not create timeline preview video sink: {error}"))?;
     let sink = video_sink
-        .by_name("gpui_video")
+        .by_name("opencut_timeline_video")
         .ok_or_else(|| "timeline video appsink was not created".to_string())?
         .downcast::<gst_app::AppSink>()
         .map_err(|_| "timeline video sink had an unexpected type".to_string())?;
