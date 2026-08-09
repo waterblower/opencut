@@ -18,11 +18,8 @@ pub(super) struct SourceCrop {
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(super) struct VisualClipRenderPlan {
-    pub(super) properties: VideoClipProperties,
-    pub(super) uncropped: RenderRect,
     pub(super) visible: RenderRect,
     pub(super) crop: SourceCrop,
-    pub(super) source_scale: f64,
     pub(super) opacity: f64,
 }
 
@@ -85,11 +82,8 @@ pub(super) fn resolve_visual_clip_render_plan(
     };
 
     VisualClipRenderPlan {
-        properties,
-        uncropped,
         visible,
         crop,
-        source_scale,
         opacity: if source_scale <= f64::EPSILON {
             0.0
         } else {
