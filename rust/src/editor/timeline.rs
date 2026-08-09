@@ -88,9 +88,6 @@ impl Editor {
             .enumerate()
             .map(|(index, track)| self.track_row(index, track, timeline_width, cx))
             .collect::<Vec<_>>();
-        let playhead_left = TIMELINE_PADDING
-            + self.project.seconds(self.timeline.playhead) as f32 * self.timeline.pixels_per_second;
-
         div()
             .id("timeline-tracks-vertical-scroll")
             .flex_1()
@@ -159,49 +156,7 @@ impl Editor {
                                     ))
                                     .child(self.timeline_ruler(duration, cx))
                                     .children(track_rows)
-                                    .child(
-                                        div()
-                                            .absolute()
-                                            .top_0()
-                                            .bottom_0()
-                                            .left(px(playhead_left))
-                                            .w(px(2.0))
-                                            .bg(rgb(ACCENT))
-                                            .cursor(
-                                                if self.timeline.active_tool == TimelineTool::Blade
-                                                {
-                                                    CursorStyle::Crosshair
-                                                } else {
-                                                    CursorStyle::ResizeLeftRight
-                                                },
-                                            )
-                                            .when(
-                                                self.timeline.active_tool != TimelineTool::Blade,
-                                                |this| {
-                                                    this.on_mouse_down(
-                                                        MouseButton::Left,
-                                                        cx.listener(
-                                                            |editor,
-                                                             event: &MouseDownEvent,
-                                                             _,
-                                                             cx| {
-                                                                editor.begin_playhead_scrub(event);
-                                                                cx.stop_propagation();
-                                                                cx.notify();
-                                                            },
-                                                        ),
-                                                    )
-                                                },
-                                            )
-                                            .child(
-                                                div()
-                                                    .absolute()
-                                                    .top_0()
-                                                    .left(px(-4.0))
-                                                    .size_2()
-                                                    .bg(rgb(ACCENT)),
-                                            ),
-                                    )
+                                    .child(self.timeline_playhead(cx))
                                     .when_some(self.timeline.snap_guide, |this, guide| {
                                         let guide_left = TIMELINE_PADDING
                                             + self.project.seconds(guide) as f32
@@ -250,6 +205,43 @@ impl Editor {
                                     }),
                             ),
                     ),
+            )
+            .into_any_element()
+    }
+
+    fn timeline_playhead(&self, cx: &mut Context<Self>) -> gpui::AnyElement {
+        let left = TIMELINE_PADDING
+            + self.project.seconds(self.timeline.playhead) as f32 * self.timeline.pixels_per_second;
+
+        div()
+            .absolute()
+            .top_0()
+            .bottom_0()
+            .left(px(left))
+            .w(px(1.0))
+            .bg(rgb(ACCENT))
+            .cursor(if self.timeline.active_tool == TimelineTool::Blade {
+                CursorStyle::Crosshair
+            } else {
+                CursorStyle::ResizeLeftRight
+            })
+            .when(self.timeline.active_tool != TimelineTool::Blade, |this| {
+                this.on_mouse_down(
+                    MouseButton::Left,
+                    cx.listener(|editor, event: &MouseDownEvent, _, cx| {
+                        editor.begin_playhead_scrub(event);
+                        cx.stop_propagation();
+                        cx.notify();
+                    }),
+                )
+            })
+            .child(
+                div()
+                    .absolute()
+                    .top_0()
+                    .left(px(-4.0))
+                    .size_2()
+                    .bg(rgb(ACCENT)),
             )
             .into_any_element()
     }

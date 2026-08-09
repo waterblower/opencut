@@ -234,7 +234,7 @@ impl Editor {
             .h(px(TRACK_HEIGHT - 10.0))
             .overflow_hidden()
             .rounded_md()
-            .border_2()
+            .border_1()
             .border_color(rgb(if selected { ACCENT } else { color + 0x101010 }))
             .bg(rgb(color))
             .opacity(if moving { 0.3 } else { 1.0 })
@@ -317,7 +317,7 @@ impl Editor {
             .h(px(TRACK_HEIGHT - 10.0))
             .overflow_hidden()
             .rounded_md()
-            .border_2()
+            .border_1()
             .border_color(rgb(feedback_color))
             .bg(gpui::rgba(if valid { 0xf0b75e38 } else { 0xff8b8b38 }))
             .cursor(if valid {
@@ -379,7 +379,7 @@ impl Editor {
             .h(px(TRACK_HEIGHT - 10.0))
             .overflow_hidden()
             .rounded_md()
-            .border_2()
+            .border_1()
             .border_color(rgb(feedback_color))
             .bg(gpui::rgba(if invalid { 0xff8b8b38 } else { 0xf0b75e38 }))
             .cursor(if invalid {
