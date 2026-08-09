@@ -28,7 +28,7 @@ impl Editor {
                 self.preview_video_file(origin_x, origin_y, width, height, cx)
             }
             PreviewTarget::AudioFile(path) => {
-                self.preview_audio_file(path, origin_x, origin_y, width, height, cx)
+                self.preview_audio_file(path, origin_x, width, height, cx)
             }
             PreviewTarget::ImageFile(path) => self.preview_image_file(path, width, height),
         }
@@ -537,14 +537,7 @@ impl Editor {
                     video.set_paused(!play);
                 }
             }
-            PreviewTarget::AudioFile(_) => {
-                if let Some(audio) = &self.standalone_audio {
-                    let target = audio.duration().mul_f64(fraction as f64);
-                    audio.seek_with_accuracy(target, accurate);
-                    audio.set_playing(play);
-                }
-            }
-            PreviewTarget::ImageFile(_) => {}
+            PreviewTarget::AudioFile(_) | PreviewTarget::ImageFile(_) => {}
         }
     }
 
@@ -591,7 +584,10 @@ impl PlaybackViewDelegate for Editor {
         _: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        if matches!(self.preview_target, PreviewTarget::ImageFile(_)) {
+        if matches!(
+            self.preview_target,
+            PreviewTarget::AudioFile(_) | PreviewTarget::ImageFile(_)
+        ) {
             return;
         }
 
@@ -602,17 +598,10 @@ impl PlaybackViewDelegate for Editor {
                     PreviewTarget::VideoFile(_) => {
                         self.video.as_ref().is_some_and(|video| !video.paused())
                     }
-                    PreviewTarget::AudioFile(_) => self
-                        .standalone_audio
-                        .as_ref()
-                        .is_some_and(AudioPreview::playing),
-                    PreviewTarget::ImageFile(_) => false,
+                    PreviewTarget::AudioFile(_) | PreviewTarget::ImageFile(_) => return,
                 };
                 if let Some(video) = &self.video {
                     video.set_paused(true);
-                }
-                if let Some(audio) = &self.standalone_audio {
-                    audio.set_playing(false);
                 }
                 self.playing = false;
                 self.timeline_playback_clock = None;
@@ -675,9 +664,6 @@ impl PlaybackViewDelegate for Editor {
                 video.set_muted(self.preview_volume <= f64::EPSILON);
             }
         }
-        if let Some(audio) = &self.standalone_audio {
-            audio.set_volume(self.preview_volume);
-        }
         cx.notify();
     }
 
@@ -685,8 +671,7 @@ impl PlaybackViewDelegate for Editor {
         let has_playable_target = match self.preview_target {
             PreviewTarget::Timeline => !self.project.clips.is_empty(),
             PreviewTarget::VideoFile(_) => self.video.is_some(),
-            PreviewTarget::AudioFile(_) => self.standalone_audio.is_some(),
-            PreviewTarget::ImageFile(_) => false,
+            PreviewTarget::AudioFile(_) | PreviewTarget::ImageFile(_) => false,
         };
         if has_playable_target {
             self.preview_volume_open = !self.preview_volume_open;

@@ -1,9 +1,12 @@
 use super::*;
-use crate::playback_view::{CONTROL_HEIGHT, PlaybackViewProps, playback_view};
 use gst::prelude::*;
 use gstreamer as gst;
 use std::{path::Path, time::Duration};
 use url::Url;
+
+const AUDIO_CONTROL_HEIGHT: f32 = 96.0;
+const AUDIO_HORIZONTAL_PADDING: f32 = 22.0;
+const AUDIO_VOLUME_WIDTH: f32 = 96.0;
 
 pub(super) struct AudioPreview {
     pipeline: gst::Element,
@@ -97,57 +100,15 @@ impl Editor {
         &self,
         path: &Path,
         origin_x: f32,
-        origin_y: f32,
         width: f32,
         height: f32,
         cx: &mut Context<Self>,
     ) -> gpui::AnyElement {
-        let surface_height = (height - CONTROL_HEIGHT).max(1.0);
+        let surface_height = (height - AUDIO_CONTROL_HEIGHT).max(1.0);
         let file_name = path
             .file_name()
             .map(|name| name.to_string_lossy().into_owned())
             .unwrap_or_else(|| path.display().to_string());
-        let content = div()
-            .id("editor-audio-file-preview-content")
-            .w(px(width))
-            .h(px(surface_height))
-            .flex()
-            .flex_col()
-            .items_center()
-            .justify_center()
-            .gap_4()
-            .overflow_hidden()
-            .bg(rgb(0x09090b))
-            .child(
-                div()
-                    .size(px(96.0))
-                    .flex()
-                    .items_center()
-                    .justify_center()
-                    .rounded_full()
-                    .border_1()
-                    .border_color(rgb(BORDER))
-                    .bg(rgb(SURFACE))
-                    .text_3xl()
-                    .text_color(rgb(ACCENT))
-                    .child("♪"),
-            )
-            .child(
-                div()
-                    .max_w(px((width - 48.0).max(1.0)))
-                    .text_lg()
-                    .font_weight(gpui::FontWeight::SEMIBOLD)
-                    .text_ellipsis()
-                    .child(file_name),
-            )
-            .child(div().text_xs().text_color(rgb(MUTED)).child(
-                if self.standalone_audio.is_some() {
-                    "Audio preview"
-                } else {
-                    "Loading audio preview…"
-                },
-            ))
-            .into_any_element();
         let (position, duration, paused) = self.standalone_audio.as_ref().map_or(
             (Duration::ZERO, Duration::ZERO, true),
             |audio| {
@@ -168,27 +129,349 @@ impl Editor {
             .preview_scrub_fraction
             .map_or(position, |fraction| duration.mul_f64(fraction as f64));
         let has_media = self.standalone_audio.is_some();
+        let usable_width = (width - AUDIO_HORIZONTAL_PADDING * 2.0).max(1.0);
+        let timeline_left = origin_x + AUDIO_HORIZONTAL_PADDING;
+        let volume_left = origin_x + width - AUDIO_HORIZONTAL_PADDING - AUDIO_VOLUME_WIDTH;
+        let volume = self.preview_volume.clamp(0.0, 1.0) as f32;
+        let format_time = |duration: Duration| {
+            let total_seconds = duration.as_secs();
+            let hours = total_seconds / 3600;
+            let minutes = (total_seconds % 3600) / 60;
+            let seconds = total_seconds % 60;
+            if hours > 0 {
+                format!("{hours}:{minutes:02}:{seconds:02}")
+            } else {
+                format!("{minutes}:{seconds:02}")
+            }
+        };
+        let time = format!("{} / {}", format_time(position), format_time(duration));
 
-        playback_view(
-            PlaybackViewProps {
-                origin_x,
-                origin_y,
-                width,
-                height,
-                has_media,
-                can_play: has_media,
-                paused,
-                scrubbing: self.preview_is_scrubbing,
-                progress,
-                position,
-                duration,
-                volume: self.preview_volume,
-                muted: self.preview_volume <= f64::EPSILON,
-                volume_open: self.preview_volume_open,
-                content,
-                extra_control: None,
-            },
-            cx,
-        )
+        div()
+            .id("editor-audio-file-preview")
+            .relative()
+            .w(px(width))
+            .h(px(height))
+            .flex_shrink_0()
+            .flex()
+            .flex_col()
+            .overflow_hidden()
+            .bg(rgb(0x000000))
+            .on_mouse_move(cx.listener(move |editor, event: &MouseMoveEvent, _, cx| {
+                if !event.dragging() {
+                    return;
+                }
+                if editor.preview_is_scrubbing {
+                    let fraction = ((f32::from(event.position.x) - timeline_left) / usable_width)
+                        .clamp(0.0, 1.0);
+                    editor.update_audio_scrub(fraction, cx);
+                }
+                if editor.preview_is_adjusting_volume {
+                    let volume = ((f32::from(event.position.x) - volume_left) / AUDIO_VOLUME_WIDTH)
+                        .clamp(0.0, 1.0) as f64;
+                    editor.set_audio_preview_volume(volume, cx);
+                }
+            }))
+            .on_mouse_up(
+                MouseButton::Left,
+                cx.listener(move |editor, event: &MouseUpEvent, _, cx| {
+                    if editor.preview_is_scrubbing {
+                        let fraction = ((f32::from(event.position.x) - timeline_left)
+                            / usable_width)
+                            .clamp(0.0, 1.0);
+                        editor.finish_audio_scrub(fraction, cx);
+                    }
+                    if editor.preview_is_adjusting_volume {
+                        let volume = ((f32::from(event.position.x) - volume_left)
+                            / AUDIO_VOLUME_WIDTH)
+                            .clamp(0.0, 1.0) as f64;
+                        editor.preview_is_adjusting_volume = false;
+                        editor.set_audio_preview_volume(volume, cx);
+                    }
+                }),
+            )
+            .on_mouse_up_out(
+                MouseButton::Left,
+                cx.listener(move |editor, event: &MouseUpEvent, _, cx| {
+                    if editor.preview_is_scrubbing {
+                        let fraction = ((f32::from(event.position.x) - timeline_left)
+                            / usable_width)
+                            .clamp(0.0, 1.0);
+                        editor.finish_audio_scrub(fraction, cx);
+                    }
+                    if editor.preview_is_adjusting_volume {
+                        let volume = ((f32::from(event.position.x) - volume_left)
+                            / AUDIO_VOLUME_WIDTH)
+                            .clamp(0.0, 1.0) as f64;
+                        editor.preview_is_adjusting_volume = false;
+                        editor.set_audio_preview_volume(volume, cx);
+                    }
+                }),
+            )
+            .child(
+                div()
+                    .id("editor-audio-file-preview-content")
+                    .w_full()
+                    .h(px(surface_height))
+                    .flex_shrink_0()
+                    .flex()
+                    .flex_col()
+                    .items_center()
+                    .justify_center()
+                    .gap_4()
+                    .overflow_hidden()
+                    .bg(rgb(0x09090b))
+                    .when(has_media, |this| {
+                        this.cursor(CursorStyle::PointingHand).on_click(cx.listener(
+                            |editor, _, _, cx| {
+                                editor.toggle_playback();
+                                cx.notify();
+                            },
+                        ))
+                    })
+                    .child(
+                        div()
+                            .size(px(96.0))
+                            .flex()
+                            .items_center()
+                            .justify_center()
+                            .rounded_full()
+                            .border_1()
+                            .border_color(rgb(BORDER))
+                            .bg(rgb(SURFACE))
+                            .text_3xl()
+                            .text_color(rgb(ACCENT))
+                            .child("♪"),
+                    )
+                    .child(
+                        div()
+                            .max_w(px((width - 48.0).max(1.0)))
+                            .text_lg()
+                            .font_weight(gpui::FontWeight::SEMIBOLD)
+                            .text_ellipsis()
+                            .child(file_name),
+                    )
+                    .child(div().text_xs().text_color(rgb(MUTED)).child(if has_media {
+                        "Audio preview"
+                    } else {
+                        "Loading audio preview…"
+                    })),
+            )
+            .child(
+                div()
+                    .h(px(AUDIO_CONTROL_HEIGHT))
+                    .flex_shrink_0()
+                    .flex()
+                    .flex_col()
+                    .justify_center()
+                    .gap_2()
+                    .px(px(AUDIO_HORIZONTAL_PADDING))
+                    .border_t_1()
+                    .border_b_1()
+                    .border_color(rgb(0x19191c))
+                    .bg(rgb(0x0b0b0d))
+                    .child(
+                        div()
+                            .id("editor-audio-preview-timeline")
+                            .relative()
+                            .h_4()
+                            .flex()
+                            .items_center()
+                            .when(has_media, |this| {
+                                this.cursor(CursorStyle::PointingHand).on_mouse_down(
+                                    MouseButton::Left,
+                                    cx.listener(move |editor, event: &MouseDownEvent, _, cx| {
+                                        let fraction = ((f32::from(event.position.x)
+                                            - timeline_left)
+                                            / usable_width)
+                                            .clamp(0.0, 1.0);
+                                        editor.begin_audio_scrub(fraction, cx);
+                                    }),
+                                )
+                            })
+                            .child(
+                                div()
+                                    .w_full()
+                                    .h(px(3.0))
+                                    .rounded_full()
+                                    .bg(rgb(0x4a4a4f))
+                                    .child(
+                                        div()
+                                            .w(gpui::relative(progress))
+                                            .h_full()
+                                            .flex()
+                                            .items_center()
+                                            .justify_end()
+                                            .rounded_full()
+                                            .bg(rgb(ACCENT))
+                                            .child(
+                                                div()
+                                                    .size(px(if self.preview_is_scrubbing {
+                                                        16.0
+                                                    } else {
+                                                        12.0
+                                                    }))
+                                                    .flex_shrink_0()
+                                                    .rounded_full()
+                                                    .bg(rgb(ACCENT)),
+                                            ),
+                                    ),
+                            ),
+                    )
+                    .child(
+                        div()
+                            .h_10()
+                            .flex()
+                            .items_center()
+                            .justify_between()
+                            .child(
+                                div()
+                                    .flex()
+                                    .items_center()
+                                    .gap_3()
+                                    .child(
+                                        div()
+                                            .id("editor-audio-play-pause")
+                                            .size(px(36.0))
+                                            .flex()
+                                            .items_center()
+                                            .justify_center()
+                                            .rounded_full()
+                                            .text_lg()
+                                            .text_color(if has_media {
+                                                rgb(TEXT)
+                                            } else {
+                                                rgb(MUTED)
+                                            })
+                                            .child(if paused { "▶" } else { "Ⅱ" })
+                                            .when(has_media, |this| {
+                                                this.cursor(CursorStyle::PointingHand)
+                                                    .hover(|style| style.bg(rgb(SURFACE_HOVER)))
+                                                    .on_click(cx.listener(|editor, _, _, cx| {
+                                                        editor.toggle_playback();
+                                                        cx.notify();
+                                                    }))
+                                            }),
+                                    )
+                                    .child(div().text_sm().font_family("monospace").child(time)),
+                            )
+                            .child(
+                                div()
+                                    .flex()
+                                    .items_center()
+                                    .gap_2()
+                                    .text_xs()
+                                    .text_color(rgb(MUTED))
+                                    .child("Volume")
+                                    .child(
+                                        div()
+                                            .id("editor-audio-volume")
+                                            .relative()
+                                            .w(px(AUDIO_VOLUME_WIDTH))
+                                            .h_4()
+                                            .flex()
+                                            .items_center()
+                                            .when(has_media, |this| {
+                                                this.cursor(CursorStyle::PointingHand)
+                                                    .on_mouse_down(
+                                                        MouseButton::Left,
+                                                        cx.listener(
+                                                            move |editor,
+                                                                  event: &MouseDownEvent,
+                                                                  _,
+                                                                  cx| {
+                                                                editor.preview_is_adjusting_volume =
+                                                                    true;
+                                                                let volume = ((f32::from(
+                                                                    event.position.x,
+                                                                ) - volume_left)
+                                                                    / AUDIO_VOLUME_WIDTH)
+                                                                    .clamp(0.0, 1.0)
+                                                                    as f64;
+                                                                editor.set_audio_preview_volume(
+                                                                    volume, cx,
+                                                                );
+                                                            },
+                                                        ),
+                                                    )
+                                            })
+                                            .child(
+                                                div()
+                                                    .w_full()
+                                                    .h(px(3.0))
+                                                    .rounded_full()
+                                                    .bg(rgb(0x4a4a4f))
+                                                    .child(
+                                                        div()
+                                                            .w(gpui::relative(volume))
+                                                            .h_full()
+                                                            .rounded_full()
+                                                            .bg(rgb(TEXT)),
+                                                    ),
+                                            ),
+                                    ),
+                            ),
+                    ),
+            )
+            .into_any_element()
+    }
+
+    fn seek_audio_to_fraction(&self, fraction: f32, accurate: bool, playing: bool) {
+        if let Some(audio) = &self.standalone_audio {
+            let target = audio.duration().mul_f64(fraction.clamp(0.0, 1.0) as f64);
+            audio.seek_with_accuracy(target, accurate);
+            audio.set_playing(playing);
+        }
+    }
+
+    fn begin_audio_scrub(&mut self, fraction: f32, cx: &mut Context<Self>) {
+        let Some(audio) = &self.standalone_audio else {
+            return;
+        };
+        self.preview_resume_after_scrub = audio.playing();
+        audio.set_playing(false);
+        self.preview_is_scrubbing = true;
+        self.preview_scrub_fraction = Some(fraction);
+        self.preview_pending_seek_started = None;
+        self.preview_last_scrub_seek = Some(Instant::now());
+        self.seek_audio_to_fraction(fraction, false, false);
+        self.preview_refresh_ticks = 12;
+        cx.notify();
+    }
+
+    fn update_audio_scrub(&mut self, fraction: f32, cx: &mut Context<Self>) {
+        if !self.preview_is_scrubbing {
+            return;
+        }
+        self.preview_scrub_fraction = Some(fraction);
+        let now = Instant::now();
+        if self
+            .preview_last_scrub_seek
+            .is_none_or(|last_seek| now.duration_since(last_seek) >= SCRUB_SEEK_INTERVAL)
+        {
+            self.preview_last_scrub_seek = Some(now);
+            self.seek_audio_to_fraction(fraction, false, false);
+        }
+        self.preview_refresh_ticks = 12;
+        cx.notify();
+    }
+
+    fn finish_audio_scrub(&mut self, fraction: f32, cx: &mut Context<Self>) {
+        let resume = self.preview_resume_after_scrub;
+        self.preview_scrub_fraction = Some(fraction);
+        self.preview_pending_seek_started = Some(Instant::now());
+        self.preview_last_scrub_seek = None;
+        self.preview_is_scrubbing = false;
+        self.seek_audio_to_fraction(fraction, true, resume);
+        self.preview_resume_after_scrub = false;
+        self.preview_refresh_ticks = 12;
+        cx.notify();
+    }
+
+    fn set_audio_preview_volume(&mut self, volume: f64, cx: &mut Context<Self>) {
+        self.preview_volume = volume.clamp(0.0, 1.0);
+        if let Some(audio) = &self.standalone_audio {
+            audio.set_volume(self.preview_volume);
+        }
+        cx.notify();
     }
 }
