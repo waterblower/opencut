@@ -4129,6 +4129,8 @@ name = "opencut-player"
 version = "0.1.0"
 dependencies = [
  "block2",
+ "core-foundation 0.10.1",
+ "core-video",
  "env_logger",
  "ffmpeg-next",
  "gpui",
@@ -4142,8 +4144,10 @@ dependencies = [
  "log",
  "objc2-app-kit",
  "objc2-foundation",
+ "parking_lot",
  "serde",
  "serde_json",
+ "smallvec",
  "unicode-segmentation",
  "url",
  "yuv",

@@ -1,3 +1,4 @@
+use super::video::generate_thumbnail;
 use super::*;
 use serde::{Deserialize, Serialize};
 use std::{
@@ -178,10 +179,6 @@ fn schedule_thumbnail(video_path: PathBuf, thumbnail_path: PathBuf) {
             );
         }
     });
-}
-
-fn generate_thumbnail(video_path: &Path, output_path: &Path) -> Result<(), String> {
-    crate::video_backend::generate_thumbnail(video_path, output_path)
 }
 
 fn thumbnail_path(video_path: &Path) -> PathBuf {
