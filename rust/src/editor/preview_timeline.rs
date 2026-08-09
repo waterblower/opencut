@@ -39,7 +39,7 @@ impl Editor {
             .bg(rgb(0x000000))
             .child(media)
             .into_any_element();
-        let reported_position = self.project.duration(self.timeline_ui.playhead);
+        let reported_position = self.project.duration(self.timeline.playhead);
         let duration = self.project.duration(self.project.timeline_duration());
         self.playable_preview(
             origin_x,

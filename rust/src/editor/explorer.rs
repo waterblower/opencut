@@ -161,7 +161,7 @@ impl Editor {
                         MediaKind::Video
                     },
                 });
-                let metadata = if is_timeline && path == self.timeline_path {
+                let metadata = if is_timeline && self.timeline_path.as_ref() == Some(&path) {
                     Some("ACTIVE".to_string())
                 } else {
                     explorer_metadata(
@@ -591,7 +591,7 @@ impl Editor {
             .map(|track| track.id)
         else {
             if self.explorer.drop_preview.take().is_some() {
-                self.timeline_ui.snap_guide = None;
+                self.timeline.snap_guide = None;
                 cx.notify();
             }
             cx.set_active_drag_cursor_style(CursorStyle::OperationNotAllowed, window);
@@ -601,7 +601,7 @@ impl Editor {
         let drag = event.drag(cx).clone();
         let local_x = f32::from(pointer.x) - f32::from(event.bounds.left());
         let raw_start = self.project.nearest_time(
-            ((local_x - TIMELINE_PADDING) / self.timeline_ui.pixels_per_second).max(0.0) as f64,
+            ((local_x - TIMELINE_PADDING) / self.timeline.pixels_per_second).max(0.0) as f64,
         );
         self.refresh_explorer_drop_preview(&drag, track_id, raw_start);
         let invalid = self
@@ -650,7 +650,7 @@ impl Editor {
         )
         .err()
         .map(|rejection| rejection.message().to_string());
-        self.timeline_ui.snap_guide = snap_guide;
+        self.timeline.snap_guide = snap_guide;
         self.explorer.drop_preview = Some(ExplorerDropPreview {
             relative_path: drag.relative_path.clone(),
             name: drag.name.clone(),
@@ -668,10 +668,10 @@ impl Editor {
             preview.relative_path == drag.relative_path
                 && self.project.track(preview.track_id).is_some()
         }) else {
-            self.timeline_ui.snap_guide = None;
+            self.timeline.snap_guide = None;
             return;
         };
-        self.timeline_ui.snap_guide = None;
+        self.timeline.snap_guide = None;
 
         if let Some(reason) = preview.invalid_reason {
             self.error = Some(format!("Cannot add {}: {reason}.", drag.name));
@@ -852,7 +852,7 @@ impl Editor {
             audio_properties: AudioClipProperties::default(),
         });
         self.preview.target = PreviewTarget::Timeline;
-        self.load_timeline_position(self.timeline_ui.playhead, false);
+        self.load_timeline_position(self.timeline.playhead, false);
         self.explorer.selected_file = Some(relative_path);
         self.selected_asset_id = Some(asset_id);
         self.select_only_clip(Some(clip_id));

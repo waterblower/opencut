@@ -57,7 +57,7 @@ use preview::PreviewTarget;
 use preview_audio::AudioPreview;
 use properties::PropertiesPanelResizeDrag;
 use properties_transform::{OpacityDrag, VideoTransformInputs};
-use timeline_document::load_or_create;
+use timeline_document::load_existing;
 use timeline_interactions::{ClipMoveDrag, MarqueeSelection, TimelineTool, TrimDrag, TrimEdge};
 use workspace::{
     FileTreeEntry, TimelineViewState, load_active_timeline, load_project_root, load_timeline_view,
@@ -212,7 +212,7 @@ struct PreviewState {
     refresh_ticks: u8,
 }
 
-struct TimelineUiState {
+struct TimelineState {
     playhead: TimelineTime,
     pixels_per_second: f32,
     zoom_save_due: Option<Instant>,
@@ -230,6 +230,12 @@ struct TimelineUiState {
     last_scrub_seek: Option<Instant>,
     scroll: ScrollHandle,
     vertical_scroll: ScrollHandle,
+    selected_clip_id: Option<u64>,
+    selected_clip_ids: HashSet<u64>,
+    clipboard: Option<ClipClipboard>,
+    next_id: u64,
+    undo_stack: Vec<Project>,
+    redo_stack: Vec<Project>,
 }
 
 struct PropertiesPanelState {
@@ -247,7 +253,7 @@ struct ExportState {
 
 pub(crate) struct Editor {
     project_root: PathBuf,
-    timeline_path: PathBuf,
+    timeline_path: Option<PathBuf>,
     project: Project,
     explorer: ExplorerState,
     preview: PreviewState,
@@ -255,16 +261,10 @@ pub(crate) struct Editor {
     media_cache_ready: HashSet<u64>,
     waveform_cache: HashMap<u64, Arc<media_cache::WaveformData>>,
     selected_asset_id: Option<u64>,
-    selected_clip_id: Option<u64>,
-    selected_clip_ids: HashSet<u64>,
-    clip_clipboard: Option<ClipClipboard>,
     properties: PropertiesPanelState,
     settings_open: bool,
     export: ExportState,
-    timeline_ui: TimelineUiState,
-    next_id: u64,
-    undo_stack: Vec<Project>,
-    redo_stack: Vec<Project>,
+    timeline: TimelineState,
     status: Option<String>,
     error: Option<String>,
     focus_handle: FocusHandle,
@@ -281,18 +281,24 @@ impl Editor {
         let file_tree = visible_tree(&project_root, &expanded_directories).unwrap_or_default();
         let preferred_timeline = load_active_timeline(&project_root);
         let (timeline_path, project, mut startup_error) =
-            match load_or_create(&project_root, preferred_timeline.as_deref()) {
-                Ok((path, project)) => (path, project, None),
+            match load_existing(&project_root, preferred_timeline.as_deref()) {
+                Ok(Some((path, project))) => (Some(path), project, None),
+                Ok(None) => (None, Project::default(), None),
                 Err(error) => (
-                    PathBuf::from("main.timeline.json"),
+                    None,
                     Project::default(),
                     Some(format!("Could not open timeline: {error}")),
                 ),
             };
-        if let Err(error) = save_active_timeline(&project_root, &timeline_path) {
+        if let Some(timeline_path) = timeline_path.as_ref()
+            && let Err(error) = save_active_timeline(&project_root, timeline_path)
+        {
             startup_error = Some(error);
         }
-        let timeline_view_state = load_timeline_view(&project_root.join(&timeline_path));
+        let timeline_view_state = timeline_path
+            .as_ref()
+            .map(|path| load_timeline_view(&project_root.join(path)))
+            .unwrap_or_default();
         let playhead = TimelineTime::from_frames(timeline_view_state.playhead_frame)
             .clamp(TimelineTime::ZERO, project.timeline_duration());
         let timeline_scroll = ScrollHandle::new();
@@ -329,7 +335,7 @@ impl Editor {
                 search_results: Vec::new(),
                 search_pending: false,
                 scroll: ScrollHandle::new(),
-                selected_file: Some(timeline_path),
+                selected_file: timeline_path,
                 context_menu: None,
                 rename_dialog: None,
                 new_timeline_dialog: None,
@@ -360,9 +366,6 @@ impl Editor {
             media_cache_ready: HashSet::new(),
             waveform_cache: HashMap::new(),
             selected_asset_id,
-            selected_clip_id,
-            selected_clip_ids,
-            clip_clipboard: None,
             properties: PropertiesPanelState {
                 width: DEFAULT_PROPERTIES_PANEL_WIDTH,
                 resizing: false,
@@ -375,7 +378,7 @@ impl Editor {
                 dialog: None,
                 running: false,
             },
-            timeline_ui: TimelineUiState {
+            timeline: TimelineState {
                 playhead,
                 pixels_per_second,
                 zoom_save_due: None,
@@ -393,16 +396,19 @@ impl Editor {
                 last_scrub_seek: None,
                 scroll: timeline_scroll,
                 vertical_scroll: timeline_vertical_scroll,
+                selected_clip_id,
+                selected_clip_ids,
+                clipboard: None,
+                next_id,
+                undo_stack: Vec::new(),
+                redo_stack: Vec::new(),
             },
-            next_id,
-            undo_stack: Vec::new(),
-            redo_stack: Vec::new(),
             status: None,
             error: startup_error,
             focus_handle,
         };
         if !editor.project.clips.is_empty() {
-            editor.load_timeline_position(editor.timeline_ui.playhead, false);
+            editor.load_timeline_position(editor.timeline.playhead, false);
         }
         editor
     }
@@ -430,20 +436,19 @@ impl Editor {
                     };
                     let pinch_zoomed = editor.apply_timeline_pinch();
                     if editor
-                        .timeline_ui
+                        .timeline
                         .zoom_save_due
                         .is_some_and(|due| Instant::now() >= due)
                     {
-                        if let Err(error) = save_timeline_zoom(editor.timeline_ui.pixels_per_second)
-                        {
+                        if let Err(error) = save_timeline_zoom(editor.timeline.pixels_per_second) {
                             editor.error = Some(error);
                         }
-                        editor.timeline_ui.zoom_save_due = None;
+                        editor.timeline.zoom_save_due = None;
                     }
                     let ended_explorer_drag =
                         !cx.has_active_drag() && editor.explorer.drop_preview.take().is_some();
                     if ended_explorer_drag {
-                        editor.timeline_ui.snap_guide = None;
+                        editor.timeline.snap_guide = None;
                     }
                     let should_render = editor.preview.playing
                         || file_preview_playing
@@ -460,22 +465,26 @@ impl Editor {
                     editor.update_playback();
                     editor.reconcile_preview_seek();
                     let current_timeline_view = editor.current_timeline_view_state();
-                    if current_timeline_view != editor.timeline_ui.view_state {
-                        editor.timeline_ui.view_state = current_timeline_view;
-                        if editor.timeline_ui.view_save_due.is_none() {
-                            editor.timeline_ui.view_save_due =
+                    if current_timeline_view
+                        .as_ref()
+                        .is_some_and(|view| view != &editor.timeline.view_state)
+                    {
+                        let current_timeline_view = current_timeline_view.unwrap();
+                        editor.timeline.view_state = current_timeline_view;
+                        if editor.timeline.view_save_due.is_none() {
+                            editor.timeline.view_save_due =
                                 Some(Instant::now() + TIMELINE_VIEW_SAVE_DELAY);
                         }
                     }
                     if editor
-                        .timeline_ui
+                        .timeline
                         .view_save_due
                         .is_some_and(|due| Instant::now() >= due)
                     {
-                        if let Err(error) = save_timeline_view(&editor.timeline_ui.view_state) {
+                        if let Err(error) = save_timeline_view(&editor.timeline.view_state) {
                             editor.error = Some(error);
                         }
-                        editor.timeline_ui.view_save_due = None;
+                        editor.timeline.view_save_due = None;
                     }
                     if should_render {
                         cx.notify();
@@ -498,21 +507,23 @@ impl Editor {
         }
     }
 
-    fn current_timeline_view_state(&self) -> TimelineViewState {
-        let horizontal_scroll = (-f32::from(self.timeline_ui.scroll.offset().x)).max(0.0);
-        let vertical_scroll = (-f32::from(self.timeline_ui.vertical_scroll.offset().y)).max(0.0);
-        timeline_view_state(
-            &self.timeline_file_path(),
-            self.timeline_ui.playhead.frames(),
+    fn current_timeline_view_state(&self) -> Option<TimelineViewState> {
+        let horizontal_scroll = (-f32::from(self.timeline.scroll.offset().x)).max(0.0);
+        let vertical_scroll = (-f32::from(self.timeline.vertical_scroll.offset().y)).max(0.0);
+        Some(timeline_view_state(
+            &self.timeline_file_path()?,
+            self.timeline.playhead.frames(),
             horizontal_scroll,
             vertical_scroll,
-            self.timeline_ui.snapping_enabled,
-            self.timeline_ui.magnet_enabled,
-        )
+            self.timeline.snapping_enabled,
+            self.timeline.magnet_enabled,
+        ))
     }
 
-    pub(super) fn timeline_file_path(&self) -> PathBuf {
-        self.project_root.join(&self.timeline_path)
+    pub(super) fn timeline_file_path(&self) -> Option<PathBuf> {
+        self.timeline_path
+            .as_ref()
+            .map(|path| self.project_root.join(path))
     }
 
     fn open_project_folder(&mut self, cx: &mut Context<Self>) {
@@ -561,14 +572,17 @@ impl Editor {
     fn set_project_root(&mut self, root: PathBuf, cx: &mut Context<Self>) {
         let root = std::fs::canonicalize(&root).unwrap_or(root);
         let preferred_timeline = load_active_timeline(&root);
-        let (timeline_path, project) = match load_or_create(&root, preferred_timeline.as_deref()) {
-            Ok(timeline) => timeline,
+        let (timeline_path, project) = match load_existing(&root, preferred_timeline.as_deref()) {
+            Ok(Some((path, project))) => (Some(path), project),
+            Ok(None) => (None, Project::default()),
             Err(error) => {
                 self.error = Some(format!("Could not open timeline: {error}"));
                 return;
             }
         };
-        if let Err(error) = save_timeline_view(&self.current_timeline_view_state()) {
+        if let Some(view_state) = self.current_timeline_view_state()
+            && let Err(error) = save_timeline_view(&view_state)
+        {
             self.error = Some(error);
         }
         self.save_project();
@@ -582,7 +596,7 @@ impl Editor {
     }
 
     pub(super) fn open_timeline(&mut self, relative_path: PathBuf, cx: &mut Context<Self>) {
-        if relative_path == self.timeline_path {
+        if self.timeline_path.as_ref() == Some(&relative_path) {
             self.explorer.selected_file = Some(relative_path);
             self.preview.target = PreviewTarget::Timeline;
             cx.notify();
@@ -597,11 +611,13 @@ impl Editor {
             }
         };
         self.save_project();
-        if let Err(error) = save_timeline_view(&self.current_timeline_view_state()) {
+        if let Some(view_state) = self.current_timeline_view_state()
+            && let Err(error) = save_timeline_view(&view_state)
+        {
             self.error = Some(error);
         }
-        self.activate_timeline(relative_path, project, cx);
-        self.status = Some(format!("Opened {}", self.timeline_path.display()));
+        self.activate_timeline(Some(relative_path.clone()), project, cx);
+        self.status = Some(format!("Opened {}", relative_path.display()));
     }
 
     /// Saves the current timeline, switches to a freshly created one, and reveals it in
@@ -614,7 +630,9 @@ impl Editor {
         cx: &mut Context<Self>,
     ) {
         self.save_project();
-        if let Err(error) = save_timeline_view(&self.current_timeline_view_state()) {
+        if let Some(view_state) = self.current_timeline_view_state()
+            && let Err(error) = save_timeline_view(&view_state)
+        {
             self.error = Some(error);
         }
         // Expand the target folder so the new timeline is visible in the tree.
@@ -623,14 +641,14 @@ impl Editor {
                 .expanded_directories
                 .insert(relative_directory);
         }
-        self.activate_timeline(relative_path.clone(), project, cx);
+        self.activate_timeline(Some(relative_path.clone()), project, cx);
         self.refresh_file_tree();
         self.status = Some(format!("Created {}", relative_path.display()));
     }
 
     fn activate_timeline(
         &mut self,
-        timeline_path: PathBuf,
+        timeline_path: Option<PathBuf>,
         project: Project,
         cx: &mut Context<Self>,
     ) {
@@ -643,7 +661,7 @@ impl Editor {
         self.explorer.drag_probe_jobs.clear();
         self.explorer.drop_preview = None;
         self.explorer.pending_drop = None;
-        self.clip_clipboard = None;
+        self.timeline.clipboard = None;
         self.preview.timeline_needs_rebuild = true;
         self.preview.timeline_clock = None;
         self.preview.playing = false;
@@ -656,53 +674,57 @@ impl Editor {
         self.preview.last_scrub_seek = None;
         self.properties.transform_input_clip_id = None;
         self.properties.opacity_drag = None;
-        self.timeline_ui.trim_drag = None;
-        self.timeline_ui.clip_move_drag = None;
-        self.timeline_ui.marquee_selection = None;
-        self.timeline_ui.scrubbing_playhead = false;
-        self.timeline_ui.last_scrub_seek = None;
-        self.timeline_ui.blade_guide = None;
-        self.timeline_ui.snap_guide = None;
+        self.timeline.trim_drag = None;
+        self.timeline.clip_move_drag = None;
+        self.timeline.marquee_selection = None;
+        self.timeline.scrubbing_playhead = false;
+        self.timeline.last_scrub_seek = None;
+        self.timeline.blade_guide = None;
+        self.timeline.snap_guide = None;
         self.timeline_path = timeline_path;
         self.project = project;
-        self.timeline_ui.view_state = load_timeline_view(&self.timeline_file_path());
-        self.timeline_ui.view_save_due = None;
-        self.timeline_ui.playhead =
-            TimelineTime::from_frames(self.timeline_ui.view_state.playhead_frame)
-                .clamp(TimelineTime::ZERO, self.project.timeline_duration());
+        self.timeline.view_state = self
+            .timeline_file_path()
+            .as_deref()
+            .map(load_timeline_view)
+            .unwrap_or_default();
+        self.timeline.view_save_due = None;
+        self.timeline.playhead = TimelineTime::from_frames(self.timeline.view_state.playhead_frame)
+            .clamp(TimelineTime::ZERO, self.project.timeline_duration());
         self.preview.refresh_ticks = 2;
-        self.timeline_ui.snapping_enabled = self.timeline_ui.view_state.snapping_enabled;
-        self.timeline_ui.magnet_enabled = self.timeline_ui.view_state.track_magnet_enabled;
-        self.timeline_ui.scroll.set_offset(point(
-            px(-self.timeline_ui.view_state.horizontal_scroll),
+        self.timeline.snapping_enabled = self.timeline.view_state.snapping_enabled;
+        self.timeline.magnet_enabled = self.timeline.view_state.track_magnet_enabled;
+        self.timeline.scroll.set_offset(point(
+            px(-self.timeline.view_state.horizontal_scroll),
             px(0.0),
         ));
-        self.timeline_ui.vertical_scroll.set_offset(point(
+        self.timeline.vertical_scroll.set_offset(point(
             px(0.0),
-            px(-self.timeline_ui.view_state.vertical_scroll),
+            px(-self.timeline.view_state.vertical_scroll),
         ));
-        self.next_id = self.project.next_id();
-        self.undo_stack.clear();
-        self.redo_stack.clear();
+        self.timeline.next_id = self.project.next_id();
+        self.timeline.undo_stack.clear();
+        self.timeline.redo_stack.clear();
         self.explorer.search_query = None;
         self.explorer.search_results.clear();
         self.explorer.search_pending = false;
         self.explorer
             .filter
             .update(cx, |filter, cx| filter.clear(cx));
-        self.explorer.selected_file = Some(self.timeline_path.clone());
+        self.explorer.selected_file = self.timeline_path.clone();
         self.explorer.context_menu = None;
         self.preview.target = PreviewTarget::Timeline;
         self.selected_asset_id = self.project.assets.first().map(|asset| asset.id);
         self.select_only_clip(self.project.clips.first().map(|clip| clip.id));
         self.refresh_file_tree();
-        if let Err(error) = save_active_timeline(&self.project_root, &self.timeline_path) {
+        self.error = None;
+        if let Some(timeline_path) = self.timeline_path.as_ref()
+            && let Err(error) = save_active_timeline(&self.project_root, timeline_path)
+        {
             self.error = Some(error);
-        } else {
-            self.error = None;
         }
         if !self.project.clips.is_empty() {
-            self.load_timeline_position(self.timeline_ui.playhead, false);
+            self.load_timeline_position(self.timeline.playhead, false);
         }
     }
 
@@ -939,7 +961,9 @@ impl Editor {
 
 impl Drop for Editor {
     fn drop(&mut self) {
-        if let Err(error) = save_timeline_view(&self.current_timeline_view_state()) {
+        if let Some(view_state) = self.current_timeline_view_state()
+            && let Err(error) = save_timeline_view(&view_state)
+        {
             eprintln!("Could not save timeline view state: {error}");
         }
     }

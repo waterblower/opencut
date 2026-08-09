@@ -10,16 +10,29 @@ fn temporary_project_root() -> PathBuf {
 }
 
 #[test]
+fn opening_an_empty_root_does_not_create_a_timeline() {
+    let root = temporary_project_root();
+    fs::create_dir_all(&root).unwrap();
+
+    assert!(load_existing(&root, None).unwrap().is_none());
+    assert!(timeline_files(&root).unwrap().is_empty());
+    fs::remove_dir_all(root).unwrap();
+}
+
+#[test]
 fn creates_and_discovers_multiple_root_timeline_files() {
     let root = temporary_project_root();
     fs::create_dir_all(&root).unwrap();
 
-    let (main_path, _) = load_or_create(&root, None).unwrap();
-    let (second_path, _) = create(&root, Path::new(""), "timeline-1").unwrap();
+    let (first_path, _) = create(&root, Path::new(""), "timeline-1").unwrap();
+    let (second_path, _) = create(&root, Path::new(""), "timeline-2").unwrap();
 
-    assert_eq!(main_path, Path::new("main.timeline.json"));
-    assert_eq!(second_path, Path::new("timeline-1.timeline.json"));
-    assert_eq!(timeline_files(&root).unwrap(), vec![main_path, second_path]);
+    assert_eq!(first_path, Path::new("timeline-1.timeline.json"));
+    assert_eq!(second_path, Path::new("timeline-2.timeline.json"));
+    assert_eq!(
+        timeline_files(&root).unwrap(),
+        vec![first_path, second_path]
+    );
     fs::remove_dir_all(root).unwrap();
 }
 
@@ -97,12 +110,12 @@ fn rejects_creating_a_timeline_outside_a_directory_or_over_an_existing_file() {
 fn preferred_timeline_is_loaded() {
     let root = temporary_project_root();
     fs::create_dir_all(&root).unwrap();
-    load_or_create(&root, None).unwrap();
+    create(&root, Path::new(""), "timeline-0").unwrap();
     let (second_path, mut second) = create(&root, Path::new(""), "timeline-1").unwrap();
     second.settings.width = 1280;
     second.save(&root.join(&second_path)).unwrap();
 
-    let (loaded_path, loaded) = load_or_create(&root, Some(&second_path)).unwrap();
+    let (loaded_path, loaded) = load_existing(&root, Some(&second_path)).unwrap().unwrap();
     assert_eq!(loaded_path, second_path);
     assert_eq!(loaded.settings.width, 1280);
     fs::remove_dir_all(root).unwrap();

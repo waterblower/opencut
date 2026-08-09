@@ -114,7 +114,7 @@ impl Editor {
     }
 
     fn timeline_properties(&self, cx: &mut Context<Self>) -> gpui::AnyElement {
-        let selection_count = self.selected_clip_ids.len();
+        let selection_count = self.timeline.selected_clip_ids.len();
         if selection_count > 1 {
             return div()
                 .id("timeline-multi-properties")
@@ -128,7 +128,7 @@ impl Editor {
                 .into_any_element();
         }
 
-        let selected = self.selected_clip_id.and_then(|id| {
+        let selected = self.timeline.selected_clip_id.and_then(|id| {
             let index = self.project.clip_index(id)?;
             let clip = &self.project.clips[index];
             let asset = self.project.asset(clip.asset_id);

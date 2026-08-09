@@ -96,13 +96,13 @@ impl Editor {
         let (origin, started_at) = *self
             .preview
             .timeline_clock
-            .get_or_insert((self.timeline_ui.playhead, Instant::now()));
-        self.timeline_ui.playhead =
+            .get_or_insert((self.timeline.playhead, Instant::now()));
+        self.timeline.playhead =
             timeline_playhead_from_elapsed(&self.project, origin, started_at.elapsed())
                 .clamp(TimelineTime::ZERO, duration);
-        if video.eos() || self.timeline_ui.playhead >= duration {
+        if video.eos() || self.timeline.playhead >= duration {
             video.set_paused(true);
-            self.timeline_ui.playhead = duration;
+            self.timeline.playhead = duration;
             self.preview.playing = false;
             self.preview.timeline_clock = None;
         }
@@ -134,7 +134,7 @@ impl Editor {
         self.explorer.context_menu = None;
         let duration = self.project.timeline_duration();
         let position = position.clamp(TimelineTime::ZERO, duration);
-        self.timeline_ui.playhead = position;
+        self.timeline.playhead = position;
         self.preview.playing = play;
         self.preview.timeline_clock = None;
 
@@ -245,10 +245,10 @@ impl Editor {
             return;
         }
         let duration = self.project.timeline_duration();
-        let start = if self.timeline_ui.playhead >= duration {
+        let start = if self.timeline.playhead >= duration {
             TimelineTime::ZERO
         } else {
-            self.timeline_ui.playhead
+            self.timeline.playhead
         };
         self.load_timeline_position(start, true);
     }
