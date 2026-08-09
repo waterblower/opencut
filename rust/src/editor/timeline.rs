@@ -47,7 +47,7 @@ impl Editor {
     }
 
     fn timeline_marquee(&self) -> Option<gpui::AnyElement> {
-        let selection = self.marquee_selection.as_ref()?;
+        let selection = self.timeline_ui.marquee_selection.as_ref()?;
         let left = selection.start_x.min(selection.current_x);
         let top = selection.start_y.min(selection.current_y);
         let width = (selection.start_x - selection.current_x).abs();
@@ -72,8 +72,9 @@ impl Editor {
             .project
             .seconds(self.project.timeline_duration())
             .max(12.0);
-        let timeline_width =
-            (duration as f32 * self.pixels_per_second + TIMELINE_PADDING * 2.0).max(900.0);
+        let timeline_width = (duration as f32 * self.timeline_ui.pixels_per_second
+            + TIMELINE_PADDING * 2.0)
+            .max(900.0);
         let track_headers = self
             .project
             .tracks
@@ -89,14 +90,15 @@ impl Editor {
             .map(|(index, track)| self.track_row(index, track, timeline_width, cx))
             .collect::<Vec<_>>();
         let playhead_left = TIMELINE_PADDING
-            + self.project.seconds(self.preview.playhead) as f32 * self.pixels_per_second;
+            + self.project.seconds(self.timeline_ui.playhead) as f32
+                * self.timeline_ui.pixels_per_second;
 
         div()
             .id("timeline-tracks-vertical-scroll")
             .flex_1()
             .min_h_0()
             .overflow_y_scroll()
-            .track_scroll(&self.timeline_vertical_scroll)
+            .track_scroll(&self.timeline_ui.vertical_scroll)
             .on_mouse_down(
                 MouseButton::Left,
                 cx.listener(|editor, event: &MouseDownEvent, window, cx| {
@@ -136,8 +138,8 @@ impl Editor {
                             .flex_1()
                             .h_full()
                             .overflow_x_scroll()
-                            .track_scroll(&self.timeline_scroll)
-                            .cursor(match self.active_timeline_tool {
+                            .track_scroll(&self.timeline_ui.scroll)
+                            .cursor(match self.timeline_ui.active_tool {
                                 TimelineTool::Blade => CursorStyle::Crosshair,
                                 TimelineTool::Selection | TimelineTool::Trim => CursorStyle::Arrow,
                             })
@@ -168,7 +170,8 @@ impl Editor {
                                             .w(px(2.0))
                                             .bg(rgb(ACCENT))
                                             .cursor(
-                                                if self.active_timeline_tool == TimelineTool::Blade
+                                                if self.timeline_ui.active_tool
+                                                    == TimelineTool::Blade
                                                 {
                                                     CursorStyle::Crosshair
                                                 } else {
@@ -176,7 +179,7 @@ impl Editor {
                                                 },
                                             )
                                             .when(
-                                                self.active_timeline_tool != TimelineTool::Blade,
+                                                self.timeline_ui.active_tool != TimelineTool::Blade,
                                                 |this| {
                                                     this.on_mouse_down(
                                                         MouseButton::Left,
@@ -202,10 +205,10 @@ impl Editor {
                                                     .bg(rgb(ACCENT)),
                                             ),
                                     )
-                                    .when_some(self.snap_guide, |this, guide| {
+                                    .when_some(self.timeline_ui.snap_guide, |this, guide| {
                                         let guide_left = TIMELINE_PADDING
                                             + self.project.seconds(guide) as f32
-                                                * self.pixels_per_second;
+                                                * self.timeline_ui.pixels_per_second;
                                         this.child(
                                             div()
                                                 .absolute()
@@ -225,10 +228,10 @@ impl Editor {
                                                 ),
                                         )
                                     })
-                                    .when_some(self.blade_guide_position, |this, position| {
+                                    .when_some(self.timeline_ui.blade_guide, |this, position| {
                                         let guide_left = TIMELINE_PADDING
                                             + self.project.seconds(position) as f32
-                                                * self.pixels_per_second;
+                                                * self.timeline_ui.pixels_per_second;
                                         this.child(
                                             div()
                                                 .absolute()
@@ -258,11 +261,11 @@ impl Editor {
         let frame_rate = self.project.settings.frame_rate;
         let frames_per_second = frame_rate.frames_per_second();
         let displayed_frames = frame_rate.ceil(duration).frames().max(1);
-        let pixels_per_frame = self.pixels_per_second / frames_per_second as f32;
+        let pixels_per_frame = self.timeline_ui.pixels_per_second / frames_per_second as f32;
         let frame_step = frame_tick_step(pixels_per_frame);
-        let scroll_left = (-f32::from(self.timeline_scroll.offset().x)).max(0.0);
+        let scroll_left = (-f32::from(self.timeline_ui.scroll.offset().x)).max(0.0);
         let viewport_width = {
-            let width = f32::from(self.timeline_scroll.bounds().size.width);
+            let width = f32::from(self.timeline_ui.scroll.bounds().size.width);
             if width > 0.0 { width } else { 1_200.0 }
         };
         let visible_start = ((scroll_left - FRAME_TICK_OVERSCAN - TIMELINE_PADDING).max(0.0)
@@ -294,19 +297,21 @@ impl Editor {
                     .absolute()
                     .left(px(TIMELINE_PADDING
                         + frame_rate.seconds(TimelineTime::from_frames(frame)) as f32
-                            * self.pixels_per_second))
+                            * self.timeline_ui.pixels_per_second))
                     .bottom_0()
                     .h(px(height))
                     .border_l_1()
                     .border_color(rgb(if emphasized { 0x5a5a62 } else { 0x3a3a40 }))
             });
-        let tick_step = ruler_tick_step(duration, self.pixels_per_second);
+        let tick_step = ruler_tick_step(duration, self.timeline_ui.pixels_per_second);
         let tick_count = (duration / tick_step).ceil() as usize + 1;
         let ruler_ticks = (0..tick_count).map(|index| {
             let time = index as f64 * tick_step;
             div()
                 .absolute()
-                .left(px(TIMELINE_PADDING + time as f32 * self.pixels_per_second))
+                .left(px(
+                    TIMELINE_PADDING + time as f32 * self.timeline_ui.pixels_per_second
+                ))
                 .top_0()
                 .h_full()
                 .border_l_1()
@@ -358,7 +363,7 @@ impl Editor {
                         timeline_tool_button(
                             "timeline-selection-tool",
                             "V Select",
-                            self.active_timeline_tool == TimelineTool::Selection,
+                            self.timeline_ui.active_tool == TimelineTool::Selection,
                         )
                         .on_click(cx.listener(|editor, _, _, cx| {
                             editor.activate_timeline_tool(TimelineTool::Selection);
@@ -369,7 +374,7 @@ impl Editor {
                         timeline_tool_button(
                             "timeline-blade-tool",
                             "B Blade",
-                            self.active_timeline_tool == TimelineTool::Blade,
+                            self.timeline_ui.active_tool == TimelineTool::Blade,
                         )
                         .on_click(cx.listener(|editor, _, _, cx| {
                             editor.activate_timeline_tool(TimelineTool::Blade);
@@ -380,7 +385,7 @@ impl Editor {
                         timeline_tool_button(
                             "timeline-trim-tool",
                             "T Trim",
-                            self.active_timeline_tool == TimelineTool::Trim,
+                            self.timeline_ui.active_tool == TimelineTool::Trim,
                         )
                         .on_click(cx.listener(|editor, _, _, cx| {
                             editor.activate_timeline_tool(TimelineTool::Trim);
@@ -404,7 +409,7 @@ impl Editor {
                             .text_sm()
                             .child(format!(
                                 "{} / {}",
-                                format_time(self.project.seconds(self.preview.playhead), false),
+                                format_time(self.project.seconds(self.timeline_ui.playhead), false),
                                 format_time(
                                     self.project.seconds(self.project.timeline_duration()),
                                     false
@@ -430,19 +435,23 @@ impl Editor {
                     .child(
                         timeline_icon_button(
                             "toggle-timeline-snapping",
-                            if self.snapping_enabled {
+                            if self.timeline_ui.snapping_enabled {
                                 "Snap on"
                             } else {
                                 "Snap off"
                             },
                         )
                         .border_1()
-                        .border_color(rgb(if self.snapping_enabled {
+                        .border_color(rgb(if self.timeline_ui.snapping_enabled {
                             ACCENT
                         } else {
                             BORDER
                         }))
-                        .text_color(rgb(if self.snapping_enabled { ACCENT } else { MUTED }))
+                        .text_color(rgb(if self.timeline_ui.snapping_enabled {
+                            ACCENT
+                        } else {
+                            MUTED
+                        }))
                         .on_click(cx.listener(|editor, _, _, cx| {
                             editor.toggle_snapping();
                             cx.notify();
@@ -451,19 +460,19 @@ impl Editor {
                     .child(
                         timeline_icon_button(
                             "toggle-track-magnet",
-                            if self.track_magnet_enabled {
+                            if self.timeline_ui.magnet_enabled {
                                 "Magnet on"
                             } else {
                                 "Magnet off"
                             },
                         )
                         .border_1()
-                        .border_color(rgb(if self.track_magnet_enabled {
+                        .border_color(rgb(if self.timeline_ui.magnet_enabled {
                             ACCENT
                         } else {
                             BORDER
                         }))
-                        .text_color(rgb(if self.track_magnet_enabled {
+                        .text_color(rgb(if self.timeline_ui.magnet_enabled {
                             ACCENT
                         } else {
                             MUTED
@@ -492,7 +501,7 @@ impl Editor {
                             .font_family("monospace")
                             .text_xs()
                             .text_color(rgb(MUTED))
-                            .child(format!("{:.0}px/s", self.pixels_per_second)),
+                            .child(format!("{:.0}px/s", self.timeline_ui.pixels_per_second)),
                     )
                     .child(
                         div()

@@ -49,7 +49,7 @@ struct ValidatedExport {
 
 impl Editor {
     pub(super) fn open_export_dialog(&mut self, cx: &mut Context<Self>) {
-        if self.project.clips.is_empty() || self.exporting {
+        if self.project.clips.is_empty() || self.export.running {
             return;
         }
 
@@ -81,7 +81,7 @@ impl Editor {
 
         self.settings_open = false;
         self.explorer.context_menu = None;
-        self.export_dialog_state = Some(ExportDialogState {
+        self.export.dialog = Some(ExportDialogState {
             resolution: (self.project.settings.width, self.project.settings.height),
             frame_rate: self.project.settings.frame_rate,
             encoder: ExportEncoder::default_for_platform(),
@@ -96,7 +96,8 @@ impl Editor {
 
     pub(super) fn export_dialog(&self, cx: &mut Context<Self>) -> gpui::AnyElement {
         let state = self
-            .export_dialog_state
+            .export
+            .dialog
             .as_ref()
             .expect("export dialog rendered without state");
         let project_name = self
@@ -117,7 +118,7 @@ impl Editor {
             .as_ref()
             .map(|validated| validated.options.video_bit_rate)
             .unwrap_or(DEFAULT_VIDEO_BIT_RATE);
-        let start_enabled = validated.is_ok() && !self.exporting;
+        let start_enabled = validated.is_ok() && !self.export.running;
         let idle_summary = validation_error.clone().unwrap_or_else(|| {
             format!(
                 "Est. {} · H.264 video · AAC audio",
@@ -163,8 +164,8 @@ impl Editor {
             .on_mouse_down(
                 MouseButton::Left,
                 cx.listener(|editor, _, _, cx| {
-                    if !editor.exporting {
-                        editor.export_dialog_state = None;
+                    if !editor.export.running {
+                        editor.export.dialog = None;
                         cx.notify();
                     }
                 }),
@@ -230,22 +231,22 @@ impl Editor {
                                     .items_center()
                                     .justify_center()
                                     .rounded_md()
-                                    .cursor(if self.exporting {
+                                    .cursor(if self.export.running {
                                         CursorStyle::Arrow
                                     } else {
                                         CursorStyle::PointingHand
                                     })
                                     .text_2xl()
                                     .text_color(rgb(MUTED))
-                                    .when(!self.exporting, |button| {
+                                    .when(!self.export.running, |button| {
                                         button.hover(|style| {
                                             style.bg(rgb(SURFACE_HOVER)).text_color(rgb(TEXT))
                                         })
                                     })
                                     .child("×")
-                                    .when(!self.exporting, |button| {
+                                    .when(!self.export.running, |button| {
                                         button.on_click(cx.listener(|editor, _, _, cx| {
-                                            editor.export_dialog_state = None;
+                                            editor.export.dialog = None;
                                             cx.notify();
                                         }))
                                     }),
@@ -346,13 +347,13 @@ impl Editor {
                                                 "Close"
                                             },
                                             false,
-                                            !self.exporting,
+                                            !self.export.running,
                                         )
                                         .when(
-                                            !self.exporting,
+                                            !self.export.running,
                                             |button| {
                                                 button.on_click(cx.listener(|editor, _, _, cx| {
-                                                    editor.export_dialog_state = None;
+                                                    editor.export.dialog = None;
                                                     cx.notify();
                                                 }))
                                             },
@@ -360,7 +361,7 @@ impl Editor {
                                     )
                                     .child(
                                         export_dialog_button(
-                                            if self.exporting {
+                                            if self.export.running {
                                                 "Exporting…"
                                             } else {
                                                 "Start export"
@@ -385,7 +386,8 @@ impl Editor {
 
     fn validated_export(&self, cx: &App) -> Result<ValidatedExport, String> {
         let state = self
-            .export_dialog_state
+            .export
+            .dialog
             .as_ref()
             .ok_or_else(|| "Export dialog is closed.".to_string())?;
         let video_bit_rate = parse_bitrate(state.bitrate.read(cx).query())?;
@@ -406,7 +408,8 @@ impl Editor {
 
     fn export_resolution_dropdown(&self, cx: &mut Context<Self>) -> gpui::AnyElement {
         let state = self
-            .export_dialog_state
+            .export
+            .dialog
             .as_ref()
             .expect("resolution dropdown rendered without export state");
         let selected = state.resolution;
@@ -429,7 +432,7 @@ impl Editor {
                     active,
                 )
                 .on_click(cx.listener(move |editor, _, _, cx| {
-                    if let Some(state) = editor.export_dialog_state.as_mut() {
+                    if let Some(state) = editor.export.dialog.as_mut() {
                         state.resolution = (width, height);
                         state.resolution_menu_open = false;
                     }
@@ -446,7 +449,7 @@ impl Editor {
             options,
         )
         .on_click(cx.listener(|editor, _, _, cx| {
-            if let Some(state) = editor.export_dialog_state.as_mut() {
+            if let Some(state) = editor.export.dialog.as_mut() {
                 state.resolution_menu_open = !state.resolution_menu_open;
                 state.frame_rate_menu_open = false;
                 state.encoder_menu_open = false;
@@ -458,7 +461,8 @@ impl Editor {
 
     fn export_frame_rate_dropdown(&self, cx: &mut Context<Self>) -> gpui::AnyElement {
         let state = self
-            .export_dialog_state
+            .export
+            .dialog
             .as_ref()
             .expect("frame-rate dropdown rendered without export state");
         let selected = state.frame_rate;
@@ -474,7 +478,7 @@ impl Editor {
                     active,
                 )
                 .on_click(cx.listener(move |editor, _, _, cx| {
-                    if let Some(state) = editor.export_dialog_state.as_mut() {
+                    if let Some(state) = editor.export.dialog.as_mut() {
                         state.frame_rate = frame_rate;
                         state.frame_rate_menu_open = false;
                     }
@@ -491,7 +495,7 @@ impl Editor {
             options,
         )
         .on_click(cx.listener(|editor, _, _, cx| {
-            if let Some(state) = editor.export_dialog_state.as_mut() {
+            if let Some(state) = editor.export.dialog.as_mut() {
                 state.frame_rate_menu_open = !state.frame_rate_menu_open;
                 state.resolution_menu_open = false;
                 state.encoder_menu_open = false;
@@ -503,7 +507,8 @@ impl Editor {
 
     fn export_encoder_dropdown(&self, cx: &mut Context<Self>) -> gpui::AnyElement {
         let state = self
-            .export_dialog_state
+            .export
+            .dialog
             .as_ref()
             .expect("encoder dropdown rendered without export state");
         let selected = state.encoder;
@@ -518,7 +523,7 @@ impl Editor {
                     selected == encoder,
                 )
                 .on_click(cx.listener(move |editor, _, _, cx| {
-                    if let Some(state) = editor.export_dialog_state.as_mut() {
+                    if let Some(state) = editor.export.dialog.as_mut() {
                         state.encoder = encoder;
                         state.encoder_menu_open = false;
                     }
@@ -535,7 +540,7 @@ impl Editor {
             options,
         )
         .on_click(cx.listener(|editor, _, _, cx| {
-            if let Some(state) = editor.export_dialog_state.as_mut() {
+            if let Some(state) = editor.export.dialog.as_mut() {
                 state.encoder_menu_open = !state.encoder_menu_open;
                 state.resolution_menu_open = false;
                 state.frame_rate_menu_open = false;
@@ -546,7 +551,7 @@ impl Editor {
     }
 
     fn choose_export_destination(&mut self, cx: &mut Context<Self>) {
-        let Some(state) = self.export_dialog_state.as_ref() else {
+        let Some(state) = self.export.dialog.as_ref() else {
             return;
         };
         let current = expand_home(state.destination.read(cx).query());
@@ -567,7 +572,7 @@ impl Editor {
                 .update(cx, |editor, cx| {
                     match result {
                         Ok(Ok(Some(path))) => {
-                            if let Some(state) = editor.export_dialog_state.as_ref() {
+                            if let Some(state) = editor.export.dialog.as_ref() {
                                 state.destination.update(cx, |input, cx| {
                                     input.set_text(
                                         with_mp4_extension(path).display().to_string(),
@@ -593,7 +598,7 @@ impl Editor {
     }
 
     fn start_export(&mut self, cx: &mut Context<Self>) {
-        if self.exporting || self.project.clips.is_empty() {
+        if self.export.running || self.project.clips.is_empty() {
             return;
         }
         let validated = match self.validated_export(cx) {
@@ -610,13 +615,13 @@ impl Editor {
         let project_root = self.project_root.clone();
         let export_path = path.clone();
         let progress = Arc::new(AtomicU32::new(0));
-        if let Some(state) = self.export_dialog_state.as_mut() {
+        if let Some(state) = self.export.dialog.as_mut() {
             state.resolution_menu_open = false;
             state.frame_rate_menu_open = false;
             state.encoder_menu_open = false;
             state.status = ExportDialogStatus::Exporting(progress.clone());
         }
-        self.exporting = true;
+        self.export.running = true;
         self.status = Some("Exporting…".to_string());
         self.error = None;
         cx.notify();
@@ -635,10 +640,10 @@ impl Editor {
             let elapsed = started_at.elapsed();
             editor
                 .update(cx, |editor, cx| {
-                    editor.exporting = false;
+                    editor.export.running = false;
                     match result {
                         Ok(()) => {
-                            if let Some(state) = editor.export_dialog_state.as_mut() {
+                            if let Some(state) = editor.export.dialog.as_mut() {
                                 state.status = ExportDialogStatus::Complete {
                                     path: path.clone(),
                                     elapsed,
@@ -652,7 +657,7 @@ impl Editor {
                             editor.error = None;
                         }
                         Err(error) => {
-                            if let Some(state) = editor.export_dialog_state.as_mut() {
+                            if let Some(state) = editor.export.dialog.as_mut() {
                                 state.status = ExportDialogStatus::Failed {
                                     message: error.clone(),
                                     progress: progress.load(Ordering::Relaxed),

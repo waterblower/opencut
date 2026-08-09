@@ -95,7 +95,7 @@ impl Editor {
     }
 
     pub(super) fn blade_at_playhead(&mut self) {
-        let clips = clips_crossing_playhead(&self.project, self.preview.playhead);
+        let clips = clips_crossing_playhead(&self.project, self.timeline_ui.playhead);
         if clips.is_empty() {
             self.error = Some("No unlocked clip crosses the playhead.".into());
             return;
@@ -108,7 +108,7 @@ impl Editor {
                 continue;
             };
             let new_id = self.take_id();
-            let Some((left, right)) = clip.split_at(self.preview.playhead, new_id) else {
+            let Some((left, right)) = clip.split_at(self.timeline_ui.playhead, new_id) else {
                 continue;
             };
             self.project.clips[index] = left;
@@ -124,7 +124,7 @@ impl Editor {
             plural_suffix(split_count)
         ));
         self.save_project();
-        self.load_timeline_position(self.preview.playhead, false);
+        self.load_timeline_position(self.timeline_ui.playhead, false);
     }
 
     pub(super) fn blade_split_clip_at(&mut self, clip_id: u64, position: TimelineTime) {
@@ -146,7 +146,7 @@ impl Editor {
         self.select_only_clip(Some(right_clip_id));
         self.error = None;
         self.save_project();
-        self.load_timeline_position(self.preview.playhead, false);
+        self.load_timeline_position(self.timeline_ui.playhead, false);
     }
 
     pub(super) fn delete_selected(&mut self) {
@@ -156,8 +156,8 @@ impl Editor {
         let clip_ids = self.selected_clip_ids.clone();
         let clip_count = clip_ids.len();
         self.checkpoint();
-        self.remove_clips(&clip_ids, self.track_magnet_enabled);
-        self.status = Some(if self.track_magnet_enabled {
+        self.remove_clips(&clip_ids, self.timeline_ui.magnet_enabled);
+        self.status = Some(if self.timeline_ui.magnet_enabled {
             format!(
                 "Deleted {clip_count} clip{} and closed the track gap{}.",
                 plural_suffix(clip_count),
@@ -210,7 +210,7 @@ impl Editor {
         let Some(clipboard) = self.clip_clipboard.clone() else {
             return;
         };
-        let mut clips = clipboard.clips_at(self.preview.playhead);
+        let mut clips = clipboard.clips_at(self.timeline_ui.playhead);
         if let Err(rejection) = validate_clipboard_placements(&self.project, &clips) {
             self.error = Some(format!("Cannot paste clips: {}.", rejection.message()));
             return;
@@ -232,7 +232,7 @@ impl Editor {
         self.error = None;
         self.status = Some(format!("Pasted {count} clip{}.", plural_suffix(count)));
         self.save_project();
-        self.load_timeline_position(self.preview.playhead, false);
+        self.load_timeline_position(self.timeline_ui.playhead, false);
     }
 
     fn remove_clips(&mut self, clip_ids: &HashSet<u64>, close_track_gaps: bool) {
@@ -250,9 +250,9 @@ impl Editor {
         self.preview.playing = false;
         self.preview.timeline_clock = None;
         if self.project.clips.is_empty() {
-            self.preview.playhead = TimelineTime::ZERO;
+            self.timeline_ui.playhead = TimelineTime::ZERO;
         } else {
-            self.load_timeline_position(self.preview.playhead, false);
+            self.load_timeline_position(self.timeline_ui.playhead, false);
         }
         self.save_project();
     }
@@ -367,7 +367,7 @@ impl Editor {
             track.visible = !track.visible;
         }
         self.save_project();
-        self.load_timeline_position(self.preview.playhead, false);
+        self.load_timeline_position(self.timeline_ui.playhead, false);
     }
 
     pub(super) fn toggle_track_mute(&mut self, track_id: u64) {
@@ -376,7 +376,7 @@ impl Editor {
             track.muted = !track.muted;
         }
         self.save_project();
-        self.load_timeline_position(self.preview.playhead, self.preview.playing);
+        self.load_timeline_position(self.timeline_ui.playhead, self.preview.playing);
     }
 
     pub(super) fn move_track(&mut self, track_id: u64, direction: i8) {
@@ -401,7 +401,7 @@ impl Editor {
         self.checkpoint();
         self.project.tracks.swap(index, target);
         self.save_project();
-        self.load_timeline_position(self.preview.playhead, false);
+        self.load_timeline_position(self.timeline_ui.playhead, false);
     }
 
     pub(super) fn delete_track(&mut self, track_id: u64) {
@@ -433,7 +433,7 @@ impl Editor {
                 .map(|clip| clip.id);
         }
         self.save_project();
-        self.load_timeline_position(self.preview.playhead, false);
+        self.load_timeline_position(self.timeline_ui.playhead, false);
     }
 
     pub(super) fn select_only_clip(&mut self, clip_id: Option<u64>) {
@@ -586,7 +586,7 @@ impl Editor {
         self.preview.timeline_needs_rebuild = true;
         self.preview.playing = false;
         self.preview.timeline_clock = None;
-        self.preview.playhead = TimelineTime::ZERO;
+        self.timeline_ui.playhead = TimelineTime::ZERO;
         self.select_only_clip(self.project.clips.first().map(|clip| clip.id));
         if !self.project.clips.is_empty() {
             self.load_timeline_position(TimelineTime::ZERO, false);
@@ -601,7 +601,7 @@ impl Editor {
             return;
         }
         if self.preview.timeline_needs_rebuild && self.preview.target == PreviewTarget::Timeline {
-            self.load_timeline_position(self.preview.playhead, self.preview.playing);
+            self.load_timeline_position(self.timeline_ui.playhead, self.preview.playing);
         }
     }
 
@@ -612,7 +612,7 @@ impl Editor {
     }
 
     pub(super) fn toggle_track_magnet(&mut self) {
-        self.track_magnet_enabled = !self.track_magnet_enabled;
+        self.timeline_ui.magnet_enabled = !self.timeline_ui.magnet_enabled;
     }
 }
 
