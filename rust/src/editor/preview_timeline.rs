@@ -181,6 +181,7 @@ impl Editor {
             .timeline
             .as_ref()
             .expect("timeline preview drag requires an active timeline")
+            .interaction
             .snapping_enabled
             .then(|| {
                 self.timeline_preview_clip_rect(
@@ -497,7 +498,7 @@ impl Editor {
             height: output_height,
             project_scale: project_scale.max(f64::EPSILON),
         };
-        let selected_rect = timeline.selected_clip_id.and_then(|clip_id| {
+        let selected_rect = timeline.interaction.selected_clip_id.and_then(|clip_id| {
             let clip = timeline.data.clip(clip_id)?;
             if clip.timeline_start > timeline.playhead || timeline.playhead >= clip.timeline_end() {
                 return None;

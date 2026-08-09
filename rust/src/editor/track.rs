@@ -110,6 +110,7 @@ impl Editor {
             .map(|clip| self.timeline_clip(track, clip, cx))
             .collect::<Vec<_>>();
         let move_previews = timeline
+            .interaction
             .clip_move_drag
             .as_ref()
             .filter(|drag| drag.changed)
@@ -143,7 +144,7 @@ impl Editor {
             } else {
                 0x0d0d0f
             }))
-            .cursor(match timeline.active_tool {
+            .cursor(match timeline.interaction.active_tool {
                 TimelineTool::Blade => CursorStyle::Crosshair,
                 TimelineTool::Selection | TimelineTool::Trim => CursorStyle::Arrow,
             })
@@ -230,10 +231,14 @@ impl Editor {
             .as_ref()
             .expect("timeline clips require an active timeline");
         let clip_id = clip.id;
-        let selected = timeline.selected_clip_ids.contains(&clip_id);
-        let moving = timeline.clip_move_drag.as_ref().is_some_and(|drag| {
-            drag.changed && drag.items.iter().any(|item| item.clip_id == clip_id)
-        });
+        let selected = timeline.interaction.selected_clip_ids.contains(&clip_id);
+        let moving = timeline
+            .interaction
+            .clip_move_drag
+            .as_ref()
+            .is_some_and(|drag| {
+                drag.changed && drag.items.iter().any(|item| item.clip_id == clip_id)
+            });
         let left = TIMELINE_PADDING
             + timeline.data.seconds(clip.timeline_start) as f32 * timeline.pixels_per_second;
         let width =
@@ -252,7 +257,7 @@ impl Editor {
             .border_color(rgb(if selected { ACCENT } else { color + 0x101010 }))
             .bg(rgb(color))
             .opacity(if moving { 0.3 } else { 1.0 })
-            .cursor(match timeline.active_tool {
+            .cursor(match timeline.interaction.active_tool {
                 TimelineTool::Selection => CursorStyle::PointingHand,
                 TimelineTool::Blade => CursorStyle::Crosshair,
                 TimelineTool::Trim => CursorStyle::Arrow,
@@ -273,9 +278,9 @@ impl Editor {
             .child(content)
             .when(
                 selected
-                    && timeline.selected_clip_ids.len() == 1
+                    && timeline.interaction.selected_clip_ids.len() == 1
                     && !moving
-                    && timeline.active_tool == TimelineTool::Trim,
+                    && timeline.interaction.active_tool == TimelineTool::Trim,
                 |this| {
                     this.child(trim_handle(("left-trim", clip_id), true).on_mouse_down(
                         MouseButton::Left,

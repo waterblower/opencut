@@ -124,7 +124,7 @@ impl Editor {
         cx: &mut Context<Self>,
     ) {
         if let Some(timeline) = self.timeline.as_mut() {
-            timeline.context_menu = None;
+            timeline.interaction.context_menu = None;
         }
         self.explorer.selected_file = Some(relative_path.clone());
         self.explorer.context_menu = Some(FileContextMenu {

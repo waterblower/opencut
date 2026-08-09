@@ -599,7 +599,7 @@ impl Editor {
         else {
             if self.explorer.drop_preview.take().is_some() {
                 if let Some(timeline) = self.timeline.as_mut() {
-                    timeline.snap_guide = None;
+                    timeline.interaction.snap_guide = None;
                 }
                 cx.notify();
             }
@@ -666,7 +666,7 @@ impl Editor {
         .err()
         .map(|rejection| rejection.message().to_string());
         if let Some(timeline) = self.timeline.as_mut() {
-            timeline.snap_guide = snap_guide;
+            timeline.interaction.snap_guide = snap_guide;
         }
         self.explorer.drop_preview = Some(ExplorerDropPreview {
             relative_path: drag.relative_path.clone(),
@@ -689,12 +689,12 @@ impl Editor {
                     .is_some_and(|timeline| timeline.data.track(preview.track_id).is_some())
         }) else {
             if let Some(timeline) = self.timeline.as_mut() {
-                timeline.snap_guide = None;
+                timeline.interaction.snap_guide = None;
             }
             return;
         };
         if let Some(timeline) = self.timeline.as_mut() {
-            timeline.snap_guide = None;
+            timeline.interaction.snap_guide = None;
         }
 
         if let Some(reason) = preview.invalid_reason {

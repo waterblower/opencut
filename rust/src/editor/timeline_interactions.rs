@@ -59,12 +59,12 @@ impl Editor {
         let Some(timeline) = self.timeline.as_mut() else {
             return;
         };
-        timeline.active_tool = tool;
-        timeline.blade_guide = None;
-        timeline.trim_drag = None;
-        timeline.clip_move_drag = None;
-        timeline.marquee_selection = None;
-        timeline.snap_guide = None;
+        timeline.interaction.active_tool = tool;
+        timeline.interaction.blade_guide = None;
+        timeline.interaction.trim_drag = None;
+        timeline.interaction.clip_move_drag = None;
+        timeline.interaction.marquee_selection = None;
+        timeline.interaction.snap_guide = None;
     }
 
     pub(super) fn update_blade_guide(
@@ -76,15 +76,15 @@ impl Editor {
         let Some(timeline) = self.timeline.as_ref() else {
             return;
         };
-        if timeline.active_tool != TimelineTool::Blade {
+        if timeline.interaction.active_tool != TimelineTool::Blade {
             return;
         }
         let position = self
             .timeline_position_from_x(event.position.x.into())
             .clamp(TimelineTime::ZERO, timeline.data.timeline_duration());
         let timeline = self.timeline.as_mut().expect("timeline was checked above");
-        if timeline.blade_guide != Some(position) {
-            timeline.blade_guide = Some(position);
+        if timeline.interaction.blade_guide != Some(position) {
+            timeline.interaction.blade_guide = Some(position);
             cx.notify();
         }
     }
@@ -99,7 +99,7 @@ impl Editor {
             && self
                 .timeline
                 .as_mut()
-                .is_some_and(|timeline| timeline.blade_guide.take().is_some())
+                .is_some_and(|timeline| timeline.interaction.blade_guide.take().is_some())
         {
             cx.notify();
         }
@@ -111,7 +111,11 @@ impl Editor {
         event: &MouseDownEvent,
         cx: &mut Context<Self>,
     ) {
-        let Some(tool) = self.timeline.as_ref().map(|timeline| timeline.active_tool) else {
+        let Some(tool) = self
+            .timeline
+            .as_ref()
+            .map(|timeline| timeline.interaction.active_tool)
+        else {
             return;
         };
         match tool {
@@ -137,7 +141,7 @@ impl Editor {
         let Some(timeline) = self.timeline.as_ref() else {
             return;
         };
-        if timeline.active_tool != TimelineTool::Selection {
+        if timeline.interaction.active_tool != TimelineTool::Selection {
             return;
         }
         if f32::from(event.position.x) < TRACK_HEADER_WIDTH {
@@ -149,13 +153,14 @@ impl Editor {
             window,
         );
         let initial_selection = if event.modifiers.secondary() {
-            timeline.selected_clip_ids.clone()
+            timeline.interaction.selected_clip_ids.clone()
         } else {
             HashSet::new()
         };
         self.timeline
             .as_mut()
             .expect("timeline was checked above")
+            .interaction
             .marquee_selection = Some(MarqueeSelection {
             start_x: x,
             start_y: y,
@@ -179,7 +184,7 @@ impl Editor {
         if self
             .timeline
             .as_ref()
-            .is_none_or(|timeline| timeline.marquee_selection.is_none())
+            .is_none_or(|timeline| timeline.interaction.marquee_selection.is_none())
             || !event.dragging()
         {
             return;
@@ -192,7 +197,7 @@ impl Editor {
         if let Some(selection) = self
             .timeline
             .as_mut()
-            .and_then(|timeline| timeline.marquee_selection.as_mut())
+            .and_then(|timeline| timeline.interaction.marquee_selection.as_mut())
         {
             selection.current_x = x;
             selection.current_y = y;
@@ -210,7 +215,7 @@ impl Editor {
         if self
             .timeline
             .as_ref()
-            .is_none_or(|timeline| timeline.marquee_selection.is_none())
+            .is_none_or(|timeline| timeline.interaction.marquee_selection.is_none())
         {
             return;
         }
@@ -222,14 +227,14 @@ impl Editor {
         if let Some(selection) = self
             .timeline
             .as_mut()
-            .and_then(|timeline| timeline.marquee_selection.as_mut())
+            .and_then(|timeline| timeline.interaction.marquee_selection.as_mut())
         {
             selection.current_x = x;
             selection.current_y = y;
         }
         self.select_clips_in_marquee();
         if let Some(timeline) = self.timeline.as_mut() {
-            timeline.marquee_selection = None;
+            timeline.interaction.marquee_selection = None;
         }
         cx.notify();
     }
@@ -249,7 +254,7 @@ impl Editor {
         let Some(timeline) = self.timeline.as_ref() else {
             return;
         };
-        let Some(selection) = timeline.marquee_selection.as_ref() else {
+        let Some(selection) = timeline.interaction.marquee_selection.as_ref() else {
             return;
         };
         let left = selection.start_x.min(selection.current_x);
@@ -286,13 +291,13 @@ impl Editor {
             }
         }
         let timeline = self.timeline.as_mut().expect("timeline was checked above");
-        timeline.selected_clip_id = timeline
+        timeline.interaction.selected_clip_id = timeline
             .data
             .clips
             .iter()
             .find(|clip| selected.contains(&clip.id))
             .map(|clip| clip.id);
-        timeline.selected_clip_ids = selected;
+        timeline.interaction.selected_clip_ids = selected;
     }
 
     pub(super) fn begin_clip_move(
@@ -309,7 +314,7 @@ impl Editor {
         if self
             .timeline
             .as_ref()
-            .is_none_or(|timeline| !timeline.selected_clip_ids.contains(&clip_id))
+            .is_none_or(|timeline| !timeline.interaction.selected_clip_ids.contains(&clip_id))
         {
             self.select_only_clip(Some(clip_id));
         }
@@ -357,6 +362,7 @@ impl Editor {
                 .timeline
                 .as_ref()
                 .expect("timeline was checked above")
+                .interaction
                 .selected_clip_ids
                 .len()
         {
@@ -368,8 +374,8 @@ impl Editor {
         self.preview.playing = false;
         self.preview.timeline_clock = None;
         let timeline = self.timeline.as_mut().expect("timeline was checked above");
-        timeline.snap_guide = None;
-        timeline.clip_move_drag = Some(ClipMoveDrag {
+        timeline.interaction.snap_guide = None;
+        timeline.interaction.clip_move_drag = Some(ClipMoveDrag {
             anchor_clip_id: clip_id,
             start_x: event.position.x.into(),
             original_anchor_start: anchor.timeline_start,
@@ -403,7 +409,7 @@ impl Editor {
         let Some(timeline) = self.timeline.as_ref() else {
             return;
         };
-        let Some(drag) = timeline.clip_move_drag.as_ref() else {
+        let Some(drag) = timeline.interaction.clip_move_drag.as_ref() else {
             return;
         };
         let anchor_clip_id = drag.anchor_clip_id;
@@ -429,7 +435,7 @@ impl Editor {
         let (snapped_start, snap_guide) = self.snap_clip_start_ignoring(
             raw_anchor_start,
             anchor_duration,
-            &timeline.selected_clip_ids,
+            &timeline.interaction.selected_clip_ids,
         );
         let timeline_delta = snapped_start - original_anchor_start;
         let viewport_height = f32::from(window.viewport_size().height);
@@ -475,7 +481,7 @@ impl Editor {
         let invalid_reason = if placements.len() != items.len() {
             Some("Destination track is unavailable")
         } else {
-            self.validate_clip_move_placements(&placements, &timeline.selected_clip_ids)
+            self.validate_clip_move_placements(&placements, &timeline.interaction.selected_clip_ids)
                 .err()
                 .map(ClipPlacementRejection::message)
         };
@@ -488,12 +494,12 @@ impl Editor {
                 })
         });
         let timeline = self.timeline.as_mut().expect("timeline was checked above");
-        if let Some(drag) = &mut timeline.clip_move_drag {
+        if let Some(drag) = &mut timeline.interaction.clip_move_drag {
             drag.placements = placements;
             drag.invalid_reason = invalid_reason;
             drag.changed = moved_from_origin;
         }
-        timeline.snap_guide = snap_guide;
+        timeline.interaction.snap_guide = snap_guide;
         cx.notify();
     }
 
@@ -506,10 +512,10 @@ impl Editor {
         let Some(timeline) = self.timeline.as_mut() else {
             return;
         };
-        let Some(drag) = timeline.clip_move_drag.take() else {
+        let Some(drag) = timeline.interaction.clip_move_drag.take() else {
             return;
         };
-        timeline.snap_guide = None;
+        timeline.interaction.snap_guide = None;
         if drag.changed && drag.invalid_reason.is_none() {
             self.checkpoint();
             for (clip_id, track_id, start) in drag.placements {
@@ -550,7 +556,7 @@ impl Editor {
         let Some(timeline) = self.timeline.as_ref() else {
             return (time.max(TimelineTime::ZERO), None);
         };
-        if !timeline.snapping_enabled {
+        if !timeline.interaction.snapping_enabled {
             return (time.max(TimelineTime::ZERO), None);
         }
         let threshold = timeline
@@ -609,7 +615,7 @@ impl Editor {
         let Some(timeline) = self.timeline.as_ref() else {
             return;
         };
-        if timeline.selected_clip_ids.len() > 1 {
+        if timeline.interaction.selected_clip_ids.len() > 1 {
             return;
         }
         let Some(clip) = timeline.data.clip(clip_id).cloned() else {
@@ -628,8 +634,8 @@ impl Editor {
         self.preview.timeline_clock = None;
         self.select_only_clip(Some(clip_id));
         let timeline = self.timeline.as_mut().expect("timeline was checked above");
-        timeline.snap_guide = None;
-        timeline.trim_drag = Some(TrimDrag {
+        timeline.interaction.snap_guide = None;
+        timeline.interaction.trim_drag = Some(TrimDrag {
             clip_id,
             edge,
             start_x: x,
@@ -653,7 +659,7 @@ impl Editor {
         let Some(timeline) = self.timeline.as_ref() else {
             return;
         };
-        let Some(drag) = timeline.trim_drag.as_ref() else {
+        let Some(drag) = timeline.interaction.trim_drag.as_ref() else {
             return;
         };
         let clip_id = drag.clip_id;
@@ -672,6 +678,7 @@ impl Editor {
             self.timeline
                 .as_mut()
                 .expect("timeline was checked above")
+                .interaction
                 .snap_guide = None;
             cx.notify();
             return;
@@ -681,7 +688,7 @@ impl Editor {
             if let Some(drag) = self
                 .timeline
                 .as_mut()
-                .and_then(|timeline| timeline.trim_drag.as_mut())
+                .and_then(|timeline| timeline.interaction.trim_drag.as_mut())
             {
                 drag.changed = true;
             }
@@ -731,6 +738,7 @@ impl Editor {
         self.timeline
             .as_mut()
             .expect("timeline was checked above")
+            .interaction
             .snap_guide = snap_guide;
         cx.notify();
     }
@@ -739,15 +747,15 @@ impl Editor {
         let changed = self
             .timeline
             .as_mut()
-            .and_then(|timeline| timeline.trim_drag.take())
+            .and_then(|timeline| timeline.interaction.trim_drag.take())
             .is_some_and(|drag| drag.changed);
         if let Some(timeline) = self.timeline.as_mut() {
-            timeline.snap_guide = None;
+            timeline.interaction.snap_guide = None;
         }
         if changed {
             self.save_timeline();
             if let Some(position) = self.timeline.as_ref().and_then(|timeline| {
-                let clip_id = timeline.selected_clip_id?;
+                let clip_id = timeline.interaction.selected_clip_id?;
                 let index = timeline.data.clip_index(clip_id)?;
                 Some(timeline.data.clips[index].timeline_start)
             }) {
@@ -783,8 +791,8 @@ impl Editor {
 
     pub(super) fn toggle_snapping(&mut self) {
         if let Some(timeline) = self.timeline.as_mut() {
-            timeline.snapping_enabled = !timeline.snapping_enabled;
-            timeline.snap_guide = None;
+            timeline.interaction.snapping_enabled = !timeline.interaction.snapping_enabled;
+            timeline.interaction.snap_guide = None;
         }
     }
 
@@ -866,7 +874,7 @@ impl Editor {
         let Some(timeline) = self.timeline.as_mut() else {
             return;
         };
-        timeline.scrubbing_playhead = true;
+        timeline.interaction.scrubbing_playhead = true;
         if let Some(video) = &self.preview.video {
             video.set_paused(true);
         }
@@ -876,6 +884,7 @@ impl Editor {
         self.timeline
             .as_mut()
             .expect("timeline was checked above")
+            .interaction
             .last_scrub_seek = Some(Instant::now());
         self.load_timeline_position_for_scrub(position, false, false);
     }
@@ -889,7 +898,7 @@ impl Editor {
         if self
             .timeline
             .as_ref()
-            .is_some_and(|timeline| timeline.scrubbing_playhead)
+            .is_some_and(|timeline| timeline.interaction.scrubbing_playhead)
             && event.dragging()
         {
             let position = self.timeline_position_from_x(event.position.x.into());
@@ -903,12 +912,14 @@ impl Editor {
                 .timeline
                 .as_ref()
                 .expect("scrubbing requires an active timeline")
+                .interaction
                 .last_scrub_seek
                 .is_none_or(|last_seek| now.duration_since(last_seek) >= SCRUB_SEEK_INTERVAL);
             if should_seek {
                 self.timeline
                     .as_mut()
                     .expect("scrubbing requires an active timeline")
+                    .interaction
                     .last_scrub_seek = Some(now);
                 self.load_timeline_position_for_scrub(position, false, false);
             }
@@ -925,14 +936,14 @@ impl Editor {
         if self
             .timeline
             .as_ref()
-            .is_some_and(|timeline| timeline.scrubbing_playhead)
+            .is_some_and(|timeline| timeline.interaction.scrubbing_playhead)
         {
             let timeline = self
                 .timeline
                 .as_mut()
                 .expect("scrubbing requires an active timeline");
-            timeline.scrubbing_playhead = false;
-            timeline.last_scrub_seek = None;
+            timeline.interaction.scrubbing_playhead = false;
+            timeline.interaction.last_scrub_seek = None;
             let position = self.timeline_position_from_x(event.position.x.into());
             self.load_timeline_position_for_scrub(position, true, true);
             cx.notify();

@@ -121,7 +121,7 @@ impl Editor {
                 .child("No timeline selected")
                 .into_any_element();
         };
-        let selection_count = timeline.selected_clip_ids.len();
+        let selection_count = timeline.interaction.selected_clip_ids.len();
         if selection_count > 1 {
             return div()
                 .id("timeline-multi-properties")
@@ -135,7 +135,7 @@ impl Editor {
                 .into_any_element();
         }
 
-        let selected = timeline.selected_clip_id.and_then(|id| {
+        let selected = timeline.interaction.selected_clip_id.and_then(|id| {
             let index = timeline.data.clip_index(id)?;
             let clip = &timeline.data.clips[index];
             let asset = timeline.data.asset(clip.asset_id);

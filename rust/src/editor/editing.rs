@@ -146,8 +146,8 @@ impl Editor {
         }
         let split_count = right_halves.len();
         let timeline = self.timeline.as_mut().expect("timeline was checked above");
-        timeline.selected_clip_ids = right_halves.iter().map(|clip| clip.id).collect();
-        timeline.selected_clip_id = right_halves.first().map(|clip| clip.id);
+        timeline.interaction.selected_clip_ids = right_halves.iter().map(|clip| clip.id).collect();
+        timeline.interaction.selected_clip_id = right_halves.first().map(|clip| clip.id);
         timeline.data.clips.extend(right_halves);
         self.error = None;
         self.status = Some(format!(
@@ -193,11 +193,11 @@ impl Editor {
         let Some(timeline) = self.timeline.as_ref() else {
             return;
         };
-        if timeline.selected_clip_ids.is_empty() || !self.selected_clips_editable() {
+        if timeline.interaction.selected_clip_ids.is_empty() || !self.selected_clips_editable() {
             return;
         }
-        let clip_ids = timeline.selected_clip_ids.clone();
-        let magnet_enabled = timeline.magnet_enabled;
+        let clip_ids = timeline.interaction.selected_clip_ids.clone();
+        let magnet_enabled = timeline.interaction.magnet_enabled;
         let clip_count = clip_ids.len();
         self.checkpoint();
         self.remove_clips(&clip_ids, magnet_enabled);
@@ -218,8 +218,8 @@ impl Editor {
         };
         let Some(clipboard) = ClipClipboard::from_selection(
             &timeline.data,
-            &timeline.selected_clip_ids,
-            timeline.selected_clip_id,
+            &timeline.interaction.selected_clip_ids,
+            timeline.interaction.selected_clip_id,
         ) else {
             return;
         };
@@ -236,7 +236,7 @@ impl Editor {
         let Some(timeline) = self.timeline.as_ref() else {
             return;
         };
-        if timeline.selected_clip_ids.is_empty() {
+        if timeline.interaction.selected_clip_ids.is_empty() {
             return;
         }
         if !self.selected_clips_editable() {
@@ -245,13 +245,13 @@ impl Editor {
         }
         let Some(clipboard) = ClipClipboard::from_selection(
             &timeline.data,
-            &timeline.selected_clip_ids,
-            timeline.selected_clip_id,
+            &timeline.interaction.selected_clip_ids,
+            timeline.interaction.selected_clip_id,
         ) else {
             return;
         };
         let count = clipboard.clips.len();
-        let clip_ids = timeline.selected_clip_ids.clone();
+        let clip_ids = timeline.interaction.selected_clip_ids.clone();
         self.checkpoint();
         self.timeline
             .as_mut()
@@ -282,8 +282,8 @@ impl Editor {
         }
         let count = clips.len();
         let timeline = self.timeline.as_mut().expect("timeline was checked above");
-        timeline.selected_clip_ids = clips.iter().map(|clip| clip.id).collect();
-        timeline.selected_clip_id = clipboard
+        timeline.interaction.selected_clip_ids = clips.iter().map(|clip| clip.id).collect();
+        timeline.interaction.selected_clip_id = clipboard
             .primary_index
             .and_then(|index| clips.get(index))
             .or_else(|| clips.first())
@@ -307,8 +307,8 @@ impl Editor {
             .data
             .clips
             .retain(|clip| !clip_ids.contains(&clip.id));
-        timeline.selected_clip_ids.clear();
-        timeline.selected_clip_id = None;
+        timeline.interaction.selected_clip_ids.clear();
+        timeline.interaction.selected_clip_id = None;
         self.properties.transform_input_clip_id = None;
         self.preview.target = PreviewTarget::Timeline;
         self.preview.video = None;
@@ -391,6 +391,7 @@ impl Editor {
             .timeline
             .as_ref()
             .expect("selected clips require an active timeline")
+            .interaction
             .selected_clip_id
             .and_then(|id| clips.iter().position(|clip| clip.id == id));
         let mut duplicates = Vec::with_capacity(clips.len());
@@ -403,8 +404,8 @@ impl Editor {
             .timeline
             .as_mut()
             .expect("selected clips require an active timeline");
-        timeline.selected_clip_ids = duplicates.iter().map(|clip| clip.id).collect();
-        timeline.selected_clip_id = primary_index
+        timeline.interaction.selected_clip_ids = duplicates.iter().map(|clip| clip.id).collect();
+        timeline.interaction.selected_clip_id = primary_index
             .and_then(|index| duplicates.get(index))
             .or_else(|| duplicates.first())
             .map(|clip| clip.id);
@@ -554,17 +555,19 @@ impl Editor {
             .map(|clip| clip.id)
             .collect::<HashSet<_>>();
         timeline
+            .interaction
             .selected_clip_ids
             .retain(|id| remaining_clip_ids.contains(id));
         if timeline
+            .interaction
             .selected_clip_id
             .is_some_and(|id| timeline.data.clip(id).is_none())
         {
-            timeline.selected_clip_id = timeline
+            timeline.interaction.selected_clip_id = timeline
                 .data
                 .clips
                 .iter()
-                .find(|clip| timeline.selected_clip_ids.contains(&clip.id))
+                .find(|clip| timeline.interaction.selected_clip_ids.contains(&clip.id))
                 .map(|clip| clip.id);
         }
         self.save_timeline();
@@ -575,11 +578,11 @@ impl Editor {
         let Some(timeline) = self.timeline.as_mut() else {
             return;
         };
-        timeline.selected_clip_ids.clear();
+        timeline.interaction.selected_clip_ids.clear();
         if let Some(clip_id) = clip_id {
-            timeline.selected_clip_ids.insert(clip_id);
+            timeline.interaction.selected_clip_ids.insert(clip_id);
         }
-        timeline.selected_clip_id = clip_id;
+        timeline.interaction.selected_clip_id = clip_id;
         self.properties.transform_input_clip_id = None;
     }
 
@@ -587,12 +590,12 @@ impl Editor {
         let Some(timeline) = self.timeline.as_mut() else {
             return;
         };
-        timeline.selected_clip_ids = unlocked_clip_ids(&timeline.data);
-        timeline.selected_clip_id = timeline
+        timeline.interaction.selected_clip_ids = unlocked_clip_ids(&timeline.data);
+        timeline.interaction.selected_clip_id = timeline
             .data
             .clips
             .iter()
-            .find(|clip| timeline.selected_clip_ids.contains(&clip.id))
+            .find(|clip| timeline.interaction.selected_clip_ids.contains(&clip.id))
             .map(|clip| clip.id);
         self.properties.transform_input_clip_id = None;
     }
@@ -601,18 +604,18 @@ impl Editor {
         let Some(timeline) = self.timeline.as_mut() else {
             return;
         };
-        if timeline.selected_clip_ids.remove(&clip_id) {
-            if timeline.selected_clip_id == Some(clip_id) {
-                timeline.selected_clip_id = timeline
+        if timeline.interaction.selected_clip_ids.remove(&clip_id) {
+            if timeline.interaction.selected_clip_id == Some(clip_id) {
+                timeline.interaction.selected_clip_id = timeline
                     .data
                     .clips
                     .iter()
-                    .find(|clip| timeline.selected_clip_ids.contains(&clip.id))
+                    .find(|clip| timeline.interaction.selected_clip_ids.contains(&clip.id))
                     .map(|clip| clip.id);
             }
         } else if timeline.data.clip(clip_id).is_some() {
-            timeline.selected_clip_ids.insert(clip_id);
-            timeline.selected_clip_id = Some(clip_id);
+            timeline.interaction.selected_clip_ids.insert(clip_id);
+            timeline.interaction.selected_clip_id = Some(clip_id);
         }
         self.properties.transform_input_clip_id = None;
     }
@@ -623,7 +626,7 @@ impl Editor {
                 .data
                 .clips
                 .iter()
-                .filter(|clip| timeline.selected_clip_ids.contains(&clip.id))
+                .filter(|clip| timeline.interaction.selected_clip_ids.contains(&clip.id))
                 .map(|clip| clip.id)
                 .collect()
         })
@@ -631,10 +634,14 @@ impl Editor {
 
     pub(super) fn selected_clips_editable(&self) -> bool {
         self.timeline.as_ref().is_some_and(|timeline| {
-            !timeline.selected_clip_ids.is_empty()
-                && timeline.selected_clip_ids.iter().all(|clip_id| {
-                    timeline.data.clip(*clip_id).is_some() && !self.clip_locked(*clip_id)
-                })
+            !timeline.interaction.selected_clip_ids.is_empty()
+                && timeline
+                    .interaction
+                    .selected_clip_ids
+                    .iter()
+                    .all(|clip_id| {
+                        timeline.data.clip(*clip_id).is_some() && !self.clip_locked(*clip_id)
+                    })
         })
     }
 
@@ -762,17 +769,19 @@ impl Editor {
             .map(|clip| clip.id)
             .collect::<HashSet<_>>();
         timeline
+            .interaction
             .selected_clip_ids
             .retain(|clip_id| available_clip_ids.contains(clip_id));
-        timeline.selected_clip_id = timeline
+        timeline.interaction.selected_clip_id = timeline
+            .interaction
             .selected_clip_id
-            .filter(|clip_id| timeline.selected_clip_ids.contains(clip_id))
+            .filter(|clip_id| timeline.interaction.selected_clip_ids.contains(clip_id))
             .or_else(|| {
                 timeline
                     .data
                     .clips
                     .iter()
-                    .find(|clip| timeline.selected_clip_ids.contains(&clip.id))
+                    .find(|clip| timeline.interaction.selected_clip_ids.contains(&clip.id))
                     .map(|clip| clip.id)
             });
         let has_clips = !timeline.data.clips.is_empty();
@@ -812,7 +821,7 @@ impl Editor {
 
     pub(super) fn toggle_track_magnet(&mut self) {
         if let Some(timeline) = self.timeline.as_mut() {
-            timeline.magnet_enabled = !timeline.magnet_enabled;
+            timeline.interaction.magnet_enabled = !timeline.interaction.magnet_enabled;
         }
     }
 }

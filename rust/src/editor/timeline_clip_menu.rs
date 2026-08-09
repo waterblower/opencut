@@ -64,7 +64,7 @@ impl Editor {
                 MouseButton::Left,
                 cx.listener(|editor, _, _, cx| {
                     if let Some(timeline) = editor.timeline.as_mut() {
-                        timeline.context_menu = None;
+                        timeline.interaction.context_menu = None;
                     }
                     cx.notify();
                 }),
@@ -73,7 +73,7 @@ impl Editor {
                 MouseButton::Right,
                 cx.listener(|editor, _, _, cx| {
                     if let Some(timeline) = editor.timeline.as_mut() {
-                        timeline.context_menu = None;
+                        timeline.interaction.context_menu = None;
                     }
                     cx.notify();
                 }),
@@ -130,7 +130,7 @@ impl Editor {
         let Some(timeline) = self.timeline.as_mut() else {
             return;
         };
-        timeline.context_menu = Some(TimelineClipContextMenu {
+        timeline.interaction.context_menu = Some(TimelineClipContextMenu {
             clip_id,
             x: event.position.x.into(),
             y: event.position.y.into(),
@@ -143,7 +143,7 @@ impl Editor {
         let Some(source_clip_id) = self
             .timeline
             .as_mut()
-            .and_then(|timeline| timeline.context_menu.take())
+            .and_then(|timeline| timeline.interaction.context_menu.take())
             .map(|menu| menu.clip_id)
         else {
             return;
