@@ -120,6 +120,7 @@ impl Editor {
         event: &MouseDownEvent,
         cx: &mut Context<Self>,
     ) {
+        self.timeline.context_menu = None;
         self.explorer.selected_file = Some(relative_path.clone());
         self.explorer.context_menu = Some(FileContextMenu {
             relative_path,

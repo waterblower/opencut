@@ -591,10 +591,33 @@ impl Editor {
         self.preview.timeline_needs_rebuild = true;
         self.preview.playing = false;
         self.preview.timeline_clock = None;
-        self.timeline.playhead = TimelineTime::ZERO;
-        self.select_only_clip(self.project.clips.first().map(|clip| clip.id));
+        self.timeline.playhead = self
+            .timeline
+            .playhead
+            .clamp(TimelineTime::ZERO, self.project.timeline_duration());
+        let available_clip_ids = self
+            .project
+            .clips
+            .iter()
+            .map(|clip| clip.id)
+            .collect::<HashSet<_>>();
+        self.timeline
+            .selected_clip_ids
+            .retain(|clip_id| available_clip_ids.contains(clip_id));
+        self.timeline.selected_clip_id = self
+            .timeline
+            .selected_clip_id
+            .filter(|clip_id| self.timeline.selected_clip_ids.contains(clip_id))
+            .or_else(|| {
+                self.project
+                    .clips
+                    .iter()
+                    .find(|clip| self.timeline.selected_clip_ids.contains(&clip.id))
+                    .map(|clip| clip.id)
+            });
+        self.properties.transform_input_clip_id = None;
         if !self.project.clips.is_empty() {
-            self.load_timeline_position(TimelineTime::ZERO, false);
+            self.load_timeline_position(self.timeline.playhead, false);
         }
         self.timeline.next_id = self.timeline.next_id.max(self.project.next_id());
         self.save_project();

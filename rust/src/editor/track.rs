@@ -250,6 +250,12 @@ impl Editor {
                     cx.notify();
                 }),
             )
+            .on_mouse_down(
+                MouseButton::Right,
+                cx.listener(move |editor, event: &MouseDownEvent, _, cx| {
+                    editor.show_timeline_clip_context_menu(clip_id, event, cx);
+                }),
+            )
             .child(content)
             .when(
                 selected

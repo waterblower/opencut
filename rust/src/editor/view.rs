@@ -40,6 +40,11 @@ impl Render for Editor {
             .context_menu
             .as_ref()
             .map(|menu| self.file_menu_overlay(menu, editor_viewport, cx));
+        let clip_menu = self
+            .timeline
+            .context_menu
+            .as_ref()
+            .map(|menu| self.timeline_clip_menu_overlay(menu, editor_viewport, cx));
         let rename_dialog = self
             .explorer
             .rename_dialog
@@ -125,6 +130,7 @@ impl Render for Editor {
                     .child(self.timeline(cx)),
             )
             .when_some(file_menu, |this, menu| this.child(menu))
+            .when_some(clip_menu, |this, menu| this.child(menu))
             .when_some(rename_dialog, |this, dialog| this.child(dialog))
             .when_some(new_timeline_dialog, |this, dialog| this.child(dialog))
             .when(self.settings_open, |this| {
