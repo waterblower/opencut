@@ -10,7 +10,22 @@ const TICK_STEPS: [f64; 12] = [
 
 impl Editor {
     pub(super) fn timeline(&self, cx: &mut Context<Self>) -> gpui::AnyElement {
-        let frames_per_second = self.timeline.settings.frame_rate.frames_per_second();
+        let Some(timeline) = self.timeline.as_ref() else {
+            return div()
+                .id("editor-timeline-empty")
+                .h(px(TIMELINE_HEIGHT))
+                .flex_shrink_0()
+                .flex()
+                .items_center()
+                .justify_center()
+                .border_t_1()
+                .border_color(rgb(BORDER))
+                .bg(rgb(0x0a0a0c))
+                .text_color(rgb(MUTED))
+                .child("Create or select a timeline to begin editing")
+                .into_any_element();
+        };
+        let frames_per_second = timeline.data.settings.frame_rate.frames_per_second();
 
         div()
             .id("editor-timeline")
@@ -47,7 +62,7 @@ impl Editor {
     }
 
     fn timeline_marquee(&self) -> Option<gpui::AnyElement> {
-        let selection = self.timeline.marquee_selection.as_ref()?;
+        let selection = self.timeline.as_ref()?.marquee_selection.as_ref()?;
         let left = selection.start_x.min(selection.current_x);
         let top = selection.start_y.min(selection.current_y);
         let width = (selection.start_x - selection.current_x).abs();
@@ -68,21 +83,25 @@ impl Editor {
     }
 
     fn timeline_tracks_container(&self, cx: &mut Context<Self>) -> gpui::AnyElement {
-        let duration = self
+        let timeline = self
             .timeline
-            .seconds(self.timeline.timeline_duration())
+            .as_ref()
+            .expect("timeline view requires timeline state");
+        let duration = timeline
+            .data
+            .seconds(timeline.data.timeline_duration())
             .max(12.0);
         let timeline_width =
-            (duration as f32 * self.timeline.pixels_per_second + TIMELINE_PADDING * 2.0).max(900.0);
-        let track_headers = self
-            .timeline
+            (duration as f32 * timeline.pixels_per_second + TIMELINE_PADDING * 2.0).max(900.0);
+        let track_headers = timeline
+            .data
             .tracks
             .iter()
             .enumerate()
             .map(|(index, track)| self.track_header(index, track, cx))
             .collect::<Vec<_>>();
-        let track_rows = self
-            .timeline
+        let track_rows = timeline
+            .data
             .tracks
             .iter()
             .enumerate()
@@ -93,7 +112,7 @@ impl Editor {
             .flex_1()
             .min_h_0()
             .overflow_y_scroll()
-            .track_scroll(&self.timeline.vertical_scroll)
+            .track_scroll(&timeline.vertical_scroll)
             .on_mouse_down(
                 MouseButton::Left,
                 cx.listener(|editor, event: &MouseDownEvent, window, cx| {
@@ -103,7 +122,7 @@ impl Editor {
             .child(
                 div()
                     .h(px(
-                        RULER_HEIGHT + self.timeline.tracks.len() as f32 * TRACK_HEIGHT
+                        RULER_HEIGHT + timeline.data.tracks.len() as f32 * TRACK_HEIGHT
                     ))
                     .min_h_full()
                     .w_full()
@@ -133,8 +152,8 @@ impl Editor {
                             .flex_1()
                             .h_full()
                             .overflow_x_scroll()
-                            .track_scroll(&self.timeline.scroll)
-                            .cursor(match self.timeline.active_tool {
+                            .track_scroll(&timeline.scroll)
+                            .cursor(match timeline.active_tool {
                                 TimelineTool::Blade => CursorStyle::Crosshair,
                                 TimelineTool::Selection | TimelineTool::Trim => CursorStyle::Arrow,
                             })
@@ -157,10 +176,10 @@ impl Editor {
                                     .child(self.timeline_ruler(duration, cx))
                                     .children(track_rows)
                                     .child(self.timeline_playhead(cx))
-                                    .when_some(self.timeline.snap_guide, |this, guide| {
+                                    .when_some(timeline.snap_guide, |this, guide| {
                                         let guide_left = TIMELINE_PADDING
-                                            + self.timeline.seconds(guide) as f32
-                                                * self.timeline.pixels_per_second;
+                                            + timeline.data.seconds(guide) as f32
+                                                * timeline.pixels_per_second;
                                         this.child(
                                             div()
                                                 .absolute()
@@ -180,10 +199,10 @@ impl Editor {
                                                 ),
                                         )
                                     })
-                                    .when_some(self.timeline.blade_guide, |this, position| {
+                                    .when_some(timeline.blade_guide, |this, position| {
                                         let guide_left = TIMELINE_PADDING
-                                            + self.timeline.seconds(position) as f32
-                                                * self.timeline.pixels_per_second;
+                                            + timeline.data.seconds(position) as f32
+                                                * timeline.pixels_per_second;
                                         this.child(
                                             div()
                                                 .absolute()
@@ -210,9 +229,12 @@ impl Editor {
     }
 
     fn timeline_playhead(&self, cx: &mut Context<Self>) -> gpui::AnyElement {
+        let timeline = self
+            .timeline
+            .as_ref()
+            .expect("timeline view requires timeline state");
         let left = TIMELINE_PADDING
-            + self.timeline.seconds(self.timeline.playhead) as f32
-                * self.timeline.pixels_per_second;
+            + timeline.data.seconds(timeline.playhead) as f32 * timeline.pixels_per_second;
 
         div()
             .absolute()
@@ -221,12 +243,12 @@ impl Editor {
             .left(px(left))
             .w(px(1.0))
             .bg(rgb(ACCENT))
-            .cursor(if self.timeline.active_tool == TimelineTool::Blade {
+            .cursor(if timeline.active_tool == TimelineTool::Blade {
                 CursorStyle::Crosshair
             } else {
                 CursorStyle::ResizeLeftRight
             })
-            .when(self.timeline.active_tool != TimelineTool::Blade, |this| {
+            .when(timeline.active_tool != TimelineTool::Blade, |this| {
                 this.on_mouse_down(
                     MouseButton::Left,
                     cx.listener(|editor, event: &MouseDownEvent, _, cx| {
@@ -248,14 +270,18 @@ impl Editor {
     }
 
     fn timeline_ruler(&self, duration: f64, cx: &mut Context<Self>) -> gpui::AnyElement {
-        let frame_rate = self.timeline.settings.frame_rate;
+        let timeline = self
+            .timeline
+            .as_ref()
+            .expect("timeline view requires timeline state");
+        let frame_rate = timeline.data.settings.frame_rate;
         let frames_per_second = frame_rate.frames_per_second();
         let displayed_frames = frame_rate.ceil(duration).frames().max(1);
-        let pixels_per_frame = self.timeline.pixels_per_second / frames_per_second as f32;
+        let pixels_per_frame = timeline.pixels_per_second / frames_per_second as f32;
         let frame_step = frame_tick_step(pixels_per_frame);
-        let scroll_left = (-f32::from(self.timeline.scroll.offset().x)).max(0.0);
+        let scroll_left = (-f32::from(timeline.scroll.offset().x)).max(0.0);
         let viewport_width = {
-            let width = f32::from(self.timeline.scroll.bounds().size.width);
+            let width = f32::from(timeline.scroll.bounds().size.width);
             if width > 0.0 { width } else { 1_200.0 }
         };
         let visible_start = ((scroll_left - FRAME_TICK_OVERSCAN - TIMELINE_PADDING).max(0.0)
@@ -287,20 +313,20 @@ impl Editor {
                     .absolute()
                     .left(px(TIMELINE_PADDING
                         + frame_rate.seconds(TimelineTime::from_frames(frame)) as f32
-                            * self.timeline.pixels_per_second))
+                            * timeline.pixels_per_second))
                     .bottom_0()
                     .h(px(height))
                     .border_l_1()
                     .border_color(rgb(if emphasized { 0x5a5a62 } else { 0x3a3a40 }))
             });
-        let tick_step = ruler_tick_step(duration, self.timeline.pixels_per_second);
+        let tick_step = ruler_tick_step(duration, timeline.pixels_per_second);
         let tick_count = (duration / tick_step).ceil() as usize + 1;
         let ruler_ticks = (0..tick_count).map(|index| {
             let time = index as f64 * tick_step;
             div()
                 .absolute()
                 .left(px(
-                    TIMELINE_PADDING + time as f32 * self.timeline.pixels_per_second
+                    TIMELINE_PADDING + time as f32 * timeline.pixels_per_second
                 ))
                 .top_0()
                 .h_full()
@@ -334,7 +360,10 @@ impl Editor {
     }
 
     fn timeline_toolbar(&self, frames_per_second: f64, cx: &mut Context<Self>) -> gpui::AnyElement {
-        let has_active_timeline = self.timeline.active_timeline.is_some();
+        let timeline = self
+            .timeline
+            .as_ref()
+            .expect("timeline view requires timeline state");
         div()
             .id("timeline-toolbar")
             .h(px(TIMELINE_HEADER_HEIGHT))
@@ -354,7 +383,7 @@ impl Editor {
                         timeline_tool_button(
                             "timeline-selection-tool",
                             "V Select",
-                            self.timeline.active_tool == TimelineTool::Selection,
+                            timeline.active_tool == TimelineTool::Selection,
                         )
                         .on_click(cx.listener(|editor, _, _, cx| {
                             editor.activate_timeline_tool(TimelineTool::Selection);
@@ -365,7 +394,7 @@ impl Editor {
                         timeline_tool_button(
                             "timeline-blade-tool",
                             "B Blade",
-                            self.timeline.active_tool == TimelineTool::Blade,
+                            timeline.active_tool == TimelineTool::Blade,
                         )
                         .on_click(cx.listener(|editor, _, _, cx| {
                             editor.activate_timeline_tool(TimelineTool::Blade);
@@ -376,7 +405,7 @@ impl Editor {
                         timeline_tool_button(
                             "timeline-trim-tool",
                             "T Trim",
-                            self.timeline.active_tool == TimelineTool::Trim,
+                            timeline.active_tool == TimelineTool::Trim,
                         )
                         .on_click(cx.listener(|editor, _, _, cx| {
                             editor.activate_timeline_tool(TimelineTool::Trim);
@@ -400,59 +429,45 @@ impl Editor {
                             .text_sm()
                             .child(format!(
                                 "{} / {}",
-                                format_time(self.timeline.seconds(self.timeline.playhead), false),
+                                format_time(timeline.data.seconds(timeline.playhead), false),
                                 format_time(
-                                    self.timeline.seconds(self.timeline.timeline_duration()),
+                                    timeline.data.seconds(timeline.data.timeline_duration()),
                                     false
                                 )
                             )),
                     )
                     .child(
-                        timeline_icon_button("add-video-track", "+V")
-                            .opacity(if has_active_timeline { 1.0 } else { 0.4 })
-                            .cursor(if has_active_timeline {
-                                CursorStyle::PointingHand
-                            } else {
-                                CursorStyle::Arrow
-                            })
-                            .when(has_active_timeline, |button| {
-                                button.on_click(cx.listener(|editor, _, _, cx| {
-                                    editor.add_track(TrackKind::Video);
-                                    cx.notify();
-                                }))
-                            }),
+                        timeline_icon_button("add-video-track", "+V").on_click(cx.listener(
+                            |editor, _, _, cx| {
+                                editor.add_track(TrackKind::Video);
+                                cx.notify();
+                            },
+                        )),
                     )
                     .child(
-                        timeline_icon_button("add-audio-track", "+A")
-                            .opacity(if has_active_timeline { 1.0 } else { 0.4 })
-                            .cursor(if has_active_timeline {
-                                CursorStyle::PointingHand
-                            } else {
-                                CursorStyle::Arrow
-                            })
-                            .when(has_active_timeline, |button| {
-                                button.on_click(cx.listener(|editor, _, _, cx| {
-                                    editor.add_track(TrackKind::Audio);
-                                    cx.notify();
-                                }))
-                            }),
+                        timeline_icon_button("add-audio-track", "+A").on_click(cx.listener(
+                            |editor, _, _, cx| {
+                                editor.add_track(TrackKind::Audio);
+                                cx.notify();
+                            },
+                        )),
                     )
                     .child(
                         timeline_icon_button(
                             "toggle-timeline-snapping",
-                            if self.timeline.snapping_enabled {
+                            if timeline.snapping_enabled {
                                 "Snap on"
                             } else {
                                 "Snap off"
                             },
                         )
                         .border_1()
-                        .border_color(rgb(if self.timeline.snapping_enabled {
+                        .border_color(rgb(if timeline.snapping_enabled {
                             ACCENT
                         } else {
                             BORDER
                         }))
-                        .text_color(rgb(if self.timeline.snapping_enabled {
+                        .text_color(rgb(if timeline.snapping_enabled {
                             ACCENT
                         } else {
                             MUTED
@@ -465,19 +480,19 @@ impl Editor {
                     .child(
                         timeline_icon_button(
                             "toggle-track-magnet",
-                            if self.timeline.magnet_enabled {
+                            if timeline.magnet_enabled {
                                 "Magnet on"
                             } else {
                                 "Magnet off"
                             },
                         )
                         .border_1()
-                        .border_color(rgb(if self.timeline.magnet_enabled {
+                        .border_color(rgb(if timeline.magnet_enabled {
                             ACCENT
                         } else {
                             BORDER
                         }))
-                        .text_color(rgb(if self.timeline.magnet_enabled {
+                        .text_color(rgb(if timeline.magnet_enabled {
                             ACCENT
                         } else {
                             MUTED
@@ -506,7 +521,7 @@ impl Editor {
                             .font_family("monospace")
                             .text_xs()
                             .text_color(rgb(MUTED))
-                            .child(format!("{:.0}px/s", self.timeline.pixels_per_second)),
+                            .child(format!("{:.0}px/s", timeline.pixels_per_second)),
                     )
                     .child(
                         div()

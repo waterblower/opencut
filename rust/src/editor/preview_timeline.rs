@@ -58,11 +58,12 @@ impl Editor {
         properties: VideoClipProperties,
         canvas: TimelinePreviewCanvas,
     ) -> Option<RenderRect> {
-        let track = self.timeline.track(clip.track_id)?;
+        let timeline = self.timeline.as_ref()?;
+        let track = timeline.data.track(clip.track_id)?;
         if track.kind != TrackKind::Video || !track.visible {
             return None;
         }
-        let asset = self.timeline.asset(clip.asset_id)?;
+        let asset = timeline.data.asset(clip.asset_id)?;
         if asset.kind == MediaKind::Audio {
             return None;
         }
@@ -70,8 +71,8 @@ impl Editor {
             properties,
             asset.width,
             asset.height,
-            self.timeline.settings.width,
-            self.timeline.settings.height,
+            timeline.data.settings.width,
+            timeline.data.settings.height,
             canvas.width,
             canvas.height,
         )
@@ -95,10 +96,13 @@ impl Editor {
         self.preview.volume_open = false;
         let pointer_x = f32::from(event.position.x) - surface_left;
         let pointer_y = f32::from(event.position.y) - surface_top;
-        let clip_id = self.timeline.tracks.iter().rev().find_map(|track| {
-            self.timeline.clips_on_track(track.id).find_map(|clip| {
-                if clip.timeline_start > self.timeline.playhead
-                    || self.timeline.playhead >= clip.timeline_end()
+        let Some(timeline) = self.timeline.as_ref() else {
+            return;
+        };
+        let clip_id = timeline.data.tracks.iter().rev().find_map(|track| {
+            timeline.data.clips_on_track(track.id).find_map(|clip| {
+                if clip.timeline_start > timeline.playhead
+                    || timeline.playhead >= clip.timeline_end()
                 {
                     return None;
                 }
@@ -123,7 +127,11 @@ impl Editor {
             cx.stop_propagation();
             return;
         }
-        let Some(clip) = self.timeline.clip(clip_id) else {
+        let Some(clip) = self
+            .timeline
+            .as_ref()
+            .and_then(|timeline| timeline.data.clip(clip_id))
+        else {
             return;
         };
         self.preview.timeline_drag = Some(TimelinePreviewDrag {
@@ -159,19 +167,24 @@ impl Editor {
             + f64::from(f32::from(event.position.x) - drag.pointer_x) / drag.canvas.project_scale;
         let position_y = drag.position_y
             + f64::from(f32::from(event.position.y) - drag.pointer_y) / drag.canvas.project_scale;
-        let Some(index) = self.timeline.clip_index(drag.clip_id) else {
+        let Some(timeline) = self.timeline.as_ref() else {
             return true;
         };
-        let current_properties = self.timeline.clips[index].video_properties;
+        let Some(index) = timeline.data.clip_index(drag.clip_id) else {
+            return true;
+        };
+        let current_properties = timeline.data.clips[index].video_properties;
         let mut properties = current_properties;
         properties.position_x = position_x;
         properties.position_y = position_y;
         let snap_rect = self
             .timeline
+            .as_ref()
+            .expect("timeline preview drag requires an active timeline")
             .snapping_enabled
             .then(|| {
                 self.timeline_preview_clip_rect(
-                    &self.timeline.clips[index],
+                    &timeline.data.clips[index],
                     properties,
                     drag.canvas,
                 )
@@ -226,8 +239,12 @@ impl Editor {
             self.checkpoint();
             drag.changed = true;
         }
-        self.timeline.clips[index].video_properties.position_x = properties.position_x;
-        self.timeline.clips[index].video_properties.position_y = properties.position_y;
+        let timeline = self
+            .timeline
+            .as_mut()
+            .expect("timeline preview drag requires an active timeline");
+        timeline.data.clips[index].video_properties.position_x = properties.position_x;
+        timeline.data.clips[index].video_properties.position_y = properties.position_y;
         self.properties.transform_input_clip_id = None;
         let now = Instant::now();
         if !drag.timeline_was_dirty
@@ -238,7 +255,7 @@ impl Editor {
             drag.last_pipeline_update = Some(now);
             if let Some(video) = &self.preview.video
                 && let Err(error) =
-                    update_timeline_video_position(video, &self.timeline, drag.clip_id, false)
+                    update_timeline_video_position(video, &timeline.data, drag.clip_id, false)
             {
                 self.error = Some(error);
             }
@@ -257,7 +274,10 @@ impl Editor {
             if !drag.timeline_was_dirty
                 && let Some(video) = &self.preview.video
             {
-                match update_timeline_video_position(video, &self.timeline, drag.clip_id, true) {
+                let Some(timeline) = self.timeline.as_ref() else {
+                    return true;
+                };
+                match update_timeline_video_position(video, &timeline.data, drag.clip_id, true) {
                     Ok(()) => self.preview.timeline_needs_rebuild = false,
                     Err(error) => self.error = Some(error),
                 }
@@ -430,7 +450,11 @@ impl Editor {
         _: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        if !self.timeline.clips.is_empty() {
+        if self
+            .timeline
+            .as_ref()
+            .is_some_and(|timeline| !timeline.data.clips.is_empty())
+        {
             self.preview.volume_open = !self.preview.volume_open;
             cx.notify();
         }
@@ -454,9 +478,12 @@ impl Editor {
         height: f32,
         cx: &mut Context<Self>,
     ) -> gpui::AnyElement {
+        let Some(timeline) = self.timeline.as_ref() else {
+            return div().size_full().bg(rgb(0x000000)).into_any_element();
+        };
         let surface_height = (height - CONTROL_HEIGHT).max(1.0);
-        let project_width = self.timeline.settings.width.max(1) as f64;
-        let project_height = self.timeline.settings.height.max(1) as f64;
+        let project_width = timeline.data.settings.width.max(1) as f64;
+        let project_height = timeline.data.settings.height.max(1) as f64;
         let project_scale = (f64::from(width.max(1.0)) / project_width)
             .min(f64::from(surface_height) / project_height);
         let output_width = project_width * project_scale;
@@ -470,11 +497,9 @@ impl Editor {
             height: output_height,
             project_scale: project_scale.max(f64::EPSILON),
         };
-        let selected_rect = self.timeline.selected_clip_id.and_then(|clip_id| {
-            let clip = self.timeline.clip(clip_id)?;
-            if clip.timeline_start > self.timeline.playhead
-                || self.timeline.playhead >= clip.timeline_end()
-            {
+        let selected_rect = timeline.selected_clip_id.and_then(|clip_id| {
+            let clip = timeline.data.clip(clip_id)?;
+            if clip.timeline_start > timeline.playhead || timeline.playhead >= clip.timeline_end() {
                 return None;
             }
             self.timeline_preview_clip_rect(clip, clip.video_properties, canvas)
@@ -487,9 +512,9 @@ impl Editor {
         let usable_width = (width - TIMELINE_HORIZONTAL_PADDING * 2.0).max(1.0);
         let timeline_left = origin_x + TIMELINE_HORIZONTAL_PADDING;
         let volume_track_bottom = origin_y + height - TIMELINE_VOLUME_TRACK_BOTTOM_OFFSET;
-        let has_media = !self.timeline.clips.is_empty();
-        let duration = self.timeline.duration(self.timeline.timeline_duration());
-        let reported_position = self.timeline.duration(self.timeline.playhead);
+        let has_media = !timeline.data.clips.is_empty();
+        let duration = timeline.data.duration(timeline.data.timeline_duration());
+        let reported_position = timeline.data.duration(timeline.playhead);
         let reported_progress = if duration.is_zero() {
             0.0
         } else {

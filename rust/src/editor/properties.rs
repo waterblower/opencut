@@ -114,7 +114,14 @@ impl Editor {
     }
 
     fn timeline_properties(&self, cx: &mut Context<Self>) -> gpui::AnyElement {
-        let selection_count = self.timeline.selected_clip_ids.len();
+        let Some(timeline) = self.timeline.as_ref() else {
+            return div()
+                .p_4()
+                .text_color(rgb(MUTED))
+                .child("No timeline selected")
+                .into_any_element();
+        };
+        let selection_count = timeline.selected_clip_ids.len();
         if selection_count > 1 {
             return div()
                 .id("timeline-multi-properties")
@@ -128,11 +135,11 @@ impl Editor {
                 .into_any_element();
         }
 
-        let selected = self.timeline.selected_clip_id.and_then(|id| {
-            let index = self.timeline.clip_index(id)?;
-            let clip = &self.timeline.clips[index];
-            let asset = self.timeline.asset(clip.asset_id);
-            let track = self.timeline.track(clip.track_id)?;
+        let selected = timeline.selected_clip_id.and_then(|id| {
+            let index = timeline.data.clip_index(id)?;
+            let clip = &timeline.data.clips[index];
+            let asset = timeline.data.asset(clip.asset_id);
+            let track = timeline.data.track(clip.track_id)?;
             Some((clip, asset, track))
         });
         let editable = self.selected_clips_editable();
@@ -161,16 +168,17 @@ impl Editor {
                             .child(properties_title(title, "Timeline clip"))
                             .child(properties_value(
                                 "Timeline start",
-                                format_time(self.timeline.seconds(clip.timeline_start), false),
+                                format_time(timeline.data.seconds(clip.timeline_start), false),
                             ))
                             .child(properties_value(
                                 "Source in",
-                                format_time(self.timeline.source_start_seconds(clip), false),
+                                format_time(timeline.data.source_start_seconds(clip), false),
                             ))
                             .child(properties_value(
                                 "Source out",
                                 format_time(
-                                    self.timeline
+                                    timeline
+                                        .data
                                         .source_position_at(clip, clip.timeline_end())
                                         .as_secs_f64(),
                                     false,
@@ -178,7 +186,7 @@ impl Editor {
                             ))
                             .child(properties_value(
                                 "Clip duration",
-                                format_time(self.timeline.seconds(clip.duration()), false),
+                                format_time(timeline.data.seconds(clip.duration()), false),
                             ))
                             .child(properties_value("Track", track.name.clone()))
                             .when_some(asset, |this, asset| {
@@ -267,6 +275,8 @@ impl Editor {
 
     fn asset_for_path(&self, path: &Path) -> Option<&MediaAsset> {
         self.timeline
+            .as_ref()?
+            .data
             .assets
             .iter()
             .find(|asset| asset.path.as_path() == path)

@@ -2,7 +2,10 @@ use super::*;
 
 impl Editor {
     pub(super) fn settings_modal(&self, cx: &mut Context<Self>) -> gpui::AnyElement {
-        let selected = self.timeline.settings.frame_rate;
+        let Some(timeline) = self.timeline.as_ref() else {
+            return div().into_any_element();
+        };
+        let selected = timeline.data.settings.frame_rate;
         let options = FRAME_RATE_PRESETS
             .into_iter()
             .enumerate()
@@ -130,29 +133,31 @@ impl Editor {
 
     fn set_timeline_frame_rate(&mut self, frame_rate: FrameRate) {
         self.settings_open = false;
-        if self.timeline.active_timeline.is_none() {
+        let Some(timeline) = self.timeline.as_ref() else {
             return;
-        }
-        let previous = self.timeline.settings.frame_rate;
+        };
+        let previous = timeline.data.settings.frame_rate;
         if previous == frame_rate {
             return;
         }
+        let playhead = previous.rescale_nearest(timeline.playhead, frame_rate);
 
         if let Some(video) = &self.preview.video {
             video.set_paused(true);
         }
         self.checkpoint();
-        let playhead = previous.rescale_nearest(self.timeline.playhead, frame_rate);
-        self.timeline.set_frame_rate(frame_rate);
-        self.timeline.playhead =
-            playhead.clamp(TimelineTime::ZERO, self.timeline.timeline_duration());
+        let timeline = self.timeline.as_mut().expect("timeline was checked above");
+        timeline.data.set_frame_rate(frame_rate);
+        timeline.playhead = playhead.clamp(TimelineTime::ZERO, timeline.data.timeline_duration());
+        let playhead = timeline.playhead;
+        let has_clips = !timeline.data.clips.is_empty();
         self.preview.video = None;
         self.preview.timeline_needs_rebuild = true;
         self.preview.playing = false;
         self.preview.timeline_clock = None;
         self.save_timeline();
-        if !self.timeline.clips.is_empty() {
-            self.load_timeline_position(self.timeline.playhead, false);
+        if has_clips {
+            self.load_timeline_position(playhead, false);
         }
         self.status = Some(format!(
             "Timeline frame rate changed to {}.",

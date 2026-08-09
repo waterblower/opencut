@@ -21,8 +21,8 @@ impl Editor {
         let can_trash = can_rename
             && !self
                 .timeline
-                .active_path()
-                .is_some_and(|path| path.starts_with(&menu.relative_path));
+                .as_ref()
+                .is_some_and(|timeline| timeline.path.starts_with(&menu.relative_path));
         let height = 92.0
             + if can_create_timeline { 40.0 } else { 0.0 }
             + if can_rename { 40.0 } else { 0.0 }
@@ -123,7 +123,9 @@ impl Editor {
         event: &MouseDownEvent,
         cx: &mut Context<Self>,
     ) {
-        self.timeline.context_menu = None;
+        if let Some(timeline) = self.timeline.as_mut() {
+            timeline.context_menu = None;
+        }
         self.explorer.selected_file = Some(relative_path.clone());
         self.explorer.context_menu = Some(FileContextMenu {
             relative_path,
@@ -254,22 +256,23 @@ impl Editor {
             return;
         }
 
-        if let Some((_, timeline)) = self.timeline.active_timeline.as_mut() {
-            for asset in &mut timeline.assets {
+        if let Some(timeline) = self.timeline.as_mut() {
+            for asset in &mut timeline.data.assets {
                 if let Some(path) = remap_relative_path(&asset.path, &old_relative, &new_relative) {
                     asset.path = path;
                 }
             }
-        }
-        for timeline in self
-            .timeline
-            .undo_stack
-            .iter_mut()
-            .chain(self.timeline.redo_stack.iter_mut())
-        {
-            for asset in &mut timeline.assets {
-                if let Some(path) = remap_relative_path(&asset.path, &old_relative, &new_relative) {
-                    asset.path = path;
+            for snapshot in timeline
+                .undo_stack
+                .iter_mut()
+                .chain(timeline.redo_stack.iter_mut())
+            {
+                for asset in &mut snapshot.assets {
+                    if let Some(path) =
+                        remap_relative_path(&asset.path, &old_relative, &new_relative)
+                    {
+                        asset.path = path;
+                    }
                 }
             }
         }
@@ -302,11 +305,11 @@ impl Editor {
         self.error = None;
         let renamed_active_timeline = self
             .timeline
-            .active_path()
-            .and_then(|path| remap_relative_path(path, &old_relative, &new_relative));
+            .as_ref()
+            .and_then(|timeline| remap_relative_path(&timeline.path, &old_relative, &new_relative));
         if let Some(renamed_active_timeline) = renamed_active_timeline {
-            if let Some((path, _)) = self.timeline.active_timeline.as_mut() {
-                *path = renamed_active_timeline.clone();
+            if let Some(timeline) = self.timeline.as_mut() {
+                timeline.path = renamed_active_timeline.clone();
             }
             if let Err(error) = save_active_timeline(&self.project_root, &renamed_active_timeline) {
                 self.error = Some(error);
@@ -365,8 +368,8 @@ impl Editor {
         }
         if self
             .timeline
-            .active_path()
-            .is_some_and(|path| path.starts_with(&relative_path))
+            .as_ref()
+            .is_some_and(|timeline| timeline.path.starts_with(&relative_path))
         {
             self.error = Some("The active timeline cannot be moved to Trash.".to_string());
             return;
