@@ -1,6 +1,5 @@
 use super::timeline_video::{create_timeline_video, set_timeline_audio};
 use super::*;
-use crate::playback_view::{PlaybackViewProps, playback_view};
 use url::Url;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -30,56 +29,6 @@ impl Editor {
             }
             PreviewTarget::ImageFile(path) => self.preview_image_file(path, width, height),
         }
-    }
-
-    #[allow(clippy::too_many_arguments)]
-    pub(super) fn playable_preview(
-        &self,
-        origin_x: f32,
-        origin_y: f32,
-        width: f32,
-        height: f32,
-        has_media: bool,
-        paused: bool,
-        reported_position: Duration,
-        duration: Duration,
-        content: gpui::AnyElement,
-        cx: &mut Context<Self>,
-    ) -> gpui::AnyElement {
-        let reported_progress = if duration.is_zero() {
-            0.0
-        } else {
-            (reported_position.as_secs_f64() / duration.as_secs_f64()).clamp(0.0, 1.0) as f32
-        };
-        let progress = self.preview.scrub_fraction.unwrap_or(reported_progress);
-        let position = self
-            .preview
-            .scrub_fraction
-            .map_or(reported_position, |fraction| {
-                duration.mul_f64(fraction as f64)
-            });
-
-        playback_view(
-            PlaybackViewProps {
-                origin_x,
-                origin_y,
-                width,
-                height,
-                has_media,
-                can_play: has_media,
-                paused,
-                scrubbing: self.preview.is_scrubbing,
-                progress,
-                position,
-                duration,
-                volume: self.preview.volume,
-                muted: self.preview.volume <= f64::EPSILON,
-                volume_open: self.preview.volume_open,
-                content,
-                extra_control: None,
-            },
-            cx,
-        )
     }
 
     pub(super) fn update_playback(&mut self) {
