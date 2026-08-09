@@ -4,7 +4,7 @@ use super::*;
 fn timeline_view_state_is_sanitized_when_the_timeline_is_normalized() {
     let mut timeline = Timeline {
         view: TimelineViewState {
-            playhead_frame: -10,
+            saved_playhead_frame: -10,
             horizontal_scroll: f32::NAN,
             vertical_scroll: -20.0,
             snapping_enabled: false,
@@ -15,7 +15,7 @@ fn timeline_view_state_is_sanitized_when_the_timeline_is_normalized() {
 
     timeline.normalize();
 
-    assert_eq!(timeline.view.playhead_frame, 0);
+    assert_eq!(timeline.view.saved_playhead_frame, 0);
     assert_eq!(timeline.view.horizontal_scroll, 0.0);
     assert_eq!(timeline.view.vertical_scroll, 0.0);
     assert!(!timeline.view.snapping_enabled);
@@ -36,7 +36,7 @@ fn timeline_view_defaults_enable_snap_and_magnet() {
             "tracks": [],
             "clips": [],
             "view": {
-                "playhead_frame": 10,
+                "saved_playhead_frame": 10,
                 "horizontal_scroll": 20.0,
                 "vertical_scroll": 30.0
             }

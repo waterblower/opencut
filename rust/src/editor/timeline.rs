@@ -16,7 +16,7 @@ pub(super) struct Timeline {
 
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
 pub(super) struct TimelineViewState {
-    pub(super) playhead_frame: i64,
+    pub(super) saved_playhead_frame: i64,
     pub(super) horizontal_scroll: f32,
     pub(super) vertical_scroll: f32,
     #[serde(default = "default_enabled")]
@@ -59,7 +59,7 @@ pub(super) struct TimelineState {
 impl Default for TimelineViewState {
     fn default() -> Self {
         Self {
-            playhead_frame: 0,
+            saved_playhead_frame: 0,
             horizontal_scroll: 0.0,
             vertical_scroll: 0.0,
             snapping_enabled: true,
@@ -70,7 +70,7 @@ impl Default for TimelineViewState {
 
 impl TimelineViewState {
     fn normalize(&mut self) {
-        self.playhead_frame = self.playhead_frame.max(0);
+        self.saved_playhead_frame = self.saved_playhead_frame.max(0);
         self.horizontal_scroll = finite_nonnegative(self.horizontal_scroll);
         self.vertical_scroll = finite_nonnegative(self.vertical_scroll);
     }
@@ -325,7 +325,7 @@ impl Timeline {
 
 impl TimelineState {
     pub(super) fn new(path: PathBuf, data: Timeline, pixels_per_second: f32) -> Self {
-        let playhead = TimelineTime::from_frames(data.view.playhead_frame)
+        let playhead = TimelineTime::from_frames(data.view.saved_playhead_frame)
             .clamp(TimelineTime::ZERO, data.timeline_duration());
         let scroll = ScrollHandle::new();
         scroll.set_offset(point(px(-data.view.horizontal_scroll), px(0.0)));
@@ -369,7 +369,7 @@ impl TimelineState {
 
     pub(super) fn capture_view(&mut self) {
         self.data.view = TimelineViewState {
-            playhead_frame: self.playhead.frames().max(0),
+            saved_playhead_frame: self.playhead.frames().max(0),
             horizontal_scroll: finite_nonnegative(-f32::from(self.scroll.offset().x)),
             vertical_scroll: finite_nonnegative(-f32::from(self.vertical_scroll.offset().y)),
             snapping_enabled: self.interaction.snapping_enabled,
