@@ -16,7 +16,7 @@ path = "scripts/count_lines.rs"
 
 [[bin]]
 name = "opencut-editor"
-path = "src/main-editor.rs"
+path = "src/editor/main.rs"
 required-features = ["editor"]
 
 [features]

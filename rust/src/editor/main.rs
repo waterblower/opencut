@@ -1,7 +1,12 @@
+#[path = "mod.rs"]
 mod editor;
+#[path = "../gpui_inspector.rs"]
 mod gpui_inspector;
+#[path = "../macos_pinch.rs"]
 mod macos_pinch;
+#[path = "../playback_view.rs"]
 mod playback_view;
+#[path = "../video.rs"]
 mod video;
 
 use editor::Editor;
@@ -16,8 +21,8 @@ struct EditorAssets;
 impl AssetSource for EditorAssets {
     fn load(&self, path: &str) -> gpui::Result<Option<Cow<'static, [u8]>>> {
         let bytes = match path {
-            "icons/lock.svg" => include_bytes!("icons/lock.svg").as_slice(),
-            "icons/eye.svg" => include_bytes!("icons/eye.svg").as_slice(),
+            "icons/lock.svg" => include_bytes!("../icons/lock.svg").as_slice(),
+            "icons/eye.svg" => include_bytes!("../icons/eye.svg").as_slice(),
             _ => return Ok(None),
         };
         Ok(Some(Cow::Borrowed(bytes)))
