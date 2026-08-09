@@ -1,4 +1,4 @@
-use super::model::{FrameRate, Project};
+use super::model::{FrameRate, Timeline};
 use std::path::Path;
 
 pub(super) const DEFAULT_VIDEO_BIT_RATE: usize = 8_000_000;
@@ -43,23 +43,29 @@ pub(super) struct ExportOptions {
 }
 
 impl ExportOptions {
-    pub fn from_project(project: &Project) -> Self {
+    pub fn from_timeline(timeline: &Timeline) -> Self {
         Self {
-            width: project.settings.width,
-            height: project.settings.height,
-            frame_rate: project.settings.frame_rate,
+            width: timeline.settings.width,
+            height: timeline.settings.height,
+            frame_rate: timeline.settings.frame_rate,
             video_bit_rate: DEFAULT_VIDEO_BIT_RATE,
             encoder: ExportEncoder::Software,
         }
     }
 }
 
-pub(super) fn export_project(
-    project: &Project,
+pub(super) fn export_timeline(
+    timeline: &Timeline,
     project_root: &Path,
     output: &Path,
     options: ExportOptions,
     report_progress: impl FnMut(f32),
 ) -> Result<(), String> {
-    super::export_gstreamer::export_project(project, project_root, output, options, report_progress)
+    super::export_gstreamer::export_timeline(
+        timeline,
+        project_root,
+        output,
+        options,
+        report_progress,
+    )
 }

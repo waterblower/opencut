@@ -58,11 +58,11 @@ impl Editor {
         properties: VideoClipProperties,
         canvas: TimelinePreviewCanvas,
     ) -> Option<RenderRect> {
-        let track = self.project.track(clip.track_id)?;
+        let track = self.timeline.track(clip.track_id)?;
         if track.kind != TrackKind::Video || !track.visible {
             return None;
         }
-        let asset = self.project.asset(clip.asset_id)?;
+        let asset = self.timeline.asset(clip.asset_id)?;
         if asset.kind == MediaKind::Audio {
             return None;
         }
@@ -70,8 +70,8 @@ impl Editor {
             properties,
             asset.width,
             asset.height,
-            self.project.settings.width,
-            self.project.settings.height,
+            self.timeline.settings.width,
+            self.timeline.settings.height,
             canvas.width,
             canvas.height,
         )
@@ -95,8 +95,8 @@ impl Editor {
         self.preview.volume_open = false;
         let pointer_x = f32::from(event.position.x) - surface_left;
         let pointer_y = f32::from(event.position.y) - surface_top;
-        let clip_id = self.project.tracks.iter().rev().find_map(|track| {
-            self.project.clips_on_track(track.id).find_map(|clip| {
+        let clip_id = self.timeline.tracks.iter().rev().find_map(|track| {
+            self.timeline.clips_on_track(track.id).find_map(|clip| {
                 if clip.timeline_start > self.timeline.playhead
                     || self.timeline.playhead >= clip.timeline_end()
                 {
@@ -123,7 +123,7 @@ impl Editor {
             cx.stop_propagation();
             return;
         }
-        let Some(clip) = self.project.clip(clip_id) else {
+        let Some(clip) = self.timeline.clip(clip_id) else {
             return;
         };
         self.preview.timeline_drag = Some(TimelinePreviewDrag {
@@ -159,10 +159,10 @@ impl Editor {
             + f64::from(f32::from(event.position.x) - drag.pointer_x) / drag.canvas.project_scale;
         let position_y = drag.position_y
             + f64::from(f32::from(event.position.y) - drag.pointer_y) / drag.canvas.project_scale;
-        let Some(index) = self.project.clip_index(drag.clip_id) else {
+        let Some(index) = self.timeline.clip_index(drag.clip_id) else {
             return true;
         };
-        let current_properties = self.project.clips[index].video_properties;
+        let current_properties = self.timeline.clips[index].video_properties;
         let mut properties = current_properties;
         properties.position_x = position_x;
         properties.position_y = position_y;
@@ -170,7 +170,11 @@ impl Editor {
             .timeline
             .snapping_enabled
             .then(|| {
-                self.timeline_preview_clip_rect(&self.project.clips[index], properties, drag.canvas)
+                self.timeline_preview_clip_rect(
+                    &self.timeline.clips[index],
+                    properties,
+                    drag.canvas,
+                )
             })
             .flatten();
         if let Some(rect) = snap_rect {
@@ -222,8 +226,8 @@ impl Editor {
             self.checkpoint();
             drag.changed = true;
         }
-        self.project.clips[index].video_properties.position_x = properties.position_x;
-        self.project.clips[index].video_properties.position_y = properties.position_y;
+        self.timeline.clips[index].video_properties.position_x = properties.position_x;
+        self.timeline.clips[index].video_properties.position_y = properties.position_y;
         self.properties.transform_input_clip_id = None;
         let now = Instant::now();
         if !drag.timeline_was_dirty
@@ -234,7 +238,7 @@ impl Editor {
             drag.last_pipeline_update = Some(now);
             if let Some(video) = &self.preview.video
                 && let Err(error) =
-                    update_timeline_video_position(video, &self.project, drag.clip_id, false)
+                    update_timeline_video_position(video, &self.timeline, drag.clip_id, false)
             {
                 self.error = Some(error);
             }
@@ -253,12 +257,12 @@ impl Editor {
             if !drag.timeline_was_dirty
                 && let Some(video) = &self.preview.video
             {
-                match update_timeline_video_position(video, &self.project, drag.clip_id, true) {
+                match update_timeline_video_position(video, &self.timeline, drag.clip_id, true) {
                     Ok(()) => self.preview.timeline_needs_rebuild = false,
                     Err(error) => self.error = Some(error),
                 }
             }
-            self.save_project();
+            self.save_timeline();
         }
         cx.notify();
         true
@@ -426,7 +430,7 @@ impl Editor {
         _: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        if !self.project.clips.is_empty() {
+        if !self.timeline.clips.is_empty() {
             self.preview.volume_open = !self.preview.volume_open;
             cx.notify();
         }
@@ -451,8 +455,8 @@ impl Editor {
         cx: &mut Context<Self>,
     ) -> gpui::AnyElement {
         let surface_height = (height - CONTROL_HEIGHT).max(1.0);
-        let project_width = self.project.settings.width.max(1) as f64;
-        let project_height = self.project.settings.height.max(1) as f64;
+        let project_width = self.timeline.settings.width.max(1) as f64;
+        let project_height = self.timeline.settings.height.max(1) as f64;
         let project_scale = (f64::from(width.max(1.0)) / project_width)
             .min(f64::from(surface_height) / project_height);
         let output_width = project_width * project_scale;
@@ -467,7 +471,7 @@ impl Editor {
             project_scale: project_scale.max(f64::EPSILON),
         };
         let selected_rect = self.timeline.selected_clip_id.and_then(|clip_id| {
-            let clip = self.project.clip(clip_id)?;
+            let clip = self.timeline.clip(clip_id)?;
             if clip.timeline_start > self.timeline.playhead
                 || self.timeline.playhead >= clip.timeline_end()
             {
@@ -483,9 +487,9 @@ impl Editor {
         let usable_width = (width - TIMELINE_HORIZONTAL_PADDING * 2.0).max(1.0);
         let timeline_left = origin_x + TIMELINE_HORIZONTAL_PADDING;
         let volume_track_bottom = origin_y + height - TIMELINE_VOLUME_TRACK_BOTTOM_OFFSET;
-        let has_media = !self.project.clips.is_empty();
-        let duration = self.project.duration(self.project.timeline_duration());
-        let reported_position = self.project.duration(self.timeline.playhead);
+        let has_media = !self.timeline.clips.is_empty();
+        let duration = self.timeline.duration(self.timeline.timeline_duration());
+        let reported_position = self.timeline.duration(self.timeline.playhead);
         let reported_progress = if duration.is_zero() {
             0.0
         } else {

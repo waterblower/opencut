@@ -103,7 +103,7 @@ impl Editor {
         {
             return;
         }
-        let Some(clip) = self.project.clip(clip_id) else {
+        let Some(clip) = self.timeline.clip(clip_id) else {
             self.properties.transform_input_clip_id = None;
             return;
         };
@@ -483,7 +483,7 @@ impl Editor {
             .take()
             .is_some_and(|drag| drag.changed);
         if changed {
-            self.save_project();
+            self.save_timeline();
         }
         cx.notify();
     }
@@ -493,11 +493,11 @@ impl Editor {
             return;
         };
         let opacity = opacity_from_pointer(pointer_x, drag.slider_left, drag.slider_width);
-        let Some(index) = self.project.clip_index(drag.clip_id) else {
+        let Some(index) = self.timeline.clip_index(drag.clip_id) else {
             self.properties.opacity_drag = None;
             return;
         };
-        if (self.project.clips[index].video_properties.opacity - opacity).abs() <= f64::EPSILON {
+        if (self.timeline.clips[index].video_properties.opacity - opacity).abs() <= f64::EPSILON {
             self.properties.opacity_drag = Some(drag);
             return;
         }
@@ -505,7 +505,7 @@ impl Editor {
             self.checkpoint();
             drag.changed = true;
         }
-        self.project.clips[index].video_properties.opacity = opacity;
+        self.timeline.clips[index].video_properties.opacity = opacity;
         self.properties.opacity_drag = Some(drag);
         self.preview.refresh_ticks = 2;
         cx.notify();
@@ -530,10 +530,10 @@ impl Editor {
         ) {
             value /= 100.0;
         }
-        let Some(index) = self.project.clip_index(clip_id) else {
+        let Some(index) = self.timeline.clip_index(clip_id) else {
             return;
         };
-        let mut properties = self.project.clips[index].video_properties;
+        let mut properties = self.timeline.clips[index].video_properties;
         match property {
             VideoTransformProperty::PositionX => properties.position_x = value,
             VideoTransformProperty::PositionY => properties.position_y = value,
@@ -551,23 +551,23 @@ impl Editor {
                 properties.crop_bottom = value.clamp(0.0, 0.99 - properties.crop_top)
             }
         }
-        if properties == self.project.clips[index].video_properties {
+        if properties == self.timeline.clips[index].video_properties {
             return;
         }
         self.checkpoint();
-        self.project.clips[index].video_properties = properties;
+        self.timeline.clips[index].video_properties = properties;
         self.preview.refresh_ticks = 2;
-        self.save_project();
+        self.save_timeline();
     }
 
     fn reset_video_crop(&mut self, clip_id: u64) {
         if self.clip_locked(clip_id) {
             return;
         }
-        let Some(index) = self.project.clip_index(clip_id) else {
+        let Some(index) = self.timeline.clip_index(clip_id) else {
             return;
         };
-        let mut properties = self.project.clips[index].video_properties;
+        let mut properties = self.timeline.clips[index].video_properties;
         if properties.crop_left == 0.0
             && properties.crop_right == 0.0
             && properties.crop_top == 0.0
@@ -580,10 +580,10 @@ impl Editor {
         properties.crop_top = 0.0;
         properties.crop_bottom = 0.0;
         self.checkpoint();
-        self.project.clips[index].video_properties = properties;
+        self.timeline.clips[index].video_properties = properties;
         self.properties.transform_input_clip_id = None;
         self.preview.refresh_ticks = 2;
-        self.save_project();
+        self.save_timeline();
     }
 }
 

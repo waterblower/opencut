@@ -2,11 +2,11 @@ use super::*;
 
 #[test]
 fn validates_one_clip_placement() {
-    let mut project = Project::with_test_tracks();
+    let mut timeline = Timeline::with_test_tracks();
 
     assert_eq!(
         validate_clip_placement(
-            &project,
+            &timeline,
             2,
             MediaKind::Audio,
             TimelineTime::from_frames(10),
@@ -17,7 +17,7 @@ fn validates_one_clip_placement() {
     );
     assert_eq!(
         validate_clip_placement(
-            &project,
+            &timeline,
             2,
             MediaKind::Audio,
             TimelineTime::ZERO,
@@ -28,7 +28,7 @@ fn validates_one_clip_placement() {
     );
     assert_eq!(
         validate_clip_placement(
-            &project,
+            &timeline,
             99,
             MediaKind::Audio,
             TimelineTime::from_frames(10),
@@ -38,10 +38,10 @@ fn validates_one_clip_placement() {
         Err(ClipPlacementRejection::MissingTrack)
     );
 
-    project.track_mut(2).unwrap().locked = true;
+    timeline.track_mut(2).unwrap().locked = true;
     assert_eq!(
         validate_clip_placement(
-            &project,
+            &timeline,
             2,
             MediaKind::Audio,
             TimelineTime::from_frames(10),
@@ -50,10 +50,10 @@ fn validates_one_clip_placement() {
         ),
         Err(ClipPlacementRejection::LockedTrack)
     );
-    project.track_mut(2).unwrap().locked = false;
+    timeline.track_mut(2).unwrap().locked = false;
     assert_eq!(
         validate_clip_placement(
-            &project,
+            &timeline,
             2,
             MediaKind::Video,
             TimelineTime::from_frames(10),
@@ -63,7 +63,7 @@ fn validates_one_clip_placement() {
         Err(ClipPlacementRejection::IncompatibleTrack)
     );
 
-    project.clips.push(TimelineClip {
+    timeline.clips.push(TimelineClip {
         id: 20,
         track_id: 2,
         asset_id: 100,
@@ -75,7 +75,7 @@ fn validates_one_clip_placement() {
     });
     assert_eq!(
         validate_clip_placement(
-            &project,
+            &timeline,
             2,
             MediaKind::Audio,
             TimelineTime::from_frames(10),
@@ -86,7 +86,7 @@ fn validates_one_clip_placement() {
     );
     assert_eq!(
         validate_clip_placement(
-            &project,
+            &timeline,
             2,
             MediaKind::Audio,
             TimelineTime::from_frames(10),

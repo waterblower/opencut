@@ -129,10 +129,10 @@ impl Editor {
         }
 
         let selected = self.timeline.selected_clip_id.and_then(|id| {
-            let index = self.project.clip_index(id)?;
-            let clip = &self.project.clips[index];
-            let asset = self.project.asset(clip.asset_id);
-            let track = self.project.track(clip.track_id)?;
+            let index = self.timeline.clip_index(id)?;
+            let clip = &self.timeline.clips[index];
+            let asset = self.timeline.asset(clip.asset_id);
+            let track = self.timeline.track(clip.track_id)?;
             Some((clip, asset, track))
         });
         let editable = self.selected_clips_editable();
@@ -161,16 +161,16 @@ impl Editor {
                             .child(properties_title(title, "Timeline clip"))
                             .child(properties_value(
                                 "Timeline start",
-                                format_time(self.project.seconds(clip.timeline_start), false),
+                                format_time(self.timeline.seconds(clip.timeline_start), false),
                             ))
                             .child(properties_value(
                                 "Source in",
-                                format_time(self.project.source_start_seconds(clip), false),
+                                format_time(self.timeline.source_start_seconds(clip), false),
                             ))
                             .child(properties_value(
                                 "Source out",
                                 format_time(
-                                    self.project
+                                    self.timeline
                                         .source_position_at(clip, clip.timeline_end())
                                         .as_secs_f64(),
                                     false,
@@ -178,7 +178,7 @@ impl Editor {
                             ))
                             .child(properties_value(
                                 "Clip duration",
-                                format_time(self.project.seconds(clip.duration()), false),
+                                format_time(self.timeline.seconds(clip.duration()), false),
                             ))
                             .child(properties_value("Track", track.name.clone()))
                             .when_some(asset, |this, asset| {
@@ -266,7 +266,7 @@ impl Editor {
     }
 
     fn asset_for_path(&self, path: &Path) -> Option<&MediaAsset> {
-        self.project
+        self.timeline
             .assets
             .iter()
             .find(|asset| asset.path.as_path() == path)
@@ -299,7 +299,7 @@ fn file_properties(path: &Path, kind: &'static str) -> gpui::Div {
         .flex()
         .flex_col()
         .gap_4()
-        .child(properties_title(title, "Project file"))
+        .child(properties_title(title, "Timeline file"))
         .child(properties_value("Type", kind.to_string()))
         .child(properties_value("Path", path.display().to_string()))
 }

@@ -1,4 +1,4 @@
-use super::model::Project;
+use super::model::Timeline;
 use std::{
     fs,
     path::{Path, PathBuf},
@@ -30,7 +30,7 @@ pub(super) fn timeline_files(project_root: &Path) -> Result<Vec<PathBuf>, String
 pub(super) fn load_existing(
     project_root: &Path,
     preferred: Option<&Path>,
-) -> Result<Option<(PathBuf, Project)>, String> {
+) -> Result<Option<(PathBuf, Timeline)>, String> {
     let timelines = timeline_files(project_root)?;
     let Some(relative_path) = preferred
         .filter(|path| {
@@ -45,7 +45,7 @@ pub(super) fn load_existing(
         return Ok(None);
     };
     let path = project_root.join(&relative_path);
-    Ok(Some((relative_path, Project::load(&path)?)))
+    Ok(Some((relative_path, Timeline::load(&path)?)))
 }
 
 /// Turns a user-entered name into a timeline filename, appending the extension the
@@ -83,12 +83,12 @@ pub(super) fn default_timeline_name(project_root: &Path, relative_directory: &Pa
 /// does not need to include the `.timeline.json` extension.
 ///
 /// The returned path is relative to the project root, so it can be handed straight to
-/// the file tree and to `Project::load`.
+/// the file tree and to `Timeline::load`.
 pub(super) fn create(
     project_root: &Path,
     relative_directory: &Path,
     name: &str,
-) -> Result<(PathBuf, Project), String> {
+) -> Result<(PathBuf, Timeline), String> {
     let directory = project_root.join(relative_directory);
     if !directory.is_dir() {
         return Err(format!("{} is not a directory", directory.display()));
@@ -100,9 +100,9 @@ pub(super) fn create(
     if path.exists() {
         return Err(format!("{} already exists.", relative_path.display()));
     }
-    let project = Project::default();
-    project.save(&path)?;
-    Ok((relative_path, project))
+    let timeline = Timeline::default();
+    timeline.save(&path)?;
+    Ok((relative_path, timeline))
 }
 
 fn timeline_file_names(directory: &Path) -> Result<Vec<String>, String> {

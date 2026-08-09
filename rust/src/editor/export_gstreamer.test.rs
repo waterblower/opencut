@@ -46,7 +46,7 @@ pub(super) fn export_mini_fixture(encoder: ExportEncoder, output_name: &str) {
     source_paths.sort();
     assert!(!source_paths.is_empty(), "mini fixture has no videos");
 
-    let mut project = Project::with_test_tracks();
+    let mut project = Timeline::with_test_tracks();
     // The fixture mixes 480p and 720p inputs. A fixed Full HD output exercises
     // GES source transitions, scaling, encoding, and muxing.
     project.settings.width = 1920;
@@ -83,9 +83,9 @@ pub(super) fn export_mini_fixture(encoder: ExportEncoder, output_name: &str) {
     assert_eq!(project.content_duration(), timeline_start);
     let expected_duration = project.seconds(timeline_start);
 
-    let mut options = ExportOptions::from_project(&project);
+    let mut options = ExportOptions::from_timeline(&project);
     options.encoder = encoder;
-    export_project(&project, &project_root, &output, options, |_| {}).unwrap();
+    export_timeline(&project, &project_root, &output, options, |_| {}).unwrap();
 
     let exported = probe_video(&output, u64::MAX).unwrap();
     assert_eq!(
@@ -101,7 +101,7 @@ pub(super) fn export_mini_fixture(encoder: ExportEncoder, output_name: &str) {
 
 #[test]
 fn video_track_exports_visible_video_and_unmuted_audio() {
-    let project = Project::with_test_tracks();
+    let project = Timeline::with_test_tracks();
     let track = project
         .tracks
         .iter()
@@ -124,7 +124,7 @@ fn video_track_exports_visible_video_and_unmuted_audio() {
 
 #[test]
 fn hidden_video_track_can_still_export_audio() {
-    let mut project = Project::with_test_tracks();
+    let mut project = Timeline::with_test_tracks();
     let track = project
         .tracks
         .iter_mut()
@@ -200,7 +200,7 @@ fn creates_gstreamer_timeline_from_real_media() {
     let _gstreamer_test = crate::editor::lock_gstreamer_test();
     ges::init().unwrap();
     let project_root = Path::new(env!("CARGO_MANIFEST_DIR"));
-    let mut project = Project::with_test_tracks();
+    let mut project = Timeline::with_test_tracks();
     let video_track = project
         .tracks
         .iter()
@@ -244,7 +244,7 @@ fn creates_gstreamer_timeline_from_real_media() {
     let timeline = build_timeline(
         &project,
         project_root,
-        ExportOptions::from_project(&project),
+        ExportOptions::from_timeline(&project),
     )
     .unwrap();
     assert_eq!(timeline.layers().len(), project.tracks.len());
@@ -310,7 +310,7 @@ fn creates_gstreamer_timeline_from_real_media() {
 fn exports_real_media_with_audio() {
     let _gstreamer_test = crate::editor::lock_gstreamer_test();
     let project_root = Path::new(env!("CARGO_MANIFEST_DIR"));
-    let mut project = Project::with_test_tracks();
+    let mut project = Timeline::with_test_tracks();
     project.settings.width = 320;
     project.settings.height = 180;
     let video_track = project
@@ -345,11 +345,11 @@ fn exports_real_media_with_audio() {
     });
 
     let output = std::env::temp_dir().join(format!("opencut-ges-video-{}.mp4", std::process::id()));
-    export_project(
+    export_timeline(
         &project,
         project_root,
         &output,
-        ExportOptions::from_project(&project),
+        ExportOptions::from_timeline(&project),
         |_| {},
     )
     .unwrap();
@@ -376,7 +376,7 @@ fn exports_an_image_only_timeline() {
     )
     .unwrap();
 
-    let mut project = Project::with_test_tracks();
+    let mut project = Timeline::with_test_tracks();
     project.settings.width = 64;
     project.settings.height = 64;
     let video_track = project
@@ -411,11 +411,11 @@ fn exports_an_image_only_timeline() {
     });
 
     let output = project_root.join("image-export.mp4");
-    export_project(
+    export_timeline(
         &project,
         &project_root,
         &output,
-        ExportOptions::from_project(&project),
+        ExportOptions::from_timeline(&project),
         |_| {},
     )
     .unwrap();

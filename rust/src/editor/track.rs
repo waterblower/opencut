@@ -101,7 +101,7 @@ impl Editor {
         cx: &mut Context<Self>,
     ) -> gpui::AnyElement {
         let clips = self
-            .project
+            .timeline
             .clips_on_track(track.id)
             .map(|clip| self.timeline_clip(track, clip, cx))
             .collect::<Vec<_>>();
@@ -163,14 +163,14 @@ impl Editor {
     }
 
     fn video_clip(&self, clip: &TimelineClip, cx: &mut Context<Self>) -> gpui::AnyElement {
-        let asset = self.project.asset(clip.asset_id);
+        let asset = self.timeline.asset(clip.asset_id);
         let name = asset
             .map(|asset| asset.name.clone())
             .unwrap_or_else(|| "Missing media".to_string());
 
         let waveform = asset.and_then(|asset| self.waveform_cache.get(&asset.id).cloned());
-        let source_start = self.project.seconds(clip.source_in);
-        let source_end = self.project.seconds(clip.source_out);
+        let source_start = self.timeline.seconds(clip.source_in);
+        let source_end = self.timeline.seconds(clip.source_out);
         let content = div()
             .absolute()
             .inset_0()
@@ -184,17 +184,17 @@ impl Editor {
     }
 
     fn audio_clip(&self, clip: &TimelineClip, cx: &mut Context<Self>) -> gpui::AnyElement {
-        let asset = self.project.asset(clip.asset_id);
+        let asset = self.timeline.asset(clip.asset_id);
         let name = asset
             .map(|asset| asset.name.clone())
             .unwrap_or_else(|| "Missing media".to_string());
         let waveform = asset.and_then(|asset| self.waveform_cache.get(&asset.id).cloned());
-        let source_start = self.project.seconds(clip.source_in);
-        let source_end = self.project.seconds(clip.source_out);
+        let source_start = self.timeline.seconds(clip.source_in);
+        let source_end = self.timeline.seconds(clip.source_out);
         let detail = if asset.is_some_and(|asset| asset.has_audio) {
             "Audio".to_string()
         } else {
-            format!("{}s", self.project.seconds(clip.duration()).round())
+            format!("{}s", self.timeline.seconds(clip.duration()).round())
         };
         let content = div()
             .absolute()
@@ -220,8 +220,8 @@ impl Editor {
             drag.changed && drag.items.iter().any(|item| item.clip_id == clip_id)
         });
         let left = TIMELINE_PADDING
-            + self.project.seconds(clip.timeline_start) as f32 * self.timeline.pixels_per_second;
-        let width = (self.project.seconds(clip.duration()) as f32
+            + self.timeline.seconds(clip.timeline_start) as f32 * self.timeline.pixels_per_second;
+        let width = (self.timeline.seconds(clip.duration()) as f32
             * self.timeline.pixels_per_second)
             .max(4.0);
 
@@ -297,20 +297,20 @@ impl Editor {
         invalid_reason: Option<&'static str>,
     ) -> gpui::AnyElement {
         let name = self
-            .project
+            .timeline
             .clip(clip_id)
-            .and_then(|clip| self.project.asset(clip.asset_id))
+            .and_then(|clip| self.timeline.asset(clip.asset_id))
             .map(|asset| asset.name.clone())
             .unwrap_or_else(|| "Missing media".to_string());
-        let left =
-            TIMELINE_PADDING + self.project.seconds(start) as f32 * self.timeline.pixels_per_second;
+        let left = TIMELINE_PADDING
+            + self.timeline.seconds(start) as f32 * self.timeline.pixels_per_second;
         let duration = self
-            .project
+            .timeline
             .clip(clip_id)
             .map(TimelineClip::duration)
             .unwrap_or(TimelineTime::ZERO);
         let width =
-            (self.project.seconds(duration) as f32 * self.timeline.pixels_per_second).max(4.0);
+            (self.timeline.seconds(duration) as f32 * self.timeline.pixels_per_second).max(4.0);
         let valid = invalid_reason.is_none();
         let feedback_color = if valid { ACCENT } else { ERROR };
 
@@ -360,8 +360,8 @@ impl Editor {
 
     fn explorer_drop_preview(&self, preview: &ExplorerDropPreview) -> gpui::AnyElement {
         let left = TIMELINE_PADDING
-            + self.project.seconds(preview.start) as f32 * self.timeline.pixels_per_second;
-        let width = (self.project.seconds(preview.duration) as f32
+            + self.timeline.seconds(preview.start) as f32 * self.timeline.pixels_per_second;
+        let width = (self.timeline.seconds(preview.duration) as f32
             * self.timeline.pixels_per_second)
             .max(4.0);
         let invalid = preview.invalid_reason.is_some();

@@ -32,7 +32,7 @@ fn audio_clip(id: u64, start: i64, duration: i64) -> TimelineClip {
 
 #[test]
 fn appending_media_requires_a_manually_created_track() {
-    let project = Project::default();
+    let project = Timeline::default();
 
     assert_eq!(
         find_append_track(&project, &audio_asset(100)).unwrap_err(),
@@ -43,7 +43,7 @@ fn appending_media_requires_a_manually_created_track() {
 
 #[test]
 fn clipboard_preserves_relative_timing_tracks_and_primary_selection() {
-    let mut project = Project::with_test_tracks();
+    let mut project = Timeline::with_test_tracks();
     project.assets.push(audio_asset(100));
     project.clips = vec![audio_clip(10, 20, 8), audio_clip(11, 40, 12)];
     let selected = HashSet::from([10, 11]);
@@ -59,7 +59,7 @@ fn clipboard_preserves_relative_timing_tracks_and_primary_selection() {
 
 #[test]
 fn clipboard_paste_rejects_the_complete_selection_on_collision() {
-    let mut project = Project::with_test_tracks();
+    let mut project = Timeline::with_test_tracks();
     project.assets.push(audio_asset(100));
     project.clips = vec![audio_clip(20, 105, 10)];
     let candidates = vec![audio_clip(10, 100, 8), audio_clip(11, 120, 12)];
@@ -89,7 +89,7 @@ fn track_magnet_closes_deleted_durations_independently_per_track() {
 
 #[test]
 fn blade_targets_unselected_clips_crossing_the_playhead() {
-    let mut project = Project::with_test_tracks();
+    let mut project = Timeline::with_test_tracks();
     project.assets.push(audio_asset(100));
     project.clips = vec![audio_clip(10, 0, 20), audio_clip(11, 30, 20)];
 
@@ -100,7 +100,7 @@ fn blade_targets_unselected_clips_crossing_the_playhead() {
 
 #[test]
 fn select_all_excludes_clips_on_locked_tracks() {
-    let mut project = Project::with_test_tracks();
+    let mut project = Timeline::with_test_tracks();
     project.clips = vec![
         audio_clip(10, 0, 10),
         TimelineClip {

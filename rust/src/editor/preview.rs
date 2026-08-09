@@ -41,13 +41,13 @@ impl Editor {
             self.preview.timeline_clock = None;
             return;
         };
-        let duration = self.project.timeline_duration();
+        let duration = self.timeline.timeline_duration();
         let (origin, started_at) = *self
             .preview
             .timeline_clock
             .get_or_insert((self.timeline.playhead, Instant::now()));
         self.timeline.playhead =
-            timeline_playhead_from_elapsed(&self.project, origin, started_at.elapsed())
+            timeline_playhead_from_elapsed(&self.timeline, origin, started_at.elapsed())
                 .clamp(TimelineTime::ZERO, duration);
         if video.eos() || self.timeline.playhead >= duration {
             video.set_paused(true);
@@ -81,14 +81,14 @@ impl Editor {
         self.preview.target = PreviewTarget::Timeline;
         self.explorer.selected_file = None;
         self.explorer.context_menu = None;
-        let duration = self.project.timeline_duration();
+        let duration = self.timeline.timeline_duration();
         let position = position.clamp(TimelineTime::ZERO, duration);
         self.timeline.playhead = position;
         self.preview.playing = play;
         self.preview.timeline_clock = None;
         self.preview.timeline_drag = None;
 
-        if self.project.clips.is_empty() {
+        if self.timeline.clips.is_empty() {
             if let Some(video) = &self.preview.video {
                 video.set_paused(true);
             }
@@ -112,7 +112,7 @@ impl Editor {
                 video.set_paused(true);
             }
             self.preview.video = None;
-            match create_timeline_video(&self.project, &self.project_root) {
+            match create_timeline_video(&self.timeline, &self.project_root) {
                 Ok(video) => {
                     set_timeline_audio(
                         &video,
@@ -131,7 +131,7 @@ impl Editor {
         }
 
         if let Some(video) = &self.preview.video {
-            let _ = video.seek(self.project.duration(position), accurate);
+            let _ = video.seek(self.timeline.duration(position), accurate);
             set_timeline_audio(
                 video,
                 self.preview.volume,
@@ -179,7 +179,7 @@ impl Editor {
             PreviewTarget::Timeline => {}
         }
 
-        if self.project.clips.is_empty() {
+        if self.timeline.clips.is_empty() {
             return;
         }
         if self.preview.playing {
@@ -191,7 +191,7 @@ impl Editor {
             self.preview.timeline_clock = None;
             return;
         }
-        let duration = self.project.timeline_duration();
+        let duration = self.timeline.timeline_duration();
         let start = if self.timeline.playhead >= duration {
             TimelineTime::ZERO
         } else {
@@ -330,11 +330,11 @@ impl Editor {
 }
 
 fn timeline_playhead_from_elapsed(
-    project: &Project,
+    timeline: &Timeline,
     origin: TimelineTime,
     elapsed: Duration,
 ) -> TimelineTime {
-    origin + project.floor_duration(elapsed)
+    origin + timeline.floor_duration(elapsed)
 }
 
 impl Editor {
@@ -342,7 +342,7 @@ impl Editor {
         let fraction = fraction.clamp(0.0, 1.0);
         match self.preview.target.clone() {
             PreviewTarget::Timeline => {
-                let duration = self.project.timeline_duration().frames();
+                let duration = self.timeline.timeline_duration().frames();
                 let position =
                     TimelineTime::from_frames((duration as f64 * fraction as f64).round() as i64);
                 self.load_timeline_position_with_options(position, play, accurate);
@@ -489,7 +489,7 @@ impl PlaybackViewDelegate for Editor {
 
     fn playback_toggle_volume(&mut self, _: &mut Window, cx: &mut Context<Self>) {
         let has_playable_target = match self.preview.target {
-            PreviewTarget::Timeline => !self.project.clips.is_empty(),
+            PreviewTarget::Timeline => !self.timeline.clips.is_empty(),
             PreviewTarget::VideoFile(_) => self.preview.video.is_some(),
             PreviewTarget::AudioFile(_) | PreviewTarget::ImageFile(_) => false,
         };

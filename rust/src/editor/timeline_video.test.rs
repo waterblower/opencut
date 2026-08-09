@@ -7,7 +7,7 @@ use std::{path::Path, sync::mpsc, time::Duration};
 fn headless_test_pipeline() -> (gst::Pipeline, gst_app::AppSink) {
     ges::init().unwrap();
     let project_root = Path::new(env!("CARGO_MANIFEST_DIR"));
-    let mut project = Project::with_test_tracks();
+    let mut project = Timeline::with_test_tracks();
     project.settings.frame_rate = super::super::model::FrameRate::new(24, 1);
     project.assets.push(MediaAsset {
         id: 10,

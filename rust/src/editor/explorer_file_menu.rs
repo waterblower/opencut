@@ -18,8 +18,11 @@ impl Editor {
         let width = 268.0;
         let can_create_timeline = menu.is_directory;
         let can_rename = !menu.relative_path.as_os_str().is_empty();
-        let can_trash =
-            can_rename && self.timeline.active_timeline.as_ref() != Some(&menu.relative_path);
+        let can_trash = can_rename
+            && !self
+                .timeline
+                .active_path()
+                .is_some_and(|path| path.starts_with(&menu.relative_path));
         let height = 92.0
             + if can_create_timeline { 40.0 } else { 0.0 }
             + if can_rename { 40.0 } else { 0.0 }
@@ -171,7 +174,7 @@ impl Editor {
         };
         let relative_directory = state.relative_directory.clone();
         let name = state.input.read(cx).query().trim().to_string();
-        let (relative_path, project) =
+        let (relative_path, timeline) =
             match timeline_document::create(&self.project_root, &relative_directory, &name) {
                 Ok(timeline) => timeline,
                 Err(error) => {
@@ -181,7 +184,7 @@ impl Editor {
                 }
             };
         self.explorer.new_timeline_dialog = None;
-        self.activate_created_timeline(relative_directory, relative_path, project, cx);
+        self.activate_created_timeline(relative_directory, relative_path, timeline, cx);
     }
 
     pub(crate) fn begin_rename(&mut self, window: &mut Window, cx: &mut Context<Self>) {
@@ -251,11 +254,20 @@ impl Editor {
             return;
         }
 
-        for project in std::iter::once(&mut self.project)
-            .chain(self.timeline.undo_stack.iter_mut())
+        if let Some((_, timeline)) = self.timeline.active_timeline.as_mut() {
+            for asset in &mut timeline.assets {
+                if let Some(path) = remap_relative_path(&asset.path, &old_relative, &new_relative) {
+                    asset.path = path;
+                }
+            }
+        }
+        for timeline in self
+            .timeline
+            .undo_stack
+            .iter_mut()
             .chain(self.timeline.redo_stack.iter_mut())
         {
-            for asset in &mut project.assets {
+            for asset in &mut timeline.assets {
                 if let Some(path) = remap_relative_path(&asset.path, &old_relative, &new_relative) {
                     asset.path = path;
                 }
@@ -288,9 +300,15 @@ impl Editor {
         }
 
         self.error = None;
-        if self.timeline.active_timeline.as_ref() == Some(&old_relative) {
-            self.timeline.active_timeline = Some(new_relative.clone());
-            if let Err(error) = save_active_timeline(&self.project_root, &new_relative) {
+        let renamed_active_timeline = self
+            .timeline
+            .active_path()
+            .and_then(|path| remap_relative_path(path, &old_relative, &new_relative));
+        if let Some(renamed_active_timeline) = renamed_active_timeline {
+            if let Some((path, _)) = self.timeline.active_timeline.as_mut() {
+                *path = renamed_active_timeline.clone();
+            }
+            if let Err(error) = save_active_timeline(&self.project_root, &renamed_active_timeline) {
                 self.error = Some(error);
             }
             if let Some(view_state) = self.current_timeline_view_state()
@@ -299,7 +317,7 @@ impl Editor {
                 self.error = Some(error);
             }
         }
-        self.save_project();
+        self.save_timeline();
         self.explorer.rename_dialog = None;
         self.explorer.search_query = None;
         self.explorer.search_results.clear();
@@ -343,6 +361,14 @@ impl Editor {
         // The project root is the workspace itself, not an entry within it.
         if relative_path.as_os_str().is_empty() {
             self.error = Some("The project folder cannot be moved to Trash here.".to_string());
+            return;
+        }
+        if self
+            .timeline
+            .active_path()
+            .is_some_and(|path| path.starts_with(&relative_path))
+        {
+            self.error = Some("The active timeline cannot be moved to Trash.".to_string());
             return;
         }
 

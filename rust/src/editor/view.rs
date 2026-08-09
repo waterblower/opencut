@@ -147,7 +147,7 @@ impl Editor {
         let undo_enabled = !self.timeline.undo_stack.is_empty();
         let redo_enabled = !self.timeline.redo_stack.is_empty();
         let export_enabled = self.timeline.active_timeline.is_some()
-            && !self.project.clips.is_empty()
+            && !self.timeline.clips.is_empty()
             && !self.export.running;
         let has_error = self.error.is_some();
         let message = self
@@ -158,8 +158,8 @@ impl Editor {
             .to_string();
         let timeline_name = self
             .timeline
-            .active_timeline
-            .as_deref()
+            .active_path()
+            .map(PathBuf::as_path)
             .and_then(|path| path.file_name())
             .map(|name| name.to_string_lossy().into_owned())
             .unwrap_or_else(|| "No timeline".to_string());
@@ -236,12 +236,15 @@ impl Editor {
                             editor.begin_create_timeline(PathBuf::new(), window, cx);
                         },
                     )))
-                    .child(toolbar_button("Settings", true).on_click(cx.listener(
-                        |editor, _, _, cx| {
-                            editor.settings_open = true;
-                            cx.notify();
-                        },
-                    )))
+                    .child(
+                        toolbar_button("Settings", self.timeline.active_timeline.is_some())
+                            .on_click(cx.listener(|editor, _, _, cx| {
+                                if editor.timeline.active_timeline.is_some() {
+                                    editor.settings_open = true;
+                                }
+                                cx.notify();
+                            })),
+                    )
                     .child(
                         toolbar_button(
                             if self.export.running {

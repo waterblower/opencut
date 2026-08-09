@@ -1,4 +1,4 @@
-use super::export::{DEFAULT_VIDEO_BIT_RATE, ExportEncoder, ExportOptions, export_project};
+use super::export::{DEFAULT_VIDEO_BIT_RATE, ExportEncoder, ExportOptions, export_timeline};
 use super::*;
 use std::{
     env,
@@ -49,10 +49,10 @@ struct ValidatedExport {
 
 impl Editor {
     pub(super) fn open_export_dialog(&mut self, cx: &mut Context<Self>) {
-        let Some(active_timeline) = self.timeline.active_timeline.clone() else {
+        let Some(active_timeline) = self.timeline.active_path().cloned() else {
             return;
         };
-        if self.project.clips.is_empty() || self.export.running {
+        if self.timeline.clips.is_empty() || self.export.running {
             return;
         }
 
@@ -85,8 +85,8 @@ impl Editor {
         self.settings_open = false;
         self.explorer.context_menu = None;
         self.export.dialog = Some(ExportDialogState {
-            resolution: (self.project.settings.width, self.project.settings.height),
-            frame_rate: self.project.settings.frame_rate,
+            resolution: (self.timeline.settings.width, self.timeline.settings.height),
+            frame_rate: self.timeline.settings.frame_rate,
             encoder: ExportEncoder::default_for_platform(),
             resolution_menu_open: false,
             frame_rate_menu_open: false,
@@ -105,8 +105,8 @@ impl Editor {
             .expect("export dialog rendered without state");
         let project_name = self
             .timeline
-            .active_timeline
-            .as_deref()
+            .active_path()
+            .map(PathBuf::as_path)
             .and_then(Path::file_name)
             .map(|name| name.to_string_lossy().into_owned())
             .map(|name| {
@@ -115,8 +115,8 @@ impl Editor {
                     .to_string()
             })
             .unwrap_or_else(|| "OpenCut timeline".to_string());
-        let duration = self.project.content_duration();
-        let duration_seconds = self.project.seconds(duration);
+        let duration = self.timeline.content_duration();
+        let duration_seconds = self.timeline.seconds(duration);
         let validated = self.validated_export(cx);
         let validation_error = validated.as_ref().err().cloned();
         let video_bit_rate = validated
@@ -222,7 +222,7 @@ impl Editor {
                                                 "{project_name} · {}",
                                                 format_export_timecode(
                                                     duration,
-                                                    self.project.settings.frame_rate
+                                                    self.timeline.settings.frame_rate
                                                 )
                                             )),
                                     ),
@@ -423,7 +423,7 @@ impl Editor {
             .iter()
             .any(|(width, height, _)| (*width, *height) == selected)
         {
-            presets.insert(0, (selected.0, selected.1, "Project resolution"));
+            presets.insert(0, (selected.0, selected.1, "Timeline resolution"));
         }
         let options = presets
             .into_iter()
@@ -603,7 +603,7 @@ impl Editor {
     }
 
     fn start_export(&mut self, cx: &mut Context<Self>) {
-        if self.export.running || self.project.clips.is_empty() {
+        if self.export.running || self.timeline.clips.is_empty() {
             return;
         }
         let validated = match self.validated_export(cx) {
@@ -616,7 +616,12 @@ impl Editor {
 
         let path = validated.destination;
         let options = validated.options;
-        let project = self.project.clone();
+        let timeline = self
+            .timeline
+            .active_timeline
+            .as_ref()
+            .map(|(_, timeline)| timeline.clone())
+            .expect("export requires an active timeline");
         let project_root = self.project_root.clone();
         let export_path = path.clone();
         let progress = Arc::new(AtomicU32::new(0));
@@ -637,9 +642,13 @@ impl Editor {
             let result = cx
                 .background_executor()
                 .spawn(async move {
-                    export_project(&project, &project_root, &export_path, options, |fraction| {
-                        store_export_progress(&encoder_progress, fraction)
-                    })
+                    export_timeline(
+                        &timeline,
+                        &project_root,
+                        &export_path,
+                        options,
+                        |fraction| store_export_progress(&encoder_progress, fraction),
+                    )
                 })
                 .await;
             let elapsed = started_at.elapsed();

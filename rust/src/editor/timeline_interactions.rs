@@ -75,7 +75,7 @@ impl Editor {
         }
         let position = self
             .timeline_position_from_x(event.position.x.into())
-            .clamp(TimelineTime::ZERO, self.project.timeline_duration());
+            .clamp(TimelineTime::ZERO, self.timeline.timeline_duration());
         if self.timeline.blade_guide != Some(position) {
             self.timeline.blade_guide = Some(position);
             cx.notify();
@@ -217,21 +217,21 @@ impl Editor {
         let scroll_y = f32::from(self.timeline.vertical_scroll.offset().y);
 
         let mut selected = selection.initial_selection.clone();
-        for (track_index, track) in self.project.tracks.iter().enumerate() {
+        for (track_index, track) in self.timeline.tracks.iter().enumerate() {
             let clip_top = TIMELINE_HEADER_HEIGHT
                 + RULER_HEIGHT
                 + track_index as f32 * TRACK_HEIGHT
                 + scroll_y
                 + 5.0;
             let clip_bottom = clip_top + TRACK_HEIGHT - 10.0;
-            for clip in self.project.clips_on_track(track.id) {
+            for clip in self.timeline.clips_on_track(track.id) {
                 let clip_left = TRACK_HEADER_WIDTH
                     + scroll_x
                     + TIMELINE_PADDING
-                    + self.project.seconds(clip.timeline_start) as f32
+                    + self.timeline.seconds(clip.timeline_start) as f32
                         * self.timeline.pixels_per_second;
                 let clip_right = clip_left
-                    + (self.project.seconds(clip.duration()) as f32
+                    + (self.timeline.seconds(clip.duration()) as f32
                         * self.timeline.pixels_per_second)
                         .max(4.0);
                 if clip_left <= right
@@ -244,7 +244,7 @@ impl Editor {
             }
         }
         self.timeline.selected_clip_id = self
-            .project
+            .timeline
             .clips
             .iter()
             .find(|clip| selected.contains(&clip.id))
@@ -269,11 +269,11 @@ impl Editor {
         if !self.selected_clips_editable() {
             return;
         }
-        let Some(anchor) = self.project.clip(clip_id).cloned() else {
+        let Some(anchor) = self.timeline.clip(clip_id).cloned() else {
             return;
         };
         let Some(original_anchor_track_index) = self
-            .project
+            .timeline
             .tracks
             .iter()
             .position(|track| track.id == anchor.track_id)
@@ -281,12 +281,12 @@ impl Editor {
             return;
         };
         let items = self
-            .selected_clip_ids_in_project_order()
+            .selected_clip_ids_in_timeline_order()
             .into_iter()
             .filter_map(|selected_id| {
-                let clip = self.project.clip(selected_id)?;
+                let clip = self.timeline.clip(selected_id)?;
                 let original_track_index = self
-                    .project
+                    .timeline
                     .tracks
                     .iter()
                     .position(|track| track.id == clip.track_id)?;
@@ -315,7 +315,7 @@ impl Editor {
             placements: items
                 .iter()
                 .filter_map(|item| {
-                    self.project.clip(item.clip_id)?;
+                    self.timeline.clip(item.clip_id)?;
                     Some((
                         item.clip_id,
                         item.original_track_id,
@@ -346,7 +346,7 @@ impl Editor {
         let original_anchor_start = drag.original_anchor_start;
         let original_anchor_track_index = drag.original_anchor_track_index;
         let items = drag.items.clone();
-        let raw_delta = self.project.settings.frame_rate.delta(
+        let raw_delta = self.timeline.settings.frame_rate.delta(
             (f32::from(event.position.x) - start_x) as f64 / self.timeline.pixels_per_second as f64,
         );
         let earliest_start = items
@@ -357,7 +357,7 @@ impl Editor {
         let raw_anchor_start = original_anchor_start
             + TimelineTime::from_frames(raw_delta.frames().max(-earliest_start.frames()));
         let anchor_duration = self
-            .project
+            .timeline
             .clip(anchor_clip_id)
             .map(TimelineClip::duration)
             .unwrap_or(TimelineTime::ZERO);
@@ -386,7 +386,7 @@ impl Editor {
             .map(|item| item.original_track_index)
             .max()
             .unwrap_or(0);
-        let maximum_track_index = self.project.tracks.len().saturating_sub(1);
+        let maximum_track_index = self.timeline.tracks.len().saturating_sub(1);
         let track_delta = requested_track_delta.clamp(
             -(first_track_index as isize),
             maximum_track_index.saturating_sub(last_track_index) as isize,
@@ -396,8 +396,8 @@ impl Editor {
                 .iter()
                 .filter_map(|item| {
                     let target_index = item.original_track_index.checked_add_signed(track_delta)?;
-                    let track_id = self.project.tracks.get(target_index)?.id;
-                    self.project.clip(item.clip_id)?;
+                    let track_id = self.timeline.tracks.get(target_index)?.id;
+                    self.timeline.clip(item.clip_id)?;
                     Some((
                         item.clip_id,
                         track_id,
@@ -444,12 +444,12 @@ impl Editor {
         if drag.changed && drag.invalid_reason.is_none() {
             self.checkpoint();
             for (clip_id, track_id, start) in drag.placements {
-                if let Some(clip) = self.project.clip_mut(clip_id) {
+                if let Some(clip) = self.timeline.clip_mut(clip_id) {
                     clip.timeline_start = start;
                     clip.track_id = track_id;
                 }
             }
-            self.save_project();
+            self.save_timeline();
             self.load_timeline_position(self.timeline.playhead, false);
         }
         cx.notify();
@@ -473,14 +473,14 @@ impl Editor {
             return (time.max(TimelineTime::ZERO), None);
         }
         let threshold = self
-            .project
+            .timeline
             .settings
             .frame_rate
             .ceil(SNAP_DISTANCE_PX as f64 / self.timeline.pixels_per_second as f64)
             .frames()
             .max(1) as u64;
         let mut candidates = vec![TimelineTime::ZERO, self.timeline.playhead];
-        for clip in &self.project.clips {
+        for clip in &self.timeline.clips {
             if !ignored_clip_ids.contains(&clip.id) {
                 candidates.push(clip.timeline_start);
                 candidates.push(clip.timeline_end());
@@ -513,9 +513,9 @@ impl Editor {
     }
 
     pub(super) fn clip_locked(&self, clip_id: u64) -> bool {
-        self.project
+        self.timeline
             .clip(clip_id)
-            .and_then(|clip| self.project.track(clip.track_id))
+            .and_then(|clip| self.timeline.track(clip.track_id))
             .is_some_and(|track| track.locked)
     }
 
@@ -523,14 +523,14 @@ impl Editor {
         if self.timeline.selected_clip_ids.len() > 1 {
             return;
         }
-        let Some(clip) = self.project.clip(clip_id).cloned() else {
+        let Some(clip) = self.timeline.clip(clip_id).cloned() else {
             return;
         };
         if self.clip_locked(clip_id) {
             return;
         }
-        let maximum_source_out = self.project.asset(clip.asset_id).and_then(|asset| {
-            (asset.kind != MediaKind::Image).then(|| self.project.ceil_time(asset.duration))
+        let maximum_source_out = self.timeline.asset(clip.asset_id).and_then(|asset| {
+            (asset.kind != MediaKind::Image).then(|| self.timeline.ceil_time(asset.duration))
         });
         if let Some(video) = &self.preview.video {
             video.set_paused(true);
@@ -569,10 +569,10 @@ impl Editor {
         let original_out = drag.original_out;
         let original_timeline_start = drag.original_timeline_start;
         let maximum_source_out = drag.maximum_source_out;
-        let Some((previous_end, next_start)) = self.project.trim_limits(clip_id) else {
+        let Some((previous_end, next_start)) = self.timeline.trim_limits(clip_id) else {
             return;
         };
-        let raw_delta = self.project.settings.frame_rate.delta(
+        let raw_delta = self.timeline.settings.frame_rate.delta(
             (f32::from(event.position.x) - drag.start_x) as f64
                 / self.timeline.pixels_per_second as f64,
         );
@@ -587,7 +587,7 @@ impl Editor {
                 drag.changed = true;
             }
         }
-        let Some(index) = self.project.clip_index(clip_id) else {
+        let Some(index) = self.timeline.clip_index(clip_id) else {
             return;
         };
         self.timeline.snap_guide = match edge {
@@ -598,8 +598,9 @@ impl Editor {
                 let latest_start = original_end - TimelineTime::ONE_FRAME;
                 let (snapped_start, guide) = self.snap_time(raw_start, Some(clip_id));
                 let start = snapped_start.clamp(earliest_start, latest_start);
-                self.project.clips[index].source_in = original_in + start - original_timeline_start;
-                self.project.clips[index].timeline_start = start;
+                self.timeline.clips[index].source_in =
+                    original_in + start - original_timeline_start;
+                self.timeline.clips[index].timeline_start = start;
                 (start == snapped_start).then_some(guide).flatten()
             }
             TrimEdge::Right => {
@@ -614,7 +615,7 @@ impl Editor {
                 let latest_end = next_start.min(latest_source_end);
                 let (snapped_end, guide) = self.snap_time(original_end + raw_delta, Some(clip_id));
                 let end = snapped_end.clamp(earliest_end, latest_end);
-                self.project.clips[index].source_out = original_in + end - original_timeline_start;
+                self.timeline.clips[index].source_out = original_in + end - original_timeline_start;
                 (end == snapped_end).then_some(guide).flatten()
             }
         };
@@ -629,11 +630,11 @@ impl Editor {
             .is_some_and(|drag| drag.changed);
         self.timeline.snap_guide = None;
         if changed {
-            self.save_project();
+            self.save_timeline();
             if let Some(clip_id) = self.timeline.selected_clip_id
-                && let Some(index) = self.project.clip_index(clip_id)
+                && let Some(index) = self.timeline.clip_index(clip_id)
             {
-                self.load_timeline_position(self.project.clips[index].timeline_start, false);
+                self.load_timeline_position(self.timeline.clips[index].timeline_start, false);
             }
         }
         cx.notify();
@@ -647,7 +648,7 @@ impl Editor {
         );
         if pixels_per_second != previous_pixels_per_second {
             let mut scroll_offset = self.timeline.scroll.offset();
-            let playhead_seconds = self.project.seconds(self.timeline.playhead);
+            let playhead_seconds = self.timeline.seconds(self.timeline.playhead);
             scroll_offset.x = px(zoom_scroll_offset(
                 f32::from(scroll_offset.x),
                 playhead_seconds,
@@ -720,9 +721,9 @@ impl Editor {
     pub(super) fn timeline_position_from_x(&self, x: f32) -> TimelineTime {
         let scroll_x: f32 = self.timeline.scroll.offset().x.into();
         let content_x = x - TRACK_HEADER_WIDTH - scroll_x - TIMELINE_PADDING;
-        self.project
+        self.timeline
             .nearest_time(content_x as f64 / self.timeline.pixels_per_second as f64)
-            .clamp(TimelineTime::ZERO, self.project.timeline_duration())
+            .clamp(TimelineTime::ZERO, self.timeline.timeline_duration())
     }
 
     pub(super) fn begin_playhead_scrub(&mut self, event: &MouseDownEvent) {
@@ -776,11 +777,11 @@ impl Editor {
     }
 
     pub(super) fn step_playhead(&mut self, frames: i64) {
-        if self.project.clips.is_empty() {
+        if self.timeline.clips.is_empty() {
             return;
         }
         let target = (self.timeline.playhead + TimelineTime::from_frames(frames))
-            .clamp(TimelineTime::ZERO, self.project.timeline_duration());
+            .clamp(TimelineTime::ZERO, self.timeline.timeline_duration());
         if target != self.timeline.playhead || self.preview.target != PreviewTarget::Timeline {
             self.load_timeline_position(target, false);
         }

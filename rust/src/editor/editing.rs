@@ -9,11 +9,11 @@ pub(super) struct ClipClipboard {
 
 impl ClipClipboard {
     fn from_selection(
-        project: &Project,
+        timeline: &Timeline,
         selected_clip_ids: &HashSet<u64>,
         primary_clip_id: Option<u64>,
     ) -> Option<Self> {
-        let clips = project
+        let clips = timeline
             .clips
             .iter()
             .filter(|clip| selected_clip_ids.contains(&clip.id))
@@ -50,7 +50,7 @@ impl ClipClipboard {
 
 impl Editor {
     pub(super) fn append_asset_clip(&mut self, asset_id: u64) {
-        let Some(asset) = self.project.asset(asset_id).cloned() else {
+        let Some(asset) = self.timeline.asset(asset_id).cloned() else {
             return;
         };
         let track_id = match self.find_append_track_for_asset(&asset) {
@@ -63,11 +63,11 @@ impl Editor {
         };
         self.checkpoint();
         self.append_asset_clip_without_checkpoint(asset_id, track_id, asset.duration);
-        self.save_project();
+        self.save_timeline();
     }
 
     pub(super) fn find_append_track_for_asset(&self, asset: &MediaAsset) -> Result<u64, String> {
-        find_append_track(&self.project, asset)
+        find_append_track(&self.timeline, asset)
     }
 
     pub(super) fn append_asset_clip_without_checkpoint(
@@ -77,13 +77,15 @@ impl Editor {
         duration: f64,
     ) {
         let id = self.take_id();
-        self.project.clips.push(TimelineClip {
+        let timeline_start = self.timeline.content_duration();
+        let source_out = self.timeline.ceil_time(duration);
+        self.timeline.clips.push(TimelineClip {
             id,
             track_id,
             asset_id,
-            timeline_start: self.project.content_duration(),
+            timeline_start,
             source_in: TimelineTime::ZERO,
-            source_out: self.project.ceil_time(duration),
+            source_out,
             video_properties: VideoClipProperties::default(),
             audio_properties: AudioClipProperties::default(),
         });
@@ -94,7 +96,7 @@ impl Editor {
     }
 
     pub(super) fn blade_at_playhead(&mut self) {
-        let clips = clips_crossing_playhead(&self.project, self.timeline.playhead);
+        let clips = clips_crossing_playhead(&self.timeline, self.timeline.playhead);
         if clips.is_empty() {
             self.error = Some("No unlocked clip crosses the playhead.".into());
             return;
@@ -103,48 +105,48 @@ impl Editor {
         self.checkpoint();
         let mut right_halves = Vec::with_capacity(clips.len());
         for clip in clips {
-            let Some(index) = self.project.clip_index(clip.id) else {
+            let Some(index) = self.timeline.clip_index(clip.id) else {
                 continue;
             };
             let new_id = self.take_id();
             let Some((left, right)) = clip.split_at(self.timeline.playhead, new_id) else {
                 continue;
             };
-            self.project.clips[index] = left;
+            self.timeline.clips[index] = left;
             right_halves.push(right);
         }
         self.timeline.selected_clip_ids = right_halves.iter().map(|clip| clip.id).collect();
         self.timeline.selected_clip_id = right_halves.first().map(|clip| clip.id);
         let split_count = right_halves.len();
-        self.project.clips.extend(right_halves);
+        self.timeline.clips.extend(right_halves);
         self.error = None;
         self.status = Some(format!(
             "Bladed {split_count} clip{} at the playhead.",
             plural_suffix(split_count)
         ));
-        self.save_project();
+        self.save_timeline();
         self.load_timeline_position(self.timeline.playhead, false);
     }
 
     pub(super) fn blade_split_clip_at(&mut self, clip_id: u64, position: TimelineTime) {
-        let Some(index) = self.project.clip_index(clip_id) else {
+        let Some(index) = self.timeline.clip_index(clip_id) else {
             return;
         };
         if self.clip_locked(clip_id) {
             return;
         }
-        let clip = self.project.clips[index].clone();
+        let clip = self.timeline.clips[index].clone();
         let right_clip_id = self.take_id();
         let Some((left, right)) = clip.split_at(position, right_clip_id) else {
             return;
         };
 
         self.checkpoint();
-        self.project.clips[index] = left;
-        self.project.clips.push(right);
+        self.timeline.clips[index] = left;
+        self.timeline.clips.push(right);
         self.select_only_clip(Some(right_clip_id));
         self.error = None;
-        self.save_project();
+        self.save_timeline();
         self.load_timeline_position(self.timeline.playhead, false);
     }
 
@@ -169,7 +171,7 @@ impl Editor {
 
     pub(super) fn copy_selected_clips(&mut self) {
         let Some(clipboard) = ClipClipboard::from_selection(
-            &self.project,
+            &self.timeline,
             &self.timeline.selected_clip_ids,
             self.timeline.selected_clip_id,
         ) else {
@@ -190,7 +192,7 @@ impl Editor {
             return;
         }
         let Some(clipboard) = ClipClipboard::from_selection(
-            &self.project,
+            &self.timeline,
             &self.timeline.selected_clip_ids,
             self.timeline.selected_clip_id,
         ) else {
@@ -210,7 +212,7 @@ impl Editor {
             return;
         };
         let mut clips = clipboard.clips_at(self.timeline.playhead);
-        if let Err(rejection) = validate_clipboard_placements(&self.project, &clips) {
+        if let Err(rejection) = validate_clipboard_placements(&self.timeline, &clips) {
             self.error = Some(format!("Cannot paste clips: {}.", rejection.message()));
             return;
         }
@@ -226,19 +228,19 @@ impl Editor {
             .and_then(|index| clips.get(index))
             .or_else(|| clips.first())
             .map(|clip| clip.id);
-        self.project.clips.extend(clips);
+        self.timeline.clips.extend(clips);
         self.preview.target = PreviewTarget::Timeline;
         self.error = None;
         self.status = Some(format!("Pasted {count} clip{}.", plural_suffix(count)));
-        self.save_project();
+        self.save_timeline();
         self.load_timeline_position(self.timeline.playhead, false);
     }
 
     fn remove_clips(&mut self, clip_ids: &HashSet<u64>, close_track_gaps: bool) {
         if close_track_gaps {
-            ripple_clips_after_deletion(&mut self.project.clips, clip_ids);
+            ripple_clips_after_deletion(&mut self.timeline.clips, clip_ids);
         }
-        self.project
+        self.timeline
             .clips
             .retain(|clip| !clip_ids.contains(&clip.id));
         self.select_only_clip(None);
@@ -248,22 +250,22 @@ impl Editor {
         self.preview.timeline_needs_rebuild = true;
         self.preview.playing = false;
         self.preview.timeline_clock = None;
-        if self.project.clips.is_empty() {
+        if self.timeline.clips.is_empty() {
             self.timeline.playhead = TimelineTime::ZERO;
         } else {
             self.load_timeline_position(self.timeline.playhead, false);
         }
-        self.save_project();
+        self.save_timeline();
     }
 
     pub(super) fn duplicate_selected(&mut self) {
-        let clip_ids = self.selected_clip_ids_in_project_order();
+        let clip_ids = self.selected_clip_ids_in_timeline_order();
         if clip_ids.is_empty() || !self.selected_clips_editable() {
             return;
         }
         let clips = clip_ids
             .iter()
-            .filter_map(|clip_id| self.project.clip(*clip_id).cloned())
+            .filter_map(|clip_id| self.timeline.clip(*clip_id).cloned())
             .collect::<Vec<_>>();
         if clips.len() != clip_ids.len() {
             return;
@@ -290,7 +292,7 @@ impl Editor {
             let mut next_delta = delta + TimelineTime::ONE_FRAME;
             for (clip, (_, track_id, start)) in clips.iter().zip(&candidate) {
                 for other in self
-                    .project
+                    .timeline
                     .clips
                     .iter()
                     .filter(|other| other.track_id == *track_id)
@@ -324,14 +326,18 @@ impl Editor {
             .and_then(|index| duplicates.get(index))
             .or_else(|| duplicates.first())
             .map(|clip| clip.id);
-        self.project.clips.extend(duplicates);
-        self.save_project();
+        self.timeline.clips.extend(duplicates);
+        self.save_timeline();
     }
 
     pub(super) fn add_track(&mut self, kind: TrackKind) {
+        if self.timeline.active_timeline.is_none() {
+            self.error = Some("Create or select a timeline before adding tracks.".to_string());
+            return;
+        }
         self.checkpoint();
         let number = self
-            .project
+            .timeline
             .tracks
             .iter()
             .filter(|track| track.kind == kind)
@@ -342,7 +348,7 @@ impl Editor {
             TrackKind::Audio => "Audio",
         };
         let id = self.take_id();
-        self.project.tracks.push(TimelineTrack {
+        self.timeline.tracks.push(TimelineTrack {
             id,
             name: format!("{prefix} {number}"),
             kind,
@@ -350,38 +356,38 @@ impl Editor {
             muted: false,
             visible: true,
         });
-        self.save_project();
+        self.save_timeline();
     }
 
     pub(super) fn toggle_track_lock(&mut self, track_id: u64) {
         self.checkpoint();
-        if let Some(track) = self.project.track_mut(track_id) {
+        if let Some(track) = self.timeline.track_mut(track_id) {
             track.locked = !track.locked;
         }
-        self.save_project();
+        self.save_timeline();
     }
 
     pub(super) fn toggle_track_visibility(&mut self, track_id: u64) {
         self.checkpoint();
-        if let Some(track) = self.project.track_mut(track_id) {
+        if let Some(track) = self.timeline.track_mut(track_id) {
             track.visible = !track.visible;
         }
-        self.save_project();
+        self.save_timeline();
         self.load_timeline_position(self.timeline.playhead, false);
     }
 
     pub(super) fn toggle_track_mute(&mut self, track_id: u64) {
         self.checkpoint();
-        if let Some(track) = self.project.track_mut(track_id) {
+        if let Some(track) = self.timeline.track_mut(track_id) {
             track.muted = !track.muted;
         }
-        self.save_project();
+        self.save_timeline();
         self.load_timeline_position(self.timeline.playhead, self.preview.playing);
     }
 
     pub(super) fn move_track(&mut self, track_id: u64, direction: i8) {
         let Some(index) = self
-            .project
+            .timeline
             .tracks
             .iter()
             .position(|track| track.id == track_id)
@@ -390,7 +396,7 @@ impl Editor {
         };
         let target = if direction < 0 {
             index.checked_sub(1)
-        } else if index + 1 < self.project.tracks.len() {
+        } else if index + 1 < self.timeline.tracks.len() {
             Some(index + 1)
         } else {
             None
@@ -399,42 +405,48 @@ impl Editor {
             return;
         };
         self.checkpoint();
-        self.project.tracks.swap(index, target);
-        self.save_project();
+        self.timeline.tracks.swap(index, target);
+        self.save_timeline();
         self.load_timeline_position(self.timeline.playhead, false);
     }
 
     pub(super) fn delete_track(&mut self, track_id: u64) {
         let Some(index) = self
-            .project
+            .timeline
             .tracks
             .iter()
             .position(|track| track.id == track_id)
         else {
             return;
         };
-        if self.project.tracks[index].locked {
+        if self.timeline.tracks[index].locked {
             return;
         }
         self.checkpoint();
-        self.project.tracks.remove(index);
-        self.project.clips.retain(|clip| clip.track_id != track_id);
+        self.timeline.tracks.remove(index);
+        self.timeline.clips.retain(|clip| clip.track_id != track_id);
+        let remaining_clip_ids = self
+            .timeline
+            .clips
+            .iter()
+            .map(|clip| clip.id)
+            .collect::<HashSet<_>>();
         self.timeline
             .selected_clip_ids
-            .retain(|id| self.project.clip(*id).is_some());
+            .retain(|id| remaining_clip_ids.contains(id));
         if self
             .timeline
             .selected_clip_id
-            .is_some_and(|id| self.project.clip(id).is_none())
+            .is_some_and(|id| self.timeline.clip(id).is_none())
         {
             self.timeline.selected_clip_id = self
-                .project
+                .timeline
                 .clips
                 .iter()
                 .find(|clip| self.timeline.selected_clip_ids.contains(&clip.id))
                 .map(|clip| clip.id);
         }
-        self.save_project();
+        self.save_timeline();
         self.load_timeline_position(self.timeline.playhead, false);
     }
 
@@ -448,9 +460,9 @@ impl Editor {
     }
 
     pub(super) fn select_all_unlocked_clips(&mut self) {
-        self.timeline.selected_clip_ids = unlocked_clip_ids(&self.project);
+        self.timeline.selected_clip_ids = unlocked_clip_ids(&self.timeline);
         self.timeline.selected_clip_id = self
-            .project
+            .timeline
             .clips
             .iter()
             .find(|clip| self.timeline.selected_clip_ids.contains(&clip.id))
@@ -462,21 +474,21 @@ impl Editor {
         if self.timeline.selected_clip_ids.remove(&clip_id) {
             if self.timeline.selected_clip_id == Some(clip_id) {
                 self.timeline.selected_clip_id = self
-                    .project
+                    .timeline
                     .clips
                     .iter()
                     .find(|clip| self.timeline.selected_clip_ids.contains(&clip.id))
                     .map(|clip| clip.id);
             }
-        } else if self.project.clip(clip_id).is_some() {
+        } else if self.timeline.clip(clip_id).is_some() {
             self.timeline.selected_clip_ids.insert(clip_id);
             self.timeline.selected_clip_id = Some(clip_id);
         }
         self.properties.transform_input_clip_id = None;
     }
 
-    pub(super) fn selected_clip_ids_in_project_order(&self) -> Vec<u64> {
-        self.project
+    pub(super) fn selected_clip_ids_in_timeline_order(&self) -> Vec<u64> {
+        self.timeline
             .clips
             .iter()
             .filter(|clip| self.timeline.selected_clip_ids.contains(&clip.id))
@@ -486,11 +498,9 @@ impl Editor {
 
     pub(super) fn selected_clips_editable(&self) -> bool {
         !self.timeline.selected_clip_ids.is_empty()
-            && self
-                .timeline
-                .selected_clip_ids
-                .iter()
-                .all(|clip_id| self.project.clip(*clip_id).is_some() && !self.clip_locked(*clip_id))
+            && self.timeline.selected_clip_ids.iter().all(|clip_id| {
+                self.timeline.clip(*clip_id).is_some() && !self.clip_locked(*clip_id)
+            })
     }
 
     pub(super) fn clip_placements_fit(
@@ -511,14 +521,14 @@ impl Editor {
             return Err(ClipPlacementRejection::NoPlacements);
         }
         for (clip_id, track_id, start) in placements {
-            let Some(clip) = self.project.clip(*clip_id) else {
+            let Some(clip) = self.timeline.clip(*clip_id) else {
                 return Err(ClipPlacementRejection::MissingClip);
             };
-            let Some(asset) = self.project.asset(clip.asset_id) else {
+            let Some(asset) = self.timeline.asset(clip.asset_id) else {
                 return Err(ClipPlacementRejection::MissingAsset);
             };
             validate_clip_placement(
-                &self.project,
+                &self.timeline,
                 *track_id,
                 asset.kind,
                 clip.duration(),
@@ -528,7 +538,7 @@ impl Editor {
         }
         for (index, (clip_id, track_id, start)) in placements.iter().enumerate() {
             let duration = self
-                .project
+                .timeline
                 .clip(*clip_id)
                 .map(TimelineClip::duration)
                 .ok_or(ClipPlacementRejection::MissingClip)?;
@@ -536,7 +546,7 @@ impl Editor {
                 .iter()
                 .any(|(other_id, other_track_id, other_start)| {
                     let other_duration = self
-                        .project
+                        .timeline
                         .clip(*other_id)
                         .map(TimelineClip::duration)
                         .unwrap_or(TimelineTime::ZERO);
@@ -556,7 +566,11 @@ impl Editor {
     }
 
     pub(super) fn checkpoint(&mut self) {
-        self.timeline.undo_stack.push(self.project.clone());
+        let Some((_, timeline)) = self.timeline.active_timeline.as_ref() else {
+            return;
+        };
+        let snapshot = timeline.clone();
+        self.timeline.undo_stack.push(snapshot);
         if self.timeline.undo_stack.len() > 100 {
             self.timeline.undo_stack.remove(0);
         }
@@ -565,22 +579,26 @@ impl Editor {
     }
 
     pub(super) fn undo(&mut self) {
-        let Some(project) = self.timeline.undo_stack.pop() else {
+        let Some(snapshot) = self.timeline.undo_stack.pop() else {
             return;
         };
-        self.timeline
-            .redo_stack
-            .push(std::mem::replace(&mut self.project, project));
+        let Some((_, timeline)) = self.timeline.active_timeline.as_mut() else {
+            return;
+        };
+        let current = std::mem::replace(timeline, snapshot);
+        self.timeline.redo_stack.push(current);
         self.reset_after_history_change();
     }
 
     pub(super) fn redo(&mut self) {
-        let Some(project) = self.timeline.redo_stack.pop() else {
+        let Some(snapshot) = self.timeline.redo_stack.pop() else {
             return;
         };
-        self.timeline
-            .undo_stack
-            .push(std::mem::replace(&mut self.project, project));
+        let Some((_, timeline)) = self.timeline.active_timeline.as_mut() else {
+            return;
+        };
+        let current = std::mem::replace(timeline, snapshot);
+        self.timeline.undo_stack.push(current);
         self.reset_after_history_change();
     }
 
@@ -594,9 +612,9 @@ impl Editor {
         self.timeline.playhead = self
             .timeline
             .playhead
-            .clamp(TimelineTime::ZERO, self.project.timeline_duration());
+            .clamp(TimelineTime::ZERO, self.timeline.timeline_duration());
         let available_clip_ids = self
-            .project
+            .timeline
             .clips
             .iter()
             .map(|clip| clip.id)
@@ -609,23 +627,23 @@ impl Editor {
             .selected_clip_id
             .filter(|clip_id| self.timeline.selected_clip_ids.contains(clip_id))
             .or_else(|| {
-                self.project
+                self.timeline
                     .clips
                     .iter()
                     .find(|clip| self.timeline.selected_clip_ids.contains(&clip.id))
                     .map(|clip| clip.id)
             });
         self.properties.transform_input_clip_id = None;
-        if !self.project.clips.is_empty() {
+        if !self.timeline.clips.is_empty() {
             self.load_timeline_position(self.timeline.playhead, false);
         }
-        self.timeline.next_id = self.timeline.next_id.max(self.project.next_id());
-        self.save_project();
+        self.timeline.next_id = self.timeline.next_id.max(self.timeline.next_id());
+        self.save_timeline();
     }
 
-    pub(super) fn save_project(&mut self) {
+    pub(super) fn save_timeline(&mut self) {
         if let Some(path) = self.timeline_file_path()
-            && let Err(error) = self.project.save(&path)
+            && let Err(error) = self.timeline.save(&path)
         {
             self.error = Some(format!("Could not autosave timeline: {error}"));
             return;
@@ -646,12 +664,12 @@ impl Editor {
     }
 }
 
-fn unlocked_clip_ids(project: &Project) -> HashSet<u64> {
-    project
+fn unlocked_clip_ids(timeline: &Timeline) -> HashSet<u64> {
+    timeline
         .clips
         .iter()
         .filter(|clip| {
-            project
+            timeline
                 .track(clip.track_id)
                 .is_some_and(|track| !track.locked)
         })
@@ -659,13 +677,13 @@ fn unlocked_clip_ids(project: &Project) -> HashSet<u64> {
         .collect()
 }
 
-fn find_append_track(project: &Project, asset: &MediaAsset) -> Result<u64, String> {
+fn find_append_track(timeline: &Timeline, asset: &MediaAsset) -> Result<u64, String> {
     let target_kind = if asset.kind == MediaKind::Audio {
         TrackKind::Audio
     } else {
         TrackKind::Video
     };
-    project
+    timeline
         .tracks
         .iter()
         .find(|track| track.kind == target_kind && !track.locked)
@@ -702,15 +720,15 @@ fn ripple_clips_after_deletion(clips: &mut [TimelineClip], deleted_ids: &HashSet
     }
 }
 
-fn clips_crossing_playhead(project: &Project, playhead: TimelineTime) -> Vec<TimelineClip> {
-    project
+fn clips_crossing_playhead(timeline: &Timeline, playhead: TimelineTime) -> Vec<TimelineClip> {
+    timeline
         .clips
         .iter()
         .filter(|clip| {
             let local = playhead - clip.timeline_start;
             let crosses_playhead = local >= TimelineTime::ONE_FRAME
                 && local <= clip.duration() - TimelineTime::ONE_FRAME;
-            let track_is_editable = project
+            let track_is_editable = timeline
                 .track(clip.track_id)
                 .is_some_and(|track| !track.locked);
             crosses_playhead && track_is_editable
@@ -720,18 +738,18 @@ fn clips_crossing_playhead(project: &Project, playhead: TimelineTime) -> Vec<Tim
 }
 
 fn validate_clipboard_placements(
-    project: &Project,
+    timeline: &Timeline,
     clips: &[TimelineClip],
 ) -> Result<(), ClipPlacementRejection> {
     if clips.is_empty() {
         return Err(ClipPlacementRejection::NoPlacements);
     }
     for clip in clips {
-        let Some(asset) = project.asset(clip.asset_id) else {
+        let Some(asset) = timeline.asset(clip.asset_id) else {
             return Err(ClipPlacementRejection::MissingAsset);
         };
         validate_clip_placement(
-            project,
+            timeline,
             clip.track_id,
             asset.kind,
             clip.duration(),

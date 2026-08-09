@@ -10,7 +10,7 @@ const TICK_STEPS: [f64; 12] = [
 
 impl Editor {
     pub(super) fn timeline(&self, cx: &mut Context<Self>) -> gpui::AnyElement {
-        let frames_per_second = self.project.settings.frame_rate.frames_per_second();
+        let frames_per_second = self.timeline.settings.frame_rate.frames_per_second();
 
         div()
             .id("editor-timeline")
@@ -69,20 +69,20 @@ impl Editor {
 
     fn timeline_tracks_container(&self, cx: &mut Context<Self>) -> gpui::AnyElement {
         let duration = self
-            .project
-            .seconds(self.project.timeline_duration())
+            .timeline
+            .seconds(self.timeline.timeline_duration())
             .max(12.0);
         let timeline_width =
             (duration as f32 * self.timeline.pixels_per_second + TIMELINE_PADDING * 2.0).max(900.0);
         let track_headers = self
-            .project
+            .timeline
             .tracks
             .iter()
             .enumerate()
             .map(|(index, track)| self.track_header(index, track, cx))
             .collect::<Vec<_>>();
         let track_rows = self
-            .project
+            .timeline
             .tracks
             .iter()
             .enumerate()
@@ -103,7 +103,7 @@ impl Editor {
             .child(
                 div()
                     .h(px(
-                        RULER_HEIGHT + self.project.tracks.len() as f32 * TRACK_HEIGHT
+                        RULER_HEIGHT + self.timeline.tracks.len() as f32 * TRACK_HEIGHT
                     ))
                     .min_h_full()
                     .w_full()
@@ -159,7 +159,7 @@ impl Editor {
                                     .child(self.timeline_playhead(cx))
                                     .when_some(self.timeline.snap_guide, |this, guide| {
                                         let guide_left = TIMELINE_PADDING
-                                            + self.project.seconds(guide) as f32
+                                            + self.timeline.seconds(guide) as f32
                                                 * self.timeline.pixels_per_second;
                                         this.child(
                                             div()
@@ -182,7 +182,7 @@ impl Editor {
                                     })
                                     .when_some(self.timeline.blade_guide, |this, position| {
                                         let guide_left = TIMELINE_PADDING
-                                            + self.project.seconds(position) as f32
+                                            + self.timeline.seconds(position) as f32
                                                 * self.timeline.pixels_per_second;
                                         this.child(
                                             div()
@@ -211,7 +211,8 @@ impl Editor {
 
     fn timeline_playhead(&self, cx: &mut Context<Self>) -> gpui::AnyElement {
         let left = TIMELINE_PADDING
-            + self.project.seconds(self.timeline.playhead) as f32 * self.timeline.pixels_per_second;
+            + self.timeline.seconds(self.timeline.playhead) as f32
+                * self.timeline.pixels_per_second;
 
         div()
             .absolute()
@@ -247,7 +248,7 @@ impl Editor {
     }
 
     fn timeline_ruler(&self, duration: f64, cx: &mut Context<Self>) -> gpui::AnyElement {
-        let frame_rate = self.project.settings.frame_rate;
+        let frame_rate = self.timeline.settings.frame_rate;
         let frames_per_second = frame_rate.frames_per_second();
         let displayed_frames = frame_rate.ceil(duration).frames().max(1);
         let pixels_per_frame = self.timeline.pixels_per_second / frames_per_second as f32;
@@ -333,6 +334,7 @@ impl Editor {
     }
 
     fn timeline_toolbar(&self, frames_per_second: f64, cx: &mut Context<Self>) -> gpui::AnyElement {
+        let has_active_timeline = self.timeline.active_timeline.is_some();
         div()
             .id("timeline-toolbar")
             .h(px(TIMELINE_HEADER_HEIGHT))
@@ -398,28 +400,42 @@ impl Editor {
                             .text_sm()
                             .child(format!(
                                 "{} / {}",
-                                format_time(self.project.seconds(self.timeline.playhead), false),
+                                format_time(self.timeline.seconds(self.timeline.playhead), false),
                                 format_time(
-                                    self.project.seconds(self.project.timeline_duration()),
+                                    self.timeline.seconds(self.timeline.timeline_duration()),
                                     false
                                 )
                             )),
                     )
                     .child(
-                        timeline_icon_button("add-video-track", "+V").on_click(cx.listener(
-                            |editor, _, _, cx| {
-                                editor.add_track(TrackKind::Video);
-                                cx.notify();
-                            },
-                        )),
+                        timeline_icon_button("add-video-track", "+V")
+                            .opacity(if has_active_timeline { 1.0 } else { 0.4 })
+                            .cursor(if has_active_timeline {
+                                CursorStyle::PointingHand
+                            } else {
+                                CursorStyle::Arrow
+                            })
+                            .when(has_active_timeline, |button| {
+                                button.on_click(cx.listener(|editor, _, _, cx| {
+                                    editor.add_track(TrackKind::Video);
+                                    cx.notify();
+                                }))
+                            }),
                     )
                     .child(
-                        timeline_icon_button("add-audio-track", "+A").on_click(cx.listener(
-                            |editor, _, _, cx| {
-                                editor.add_track(TrackKind::Audio);
-                                cx.notify();
-                            },
-                        )),
+                        timeline_icon_button("add-audio-track", "+A")
+                            .opacity(if has_active_timeline { 1.0 } else { 0.4 })
+                            .cursor(if has_active_timeline {
+                                CursorStyle::PointingHand
+                            } else {
+                                CursorStyle::Arrow
+                            })
+                            .when(has_active_timeline, |button| {
+                                button.on_click(cx.listener(|editor, _, _, cx| {
+                                    editor.add_track(TrackKind::Audio);
+                                    cx.notify();
+                                }))
+                            }),
                     )
                     .child(
                         timeline_icon_button(

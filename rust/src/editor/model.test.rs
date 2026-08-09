@@ -52,8 +52,8 @@ fn image_asset() -> MediaAsset {
 }
 
 #[test]
-fn new_projects_have_no_tracks() {
-    assert!(Project::default().tracks.is_empty());
+fn new_timelines_have_no_tracks() {
+    assert!(Timeline::default().tracks.is_empty());
 }
 
 #[test]
@@ -65,11 +65,11 @@ fn frame_rate_labels_use_presets_and_format_custom_rates() {
 }
 
 #[test]
-fn repairs_overlapping_clips_when_loading_a_project() {
-    let mut project = Project {
+fn repairs_overlapping_clips_when_loading_a_timeline() {
+    let mut project = Timeline {
         assets: vec![video_asset()],
         clips: vec![video_clip(10, 0, 150), video_clip(11, 90, 120)],
-        ..Project::with_test_tracks()
+        ..Timeline::with_test_tracks()
     };
 
     project.normalize();
@@ -80,10 +80,10 @@ fn repairs_overlapping_clips_when_loading_a_project() {
 
 #[test]
 fn still_image_clips_can_extend_beyond_their_default_duration() {
-    let mut project = Project {
+    let mut project = Timeline {
         assets: vec![image_asset()],
         clips: vec![video_clip(10, 0, 300)],
-        ..Project::with_test_tracks()
+        ..Timeline::with_test_tracks()
     };
 
     project.normalize();
@@ -94,10 +94,10 @@ fn still_image_clips_can_extend_beyond_their_default_duration() {
 
 #[test]
 fn time_based_media_remains_bounded_by_its_source_duration() {
-    let mut project = Project {
+    let mut project = Timeline {
         assets: vec![video_asset()],
         clips: vec![video_clip(10, 0, 1_200)],
-        ..Project::with_test_tracks()
+        ..Timeline::with_test_tracks()
     };
 
     project.normalize();
@@ -162,15 +162,15 @@ fn long_timeline_duration_uses_exact_frame_counts() {
 
 #[test]
 fn preview_and_export_boundaries_share_the_same_frame_time() {
-    let project = Project {
-        settings: ProjectSettings {
+    let project = Timeline {
+        settings: TimelineSettings {
             frame_rate: FrameRate {
                 numerator: 24_000,
                 denominator: 1_001,
             },
-            ..ProjectSettings::default()
+            ..TimelineSettings::default()
         },
-        ..Project::default()
+        ..Timeline::default()
     };
     let boundary = frames(98_765);
     let preview_duration = project.duration(boundary).as_secs_f64();
@@ -179,7 +179,7 @@ fn preview_and_export_boundaries_share_the_same_frame_time() {
 }
 
 #[test]
-fn project_frames_map_to_exact_audio_samples() {
+fn timeline_frames_map_to_exact_audio_samples() {
     let frame_rate = FrameRate {
         numerator: 30_000,
         denominator: 1_001,
@@ -189,14 +189,14 @@ fn project_frames_map_to_exact_audio_samples() {
 
 #[test]
 fn maps_30_fps_source_frames_onto_a_24_fps_timeline() {
-    let project = Project {
-        settings: ProjectSettings {
+    let project = Timeline {
+        settings: TimelineSettings {
             frame_rate: FrameRate::new(24, 1),
-            ..ProjectSettings::default()
+            ..TimelineSettings::default()
         },
         assets: vec![video_asset()],
         clips: vec![video_clip(10, 0, 24)],
-        ..Project::default()
+        ..Timeline::default()
     };
     let clip = &project.clips[0];
     let mapped = (0..=8)
@@ -208,10 +208,10 @@ fn maps_30_fps_source_frames_onto_a_24_fps_timeline() {
 
 #[test]
 fn changing_timeline_rate_preserves_elapsed_edit_times() {
-    let mut project = Project {
+    let mut project = Timeline {
         assets: vec![video_asset()],
         clips: vec![video_clip(10, 30, 300)],
-        ..Project::with_test_tracks()
+        ..Timeline::with_test_tracks()
     };
 
     project.set_frame_rate(FrameRate::new(24, 1));
@@ -270,13 +270,14 @@ fn splitting_clip_rejects_its_outer_frames() {
 }
 
 #[test]
-fn project_serialization_stores_integer_frames_and_rational_rate() {
-    let project = Project {
+fn timeline_serialization_stores_integer_frames_and_rational_rate() {
+    let project = Timeline {
         assets: vec![video_asset()],
         clips: vec![video_clip(10, 17, 83)],
-        ..Project::default()
+        ..Timeline::default()
     };
     let json = serde_json::to_value(project).unwrap();
+    assert!(json.get("version").is_none());
     assert_eq!(json["settings"]["frame_rate"]["numerator"], 30);
     assert_eq!(json["settings"]["frame_rate"]["denominator"], 1);
     assert_eq!(json["clips"][0]["timeline_start"], 17);
@@ -324,7 +325,7 @@ fn clips_without_property_objects_deserialize_with_defaults() {
 }
 
 #[test]
-fn clip_properties_round_trip_through_project_json() {
+fn clip_properties_round_trip_through_timeline_json() {
     let mut clip = video_clip(10, 0, 30);
     clip.video_properties = VideoClipProperties {
         position_x: 120.0,

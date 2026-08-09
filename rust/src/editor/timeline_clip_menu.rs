@@ -8,23 +8,23 @@ pub(super) struct TimelineClipContextMenu {
 }
 
 fn transform_targets(
-    project: &Project,
+    timeline: &Timeline,
     source_clip_id: u64,
 ) -> Option<(VideoClipProperties, Vec<usize>)> {
-    let source = project.clip(source_clip_id)?;
-    let track = project.track(source.track_id)?;
-    let source_asset = project.asset(source.asset_id)?;
+    let source = timeline.clip(source_clip_id)?;
+    let track = timeline.track(source.track_id)?;
+    let source_asset = timeline.asset(source.asset_id)?;
     if track.locked || track.kind != TrackKind::Video || source_asset.kind == MediaKind::Audio {
         return None;
     }
     let properties = source.video_properties;
-    let targets = project
+    let targets = timeline
         .clips
         .iter()
         .enumerate()
         .filter(|(_, clip)| clip.id != source.id && clip.track_id == source.track_id)
         .filter(|(_, clip)| {
-            project
+            timeline
                 .asset(clip.asset_id)
                 .is_some_and(|asset| asset.kind != MediaKind::Audio)
         })
@@ -49,7 +49,7 @@ impl Editor {
         let top = menu
             .y
             .clamp(8.0, (f32::from(viewport.height) - height - 8.0).max(8.0));
-        let enabled = transform_targets(&self.project, menu.clip_id)
+        let enabled = transform_targets(&self.timeline, menu.clip_id)
             .is_some_and(|(_, targets)| !targets.is_empty());
 
         div()
@@ -134,7 +134,7 @@ impl Editor {
         else {
             return;
         };
-        let Some((properties, targets)) = transform_targets(&self.project, source_clip_id) else {
+        let Some((properties, targets)) = transform_targets(&self.timeline, source_clip_id) else {
             return;
         };
         if targets.is_empty() {
@@ -143,11 +143,11 @@ impl Editor {
         let changed = targets.len();
         self.checkpoint();
         for index in targets {
-            self.project.clips[index].video_properties = properties;
+            self.timeline.clips[index].video_properties = properties;
         }
         self.properties.transform_input_clip_id = None;
         self.preview.refresh_ticks = 2;
-        self.save_project();
+        self.save_timeline();
         self.status = Some(format!(
             "Applied transforms to {changed} other clip{}.",
             if changed == 1 { "" } else { "s" }
