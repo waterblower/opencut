@@ -232,6 +232,14 @@ struct TimelineUiState {
     vertical_scroll: ScrollHandle,
 }
 
+struct PropertiesPanelState {
+    width: f32,
+    resizing: bool,
+    transform_inputs: VideoTransformInputs,
+    transform_input_clip_id: Option<u64>,
+    opacity_drag: Option<OpacityDrag>,
+}
+
 struct ExportState {
     dialog: Option<ExportDialogState>,
     running: bool,
@@ -250,11 +258,7 @@ pub(crate) struct Editor {
     selected_clip_id: Option<u64>,
     selected_clip_ids: HashSet<u64>,
     clip_clipboard: Option<ClipClipboard>,
-    properties_panel_width: f32,
-    is_resizing_properties_panel: bool,
-    video_transform_inputs: VideoTransformInputs,
-    video_transform_input_clip_id: Option<u64>,
-    opacity_drag: Option<OpacityDrag>,
+    properties: PropertiesPanelState,
     settings_open: bool,
     export: ExportState,
     timeline_ui: TimelineUiState,
@@ -359,11 +363,13 @@ impl Editor {
             selected_clip_id,
             selected_clip_ids,
             clip_clipboard: None,
-            properties_panel_width: DEFAULT_PROPERTIES_PANEL_WIDTH,
-            is_resizing_properties_panel: false,
-            video_transform_inputs,
-            video_transform_input_clip_id: None,
-            opacity_drag: None,
+            properties: PropertiesPanelState {
+                width: DEFAULT_PROPERTIES_PANEL_WIDTH,
+                resizing: false,
+                transform_inputs: video_transform_inputs,
+                transform_input_clip_id: None,
+                opacity_drag: None,
+            },
             settings_open: false,
             export: ExportState {
                 dialog: None,
@@ -648,8 +654,8 @@ impl Editor {
         self.preview.scrub_fraction = None;
         self.preview.pending_seek_started = None;
         self.preview.last_scrub_seek = None;
-        self.video_transform_input_clip_id = None;
-        self.opacity_drag = None;
+        self.properties.transform_input_clip_id = None;
+        self.properties.opacity_drag = None;
         self.timeline_ui.trim_drag = None;
         self.timeline_ui.clip_move_drag = None;
         self.timeline_ui.marquee_selection = None;

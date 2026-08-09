@@ -24,13 +24,13 @@ impl Editor {
         div()
             .id("editor-properties-panel")
             .relative()
-            .w(px(self.properties_panel_width))
+            .w(px(self.properties.width))
             .h_full()
             .flex_shrink_0()
             .flex()
             .flex_col()
             .border_l_1()
-            .border_color(if self.is_resizing_properties_panel {
+            .border_color(if self.properties.resizing {
                 rgb(ACCENT)
             } else {
                 rgb(BORDER)
@@ -74,8 +74,7 @@ impl Editor {
         let editor_width = (viewport_width - crate::gpui_inspector::docked_width(window)).max(0.0);
         let available_max = (editor_width - MEDIA_PANEL_WIDTH - MIN_PREVIEW_WIDTH)
             .clamp(MIN_PROPERTIES_PANEL_WIDTH, MAX_PROPERTIES_PANEL_WIDTH);
-        self.properties_panel_width =
-            (editor_width - x).clamp(MIN_PROPERTIES_PANEL_WIDTH, available_max);
+        self.properties.width = (editor_width - x).clamp(MIN_PROPERTIES_PANEL_WIDTH, available_max);
     }
 
     pub(super) fn begin_properties_panel_resize(
@@ -84,7 +83,7 @@ impl Editor {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        self.is_resizing_properties_panel = true;
+        self.properties.resizing = true;
         self.set_properties_panel_width_from_x(event.position.x.into(), window);
         cx.notify();
     }
@@ -95,7 +94,7 @@ impl Editor {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        if self.is_resizing_properties_panel {
+        if self.properties.resizing {
             self.set_properties_panel_width_from_x(event.event.position.x.into(), window);
             cx.notify();
         }
@@ -107,9 +106,9 @@ impl Editor {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        if self.is_resizing_properties_panel && event.button == MouseButton::Left {
+        if self.properties.resizing && event.button == MouseButton::Left {
             self.set_properties_panel_width_from_x(event.position.x.into(), window);
-            self.is_resizing_properties_panel = false;
+            self.properties.resizing = false;
             cx.notify();
         }
     }

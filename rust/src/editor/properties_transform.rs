@@ -95,19 +95,20 @@ impl Editor {
 
     pub(super) fn sync_video_transform_inputs(&mut self, cx: &mut Context<Self>) {
         let Some(clip_id) = self.selected_clip_id else {
-            self.video_transform_input_clip_id = None;
+            self.properties.transform_input_clip_id = None;
             return;
         };
-        if self.selected_clip_ids.len() != 1 || self.video_transform_input_clip_id == Some(clip_id)
+        if self.selected_clip_ids.len() != 1
+            || self.properties.transform_input_clip_id == Some(clip_id)
         {
             return;
         }
         let Some(clip) = self.project.clip(clip_id) else {
-            self.video_transform_input_clip_id = None;
+            self.properties.transform_input_clip_id = None;
             return;
         };
         let properties = clip.video_properties;
-        self.video_transform_input_clip_id = Some(clip_id);
+        self.properties.transform_input_clip_id = Some(clip_id);
         let values = [
             (VideoTransformProperty::PositionX, properties.position_x),
             (VideoTransformProperty::PositionY, properties.position_y),
@@ -128,7 +129,7 @@ impl Editor {
         ];
         for (property, value) in values {
             let text = format_transform_value(value);
-            let input = self.video_transform_inputs.input(property);
+            let input = self.properties.transform_inputs.input(property);
             if input.read(cx).query() != text {
                 input.update(cx, |input, _| input.set_text_silently(text));
             }
@@ -246,7 +247,7 @@ impl Editor {
         field_id: &'static str,
         editable: bool,
     ) -> gpui::AnyElement {
-        let input = self.video_transform_inputs.input(property);
+        let input = self.properties.transform_inputs.input(property);
         div()
             .h(px(48.0))
             .flex()
@@ -297,7 +298,7 @@ impl Editor {
         field_id: &'static str,
         editable: bool,
     ) -> gpui::AnyElement {
-        let input = self.video_transform_inputs.input(property);
+        let input = self.properties.transform_inputs.input(property);
         div()
             .min_w_0()
             .flex()
@@ -443,9 +444,9 @@ impl Editor {
         }
         let viewport_width = f32::from(window.viewport_size().width);
         let editor_width = (viewport_width - crate::gpui_inspector::docked_width(window)).max(0.0);
-        let slider_left = editor_width - self.properties_panel_width + 148.0;
-        let slider_width = (self.properties_panel_width - 218.0).max(1.0);
-        self.opacity_drag = Some(OpacityDrag {
+        let slider_left = editor_width - self.properties.width + 148.0;
+        let slider_width = (self.properties.width - 218.0).max(1.0);
+        self.properties.opacity_drag = Some(OpacityDrag {
             clip_id,
             slider_left,
             slider_width,
@@ -461,7 +462,7 @@ impl Editor {
         _: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        if self.opacity_drag.is_some() && event.dragging() {
+        if self.properties.opacity_drag.is_some() && event.dragging() {
             self.apply_video_opacity_drag(f32::from(event.position.x), cx);
         }
     }
@@ -472,11 +473,15 @@ impl Editor {
         _: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        if event.button != MouseButton::Left || self.opacity_drag.is_none() {
+        if event.button != MouseButton::Left || self.properties.opacity_drag.is_none() {
             return;
         }
         self.apply_video_opacity_drag(f32::from(event.position.x), cx);
-        let changed = self.opacity_drag.take().is_some_and(|drag| drag.changed);
+        let changed = self
+            .properties
+            .opacity_drag
+            .take()
+            .is_some_and(|drag| drag.changed);
         if changed {
             self.save_project();
         }
@@ -484,16 +489,16 @@ impl Editor {
     }
 
     fn apply_video_opacity_drag(&mut self, pointer_x: f32, cx: &mut Context<Self>) {
-        let Some(mut drag) = self.opacity_drag.take() else {
+        let Some(mut drag) = self.properties.opacity_drag.take() else {
             return;
         };
         let opacity = opacity_from_pointer(pointer_x, drag.slider_left, drag.slider_width);
         let Some(index) = self.project.clip_index(drag.clip_id) else {
-            self.opacity_drag = None;
+            self.properties.opacity_drag = None;
             return;
         };
         if (self.project.clips[index].video_properties.opacity - opacity).abs() <= f64::EPSILON {
-            self.opacity_drag = Some(drag);
+            self.properties.opacity_drag = Some(drag);
             return;
         }
         if !drag.changed {
@@ -501,13 +506,13 @@ impl Editor {
             drag.changed = true;
         }
         self.project.clips[index].video_properties.opacity = opacity;
-        self.opacity_drag = Some(drag);
+        self.properties.opacity_drag = Some(drag);
         self.preview.refresh_ticks = 2;
         cx.notify();
     }
 
     fn set_video_transform_from_text(&mut self, property: VideoTransformProperty, text: &str) {
-        let Some(clip_id) = self.video_transform_input_clip_id else {
+        let Some(clip_id) = self.properties.transform_input_clip_id else {
             return;
         };
         if self.clip_locked(clip_id) {
@@ -576,7 +581,7 @@ impl Editor {
         properties.crop_bottom = 0.0;
         self.checkpoint();
         self.project.clips[index].video_properties = properties;
-        self.video_transform_input_clip_id = None;
+        self.properties.transform_input_clip_id = None;
         self.preview.refresh_ticks = 2;
         self.save_project();
     }

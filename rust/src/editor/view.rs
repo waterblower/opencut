@@ -8,7 +8,7 @@ impl Render for Editor {
             (f32::from(viewport.width) - crate::gpui_inspector::docked_width(window)).max(0.0);
         let editor_viewport = gpui::size(px(editor_width), viewport.height);
         let preview_width =
-            (editor_width - MEDIA_PANEL_WIDTH - self.properties_panel_width).max(MIN_PREVIEW_WIDTH);
+            (editor_width - MEDIA_PANEL_WIDTH - self.properties.width).max(MIN_PREVIEW_WIDTH);
         let preview_height =
             (f32::from(viewport.height) - TOPBAR_HEIGHT - TIMELINE_HEIGHT).max(240.0);
 
