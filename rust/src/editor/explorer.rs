@@ -855,7 +855,6 @@ impl Editor {
         self.preview.target = PreviewTarget::Timeline;
         self.load_timeline_position(self.timeline.playhead, false);
         self.explorer.selected_file = Some(relative_path);
-        self.selected_asset_id = Some(asset_id);
         self.select_only_clip(Some(clip_id));
         self.save_project();
         self.status = Some("Added media at the selected timeline position.".to_string());

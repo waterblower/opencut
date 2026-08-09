@@ -260,7 +260,6 @@ pub(crate) struct Editor {
     media_cache_jobs: HashSet<u64>,
     media_cache_ready: HashSet<u64>,
     waveform_cache: HashMap<u64, Arc<media_cache::WaveformData>>,
-    selected_asset_id: Option<u64>,
     properties: PropertiesPanelState,
     settings_open: bool,
     export: ExportState,
@@ -307,7 +306,6 @@ impl Editor {
         timeline_vertical_scroll
             .set_offset(point(px(0.0), px(-timeline_view_state.vertical_scroll)));
         let next_id = project.next_id();
-        let selected_asset_id = project.assets.first().map(|asset| asset.id);
         let selected_clip_id = project.clips.first().map(|clip| clip.id);
         let selected_clip_ids = selected_clip_id.into_iter().collect();
         let focus_handle = cx.focus_handle();
@@ -364,7 +362,6 @@ impl Editor {
             media_cache_jobs: HashSet::new(),
             media_cache_ready: HashSet::new(),
             waveform_cache: HashMap::new(),
-            selected_asset_id,
             properties: PropertiesPanelState {
                 width: DEFAULT_PROPERTIES_PANEL_WIDTH,
                 resizing: false,
@@ -715,7 +712,6 @@ impl Editor {
         self.explorer.selected_file = self.timeline.active_timeline.clone();
         self.explorer.context_menu = None;
         self.preview.target = PreviewTarget::Timeline;
-        self.selected_asset_id = self.project.assets.first().map(|asset| asset.id);
         self.select_only_clip(self.project.clips.first().map(|clip| clip.id));
         self.refresh_file_tree();
         self.error = None;

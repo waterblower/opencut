@@ -193,10 +193,7 @@ impl Editor {
             }
         }
         self.preview.refresh_ticks = 12;
-        self.selected_asset_id = self
-            .project
-            .visual_clip_at_time(position)
-            .map(|clip| clip.asset_id);
+
         self.error = None;
     }
 
@@ -259,12 +256,6 @@ impl Editor {
         let is_audio = workspace::is_audio_path(&relative_path);
 
         self.explorer.selected_file = Some(relative_path.clone());
-        self.selected_asset_id = self
-            .project
-            .assets
-            .iter()
-            .find(|asset| asset.path == relative_path)
-            .map(|asset| asset.id);
 
         if is_image || is_video || is_audio {
             self.preview.target = match (is_video, is_audio) {
