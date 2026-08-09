@@ -1,5 +1,32 @@
 use super::*;
 
+#[cfg(test)]
+impl Timeline {
+    pub fn with_test_tracks() -> Self {
+        Self {
+            tracks: vec![
+                TimelineTrack {
+                    id: 1,
+                    name: "Video 1".into(),
+                    kind: TrackKind::Video,
+                    locked: false,
+                    muted: false,
+                    visible: true,
+                },
+                TimelineTrack {
+                    id: 2,
+                    name: "Audio 1".into(),
+                    kind: TrackKind::Audio,
+                    locked: false,
+                    muted: false,
+                    visible: true,
+                },
+            ],
+            ..Self::default()
+        }
+    }
+}
+
 fn frames(value: i64) -> TimelineTime {
     TimelineTime::from_frames(value)
 }
