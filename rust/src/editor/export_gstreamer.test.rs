@@ -14,7 +14,7 @@ fn exports_every_video_in_the_mini_fixture_as_one_sequence() {
 
 #[cfg(target_os = "macos")]
 #[test]
-fn exports_every_video_in_the_mini_fixture_with_videotoolbox() {
+fn exports_videotoolbox() {
     gst::init().unwrap();
     assert!(
         gst::ElementFactory::find("vtenc_h264_hw").is_some(),
