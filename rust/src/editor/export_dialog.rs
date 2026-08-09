@@ -49,12 +49,14 @@ struct ValidatedExport {
 
 impl Editor {
     pub(super) fn open_export_dialog(&mut self, cx: &mut Context<Self>) {
-        let Some(active_timeline) = self.timeline.active_path().cloned() else {
+        let Some(timeline) = self.timeline.as_ref() else {
             return;
         };
-        if self.timeline.clips.is_empty() || self.export.running {
+        if timeline.data.clips.is_empty() || self.export.running {
             return;
         }
+        let active_timeline = timeline.path.clone();
+        let settings = timeline.data.settings;
 
         let return_focus = self.focus_handle.clone();
         let bitrate = cx.new(|cx| {
@@ -85,8 +87,8 @@ impl Editor {
         self.settings_open = false;
         self.explorer.context_menu = None;
         self.export.dialog = Some(ExportDialogState {
-            resolution: (self.timeline.settings.width, self.timeline.settings.height),
-            frame_rate: self.timeline.settings.frame_rate,
+            resolution: (settings.width, settings.height),
+            frame_rate: settings.frame_rate,
             encoder: ExportEncoder::default_for_platform(),
             resolution_menu_open: false,
             frame_rate_menu_open: false,
@@ -98,15 +100,16 @@ impl Editor {
     }
 
     pub(super) fn export_dialog(&self, cx: &mut Context<Self>) -> gpui::AnyElement {
+        let timeline = self
+            .timeline
+            .as_ref()
+            .expect("export dialog requires an active timeline");
         let state = self
             .export
             .dialog
             .as_ref()
             .expect("export dialog rendered without state");
-        let project_name = self
-            .timeline
-            .active_path()
-            .map(PathBuf::as_path)
+        let project_name = Some(timeline.path.as_path())
             .and_then(Path::file_name)
             .map(|name| name.to_string_lossy().into_owned())
             .map(|name| {
@@ -115,8 +118,8 @@ impl Editor {
                     .to_string()
             })
             .unwrap_or_else(|| "OpenCut timeline".to_string());
-        let duration = self.timeline.content_duration();
-        let duration_seconds = self.timeline.seconds(duration);
+        let duration = timeline.data.content_duration();
+        let duration_seconds = timeline.data.seconds(duration);
         let validated = self.validated_export(cx);
         let validation_error = validated.as_ref().err().cloned();
         let video_bit_rate = validated
@@ -222,7 +225,7 @@ impl Editor {
                                                 "{project_name} · {}",
                                                 format_export_timecode(
                                                     duration,
-                                                    self.timeline.settings.frame_rate
+                                                    timeline.data.settings.frame_rate
                                                 )
                                             )),
                                     ),
@@ -603,7 +606,10 @@ impl Editor {
     }
 
     fn start_export(&mut self, cx: &mut Context<Self>) {
-        if self.export.running || self.timeline.clips.is_empty() {
+        let Some(timeline_state) = self.timeline.as_ref() else {
+            return;
+        };
+        if self.export.running || timeline_state.data.clips.is_empty() {
             return;
         }
         let validated = match self.validated_export(cx) {
@@ -616,12 +622,7 @@ impl Editor {
 
         let path = validated.destination;
         let options = validated.options;
-        let timeline = self
-            .timeline
-            .active_timeline
-            .as_ref()
-            .map(|(_, timeline)| timeline.clone())
-            .expect("export requires an active timeline");
+        let timeline = timeline_state.data.clone();
         let project_root = self.project_root.clone();
         let export_path = path.clone();
         let progress = Arc::new(AtomicU32::new(0));

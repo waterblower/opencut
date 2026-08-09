@@ -100,13 +100,16 @@ impl Editor {
         timeline_width: f32,
         cx: &mut Context<Self>,
     ) -> gpui::AnyElement {
-        let clips = self
+        let timeline = self
             .timeline
+            .as_ref()
+            .expect("track rows require an active timeline");
+        let clips = timeline
+            .data
             .clips_on_track(track.id)
             .map(|clip| self.timeline_clip(track, clip, cx))
             .collect::<Vec<_>>();
-        let move_previews = self
-            .timeline
+        let move_previews = timeline
             .clip_move_drag
             .as_ref()
             .filter(|drag| drag.changed)
@@ -140,7 +143,7 @@ impl Editor {
             } else {
                 0x0d0d0f
             }))
-            .cursor(match self.timeline.active_tool {
+            .cursor(match timeline.active_tool {
                 TimelineTool::Blade => CursorStyle::Crosshair,
                 TimelineTool::Selection | TimelineTool::Trim => CursorStyle::Arrow,
             })
@@ -163,14 +166,18 @@ impl Editor {
     }
 
     fn video_clip(&self, clip: &TimelineClip, cx: &mut Context<Self>) -> gpui::AnyElement {
-        let asset = self.timeline.asset(clip.asset_id);
+        let timeline = self
+            .timeline
+            .as_ref()
+            .expect("timeline clips require an active timeline");
+        let asset = timeline.data.asset(clip.asset_id);
         let name = asset
             .map(|asset| asset.name.clone())
             .unwrap_or_else(|| "Missing media".to_string());
 
         let waveform = asset.and_then(|asset| self.waveform_cache.get(&asset.id).cloned());
-        let source_start = self.timeline.seconds(clip.source_in);
-        let source_end = self.timeline.seconds(clip.source_out);
+        let source_start = timeline.data.seconds(clip.source_in);
+        let source_end = timeline.data.seconds(clip.source_out);
         let content = div()
             .absolute()
             .inset_0()
@@ -184,17 +191,21 @@ impl Editor {
     }
 
     fn audio_clip(&self, clip: &TimelineClip, cx: &mut Context<Self>) -> gpui::AnyElement {
-        let asset = self.timeline.asset(clip.asset_id);
+        let timeline = self
+            .timeline
+            .as_ref()
+            .expect("timeline clips require an active timeline");
+        let asset = timeline.data.asset(clip.asset_id);
         let name = asset
             .map(|asset| asset.name.clone())
             .unwrap_or_else(|| "Missing media".to_string());
         let waveform = asset.and_then(|asset| self.waveform_cache.get(&asset.id).cloned());
-        let source_start = self.timeline.seconds(clip.source_in);
-        let source_end = self.timeline.seconds(clip.source_out);
+        let source_start = timeline.data.seconds(clip.source_in);
+        let source_end = timeline.data.seconds(clip.source_out);
         let detail = if asset.is_some_and(|asset| asset.has_audio) {
             "Audio".to_string()
         } else {
-            format!("{}s", self.timeline.seconds(clip.duration()).round())
+            format!("{}s", timeline.data.seconds(clip.duration()).round())
         };
         let content = div()
             .absolute()
@@ -214,16 +225,19 @@ impl Editor {
         content: gpui::AnyElement,
         cx: &mut Context<Self>,
     ) -> gpui::AnyElement {
+        let timeline = self
+            .timeline
+            .as_ref()
+            .expect("timeline clips require an active timeline");
         let clip_id = clip.id;
-        let selected = self.timeline.selected_clip_ids.contains(&clip_id);
-        let moving = self.timeline.clip_move_drag.as_ref().is_some_and(|drag| {
+        let selected = timeline.selected_clip_ids.contains(&clip_id);
+        let moving = timeline.clip_move_drag.as_ref().is_some_and(|drag| {
             drag.changed && drag.items.iter().any(|item| item.clip_id == clip_id)
         });
         let left = TIMELINE_PADDING
-            + self.timeline.seconds(clip.timeline_start) as f32 * self.timeline.pixels_per_second;
-        let width = (self.timeline.seconds(clip.duration()) as f32
-            * self.timeline.pixels_per_second)
-            .max(4.0);
+            + timeline.data.seconds(clip.timeline_start) as f32 * timeline.pixels_per_second;
+        let width =
+            (timeline.data.seconds(clip.duration()) as f32 * timeline.pixels_per_second).max(4.0);
 
         div()
             .id(("timeline-clip", clip_id))
@@ -238,7 +252,7 @@ impl Editor {
             .border_color(rgb(if selected { ACCENT } else { color + 0x101010 }))
             .bg(rgb(color))
             .opacity(if moving { 0.3 } else { 1.0 })
-            .cursor(match self.timeline.active_tool {
+            .cursor(match timeline.active_tool {
                 TimelineTool::Selection => CursorStyle::PointingHand,
                 TimelineTool::Blade => CursorStyle::Crosshair,
                 TimelineTool::Trim => CursorStyle::Arrow,
@@ -259,9 +273,9 @@ impl Editor {
             .child(content)
             .when(
                 selected
-                    && self.timeline.selected_clip_ids.len() == 1
+                    && timeline.selected_clip_ids.len() == 1
                     && !moving
-                    && self.timeline.active_tool == TimelineTool::Trim,
+                    && timeline.active_tool == TimelineTool::Trim,
                 |this| {
                     this.child(trim_handle(("left-trim", clip_id), true).on_mouse_down(
                         MouseButton::Left,
@@ -296,21 +310,24 @@ impl Editor {
         start: TimelineTime,
         invalid_reason: Option<&'static str>,
     ) -> gpui::AnyElement {
-        let name = self
+        let timeline = self
             .timeline
+            .as_ref()
+            .expect("clip move previews require an active timeline");
+        let name = timeline
+            .data
             .clip(clip_id)
-            .and_then(|clip| self.timeline.asset(clip.asset_id))
+            .and_then(|clip| timeline.data.asset(clip.asset_id))
             .map(|asset| asset.name.clone())
             .unwrap_or_else(|| "Missing media".to_string());
-        let left = TIMELINE_PADDING
-            + self.timeline.seconds(start) as f32 * self.timeline.pixels_per_second;
-        let duration = self
-            .timeline
+        let left =
+            TIMELINE_PADDING + timeline.data.seconds(start) as f32 * timeline.pixels_per_second;
+        let duration = timeline
+            .data
             .clip(clip_id)
             .map(TimelineClip::duration)
             .unwrap_or(TimelineTime::ZERO);
-        let width =
-            (self.timeline.seconds(duration) as f32 * self.timeline.pixels_per_second).max(4.0);
+        let width = (timeline.data.seconds(duration) as f32 * timeline.pixels_per_second).max(4.0);
         let valid = invalid_reason.is_none();
         let feedback_color = if valid { ACCENT } else { ERROR };
 
@@ -359,11 +376,14 @@ impl Editor {
     }
 
     fn explorer_drop_preview(&self, preview: &ExplorerDropPreview) -> gpui::AnyElement {
+        let timeline = self
+            .timeline
+            .as_ref()
+            .expect("explorer drop previews require an active timeline");
         let left = TIMELINE_PADDING
-            + self.timeline.seconds(preview.start) as f32 * self.timeline.pixels_per_second;
-        let width = (self.timeline.seconds(preview.duration) as f32
-            * self.timeline.pixels_per_second)
-            .max(4.0);
+            + timeline.data.seconds(preview.start) as f32 * timeline.pixels_per_second;
+        let width =
+            (timeline.data.seconds(preview.duration) as f32 * timeline.pixels_per_second).max(4.0);
         let invalid = preview.invalid_reason.is_some();
         let feedback_color = if invalid { ERROR } else { ACCENT };
         let detail = preview

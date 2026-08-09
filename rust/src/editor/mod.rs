@@ -6,9 +6,8 @@ use gpui::{
 };
 use std::{
     collections::{HashMap, HashSet},
-    ops::{Deref, DerefMut},
-    path::PathBuf,
-    sync::{Arc, OnceLock},
+    path::{Path, PathBuf},
+    sync::Arc,
     time::{Duration, Instant},
 };
 
@@ -218,7 +217,8 @@ struct PreviewState {
 }
 
 struct TimelineState {
-    active_timeline: Option<(PathBuf, Timeline)>,
+    path: PathBuf,
+    data: Timeline,
     playhead: TimelineTime,
     pixels_per_second: f32,
     zoom_save_due: Option<Instant>,
@@ -246,30 +246,46 @@ struct TimelineState {
 }
 
 impl TimelineState {
-    fn active_path(&self) -> Option<&PathBuf> {
-        self.active_timeline.as_ref().map(|(path, _)| path)
-    }
-}
+    fn new(path: PathBuf, data: Timeline, project_root: &Path, pixels_per_second: f32) -> Self {
+        let view_state = load_timeline_view(&project_root.join(&path));
+        let playhead = TimelineTime::from_frames(view_state.playhead_frame)
+            .clamp(TimelineTime::ZERO, data.timeline_duration());
+        let scroll = ScrollHandle::new();
+        scroll.set_offset(point(px(-view_state.horizontal_scroll), px(0.0)));
+        let vertical_scroll = ScrollHandle::new();
+        vertical_scroll.set_offset(point(px(0.0), px(-view_state.vertical_scroll)));
+        let selected_clip_id = data.clips.first().map(|clip| clip.id);
+        let selected_clip_ids = selected_clip_id.into_iter().collect();
+        let next_id = data.next_id();
 
-impl Deref for TimelineState {
-    type Target = Timeline;
-
-    fn deref(&self) -> &Self::Target {
-        static EMPTY_TIMELINE: OnceLock<Timeline> = OnceLock::new();
-        self.active_timeline
-            .as_ref()
-            .map(|(_, timeline)| timeline)
-            .unwrap_or_else(|| EMPTY_TIMELINE.get_or_init(Timeline::default))
-    }
-}
-
-impl DerefMut for TimelineState {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self
-            .active_timeline
-            .as_mut()
-            .expect("timeline data requires an active timeline file")
-            .1
+        Self {
+            path,
+            data,
+            playhead,
+            pixels_per_second,
+            zoom_save_due: None,
+            view_state: view_state.clone(),
+            view_save_due: None,
+            active_tool: TimelineTool::Selection,
+            blade_guide: None,
+            snapping_enabled: view_state.snapping_enabled,
+            magnet_enabled: view_state.track_magnet_enabled,
+            snap_guide: None,
+            trim_drag: None,
+            clip_move_drag: None,
+            marquee_selection: None,
+            scrubbing_playhead: false,
+            last_scrub_seek: None,
+            scroll,
+            vertical_scroll,
+            selected_clip_id,
+            selected_clip_ids,
+            context_menu: None,
+            clipboard: None,
+            next_id,
+            undo_stack: Vec::new(),
+            redo_stack: Vec::new(),
+        }
     }
 }
 
@@ -296,7 +312,7 @@ pub(crate) struct Editor {
     properties: PropertiesPanelState,
     settings_open: bool,
     export: ExportState,
-    timeline: TimelineState,
+    timeline: Option<TimelineState>,
     status: Option<String>,
     error: Option<String>,
     focus_handle: FocusHandle,
@@ -322,25 +338,9 @@ impl Editor {
         {
             startup_error = Some(error);
         }
-        let timeline_view_state = active_timeline
-            .as_ref()
-            .map(|(path, _)| load_timeline_view(&project_root.join(path)))
-            .unwrap_or_default();
-        let timeline_data = active_timeline.as_ref().map(|(_, timeline)| timeline);
-        let playhead = TimelineTime::from_frames(timeline_view_state.playhead_frame).clamp(
-            TimelineTime::ZERO,
-            timeline_data.map_or(TimelineTime::ZERO, Timeline::timeline_duration),
-        );
-        let timeline_scroll = ScrollHandle::new();
-        timeline_scroll.set_offset(point(px(-timeline_view_state.horizontal_scroll), px(0.0)));
-        let timeline_vertical_scroll = ScrollHandle::new();
-        timeline_vertical_scroll
-            .set_offset(point(px(0.0), px(-timeline_view_state.vertical_scroll)));
-        let next_id = timeline_data.map_or(1, Timeline::next_id);
-        let selected_clip_id =
-            timeline_data.and_then(|timeline| timeline.clips.first().map(|clip| clip.id));
-        let selected_clip_ids = selected_clip_id.into_iter().collect();
-        let selected_file = active_timeline.as_ref().map(|(path, _)| path.clone());
+        let timeline = active_timeline
+            .map(|(path, data)| TimelineState::new(path, data, &project_root, pixels_per_second));
+        let selected_file = timeline.as_ref().map(|timeline| timeline.path.clone());
         let focus_handle = cx.focus_handle();
         let explorer_filter = cx.new(|cx| ExplorerFilter::new(focus_handle.clone(), cx));
         let video_transform_inputs = VideoTransformInputs::new(focus_handle.clone(), cx);
@@ -407,39 +407,15 @@ impl Editor {
                 dialog: None,
                 running: false,
             },
-            timeline: TimelineState {
-                active_timeline,
-                playhead,
-                pixels_per_second,
-                zoom_save_due: None,
-                view_state: timeline_view_state.clone(),
-                view_save_due: None,
-                active_tool: TimelineTool::Selection,
-                blade_guide: None,
-                snapping_enabled: timeline_view_state.snapping_enabled,
-                magnet_enabled: timeline_view_state.track_magnet_enabled,
-                snap_guide: None,
-                trim_drag: None,
-                clip_move_drag: None,
-                marquee_selection: None,
-                scrubbing_playhead: false,
-                last_scrub_seek: None,
-                scroll: timeline_scroll,
-                vertical_scroll: timeline_vertical_scroll,
-                selected_clip_id,
-                selected_clip_ids,
-                context_menu: None,
-                clipboard: None,
-                next_id,
-                undo_stack: Vec::new(),
-                redo_stack: Vec::new(),
-            },
+            timeline,
             status: None,
             error: startup_error,
             focus_handle,
         };
-        if editor.timeline.active_timeline.is_some() && !editor.timeline.clips.is_empty() {
-            editor.load_timeline_position(editor.timeline.playhead, false);
+        if let Some(timeline) = editor.timeline.as_ref()
+            && !timeline.data.clips.is_empty()
+        {
+            editor.load_timeline_position(timeline.playhead, false);
         }
         editor
     }
@@ -466,20 +442,20 @@ impl Editor {
                         _ => false,
                     };
                     let pinch_zoomed = editor.apply_timeline_pinch();
-                    if editor
-                        .timeline
-                        .zoom_save_due
-                        .is_some_and(|due| Instant::now() >= due)
+                    if let Some(timeline) = editor.timeline.as_mut()
+                        && timeline
+                            .zoom_save_due
+                            .is_some_and(|due| Instant::now() >= due)
                     {
-                        if let Err(error) = save_timeline_zoom(editor.timeline.pixels_per_second) {
+                        if let Err(error) = save_timeline_zoom(timeline.pixels_per_second) {
                             editor.error = Some(error);
                         }
-                        editor.timeline.zoom_save_due = None;
+                        timeline.zoom_save_due = None;
                     }
                     let ended_explorer_drag =
                         !cx.has_active_drag() && editor.explorer.drop_preview.take().is_some();
-                    if ended_explorer_drag {
-                        editor.timeline.snap_guide = None;
+                    if ended_explorer_drag && let Some(timeline) = editor.timeline.as_mut() {
+                        timeline.snap_guide = None;
                     }
                     let should_render = editor.preview.playing
                         || file_preview_playing
@@ -496,26 +472,25 @@ impl Editor {
                     editor.update_playback();
                     editor.reconcile_preview_seek();
                     let current_timeline_view = editor.current_timeline_view_state();
-                    if current_timeline_view
-                        .as_ref()
-                        .is_some_and(|view| view != &editor.timeline.view_state)
+                    if let (Some(current_timeline_view), Some(timeline)) =
+                        (current_timeline_view, editor.timeline.as_mut())
+                        && current_timeline_view != timeline.view_state
                     {
-                        let current_timeline_view = current_timeline_view.unwrap();
-                        editor.timeline.view_state = current_timeline_view;
-                        if editor.timeline.view_save_due.is_none() {
-                            editor.timeline.view_save_due =
+                        timeline.view_state = current_timeline_view;
+                        if timeline.view_save_due.is_none() {
+                            timeline.view_save_due =
                                 Some(Instant::now() + TIMELINE_VIEW_SAVE_DELAY);
                         }
                     }
-                    if editor
-                        .timeline
-                        .view_save_due
-                        .is_some_and(|due| Instant::now() >= due)
+                    if let Some(timeline) = editor.timeline.as_mut()
+                        && timeline
+                            .view_save_due
+                            .is_some_and(|due| Instant::now() >= due)
                     {
-                        if let Err(error) = save_timeline_view(&editor.timeline.view_state) {
+                        if let Err(error) = save_timeline_view(&timeline.view_state) {
                             editor.error = Some(error);
                         }
-                        editor.timeline.view_save_due = None;
+                        timeline.view_save_due = None;
                     }
                     if should_render {
                         cx.notify();
@@ -532,29 +507,27 @@ impl Editor {
 
     fn update_interval(&self) -> Duration {
         if self.preview.playing {
-            self.timeline.duration(TimelineTime::ONE_FRAME)
+            self.timeline
+                .as_ref()
+                .map(|timeline| timeline.data.duration(TimelineTime::ONE_FRAME))
+                .unwrap_or(IDLE_UPDATE_INTERVAL)
         } else {
             IDLE_UPDATE_INTERVAL
         }
     }
 
     fn current_timeline_view_state(&self) -> Option<TimelineViewState> {
-        let horizontal_scroll = (-f32::from(self.timeline.scroll.offset().x)).max(0.0);
-        let vertical_scroll = (-f32::from(self.timeline.vertical_scroll.offset().y)).max(0.0);
+        let timeline = self.timeline.as_ref()?;
+        let horizontal_scroll = (-f32::from(timeline.scroll.offset().x)).max(0.0);
+        let vertical_scroll = (-f32::from(timeline.vertical_scroll.offset().y)).max(0.0);
         Some(timeline_view_state(
-            &self.timeline_file_path()?,
-            self.timeline.playhead.frames(),
+            &self.project_root.join(&timeline.path),
+            timeline.playhead.frames(),
             horizontal_scroll,
             vertical_scroll,
-            self.timeline.snapping_enabled,
-            self.timeline.magnet_enabled,
+            timeline.snapping_enabled,
+            timeline.magnet_enabled,
         ))
-    }
-
-    pub(super) fn timeline_file_path(&self) -> Option<PathBuf> {
-        self.timeline
-            .active_path()
-            .map(|path| self.project_root.join(path))
     }
 
     fn open_project_folder(&mut self, cx: &mut Context<Self>) {
@@ -626,7 +599,11 @@ impl Editor {
     }
 
     pub(super) fn open_timeline(&mut self, relative_path: PathBuf, cx: &mut Context<Self>) {
-        if self.timeline.active_path() == Some(&relative_path) {
+        if self
+            .timeline
+            .as_ref()
+            .is_some_and(|timeline| timeline.path == relative_path)
+        {
             self.explorer.selected_file = Some(relative_path);
             self.preview.target = PreviewTarget::Timeline;
             cx.notify();
@@ -690,7 +667,6 @@ impl Editor {
         self.explorer.drag_probe_jobs.clear();
         self.explorer.drop_preview = None;
         self.explorer.pending_drop = None;
-        self.timeline.clipboard = None;
         self.preview.timeline_needs_rebuild = true;
         self.preview.timeline_clock = None;
         self.preview.playing = false;
@@ -704,56 +680,38 @@ impl Editor {
         self.preview.timeline_drag = None;
         self.properties.transform_input_clip_id = None;
         self.properties.opacity_drag = None;
-        self.timeline.trim_drag = None;
-        self.timeline.clip_move_drag = None;
-        self.timeline.marquee_selection = None;
-        self.timeline.scrubbing_playhead = false;
-        self.timeline.last_scrub_seek = None;
-        self.timeline.blade_guide = None;
-        self.timeline.snap_guide = None;
-        self.timeline.context_menu = None;
-        self.timeline.active_timeline = active_timeline;
-        self.timeline.view_state = self
-            .timeline_file_path()
-            .as_deref()
-            .map(load_timeline_view)
-            .unwrap_or_default();
-        self.timeline.view_save_due = None;
-        self.timeline.playhead = TimelineTime::from_frames(self.timeline.view_state.playhead_frame)
-            .clamp(TimelineTime::ZERO, self.timeline.timeline_duration());
         self.preview.refresh_ticks = 2;
-        self.timeline.snapping_enabled = self.timeline.view_state.snapping_enabled;
-        self.timeline.magnet_enabled = self.timeline.view_state.track_magnet_enabled;
-        self.timeline.scroll.set_offset(point(
-            px(-self.timeline.view_state.horizontal_scroll),
-            px(0.0),
-        ));
-        self.timeline.vertical_scroll.set_offset(point(
-            px(0.0),
-            px(-self.timeline.view_state.vertical_scroll),
-        ));
-        self.timeline.next_id = self.timeline.next_id();
-        self.timeline.undo_stack.clear();
-        self.timeline.redo_stack.clear();
+        let pixels_per_second = self
+            .timeline
+            .as_ref()
+            .map(|timeline| timeline.pixels_per_second)
+            .unwrap_or_else(|| {
+                load_timeline_zoom().clamp(
+                    MIN_TIMELINE_PIXELS_PER_SECOND,
+                    MAX_TIMELINE_PIXELS_PER_SECOND,
+                )
+            });
+        self.timeline = active_timeline.map(|(path, data)| {
+            TimelineState::new(path, data, &self.project_root, pixels_per_second)
+        });
         self.explorer.search_query = None;
         self.explorer.search_results.clear();
         self.explorer.search_pending = false;
         self.explorer
             .filter
             .update(cx, |filter, cx| filter.clear(cx));
-        self.explorer.selected_file = self.timeline.active_path().cloned();
+        self.explorer.selected_file = self.timeline.as_ref().map(|timeline| timeline.path.clone());
         self.explorer.context_menu = None;
         self.preview.target = PreviewTarget::Timeline;
-        self.select_only_clip(self.timeline.clips.first().map(|clip| clip.id));
         self.refresh_file_tree();
         self.error = None;
-        if let Some(path) = self.timeline.active_path()
-            && let Err(error) = save_active_timeline(&self.project_root, path)
-        {
-            self.error = Some(error);
-        }
-        if !self.timeline.clips.is_empty() {
-            self.load_timeline_position(self.timeline.playhead, false);
+        if let Some(timeline) = self.timeline.as_ref() {
+            if let Err(error) = save_active_timeline(&self.project_root, &timeline.path) {
+                self.error = Some(error);
+            }
+            if !timeline.data.clips.is_empty() {
+                self.load_timeline_position(timeline.playhead, false);
+            }
         }
     }
 
@@ -762,14 +720,19 @@ impl Editor {
     /// Runs on the file-tree tick rather than during rendering so the timeline can read
     /// `media_cache_ready` without touching the filesystem on every frame.
     fn schedule_missing_media_cache(&mut self, cx: &mut Context<Self>) {
-        let referenced_asset_ids = self
-            .timeline
+        let Some(timeline) = self.timeline.as_ref() else {
+            self.media_cache_ready.clear();
+            self.waveform_cache.clear();
+            return;
+        };
+        let referenced_asset_ids = timeline
+            .data
             .clips
             .iter()
             .map(|clip| clip.asset_id)
             .collect::<HashSet<_>>();
-        self.media_cache_ready = self
-            .timeline
+        self.media_cache_ready = timeline
+            .data
             .assets
             .iter()
             .filter(|asset| {
@@ -781,8 +744,8 @@ impl Editor {
         self.waveform_cache.retain(|asset_id, _| {
             referenced_asset_ids.contains(asset_id) && self.media_cache_ready.contains(asset_id)
         });
-        let Some(asset) = self
-            .timeline
+        let Some(asset) = timeline
+            .data
             .assets
             .iter()
             .find(|asset| {

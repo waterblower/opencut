@@ -42,8 +42,8 @@ impl Render for Editor {
             .map(|menu| self.file_menu_overlay(menu, editor_viewport, cx));
         let clip_menu = self
             .timeline
-            .context_menu
             .as_ref()
+            .and_then(|timeline| timeline.context_menu.as_ref())
             .map(|menu| self.timeline_clip_menu_overlay(menu, editor_viewport, cx));
         let rename_dialog = self
             .explorer
@@ -144,10 +144,18 @@ impl Render for Editor {
 
 impl Editor {
     fn topbar(&self, cx: &mut Context<Self>) -> gpui::AnyElement {
-        let undo_enabled = !self.timeline.undo_stack.is_empty();
-        let redo_enabled = !self.timeline.redo_stack.is_empty();
-        let export_enabled = self.timeline.active_timeline.is_some()
-            && !self.timeline.clips.is_empty()
+        let undo_enabled = self
+            .timeline
+            .as_ref()
+            .is_some_and(|timeline| !timeline.undo_stack.is_empty());
+        let redo_enabled = self
+            .timeline
+            .as_ref()
+            .is_some_and(|timeline| !timeline.redo_stack.is_empty());
+        let export_enabled = self
+            .timeline
+            .as_ref()
+            .is_some_and(|timeline| !timeline.data.clips.is_empty())
             && !self.export.running;
         let has_error = self.error.is_some();
         let message = self
@@ -158,8 +166,8 @@ impl Editor {
             .to_string();
         let timeline_name = self
             .timeline
-            .active_path()
-            .map(PathBuf::as_path)
+            .as_ref()
+            .map(|timeline| timeline.path.as_path())
             .and_then(|path| path.file_name())
             .map(|name| name.to_string_lossy().into_owned())
             .unwrap_or_else(|| "No timeline".to_string());
@@ -237,13 +245,14 @@ impl Editor {
                         },
                     )))
                     .child(
-                        toolbar_button("Settings", self.timeline.active_timeline.is_some())
-                            .on_click(cx.listener(|editor, _, _, cx| {
-                                if editor.timeline.active_timeline.is_some() {
+                        toolbar_button("Settings", self.timeline.is_some()).on_click(cx.listener(
+                            |editor, _, _, cx| {
+                                if editor.timeline.is_some() {
                                     editor.settings_open = true;
                                 }
                                 cx.notify();
-                            })),
+                            },
+                        )),
                     )
                     .child(
                         toolbar_button(

@@ -49,7 +49,10 @@ impl Editor {
         let top = menu
             .y
             .clamp(8.0, (f32::from(viewport.height) - height - 8.0).max(8.0));
-        let enabled = transform_targets(&self.timeline, menu.clip_id)
+        let enabled = self
+            .timeline
+            .as_ref()
+            .and_then(|timeline| transform_targets(&timeline.data, menu.clip_id))
             .is_some_and(|(_, targets)| !targets.is_empty());
 
         div()
@@ -60,14 +63,18 @@ impl Editor {
             .on_mouse_down(
                 MouseButton::Left,
                 cx.listener(|editor, _, _, cx| {
-                    editor.timeline.context_menu = None;
+                    if let Some(timeline) = editor.timeline.as_mut() {
+                        timeline.context_menu = None;
+                    }
                     cx.notify();
                 }),
             )
             .on_mouse_down(
                 MouseButton::Right,
                 cx.listener(|editor, _, _, cx| {
-                    editor.timeline.context_menu = None;
+                    if let Some(timeline) = editor.timeline.as_mut() {
+                        timeline.context_menu = None;
+                    }
                     cx.notify();
                 }),
             )
@@ -120,7 +127,10 @@ impl Editor {
     ) {
         self.explorer.context_menu = None;
         self.select_only_clip(Some(clip_id));
-        self.timeline.context_menu = Some(TimelineClipContextMenu {
+        let Some(timeline) = self.timeline.as_mut() else {
+            return;
+        };
+        timeline.context_menu = Some(TimelineClipContextMenu {
             clip_id,
             x: event.position.x.into(),
             y: event.position.y.into(),
@@ -130,11 +140,19 @@ impl Editor {
     }
 
     fn apply_transform_to_track_clips(&mut self) {
-        let Some(source_clip_id) = self.timeline.context_menu.take().map(|menu| menu.clip_id)
+        let Some(source_clip_id) = self
+            .timeline
+            .as_mut()
+            .and_then(|timeline| timeline.context_menu.take())
+            .map(|menu| menu.clip_id)
         else {
             return;
         };
-        let Some((properties, targets)) = transform_targets(&self.timeline, source_clip_id) else {
+        let Some((properties, targets)) = self
+            .timeline
+            .as_ref()
+            .and_then(|timeline| transform_targets(&timeline.data, source_clip_id))
+        else {
             return;
         };
         if targets.is_empty() {
@@ -142,8 +160,9 @@ impl Editor {
         }
         let changed = targets.len();
         self.checkpoint();
+        let timeline = self.timeline.as_mut().expect("timeline was checked above");
         for index in targets {
-            self.timeline.clips[index].video_properties = properties;
+            timeline.data.clips[index].video_properties = properties;
         }
         self.properties.transform_input_clip_id = None;
         self.preview.refresh_ticks = 2;
