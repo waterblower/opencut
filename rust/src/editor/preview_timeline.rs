@@ -12,33 +12,52 @@ const TIMELINE_VOLUME_TRACK_HEIGHT: f32 = 144.0;
 const TIMELINE_VOLUME_TRACK_BOTTOM_OFFSET: f32 = 102.0;
 const TIMELINE_TRANSFORM_UPDATE_INTERVAL: Duration = Duration::from_millis(16);
 
+#[derive(Clone, Copy, Debug)]
+struct TimelinePreviewCanvas {
+    left: f64,
+    top: f64,
+    width: f64,
+    height: f64,
+    project_scale: f64,
+}
+
 pub(super) struct TimelinePreviewDrag {
     clip_id: u64,
     pointer_x: f32,
     pointer_y: f32,
     position_x: f64,
     position_y: f64,
-    project_scale: f64,
+    canvas: TimelinePreviewCanvas,
+    snap_x: Option<f64>,
+    snap_y: Option<f64>,
     timeline_was_dirty: bool,
     last_pipeline_update: Option<Instant>,
     changed: bool,
 }
 
+fn nearest_canvas_snap(clip_anchors: [f64; 3], canvas_guides: [f64; 3]) -> Option<(f64, f64)> {
+    let mut nearest = None;
+    for clip_anchor in clip_anchors {
+        for canvas_guide in canvas_guides {
+            let delta = canvas_guide - clip_anchor;
+            if delta.abs() <= f64::from(SNAP_DISTANCE_PX)
+                && nearest
+                    .is_none_or(|(nearest_delta, _): (f64, f64)| delta.abs() < nearest_delta.abs())
+            {
+                nearest = Some((delta, canvas_guide));
+            }
+        }
+    }
+    nearest
+}
+
 impl Editor {
     fn timeline_preview_clip_rect(
         &self,
-        clip_id: u64,
-        output_left: f64,
-        output_top: f64,
-        output_width: f64,
-        output_height: f64,
+        clip: &TimelineClip,
+        properties: VideoClipProperties,
+        canvas: TimelinePreviewCanvas,
     ) -> Option<RenderRect> {
-        let clip = self.project.clip(clip_id)?;
-        if clip.timeline_start > self.timeline.playhead
-            || self.timeline.playhead >= clip.timeline_end()
-        {
-            return None;
-        }
         let track = self.project.track(clip.track_id)?;
         if track.kind != TrackKind::Video || !track.visible {
             return None;
@@ -48,34 +67,29 @@ impl Editor {
             return None;
         }
         let visible = resolve_visual_clip_render_plan(
-            clip.video_properties,
+            properties,
             asset.width,
             asset.height,
             self.project.settings.width,
             self.project.settings.height,
-            output_width,
-            output_height,
+            canvas.width,
+            canvas.height,
         )
         .visible;
         Some(RenderRect {
-            left: output_left + visible.left,
-            top: output_top + visible.top,
+            left: canvas.left + visible.left,
+            top: canvas.top + visible.top,
             width: visible.width,
             height: visible.height,
         })
     }
 
-    #[allow(clippy::too_many_arguments)]
     fn begin_timeline_preview_clip_drag(
         &mut self,
         event: &MouseDownEvent,
         surface_left: f32,
         surface_top: f32,
-        output_left: f64,
-        output_top: f64,
-        output_width: f64,
-        output_height: f64,
-        project_scale: f64,
+        canvas: TimelinePreviewCanvas,
         cx: &mut Context<Self>,
     ) {
         self.preview.volume_open = false;
@@ -83,13 +97,12 @@ impl Editor {
         let pointer_y = f32::from(event.position.y) - surface_top;
         let clip_id = self.project.tracks.iter().rev().find_map(|track| {
             self.project.clips_on_track(track.id).find_map(|clip| {
-                let rect = self.timeline_preview_clip_rect(
-                    clip.id,
-                    output_left,
-                    output_top,
-                    output_width,
-                    output_height,
-                )?;
+                if clip.timeline_start > self.timeline.playhead
+                    || self.timeline.playhead >= clip.timeline_end()
+                {
+                    return None;
+                }
+                let rect = self.timeline_preview_clip_rect(clip, clip.video_properties, canvas)?;
                 (f64::from(pointer_x) >= rect.left
                     && f64::from(pointer_x) <= rect.left + rect.width
                     && f64::from(pointer_y) >= rect.top
@@ -119,7 +132,9 @@ impl Editor {
             pointer_y: f32::from(event.position.y),
             position_x: clip.video_properties.position_x,
             position_y: clip.video_properties.position_y,
-            project_scale: project_scale.max(f64::EPSILON),
+            canvas,
+            snap_x: None,
+            snap_y: None,
             timeline_was_dirty: self.preview.timeline_needs_rebuild,
             last_pipeline_update: None,
             changed: false,
@@ -141,25 +156,74 @@ impl Editor {
             return true;
         }
         let position_x = drag.position_x
-            + f64::from(f32::from(event.position.x) - drag.pointer_x) / drag.project_scale;
+            + f64::from(f32::from(event.position.x) - drag.pointer_x) / drag.canvas.project_scale;
         let position_y = drag.position_y
-            + f64::from(f32::from(event.position.y) - drag.pointer_y) / drag.project_scale;
+            + f64::from(f32::from(event.position.y) - drag.pointer_y) / drag.canvas.project_scale;
         let Some(index) = self.project.clip_index(drag.clip_id) else {
             return true;
         };
-        let properties = &self.project.clips[index].video_properties;
-        if (properties.position_x - position_x).abs() <= f64::EPSILON
-            && (properties.position_y - position_y).abs() <= f64::EPSILON
+        let current_properties = self.project.clips[index].video_properties;
+        let mut properties = current_properties;
+        properties.position_x = position_x;
+        properties.position_y = position_y;
+        let snap_rect = self
+            .timeline
+            .snapping_enabled
+            .then(|| {
+                self.timeline_preview_clip_rect(&self.project.clips[index], properties, drag.canvas)
+            })
+            .flatten();
+        if let Some(rect) = snap_rect {
+            let horizontal_snap = nearest_canvas_snap(
+                [
+                    rect.left + rect.width * 0.5,
+                    rect.left,
+                    rect.left + rect.width,
+                ],
+                [
+                    drag.canvas.left + drag.canvas.width * 0.5,
+                    drag.canvas.left,
+                    drag.canvas.left + drag.canvas.width,
+                ],
+            );
+            let vertical_snap = nearest_canvas_snap(
+                [
+                    rect.top + rect.height * 0.5,
+                    rect.top,
+                    rect.top + rect.height,
+                ],
+                [
+                    drag.canvas.top + drag.canvas.height * 0.5,
+                    drag.canvas.top,
+                    drag.canvas.top + drag.canvas.height,
+                ],
+            );
+            drag.snap_x = horizontal_snap.map(|(_, guide)| guide);
+            drag.snap_y = vertical_snap.map(|(_, guide)| guide);
+            if let Some((delta, _)) = horizontal_snap {
+                properties.position_x += delta / drag.canvas.project_scale;
+            }
+            if let Some((delta, _)) = vertical_snap {
+                properties.position_y += delta / drag.canvas.project_scale;
+            }
+        } else {
+            drag.snap_x = None;
+            drag.snap_y = None;
+        }
+        if (current_properties.position_x - properties.position_x).abs() <= f64::EPSILON
+            && (current_properties.position_y - properties.position_y).abs() <= f64::EPSILON
         {
             self.preview.timeline_drag = Some(drag);
+            self.preview.refresh_ticks = 2;
+            cx.notify();
             return true;
         }
         if !drag.changed {
             self.checkpoint();
             drag.changed = true;
         }
-        self.project.clips[index].video_properties.position_x = position_x;
-        self.project.clips[index].video_properties.position_y = position_y;
+        self.project.clips[index].video_properties.position_x = properties.position_x;
+        self.project.clips[index].video_properties.position_y = properties.position_y;
         self.properties.transform_input_clip_id = None;
         let now = Instant::now();
         if !drag.timeline_was_dirty
@@ -395,15 +459,27 @@ impl Editor {
         let output_height = project_height * project_scale;
         let output_left = (f64::from(width) - output_width) * 0.5;
         let output_top = (f64::from(surface_height) - output_height) * 0.5;
+        let canvas = TimelinePreviewCanvas {
+            left: output_left,
+            top: output_top,
+            width: output_width,
+            height: output_height,
+            project_scale: project_scale.max(f64::EPSILON),
+        };
         let selected_rect = self.timeline.selected_clip_id.and_then(|clip_id| {
-            self.timeline_preview_clip_rect(
-                clip_id,
-                output_left,
-                output_top,
-                output_width,
-                output_height,
-            )
+            let clip = self.project.clip(clip_id)?;
+            if clip.timeline_start > self.timeline.playhead
+                || self.timeline.playhead >= clip.timeline_end()
+            {
+                return None;
+            }
+            self.timeline_preview_clip_rect(clip, clip.video_properties, canvas)
         });
+        let (snap_x, snap_y) = self
+            .preview
+            .timeline_drag
+            .as_ref()
+            .map_or((None, None), |drag| (drag.snap_x, drag.snap_y));
         let usable_width = (width - TIMELINE_HORIZONTAL_PADDING * 2.0).max(1.0);
         let timeline_left = origin_x + TIMELINE_HORIZONTAL_PADDING;
         let volume_track_bottom = origin_y + height - TIMELINE_VOLUME_TRACK_BOTTOM_OFFSET;
@@ -509,11 +585,7 @@ impl Editor {
                                     event,
                                     origin_x,
                                     origin_y,
-                                    output_left,
-                                    output_top,
-                                    output_width,
-                                    output_height,
-                                    project_scale,
+                                    canvas,
                                     cx,
                                 );
                             }),
@@ -534,6 +606,28 @@ impl Editor {
                             .child("Choose a video from the project folder to begin")
                             .into_any_element()
                     })
+                    .when_some(snap_x, |this, guide| {
+                        this.child(
+                            div()
+                                .absolute()
+                                .left(px((guide - 0.5) as f32))
+                                .top(px(canvas.top as f32))
+                                .w(px(1.0))
+                                .h(px(canvas.height as f32))
+                                .bg(rgb(ACCENT)),
+                        )
+                    })
+                    .when_some(snap_y, |this, guide| {
+                        this.child(
+                            div()
+                                .absolute()
+                                .left(px(canvas.left as f32))
+                                .top(px((guide - 0.5) as f32))
+                                .w(px(canvas.width as f32))
+                                .h(px(1.0))
+                                .bg(rgb(ACCENT)),
+                        )
+                    })
                     .when_some(selected_rect, |this, rect| {
                         this.child(
                             div()
@@ -543,7 +637,7 @@ impl Editor {
                                 .top(px(rect.top as f32))
                                 .w(px(rect.width.max(1.0) as f32))
                                 .h(px(rect.height.max(1.0) as f32))
-                                .border_2()
+                                .border_1()
                                 .border_color(rgb(ACCENT)),
                         )
                     }),
@@ -857,3 +951,7 @@ impl Editor {
             .into_any_element()
     }
 }
+
+#[cfg(test)]
+#[path = "preview_timeline.test.rs"]
+mod tests;
