@@ -8,6 +8,200 @@ const TIMELINE_VOLUME_TRACK_HEIGHT: f32 = 144.0;
 const TIMELINE_VOLUME_TRACK_BOTTOM_OFFSET: f32 = 102.0;
 
 impl Editor {
+    fn dismiss_timeline_preview_volume(
+        &mut self,
+        _: &MouseDownEvent,
+        _: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        if self.preview.volume_open {
+            self.preview.volume_open = false;
+            cx.notify();
+        }
+    }
+
+    fn update_timeline_preview_drag(
+        &mut self,
+        event: &MouseMoveEvent,
+        timeline_left: f32,
+        usable_width: f32,
+        volume_track_bottom: f32,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        if !event.dragging() {
+            return;
+        }
+        self.playback_seek(
+            ((f32::from(event.position.x) - timeline_left) / usable_width).clamp(0.0, 1.0),
+            DragPhase::Update,
+            window,
+            cx,
+        );
+        self.playback_set_volume(
+            ((volume_track_bottom - f32::from(event.position.y)) / TIMELINE_VOLUME_TRACK_HEIGHT)
+                .clamp(0.0, 1.0) as f64,
+            DragPhase::Update,
+            window,
+            cx,
+        );
+    }
+
+    fn finish_timeline_preview_drag(
+        &mut self,
+        event: &MouseUpEvent,
+        timeline_left: f32,
+        usable_width: f32,
+        volume_track_bottom: f32,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        self.playback_seek(
+            ((f32::from(event.position.x) - timeline_left) / usable_width).clamp(0.0, 1.0),
+            DragPhase::End,
+            window,
+            cx,
+        );
+        self.playback_set_volume(
+            ((volume_track_bottom - f32::from(event.position.y)) / TIMELINE_VOLUME_TRACK_HEIGHT)
+                .clamp(0.0, 1.0) as f64,
+            DragPhase::End,
+            window,
+            cx,
+        );
+    }
+
+    fn select_timeline_preview_clip(
+        &mut self,
+        _: &gpui::ClickEvent,
+        _: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let clip_id = self.project.tracks.iter().rev().find_map(|track| {
+            if track.kind != TrackKind::Video || !track.visible {
+                return None;
+            }
+            self.project
+                .clips_on_track(track.id)
+                .find(|clip| {
+                    clip.timeline_start <= self.timeline.playhead
+                        && self.timeline.playhead < clip.timeline_end()
+                })
+                .map(|clip| clip.id)
+        });
+        self.select_only_clip(clip_id);
+        cx.notify();
+    }
+
+    fn begin_timeline_preview_scrub(
+        &mut self,
+        event: &MouseDownEvent,
+        timeline_left: f32,
+        usable_width: f32,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        self.playback_seek(
+            ((f32::from(event.position.x) - timeline_left) / usable_width).clamp(0.0, 1.0),
+            DragPhase::Start,
+            window,
+            cx,
+        );
+    }
+
+    fn toggle_timeline_preview_playback(
+        &mut self,
+        _: &gpui::ClickEvent,
+        _: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        self.toggle_playback();
+        cx.notify();
+    }
+
+    fn stop_timeline_preview_event_propagation(
+        &mut self,
+        _: &MouseDownEvent,
+        _: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        cx.stop_propagation();
+    }
+
+    fn update_timeline_preview_volume(
+        &mut self,
+        event: &MouseMoveEvent,
+        volume_track_bottom: f32,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        if event.dragging() {
+            self.playback_set_volume(
+                ((volume_track_bottom - f32::from(event.position.y)) / TIMELINE_VOLUME_TRACK_HEIGHT)
+                    .clamp(0.0, 1.0) as f64,
+                DragPhase::Update,
+                window,
+                cx,
+            );
+        }
+        cx.stop_propagation();
+    }
+
+    fn finish_timeline_preview_volume(
+        &mut self,
+        event: &MouseUpEvent,
+        volume_track_bottom: f32,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        self.playback_set_volume(
+            ((volume_track_bottom - f32::from(event.position.y)) / TIMELINE_VOLUME_TRACK_HEIGHT)
+                .clamp(0.0, 1.0) as f64,
+            DragPhase::End,
+            window,
+            cx,
+        );
+        cx.stop_propagation();
+    }
+
+    fn begin_timeline_preview_volume(
+        &mut self,
+        event: &MouseDownEvent,
+        volume_track_bottom: f32,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        self.playback_set_volume(
+            ((volume_track_bottom - f32::from(event.position.y)) / TIMELINE_VOLUME_TRACK_HEIGHT)
+                .clamp(0.0, 1.0) as f64,
+            DragPhase::Start,
+            window,
+            cx,
+        );
+    }
+
+    fn toggle_timeline_preview_volume(
+        &mut self,
+        _: &gpui::ClickEvent,
+        _: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        if !self.project.clips.is_empty() {
+            self.preview.volume_open = !self.preview.volume_open;
+            cx.notify();
+        }
+    }
+
+    fn toggle_timeline_preview_fullscreen(
+        &mut self,
+        _: &gpui::ClickEvent,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        window.toggle_fullscreen();
+        cx.notify();
+    }
+
     pub(super) fn preview_timeline(
         &self,
         origin_x: f32,
@@ -58,39 +252,32 @@ impl Editor {
             .bg(rgb(0x000000))
             .on_mouse_down(
                 MouseButton::Left,
-                cx.listener(|editor, _, _, cx| {
-                    if editor.preview.volume_open {
-                        editor.preview.volume_open = false;
-                        cx.notify();
-                    }
-                }),
+                cx.listener(Self::dismiss_timeline_preview_volume),
             )
             .on_mouse_move(cx.listener(
                 move |editor, event: &MouseMoveEvent, window, cx| {
-                    if event.dragging() {
-                        let fraction = ((f32::from(event.position.x) - timeline_left)
-                            / usable_width)
-                            .clamp(0.0, 1.0);
-                        editor.playback_seek(fraction, DragPhase::Update, window, cx);
-                        let volume = ((volume_track_bottom - f32::from(event.position.y))
-                            / TIMELINE_VOLUME_TRACK_HEIGHT)
-                            .clamp(0.0, 1.0) as f64;
-                        editor.playback_set_volume(volume, DragPhase::Update, window, cx);
-                    }
+                    editor.update_timeline_preview_drag(
+                        event,
+                        timeline_left,
+                        usable_width,
+                        volume_track_bottom,
+                        window,
+                        cx,
+                    );
                 },
             ))
             .on_mouse_up(
                 MouseButton::Left,
                 cx.listener(
                     move |editor, event: &MouseUpEvent, window, cx| {
-                        let fraction = ((f32::from(event.position.x) - timeline_left)
-                            / usable_width)
-                            .clamp(0.0, 1.0);
-                        editor.playback_seek(fraction, DragPhase::End, window, cx);
-                        let volume = ((volume_track_bottom - f32::from(event.position.y))
-                            / TIMELINE_VOLUME_TRACK_HEIGHT)
-                            .clamp(0.0, 1.0) as f64;
-                        editor.playback_set_volume(volume, DragPhase::End, window, cx);
+                        editor.finish_timeline_preview_drag(
+                            event,
+                            timeline_left,
+                            usable_width,
+                            volume_track_bottom,
+                            window,
+                            cx,
+                        );
                     },
                 ),
             )
@@ -98,14 +285,14 @@ impl Editor {
                 MouseButton::Left,
                 cx.listener(
                     move |editor, event: &MouseUpEvent, window, cx| {
-                        let fraction = ((f32::from(event.position.x) - timeline_left)
-                            / usable_width)
-                            .clamp(0.0, 1.0);
-                        editor.playback_seek(fraction, DragPhase::End, window, cx);
-                        let volume = ((volume_track_bottom - f32::from(event.position.y))
-                            / TIMELINE_VOLUME_TRACK_HEIGHT)
-                            .clamp(0.0, 1.0) as f64;
-                        editor.playback_set_volume(volume, DragPhase::End, window, cx);
+                        editor.finish_timeline_preview_drag(
+                            event,
+                            timeline_left,
+                            usable_width,
+                            volume_track_bottom,
+                            window,
+                            cx,
+                        );
                     },
                 ),
             )
@@ -121,25 +308,8 @@ impl Editor {
                     .overflow_hidden()
                     .bg(rgb(0x000000))
                     .when(has_media, |this| {
-                        this.cursor(CursorStyle::PointingHand).on_click(cx.listener(
-                            |editor, _, _, cx| {
-                                let clip_id = editor.project.tracks.iter().rev().find_map(|track| {
-                                    if track.kind != TrackKind::Video || !track.visible {
-                                        return None;
-                                    }
-                                    editor
-                                        .project
-                                        .clips_on_track(track.id)
-                                        .find(|clip| {
-                                            clip.timeline_start <= editor.timeline.playhead
-                                                && editor.timeline.playhead < clip.timeline_end()
-                                        })
-                                        .map(|clip| clip.id)
-                                });
-                                editor.select_only_clip(clip_id);
-                                cx.notify();
-                            },
-                        ))
+                        this.cursor(CursorStyle::PointingHand)
+                            .on_click(cx.listener(Self::select_timeline_preview_clip))
                     })
                     .child(if let Some(video_handle) = self.preview.video.as_ref() {
                         video(video_handle.clone())
@@ -212,13 +382,10 @@ impl Editor {
                                     MouseButton::Left,
                                     cx.listener(
                                         move |editor, event: &MouseDownEvent, window, cx| {
-                                            let fraction = ((f32::from(event.position.x)
-                                                - timeline_left)
-                                                / usable_width)
-                                                .clamp(0.0, 1.0);
-                                            editor.playback_seek(
-                                                fraction,
-                                                DragPhase::Start,
+                                            editor.begin_timeline_preview_scrub(
+                                                event,
+                                                timeline_left,
+                                                usable_width,
                                                 window,
                                                 cx,
                                             );
@@ -256,10 +423,9 @@ impl Editor {
                                                 rgb(MUTED)
                                             })
                                             .child(if self.preview.playing { "Ⅱ" } else { "▶" })
-                                            .on_click(cx.listener(|editor, _, _, cx| {
-                                                editor.toggle_playback();
-                                                cx.notify();
-                                            })),
+                                            .on_click(
+                                                cx.listener(Self::toggle_timeline_preview_playback),
+                                            ),
                                     )
                                     .child(
                                         div()
@@ -303,29 +469,19 @@ impl Editor {
                                                         .occlude()
                                                         .on_mouse_down(
                                                             MouseButton::Left,
-                                                            cx.listener(|_, _, _, cx| {
-                                                                cx.stop_propagation()
-                                                            }),
+                                                            cx.listener(Self::stop_timeline_preview_event_propagation),
                                                         )
                                                         .on_mouse_move(cx.listener(
                                                             move |editor,
                                                                   event: &MouseMoveEvent,
                                                                   window,
                                                                   cx| {
-                                                                if event.dragging() {
-                                                                    let volume = ((volume_track_bottom
-                                                                        - f32::from(event.position.y))
-                                                                        / TIMELINE_VOLUME_TRACK_HEIGHT)
-                                                                        .clamp(0.0, 1.0)
-                                                                        as f64;
-                                                                    editor.playback_set_volume(
-                                                                        volume,
-                                                                        DragPhase::Update,
-                                                                        window,
-                                                                        cx,
-                                                                    );
-                                                                }
-                                                                cx.stop_propagation();
+                                                                editor.update_timeline_preview_volume(
+                                                                    event,
+                                                                    volume_track_bottom,
+                                                                    window,
+                                                                    cx,
+                                                                );
                                                             },
                                                         ))
                                                         .on_mouse_up(
@@ -335,18 +491,12 @@ impl Editor {
                                                                       event: &MouseUpEvent,
                                                                       window,
                                                                       cx| {
-                                                                    let volume = ((volume_track_bottom
-                                                                        - f32::from(event.position.y))
-                                                                        / TIMELINE_VOLUME_TRACK_HEIGHT)
-                                                                        .clamp(0.0, 1.0)
-                                                                        as f64;
-                                                                    editor.playback_set_volume(
-                                                                        volume,
-                                                                        DragPhase::End,
+                                                                    editor.finish_timeline_preview_volume(
+                                                                        event,
+                                                                        volume_track_bottom,
                                                                         window,
                                                                         cx,
                                                                     );
-                                                                    cx.stop_propagation();
                                                                 },
                                                             ),
                                                         )
@@ -405,14 +555,9 @@ impl Editor {
                                                                               event: &MouseDownEvent,
                                                                               window,
                                                                               cx| {
-                                                                            let volume = ((volume_track_bottom
-                                                                                - f32::from(event.position.y))
-                                                                                / TIMELINE_VOLUME_TRACK_HEIGHT)
-                                                                                .clamp(0.0, 1.0)
-                                                                                as f64;
-                                                                            editor.playback_set_volume(
-                                                                                volume,
-                                                                                DragPhase::Start,
+                                                                            editor.begin_timeline_preview_volume(
+                                                                                event,
+                                                                                volume_track_bottom,
                                                                                 window,
                                                                                 cx,
                                                                             );
@@ -442,9 +587,7 @@ impl Editor {
                                                     })
                                                     .on_mouse_down(
                                                         MouseButton::Left,
-                                                        cx.listener(|_, _, _, cx| {
-                                                            cx.stop_propagation()
-                                                        }),
+                                                        cx.listener(Self::stop_timeline_preview_event_propagation),
                                                     )
                                                     .child(
                                                         div()
@@ -468,15 +611,9 @@ impl Editor {
                                                                     }),
                                                             ),
                                                     )
-                                                    .on_click(cx.listener(
-                                                        |editor, _, _, cx| {
-                                                            if !editor.project.clips.is_empty() {
-                                                                editor.preview.volume_open =
-                                                                    !editor.preview.volume_open;
-                                                                cx.notify();
-                                                            }
-                                                        },
-                                                    )),
+                                                    .on_click(
+                                                        cx.listener(Self::toggle_timeline_preview_volume),
+                                                    ),
                                             ),
                                     )
                                     .child(
@@ -489,10 +626,9 @@ impl Editor {
                                             .py_2()
                                             .text_lg()
                                             .child("⛶")
-                                            .on_click(cx.listener(|_, _, window, cx| {
-                                                window.toggle_fullscreen();
-                                                cx.notify();
-                                            })),
+                                            .on_click(
+                                                cx.listener(Self::toggle_timeline_preview_fullscreen),
+                                            ),
                                     ),
                             ),
                     ),
