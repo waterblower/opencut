@@ -140,8 +140,9 @@ impl Editor {
     fn topbar(&self, cx: &mut Context<Self>) -> gpui::AnyElement {
         let undo_enabled = !self.timeline.undo_stack.is_empty();
         let redo_enabled = !self.timeline.redo_stack.is_empty();
-        let export_enabled =
-            self.timeline_path.is_some() && !self.project.clips.is_empty() && !self.export.running;
+        let export_enabled = self.timeline.active_timeline.is_some()
+            && !self.project.clips.is_empty()
+            && !self.export.running;
         let has_error = self.error.is_some();
         let message = self
             .error
@@ -150,7 +151,8 @@ impl Editor {
             .unwrap_or("Ready")
             .to_string();
         let timeline_name = self
-            .timeline_path
+            .timeline
+            .active_timeline
             .as_deref()
             .and_then(|path| path.file_name())
             .map(|name| name.to_string_lossy().into_owned())

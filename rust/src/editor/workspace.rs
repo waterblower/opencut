@@ -313,9 +313,7 @@ fn file_tree_entry(
         is_video: !is_directory && is_video_path(&relative_path),
         is_image: !is_directory && is_image_path(&relative_path),
         is_audio: !is_directory && is_audio_path(&relative_path),
-        is_timeline: !is_directory
-            && relative_path.components().count() == 1
-            && super::timeline_document::is_timeline_path(&relative_path),
+        is_timeline: !is_directory && super::timeline_document::is_timeline_path(&relative_path),
         relative_path,
         name,
         depth,

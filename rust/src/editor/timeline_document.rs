@@ -33,7 +33,12 @@ pub(super) fn load_existing(
 ) -> Result<Option<(PathBuf, Project)>, String> {
     let timelines = timeline_files(project_root)?;
     let Some(relative_path) = preferred
-        .filter(|path| timelines.iter().any(|timeline| timeline == *path))
+        .filter(|path| {
+            path.components()
+                .all(|component| matches!(component, std::path::Component::Normal(_)))
+                && is_timeline_path(path)
+                && project_root.join(path).is_file()
+        })
         .map(Path::to_path_buf)
         .or_else(|| timelines.first().cloned())
     else {

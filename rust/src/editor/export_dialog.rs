@@ -49,7 +49,7 @@ struct ValidatedExport {
 
 impl Editor {
     pub(super) fn open_export_dialog(&mut self, cx: &mut Context<Self>) {
-        let Some(timeline_path) = self.timeline_path.clone() else {
+        let Some(active_timeline) = self.timeline.active_timeline.clone() else {
             return;
         };
         if self.project.clips.is_empty() || self.export.running {
@@ -69,7 +69,7 @@ impl Editor {
         let destination = cx.new(|cx| {
             ExplorerFilter::new_field(
                 "export-destination-input",
-                default_export_destination(&self.project_root, &timeline_path)
+                default_export_destination(&self.project_root, &active_timeline)
                     .display()
                     .to_string(),
                 "/path/to/export.mp4",
@@ -104,7 +104,8 @@ impl Editor {
             .as_ref()
             .expect("export dialog rendered without state");
         let project_name = self
-            .timeline_path
+            .timeline
+            .active_timeline
             .as_deref()
             .and_then(Path::file_name)
             .map(|name| name.to_string_lossy().into_owned())
