@@ -80,7 +80,7 @@ impl Editor {
         }
 
         self.settings_open = false;
-        self.file_context_menu = None;
+        self.explorer.context_menu = None;
         self.export_dialog_state = Some(ExportDialogState {
             resolution: (self.project.settings.width, self.project.settings.height),
             frame_rate: self.project.settings.frame_rate,

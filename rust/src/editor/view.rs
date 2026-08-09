@@ -36,15 +36,18 @@ impl Render for Editor {
                 ));
         }
         let file_menu = self
-            .file_context_menu
+            .explorer
+            .context_menu
             .as_ref()
             .map(|menu| self.file_menu_overlay(menu, editor_viewport, cx));
         let rename_dialog = self
-            .rename_dialog_state
+            .explorer
+            .rename_dialog
             .as_ref()
             .map(|_| self.rename_dialog(cx));
         let new_timeline_dialog = self
-            .new_timeline_dialog_state
+            .explorer
+            .new_timeline_dialog
             .as_ref()
             .map(|_| self.new_timeline_dialog(cx));
 

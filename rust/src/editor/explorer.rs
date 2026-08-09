@@ -88,13 +88,13 @@ impl Editor {
             .file_name()
             .map(|name| name.to_string_lossy().into_owned())
             .unwrap_or_else(|| self.project_root.display().to_string());
-        let filter_query = self.explorer_filter.read(cx).query().to_string();
+        let filter_query = self.explorer.filter.read(cx).query().to_string();
         let filter = filter_query.trim().to_lowercase();
-        let show_root_contents = self.explorer_root_expanded || !filter.is_empty();
+        let show_root_contents = self.explorer.root_expanded || !filter.is_empty();
         let visible_entries = if filter.is_empty() {
-            &self.file_tree
+            &self.explorer.file_tree
         } else {
-            &self.explorer_search_results
+            &self.explorer.search_results
         };
         let root_context_path = PathBuf::new();
         let root_row = div()
@@ -108,7 +108,7 @@ impl Editor {
             .cursor(CursorStyle::PointingHand)
             .hover(|style| style.bg(rgb(SURFACE_HOVER)))
             .on_click(cx.listener(|editor, _, _, cx| {
-                editor.explorer_root_expanded = !editor.explorer_root_expanded;
+                editor.explorer.root_expanded = !editor.explorer.root_expanded;
                 cx.notify();
             }))
             .on_mouse_down(
@@ -143,7 +143,7 @@ impl Editor {
                 let selection_path = path.clone();
                 let action_path = path.clone();
                 let context_path = path.clone();
-                let selected = self.selected_file.as_ref() == Some(&path);
+                let selected = self.explorer.selected_file.as_ref() == Some(&path);
                 let is_directory = entry.is_directory;
                 let is_video = entry.is_video;
                 let is_image = entry.is_image;
@@ -314,7 +314,7 @@ impl Editor {
                             .flex_1()
                             .min_h_0()
                             .overflow_y_scroll()
-                            .track_scroll(&self.explorer_scroll)
+                            .track_scroll(&self.explorer.scroll)
                             .flex()
                             .flex_col()
                             .py_2()
@@ -323,7 +323,7 @@ impl Editor {
                                 this.child(div().p_4().text_sm().text_color(rgb(MUTED)).child(
                                     if filter.is_empty() {
                                         "This project folder is empty.".to_string()
-                                    } else if self.explorer_search_pending {
+                                    } else if self.explorer.search_pending {
                                         "Searching project…".to_string()
                                     } else {
                                         format!("No files match “{filter_query}”.")
@@ -337,24 +337,24 @@ impl Editor {
     }
 
     fn explorer_filter(&self) -> gpui::AnyElement {
-        self.explorer_filter.clone().into_any_element()
+        self.explorer.filter.clone().into_any_element()
     }
 
     pub(super) fn schedule_explorer_search(&mut self, cx: &mut Context<Self>) {
-        let query = self.explorer_filter.read(cx).query().trim().to_string();
+        let query = self.explorer.filter.read(cx).query().trim().to_string();
         if query.is_empty() {
-            self.explorer_search_query = None;
-            self.explorer_search_results.clear();
-            self.explorer_search_pending = false;
+            self.explorer.search_query = None;
+            self.explorer.search_results.clear();
+            self.explorer.search_pending = false;
             return;
         }
-        if self.explorer_search_query.as_deref() == Some(query.as_str()) {
+        if self.explorer.search_query.as_deref() == Some(query.as_str()) {
             return;
         }
 
-        self.explorer_search_query = Some(query.clone());
-        self.explorer_search_results.clear();
-        self.explorer_search_pending = true;
+        self.explorer.search_query = Some(query.clone());
+        self.explorer.search_results.clear();
+        self.explorer.search_pending = true;
 
         let project_root = self.project_root.clone();
         cx.spawn(async move |editor, cx| {
@@ -365,7 +365,7 @@ impl Editor {
             let still_requested = editor
                 .update(cx, |editor, _| {
                     editor.project_root == project_root
-                        && editor.explorer_search_query.as_deref() == Some(query.as_str())
+                        && editor.explorer.search_query.as_deref() == Some(query.as_str())
                 })
                 .unwrap_or(false);
             if !still_requested {
@@ -382,17 +382,17 @@ impl Editor {
             editor
                 .update(cx, |editor, cx| {
                     if editor.project_root != project_root
-                        || editor.explorer_search_query.as_deref() != Some(query.as_str())
+                        || editor.explorer.search_query.as_deref() != Some(query.as_str())
                     {
                         return;
                     }
-                    editor.explorer_search_pending = false;
+                    editor.explorer.search_pending = false;
                     match result {
                         Ok(entries) => {
-                            editor.explorer_search_results = entries;
+                            editor.explorer.search_results = entries;
                         }
                         Err(error) => {
-                            editor.explorer_search_results.clear();
+                            editor.explorer.search_results.clear();
                             editor.error = Some(error);
                         }
                     }
@@ -405,7 +405,8 @@ impl Editor {
 
     pub(super) fn rename_dialog(&self, cx: &mut Context<Self>) -> gpui::AnyElement {
         let state = self
-            .rename_dialog_state
+            .explorer
+            .rename_dialog
             .as_ref()
             .expect("rename dialog rendered without state");
         let input = state.input.clone();
@@ -427,7 +428,7 @@ impl Editor {
             .on_mouse_down(
                 MouseButton::Left,
                 cx.listener(|editor, _, _, cx| {
-                    editor.rename_dialog_state = None;
+                    editor.explorer.rename_dialog = None;
                     cx.notify();
                 }),
             )
@@ -460,7 +461,7 @@ impl Editor {
                             .gap_2()
                             .child(rename_dialog_button("Cancel", false).on_click(cx.listener(
                                 |editor, _, _, cx| {
-                                    editor.rename_dialog_state = None;
+                                    editor.explorer.rename_dialog = None;
                                     cx.notify();
                                 },
                             )))
@@ -477,7 +478,8 @@ impl Editor {
 
     pub(super) fn new_timeline_dialog(&self, cx: &mut Context<Self>) -> gpui::AnyElement {
         let state = self
-            .new_timeline_dialog_state
+            .explorer
+            .new_timeline_dialog
             .as_ref()
             .expect("new timeline dialog rendered without state");
         let input = state.input.clone();
@@ -502,7 +504,7 @@ impl Editor {
             .on_mouse_down(
                 MouseButton::Left,
                 cx.listener(|editor, _, _, cx| {
-                    editor.new_timeline_dialog_state = None;
+                    editor.explorer.new_timeline_dialog = None;
                     cx.notify();
                 }),
             )
@@ -542,7 +544,7 @@ impl Editor {
                             .gap_2()
                             .child(rename_dialog_button("Cancel", false).on_click(cx.listener(
                                 |editor, _, _, cx| {
-                                    editor.new_timeline_dialog_state = None;
+                                    editor.explorer.new_timeline_dialog = None;
                                     cx.notify();
                                 },
                             )))
@@ -558,16 +560,16 @@ impl Editor {
     }
 
     pub(super) fn refresh_file_tree(&mut self) {
-        self.last_tree_scan = Instant::now();
-        match visible_tree(&self.project_root, &self.expanded_directories) {
-            Ok(entries) => self.file_tree = entries,
+        self.explorer.last_tree_scan = Instant::now();
+        match visible_tree(&self.project_root, &self.explorer.expanded_directories) {
+            Ok(entries) => self.explorer.file_tree = entries,
             Err(error) => self.error = Some(error),
         }
     }
 
     fn toggle_directory(&mut self, relative_path: PathBuf) {
-        if !self.expanded_directories.remove(&relative_path) {
-            self.expanded_directories.insert(relative_path);
+        if !self.explorer.expanded_directories.remove(&relative_path) {
+            self.explorer.expanded_directories.insert(relative_path);
         }
         self.refresh_file_tree();
     }
@@ -588,7 +590,7 @@ impl Editor {
             .and_then(|index| self.project.tracks.get(index))
             .map(|track| track.id)
         else {
-            if self.explorer_drop_preview.take().is_some() {
+            if self.explorer.drop_preview.take().is_some() {
                 self.snap_guide = None;
                 cx.notify();
             }
@@ -603,7 +605,8 @@ impl Editor {
             .nearest_time(((local_x - TIMELINE_PADDING) / self.pixels_per_second).max(0.0) as f64);
         self.refresh_explorer_drop_preview(&drag, track_id, raw_start);
         let invalid = self
-            .explorer_drop_preview
+            .explorer
+            .drop_preview
             .as_ref()
             .is_none_or(|preview| preview.invalid_reason.is_some());
         cx.set_active_drag_cursor_style(
@@ -614,7 +617,7 @@ impl Editor {
             },
             window,
         );
-        if !self.explorer_drag_probe_jobs.contains(&drag.relative_path)
+        if !self.explorer.drag_probe_jobs.contains(&drag.relative_path)
             && self.explorer_asset_for_path(&drag.relative_path).is_none()
         {
             self.request_explorer_drag_probe(drag.relative_path.clone(), cx);
@@ -648,7 +651,7 @@ impl Editor {
         .err()
         .map(|rejection| rejection.message().to_string());
         self.snap_guide = snap_guide;
-        self.explorer_drop_preview = Some(ExplorerDropPreview {
+        self.explorer.drop_preview = Some(ExplorerDropPreview {
             relative_path: drag.relative_path.clone(),
             name: drag.name.clone(),
             track_id,
@@ -661,7 +664,7 @@ impl Editor {
     }
 
     pub(super) fn drop_explorer_media(&mut self, drag: &ExplorerMediaDrag, cx: &mut Context<Self>) {
-        let Some(preview) = self.explorer_drop_preview.take().filter(|preview| {
+        let Some(preview) = self.explorer.drop_preview.take().filter(|preview| {
             preview.relative_path == drag.relative_path
                 && self.project.track(preview.track_id).is_some()
         }) else {
@@ -685,7 +688,7 @@ impl Editor {
                 asset,
             );
         } else {
-            self.pending_explorer_drop = Some(PendingExplorerDrop {
+            self.explorer.pending_drop = Some(PendingExplorerDrop {
                 relative_path: drag.relative_path.clone(),
                 track_id: preview.track_id,
                 raw_start: preview.raw_start,
@@ -702,12 +705,12 @@ impl Editor {
             .assets
             .iter()
             .find(|asset| asset.path == relative_path)
-            .or_else(|| self.explorer_drag_assets.get(relative_path))
+            .or_else(|| self.explorer.drag_assets.get(relative_path))
     }
 
     fn request_explorer_drag_probe(&mut self, relative_path: PathBuf, cx: &mut Context<Self>) {
         if self.explorer_asset_for_path(&relative_path).is_some()
-            || !self.explorer_drag_probe_jobs.insert(relative_path.clone())
+            || !self.explorer.drag_probe_jobs.insert(relative_path.clone())
         {
             return;
         }
@@ -725,16 +728,18 @@ impl Editor {
                     if editor.project_root != project_root {
                         return;
                     }
-                    editor.explorer_drag_probe_jobs.remove(&relative_path);
+                    editor.explorer.drag_probe_jobs.remove(&relative_path);
                     match result {
                         Ok(mut asset) => {
                             asset.path = relative_path.clone();
                             editor
-                                .explorer_drag_assets
+                                .explorer
+                                .drag_assets
                                 .insert(relative_path.clone(), asset.clone());
 
                             if let Some(preview) = editor
-                                .explorer_drop_preview
+                                .explorer
+                                .drop_preview
                                 .as_ref()
                                 .filter(|preview| preview.relative_path == relative_path)
                                 .cloned()
@@ -752,11 +757,12 @@ impl Editor {
                             }
 
                             let pending_matches = editor
-                                .pending_explorer_drop
+                                .explorer
+                                .pending_drop
                                 .as_ref()
                                 .is_some_and(|pending| pending.relative_path == relative_path);
                             if pending_matches
-                                && let Some(pending) = editor.pending_explorer_drop.take()
+                                && let Some(pending) = editor.explorer.pending_drop.take()
                             {
                                 editor.place_explorer_asset(
                                     relative_path.clone(),
@@ -768,7 +774,8 @@ impl Editor {
                         }
                         Err(error) => {
                             if let Some(preview) = editor
-                                .explorer_drop_preview
+                                .explorer
+                                .drop_preview
                                 .as_mut()
                                 .filter(|preview| preview.relative_path == relative_path)
                             {
@@ -776,11 +783,12 @@ impl Editor {
                                 preview.invalid_reason = Some(error.clone());
                             }
                             if editor
-                                .pending_explorer_drop
+                                .explorer
+                                .pending_drop
                                 .as_ref()
                                 .is_some_and(|pending| pending.relative_path == relative_path)
                             {
-                                editor.pending_explorer_drop = None;
+                                editor.explorer.pending_drop = None;
                                 editor.status = None;
                                 editor.error = Some(error);
                             }
@@ -845,7 +853,7 @@ impl Editor {
         });
         self.preview_target = PreviewTarget::Timeline;
         self.load_timeline_position(self.playhead, false);
-        self.selected_file = Some(relative_path);
+        self.explorer.selected_file = Some(relative_path);
         self.selected_asset_id = Some(asset_id);
         self.select_only_clip(Some(clip_id));
         self.save_project();
@@ -910,7 +918,7 @@ impl Editor {
                             editor.project.assets.push(asset);
                             editor
                                 .append_asset_clip_without_checkpoint(asset_id, track_id, duration);
-                            editor.selected_file = Some(relative_path);
+                            editor.explorer.selected_file = Some(relative_path);
                             editor.save_project();
                             editor.status = Some("Added media to timeline.".to_string());
                             editor.error = None;

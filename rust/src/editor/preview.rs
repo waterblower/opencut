@@ -127,8 +127,8 @@ impl Editor {
         let was_timeline = self.preview_target == PreviewTarget::Timeline;
         self.standalone_audio = None;
         self.preview_target = PreviewTarget::Timeline;
-        self.selected_file = None;
-        self.file_context_menu = None;
+        self.explorer.selected_file = None;
+        self.explorer.context_menu = None;
         let duration = self.project.timeline_duration();
         let position = position.clamp(TimelineTime::ZERO, duration);
         self.playhead = position;
@@ -255,7 +255,7 @@ impl Editor {
         let is_video = workspace::is_video_path(&relative_path);
         let is_audio = workspace::is_audio_path(&relative_path);
 
-        self.selected_file = Some(relative_path.clone());
+        self.explorer.selected_file = Some(relative_path.clone());
         self.selected_asset_id = self
             .project
             .assets
