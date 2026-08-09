@@ -4,7 +4,6 @@ use std::{
     path::{Path, PathBuf},
 };
 
-const DEFAULT_TIMELINE_FILE: &str = "main.timeline.json";
 const TIMELINE_SUFFIX: &str = ".timeline.json";
 
 pub(super) fn is_timeline_path(path: &Path) -> bool {
@@ -28,25 +27,20 @@ pub(super) fn timeline_files(project_root: &Path) -> Result<Vec<PathBuf>, String
     Ok(paths)
 }
 
-pub(super) fn load_or_create(
+pub(super) fn load_existing(
     project_root: &Path,
     preferred: Option<&Path>,
-) -> Result<(PathBuf, Project), String> {
+) -> Result<Option<(PathBuf, Project)>, String> {
     let timelines = timeline_files(project_root)?;
-    let relative_path = preferred
+    let Some(relative_path) = preferred
         .filter(|path| timelines.iter().any(|timeline| timeline == *path))
         .map(Path::to_path_buf)
         .or_else(|| timelines.first().cloned())
-        .unwrap_or_else(|| PathBuf::from(DEFAULT_TIMELINE_FILE));
-    let path = project_root.join(&relative_path);
-    let project = if path.is_file() {
-        Project::load(&path)?
-    } else {
-        let project = Project::default();
-        project.save(&path)?;
-        project
+    else {
+        return Ok(None);
     };
-    Ok((relative_path, project))
+    let path = project_root.join(&relative_path);
+    Ok(Some((relative_path, Project::load(&path)?)))
 }
 
 /// Turns a user-entered name into a timeline filename, appending the extension the

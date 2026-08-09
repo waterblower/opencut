@@ -94,11 +94,11 @@ impl Editor {
     }
 
     pub(super) fn sync_video_transform_inputs(&mut self, cx: &mut Context<Self>) {
-        let Some(clip_id) = self.selected_clip_id else {
+        let Some(clip_id) = self.timeline.selected_clip_id else {
             self.properties.transform_input_clip_id = None;
             return;
         };
-        if self.selected_clip_ids.len() != 1
+        if self.timeline.selected_clip_ids.len() != 1
             || self.properties.transform_input_clip_id == Some(clip_id)
         {
             return;

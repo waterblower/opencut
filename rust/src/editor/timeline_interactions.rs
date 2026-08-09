@@ -56,12 +56,12 @@ pub(super) struct MarqueeSelection {
 
 impl Editor {
     pub(super) fn activate_timeline_tool(&mut self, tool: TimelineTool) {
-        self.timeline_ui.active_tool = tool;
-        self.timeline_ui.blade_guide = None;
-        self.timeline_ui.trim_drag = None;
-        self.timeline_ui.clip_move_drag = None;
-        self.timeline_ui.marquee_selection = None;
-        self.timeline_ui.snap_guide = None;
+        self.timeline.active_tool = tool;
+        self.timeline.blade_guide = None;
+        self.timeline.trim_drag = None;
+        self.timeline.clip_move_drag = None;
+        self.timeline.marquee_selection = None;
+        self.timeline.snap_guide = None;
     }
 
     pub(super) fn update_blade_guide(
@@ -70,14 +70,14 @@ impl Editor {
         _: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        if self.timeline_ui.active_tool != TimelineTool::Blade {
+        if self.timeline.active_tool != TimelineTool::Blade {
             return;
         }
         let position = self
             .timeline_position_from_x(event.position.x.into())
             .clamp(TimelineTime::ZERO, self.project.timeline_duration());
-        if self.timeline_ui.blade_guide != Some(position) {
-            self.timeline_ui.blade_guide = Some(position);
+        if self.timeline.blade_guide != Some(position) {
+            self.timeline.blade_guide = Some(position);
             cx.notify();
         }
     }
@@ -88,7 +88,7 @@ impl Editor {
         _: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        if !*hovered && self.timeline_ui.blade_guide.take().is_some() {
+        if !*hovered && self.timeline.blade_guide.take().is_some() {
             cx.notify();
         }
     }
@@ -99,7 +99,7 @@ impl Editor {
         event: &MouseDownEvent,
         cx: &mut Context<Self>,
     ) {
-        match self.timeline_ui.active_tool {
+        match self.timeline.active_tool {
             TimelineTool::Selection => self.begin_clip_move(clip_id, event, cx),
             TimelineTool::Blade => {
                 cx.stop_propagation();
@@ -119,7 +119,7 @@ impl Editor {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        if self.timeline_ui.active_tool != TimelineTool::Selection {
+        if self.timeline.active_tool != TimelineTool::Selection {
             return;
         }
         if f32::from(event.position.x) < TRACK_HEADER_WIDTH {
@@ -131,11 +131,11 @@ impl Editor {
             window,
         );
         let initial_selection = if event.modifiers.secondary() {
-            self.selected_clip_ids.clone()
+            self.timeline.selected_clip_ids.clone()
         } else {
             HashSet::new()
         };
-        self.timeline_ui.marquee_selection = Some(MarqueeSelection {
+        self.timeline.marquee_selection = Some(MarqueeSelection {
             start_x: x,
             start_y: y,
             current_x: x,
@@ -155,7 +155,7 @@ impl Editor {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        if self.timeline_ui.marquee_selection.is_none() || !event.dragging() {
+        if self.timeline.marquee_selection.is_none() || !event.dragging() {
             return;
         }
         let (x, y) = Self::timeline_pointer_position(
@@ -163,7 +163,7 @@ impl Editor {
             event.position.y.into(),
             window,
         );
-        if let Some(selection) = self.timeline_ui.marquee_selection.as_mut() {
+        if let Some(selection) = self.timeline.marquee_selection.as_mut() {
             selection.current_x = x;
             selection.current_y = y;
         }
@@ -177,7 +177,7 @@ impl Editor {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        if self.timeline_ui.marquee_selection.is_none() {
+        if self.timeline.marquee_selection.is_none() {
             return;
         }
         let (x, y) = Self::timeline_pointer_position(
@@ -185,12 +185,12 @@ impl Editor {
             event.position.y.into(),
             window,
         );
-        if let Some(selection) = self.timeline_ui.marquee_selection.as_mut() {
+        if let Some(selection) = self.timeline.marquee_selection.as_mut() {
             selection.current_x = x;
             selection.current_y = y;
         }
         self.select_clips_in_marquee();
-        self.timeline_ui.marquee_selection = None;
+        self.timeline.marquee_selection = None;
         cx.notify();
     }
 
@@ -206,15 +206,15 @@ impl Editor {
     }
 
     pub(super) fn select_clips_in_marquee(&mut self) {
-        let Some(selection) = self.timeline_ui.marquee_selection.as_ref() else {
+        let Some(selection) = self.timeline.marquee_selection.as_ref() else {
             return;
         };
         let left = selection.start_x.min(selection.current_x);
         let right = selection.start_x.max(selection.current_x);
         let top = selection.start_y.min(selection.current_y);
         let bottom = selection.start_y.max(selection.current_y);
-        let scroll_x = f32::from(self.timeline_ui.scroll.offset().x);
-        let scroll_y = f32::from(self.timeline_ui.vertical_scroll.offset().y);
+        let scroll_x = f32::from(self.timeline.scroll.offset().x);
+        let scroll_y = f32::from(self.timeline.vertical_scroll.offset().y);
 
         let mut selected = selection.initial_selection.clone();
         for (track_index, track) in self.project.tracks.iter().enumerate() {
@@ -229,10 +229,10 @@ impl Editor {
                     + scroll_x
                     + TIMELINE_PADDING
                     + self.project.seconds(clip.timeline_start) as f32
-                        * self.timeline_ui.pixels_per_second;
+                        * self.timeline.pixels_per_second;
                 let clip_right = clip_left
                     + (self.project.seconds(clip.duration()) as f32
-                        * self.timeline_ui.pixels_per_second)
+                        * self.timeline.pixels_per_second)
                         .max(4.0);
                 if clip_left <= right
                     && clip_right >= left
@@ -243,13 +243,13 @@ impl Editor {
                 }
             }
         }
-        self.selected_clip_id = self
+        self.timeline.selected_clip_id = self
             .project
             .clips
             .iter()
             .find(|clip| selected.contains(&clip.id))
             .map(|clip| clip.id);
-        self.selected_clip_ids = selected;
+        self.timeline.selected_clip_ids = selected;
     }
 
     pub(super) fn begin_clip_move(
@@ -263,7 +263,7 @@ impl Editor {
             self.toggle_clip_selection(clip_id);
             return;
         }
-        if !self.selected_clip_ids.contains(&clip_id) {
+        if !self.timeline.selected_clip_ids.contains(&clip_id) {
             self.select_only_clip(Some(clip_id));
         }
         if !self.selected_clips_editable() {
@@ -298,7 +298,7 @@ impl Editor {
                 })
             })
             .collect::<Vec<_>>();
-        if items.len() != self.selected_clip_ids.len() {
+        if items.len() != self.timeline.selected_clip_ids.len() {
             return;
         }
         if let Some(video) = &self.preview.video {
@@ -306,8 +306,8 @@ impl Editor {
         }
         self.preview.playing = false;
         self.preview.timeline_clock = None;
-        self.timeline_ui.snap_guide = None;
-        self.timeline_ui.clip_move_drag = Some(ClipMoveDrag {
+        self.timeline.snap_guide = None;
+        self.timeline.clip_move_drag = Some(ClipMoveDrag {
             anchor_clip_id: clip_id,
             start_x: event.position.x.into(),
             original_anchor_start: anchor.timeline_start,
@@ -338,7 +338,7 @@ impl Editor {
         if !event.dragging() {
             return;
         }
-        let Some(drag) = self.timeline_ui.clip_move_drag.as_ref() else {
+        let Some(drag) = self.timeline.clip_move_drag.as_ref() else {
             return;
         };
         let anchor_clip_id = drag.anchor_clip_id;
@@ -347,8 +347,7 @@ impl Editor {
         let original_anchor_track_index = drag.original_anchor_track_index;
         let items = drag.items.clone();
         let raw_delta = self.project.settings.frame_rate.delta(
-            (f32::from(event.position.x) - start_x) as f64
-                / self.timeline_ui.pixels_per_second as f64,
+            (f32::from(event.position.x) - start_x) as f64 / self.timeline.pixels_per_second as f64,
         );
         let earliest_start = items
             .iter()
@@ -365,12 +364,12 @@ impl Editor {
         let (snapped_start, snap_guide) = self.snap_clip_start_ignoring(
             raw_anchor_start,
             anchor_duration,
-            &self.selected_clip_ids,
+            &self.timeline.selected_clip_ids,
         );
         let timeline_delta = snapped_start - original_anchor_start;
         let viewport_height = f32::from(window.viewport_size().height);
         let track_top = viewport_height - TIMELINE_HEIGHT + TIMELINE_HEADER_HEIGHT + RULER_HEIGHT;
-        let scroll_y: f32 = self.timeline_ui.vertical_scroll.offset().y.into();
+        let scroll_y: f32 = self.timeline.vertical_scroll.offset().y.into();
         let track_index =
             ((f32::from(event.position.y) - track_top - scroll_y) / TRACK_HEIGHT).floor() as isize;
         let requested_track_delta = usize::try_from(track_index)
@@ -411,7 +410,7 @@ impl Editor {
         let invalid_reason = if placements.len() != items.len() {
             Some("Destination track is unavailable")
         } else {
-            self.validate_clip_move_placements(&placements, &self.selected_clip_ids)
+            self.validate_clip_move_placements(&placements, &self.timeline.selected_clip_ids)
                 .err()
                 .map(ClipPlacementRejection::message)
         };
@@ -423,12 +422,12 @@ impl Editor {
                     *start != item.original_timeline_start || *track_id != item.original_track_id
                 })
         });
-        if let Some(drag) = &mut self.timeline_ui.clip_move_drag {
+        if let Some(drag) = &mut self.timeline.clip_move_drag {
             drag.placements = placements;
             drag.invalid_reason = invalid_reason;
             drag.changed = moved_from_origin;
         }
-        self.timeline_ui.snap_guide = snap_guide;
+        self.timeline.snap_guide = snap_guide;
         cx.notify();
     }
 
@@ -438,10 +437,10 @@ impl Editor {
         _: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        let Some(drag) = self.timeline_ui.clip_move_drag.take() else {
+        let Some(drag) = self.timeline.clip_move_drag.take() else {
             return;
         };
-        self.timeline_ui.snap_guide = None;
+        self.timeline.snap_guide = None;
         if drag.changed && drag.invalid_reason.is_none() {
             self.checkpoint();
             for (clip_id, track_id, start) in drag.placements {
@@ -451,7 +450,7 @@ impl Editor {
                 }
             }
             self.save_project();
-            self.load_timeline_position(self.timeline_ui.playhead, false);
+            self.load_timeline_position(self.timeline.playhead, false);
         }
         cx.notify();
     }
@@ -470,17 +469,17 @@ impl Editor {
         time: TimelineTime,
         ignored_clip_ids: &HashSet<u64>,
     ) -> (TimelineTime, Option<TimelineTime>) {
-        if !self.timeline_ui.snapping_enabled {
+        if !self.timeline.snapping_enabled {
             return (time.max(TimelineTime::ZERO), None);
         }
         let threshold = self
             .project
             .settings
             .frame_rate
-            .ceil(SNAP_DISTANCE_PX as f64 / self.timeline_ui.pixels_per_second as f64)
+            .ceil(SNAP_DISTANCE_PX as f64 / self.timeline.pixels_per_second as f64)
             .frames()
             .max(1) as u64;
-        let mut candidates = vec![TimelineTime::ZERO, self.timeline_ui.playhead];
+        let mut candidates = vec![TimelineTime::ZERO, self.timeline.playhead];
         for clip in &self.project.clips {
             if !ignored_clip_ids.contains(&clip.id) {
                 candidates.push(clip.timeline_start);
@@ -521,7 +520,7 @@ impl Editor {
     }
 
     pub(super) fn begin_trim(&mut self, clip_id: u64, edge: TrimEdge, x: f32) {
-        if self.selected_clip_ids.len() > 1 {
+        if self.timeline.selected_clip_ids.len() > 1 {
             return;
         }
         let Some(clip) = self.project.clip(clip_id).cloned() else {
@@ -539,8 +538,8 @@ impl Editor {
         self.preview.playing = false;
         self.preview.timeline_clock = None;
         self.select_only_clip(Some(clip_id));
-        self.timeline_ui.snap_guide = None;
-        self.timeline_ui.trim_drag = Some(TrimDrag {
+        self.timeline.snap_guide = None;
+        self.timeline.trim_drag = Some(TrimDrag {
             clip_id,
             edge,
             start_x: x,
@@ -561,7 +560,7 @@ impl Editor {
         if !event.dragging() {
             return;
         }
-        let Some(drag) = self.timeline_ui.trim_drag.as_ref() else {
+        let Some(drag) = self.timeline.trim_drag.as_ref() else {
             return;
         };
         let clip_id = drag.clip_id;
@@ -575,23 +574,23 @@ impl Editor {
         };
         let raw_delta = self.project.settings.frame_rate.delta(
             (f32::from(event.position.x) - drag.start_x) as f64
-                / self.timeline_ui.pixels_per_second as f64,
+                / self.timeline.pixels_per_second as f64,
         );
         if raw_delta == TimelineTime::ZERO {
-            self.timeline_ui.snap_guide = None;
+            self.timeline.snap_guide = None;
             cx.notify();
             return;
         }
         if !drag.changed {
             self.checkpoint();
-            if let Some(drag) = &mut self.timeline_ui.trim_drag {
+            if let Some(drag) = &mut self.timeline.trim_drag {
                 drag.changed = true;
             }
         }
         let Some(index) = self.project.clip_index(clip_id) else {
             return;
         };
-        self.timeline_ui.snap_guide = match edge {
+        self.timeline.snap_guide = match edge {
             TrimEdge::Left => {
                 let raw_start = (original_timeline_start + raw_delta).max(TimelineTime::ZERO);
                 let original_end = original_timeline_start + original_out - original_in;
@@ -624,14 +623,14 @@ impl Editor {
 
     pub(super) fn finish_trim(&mut self, _: &MouseUpEvent, _: &mut Window, cx: &mut Context<Self>) {
         let changed = self
-            .timeline_ui
+            .timeline
             .trim_drag
             .take()
             .is_some_and(|drag| drag.changed);
-        self.timeline_ui.snap_guide = None;
+        self.timeline.snap_guide = None;
         if changed {
             self.save_project();
-            if let Some(clip_id) = self.selected_clip_id
+            if let Some(clip_id) = self.timeline.selected_clip_id
                 && let Some(index) = self.project.clip_index(clip_id)
             {
                 self.load_timeline_position(self.project.clips[index].timeline_start, false);
@@ -641,29 +640,29 @@ impl Editor {
     }
 
     pub(super) fn zoom(&mut self, factor: f32) {
-        let previous_pixels_per_second = self.timeline_ui.pixels_per_second;
-        let pixels_per_second = (self.timeline_ui.pixels_per_second * factor).clamp(
+        let previous_pixels_per_second = self.timeline.pixels_per_second;
+        let pixels_per_second = (self.timeline.pixels_per_second * factor).clamp(
             MIN_TIMELINE_PIXELS_PER_SECOND,
             MAX_TIMELINE_PIXELS_PER_SECOND,
         );
         if pixels_per_second != previous_pixels_per_second {
-            let mut scroll_offset = self.timeline_ui.scroll.offset();
-            let playhead_seconds = self.project.seconds(self.timeline_ui.playhead);
+            let mut scroll_offset = self.timeline.scroll.offset();
+            let playhead_seconds = self.project.seconds(self.timeline.playhead);
             scroll_offset.x = px(zoom_scroll_offset(
                 f32::from(scroll_offset.x),
                 playhead_seconds,
                 previous_pixels_per_second,
                 pixels_per_second,
             ));
-            self.timeline_ui.scroll.set_offset(scroll_offset);
-            self.timeline_ui.pixels_per_second = pixels_per_second;
-            self.timeline_ui.zoom_save_due = Some(Instant::now() + TIMELINE_ZOOM_SAVE_DELAY);
+            self.timeline.scroll.set_offset(scroll_offset);
+            self.timeline.pixels_per_second = pixels_per_second;
+            self.timeline.zoom_save_due = Some(Instant::now() + TIMELINE_ZOOM_SAVE_DELAY);
         }
     }
 
     pub(super) fn toggle_snapping(&mut self) {
-        self.timeline_ui.snapping_enabled = !self.timeline_ui.snapping_enabled;
-        self.timeline_ui.snap_guide = None;
+        self.timeline.snapping_enabled = !self.timeline.snapping_enabled;
+        self.timeline.snap_guide = None;
     }
 
     pub(super) fn log_timeline_trackpad_scroll(
@@ -705,7 +704,7 @@ impl Editor {
             return false;
         }
 
-        let previous_zoom = self.timeline_ui.pixels_per_second;
+        let previous_zoom = self.timeline.pixels_per_second;
         let factor = (gesture.magnification as f32).exp().clamp(0.5, 2.0);
         self.zoom(factor);
         log::debug!(
@@ -713,28 +712,28 @@ impl Editor {
             "trackpad-pinch magnification={:.4} location_y={:.1} action=zoom factor={factor:.4} px_per_second={previous_zoom:.2}->{:.2}",
             gesture.magnification,
             gesture.location_y,
-            self.timeline_ui.pixels_per_second,
+            self.timeline.pixels_per_second,
         );
-        self.timeline_ui.pixels_per_second != previous_zoom
+        self.timeline.pixels_per_second != previous_zoom
     }
 
     pub(super) fn timeline_position_from_x(&self, x: f32) -> TimelineTime {
-        let scroll_x: f32 = self.timeline_ui.scroll.offset().x.into();
+        let scroll_x: f32 = self.timeline.scroll.offset().x.into();
         let content_x = x - TRACK_HEADER_WIDTH - scroll_x - TIMELINE_PADDING;
         self.project
-            .nearest_time(content_x as f64 / self.timeline_ui.pixels_per_second as f64)
+            .nearest_time(content_x as f64 / self.timeline.pixels_per_second as f64)
             .clamp(TimelineTime::ZERO, self.project.timeline_duration())
     }
 
     pub(super) fn begin_playhead_scrub(&mut self, event: &MouseDownEvent) {
-        self.timeline_ui.scrubbing_playhead = true;
+        self.timeline.scrubbing_playhead = true;
         if let Some(video) = &self.preview.video {
             video.set_paused(true);
         }
         self.preview.playing = false;
         self.preview.timeline_clock = None;
         let position = self.timeline_position_from_x(event.position.x.into());
-        self.timeline_ui.last_scrub_seek = Some(Instant::now());
+        self.timeline.last_scrub_seek = Some(Instant::now());
         self.load_timeline_position_for_scrub(position, false, false);
     }
 
@@ -744,17 +743,17 @@ impl Editor {
         _: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        if self.timeline_ui.scrubbing_playhead && event.dragging() {
+        if self.timeline.scrubbing_playhead && event.dragging() {
             let position = self.timeline_position_from_x(event.position.x.into());
-            self.timeline_ui.playhead = position;
+            self.timeline.playhead = position;
 
             let now = Instant::now();
             let should_seek = self
-                .timeline_ui
+                .timeline
                 .last_scrub_seek
                 .is_none_or(|last_seek| now.duration_since(last_seek) >= SCRUB_SEEK_INTERVAL);
             if should_seek {
-                self.timeline_ui.last_scrub_seek = Some(now);
+                self.timeline.last_scrub_seek = Some(now);
                 self.load_timeline_position_for_scrub(position, false, false);
             }
             cx.notify();
@@ -767,9 +766,9 @@ impl Editor {
         _: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        if self.timeline_ui.scrubbing_playhead {
-            self.timeline_ui.scrubbing_playhead = false;
-            self.timeline_ui.last_scrub_seek = None;
+        if self.timeline.scrubbing_playhead {
+            self.timeline.scrubbing_playhead = false;
+            self.timeline.last_scrub_seek = None;
             let position = self.timeline_position_from_x(event.position.x.into());
             self.load_timeline_position_for_scrub(position, true, true);
             cx.notify();
@@ -780,9 +779,9 @@ impl Editor {
         if self.project.clips.is_empty() {
             return;
         }
-        let target = (self.timeline_ui.playhead + TimelineTime::from_frames(frames))
+        let target = (self.timeline.playhead + TimelineTime::from_frames(frames))
             .clamp(TimelineTime::ZERO, self.project.timeline_duration());
-        if target != self.timeline_ui.playhead || self.preview.target != PreviewTarget::Timeline {
+        if target != self.timeline.playhead || self.preview.target != PreviewTarget::Timeline {
             self.load_timeline_position(target, false);
         }
     }

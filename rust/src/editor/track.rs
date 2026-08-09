@@ -106,7 +106,7 @@ impl Editor {
             .map(|clip| self.timeline_clip(track, clip, cx))
             .collect::<Vec<_>>();
         let move_previews = self
-            .timeline_ui
+            .timeline
             .clip_move_drag
             .as_ref()
             .filter(|drag| drag.changed)
@@ -140,7 +140,7 @@ impl Editor {
             } else {
                 0x0d0d0f
             }))
-            .cursor(match self.timeline_ui.active_tool {
+            .cursor(match self.timeline.active_tool {
                 TimelineTool::Blade => CursorStyle::Crosshair,
                 TimelineTool::Selection | TimelineTool::Trim => CursorStyle::Arrow,
             })
@@ -215,18 +215,14 @@ impl Editor {
         cx: &mut Context<Self>,
     ) -> gpui::AnyElement {
         let clip_id = clip.id;
-        let selected = self.selected_clip_ids.contains(&clip_id);
-        let moving = self
-            .timeline_ui
-            .clip_move_drag
-            .as_ref()
-            .is_some_and(|drag| {
-                drag.changed && drag.items.iter().any(|item| item.clip_id == clip_id)
-            });
+        let selected = self.timeline.selected_clip_ids.contains(&clip_id);
+        let moving = self.timeline.clip_move_drag.as_ref().is_some_and(|drag| {
+            drag.changed && drag.items.iter().any(|item| item.clip_id == clip_id)
+        });
         let left = TIMELINE_PADDING
-            + self.project.seconds(clip.timeline_start) as f32 * self.timeline_ui.pixels_per_second;
+            + self.project.seconds(clip.timeline_start) as f32 * self.timeline.pixels_per_second;
         let width = (self.project.seconds(clip.duration()) as f32
-            * self.timeline_ui.pixels_per_second)
+            * self.timeline.pixels_per_second)
             .max(4.0);
 
         div()
@@ -242,7 +238,7 @@ impl Editor {
             .border_color(rgb(if selected { ACCENT } else { color + 0x101010 }))
             .bg(rgb(color))
             .opacity(if moving { 0.3 } else { 1.0 })
-            .cursor(match self.timeline_ui.active_tool {
+            .cursor(match self.timeline.active_tool {
                 TimelineTool::Selection => CursorStyle::PointingHand,
                 TimelineTool::Blade => CursorStyle::Crosshair,
                 TimelineTool::Trim => CursorStyle::Arrow,
@@ -257,9 +253,9 @@ impl Editor {
             .child(content)
             .when(
                 selected
-                    && self.selected_clip_ids.len() == 1
+                    && self.timeline.selected_clip_ids.len() == 1
                     && !moving
-                    && self.timeline_ui.active_tool == TimelineTool::Trim,
+                    && self.timeline.active_tool == TimelineTool::Trim,
                 |this| {
                     this.child(trim_handle(("left-trim", clip_id), true).on_mouse_down(
                         MouseButton::Left,
@@ -300,15 +296,15 @@ impl Editor {
             .and_then(|clip| self.project.asset(clip.asset_id))
             .map(|asset| asset.name.clone())
             .unwrap_or_else(|| "Missing media".to_string());
-        let left = TIMELINE_PADDING
-            + self.project.seconds(start) as f32 * self.timeline_ui.pixels_per_second;
+        let left =
+            TIMELINE_PADDING + self.project.seconds(start) as f32 * self.timeline.pixels_per_second;
         let duration = self
             .project
             .clip(clip_id)
             .map(TimelineClip::duration)
             .unwrap_or(TimelineTime::ZERO);
         let width =
-            (self.project.seconds(duration) as f32 * self.timeline_ui.pixels_per_second).max(4.0);
+            (self.project.seconds(duration) as f32 * self.timeline.pixels_per_second).max(4.0);
         let valid = invalid_reason.is_none();
         let feedback_color = if valid { ACCENT } else { ERROR };
 
@@ -358,9 +354,9 @@ impl Editor {
 
     fn explorer_drop_preview(&self, preview: &ExplorerDropPreview) -> gpui::AnyElement {
         let left = TIMELINE_PADDING
-            + self.project.seconds(preview.start) as f32 * self.timeline_ui.pixels_per_second;
+            + self.project.seconds(preview.start) as f32 * self.timeline.pixels_per_second;
         let width = (self.project.seconds(preview.duration) as f32
-            * self.timeline_ui.pixels_per_second)
+            * self.timeline.pixels_per_second)
             .max(4.0);
         let invalid = preview.invalid_reason.is_some();
         let feedback_color = if invalid { ERROR } else { ACCENT };
