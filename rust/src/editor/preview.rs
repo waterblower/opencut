@@ -1,8 +1,6 @@
 use super::timeline_video::{create_timeline_video, set_timeline_audio};
 use super::*;
-use crate::playback_view::{CONTROL_HEIGHT, PlaybackViewProps, playback_view};
-use crate::video::video;
-use std::path::Path;
+use crate::playback_view::{PlaybackViewProps, playback_view};
 use url::Url;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -34,134 +32,8 @@ impl Editor {
         }
     }
 
-    fn preview_timeline(
-        &self,
-        origin_x: f32,
-        origin_y: f32,
-        width: f32,
-        height: f32,
-        cx: &mut Context<Self>,
-    ) -> gpui::AnyElement {
-        let surface_height = (height - CONTROL_HEIGHT).max(1.0);
-        let media = if let Some(video_handle) = self.video.as_ref() {
-            video(video_handle.clone())
-                .id("editor-timeline-video")
-                .size(px(width), px(surface_height))
-                .into_any_element()
-        } else {
-            div()
-                .size_full()
-                .flex()
-                .items_center()
-                .justify_center()
-                .text_color(rgb(MUTED))
-                .child("Choose a video from the project folder to begin")
-                .into_any_element()
-        };
-        let content = div()
-            .id("editor-timeline-preview-content")
-            .relative()
-            .w(px(width))
-            .h(px(surface_height))
-            .flex()
-            .items_center()
-            .justify_center()
-            .overflow_hidden()
-            .bg(rgb(0x000000))
-            .child(media)
-            .into_any_element();
-        let reported_position = self.project.duration(self.playhead);
-        let duration = self.project.duration(self.project.timeline_duration());
-        self.playable_preview(
-            origin_x,
-            origin_y,
-            width,
-            height,
-            !self.project.clips.is_empty(),
-            !self.playing,
-            reported_position,
-            duration,
-            content,
-            cx,
-        )
-    }
-
-    fn preview_video_file(
-        &self,
-        origin_x: f32,
-        origin_y: f32,
-        width: f32,
-        height: f32,
-        cx: &mut Context<Self>,
-    ) -> gpui::AnyElement {
-        let surface_height = (height - CONTROL_HEIGHT).max(1.0);
-        let content = div()
-            .id("editor-video-file-preview-content")
-            .relative()
-            .w(px(width))
-            .h(px(surface_height))
-            .flex()
-            .items_center()
-            .justify_center()
-            .overflow_hidden()
-            .bg(rgb(0x000000))
-            .child(if let Some(video_handle) = &self.video {
-                video(video_handle.clone())
-                    .id("editor-video-file-preview")
-                    .size(px(width), px(surface_height))
-                    .into_any_element()
-            } else {
-                div()
-                    .size_full()
-                    .flex()
-                    .items_center()
-                    .justify_center()
-                    .text_color(rgb(MUTED))
-                    .child("Loading video preview…")
-                    .into_any_element()
-            })
-            .into_any_element();
-        let (position, duration, paused) = self
-            .video
-            .as_ref()
-            .map_or((Duration::ZERO, Duration::ZERO, true), |video| {
-                (video.position(), video.duration(), video.paused())
-            });
-        self.playable_preview(
-            origin_x,
-            origin_y,
-            width,
-            height,
-            self.video.is_some(),
-            paused,
-            position,
-            duration,
-            content,
-            cx,
-        )
-    }
-
-    fn preview_image_file(&self, path: &Path, width: f32, height: f32) -> gpui::AnyElement {
-        div()
-            .id("editor-image-file-preview")
-            .w(px(width))
-            .h(px(height))
-            .flex_shrink_0()
-            .flex()
-            .items_center()
-            .justify_center()
-            .overflow_hidden()
-            .bg(rgb(0x000000))
-            .child(
-                img(self.project_root.join(path))
-                    .size_full()
-                    .object_fit(ObjectFit::Contain),
-            )
-            .into_any_element()
-    }
-
     #[allow(clippy::too_many_arguments)]
-    fn playable_preview(
+    pub(super) fn playable_preview(
         &self,
         origin_x: f32,
         origin_y: f32,
