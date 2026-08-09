@@ -135,20 +135,21 @@ impl Editor {
             return;
         }
 
-        if let Some(video) = &self.video {
+        if let Some(video) = &self.preview.video {
             video.set_paused(true);
         }
         self.checkpoint();
-        let playhead = previous.rescale_nearest(self.playhead, frame_rate);
+        let playhead = previous.rescale_nearest(self.preview.playhead, frame_rate);
         self.project.set_frame_rate(frame_rate);
-        self.playhead = playhead.clamp(TimelineTime::ZERO, self.project.timeline_duration());
-        self.video = None;
-        self.timeline_preview_needs_rebuild = true;
-        self.playing = false;
-        self.timeline_playback_clock = None;
+        self.preview.playhead =
+            playhead.clamp(TimelineTime::ZERO, self.project.timeline_duration());
+        self.preview.video = None;
+        self.preview.timeline_needs_rebuild = true;
+        self.preview.playing = false;
+        self.preview.timeline_clock = None;
         self.save_project();
         if !self.project.clips.is_empty() {
-            self.load_timeline_position(self.playhead, false);
+            self.load_timeline_position(self.preview.playhead, false);
         }
         self.status = Some(format!(
             "Timeline frame rate changed to {}.",

@@ -194,34 +194,38 @@ struct ExplorerState {
     last_tree_scan: Instant,
 }
 
+struct PreviewState {
+    target: PreviewTarget,
+    video: Option<Video>,
+    audio: Option<AudioPreview>,
+    timeline_needs_rebuild: bool,
+    timeline_clock: Option<(TimelineTime, Instant)>,
+    playhead: TimelineTime,
+    playing: bool,
+    volume: f64,
+    volume_open: bool,
+    is_scrubbing: bool,
+    is_adjusting_volume: bool,
+    resume_after_scrub: bool,
+    scrub_fraction: Option<f32>,
+    pending_seek_started: Option<Instant>,
+    last_scrub_seek: Option<Instant>,
+    refresh_ticks: u8,
+}
+
 pub(crate) struct Editor {
     project_root: PathBuf,
     timeline_path: PathBuf,
     project: Project,
     explorer: ExplorerState,
-    preview_target: PreviewTarget,
+    preview: PreviewState,
     media_cache_jobs: HashSet<u64>,
     media_cache_ready: HashSet<u64>,
     waveform_cache: HashMap<u64, Arc<media_cache::WaveformData>>,
-    video: Option<Video>,
-    standalone_audio: Option<AudioPreview>,
-    timeline_preview_needs_rebuild: bool,
-    timeline_playback_clock: Option<(TimelineTime, Instant)>,
     selected_asset_id: Option<u64>,
     selected_clip_id: Option<u64>,
     selected_clip_ids: HashSet<u64>,
     clip_clipboard: Option<ClipClipboard>,
-    playhead: TimelineTime,
-    playing: bool,
-    preview_volume: f64,
-    preview_volume_open: bool,
-    preview_is_scrubbing: bool,
-    preview_is_adjusting_volume: bool,
-    preview_resume_after_scrub: bool,
-    preview_scrub_fraction: Option<f32>,
-    preview_pending_seek_started: Option<Instant>,
-    preview_last_scrub_seek: Option<Instant>,
-    preview_refresh_ticks: u8,
     properties_panel_width: f32,
     is_resizing_properties_panel: bool,
     video_transform_inputs: VideoTransformInputs,
@@ -323,29 +327,31 @@ impl Editor {
                 pending_drop: None,
                 last_tree_scan: Instant::now(),
             },
-            preview_target: PreviewTarget::Timeline,
+            preview: PreviewState {
+                target: PreviewTarget::Timeline,
+                video: None,
+                audio: None,
+                timeline_needs_rebuild: true,
+                timeline_clock: None,
+                playhead,
+                playing: false,
+                volume: 1.0,
+                volume_open: false,
+                is_scrubbing: false,
+                is_adjusting_volume: false,
+                resume_after_scrub: false,
+                scrub_fraction: None,
+                pending_seek_started: None,
+                last_scrub_seek: None,
+                refresh_ticks: 0,
+            },
             media_cache_jobs: HashSet::new(),
             media_cache_ready: HashSet::new(),
             waveform_cache: HashMap::new(),
-            video: None,
-            standalone_audio: None,
-            timeline_preview_needs_rebuild: true,
-            timeline_playback_clock: None,
             selected_asset_id,
             selected_clip_id,
             selected_clip_ids,
             clip_clipboard: None,
-            playhead,
-            playing: false,
-            preview_volume: 1.0,
-            preview_volume_open: false,
-            preview_is_scrubbing: false,
-            preview_is_adjusting_volume: false,
-            preview_resume_after_scrub: false,
-            preview_scrub_fraction: None,
-            preview_pending_seek_started: None,
-            preview_last_scrub_seek: None,
-            preview_refresh_ticks: 0,
             properties_panel_width: DEFAULT_PROPERTIES_PANEL_WIDTH,
             is_resizing_properties_panel: false,
             video_transform_inputs,
@@ -378,7 +384,7 @@ impl Editor {
             focus_handle,
         };
         if !editor.project.clips.is_empty() {
-            editor.load_timeline_position(editor.playhead, false);
+            editor.load_timeline_position(editor.preview.playhead, false);
         }
         editor
     }
@@ -391,12 +397,15 @@ impl Editor {
                 match editor.update(cx, |editor, cx| {
                     let refresh_tree =
                         editor.explorer.last_tree_scan.elapsed() >= Duration::from_secs(1);
-                    let file_preview_playing = match editor.preview_target {
-                        PreviewTarget::VideoFile(_) => {
-                            editor.video.as_ref().is_some_and(|video| !video.paused())
-                        }
+                    let file_preview_playing = match editor.preview.target {
+                        PreviewTarget::VideoFile(_) => editor
+                            .preview
+                            .video
+                            .as_ref()
+                            .is_some_and(|video| !video.paused()),
                         PreviewTarget::AudioFile(_) => editor
-                            .standalone_audio
+                            .preview
+                            .audio
                             .as_ref()
                             .is_some_and(AudioPreview::playing),
                         _ => false,
@@ -416,14 +425,14 @@ impl Editor {
                     if ended_explorer_drag {
                         editor.snap_guide = None;
                     }
-                    let should_render = editor.playing
+                    let should_render = editor.preview.playing
                         || file_preview_playing
                         || editor.exporting
-                        || editor.preview_refresh_ticks > 0
+                        || editor.preview.refresh_ticks > 0
                         || refresh_tree
                         || pinch_zoomed
                         || ended_explorer_drag;
-                    editor.preview_refresh_ticks = editor.preview_refresh_ticks.saturating_sub(1);
+                    editor.preview.refresh_ticks = editor.preview.refresh_ticks.saturating_sub(1);
                     if refresh_tree {
                         editor.refresh_file_tree();
                         editor.schedule_missing_media_cache(cx);
@@ -461,7 +470,7 @@ impl Editor {
     }
 
     fn update_interval(&self) -> Duration {
-        if self.playing {
+        if self.preview.playing {
             self.project.duration(TimelineTime::ONE_FRAME)
         } else {
             IDLE_UPDATE_INTERVAL
@@ -473,7 +482,7 @@ impl Editor {
         let vertical_scroll = (-f32::from(self.timeline_vertical_scroll.offset().y)).max(0.0);
         timeline_view_state(
             &self.timeline_file_path(),
-            self.playhead.frames(),
+            self.preview.playhead.frames(),
             horizontal_scroll,
             vertical_scroll,
             self.snapping_enabled,
@@ -554,7 +563,7 @@ impl Editor {
     pub(super) fn open_timeline(&mut self, relative_path: PathBuf, cx: &mut Context<Self>) {
         if relative_path == self.timeline_path {
             self.explorer.selected_file = Some(relative_path);
-            self.preview_target = PreviewTarget::Timeline;
+            self.preview.target = PreviewTarget::Timeline;
             cx.notify();
             return;
         }
@@ -604,8 +613,8 @@ impl Editor {
         project: Project,
         cx: &mut Context<Self>,
     ) {
-        self.video = None;
-        self.standalone_audio = None;
+        self.preview.video = None;
+        self.preview.audio = None;
         self.media_cache_jobs.clear();
         self.media_cache_ready.clear();
         self.waveform_cache.clear();
@@ -614,16 +623,16 @@ impl Editor {
         self.explorer.drop_preview = None;
         self.explorer.pending_drop = None;
         self.clip_clipboard = None;
-        self.timeline_preview_needs_rebuild = true;
-        self.timeline_playback_clock = None;
-        self.playing = false;
-        self.preview_volume_open = false;
-        self.preview_is_scrubbing = false;
-        self.preview_is_adjusting_volume = false;
-        self.preview_resume_after_scrub = false;
-        self.preview_scrub_fraction = None;
-        self.preview_pending_seek_started = None;
-        self.preview_last_scrub_seek = None;
+        self.preview.timeline_needs_rebuild = true;
+        self.preview.timeline_clock = None;
+        self.preview.playing = false;
+        self.preview.volume_open = false;
+        self.preview.is_scrubbing = false;
+        self.preview.is_adjusting_volume = false;
+        self.preview.resume_after_scrub = false;
+        self.preview.scrub_fraction = None;
+        self.preview.pending_seek_started = None;
+        self.preview.last_scrub_seek = None;
         self.video_transform_input_clip_id = None;
         self.opacity_drag = None;
         self.trim_drag = None;
@@ -637,9 +646,9 @@ impl Editor {
         self.project = project;
         self.timeline_view_state = load_timeline_view(&self.timeline_file_path());
         self.timeline_view_save_due = None;
-        self.playhead = TimelineTime::from_frames(self.timeline_view_state.playhead_frame)
+        self.preview.playhead = TimelineTime::from_frames(self.timeline_view_state.playhead_frame)
             .clamp(TimelineTime::ZERO, self.project.timeline_duration());
-        self.preview_refresh_ticks = 2;
+        self.preview.refresh_ticks = 2;
         self.snapping_enabled = self.timeline_view_state.snapping_enabled;
         self.track_magnet_enabled = self.timeline_view_state.track_magnet_enabled;
         self.timeline_scroll.set_offset(point(
@@ -661,7 +670,7 @@ impl Editor {
             .update(cx, |filter, cx| filter.clear(cx));
         self.explorer.selected_file = Some(self.timeline_path.clone());
         self.explorer.context_menu = None;
-        self.preview_target = PreviewTarget::Timeline;
+        self.preview.target = PreviewTarget::Timeline;
         self.selected_asset_id = self.project.assets.first().map(|asset| asset.id);
         self.select_only_clip(self.project.clips.first().map(|clip| clip.id));
         self.refresh_file_tree();
@@ -671,7 +680,7 @@ impl Editor {
             self.error = None;
         }
         if !self.project.clips.is_empty() {
-            self.load_timeline_position(self.playhead, false);
+            self.load_timeline_position(self.preview.playhead, false);
         }
     }
 

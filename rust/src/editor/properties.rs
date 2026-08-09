@@ -14,7 +14,7 @@ impl Render for PropertiesPanelResizeDragView {
 
 impl Editor {
     pub(super) fn properties_panel(&self, cx: &mut Context<Self>) -> gpui::AnyElement {
-        let content = match &self.preview_target {
+        let content = match &self.preview.target {
             PreviewTarget::Timeline => self.timeline_properties(cx),
             PreviewTarget::VideoFile(path) => self.video_file_properties(path),
             PreviewTarget::AudioFile(path) => self.audio_file_properties(path),
@@ -197,7 +197,7 @@ impl Editor {
 
     fn video_file_properties(&self, path: &Path) -> gpui::AnyElement {
         let asset = self.asset_for_path(path);
-        let runtime = self.video.as_ref();
+        let runtime = self.preview.video.as_ref();
         let duration = asset
             .map(|asset| asset.duration)
             .or_else(|| runtime.map(|video| video.duration().as_secs_f64()));
@@ -237,7 +237,8 @@ impl Editor {
     fn audio_file_properties(&self, path: &Path) -> gpui::AnyElement {
         let asset = self.asset_for_path(path);
         let duration = asset.map(|asset| asset.duration).or_else(|| {
-            self.standalone_audio
+            self.preview
+                .audio
                 .as_ref()
                 .map(|audio| audio.duration().as_secs_f64())
         });

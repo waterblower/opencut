@@ -299,11 +299,11 @@ impl Editor {
         if items.len() != self.selected_clip_ids.len() {
             return;
         }
-        if let Some(video) = &self.video {
+        if let Some(video) = &self.preview.video {
             video.set_paused(true);
         }
-        self.playing = false;
-        self.timeline_playback_clock = None;
+        self.preview.playing = false;
+        self.preview.timeline_clock = None;
         self.snap_guide = None;
         self.clip_move_drag = Some(ClipMoveDrag {
             anchor_clip_id: clip_id,
@@ -449,7 +449,7 @@ impl Editor {
                 }
             }
             self.save_project();
-            self.load_timeline_position(self.playhead, false);
+            self.load_timeline_position(self.preview.playhead, false);
         }
         cx.notify();
     }
@@ -478,7 +478,7 @@ impl Editor {
             .ceil(SNAP_DISTANCE_PX as f64 / self.pixels_per_second as f64)
             .frames()
             .max(1) as u64;
-        let mut candidates = vec![TimelineTime::ZERO, self.playhead];
+        let mut candidates = vec![TimelineTime::ZERO, self.preview.playhead];
         for clip in &self.project.clips {
             if !ignored_clip_ids.contains(&clip.id) {
                 candidates.push(clip.timeline_start);
@@ -531,11 +531,11 @@ impl Editor {
         let maximum_source_out = self.project.asset(clip.asset_id).and_then(|asset| {
             (asset.kind != MediaKind::Image).then(|| self.project.ceil_time(asset.duration))
         });
-        if let Some(video) = &self.video {
+        if let Some(video) = &self.preview.video {
             video.set_paused(true);
         }
-        self.playing = false;
-        self.timeline_playback_clock = None;
+        self.preview.playing = false;
+        self.preview.timeline_clock = None;
         self.select_only_clip(Some(clip_id));
         self.snap_guide = None;
         self.trim_drag = Some(TrimDrag {
@@ -641,7 +641,7 @@ impl Editor {
         );
         if pixels_per_second != previous_pixels_per_second {
             let mut scroll_offset = self.timeline_scroll.offset();
-            let playhead_seconds = self.project.seconds(self.playhead);
+            let playhead_seconds = self.project.seconds(self.preview.playhead);
             scroll_offset.x = px(zoom_scroll_offset(
                 f32::from(scroll_offset.x),
                 playhead_seconds,
@@ -721,11 +721,11 @@ impl Editor {
 
     pub(super) fn begin_playhead_scrub(&mut self, event: &MouseDownEvent) {
         self.is_scrubbing_playhead = true;
-        if let Some(video) = &self.video {
+        if let Some(video) = &self.preview.video {
             video.set_paused(true);
         }
-        self.playing = false;
-        self.timeline_playback_clock = None;
+        self.preview.playing = false;
+        self.preview.timeline_clock = None;
         let position = self.timeline_position_from_x(event.position.x.into());
         self.last_playhead_scrub_seek = Some(Instant::now());
         self.load_timeline_position_for_scrub(position, false, false);
@@ -739,7 +739,7 @@ impl Editor {
     ) {
         if self.is_scrubbing_playhead && event.dragging() {
             let position = self.timeline_position_from_x(event.position.x.into());
-            self.playhead = position;
+            self.preview.playhead = position;
 
             let now = Instant::now();
             let should_seek = self
@@ -772,9 +772,9 @@ impl Editor {
         if self.project.clips.is_empty() {
             return;
         }
-        let target = (self.playhead + TimelineTime::from_frames(frames))
+        let target = (self.preview.playhead + TimelineTime::from_frames(frames))
             .clamp(TimelineTime::ZERO, self.project.timeline_duration());
-        if target != self.playhead || self.preview_target != PreviewTarget::Timeline {
+        if target != self.preview.playhead || self.preview.target != PreviewTarget::Timeline {
             self.load_timeline_position(target, false);
         }
     }

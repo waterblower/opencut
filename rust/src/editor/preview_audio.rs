@@ -109,30 +109,32 @@ impl Editor {
             .file_name()
             .map(|name| name.to_string_lossy().into_owned())
             .unwrap_or_else(|| path.display().to_string());
-        let (position, duration, paused) = self.standalone_audio.as_ref().map_or(
-            (Duration::ZERO, Duration::ZERO, true),
-            |audio| {
-                (
-                    audio.position(),
-                    audio.duration(),
-                    !audio.playing() || audio.finished(),
-                )
-            },
-        );
+        let (position, duration, paused) =
+            self.preview
+                .audio
+                .as_ref()
+                .map_or((Duration::ZERO, Duration::ZERO, true), |audio| {
+                    (
+                        audio.position(),
+                        audio.duration(),
+                        !audio.playing() || audio.finished(),
+                    )
+                });
         let reported_progress = if duration.is_zero() {
             0.0
         } else {
             (position.as_secs_f64() / duration.as_secs_f64()).clamp(0.0, 1.0) as f32
         };
-        let progress = self.preview_scrub_fraction.unwrap_or(reported_progress);
+        let progress = self.preview.scrub_fraction.unwrap_or(reported_progress);
         let position = self
-            .preview_scrub_fraction
+            .preview
+            .scrub_fraction
             .map_or(position, |fraction| duration.mul_f64(fraction as f64));
-        let has_media = self.standalone_audio.is_some();
+        let has_media = self.preview.audio.is_some();
         let usable_width = (width - AUDIO_HORIZONTAL_PADDING * 2.0).max(1.0);
         let timeline_left = origin_x + AUDIO_HORIZONTAL_PADDING;
         let volume_left = origin_x + width - AUDIO_HORIZONTAL_PADDING - AUDIO_VOLUME_WIDTH;
-        let volume = self.preview_volume.clamp(0.0, 1.0) as f32;
+        let volume = self.preview.volume.clamp(0.0, 1.0) as f32;
         let format_time = |duration: Duration| {
             let total_seconds = duration.as_secs();
             let hours = total_seconds / 3600;
@@ -160,12 +162,12 @@ impl Editor {
                 if !event.dragging() {
                     return;
                 }
-                if editor.preview_is_scrubbing {
+                if editor.preview.is_scrubbing {
                     let fraction = ((f32::from(event.position.x) - timeline_left) / usable_width)
                         .clamp(0.0, 1.0);
                     editor.update_audio_scrub(fraction, cx);
                 }
-                if editor.preview_is_adjusting_volume {
+                if editor.preview.is_adjusting_volume {
                     let volume = ((f32::from(event.position.x) - volume_left) / AUDIO_VOLUME_WIDTH)
                         .clamp(0.0, 1.0) as f64;
                     editor.set_audio_preview_volume(volume, cx);
@@ -174,17 +176,17 @@ impl Editor {
             .on_mouse_up(
                 MouseButton::Left,
                 cx.listener(move |editor, event: &MouseUpEvent, _, cx| {
-                    if editor.preview_is_scrubbing {
+                    if editor.preview.is_scrubbing {
                         let fraction = ((f32::from(event.position.x) - timeline_left)
                             / usable_width)
                             .clamp(0.0, 1.0);
                         editor.finish_audio_scrub(fraction, cx);
                     }
-                    if editor.preview_is_adjusting_volume {
+                    if editor.preview.is_adjusting_volume {
                         let volume = ((f32::from(event.position.x) - volume_left)
                             / AUDIO_VOLUME_WIDTH)
                             .clamp(0.0, 1.0) as f64;
-                        editor.preview_is_adjusting_volume = false;
+                        editor.preview.is_adjusting_volume = false;
                         editor.set_audio_preview_volume(volume, cx);
                     }
                 }),
@@ -192,17 +194,17 @@ impl Editor {
             .on_mouse_up_out(
                 MouseButton::Left,
                 cx.listener(move |editor, event: &MouseUpEvent, _, cx| {
-                    if editor.preview_is_scrubbing {
+                    if editor.preview.is_scrubbing {
                         let fraction = ((f32::from(event.position.x) - timeline_left)
                             / usable_width)
                             .clamp(0.0, 1.0);
                         editor.finish_audio_scrub(fraction, cx);
                     }
-                    if editor.preview_is_adjusting_volume {
+                    if editor.preview.is_adjusting_volume {
                         let volume = ((f32::from(event.position.x) - volume_left)
                             / AUDIO_VOLUME_WIDTH)
                             .clamp(0.0, 1.0) as f64;
-                        editor.preview_is_adjusting_volume = false;
+                        editor.preview.is_adjusting_volume = false;
                         editor.set_audio_preview_volume(volume, cx);
                     }
                 }),
@@ -305,7 +307,7 @@ impl Editor {
                                             .bg(rgb(ACCENT))
                                             .child(
                                                 div()
-                                                    .size(px(if self.preview_is_scrubbing {
+                                                    .size(px(if self.preview.is_scrubbing {
                                                         16.0
                                                     } else {
                                                         12.0
@@ -379,7 +381,7 @@ impl Editor {
                                                                   event: &MouseDownEvent,
                                                                   _,
                                                                   cx| {
-                                                                editor.preview_is_adjusting_volume =
+                                                                editor.preview.is_adjusting_volume =
                                                                     true;
                                                                 let volume = ((f32::from(
                                                                     event.position.x,
@@ -416,7 +418,7 @@ impl Editor {
     }
 
     fn seek_audio_to_fraction(&self, fraction: f32, accurate: bool, playing: bool) {
-        if let Some(audio) = &self.standalone_audio {
+        if let Some(audio) = &self.preview.audio {
             let target = audio.duration().mul_f64(fraction.clamp(0.0, 1.0) as f64);
             audio.seek_with_accuracy(target, accurate);
             audio.set_playing(playing);
@@ -424,53 +426,54 @@ impl Editor {
     }
 
     fn begin_audio_scrub(&mut self, fraction: f32, cx: &mut Context<Self>) {
-        let Some(audio) = &self.standalone_audio else {
+        let Some(audio) = &self.preview.audio else {
             return;
         };
-        self.preview_resume_after_scrub = audio.playing();
+        self.preview.resume_after_scrub = audio.playing();
         audio.set_playing(false);
-        self.preview_is_scrubbing = true;
-        self.preview_scrub_fraction = Some(fraction);
-        self.preview_pending_seek_started = None;
-        self.preview_last_scrub_seek = Some(Instant::now());
+        self.preview.is_scrubbing = true;
+        self.preview.scrub_fraction = Some(fraction);
+        self.preview.pending_seek_started = None;
+        self.preview.last_scrub_seek = Some(Instant::now());
         self.seek_audio_to_fraction(fraction, false, false);
-        self.preview_refresh_ticks = 12;
+        self.preview.refresh_ticks = 12;
         cx.notify();
     }
 
     fn update_audio_scrub(&mut self, fraction: f32, cx: &mut Context<Self>) {
-        if !self.preview_is_scrubbing {
+        if !self.preview.is_scrubbing {
             return;
         }
-        self.preview_scrub_fraction = Some(fraction);
+        self.preview.scrub_fraction = Some(fraction);
         let now = Instant::now();
         if self
-            .preview_last_scrub_seek
+            .preview
+            .last_scrub_seek
             .is_none_or(|last_seek| now.duration_since(last_seek) >= SCRUB_SEEK_INTERVAL)
         {
-            self.preview_last_scrub_seek = Some(now);
+            self.preview.last_scrub_seek = Some(now);
             self.seek_audio_to_fraction(fraction, false, false);
         }
-        self.preview_refresh_ticks = 12;
+        self.preview.refresh_ticks = 12;
         cx.notify();
     }
 
     fn finish_audio_scrub(&mut self, fraction: f32, cx: &mut Context<Self>) {
-        let resume = self.preview_resume_after_scrub;
-        self.preview_scrub_fraction = Some(fraction);
-        self.preview_pending_seek_started = Some(Instant::now());
-        self.preview_last_scrub_seek = None;
-        self.preview_is_scrubbing = false;
+        let resume = self.preview.resume_after_scrub;
+        self.preview.scrub_fraction = Some(fraction);
+        self.preview.pending_seek_started = Some(Instant::now());
+        self.preview.last_scrub_seek = None;
+        self.preview.is_scrubbing = false;
         self.seek_audio_to_fraction(fraction, true, resume);
-        self.preview_resume_after_scrub = false;
-        self.preview_refresh_ticks = 12;
+        self.preview.resume_after_scrub = false;
+        self.preview.refresh_ticks = 12;
         cx.notify();
     }
 
     fn set_audio_preview_volume(&mut self, volume: f64, cx: &mut Context<Self>) {
-        self.preview_volume = volume.clamp(0.0, 1.0);
-        if let Some(audio) = &self.standalone_audio {
-            audio.set_volume(self.preview_volume);
+        self.preview.volume = volume.clamp(0.0, 1.0);
+        if let Some(audio) = &self.preview.audio {
+            audio.set_volume(self.preview.volume);
         }
         cx.notify();
     }

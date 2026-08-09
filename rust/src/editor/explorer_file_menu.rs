@@ -259,7 +259,7 @@ impl Editor {
                 }
             }
         }
-        self.timeline_preview_needs_rebuild = true;
+        self.preview.timeline_needs_rebuild = true;
         self.explorer.expanded_directories = self
             .explorer
             .expanded_directories
@@ -274,7 +274,7 @@ impl Editor {
         {
             *selected = path;
         }
-        match &mut self.preview_target {
+        match &mut self.preview.target {
             PreviewTarget::VideoFile(path)
             | PreviewTarget::AudioFile(path)
             | PreviewTarget::ImageFile(path) => {

@@ -851,8 +851,8 @@ impl Editor {
             video_properties: VideoClipProperties::default(),
             audio_properties: AudioClipProperties::default(),
         });
-        self.preview_target = PreviewTarget::Timeline;
-        self.load_timeline_position(self.playhead, false);
+        self.preview.target = PreviewTarget::Timeline;
+        self.load_timeline_position(self.preview.playhead, false);
         self.explorer.selected_file = Some(relative_path);
         self.selected_asset_id = Some(asset_id);
         self.select_only_clip(Some(clip_id));

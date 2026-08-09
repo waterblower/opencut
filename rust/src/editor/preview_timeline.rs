@@ -12,7 +12,7 @@ impl Editor {
         cx: &mut Context<Self>,
     ) -> gpui::AnyElement {
         let surface_height = (height - CONTROL_HEIGHT).max(1.0);
-        let media = if let Some(video_handle) = self.video.as_ref() {
+        let media = if let Some(video_handle) = self.preview.video.as_ref() {
             video(video_handle.clone())
                 .id("editor-timeline-video")
                 .size(px(width), px(surface_height))
@@ -39,7 +39,7 @@ impl Editor {
             .bg(rgb(0x000000))
             .child(media)
             .into_any_element();
-        let reported_position = self.project.duration(self.playhead);
+        let reported_position = self.project.duration(self.preview.playhead);
         let duration = self.project.duration(self.project.timeline_duration());
         self.playable_preview(
             origin_x,
@@ -47,7 +47,7 @@ impl Editor {
             width,
             height,
             !self.project.clips.is_empty(),
-            !self.playing,
+            !self.preview.playing,
             reported_position,
             duration,
             content,
