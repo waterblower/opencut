@@ -200,7 +200,6 @@ struct PreviewState {
     audio: Option<AudioPreview>,
     timeline_needs_rebuild: bool,
     timeline_clock: Option<(TimelineTime, Instant)>,
-    playhead: TimelineTime,
     playing: bool,
     volume: f64,
     volume_open: bool,
@@ -211,6 +210,31 @@ struct PreviewState {
     pending_seek_started: Option<Instant>,
     last_scrub_seek: Option<Instant>,
     refresh_ticks: u8,
+}
+
+struct TimelineUiState {
+    playhead: TimelineTime,
+    pixels_per_second: f32,
+    zoom_save_due: Option<Instant>,
+    view_state: TimelineViewState,
+    view_save_due: Option<Instant>,
+    active_tool: TimelineTool,
+    blade_guide: Option<TimelineTime>,
+    snapping_enabled: bool,
+    magnet_enabled: bool,
+    snap_guide: Option<TimelineTime>,
+    trim_drag: Option<TrimDrag>,
+    clip_move_drag: Option<ClipMoveDrag>,
+    marquee_selection: Option<MarqueeSelection>,
+    scrubbing_playhead: bool,
+    last_scrub_seek: Option<Instant>,
+    scroll: ScrollHandle,
+    vertical_scroll: ScrollHandle,
+}
+
+struct ExportState {
+    dialog: Option<ExportDialogState>,
+    running: bool,
 }
 
 pub(crate) struct Editor {
@@ -232,27 +256,11 @@ pub(crate) struct Editor {
     video_transform_input_clip_id: Option<u64>,
     opacity_drag: Option<OpacityDrag>,
     settings_open: bool,
-    export_dialog_state: Option<ExportDialogState>,
-    pixels_per_second: f32,
-    timeline_zoom_save_due: Option<Instant>,
-    timeline_view_state: TimelineViewState,
-    timeline_view_save_due: Option<Instant>,
-    active_timeline_tool: TimelineTool,
-    blade_guide_position: Option<TimelineTime>,
-    snapping_enabled: bool,
-    track_magnet_enabled: bool,
-    snap_guide: Option<TimelineTime>,
+    export: ExportState,
+    timeline_ui: TimelineUiState,
     next_id: u64,
     undo_stack: Vec<Project>,
     redo_stack: Vec<Project>,
-    trim_drag: Option<TrimDrag>,
-    clip_move_drag: Option<ClipMoveDrag>,
-    marquee_selection: Option<MarqueeSelection>,
-    is_scrubbing_playhead: bool,
-    last_playhead_scrub_seek: Option<Instant>,
-    timeline_scroll: ScrollHandle,
-    timeline_vertical_scroll: ScrollHandle,
-    exporting: bool,
     status: Option<String>,
     error: Option<String>,
     focus_handle: FocusHandle,
@@ -333,7 +341,6 @@ impl Editor {
                 audio: None,
                 timeline_needs_rebuild: true,
                 timeline_clock: None,
-                playhead,
                 playing: false,
                 volume: 1.0,
                 volume_open: false,
@@ -358,33 +365,38 @@ impl Editor {
             video_transform_input_clip_id: None,
             opacity_drag: None,
             settings_open: false,
-            export_dialog_state: None,
-            pixels_per_second,
-            timeline_zoom_save_due: None,
-            timeline_view_state: timeline_view_state.clone(),
-            timeline_view_save_due: None,
-            active_timeline_tool: TimelineTool::Selection,
-            blade_guide_position: None,
-            snapping_enabled: timeline_view_state.snapping_enabled,
-            track_magnet_enabled: timeline_view_state.track_magnet_enabled,
-            snap_guide: None,
+            export: ExportState {
+                dialog: None,
+                running: false,
+            },
+            timeline_ui: TimelineUiState {
+                playhead,
+                pixels_per_second,
+                zoom_save_due: None,
+                view_state: timeline_view_state.clone(),
+                view_save_due: None,
+                active_tool: TimelineTool::Selection,
+                blade_guide: None,
+                snapping_enabled: timeline_view_state.snapping_enabled,
+                magnet_enabled: timeline_view_state.track_magnet_enabled,
+                snap_guide: None,
+                trim_drag: None,
+                clip_move_drag: None,
+                marquee_selection: None,
+                scrubbing_playhead: false,
+                last_scrub_seek: None,
+                scroll: timeline_scroll,
+                vertical_scroll: timeline_vertical_scroll,
+            },
             next_id,
             undo_stack: Vec::new(),
             redo_stack: Vec::new(),
-            trim_drag: None,
-            clip_move_drag: None,
-            marquee_selection: None,
-            is_scrubbing_playhead: false,
-            last_playhead_scrub_seek: None,
-            timeline_scroll,
-            timeline_vertical_scroll,
-            exporting: false,
             status: None,
             error: startup_error,
             focus_handle,
         };
         if !editor.project.clips.is_empty() {
-            editor.load_timeline_position(editor.preview.playhead, false);
+            editor.load_timeline_position(editor.timeline_ui.playhead, false);
         }
         editor
     }
@@ -412,22 +424,24 @@ impl Editor {
                     };
                     let pinch_zoomed = editor.apply_timeline_pinch();
                     if editor
-                        .timeline_zoom_save_due
+                        .timeline_ui
+                        .zoom_save_due
                         .is_some_and(|due| Instant::now() >= due)
                     {
-                        if let Err(error) = save_timeline_zoom(editor.pixels_per_second) {
+                        if let Err(error) = save_timeline_zoom(editor.timeline_ui.pixels_per_second)
+                        {
                             editor.error = Some(error);
                         }
-                        editor.timeline_zoom_save_due = None;
+                        editor.timeline_ui.zoom_save_due = None;
                     }
                     let ended_explorer_drag =
                         !cx.has_active_drag() && editor.explorer.drop_preview.take().is_some();
                     if ended_explorer_drag {
-                        editor.snap_guide = None;
+                        editor.timeline_ui.snap_guide = None;
                     }
                     let should_render = editor.preview.playing
                         || file_preview_playing
-                        || editor.exporting
+                        || editor.export.running
                         || editor.preview.refresh_ticks > 0
                         || refresh_tree
                         || pinch_zoomed
@@ -440,21 +454,22 @@ impl Editor {
                     editor.update_playback();
                     editor.reconcile_preview_seek();
                     let current_timeline_view = editor.current_timeline_view_state();
-                    if current_timeline_view != editor.timeline_view_state {
-                        editor.timeline_view_state = current_timeline_view;
-                        if editor.timeline_view_save_due.is_none() {
-                            editor.timeline_view_save_due =
+                    if current_timeline_view != editor.timeline_ui.view_state {
+                        editor.timeline_ui.view_state = current_timeline_view;
+                        if editor.timeline_ui.view_save_due.is_none() {
+                            editor.timeline_ui.view_save_due =
                                 Some(Instant::now() + TIMELINE_VIEW_SAVE_DELAY);
                         }
                     }
                     if editor
-                        .timeline_view_save_due
+                        .timeline_ui
+                        .view_save_due
                         .is_some_and(|due| Instant::now() >= due)
                     {
-                        if let Err(error) = save_timeline_view(&editor.timeline_view_state) {
+                        if let Err(error) = save_timeline_view(&editor.timeline_ui.view_state) {
                             editor.error = Some(error);
                         }
-                        editor.timeline_view_save_due = None;
+                        editor.timeline_ui.view_save_due = None;
                     }
                     if should_render {
                         cx.notify();
@@ -478,15 +493,15 @@ impl Editor {
     }
 
     fn current_timeline_view_state(&self) -> TimelineViewState {
-        let horizontal_scroll = (-f32::from(self.timeline_scroll.offset().x)).max(0.0);
-        let vertical_scroll = (-f32::from(self.timeline_vertical_scroll.offset().y)).max(0.0);
+        let horizontal_scroll = (-f32::from(self.timeline_ui.scroll.offset().x)).max(0.0);
+        let vertical_scroll = (-f32::from(self.timeline_ui.vertical_scroll.offset().y)).max(0.0);
         timeline_view_state(
             &self.timeline_file_path(),
-            self.preview.playhead.frames(),
+            self.timeline_ui.playhead.frames(),
             horizontal_scroll,
             vertical_scroll,
-            self.snapping_enabled,
-            self.track_magnet_enabled,
+            self.timeline_ui.snapping_enabled,
+            self.timeline_ui.magnet_enabled,
         )
     }
 
@@ -635,29 +650,30 @@ impl Editor {
         self.preview.last_scrub_seek = None;
         self.video_transform_input_clip_id = None;
         self.opacity_drag = None;
-        self.trim_drag = None;
-        self.clip_move_drag = None;
-        self.marquee_selection = None;
-        self.is_scrubbing_playhead = false;
-        self.last_playhead_scrub_seek = None;
-        self.blade_guide_position = None;
-        self.snap_guide = None;
+        self.timeline_ui.trim_drag = None;
+        self.timeline_ui.clip_move_drag = None;
+        self.timeline_ui.marquee_selection = None;
+        self.timeline_ui.scrubbing_playhead = false;
+        self.timeline_ui.last_scrub_seek = None;
+        self.timeline_ui.blade_guide = None;
+        self.timeline_ui.snap_guide = None;
         self.timeline_path = timeline_path;
         self.project = project;
-        self.timeline_view_state = load_timeline_view(&self.timeline_file_path());
-        self.timeline_view_save_due = None;
-        self.preview.playhead = TimelineTime::from_frames(self.timeline_view_state.playhead_frame)
-            .clamp(TimelineTime::ZERO, self.project.timeline_duration());
+        self.timeline_ui.view_state = load_timeline_view(&self.timeline_file_path());
+        self.timeline_ui.view_save_due = None;
+        self.timeline_ui.playhead =
+            TimelineTime::from_frames(self.timeline_ui.view_state.playhead_frame)
+                .clamp(TimelineTime::ZERO, self.project.timeline_duration());
         self.preview.refresh_ticks = 2;
-        self.snapping_enabled = self.timeline_view_state.snapping_enabled;
-        self.track_magnet_enabled = self.timeline_view_state.track_magnet_enabled;
-        self.timeline_scroll.set_offset(point(
-            px(-self.timeline_view_state.horizontal_scroll),
+        self.timeline_ui.snapping_enabled = self.timeline_ui.view_state.snapping_enabled;
+        self.timeline_ui.magnet_enabled = self.timeline_ui.view_state.track_magnet_enabled;
+        self.timeline_ui.scroll.set_offset(point(
+            px(-self.timeline_ui.view_state.horizontal_scroll),
             px(0.0),
         ));
-        self.timeline_vertical_scroll.set_offset(point(
+        self.timeline_ui.vertical_scroll.set_offset(point(
             px(0.0),
-            px(-self.timeline_view_state.vertical_scroll),
+            px(-self.timeline_ui.view_state.vertical_scroll),
         ));
         self.next_id = self.project.next_id();
         self.undo_stack.clear();
@@ -680,7 +696,7 @@ impl Editor {
             self.error = None;
         }
         if !self.project.clips.is_empty() {
-            self.load_timeline_position(self.preview.playhead, false);
+            self.load_timeline_position(self.timeline_ui.playhead, false);
         }
     }
 

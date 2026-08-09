@@ -130,7 +130,7 @@ impl Render for Editor {
             .when(self.settings_open, |this| {
                 this.child(self.settings_modal(cx))
             })
-            .when(self.export_dialog_state.is_some(), |this| {
+            .when(self.export.dialog.is_some(), |this| {
                 this.child(self.export_dialog(cx))
             })
     }
@@ -140,7 +140,7 @@ impl Editor {
     fn topbar(&self, cx: &mut Context<Self>) -> gpui::AnyElement {
         let undo_enabled = !self.undo_stack.is_empty();
         let redo_enabled = !self.redo_stack.is_empty();
-        let export_enabled = !self.project.clips.is_empty() && !self.exporting;
+        let export_enabled = !self.project.clips.is_empty() && !self.export.running;
         let has_error = self.error.is_some();
         let message = self
             .error
@@ -234,7 +234,7 @@ impl Editor {
                     )))
                     .child(
                         toolbar_button(
-                            if self.exporting {
+                            if self.export.running {
                                 "Exporting…"
                             } else {
                                 "Export MP4"

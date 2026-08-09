@@ -139,9 +139,9 @@ impl Editor {
             video.set_paused(true);
         }
         self.checkpoint();
-        let playhead = previous.rescale_nearest(self.preview.playhead, frame_rate);
+        let playhead = previous.rescale_nearest(self.timeline_ui.playhead, frame_rate);
         self.project.set_frame_rate(frame_rate);
-        self.preview.playhead =
+        self.timeline_ui.playhead =
             playhead.clamp(TimelineTime::ZERO, self.project.timeline_duration());
         self.preview.video = None;
         self.preview.timeline_needs_rebuild = true;
@@ -149,7 +149,7 @@ impl Editor {
         self.preview.timeline_clock = None;
         self.save_project();
         if !self.project.clips.is_empty() {
-            self.load_timeline_position(self.preview.playhead, false);
+            self.load_timeline_position(self.timeline_ui.playhead, false);
         }
         self.status = Some(format!(
             "Timeline frame rate changed to {}.",
