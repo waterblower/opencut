@@ -119,8 +119,8 @@ impl Editor {
         event: &MouseDownEvent,
         cx: &mut Context<Self>,
     ) {
-        self.selected_file = Some(relative_path.clone());
-        self.file_context_menu = Some(FileContextMenu {
+        self.explorer.selected_file = Some(relative_path.clone());
+        self.explorer.context_menu = Some(FileContextMenu {
             relative_path,
             is_directory,
             x: event.position.x.into(),
@@ -131,7 +131,7 @@ impl Editor {
     }
 
     pub(crate) fn dismiss_file_context_menu(&mut self) {
-        self.file_context_menu = None;
+        self.explorer.context_menu = None;
     }
 
     /// Opens the new-timeline dialog for `relative_directory`, pre-filled with the next
@@ -142,7 +142,7 @@ impl Editor {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        self.file_context_menu = None;
+        self.explorer.context_menu = None;
         let default_name =
             timeline_document::default_timeline_name(&self.project_root, &relative_directory);
         let input = cx.new(|cx| {
@@ -155,7 +155,7 @@ impl Editor {
             )
         });
         input.update(cx, |input, cx| input.focus_and_select_all(window, cx));
-        self.new_timeline_dialog_state = Some(NewTimelineDialogState {
+        self.explorer.new_timeline_dialog = Some(NewTimelineDialogState {
             relative_directory,
             input,
         });
@@ -164,7 +164,7 @@ impl Editor {
     }
 
     pub(crate) fn finish_create_timeline(&mut self, cx: &mut Context<Self>) {
-        let Some(state) = self.new_timeline_dialog_state.as_ref() else {
+        let Some(state) = self.explorer.new_timeline_dialog.as_ref() else {
             return;
         };
         let relative_directory = state.relative_directory.clone();
@@ -178,19 +178,20 @@ impl Editor {
                     return;
                 }
             };
-        self.new_timeline_dialog_state = None;
+        self.explorer.new_timeline_dialog = None;
         self.activate_created_timeline(relative_directory, relative_path, project, cx);
     }
 
     pub(crate) fn begin_rename(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         let Some(relative_path): Option<PathBuf> = self
-            .file_context_menu
+            .explorer
+            .context_menu
             .as_ref()
             .map(|menu| menu.relative_path.clone())
         else {
             return;
         };
-        self.file_context_menu = None;
+        self.explorer.context_menu = None;
         let Some(name) = relative_path
             .file_name()
             .map(|name: &std::ffi::OsStr| name.to_string_lossy().into_owned())
@@ -208,7 +209,7 @@ impl Editor {
             )
         });
         input.update(cx, |input, cx| input.focus_and_select_all(window, cx));
-        self.rename_dialog_state = Some(RenameDialogState {
+        self.explorer.rename_dialog = Some(RenameDialogState {
             relative_path,
             input,
         });
@@ -217,7 +218,7 @@ impl Editor {
     }
 
     pub(crate) fn finish_rename(&mut self, cx: &mut Context<Self>) {
-        let Some(state) = self.rename_dialog_state.as_ref() else {
+        let Some(state) = self.explorer.rename_dialog.as_ref() else {
             return;
         };
         let old_relative = state.relative_path.clone();
@@ -227,7 +228,7 @@ impl Editor {
             return;
         };
         if new_relative == old_relative {
-            self.rename_dialog_state = None;
+            self.explorer.rename_dialog = None;
             return;
         }
 
@@ -259,7 +260,8 @@ impl Editor {
             }
         }
         self.timeline_preview_needs_rebuild = true;
-        self.expanded_directories = self
+        self.explorer.expanded_directories = self
+            .explorer
             .expanded_directories
             .iter()
             .map(|path| {
@@ -267,7 +269,7 @@ impl Editor {
                     .unwrap_or_else(|| path.clone())
             })
             .collect();
-        if let Some(selected) = self.selected_file.as_mut()
+        if let Some(selected) = self.explorer.selected_file.as_mut()
             && let Some(path) = remap_relative_path(selected, &old_relative, &new_relative)
         {
             *selected = path;
@@ -294,10 +296,10 @@ impl Editor {
             }
         }
         self.save_project();
-        self.rename_dialog_state = None;
-        self.explorer_search_query = None;
-        self.explorer_search_results.clear();
-        self.explorer_search_pending = false;
+        self.explorer.rename_dialog = None;
+        self.explorer.search_query = None;
+        self.explorer.search_results.clear();
+        self.explorer.search_pending = false;
         self.refresh_file_tree();
         self.schedule_explorer_search(cx);
         self.status = Some(format!(
@@ -311,7 +313,7 @@ impl Editor {
         let Some(path) = self.file_action_path() else {
             return;
         };
-        self.file_context_menu = None;
+        self.explorer.context_menu = None;
         cx.reveal_path(&path);
     }
 
@@ -319,19 +321,20 @@ impl Editor {
         let Some(path) = self.file_action_path() else {
             return;
         };
-        self.file_context_menu = None;
+        self.explorer.context_menu = None;
         cx.open_with_system(&path);
     }
 
     fn trash_selected_file(&mut self, cx: &mut Context<Self>) {
         let Some(relative_path): Option<PathBuf> = self
-            .file_context_menu
+            .explorer
+            .context_menu
             .as_ref()
             .map(|menu| menu.relative_path.clone())
         else {
             return;
         };
-        self.file_context_menu = None;
+        self.explorer.context_menu = None;
 
         // The project root is the workspace itself, not an entry within it.
         if relative_path.as_os_str().is_empty() {
@@ -346,12 +349,13 @@ impl Editor {
             .unwrap_or_else(|| relative_path.display().to_string());
         match move_path_to_trash(&path) {
             Ok(()) => {
-                self.expanded_directories
+                self.explorer
+                    .expanded_directories
                     .retain(|directory| !directory.starts_with(&relative_path));
-                self.selected_file = None;
-                self.explorer_search_query = None;
-                self.explorer_search_results.clear();
-                self.explorer_search_pending = false;
+                self.explorer.selected_file = None;
+                self.explorer.search_query = None;
+                self.explorer.search_results.clear();
+                self.explorer.search_pending = false;
                 self.refresh_file_tree();
                 self.schedule_explorer_search(cx);
                 self.status = Some(format!("Moved {display_name} to Trash."));
@@ -366,10 +370,11 @@ impl Editor {
 
     fn file_action_path(&self) -> Option<PathBuf> {
         let relative_path = self
-            .file_context_menu
+            .explorer
+            .context_menu
             .as_ref()
             .map(|menu| &menu.relative_path)
-            .or(self.selected_file.as_ref())?;
+            .or(self.explorer.selected_file.as_ref())?;
         Some(self.project_root.join(relative_path))
     }
 

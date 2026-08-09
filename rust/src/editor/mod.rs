@@ -174,31 +174,35 @@ pub(crate) fn bind_keys(cx: &mut App) {
     });
 }
 
+struct ExplorerState {
+    file_tree: Vec<FileTreeEntry>,
+    expanded_directories: HashSet<PathBuf>,
+    root_expanded: bool,
+    filter: Entity<ExplorerFilter>,
+    search_query: Option<String>,
+    search_results: Vec<FileTreeEntry>,
+    search_pending: bool,
+    scroll: ScrollHandle,
+    selected_file: Option<PathBuf>,
+    context_menu: Option<FileContextMenu>,
+    rename_dialog: Option<RenameDialogState>,
+    new_timeline_dialog: Option<NewTimelineDialogState>,
+    drag_assets: HashMap<PathBuf, MediaAsset>,
+    drag_probe_jobs: HashSet<PathBuf>,
+    drop_preview: Option<ExplorerDropPreview>,
+    pending_drop: Option<PendingExplorerDrop>,
+    last_tree_scan: Instant,
+}
+
 pub(crate) struct Editor {
     project_root: PathBuf,
     timeline_path: PathBuf,
     project: Project,
-    file_tree: Vec<FileTreeEntry>,
-    expanded_directories: HashSet<PathBuf>,
-    explorer_root_expanded: bool,
-    explorer_filter: Entity<ExplorerFilter>,
-    explorer_search_query: Option<String>,
-    explorer_search_results: Vec<FileTreeEntry>,
-    explorer_search_pending: bool,
-    explorer_scroll: ScrollHandle,
-    selected_file: Option<PathBuf>,
-    file_context_menu: Option<FileContextMenu>,
-    rename_dialog_state: Option<RenameDialogState>,
-    new_timeline_dialog_state: Option<NewTimelineDialogState>,
-    explorer_drag_assets: HashMap<PathBuf, MediaAsset>,
-    explorer_drag_probe_jobs: HashSet<PathBuf>,
-    explorer_drop_preview: Option<ExplorerDropPreview>,
-    pending_explorer_drop: Option<PendingExplorerDrop>,
+    explorer: ExplorerState,
     preview_target: PreviewTarget,
     media_cache_jobs: HashSet<u64>,
     media_cache_ready: HashSet<u64>,
     waveform_cache: HashMap<u64, Arc<media_cache::WaveformData>>,
-    last_tree_scan: Instant,
     video: Option<Video>,
     standalone_audio: Option<AudioPreview>,
     timeline_preview_needs_rebuild: bool,
@@ -300,27 +304,29 @@ impl Editor {
             project_root,
             timeline_path: timeline_path.clone(),
             project,
-            file_tree,
-            expanded_directories,
-            explorer_root_expanded: true,
-            explorer_filter,
-            explorer_search_query: None,
-            explorer_search_results: Vec::new(),
-            explorer_search_pending: false,
-            explorer_scroll: ScrollHandle::new(),
-            selected_file: Some(timeline_path),
-            file_context_menu: None,
-            rename_dialog_state: None,
-            new_timeline_dialog_state: None,
-            explorer_drag_assets: HashMap::new(),
-            explorer_drag_probe_jobs: HashSet::new(),
-            explorer_drop_preview: None,
-            pending_explorer_drop: None,
+            explorer: ExplorerState {
+                file_tree,
+                expanded_directories,
+                root_expanded: true,
+                filter: explorer_filter,
+                search_query: None,
+                search_results: Vec::new(),
+                search_pending: false,
+                scroll: ScrollHandle::new(),
+                selected_file: Some(timeline_path),
+                context_menu: None,
+                rename_dialog: None,
+                new_timeline_dialog: None,
+                drag_assets: HashMap::new(),
+                drag_probe_jobs: HashSet::new(),
+                drop_preview: None,
+                pending_drop: None,
+                last_tree_scan: Instant::now(),
+            },
             preview_target: PreviewTarget::Timeline,
             media_cache_jobs: HashSet::new(),
             media_cache_ready: HashSet::new(),
             waveform_cache: HashMap::new(),
-            last_tree_scan: Instant::now(),
             video: None,
             standalone_audio: None,
             timeline_preview_needs_rebuild: true,
@@ -383,7 +389,8 @@ impl Editor {
             loop {
                 cx.background_executor().timer(update_interval).await;
                 match editor.update(cx, |editor, cx| {
-                    let refresh_tree = editor.last_tree_scan.elapsed() >= Duration::from_secs(1);
+                    let refresh_tree =
+                        editor.explorer.last_tree_scan.elapsed() >= Duration::from_secs(1);
                     let file_preview_playing = match editor.preview_target {
                         PreviewTarget::VideoFile(_) => {
                             editor.video.as_ref().is_some_and(|video| !video.paused())
@@ -405,7 +412,7 @@ impl Editor {
                         editor.timeline_zoom_save_due = None;
                     }
                     let ended_explorer_drag =
-                        !cx.has_active_drag() && editor.explorer_drop_preview.take().is_some();
+                        !cx.has_active_drag() && editor.explorer.drop_preview.take().is_some();
                     if ended_explorer_drag {
                         editor.snap_guide = None;
                     }
@@ -536,8 +543,8 @@ impl Editor {
         }
         self.save_project();
         self.project_root = root;
-        self.expanded_directories.clear();
-        self.explorer_root_expanded = true;
+        self.explorer.expanded_directories.clear();
+        self.explorer.root_expanded = true;
         self.activate_timeline(timeline_path, project, cx);
         if let Err(error) = save_project_root(&self.project_root) {
             self.error = Some(error);
@@ -546,7 +553,7 @@ impl Editor {
 
     pub(super) fn open_timeline(&mut self, relative_path: PathBuf, cx: &mut Context<Self>) {
         if relative_path == self.timeline_path {
-            self.selected_file = Some(relative_path);
+            self.explorer.selected_file = Some(relative_path);
             self.preview_target = PreviewTarget::Timeline;
             cx.notify();
             return;
@@ -582,7 +589,9 @@ impl Editor {
         }
         // Expand the target folder so the new timeline is visible in the tree.
         if !relative_directory.as_os_str().is_empty() {
-            self.expanded_directories.insert(relative_directory);
+            self.explorer
+                .expanded_directories
+                .insert(relative_directory);
         }
         self.activate_timeline(relative_path.clone(), project, cx);
         self.refresh_file_tree();
@@ -600,10 +609,10 @@ impl Editor {
         self.media_cache_jobs.clear();
         self.media_cache_ready.clear();
         self.waveform_cache.clear();
-        self.explorer_drag_assets.clear();
-        self.explorer_drag_probe_jobs.clear();
-        self.explorer_drop_preview = None;
-        self.pending_explorer_drop = None;
+        self.explorer.drag_assets.clear();
+        self.explorer.drag_probe_jobs.clear();
+        self.explorer.drop_preview = None;
+        self.explorer.pending_drop = None;
         self.clip_clipboard = None;
         self.timeline_preview_needs_rebuild = true;
         self.timeline_playback_clock = None;
@@ -644,13 +653,14 @@ impl Editor {
         self.next_id = self.project.next_id();
         self.undo_stack.clear();
         self.redo_stack.clear();
-        self.explorer_search_query = None;
-        self.explorer_search_results.clear();
-        self.explorer_search_pending = false;
-        self.explorer_filter
+        self.explorer.search_query = None;
+        self.explorer.search_results.clear();
+        self.explorer.search_pending = false;
+        self.explorer
+            .filter
             .update(cx, |filter, cx| filter.clear(cx));
-        self.selected_file = Some(self.timeline_path.clone());
-        self.file_context_menu = None;
+        self.explorer.selected_file = Some(self.timeline_path.clone());
+        self.explorer.context_menu = None;
         self.preview_target = PreviewTarget::Timeline;
         self.selected_asset_id = self.project.assets.first().map(|asset| asset.id);
         self.select_only_clip(self.project.clips.first().map(|clip| clip.id));

@@ -120,7 +120,8 @@ impl Editor {
             })
             .unwrap_or_default();
         let explorer_drop_preview = self
-            .explorer_drop_preview
+            .explorer
+            .drop_preview
             .as_ref()
             .filter(|preview| preview.track_id == track.id)
             .map(|preview| self.explorer_drop_preview(preview));
