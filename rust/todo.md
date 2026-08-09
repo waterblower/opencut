@@ -84,19 +84,23 @@ release path.
 - [ ] Move periodic file-tree scanning off the UI thread or replace it with a
       filesystem watcher plus a background fallback scan for the project root
       and expanded directories.
-- [ ] Move media-cache readiness validation off the one-second UI tick. Track
-      cache completion and source-file changes explicitly instead of reopening
-      and validating cache files for every referenced asset on each scan.
+- [ ] Replace persistent waveform cache files with lazy, memory-only waveform
+      generation for the POC. Decode referenced audio through a GStreamer
+      `appsink` on one background job at a time, feed its mono `f32` samples into
+      the existing multiresolution `WaveformBuilder`, and store the resulting
+      data by media path so every clip using the same source shares it. Render
+      without a waveform while generation is pending, clear the cache when the
+      project changes, and remove disk serialization, cache-file validation,
+      readiness polling, and the FFmpeg waveform decoder.
 - [ ] Avoid rebuilding timeline elements for clips and tracks completely outside
       the visible horizontal or vertical viewport. Use GPUI virtualization or a
       viewport-indexed visible-item query for large projects.
 
 ### P2 — scaling and measurement
 
-- [ ] Measure multiresolution waveform-cache disk and memory usage with long
-      media before changing its representation. If it becomes material, compare
-      coarser peak levels, packed samples, and independent level compression
-      without sacrificing efficient range access.
+- [ ] Measure multiresolution waveform memory usage with long media before
+      changing its representation. If it becomes material, compare coarser peak
+      levels and packed samples without sacrificing efficient range access.
 
 ### Export throughput
 
