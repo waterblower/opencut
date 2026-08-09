@@ -64,8 +64,8 @@ use timeline_clip_menu::TimelineClipContextMenu;
 use timeline_document::load_existing;
 use timeline_interactions::{ClipMoveDrag, MarqueeSelection, TimelineTool, TrimDrag, TrimEdge};
 use workspace::{
-    FileTreeEntry, load_active_timeline, load_project_root, load_timeline_zoom,
-    save_active_timeline, save_project_root, save_timeline_zoom, visible_tree,
+    FileTreeEntry, load_active_timeline, load_project_root, save_active_timeline,
+    save_project_root, visible_tree,
 };
 
 const MEDIA_PANEL_WIDTH: f32 = 340.0;
@@ -84,7 +84,6 @@ const SNAP_DISTANCE_PX: f32 = 8.0;
 const MIN_TIMELINE_PIXELS_PER_SECOND: f32 = 1.0;
 const MAX_TIMELINE_PIXELS_PER_SECOND: f32 = 1000.0;
 const DEFAULT_TIMELINE_PIXELS_PER_SECOND: f32 = 72.0;
-const TIMELINE_ZOOM_SAVE_DELAY: Duration = Duration::from_millis(500);
 const SCRUB_SEEK_INTERVAL: Duration = Duration::from_millis(50);
 const IDLE_UPDATE_INTERVAL: Duration = Duration::from_millis(33);
 
@@ -240,32 +239,28 @@ pub(crate) struct Editor {
     export: ExportState,
     timeline: Option<TimelineState>,
     status: Option<String>,
-    error: Option<String>,
     focus_handle: FocusHandle,
 }
 
 impl Editor {
     pub(crate) fn new(window: &mut Window, cx: &mut Context<Self>) -> Self {
         let project_root = load_project_root();
-        let pixels_per_second = load_timeline_zoom().clamp(
-            MIN_TIMELINE_PIXELS_PER_SECOND,
-            MAX_TIMELINE_PIXELS_PER_SECOND,
-        );
         let expanded_directories = HashSet::new();
         let file_tree = visible_tree(&project_root, &expanded_directories).unwrap_or_default();
         let preferred_timeline = load_active_timeline(&project_root);
-        let (active_timeline, mut startup_error) =
-            match load_existing(&project_root, preferred_timeline.as_deref()) {
-                Ok(active_timeline) => (active_timeline, None),
-                Err(error) => (None, Some(format!("Could not open timeline: {error}"))),
-            };
+        let active_timeline = match load_existing(&project_root, preferred_timeline.as_deref()) {
+            Ok(active_timeline) => active_timeline,
+            Err(error) => {
+                eprintln!("Could not open timeline: {error}");
+                None
+            }
+        };
         if let Some((path, _)) = active_timeline.as_ref()
             && let Err(error) = save_active_timeline(&project_root, path)
         {
-            startup_error = Some(error);
+            eprintln!("{error}");
         }
-        let timeline =
-            active_timeline.map(|(path, data)| TimelineState::new(path, data, pixels_per_second));
+        let timeline = active_timeline.map(|(path, data)| TimelineState::new(path, data));
         let selected_file = timeline.as_ref().map(|timeline| timeline.path.clone());
         let focus_handle = cx.focus_handle();
         let explorer_filter = cx.new(|cx| ExplorerFilter::new(focus_handle.clone(), cx));
@@ -335,7 +330,6 @@ impl Editor {
             },
             timeline,
             status: None,
-            error: startup_error,
             focus_handle,
         };
         if let Some(timeline) = editor.timeline.as_ref()
@@ -368,16 +362,6 @@ impl Editor {
                         _ => false,
                     };
                     let pinch_zoomed = editor.apply_timeline_pinch();
-                    if let Some(timeline) = editor.timeline.as_mut()
-                        && timeline
-                            .zoom_save_due
-                            .is_some_and(|due| Instant::now() >= due)
-                    {
-                        if let Err(error) = save_timeline_zoom(timeline.pixels_per_second) {
-                            editor.error = Some(error);
-                        }
-                        timeline.zoom_save_due = None;
-                    }
                     let ended_explorer_drag =
                         !cx.has_active_drag() && editor.explorer.drop_preview.take().is_some();
                     if ended_explorer_drag && let Some(timeline) = editor.timeline.as_mut() {
@@ -422,7 +406,6 @@ impl Editor {
     }
 
     fn open_project_folder(&mut self, cx: &mut Context<Self>) {
-        self.error = None;
         let selection = cx.prompt_for_paths(PathPromptOptions {
             files: false,
             directories: true,
@@ -434,21 +417,11 @@ impl Editor {
                 Ok(Ok(Some(paths))) => paths.into_iter().next(),
                 Ok(Ok(None)) => return,
                 Ok(Err(error)) => {
-                    editor
-                        .update(cx, |editor, cx| {
-                            editor.error = Some(format!("Could not open project folder: {error}"));
-                            cx.notify();
-                        })
-                        .ok();
+                    eprintln!("Could not open project folder: {error}");
                     return;
                 }
                 Err(error) => {
-                    editor
-                        .update(cx, |editor, cx| {
-                            editor.error = Some(format!("Folder dialog failed: {error}"));
-                            cx.notify();
-                        })
-                        .ok();
+                    eprintln!("Folder dialog failed: {error}");
                     return;
                 }
             };
@@ -470,7 +443,7 @@ impl Editor {
         let active_timeline = match load_existing(&root, preferred_timeline.as_deref()) {
             Ok(active_timeline) => active_timeline,
             Err(error) => {
-                self.error = Some(format!("Could not open timeline: {error}"));
+                eprintln!("Could not open timeline: {error}");
                 return;
             }
         };
@@ -480,7 +453,7 @@ impl Editor {
         self.explorer.root_expanded = true;
         self.activate_timeline(active_timeline, cx);
         if let Err(error) = save_project_root(&self.project_root) {
-            self.error = Some(error);
+            eprintln!("{error}");
         }
     }
 
@@ -499,7 +472,7 @@ impl Editor {
         let timeline = match Timeline::load(&path) {
             Ok(timeline) => timeline,
             Err(error) => {
-                self.error = Some(format!("Could not open timeline: {error}"));
+                eprintln!("Could not open timeline: {error}");
                 return;
             }
         };
@@ -557,18 +530,7 @@ impl Editor {
         self.properties.transform_input_clip_id = None;
         self.properties.opacity_drag = None;
         self.preview.refresh_ticks = 2;
-        let pixels_per_second = self
-            .timeline
-            .as_ref()
-            .map(|timeline| timeline.pixels_per_second)
-            .unwrap_or_else(|| {
-                load_timeline_zoom().clamp(
-                    MIN_TIMELINE_PIXELS_PER_SECOND,
-                    MAX_TIMELINE_PIXELS_PER_SECOND,
-                )
-            });
-        self.timeline =
-            active_timeline.map(|(path, data)| TimelineState::new(path, data, pixels_per_second));
+        self.timeline = active_timeline.map(|(path, data)| TimelineState::new(path, data));
         self.explorer.search_query = None;
         self.explorer.search_results.clear();
         self.explorer.search_pending = false;
@@ -579,10 +541,9 @@ impl Editor {
         self.explorer.context_menu = None;
         self.preview.target = PreviewTarget::Timeline;
         self.refresh_file_tree();
-        self.error = None;
         if let Some(timeline) = self.timeline.as_ref() {
             if let Err(error) = save_active_timeline(&self.project_root, &timeline.path) {
-                self.error = Some(error);
+                eprintln!("{error}");
             }
             if !timeline.data.clips.is_empty() {
                 self.load_timeline_position(timeline.playhead, false);

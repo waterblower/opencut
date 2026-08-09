@@ -400,7 +400,7 @@ impl Editor {
                         }
                         Err(error) => {
                             editor.explorer.search_results.clear();
-                            editor.error = Some(error);
+                            eprintln!("{error}");
                         }
                     }
                     cx.notify();
@@ -570,7 +570,7 @@ impl Editor {
         self.explorer.last_tree_scan = Instant::now();
         match visible_tree(&self.project_root, &self.explorer.expanded_directories) {
             Ok(entries) => self.explorer.file_tree = entries,
-            Err(error) => self.error = Some(error),
+            Err(error) => eprintln!("{error}"),
         }
     }
 
@@ -613,7 +613,7 @@ impl Editor {
             return;
         };
         let raw_start = timeline.data.nearest_time(
-            ((local_x - TIMELINE_PADDING) / timeline.pixels_per_second).max(0.0) as f64,
+            ((local_x - TIMELINE_PADDING) / timeline.data.view.pixels_per_second).max(0.0) as f64,
         );
         self.refresh_explorer_drop_preview(&drag, track_id, raw_start);
         let invalid = self
@@ -698,7 +698,7 @@ impl Editor {
         }
 
         if let Some(reason) = preview.invalid_reason {
-            self.error = Some(format!("Cannot add {}: {reason}.", drag.name));
+            eprintln!("Cannot add {}: {reason}.", drag.name);
             self.status = None;
             cx.notify();
             return;
@@ -718,7 +718,6 @@ impl Editor {
                 raw_start: preview.raw_start,
             });
             self.status = Some(format!("Inspecting {} before placing it…", drag.name));
-            self.error = None;
             self.request_explorer_drag_probe(drag.relative_path.clone(), cx);
         }
         cx.notify();
@@ -819,7 +818,7 @@ impl Editor {
                             {
                                 editor.explorer.pending_drop = None;
                                 editor.status = None;
-                                editor.error = Some(error);
+                                eprintln!("{error}");
                             }
                         }
                     }
@@ -852,7 +851,7 @@ impl Editor {
         ) {
             let reason = rejection.message();
             self.status = None;
-            self.error = Some(format!("Cannot add {}: {reason}.", asset.name));
+            eprintln!("Cannot add {}: {reason}.", asset.name);
             return;
         }
 
@@ -901,7 +900,6 @@ impl Editor {
         self.select_only_clip(Some(clip_id));
         self.save_timeline();
         self.status = Some("Added media at the selected timeline position.".to_string());
-        self.error = None;
     }
 
     fn add_file_to_timeline(&mut self, relative_path: PathBuf, cx: &mut Context<Self>) {
@@ -958,7 +956,7 @@ impl Editor {
                                 Ok(track_id) => track_id,
                                 Err(error) => {
                                     editor.status = None;
-                                    editor.error = Some(error);
+                                    eprintln!("{error}");
                                     cx.notify();
                                     return;
                                 }
@@ -977,9 +975,8 @@ impl Editor {
                             editor.explorer.selected_file = Some(relative_path);
                             editor.save_timeline();
                             editor.status = Some("Added media to timeline.".to_string());
-                            editor.error = None;
                         }
-                        Err(error) => editor.error = Some(error),
+                        Err(error) => eprintln!("{error}"),
                     }
                     cx.notify();
                 })

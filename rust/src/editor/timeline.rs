@@ -15,13 +15,13 @@ pub(super) struct Timeline {
 }
 
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
+#[serde(default)]
 pub(super) struct TimelineViewState {
     pub(super) saved_playhead_frame: i64,
     pub(super) horizontal_scroll: f32,
     pub(super) vertical_scroll: f32,
-    #[serde(default = "default_enabled")]
+    pub(super) pixels_per_second: f32,
     pub(super) snapping_enabled: bool,
-    #[serde(default = "default_enabled")]
     pub(super) track_magnet_enabled: bool,
 }
 
@@ -45,8 +45,6 @@ pub(super) struct TimelineState {
     pub(super) path: PathBuf,
     pub(super) data: Timeline,
     pub(super) playhead: TimelineTime,
-    pub(super) pixels_per_second: f32,
-    pub(super) zoom_save_due: Option<Instant>,
     pub(super) interaction: TimelineInteractionState,
     pub(super) scroll: ScrollHandle,
     pub(super) vertical_scroll: ScrollHandle,
@@ -62,6 +60,7 @@ impl Default for TimelineViewState {
             saved_playhead_frame: 0,
             horizontal_scroll: 0.0,
             vertical_scroll: 0.0,
+            pixels_per_second: default_pixels_per_second(),
             snapping_enabled: true,
             track_magnet_enabled: true,
         }
@@ -73,6 +72,14 @@ impl TimelineViewState {
         self.saved_playhead_frame = self.saved_playhead_frame.max(0);
         self.horizontal_scroll = finite_nonnegative(self.horizontal_scroll);
         self.vertical_scroll = finite_nonnegative(self.vertical_scroll);
+        self.pixels_per_second = if self.pixels_per_second.is_finite() {
+            self.pixels_per_second.clamp(
+                MIN_TIMELINE_PIXELS_PER_SECOND,
+                MAX_TIMELINE_PIXELS_PER_SECOND,
+            )
+        } else {
+            default_pixels_per_second()
+        };
     }
 }
 
@@ -324,7 +331,7 @@ impl Timeline {
 }
 
 impl TimelineState {
-    pub(super) fn new(path: PathBuf, data: Timeline, pixels_per_second: f32) -> Self {
+    pub(super) fn new(path: PathBuf, data: Timeline) -> Self {
         let playhead = TimelineTime::from_frames(data.view.saved_playhead_frame)
             .clamp(TimelineTime::ZERO, data.timeline_duration());
         let scroll = ScrollHandle::new();
@@ -341,8 +348,6 @@ impl TimelineState {
             path,
             data,
             playhead,
-            pixels_per_second,
-            zoom_save_due: None,
             interaction: TimelineInteractionState {
                 active_tool: TimelineTool::Selection,
                 snapping_enabled,
@@ -367,19 +372,19 @@ impl TimelineState {
         }
     }
 
-    pub(super) fn capture_view(&mut self) {
-        self.data.view = TimelineViewState {
-            saved_playhead_frame: self.playhead.frames().max(0),
-            horizontal_scroll: finite_nonnegative(-f32::from(self.scroll.offset().x)),
-            vertical_scroll: finite_nonnegative(-f32::from(self.vertical_scroll.offset().y)),
-            snapping_enabled: self.interaction.snapping_enabled,
-            track_magnet_enabled: self.interaction.magnet_enabled,
-        };
+    pub(super) fn capture_playhead(&mut self) {
+        self.data.view.saved_playhead_frame = self.playhead.frames().max(0);
+    }
+
+    pub(super) fn capture_scroll(&mut self) {
+        self.data.view.horizontal_scroll = finite_nonnegative(-f32::from(self.scroll.offset().x));
+        self.data.view.vertical_scroll =
+            finite_nonnegative(-f32::from(self.vertical_scroll.offset().y));
     }
 }
 
-fn default_enabled() -> bool {
-    true
+fn default_pixels_per_second() -> f32 {
+    DEFAULT_TIMELINE_PIXELS_PER_SECOND
 }
 
 fn finite_nonnegative(value: f32) -> f32 {
@@ -487,8 +492,9 @@ impl Editor {
             .data
             .seconds(timeline.data.timeline_duration())
             .max(12.0);
-        let timeline_width =
-            (duration as f32 * timeline.pixels_per_second + TIMELINE_PADDING * 2.0).max(900.0);
+        let timeline_width = (duration as f32 * timeline.data.view.pixels_per_second
+            + TIMELINE_PADDING * 2.0)
+            .max(900.0);
         let track_headers = timeline
             .data
             .tracks
@@ -574,7 +580,7 @@ impl Editor {
                                     .when_some(timeline.interaction.snap_guide, |this, guide| {
                                         let guide_left = TIMELINE_PADDING
                                             + timeline.data.seconds(guide) as f32
-                                                * timeline.pixels_per_second;
+                                                * timeline.data.view.pixels_per_second;
                                         this.child(
                                             div()
                                                 .absolute()
@@ -599,7 +605,7 @@ impl Editor {
                                         |this, position| {
                                             let guide_left = TIMELINE_PADDING
                                                 + timeline.data.seconds(position) as f32
-                                                    * timeline.pixels_per_second;
+                                                    * timeline.data.view.pixels_per_second;
                                             this.child(
                                                 div()
                                                     .absolute()
@@ -632,7 +638,8 @@ impl Editor {
             .as_ref()
             .expect("timeline view requires timeline state");
         let left = TIMELINE_PADDING
-            + timeline.data.seconds(timeline.playhead) as f32 * timeline.pixels_per_second;
+            + timeline.data.seconds(timeline.playhead) as f32
+                * timeline.data.view.pixels_per_second;
 
         div()
             .absolute()
@@ -678,7 +685,7 @@ impl Editor {
         let frame_rate = timeline.data.settings.frame_rate;
         let frames_per_second = frame_rate.frames_per_second();
         let displayed_frames = frame_rate.ceil(duration).frames().max(1);
-        let pixels_per_frame = timeline.pixels_per_second / frames_per_second as f32;
+        let pixels_per_frame = timeline.data.view.pixels_per_second / frames_per_second as f32;
         let frame_step = frame_tick_step(pixels_per_frame);
         let scroll_left = (-f32::from(timeline.scroll.offset().x)).max(0.0);
         let viewport_width = {
@@ -714,20 +721,20 @@ impl Editor {
                     .absolute()
                     .left(px(TIMELINE_PADDING
                         + frame_rate.seconds(TimelineTime::from_frames(frame)) as f32
-                            * timeline.pixels_per_second))
+                            * timeline.data.view.pixels_per_second))
                     .bottom_0()
                     .h(px(height))
                     .border_l_1()
                     .border_color(rgb(if emphasized { 0x5a5a62 } else { 0x3a3a40 }))
             });
-        let tick_step = ruler_tick_step(duration, timeline.pixels_per_second);
+        let tick_step = ruler_tick_step(duration, timeline.data.view.pixels_per_second);
         let tick_count = (duration / tick_step).ceil() as usize + 1;
         let ruler_ticks = (0..tick_count).map(|index| {
             let time = index as f64 * tick_step;
             div()
                 .absolute()
                 .left(px(
-                    TIMELINE_PADDING + time as f32 * timeline.pixels_per_second
+                    TIMELINE_PADDING + time as f32 * timeline.data.view.pixels_per_second
                 ))
                 .top_0()
                 .h_full()
@@ -912,6 +919,7 @@ impl Editor {
                     .child(timeline_icon_button("zoom-out", "−").on_click(cx.listener(
                         |editor, _, _, cx| {
                             editor.zoom(0.8);
+                            editor.save_timeline_scroll();
                             cx.notify();
                         },
                     )))
@@ -922,7 +930,7 @@ impl Editor {
                             .font_family("monospace")
                             .text_xs()
                             .text_color(rgb(MUTED))
-                            .child(format!("{:.0}px/s", timeline.pixels_per_second)),
+                            .child(format!("{:.0}px/s", timeline.data.view.pixels_per_second)),
                     )
                     .child(
                         div()
@@ -936,6 +944,7 @@ impl Editor {
                     .child(timeline_icon_button("zoom-in", "+").on_click(cx.listener(
                         |editor, _, _, cx| {
                             editor.zoom(1.25);
+                            editor.save_timeline_scroll();
                             cx.notify();
                         },
                     ))),

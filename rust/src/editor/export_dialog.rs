@@ -591,11 +591,10 @@ impl Editor {
                         }
                         Ok(Ok(None)) => {}
                         Ok(Err(error)) => {
-                            editor.error =
-                                Some(format!("Could not choose export destination: {error}"));
+                            eprintln!("Could not choose export destination: {error}");
                         }
                         Err(error) => {
-                            editor.error = Some(format!("Export dialog failed: {error}"));
+                            eprintln!("Export dialog failed: {error}");
                         }
                     }
                     cx.notify();
@@ -634,7 +633,6 @@ impl Editor {
         }
         self.export.running = true;
         self.status = Some("Exporting…".to_string());
-        self.error = None;
         cx.notify();
 
         let started_at = Instant::now();
@@ -669,7 +667,6 @@ impl Editor {
                                 path.display(),
                                 format_export_duration(elapsed)
                             ));
-                            editor.error = None;
                         }
                         Err(error) => {
                             if let Some(state) = editor.export.dialog.as_mut() {
@@ -679,7 +676,7 @@ impl Editor {
                                 };
                             }
                             editor.status = None;
-                            editor.error = Some(error);
+                            eprintln!("{error}");
                         }
                     }
                     cx.notify();

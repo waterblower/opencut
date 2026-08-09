@@ -112,18 +112,16 @@ impl Render for Player {
             duration.mul_f64(fraction as f64)
         });
         let display_title = self.display_title();
-        let metadata_text = self.error.clone().unwrap_or_else(|| {
-            if has_video {
-                format!(
-                    "MP4 · {} · {} · Original · {}",
-                    source_metadata.as_deref().unwrap_or("metadata unavailable"),
-                    format_duration(duration),
-                    if is_muted { "Muted" } else { "Audio enabled" }
-                )
-            } else {
-                "No media loaded".to_string()
-            }
-        });
+        let metadata_text = if has_video {
+            format!(
+                "MP4 · {} · {} · Original · {}",
+                source_metadata.as_deref().unwrap_or("metadata unavailable"),
+                format_duration(duration),
+                if is_muted { "Muted" } else { "Audio enabled" }
+            )
+        } else {
+            "No media loaded".to_string()
+        };
 
         let video_content = if let Some(video_handle) = &self.video {
             video(video_handle.clone())
@@ -398,11 +396,7 @@ impl Render for Player {
                                                 div()
                                                     .text_xs()
                                                     .font_family("monospace")
-                                                    .text_color(if self.error.is_some() {
-                                                        rgb(ERROR)
-                                                    } else {
-                                                        rgb(0x55555d)
-                                                    })
+                                                    .text_color(rgb(0x55555d))
                                                     .text_ellipsis()
                                                     .child(metadata_text),
                                             ),

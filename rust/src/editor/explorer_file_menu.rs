@@ -166,7 +166,6 @@ impl Editor {
             relative_directory,
             input,
         });
-        self.error = None;
         cx.notify();
     }
 
@@ -181,7 +180,7 @@ impl Editor {
                 Ok(timeline) => timeline,
                 Err(error) => {
                     // Keep the dialog open so the name can be corrected.
-                    self.error = Some(format!("Could not create timeline: {error}"));
+                    eprintln!("Could not create timeline: {error}");
                     return;
                 }
             };
@@ -203,7 +202,7 @@ impl Editor {
             .file_name()
             .map(|name: &std::ffi::OsStr| name.to_string_lossy().into_owned())
         else {
-            self.error = Some("The project folder cannot be renamed here.".to_string());
+            eprintln!("The project folder cannot be renamed here.");
             return;
         };
         let input = cx.new(|cx| {
@@ -220,7 +219,6 @@ impl Editor {
             relative_path,
             input,
         });
-        self.error = None;
         cx.notify();
     }
 
@@ -231,7 +229,7 @@ impl Editor {
         let old_relative = state.relative_path.clone();
         let new_name = state.input.read(cx).query().trim().to_string();
         let Some(new_relative) = renamed_relative_path(&old_relative, &new_name) else {
-            self.error = Some("Enter a single non-empty file or folder name.".to_string());
+            eprintln!("Enter a single non-empty file or folder name.");
             return;
         };
         if new_relative == old_relative {
@@ -242,17 +240,11 @@ impl Editor {
         let old_path = self.project_root.join(&old_relative);
         let new_path = self.project_root.join(&new_relative);
         if new_path.exists() {
-            self.error = Some(format!(
-                "Cannot rename: {} already exists.",
-                new_relative.display()
-            ));
+            eprintln!("Cannot rename: {} already exists.", new_relative.display());
             return;
         }
         if let Err(error) = std::fs::rename(&old_path, &new_path) {
-            self.error = Some(format!(
-                "Could not rename {}: {error}",
-                old_relative.display()
-            ));
+            eprintln!("Could not rename {}: {error}", old_relative.display());
             return;
         }
 
@@ -302,7 +294,6 @@ impl Editor {
             PreviewTarget::Timeline => {}
         }
 
-        self.error = None;
         let renamed_active_timeline = self
             .timeline
             .as_ref()
@@ -312,7 +303,7 @@ impl Editor {
                 timeline.path = renamed_active_timeline.clone();
             }
             if let Err(error) = save_active_timeline(&self.project_root, &renamed_active_timeline) {
-                self.error = Some(error);
+                eprintln!("{error}");
             }
         }
         self.save_timeline();
@@ -358,7 +349,7 @@ impl Editor {
 
         // The project root is the workspace itself, not an entry within it.
         if relative_path.as_os_str().is_empty() {
-            self.error = Some("The project folder cannot be moved to Trash here.".to_string());
+            eprintln!("The project folder cannot be moved to Trash here.");
             return;
         }
         if self
@@ -366,7 +357,7 @@ impl Editor {
             .as_ref()
             .is_some_and(|timeline| timeline.path.starts_with(&relative_path))
         {
-            self.error = Some("The active timeline cannot be moved to Trash.".to_string());
+            eprintln!("The active timeline cannot be moved to Trash.");
             return;
         }
 
@@ -387,11 +378,10 @@ impl Editor {
                 self.refresh_file_tree();
                 self.schedule_explorer_search(cx);
                 self.status = Some(format!("Moved {display_name} to Trash."));
-                self.error = None;
             }
             Err(error) => {
                 self.status = None;
-                self.error = Some(format!("Could not move {display_name} to Trash: {error}"));
+                eprintln!("Could not move {display_name} to Trash: {error}");
             }
         }
     }

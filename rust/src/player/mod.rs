@@ -68,7 +68,6 @@ pub(crate) struct Player {
     history: HistoryData,
     current_media_path: Option<PathBuf>,
     title: String,
-    error: Option<String>,
     looping: bool,
     history_open: bool,
     history_width: f32,
@@ -97,7 +96,7 @@ impl Player {
     ) -> Self {
         let mut history = HistoryData::load();
         let mut current_media_path = None;
-        let (video, video_codec, bitrate_bps, title, error) = match initial_media {
+        let (video, video_codec, bitrate_bps, title) = match initial_media {
             Some((url, title)) => match create_video(&url, looping) {
                 Ok(video) => {
                     let codec = read_video_codec(&video).map(|codec| format_codec_name(&codec));
@@ -107,17 +106,14 @@ impl Player {
                         history.record(&path, title.clone());
                         current_media_path = Some(path);
                     }
-                    (Some(video), codec, bitrate, title, None)
+                    (Some(video), codec, bitrate, title)
                 }
-                Err(error) => (
-                    None,
-                    None,
-                    None,
-                    "No video selected".to_string(),
-                    Some(error),
-                ),
+                Err(error) => {
+                    eprintln!("{error}");
+                    (None, None, None, "No video selected".to_string())
+                }
             },
-            None => (None, None, None, "No video selected".to_string(), None),
+            None => (None, None, None, "No video selected".to_string()),
         };
 
         let focus_handle = cx.focus_handle();
@@ -131,7 +127,6 @@ impl Player {
             history,
             current_media_path,
             title,
-            error,
             looping,
             history_open: true,
             history_width: load_history_width(),
@@ -183,7 +178,6 @@ impl Player {
     }
 
     fn open_picker(&mut self, cx: &mut Context<Self>) {
-        self.error = None;
         self.settings_open = false;
 
         let selection = cx.prompt_for_paths(PathPromptOptions {
@@ -205,11 +199,10 @@ impl Player {
                         }
                         Ok(Ok(None)) => {}
                         Ok(Err(error)) => {
-                            player.error = Some(format!("Could not open file picker: {error}"));
+                            eprintln!("Could not open file picker: {error}");
                         }
                         Err(error) => {
-                            player.error =
-                                Some(format!("File picker closed unexpectedly: {error}"));
+                            eprintln!("File picker closed unexpectedly: {error}");
                         }
                     }
                     cx.notify();
@@ -226,7 +219,7 @@ impl Player {
             .is_some_and(|extension| extension.eq_ignore_ascii_case("mp4"));
 
         if !is_mp4 {
-            self.error = Some("Please select an MP4 video.".to_string());
+            eprintln!("Please select an MP4 video.");
             return;
         }
 
@@ -236,7 +229,7 @@ impl Player {
             .map(|name| name.to_string_lossy().into_owned())
             .unwrap_or_else(|| path.display().to_string());
         let Ok(url) = Url::from_file_path(&path) else {
-            self.error = Some(format!("Could not read {}", path.display()));
+            eprintln!("Could not read {}", path.display());
             return;
         };
 
@@ -248,7 +241,6 @@ impl Player {
                 self.history.record(&path, title.clone());
                 self.current_media_path = Some(path);
                 self.title = title;
-                self.error = None;
                 self.volume_open = false;
                 self.is_scrubbing = false;
                 self.is_adjusting_volume = false;
@@ -257,7 +249,7 @@ impl Player {
                 self.pending_seek_started = None;
                 self.last_scrub_seek = None;
             }
-            Err(error) => self.error = Some(error),
+            Err(error) => eprintln!("{error}"),
         }
     }
 
@@ -415,8 +407,8 @@ impl Player {
             return;
         };
         match video.set_speed(speed) {
-            Ok(()) => self.error = None,
-            Err(error) => self.error = Some(format!("Could not change speed: {error}")),
+            Ok(()) => {}
+            Err(error) => eprintln!("Could not change speed: {error}"),
         }
     }
 

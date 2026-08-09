@@ -240,9 +240,11 @@ impl Editor {
                 drag.changed && drag.items.iter().any(|item| item.clip_id == clip_id)
             });
         let left = TIMELINE_PADDING
-            + timeline.data.seconds(clip.timeline_start) as f32 * timeline.pixels_per_second;
-        let width =
-            (timeline.data.seconds(clip.duration()) as f32 * timeline.pixels_per_second).max(4.0);
+            + timeline.data.seconds(clip.timeline_start) as f32
+                * timeline.data.view.pixels_per_second;
+        let width = (timeline.data.seconds(clip.duration()) as f32
+            * timeline.data.view.pixels_per_second)
+            .max(4.0);
 
         div()
             .id(("timeline-clip", clip_id))
@@ -325,14 +327,15 @@ impl Editor {
             .and_then(|clip| timeline.data.asset(clip.asset_id))
             .map(|asset| asset.name.clone())
             .unwrap_or_else(|| "Missing media".to_string());
-        let left =
-            TIMELINE_PADDING + timeline.data.seconds(start) as f32 * timeline.pixels_per_second;
+        let left = TIMELINE_PADDING
+            + timeline.data.seconds(start) as f32 * timeline.data.view.pixels_per_second;
         let duration = timeline
             .data
             .clip(clip_id)
             .map(TimelineClip::duration)
             .unwrap_or(TimelineTime::ZERO);
-        let width = (timeline.data.seconds(duration) as f32 * timeline.pixels_per_second).max(4.0);
+        let width = (timeline.data.seconds(duration) as f32 * timeline.data.view.pixels_per_second)
+            .max(4.0);
         let valid = invalid_reason.is_none();
         let feedback_color = if valid { ACCENT } else { ERROR };
 
@@ -386,9 +389,10 @@ impl Editor {
             .as_ref()
             .expect("explorer drop previews require an active timeline");
         let left = TIMELINE_PADDING
-            + timeline.data.seconds(preview.start) as f32 * timeline.pixels_per_second;
-        let width =
-            (timeline.data.seconds(preview.duration) as f32 * timeline.pixels_per_second).max(4.0);
+            + timeline.data.seconds(preview.start) as f32 * timeline.data.view.pixels_per_second;
+        let width = (timeline.data.seconds(preview.duration) as f32
+            * timeline.data.view.pixels_per_second)
+            .max(4.0);
         let invalid = preview.invalid_reason.is_some();
         let feedback_color = if invalid { ERROR } else { ACCENT };
         let detail = preview
