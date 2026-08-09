@@ -22,7 +22,7 @@ impl Editor {
             .justify_center()
             .overflow_hidden()
             .bg(rgb(0x000000))
-            .child(if let Some(video_handle) = &self.video {
+            .child(if let Some(video_handle) = &self.preview.video {
                 video(video_handle.clone())
                     .id("editor-video-file-preview")
                     .size(px(width), px(surface_height))
@@ -39,6 +39,7 @@ impl Editor {
             })
             .into_any_element();
         let (position, duration, paused) = self
+            .preview
             .video
             .as_ref()
             .map_or((Duration::ZERO, Duration::ZERO, true), |video| {
@@ -49,7 +50,7 @@ impl Editor {
             origin_y,
             width,
             height,
-            self.video.is_some(),
+            self.preview.video.is_some(),
             paused,
             position,
             duration,

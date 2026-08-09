@@ -502,7 +502,7 @@ impl Editor {
         }
         self.project.clips[index].video_properties.opacity = opacity;
         self.opacity_drag = Some(drag);
-        self.preview_refresh_ticks = 2;
+        self.preview.refresh_ticks = 2;
         cx.notify();
     }
 
@@ -551,7 +551,7 @@ impl Editor {
         }
         self.checkpoint();
         self.project.clips[index].video_properties = properties;
-        self.preview_refresh_ticks = 2;
+        self.preview.refresh_ticks = 2;
         self.save_project();
     }
 
@@ -577,7 +577,7 @@ impl Editor {
         self.checkpoint();
         self.project.clips[index].video_properties = properties;
         self.video_transform_input_clip_id = None;
-        self.preview_refresh_ticks = 2;
+        self.preview.refresh_ticks = 2;
         self.save_project();
     }
 }

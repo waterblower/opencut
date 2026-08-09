@@ -20,7 +20,7 @@ impl Editor {
         height: f32,
         cx: &mut Context<Self>,
     ) -> gpui::AnyElement {
-        match &self.preview_target {
+        match &self.preview.target {
             PreviewTarget::Timeline => self.preview_timeline(origin_x, origin_y, width, height, cx),
             PreviewTarget::VideoFile(_) => {
                 self.preview_video_file(origin_x, origin_y, width, height, cx)
@@ -51,9 +51,10 @@ impl Editor {
         } else {
             (reported_position.as_secs_f64() / duration.as_secs_f64()).clamp(0.0, 1.0) as f32
         };
-        let progress = self.preview_scrub_fraction.unwrap_or(reported_progress);
+        let progress = self.preview.scrub_fraction.unwrap_or(reported_progress);
         let position = self
-            .preview_scrub_fraction
+            .preview
+            .scrub_fraction
             .map_or(reported_position, |fraction| {
                 duration.mul_f64(fraction as f64)
             });
@@ -67,13 +68,13 @@ impl Editor {
                 has_media,
                 can_play: has_media,
                 paused,
-                scrubbing: self.preview_is_scrubbing,
+                scrubbing: self.preview.is_scrubbing,
                 progress,
                 position,
                 duration,
-                volume: self.preview_volume,
-                muted: self.preview_volume <= f64::EPSILON,
-                volume_open: self.preview_volume_open,
+                volume: self.preview.volume,
+                muted: self.preview.volume <= f64::EPSILON,
+                volume_open: self.preview.volume_open,
                 content,
                 extra_control: None,
             },
@@ -82,26 +83,28 @@ impl Editor {
     }
 
     pub(super) fn update_playback(&mut self) {
-        if !self.playing {
-            self.timeline_playback_clock = None;
+        if !self.preview.playing {
+            self.preview.timeline_clock = None;
             return;
         }
-        let Some(video) = self.video.as_ref() else {
-            self.playing = false;
-            self.timeline_playback_clock = None;
+        let Some(video) = self.preview.video.as_ref() else {
+            self.preview.playing = false;
+            self.preview.timeline_clock = None;
             return;
         };
         let duration = self.project.timeline_duration();
         let (origin, started_at) = *self
-            .timeline_playback_clock
-            .get_or_insert((self.playhead, Instant::now()));
-        self.playhead = timeline_playhead_from_elapsed(&self.project, origin, started_at.elapsed())
-            .clamp(TimelineTime::ZERO, duration);
-        if video.eos() || self.playhead >= duration {
+            .preview
+            .timeline_clock
+            .get_or_insert((self.preview.playhead, Instant::now()));
+        self.preview.playhead =
+            timeline_playhead_from_elapsed(&self.project, origin, started_at.elapsed())
+                .clamp(TimelineTime::ZERO, duration);
+        if video.eos() || self.preview.playhead >= duration {
             video.set_paused(true);
-            self.playhead = duration;
-            self.playing = false;
-            self.timeline_playback_clock = None;
+            self.preview.playhead = duration;
+            self.preview.playing = false;
+            self.preview.timeline_clock = None;
         }
     }
 
@@ -124,72 +127,72 @@ impl Editor {
         play: bool,
         accurate: bool,
     ) {
-        let was_timeline = self.preview_target == PreviewTarget::Timeline;
-        self.standalone_audio = None;
-        self.preview_target = PreviewTarget::Timeline;
+        let was_timeline = self.preview.target == PreviewTarget::Timeline;
+        self.preview.audio = None;
+        self.preview.target = PreviewTarget::Timeline;
         self.explorer.selected_file = None;
         self.explorer.context_menu = None;
         let duration = self.project.timeline_duration();
         let position = position.clamp(TimelineTime::ZERO, duration);
-        self.playhead = position;
-        self.playing = play;
-        self.timeline_playback_clock = None;
+        self.preview.playhead = position;
+        self.preview.playing = play;
+        self.preview.timeline_clock = None;
 
         if self.project.clips.is_empty() {
-            if let Some(video) = &self.video {
+            if let Some(video) = &self.preview.video {
                 video.set_paused(true);
             }
-            self.video = None;
-            self.timeline_preview_needs_rebuild = true;
-            self.playing = false;
-            self.preview_refresh_ticks = 2;
+            self.preview.video = None;
+            self.preview.timeline_needs_rebuild = true;
+            self.preview.playing = false;
+            self.preview.refresh_ticks = 2;
             return;
         }
 
         if !was_timeline {
-            if let Some(video) = &self.video {
+            if let Some(video) = &self.preview.video {
                 video.set_paused(true);
             }
-            self.video = None;
-            self.timeline_preview_needs_rebuild = true;
+            self.preview.video = None;
+            self.preview.timeline_needs_rebuild = true;
         }
 
-        if self.video.is_none() || self.timeline_preview_needs_rebuild {
-            if let Some(video) = &self.video {
+        if self.preview.video.is_none() || self.preview.timeline_needs_rebuild {
+            if let Some(video) = &self.preview.video {
                 video.set_paused(true);
             }
-            self.video = None;
+            self.preview.video = None;
             match create_timeline_video(&self.project, &self.project_root) {
                 Ok(video) => {
                     set_timeline_audio(
                         &video,
-                        self.preview_volume,
-                        self.preview_volume <= f64::EPSILON,
+                        self.preview.volume,
+                        self.preview.volume <= f64::EPSILON,
                     );
-                    self.video = Some(video);
-                    self.timeline_preview_needs_rebuild = false;
+                    self.preview.video = Some(video);
+                    self.preview.timeline_needs_rebuild = false;
                 }
                 Err(error) => {
                     self.error = Some(error);
-                    self.playing = false;
+                    self.preview.playing = false;
                     return;
                 }
             }
         }
 
-        if let Some(video) = &self.video {
+        if let Some(video) = &self.preview.video {
             let _ = video.seek(self.project.duration(position), accurate);
             set_timeline_audio(
                 video,
-                self.preview_volume,
-                self.preview_volume <= f64::EPSILON,
+                self.preview.volume,
+                self.preview.volume <= f64::EPSILON,
             );
             video.set_paused(!play);
             if play {
-                self.timeline_playback_clock = Some((position, Instant::now()));
+                self.preview.timeline_clock = Some((position, Instant::now()));
             }
         }
-        self.preview_refresh_ticks = 12;
+        self.preview.refresh_ticks = 12;
         self.selected_asset_id = self
             .project
             .visual_clip_at_time(position)
@@ -198,10 +201,10 @@ impl Editor {
     }
 
     pub(super) fn toggle_playback(&mut self) {
-        match &self.preview_target {
+        match &self.preview.target {
             PreviewTarget::ImageFile(_) => return,
             PreviewTarget::VideoFile(_) => {
-                let Some(video) = &self.video else {
+                let Some(video) = &self.preview.video else {
                     return;
                 };
                 if video.eos() {
@@ -210,11 +213,11 @@ impl Editor {
                 } else {
                     video.set_paused(!video.paused());
                 }
-                self.preview_refresh_ticks = 12;
+                self.preview.refresh_ticks = 12;
                 return;
             }
             PreviewTarget::AudioFile(_) => {
-                let Some(audio) = &self.standalone_audio else {
+                let Some(audio) = &self.preview.audio else {
                     return;
                 };
                 if audio.finished() {
@@ -223,7 +226,7 @@ impl Editor {
                 } else {
                     audio.set_playing(!audio.playing());
                 }
-                self.preview_refresh_ticks = 12;
+                self.preview.refresh_ticks = 12;
                 return;
             }
             PreviewTarget::Timeline => {}
@@ -232,20 +235,20 @@ impl Editor {
         if self.project.clips.is_empty() {
             return;
         }
-        if self.playing {
+        if self.preview.playing {
             self.update_playback();
-            if let Some(video) = &self.video {
+            if let Some(video) = &self.preview.video {
                 video.set_paused(true);
             }
-            self.playing = false;
-            self.timeline_playback_clock = None;
+            self.preview.playing = false;
+            self.preview.timeline_clock = None;
             return;
         }
         let duration = self.project.timeline_duration();
-        let start = if self.playhead >= duration {
+        let start = if self.preview.playhead >= duration {
             TimelineTime::ZERO
         } else {
-            self.playhead
+            self.preview.playhead
         };
         self.load_timeline_position(start, true);
     }
@@ -264,28 +267,28 @@ impl Editor {
             .map(|asset| asset.id);
 
         if is_image || is_video || is_audio {
-            self.preview_target = match (is_video, is_audio) {
+            self.preview.target = match (is_video, is_audio) {
                 (true, _) => PreviewTarget::VideoFile(relative_path.clone()),
                 (_, true) => PreviewTarget::AudioFile(relative_path.clone()),
                 _ => PreviewTarget::ImageFile(relative_path.clone()),
             };
             self.status = None;
             self.error = None;
-            if let Some(video) = &self.video {
+            if let Some(video) = &self.preview.video {
                 video.set_paused(true);
             }
-            self.video = None;
-            self.standalone_audio = None;
-            self.playing = false;
-            self.timeline_playback_clock = None;
-            self.preview_volume_open = false;
-            self.preview_is_scrubbing = false;
-            self.preview_is_adjusting_volume = false;
-            self.preview_resume_after_scrub = false;
-            self.preview_scrub_fraction = None;
-            self.preview_pending_seek_started = None;
-            self.preview_last_scrub_seek = None;
-            self.preview_refresh_ticks = 2;
+            self.preview.video = None;
+            self.preview.audio = None;
+            self.preview.playing = false;
+            self.preview.timeline_clock = None;
+            self.preview.volume_open = false;
+            self.preview.is_scrubbing = false;
+            self.preview.is_adjusting_volume = false;
+            self.preview.resume_after_scrub = false;
+            self.preview.scrub_fraction = None;
+            self.preview.pending_seek_started = None;
+            self.preview.last_scrub_seek = None;
+            self.preview.refresh_ticks = 2;
         }
 
         if !is_video && !is_audio {
@@ -311,7 +314,7 @@ impl Editor {
                 editor
                     .update(cx, |editor, cx| {
                         let still_requested = matches!(
-                            &editor.preview_target,
+                            &editor.preview.target,
                             PreviewTarget::AudioFile(path) if path == &relative_path
                         );
                         if editor.project_root != project_root || !still_requested {
@@ -320,12 +323,12 @@ impl Editor {
 
                         match result {
                             Ok(audio) => {
-                                audio.set_volume(editor.preview_volume);
+                                audio.set_volume(editor.preview.volume);
                                 audio.set_playing(false);
-                                editor.standalone_audio = Some(audio);
+                                editor.preview.audio = Some(audio);
                                 editor.status = Some("Audio preview ready.".to_string());
                                 editor.error = None;
-                                editor.preview_refresh_ticks = 12;
+                                editor.preview.refresh_ticks = 12;
                             }
                             Err(error) => {
                                 editor.status = None;
@@ -356,7 +359,7 @@ impl Editor {
             editor
                 .update(cx, |editor, cx| {
                     let still_requested = matches!(
-                        &editor.preview_target,
+                        &editor.preview.target,
                         PreviewTarget::VideoFile(path) if path == &relative_path
                     );
                     if editor.project_root != project_root || !still_requested {
@@ -365,11 +368,11 @@ impl Editor {
 
                     match result {
                         Ok(video) => {
-                            video.set_volume(editor.preview_volume);
-                            editor.video = Some(video);
+                            video.set_volume(editor.preview.volume);
+                            editor.preview.video = Some(video);
                             editor.status = Some("Video preview ready.".to_string());
                             editor.error = None;
-                            editor.preview_refresh_ticks = 12;
+                            editor.preview.refresh_ticks = 12;
                         }
                         Err(error) => {
                             editor.status = None;
@@ -395,7 +398,7 @@ fn timeline_playhead_from_elapsed(
 impl Editor {
     fn seek_preview_to_fraction(&mut self, fraction: f32, accurate: bool, play: bool) {
         let fraction = fraction.clamp(0.0, 1.0);
-        match self.preview_target.clone() {
+        match self.preview.target.clone() {
             PreviewTarget::Timeline => {
                 let duration = self.project.timeline_duration().frames();
                 let position =
@@ -403,7 +406,7 @@ impl Editor {
                 self.load_timeline_position_with_options(position, play, accurate);
             }
             PreviewTarget::VideoFile(_) => {
-                if let Some(video) = &self.video {
+                if let Some(video) = &self.preview.video {
                     let target = video.duration().mul_f64(fraction as f64);
                     let _ = video.seek(target, accurate);
                     video.set_paused(!play);
@@ -414,31 +417,31 @@ impl Editor {
     }
 
     pub(super) fn reconcile_preview_seek(&mut self) {
-        if self.preview_is_scrubbing {
+        if self.preview.is_scrubbing {
             return;
         }
         let (Some(fraction), Some(started)) = (
-            self.preview_scrub_fraction,
-            self.preview_pending_seek_started,
+            self.preview.scrub_fraction,
+            self.preview.pending_seek_started,
         ) else {
             return;
         };
 
-        let settled = match self.preview_target {
+        let settled = match self.preview.target {
             PreviewTarget::Timeline => true,
-            PreviewTarget::VideoFile(_) => self.video.as_ref().is_some_and(|video| {
+            PreviewTarget::VideoFile(_) => self.preview.video.as_ref().is_some_and(|video| {
                 let target = video.duration().mul_f64(fraction as f64);
                 video.position().abs_diff(target) <= Duration::from_millis(40)
             }),
-            PreviewTarget::AudioFile(_) => self.standalone_audio.as_ref().is_some_and(|audio| {
+            PreviewTarget::AudioFile(_) => self.preview.audio.as_ref().is_some_and(|audio| {
                 let target = audio.duration().mul_f64(fraction as f64);
                 audio.position().abs_diff(target) <= Duration::from_millis(40)
             }),
             PreviewTarget::ImageFile(_) => true,
         };
         if settled || started.elapsed() >= Duration::from_secs(2) {
-            self.preview_scrub_fraction = None;
-            self.preview_pending_seek_started = None;
+            self.preview.scrub_fraction = None;
+            self.preview.pending_seek_started = None;
         }
     }
 }
@@ -457,7 +460,7 @@ impl PlaybackViewDelegate for Editor {
         cx: &mut Context<Self>,
     ) {
         if matches!(
-            self.preview_target,
+            self.preview.target,
             PreviewTarget::AudioFile(_) | PreviewTarget::ImageFile(_)
         ) {
             return;
@@ -465,47 +468,50 @@ impl PlaybackViewDelegate for Editor {
 
         match phase {
             DragPhase::Start => {
-                self.preview_resume_after_scrub = match self.preview_target {
-                    PreviewTarget::Timeline => self.playing,
-                    PreviewTarget::VideoFile(_) => {
-                        self.video.as_ref().is_some_and(|video| !video.paused())
-                    }
+                self.preview.resume_after_scrub = match self.preview.target {
+                    PreviewTarget::Timeline => self.preview.playing,
+                    PreviewTarget::VideoFile(_) => self
+                        .preview
+                        .video
+                        .as_ref()
+                        .is_some_and(|video| !video.paused()),
                     PreviewTarget::AudioFile(_) | PreviewTarget::ImageFile(_) => return,
                 };
-                if let Some(video) = &self.video {
+                if let Some(video) = &self.preview.video {
                     video.set_paused(true);
                 }
-                self.playing = false;
-                self.timeline_playback_clock = None;
-                self.preview_is_scrubbing = true;
-                self.preview_scrub_fraction = Some(fraction);
-                self.preview_pending_seek_started = None;
-                self.preview_last_scrub_seek = Some(Instant::now());
+                self.preview.playing = false;
+                self.preview.timeline_clock = None;
+                self.preview.is_scrubbing = true;
+                self.preview.scrub_fraction = Some(fraction);
+                self.preview.pending_seek_started = None;
+                self.preview.last_scrub_seek = Some(Instant::now());
                 self.seek_preview_to_fraction(fraction, false, false);
             }
-            DragPhase::Update if self.preview_is_scrubbing => {
-                self.preview_scrub_fraction = Some(fraction);
+            DragPhase::Update if self.preview.is_scrubbing => {
+                self.preview.scrub_fraction = Some(fraction);
                 let now = Instant::now();
                 let should_seek = self
-                    .preview_last_scrub_seek
+                    .preview
+                    .last_scrub_seek
                     .is_none_or(|last_seek| now.duration_since(last_seek) >= SCRUB_SEEK_INTERVAL);
                 if should_seek {
-                    self.preview_last_scrub_seek = Some(now);
+                    self.preview.last_scrub_seek = Some(now);
                     self.seek_preview_to_fraction(fraction, false, false);
                 }
             }
-            DragPhase::End if self.preview_is_scrubbing => {
-                let resume = self.preview_resume_after_scrub;
-                self.preview_scrub_fraction = Some(fraction);
-                self.preview_pending_seek_started = Some(Instant::now());
-                self.preview_last_scrub_seek = None;
-                self.preview_is_scrubbing = false;
+            DragPhase::End if self.preview.is_scrubbing => {
+                let resume = self.preview.resume_after_scrub;
+                self.preview.scrub_fraction = Some(fraction);
+                self.preview.pending_seek_started = Some(Instant::now());
+                self.preview.last_scrub_seek = None;
+                self.preview.is_scrubbing = false;
                 self.seek_preview_to_fraction(fraction, true, resume);
-                self.preview_resume_after_scrub = false;
+                self.preview.resume_after_scrub = false;
             }
             _ => return,
         }
-        self.preview_refresh_ticks = 12;
+        self.preview.refresh_ticks = 12;
         cx.notify();
     }
 
@@ -517,43 +523,43 @@ impl PlaybackViewDelegate for Editor {
         cx: &mut Context<Self>,
     ) {
         match phase {
-            DragPhase::Start => self.preview_is_adjusting_volume = true,
-            DragPhase::Update if !self.preview_is_adjusting_volume => return,
-            DragPhase::End if !self.preview_is_adjusting_volume => return,
-            DragPhase::End => self.preview_is_adjusting_volume = false,
+            DragPhase::Start => self.preview.is_adjusting_volume = true,
+            DragPhase::Update if !self.preview.is_adjusting_volume => return,
+            DragPhase::End if !self.preview.is_adjusting_volume => return,
+            DragPhase::End => self.preview.is_adjusting_volume = false,
             DragPhase::Update => {}
         }
-        self.preview_volume = volume.clamp(0.0, 1.0);
-        if let Some(video) = &self.video {
-            if self.preview_target == PreviewTarget::Timeline {
+        self.preview.volume = volume.clamp(0.0, 1.0);
+        if let Some(video) = &self.preview.video {
+            if self.preview.target == PreviewTarget::Timeline {
                 set_timeline_audio(
                     video,
-                    self.preview_volume,
-                    self.preview_volume <= f64::EPSILON,
+                    self.preview.volume,
+                    self.preview.volume <= f64::EPSILON,
                 );
             } else {
-                video.set_volume(self.preview_volume);
-                video.set_muted(self.preview_volume <= f64::EPSILON);
+                video.set_volume(self.preview.volume);
+                video.set_muted(self.preview.volume <= f64::EPSILON);
             }
         }
         cx.notify();
     }
 
     fn playback_toggle_volume(&mut self, _: &mut Window, cx: &mut Context<Self>) {
-        let has_playable_target = match self.preview_target {
+        let has_playable_target = match self.preview.target {
             PreviewTarget::Timeline => !self.project.clips.is_empty(),
-            PreviewTarget::VideoFile(_) => self.video.is_some(),
+            PreviewTarget::VideoFile(_) => self.preview.video.is_some(),
             PreviewTarget::AudioFile(_) | PreviewTarget::ImageFile(_) => false,
         };
         if has_playable_target {
-            self.preview_volume_open = !self.preview_volume_open;
+            self.preview.volume_open = !self.preview.volume_open;
             cx.notify();
         }
     }
 
     fn playback_dismiss_volume(&mut self, _: &mut Window, cx: &mut Context<Self>) {
-        if self.preview_volume_open {
-            self.preview_volume_open = false;
+        if self.preview.volume_open {
+            self.preview.volume_open = false;
             cx.notify();
         }
     }

@@ -88,8 +88,8 @@ impl Editor {
             .enumerate()
             .map(|(index, track)| self.track_row(index, track, timeline_width, cx))
             .collect::<Vec<_>>();
-        let playhead_left =
-            TIMELINE_PADDING + self.project.seconds(self.playhead) as f32 * self.pixels_per_second;
+        let playhead_left = TIMELINE_PADDING
+            + self.project.seconds(self.preview.playhead) as f32 * self.pixels_per_second;
 
         div()
             .id("timeline-tracks-vertical-scroll")
@@ -388,11 +388,14 @@ impl Editor {
                         })),
                     )
                     .child(
-                        timeline_icon_button("timeline-play", if self.playing { "Ⅱ" } else { "▶" })
-                            .on_click(cx.listener(|editor, _, _, cx| {
-                                editor.toggle_playback();
-                                cx.notify();
-                            })),
+                        timeline_icon_button(
+                            "timeline-play",
+                            if self.preview.playing { "Ⅱ" } else { "▶" },
+                        )
+                        .on_click(cx.listener(|editor, _, _, cx| {
+                            editor.toggle_playback();
+                            cx.notify();
+                        })),
                     )
                     .child(
                         div()
@@ -401,7 +404,7 @@ impl Editor {
                             .text_sm()
                             .child(format!(
                                 "{} / {}",
-                                format_time(self.project.seconds(self.playhead), false),
+                                format_time(self.project.seconds(self.preview.playhead), false),
                                 format_time(
                                     self.project.seconds(self.project.timeline_duration()),
                                     false
