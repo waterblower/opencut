@@ -1,7 +1,8 @@
 use super::{
     clip_render_plan::{resolve_audio_clip_render_plan, resolve_visual_clip_render_plan},
     export::{ExportEncoder, ExportOptions},
-    model::{MediaAsset, MediaKind, Timeline, TimelineClip, TrackKind, VideoClipProperties},
+    model::{MediaAsset, MediaKind, TimelineClip, TrackKind, VideoClipProperties},
+    timeline::Timeline,
 };
 use ges::prelude::*;
 use gstreamer as gst;

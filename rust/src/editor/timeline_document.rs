@@ -1,4 +1,4 @@
-use super::model::Timeline;
+use super::timeline::Timeline;
 use std::{
     fs,
     path::{Path, PathBuf},

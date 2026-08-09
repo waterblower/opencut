@@ -2,11 +2,11 @@ use crate::video::Video;
 use gpui::{
     App, Context, CursorStyle, DragMoveEvent, Entity, FocusHandle, KeyBinding, MouseButton,
     MouseDownEvent, MouseMoveEvent, MouseUpEvent, ObjectFit, PathPromptOptions, Render,
-    ScrollHandle, ScrollWheelEvent, Window, actions, div, img, point, prelude::*, px, rgb,
+    ScrollHandle, ScrollWheelEvent, Window, actions, div, img, prelude::*, px, rgb,
 };
 use std::{
     collections::{HashMap, HashSet},
-    path::{Path, PathBuf},
+    path::PathBuf,
     sync::Arc,
     time::{Duration, Instant},
 };
@@ -51,7 +51,7 @@ use export_dialog::ExportDialogState;
 use media_probe::probe_asset;
 use model::{
     AudioClipProperties, DEFAULT_IMAGE_CLIP_DURATION, FRAME_RATE_PRESETS, FrameRate, MediaAsset,
-    MediaKind, Timeline, TimelineClip, TimelineTime, TimelineTrack, TrackKind, VideoClipProperties,
+    MediaKind, TimelineClip, TimelineTime, TimelineTrack, TrackKind, VideoClipProperties,
     timeline_ranges_overlap,
 };
 use preview::PreviewTarget;
@@ -59,6 +59,7 @@ use preview_audio::AudioPreview;
 use preview_timeline::TimelinePreviewDrag;
 use properties::PropertiesPanelResizeDrag;
 use properties_transform::{OpacityDrag, VideoTransformInputs};
+use timeline::{Timeline, TimelineState};
 use timeline_clip_menu::TimelineClipContextMenu;
 use timeline_document::load_existing;
 use timeline_interactions::{ClipMoveDrag, MarqueeSelection, TimelineTool, TrimDrag, TrimEdge};
@@ -214,79 +215,6 @@ struct PreviewState {
     last_scrub_seek: Option<Instant>,
     timeline_drag: Option<TimelinePreviewDrag>,
     refresh_ticks: u8,
-}
-
-struct TimelineState {
-    path: PathBuf,
-    data: Timeline,
-    playhead: TimelineTime,
-    pixels_per_second: f32,
-    zoom_save_due: Option<Instant>,
-    view_state: TimelineViewState,
-    view_save_due: Option<Instant>,
-    active_tool: TimelineTool,
-    blade_guide: Option<TimelineTime>,
-    snapping_enabled: bool,
-    magnet_enabled: bool,
-    snap_guide: Option<TimelineTime>,
-    trim_drag: Option<TrimDrag>,
-    clip_move_drag: Option<ClipMoveDrag>,
-    marquee_selection: Option<MarqueeSelection>,
-    scrubbing_playhead: bool,
-    last_scrub_seek: Option<Instant>,
-    scroll: ScrollHandle,
-    vertical_scroll: ScrollHandle,
-    selected_clip_id: Option<u64>,
-    selected_clip_ids: HashSet<u64>,
-    context_menu: Option<TimelineClipContextMenu>,
-    clipboard: Option<ClipClipboard>,
-    next_id: u64,
-    undo_stack: Vec<Timeline>,
-    redo_stack: Vec<Timeline>,
-}
-
-impl TimelineState {
-    fn new(path: PathBuf, data: Timeline, project_root: &Path, pixels_per_second: f32) -> Self {
-        let view_state = load_timeline_view(&project_root.join(&path));
-        let playhead = TimelineTime::from_frames(view_state.playhead_frame)
-            .clamp(TimelineTime::ZERO, data.timeline_duration());
-        let scroll = ScrollHandle::new();
-        scroll.set_offset(point(px(-view_state.horizontal_scroll), px(0.0)));
-        let vertical_scroll = ScrollHandle::new();
-        vertical_scroll.set_offset(point(px(0.0), px(-view_state.vertical_scroll)));
-        let selected_clip_id = data.clips.first().map(|clip| clip.id);
-        let selected_clip_ids = selected_clip_id.into_iter().collect();
-        let next_id = data.next_id();
-
-        Self {
-            path,
-            data,
-            playhead,
-            pixels_per_second,
-            zoom_save_due: None,
-            view_state: view_state.clone(),
-            view_save_due: None,
-            active_tool: TimelineTool::Selection,
-            blade_guide: None,
-            snapping_enabled: view_state.snapping_enabled,
-            magnet_enabled: view_state.track_magnet_enabled,
-            snap_guide: None,
-            trim_drag: None,
-            clip_move_drag: None,
-            marquee_selection: None,
-            scrubbing_playhead: false,
-            last_scrub_seek: None,
-            scroll,
-            vertical_scroll,
-            selected_clip_id,
-            selected_clip_ids,
-            context_menu: None,
-            clipboard: None,
-            next_id,
-            undo_stack: Vec::new(),
-            redo_stack: Vec::new(),
-        }
-    }
 }
 
 struct PropertiesPanelState {

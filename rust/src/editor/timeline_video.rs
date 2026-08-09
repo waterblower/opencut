@@ -1,6 +1,6 @@
 use super::{
     clip_render_plan::resolve_visual_clip_render_plan, export::ExportOptions,
-    export_gstreamer::build_timeline, model::Timeline,
+    export_gstreamer::build_timeline, timeline::Timeline,
 };
 use crate::video::Video;
 use ges::prelude::*;
