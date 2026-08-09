@@ -31,6 +31,7 @@ mod properties;
 mod properties_transform;
 mod settings;
 mod timeline;
+mod timeline_clip_menu;
 mod timeline_document;
 mod timeline_interactions;
 mod timeline_video;
@@ -58,6 +59,7 @@ use preview_audio::AudioPreview;
 use preview_timeline::TimelinePreviewDrag;
 use properties::PropertiesPanelResizeDrag;
 use properties_transform::{OpacityDrag, VideoTransformInputs};
+use timeline_clip_menu::TimelineClipContextMenu;
 use timeline_document::load_existing;
 use timeline_interactions::{ClipMoveDrag, MarqueeSelection, TimelineTool, TrimDrag, TrimEdge};
 use workspace::{
@@ -235,6 +237,7 @@ struct TimelineState {
     vertical_scroll: ScrollHandle,
     selected_clip_id: Option<u64>,
     selected_clip_ids: HashSet<u64>,
+    context_menu: Option<TimelineClipContextMenu>,
     clipboard: Option<ClipClipboard>,
     next_id: u64,
     undo_stack: Vec<Project>,
@@ -398,6 +401,7 @@ impl Editor {
                 vertical_scroll: timeline_vertical_scroll,
                 selected_clip_id,
                 selected_clip_ids,
+                context_menu: None,
                 clipboard: None,
                 next_id,
                 undo_stack: Vec::new(),
@@ -683,6 +687,7 @@ impl Editor {
         self.timeline.last_scrub_seek = None;
         self.timeline.blade_guide = None;
         self.timeline.snap_guide = None;
+        self.timeline.context_menu = None;
         self.timeline.active_timeline = active_timeline;
         self.project = project;
         self.timeline.view_state = self
