@@ -87,7 +87,6 @@ impl Editor {
             video_properties: VideoClipProperties::default(),
             audio_properties: AudioClipProperties::default(),
         });
-        self.selected_asset_id = Some(asset_id);
         self.select_only_clip(Some(id));
         if self.preview.video.is_none() {
             self.load_timeline_position(TimelineTime::ZERO, false);

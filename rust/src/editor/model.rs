@@ -366,10 +366,6 @@ impl TimelineClip {
         right.source_in = source_split;
         Some((left, right))
     }
-
-    pub fn contains(&self, time: TimelineTime) -> bool {
-        time >= self.timeline_start && time < self.timeline_end()
-    }
 }
 
 pub fn timeline_ranges_overlap(
@@ -524,22 +520,6 @@ impl Project {
 
     pub fn timeline_duration(&self) -> TimelineTime {
         self.content_duration()
-    }
-
-    pub fn visual_clip_at_time(&self, time: TimelineTime) -> Option<&TimelineClip> {
-        self.tracks
-            .iter()
-            .filter(|track| track.visible && track.kind == TrackKind::Video)
-            .find_map(|track| {
-                self.clips_on_track(track.id)
-                    .filter(|clip| {
-                        clip.contains(time)
-                            && self
-                                .asset(clip.asset_id)
-                                .is_some_and(|asset| asset.kind == MediaKind::Video)
-                    })
-                    .max_by_key(|clip| clip.timeline_start)
-            })
     }
 
     pub fn seconds(&self, time: TimelineTime) -> f64 {
