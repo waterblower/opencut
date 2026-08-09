@@ -466,6 +466,9 @@ impl PlaybackViewDelegate for Editor {
                 self.preview.is_scrubbing = false;
                 self.seek_preview_to_fraction(fraction, true, resume);
                 self.preview.resume_after_scrub = false;
+                if self.preview.target == PreviewTarget::Timeline {
+                    self.save_timeline_view();
+                }
             }
             _ => return,
         }

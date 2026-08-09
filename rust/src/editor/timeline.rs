@@ -10,6 +10,70 @@ pub(super) struct Timeline {
     pub assets: Vec<MediaAsset>,
     pub tracks: Vec<TimelineTrack>,
     pub clips: Vec<TimelineClip>,
+    #[serde(default)]
+    pub view: TimelineViewState,
+}
+
+#[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
+pub(super) struct TimelineViewState {
+    pub(super) playhead_frame: i64,
+    pub(super) horizontal_scroll: f32,
+    pub(super) vertical_scroll: f32,
+    #[serde(default = "default_enabled")]
+    pub(super) snapping_enabled: bool,
+    #[serde(default = "default_enabled")]
+    pub(super) track_magnet_enabled: bool,
+}
+
+pub(super) struct TimelineInteractionState {
+    pub(super) active_tool: TimelineTool,
+    pub(super) snapping_enabled: bool,
+    pub(super) magnet_enabled: bool,
+    pub(super) selected_clip_id: Option<u64>,
+    pub(super) selected_clip_ids: HashSet<u64>,
+    pub(super) blade_guide: Option<TimelineTime>,
+    pub(super) snap_guide: Option<TimelineTime>,
+    pub(super) trim_drag: Option<TrimDrag>,
+    pub(super) clip_move_drag: Option<ClipMoveDrag>,
+    pub(super) marquee_selection: Option<MarqueeSelection>,
+    pub(super) scrubbing_playhead: bool,
+    pub(super) last_scrub_seek: Option<Instant>,
+    pub(super) context_menu: Option<TimelineClipContextMenu>,
+}
+
+pub(super) struct TimelineState {
+    pub(super) path: PathBuf,
+    pub(super) data: Timeline,
+    pub(super) playhead: TimelineTime,
+    pub(super) pixels_per_second: f32,
+    pub(super) zoom_save_due: Option<Instant>,
+    pub(super) interaction: TimelineInteractionState,
+    pub(super) scroll: ScrollHandle,
+    pub(super) vertical_scroll: ScrollHandle,
+    pub(super) clipboard: Option<ClipClipboard>,
+    pub(super) next_id: u64,
+    pub(super) undo_stack: Vec<Timeline>,
+    pub(super) redo_stack: Vec<Timeline>,
+}
+
+impl Default for TimelineViewState {
+    fn default() -> Self {
+        Self {
+            playhead_frame: 0,
+            horizontal_scroll: 0.0,
+            vertical_scroll: 0.0,
+            snapping_enabled: true,
+            track_magnet_enabled: true,
+        }
+    }
+}
+
+impl TimelineViewState {
+    fn normalize(&mut self) {
+        self.playhead_frame = self.playhead_frame.max(0);
+        self.horizontal_scroll = finite_nonnegative(self.horizontal_scroll);
+        self.vertical_scroll = finite_nonnegative(self.vertical_scroll);
+    }
 }
 
 impl Timeline {
@@ -197,6 +261,7 @@ impl Timeline {
     }
 
     fn normalize(&mut self) {
+        self.view.normalize();
         if self.settings.frame_rate.numerator == 0 {
             self.settings.frame_rate.numerator = 30;
         }
@@ -258,53 +323,16 @@ impl Timeline {
     }
 }
 
-pub(super) struct TimelineInteractionState {
-    pub(super) active_tool: TimelineTool,
-    pub(super) snapping_enabled: bool,
-    pub(super) magnet_enabled: bool,
-    pub(super) selected_clip_id: Option<u64>,
-    pub(super) selected_clip_ids: HashSet<u64>,
-    pub(super) blade_guide: Option<TimelineTime>,
-    pub(super) snap_guide: Option<TimelineTime>,
-    pub(super) trim_drag: Option<TrimDrag>,
-    pub(super) clip_move_drag: Option<ClipMoveDrag>,
-    pub(super) marquee_selection: Option<MarqueeSelection>,
-    pub(super) scrubbing_playhead: bool,
-    pub(super) last_scrub_seek: Option<Instant>,
-    pub(super) context_menu: Option<TimelineClipContextMenu>,
-}
-
-pub(super) struct TimelineState {
-    pub(super) path: PathBuf,
-    pub(super) data: Timeline,
-    pub(super) playhead: TimelineTime,
-    pub(super) pixels_per_second: f32,
-    pub(super) zoom_save_due: Option<Instant>,
-    pub(super) view_state: TimelineViewState,
-    pub(super) view_save_due: Option<Instant>,
-    pub(super) interaction: TimelineInteractionState,
-    pub(super) scroll: ScrollHandle,
-    pub(super) vertical_scroll: ScrollHandle,
-    pub(super) clipboard: Option<ClipClipboard>,
-    pub(super) next_id: u64,
-    pub(super) undo_stack: Vec<Timeline>,
-    pub(super) redo_stack: Vec<Timeline>,
-}
-
 impl TimelineState {
-    pub(super) fn new(
-        path: PathBuf,
-        data: Timeline,
-        project_root: &Path,
-        pixels_per_second: f32,
-    ) -> Self {
-        let view_state = load_timeline_view(&project_root.join(&path));
-        let playhead = TimelineTime::from_frames(view_state.playhead_frame)
+    pub(super) fn new(path: PathBuf, data: Timeline, pixels_per_second: f32) -> Self {
+        let playhead = TimelineTime::from_frames(data.view.playhead_frame)
             .clamp(TimelineTime::ZERO, data.timeline_duration());
         let scroll = ScrollHandle::new();
-        scroll.set_offset(point(px(-view_state.horizontal_scroll), px(0.0)));
+        scroll.set_offset(point(px(-data.view.horizontal_scroll), px(0.0)));
         let vertical_scroll = ScrollHandle::new();
-        vertical_scroll.set_offset(point(px(0.0), px(-view_state.vertical_scroll)));
+        vertical_scroll.set_offset(point(px(0.0), px(-data.view.vertical_scroll)));
+        let snapping_enabled = data.view.snapping_enabled;
+        let magnet_enabled = data.view.track_magnet_enabled;
         let selected_clip_id = data.clips.first().map(|clip| clip.id);
         let selected_clip_ids = selected_clip_id.into_iter().collect();
         let next_id = data.next_id();
@@ -315,12 +343,10 @@ impl TimelineState {
             playhead,
             pixels_per_second,
             zoom_save_due: None,
-            view_state: view_state.clone(),
-            view_save_due: None,
             interaction: TimelineInteractionState {
                 active_tool: TimelineTool::Selection,
-                snapping_enabled: view_state.snapping_enabled,
-                magnet_enabled: view_state.track_magnet_enabled,
+                snapping_enabled,
+                magnet_enabled,
                 selected_clip_id,
                 selected_clip_ids,
                 blade_guide: None,
@@ -339,6 +365,28 @@ impl TimelineState {
             undo_stack: Vec::new(),
             redo_stack: Vec::new(),
         }
+    }
+
+    pub(super) fn capture_view(&mut self) {
+        self.data.view = TimelineViewState {
+            playhead_frame: self.playhead.frames().max(0),
+            horizontal_scroll: finite_nonnegative(-f32::from(self.scroll.offset().x)),
+            vertical_scroll: finite_nonnegative(-f32::from(self.vertical_scroll.offset().y)),
+            snapping_enabled: self.interaction.snapping_enabled,
+            track_magnet_enabled: self.interaction.magnet_enabled,
+        };
+    }
+}
+
+fn default_enabled() -> bool {
+    true
+}
+
+fn finite_nonnegative(value: f32) -> f32 {
+    if value.is_finite() {
+        value.max(0.0)
+    } else {
+        0.0
     }
 }
 
@@ -383,6 +431,7 @@ impl Editor {
             .on_mouse_move(cx.listener(Self::update_clip_move))
             .on_mouse_move(cx.listener(Self::update_playhead_scrub))
             .on_mouse_move(cx.listener(Self::update_marquee_selection))
+            .on_scroll_wheel(cx.listener(Self::finish_timeline_scroll))
             .on_mouse_up(MouseButton::Left, cx.listener(Self::finish_trim))
             .on_mouse_up(MouseButton::Left, cx.listener(Self::finish_clip_move))
             .on_mouse_up(MouseButton::Left, cx.listener(Self::finish_playhead_scrub))
@@ -504,7 +553,6 @@ impl Editor {
                                 TimelineTool::Blade => CursorStyle::Crosshair,
                                 TimelineTool::Selection | TimelineTool::Trim => CursorStyle::Arrow,
                             })
-                            .on_scroll_wheel(cx.listener(Self::log_timeline_trackpad_scroll))
                             .on_mouse_move(cx.listener(Self::update_blade_guide))
                             .on_hover(cx.listener(Self::update_blade_guide_hover))
                             .child(

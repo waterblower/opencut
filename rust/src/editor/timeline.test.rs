@@ -1,5 +1,53 @@
 use super::*;
 
+#[test]
+fn timeline_view_state_is_sanitized_when_the_timeline_is_normalized() {
+    let mut timeline = Timeline {
+        view: TimelineViewState {
+            playhead_frame: -10,
+            horizontal_scroll: f32::NAN,
+            vertical_scroll: -20.0,
+            snapping_enabled: false,
+            track_magnet_enabled: false,
+        },
+        ..Timeline::default()
+    };
+
+    timeline.normalize();
+
+    assert_eq!(timeline.view.playhead_frame, 0);
+    assert_eq!(timeline.view.horizontal_scroll, 0.0);
+    assert_eq!(timeline.view.vertical_scroll, 0.0);
+    assert!(!timeline.view.snapping_enabled);
+    assert!(!timeline.view.track_magnet_enabled);
+}
+
+#[test]
+fn timeline_view_defaults_enable_snap_and_magnet() {
+    let timeline: Timeline = serde_json::from_str(
+        r#"{
+            "settings": {
+                "frame_rate": { "numerator": 30, "denominator": 1 },
+                "width": 1920,
+                "height": 1080,
+                "audio_sample_rate": 48000
+            },
+            "assets": [],
+            "tracks": [],
+            "clips": [],
+            "view": {
+                "playhead_frame": 10,
+                "horizontal_scroll": 20.0,
+                "vertical_scroll": 30.0
+            }
+        }"#,
+    )
+    .unwrap();
+
+    assert!(timeline.view.snapping_enabled);
+    assert!(timeline.view.track_magnet_enabled);
+}
+
 #[cfg(test)]
 impl Timeline {
     pub fn with_test_tracks() -> Self {
