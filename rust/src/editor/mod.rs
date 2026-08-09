@@ -55,6 +55,7 @@ use model::{
 };
 use preview::PreviewTarget;
 use preview_audio::AudioPreview;
+use preview_timeline::TimelinePreviewDrag;
 use properties::PropertiesPanelResizeDrag;
 use properties_transform::{OpacityDrag, VideoTransformInputs};
 use timeline_document::load_existing;
@@ -209,6 +210,7 @@ struct PreviewState {
     scrub_fraction: Option<f32>,
     pending_seek_started: Option<Instant>,
     last_scrub_seek: Option<Instant>,
+    timeline_drag: Option<TimelinePreviewDrag>,
     refresh_ticks: u8,
 }
 
@@ -357,6 +359,7 @@ impl Editor {
                 scrub_fraction: None,
                 pending_seek_started: None,
                 last_scrub_seek: None,
+                timeline_drag: None,
                 refresh_ticks: 0,
             },
             media_cache_jobs: HashSet::new(),
@@ -670,6 +673,7 @@ impl Editor {
         self.preview.scrub_fraction = None;
         self.preview.pending_seek_started = None;
         self.preview.last_scrub_seek = None;
+        self.preview.timeline_drag = None;
         self.properties.transform_input_clip_id = None;
         self.properties.opacity_drag = None;
         self.timeline.trim_drag = None;

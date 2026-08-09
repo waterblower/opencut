@@ -1,4 +1,7 @@
-use super::{export::ExportOptions, export_gstreamer::build_timeline, model::Project};
+use super::{
+    clip_render_plan::resolve_visual_clip_render_plan, export::ExportOptions,
+    export_gstreamer::build_timeline, model::Project,
+};
 use crate::video::Video;
 use ges::prelude::*;
 use gstreamer as gst;
@@ -22,6 +25,71 @@ pub(super) fn set_timeline_audio(video: &Video, volume: f64, muted: bool) {
         control.set_property("volume", volume.clamp(0.0, 1.0));
         control.set_property("mute", muted);
     }
+}
+
+pub(super) fn update_timeline_video_position(
+    video: &Video,
+    project: &Project,
+    clip_id: u64,
+    refresh_frame: bool,
+) -> Result<(), String> {
+    let clip = project
+        .clip(clip_id)
+        .ok_or_else(|| format!("Clip {clip_id} is unavailable."))?;
+    let asset = project
+        .asset(clip.asset_id)
+        .ok_or_else(|| format!("Clip {clip_id} has no source media."))?;
+    let pipeline = video
+        .pipeline()
+        .downcast::<ges::Pipeline>()
+        .map_err(|_| "timeline preview pipeline had an unexpected type".to_string())?;
+    let timeline = pipeline
+        .timeline()
+        .ok_or_else(|| "timeline preview pipeline has no timeline".to_string())?;
+    let clip_name = format!("opencut-clip-{clip_id}");
+    let rendered_clip = timeline
+        .layers()
+        .into_iter()
+        .flat_map(|layer| layer.clips())
+        .find(|rendered_clip| rendered_clip.name().as_deref() == Some(clip_name.as_str()))
+        .ok_or_else(|| format!("timeline preview has no rendered clip for {clip_id}"))?;
+    let options = ExportOptions::from_project(project);
+    let plan = resolve_visual_clip_render_plan(
+        clip.video_properties,
+        asset.width,
+        asset.height,
+        project.settings.width,
+        project.settings.height,
+        options.width.max(2) as f64,
+        options.height.max(2) as f64,
+    );
+    for (name, value) in [
+        (
+            "posx",
+            plan.visible
+                .left
+                .round()
+                .clamp(i32::MIN as f64, i32::MAX as f64) as i32,
+        ),
+        (
+            "posy",
+            plan.visible
+                .top
+                .round()
+                .clamp(i32::MIN as f64, i32::MAX as f64) as i32,
+        ),
+    ] {
+        rendered_clip
+            .set_child_property(name, value)
+            .map_err(|error| format!("could not update preview video {name}: {error}"))?;
+    }
+    if !refresh_frame {
+        return Ok(());
+    }
+    if !timeline.commit_sync() {
+        return Err("GStreamer could not commit the preview position.".to_string());
+    }
+    video.seek(video.position(), true)
 }
 
 fn create_timeline_pipeline(
