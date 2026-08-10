@@ -5,6 +5,10 @@ mod explorer_file_menu;
 pub(crate) use explorer_file_menu::FileContextMenu;
 #[path = "explorer_file_entry.rs"]
 mod explorer_file_entry;
+pub(super) use explorer_file_entry::{
+    FileTreeEntry, FileTreeEntryKind, is_audio_path, is_image_path, is_video_path, search_tree,
+    visible_tree,
+};
 
 pub(super) struct RenameDialogState {
     relative_path: PathBuf,
@@ -227,7 +231,7 @@ impl Editor {
             let scan_query = query.clone();
             let result = cx
                 .background_executor()
-                .spawn(async move { workspace::search_tree(&scan_root, &scan_query) })
+                .spawn(async move { search_tree(&scan_root, &scan_query) })
                 .await;
 
             editor

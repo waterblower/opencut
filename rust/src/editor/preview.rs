@@ -212,9 +212,9 @@ impl Editor {
     }
 
     pub(super) fn select_file(&mut self, relative_path: PathBuf, cx: &mut Context<Self>) {
-        let is_image = workspace::is_image_path(&relative_path);
-        let is_video = workspace::is_video_path(&relative_path);
-        let is_audio = workspace::is_audio_path(&relative_path);
+        let is_image = explorer::is_image_path(&relative_path);
+        let is_video = explorer::is_video_path(&relative_path);
+        let is_audio = explorer::is_audio_path(&relative_path);
 
         self.explorer.selected_file = Some(relative_path.clone());
 
