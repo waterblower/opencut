@@ -4,7 +4,7 @@ use super::*;
 fn timeline_view_state_is_sanitized_when_the_timeline_is_normalized() {
     let mut timeline = Timeline {
         view: TimelineViewState {
-            saved_playhead_frame: -10,
+            saved_playhead_frame: TimelineTime::from_frames(-10),
             horizontal_scroll: f32::NAN,
             vertical_scroll: -20.0,
             pixels_per_second: f32::NAN,
@@ -16,7 +16,7 @@ fn timeline_view_state_is_sanitized_when_the_timeline_is_normalized() {
 
     timeline.normalize();
 
-    assert_eq!(timeline.view.saved_playhead_frame, 0);
+    assert_eq!(timeline.view.saved_playhead_frame, TimelineTime::ZERO);
     assert_eq!(timeline.view.horizontal_scroll, 0.0);
     assert_eq!(timeline.view.vertical_scroll, 0.0);
     assert_eq!(
