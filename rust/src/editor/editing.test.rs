@@ -153,7 +153,8 @@ fn blade_targets_unselected_clips_crossing_the_playhead() {
     project.assets.push(audio_asset(100));
     project.clips = vec![audio_clip(10, 0, 20), audio_clip(11, 30, 20)];
 
-    let targets = clips_crossing_playhead(&project, TimelineTime::from_frames(10));
+    let timeline = TimelineState::new("timeline.json".into(), project);
+    let (targets, _) = blade_at_playhead(&timeline, TimelineTime::from_frames(10));
 
     assert_eq!(
         targets.iter().map(|clip| clip.id).collect::<Vec<_>>(),
