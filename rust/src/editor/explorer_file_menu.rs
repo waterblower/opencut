@@ -17,6 +17,8 @@ impl Editor {
     ) -> gpui::AnyElement {
         let width = 268.0;
         let can_create_timeline = menu.is_directory;
+        let can_open_timeline_settings =
+            !menu.is_directory && timeline_document::is_timeline_path(&menu.relative_path);
         let can_rename = !menu.relative_path.as_os_str().is_empty();
         let can_trash = can_rename
             && !self
@@ -25,6 +27,11 @@ impl Editor {
                 .is_some_and(|timeline| timeline.path.starts_with(&menu.relative_path));
         let height = 92.0
             + if can_create_timeline { 40.0 } else { 0.0 }
+            + if can_open_timeline_settings {
+                40.0
+            } else {
+                0.0
+            }
             + if can_rename { 40.0 } else { 0.0 }
             + if can_trash { 40.0 } else { 0.0 };
         let left = menu
@@ -78,6 +85,23 @@ impl Editor {
                                 },
                             )),
                         )
+                    })
+                    .when(can_open_timeline_settings, |this| {
+                        let timeline_path = menu.relative_path.clone();
+                        this.child(file_menu_item("Settings", "").on_click(cx.listener(
+                            move |editor, _, _, cx| {
+                                editor.explorer.context_menu = None;
+                                editor.open_timeline(timeline_path.clone(), cx);
+                                if editor
+                                    .timeline
+                                    .as_ref()
+                                    .is_some_and(|timeline| timeline.path == timeline_path)
+                                {
+                                    editor.settings_open = true;
+                                }
+                                cx.notify();
+                            },
+                        )))
                     })
                     .child(
                         file_menu_item("Reveal in Finder", "⌥⌘R").on_click(cx.listener(
