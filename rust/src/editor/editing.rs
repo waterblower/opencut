@@ -213,7 +213,6 @@ impl Editor {
             plural_suffix(split_count)
         ));
         self.save_timeline();
-        self.load_timeline_position(playhead, false);
     }
 
     pub(super) fn blade_split_clip_at(&mut self, clip_id: Ulid, position: TimelineTime) {
