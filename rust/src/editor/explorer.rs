@@ -908,16 +908,14 @@ fn explorer_file_badge(entry: &FileTreeEntry) -> gpui::Div {
         })
         .filter(|extension| !extension.is_empty())
         .unwrap_or_else(|| "FILE".to_string());
-    let (extension, text, border) = if entry.is_timeline {
-        ("TL".to_string(), 0xf0b75e, 0x8a652d)
-    } else if entry.is_video {
-        (extension, 0x8fb9dd, 0x355b78)
-    } else if entry.is_audio {
-        (extension, 0x7fd0ae, 0x32725a)
-    } else if entry.is_image {
-        (extension, 0xc3a9e8, 0x665184)
-    } else {
-        (extension, 0x8b8b94, 0x46464e)
+    let (extension, text, border) = match entry.kind {
+        FileTreeEntryKind::Timeline => ("TL".to_string(), 0xf0b75e, 0x8a652d),
+        FileTreeEntryKind::Video => (extension, 0x8fb9dd, 0x355b78),
+        FileTreeEntryKind::Audio => (extension, 0x7fd0ae, 0x32725a),
+        FileTreeEntryKind::Image => (extension, 0xc3a9e8, 0x665184),
+        FileTreeEntryKind::Directory { .. } | FileTreeEntryKind::Other => {
+            (extension, 0x8b8b94, 0x46464e)
+        }
     };
 
     div()

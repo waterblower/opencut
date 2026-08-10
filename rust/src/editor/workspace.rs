@@ -10,13 +10,18 @@ pub(super) struct FileTreeEntry {
     pub relative_path: PathBuf,
     pub name: String,
     pub depth: usize,
-    pub is_directory: bool,
-    pub is_video: bool,
-    pub is_image: bool,
-    pub is_audio: bool,
-    pub is_timeline: bool,
+    pub kind: FileTreeEntryKind,
     pub size_bytes: Option<u64>,
-    pub expanded: bool,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(super) enum FileTreeEntryKind {
+    Directory { expanded: bool },
+    Video,
+    Image,
+    Audio,
+    Timeline,
+    Other,
 }
 
 #[derive(Deserialize, Serialize)]
@@ -214,17 +219,25 @@ fn file_tree_entry(
     size_bytes: Option<u64>,
     expanded: bool,
 ) -> FileTreeEntry {
+    let kind = if is_directory {
+        FileTreeEntryKind::Directory { expanded }
+    } else if super::timeline_document::is_timeline_path(&relative_path) {
+        FileTreeEntryKind::Timeline
+    } else if is_video_path(&relative_path) {
+        FileTreeEntryKind::Video
+    } else if is_image_path(&relative_path) {
+        FileTreeEntryKind::Image
+    } else if is_audio_path(&relative_path) {
+        FileTreeEntryKind::Audio
+    } else {
+        FileTreeEntryKind::Other
+    };
     FileTreeEntry {
-        is_video: !is_directory && is_video_path(&relative_path),
-        is_image: !is_directory && is_image_path(&relative_path),
-        is_audio: !is_directory && is_audio_path(&relative_path),
-        is_timeline: !is_directory && super::timeline_document::is_timeline_path(&relative_path),
         relative_path,
         name,
         depth,
-        is_directory,
+        kind,
         size_bytes,
-        expanded,
     }
 }
 
