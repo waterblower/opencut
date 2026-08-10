@@ -366,11 +366,7 @@ impl TimelineClip {
         (self.source_in + local).min(self.source_out)
     }
 
-    pub fn split_at(
-        &self,
-        timeline_position: TimelineTime,
-        right_clip_id: Ulid,
-    ) -> Option<(Self, Self)> {
+    pub fn split_at(&self, timeline_position: TimelineTime) -> Option<(Self, Self)> {
         let local = timeline_position - self.timeline_start;
         if local < TimelineTime::ONE_FRAME || local > self.duration() - TimelineTime::ONE_FRAME {
             return None;
@@ -380,7 +376,7 @@ impl TimelineClip {
         let mut left = self.clone();
         left.source_out = source_split;
         let mut right = self.clone();
-        right.id = right_clip_id;
+        right.id = Ulid::generate();
         right.timeline_start = timeline_position;
         right.source_in = source_split;
         Some((left, right))

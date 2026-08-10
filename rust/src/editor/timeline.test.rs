@@ -248,13 +248,11 @@ fn repeated_frame_splits_preserve_the_total_duration() {
     let mut remaining = video_clip(10, 0, 10_000);
     let original_duration = remaining.duration();
     let mut pieces = Vec::new();
-    let mut id_seed = 11;
     for split in [1, 17, 301, 999, 2_048] {
         let position = remaining.timeline_start + frames(split);
-        let (left, right) = remaining.split_at(position, ulid(id_seed)).unwrap();
+        let (left, right) = remaining.split_at(position).unwrap();
         pieces.push(left.duration());
         remaining = right;
-        id_seed += 1;
     }
     let reconstructed = pieces
         .into_iter()
@@ -359,13 +357,13 @@ fn splitting_clip_preserves_ranges_and_properties() {
     clip.audio_properties.gain_db = -6.0;
     clip.audio_properties.muted = true;
 
-    let (left, right) = clip.split_at(frames(125), ulid(11)).unwrap();
+    let (left, right) = clip.split_at(frames(125)).unwrap();
 
     assert_eq!(left.id, ulid(10));
     assert_eq!(left.timeline_start, frames(100));
     assert_eq!(left.source_in, frames(30));
     assert_eq!(left.source_out, frames(55));
-    assert_eq!(right.id, ulid(11));
+    assert_ne!(right.id, clip.id);
     assert_eq!(right.timeline_start, frames(125));
     assert_eq!(right.source_in, frames(55));
     assert_eq!(right.source_out, frames(90));
@@ -379,10 +377,10 @@ fn splitting_clip_preserves_ranges_and_properties() {
 fn splitting_clip_rejects_its_outer_frames() {
     let clip = video_clip(10, 100, 60);
 
-    assert!(clip.split_at(frames(100), ulid(11)).is_none());
-    assert!(clip.split_at(frames(160), ulid(11)).is_none());
-    assert!(clip.split_at(frames(101), ulid(11)).is_some());
-    assert!(clip.split_at(frames(159), ulid(11)).is_some());
+    assert!(clip.split_at(frames(100)).is_none());
+    assert!(clip.split_at(frames(160)).is_none());
+    assert!(clip.split_at(frames(101)).is_some());
+    assert!(clip.split_at(frames(159)).is_some());
 }
 
 #[test]

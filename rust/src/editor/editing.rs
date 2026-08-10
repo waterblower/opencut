@@ -173,45 +173,30 @@ impl ClipClipboard {
 
 impl Editor {
     pub(super) fn blade_at_playhead(&mut self) {
-        let Some(timeline) = self.timeline.as_ref() else {
+        let Some(timeline) = &mut self.timeline else {
             return;
         };
-        let playhead = timeline.playhead;
-        let clips = clips_crossing_playhead(&timeline.data, playhead);
-        if clips.is_empty() {
+        let (clips_at_playhead, splited_clips) = blade_at_playhead(timeline, timeline.playhead);
+        if clips_at_playhead.is_empty() {
             return;
         }
 
         self.record_editing_history();
-        let mut right_halves = Vec::with_capacity(clips.len());
-        for clip in clips {
-            let Some(index) = self
-                .timeline
-                .as_ref()
-                .and_then(|timeline| timeline.data.clip_index(clip.id))
-            else {
-                continue;
-            };
-            let new_id = Ulid::generate();
-            let Some((left, right)) = clip.split_at(playhead, new_id) else {
-                continue;
-            };
-            self.timeline
-                .as_mut()
-                .expect("timeline was checked above")
-                .data
-                .clips[index] = left;
-            right_halves.push(right);
-        }
-        let split_count = right_halves.len();
         let timeline = self.timeline.as_mut().expect("timeline was checked above");
-        timeline.interaction.selected_clip_ids = right_halves.iter().map(|clip| clip.id).collect();
-        timeline.interaction.selected_clip_id = right_halves.first().map(|clip| clip.id);
-        timeline.data.clips.extend(right_halves);
-        self.status = Some(format!(
+        let split_count = clips_at_playhead.len();
+        let removed_clip_ids = clips_at_playhead
+            .into_iter()
+            .map(|clip| clip.id)
+            .collect::<HashSet<_>>();
+        timeline
+            .data
+            .clips
+            .retain(|clip| !removed_clip_ids.contains(&clip.id));
+        timeline.data.clips.extend(splited_clips);
+        eprintln!(
             "Bladed {split_count} clip{} at the playhead.",
             plural_suffix(split_count)
-        ));
+        );
         self.save_timeline();
     }
 
@@ -226,10 +211,10 @@ impl Editor {
             return;
         }
         let clip = timeline.data.clips[index].clone();
-        let right_clip_id = Ulid::generate();
-        let Some((left, right)) = clip.split_at(position, right_clip_id) else {
+        let Some((left, right)) = clip.split_at(position) else {
             return;
         };
+        let right_clip_id = right.id;
 
         self.record_editing_history();
         let timeline = self.timeline.as_mut().expect("timeline was checked above");
@@ -922,23 +907,6 @@ fn ripple_clips_after_deletion(clips: &mut [TimelineClip], deleted_ids: &HashSet
     }
 }
 
-fn clips_crossing_playhead(timeline: &Timeline, playhead: TimelineTime) -> Vec<TimelineClip> {
-    timeline
-        .clips
-        .iter()
-        .filter(|clip| {
-            let local = playhead - clip.timeline_start;
-            let crosses_playhead = local >= TimelineTime::ONE_FRAME
-                && local <= clip.duration() - TimelineTime::ONE_FRAME;
-            let track_is_editable = timeline
-                .track(clip.track_id)
-                .is_some_and(|track| !track.locked);
-            crosses_playhead && track_is_editable
-        })
-        .cloned()
-        .collect()
-}
-
 fn validate_clipboard_placements(
     timeline: &Timeline,
     clips: &[TimelineClip],
@@ -977,6 +945,39 @@ fn validate_clipboard_placements(
 
 fn plural_suffix(count: usize) -> &'static str {
     if count == 1 { "" } else { "s" }
+}
+
+fn blade_at_playhead(
+    timeline: &TimelineState,
+    playhead: TimelineTime,
+) -> (Vec<TimelineClip>, Vec<TimelineClip>) {
+    let clips_at_playhead = timeline
+        .data
+        .clips
+        .iter()
+        .filter(|clip| {
+            let local = playhead - clip.timeline_start;
+            let crosses_playhead = local >= TimelineTime::ONE_FRAME
+                && local <= clip.duration() - TimelineTime::ONE_FRAME;
+            let track_is_editable = timeline
+                .data
+                .track(clip.track_id)
+                .is_some_and(|track| !track.locked);
+            crosses_playhead && track_is_editable
+        })
+        .cloned()
+        .collect::<Vec<_>>();
+    let splited_clips = clips_at_playhead
+        .iter()
+        .flat_map(|clip| {
+            let (left, right) = clip
+                .split_at(playhead)
+                .expect("clips at the playhead must be splittable");
+            [left, right]
+        })
+        .collect();
+
+    (clips_at_playhead, splited_clips)
 }
 
 #[cfg(test)]
