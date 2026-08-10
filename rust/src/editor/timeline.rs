@@ -5,12 +5,12 @@ use serde::{Deserialize, Serialize};
 use std::{fs, path::Path};
 
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]
+#[serde(default)]
 pub(super) struct Timeline {
     pub settings: TimelineSettings,
     pub assets: Vec<MediaAsset>,
     pub tracks: Vec<TimelineTrack>,
     pub clips: Vec<TimelineClip>,
-    #[serde(default)]
     pub view: TimelineViewState,
 }
 
