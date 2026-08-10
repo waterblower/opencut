@@ -17,7 +17,7 @@ pub(super) struct Timeline {
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
 #[serde(default)]
 pub(super) struct TimelineViewState {
-    pub(super) saved_playhead_frame: i64,
+    pub(super) saved_playhead_frame: TimelineTime,
     pub(super) horizontal_scroll: f32,
     pub(super) vertical_scroll: f32,
     pub(super) pixels_per_second: f32,
@@ -45,9 +45,9 @@ pub(super) struct TimelineState {
     pub(super) path: PathBuf,
     pub(super) data: Timeline,
     pub(super) playhead: TimelineTime,
-    pub(super) interaction: TimelineInteractionState,
     pub(super) scroll: ScrollHandle,
     pub(super) vertical_scroll: ScrollHandle,
+    pub(super) interaction: TimelineInteractionState,
     pub(super) clipboard: Option<ClipClipboard>,
     pub(super) next_id: u64,
     pub(super) undo_stack: Vec<Timeline>,
@@ -57,7 +57,7 @@ pub(super) struct TimelineState {
 impl Default for TimelineViewState {
     fn default() -> Self {
         Self {
-            saved_playhead_frame: 0,
+            saved_playhead_frame: TimelineTime::ZERO,
             horizontal_scroll: 0.0,
             vertical_scroll: 0.0,
             pixels_per_second: default_pixels_per_second(),
@@ -69,7 +69,7 @@ impl Default for TimelineViewState {
 
 impl TimelineViewState {
     fn normalize(&mut self) {
-        self.saved_playhead_frame = self.saved_playhead_frame.max(0);
+        self.saved_playhead_frame = self.saved_playhead_frame.max(TimelineTime::ZERO);
         self.horizontal_scroll = finite_nonnegative(self.horizontal_scroll);
         self.vertical_scroll = finite_nonnegative(self.vertical_scroll);
         self.pixels_per_second = if self.pixels_per_second.is_finite() {
@@ -332,7 +332,9 @@ impl Timeline {
 
 impl TimelineState {
     pub(super) fn new(path: PathBuf, data: Timeline) -> Self {
-        let playhead = TimelineTime::from_frames(data.view.saved_playhead_frame)
+        let playhead = data
+            .view
+            .saved_playhead_frame
             .clamp(TimelineTime::ZERO, data.timeline_duration());
         let scroll = ScrollHandle::new();
         scroll.set_offset(point(px(-data.view.horizontal_scroll), px(0.0)));
@@ -373,7 +375,7 @@ impl TimelineState {
     }
 
     pub(super) fn capture_playhead(&mut self) {
-        self.data.view.saved_playhead_frame = self.playhead.frames().max(0);
+        self.data.view.saved_playhead_frame = self.playhead.max(TimelineTime::ZERO);
     }
 
     pub(super) fn capture_scroll(&mut self) {
