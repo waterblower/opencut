@@ -1,11 +1,29 @@
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize, de};
 use std::{
     ops::{Add, AddAssign, Sub, SubAssign},
     path::PathBuf,
     time::Duration,
 };
+use ulid::Ulid;
 
 pub(super) const DEFAULT_IMAGE_CLIP_DURATION: f64 = 5.0;
+
+fn deserialize_ulid<'de, D>(deserializer: D) -> Result<Ulid, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    #[derive(Deserialize)]
+    #[serde(untagged)]
+    enum SerializedUlid {
+        String(String),
+        Legacy(u64),
+    }
+
+    match SerializedUlid::deserialize(deserializer)? {
+        SerializedUlid::String(value) => value.parse().map_err(de::Error::custom),
+        SerializedUlid::Legacy(value) => Ok(Ulid::from(u128::from(value))),
+    }
+}
 
 #[derive(Clone, Copy, Debug, Default, Deserialize, Eq, Ord, PartialEq, PartialOrd, Serialize)]
 #[serde(transparent)]
@@ -232,7 +250,8 @@ pub(super) enum TrackKind {
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub(super) struct MediaAsset {
-    pub id: u64,
+    #[serde(deserialize_with = "deserialize_ulid")]
+    pub id: Ulid,
     #[serde(default)]
     pub kind: MediaKind,
     pub path: PathBuf,
@@ -317,10 +336,12 @@ impl Default for AudioClipProperties {
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub(super) struct TimelineClip {
-    pub id: u64,
-    pub track_id: u64,
-    #[serde(default)]
-    pub asset_id: u64,
+    #[serde(deserialize_with = "deserialize_ulid")]
+    pub id: Ulid,
+    #[serde(deserialize_with = "deserialize_ulid")]
+    pub track_id: Ulid,
+    #[serde(default = "Ulid::nil", deserialize_with = "deserialize_ulid")]
+    pub asset_id: Ulid,
     pub timeline_start: TimelineTime,
     pub source_in: TimelineTime,
     pub source_out: TimelineTime,
@@ -348,7 +369,7 @@ impl TimelineClip {
     pub fn split_at(
         &self,
         timeline_position: TimelineTime,
-        right_clip_id: u64,
+        right_clip_id: Ulid,
     ) -> Option<(Self, Self)> {
         let local = timeline_position - self.timeline_start;
         if local < TimelineTime::ONE_FRAME || local > self.duration() - TimelineTime::ONE_FRAME {
@@ -377,7 +398,8 @@ pub fn timeline_ranges_overlap(
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub(super) struct TimelineTrack {
-    pub id: u64,
+    #[serde(deserialize_with = "deserialize_ulid")]
+    pub id: Ulid,
     pub name: String,
     pub kind: TrackKind,
     #[serde(default)]

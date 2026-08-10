@@ -9,6 +9,7 @@ use gstreamer as gst;
 use gstreamer_editing_services as ges;
 use gstreamer_pbutils as gst_pbutils;
 use std::{collections::HashMap, fs, path::Path, sync::Mutex, time::Duration};
+use ulid::Ulid;
 use url::Url;
 
 const AUDIO_BIT_RATE: i32 = 192_000;
@@ -129,7 +130,7 @@ pub(super) fn build_timeline(
         track.set_mixing(true);
     }
 
-    let mut assets: HashMap<u64, ges::UriClipAsset> = HashMap::new();
+    let mut assets: HashMap<Ulid, ges::UriClipAsset> = HashMap::new();
     for timeline_track in &timeline_data.tracks {
         let layer = timeline.append_layer();
         let mut clips = timeline_data

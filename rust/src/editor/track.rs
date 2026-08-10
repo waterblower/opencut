@@ -247,7 +247,7 @@ impl Editor {
             .max(4.0);
 
         div()
-            .id(("timeline-clip", clip_id))
+            .id(gpui::SharedString::from(format!("timeline-clip-{clip_id}")))
             .absolute()
             .left(px(left))
             .top(px(5.0))
@@ -284,16 +284,26 @@ impl Editor {
                     && !moving
                     && timeline.interaction.active_tool == TimelineTool::Trim,
                 |this| {
-                    this.child(trim_handle(("left-trim", clip_id), true).on_mouse_down(
-                        MouseButton::Left,
-                        cx.listener(move |editor, event: &MouseDownEvent, _, cx| {
-                            cx.stop_propagation();
-                            editor.begin_trim(clip_id, TrimEdge::Left, event.position.x.into());
-                            cx.notify();
-                        }),
-                    ))
+                    this.child(
+                        trim_handle(
+                            gpui::SharedString::from(format!("left-trim-{clip_id}")),
+                            true,
+                        )
+                        .on_mouse_down(
+                            MouseButton::Left,
+                            cx.listener(move |editor, event: &MouseDownEvent, _, cx| {
+                                cx.stop_propagation();
+                                editor.begin_trim(clip_id, TrimEdge::Left, event.position.x.into());
+                                cx.notify();
+                            }),
+                        ),
+                    )
                     .child(
-                        trim_handle(("right-trim", clip_id), false).on_mouse_down(
+                        trim_handle(
+                            gpui::SharedString::from(format!("right-trim-{clip_id}")),
+                            false,
+                        )
+                        .on_mouse_down(
                             MouseButton::Left,
                             cx.listener(move |editor, event: &MouseDownEvent, _, cx| {
                                 cx.stop_propagation();
@@ -313,7 +323,7 @@ impl Editor {
 
     fn timeline_clip_move_preview(
         &self,
-        clip_id: u64,
+        clip_id: Ulid,
         start: TimelineTime,
         invalid_reason: Option<&'static str>,
     ) -> gpui::AnyElement {
@@ -340,7 +350,9 @@ impl Editor {
         let feedback_color = if valid { ACCENT } else { ERROR };
 
         div()
-            .id(("timeline-clip-move-preview", clip_id))
+            .id(gpui::SharedString::from(format!(
+                "timeline-clip-move-preview-{clip_id}"
+            )))
             .absolute()
             .left(px(left))
             .top(px(5.0))

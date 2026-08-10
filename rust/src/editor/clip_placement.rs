@@ -33,11 +33,11 @@ impl ClipPlacementRejection {
 
 pub(super) fn validate_clip_placement(
     timeline: &Timeline,
-    target_track_id: u64,
+    target_track_id: Ulid,
     media_kind: MediaKind,
     clip_length: TimelineTime,
     target_timeline_start: TimelineTime,
-    ignored_clip_ids: &HashSet<u64>,
+    ignored_clip_ids: &HashSet<Ulid>,
 ) -> Result<(), ClipPlacementRejection> {
     if target_timeline_start < TimelineTime::ZERO {
         return Err(ClipPlacementRejection::BeforeTimelineStart);

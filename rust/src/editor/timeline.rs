@@ -29,8 +29,8 @@ pub(super) struct TimelineInteractionState {
     pub(super) active_tool: TimelineTool,
     pub(super) snapping_enabled: bool,
     pub(super) magnet_enabled: bool,
-    pub(super) selected_clip_id: Option<u64>,
-    pub(super) selected_clip_ids: HashSet<u64>,
+    pub(super) selected_clip_id: Option<Ulid>,
+    pub(super) selected_clip_ids: HashSet<Ulid>,
     pub(super) blade_guide: Option<TimelineTime>,
     pub(super) snap_guide: Option<TimelineTime>,
     pub(super) trim_drag: Option<TrimDrag>,
@@ -48,8 +48,6 @@ pub(super) struct TimelineState {
     pub(super) scroll: ScrollHandle,
     pub(super) vertical_scroll: ScrollHandle,
     pub(super) interaction: TimelineInteractionState,
-    pub(super) clipboard: Option<ClipClipboard>,
-    pub(super) next_id: u64,
     pub(super) undo_stack: Vec<Timeline>,
     pub(super) redo_stack: Vec<Timeline>,
 }
@@ -108,37 +106,37 @@ impl Timeline {
             .map_err(|error| format!("could not replace {}: {error}", path.display()))
     }
 
-    pub fn asset(&self, id: u64) -> Option<&MediaAsset> {
+    pub fn asset(&self, id: Ulid) -> Option<&MediaAsset> {
         self.assets.iter().find(|asset| asset.id == id)
     }
 
-    pub fn clip(&self, id: u64) -> Option<&TimelineClip> {
+    pub fn clip(&self, id: Ulid) -> Option<&TimelineClip> {
         self.clips.iter().find(|clip| clip.id == id)
     }
 
-    pub fn clip_mut(&mut self, id: u64) -> Option<&mut TimelineClip> {
+    pub fn clip_mut(&mut self, id: Ulid) -> Option<&mut TimelineClip> {
         self.clips.iter_mut().find(|clip| clip.id == id)
     }
 
-    pub fn clip_index(&self, id: u64) -> Option<usize> {
+    pub fn clip_index(&self, id: Ulid) -> Option<usize> {
         self.clips.iter().position(|clip| clip.id == id)
     }
 
-    pub fn track(&self, id: u64) -> Option<&TimelineTrack> {
+    pub fn track(&self, id: Ulid) -> Option<&TimelineTrack> {
         self.tracks.iter().find(|track| track.id == id)
     }
 
-    pub fn track_mut(&mut self, id: u64) -> Option<&mut TimelineTrack> {
+    pub fn track_mut(&mut self, id: Ulid) -> Option<&mut TimelineTrack> {
         self.tracks.iter_mut().find(|track| track.id == id)
     }
 
-    pub fn clips_on_track(&self, track_id: u64) -> impl Iterator<Item = &TimelineClip> {
+    pub fn clips_on_track(&self, track_id: Ulid) -> impl Iterator<Item = &TimelineClip> {
         self.clips
             .iter()
             .filter(move |clip| clip.track_id == track_id)
     }
 
-    pub fn trim_limits(&self, clip_id: u64) -> Option<(TimelineTime, TimelineTime)> {
+    pub fn trim_limits(&self, clip_id: Ulid) -> Option<(TimelineTime, TimelineTime)> {
         let clip = self.clip(clip_id)?;
         let previous_end = self
             .clips_on_track(clip.track_id)
@@ -256,17 +254,6 @@ impl Timeline {
         self.settings.frame_rate.ceil(seconds)
     }
 
-    pub fn next_id(&self) -> u64 {
-        self.assets
-            .iter()
-            .map(|asset| asset.id)
-            .chain(self.tracks.iter().map(|track| track.id))
-            .chain(self.clips.iter().map(|clip| clip.id))
-            .max()
-            .unwrap_or(0)
-            + 1
-    }
-
     fn normalize(&mut self) {
         self.view.normalize();
         if self.settings.frame_rate.numerator == 0 {
@@ -344,8 +331,6 @@ impl TimelineState {
         let magnet_enabled = data.view.track_magnet_enabled;
         let selected_clip_id = data.clips.first().map(|clip| clip.id);
         let selected_clip_ids = selected_clip_id.into_iter().collect();
-        let next_id = data.next_id();
-
         Self {
             path,
             data,
@@ -367,8 +352,6 @@ impl TimelineState {
             },
             scroll,
             vertical_scroll,
-            clipboard: None,
-            next_id,
             undo_stack: Vec::new(),
             redo_stack: Vec::new(),
         }

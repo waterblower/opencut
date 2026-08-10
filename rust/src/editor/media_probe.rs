@@ -5,8 +5,9 @@ use super::{
 use ffmpeg::{codec, format, media::Type};
 use ffmpeg_next as ffmpeg;
 use std::{fs, path::Path};
+use ulid::Ulid;
 
-pub(super) fn probe_asset(path: &Path, id: u64) -> Result<MediaAsset, String> {
+pub(super) fn probe_asset(path: &Path, id: Ulid) -> Result<MediaAsset, String> {
     if is_image_path(path) {
         probe_image(path, id)
     } else if is_audio_path(path) {
@@ -18,7 +19,7 @@ pub(super) fn probe_asset(path: &Path, id: u64) -> Result<MediaAsset, String> {
     }
 }
 
-pub(super) fn probe_video(path: &Path, id: u64) -> Result<MediaAsset, String> {
+pub(super) fn probe_video(path: &Path, id: Ulid) -> Result<MediaAsset, String> {
     ffmpeg::init().map_err(|error| format!("could not initialize FFmpeg: {error}"))?;
     let input = format::input(path)
         .map_err(|error| format!("could not inspect {}: {error}", path.display()))?;
@@ -56,7 +57,7 @@ pub(super) fn probe_video(path: &Path, id: u64) -> Result<MediaAsset, String> {
     })
 }
 
-pub(super) fn probe_image(path: &Path, id: u64) -> Result<MediaAsset, String> {
+pub(super) fn probe_image(path: &Path, id: Ulid) -> Result<MediaAsset, String> {
     let (width, height) = image::image_dimensions(path)
         .map_err(|error| format!("could not inspect {}: {error}", path.display()))?;
     let codec = path
@@ -81,7 +82,7 @@ pub(super) fn probe_image(path: &Path, id: u64) -> Result<MediaAsset, String> {
     })
 }
 
-pub(super) fn probe_audio(path: &Path, id: u64) -> Result<MediaAsset, String> {
+pub(super) fn probe_audio(path: &Path, id: Ulid) -> Result<MediaAsset, String> {
     ffmpeg::init().map_err(|error| format!("could not initialize FFmpeg: {error}"))?;
     let input = format::input(path)
         .map_err(|error| format!("could not inspect {}: {error}", path.display()))?;

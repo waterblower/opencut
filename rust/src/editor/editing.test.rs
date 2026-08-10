@@ -2,7 +2,7 @@ use super::*;
 
 fn audio_asset(id: u64) -> MediaAsset {
     MediaAsset {
-        id,
+        id: ulid(id),
         kind: MediaKind::Audio,
         path: PathBuf::from("audio.mp3"),
         name: "Audio".to_string(),
@@ -19,9 +19,9 @@ fn audio_asset(id: u64) -> MediaAsset {
 
 fn audio_clip(id: u64, start: i64, duration: i64) -> TimelineClip {
     TimelineClip {
-        id,
-        track_id: 2,
-        asset_id: 100,
+        id: ulid(id),
+        track_id: ulid(2),
+        asset_id: ulid(100),
         timeline_start: TimelineTime::from_frames(start),
         source_in: TimelineTime::ZERO,
         source_out: TimelineTime::from_frames(duration),
@@ -46,14 +46,14 @@ fn clipboard_preserves_relative_timing_tracks_and_primary_selection() {
     let mut project = Timeline::with_test_tracks();
     project.assets.push(audio_asset(100));
     project.clips = vec![audio_clip(10, 20, 8), audio_clip(11, 40, 12)];
-    let selected = HashSet::from([10, 11]);
-    let clipboard = ClipClipboard::from_selection(&project, &selected, Some(11)).unwrap();
+    let selected = HashSet::from([ulid(10), ulid(11)]);
+    let clipboard = ClipClipboard::from_selection(&project, &selected, Some(ulid(11))).unwrap();
 
     let pasted = clipboard.clips_at(TimelineTime::from_frames(100));
     assert_eq!(pasted[0].timeline_start, TimelineTime::from_frames(100));
     assert_eq!(pasted[1].timeline_start, TimelineTime::from_frames(120));
-    assert_eq!(pasted[0].track_id, 2);
-    assert_eq!(pasted[1].track_id, 2);
+    assert_eq!(pasted[0].track_id, ulid(2));
+    assert_eq!(pasted[1].track_id, ulid(2));
     assert_eq!(clipboard.primary_index, Some(1));
 }
 
@@ -76,12 +76,12 @@ fn track_magnet_closes_deleted_durations_independently_per_track() {
         audio_clip(2, 30, 5),
         audio_clip(3, 50, 10),
         TimelineClip {
-            track_id: 3,
+            track_id: ulid(3),
             ..audio_clip(4, 50, 10)
         },
     ];
 
-    ripple_clips_after_deletion(&mut clips, &HashSet::from([1, 2]));
+    ripple_clips_after_deletion(&mut clips, &HashSet::from([ulid(1), ulid(2)]));
 
     assert_eq!(clips[2].timeline_start, TimelineTime::from_frames(35));
     assert_eq!(clips[3].timeline_start, TimelineTime::from_frames(50));
@@ -95,7 +95,10 @@ fn blade_targets_unselected_clips_crossing_the_playhead() {
 
     let targets = clips_crossing_playhead(&project, TimelineTime::from_frames(10));
 
-    assert_eq!(targets.iter().map(|clip| clip.id).collect::<Vec<_>>(), [10]);
+    assert_eq!(
+        targets.iter().map(|clip| clip.id).collect::<Vec<_>>(),
+        [ulid(10)]
+    );
 }
 
 #[test]
@@ -104,12 +107,12 @@ fn select_all_excludes_clips_on_locked_tracks() {
     project.clips = vec![
         audio_clip(10, 0, 10),
         TimelineClip {
-            id: 11,
-            track_id: 1,
+            id: ulid(11),
+            track_id: ulid(1),
             ..audio_clip(11, 10, 10)
         },
     ];
-    project.track_mut(2).unwrap().locked = true;
+    project.track_mut(ulid(2)).unwrap().locked = true;
 
-    assert_eq!(unlocked_clip_ids(&project), HashSet::from([11]));
+    assert_eq!(unlocked_clip_ids(&project), HashSet::from([ulid(11)]));
 }

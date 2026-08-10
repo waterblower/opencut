@@ -7,7 +7,7 @@ fn validates_one_clip_placement() {
     assert_eq!(
         validate_clip_placement(
             &timeline,
-            2,
+            ulid(2),
             MediaKind::Audio,
             TimelineTime::from_frames(10),
             TimelineTime::from_frames(-1),
@@ -18,7 +18,7 @@ fn validates_one_clip_placement() {
     assert_eq!(
         validate_clip_placement(
             &timeline,
-            2,
+            ulid(2),
             MediaKind::Audio,
             TimelineTime::ZERO,
             TimelineTime::ZERO,
@@ -29,7 +29,7 @@ fn validates_one_clip_placement() {
     assert_eq!(
         validate_clip_placement(
             &timeline,
-            99,
+            ulid(99),
             MediaKind::Audio,
             TimelineTime::from_frames(10),
             TimelineTime::ZERO,
@@ -38,11 +38,11 @@ fn validates_one_clip_placement() {
         Err(ClipPlacementRejection::MissingTrack)
     );
 
-    timeline.track_mut(2).unwrap().locked = true;
+    timeline.track_mut(ulid(2)).unwrap().locked = true;
     assert_eq!(
         validate_clip_placement(
             &timeline,
-            2,
+            ulid(2),
             MediaKind::Audio,
             TimelineTime::from_frames(10),
             TimelineTime::ZERO,
@@ -50,11 +50,11 @@ fn validates_one_clip_placement() {
         ),
         Err(ClipPlacementRejection::LockedTrack)
     );
-    timeline.track_mut(2).unwrap().locked = false;
+    timeline.track_mut(ulid(2)).unwrap().locked = false;
     assert_eq!(
         validate_clip_placement(
             &timeline,
-            2,
+            ulid(2),
             MediaKind::Video,
             TimelineTime::from_frames(10),
             TimelineTime::ZERO,
@@ -64,9 +64,9 @@ fn validates_one_clip_placement() {
     );
 
     timeline.clips.push(TimelineClip {
-        id: 20,
-        track_id: 2,
-        asset_id: 100,
+        id: ulid(20),
+        track_id: ulid(2),
+        asset_id: ulid(100),
         timeline_start: TimelineTime::from_frames(10),
         source_in: TimelineTime::ZERO,
         source_out: TimelineTime::from_frames(10),
@@ -76,7 +76,7 @@ fn validates_one_clip_placement() {
     assert_eq!(
         validate_clip_placement(
             &timeline,
-            2,
+            ulid(2),
             MediaKind::Audio,
             TimelineTime::from_frames(10),
             TimelineTime::from_frames(15),
@@ -87,11 +87,11 @@ fn validates_one_clip_placement() {
     assert_eq!(
         validate_clip_placement(
             &timeline,
-            2,
+            ulid(2),
             MediaKind::Audio,
             TimelineTime::from_frames(10),
             TimelineTime::from_frames(15),
-            &HashSet::from([20]),
+            &HashSet::from([ulid(20)]),
         ),
         Ok(())
     );

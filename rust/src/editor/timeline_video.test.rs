@@ -2,6 +2,7 @@ use super::*;
 use crate::editor::model::{
     AudioClipProperties, MediaAsset, MediaKind, TimelineClip, TimelineTime, VideoClipProperties,
 };
+use crate::editor::ulid;
 use std::{path::Path, sync::mpsc, time::Duration};
 
 fn headless_test_pipeline() -> (gst::Pipeline, gst_app::AppSink) {
@@ -10,7 +11,7 @@ fn headless_test_pipeline() -> (gst::Pipeline, gst_app::AppSink) {
     let mut project = Timeline::with_test_tracks();
     project.settings.frame_rate = super::super::model::FrameRate::new(24, 1);
     project.assets.push(MediaAsset {
-        id: 10,
+        id: ulid(10),
         kind: MediaKind::Video,
         path: "data/tests/mini测试/地铁-出站-mini-480.mp4".into(),
         name: "test1".into(),
@@ -24,9 +25,9 @@ fn headless_test_pipeline() -> (gst::Pipeline, gst_app::AppSink) {
         has_audio: true,
     });
     project.clips.push(TimelineClip {
-        id: 11,
-        track_id: 1,
-        asset_id: 10,
+        id: ulid(11),
+        track_id: ulid(1),
+        asset_id: ulid(10),
         timeline_start: TimelineTime::ZERO,
         source_in: TimelineTime::ZERO,
         source_out: TimelineTime::from_frames(12),
@@ -34,9 +35,9 @@ fn headless_test_pipeline() -> (gst::Pipeline, gst_app::AppSink) {
         audio_properties: AudioClipProperties::default(),
     });
     project.clips.push(TimelineClip {
-        id: 12,
-        track_id: 1,
-        asset_id: 10,
+        id: ulid(12),
+        track_id: ulid(1),
+        asset_id: ulid(10),
         timeline_start: TimelineTime::from_frames(12),
         source_in: TimelineTime::from_frames(48),
         source_out: TimelineTime::from_frames(60),

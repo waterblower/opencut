@@ -2,14 +2,14 @@ use super::*;
 
 #[derive(Clone, Copy)]
 pub(super) struct TimelineClipContextMenu {
-    clip_id: u64,
+    clip_id: Ulid,
     x: f32,
     y: f32,
 }
 
 fn transform_targets(
     timeline: &Timeline,
-    source_clip_id: u64,
+    source_clip_id: Ulid,
 ) -> Option<(VideoClipProperties, Vec<usize>)> {
     let source = timeline.clip(source_clip_id)?;
     let track = timeline.track(source.track_id)?;
@@ -121,7 +121,7 @@ impl Editor {
 
     pub(super) fn show_timeline_clip_context_menu(
         &mut self,
-        clip_id: u64,
+        clip_id: Ulid,
         event: &MouseDownEvent,
         cx: &mut Context<Self>,
     ) {

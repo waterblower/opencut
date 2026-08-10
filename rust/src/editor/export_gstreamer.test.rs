@@ -4,6 +4,7 @@ use super::*;
 use crate::editor::{
     media_probe::probe_video,
     model::{AudioClipProperties, MediaAsset, TimelineTime, VideoClipProperties},
+    ulid,
 };
 use std::path::Path;
 
@@ -60,8 +61,8 @@ pub(super) fn export_mini_fixture(encoder: ExportEncoder, output_name: &str) {
     let mut timeline_start = TimelineTime::ZERO;
 
     for (index, source_path) in source_paths.iter().enumerate() {
-        let asset_id = 100 + index as u64 * 2;
-        let clip_id = asset_id + 1;
+        let asset_id = ulid(100 + index as u64 * 2);
+        let clip_id = ulid(101 + index as u64 * 2);
         let mut asset = probe_video(source_path, asset_id).unwrap();
         asset.path = source_path.strip_prefix(&project_root).unwrap().into();
         let duration = project.ceil_time(asset.duration);
@@ -87,7 +88,7 @@ pub(super) fn export_mini_fixture(encoder: ExportEncoder, output_name: &str) {
     options.encoder = encoder;
     export_timeline(&project, &project_root, &output, options, |_| {}).unwrap();
 
-    let exported = probe_video(&output, u64::MAX).unwrap();
+    let exported = probe_video(&output, ulid(u64::MAX)).unwrap();
     assert_eq!(
         (exported.width, exported.height),
         (project.settings.width, project.settings.height)
@@ -108,9 +109,9 @@ fn video_track_exports_visible_video_and_unmuted_audio() {
         .find(|track| track.kind == TrackKind::Video)
         .unwrap();
     let clip = TimelineClip {
-        id: 1,
+        id: ulid(1),
         track_id: track.id,
-        asset_id: 2,
+        asset_id: ulid(2),
         timeline_start: TimelineTime::ZERO,
         source_in: TimelineTime::ZERO,
         source_out: TimelineTime::ONE_FRAME,
@@ -132,9 +133,9 @@ fn hidden_video_track_can_still_export_audio() {
         .unwrap();
     track.visible = false;
     let clip = TimelineClip {
-        id: 1,
+        id: ulid(1),
         track_id: track.id,
-        asset_id: 2,
+        asset_id: ulid(2),
         timeline_start: TimelineTime::ZERO,
         source_in: TimelineTime::ZERO,
         source_out: TimelineTime::ONE_FRAME,
@@ -208,7 +209,7 @@ fn creates_gstreamer_timeline_from_real_media() {
         .unwrap()
         .id;
     project.assets.push(MediaAsset {
-        id: 10,
+        id: ulid(10),
         kind: MediaKind::Video,
         path: "data/tests/mini测试/地铁-出站-mini-480.mp4".into(),
         name: "test1".into(),
@@ -232,9 +233,9 @@ fn creates_gstreamer_timeline_from_real_media() {
         crop_bottom: 0.2,
     };
     project.clips.push(TimelineClip {
-        id: 11,
+        id: ulid(11),
         track_id: video_track,
-        asset_id: 10,
+        asset_id: ulid(10),
         timeline_start: TimelineTime::ZERO,
         source_in: TimelineTime::ZERO,
         source_out: TimelineTime::from_frames(3),
@@ -320,7 +321,7 @@ fn exports_real_media_with_audio() {
         .unwrap()
         .id;
     project.assets.push(MediaAsset {
-        id: 10,
+        id: ulid(10),
         kind: MediaKind::Video,
         path: "data/tests/mini测试/地铁-出站-mini-480.mp4".into(),
         name: "test1".into(),
@@ -334,9 +335,9 @@ fn exports_real_media_with_audio() {
         has_audio: true,
     });
     project.clips.push(TimelineClip {
-        id: 11,
+        id: ulid(11),
         track_id: video_track,
-        asset_id: 10,
+        asset_id: ulid(10),
         timeline_start: TimelineTime::ZERO,
         source_in: TimelineTime::ZERO,
         source_out: TimelineTime::from_frames(30),
@@ -386,7 +387,7 @@ fn exports_an_image_only_timeline() {
         .unwrap()
         .id;
     project.assets.push(MediaAsset {
-        id: 10,
+        id: ulid(10),
         kind: MediaKind::Image,
         path: "still.png".into(),
         name: "still".into(),
@@ -400,9 +401,9 @@ fn exports_an_image_only_timeline() {
         has_audio: false,
     });
     project.clips.push(TimelineClip {
-        id: 11,
+        id: ulid(11),
         track_id: video_track,
-        asset_id: 10,
+        asset_id: ulid(10),
         timeline_start: TimelineTime::ZERO,
         source_in: TimelineTime::ZERO,
         source_out: TimelineTime::from_frames(3),
