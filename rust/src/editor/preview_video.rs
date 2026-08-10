@@ -104,6 +104,17 @@ impl Editor {
                 volume_open: self.preview.volume_open,
                 content,
                 extra_control: None,
+                fullscreen_control: div()
+                    .id("editor-video-fullscreen")
+                    .cursor(CursorStyle::PointingHand)
+                    .rounded_md()
+                    .hover(|style| style.bg(rgb(SURFACE_HOVER)))
+                    .px_3()
+                    .py_2()
+                    .text_lg()
+                    .child("⛶")
+                    .on_click(cx.listener(Self::playback_toggle_fullscreen))
+                    .into_any_element(),
             },
             cx,
         )

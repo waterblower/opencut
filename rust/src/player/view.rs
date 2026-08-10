@@ -35,7 +35,6 @@ impl Render for Player {
                 .on_action(cx.listener(Self::action_toggle_mute))
                 .on_action(cx.listener(Self::action_toggle_history))
                 .on_action(cx.listener(Self::action_toggle_fullscreen))
-                .on_action(cx.listener(Self::action_exit_fullscreen))
                 .on_action(cx.listener(Self::action_toggle_inspector))
                 .size_full()
                 .flex()
@@ -305,6 +304,17 @@ impl Render for Player {
                 volume_open: self.volume_open,
                 content: video_content,
                 extra_control: Some(speed_control),
+                fullscreen_control: div()
+                    .id("player-fullscreen")
+                    .cursor(CursorStyle::PointingHand)
+                    .rounded_md()
+                    .hover(|style| style.bg(rgb(SURFACE_HOVER)))
+                    .px_3()
+                    .py_2()
+                    .text_lg()
+                    .child("⛶")
+                    .on_click(cx.listener(Self::playback_toggle_fullscreen))
+                    .into_any_element(),
             },
             cx,
         );
@@ -320,7 +330,6 @@ impl Render for Player {
             .on_action(cx.listener(Self::action_toggle_mute))
             .on_action(cx.listener(Self::action_toggle_history))
             .on_action(cx.listener(Self::action_toggle_fullscreen))
-            .on_action(cx.listener(Self::action_exit_fullscreen))
             .on_action(cx.listener(Self::action_toggle_inspector))
             .on_mouse_down(MouseButton::Left, cx.listener(Self::dismiss_settings))
             .on_mouse_move(cx.listener(Self::resize_history))

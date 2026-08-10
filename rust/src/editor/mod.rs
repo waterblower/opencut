@@ -194,6 +194,7 @@ struct ExplorerState {
 
 struct PreviewState {
     target: PreviewTarget,
+    fullscreen: bool,
     video: Option<Video>,
     audio: Option<AudioPreview>,
     timeline_needs_rebuild: bool,
@@ -294,6 +295,7 @@ impl Editor {
             },
             preview: PreviewState {
                 target: PreviewTarget::Timeline,
+                fullscreen: false,
                 video: None,
                 audio: None,
                 timeline_needs_rebuild: true,
@@ -755,21 +757,21 @@ impl Editor {
     fn action_toggle_fullscreen(
         &mut self,
         _: &ToggleFullscreen,
-        window: &mut Window,
+        _: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        window.toggle_fullscreen();
+        self.preview.fullscreen = !self.preview.fullscreen;
         cx.notify();
     }
 
     fn action_exit_fullscreen(
         &mut self,
         _: &ExitFullscreen,
-        window: &mut Window,
+        _: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        if window.is_fullscreen() {
-            window.toggle_fullscreen();
+        if self.preview.fullscreen {
+            self.preview.fullscreen = false;
             cx.notify();
         }
     }

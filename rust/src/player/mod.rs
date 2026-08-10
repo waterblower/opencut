@@ -460,16 +460,14 @@ impl Player {
         cx.notify();
     }
 
-    fn action_exit_fullscreen(
+    fn playback_toggle_fullscreen(
         &mut self,
-        _: &ExitFullscreen,
+        _: &gpui::ClickEvent,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        if window.is_fullscreen() {
-            window.toggle_fullscreen();
-            cx.notify();
-        }
+        window.toggle_fullscreen();
+        cx.notify();
     }
 
     fn action_toggle_inspector(
