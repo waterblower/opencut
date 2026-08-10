@@ -718,7 +718,7 @@ impl Editor {
         {
             asset_id
         } else {
-            asset.id = Self::new_id();
+            asset.id = Ulid::generate();
             asset.path = relative_path.clone();
             let asset_id = asset.id;
             self.timeline
@@ -729,7 +729,7 @@ impl Editor {
                 .push(asset);
             asset_id
         };
-        let clip_id = Self::new_id();
+        let clip_id = Ulid::generate();
         let timeline = self.timeline.as_mut().expect("timeline was checked above");
         timeline.data.clips.push(TimelineClip {
             id: clip_id,
