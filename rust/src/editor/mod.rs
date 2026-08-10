@@ -63,6 +63,7 @@ use timeline::{Timeline, TimelineState};
 use timeline_clip_menu::TimelineClipContextMenu;
 use timeline_document::load_existing;
 use timeline_interactions::{ClipMoveDrag, MarqueeSelection, TimelineTool, TrimDrag, TrimEdge};
+use ulid::Ulid;
 use workspace::{load_active_timeline, load_project_root, save_active_timeline, save_project_root};
 
 const MEDIA_PANEL_WIDTH: f32 = 340.0;
@@ -88,6 +89,11 @@ const IDLE_UPDATE_INTERVAL: Duration = Duration::from_millis(33);
 fn lock_gstreamer_test() -> std::sync::MutexGuard<'static, ()> {
     static LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
     LOCK.lock().unwrap_or_else(|error| error.into_inner())
+}
+
+#[cfg(test)]
+fn ulid(value: u64) -> Ulid {
+    Ulid::from(u128::from(value))
 }
 
 const BACKGROUND: u32 = 0x080809;
@@ -216,7 +222,7 @@ struct PropertiesPanelState {
     width: f32,
     resizing: bool,
     transform_inputs: VideoTransformInputs,
-    transform_input_clip_id: Option<u64>,
+    transform_input_clip_id: Option<Ulid>,
     opacity_drag: Option<OpacityDrag>,
 }
 
@@ -229,13 +235,14 @@ pub(crate) struct Editor {
     project_root: PathBuf,
     explorer: ExplorerState,
     preview: PreviewState,
-    media_cache_jobs: HashSet<u64>,
-    media_cache_ready: HashSet<u64>,
-    waveform_cache: HashMap<u64, Arc<media_cache::WaveformData>>,
+    media_cache_jobs: HashSet<Ulid>,
+    media_cache_ready: HashSet<Ulid>,
+    waveform_cache: HashMap<Ulid, Arc<media_cache::WaveformData>>,
     properties: PropertiesPanelState,
     settings_open: bool,
     export: ExportState,
     timeline: Option<TimelineState>,
+    clipboard: Option<ClipClipboard>,
     status: Option<String>,
     focus_handle: FocusHandle,
 }
@@ -328,6 +335,7 @@ impl Editor {
                 running: false,
             },
             timeline,
+            clipboard: None,
             status: None,
             focus_handle,
         };
@@ -448,6 +456,7 @@ impl Editor {
         };
         self.save_timeline();
         self.project_root = root;
+        self.clipboard = None;
         self.explorer.expanded_directories.clear();
         self.explorer.root_expanded = true;
         self.activate_timeline(active_timeline, cx);

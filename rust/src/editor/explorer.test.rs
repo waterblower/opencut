@@ -3,7 +3,7 @@ use std::path::Path;
 
 fn asset(kind: MediaKind, has_audio: bool) -> MediaAsset {
     MediaAsset {
-        id: 10,
+        id: ulid(10),
         kind,
         path: PathBuf::from("media.mp4"),
         name: "Media".to_string(),
@@ -24,7 +24,7 @@ fn explorer_drop_rejects_incompatible_tracks() {
     let audio = asset(MediaKind::Audio, true);
     let audio_rejection = validate_clip_placement(
         &project,
-        1,
+        ulid(1),
         audio.kind,
         TimelineTime::from_frames(30),
         TimelineTime::ZERO,
@@ -39,7 +39,7 @@ fn explorer_drop_rejects_incompatible_tracks() {
     let silent_video = asset(MediaKind::Video, false);
     let video_rejection = validate_clip_placement(
         &project,
-        2,
+        ulid(2),
         silent_video.kind,
         TimelineTime::from_frames(30),
         TimelineTime::ZERO,
@@ -56,9 +56,9 @@ fn explorer_drop_rejects_incompatible_tracks() {
 fn explorer_drop_detects_collisions_but_allows_adjacent_clips() {
     let mut project = Timeline::with_test_tracks();
     project.clips.push(TimelineClip {
-        id: 20,
-        track_id: 2,
-        asset_id: 10,
+        id: ulid(20),
+        track_id: ulid(2),
+        asset_id: ulid(10),
         timeline_start: TimelineTime::from_frames(30),
         source_in: TimelineTime::ZERO,
         source_out: TimelineTime::from_frames(30),
@@ -70,7 +70,7 @@ fn explorer_drop_detects_collisions_but_allows_adjacent_clips() {
     assert_eq!(
         validate_clip_placement(
             &project,
-            2,
+            ulid(2),
             audio.kind,
             TimelineTime::from_frames(30),
             TimelineTime::from_frames(15),
@@ -81,7 +81,7 @@ fn explorer_drop_detects_collisions_but_allows_adjacent_clips() {
     assert_eq!(
         validate_clip_placement(
             &project,
-            2,
+            ulid(2),
             audio.kind,
             TimelineTime::from_frames(30),
             TimelineTime::ZERO,

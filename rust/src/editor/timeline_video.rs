@@ -8,6 +8,7 @@ use gstreamer as gst;
 use gstreamer_app as gst_app;
 use gstreamer_editing_services as ges;
 use std::path::Path;
+use ulid::Ulid;
 
 pub(super) fn create_timeline_video(
     timeline: &Timeline,
@@ -30,7 +31,7 @@ pub(super) fn set_timeline_audio(video: &Video, volume: f64, muted: bool) {
 pub(super) fn update_timeline_video_position(
     video: &Video,
     timeline_data: &Timeline,
-    clip_id: u64,
+    clip_id: Ulid,
     refresh_frame: bool,
 ) -> Result<(), String> {
     let clip = timeline_data

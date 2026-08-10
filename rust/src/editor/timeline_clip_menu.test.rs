@@ -2,7 +2,7 @@ use super::*;
 
 fn asset(id: u64, kind: MediaKind) -> MediaAsset {
     MediaAsset {
-        id,
+        id: ulid(id),
         kind,
         path: format!("asset-{id}").into(),
         name: format!("Asset {id}"),
@@ -19,9 +19,9 @@ fn asset(id: u64, kind: MediaKind) -> MediaAsset {
 
 fn clip(id: u64, track_id: u64, asset_id: u64) -> TimelineClip {
     TimelineClip {
-        id,
-        track_id,
-        asset_id,
+        id: ulid(id),
+        track_id: ulid(track_id),
+        asset_id: ulid(asset_id),
         timeline_start: TimelineTime::from_frames(id as i64),
         source_in: TimelineTime::ZERO,
         source_out: TimelineTime::ONE_FRAME,
@@ -46,10 +46,10 @@ fn finds_changed_visual_clips_on_the_same_unlocked_track() {
     let audio = clip(23, 2, 12);
     project.clips = vec![source, target, unchanged, audio];
 
-    let (properties, targets) = transform_targets(&project, 20).unwrap();
+    let (properties, targets) = transform_targets(&project, ulid(20)).unwrap();
     assert_eq!(properties.position_x, 120.0);
     assert_eq!(targets, vec![1]);
 
-    project.track_mut(1).unwrap().locked = true;
-    assert!(transform_targets(&project, 20).is_none());
+    project.track_mut(ulid(1)).unwrap().locked = true;
+    assert!(transform_targets(&project, ulid(20)).is_none());
 }

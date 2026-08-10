@@ -95,7 +95,7 @@ impl Timeline {
         Self {
             tracks: vec![
                 TimelineTrack {
-                    id: 1,
+                    id: ulid(1),
                     name: "Video 1".into(),
                     kind: TrackKind::Video,
                     locked: false,
@@ -103,7 +103,7 @@ impl Timeline {
                     visible: true,
                 },
                 TimelineTrack {
-                    id: 2,
+                    id: ulid(2),
                     name: "Audio 1".into(),
                     kind: TrackKind::Audio,
                     locked: false,
@@ -122,9 +122,9 @@ fn frames(value: i64) -> TimelineTime {
 
 fn video_clip(id: u64, start: i64, duration: i64) -> TimelineClip {
     TimelineClip {
-        id,
-        track_id: 1,
-        asset_id: 100,
+        id: ulid(id),
+        track_id: ulid(1),
+        asset_id: ulid(100),
         timeline_start: frames(start),
         source_in: TimelineTime::ZERO,
         source_out: frames(duration),
@@ -135,7 +135,7 @@ fn video_clip(id: u64, start: i64, duration: i64) -> TimelineClip {
 
 fn video_asset() -> MediaAsset {
     MediaAsset {
-        id: 100,
+        id: ulid(100),
         kind: MediaKind::Video,
         path: "clip.mp4".into(),
         name: "clip".into(),
@@ -152,7 +152,7 @@ fn video_asset() -> MediaAsset {
 
 fn image_asset() -> MediaAsset {
     MediaAsset {
-        id: 100,
+        id: ulid(100),
         kind: MediaKind::Image,
         path: "still.png".into(),
         name: "still".into(),
@@ -248,13 +248,13 @@ fn repeated_frame_splits_preserve_the_total_duration() {
     let mut remaining = video_clip(10, 0, 10_000);
     let original_duration = remaining.duration();
     let mut pieces = Vec::new();
-    let mut next_id = 11;
+    let mut id_seed = 11;
     for split in [1, 17, 301, 999, 2_048] {
         let position = remaining.timeline_start + frames(split);
-        let (left, right) = remaining.split_at(position, next_id).unwrap();
+        let (left, right) = remaining.split_at(position, ulid(id_seed)).unwrap();
         pieces.push(left.duration());
         remaining = right;
-        next_id += 1;
+        id_seed += 1;
     }
     let reconstructed = pieces
         .into_iter()
@@ -359,13 +359,13 @@ fn splitting_clip_preserves_ranges_and_properties() {
     clip.audio_properties.gain_db = -6.0;
     clip.audio_properties.muted = true;
 
-    let (left, right) = clip.split_at(frames(125), 11).unwrap();
+    let (left, right) = clip.split_at(frames(125), ulid(11)).unwrap();
 
-    assert_eq!(left.id, 10);
+    assert_eq!(left.id, ulid(10));
     assert_eq!(left.timeline_start, frames(100));
     assert_eq!(left.source_in, frames(30));
     assert_eq!(left.source_out, frames(55));
-    assert_eq!(right.id, 11);
+    assert_eq!(right.id, ulid(11));
     assert_eq!(right.timeline_start, frames(125));
     assert_eq!(right.source_in, frames(55));
     assert_eq!(right.source_out, frames(90));
@@ -379,10 +379,10 @@ fn splitting_clip_preserves_ranges_and_properties() {
 fn splitting_clip_rejects_its_outer_frames() {
     let clip = video_clip(10, 100, 60);
 
-    assert!(clip.split_at(frames(100), 11).is_none());
-    assert!(clip.split_at(frames(160), 11).is_none());
-    assert!(clip.split_at(frames(101), 11).is_some());
-    assert!(clip.split_at(frames(159), 11).is_some());
+    assert!(clip.split_at(frames(100), ulid(11)).is_none());
+    assert!(clip.split_at(frames(160), ulid(11)).is_none());
+    assert!(clip.split_at(frames(101), ulid(11)).is_some());
+    assert!(clip.split_at(frames(159), ulid(11)).is_some());
 }
 
 #[test]
@@ -396,6 +396,10 @@ fn timeline_serialization_stores_integer_frames_and_rational_rate() {
     assert!(json.get("version").is_none());
     assert_eq!(json["settings"]["frame_rate"]["numerator"], 30);
     assert_eq!(json["settings"]["frame_rate"]["denominator"], 1);
+    assert_eq!(json["assets"][0]["id"], ulid(100).to_string());
+    assert_eq!(json["clips"][0]["id"], ulid(10).to_string());
+    assert_eq!(json["clips"][0]["track_id"], ulid(1).to_string());
+    assert_eq!(json["clips"][0]["asset_id"], ulid(100).to_string());
     assert_eq!(json["clips"][0]["timeline_start"], 17);
     assert_eq!(json["clips"][0]["source_out"], 83);
 }
@@ -436,6 +440,9 @@ fn clips_without_property_objects_deserialize_with_defaults() {
     });
     let clip = serde_json::from_value::<TimelineClip>(legacy).unwrap();
 
+    assert_eq!(clip.id, ulid(10));
+    assert_eq!(clip.track_id, ulid(1));
+    assert_eq!(clip.asset_id, ulid(100));
     assert_eq!(clip.video_properties, VideoClipProperties::default());
     assert_eq!(clip.audio_properties, AudioClipProperties::default());
 }

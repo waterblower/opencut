@@ -14,7 +14,7 @@ pub(super) enum TrimEdge {
 }
 
 pub(super) struct TrimDrag {
-    pub(super) clip_id: u64,
+    pub(super) clip_id: Ulid,
     pub(super) edge: TrimEdge,
     pub(super) start_x: f32,
     pub(super) original_in: TimelineTime,
@@ -28,19 +28,19 @@ pub(super) struct TrimDrag {
 
 #[derive(Clone)]
 pub(super) struct ClipMoveItem {
-    pub(super) clip_id: u64,
+    pub(super) clip_id: Ulid,
     pub(super) original_timeline_start: TimelineTime,
-    pub(super) original_track_id: u64,
+    pub(super) original_track_id: Ulid,
     pub(super) original_track_index: usize,
 }
 
 pub(super) struct ClipMoveDrag {
-    pub(super) anchor_clip_id: u64,
+    pub(super) anchor_clip_id: Ulid,
     pub(super) start_x: f32,
     pub(super) original_anchor_start: TimelineTime,
     pub(super) original_anchor_track_index: usize,
     pub(super) items: Vec<ClipMoveItem>,
-    pub(super) placements: Vec<(u64, u64, TimelineTime)>,
+    pub(super) placements: Vec<(Ulid, Ulid, TimelineTime)>,
     pub(super) invalid_reason: Option<&'static str>,
     pub(super) changed: bool,
 }
@@ -51,7 +51,7 @@ pub(super) struct MarqueeSelection {
     pub(super) start_y: f32,
     pub(super) current_x: f32,
     pub(super) current_y: f32,
-    pub(super) initial_selection: HashSet<u64>,
+    pub(super) initial_selection: HashSet<Ulid>,
 }
 
 impl Editor {
@@ -107,7 +107,7 @@ impl Editor {
 
     pub(super) fn begin_clip_interaction(
         &mut self,
-        clip_id: u64,
+        clip_id: Ulid,
         event: &MouseDownEvent,
         cx: &mut Context<Self>,
     ) {
@@ -303,7 +303,7 @@ impl Editor {
 
     pub(super) fn begin_clip_move(
         &mut self,
-        clip_id: u64,
+        clip_id: Ulid,
         event: &MouseDownEvent,
         cx: &mut Context<Self>,
     ) {
@@ -544,7 +544,7 @@ impl Editor {
     pub(super) fn snap_time(
         &self,
         time: TimelineTime,
-        ignored_clip: Option<u64>,
+        ignored_clip: Option<Ulid>,
     ) -> (TimelineTime, Option<TimelineTime>) {
         let ignored = ignored_clip.into_iter().collect::<HashSet<_>>();
         self.snap_time_ignoring(time, &ignored)
@@ -553,7 +553,7 @@ impl Editor {
     pub(super) fn snap_time_ignoring(
         &self,
         time: TimelineTime,
-        ignored_clip_ids: &HashSet<u64>,
+        ignored_clip_ids: &HashSet<Ulid>,
     ) -> (TimelineTime, Option<TimelineTime>) {
         let Some(timeline) = self.timeline.as_ref() else {
             return (time.max(TimelineTime::ZERO), None);
@@ -587,7 +587,7 @@ impl Editor {
         &self,
         start: TimelineTime,
         duration: TimelineTime,
-        ignored_clip_ids: &HashSet<u64>,
+        ignored_clip_ids: &HashSet<Ulid>,
     ) -> (TimelineTime, Option<TimelineTime>) {
         let (start_candidate, start_guide) = self.snap_time_ignoring(start, ignored_clip_ids);
         let (snapped_end, end_guide) = self.snap_time_ignoring(start + duration, ignored_clip_ids);
@@ -601,7 +601,7 @@ impl Editor {
         )
     }
 
-    pub(super) fn clip_locked(&self, clip_id: u64) -> bool {
+    pub(super) fn clip_locked(&self, clip_id: Ulid) -> bool {
         self.timeline
             .as_ref()
             .and_then(|timeline| {
@@ -613,7 +613,7 @@ impl Editor {
             .is_some_and(|track| track.locked)
     }
 
-    pub(super) fn begin_trim(&mut self, clip_id: u64, edge: TrimEdge, x: f32) {
+    pub(super) fn begin_trim(&mut self, clip_id: Ulid, edge: TrimEdge, x: f32) {
         let Some(timeline) = self.timeline.as_ref() else {
             return;
         };

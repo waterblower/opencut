@@ -31,7 +31,7 @@ pub(super) struct ExplorerMediaDrag {
 pub(super) struct ExplorerDropPreview {
     pub(super) relative_path: PathBuf,
     pub(super) name: String,
-    pub(super) track_id: u64,
+    pub(super) track_id: Ulid,
     pub(super) raw_start: TimelineTime,
     pub(super) start: TimelineTime,
     pub(super) duration: TimelineTime,
@@ -42,7 +42,7 @@ pub(super) struct ExplorerDropPreview {
 #[derive(Clone, Debug)]
 pub(super) struct PendingExplorerDrop {
     relative_path: PathBuf,
-    track_id: u64,
+    track_id: Ulid,
     raw_start: TimelineTime,
 }
 
@@ -488,7 +488,7 @@ impl Editor {
     fn refresh_explorer_drop_preview(
         &mut self,
         drag: &ExplorerMediaDrag,
-        track_id: u64,
+        track_id: Ulid,
         raw_start: TimelineTime,
     ) {
         let asset = self.explorer_asset_for_path(&drag.relative_path).cloned();
@@ -596,7 +596,7 @@ impl Editor {
         cx.spawn(async move |editor, cx| {
             let result = cx
                 .background_executor()
-                .spawn(async move { probe_asset(&source_path, 0) })
+                .spawn(async move { probe_asset(&source_path, Ulid::from(0)) })
                 .await;
 
             editor
@@ -680,7 +680,7 @@ impl Editor {
     fn place_explorer_asset(
         &mut self,
         relative_path: PathBuf,
-        track_id: u64,
+        track_id: Ulid,
         raw_start: TimelineTime,
         mut asset: MediaAsset,
     ) {
@@ -718,7 +718,7 @@ impl Editor {
         {
             asset_id
         } else {
-            asset.id = self.take_id();
+            asset.id = Self::new_id();
             asset.path = relative_path.clone();
             let asset_id = asset.id;
             self.timeline
@@ -729,7 +729,7 @@ impl Editor {
                 .push(asset);
             asset_id
         };
-        let clip_id = self.take_id();
+        let clip_id = Self::new_id();
         let timeline = self.timeline.as_mut().expect("timeline was checked above");
         timeline.data.clips.push(TimelineClip {
             id: clip_id,
@@ -774,7 +774,7 @@ impl Editor {
         cx.spawn(async move |editor, cx| {
             let result = cx
                 .background_executor()
-                .spawn(async move { probe_asset(&absolute_path, 0) })
+                .spawn(async move { probe_asset(&absolute_path, Ulid::from(0)) })
                 .await;
             editor
                 .update(cx, |editor, cx| {
@@ -811,7 +811,7 @@ impl Editor {
                             };
                             editor.checkpoint();
                             let duration = asset.duration;
-                            asset.id = editor.take_id();
+                            asset.id = Self::new_id();
                             asset.path = relative_path.clone();
                             let asset_id = asset.id;
                             let Some(timeline) = editor.timeline.as_mut() else {

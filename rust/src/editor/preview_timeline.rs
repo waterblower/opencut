@@ -22,7 +22,7 @@ struct TimelinePreviewCanvas {
 }
 
 pub(super) struct TimelinePreviewDrag {
-    clip_id: u64,
+    clip_id: Ulid,
     pointer_x: f32,
     pointer_y: f32,
     position_x: f64,

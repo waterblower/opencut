@@ -22,7 +22,7 @@ pub(super) struct VideoTransformInputs {
 }
 
 pub(super) struct OpacityDrag {
-    clip_id: u64,
+    clip_id: Ulid,
     slider_left: f32,
     slider_width: f32,
     changed: bool,
@@ -142,7 +142,7 @@ impl Editor {
 
     pub(super) fn video_transform_panel(
         &self,
-        clip_id: u64,
+        clip_id: Ulid,
         properties: VideoClipProperties,
         editable: bool,
         cx: &mut Context<Self>,
@@ -348,7 +348,7 @@ impl Editor {
 
     fn video_opacity_control(
         &self,
-        clip_id: u64,
+        clip_id: Ulid,
         opacity: f64,
         editable: bool,
         cx: &mut Context<Self>,
@@ -438,7 +438,7 @@ impl Editor {
 
     fn begin_video_opacity_drag(
         &mut self,
-        clip_id: u64,
+        clip_id: Ulid,
         event: &MouseDownEvent,
         window: &mut Window,
         cx: &mut Context<Self>,
@@ -582,7 +582,7 @@ impl Editor {
         self.save_timeline();
     }
 
-    fn reset_video_crop(&mut self, clip_id: u64) {
+    fn reset_video_crop(&mut self, clip_id: Ulid) {
         if self.clip_locked(clip_id) {
             return;
         }
