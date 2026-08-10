@@ -1,11 +1,12 @@
 use super::*;
 
 impl Editor {
-    pub(super) fn settings_modal(&self, cx: &mut Context<Self>) -> gpui::AnyElement {
-        let Some(timeline) = self.timeline.as_ref() else {
-            return div().into_any_element();
-        };
-        let selected = timeline.data.settings.frame_rate;
+    pub(super) fn settings_modal(
+        &self,
+        timeline: &Timeline,
+        cx: &mut Context<Self>,
+    ) -> gpui::AnyElement {
+        let selected = timeline.settings.frame_rate;
         let options = FRAME_RATE_PRESETS
             .into_iter()
             .enumerate()

@@ -55,6 +55,13 @@ impl Render for Editor {
             .new_timeline_dialog
             .as_ref()
             .map(|_| self.new_timeline_dialog(cx));
+        let settings_modal = if self.settings_open
+            && let Some(timeline) = self.timeline.as_ref()
+        {
+            Some(self.settings_modal(&timeline.data, cx))
+        } else {
+            None
+        };
 
         div()
             .id("editor-root")
@@ -133,9 +140,7 @@ impl Render for Editor {
             .when_some(clip_menu, |this, menu| this.child(menu))
             .when_some(rename_dialog, |this, dialog| this.child(dialog))
             .when_some(new_timeline_dialog, |this, dialog| this.child(dialog))
-            .when(self.settings_open, |this| {
-                this.child(self.settings_modal(cx))
-            })
+            .when_some(settings_modal, |this, modal| this.child(modal))
             .when(self.export.dialog.is_some(), |this| {
                 this.child(self.export_dialog(cx))
             })
