@@ -31,21 +31,7 @@ impl Editor {
             name: entry.name.clone(),
             kind,
         });
-        let metadata = if is_timeline
-            && self
-                .timeline
-                .as_ref()
-                .is_some_and(|timeline| timeline.path == path)
-        {
-            Some("ACTIVE".to_string())
-        } else {
-            explorer_metadata(
-                entry,
-                self.timeline.as_ref().and_then(|timeline| {
-                    timeline.data.assets.iter().find(|asset| asset.path == path)
-                }),
-            )
-        };
+        let metadata = file_entry_metadata(entry, self.timeline.as_ref());
 
         div()
             .id(("project-file", index))
@@ -159,5 +145,40 @@ impl Editor {
                         .child(metadata),
                 )
             })
+    }
+}
+
+fn file_entry_metadata(
+    entry: &FileTreeEntry,
+    active_timeline: Option<&TimelineState>,
+) -> Option<String> {
+    match entry.kind {
+        FileTreeEntryKind::Directory { .. } => None,
+        FileTreeEntryKind::Timeline
+            if active_timeline.is_some_and(|timeline| timeline.path == entry.relative_path) =>
+        {
+            Some("ACTIVE".to_string())
+        }
+        FileTreeEntryKind::Video
+        | FileTreeEntryKind::Image
+        | FileTreeEntryKind::Audio
+        | FileTreeEntryKind::Timeline
+        | FileTreeEntryKind::Other => entry.size_bytes.map(format_file_size),
+    }
+}
+
+fn format_file_size(bytes: u64) -> String {
+    const KIB: f64 = 1024.0;
+    const MIB: f64 = KIB * 1024.0;
+    const GIB: f64 = MIB * 1024.0;
+    let bytes = bytes as f64;
+    if bytes >= GIB {
+        format!("{:.1} GB", bytes / GIB)
+    } else if bytes >= MIB {
+        format!("{:.1} MB", bytes / MIB)
+    } else if bytes >= KIB {
+        format!("{:.0} KB", bytes / KIB)
+    } else {
+        format!("{bytes:.0} B")
     }
 }

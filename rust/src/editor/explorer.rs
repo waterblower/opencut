@@ -933,33 +933,6 @@ fn explorer_file_badge(entry: &FileTreeEntry) -> gpui::Div {
         .child(extension)
 }
 
-fn explorer_metadata(entry: &FileTreeEntry, asset: Option<&MediaAsset>) -> Option<String> {
-    if let Some(asset) = asset
-        && asset.kind != MediaKind::Image
-        && asset.duration.is_finite()
-        && asset.duration > 0.0
-    {
-        return Some(format_time(asset.duration, true));
-    }
-    entry.size_bytes.map(format_file_size)
-}
-
-fn format_file_size(bytes: u64) -> String {
-    const KIB: f64 = 1024.0;
-    const MIB: f64 = KIB * 1024.0;
-    const GIB: f64 = MIB * 1024.0;
-    let bytes = bytes as f64;
-    if bytes >= GIB {
-        format!("{:.1} GB", bytes / GIB)
-    } else if bytes >= MIB {
-        format!("{:.1} MB", bytes / MIB)
-    } else if bytes >= KIB {
-        format!("{:.0} KB", bytes / KIB)
-    } else {
-        format!("{bytes:.0} B")
-    }
-}
-
 #[cfg(test)]
 #[path = "explorer.test.rs"]
 mod tests;
