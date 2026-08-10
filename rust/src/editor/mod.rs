@@ -43,8 +43,8 @@ use crate::playback_view::{DragPhase, PlaybackViewDelegate};
 use clip_placement::{ClipPlacementRejection, validate_clip_placement};
 use editing::ClipClipboard;
 use explorer::{
-    ExplorerDropPreview, ExplorerMediaDrag, FileContextMenu, NewTimelineDialogState,
-    PendingExplorerDrop, RenameDialogState,
+    ExplorerDropPreview, ExplorerMediaDrag, FileContextMenu, FileTreeEntry, NewTimelineDialogState,
+    PendingExplorerDrop, RenameDialogState, visible_tree,
 };
 use explorer_filter::ExplorerFilter;
 use export_dialog::ExportDialogState;
@@ -63,10 +63,7 @@ use timeline::{Timeline, TimelineState};
 use timeline_clip_menu::TimelineClipContextMenu;
 use timeline_document::load_existing;
 use timeline_interactions::{ClipMoveDrag, MarqueeSelection, TimelineTool, TrimDrag, TrimEdge};
-use workspace::{
-    FileTreeEntry, FileTreeEntryKind, load_active_timeline, load_project_root,
-    save_active_timeline, save_project_root, visible_tree,
-};
+use workspace::{load_active_timeline, load_project_root, save_active_timeline, save_project_root};
 
 const MEDIA_PANEL_WIDTH: f32 = 340.0;
 const DEFAULT_PROPERTIES_PANEL_WIDTH: f32 = 420.0;
