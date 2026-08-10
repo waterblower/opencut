@@ -43,6 +43,10 @@ fn main() {
     }
 
     println!("Source lines under {}\n", root.display());
+    print_counts(&root, &counts);
+}
+
+fn print_counts(root: &Path, counts: &BTreeMap<String, Count>) {
     println!(
         "{:<10} {:>8} {:>12} {:>12}",
         "Language", "Files", "Lines", "Non-blank"
@@ -51,7 +55,7 @@ fn main() {
 
     let mut total = Count::default();
     let mut total_large_files = 0usize;
-    for (extension, count) in &counts {
+    for (extension, count) in counts {
         println!(
             "{:<10} {:>8} {:>12} {:>12}",
             extension, count.files, count.lines, count.non_blank
@@ -105,9 +109,16 @@ fn count_directory(path: &Path, counts: &mut BTreeMap<String, Count>) -> io::Res
         let Some(extension) = path.extension().and_then(|value| value.to_str()) else {
             continue;
         };
-        let extension = extension.to_ascii_lowercase();
+        let mut extension = extension.to_ascii_lowercase();
         if !SOURCE_EXTENSIONS.contains(&extension.as_str()) {
             continue;
+        }
+        if path
+            .file_name()
+            .and_then(|name| name.to_str())
+            .is_some_and(|name| name.ends_with(".test.rs"))
+        {
+            extension = "test.rs".to_string();
         }
 
         let bytes = fs::read(&path)?;
