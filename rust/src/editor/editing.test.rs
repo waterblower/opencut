@@ -31,17 +31,6 @@ fn audio_clip(id: u64, start: i64, duration: i64) -> TimelineClip {
 }
 
 #[test]
-fn appending_media_requires_a_manually_created_track() {
-    let project = Timeline::default();
-
-    assert_eq!(
-        find_append_track(&project, &audio_asset(100)).unwrap_err(),
-        "Add an unlocked audio track before adding media to the timeline."
-    );
-    assert!(project.tracks.is_empty());
-}
-
-#[test]
 fn clipboard_preserves_relative_timing_tracks_and_primary_selection() {
     let mut project = Timeline::with_test_tracks();
     project.assets.push(audio_asset(100));

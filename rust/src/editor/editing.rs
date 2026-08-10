@@ -172,69 +172,6 @@ impl ClipClipboard {
 }
 
 impl Editor {
-    pub(super) fn append_asset_clip(&mut self, asset_id: Ulid) {
-        let Some(asset) = self
-            .timeline
-            .as_ref()
-            .and_then(|timeline| timeline.data.asset(asset_id))
-            .cloned()
-        else {
-            return;
-        };
-        let track_id = match self.find_append_track_for_asset(&asset) {
-            Ok(track_id) => track_id,
-            Err(error) => {
-                self.status = None;
-                eprintln!("{error}");
-                return;
-            }
-        };
-        self.checkpoint();
-        self.append_asset_clip_without_checkpoint(asset_id, track_id, asset.duration);
-        self.save_timeline();
-    }
-
-    pub(super) fn find_append_track_for_asset(&self, asset: &MediaAsset) -> Result<Ulid, String> {
-        let timeline = self
-            .timeline
-            .as_ref()
-            .ok_or_else(|| "Create or select a timeline before adding media.".to_string())?;
-        find_append_track(&timeline.data, asset)
-    }
-
-    pub(super) fn append_asset_clip_without_checkpoint(
-        &mut self,
-        asset_id: Ulid,
-        track_id: Ulid,
-        duration: f64,
-    ) {
-        let Some(timeline) = self.timeline.as_ref() else {
-            return;
-        };
-        let timeline_start = timeline.data.content_duration();
-        let source_out = timeline.data.ceil_time(duration);
-        let id = Self::new_id();
-        self.timeline
-            .as_mut()
-            .expect("timeline was checked above")
-            .data
-            .clips
-            .push(TimelineClip {
-                id,
-                track_id,
-                asset_id,
-                timeline_start,
-                source_in: TimelineTime::ZERO,
-                source_out,
-                video_properties: VideoClipProperties::default(),
-                audio_properties: AudioClipProperties::default(),
-            });
-        self.select_only_clip(Some(id));
-        if self.preview.video.is_none() {
-            self.load_timeline_position(TimelineTime::ZERO, false);
-        }
-    }
-
     pub(super) fn blade_at_playhead(&mut self) {
         let Some(timeline) = self.timeline.as_ref() else {
             return;
@@ -966,26 +903,6 @@ fn unlocked_clip_ids(timeline: &Timeline) -> HashSet<Ulid> {
         })
         .map(|clip| clip.id)
         .collect()
-}
-
-fn find_append_track(timeline: &Timeline, asset: &MediaAsset) -> Result<Ulid, String> {
-    let target_kind = if asset.kind == MediaKind::Audio {
-        TrackKind::Audio
-    } else {
-        TrackKind::Video
-    };
-    timeline
-        .tracks
-        .iter()
-        .find(|track| track.kind == target_kind && !track.locked)
-        .map(|track| track.id)
-        .ok_or_else(|| {
-            let kind = match target_kind {
-                TrackKind::Video => "video",
-                TrackKind::Audio => "audio",
-            };
-            format!("Add an unlocked {kind} track before adding media to the timeline.")
-        })
 }
 
 fn ripple_clips_after_deletion(clips: &mut [TimelineClip], deleted_ids: &HashSet<Ulid>) {

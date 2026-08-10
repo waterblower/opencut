@@ -236,7 +236,7 @@ impl Editor {
         cx: &mut Context<Self>,
     ) -> gpui::Stateful<gpui::Div> {
         let path = entry.relative_path.clone();
-        let action_path = path.clone();
+
         let selected = self.explorer.selected_file.as_ref() == Some(&path);
         let media_kind = match entry.kind {
             FileTreeEntryKind::Video => Some(MediaKind::Video),
@@ -366,26 +366,6 @@ impl Editor {
                     }))
                     .child(entry.name.clone()),
             )
-            .when(media_kind.is_some() && selected, |this| {
-                this.child(
-                    div()
-                        .id(("add-project-file", index))
-                        .size_6()
-                        .flex_shrink_0()
-                        .flex()
-                        .items_center()
-                        .justify_center()
-                        .rounded_md()
-                        .occlude()
-                        .text_color(rgb(MUTED))
-                        .hover(|style| style.bg(rgb(ACCENT)).text_color(rgb(0x17120a)))
-                        .child("+")
-                        .on_click(cx.listener(move |editor, _, _, cx| {
-                            editor.add_file_to_timeline(action_path.clone(), cx);
-                            cx.stop_propagation();
-                        })),
-                )
-            })
             .when_some(metadata, |this, metadata| {
                 this.child(
                     div()
