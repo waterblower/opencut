@@ -1,5 +1,6 @@
 use super::*;
 use std::{collections::HashSet, fs, path::Path};
+use url::Url;
 
 #[derive(Clone, PartialEq)]
 pub(in crate::editor) struct FileTreeEntry {
@@ -235,9 +236,7 @@ impl Editor {
         cx: &mut Context<Self>,
     ) -> gpui::Stateful<gpui::Div> {
         let path = entry.relative_path.clone();
-        let selection_path = path.clone();
         let action_path = path.clone();
-        let context_path = path.clone();
         let selected = self.explorer.selected_file.as_ref() == Some(&path);
         let media_kind = match entry.kind {
             FileTreeEntryKind::Video => Some(MediaKind::Video),
@@ -279,59 +278,39 @@ impl Editor {
                     },
                 )
             })
-            .when(
-                matches!(entry.kind, FileTreeEntryKind::Directory { .. }),
-                |this| {
-                    let selection_path = selection_path.clone();
-                    this.on_click(cx.listener(move |editor, _, _, cx| {
-                        editor.toggle_directory(selection_path.clone());
-                        cx.notify();
-                    }))
-                },
-            )
-            .when(entry.kind == FileTreeEntryKind::Timeline, |this| {
-                let selection_path = selection_path.clone();
-                this.on_click(cx.listener(move |editor, _, _, cx| {
-                    editor.open_timeline(selection_path.clone(), cx);
+            .on_click(cx.listener({
+                let entry = entry.clone();
+                move |editor, _, _, cx| {
+                    match entry.kind {
+                        FileTreeEntryKind::Directory { .. } => {
+                            editor.toggle_directory(entry.relative_path.clone());
+                        }
+                        FileTreeEntryKind::Timeline => {
+                            editor.open_timeline(entry.relative_path.clone(), cx);
+                        }
+                        FileTreeEntryKind::Video
+                        | FileTreeEntryKind::Image
+                        | FileTreeEntryKind::Audio
+                        | FileTreeEntryKind::Other => {
+                            editor.select_file(entry.relative_path.clone(), cx);
+                        }
+                    }
                     cx.notify();
-                }))
-            })
-            .when(
-                !matches!(
-                    entry.kind,
-                    FileTreeEntryKind::Directory { .. } | FileTreeEntryKind::Timeline
-                ),
-                |this| {
-                    let selection_path = selection_path.clone();
-                    this.on_click(cx.listener(move |editor, _, _, cx| {
-                        editor.select_file(selection_path.clone(), cx);
-                        cx.notify();
-                    }))
-                },
-            )
-            .when(
-                matches!(entry.kind, FileTreeEntryKind::Directory { .. }),
-                |this| {
-                    let context_path = context_path.clone();
-                    this.on_mouse_down(
-                        MouseButton::Right,
-                        cx.listener(move |editor, event: &MouseDownEvent, _, cx| {
-                            editor.show_file_context_menu(context_path.clone(), true, event, cx);
-                        }),
-                    )
-                },
-            )
-            .when(
-                !matches!(entry.kind, FileTreeEntryKind::Directory { .. }),
-                |this| {
-                    let context_path = context_path.clone();
-                    this.on_mouse_down(
-                        MouseButton::Right,
-                        cx.listener(move |editor, event: &MouseDownEvent, _, cx| {
-                            editor.show_file_context_menu(context_path.clone(), false, event, cx);
-                        }),
-                    )
-                },
+                }
+            }))
+            .on_mouse_down(
+                MouseButton::Right,
+                cx.listener({
+                    let entry = entry.clone();
+                    move |editor, event: &MouseDownEvent, _, cx| {
+                        editor.show_file_context_menu(
+                            entry.relative_path.clone(),
+                            matches!(entry.kind, FileTreeEntryKind::Directory { .. }),
+                            event,
+                            cx,
+                        );
+                    }
+                }),
             )
             .when(selected, |this| {
                 this.child(
@@ -419,6 +398,130 @@ impl Editor {
                         .child(metadata),
                 )
             })
+    }
+
+    pub(super) fn select_file(&mut self, relative_path: PathBuf, cx: &mut Context<Self>) {
+        let is_image = explorer::is_image_path(&relative_path);
+        let is_video = explorer::is_video_path(&relative_path);
+        let is_audio = explorer::is_audio_path(&relative_path);
+
+        self.explorer.selected_file = Some(relative_path.clone());
+
+        if is_image || is_video || is_audio {
+            self.preview.target = match (is_video, is_audio) {
+                (true, _) => PreviewTarget::VideoFile(relative_path.clone()),
+                (_, true) => PreviewTarget::AudioFile(relative_path.clone()),
+                _ => PreviewTarget::ImageFile(relative_path.clone()),
+            };
+            self.status = None;
+            if let Some(video) = &self.preview.video {
+                video.set_paused(true);
+            }
+            self.preview.video = None;
+            self.preview.audio = None;
+            self.preview.playing = false;
+            self.preview.timeline_clock = None;
+            self.preview.volume_open = false;
+            self.preview.is_scrubbing = false;
+            self.preview.is_adjusting_volume = false;
+            self.preview.resume_after_scrub = false;
+            self.preview.scrub_fraction = None;
+            self.preview.pending_seek_started = None;
+            self.preview.last_scrub_seek = None;
+            self.preview.timeline_drag = None;
+            self.preview.refresh_ticks = 2;
+        }
+
+        if !is_video && !is_audio {
+            return;
+        }
+
+        let project_root = self.project_root.clone();
+        let source_path = project_root.join(&relative_path);
+        let Ok(url) = Url::from_file_path(&source_path) else {
+            eprintln!("Could not open {}", source_path.display());
+            return;
+        };
+        self.status = Some(format!("Loading preview for {}…", relative_path.display()));
+
+        if is_audio {
+            cx.spawn(async move |editor, cx| {
+                let result = cx
+                    .background_executor()
+                    .spawn(async move { AudioPreview::new(&url) })
+                    .await;
+
+                editor
+                    .update(cx, |editor, cx| {
+                        let still_requested = matches!(
+                            &editor.preview.target,
+                            PreviewTarget::AudioFile(path) if path == &relative_path
+                        );
+                        if editor.project_root != project_root || !still_requested {
+                            return;
+                        }
+
+                        match result {
+                            Ok(audio) => {
+                                audio.set_volume(editor.preview.volume);
+                                audio.set_playing(false);
+                                editor.preview.audio = Some(audio);
+                                editor.status = Some("Audio preview ready.".to_string());
+                                editor.preview.refresh_ticks = 12;
+                            }
+                            Err(error) => {
+                                editor.status = None;
+                                eprintln!("{error}");
+                            }
+                        }
+                        cx.notify();
+                    })
+                    .ok();
+            })
+            .detach();
+            return;
+        }
+
+        cx.spawn(async move |editor, cx| {
+            let result = cx
+                .background_executor()
+                .spawn(async move {
+                    let video = Video::open(&url, false).map_err(|error| {
+                        format!("Could not preview {}: {error}", source_path.display())
+                    })?;
+                    video.set_paused(true);
+                    let _ = video.seek(Duration::ZERO, true);
+                    Ok::<_, String>(video)
+                })
+                .await;
+
+            editor
+                .update(cx, |editor, cx| {
+                    let still_requested = matches!(
+                        &editor.preview.target,
+                        PreviewTarget::VideoFile(path) if path == &relative_path
+                    );
+                    if editor.project_root != project_root || !still_requested {
+                        return;
+                    }
+
+                    match result {
+                        Ok(video) => {
+                            video.set_volume(editor.preview.volume);
+                            editor.preview.video = Some(video);
+                            editor.status = Some("Video preview ready.".to_string());
+                            editor.preview.refresh_ticks = 12;
+                        }
+                        Err(error) => {
+                            editor.status = None;
+                            eprintln!("{error}");
+                        }
+                    }
+                    cx.notify();
+                })
+                .ok();
+        })
+        .detach();
     }
 }
 
