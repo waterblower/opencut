@@ -2,13 +2,17 @@ use super::*;
 
 #[derive(Clone)]
 pub(super) struct ClipClipboard {
+    source_timeline: PathBuf,
     clips: Vec<TimelineClip>,
+    assets: Vec<MediaAsset>,
+    tracks: Vec<(Ulid, TrackKind, usize)>,
     selection_start: TimelineTime,
     primary_index: Option<usize>,
 }
 
 impl ClipClipboard {
     fn from_selection(
+        source_timeline: PathBuf,
         timeline: &Timeline,
         selected_clip_ids: &HashSet<Ulid>,
         primary_clip_id: Option<Ulid>,
@@ -22,6 +26,39 @@ impl ClipClipboard {
         if clips.is_empty() || clips.len() != selected_clip_ids.len() {
             return None;
         }
+        let asset_ids = clips
+            .iter()
+            .map(|clip| clip.asset_id)
+            .collect::<HashSet<_>>();
+        let assets = timeline
+            .assets
+            .iter()
+            .filter(|asset| asset_ids.contains(&asset.id))
+            .cloned()
+            .collect::<Vec<_>>();
+        if assets.len() != asset_ids.len() {
+            return None;
+        }
+        let track_ids = clips
+            .iter()
+            .map(|clip| clip.track_id)
+            .collect::<HashSet<_>>();
+        let tracks = timeline
+            .tracks
+            .iter()
+            .enumerate()
+            .filter(|(_, track)| track_ids.contains(&track.id))
+            .map(|(index, track)| {
+                let ordinal = timeline.tracks[..index]
+                    .iter()
+                    .filter(|candidate| candidate.kind == track.kind)
+                    .count();
+                (track.id, track.kind, ordinal)
+            })
+            .collect::<Vec<_>>();
+        if tracks.len() != track_ids.len() {
+            return None;
+        }
         let selection_start = clips
             .iter()
             .map(|clip| clip.timeline_start)
@@ -30,7 +67,10 @@ impl ClipClipboard {
         let primary_index =
             primary_clip_id.and_then(|clip_id| clips.iter().position(|clip| clip.id == clip_id));
         Some(Self {
+            source_timeline,
             clips,
+            assets,
+            tracks,
             selection_start,
             primary_index,
         })
@@ -45,6 +85,89 @@ impl ClipClipboard {
                 clip
             })
             .collect()
+    }
+
+    fn prepare_paste(
+        &self,
+        destination_path: &std::path::Path,
+        destination: &Timeline,
+        position: TimelineTime,
+    ) -> Result<(Vec<TimelineClip>, Vec<MediaAsset>), ClipPlacementRejection> {
+        let mut clips = self.clips_at(position);
+        let same_timeline = self.source_timeline == destination_path;
+
+        if same_timeline {
+            if self
+                .tracks
+                .iter()
+                .any(|(track_id, _, _)| destination.track(*track_id).is_none())
+            {
+                return Err(ClipPlacementRejection::MissingTrack);
+            }
+        } else {
+            let mut track_ids = HashMap::new();
+            for (source_track_id, kind, ordinal) in &self.tracks {
+                let Some(destination_track) = destination
+                    .tracks
+                    .iter()
+                    .filter(|track| track.kind == *kind)
+                    .nth(*ordinal)
+                else {
+                    return Err(ClipPlacementRejection::MissingTrack);
+                };
+                track_ids.insert(*source_track_id, destination_track.id);
+            }
+            for clip in &mut clips {
+                clip.track_id = *track_ids
+                    .get(&clip.track_id)
+                    .ok_or(ClipPlacementRejection::MissingTrack)?;
+            }
+        }
+
+        let mut new_assets: Vec<MediaAsset> = Vec::new();
+        if same_timeline {
+            if self
+                .assets
+                .iter()
+                .any(|asset| destination.asset(asset.id).is_none())
+            {
+                return Err(ClipPlacementRejection::MissingAsset);
+            }
+        } else {
+            let mut asset_ids = HashMap::new();
+            for source_asset in &self.assets {
+                let destination_asset_id = destination
+                    .assets
+                    .iter()
+                    .find(|asset| asset.path == source_asset.path)
+                    .or_else(|| {
+                        new_assets
+                            .iter()
+                            .find(|asset| asset.path == source_asset.path)
+                    })
+                    .map(|asset| asset.id)
+                    .unwrap_or_else(|| {
+                        let mut asset = source_asset.clone();
+                        asset.id = Ulid::generate();
+                        let id = asset.id;
+                        new_assets.push(asset);
+                        id
+                    });
+                asset_ids.insert(source_asset.id, destination_asset_id);
+            }
+            for clip in &mut clips {
+                clip.asset_id = *asset_ids
+                    .get(&clip.asset_id)
+                    .ok_or(ClipPlacementRejection::MissingAsset)?;
+            }
+        }
+
+        let mut validation_timeline = destination.clone();
+        validation_timeline
+            .assets
+            .extend(new_assets.iter().cloned());
+        validate_clipboard_placements(&validation_timeline, &clips)?;
+        Ok((clips, new_assets))
     }
 }
 
@@ -215,6 +338,7 @@ impl Editor {
             return;
         };
         let Some(clipboard) = ClipClipboard::from_selection(
+            timeline.path.clone(),
             &timeline.data,
             &timeline.interaction.selected_clip_ids,
             timeline.interaction.selected_clip_id,
@@ -238,6 +362,7 @@ impl Editor {
             return;
         }
         let Some(clipboard) = ClipClipboard::from_selection(
+            timeline.path.clone(),
             &timeline.data,
             &timeline.interaction.selected_clip_ids,
             timeline.interaction.selected_clip_id,
@@ -260,11 +385,14 @@ impl Editor {
             return;
         };
         let playhead = timeline.playhead;
-        let mut clips = clipboard.clips_at(playhead);
-        if let Err(rejection) = validate_clipboard_placements(&timeline.data, &clips) {
-            eprintln!("Cannot paste clips: {}.", rejection.message());
-            return;
-        }
+        let (mut clips, assets) =
+            match clipboard.prepare_paste(&timeline.path, &timeline.data, playhead) {
+                Ok(paste) => paste,
+                Err(rejection) => {
+                    eprintln!("Cannot paste clips: {}.", rejection.message());
+                    return;
+                }
+            };
 
         self.checkpoint();
         for clip in &mut clips {
@@ -272,6 +400,7 @@ impl Editor {
         }
         let count = clips.len();
         let timeline = self.timeline.as_mut().expect("timeline was checked above");
+        timeline.data.assets.extend(assets);
         timeline.interaction.selected_clip_ids = clips.iter().map(|clip| clip.id).collect();
         timeline.interaction.selected_clip_id = clipboard
             .primary_index
