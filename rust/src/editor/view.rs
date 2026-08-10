@@ -124,7 +124,7 @@ impl Render for Editor {
                             .flex_1()
                             .min_h_0()
                             .flex()
-                            .child(self.media_panel(cx))
+                            .child(self.explorer_panel(cx))
                             .child(self.preview_player(
                                 MEDIA_PANEL_WIDTH,
                                 TOPBAR_HEIGHT,
