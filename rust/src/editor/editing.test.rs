@@ -153,13 +153,24 @@ fn blade_targets_unselected_clips_crossing_the_playhead() {
     project.assets.push(audio_asset(100));
     project.clips = vec![audio_clip(10, 0, 20), audio_clip(11, 30, 20)];
 
-    let timeline = TimelineState::new("timeline.json".into(), project);
-    let (targets, _) = blade_at_playhead(&timeline, TimelineTime::from_frames(10));
+    let mut timeline = TimelineState::new("timeline.json".into(), project);
+    timeline.playhead = TimelineTime::from_frames(10);
+    let mut updated = blade_at_playhead(&timeline).unwrap();
+    updated.clips.sort_by_key(|clip| clip.timeline_start);
 
     assert_eq!(
-        targets.iter().map(|clip| clip.id).collect::<Vec<_>>(),
-        [ulid(10)]
+        updated
+            .clips
+            .iter()
+            .map(|clip| clip.timeline_start)
+            .collect::<Vec<_>>(),
+        [
+            TimelineTime::ZERO,
+            TimelineTime::from_frames(10),
+            TimelineTime::from_frames(30)
+        ]
     );
+    assert_eq!(timeline.data.clips.len(), 2);
 }
 
 #[test]

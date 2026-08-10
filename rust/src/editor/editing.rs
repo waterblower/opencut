@@ -173,26 +173,19 @@ impl ClipClipboard {
 
 impl Editor {
     pub(super) fn blade_at_playhead(&mut self) {
-        let Some(timeline) = &mut self.timeline else {
+        let Some(timeline) = self.timeline.as_mut() else {
             return;
         };
-        let (clips_at_playhead, splited_clips) = blade_at_playhead(timeline, timeline.playhead);
-        if clips_at_playhead.is_empty() {
+        let Some(updated_timeline) = blade_at_playhead(timeline) else {
             return;
-        }
+        };
 
         self.record_editing_history();
-        let timeline = self.timeline.as_mut().expect("timeline was checked above");
-        let split_count = clips_at_playhead.len();
-        let removed_clip_ids = clips_at_playhead
-            .into_iter()
-            .map(|clip| clip.id)
-            .collect::<HashSet<_>>();
-        timeline
-            .data
-            .clips
-            .retain(|clip| !removed_clip_ids.contains(&clip.id));
-        timeline.data.clips.extend(splited_clips);
+        let Some(timeline) = self.timeline.as_mut() else {
+            return;
+        };
+        timeline.data = updated_timeline.clone();
+        let split_count = updated_timeline.clips.len();
         eprintln!(
             "Bladed {split_count} clip{} at the playhead.",
             plural_suffix(split_count)
@@ -947,10 +940,8 @@ fn plural_suffix(count: usize) -> &'static str {
     if count == 1 { "" } else { "s" }
 }
 
-fn blade_at_playhead(
-    timeline: &TimelineState,
-    playhead: TimelineTime,
-) -> (Vec<TimelineClip>, Vec<TimelineClip>) {
+fn blade_at_playhead(timeline: &TimelineState) -> Option<Timeline> {
+    let playhead = timeline.playhead;
     let clips_at_playhead = timeline
         .data
         .clips
@@ -967,7 +958,11 @@ fn blade_at_playhead(
         })
         .cloned()
         .collect::<Vec<_>>();
-    let splited_clips = clips_at_playhead
+    if clips_at_playhead.is_empty() {
+        return None;
+    }
+
+    let split_clips = clips_at_playhead
         .iter()
         .flat_map(|clip| {
             let (left, right) = clip
@@ -975,9 +970,18 @@ fn blade_at_playhead(
                 .expect("clips at the playhead must be splittable");
             [left, right]
         })
-        .collect();
+        .collect::<Vec<_>>();
+    let removed_clip_ids = clips_at_playhead
+        .into_iter()
+        .map(|clip| clip.id)
+        .collect::<HashSet<_>>();
+    let mut updated_timeline = timeline.data.clone();
+    updated_timeline
+        .clips
+        .retain(|clip| !removed_clip_ids.contains(&clip.id));
+    updated_timeline.clips.extend(split_clips);
 
-    (clips_at_playhead, splited_clips)
+    Some(updated_timeline)
 }
 
 #[cfg(test)]
