@@ -1,7 +1,7 @@
 # OpenCut
 
 OpenCut is an experimental desktop video tool written in Rust with
-[GPUI](https://gpui.rs/). This directory contains two applications:
+[GPUI](https://gpui.rs/). The `rust` package contains two applications:
 
 - `opencut-player`: a focused local MP4 player powered by GStreamer.
 - `opencut-editor`: a non-destructive, folder-based multi-track editor with
@@ -22,7 +22,11 @@ On macOS with Homebrew:
 brew install gstreamer ffmpeg
 ```
 
-Run commands below from this `rust` directory.
+Run the commands below from the Rust package:
+
+```sh
+cd rust
+```
 
 ## Player
 
@@ -55,32 +59,43 @@ Current editor capabilities:
 - Open any ordinary folder as a project; supported media appears in a live file
   tree without an import or copy step. Filter the complete folder tree, preview
   media in place, or drag media directly onto compatible timeline tracks.
-- Timelines are ordinary root-level `*.timeline.json` files. Create multiple
-  independent timelines with **New Timeline** and switch between them by clicking
-  their `TL` entries in the project Explorer.
-- Video tracks accept video and still images; audio tracks accept video or audio.
+- Timelines are ordinary `*.timeline.json` files located at the project root or
+  inside project subdirectories. The editor does not create one automatically.
+  Use **New Timeline** and click a timeline entry in the Explorer to switch to it.
+- A new timeline starts with no tracks. Create video and audio tracks manually;
+  video tracks accept video and still images, while audio tracks accept audio
+  files.
 - Select clips individually, with Command-click, or by drawing a selection
-  rectangle. Multi-clip move, duplicate, copy, cut, paste, and delete operations
-  preserve relative timing and are recorded as single undo steps.
+  rectangle. Command-A selects every clip on unlocked tracks. Multi-clip move,
+  duplicate, copy, cut, paste, and delete operations preserve relative timing
+  and are recorded as single undo steps within the active timeline.
 - Selection, blade, and trim tools support positioning clips, moving them between
   compatible tracks, splitting them, and trimming their source ranges without
   changing source files. Invalid moves show collision or compatibility feedback.
 - Multi-track preview includes layered video/images and synchronized overlapping
   audio, with per-track visibility, mute, lock, reorder, creation, and deletion.
+- Clicking the timeline preview selects the visible clip at the playhead. A
+  selected visual clip can be dragged on the preview canvas and snapped by its
+  edges or center to the canvas edges and center lines.
 - The frame-based timeline supports horizontal scroll and zoom (including macOS
   trackpad pinch), vertical track scrolling, frame ticks at high zoom, frame
   stepping, a draggable playhead, and optional snapping with visible guides for
-  the playhead and clip edges.
+  the playhead and clip edges. Playhead position, scroll, zoom, snapping, and
+  track-magnet settings are stored per timeline.
 - Multiresolution waveform peak caches are generated in the background. Each
   clip renders only its selected source range.
 - Undo/redo, clip metadata, fullscreen preview, and a docked GPUI element
   inspector with render FPS are available in the editor UI.
-- The timeline model stores default video transform properties (position, scale,
-  opacity, and crop) and audio properties (gain, mute, and stereo pan).
-  Property controls and preview/export application are still under development.
+- A selected video or image clip exposes position, scale, opacity, and crop
+  controls. These transforms are used by timeline preview and export, and a clip
+  context-menu command can copy its transforms to the other visual clips on the
+  same track.
+- Clips store audio gain and mute values, which preview and export apply. Their
+  properties-panel controls are not implemented yet.
 - Export maps editor tracks and clips to a GStreamer Editing Services timeline,
   composites visible visual tracks, mixes unmuted audio, and writes an
-  H.264/AAC MP4 with configurable resolution, frame rate, and bitrate.
+  H.264/AAC MP4 with configurable resolution, frame rate, bitrate, and hardware
+  (when available) or software H.264 encoding.
 
 Supported file extensions:
 
@@ -98,6 +113,7 @@ Supported file extensions:
 | `Backspace` / `Delete` | Delete the selected clips |
 | `Command-D` | Duplicate the selected clips |
 | `Command-C` / `Command-X` / `Command-V` | Copy / cut / paste selected clips |
+| `Command-A` | Select all clips on unlocked tracks |
 | `Command-Z` / `Command-Shift-Z` | Undo / redo |
 | `F` / `Esc` | Enter / exit fullscreen preview |
 | `Option-Command-I` | Toggle the GPUI inspector |
@@ -106,12 +122,16 @@ Supported file extensions:
 
 ## Project data
 
-Each timeline is saved automatically as a root-level JSON document such as
-`<project folder>/main.timeline.json`. A project can contain multiple timeline
-files; each stores its own settings, media metadata, tracks, and clips. Media
-paths are relative to the project folder, so timelines and source media can be
-moved, backed up, or committed together. The last opened folder and active
-timeline are stored locally in `data/editor-settings.json`.
+Each timeline is saved automatically as a JSON document such as
+`<project folder>/main.timeline.json` or
+`<project folder>/timelines/opening.timeline.json`. A project can contain
+multiple timeline files. Each currently stores its own timeline settings, media
+metadata, tracks, clips, and view state. Media paths are relative to the project
+folder, so a project folder can be moved, backed up, or committed as one unit.
+
+The last opened project folder and active timeline path are stored locally in
+`rust/data/editor-settings.json`. This location is temporary while OpenCut is a
+prototype.
 
 Disposable multiresolution `.ocwf` waveform peak caches are stored in `<project
 folder>/.opencut/cache`; its generated `.gitignore` keeps the cache out of
@@ -122,6 +142,7 @@ version control. Source media is referenced in place and never rewritten.
 ```sh
 cargo test --features editor
 cargo check --all-targets --all-features
+cargo clippy --all-features
 cargo loc
 ```
 
