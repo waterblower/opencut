@@ -214,16 +214,6 @@ impl Editor {
                         },
                     )))
                     .child(
-                        toolbar_button("Settings", self.timeline.is_some()).on_click(cx.listener(
-                            |editor, _, _, cx| {
-                                if editor.timeline.is_some() {
-                                    editor.settings_open = true;
-                                }
-                                cx.notify();
-                            },
-                        )),
-                    )
-                    .child(
                         toolbar_button(
                             if self.export.running {
                                 "Exporting…"
