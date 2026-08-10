@@ -30,6 +30,16 @@ impl Editor {
         }
     }
 
+    pub(super) fn playback_toggle_fullscreen(
+        &mut self,
+        _: &gpui::ClickEvent,
+        _: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        self.preview.fullscreen = !self.preview.fullscreen;
+        cx.notify();
+    }
+
     pub(super) fn update_playback(&mut self) {
         if !self.preview.playing {
             self.preview.timeline_clock = None;
@@ -395,18 +405,6 @@ impl PlaybackViewDelegate for Editor {
             self.preview.volume_open = false;
             cx.notify();
         }
-    }
-}
-
-impl Editor {
-    pub(super) fn playback_toggle_fullscreen(
-        &mut self,
-        _: &gpui::ClickEvent,
-        window: &mut Window,
-        cx: &mut Context<Self>,
-    ) {
-        self.preview.fullscreen = !self.preview.fullscreen;
-        cx.notify();
     }
 }
 
