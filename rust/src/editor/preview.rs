@@ -398,6 +398,18 @@ impl PlaybackViewDelegate for Editor {
     }
 }
 
+impl Editor {
+    pub(super) fn playback_toggle_fullscreen(
+        &mut self,
+        _: &gpui::ClickEvent,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        self.preview.fullscreen = !self.preview.fullscreen;
+        cx.notify();
+    }
+}
+
 #[cfg(test)]
 #[path = "preview.test.rs"]
 mod tests;

@@ -53,11 +53,6 @@ pub(crate) trait PlaybackViewDelegate: Sized + 'static {
     );
     fn playback_toggle_volume(&mut self, window: &mut Window, cx: &mut Context<Self>);
     fn playback_dismiss_volume(&mut self, window: &mut Window, cx: &mut Context<Self>);
-
-    fn playback_toggle_fullscreen(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        window.toggle_fullscreen();
-        cx.notify();
-    }
 }
 
 pub(crate) struct PlaybackViewProps {
@@ -77,6 +72,7 @@ pub(crate) struct PlaybackViewProps {
     pub(crate) volume_open: bool,
     pub(crate) content: AnyElement,
     pub(crate) extra_control: Option<AnyElement>,
+    pub(crate) fullscreen_control: AnyElement,
 }
 
 pub(crate) fn playback_view<T: PlaybackViewDelegate>(
@@ -445,20 +441,7 @@ pub(crate) fn playback_view<T: PlaybackViewDelegate>(
                                         ),
                                 )
                                 .when_some(props.extra_control, |this, control| this.child(control))
-                                .child(
-                                    div()
-                                        .id("shared-fullscreen")
-                                        .cursor(CursorStyle::PointingHand)
-                                        .rounded_md()
-                                        .hover(|style| style.bg(rgb(SURFACE_HOVER)))
-                                        .px_3()
-                                        .py_2()
-                                        .text_lg()
-                                        .child("⛶")
-                                        .on_click(cx.listener(|owner, _, window, cx| {
-                                            owner.playback_toggle_fullscreen(window, cx)
-                                        })),
-                                ),
+                                .child(props.fullscreen_control),
                         ),
                 ),
         )

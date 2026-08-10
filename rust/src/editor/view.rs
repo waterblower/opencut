@@ -12,7 +12,7 @@ impl Render for Editor {
         let preview_height =
             (f32::from(viewport.height) - TOPBAR_HEIGHT - TIMELINE_HEIGHT).max(240.0);
 
-        if window.is_fullscreen() {
+        if self.preview.fullscreen {
             return div()
                 .id("editor-fullscreen-preview")
                 .key_context(EDITOR_KEY_CONTEXT)

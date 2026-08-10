@@ -461,16 +461,6 @@ impl Editor {
         }
     }
 
-    fn toggle_timeline_preview_fullscreen(
-        &mut self,
-        _: &gpui::ClickEvent,
-        window: &mut Window,
-        cx: &mut Context<Self>,
-    ) {
-        window.toggle_fullscreen();
-        cx.notify();
-    }
-
     pub(super) fn preview_timeline(
         &self,
         origin_x: f32,
@@ -972,7 +962,7 @@ impl Editor {
                                             .text_lg()
                                             .child("⛶")
                                             .on_click(
-                                                cx.listener(Self::toggle_timeline_preview_fullscreen),
+                                                cx.listener(Self::playback_toggle_fullscreen),
                                             ),
                                     ),
                             ),
