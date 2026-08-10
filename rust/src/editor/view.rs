@@ -144,14 +144,6 @@ impl Render for Editor {
 
 impl Editor {
     fn topbar(&self, cx: &mut Context<Self>) -> gpui::AnyElement {
-        let undo_enabled = self
-            .timeline
-            .as_ref()
-            .is_some_and(|timeline| !timeline.undo_stack.is_empty());
-        let redo_enabled = self
-            .timeline
-            .as_ref()
-            .is_some_and(|timeline| !timeline.redo_stack.is_empty());
         let export_enabled = self
             .timeline
             .as_ref()
@@ -216,26 +208,9 @@ impl Editor {
                     .flex()
                     .items_center()
                     .gap_2()
-                    .child(toolbar_button("Undo", undo_enabled).on_click(cx.listener(
-                        |editor, _, _, cx| {
-                            editor.undo();
-                            cx.notify();
-                        },
-                    )))
-                    .child(toolbar_button("Redo", redo_enabled).on_click(cx.listener(
-                        |editor, _, _, cx| {
-                            editor.redo();
-                            cx.notify();
-                        },
-                    )))
                     .child(toolbar_button("Open Folder", true).on_click(cx.listener(
                         |editor, _, _, cx| {
                             editor.open_project_folder(cx);
-                        },
-                    )))
-                    .child(toolbar_button("New Timeline", true).on_click(cx.listener(
-                        |editor, _, window, cx| {
-                            editor.begin_create_timeline(PathBuf::new(), window, cx);
                         },
                     )))
                     .child(
