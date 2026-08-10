@@ -237,7 +237,7 @@ impl Editor {
             return true;
         }
         if !drag.changed {
-            self.checkpoint();
+            self.record_editing_history();
             drag.changed = true;
         }
         let timeline = self

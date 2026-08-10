@@ -703,7 +703,7 @@ impl Editor {
             return;
         }
 
-        self.checkpoint();
+        self.record_editing_history();
         let asset_id = if let Some(asset_id) = self
             .timeline
             .as_ref()

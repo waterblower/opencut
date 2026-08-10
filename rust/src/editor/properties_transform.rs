@@ -510,7 +510,7 @@ impl Editor {
             return;
         }
         if !drag.changed {
-            self.checkpoint();
+            self.record_editing_history();
             drag.changed = true;
         }
         self.timeline
@@ -571,7 +571,7 @@ impl Editor {
         if properties == timeline.data.clips[index].video_properties {
             return;
         }
-        self.checkpoint();
+        self.record_editing_history();
         self.timeline
             .as_mut()
             .expect("transform edit requires an active timeline")
@@ -604,7 +604,7 @@ impl Editor {
         properties.crop_right = 0.0;
         properties.crop_top = 0.0;
         properties.crop_bottom = 0.0;
-        self.checkpoint();
+        self.record_editing_history();
         self.timeline
             .as_mut()
             .expect("crop reset requires an active timeline")
