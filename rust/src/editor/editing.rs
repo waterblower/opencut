@@ -193,7 +193,7 @@ impl Editor {
             else {
                 continue;
             };
-            let new_id = Self::new_id();
+            let new_id = Ulid::generate();
             let Some((left, right)) = clip.split_at(playhead, new_id) else {
                 continue;
             };
@@ -228,7 +228,7 @@ impl Editor {
             return;
         }
         let clip = timeline.data.clips[index].clone();
-        let right_clip_id = Self::new_id();
+        let right_clip_id = Ulid::generate();
         let Some((left, right)) = clip.split_at(position, right_clip_id) else {
             return;
         };
@@ -333,7 +333,7 @@ impl Editor {
 
         self.checkpoint();
         for clip in &mut clips {
-            clip.id = Self::new_id();
+            clip.id = Ulid::generate();
         }
         let count = clips.len();
         let timeline = self.timeline.as_mut().expect("timeline was checked above");
@@ -451,7 +451,7 @@ impl Editor {
             .and_then(|id| clips.iter().position(|clip| clip.id == id));
         let mut duplicates = Vec::with_capacity(clips.len());
         for (mut clip, (_, _, start)) in clips.into_iter().zip(placements) {
-            clip.id = Self::new_id();
+            clip.id = Ulid::generate();
             clip.timeline_start = start;
             duplicates.push(clip);
         }
@@ -485,7 +485,7 @@ impl Editor {
             TrackKind::Video => "Video",
             TrackKind::Audio => "Audio",
         };
-        let id = Self::new_id();
+        let id = Ulid::generate();
         self.timeline
             .as_mut()
             .expect("timeline was checked above")
@@ -877,10 +877,6 @@ impl Editor {
             timeline.capture_scroll();
         }
         self.save_timeline();
-    }
-
-    pub(super) fn new_id() -> Ulid {
-        Ulid::generate()
     }
 
     pub(super) fn toggle_track_magnet(&mut self) {
