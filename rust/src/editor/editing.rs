@@ -179,11 +179,10 @@ impl Editor {
         let playhead = timeline.playhead;
         let clips = clips_crossing_playhead(&timeline.data, playhead);
         if clips.is_empty() {
-            eprintln!("No unlocked clip crosses the playhead.");
             return;
         }
 
-        self.checkpoint();
+        self.record_editing_history();
         let mut right_halves = Vec::with_capacity(clips.len());
         for clip in clips {
             let Some(index) = self
@@ -233,7 +232,7 @@ impl Editor {
             return;
         };
 
-        self.checkpoint();
+        self.record_editing_history();
         let timeline = self.timeline.as_mut().expect("timeline was checked above");
         timeline.data.clips[index] = left;
         timeline.data.clips.push(right);
@@ -257,7 +256,7 @@ impl Editor {
         let clip_ids = timeline.interaction.selected_clip_ids.clone();
         let magnet_enabled = timeline.interaction.magnet_enabled;
         let clip_count = clip_ids.len();
-        self.checkpoint();
+        self.record_editing_history();
         self.remove_clips(&clip_ids, magnet_enabled);
         self.status = Some(if magnet_enabled {
             format!(
@@ -308,7 +307,7 @@ impl Editor {
         };
         let count = clipboard.clips.len();
         let clip_ids = timeline.interaction.selected_clip_ids.clone();
-        self.checkpoint();
+        self.record_editing_history();
         self.clipboard = Some(clipboard);
         self.remove_clips(&clip_ids, false);
         self.status = Some(format!("Cut {count} clip{}.", plural_suffix(count)));
@@ -331,7 +330,7 @@ impl Editor {
                 }
             };
 
-        self.checkpoint();
+        self.record_editing_history();
         for clip in &mut clips {
             clip.id = Ulid::generate();
         }
@@ -441,7 +440,7 @@ impl Editor {
             delta = next_delta;
         };
 
-        self.checkpoint();
+        self.record_editing_history();
         let primary_index = self
             .timeline
             .as_ref()
@@ -480,7 +479,7 @@ impl Editor {
             .filter(|track| track.kind == kind)
             .count()
             + 1;
-        self.checkpoint();
+        self.record_editing_history();
         let prefix = match kind {
             TrackKind::Video => "Video",
             TrackKind::Audio => "Audio",
@@ -506,7 +505,7 @@ impl Editor {
         if self.timeline.is_none() {
             return;
         }
-        self.checkpoint();
+        self.record_editing_history();
         if let Some(track) = self
             .timeline
             .as_mut()
@@ -521,7 +520,7 @@ impl Editor {
         let Some(playhead) = self.timeline.as_ref().map(|timeline| timeline.playhead) else {
             return;
         };
-        self.checkpoint();
+        self.record_editing_history();
         if let Some(track) = self
             .timeline
             .as_mut()
@@ -537,7 +536,7 @@ impl Editor {
         let Some(playhead) = self.timeline.as_ref().map(|timeline| timeline.playhead) else {
             return;
         };
-        self.checkpoint();
+        self.record_editing_history();
         if let Some(track) = self
             .timeline
             .as_mut()
@@ -572,7 +571,7 @@ impl Editor {
             return;
         };
         let playhead = timeline.playhead;
-        self.checkpoint();
+        self.record_editing_history();
         self.timeline
             .as_mut()
             .expect("timeline was checked above")
@@ -599,7 +598,7 @@ impl Editor {
             return;
         }
         let playhead = timeline.playhead;
-        self.checkpoint();
+        self.record_editing_history();
         let timeline = self.timeline.as_mut().expect("timeline was checked above");
         timeline.data.tracks.remove(index);
         timeline.data.clips.retain(|clip| clip.track_id != track_id);
@@ -767,7 +766,7 @@ impl Editor {
         Ok(())
     }
 
-    pub(super) fn checkpoint(&mut self) {
+    pub(super) fn record_editing_history(&mut self) {
         let Some(timeline) = self.timeline.as_mut() else {
             return;
         };

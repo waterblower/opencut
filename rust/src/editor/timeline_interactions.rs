@@ -519,7 +519,7 @@ impl Editor {
         };
         timeline.interaction.snap_guide = None;
         if drag.changed && drag.invalid_reason.is_none() {
-            self.checkpoint();
+            self.record_editing_history();
             for (clip_id, track_id, start) in drag.placements {
                 if let Some(clip) = self
                     .timeline
@@ -687,7 +687,7 @@ impl Editor {
             return;
         }
         if !drag.changed {
-            self.checkpoint();
+            self.record_editing_history();
             if let Some(drag) = self
                 .timeline
                 .as_mut()
