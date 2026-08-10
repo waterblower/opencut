@@ -64,8 +64,8 @@ use timeline_clip_menu::TimelineClipContextMenu;
 use timeline_document::load_existing;
 use timeline_interactions::{ClipMoveDrag, MarqueeSelection, TimelineTool, TrimDrag, TrimEdge};
 use workspace::{
-    FileTreeEntry, load_active_timeline, load_project_root, save_active_timeline,
-    save_project_root, visible_tree,
+    FileTreeEntry, FileTreeEntryKind, load_active_timeline, load_project_root,
+    save_active_timeline, save_project_root, visible_tree,
 };
 
 const MEDIA_PANEL_WIDTH: f32 = 340.0;

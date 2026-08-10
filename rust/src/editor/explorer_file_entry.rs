@@ -12,22 +12,24 @@ impl Editor {
         let action_path = path.clone();
         let context_path = path.clone();
         let selected = self.explorer.selected_file.as_ref() == Some(&path);
-        let is_directory = entry.is_directory;
-        let is_video = entry.is_video;
-        let is_image = entry.is_image;
-        let is_audio = entry.is_audio;
-        let is_timeline = entry.is_timeline;
-        let is_media = is_video || is_image || is_audio;
-        let media_drag = is_media.then(|| ExplorerMediaDrag {
+        let directory_expanded = match entry.kind {
+            FileTreeEntryKind::Directory { expanded } => Some(expanded),
+            _ => None,
+        };
+        let is_directory = directory_expanded.is_some();
+        let is_timeline = entry.kind == FileTreeEntryKind::Timeline;
+        let media_kind = match entry.kind {
+            FileTreeEntryKind::Video => Some(MediaKind::Video),
+            FileTreeEntryKind::Image => Some(MediaKind::Image),
+            FileTreeEntryKind::Audio => Some(MediaKind::Audio),
+            FileTreeEntryKind::Directory { .. }
+            | FileTreeEntryKind::Timeline
+            | FileTreeEntryKind::Other => None,
+        };
+        let media_drag = media_kind.map(|kind| ExplorerMediaDrag {
             relative_path: path.clone(),
             name: entry.name.clone(),
-            kind: if is_audio {
-                MediaKind::Audio
-            } else if is_image {
-                MediaKind::Image
-            } else {
-                MediaKind::Video
-            },
+            kind,
         });
         let metadata = if is_timeline
             && self
@@ -105,12 +107,9 @@ impl Editor {
                     .flex()
                     .items_center()
                     .justify_center()
-                    .when(is_directory, |this| {
-                        this.text_color(rgb(MUTED)).child(if entry.expanded {
-                            "▾"
-                        } else {
-                            "▸"
-                        })
+                    .when_some(directory_expanded, |this, expanded| {
+                        this.text_color(rgb(MUTED))
+                            .child(if expanded { "▾" } else { "▸" })
                     })
                     .when(!is_directory, |this| this.child(explorer_file_badge(entry))),
             )
@@ -121,14 +120,14 @@ impl Editor {
                     .text_sm()
                     .font_family("monospace")
                     .text_ellipsis()
-                    .text_color(rgb(if is_media || is_timeline || is_directory {
+                    .text_color(rgb(if entry.kind != FileTreeEntryKind::Other {
                         TEXT
                     } else {
                         MUTED
                     }))
                     .child(entry.name.clone()),
             )
-            .when(is_media && selected, |this| {
+            .when(media_kind.is_some() && selected, |this| {
                 this.child(
                     div()
                         .id(("add-project-file", index))
