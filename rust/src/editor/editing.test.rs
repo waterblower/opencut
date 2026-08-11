@@ -155,7 +155,7 @@ fn blade_targets_unselected_clips_crossing_the_playhead() {
 
     let mut timeline = TimelineState::new("timeline.json".into(), project);
     timeline.playhead = TimelineTime::from_frames(10);
-    let mut updated = blade_at_playhead(&timeline).unwrap();
+    let mut updated = blade_at_playhead(&timeline.data, timeline.playhead).unwrap();
     updated.clips.sort_by_key(|clip| clip.timeline_start);
 
     assert_eq!(

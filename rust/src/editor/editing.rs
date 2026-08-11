@@ -174,7 +174,7 @@ impl ClipClipboard {
 
 impl TimelineState {
     pub(super) fn blade_at_playhead(&mut self, project_root: &Path) {
-        let Some(updated_timeline) = blade_at_playhead(self) else {
+        let Some(updated_timeline) = blade_at_playhead(&self.data, self.playhead) else {
             return;
         };
 
@@ -798,10 +798,8 @@ fn plural_suffix(count: usize) -> &'static str {
     if count == 1 { "" } else { "s" }
 }
 
-fn blade_at_playhead(timeline: &TimelineState) -> Option<Timeline> {
-    let playhead = timeline.playhead;
+fn blade_at_playhead(timeline: &Timeline, playhead: TimelineTime) -> Option<Timeline> {
     let clips_at_playhead = timeline
-        .data
         .clips
         .iter()
         .filter(|clip| {
@@ -809,7 +807,6 @@ fn blade_at_playhead(timeline: &TimelineState) -> Option<Timeline> {
             let crosses_playhead = local >= TimelineTime::ONE_FRAME
                 && local <= clip.duration() - TimelineTime::ONE_FRAME;
             let track_is_editable = timeline
-                .data
                 .track(clip.track_id)
                 .is_some_and(|track| !track.locked);
             crosses_playhead && track_is_editable
@@ -833,7 +830,7 @@ fn blade_at_playhead(timeline: &TimelineState) -> Option<Timeline> {
         .into_iter()
         .map(|clip| clip.id)
         .collect::<HashSet<_>>();
-    let mut updated_timeline = timeline.data.clone();
+    let mut updated_timeline = timeline.clone();
     updated_timeline
         .clips
         .retain(|clip| !removed_clip_ids.contains(&clip.id));
