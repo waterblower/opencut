@@ -566,6 +566,26 @@ impl TimelineState {
             end_guide,
         )
     }
+
+    pub(super) fn zoom(&mut self, factor: f32) {
+        let previous_pixels_per_second = self.data.view.pixels_per_second;
+        let pixels_per_second = (self.data.view.pixels_per_second * factor).clamp(
+            MIN_TIMELINE_PIXELS_PER_SECOND,
+            MAX_TIMELINE_PIXELS_PER_SECOND,
+        );
+        if pixels_per_second != previous_pixels_per_second {
+            let mut scroll_offset = self.scroll.offset();
+            let playhead_seconds = self.data.seconds(self.playhead);
+            scroll_offset.x = px(zoom_scroll_offset(
+                f32::from(scroll_offset.x),
+                playhead_seconds,
+                previous_pixels_per_second,
+                pixels_per_second,
+            ));
+            self.scroll.set_offset(scroll_offset);
+            self.data.view.pixels_per_second = pixels_per_second;
+        }
+    }
 }
 
 pub(super) fn choose_clip_snap(
@@ -587,6 +607,16 @@ pub(super) fn choose_clip_snap(
             }
         }
     }
+}
+
+pub(super) fn zoom_scroll_offset(
+    previous_offset: f32,
+    anchor_seconds: f64,
+    previous_pixels_per_second: f32,
+    pixels_per_second: f32,
+) -> f32 {
+    let anchor_seconds = anchor_seconds as f32;
+    (previous_offset + anchor_seconds * (previous_pixels_per_second - pixels_per_second)).min(0.0)
 }
 
 fn default_pixels_per_second() -> f32 {
@@ -1133,7 +1163,10 @@ impl Editor {
                     .gap_2()
                     .child(timeline_icon_button("zoom-out", "−").on_click(cx.listener(
                         |editor, _, _, cx| {
-                            editor.zoom(0.8);
+                            let Some(timeline) = editor.timeline.as_mut() else {
+                                return;
+                            };
+                            timeline.zoom(0.8);
                             editor.save_timeline_scroll();
                             cx.notify();
                         },
@@ -1158,7 +1191,10 @@ impl Editor {
                     )
                     .child(timeline_icon_button("zoom-in", "+").on_click(cx.listener(
                         |editor, _, _, cx| {
-                            editor.zoom(1.25);
+                            let Some(timeline) = editor.timeline.as_mut() else {
+                                return;
+                            };
+                            timeline.zoom(1.25);
                             editor.save_timeline_scroll();
                             cx.notify();
                         },
