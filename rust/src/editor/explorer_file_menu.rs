@@ -330,7 +330,10 @@ impl Editor {
                 eprintln!("{error}");
             }
         }
-        self.save_timeline();
+        if let Some(timeline) = self.timeline.as_ref() {
+            timeline.save(&self.project_root);
+        }
+        self.rebuild_timeline_preview_if_needed();
         self.explorer.rename_dialog = None;
         self.explorer.search_query = None;
         self.explorer.search_results.clear();

@@ -733,7 +733,11 @@ impl Editor {
         self.load_timeline_position_with_options(playhead, false, true);
         self.explorer.selected_file = Some(relative_path);
         self.select_only_clip(Some(clip_id));
-        self.save_timeline();
+        let Some(timeline) = self.timeline.as_ref() else {
+            return;
+        };
+        timeline.save(&self.project_root);
+        self.rebuild_timeline_preview_if_needed();
         self.status = Some("Added media at the selected timeline position.".to_string());
     }
 }

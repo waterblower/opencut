@@ -10,6 +10,17 @@ pub(super) enum PreviewTarget {
 }
 
 impl Editor {
+    pub(super) fn rebuild_timeline_preview_if_needed(&mut self) {
+        if !self.preview.timeline_needs_rebuild || self.preview.target != PreviewTarget::Timeline {
+            return;
+        }
+        let Some(timeline) = self.timeline.as_ref() else {
+            return;
+        };
+        let playhead = timeline.playhead;
+        self.load_timeline_position_with_options(playhead, self.preview.playing, true);
+    }
+
     pub(super) fn preview_player(
         &self,
         origin_x: f32,

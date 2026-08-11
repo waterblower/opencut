@@ -281,7 +281,11 @@ impl Editor {
                     Err(error) => eprintln!("{error}"),
                 }
             }
-            self.save_timeline();
+            let Some(timeline) = self.timeline.as_ref() else {
+                return true;
+            };
+            timeline.save(&self.project_root);
+            self.rebuild_timeline_preview_if_needed();
         }
         cx.notify();
         true

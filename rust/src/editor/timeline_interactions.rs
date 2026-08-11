@@ -453,7 +453,8 @@ impl Editor {
                 }
             }
             let playhead = timeline.playhead;
-            self.save_timeline();
+            timeline.save(&self.project_root);
+            self.rebuild_timeline_preview_if_needed();
             self.load_timeline_position_with_options(playhead, false, true);
         }
         cx.notify();
@@ -609,7 +610,11 @@ impl Editor {
             timeline.interaction.snap_guide = None;
         }
         if changed {
-            self.save_timeline();
+            let Some(timeline) = self.timeline.as_ref() else {
+                return;
+            };
+            timeline.save(&self.project_root);
+            self.rebuild_timeline_preview_if_needed();
             if let Some(position) = self.timeline.as_ref().and_then(|timeline| {
                 let clip_id = timeline.interaction.selected_clip_id?;
                 let index = timeline.data.clip_index(clip_id)?;
@@ -622,12 +627,14 @@ impl Editor {
     }
 
     pub(super) fn toggle_snapping(&mut self) {
-        if let Some(timeline) = self.timeline.as_mut() {
-            timeline.interaction.snapping_enabled = !timeline.interaction.snapping_enabled;
-            timeline.interaction.snap_guide = None;
-            timeline.data.view.snapping_enabled = timeline.interaction.snapping_enabled;
-        }
-        self.save_timeline();
+        let Some(timeline) = self.timeline.as_mut() else {
+            return;
+        };
+        timeline.interaction.snapping_enabled = !timeline.interaction.snapping_enabled;
+        timeline.interaction.snap_guide = None;
+        timeline.data.view.snapping_enabled = timeline.interaction.snapping_enabled;
+        timeline.save(&self.project_root);
+        self.rebuild_timeline_preview_if_needed();
     }
 
     pub(super) fn finish_timeline_scroll(
