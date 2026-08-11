@@ -58,6 +58,17 @@ impl ExplorerState {
         self.file_tree = visible_tree(project_root, &self.expanded_directories)?;
         Ok(())
     }
+
+    fn toggle_directory(
+        &mut self,
+        project_root: &Path,
+        relative_path: PathBuf,
+    ) -> Result<(), String> {
+        if !self.expanded_directories.remove(&relative_path) {
+            self.expanded_directories.insert(relative_path);
+        }
+        self.refresh_file_tree(project_root)
+    }
 }
 
 impl Render for ExplorerDragView {
@@ -427,14 +438,6 @@ impl Editor {
                     ),
             )
             .into_any_element()
-    }
-
-    fn toggle_directory(&mut self, relative_path: PathBuf) -> Result<(), String> {
-        if !self.explorer.expanded_directories.remove(&relative_path) {
-            self.explorer.expanded_directories.insert(relative_path);
-        }
-        self.explorer
-            .refresh_file_tree(&self.global_settings.project_root)
     }
 
     pub(super) fn update_explorer_media_drag(
