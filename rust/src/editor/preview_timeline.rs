@@ -284,7 +284,7 @@ impl Editor {
             let Some(timeline) = self.timeline.as_ref() else {
                 return true;
             };
-            timeline.save(&self.project_root);
+            timeline.save(&self.global_settings.project_root);
             self.rebuild_timeline_preview_if_needed();
         }
         cx.notify();

@@ -71,7 +71,7 @@ impl Editor {
         let destination = cx.new(|cx| {
             ExplorerFilter::new_field(
                 "export-destination-input",
-                default_export_destination(&self.project_root, &active_timeline)
+                default_export_destination(&self.global_settings.project_root, &active_timeline)
                     .display()
                     .to_string(),
                 "/path/to/export.mp4",
@@ -399,8 +399,10 @@ impl Editor {
             .as_ref()
             .ok_or_else(|| "Export dialog is closed.".to_string())?;
         let video_bit_rate = parse_bitrate(state.bitrate.read(cx).query())?;
-        let destination =
-            parse_destination(state.destination.read(cx).query(), &self.project_root)?;
+        let destination = parse_destination(
+            state.destination.read(cx).query(),
+            &self.global_settings.project_root,
+        )?;
 
         Ok(ValidatedExport {
             options: ExportOptions {
@@ -567,7 +569,7 @@ impl Editor {
             .parent()
             .filter(|path| path.is_dir())
             .map(Path::to_path_buf)
-            .unwrap_or_else(|| self.project_root.clone());
+            .unwrap_or_else(|| self.global_settings.project_root.clone());
         let suggested_name = current
             .file_name()
             .map(|name| name.to_string_lossy().into_owned())
@@ -622,7 +624,7 @@ impl Editor {
         let path = validated.destination;
         let options = validated.options;
         let timeline = timeline_state.data.clone();
-        let project_root = self.project_root.clone();
+        let project_root = self.global_settings.project_root.clone();
         let export_path = path.clone();
         let progress = Arc::new(AtomicU32::new(0));
         if let Some(state) = self.export.dialog.as_mut() {

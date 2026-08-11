@@ -129,7 +129,7 @@ impl Editor {
                 video.set_paused(true);
             }
             self.preview.video = None;
-            match create_timeline_video(&timeline.data, &self.project_root) {
+            match create_timeline_video(&timeline.data, &self.global_settings.project_root) {
                 Ok(video) => {
                     set_timeline_audio(
                         &video,

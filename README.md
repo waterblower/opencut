@@ -129,9 +129,9 @@ multiple timeline files. Each currently stores its own timeline settings, media
 metadata, tracks, clips, and view state. Media paths are relative to the project
 folder, so a project folder can be moved, backed up, or committed as one unit.
 
-The last opened project folder and active timeline path are stored locally in
+The last opened project folder is stored locally in
 `rust/data/editor-settings.json`. This location is temporary while OpenCut is a
-prototype.
+prototype. On startup, the editor opens the first root-level timeline file.
 
 Source media is referenced in place and never rewritten. Waveform peaks are
 regenerated in memory when the editor opens a project and are not written to

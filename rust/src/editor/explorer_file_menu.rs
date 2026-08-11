@@ -174,8 +174,10 @@ impl Editor {
         cx: &mut Context<Self>,
     ) {
         self.explorer.context_menu = None;
-        let default_name =
-            timeline_document::default_timeline_name(&self.project_root, &relative_directory);
+        let default_name = timeline_document::default_timeline_name(
+            &self.global_settings.project_root,
+            &relative_directory,
+        );
         let input = cx.new(|cx| {
             ExplorerFilter::new_field(
                 "new-timeline-name",
@@ -199,15 +201,18 @@ impl Editor {
         };
         let relative_directory = state.relative_directory.clone();
         let name = state.input.read(cx).query().trim().to_string();
-        let (relative_path, timeline) =
-            match timeline_document::create(&self.project_root, &relative_directory, &name) {
-                Ok(timeline) => timeline,
-                Err(error) => {
-                    // Keep the dialog open so the name can be corrected.
-                    eprintln!("Could not create timeline: {error}");
-                    return;
-                }
-            };
+        let (relative_path, timeline) = match timeline_document::create(
+            &self.global_settings.project_root,
+            &relative_directory,
+            &name,
+        ) {
+            Ok(timeline) => timeline,
+            Err(error) => {
+                // Keep the dialog open so the name can be corrected.
+                eprintln!("Could not create timeline: {error}");
+                return;
+            }
+        };
         self.explorer.new_timeline_dialog = None;
         self.activate_created_timeline(relative_directory, relative_path, timeline, cx);
     }
@@ -261,8 +266,8 @@ impl Editor {
             return;
         }
 
-        let old_path = self.project_root.join(&old_relative);
-        let new_path = self.project_root.join(&new_relative);
+        let old_path = self.global_settings.project_root.join(&old_relative);
+        let new_path = self.global_settings.project_root.join(&new_relative);
         if new_path.exists() {
             eprintln!("Cannot rename: {} already exists.", new_relative.display());
             return;
@@ -324,14 +329,11 @@ impl Editor {
             .and_then(|timeline| remap_relative_path(&timeline.path, &old_relative, &new_relative));
         if let Some(renamed_active_timeline) = renamed_active_timeline {
             if let Some(timeline) = self.timeline.as_mut() {
-                timeline.path = renamed_active_timeline.clone();
-            }
-            if let Err(error) = save_active_timeline(&self.project_root, &renamed_active_timeline) {
-                eprintln!("{error}");
+                timeline.path = renamed_active_timeline;
             }
         }
         if let Some(timeline) = self.timeline.as_ref() {
-            timeline.save(&self.project_root);
+            timeline.save(&self.global_settings.project_root);
         }
         self.rebuild_timeline_preview_if_needed();
         self.explorer.rename_dialog = None;
@@ -388,7 +390,7 @@ impl Editor {
             return;
         }
 
-        let path = self.project_root.join(&relative_path);
+        let path = self.global_settings.project_root.join(&relative_path);
         let display_name = path
             .file_name()
             .map(|name| name.to_string_lossy().into_owned())
@@ -420,7 +422,7 @@ impl Editor {
             .as_ref()
             .map(|menu| &menu.relative_path)
             .or(self.explorer.selected_file.as_ref())?;
-        Some(self.project_root.join(relative_path))
+        Some(self.global_settings.project_root.join(relative_path))
     }
 
     pub(crate) fn action_reveal_in_finder(

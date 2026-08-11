@@ -21,12 +21,11 @@ binaries use — `src/video.rs`, `src/playback_view.rs` — is in scope.
 
 - [ ] Store the editor's application-global settings in the platform
       application-data/config directory instead of the compile-time
-      `CARGO_MANIFEST_DIR`. `workspace.rs` writes the last project, active
-      timeline, timeline zoom, scroll positions, snapping, and magnet settings
-      to `data/editor-settings.json`, and falls back to `CARGO_MANIFEST_DIR` as
-      the initial project root. A copied or installed binary therefore reads
-      and writes paths from the machine that built it. Keep project-owned
-      timeline data in the project folder.
+      `CARGO_MANIFEST_DIR`. `workspace.rs` writes the last project folder to
+      `data/editor-settings.json` and falls back to `CARGO_MANIFEST_DIR` as the
+      initial project root. A copied or installed binary therefore reads and
+      writes paths from the machine that built it. Keep project-owned timeline
+      data in the project folder.
 
 ### P2 — cleanup
 

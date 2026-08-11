@@ -416,7 +416,7 @@ impl Editor {
             return;
         }
 
-        let project_root = self.project_root.clone();
+        let project_root = self.global_settings.project_root.clone();
         let source_path = project_root.join(&relative_path);
         let Ok(url) = Url::from_file_path(&source_path) else {
             eprintln!("Could not open {}", source_path.display());
@@ -437,7 +437,7 @@ impl Editor {
                             &editor.preview.target,
                             PreviewTarget::AudioFile(path) if path == &relative_path
                         );
-                        if editor.project_root != project_root || !still_requested {
+                        if editor.global_settings.project_root != project_root || !still_requested {
                             return;
                         }
 
@@ -481,7 +481,7 @@ impl Editor {
                         &editor.preview.target,
                         PreviewTarget::VideoFile(path) if path == &relative_path
                     );
-                    if editor.project_root != project_root || !still_requested {
+                    if editor.global_settings.project_root != project_root || !still_requested {
                         return;
                     }
 

@@ -19,7 +19,7 @@ impl Editor {
             .overflow_hidden()
             .bg(rgb(0x000000))
             .child(
-                img(self.project_root.join(path))
+                img(self.global_settings.project_root.join(path))
                     .size_full()
                     .object_fit(ObjectFit::Contain),
             )
