@@ -25,7 +25,7 @@ impl Editor {
         })
         .detach();
         focus_handle.focus(window);
-        Self::start_updates(cx);
+        start_updates(cx);
 
         let mut editor = Self {
             global_settings,
@@ -94,4 +94,57 @@ impl Editor {
         editor.schedule_project_waveforms(cx);
         editor
     }
+}
+
+fn start_updates(cx: &mut Context<Editor>) {
+    cx.spawn(async move |editor, cx| {
+        let mut update_interval = IDLE_UPDATE_INTERVAL;
+        loop {
+            cx.background_executor().timer(update_interval).await;
+            match editor.update(cx, |editor, cx| {
+                let refresh_tree =
+                    editor.explorer.last_tree_scan.elapsed() >= Duration::from_secs(1);
+                let file_preview_playing = match editor.preview.target {
+                    PreviewTarget::VideoFile(_) => editor
+                        .preview
+                        .video
+                        .as_ref()
+                        .is_some_and(|video| !video.paused()),
+                    PreviewTarget::AudioFile(_) => editor
+                        .preview
+                        .audio
+                        .as_ref()
+                        .is_some_and(AudioPreview::playing),
+                    _ => false,
+                };
+                let pinch_zoomed = editor.apply_timeline_pinch();
+                let ended_explorer_drag =
+                    !cx.has_active_drag() && editor.explorer.drop_preview.take().is_some();
+                if ended_explorer_drag && let Some(timeline) = editor.timeline.as_mut() {
+                    timeline.interaction.snap_guide = None;
+                }
+                let should_render = editor.preview.playing
+                    || file_preview_playing
+                    || editor.export.running
+                    || editor.preview.refresh_ticks > 0
+                    || refresh_tree
+                    || pinch_zoomed
+                    || ended_explorer_drag;
+                editor.preview.refresh_ticks = editor.preview.refresh_ticks.saturating_sub(1);
+                if refresh_tree {
+                    editor.refresh_file_tree();
+                }
+                editor.update_playback();
+                editor.reconcile_preview_seek();
+                if should_render {
+                    cx.notify();
+                }
+                editor.update_interval()
+            }) {
+                Ok(next_interval) => update_interval = next_interval,
+                Err(_) => break,
+            }
+        }
+    })
+    .detach();
 }
