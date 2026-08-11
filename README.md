@@ -82,8 +82,8 @@ Current editor capabilities:
   stepping, a draggable playhead, and optional snapping with visible guides for
   the playhead and clip edges. Playhead position, scroll, zoom, snapping, and
   track-magnet settings are stored per timeline.
-- Multiresolution waveform peak caches are generated in the background. Each
-  clip renders only its selected source range.
+- Multiresolution waveform peaks are generated in the background and retained
+  in memory by media path. Each clip renders only its selected source range.
 - Undo/redo, clip metadata, fullscreen preview, and a docked GPUI element
   inspector with render FPS are available in the editor UI.
 - A selected video or image clip exposes position, scale, opacity, and crop
@@ -133,9 +133,9 @@ The last opened project folder and active timeline path are stored locally in
 `rust/data/editor-settings.json`. This location is temporary while OpenCut is a
 prototype.
 
-Disposable multiresolution `.ocwf` waveform peak caches are stored in `<project
-folder>/.opencut/cache`; its generated `.gitignore` keeps the cache out of
-version control. Source media is referenced in place and never rewritten.
+Source media is referenced in place and never rewritten. Waveform peaks are
+regenerated in memory when the editor opens a project and are not written to
+the project folder.
 
 ## Development
 

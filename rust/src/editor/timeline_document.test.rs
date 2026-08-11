@@ -47,6 +47,10 @@ fn creates_named_timelines_inside_a_subdirectory() {
     assert!(root.join(&opening).is_file());
     // Only root timelines are offered as the startup document.
     assert!(timeline_files(&root).unwrap().is_empty());
+    assert_eq!(
+        project_timeline_files(&root).unwrap(),
+        vec![opening.clone()]
+    );
     let (loaded_path, _) = load_existing(&root, Some(&opening)).unwrap().unwrap();
     assert_eq!(loaded_path, opening);
 

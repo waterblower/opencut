@@ -25,8 +25,8 @@ binaries use — `src/video.rs`, `src/playback_view.rs` — is in scope.
       timeline, timeline zoom, scroll positions, snapping, and magnet settings
       to `data/editor-settings.json`, and falls back to `CARGO_MANIFEST_DIR` as
       the initial project root. A copied or installed binary therefore reads
-      and writes paths from the machine that built it. Keep project-owned cache
-      data in `<project>/.opencut`, where it already lives.
+      and writes paths from the machine that built it. Keep project-owned
+      timeline data in the project folder.
 
 ### P2 — cleanup
 
@@ -84,14 +84,6 @@ release path.
 - [ ] Move periodic file-tree scanning off the UI thread or replace it with a
       filesystem watcher plus a background fallback scan for the project root
       and expanded directories.
-- [ ] Replace persistent waveform cache files with lazy, memory-only waveform
-      generation for the POC. Decode referenced audio through a GStreamer
-      `appsink` on one background job at a time, feed its mono `f32` samples into
-      the existing multiresolution `WaveformBuilder`, and store the resulting
-      data by media path so every clip using the same source shares it. Render
-      without a waveform while generation is pending, clear the cache when the
-      project changes, and remove disk serialization, cache-file validation,
-      readiness polling, and the FFmpeg waveform decoder.
 - [ ] Avoid rebuilding timeline elements for clips and tracks completely outside
       the visible horizontal or vertical viewport. Use GPUI virtualization or a
       viewport-indexed visible-item query for large projects.

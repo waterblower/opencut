@@ -558,6 +558,7 @@ impl Editor {
                 preview.track_id,
                 preview.raw_start,
                 asset,
+                cx,
             );
         } else {
             self.explorer.pending_drop = Some(PendingExplorerDrop {
@@ -639,6 +640,7 @@ impl Editor {
                                     pending.track_id,
                                     pending.raw_start,
                                     asset,
+                                    cx,
                                 );
                             }
                         }
@@ -677,6 +679,7 @@ impl Editor {
         track_id: Ulid,
         raw_start: TimelineTime,
         mut asset: MediaAsset,
+        cx: &mut Context<Self>,
     ) {
         let Some(timeline) = self.timeline.as_ref() else {
             return;
@@ -738,6 +741,7 @@ impl Editor {
         };
         timeline.save(&self.project_root);
         self.rebuild_timeline_preview_if_needed();
+        self.schedule_active_timeline_waveforms(cx);
         self.status = Some("Added media at the selected timeline position.".to_string());
     }
 }
