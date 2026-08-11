@@ -193,36 +193,6 @@ impl Editor {
         self.save_timeline();
     }
 
-    pub(super) fn blade_split_clip_at(&mut self, clip_id: Ulid, position: TimelineTime) {
-        let Some(timeline) = self.timeline.as_ref() else {
-            return;
-        };
-        let Some(index) = timeline.data.clip_index(clip_id) else {
-            return;
-        };
-        if self.clip_locked(clip_id) {
-            return;
-        }
-        let clip = timeline.data.clips[index].clone();
-        let Some((left, right)) = clip.split_at(position) else {
-            return;
-        };
-        let right_clip_id = right.id;
-
-        self.record_editing_history();
-        let timeline = self.timeline.as_mut().expect("timeline was checked above");
-        timeline.data.clips[index] = left;
-        timeline.data.clips.push(right);
-        self.select_only_clip(Some(right_clip_id));
-        self.save_timeline();
-        let playhead = self
-            .timeline
-            .as_ref()
-            .expect("timeline was checked above")
-            .playhead;
-        self.load_timeline_position(playhead, false);
-    }
-
     pub(super) fn delete_selected(&mut self) {
         let Some(timeline) = self.timeline.as_ref() else {
             return;

@@ -105,7 +105,7 @@ impl Editor {
         }
     }
 
-    pub(super) fn begin_clip_interaction(
+    pub(super) fn handle_clip_mouse_down(
         &mut self,
         clip_id: Ulid,
         event: &MouseDownEvent,
@@ -123,7 +123,11 @@ impl Editor {
             TimelineTool::Blade => {
                 cx.stop_propagation();
                 let position = self.timeline_position_from_x(event.position.x.into());
-                self.blade_split_clip_at(clip_id, position);
+                let Some(timeline) = self.timeline.as_mut() else {
+                    return;
+                };
+                timeline.playhead = position;
+                self.blade_at_playhead();
             }
             TimelineTool::Trim => {
                 cx.stop_propagation();
