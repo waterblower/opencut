@@ -115,7 +115,7 @@ impl Editor {
                 };
                 let position = timeline.timeline_position_from_x(event.position.x.into());
                 timeline.playhead = position;
-                self.blade_at_playhead();
+                timeline.blade_at_playhead(&self.project_root);
             }
             TimelineTool::Trim => {
                 cx.stop_propagation();

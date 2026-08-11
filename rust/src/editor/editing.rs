@@ -1,4 +1,5 @@
 use super::*;
+use std::path::Path;
 
 #[derive(Clone)]
 pub(super) struct ClipClipboard {
@@ -171,27 +172,24 @@ impl ClipClipboard {
     }
 }
 
-impl Editor {
-    pub(super) fn blade_at_playhead(&mut self) {
-        let Some(timeline) = self.timeline.as_mut() else {
-            return;
-        };
-        let Some(updated_timeline) = blade_at_playhead(timeline) else {
+impl TimelineState {
+    pub(super) fn blade_at_playhead(&mut self, project_root: &Path) {
+        let Some(updated_timeline) = blade_at_playhead(self) else {
             return;
         };
 
-        timeline.record_editing_history();
-        self.preview.timeline_needs_rebuild = true;
-        timeline.data = updated_timeline.clone();
+        self.record_editing_history();
+        self.data = updated_timeline.clone();
         let split_count = updated_timeline.clips.len();
         eprintln!(
             "Bladed {split_count} clip{} at the playhead.",
             plural_suffix(split_count)
         );
-        timeline.save(&self.project_root);
-        self.rebuild_timeline_preview_if_needed();
+        self.save(project_root);
     }
+}
 
+impl Editor {
     pub(super) fn delete_selected(&mut self) {
         let Some(timeline) = self.timeline.as_ref() else {
             return;

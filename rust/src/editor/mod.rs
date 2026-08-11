@@ -683,7 +683,10 @@ impl Editor {
     }
 
     fn action_split_clip(&mut self, _: &SplitClip, _: &mut Window, cx: &mut Context<Self>) {
-        self.blade_at_playhead();
+        let Some(timeline) = self.timeline.as_mut() else {
+            return;
+        };
+        timeline.blade_at_playhead(&self.project_root);
         cx.notify();
     }
 
