@@ -424,6 +424,12 @@ impl TimelineState {
         self.data.view.saved_playhead_frame = self.playhead.max(TimelineTime::ZERO);
     }
 
+    pub(super) fn save(&self, project_root: &Path) {
+        if let Err(error) = self.data.save(&project_root.join(&self.path)) {
+            eprintln!("Could not autosave timeline: {error}");
+        }
+    }
+
     pub(super) fn capture_scroll(&mut self) {
         self.data.view.horizontal_scroll = finite_nonnegative(-f32::from(self.scroll.offset().x));
         self.data.view.vertical_scroll =

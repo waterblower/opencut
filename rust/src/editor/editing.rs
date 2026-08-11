@@ -188,7 +188,8 @@ impl Editor {
             "Bladed {split_count} clip{} at the playhead.",
             plural_suffix(split_count)
         );
-        self.save_timeline();
+        timeline.save(&self.project_root);
+        self.rebuild_timeline_preview_if_needed();
     }
 
     pub(super) fn delete_selected(&mut self) {
@@ -297,7 +298,8 @@ impl Editor {
         timeline.data.clips.extend(clips);
         self.preview.target = PreviewTarget::Timeline;
         self.status = Some(format!("Pasted {count} clip{}.", plural_suffix(count)));
-        self.save_timeline();
+        timeline.save(&self.project_root);
+        self.rebuild_timeline_preview_if_needed();
         self.load_timeline_position_with_options(playhead, false, true);
     }
 
@@ -328,7 +330,11 @@ impl Editor {
         } else {
             self.load_timeline_position_with_options(playhead, false, true);
         }
-        self.save_timeline();
+        let Some(timeline) = self.timeline.as_ref() else {
+            return;
+        };
+        timeline.save(&self.project_root);
+        self.rebuild_timeline_preview_if_needed();
     }
 
     pub(super) fn duplicate_selected(&mut self) {
@@ -411,7 +417,8 @@ impl Editor {
             .or_else(|| duplicates.first())
             .map(|clip| clip.id);
         timeline.data.clips.extend(duplicates);
-        self.save_timeline();
+        timeline.save(&self.project_root);
+        self.rebuild_timeline_preview_if_needed();
     }
 
     pub(super) fn add_track(&mut self, kind: TrackKind) {
@@ -444,7 +451,8 @@ impl Editor {
             muted: false,
             visible: true,
         });
-        self.save_timeline();
+        timeline.save(&self.project_root);
+        self.rebuild_timeline_preview_if_needed();
     }
 
     pub(super) fn toggle_track_lock(&mut self, track_id: Ulid) {
@@ -455,7 +463,8 @@ impl Editor {
         if let Some(track) = timeline.data.track_mut(track_id) {
             track.locked = !track.locked;
         }
-        self.save_timeline();
+        timeline.save(&self.project_root);
+        self.rebuild_timeline_preview_if_needed();
     }
 
     pub(super) fn toggle_track_visibility(&mut self, track_id: Ulid) {
@@ -468,7 +477,8 @@ impl Editor {
         if let Some(track) = timeline.data.track_mut(track_id) {
             track.visible = !track.visible;
         }
-        self.save_timeline();
+        timeline.save(&self.project_root);
+        self.rebuild_timeline_preview_if_needed();
         self.load_timeline_position_with_options(playhead, false, true);
     }
 
@@ -482,7 +492,8 @@ impl Editor {
         if let Some(track) = timeline.data.track_mut(track_id) {
             track.muted = !track.muted;
         }
-        self.save_timeline();
+        timeline.save(&self.project_root);
+        self.rebuild_timeline_preview_if_needed();
         self.load_timeline_position_with_options(playhead, self.preview.playing, true);
     }
 
@@ -512,7 +523,8 @@ impl Editor {
         timeline.record_editing_history();
         self.preview.timeline_needs_rebuild = true;
         timeline.data.tracks.swap(index, target);
-        self.save_timeline();
+        timeline.save(&self.project_root);
+        self.rebuild_timeline_preview_if_needed();
         self.load_timeline_position_with_options(playhead, false, true);
     }
 
@@ -558,7 +570,8 @@ impl Editor {
                 .find(|clip| timeline.interaction.selected_clip_ids.contains(&clip.id))
                 .map(|clip| clip.id);
         }
-        self.save_timeline();
+        timeline.save(&self.project_root);
+        self.rebuild_timeline_preview_if_needed();
         self.load_timeline_position_with_options(playhead, false, true);
     }
 
@@ -675,44 +688,39 @@ impl Editor {
         if has_clips {
             self.load_timeline_position_with_options(playhead, false, true);
         }
-        self.save_timeline();
-    }
-
-    pub(super) fn save_timeline(&mut self) {
-        if let Some(timeline) = self.timeline.as_ref()
-            && let Err(error) = timeline.data.save(&self.project_root.join(&timeline.path))
-        {
-            eprintln!("Could not autosave timeline: {error}");
+        let Some(timeline) = self.timeline.as_ref() else {
             return;
-        }
-        if self.preview.timeline_needs_rebuild && self.preview.target == PreviewTarget::Timeline {
-            let Some(playhead) = self.timeline.as_ref().map(|timeline| timeline.playhead) else {
-                return;
-            };
-            self.load_timeline_position_with_options(playhead, self.preview.playing, true);
-        }
+        };
+        timeline.save(&self.project_root);
+        self.rebuild_timeline_preview_if_needed();
     }
 
     pub(super) fn save_timeline_playhead(&mut self) {
-        if let Some(timeline) = self.timeline.as_mut() {
-            timeline.capture_playhead();
-        }
-        self.save_timeline();
+        let Some(timeline) = self.timeline.as_mut() else {
+            return;
+        };
+        timeline.capture_playhead();
+        timeline.save(&self.project_root);
+        self.rebuild_timeline_preview_if_needed();
     }
 
     pub(super) fn save_timeline_scroll(&mut self) {
-        if let Some(timeline) = self.timeline.as_mut() {
-            timeline.capture_scroll();
-        }
-        self.save_timeline();
+        let Some(timeline) = self.timeline.as_mut() else {
+            return;
+        };
+        timeline.capture_scroll();
+        timeline.save(&self.project_root);
+        self.rebuild_timeline_preview_if_needed();
     }
 
     pub(super) fn toggle_track_magnet(&mut self) {
-        if let Some(timeline) = self.timeline.as_mut() {
-            timeline.interaction.magnet_enabled = !timeline.interaction.magnet_enabled;
-            timeline.data.view.track_magnet_enabled = timeline.interaction.magnet_enabled;
-        }
-        self.save_timeline();
+        let Some(timeline) = self.timeline.as_mut() else {
+            return;
+        };
+        timeline.interaction.magnet_enabled = !timeline.interaction.magnet_enabled;
+        timeline.data.view.track_magnet_enabled = timeline.interaction.magnet_enabled;
+        timeline.save(&self.project_root);
+        self.rebuild_timeline_preview_if_needed();
     }
 }
 

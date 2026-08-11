@@ -454,7 +454,10 @@ impl Editor {
                 return;
             }
         };
-        self.save_timeline();
+        if let Some(timeline) = self.timeline.as_ref() {
+            timeline.save(&self.project_root);
+        }
+        self.rebuild_timeline_preview_if_needed();
         self.project_root = root;
         self.clipboard = None;
         self.explorer.expanded_directories.clear();
@@ -484,7 +487,10 @@ impl Editor {
                 return;
             }
         };
-        self.save_timeline();
+        if let Some(timeline) = self.timeline.as_ref() {
+            timeline.save(&self.project_root);
+        }
+        self.rebuild_timeline_preview_if_needed();
         self.activate_timeline(Some((relative_path.clone(), timeline)), cx);
         self.status = Some(format!("Opened {}", relative_path.display()));
     }
@@ -498,7 +504,10 @@ impl Editor {
         timeline: Timeline,
         cx: &mut Context<Self>,
     ) {
-        self.save_timeline();
+        if let Some(active_timeline) = self.timeline.as_ref() {
+            active_timeline.save(&self.project_root);
+        }
+        self.rebuild_timeline_preview_if_needed();
         // Expand the target folder so the new timeline is visible in the tree.
         if !relative_directory.as_os_str().is_empty() {
             self.explorer

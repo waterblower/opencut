@@ -490,7 +490,11 @@ impl Editor {
             .take()
             .is_some_and(|drag| drag.changed);
         if changed {
-            self.save_timeline();
+            let Some(timeline) = self.timeline.as_ref() else {
+                return;
+            };
+            timeline.save(&self.project_root);
+            self.rebuild_timeline_preview_if_needed();
         }
         cx.notify();
     }
@@ -580,7 +584,8 @@ impl Editor {
         self.preview.timeline_needs_rebuild = true;
         timeline.data.clips[index].video_properties = properties;
         self.preview.refresh_ticks = 2;
-        self.save_timeline();
+        timeline.save(&self.project_root);
+        self.rebuild_timeline_preview_if_needed();
     }
 
     fn reset_video_crop(&mut self, clip_id: Ulid) {
@@ -613,7 +618,8 @@ impl Editor {
         timeline.data.clips[index].video_properties = properties;
         self.properties.transform_input_clip_id = None;
         self.preview.refresh_ticks = 2;
-        self.save_timeline();
+        timeline.save(&self.project_root);
+        self.rebuild_timeline_preview_if_needed();
     }
 }
 

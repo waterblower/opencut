@@ -169,7 +169,8 @@ impl Editor {
         }
         self.properties.transform_input_clip_id = None;
         self.preview.refresh_ticks = 2;
-        self.save_timeline();
+        timeline.save(&self.project_root);
+        self.rebuild_timeline_preview_if_needed();
         self.status = Some(format!(
             "Applied transforms to {changed} other clip{}.",
             if changed == 1 { "" } else { "s" }
