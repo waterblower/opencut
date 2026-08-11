@@ -173,12 +173,7 @@ impl Editor {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        if self
-            .timeline
-            .as_ref()
-            .is_none_or(|timeline| timeline.interaction.marquee_selection.is_none())
-            || !event.dragging()
-        {
+        if !event.dragging() {
             return;
         }
         let (x, y) = Self::timeline_pointer_position(
@@ -186,15 +181,15 @@ impl Editor {
             event.position.y.into(),
             window,
         );
-        if let Some(selection) = self
-            .timeline
-            .as_mut()
-            .and_then(|timeline| timeline.interaction.marquee_selection.as_mut())
-        {
-            selection.current_x = x;
-            selection.current_y = y;
-        }
-        self.select_clips_in_marquee();
+        let Some(timeline) = self.timeline.as_mut() else {
+            return;
+        };
+        let Some(selection) = timeline.interaction.marquee_selection.as_mut() else {
+            return;
+        };
+        selection.current_x = x;
+        selection.current_y = y;
+        timeline.select_clips_in_marquee();
         cx.notify();
     }
 
@@ -204,30 +199,21 @@ impl Editor {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        if self
-            .timeline
-            .as_ref()
-            .is_none_or(|timeline| timeline.interaction.marquee_selection.is_none())
-        {
-            return;
-        }
         let (x, y) = Self::timeline_pointer_position(
             event.position.x.into(),
             event.position.y.into(),
             window,
         );
-        if let Some(selection) = self
-            .timeline
-            .as_mut()
-            .and_then(|timeline| timeline.interaction.marquee_selection.as_mut())
-        {
-            selection.current_x = x;
-            selection.current_y = y;
-        }
-        self.select_clips_in_marquee();
-        if let Some(timeline) = self.timeline.as_mut() {
-            timeline.interaction.marquee_selection = None;
-        }
+        let Some(timeline) = self.timeline.as_mut() else {
+            return;
+        };
+        let Some(selection) = timeline.interaction.marquee_selection.as_mut() else {
+            return;
+        };
+        selection.current_x = x;
+        selection.current_y = y;
+        timeline.select_clips_in_marquee();
+        timeline.interaction.marquee_selection = None;
         cx.notify();
     }
 
@@ -240,57 +226,6 @@ impl Editor {
             x.clamp(TRACK_HEADER_WIDTH, viewport_width),
             (y - timeline_top).clamp(TIMELINE_HEADER_HEIGHT + RULER_HEIGHT, TIMELINE_HEIGHT),
         )
-    }
-
-    pub(super) fn select_clips_in_marquee(&mut self) {
-        let Some(timeline) = self.timeline.as_ref() else {
-            return;
-        };
-        let Some(selection) = timeline.interaction.marquee_selection.as_ref() else {
-            return;
-        };
-        let left = selection.start_x.min(selection.current_x);
-        let right = selection.start_x.max(selection.current_x);
-        let top = selection.start_y.min(selection.current_y);
-        let bottom = selection.start_y.max(selection.current_y);
-        let scroll_x = f32::from(timeline.scroll.offset().x);
-        let scroll_y = f32::from(timeline.vertical_scroll.offset().y);
-
-        let mut selected = selection.initial_selection.clone();
-        for (track_index, track) in timeline.data.tracks.iter().enumerate() {
-            let clip_top = TIMELINE_HEADER_HEIGHT
-                + RULER_HEIGHT
-                + track_index as f32 * TRACK_HEIGHT
-                + scroll_y
-                + 5.0;
-            let clip_bottom = clip_top + TRACK_HEIGHT - 10.0;
-            for clip in timeline.data.clips_on_track(track.id) {
-                let clip_left = TRACK_HEADER_WIDTH
-                    + scroll_x
-                    + TIMELINE_PADDING
-                    + timeline.data.seconds(clip.timeline_start) as f32
-                        * timeline.data.view.pixels_per_second;
-                let clip_right = clip_left
-                    + (timeline.data.seconds(clip.duration()) as f32
-                        * timeline.data.view.pixels_per_second)
-                        .max(4.0);
-                if clip_left <= right
-                    && clip_right >= left
-                    && clip_top <= bottom
-                    && clip_bottom >= top
-                {
-                    selected.insert(clip.id);
-                }
-            }
-        }
-        let timeline = self.timeline.as_mut().expect("timeline was checked above");
-        timeline.interaction.selected_clip_id = timeline
-            .data
-            .clips
-            .iter()
-            .find(|clip| selected.contains(&clip.id))
-            .map(|clip| clip.id);
-        timeline.interaction.selected_clip_ids = selected;
     }
 
     pub(super) fn begin_clip_move(

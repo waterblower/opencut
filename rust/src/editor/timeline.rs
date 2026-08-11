@@ -462,6 +462,53 @@ impl TimelineState {
         self.interaction.marquee_selection = None;
         self.interaction.snap_guide = None;
     }
+
+    pub(super) fn select_clips_in_marquee(&mut self) {
+        let Some(selection) = self.interaction.marquee_selection.as_ref() else {
+            return;
+        };
+        let left = selection.start_x.min(selection.current_x);
+        let right = selection.start_x.max(selection.current_x);
+        let top = selection.start_y.min(selection.current_y);
+        let bottom = selection.start_y.max(selection.current_y);
+        let scroll_x = f32::from(self.scroll.offset().x);
+        let scroll_y = f32::from(self.vertical_scroll.offset().y);
+
+        let mut selected = selection.initial_selection.clone();
+        for (track_index, track) in self.data.tracks.iter().enumerate() {
+            let clip_top = TIMELINE_HEADER_HEIGHT
+                + RULER_HEIGHT
+                + track_index as f32 * TRACK_HEIGHT
+                + scroll_y
+                + 5.0;
+            let clip_bottom = clip_top + TRACK_HEIGHT - 10.0;
+            for clip in self.data.clips_on_track(track.id) {
+                let clip_left = TRACK_HEADER_WIDTH
+                    + scroll_x
+                    + TIMELINE_PADDING
+                    + self.data.seconds(clip.timeline_start) as f32
+                        * self.data.view.pixels_per_second;
+                let clip_right = clip_left
+                    + (self.data.seconds(clip.duration()) as f32
+                        * self.data.view.pixels_per_second)
+                        .max(4.0);
+                if clip_left <= right
+                    && clip_right >= left
+                    && clip_top <= bottom
+                    && clip_bottom >= top
+                {
+                    selected.insert(clip.id);
+                }
+            }
+        }
+        self.interaction.selected_clip_id = self
+            .data
+            .clips
+            .iter()
+            .find(|clip| selected.contains(&clip.id))
+            .map(|clip| clip.id);
+        self.interaction.selected_clip_ids = selected;
+    }
 }
 
 fn default_pixels_per_second() -> f32 {
