@@ -6,7 +6,7 @@ use ffmpeg::{
     util::format::{Sample, sample::Type as SampleType},
 };
 use ffmpeg_next as ffmpeg;
-use std::{mem::size_of, path::Path};
+use std::path::Path;
 
 const WAVEFORM_FINE_SAMPLES_PER_PEAK: u32 = 64;
 const WAVEFORM_LEVEL_REDUCTION: usize = 4;
@@ -151,14 +151,7 @@ fn receive_waveform_samples(
         resampler
             .run(&decoded, &mut converted)
             .map_err(|error| format!("could not resample waveform audio: {error}"))?;
-        let byte_count = converted.samples() * size_of::<f32>();
-        let bytes = converted
-            .data(0)
-            .get(..byte_count)
-            .ok_or_else(|| "waveform audio frame is shorter than expected".to_string())?;
-        for sample in bytes.chunks_exact(size_of::<f32>()) {
-            builder.push(f32::from_ne_bytes(sample.try_into().unwrap()));
-        }
+        builder.push_samples(converted.plane::<f32>(0));
     }
     Ok(())
 }
@@ -182,20 +175,34 @@ impl WaveformBuilder {
         }
     }
 
-    fn push(&mut self, sample: f32) {
-        let sample = if sample.is_finite() {
-            sample.clamp(-1.0, 1.0)
-        } else {
-            0.0
-        };
-        self.current.min = self.current.min.min(sample);
-        self.current.max = self.current.max.max(sample);
-        self.samples_in_peak += 1;
-        self.total_samples = self.total_samples.saturating_add(1);
-        if self.samples_in_peak == self.samples_per_peak {
-            self.peaks.push(self.current);
-            self.current = empty_peak();
-            self.samples_in_peak = 0;
+    fn push_samples(&mut self, mut samples: &[f32]) {
+        self.total_samples = self.total_samples.saturating_add(samples.len() as u64);
+        let samples_per_peak = self.samples_per_peak as usize;
+
+        if self.samples_in_peak > 0 {
+            let remaining = samples_per_peak - self.samples_in_peak as usize;
+            let split = remaining.min(samples.len());
+            include_samples(&mut self.current, &samples[..split]);
+            self.samples_in_peak += split as u32;
+            samples = &samples[split..];
+            if self.samples_in_peak == self.samples_per_peak {
+                self.peaks.push(self.current);
+                self.current = empty_peak();
+                self.samples_in_peak = 0;
+            }
+        }
+
+        let mut chunks = samples.chunks_exact(samples_per_peak);
+        for chunk in &mut chunks {
+            let mut peak = empty_peak();
+            include_samples(&mut peak, chunk);
+            self.peaks.push(peak);
+        }
+
+        let remainder = chunks.remainder();
+        if !remainder.is_empty() {
+            include_samples(&mut self.current, remainder);
+            self.samples_in_peak = remainder.len() as u32;
         }
     }
 
@@ -204,6 +211,18 @@ impl WaveformBuilder {
             self.peaks.push(self.current);
         }
         self.peaks
+    }
+}
+
+fn include_samples(peak: &mut WaveformPeak, samples: &[f32]) {
+    for &sample in samples {
+        let sample = if sample.is_finite() {
+            sample.clamp(-1.0, 1.0)
+        } else {
+            0.0
+        };
+        peak.min = peak.min.min(sample);
+        peak.max = peak.max.max(sample);
     }
 }
 
