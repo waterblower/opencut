@@ -444,6 +444,15 @@ impl TimelineState {
                 self.data.clip(*clip_id).is_some() && !self.data.clip_locked(*clip_id)
             })
     }
+
+    pub(super) fn selected_clip_ids_in_timeline_order(&self) -> Vec<Ulid> {
+        self.data
+            .clips
+            .iter()
+            .filter(|clip| self.interaction.selected_clip_ids.contains(&clip.id))
+            .map(|clip| clip.id)
+            .collect()
+    }
 }
 
 fn default_pixels_per_second() -> f32 {

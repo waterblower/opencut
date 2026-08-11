@@ -340,11 +340,10 @@ impl Editor {
         else {
             return;
         };
-        let items = self
+        let items = timeline
             .selected_clip_ids_in_timeline_order()
             .into_iter()
             .filter_map(|selected_id| {
-                let timeline = self.timeline.as_ref()?;
                 let clip = timeline.data.clip(selected_id)?;
                 let original_track_index = timeline
                     .data
