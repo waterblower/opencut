@@ -98,10 +98,9 @@ impl Editor {
 
 fn start_updates(cx: &mut Context<Editor>) {
     cx.spawn(async move |editor, cx| {
-        let mut update_interval = IDLE_UPDATE_INTERVAL;
         loop {
-            cx.background_executor().timer(update_interval).await;
-            match editor.update(cx, |editor, cx| {
+            cx.background_executor().timer(IDLE_UPDATE_INTERVAL).await;
+            let res = editor.update(cx, |editor, cx| {
                 let refresh_tree =
                     editor.explorer.last_tree_scan.elapsed() >= Duration::from_secs(1);
                 let file_preview_playing = match editor.preview.target {
@@ -139,10 +138,10 @@ fn start_updates(cx: &mut Context<Editor>) {
                 if should_render {
                     cx.notify();
                 }
-                editor.update_interval()
-            }) {
-                Ok(next_interval) => update_interval = next_interval,
-                Err(_) => break,
+            });
+            if let Err(error) = res {
+                eprintln!("Editor update loop failed: {error}");
+                panic!("Editor update loop failed");
             }
         }
     })
