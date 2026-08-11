@@ -263,7 +263,7 @@ impl Editor {
         self.status = Some(format!("Cut {count} clip{}.", plural_suffix(count)));
     }
 
-    pub(super) fn paste_clips(&mut self) {
+    pub(super) fn paste_clips(&mut self, cx: &mut Context<Self>) {
         let Some(clipboard) = self.clipboard.clone() else {
             return;
         };
@@ -302,6 +302,7 @@ impl Editor {
         timeline.save(&self.project_root);
         self.rebuild_timeline_preview_if_needed();
         self.load_timeline_position_with_options(playhead, false, true);
+        self.schedule_active_timeline_waveforms(cx);
     }
 
     fn remove_clips(&mut self, clip_ids: &HashSet<Ulid>, close_track_gaps: bool) {

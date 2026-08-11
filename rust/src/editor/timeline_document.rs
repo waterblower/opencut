@@ -27,6 +27,39 @@ pub(super) fn timeline_files(project_root: &Path) -> Result<Vec<PathBuf>, String
     Ok(paths)
 }
 
+pub(super) fn project_timeline_files(project_root: &Path) -> Result<Vec<PathBuf>, String> {
+    let mut paths = Vec::new();
+    collect_timeline_files(project_root, project_root, &mut paths)?;
+    paths.sort_by_key(|path| path.to_string_lossy().to_lowercase());
+    Ok(paths)
+}
+
+fn collect_timeline_files(
+    project_root: &Path,
+    directory: &Path,
+    paths: &mut Vec<PathBuf>,
+) -> Result<(), String> {
+    for entry in fs::read_dir(directory)
+        .map_err(|error| format!("could not read {}: {error}", directory.display()))?
+        .filter_map(Result::ok)
+    {
+        let path = entry.path();
+        if path.is_dir() {
+            if !matches!(
+                entry.file_name().to_str(),
+                Some(".git" | ".opencut" | "target")
+            ) {
+                collect_timeline_files(project_root, &path, paths)?;
+            }
+        } else if is_timeline_path(&path)
+            && let Ok(relative) = path.strip_prefix(project_root)
+        {
+            paths.push(relative.to_path_buf());
+        }
+    }
+    Ok(())
+}
+
 pub(super) fn load_existing(
     project_root: &Path,
     preferred: Option<&Path>,

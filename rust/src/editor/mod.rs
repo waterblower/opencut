@@ -19,7 +19,6 @@ mod explorer_filter;
 mod export;
 mod export_dialog;
 mod export_gstreamer;
-mod media_cache;
 mod media_probe;
 mod model;
 mod preview;
@@ -37,6 +36,7 @@ mod timeline_interactions;
 mod timeline_video;
 mod track;
 mod view;
+mod waveform;
 mod workspace;
 
 use crate::playback_view::{DragPhase, PlaybackViewDelegate};
@@ -61,7 +61,7 @@ use properties::PropertiesPanelResizeDrag;
 use properties_transform::{OpacityDrag, VideoTransformInputs};
 use timeline::{Timeline, TimelineState};
 use timeline_clip_menu::TimelineClipContextMenu;
-use timeline_document::load_existing;
+use timeline_document::{load_existing, project_timeline_files};
 use timeline_interactions::{ClipMoveDrag, MarqueeSelection, TimelineTool, TrimDrag, TrimEdge};
 use ulid::Ulid;
 use workspace::{load_active_timeline, load_project_root, save_active_timeline, save_project_root};
@@ -235,9 +235,8 @@ pub(crate) struct Editor {
     project_root: PathBuf,
     explorer: ExplorerState,
     preview: PreviewState,
-    media_cache_jobs: HashSet<Ulid>,
-    media_cache_ready: HashSet<Ulid>,
-    waveform_cache: HashMap<Ulid, Arc<media_cache::WaveformData>>,
+    waveform_jobs: HashSet<PathBuf>,
+    waveform_cache: HashMap<PathBuf, Arc<waveform::WaveformData>>,
     properties: PropertiesPanelState,
     settings_open: bool,
     export: ExportState,
@@ -319,8 +318,7 @@ impl Editor {
                 timeline_drag: None,
                 refresh_ticks: 0,
             },
-            media_cache_jobs: HashSet::new(),
-            media_cache_ready: HashSet::new(),
+            waveform_jobs: HashSet::new(),
             waveform_cache: HashMap::new(),
             properties: PropertiesPanelState {
                 width: DEFAULT_PROPERTIES_PANEL_WIDTH,
@@ -344,6 +342,7 @@ impl Editor {
         {
             editor.load_timeline_position_with_options(timeline.playhead, false, true);
         }
+        editor.schedule_project_waveforms(cx);
         editor
     }
 
@@ -384,7 +383,6 @@ impl Editor {
                     editor.preview.refresh_ticks = editor.preview.refresh_ticks.saturating_sub(1);
                     if refresh_tree {
                         editor.refresh_file_tree();
-                        editor.schedule_missing_media_cache(cx);
                     }
                     editor.update_playback();
                     editor.reconcile_preview_seek();
@@ -459,10 +457,13 @@ impl Editor {
         }
         self.rebuild_timeline_preview_if_needed();
         self.project_root = root;
+        self.waveform_jobs.clear();
+        self.waveform_cache.clear();
         self.clipboard = None;
         self.explorer.expanded_directories.clear();
         self.explorer.root_expanded = true;
         self.activate_timeline(active_timeline, cx);
+        self.schedule_project_waveforms(cx);
         if let Err(error) = save_project_root(&self.project_root) {
             eprintln!("{error}");
         }
@@ -526,9 +527,6 @@ impl Editor {
     ) {
         self.preview.video = None;
         self.preview.audio = None;
-        self.media_cache_jobs.clear();
-        self.media_cache_ready.clear();
-        self.waveform_cache.clear();
         self.explorer.drag_assets.clear();
         self.explorer.drag_probe_jobs.clear();
         self.explorer.drop_preview = None;
@@ -566,78 +564,108 @@ impl Editor {
                 self.load_timeline_position_with_options(timeline.playhead, false, true);
             }
         }
+        self.schedule_active_timeline_waveforms(cx);
     }
 
-    /// Refreshes derived media caches and starts one missing generation/load job.
-    ///
-    /// Runs on the file-tree tick rather than during rendering so the timeline can read
-    /// `media_cache_ready` without touching the filesystem on every frame.
-    fn schedule_missing_media_cache(&mut self, cx: &mut Context<Self>) {
+    fn schedule_project_waveforms(&mut self, cx: &mut Context<Self>) {
+        let mut paths = HashSet::new();
+        let timeline_paths = match project_timeline_files(&self.project_root) {
+            Ok(paths) => paths,
+            Err(error) => {
+                eprintln!("Could not scan project timelines for waveforms: {error}");
+                return;
+            }
+        };
+        for timeline_path in timeline_paths {
+            let timeline = match Timeline::load(&self.project_root.join(&timeline_path)) {
+                Ok(timeline) => timeline,
+                Err(error) => {
+                    eprintln!("Could not scan timeline for waveforms: {error}");
+                    continue;
+                }
+            };
+            let referenced_assets = timeline
+                .clips
+                .iter()
+                .map(|clip| clip.asset_id)
+                .collect::<HashSet<_>>();
+            paths.extend(
+                timeline
+                    .assets
+                    .into_iter()
+                    .filter(|asset| asset.has_audio && referenced_assets.contains(&asset.id))
+                    .map(|asset| asset.path),
+            );
+        }
+        self.schedule_waveforms(paths, cx);
+    }
+
+    pub(super) fn schedule_active_timeline_waveforms(&mut self, cx: &mut Context<Self>) {
         let Some(timeline) = self.timeline.as_ref() else {
-            self.media_cache_ready.clear();
-            self.waveform_cache.clear();
             return;
         };
-        let referenced_asset_ids = timeline
+        let referenced_assets = timeline
             .data
             .clips
             .iter()
             .map(|clip| clip.asset_id)
             .collect::<HashSet<_>>();
-        self.media_cache_ready = timeline
+        let paths = timeline
             .data
             .assets
             .iter()
-            .filter(|asset| {
-                referenced_asset_ids.contains(&asset.id)
-                    && media_cache::cache_is_ready(&self.project_root, asset)
+            .filter(|asset| asset.has_audio && referenced_assets.contains(&asset.id))
+            .map(|asset| asset.path.clone())
+            .collect::<Vec<_>>();
+        self.schedule_waveforms(paths, cx);
+    }
+
+    fn schedule_waveforms(
+        &mut self,
+        paths: impl IntoIterator<Item = PathBuf>,
+        cx: &mut Context<Self>,
+    ) {
+        let mut paths = paths
+            .into_iter()
+            .filter(|path| {
+                !self.waveform_cache.contains_key(path) && !self.waveform_jobs.contains(path)
             })
-            .map(|asset| asset.id)
-            .collect();
-        self.waveform_cache.retain(|asset_id, _| {
-            referenced_asset_ids.contains(asset_id) && self.media_cache_ready.contains(asset_id)
-        });
-        let Some(asset) = timeline
-            .data
-            .assets
-            .iter()
-            .find(|asset| {
-                referenced_asset_ids.contains(&asset.id)
-                    && !self.media_cache_jobs.contains(&asset.id)
-                    && (!self.media_cache_ready.contains(&asset.id)
-                        || asset.has_audio && !self.waveform_cache.contains_key(&asset.id))
-            })
-            .cloned()
-        else {
+            .collect::<Vec<_>>();
+        if paths.is_empty() {
             return;
-        };
-        let asset_id = asset.id;
-        self.media_cache_jobs.insert(asset_id);
+        }
+        paths.sort();
+        self.waveform_jobs.extend(paths.iter().cloned());
         let project_root = self.project_root.clone();
         cx.spawn(async move |editor, cx| {
-            let cache_root = project_root.clone();
-            let result = cx
-                .background_executor()
-                .spawn(async move { media_cache::prepare(&cache_root, &asset) })
-                .await;
-            editor
-                .update(cx, |editor, cx| {
-                    if editor.project_root == project_root {
-                        editor.media_cache_jobs.remove(&asset_id);
+            for relative_path in paths {
+                let source = project_root.join(&relative_path);
+                let result = cx
+                    .background_executor()
+                    .spawn(async move { waveform::generate_waveform(&source) })
+                    .await;
+                let current_project = editor
+                    .update(cx, |editor, cx| {
+                        if editor.project_root != project_root {
+                            return false;
+                        }
+                        editor.waveform_jobs.remove(&relative_path);
                         match result {
-                            Ok(Some(waveform)) => {
-                                editor.waveform_cache.insert(asset_id, Arc::new(waveform));
-                                editor.media_cache_ready.insert(asset_id);
+                            Ok(waveform) => {
+                                editor
+                                    .waveform_cache
+                                    .insert(relative_path.clone(), Arc::new(waveform));
                             }
-                            Ok(None) => {
-                                editor.media_cache_ready.insert(asset_id);
-                            }
-                            Err(error) => eprintln!("Media cache: {error}"),
+                            Err(error) => eprintln!("Waveform: {error}"),
                         }
                         cx.notify();
-                    }
-                })
-                .ok();
+                        true
+                    })
+                    .unwrap_or(false);
+                if !current_project {
+                    break;
+                }
+            }
         })
         .detach();
     }
@@ -731,7 +759,7 @@ impl Editor {
     }
 
     fn action_paste_clips(&mut self, _: &PasteClips, _: &mut Window, cx: &mut Context<Self>) {
-        self.paste_clips();
+        self.paste_clips(cx);
         cx.notify();
     }
 

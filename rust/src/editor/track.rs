@@ -176,7 +176,7 @@ impl Editor {
             .map(|asset| asset.name.clone())
             .unwrap_or_else(|| "Missing media".to_string());
 
-        let waveform = asset.and_then(|asset| self.waveform_cache.get(&asset.id).cloned());
+        let waveform = asset.and_then(|asset| self.waveform_cache.get(&asset.path).cloned());
         let source_start = timeline.data.seconds(clip.source_in);
         let source_end = timeline.data.seconds(clip.source_out);
         let content = div()
@@ -200,7 +200,7 @@ impl Editor {
         let name = asset
             .map(|asset| asset.name.clone())
             .unwrap_or_else(|| "Missing media".to_string());
-        let waveform = asset.and_then(|asset| self.waveform_cache.get(&asset.id).cloned());
+        let waveform = asset.and_then(|asset| self.waveform_cache.get(&asset.path).cloned());
         let source_start = timeline.data.seconds(clip.source_in);
         let source_end = timeline.data.seconds(clip.source_out);
         let detail = if asset.is_some_and(|asset| asset.has_audio) {
@@ -463,7 +463,7 @@ impl Editor {
 }
 
 fn timeline_clip_waveform(
-    waveform: Arc<media_cache::WaveformData>,
+    waveform: Arc<waveform::WaveformData>,
     source_start: f64,
     source_end: f64,
 ) -> gpui::AnyElement {
