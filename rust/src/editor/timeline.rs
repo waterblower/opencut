@@ -509,6 +509,84 @@ impl TimelineState {
             .map(|clip| clip.id);
         self.interaction.selected_clip_ids = selected;
     }
+
+    pub(super) fn snap_time(
+        &self,
+        time: TimelineTime,
+        ignored_clip: Option<Ulid>,
+    ) -> (TimelineTime, Option<TimelineTime>) {
+        let ignored = ignored_clip.into_iter().collect::<HashSet<_>>();
+        self.snap_time_ignoring(time, &ignored)
+    }
+
+    pub(super) fn snap_time_ignoring(
+        &self,
+        time: TimelineTime,
+        ignored_clip_ids: &HashSet<Ulid>,
+    ) -> (TimelineTime, Option<TimelineTime>) {
+        if !self.interaction.snapping_enabled {
+            return (time.max(TimelineTime::ZERO), None);
+        }
+        let threshold = self
+            .data
+            .settings
+            .frame_rate
+            .ceil(SNAP_DISTANCE_PX as f64 / self.data.view.pixels_per_second as f64)
+            .frames()
+            .max(1) as u64;
+        let mut candidates = vec![TimelineTime::ZERO, self.playhead];
+        for clip in &self.data.clips {
+            if !ignored_clip_ids.contains(&clip.id) {
+                candidates.push(clip.timeline_start);
+                candidates.push(clip.timeline_end());
+            }
+        }
+        let snapped = candidates
+            .into_iter()
+            .filter(|candidate| candidate.abs_diff(time) <= threshold)
+            .min_by_key(|candidate| candidate.abs_diff(time))
+            .map(|candidate| (candidate.max(TimelineTime::ZERO), Some(candidate)));
+        snapped.unwrap_or((time.max(TimelineTime::ZERO), None))
+    }
+
+    pub(super) fn snap_clip_start_ignoring(
+        &self,
+        start: TimelineTime,
+        duration: TimelineTime,
+        ignored_clip_ids: &HashSet<Ulid>,
+    ) -> (TimelineTime, Option<TimelineTime>) {
+        let (start_candidate, start_guide) = self.snap_time_ignoring(start, ignored_clip_ids);
+        let (snapped_end, end_guide) = self.snap_time_ignoring(start + duration, ignored_clip_ids);
+        let end_candidate = snapped_end - duration;
+        choose_clip_snap(
+            start,
+            start_candidate,
+            start_guide,
+            end_candidate,
+            end_guide,
+        )
+    }
+}
+
+pub(super) fn choose_clip_snap(
+    original_start: TimelineTime,
+    start_candidate: TimelineTime,
+    start_guide: Option<TimelineTime>,
+    end_candidate: TimelineTime,
+    end_guide: Option<TimelineTime>,
+) -> (TimelineTime, Option<TimelineTime>) {
+    match (start_guide, end_guide) {
+        (None, None) => (original_start.max(TimelineTime::ZERO), None),
+        (Some(guide), None) => (start_candidate.max(TimelineTime::ZERO), Some(guide)),
+        (None, Some(guide)) => (end_candidate.max(TimelineTime::ZERO), Some(guide)),
+        (Some(start_guide), Some(end_guide)) => {
+            if end_candidate.abs_diff(original_start) < start_candidate.abs_diff(original_start) {
+                (end_candidate.max(TimelineTime::ZERO), Some(end_guide))
+            } else {
+                (start_candidate.max(TimelineTime::ZERO), Some(start_guide))
+            }
+        }
+    }
 }
 
 fn default_pixels_per_second() -> f32 {

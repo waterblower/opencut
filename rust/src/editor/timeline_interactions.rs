@@ -357,7 +357,7 @@ impl Editor {
             .clip(anchor_clip_id)
             .map(TimelineClip::duration)
             .unwrap_or(TimelineTime::ZERO);
-        let (snapped_start, snap_guide) = self.snap_clip_start_ignoring(
+        let (snapped_start, snap_guide) = timeline.snap_clip_start_ignoring(
             raw_anchor_start,
             anchor_duration,
             &timeline.interaction.selected_clip_ids,
@@ -459,66 +459,6 @@ impl Editor {
         cx.notify();
     }
 
-    pub(super) fn snap_time(
-        &self,
-        time: TimelineTime,
-        ignored_clip: Option<Ulid>,
-    ) -> (TimelineTime, Option<TimelineTime>) {
-        let ignored = ignored_clip.into_iter().collect::<HashSet<_>>();
-        self.snap_time_ignoring(time, &ignored)
-    }
-
-    pub(super) fn snap_time_ignoring(
-        &self,
-        time: TimelineTime,
-        ignored_clip_ids: &HashSet<Ulid>,
-    ) -> (TimelineTime, Option<TimelineTime>) {
-        let Some(timeline) = self.timeline.as_ref() else {
-            return (time.max(TimelineTime::ZERO), None);
-        };
-        if !timeline.interaction.snapping_enabled {
-            return (time.max(TimelineTime::ZERO), None);
-        }
-        let threshold = timeline
-            .data
-            .settings
-            .frame_rate
-            .ceil(SNAP_DISTANCE_PX as f64 / timeline.data.view.pixels_per_second as f64)
-            .frames()
-            .max(1) as u64;
-        let mut candidates = vec![TimelineTime::ZERO, timeline.playhead];
-        for clip in &timeline.data.clips {
-            if !ignored_clip_ids.contains(&clip.id) {
-                candidates.push(clip.timeline_start);
-                candidates.push(clip.timeline_end());
-            }
-        }
-        let snapped = candidates
-            .into_iter()
-            .filter(|candidate| candidate.abs_diff(time) <= threshold)
-            .min_by_key(|candidate| candidate.abs_diff(time))
-            .map(|candidate| (candidate.max(TimelineTime::ZERO), Some(candidate)));
-        snapped.unwrap_or((time.max(TimelineTime::ZERO), None))
-    }
-
-    pub(super) fn snap_clip_start_ignoring(
-        &self,
-        start: TimelineTime,
-        duration: TimelineTime,
-        ignored_clip_ids: &HashSet<Ulid>,
-    ) -> (TimelineTime, Option<TimelineTime>) {
-        let (start_candidate, start_guide) = self.snap_time_ignoring(start, ignored_clip_ids);
-        let (snapped_end, end_guide) = self.snap_time_ignoring(start + duration, ignored_clip_ids);
-        let end_candidate = snapped_end - duration;
-        choose_clip_snap(
-            start,
-            start_candidate,
-            start_guide,
-            end_candidate,
-            end_guide,
-        )
-    }
-
     pub(super) fn begin_trim(&mut self, clip_id: Ulid, edge: TrimEdge, x: f32) {
         let Some(timeline) = self.timeline.as_ref() else {
             return;
@@ -615,7 +555,10 @@ impl Editor {
                 let original_end = original_timeline_start + original_out - original_in;
                 let earliest_start = previous_end.max(original_timeline_start - original_in);
                 let latest_start = original_end - TimelineTime::ONE_FRAME;
-                let (snapped_start, guide) = self.snap_time(raw_start, Some(clip_id));
+                let Some(timeline) = self.timeline.as_ref() else {
+                    return;
+                };
+                let (snapped_start, guide) = timeline.snap_time(raw_start, Some(clip_id));
                 let start = snapped_start.clamp(earliest_start, latest_start);
                 let timeline = self.timeline.as_mut().expect("timeline was checked above");
                 timeline.data.clips[index].source_in =
@@ -633,7 +576,11 @@ impl Editor {
                     })
                     .unwrap_or(TimelineTime::MAX);
                 let latest_end = next_start.min(latest_source_end);
-                let (snapped_end, guide) = self.snap_time(original_end + raw_delta, Some(clip_id));
+                let Some(timeline) = self.timeline.as_ref() else {
+                    return;
+                };
+                let (snapped_end, guide) =
+                    timeline.snap_time(original_end + raw_delta, Some(clip_id));
                 let end = snapped_end.clamp(earliest_end, latest_end);
                 self.timeline
                     .as_mut()
@@ -892,27 +839,6 @@ fn zoom_scroll_offset(
 ) -> f32 {
     let anchor_seconds = anchor_seconds as f32;
     (previous_offset + anchor_seconds * (previous_pixels_per_second - pixels_per_second)).min(0.0)
-}
-
-fn choose_clip_snap(
-    original_start: TimelineTime,
-    start_candidate: TimelineTime,
-    start_guide: Option<TimelineTime>,
-    end_candidate: TimelineTime,
-    end_guide: Option<TimelineTime>,
-) -> (TimelineTime, Option<TimelineTime>) {
-    match (start_guide, end_guide) {
-        (None, None) => (original_start.max(TimelineTime::ZERO), None),
-        (Some(guide), None) => (start_candidate.max(TimelineTime::ZERO), Some(guide)),
-        (None, Some(guide)) => (end_candidate.max(TimelineTime::ZERO), Some(guide)),
-        (Some(start_guide), Some(end_guide)) => {
-            if end_candidate.abs_diff(original_start) < start_candidate.abs_diff(original_start) {
-                (end_candidate.max(TimelineTime::ZERO), Some(end_guide))
-            } else {
-                (start_candidate.max(TimelineTime::ZERO), Some(start_guide))
-            }
-        }
-    }
 }
 
 #[cfg(test)]
