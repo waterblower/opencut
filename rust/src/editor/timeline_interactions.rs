@@ -454,7 +454,7 @@ impl Editor {
             }
             let playhead = timeline.playhead;
             self.save_timeline();
-            self.load_timeline_position(playhead, false);
+            self.load_timeline_position_with_options(playhead, false, true);
         }
         cx.notify();
     }
@@ -615,7 +615,7 @@ impl Editor {
                 let index = timeline.data.clip_index(clip_id)?;
                 Some(timeline.data.clips[index].timeline_start)
             }) {
-                self.load_timeline_position(position, false);
+                self.load_timeline_position_with_options(position, false, true);
             }
         }
         cx.notify();
@@ -704,7 +704,7 @@ impl Editor {
         self.preview.timeline_clock = None;
         let position = timeline.timeline_position_from_x(event.position.x.into());
         timeline.interaction.last_scrub_seek = Some(Instant::now());
-        self.load_timeline_position_for_scrub(position, false, false);
+        self.load_timeline_position_with_options(position, false, false);
     }
 
     pub(super) fn update_playhead_scrub(
@@ -732,7 +732,7 @@ impl Editor {
             .is_none_or(|last_seek| now.duration_since(last_seek) >= SCRUB_SEEK_INTERVAL);
         if should_seek {
             timeline.interaction.last_scrub_seek = Some(now);
-            self.load_timeline_position_for_scrub(position, false, false);
+            self.load_timeline_position_with_options(position, false, false);
         }
         cx.notify();
     }
@@ -752,7 +752,7 @@ impl Editor {
         timeline.interaction.scrubbing_playhead = false;
         timeline.interaction.last_scrub_seek = None;
         let position = timeline.timeline_position_from_x(event.position.x.into());
-        self.load_timeline_position_for_scrub(position, true, true);
+        self.load_timeline_position_with_options(position, false, true);
         self.save_timeline_playhead();
         cx.notify();
     }
@@ -767,7 +767,7 @@ impl Editor {
         let target = (timeline.playhead + TimelineTime::from_frames(frames))
             .clamp(TimelineTime::ZERO, timeline.data.timeline_duration());
         if target != timeline.playhead || self.preview.target != PreviewTarget::Timeline {
-            self.load_timeline_position(target, false);
+            self.load_timeline_position_with_options(target, false, true);
             self.save_timeline_playhead();
         }
     }
