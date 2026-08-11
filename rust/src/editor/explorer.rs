@@ -501,7 +501,7 @@ impl Editor {
             .map(|asset| timeline.data.ceil_time(asset.duration))
             .unwrap_or_else(|| timeline.data.ceil_time(DEFAULT_IMAGE_CLIP_DURATION));
         let (start, snap_guide) =
-            self.snap_clip_start_ignoring(raw_start, duration, &HashSet::new());
+            timeline.snap_clip_start_ignoring(raw_start, duration, &HashSet::new());
         let kind = asset.as_ref().map_or(drag.kind, |asset| asset.kind);
         let invalid_reason = validate_clip_placement(
             &timeline.data,
@@ -682,7 +682,7 @@ impl Editor {
             return;
         };
         let duration = timeline.data.ceil_time(asset.duration);
-        let (start, _) = self.snap_clip_start_ignoring(raw_start, duration, &HashSet::new());
+        let (start, _) = timeline.snap_clip_start_ignoring(raw_start, duration, &HashSet::new());
         if let Err(rejection) = validate_clip_placement(
             &timeline.data,
             track_id,
