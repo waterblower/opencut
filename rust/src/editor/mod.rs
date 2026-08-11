@@ -84,7 +84,7 @@ const MIN_TIMELINE_PIXELS_PER_SECOND: f32 = 1.0;
 const MAX_TIMELINE_PIXELS_PER_SECOND: f32 = 1000.0;
 const DEFAULT_TIMELINE_PIXELS_PER_SECOND: f32 = 72.0;
 const SCRUB_SEEK_INTERVAL: Duration = Duration::from_millis(50);
-const IDLE_UPDATE_INTERVAL: Duration = Duration::from_millis(33);
+const IDLE_UPDATE_INTERVAL: Duration = Duration::from_millis(16);
 
 #[cfg(test)]
 fn lock_gstreamer_test() -> std::sync::MutexGuard<'static, ()> {
@@ -248,17 +248,6 @@ pub(crate) struct Editor {
 }
 
 impl Editor {
-    fn update_interval(&self) -> Duration {
-        if self.preview.playing {
-            self.timeline
-                .as_ref()
-                .map(|timeline| timeline.data.duration(TimelineTime::ONE_FRAME))
-                .unwrap_or(IDLE_UPDATE_INTERVAL)
-        } else {
-            IDLE_UPDATE_INTERVAL
-        }
-    }
-
     fn open_project_folder(&mut self, cx: &mut Context<Self>) {
         let selection = cx.prompt_for_paths(PathPromptOptions {
             files: false,
