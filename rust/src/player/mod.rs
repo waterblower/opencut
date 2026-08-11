@@ -269,10 +269,11 @@ impl Player {
             return;
         };
 
-        let frames_per_second = video.framerate();
-        if !frames_per_second.is_finite() || frames_per_second <= 0.0 {
+        // Frame stepping is meaningless without a fixed rate, so skip it for
+        // variable-frame-rate sources.
+        let Some(frames_per_second) = video.framerate() else {
             return;
-        }
+        };
 
         let duration = video.duration();
         if duration.is_zero() {
@@ -369,12 +370,10 @@ impl Player {
         let duration = video.duration();
         let target = duration.mul_f64(target_fraction as f64);
         let actual = video.position();
-        let frames_per_second = video.framerate();
-        let settle_tolerance = if frames_per_second.is_finite() && frames_per_second > 0.0 {
-            Duration::from_secs_f64(0.75 / frames_per_second)
-        } else {
-            Duration::from_millis(20)
-        };
+        let settle_tolerance = video
+            .framerate()
+            .map(|frames_per_second| Duration::from_secs_f64(0.75 / frames_per_second))
+            .unwrap_or_else(|| Duration::from_millis(20));
         let settled = actual.abs_diff(target) <= settle_tolerance;
         let timed_out = started.elapsed() >= Duration::from_secs(2);
 

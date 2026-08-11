@@ -39,7 +39,7 @@ struct VideoInner {
     worker: Mutex<Option<JoinHandle<()>>>,
     width: u32,
     height: u32,
-    framerate: f64,
+    framerate: Option<f64>,
     duration: Duration,
 }
 
@@ -112,11 +112,11 @@ impl Video {
                 return Err(format!("could not read video format: {error}"));
             }
         };
-        let framerate = info.fps().numer() as f64 / info.fps().denom() as f64;
-        if !framerate.is_finite() || framerate <= 0.0 {
-            let _ = pipeline.set_state(gst::State::Null);
-            return Err(format!("invalid video frame rate: {framerate}"));
-        }
+        // GStreamer negotiates `framerate=0/1` for variable-frame-rate sources such as
+        // screen recordings. That is a valid "unknown rate" marker, not a broken file, so
+        // it must not fail the load — the container's nominal rate is still available from
+        // the probed asset when a caller needs one.
+        let framerate = frame_rate_from_caps(&info);
         let duration = Duration::from_nanos(
             pipeline
                 .query_duration::<gst::ClockTime>()
@@ -147,7 +147,9 @@ impl Video {
         (self.0.width, self.0.height)
     }
 
-    pub(crate) fn framerate(&self) -> f64 {
+    /// The negotiated frame rate, or `None` for variable-frame-rate sources where
+    /// GStreamer reports `0/1`.
+    pub(crate) fn framerate(&self) -> Option<f64> {
         self.0.framerate
     }
 
@@ -610,5 +612,44 @@ pub(crate) fn video(video: Video) -> VideoElement {
         width: gpui::px(width as f32),
         height: gpui::px(height as f32),
         id: None,
+    }
+}
+
+/// Reads the negotiated frame rate, returning `None` when it is unusable.
+///
+/// GStreamer uses `0/1` to mean "variable or unknown frame rate", which is what
+/// variable-frame-rate sources such as screen recordings negotiate even when the
+/// container declares a nominal rate. A zero denominator is likewise unusable.
+fn frame_rate_from_caps(info: &gst_video::VideoInfo) -> Option<f64> {
+    frame_rate_from_fraction(info.fps().numer(), info.fps().denom())
+}
+
+fn frame_rate_from_fraction(numerator: i32, denominator: i32) -> Option<f64> {
+    if numerator <= 0 || denominator <= 0 {
+        return None;
+    }
+    let frame_rate = numerator as f64 / denominator as f64;
+    frame_rate.is_finite().then_some(frame_rate)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::frame_rate_from_fraction;
+
+    #[test]
+    fn treats_variable_frame_rate_as_unknown_rather_than_invalid() {
+        // GStreamer negotiates 0/1 for VFR sources such as screen recordings.
+        assert_eq!(frame_rate_from_fraction(0, 1), None);
+        // A malformed fraction is equally unusable, and equally not a load failure.
+        assert_eq!(frame_rate_from_fraction(24, 0), None);
+        assert_eq!(frame_rate_from_fraction(0, 0), None);
+        assert_eq!(frame_rate_from_fraction(-24, 1), None);
+    }
+
+    #[test]
+    fn reads_ordinary_and_ntsc_frame_rates() {
+        assert_eq!(frame_rate_from_fraction(30, 1), Some(30.0));
+        let ntsc = frame_rate_from_fraction(24_000, 1_001).unwrap();
+        assert!((ntsc - 23.976).abs() < 0.001, "got {ntsc}");
     }
 }
