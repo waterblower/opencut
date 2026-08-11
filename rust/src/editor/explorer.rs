@@ -703,17 +703,16 @@ impl Editor {
             return;
         }
 
-        self.record_editing_history();
-        let asset_id = if let Some(asset_id) = self
-            .timeline
-            .as_ref()
-            .and_then(|timeline| {
-                timeline
-                    .data
-                    .assets
-                    .iter()
-                    .find(|existing| existing.path == relative_path)
-            })
+        let Some(timeline) = self.timeline.as_mut() else {
+            return;
+        };
+        timeline.record_editing_history();
+        self.preview.timeline_needs_rebuild = true;
+        let asset_id = if let Some(asset_id) = timeline
+            .data
+            .assets
+            .iter()
+            .find(|existing| existing.path == relative_path)
             .map(|existing| existing.id)
         {
             asset_id
@@ -721,16 +720,10 @@ impl Editor {
             asset.id = Ulid::generate();
             asset.path = relative_path.clone();
             let asset_id = asset.id;
-            self.timeline
-                .as_mut()
-                .expect("timeline was checked above")
-                .data
-                .assets
-                .push(asset);
+            timeline.data.assets.push(asset);
             asset_id
         };
         let clip_id = Ulid::generate();
-        let timeline = self.timeline.as_mut().expect("timeline was checked above");
         timeline.data.clips.push(TimelineClip {
             id: clip_id,
             track_id,

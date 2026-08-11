@@ -159,8 +159,11 @@ impl Editor {
             return;
         }
         let changed = targets.len();
-        self.record_editing_history();
-        let timeline = self.timeline.as_mut().expect("timeline was checked above");
+        let Some(timeline) = self.timeline.as_mut() else {
+            return;
+        };
+        timeline.record_editing_history();
+        self.preview.timeline_needs_rebuild = true;
         for index in targets {
             timeline.data.clips[index].video_properties = properties;
         }

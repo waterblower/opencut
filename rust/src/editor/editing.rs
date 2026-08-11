@@ -180,10 +180,8 @@ impl Editor {
             return;
         };
 
-        self.record_editing_history();
-        let Some(timeline) = self.timeline.as_mut() else {
-            return;
-        };
+        timeline.record_editing_history();
+        self.preview.timeline_needs_rebuild = true;
         timeline.data = updated_timeline.clone();
         let split_count = updated_timeline.clips.len();
         eprintln!(
@@ -197,13 +195,16 @@ impl Editor {
         let Some(timeline) = self.timeline.as_ref() else {
             return;
         };
-        if timeline.interaction.selected_clip_ids.is_empty() || !self.selected_clips_editable() {
+        if !timeline.selected_clips_editable() {
             return;
         }
         let clip_ids = timeline.interaction.selected_clip_ids.clone();
         let magnet_enabled = timeline.interaction.magnet_enabled;
         let clip_count = clip_ids.len();
-        self.record_editing_history();
+        let Some(timeline) = self.timeline.as_mut() else {
+            return;
+        };
+        timeline.record_editing_history();
         self.remove_clips(&clip_ids, magnet_enabled);
         self.status = Some(if magnet_enabled {
             format!(
@@ -237,10 +238,7 @@ impl Editor {
         let Some(timeline) = self.timeline.as_ref() else {
             return;
         };
-        if timeline.interaction.selected_clip_ids.is_empty() {
-            return;
-        }
-        if !self.selected_clips_editable() {
+        if !timeline.selected_clips_editable() {
             eprintln!("Cannot cut clips from a locked track.");
             return;
         }
@@ -254,7 +252,10 @@ impl Editor {
         };
         let count = clipboard.clips.len();
         let clip_ids = timeline.interaction.selected_clip_ids.clone();
-        self.record_editing_history();
+        let Some(timeline) = self.timeline.as_mut() else {
+            return;
+        };
+        timeline.record_editing_history();
         self.clipboard = Some(clipboard);
         self.remove_clips(&clip_ids, false);
         self.status = Some(format!("Cut {count} clip{}.", plural_suffix(count)));
@@ -277,12 +278,15 @@ impl Editor {
                 }
             };
 
-        self.record_editing_history();
+        let Some(timeline) = self.timeline.as_mut() else {
+            return;
+        };
+        timeline.record_editing_history();
+        self.preview.timeline_needs_rebuild = true;
         for clip in &mut clips {
             clip.id = Ulid::generate();
         }
         let count = clips.len();
-        let timeline = self.timeline.as_mut().expect("timeline was checked above");
         timeline.data.assets.extend(assets);
         timeline.interaction.selected_clip_ids = clips.iter().map(|clip| clip.id).collect();
         timeline.interaction.selected_clip_id = clipboard
@@ -329,7 +333,10 @@ impl Editor {
 
     pub(super) fn duplicate_selected(&mut self) {
         let clip_ids = self.selected_clip_ids_in_timeline_order();
-        if clip_ids.is_empty() || !self.selected_clips_editable() {
+        let Some(timeline) = self.timeline.as_ref() else {
+            return;
+        };
+        if clip_ids.is_empty() || !timeline.selected_clips_editable() {
             return;
         }
         let clips = clip_ids
@@ -387,7 +394,6 @@ impl Editor {
             delta = next_delta;
         };
 
-        self.record_editing_history();
         let primary_index = self
             .timeline
             .as_ref()
@@ -401,10 +407,11 @@ impl Editor {
             clip.timeline_start = start;
             duplicates.push(clip);
         }
-        let timeline = self
-            .timeline
-            .as_mut()
-            .expect("selected clips require an active timeline");
+        let Some(timeline) = self.timeline.as_mut() else {
+            return;
+        };
+        timeline.record_editing_history();
+        self.preview.timeline_needs_rebuild = true;
         timeline.interaction.selected_clip_ids = duplicates.iter().map(|clip| clip.id).collect();
         timeline.interaction.selected_clip_id = primary_index
             .and_then(|index| duplicates.get(index))
@@ -426,53 +433,46 @@ impl Editor {
             .filter(|track| track.kind == kind)
             .count()
             + 1;
-        self.record_editing_history();
         let prefix = match kind {
             TrackKind::Video => "Video",
             TrackKind::Audio => "Audio",
         };
         let id = Ulid::generate();
-        self.timeline
-            .as_mut()
-            .expect("timeline was checked above")
-            .data
-            .tracks
-            .push(TimelineTrack {
-                id,
-                name: format!("{prefix} {number}"),
-                kind,
-                locked: false,
-                muted: false,
-                visible: true,
-            });
+        let Some(timeline) = self.timeline.as_mut() else {
+            return;
+        };
+        timeline.record_editing_history();
+        self.preview.timeline_needs_rebuild = true;
+        timeline.data.tracks.push(TimelineTrack {
+            id,
+            name: format!("{prefix} {number}"),
+            kind,
+            locked: false,
+            muted: false,
+            visible: true,
+        });
         self.save_timeline();
     }
 
     pub(super) fn toggle_track_lock(&mut self, track_id: Ulid) {
-        if self.timeline.is_none() {
+        let Some(timeline) = self.timeline.as_mut() else {
             return;
-        }
-        self.record_editing_history();
-        if let Some(track) = self
-            .timeline
-            .as_mut()
-            .and_then(|timeline| timeline.data.track_mut(track_id))
-        {
+        };
+        timeline.record_editing_history();
+        if let Some(track) = timeline.data.track_mut(track_id) {
             track.locked = !track.locked;
         }
         self.save_timeline();
     }
 
     pub(super) fn toggle_track_visibility(&mut self, track_id: Ulid) {
-        let Some(playhead) = self.timeline.as_ref().map(|timeline| timeline.playhead) else {
+        let Some(timeline) = self.timeline.as_mut() else {
             return;
         };
-        self.record_editing_history();
-        if let Some(track) = self
-            .timeline
-            .as_mut()
-            .and_then(|timeline| timeline.data.track_mut(track_id))
-        {
+        let playhead = timeline.playhead;
+        timeline.record_editing_history();
+        self.preview.timeline_needs_rebuild = true;
+        if let Some(track) = timeline.data.track_mut(track_id) {
             track.visible = !track.visible;
         }
         self.save_timeline();
@@ -480,15 +480,13 @@ impl Editor {
     }
 
     pub(super) fn toggle_track_mute(&mut self, track_id: Ulid) {
-        let Some(playhead) = self.timeline.as_ref().map(|timeline| timeline.playhead) else {
+        let Some(timeline) = self.timeline.as_mut() else {
             return;
         };
-        self.record_editing_history();
-        if let Some(track) = self
-            .timeline
-            .as_mut()
-            .and_then(|timeline| timeline.data.track_mut(track_id))
-        {
+        let playhead = timeline.playhead;
+        timeline.record_editing_history();
+        self.preview.timeline_needs_rebuild = true;
+        if let Some(track) = timeline.data.track_mut(track_id) {
             track.muted = !track.muted;
         }
         self.save_timeline();
@@ -496,7 +494,7 @@ impl Editor {
     }
 
     pub(super) fn move_track(&mut self, track_id: Ulid, direction: i8) {
-        let Some(timeline) = self.timeline.as_ref() else {
+        let Some(timeline) = self.timeline.as_mut() else {
             return;
         };
         let Some(index) = timeline
@@ -518,19 +516,15 @@ impl Editor {
             return;
         };
         let playhead = timeline.playhead;
-        self.record_editing_history();
-        self.timeline
-            .as_mut()
-            .expect("timeline was checked above")
-            .data
-            .tracks
-            .swap(index, target);
+        timeline.record_editing_history();
+        self.preview.timeline_needs_rebuild = true;
+        timeline.data.tracks.swap(index, target);
         self.save_timeline();
         self.load_timeline_position(playhead, false);
     }
 
     pub(super) fn delete_track(&mut self, track_id: Ulid) {
-        let Some(timeline) = self.timeline.as_ref() else {
+        let Some(timeline) = self.timeline.as_mut() else {
             return;
         };
         let Some(index) = timeline
@@ -545,8 +539,8 @@ impl Editor {
             return;
         }
         let playhead = timeline.playhead;
-        self.record_editing_history();
-        let timeline = self.timeline.as_mut().expect("timeline was checked above");
+        timeline.record_editing_history();
+        self.preview.timeline_needs_rebuild = true;
         timeline.data.tracks.remove(index);
         timeline.data.clips.retain(|clip| clip.track_id != track_id);
         let remaining_clip_ids = timeline
@@ -633,19 +627,6 @@ impl Editor {
         })
     }
 
-    pub(super) fn selected_clips_editable(&self) -> bool {
-        self.timeline.as_ref().is_some_and(|timeline| {
-            !timeline.interaction.selected_clip_ids.is_empty()
-                && timeline
-                    .interaction
-                    .selected_clip_ids
-                    .iter()
-                    .all(|clip_id| {
-                        timeline.data.clip(*clip_id).is_some() && !self.clip_locked(*clip_id)
-                    })
-        })
-    }
-
     pub(super) fn clip_placements_fit(
         &self,
         placements: &[(Ulid, Ulid, TimelineTime)],
@@ -711,19 +692,6 @@ impl Editor {
             }
         }
         Ok(())
-    }
-
-    pub(super) fn record_editing_history(&mut self) {
-        let Some(timeline) = self.timeline.as_mut() else {
-            return;
-        };
-        let snapshot = timeline.data.clone();
-        timeline.undo_stack.push(snapshot);
-        if timeline.undo_stack.len() > 100 {
-            timeline.undo_stack.remove(0);
-        }
-        timeline.redo_stack.clear();
-        self.preview.timeline_needs_rebuild = true;
     }
 
     pub(super) fn undo(&mut self) {

@@ -323,19 +323,16 @@ impl Editor {
         {
             self.select_only_clip(Some(clip_id));
         }
-        if !self.selected_clips_editable() {
-            return;
-        }
         let Some(timeline) = self.timeline.as_ref() else {
             return;
         };
+        if !timeline.selected_clips_editable() {
+            return;
+        }
         let Some(anchor) = timeline.data.clip(clip_id).cloned() else {
             return;
         };
-        let Some(original_anchor_track_index) = self
-            .timeline
-            .as_ref()
-            .expect("timeline was checked above")
+        let Some(original_anchor_track_index) = timeline
             .data
             .tracks
             .iter()
@@ -523,23 +520,16 @@ impl Editor {
         };
         timeline.interaction.snap_guide = None;
         if drag.changed && drag.invalid_reason.is_none() {
-            self.record_editing_history();
+            timeline.record_editing_history();
+            self.preview.timeline_needs_rebuild = true;
             for (clip_id, track_id, start) in drag.placements {
-                if let Some(clip) = self
-                    .timeline
-                    .as_mut()
-                    .and_then(|timeline| timeline.data.clip_mut(clip_id))
-                {
+                if let Some(clip) = timeline.data.clip_mut(clip_id) {
                     clip.timeline_start = start;
                     clip.track_id = track_id;
                 }
             }
+            let playhead = timeline.playhead;
             self.save_timeline();
-            let playhead = self
-                .timeline
-                .as_ref()
-                .expect("timeline was checked above")
-                .playhead;
             self.load_timeline_position(playhead, false);
         }
         cx.notify();
@@ -605,18 +595,6 @@ impl Editor {
         )
     }
 
-    pub(super) fn clip_locked(&self, clip_id: Ulid) -> bool {
-        self.timeline
-            .as_ref()
-            .and_then(|timeline| {
-                timeline
-                    .data
-                    .clip(clip_id)
-                    .and_then(|clip| timeline.data.track(clip.track_id))
-            })
-            .is_some_and(|track| track.locked)
-    }
-
     pub(super) fn begin_trim(&mut self, clip_id: Ulid, edge: TrimEdge, x: f32) {
         let Some(timeline) = self.timeline.as_ref() else {
             return;
@@ -627,7 +605,7 @@ impl Editor {
         let Some(clip) = timeline.data.clip(clip_id).cloned() else {
             return;
         };
-        if self.clip_locked(clip_id) {
+        if timeline.data.clip_locked(clip_id) {
             return;
         }
         let maximum_source_out = timeline.data.asset(clip.asset_id).and_then(|asset| {
@@ -691,12 +669,12 @@ impl Editor {
             return;
         }
         if !drag.changed {
-            self.record_editing_history();
-            if let Some(drag) = self
-                .timeline
-                .as_mut()
-                .and_then(|timeline| timeline.interaction.trim_drag.as_mut())
-            {
+            let Some(timeline) = self.timeline.as_mut() else {
+                return;
+            };
+            timeline.record_editing_history();
+            self.preview.timeline_needs_rebuild = true;
+            if let Some(drag) = timeline.interaction.trim_drag.as_mut() {
                 drag.changed = true;
             }
         }
