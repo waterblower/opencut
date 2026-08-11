@@ -267,7 +267,7 @@ impl Editor {
             .on_mouse_down(
                 MouseButton::Left,
                 cx.listener(move |editor, event: &MouseDownEvent, _, cx| {
-                    editor.begin_clip_interaction(clip_id, event, cx);
+                    editor.handle_clip_mouse_down(clip_id, event, cx);
                     cx.notify();
                 }),
             )
