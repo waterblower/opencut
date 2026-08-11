@@ -121,17 +121,16 @@ impl Editor {
             cx.stop_propagation();
             return;
         };
-        if self.clip_locked(clip_id) {
+        let Some(timeline) = self.timeline.as_ref() else {
+            return;
+        };
+        if timeline.data.clip_locked(clip_id) {
             self.preview.timeline_drag = None;
             cx.notify();
             cx.stop_propagation();
             return;
         }
-        let Some(clip) = self
-            .timeline
-            .as_ref()
-            .and_then(|timeline| timeline.data.clip(clip_id))
-        else {
+        let Some(clip) = timeline.data.clip(clip_id) else {
             return;
         };
         self.preview.timeline_drag = Some(TimelinePreviewDrag {
@@ -236,14 +235,13 @@ impl Editor {
             cx.notify();
             return true;
         }
+        let Some(timeline) = self.timeline.as_mut() else {
+            return true;
+        };
         if !drag.changed {
-            self.record_editing_history();
+            timeline.record_editing_history();
             drag.changed = true;
         }
-        let timeline = self
-            .timeline
-            .as_mut()
-            .expect("timeline preview drag requires an active timeline");
         timeline.data.clips[index].video_properties.position_x = properties.position_x;
         timeline.data.clips[index].video_properties.position_y = properties.position_y;
         self.properties.transform_input_clip_id = None;

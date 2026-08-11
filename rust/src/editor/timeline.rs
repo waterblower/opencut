@@ -122,6 +122,12 @@ impl Timeline {
         self.clips.iter().position(|clip| clip.id == id)
     }
 
+    pub fn clip_locked(&self, clip_id: Ulid) -> bool {
+        self.clip(clip_id)
+            .and_then(|clip| self.track(clip.track_id))
+            .is_some_and(|track| track.locked)
+    }
+
     pub fn track(&self, id: Ulid) -> Option<&TimelineTrack> {
         self.tracks.iter().find(|track| track.id == id)
     }
@@ -365,6 +371,21 @@ impl TimelineState {
         self.data.view.horizontal_scroll = finite_nonnegative(-f32::from(self.scroll.offset().x));
         self.data.view.vertical_scroll =
             finite_nonnegative(-f32::from(self.vertical_scroll.offset().y));
+    }
+
+    pub(super) fn record_editing_history(&mut self) {
+        self.undo_stack.push(self.data.clone());
+        if self.undo_stack.len() > 100 {
+            self.undo_stack.remove(0);
+        }
+        self.redo_stack.clear();
+    }
+
+    pub(super) fn selected_clips_editable(&self) -> bool {
+        !self.interaction.selected_clip_ids.is_empty()
+            && self.interaction.selected_clip_ids.iter().all(|clip_id| {
+                self.data.clip(*clip_id).is_some() && !self.data.clip_locked(*clip_id)
+            })
     }
 }
 

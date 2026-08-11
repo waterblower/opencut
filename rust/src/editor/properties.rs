@@ -142,7 +142,7 @@ impl Editor {
             let track = timeline.data.track(clip.track_id)?;
             Some((clip, asset, track))
         });
-        let editable = self.selected_clips_editable();
+        let editable = timeline.selected_clips_editable();
 
         div()
             .id("timeline-properties")

@@ -443,7 +443,10 @@ impl Editor {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        if self.clip_locked(clip_id) {
+        let Some(timeline) = self.timeline.as_ref() else {
+            return;
+        };
+        if timeline.data.clip_locked(clip_id) {
             return;
         }
         let viewport_width = f32::from(window.viewport_size().width);
@@ -509,17 +512,16 @@ impl Editor {
             self.properties.opacity_drag = Some(drag);
             return;
         }
+        let Some(timeline) = self.timeline.as_mut() else {
+            self.properties.opacity_drag = None;
+            return;
+        };
         if !drag.changed {
-            self.record_editing_history();
+            timeline.record_editing_history();
+            self.preview.timeline_needs_rebuild = true;
             drag.changed = true;
         }
-        self.timeline
-            .as_mut()
-            .expect("opacity drag requires an active timeline")
-            .data
-            .clips[index]
-            .video_properties
-            .opacity = opacity;
+        timeline.data.clips[index].video_properties.opacity = opacity;
         self.properties.opacity_drag = Some(drag);
         self.preview.refresh_ticks = 2;
         cx.notify();
@@ -529,7 +531,10 @@ impl Editor {
         let Some(clip_id) = self.properties.transform_input_clip_id else {
             return;
         };
-        if self.clip_locked(clip_id) {
+        let Some(timeline) = self.timeline.as_ref() else {
+            return;
+        };
+        if timeline.data.clip_locked(clip_id) {
             return;
         }
         let Ok(mut value) = text.trim().parse::<f64>() else {
@@ -544,9 +549,6 @@ impl Editor {
         ) {
             value /= 100.0;
         }
-        let Some(timeline) = self.timeline.as_ref() else {
-            return;
-        };
         let Some(index) = timeline.data.clip_index(clip_id) else {
             return;
         };
@@ -571,24 +573,23 @@ impl Editor {
         if properties == timeline.data.clips[index].video_properties {
             return;
         }
-        self.record_editing_history();
-        self.timeline
-            .as_mut()
-            .expect("transform edit requires an active timeline")
-            .data
-            .clips[index]
-            .video_properties = properties;
+        let Some(timeline) = self.timeline.as_mut() else {
+            return;
+        };
+        timeline.record_editing_history();
+        self.preview.timeline_needs_rebuild = true;
+        timeline.data.clips[index].video_properties = properties;
         self.preview.refresh_ticks = 2;
         self.save_timeline();
     }
 
     fn reset_video_crop(&mut self, clip_id: Ulid) {
-        if self.clip_locked(clip_id) {
-            return;
-        }
         let Some(timeline) = self.timeline.as_ref() else {
             return;
         };
+        if timeline.data.clip_locked(clip_id) {
+            return;
+        }
         let Some(index) = timeline.data.clip_index(clip_id) else {
             return;
         };
@@ -604,13 +605,12 @@ impl Editor {
         properties.crop_right = 0.0;
         properties.crop_top = 0.0;
         properties.crop_bottom = 0.0;
-        self.record_editing_history();
-        self.timeline
-            .as_mut()
-            .expect("crop reset requires an active timeline")
-            .data
-            .clips[index]
-            .video_properties = properties;
+        let Some(timeline) = self.timeline.as_mut() else {
+            return;
+        };
+        timeline.record_editing_history();
+        self.preview.timeline_needs_rebuild = true;
+        timeline.data.clips[index].video_properties = properties;
         self.properties.transform_input_clip_id = None;
         self.preview.refresh_ticks = 2;
         self.save_timeline();

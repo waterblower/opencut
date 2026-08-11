@@ -146,8 +146,10 @@ impl Editor {
         if let Some(video) = &self.preview.video {
             video.set_paused(true);
         }
-        self.record_editing_history();
-        let timeline = self.timeline.as_mut().expect("timeline was checked above");
+        let Some(timeline) = self.timeline.as_mut() else {
+            return;
+        };
+        timeline.record_editing_history();
         timeline.data.set_frame_rate(frame_rate);
         timeline.playhead = playhead.clamp(TimelineTime::ZERO, timeline.data.timeline_duration());
         let playhead = timeline.playhead;
