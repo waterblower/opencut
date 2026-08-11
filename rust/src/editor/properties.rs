@@ -216,7 +216,7 @@ impl Editor {
             .or_else(|| runtime.map(|video| video.display_size()));
         let framerate = asset
             .map(|asset| asset.framerate)
-            .or_else(|| runtime.map(|video| video.framerate()));
+            .or_else(|| runtime.and_then(|video| video.framerate()));
 
         file_properties(path, "Video")
             .when_some(asset, |this, asset| {

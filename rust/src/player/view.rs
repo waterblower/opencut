@@ -97,7 +97,9 @@ impl Render for Player {
                 self.video_codec.as_deref().unwrap_or("codec unavailable"),
                 width,
                 height,
-                format_source_fps(video.framerate()),
+                video
+                    .framerate()
+                    .map_or_else(|| "variable fps".to_string(), format_source_fps),
                 format_bitrate(self.bitrate_bps)
             )
         });
