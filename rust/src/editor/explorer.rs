@@ -574,13 +574,7 @@ impl Editor {
     fn explorer_asset_for_path(&self, relative_path: &std::path::Path) -> Option<&MediaAsset> {
         self.timeline
             .as_ref()
-            .and_then(|timeline| {
-                timeline
-                    .data
-                    .assets
-                    .iter()
-                    .find(|asset| asset.path == relative_path)
-            })
+            .and_then(|timeline| timeline.data.asset_for_path(relative_path))
             .or_else(|| self.explorer.drag_assets.get(relative_path))
     }
 

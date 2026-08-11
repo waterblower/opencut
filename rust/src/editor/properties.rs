@@ -203,7 +203,10 @@ impl Editor {
     }
 
     fn video_file_properties(&self, path: &Path) -> gpui::AnyElement {
-        let asset = self.asset_for_path(path);
+        let asset = self
+            .timeline
+            .as_ref()
+            .and_then(|timeline| timeline.data.asset_for_path(path));
         let runtime = self.preview.video.as_ref();
         let duration = asset
             .map(|asset| asset.duration)
@@ -242,7 +245,10 @@ impl Editor {
     }
 
     fn audio_file_properties(&self, path: &Path) -> gpui::AnyElement {
-        let asset = self.asset_for_path(path);
+        let asset = self
+            .timeline
+            .as_ref()
+            .and_then(|timeline| timeline.data.asset_for_path(path));
         let duration = asset.map(|asset| asset.duration).or_else(|| {
             self.preview
                 .audio
@@ -261,7 +267,10 @@ impl Editor {
     }
 
     fn image_file_properties(&self, path: &Path) -> gpui::AnyElement {
-        let asset = self.asset_for_path(path);
+        let asset = self
+            .timeline
+            .as_ref()
+            .and_then(|timeline| timeline.data.asset_for_path(path));
         file_properties(path, "Image")
             .when_some(asset, |this, asset| {
                 this.child(properties_value("Codec", asset.codec.clone()))
@@ -271,15 +280,6 @@ impl Editor {
                     ))
             })
             .into_any_element()
-    }
-
-    fn asset_for_path(&self, path: &Path) -> Option<&MediaAsset> {
-        self.timeline
-            .as_ref()?
-            .data
-            .assets
-            .iter()
-            .find(|asset| asset.path.as_path() == path)
     }
 }
 

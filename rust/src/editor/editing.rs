@@ -367,15 +367,16 @@ impl Editor {
                 .iter()
                 .map(|clip| (clip.id, clip.track_id, clip.timeline_start + delta))
                 .collect::<Vec<_>>();
-            if self.clip_placements_fit(&candidate, &HashSet::new()) {
+            if timeline
+                .data
+                .validate_clip_move_placements(&candidate, &HashSet::new())
+                .is_ok()
+            {
                 break candidate;
             }
             let mut next_delta = delta + TimelineTime::ONE_FRAME;
             for (clip, (_, track_id, start)) in clips.iter().zip(&candidate) {
-                for other in self
-                    .timeline
-                    .as_ref()
-                    .expect("selected clips require an active timeline")
+                for other in timeline
                     .data
                     .clips
                     .iter()
@@ -394,10 +395,7 @@ impl Editor {
             delta = next_delta;
         };
 
-        let primary_index = self
-            .timeline
-            .as_ref()
-            .expect("selected clips require an active timeline")
+        let primary_index = timeline
             .interaction
             .selected_clip_id
             .and_then(|id| clips.iter().position(|clip| clip.id == id));
@@ -625,20 +623,6 @@ impl Editor {
                 .map(|clip| clip.id)
                 .collect()
         })
-    }
-
-    pub(super) fn clip_placements_fit(
-        &self,
-        placements: &[(Ulid, Ulid, TimelineTime)],
-        ignored_clip_ids: &HashSet<Ulid>,
-    ) -> bool {
-        let Some(timeline) = self.timeline.as_ref() else {
-            return false;
-        };
-        timeline
-            .data
-            .validate_clip_move_placements(placements, ignored_clip_ids)
-            .is_ok()
     }
 
     pub(super) fn undo(&mut self) {
