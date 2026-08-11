@@ -739,7 +739,10 @@ impl Editor {
         _: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        self.activate_timeline_tool(TimelineTool::Selection);
+        let Some(timeline) = self.timeline.as_mut() else {
+            return;
+        };
+        timeline.activate_timeline_tool(TimelineTool::Selection);
         cx.notify();
     }
 
@@ -749,7 +752,10 @@ impl Editor {
         _: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        self.activate_timeline_tool(TimelineTool::Blade);
+        let Some(timeline) = self.timeline.as_mut() else {
+            return;
+        };
+        timeline.activate_timeline_tool(TimelineTool::Blade);
         cx.notify();
     }
 
@@ -759,7 +765,10 @@ impl Editor {
         _: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        self.activate_timeline_tool(TimelineTool::Trim);
+        let Some(timeline) = self.timeline.as_mut() else {
+            return;
+        };
+        timeline.activate_timeline_tool(TimelineTool::Trim);
         cx.notify();
     }
 

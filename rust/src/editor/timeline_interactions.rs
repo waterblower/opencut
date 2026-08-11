@@ -55,18 +55,6 @@ pub(super) struct MarqueeSelection {
 }
 
 impl Editor {
-    pub(super) fn activate_timeline_tool(&mut self, tool: TimelineTool) {
-        let Some(timeline) = self.timeline.as_mut() else {
-            return;
-        };
-        timeline.interaction.active_tool = tool;
-        timeline.interaction.blade_guide = None;
-        timeline.interaction.trim_drag = None;
-        timeline.interaction.clip_move_drag = None;
-        timeline.interaction.marquee_selection = None;
-        timeline.interaction.snap_guide = None;
-    }
-
     pub(super) fn update_blade_guide(
         &mut self,
         event: &MouseMoveEvent,
