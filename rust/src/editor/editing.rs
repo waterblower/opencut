@@ -4,6 +4,7 @@ use std::path::Path;
 #[derive(Clone)]
 pub(super) struct ClipClipboard {
     source_timeline: PathBuf,
+    source_frame_rate: FrameRate,
     clips: Vec<TimelineClip>,
     assets: Vec<MediaAsset>,
     tracks: Vec<(Ulid, TrackKind, usize)>,
@@ -69,6 +70,7 @@ impl ClipClipboard {
             primary_clip_id.and_then(|clip_id| clips.iter().position(|clip| clip.id == clip_id));
         Some(Self {
             source_timeline,
+            source_frame_rate: timeline.settings.frame_rate,
             clips,
             assets,
             tracks,
@@ -77,12 +79,23 @@ impl ClipClipboard {
         })
     }
 
-    fn clips_at(&self, position: TimelineTime) -> Vec<TimelineClip> {
+    fn clips_at(&self, position: TimelineTime, frame_rate: FrameRate) -> Vec<TimelineClip> {
         self.clips
             .iter()
             .cloned()
             .map(|mut clip| {
-                clip.timeline_start = position + clip.timeline_start - self.selection_start;
+                let relative_start = clip.timeline_start - self.selection_start;
+                clip.timeline_start = position
+                    + self
+                        .source_frame_rate
+                        .rescale_nearest(relative_start, frame_rate);
+                clip.source_in = self
+                    .source_frame_rate
+                    .rescale_nearest(clip.source_in, frame_rate);
+                clip.source_out = self
+                    .source_frame_rate
+                    .rescale_nearest(clip.source_out, frame_rate)
+                    .max(clip.source_in + TimelineTime::ONE_FRAME);
                 clip
             })
             .collect()
@@ -94,7 +107,7 @@ impl ClipClipboard {
         destination: &Timeline,
         position: TimelineTime,
     ) -> Result<(Vec<TimelineClip>, Vec<MediaAsset>), ClipPlacementRejection> {
-        let mut clips = self.clips_at(position);
+        let mut clips = self.clips_at(position, destination.settings.frame_rate);
         let same_timeline = self.source_timeline == destination_path;
 
         if same_timeline {
@@ -199,21 +212,11 @@ impl Editor {
         }
         let clip_ids = timeline.interaction.selected_clip_ids.clone();
         let magnet_enabled = timeline.interaction.magnet_enabled;
-        let clip_count = clip_ids.len();
         let Some(timeline) = self.timeline.as_mut() else {
             return;
         };
         timeline.record_editing_history();
         self.remove_clips(&clip_ids, magnet_enabled);
-        self.status = Some(if magnet_enabled {
-            format!(
-                "Deleted {clip_count} clip{} and closed the track gap{}.",
-                plural_suffix(clip_count),
-                plural_suffix(clip_count)
-            )
-        } else {
-            format!("Deleted {clip_count} clip{}.", plural_suffix(clip_count))
-        });
     }
 
     pub(super) fn copy_selected_clips(&mut self) {
