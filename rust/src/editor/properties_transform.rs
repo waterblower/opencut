@@ -493,7 +493,7 @@ impl Editor {
             let Some(timeline) = self.timeline.as_ref() else {
                 return;
             };
-            timeline.save(&self.project_root);
+            timeline.save(&self.global_settings.project_root);
             self.rebuild_timeline_preview_if_needed();
         }
         cx.notify();
@@ -584,7 +584,7 @@ impl Editor {
         self.preview.timeline_needs_rebuild = true;
         timeline.data.clips[index].video_properties = properties;
         self.preview.refresh_ticks = 2;
-        timeline.save(&self.project_root);
+        timeline.save(&self.global_settings.project_root);
         self.rebuild_timeline_preview_if_needed();
     }
 
@@ -618,7 +618,7 @@ impl Editor {
         timeline.data.clips[index].video_properties = properties;
         self.properties.transform_input_clip_id = None;
         self.preview.refresh_ticks = 2;
-        timeline.save(&self.project_root);
+        timeline.save(&self.global_settings.project_root);
         self.rebuild_timeline_preview_if_needed();
     }
 }

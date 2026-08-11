@@ -115,7 +115,7 @@ impl Editor {
                 };
                 let position = timeline.timeline_position_from_x(event.position.x.into());
                 timeline.playhead = position;
-                timeline.blade_at_playhead(&self.project_root);
+                timeline.blade_at_playhead(&self.global_settings.project_root);
             }
             TimelineTool::Trim => {
                 cx.stop_propagation();
@@ -453,7 +453,7 @@ impl Editor {
                 }
             }
             let playhead = timeline.playhead;
-            timeline.save(&self.project_root);
+            timeline.save(&self.global_settings.project_root);
             self.rebuild_timeline_preview_if_needed();
             self.load_timeline_position_with_options(playhead, false, true);
         }
@@ -613,7 +613,7 @@ impl Editor {
             let Some(timeline) = self.timeline.as_ref() else {
                 return;
             };
-            timeline.save(&self.project_root);
+            timeline.save(&self.global_settings.project_root);
             self.rebuild_timeline_preview_if_needed();
             if let Some(position) = self.timeline.as_ref().and_then(|timeline| {
                 let clip_id = timeline.interaction.selected_clip_id?;
@@ -633,7 +633,7 @@ impl Editor {
         timeline.interaction.snapping_enabled = !timeline.interaction.snapping_enabled;
         timeline.interaction.snap_guide = None;
         timeline.data.view.snapping_enabled = timeline.interaction.snapping_enabled;
-        timeline.save(&self.project_root);
+        timeline.save(&self.global_settings.project_root);
         self.rebuild_timeline_preview_if_needed();
     }
 

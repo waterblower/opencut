@@ -90,10 +90,11 @@ impl Render for ExplorerDragView {
 impl Editor {
     pub(super) fn explorer_panel(&self, cx: &mut Context<Self>) -> gpui::AnyElement {
         let project_name = self
+            .global_settings
             .project_root
             .file_name()
             .map(|name| name.to_string_lossy().into_owned())
-            .unwrap_or_else(|| self.project_root.display().to_string());
+            .unwrap_or_else(|| self.global_settings.project_root.display().to_string());
         let filter_query = self.explorer.filter.read(cx).query().to_string();
         let filter = filter_query.trim().to_lowercase();
         let show_root_contents = self.explorer.root_expanded || !filter.is_empty();
@@ -211,7 +212,7 @@ impl Editor {
         self.explorer.search_results.clear();
         self.explorer.search_pending = true;
 
-        let project_root = self.project_root.clone();
+        let project_root = self.global_settings.project_root.clone();
         cx.spawn(async move |editor, cx| {
             cx.background_executor()
                 .timer(Duration::from_millis(120))
@@ -219,7 +220,7 @@ impl Editor {
 
             let still_requested = editor
                 .update(cx, |editor, _| {
-                    editor.project_root == project_root
+                    editor.global_settings.project_root == project_root
                         && editor.explorer.search_query.as_deref() == Some(query.as_str())
                 })
                 .unwrap_or(false);
@@ -236,7 +237,7 @@ impl Editor {
 
             editor
                 .update(cx, |editor, cx| {
-                    if editor.project_root != project_root
+                    if editor.global_settings.project_root != project_root
                         || editor.explorer.search_query.as_deref() != Some(query.as_str())
                     {
                         return;
@@ -339,7 +340,8 @@ impl Editor {
             .expect("new timeline dialog rendered without state");
         let input = state.input.clone();
         let location = if state.relative_directory.as_os_str().is_empty() {
-            self.project_root
+            self.global_settings
+                .project_root
                 .file_name()
                 .map(|name| name.to_string_lossy().into_owned())
                 .unwrap_or_else(|| "project root".to_string())
@@ -416,7 +418,10 @@ impl Editor {
 
     pub(super) fn refresh_file_tree(&mut self) {
         self.explorer.last_tree_scan = Instant::now();
-        match visible_tree(&self.project_root, &self.explorer.expanded_directories) {
+        match visible_tree(
+            &self.global_settings.project_root,
+            &self.explorer.expanded_directories,
+        ) {
             Ok(entries) => self.explorer.file_tree = entries,
             Err(error) => eprintln!("{error}"),
         }
@@ -586,7 +591,7 @@ impl Editor {
             return;
         }
 
-        let project_root = self.project_root.clone();
+        let project_root = self.global_settings.project_root.clone();
         let source_path = project_root.join(&relative_path);
         cx.spawn(async move |editor, cx| {
             let result = cx
@@ -596,7 +601,7 @@ impl Editor {
 
             editor
                 .update(cx, |editor, cx| {
-                    if editor.project_root != project_root {
+                    if editor.global_settings.project_root != project_root {
                         return;
                     }
                     editor.explorer.drag_probe_jobs.remove(&relative_path);
@@ -739,7 +744,7 @@ impl Editor {
         let Some(timeline) = self.timeline.as_ref() else {
             return;
         };
-        timeline.save(&self.project_root);
+        timeline.save(&self.global_settings.project_root);
         self.rebuild_timeline_preview_if_needed();
         self.schedule_active_timeline_waveforms(cx);
         self.status = Some("Added media at the selected timeline position.".to_string());
