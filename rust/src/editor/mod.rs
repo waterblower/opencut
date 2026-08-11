@@ -55,7 +55,7 @@ use model::{
     MediaKind, TimelineClip, TimelineTime, TimelineTrack, TrackKind, VideoClipProperties,
     timeline_ranges_overlap,
 };
-use preview::PreviewTarget;
+use preview::{PreviewTarget, update_playback};
 use preview_audio::AudioPreview;
 use preview_timeline::TimelinePreviewDrag;
 use properties::PropertiesPanelResizeDrag;

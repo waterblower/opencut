@@ -51,37 +51,6 @@ impl Editor {
         cx.notify();
     }
 
-    pub(super) fn update_playback(&mut self) {
-        if !self.preview.playing {
-            self.preview.timeline_clock = None;
-            return;
-        }
-        let Some(video) = self.preview.video.as_ref() else {
-            self.preview.playing = false;
-            self.preview.timeline_clock = None;
-            return;
-        };
-        let Some(timeline) = self.timeline.as_mut() else {
-            self.preview.playing = false;
-            self.preview.timeline_clock = None;
-            return;
-        };
-        let duration = timeline.data.timeline_duration();
-        let (origin, started_at) = *self
-            .preview
-            .timeline_clock
-            .get_or_insert((timeline.playhead, Instant::now()));
-        timeline.playhead =
-            timeline_playhead_from_elapsed(&timeline.data, origin, started_at.elapsed())
-                .clamp(TimelineTime::ZERO, duration);
-        if video.eos() || timeline.playhead >= duration {
-            video.set_paused(true);
-            timeline.playhead = duration;
-            self.preview.playing = false;
-            self.preview.timeline_clock = None;
-        }
-    }
-
     pub(super) fn load_timeline_position_with_options(
         &mut self,
         position: TimelineTime,
@@ -194,14 +163,14 @@ impl Editor {
             PreviewTarget::Timeline => {}
         }
 
-        let Some(timeline) = self.timeline.as_ref() else {
+        let Some(timeline) = self.timeline.as_mut() else {
             return;
         };
         if timeline.data.clips.is_empty() {
             return;
         }
         if self.preview.playing {
-            self.update_playback();
+            update_playback(timeline, &mut self.preview);
             if let Some(video) = &self.preview.video {
                 video.set_paused(true);
             }
@@ -216,6 +185,31 @@ impl Editor {
             timeline.playhead
         };
         self.load_timeline_position_with_options(start, true, true);
+    }
+}
+
+pub(super) fn update_playback(timeline: &mut TimelineState, preview: &mut PreviewState) {
+    if !preview.playing {
+        preview.timeline_clock = None;
+        return;
+    }
+    let Some(video) = preview.video.as_ref() else {
+        preview.playing = false;
+        preview.timeline_clock = None;
+        return;
+    };
+    let duration = timeline.data.timeline_duration();
+    let (origin, started_at) = *preview
+        .timeline_clock
+        .get_or_insert((timeline.playhead, Instant::now()));
+    timeline.playhead =
+        timeline_playhead_from_elapsed(&timeline.data, origin, started_at.elapsed())
+            .clamp(TimelineTime::ZERO, duration);
+    if video.eos() || timeline.playhead >= duration {
+        video.set_paused(true);
+        timeline.playhead = duration;
+        preview.playing = false;
+        preview.timeline_clock = None;
     }
 }
 

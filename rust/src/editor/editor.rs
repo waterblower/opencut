@@ -101,8 +101,6 @@ fn start_updates(cx: &mut Context<Editor>) {
         loop {
             cx.background_executor().timer(IDLE_UPDATE_INTERVAL).await;
             let result = editor.update(cx, |editor, cx| {
-                let refresh_tree =
-                    editor.explorer.last_tree_scan.elapsed() >= Duration::from_secs(1);
                 let file_preview_playing = match editor.preview.target {
                     PreviewTarget::VideoFile(_) => editor
                         .preview
@@ -122,6 +120,9 @@ fn start_updates(cx: &mut Context<Editor>) {
                 if ended_explorer_drag && let Some(timeline) = editor.timeline.as_mut() {
                     timeline.interaction.snap_guide = None;
                 }
+                let refresh_tree =
+                    editor.explorer.last_tree_scan.elapsed() >= Duration::from_secs(1);
+
                 let should_render = editor.preview.playing
                     || file_preview_playing
                     || editor.export.running
@@ -135,7 +136,9 @@ fn start_updates(cx: &mut Context<Editor>) {
                         .explorer
                         .refresh_file_tree(&editor.global_settings.project_root)?;
                 }
-                editor.update_playback();
+                if let Some(timeline) = editor.timeline.as_mut() {
+                    update_playback(timeline, &mut editor.preview);
+                }
                 editor.reconcile_preview_seek();
                 if should_render {
                     cx.notify();
