@@ -100,7 +100,7 @@ fn start_updates(cx: &mut Context<Editor>) {
     cx.spawn(async move |editor, cx| {
         loop {
             cx.background_executor().timer(IDLE_UPDATE_INTERVAL).await;
-            let res = editor.update(cx, |editor, cx| {
+            let result = editor.update(cx, |editor, cx| {
                 let refresh_tree =
                     editor.explorer.last_tree_scan.elapsed() >= Duration::from_secs(1);
                 let file_preview_playing = match editor.preview.target {
@@ -131,17 +131,24 @@ fn start_updates(cx: &mut Context<Editor>) {
                     || ended_explorer_drag;
                 editor.preview.refresh_ticks = editor.preview.refresh_ticks.saturating_sub(1);
                 if refresh_tree {
-                    editor.refresh_file_tree();
+                    editor
+                        .explorer
+                        .refresh_file_tree(&editor.global_settings.project_root)?;
                 }
                 editor.update_playback();
                 editor.reconcile_preview_seek();
                 if should_render {
                     cx.notify();
                 }
+                Ok::<(), String>(())
             });
-            if let Err(error) = res {
-                eprintln!("Editor update loop failed: {error}");
-                panic!("Editor update loop failed");
+            match result {
+                Ok(Ok(())) => {}
+                Ok(Err(error)) => eprintln!("{error}"),
+                Err(error) => {
+                    eprintln!("Editor update loop failed: {error}");
+                    panic!("Editor update loop failed");
+                }
             }
         }
     })

@@ -283,10 +283,17 @@ impl Editor {
                 move |editor, _, _, cx| {
                     match entry.kind {
                         FileTreeEntryKind::Directory { .. } => {
-                            editor.toggle_directory(entry.relative_path.clone());
+                            if let Err(error) = editor.toggle_directory(entry.relative_path.clone())
+                            {
+                                eprintln!("{error}");
+                            }
                         }
                         FileTreeEntryKind::Timeline => {
-                            editor.open_timeline(entry.relative_path.clone(), cx);
+                            if let Err(error) =
+                                editor.open_timeline(entry.relative_path.clone(), cx)
+                            {
+                                eprintln!("{error}");
+                            }
                         }
                         FileTreeEntryKind::Video
                         | FileTreeEntryKind::Image

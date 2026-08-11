@@ -91,7 +91,11 @@ impl Editor {
                         this.child(file_menu_item("Settings", "").on_click(cx.listener(
                             move |editor, _, _, cx| {
                                 editor.explorer.context_menu = None;
-                                editor.open_timeline(timeline_path.clone(), cx);
+                                if let Err(error) = editor.open_timeline(timeline_path.clone(), cx)
+                                {
+                                    eprintln!("{error}");
+                                    return;
+                                }
                                 if editor
                                     .timeline
                                     .as_ref()
@@ -131,7 +135,9 @@ impl Editor {
                             file_menu_item("Move to Trash", "")
                                 .text_color(rgb(ERROR))
                                 .on_click(cx.listener(|editor, _, _, cx| {
-                                    editor.trash_selected_file(cx);
+                                    if let Err(error) = editor.trash_selected_file(cx) {
+                                        eprintln!("{error}");
+                                    }
                                     cx.notify();
                                 })),
                         )
@@ -195,26 +201,20 @@ impl Editor {
         cx.notify();
     }
 
-    pub(crate) fn finish_create_timeline(&mut self, cx: &mut Context<Self>) {
+    pub(crate) fn finish_create_timeline(&mut self, cx: &mut Context<Self>) -> Result<(), String> {
         let Some(state) = self.explorer.new_timeline_dialog.as_ref() else {
-            return;
+            return Ok(());
         };
         let relative_directory = state.relative_directory.clone();
         let name = state.input.read(cx).query().trim().to_string();
-        let (relative_path, timeline) = match timeline_document::create(
+        let (relative_path, timeline) = timeline_document::create(
             &self.global_settings.project_root,
             &relative_directory,
             &name,
-        ) {
-            Ok(timeline) => timeline,
-            Err(error) => {
-                // Keep the dialog open so the name can be corrected.
-                eprintln!("Could not create timeline: {error}");
-                return;
-            }
-        };
+        )
+        .map_err(|error| format!("Could not create timeline: {error}"))?;
         self.explorer.new_timeline_dialog = None;
-        self.activate_created_timeline(relative_directory, relative_path, timeline, cx);
+        self.activate_created_timeline(relative_directory, relative_path, timeline, cx)
     }
 
     pub(crate) fn begin_rename(&mut self, window: &mut Window, cx: &mut Context<Self>) {
@@ -251,31 +251,30 @@ impl Editor {
         cx.notify();
     }
 
-    pub(crate) fn finish_rename(&mut self, cx: &mut Context<Self>) {
+    pub(crate) fn finish_rename(&mut self, cx: &mut Context<Self>) -> Result<(), String> {
         let Some(state) = self.explorer.rename_dialog.as_ref() else {
-            return;
+            return Ok(());
         };
         let old_relative = state.relative_path.clone();
         let new_name = state.input.read(cx).query().trim().to_string();
         let Some(new_relative) = renamed_relative_path(&old_relative, &new_name) else {
-            eprintln!("Enter a single non-empty file or folder name.");
-            return;
+            return Err("Enter a single non-empty file or folder name.".to_string());
         };
         if new_relative == old_relative {
             self.explorer.rename_dialog = None;
-            return;
+            return Ok(());
         }
 
         let old_path = self.global_settings.project_root.join(&old_relative);
         let new_path = self.global_settings.project_root.join(&new_relative);
         if new_path.exists() {
-            eprintln!("Cannot rename: {} already exists.", new_relative.display());
-            return;
+            return Err(format!(
+                "Cannot rename: {} already exists.",
+                new_relative.display()
+            ));
         }
-        if let Err(error) = std::fs::rename(&old_path, &new_path) {
-            eprintln!("Could not rename {}: {error}", old_relative.display());
-            return;
-        }
+        std::fs::rename(&old_path, &new_path)
+            .map_err(|error| format!("Could not rename {}: {error}", old_relative.display()))?;
 
         if let Some(timeline) = self.timeline.as_mut() {
             for asset in &mut timeline.data.assets {
@@ -340,13 +339,15 @@ impl Editor {
         self.explorer.search_query = None;
         self.explorer.search_results.clear();
         self.explorer.search_pending = false;
-        self.refresh_file_tree();
+        self.explorer
+            .refresh_file_tree(&self.global_settings.project_root)?;
         self.schedule_explorer_search(cx);
         self.status = Some(format!(
             "Renamed {} to {}.",
             old_relative.display(),
             new_relative.display()
         ));
+        Ok(())
     }
 
     fn reveal_selected_file(&mut self, cx: &mut Context<Self>) {
@@ -365,29 +366,27 @@ impl Editor {
         cx.open_with_system(&path);
     }
 
-    fn trash_selected_file(&mut self, cx: &mut Context<Self>) {
+    fn trash_selected_file(&mut self, cx: &mut Context<Self>) -> Result<(), String> {
         let Some(relative_path): Option<PathBuf> = self
             .explorer
             .context_menu
             .as_ref()
             .map(|menu| menu.relative_path.clone())
         else {
-            return;
+            return Ok(());
         };
         self.explorer.context_menu = None;
 
         // The project root is the workspace itself, not an entry within it.
         if relative_path.as_os_str().is_empty() {
-            eprintln!("The project folder cannot be moved to Trash here.");
-            return;
+            return Err("The project folder cannot be moved to Trash here.".to_string());
         }
         if self
             .timeline
             .as_ref()
             .is_some_and(|timeline| timeline.path.starts_with(&relative_path))
         {
-            eprintln!("The active timeline cannot be moved to Trash.");
-            return;
+            return Err("The active timeline cannot be moved to Trash.".to_string());
         }
 
         let path = self.global_settings.project_root.join(&relative_path);
@@ -395,24 +394,22 @@ impl Editor {
             .file_name()
             .map(|name| name.to_string_lossy().into_owned())
             .unwrap_or_else(|| relative_path.display().to_string());
-        match move_path_to_trash(&path) {
-            Ok(()) => {
-                self.explorer
-                    .expanded_directories
-                    .retain(|directory| !directory.starts_with(&relative_path));
-                self.explorer.selected_file = None;
-                self.explorer.search_query = None;
-                self.explorer.search_results.clear();
-                self.explorer.search_pending = false;
-                self.refresh_file_tree();
-                self.schedule_explorer_search(cx);
-                self.status = Some(format!("Moved {display_name} to Trash."));
-            }
-            Err(error) => {
-                self.status = None;
-                eprintln!("Could not move {display_name} to Trash: {error}");
-            }
+        if let Err(error) = move_path_to_trash(&path) {
+            self.status = None;
+            return Err(format!("Could not move {display_name} to Trash: {error}"));
         }
+        self.explorer
+            .expanded_directories
+            .retain(|directory| !directory.starts_with(&relative_path));
+        self.explorer.selected_file = None;
+        self.explorer.search_query = None;
+        self.explorer.search_results.clear();
+        self.explorer.search_pending = false;
+        self.explorer
+            .refresh_file_tree(&self.global_settings.project_root)?;
+        self.schedule_explorer_search(cx);
+        self.status = Some(format!("Moved {display_name} to Trash."));
+        Ok(())
     }
 
     fn file_action_path(&self) -> Option<PathBuf> {

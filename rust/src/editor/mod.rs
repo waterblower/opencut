@@ -269,26 +269,26 @@ impl Editor {
                 }
             };
             if let Some(root) = root {
-                editor
-                    .update(cx, |editor, cx| {
-                        editor.set_project_root(root, cx);
-                        cx.notify();
-                    })
-                    .ok();
+                match editor.update(cx, |editor, cx| {
+                    let result = editor.set_project_root(root, cx);
+                    cx.notify();
+                    result
+                }) {
+                    Ok(Ok(())) => {}
+                    Ok(Err(error)) => eprintln!("{error}"),
+                    Err(error) => {
+                        eprintln!("Could not update the editor project folder: {error}");
+                    }
+                }
             }
         })
         .detach();
     }
 
-    fn set_project_root(&mut self, root: PathBuf, cx: &mut Context<Self>) {
+    fn set_project_root(&mut self, root: PathBuf, cx: &mut Context<Self>) -> Result<(), String> {
         let root = std::fs::canonicalize(&root).unwrap_or(root);
-        let active_timeline = match load_existing(&root, None) {
-            Ok(active_timeline) => active_timeline,
-            Err(error) => {
-                eprintln!("Could not open timeline: {error}");
-                return;
-            }
-        };
+        let active_timeline = load_existing(&root, None)
+            .map_err(|error| format!("Could not open timeline: {error}"))?;
         if let Some(timeline) = self.timeline.as_ref() {
             timeline.save(&self.global_settings.project_root);
         }
@@ -299,14 +299,16 @@ impl Editor {
         self.clipboard = None;
         self.explorer.expanded_directories.clear();
         self.explorer.root_expanded = true;
-        self.activate_timeline(active_timeline, cx);
+        self.activate_timeline(active_timeline, cx)?;
         self.schedule_project_waveforms(cx);
-        if let Err(error) = save_global_editor_settings(&self.global_settings) {
-            eprintln!("{error}");
-        }
+        save_global_editor_settings(&self.global_settings)
     }
 
-    pub(super) fn open_timeline(&mut self, relative_path: PathBuf, cx: &mut Context<Self>) {
+    pub(super) fn open_timeline(
+        &mut self,
+        relative_path: PathBuf,
+        cx: &mut Context<Self>,
+    ) -> Result<(), String> {
         if self
             .timeline
             .as_ref()
@@ -315,22 +317,18 @@ impl Editor {
             self.explorer.selected_file = Some(relative_path);
             self.preview.target = PreviewTarget::Timeline;
             cx.notify();
-            return;
+            return Ok(());
         }
         let path = self.global_settings.project_root.join(&relative_path);
-        let timeline = match Timeline::load(&path) {
-            Ok(timeline) => timeline,
-            Err(error) => {
-                eprintln!("Could not open timeline: {error}");
-                return;
-            }
-        };
+        let timeline =
+            Timeline::load(&path).map_err(|error| format!("Could not open timeline: {error}"))?;
         if let Some(timeline) = self.timeline.as_ref() {
             timeline.save(&self.global_settings.project_root);
         }
         self.rebuild_timeline_preview_if_needed();
-        self.activate_timeline(Some((relative_path.clone(), timeline)), cx);
+        self.activate_timeline(Some((relative_path.clone(), timeline)), cx)?;
         self.status = Some(format!("Opened {}", relative_path.display()));
+        Ok(())
     }
 
     /// Saves the current timeline, switches to a freshly created one, and reveals it in
@@ -341,7 +339,7 @@ impl Editor {
         relative_path: PathBuf,
         timeline: Timeline,
         cx: &mut Context<Self>,
-    ) {
+    ) -> Result<(), String> {
         if let Some(active_timeline) = self.timeline.as_ref() {
             active_timeline.save(&self.global_settings.project_root);
         }
@@ -352,16 +350,18 @@ impl Editor {
                 .expanded_directories
                 .insert(relative_directory);
         }
-        self.activate_timeline(Some((relative_path.clone(), timeline)), cx);
-        self.refresh_file_tree();
+        self.activate_timeline(Some((relative_path.clone(), timeline)), cx)?;
+        self.explorer
+            .refresh_file_tree(&self.global_settings.project_root)?;
         self.status = Some(format!("Created {}", relative_path.display()));
+        Ok(())
     }
 
     fn activate_timeline(
         &mut self,
         active_timeline: Option<(PathBuf, Timeline)>,
         cx: &mut Context<Self>,
-    ) {
+    ) -> Result<(), String> {
         self.preview.video = None;
         self.preview.audio = None;
         self.explorer.drag_assets.clear();
@@ -392,13 +392,15 @@ impl Editor {
         self.explorer.selected_file = self.timeline.as_ref().map(|timeline| timeline.path.clone());
         self.explorer.context_menu = None;
         self.preview.target = PreviewTarget::Timeline;
-        self.refresh_file_tree();
+        self.explorer
+            .refresh_file_tree(&self.global_settings.project_root)?;
         if let Some(timeline) = self.timeline.as_ref()
             && !timeline.data.clips.is_empty()
         {
             self.load_timeline_position_with_options(timeline.playhead, false, true);
         }
         self.schedule_active_timeline_waveforms(cx);
+        Ok(())
     }
 
     fn schedule_project_waveforms(&mut self, cx: &mut Context<Self>) {

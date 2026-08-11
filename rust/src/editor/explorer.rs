@@ -1,4 +1,5 @@
 use super::*;
+use std::path::Path;
 
 #[path = "explorer_file_menu.rs"]
 mod explorer_file_menu;
@@ -49,6 +50,14 @@ pub(super) struct PendingExplorerDrop {
 struct ExplorerDragView {
     name: String,
     kind: MediaKind,
+}
+
+impl ExplorerState {
+    pub(super) fn refresh_file_tree(&mut self, project_root: &Path) -> Result<(), String> {
+        self.last_tree_scan = Instant::now();
+        self.file_tree = visible_tree(project_root, &self.expanded_directories)?;
+        Ok(())
+    }
 }
 
 impl Render for ExplorerDragView {
@@ -323,7 +332,9 @@ impl Editor {
                             )))
                             .child(rename_dialog_button("Rename", true).on_click(cx.listener(
                                 |editor, _, _, cx| {
-                                    editor.finish_rename(cx);
+                                    if let Err(error) = editor.finish_rename(cx) {
+                                        eprintln!("{error}");
+                                    }
                                     cx.notify();
                                 },
                             ))),
@@ -407,7 +418,9 @@ impl Editor {
                             )))
                             .child(rename_dialog_button("Create", true).on_click(cx.listener(
                                 |editor, _, _, cx| {
-                                    editor.finish_create_timeline(cx);
+                                    if let Err(error) = editor.finish_create_timeline(cx) {
+                                        eprintln!("{error}");
+                                    }
                                     cx.notify();
                                 },
                             ))),
@@ -416,22 +429,12 @@ impl Editor {
             .into_any_element()
     }
 
-    pub(super) fn refresh_file_tree(&mut self) {
-        self.explorer.last_tree_scan = Instant::now();
-        match visible_tree(
-            &self.global_settings.project_root,
-            &self.explorer.expanded_directories,
-        ) {
-            Ok(entries) => self.explorer.file_tree = entries,
-            Err(error) => eprintln!("{error}"),
-        }
-    }
-
-    fn toggle_directory(&mut self, relative_path: PathBuf) {
+    fn toggle_directory(&mut self, relative_path: PathBuf) -> Result<(), String> {
         if !self.explorer.expanded_directories.remove(&relative_path) {
             self.explorer.expanded_directories.insert(relative_path);
         }
-        self.refresh_file_tree();
+        self.explorer
+            .refresh_file_tree(&self.global_settings.project_root)
     }
 
     pub(super) fn update_explorer_media_drag(
