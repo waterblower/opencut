@@ -44,12 +44,48 @@ fn clipboard_preserves_relative_timing_tracks_and_primary_selection() {
     )
     .unwrap();
 
-    let pasted = clipboard.clips_at(TimelineTime::from_frames(100));
+    let pasted = clipboard.clips_at(TimelineTime::from_frames(100), project.settings.frame_rate);
     assert_eq!(pasted[0].timeline_start, TimelineTime::from_frames(100));
     assert_eq!(pasted[1].timeline_start, TimelineTime::from_frames(120));
     assert_eq!(pasted[0].track_id, ulid(2));
     assert_eq!(pasted[1].track_id, ulid(2));
     assert_eq!(clipboard.primary_index, Some(1));
+}
+
+#[test]
+fn clipboard_rescales_source_bounds_between_timeline_frame_rates() {
+    let mut source = Timeline::with_test_tracks();
+    source.settings.frame_rate = FrameRate::new(24, 1);
+    source.assets.push(audio_asset(100));
+    let mut clip = audio_clip(10, 12, 24);
+    clip.source_in = TimelineTime::from_frames(24);
+    clip.source_out = TimelineTime::from_frames(48);
+    source.clips = vec![clip, audio_clip(11, 36, 24)];
+    let clipboard = ClipClipboard::from_selection(
+        "one.timeline.json".into(),
+        &source,
+        &HashSet::from([ulid(10), ulid(11)]),
+        Some(ulid(10)),
+    )
+    .unwrap();
+
+    let mut destination = Timeline::with_test_tracks();
+    destination.settings.frame_rate = FrameRate::new(30, 1);
+    destination.tracks[0].id = ulid(201);
+    destination.tracks[1].id = ulid(202);
+    let (clips, _) = clipboard
+        .prepare_paste(
+            std::path::Path::new("two.timeline.json"),
+            &destination,
+            TimelineTime::from_frames(60),
+        )
+        .unwrap();
+
+    assert_eq!(clips[0].timeline_start, TimelineTime::from_frames(60));
+    assert_eq!(clips[0].source_in, TimelineTime::from_frames(30));
+    assert_eq!(clips[0].source_out, TimelineTime::from_frames(60));
+    assert_eq!(clips[0].duration(), TimelineTime::from_frames(30));
+    assert_eq!(clips[1].timeline_start, TimelineTime::from_frames(90));
 }
 
 #[test]
