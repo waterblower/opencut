@@ -484,7 +484,9 @@ impl Editor {
         let invalid_reason = if placements.len() != items.len() {
             Some("Destination track is unavailable")
         } else {
-            self.validate_clip_move_placements(&placements, &timeline.interaction.selected_clip_ids)
+            timeline
+                .data
+                .validate_clip_move_placements(&placements, &timeline.interaction.selected_clip_ids)
                 .err()
                 .map(ClipPlacementRejection::message)
         };

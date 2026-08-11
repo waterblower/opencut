@@ -128,6 +128,57 @@ impl Timeline {
             .is_some_and(|track| track.locked)
     }
 
+    pub fn validate_clip_move_placements(
+        &self,
+        placements: &[(Ulid, Ulid, TimelineTime)],
+        ignored_clip_ids: &HashSet<Ulid>,
+    ) -> Result<(), ClipPlacementRejection> {
+        if placements.is_empty() {
+            return Err(ClipPlacementRejection::NoPlacements);
+        }
+        for (clip_id, track_id, start) in placements {
+            let Some(clip) = self.clip(*clip_id) else {
+                return Err(ClipPlacementRejection::MissingClip);
+            };
+            let Some(asset) = self.asset(clip.asset_id) else {
+                return Err(ClipPlacementRejection::MissingAsset);
+            };
+            validate_clip_placement(
+                self,
+                *track_id,
+                asset.kind,
+                clip.duration(),
+                *start,
+                ignored_clip_ids,
+            )?;
+        }
+        for (index, (clip_id, track_id, start)) in placements.iter().enumerate() {
+            let duration = self
+                .clip(*clip_id)
+                .map(TimelineClip::duration)
+                .ok_or(ClipPlacementRejection::MissingClip)?;
+            if placements[index + 1..]
+                .iter()
+                .any(|(other_id, other_track_id, other_start)| {
+                    let other_duration = self
+                        .clip(*other_id)
+                        .map(TimelineClip::duration)
+                        .unwrap_or(TimelineTime::ZERO);
+                    track_id == other_track_id
+                        && timeline_ranges_overlap(
+                            *start,
+                            *start + duration,
+                            *other_start,
+                            *other_start + other_duration,
+                        )
+                })
+            {
+                return Err(ClipPlacementRejection::ProposedClipsOverlap);
+            }
+        }
+        Ok(())
+    }
+
     pub fn track(&self, id: Ulid) -> Option<&TimelineTrack> {
         self.tracks.iter().find(|track| track.id == id)
     }
