@@ -453,6 +453,15 @@ impl TimelineState {
             .map(|clip| clip.id)
             .collect()
     }
+
+    pub(super) fn activate_timeline_tool(&mut self, tool: TimelineTool) {
+        self.interaction.active_tool = tool;
+        self.interaction.blade_guide = None;
+        self.interaction.trim_drag = None;
+        self.interaction.clip_move_drag = None;
+        self.interaction.marquee_selection = None;
+        self.interaction.snap_guide = None;
+    }
 }
 
 fn default_pixels_per_second() -> f32 {
@@ -866,7 +875,10 @@ impl Editor {
                             timeline.interaction.active_tool == TimelineTool::Selection,
                         )
                         .on_click(cx.listener(|editor, _, _, cx| {
-                            editor.activate_timeline_tool(TimelineTool::Selection);
+                            let Some(timeline) = editor.timeline.as_mut() else {
+                                return;
+                            };
+                            timeline.activate_timeline_tool(TimelineTool::Selection);
                             cx.notify();
                         })),
                     )
@@ -877,7 +889,10 @@ impl Editor {
                             timeline.interaction.active_tool == TimelineTool::Blade,
                         )
                         .on_click(cx.listener(|editor, _, _, cx| {
-                            editor.activate_timeline_tool(TimelineTool::Blade);
+                            let Some(timeline) = editor.timeline.as_mut() else {
+                                return;
+                            };
+                            timeline.activate_timeline_tool(TimelineTool::Blade);
                             cx.notify();
                         })),
                     )
@@ -888,7 +903,10 @@ impl Editor {
                             timeline.interaction.active_tool == TimelineTool::Trim,
                         )
                         .on_click(cx.listener(|editor, _, _, cx| {
-                            editor.activate_timeline_tool(TimelineTool::Trim);
+                            let Some(timeline) = editor.timeline.as_mut() else {
+                                return;
+                            };
+                            timeline.activate_timeline_tool(TimelineTool::Trim);
                             cx.notify();
                         })),
                     )
