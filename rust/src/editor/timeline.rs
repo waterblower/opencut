@@ -586,6 +586,14 @@ impl TimelineState {
             self.data.view.pixels_per_second = pixels_per_second;
         }
     }
+
+    pub(super) fn timeline_position_from_x(&self, x: f32) -> TimelineTime {
+        let scroll_x: f32 = self.scroll.offset().x.into();
+        let content_x = x - TRACK_HEADER_WIDTH - scroll_x - TIMELINE_PADDING;
+        self.data
+            .nearest_time(content_x as f64 / self.data.view.pixels_per_second as f64)
+            .clamp(TimelineTime::ZERO, self.data.timeline_duration())
+    }
 }
 
 pub(super) fn choose_clip_snap(

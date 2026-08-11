@@ -67,7 +67,7 @@ impl Editor {
         if timeline.interaction.active_tool != TimelineTool::Blade {
             return;
         }
-        let position = self
+        let position = timeline
             .timeline_position_from_x(event.position.x.into())
             .clamp(TimelineTime::ZERO, timeline.data.timeline_duration());
         let timeline = self.timeline.as_mut().expect("timeline was checked above");
@@ -110,10 +110,10 @@ impl Editor {
             TimelineTool::Selection => self.begin_clip_move(clip_id, event, cx),
             TimelineTool::Blade => {
                 cx.stop_propagation();
-                let position = self.timeline_position_from_x(event.position.x.into());
                 let Some(timeline) = self.timeline.as_mut() else {
                     return;
                 };
+                let position = timeline.timeline_position_from_x(event.position.x.into());
                 timeline.playhead = position;
                 self.blade_at_playhead();
             }
@@ -692,18 +692,6 @@ impl Editor {
         changed
     }
 
-    pub(super) fn timeline_position_from_x(&self, x: f32) -> TimelineTime {
-        let Some(timeline) = self.timeline.as_ref() else {
-            return TimelineTime::ZERO;
-        };
-        let scroll_x: f32 = timeline.scroll.offset().x.into();
-        let content_x = x - TRACK_HEADER_WIDTH - scroll_x - TIMELINE_PADDING;
-        timeline
-            .data
-            .nearest_time(content_x as f64 / timeline.data.view.pixels_per_second as f64)
-            .clamp(TimelineTime::ZERO, timeline.data.timeline_duration())
-    }
-
     pub(super) fn begin_playhead_scrub(&mut self, event: &MouseDownEvent) {
         let Some(timeline) = self.timeline.as_mut() else {
             return;
@@ -714,12 +702,8 @@ impl Editor {
         }
         self.preview.playing = false;
         self.preview.timeline_clock = None;
-        let position = self.timeline_position_from_x(event.position.x.into());
-        self.timeline
-            .as_mut()
-            .expect("timeline was checked above")
-            .interaction
-            .last_scrub_seek = Some(Instant::now());
+        let position = timeline.timeline_position_from_x(event.position.x.into());
+        timeline.interaction.last_scrub_seek = Some(Instant::now());
         self.load_timeline_position_for_scrub(position, false, false);
     }
 
@@ -729,36 +713,28 @@ impl Editor {
         _: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        if self
-            .timeline
-            .as_ref()
-            .is_some_and(|timeline| timeline.interaction.scrubbing_playhead)
-            && event.dragging()
-        {
-            let position = self.timeline_position_from_x(event.position.x.into());
-            self.timeline
-                .as_mut()
-                .expect("scrubbing requires an active timeline")
-                .playhead = position;
-
-            let now = Instant::now();
-            let should_seek = self
-                .timeline
-                .as_ref()
-                .expect("scrubbing requires an active timeline")
-                .interaction
-                .last_scrub_seek
-                .is_none_or(|last_seek| now.duration_since(last_seek) >= SCRUB_SEEK_INTERVAL);
-            if should_seek {
-                self.timeline
-                    .as_mut()
-                    .expect("scrubbing requires an active timeline")
-                    .interaction
-                    .last_scrub_seek = Some(now);
-                self.load_timeline_position_for_scrub(position, false, false);
-            }
-            cx.notify();
+        if !event.dragging() {
+            return;
         }
+        let Some(timeline) = self.timeline.as_mut() else {
+            return;
+        };
+        if !timeline.interaction.scrubbing_playhead {
+            return;
+        }
+        let position = timeline.timeline_position_from_x(event.position.x.into());
+        timeline.playhead = position;
+
+        let now = Instant::now();
+        let should_seek = timeline
+            .interaction
+            .last_scrub_seek
+            .is_none_or(|last_seek| now.duration_since(last_seek) >= SCRUB_SEEK_INTERVAL);
+        if should_seek {
+            timeline.interaction.last_scrub_seek = Some(now);
+            self.load_timeline_position_for_scrub(position, false, false);
+        }
+        cx.notify();
     }
 
     pub(super) fn finish_playhead_scrub(
@@ -767,22 +743,18 @@ impl Editor {
         _: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        if self
-            .timeline
-            .as_ref()
-            .is_some_and(|timeline| timeline.interaction.scrubbing_playhead)
-        {
-            let timeline = self
-                .timeline
-                .as_mut()
-                .expect("scrubbing requires an active timeline");
-            timeline.interaction.scrubbing_playhead = false;
-            timeline.interaction.last_scrub_seek = None;
-            let position = self.timeline_position_from_x(event.position.x.into());
-            self.load_timeline_position_for_scrub(position, true, true);
-            self.save_timeline_playhead();
-            cx.notify();
+        let Some(timeline) = self.timeline.as_mut() else {
+            return;
+        };
+        if !timeline.interaction.scrubbing_playhead {
+            return;
         }
+        timeline.interaction.scrubbing_playhead = false;
+        timeline.interaction.last_scrub_seek = None;
+        let position = timeline.timeline_position_from_x(event.position.x.into());
+        self.load_timeline_position_for_scrub(position, true, true);
+        self.save_timeline_playhead();
+        cx.notify();
     }
 
     pub(super) fn step_playhead(&mut self, frames: i64) {
