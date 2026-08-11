@@ -621,29 +621,6 @@ impl Editor {
         cx.notify();
     }
 
-    pub(super) fn zoom(&mut self, factor: f32) {
-        let Some(timeline) = self.timeline.as_mut() else {
-            return;
-        };
-        let previous_pixels_per_second = timeline.data.view.pixels_per_second;
-        let pixels_per_second = (timeline.data.view.pixels_per_second * factor).clamp(
-            MIN_TIMELINE_PIXELS_PER_SECOND,
-            MAX_TIMELINE_PIXELS_PER_SECOND,
-        );
-        if pixels_per_second != previous_pixels_per_second {
-            let mut scroll_offset = timeline.scroll.offset();
-            let playhead_seconds = timeline.data.seconds(timeline.playhead);
-            scroll_offset.x = px(zoom_scroll_offset(
-                f32::from(scroll_offset.x),
-                playhead_seconds,
-                previous_pixels_per_second,
-                pixels_per_second,
-            ));
-            timeline.scroll.set_offset(scroll_offset);
-            timeline.data.view.pixels_per_second = pixels_per_second;
-        }
-    }
-
     pub(super) fn toggle_snapping(&mut self) {
         if let Some(timeline) = self.timeline.as_mut() {
             timeline.interaction.snapping_enabled = !timeline.interaction.snapping_enabled;
@@ -693,29 +670,22 @@ impl Editor {
             return false;
         }
 
-        let Some(previous_zoom) = self
-            .timeline
-            .as_ref()
-            .map(|timeline| timeline.data.view.pixels_per_second)
-        else {
+        let Some(timeline) = self.timeline.as_mut() else {
             return false;
         };
+        let previous_zoom = timeline.data.view.pixels_per_second;
         let factor = (gesture.magnification as f32).exp().clamp(0.5, 2.0);
-        self.zoom(factor);
+        timeline.zoom(factor);
+        let current_zoom = timeline.data.view.pixels_per_second;
         log::debug!(
             target: "opencut::timeline",
             "trackpad-pinch magnification={:.4} location_y={:.1} ended={} action=zoom factor={factor:.4} px_per_second={previous_zoom:.2}->{:.2}",
             gesture.magnification,
             gesture.location_y,
             gesture.ended,
-            self.timeline
-                .as_ref()
-                .map_or(previous_zoom, |timeline| timeline.data.view.pixels_per_second),
+            current_zoom,
         );
-        let changed = self
-            .timeline
-            .as_ref()
-            .is_some_and(|timeline| timeline.data.view.pixels_per_second != previous_zoom);
+        let changed = current_zoom != previous_zoom;
         if gesture.ended {
             self.save_timeline_scroll();
         }
@@ -829,16 +799,6 @@ impl Editor {
             self.save_timeline_playhead();
         }
     }
-}
-
-fn zoom_scroll_offset(
-    previous_offset: f32,
-    anchor_seconds: f64,
-    previous_pixels_per_second: f32,
-    pixels_per_second: f32,
-) -> f32 {
-    let anchor_seconds = anchor_seconds as f32;
-    (previous_offset + anchor_seconds * (previous_pixels_per_second - pixels_per_second)).min(0.0)
 }
 
 #[cfg(test)]
