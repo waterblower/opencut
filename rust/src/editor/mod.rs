@@ -342,7 +342,7 @@ impl Editor {
         if let Some(timeline) = editor.timeline.as_ref()
             && !timeline.data.clips.is_empty()
         {
-            editor.load_timeline_position(timeline.playhead, false);
+            editor.load_timeline_position_with_options(timeline.playhead, false, true);
         }
         editor
     }
@@ -554,7 +554,7 @@ impl Editor {
                 eprintln!("{error}");
             }
             if !timeline.data.clips.is_empty() {
-                self.load_timeline_position(timeline.playhead, false);
+                self.load_timeline_position_with_options(timeline.playhead, false, true);
             }
         }
     }

@@ -298,7 +298,7 @@ impl Editor {
         self.preview.target = PreviewTarget::Timeline;
         self.status = Some(format!("Pasted {count} clip{}.", plural_suffix(count)));
         self.save_timeline();
-        self.load_timeline_position(playhead, false);
+        self.load_timeline_position_with_options(playhead, false, true);
     }
 
     fn remove_clips(&mut self, clip_ids: &HashSet<Ulid>, close_track_gaps: bool) {
@@ -326,7 +326,7 @@ impl Editor {
         if clips_empty {
             timeline.playhead = TimelineTime::ZERO;
         } else {
-            self.load_timeline_position(playhead, false);
+            self.load_timeline_position_with_options(playhead, false, true);
         }
         self.save_timeline();
     }
@@ -469,7 +469,7 @@ impl Editor {
             track.visible = !track.visible;
         }
         self.save_timeline();
-        self.load_timeline_position(playhead, false);
+        self.load_timeline_position_with_options(playhead, false, true);
     }
 
     pub(super) fn toggle_track_mute(&mut self, track_id: Ulid) {
@@ -483,7 +483,7 @@ impl Editor {
             track.muted = !track.muted;
         }
         self.save_timeline();
-        self.load_timeline_position(playhead, self.preview.playing);
+        self.load_timeline_position_with_options(playhead, self.preview.playing, true);
     }
 
     pub(super) fn move_track(&mut self, track_id: Ulid, direction: i8) {
@@ -513,7 +513,7 @@ impl Editor {
         self.preview.timeline_needs_rebuild = true;
         timeline.data.tracks.swap(index, target);
         self.save_timeline();
-        self.load_timeline_position(playhead, false);
+        self.load_timeline_position_with_options(playhead, false, true);
     }
 
     pub(super) fn delete_track(&mut self, track_id: Ulid) {
@@ -559,7 +559,7 @@ impl Editor {
                 .map(|clip| clip.id);
         }
         self.save_timeline();
-        self.load_timeline_position(playhead, false);
+        self.load_timeline_position_with_options(playhead, false, true);
     }
 
     pub(super) fn select_only_clip(&mut self, clip_id: Option<Ulid>) {
@@ -673,7 +673,7 @@ impl Editor {
         let playhead = timeline.playhead;
         self.properties.transform_input_clip_id = None;
         if has_clips {
-            self.load_timeline_position(playhead, false);
+            self.load_timeline_position_with_options(playhead, false, true);
         }
         self.save_timeline();
     }
@@ -689,7 +689,7 @@ impl Editor {
             let Some(playhead) = self.timeline.as_ref().map(|timeline| timeline.playhead) else {
                 return;
             };
-            self.load_timeline_position(playhead, self.preview.playing);
+            self.load_timeline_position_with_options(playhead, self.preview.playing, true);
         }
     }
 

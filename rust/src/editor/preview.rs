@@ -71,20 +71,7 @@ impl Editor {
         }
     }
 
-    pub(super) fn load_timeline_position(&mut self, position: TimelineTime, play: bool) {
-        self.load_timeline_position_with_options(position, play, true);
-    }
-
-    pub(super) fn load_timeline_position_for_scrub(
-        &mut self,
-        position: TimelineTime,
-        accurate: bool,
-        _synchronize_audio: bool,
-    ) {
-        self.load_timeline_position_with_options(position, false, accurate);
-    }
-
-    fn load_timeline_position_with_options(
+    pub(super) fn load_timeline_position_with_options(
         &mut self,
         position: TimelineTime,
         play: bool,
@@ -217,7 +204,7 @@ impl Editor {
         } else {
             timeline.playhead
         };
-        self.load_timeline_position(start, true);
+        self.load_timeline_position_with_options(start, true, true);
     }
 }
 
