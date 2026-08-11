@@ -332,21 +332,16 @@ impl Editor {
     }
 
     pub(super) fn duplicate_selected(&mut self) {
-        let clip_ids = self.selected_clip_ids_in_timeline_order();
         let Some(timeline) = self.timeline.as_ref() else {
             return;
         };
+        let clip_ids = timeline.selected_clip_ids_in_timeline_order();
         if clip_ids.is_empty() || !timeline.selected_clips_editable() {
             return;
         }
         let clips = clip_ids
             .iter()
-            .filter_map(|clip_id| {
-                self.timeline
-                    .as_ref()
-                    .and_then(|timeline| timeline.data.clip(*clip_id))
-                    .cloned()
-            })
+            .filter_map(|clip_id| timeline.data.clip(*clip_id).cloned())
             .collect::<Vec<_>>();
         if clips.len() != clip_ids.len() {
             return;
@@ -611,18 +606,6 @@ impl Editor {
             timeline.interaction.selected_clip_id = Some(clip_id);
         }
         self.properties.transform_input_clip_id = None;
-    }
-
-    pub(super) fn selected_clip_ids_in_timeline_order(&self) -> Vec<Ulid> {
-        self.timeline.as_ref().map_or_else(Vec::new, |timeline| {
-            timeline
-                .data
-                .clips
-                .iter()
-                .filter(|clip| timeline.interaction.selected_clip_ids.contains(&clip.id))
-                .map(|clip| clip.id)
-                .collect()
-        })
     }
 
     pub(super) fn undo(&mut self) {
