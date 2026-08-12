@@ -58,7 +58,7 @@ use model::{
 use preview::{PreviewTarget, update_playback};
 use preview_audio::AudioPreview;
 use preview_timeline::TimelinePreviewDrag;
-use properties::PropertiesPanelResizeDrag;
+use properties::{PropertiesPanelResizeDrag, properties_panel};
 use properties_transform::{OpacityDrag, VideoTransformInputs};
 use timeline::{Timeline, TimelineState};
 use timeline_clip_menu::TimelineClipContextMenu;

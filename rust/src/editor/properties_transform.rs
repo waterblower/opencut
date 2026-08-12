@@ -139,303 +139,316 @@ impl Editor {
             }
         }
     }
+}
 
-    pub(super) fn video_transform_panel(
-        &self,
-        clip_id: Ulid,
-        properties: VideoClipProperties,
-        editable: bool,
-        cx: &mut Context<Self>,
-    ) -> gpui::AnyElement {
-        div()
-            .id("video-transform-properties")
-            .flex()
-            .flex_col()
-            .overflow_hidden()
-            .bg(rgb(PANEL))
-            .child(
-                div()
-                    .h(px(58.0))
-                    .flex_shrink_0()
-                    .flex()
-                    .items_center()
-                    .gap_5()
-                    .px_5()
-                    .border_b_1()
-                    .border_color(rgb(BORDER))
-                    .child(properties_tab("Transform", true)),
-            )
-            .child(
-                div()
-                    .flex()
-                    .flex_col()
-                    .gap_3()
-                    .px_5()
-                    .py_5()
-                    .child(properties_section_label("POSITION & SCALE"))
-                    .child(self.video_transform_field(
-                        VideoTransformProperty::PositionX,
-                        "Position X",
-                        "px",
-                        "transform-position-x",
-                        editable,
-                    ))
-                    .child(self.video_transform_field(
-                        VideoTransformProperty::PositionY,
-                        "Position Y",
-                        "px",
-                        "transform-position-y",
-                        editable,
-                    ))
-                    .child(self.video_transform_field(
-                        VideoTransformProperty::Scale,
-                        "Scale",
-                        "%",
-                        "transform-scale",
-                        editable,
-                    ))
-                    .child(self.video_opacity_control(clip_id, properties.opacity, editable, cx))
-                    .child(
-                        div()
-                            .mt_2()
-                            .flex()
-                            .items_center()
-                            .justify_between()
-                            .child(properties_section_label("CROP"))
-                            .child(crop_reset_button(editable).when(editable, |button| {
-                                button.on_click(cx.listener(move |editor, _, _, cx| {
-                                    editor.reset_video_crop(clip_id);
-                                    cx.notify();
-                                }))
-                            })),
-                    )
-                    .child(
-                        div()
-                            .grid()
-                            .grid_cols(2)
-                            .gap_3()
-                            .child(self.video_crop_field(
-                                VideoTransformProperty::CropLeft,
-                                "Left",
-                                "transform-crop-left",
-                                editable,
-                            ))
-                            .child(self.video_crop_field(
-                                VideoTransformProperty::CropRight,
-                                "Right",
-                                "transform-crop-right",
-                                editable,
-                            ))
-                            .child(self.video_crop_field(
-                                VideoTransformProperty::CropTop,
-                                "Top",
-                                "transform-crop-top",
-                                editable,
-                            ))
-                            .child(self.video_crop_field(
-                                VideoTransformProperty::CropBottom,
-                                "Bottom",
-                                "transform-crop-bottom",
-                                editable,
-                            )),
-                    ),
-            )
-            .into_any_element()
-    }
+pub(super) fn video_transform_panel(
+    panel: &PropertiesPanelState,
+    clip_id: Ulid,
+    properties: VideoClipProperties,
+    editable: bool,
+    cx: &mut Context<Editor>,
+) -> gpui::AnyElement {
+    div()
+        .id("video-transform-properties")
+        .flex()
+        .flex_col()
+        .overflow_hidden()
+        .bg(rgb(PANEL))
+        .child(
+            div()
+                .h(px(58.0))
+                .flex_shrink_0()
+                .flex()
+                .items_center()
+                .gap_5()
+                .px_5()
+                .border_b_1()
+                .border_color(rgb(BORDER))
+                .child(properties_tab("Transform", true)),
+        )
+        .child(
+            div()
+                .flex()
+                .flex_col()
+                .gap_3()
+                .px_5()
+                .py_5()
+                .child(properties_section_label("POSITION & SCALE"))
+                .child(video_transform_field(
+                    panel,
+                    VideoTransformProperty::PositionX,
+                    "Position X",
+                    "px",
+                    "transform-position-x",
+                    editable,
+                ))
+                .child(video_transform_field(
+                    panel,
+                    VideoTransformProperty::PositionY,
+                    "Position Y",
+                    "px",
+                    "transform-position-y",
+                    editable,
+                ))
+                .child(video_transform_field(
+                    panel,
+                    VideoTransformProperty::Scale,
+                    "Scale",
+                    "%",
+                    "transform-scale",
+                    editable,
+                ))
+                .child(video_opacity_control(
+                    clip_id,
+                    properties.opacity,
+                    editable,
+                    cx,
+                ))
+                .child(
+                    div()
+                        .mt_2()
+                        .flex()
+                        .items_center()
+                        .justify_between()
+                        .child(properties_section_label("CROP"))
+                        .child(crop_reset_button(editable).when(editable, |button| {
+                            button.on_click(cx.listener(move |editor, _, _, cx| {
+                                editor.reset_video_crop(clip_id);
+                                cx.notify();
+                            }))
+                        })),
+                )
+                .child(
+                    div()
+                        .grid()
+                        .grid_cols(2)
+                        .gap_3()
+                        .child(video_crop_field(
+                            panel,
+                            VideoTransformProperty::CropLeft,
+                            "Left",
+                            "transform-crop-left",
+                            editable,
+                        ))
+                        .child(video_crop_field(
+                            panel,
+                            VideoTransformProperty::CropRight,
+                            "Right",
+                            "transform-crop-right",
+                            editable,
+                        ))
+                        .child(video_crop_field(
+                            panel,
+                            VideoTransformProperty::CropTop,
+                            "Top",
+                            "transform-crop-top",
+                            editable,
+                        ))
+                        .child(video_crop_field(
+                            panel,
+                            VideoTransformProperty::CropBottom,
+                            "Bottom",
+                            "transform-crop-bottom",
+                            editable,
+                        )),
+                ),
+        )
+        .into_any_element()
+}
 
-    fn video_transform_field(
-        &self,
-        property: VideoTransformProperty,
-        label: &'static str,
-        unit: &'static str,
-        field_id: &'static str,
-        editable: bool,
-    ) -> gpui::AnyElement {
-        let input = self.properties.transform_inputs.input(property);
-        div()
-            .h(px(48.0))
-            .flex()
-            .items_center()
-            .gap_4()
-            .child(
-                div()
-                    .w(px(112.0))
-                    .flex_shrink_0()
-                    .text_sm()
-                    .text_color(rgb(MUTED))
-                    .child(label),
-            )
-            .child(
-                div()
-                    .id(field_id)
-                    .h(px(48.0))
-                    .relative()
-                    .min_w_0()
-                    .flex_1()
-                    .flex()
-                    .items_center()
-                    .justify_between()
-                    .px_3()
-                    .rounded_md()
-                    .border_1()
-                    .border_color(rgb(BORDER))
-                    .bg(rgb(SURFACE))
-                    .cursor(if editable {
-                        CursorStyle::IBeam
-                    } else {
-                        CursorStyle::Arrow
-                    })
-                    .child(input)
-                    .child(div().text_sm().text_color(rgb(MUTED)).child(unit))
-                    .when(editable, |field| {
-                        field.hover(|style| style.border_color(rgb(0x4a4a52)))
-                    })
-                    .when(!editable, disabled_field_overlay),
-            )
-            .into_any_element()
-    }
+fn video_transform_field(
+    panel: &PropertiesPanelState,
+    property: VideoTransformProperty,
+    label: &'static str,
+    unit: &'static str,
+    field_id: &'static str,
+    editable: bool,
+) -> gpui::AnyElement {
+    let input = panel.transform_inputs.input(property);
+    div()
+        .h(px(48.0))
+        .flex()
+        .items_center()
+        .gap_4()
+        .child(
+            div()
+                .w(px(112.0))
+                .flex_shrink_0()
+                .text_sm()
+                .text_color(rgb(MUTED))
+                .child(label),
+        )
+        .child(
+            div()
+                .id(field_id)
+                .h(px(48.0))
+                .relative()
+                .min_w_0()
+                .flex_1()
+                .flex()
+                .items_center()
+                .justify_between()
+                .px_3()
+                .rounded_md()
+                .border_1()
+                .border_color(rgb(BORDER))
+                .bg(rgb(SURFACE))
+                .cursor(if editable {
+                    CursorStyle::IBeam
+                } else {
+                    CursorStyle::Arrow
+                })
+                .child(input)
+                .child(div().text_sm().text_color(rgb(MUTED)).child(unit))
+                .when(editable, |field| {
+                    field.hover(|style| style.border_color(rgb(0x4a4a52)))
+                })
+                .when(!editable, disabled_field_overlay),
+        )
+        .into_any_element()
+}
 
-    fn video_crop_field(
-        &self,
-        property: VideoTransformProperty,
-        label: &'static str,
-        field_id: &'static str,
-        editable: bool,
-    ) -> gpui::AnyElement {
-        let input = self.properties.transform_inputs.input(property);
-        div()
-            .min_w_0()
-            .flex()
-            .items_center()
-            .gap_2()
-            .child(
-                div()
-                    .w(px(58.0))
-                    .flex_shrink_0()
-                    .text_sm()
-                    .text_color(rgb(MUTED))
-                    .child(label),
-            )
-            .child(
-                div()
-                    .id(field_id)
-                    .h(px(46.0))
-                    .relative()
-                    .min_w_0()
-                    .flex_1()
-                    .flex()
-                    .items_center()
-                    .justify_between()
-                    .px_3()
-                    .rounded_md()
-                    .border_1()
-                    .border_color(rgb(BORDER))
-                    .bg(rgb(SURFACE))
-                    .cursor(if editable {
-                        CursorStyle::IBeam
-                    } else {
-                        CursorStyle::Arrow
-                    })
-                    .child(input)
-                    .child(div().text_sm().text_color(rgb(MUTED)).child("%"))
-                    .when(editable, |field| {
-                        field.hover(|style| style.border_color(rgb(0x4a4a52)))
-                    })
-                    .when(!editable, disabled_field_overlay),
-            )
-            .into_any_element()
-    }
+fn video_crop_field(
+    panel: &PropertiesPanelState,
+    property: VideoTransformProperty,
+    label: &'static str,
+    field_id: &'static str,
+    editable: bool,
+) -> gpui::AnyElement {
+    let input = panel.transform_inputs.input(property);
+    div()
+        .min_w_0()
+        .flex()
+        .items_center()
+        .gap_2()
+        .child(
+            div()
+                .w(px(58.0))
+                .flex_shrink_0()
+                .text_sm()
+                .text_color(rgb(MUTED))
+                .child(label),
+        )
+        .child(
+            div()
+                .id(field_id)
+                .h(px(46.0))
+                .relative()
+                .min_w_0()
+                .flex_1()
+                .flex()
+                .items_center()
+                .justify_between()
+                .px_3()
+                .rounded_md()
+                .border_1()
+                .border_color(rgb(BORDER))
+                .bg(rgb(SURFACE))
+                .cursor(if editable {
+                    CursorStyle::IBeam
+                } else {
+                    CursorStyle::Arrow
+                })
+                .child(input)
+                .child(div().text_sm().text_color(rgb(MUTED)).child("%"))
+                .when(editable, |field| {
+                    field.hover(|style| style.border_color(rgb(0x4a4a52)))
+                })
+                .when(!editable, disabled_field_overlay),
+        )
+        .into_any_element()
+}
 
-    fn video_opacity_control(
-        &self,
-        clip_id: Ulid,
-        opacity: f64,
-        editable: bool,
-        cx: &mut Context<Self>,
-    ) -> gpui::AnyElement {
-        let opacity = opacity.clamp(0.0, 1.0);
-        div()
-            .h(px(42.0))
-            .flex()
-            .items_center()
-            .gap_4()
-            .child(
-                div()
-                    .w(px(112.0))
-                    .flex_shrink_0()
-                    .text_sm()
-                    .text_color(rgb(MUTED))
-                    .child("Opacity"),
-            )
-            .child(
-                div()
-                    .min_w_0()
-                    .flex_1()
-                    .flex()
-                    .items_center()
-                    .gap_3()
-                    .child(
-                        div()
-                            .id("transform-opacity-slider")
-                            .relative()
-                            .h(px(24.0))
-                            .min_w_0()
-                            .flex_1()
-                            .flex()
-                            .items_center()
-                            .cursor(if editable {
-                                CursorStyle::PointingHand
-                            } else {
-                                CursorStyle::Arrow
-                            })
-                            .child(
-                                div()
-                                    .absolute()
-                                    .left_0()
-                                    .right_0()
-                                    .h(px(4.0))
-                                    .rounded_full()
-                                    .bg(rgb(0x45454d)),
+fn video_opacity_control(
+    clip_id: Ulid,
+    opacity: f64,
+    editable: bool,
+    cx: &mut Context<Editor>,
+) -> gpui::AnyElement {
+    let opacity = opacity.clamp(0.0, 1.0);
+    div()
+        .h(px(42.0))
+        .flex()
+        .items_center()
+        .gap_4()
+        .child(
+            div()
+                .w(px(112.0))
+                .flex_shrink_0()
+                .text_sm()
+                .text_color(rgb(MUTED))
+                .child("Opacity"),
+        )
+        .child(
+            div()
+                .min_w_0()
+                .flex_1()
+                .flex()
+                .items_center()
+                .gap_3()
+                .child(
+                    div()
+                        .id("transform-opacity-slider")
+                        .relative()
+                        .h(px(24.0))
+                        .min_w_0()
+                        .flex_1()
+                        .flex()
+                        .items_center()
+                        .cursor(if editable {
+                            CursorStyle::PointingHand
+                        } else {
+                            CursorStyle::Arrow
+                        })
+                        .child(
+                            div()
+                                .absolute()
+                                .left_0()
+                                .right_0()
+                                .h(px(4.0))
+                                .rounded_full()
+                                .bg(rgb(0x45454d)),
+                        )
+                        .child(
+                            div()
+                                .absolute()
+                                .left_0()
+                                .w(gpui::relative(opacity as f32))
+                                .h(px(4.0))
+                                .rounded_full()
+                                .bg(rgb(ACCENT)),
+                        )
+                        .child(
+                            div()
+                                .absolute()
+                                .left(gpui::relative(opacity as f32))
+                                .ml(px(-8.0))
+                                .size(px(16.0))
+                                .rounded_full()
+                                .bg(rgb(0xf7f7f8)),
+                        )
+                        .when(editable, |slider| {
+                            slider.on_mouse_down(
+                                MouseButton::Left,
+                                cx.listener(move |editor, event, window, cx| {
+                                    editor.begin_video_opacity_drag(clip_id, event, window, cx);
+                                }),
                             )
-                            .child(
-                                div()
-                                    .absolute()
-                                    .left_0()
-                                    .w(gpui::relative(opacity as f32))
-                                    .h(px(4.0))
-                                    .rounded_full()
-                                    .bg(rgb(ACCENT)),
-                            )
-                            .child(
-                                div()
-                                    .absolute()
-                                    .left(gpui::relative(opacity as f32))
-                                    .ml(px(-8.0))
-                                    .size(px(16.0))
-                                    .rounded_full()
-                                    .bg(rgb(0xf7f7f8)),
-                            )
-                            .when(editable, |slider| {
-                                slider.on_mouse_down(
-                                    MouseButton::Left,
-                                    cx.listener(move |editor, event, window, cx| {
-                                        editor.begin_video_opacity_drag(clip_id, event, window, cx);
-                                    }),
-                                )
-                            }),
-                    )
-                    .child(
-                        div()
-                            .w(px(38.0))
-                            .font_family("monospace")
-                            .text_base()
-                            .text_color(rgb(if editable { TEXT } else { MUTED }))
-                            .child(format!("{:.0}", opacity * 100.0)),
-                    ),
-            )
-            .into_any_element()
-    }
+                        }),
+                )
+                .child(
+                    div()
+                        .w(px(38.0))
+                        .font_family("monospace")
+                        .text_base()
+                        .text_color(rgb(if editable { TEXT } else { MUTED }))
+                        .child(format!("{:.0}", opacity * 100.0)),
+                ),
+        )
+        .into_any_element()
+}
 
+impl Editor {
     fn begin_video_opacity_drag(
         &mut self,
         clip_id: Ulid,

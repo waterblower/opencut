@@ -1,3 +1,4 @@
+use super::properties_transform::video_transform_panel;
 use super::*;
 use std::path::Path;
 
@@ -12,63 +13,159 @@ impl Render for PropertiesPanelResizeDragView {
     }
 }
 
-impl Editor {
-    pub(super) fn properties_panel(&self, cx: &mut Context<Self>) -> gpui::AnyElement {
-        let content = match &self.preview.target {
-            PreviewTarget::Timeline => self.timeline_properties(cx),
-            PreviewTarget::VideoFile(path) => self.video_file_properties(path),
-            PreviewTarget::AudioFile(path) => self.audio_file_properties(path),
-            PreviewTarget::ImageFile(path) => self.image_file_properties(path),
-        };
+pub(super) fn properties_panel(editor: &Editor, cx: &mut Context<Editor>) -> gpui::AnyElement {
+    let content = match &editor.preview.target {
+        PreviewTarget::Timeline => {
+            let Some(timeline) = editor.timeline.as_ref() else {
+                return div()
+                    .p_4()
+                    .text_color(rgb(MUTED))
+                    .child("No timeline selected")
+                    .into_any_element();
+            };
+            timeline_properties(timeline, &editor.properties, cx)
+        }
+        PreviewTarget::VideoFile(path) => editor.video_file_properties(path),
+        PreviewTarget::AudioFile(path) => editor.audio_file_properties(path),
+        PreviewTarget::ImageFile(path) => editor.image_file_properties(path),
+    };
 
-        div()
-            .id("editor-properties-panel")
-            .relative()
-            .w(px(self.properties.width))
-            .h_full()
-            .flex_shrink_0()
+    div()
+        .id("editor-properties-panel")
+        .relative()
+        .w(px(editor.properties.width))
+        .h_full()
+        .flex_shrink_0()
+        .flex()
+        .flex_col()
+        .border_l_1()
+        .border_color(if editor.properties.resizing {
+            rgb(ACCENT)
+        } else {
+            rgb(BORDER)
+        })
+        .group_hover("properties-panel-resize", |style| {
+            style.border_color(rgb(ACCENT))
+        })
+        .bg(rgb(PANEL))
+        .child(
+            div()
+                .id("editor-properties-scroll")
+                .flex_1()
+                .min_h_0()
+                .overflow_y_scroll()
+                .child(content),
+        )
+        .child(
+            div()
+                .id("properties-panel-resize-handle")
+                .absolute()
+                .top_0()
+                .left(px(-3.0))
+                .w(px(6.0))
+                .h_full()
+                .group("properties-panel-resize")
+                .cursor(CursorStyle::ResizeLeftRight)
+                .occlude()
+                .on_mouse_down(
+                    MouseButton::Left,
+                    cx.listener(Editor::begin_properties_panel_resize),
+                )
+                .on_drag(PropertiesPanelResizeDrag, |_, _, _, cx| {
+                    cx.new(|_| PropertiesPanelResizeDragView)
+                }),
+        )
+        .into_any_element()
+}
+
+fn timeline_properties(
+    timeline: &TimelineState,
+    panel: &PropertiesPanelState,
+    cx: &mut Context<Editor>,
+) -> gpui::AnyElement {
+    let selection_count = timeline.interaction.selected_clip_ids.len();
+    if selection_count > 1 {
+        return div()
+            .id("timeline-multi-properties")
             .flex()
             .flex_col()
-            .border_l_1()
-            .border_color(if self.properties.resizing {
-                rgb(ACCENT)
-            } else {
-                rgb(BORDER)
-            })
-            .group_hover("properties-panel-resize", |style| {
-                style.border_color(rgb(ACCENT))
-            })
-            .bg(rgb(PANEL))
-            .child(
-                div()
-                    .id("editor-properties-scroll")
-                    .flex_1()
-                    .min_h_0()
-                    .overflow_y_scroll()
-                    .child(content),
-            )
-            .child(
-                div()
-                    .id("properties-panel-resize-handle")
-                    .absolute()
-                    .top_0()
-                    .left(px(-3.0))
-                    .w(px(6.0))
-                    .h_full()
-                    .group("properties-panel-resize")
-                    .cursor(CursorStyle::ResizeLeftRight)
-                    .occlude()
-                    .on_mouse_down(
-                        MouseButton::Left,
-                        cx.listener(Self::begin_properties_panel_resize),
-                    )
-                    .on_drag(PropertiesPanelResizeDrag, |_, _, _, cx| {
-                        cx.new(|_| PropertiesPanelResizeDragView)
-                    }),
-            )
-            .into_any_element()
+            .gap_4()
+            .child(properties_title(
+                format!("{selection_count} clips selected"),
+                "Timeline selection",
+            ))
+            .into_any_element();
     }
 
+    let selected = timeline.interaction.selected_clip_id.and_then(|id| {
+        let index = timeline.data.clip_index(id)?;
+        let clip = &timeline.data.clips[index];
+        let asset = timeline.data.asset(clip.asset_id);
+        let track = timeline.data.track(clip.track_id)?;
+        Some((clip, asset, track))
+    });
+    let editable = timeline.selected_clips_editable();
+
+    div()
+        .id("timeline-properties")
+        .when_some(selected, |this, (clip, asset, track)| {
+            let title = asset
+                .map(|asset| asset.name.clone())
+                .unwrap_or_else(|| "Missing media".to_string());
+            let has_video_transform = track.kind == TrackKind::Video
+                && asset.is_some_and(|asset| asset.kind != MediaKind::Audio);
+
+            this.flex()
+                .flex_col()
+                .when(has_video_transform, |this| {
+                    this.child(video_transform_panel(
+                        panel,
+                        clip.id,
+                        clip.video_properties,
+                        editable,
+                        cx,
+                    ))
+                })
+                .when(!has_video_transform, |this| {
+                    this.gap_4()
+                        .child(properties_title(title, "Timeline clip"))
+                        .child(properties_value(
+                            "Timeline start",
+                            format_time(timeline.data.seconds(clip.timeline_start), false),
+                        ))
+                        .child(properties_value(
+                            "Source in",
+                            format_time(timeline.data.source_start_seconds(clip), false),
+                        ))
+                        .child(properties_value(
+                            "Source out",
+                            format_time(
+                                timeline
+                                    .data
+                                    .source_position_at(clip, clip.timeline_end())
+                                    .as_secs_f64(),
+                                false,
+                            ),
+                        ))
+                        .child(properties_value(
+                            "Clip duration",
+                            format_time(timeline.data.seconds(clip.duration()), false),
+                        ))
+                        .child(properties_value("Track", track.name.clone()))
+                        .when_some(asset, |this, asset| {
+                            this.child(properties_value("Source", asset_description(asset)))
+                        })
+                })
+        })
+        .when(selected.is_none(), |this| {
+            this.text_sm()
+                .text_color(rgb(MUTED))
+                .child("Select a timeline clip to view its properties.")
+        })
+        .into_any_element()
+}
+
+impl Editor {
     fn set_properties_panel_width_from_x(&mut self, x: f32, window: &Window) {
         let viewport_width: f32 = window.viewport_size().width.into();
         let editor_width = (viewport_width - crate::gpui_inspector::docked_width(window)).max(0.0);
@@ -111,95 +208,6 @@ impl Editor {
             self.properties.resizing = false;
             cx.notify();
         }
-    }
-
-    fn timeline_properties(&self, cx: &mut Context<Self>) -> gpui::AnyElement {
-        let Some(timeline) = self.timeline.as_ref() else {
-            return div()
-                .p_4()
-                .text_color(rgb(MUTED))
-                .child("No timeline selected")
-                .into_any_element();
-        };
-        let selection_count = timeline.interaction.selected_clip_ids.len();
-        if selection_count > 1 {
-            return div()
-                .id("timeline-multi-properties")
-                .flex()
-                .flex_col()
-                .gap_4()
-                .child(properties_title(
-                    format!("{selection_count} clips selected"),
-                    "Timeline selection",
-                ))
-                .into_any_element();
-        }
-
-        let selected = timeline.interaction.selected_clip_id.and_then(|id| {
-            let index = timeline.data.clip_index(id)?;
-            let clip = &timeline.data.clips[index];
-            let asset = timeline.data.asset(clip.asset_id);
-            let track = timeline.data.track(clip.track_id)?;
-            Some((clip, asset, track))
-        });
-        let editable = timeline.selected_clips_editable();
-
-        div()
-            .id("timeline-properties")
-            .when_some(selected, |this, (clip, asset, track)| {
-                let title = asset
-                    .map(|asset| asset.name.clone())
-                    .unwrap_or_else(|| "Missing media".to_string());
-                let has_video_transform = track.kind == TrackKind::Video
-                    && asset.is_some_and(|asset| asset.kind != MediaKind::Audio);
-
-                this.flex()
-                    .flex_col()
-                    .when(has_video_transform, |this| {
-                        this.child(self.video_transform_panel(
-                            clip.id,
-                            clip.video_properties,
-                            editable,
-                            cx,
-                        ))
-                    })
-                    .when(!has_video_transform, |this| {
-                        this.gap_4()
-                            .child(properties_title(title, "Timeline clip"))
-                            .child(properties_value(
-                                "Timeline start",
-                                format_time(timeline.data.seconds(clip.timeline_start), false),
-                            ))
-                            .child(properties_value(
-                                "Source in",
-                                format_time(timeline.data.source_start_seconds(clip), false),
-                            ))
-                            .child(properties_value(
-                                "Source out",
-                                format_time(
-                                    timeline
-                                        .data
-                                        .source_position_at(clip, clip.timeline_end())
-                                        .as_secs_f64(),
-                                    false,
-                                ),
-                            ))
-                            .child(properties_value(
-                                "Clip duration",
-                                format_time(timeline.data.seconds(clip.duration()), false),
-                            ))
-                            .child(properties_value("Track", track.name.clone()))
-                            .when_some(asset, |this, asset| {
-                                this.child(properties_value("Source", asset_description(asset)))
-                            })
-                    })
-            })
-            .when(selected.is_none(), |this| {
-                this.text_sm()
-                    .text_color(rgb(MUTED))
-                    .child("Select a timeline clip to view its properties.")
-            })
-            .into_any_element()
     }
 
     fn video_file_properties(&self, path: &Path) -> gpui::AnyElement {

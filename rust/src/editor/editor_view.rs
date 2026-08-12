@@ -132,7 +132,7 @@ impl Render for Editor {
                                 preview_height,
                                 cx,
                             ))
-                            .child(self.properties_panel(cx)),
+                            .child(properties_panel(self, cx)),
                     )
                     .child(self.timeline(cx)),
             )
