@@ -25,16 +25,24 @@ pub(super) fn properties_panel(editor: &Editor, cx: &mut Context<Editor>) -> gpu
             };
             timeline_properties(timeline, &editor.properties)
         }
-        PreviewTarget::VideoFile(path) => video_file_properties(
-            path,
-            editor
+        file_target @ (PreviewTarget::VideoFile(path)
+        | PreviewTarget::AudioFile(path)
+        | PreviewTarget::ImageFile(path)) => {
+            let file_asset = editor
                 .timeline
                 .as_ref()
-                .and_then(|timeline| timeline.data.asset_for_path(path)),
-            editor.preview.video.as_ref(),
-        ),
-        PreviewTarget::AudioFile(path) => editor.audio_file_properties(path),
-        PreviewTarget::ImageFile(path) => editor.image_file_properties(path),
+                .and_then(|timeline| timeline.data.asset_for_path(path));
+            match file_target {
+                PreviewTarget::VideoFile(path) => {
+                    video_file_properties(path, file_asset, editor.preview.video.as_ref())
+                }
+                PreviewTarget::AudioFile(path) => {
+                    audio_file_properties(path, file_asset, editor.preview.audio.as_ref())
+                }
+                PreviewTarget::ImageFile(path) => image_file_properties(path, file_asset),
+                PreviewTarget::Timeline => unreachable!("timeline target handled separately"),
+            }
+        }
     };
 
     div()
@@ -203,6 +211,37 @@ fn video_file_properties(
         .into_any_element()
 }
 
+fn audio_file_properties(
+    path: &Path,
+    asset: Option<&MediaAsset>,
+    runtime: Option<&AudioPreview>,
+) -> gpui::AnyElement {
+    let duration = asset
+        .map(|asset| asset.duration)
+        .or_else(|| runtime.map(|audio| audio.duration().as_secs_f64()));
+
+    file_properties(path, "Audio")
+        .when_some(asset, |this, asset| {
+            this.child(properties_value("Codec", asset.codec.clone()))
+        })
+        .when_some(duration, |this, duration| {
+            this.child(properties_value("Duration", format_time(duration, false)))
+        })
+        .into_any_element()
+}
+
+fn image_file_properties(path: &Path, asset: Option<&MediaAsset>) -> gpui::AnyElement {
+    file_properties(path, "Image")
+        .when_some(asset, |this, asset| {
+            this.child(properties_value("Codec", asset.codec.clone()))
+                .child(properties_value(
+                    "Resolution",
+                    format!("{} × {}", asset.width, asset.height),
+                ))
+        })
+        .into_any_element()
+}
+
 impl Editor {
     fn set_properties_panel_width_from_x(&mut self, x: f32, window: &Window) {
         let viewport_width: f32 = window.viewport_size().width.into();
@@ -246,44 +285,6 @@ impl Editor {
             self.properties.resizing = false;
             cx.notify();
         }
-    }
-
-    fn audio_file_properties(&self, path: &Path) -> gpui::AnyElement {
-        let asset = self
-            .timeline
-            .as_ref()
-            .and_then(|timeline| timeline.data.asset_for_path(path));
-        let duration = asset.map(|asset| asset.duration).or_else(|| {
-            self.preview
-                .audio
-                .as_ref()
-                .map(|audio| audio.duration().as_secs_f64())
-        });
-
-        file_properties(path, "Audio")
-            .when_some(asset, |this, asset| {
-                this.child(properties_value("Codec", asset.codec.clone()))
-            })
-            .when_some(duration, |this, duration| {
-                this.child(properties_value("Duration", format_time(duration, false)))
-            })
-            .into_any_element()
-    }
-
-    fn image_file_properties(&self, path: &Path) -> gpui::AnyElement {
-        let asset = self
-            .timeline
-            .as_ref()
-            .and_then(|timeline| timeline.data.asset_for_path(path));
-        file_properties(path, "Image")
-            .when_some(asset, |this, asset| {
-                this.child(properties_value("Codec", asset.codec.clone()))
-                    .child(properties_value(
-                        "Resolution",
-                        format!("{} × {}", asset.width, asset.height),
-                    ))
-            })
-            .into_any_element()
     }
 }
 
