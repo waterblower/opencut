@@ -47,6 +47,26 @@ struct ValidatedExport {
     destination: PathBuf,
 }
 
+fn validated_export(
+    state: &ExportDialogState,
+    project_root: &Path,
+    cx: &App,
+) -> Result<ValidatedExport, String> {
+    let video_bit_rate = parse_bitrate(state.bitrate.read(cx).query())?;
+    let destination = parse_destination(state.destination.read(cx).query(), project_root)?;
+
+    Ok(ValidatedExport {
+        options: ExportOptions {
+            width: state.resolution.0,
+            height: state.resolution.1,
+            frame_rate: state.frame_rate,
+            video_bit_rate,
+            encoder: state.encoder,
+        },
+        destination,
+    })
+}
+
 impl Editor {
     pub(super) fn open_export_dialog(&mut self, cx: &mut Context<Self>) {
         let Some(timeline) = self.timeline.as_ref() else {
@@ -120,7 +140,7 @@ impl Editor {
             .unwrap_or_else(|| "OpenCut timeline".to_string());
         let duration = timeline.data.content_duration();
         let duration_seconds = timeline.data.seconds(duration);
-        let validated = self.validated_export(cx);
+        let validated = validated_export(state, &self.global_settings.project_root, cx);
         let validation_error = validated.as_ref().err().cloned();
         let video_bit_rate = validated
             .as_ref()
@@ -392,30 +412,6 @@ impl Editor {
             .into_any_element()
     }
 
-    fn validated_export(&self, cx: &App) -> Result<ValidatedExport, String> {
-        let state = self
-            .export
-            .dialog
-            .as_ref()
-            .ok_or_else(|| "Export dialog is closed.".to_string())?;
-        let video_bit_rate = parse_bitrate(state.bitrate.read(cx).query())?;
-        let destination = parse_destination(
-            state.destination.read(cx).query(),
-            &self.global_settings.project_root,
-        )?;
-
-        Ok(ValidatedExport {
-            options: ExportOptions {
-                width: state.resolution.0,
-                height: state.resolution.1,
-                frame_rate: state.frame_rate,
-                video_bit_rate,
-                encoder: state.encoder,
-            },
-            destination,
-        })
-    }
-
     fn export_resolution_dropdown(&self, cx: &mut Context<Self>) -> gpui::AnyElement {
         let state = self
             .export
@@ -613,7 +609,10 @@ impl Editor {
         if self.export.running || timeline_state.data.clips.is_empty() {
             return;
         }
-        let validated = match self.validated_export(cx) {
+        let Some(state) = self.export.dialog.as_ref() else {
+            return;
+        };
+        let validated = match validated_export(state, &self.global_settings.project_root, cx) {
             Ok(validated) => validated,
             Err(_) => {
                 cx.notify();
