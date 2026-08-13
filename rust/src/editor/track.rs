@@ -286,7 +286,7 @@ impl Editor {
             }))
             .cursor(match timeline.interaction.active_tool {
                 TimelineTool::Blade => CursorStyle::Crosshair,
-                TimelineTool::Selection | TimelineTool::Trim => CursorStyle::Arrow,
+                TimelineTool::Selection => CursorStyle::Arrow,
             })
             .children(clips)
             .children(move_previews)
@@ -402,7 +402,6 @@ impl Editor {
             .cursor(match timeline.interaction.active_tool {
                 TimelineTool::Selection => CursorStyle::PointingHand,
                 TimelineTool::Blade => CursorStyle::Crosshair,
-                TimelineTool::Trim => CursorStyle::Arrow,
             })
             .on_mouse_down(
                 MouseButton::Left,
@@ -418,46 +417,6 @@ impl Editor {
                 }),
             )
             .child(content)
-            .when(
-                selected
-                    && timeline.interaction.selected_clip_ids.len() == 1
-                    && !moving
-                    && timeline.interaction.active_tool == TimelineTool::Trim,
-                |this| {
-                    this.child(
-                        trim_handle(
-                            gpui::SharedString::from(format!("left-trim-{clip_id}")),
-                            true,
-                        )
-                        .on_mouse_down(
-                            MouseButton::Left,
-                            cx.listener(move |editor, event: &MouseDownEvent, _, cx| {
-                                cx.stop_propagation();
-                                editor.begin_trim(clip_id, TrimEdge::Left, event.position.x.into());
-                                cx.notify();
-                            }),
-                        ),
-                    )
-                    .child(
-                        trim_handle(
-                            gpui::SharedString::from(format!("right-trim-{clip_id}")),
-                            false,
-                        )
-                        .on_mouse_down(
-                            MouseButton::Left,
-                            cx.listener(move |editor, event: &MouseDownEvent, _, cx| {
-                                cx.stop_propagation();
-                                editor.begin_trim(
-                                    clip_id,
-                                    TrimEdge::Right,
-                                    event.position.x.into(),
-                                );
-                                cx.notify();
-                            }),
-                        ),
-                    )
-                },
-            )
             .into_any_element()
     }
 }
@@ -581,24 +540,4 @@ fn track_kind_label(kind: TrackKind) -> &'static str {
         TrackKind::Video => "V",
         TrackKind::Audio => "A",
     }
-}
-
-fn trim_handle(id: impl Into<gpui::ElementId>, left: bool) -> gpui::Stateful<gpui::Div> {
-    div()
-        .id(id)
-        .absolute()
-        .top_0()
-        .bottom_0()
-        .when(left, |this| this.left_0())
-        .when(!left, |this| this.right_0())
-        .w(px(10.0))
-        .bg(rgb(ACCENT))
-        .opacity(0.72)
-        .cursor(if left {
-            CursorStyle::ResizeLeft
-        } else {
-            CursorStyle::ResizeRight
-        })
-        .occlude()
-        .hover(|style| style.opacity(1.0))
 }

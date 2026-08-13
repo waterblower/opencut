@@ -33,7 +33,6 @@ pub(super) struct TimelineInteractionState {
     pub(super) selected_clip_ids: HashSet<Ulid>,
     pub(super) blade_guide: Option<TimelineTime>,
     pub(super) snap_guide: Option<TimelineTime>,
-    pub(super) trim_drag: Option<TrimDrag>,
     pub(super) clip_move_drag: Option<ClipMoveDrag>,
     pub(super) marquee_selection: Option<MarqueeSelection>,
     pub(super) scrubbing_playhead: bool,
@@ -197,23 +196,6 @@ impl Timeline {
         self.clips
             .iter()
             .filter(move |clip| clip.track_id == track_id)
-    }
-
-    pub fn trim_limits(&self, clip_id: Ulid) -> Option<(TimelineTime, TimelineTime)> {
-        let clip = self.clip(clip_id)?;
-        let previous_end = self
-            .clips_on_track(clip.track_id)
-            .filter(|other| other.id != clip_id && other.timeline_start < clip.timeline_start)
-            .map(TimelineClip::timeline_end)
-            .max()
-            .unwrap_or(TimelineTime::ZERO);
-        let next_start = self
-            .clips_on_track(clip.track_id)
-            .filter(|other| other.id != clip_id && other.timeline_start >= clip.timeline_end())
-            .map(|other| other.timeline_start)
-            .min()
-            .unwrap_or(TimelineTime::MAX);
-        Some((previous_end, next_start))
     }
 
     pub fn content_duration(&self) -> TimelineTime {
@@ -402,7 +384,6 @@ impl TimelineState {
                 selected_clip_ids,
                 blade_guide: None,
                 snap_guide: None,
-                trim_drag: None,
                 clip_move_drag: None,
                 marquee_selection: None,
                 scrubbing_playhead: false,
@@ -459,7 +440,6 @@ impl TimelineState {
     pub(super) fn activate_timeline_tool(&mut self, tool: TimelineTool) {
         self.interaction.active_tool = tool;
         self.interaction.blade_guide = None;
-        self.interaction.trim_drag = None;
         self.interaction.clip_move_drag = None;
         self.interaction.marquee_selection = None;
         self.interaction.snap_guide = None;
@@ -510,15 +490,6 @@ impl TimelineState {
             .find(|clip| selected.contains(&clip.id))
             .map(|clip| clip.id);
         self.interaction.selected_clip_ids = selected;
-    }
-
-    pub(super) fn snap_time(
-        &self,
-        time: TimelineTime,
-        ignored_clip: Option<Ulid>,
-    ) -> (TimelineTime, Option<TimelineTime>) {
-        let ignored = ignored_clip.into_iter().collect::<HashSet<_>>();
-        self.snap_time_ignoring(time, &ignored)
     }
 
     pub(super) fn snap_time_ignoring(
@@ -696,19 +667,16 @@ impl Editor {
             .border_t_1()
             .border_color(rgb(BORDER))
             .bg(rgb(0x0a0a0c))
-            .on_mouse_move(cx.listener(Self::update_trim))
             .on_mouse_move(cx.listener(Self::update_clip_move))
             .on_mouse_move(cx.listener(Self::update_playhead_scrub))
             .on_mouse_move(cx.listener(Self::update_marquee_selection))
             .on_scroll_wheel(cx.listener(Self::finish_timeline_scroll))
-            .on_mouse_up(MouseButton::Left, cx.listener(Self::finish_trim))
             .on_mouse_up(MouseButton::Left, cx.listener(Self::finish_clip_move))
             .on_mouse_up(MouseButton::Left, cx.listener(Self::finish_playhead_scrub))
             .on_mouse_up(
                 MouseButton::Left,
                 cx.listener(Self::finish_marquee_selection),
             )
-            .on_mouse_up_out(MouseButton::Left, cx.listener(Self::finish_trim))
             .on_mouse_up_out(MouseButton::Left, cx.listener(Self::finish_clip_move))
             .on_mouse_up_out(MouseButton::Left, cx.listener(Self::finish_playhead_scrub))
             .on_mouse_up_out(
@@ -798,7 +766,7 @@ impl Editor {
                             .track_scroll(&timeline.scroll)
                             .cursor(match timeline.interaction.active_tool {
                                 TimelineTool::Blade => CursorStyle::Crosshair,
-                                TimelineTool::Selection | TimelineTool::Trim => CursorStyle::Arrow,
+                                TimelineTool::Selection => CursorStyle::Arrow,
                             })
                             .on_mouse_move(cx.listener(Self::update_blade_guide))
                             .on_hover(cx.listener(Self::update_blade_guide_hover))
@@ -1053,20 +1021,6 @@ impl Editor {
                                 return;
                             };
                             timeline.activate_timeline_tool(TimelineTool::Blade);
-                            cx.notify();
-                        })),
-                    )
-                    .child(
-                        timeline_tool_button(
-                            "timeline-trim-tool",
-                            "T Trim",
-                            timeline.interaction.active_tool == TimelineTool::Trim,
-                        )
-                        .on_click(cx.listener(|editor, _, _, cx| {
-                            let Some(timeline) = editor.timeline.as_mut() else {
-                                return;
-                            };
-                            timeline.activate_timeline_tool(TimelineTool::Trim);
                             cx.notify();
                         })),
                     )

@@ -32,7 +32,6 @@ pub(super) struct TimelineTime(i64);
 impl TimelineTime {
     pub const ZERO: Self = Self(0);
     pub const ONE_FRAME: Self = Self(1);
-    pub const MAX: Self = Self(i64::MAX);
 
     pub const fn from_frames(frames: i64) -> Self {
         Self(frames)

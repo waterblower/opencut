@@ -63,7 +63,7 @@ use properties_transform::VideoTransformInputs;
 use timeline::{Timeline, TimelineState};
 use timeline_clip_menu::TimelineClipContextMenu;
 use timeline_document::{load_existing, project_timeline_files};
-use timeline_interactions::{ClipMoveDrag, MarqueeSelection, TimelineTool, TrimDrag, TrimEdge};
+use timeline_interactions::{ClipMoveDrag, MarqueeSelection, TimelineTool};
 use ulid::Ulid;
 use workspace::{GlobalEditorSettings, load_global_editor_settings, save_global_editor_settings};
 
@@ -116,7 +116,6 @@ actions!(
         SelectAllUnlockedClips,
         ActivateSelectionTool,
         ActivateBladeTool,
-        ActivateTrimTool,
         ToggleFullscreen,
         ExitFullscreen,
         ToggleInspector,
@@ -147,7 +146,6 @@ pub(crate) fn bind_keys(cx: &mut App) {
         ),
         KeyBinding::new("v", ActivateSelectionTool, Some(EDITOR_SHORTCUT_CONTEXT)),
         KeyBinding::new("b", ActivateBladeTool, Some(EDITOR_SHORTCUT_CONTEXT)),
-        KeyBinding::new("t", ActivateTrimTool, Some(EDITOR_SHORTCUT_CONTEXT)),
         KeyBinding::new("f", ToggleFullscreen, Some(EDITOR_SHORTCUT_CONTEXT)),
         KeyBinding::new("escape", ExitFullscreen, Some(EDITOR_SHORTCUT_CONTEXT)),
         KeyBinding::new("cmd-alt-i", ToggleInspector, None),
@@ -620,19 +618,6 @@ impl Editor {
             return;
         };
         timeline.activate_timeline_tool(TimelineTool::Blade);
-        cx.notify();
-    }
-
-    fn action_activate_trim_tool(
-        &mut self,
-        _: &ActivateTrimTool,
-        _: &mut Window,
-        cx: &mut Context<Self>,
-    ) {
-        let Some(timeline) = self.timeline.as_mut() else {
-            return;
-        };
-        timeline.activate_timeline_tool(TimelineTool::Trim);
         cx.notify();
     }
 
