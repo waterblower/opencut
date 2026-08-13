@@ -19,6 +19,7 @@ use gst_video::VideoFrameExt as _;
 use gstreamer as gst;
 use gstreamer_app as gst_app;
 use gstreamer_video as gst_video;
+
 use parking_lot::Mutex;
 use std::{sync::Arc, thread::JoinHandle, time::Duration};
 use url::Url;
@@ -264,14 +265,6 @@ impl Video {
         self.0.pipeline.set_property("mute", muted);
     }
 
-    pub(crate) fn current_frame_data(&self) -> Option<(Vec<u8>, u32, u32)> {
-        pack_nv12(self.0.state.frame.lock().as_ref()?)
-    }
-
-    fn take_frame_ready(&self) -> bool {
-        self.0.state.frame_ready.swap(false, Ordering::AcqRel)
-    }
-
     pub(crate) fn pipeline(&self) -> gst::Pipeline {
         self.0.pipeline.clone()
     }
@@ -355,7 +348,7 @@ fn pack_nv12(sample: &gst::Sample) -> Option<(Vec<u8>, u32, u32)> {
 }
 
 pub(crate) struct VideoElement {
-    video: Video,
+    frame: Option<gst::Sample>,
     width: gpui::Pixels,
     height: gpui::Pixels,
     id: Option<ElementId>,
@@ -391,6 +384,10 @@ impl VideoElement {
             ),
             gpui::size(gpui::px(width), gpui::px(height)),
         )
+    }
+
+    fn current_frame_data(&self) -> Option<(Vec<u8>, u32, u32)> {
+        pack_nv12(self.frame.as_ref()?)
     }
 
     #[cfg(target_os = "macos")]
@@ -571,9 +568,7 @@ impl Element for VideoElement {
         window: &mut Window,
         _: &mut gpui::App,
     ) {
-        if !self.video.paused() || self.video.take_frame_ready() {
-            window.request_animation_frame();
-        }
+        window.request_animation_frame();
     }
 
     fn paint(
@@ -586,7 +581,7 @@ impl Element for VideoElement {
         window: &mut Window,
         cx: &mut gpui::App,
     ) {
-        let Some((nv12, width, height)) = self.video.current_frame_data() else {
+        let Some((nv12, width, height)) = self.current_frame_data() else {
             return;
         };
         #[cfg(target_os = "macos")]
@@ -608,7 +603,7 @@ impl IntoElement for VideoElement {
 pub(crate) fn video(video: Video) -> VideoElement {
     let (width, height) = video.display_size();
     VideoElement {
-        video,
+        frame: video.0.state.frame.lock().as_ref().cloned(),
         width: gpui::px(width as f32),
         height: gpui::px(height as f32),
         id: None,
