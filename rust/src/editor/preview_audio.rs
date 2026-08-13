@@ -89,6 +89,12 @@ impl AudioPreview {
     }
 }
 
+fn seek_audio_to_fraction(audio: &AudioPreview, fraction: f32, accurate: bool, playing: bool) {
+    let target = audio.duration().mul_f64(fraction.clamp(0.0, 1.0) as f64);
+    audio.seek_with_accuracy(target, accurate);
+    audio.set_playing(playing);
+}
+
 impl Drop for AudioPreview {
     fn drop(&mut self) {
         let _ = self.pipeline.set_state(gst::State::Null);
@@ -417,14 +423,6 @@ impl Editor {
             .into_any_element()
     }
 
-    fn seek_audio_to_fraction(&self, fraction: f32, accurate: bool, playing: bool) {
-        if let Some(audio) = &self.preview.audio {
-            let target = audio.duration().mul_f64(fraction.clamp(0.0, 1.0) as f64);
-            audio.seek_with_accuracy(target, accurate);
-            audio.set_playing(playing);
-        }
-    }
-
     fn begin_audio_scrub(&mut self, fraction: f32, cx: &mut Context<Self>) {
         let Some(audio) = &self.preview.audio else {
             return;
@@ -435,7 +433,7 @@ impl Editor {
         self.preview.scrub_fraction = Some(fraction);
         self.preview.pending_seek_started = None;
         self.preview.last_scrub_seek = Some(Instant::now());
-        self.seek_audio_to_fraction(fraction, false, false);
+        seek_audio_to_fraction(audio, fraction, false, false);
         self.preview.refresh_ticks = 12;
         cx.notify();
     }
@@ -452,7 +450,9 @@ impl Editor {
             .is_none_or(|last_seek| now.duration_since(last_seek) >= SCRUB_SEEK_INTERVAL)
         {
             self.preview.last_scrub_seek = Some(now);
-            self.seek_audio_to_fraction(fraction, false, false);
+            if let Some(audio) = &self.preview.audio {
+                seek_audio_to_fraction(audio, fraction, false, false);
+            }
         }
         self.preview.refresh_ticks = 12;
         cx.notify();
@@ -464,7 +464,9 @@ impl Editor {
         self.preview.pending_seek_started = Some(Instant::now());
         self.preview.last_scrub_seek = None;
         self.preview.is_scrubbing = false;
-        self.seek_audio_to_fraction(fraction, true, resume);
+        if let Some(audio) = &self.preview.audio {
+            seek_audio_to_fraction(audio, fraction, true, resume);
+        }
         self.preview.resume_after_scrub = false;
         self.preview.refresh_ticks = 12;
         cx.notify();
