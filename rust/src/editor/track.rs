@@ -68,6 +68,72 @@ fn explorer_drop_preview(
         .into_any_element()
 }
 
+fn timeline_clip_move_preview(
+    timeline: &Timeline,
+    clip_id: Ulid,
+    start: TimelineTime,
+    invalid_reason: Option<&'static str>,
+) -> gpui::AnyElement {
+    let name = timeline
+        .clip(clip_id)
+        .and_then(|clip| timeline.asset(clip.asset_id))
+        .map(|asset| asset.name.clone())
+        .unwrap_or_else(|| "Missing media".to_string());
+    let left = TIMELINE_PADDING + timeline.seconds(start) as f32 * timeline.view.pixels_per_second;
+    let duration = timeline
+        .clip(clip_id)
+        .map(TimelineClip::duration)
+        .unwrap_or(TimelineTime::ZERO);
+    let width = (timeline.seconds(duration) as f32 * timeline.view.pixels_per_second).max(4.0);
+    let valid = invalid_reason.is_none();
+    let feedback_color = if valid { ACCENT } else { ERROR };
+
+    div()
+        .id(gpui::SharedString::from(format!(
+            "timeline-clip-move-preview-{clip_id}"
+        )))
+        .absolute()
+        .left(px(left))
+        .top(px(5.0))
+        .w(px(width))
+        .h(px(TRACK_HEIGHT - 10.0))
+        .overflow_hidden()
+        .rounded_md()
+        .border_1()
+        .border_color(rgb(feedback_color))
+        .bg(gpui::rgba(if valid { 0xf0b75e38 } else { 0xff8b8b38 }))
+        .cursor(if valid {
+            CursorStyle::ClosedHand
+        } else {
+            CursorStyle::OperationNotAllowed
+        })
+        .child(
+            div()
+                .absolute()
+                .inset_0()
+                .p_2()
+                .flex()
+                .flex_col()
+                .justify_between()
+                .text_color(rgb(feedback_color))
+                .child(
+                    div()
+                        .text_xs()
+                        .font_weight(gpui::FontWeight::SEMIBOLD)
+                        .text_ellipsis()
+                        .child(name),
+                )
+                .child(
+                    div()
+                        .font_family("monospace")
+                        .text_xs()
+                        .text_ellipsis()
+                        .child(invalid_reason.unwrap_or("Move")),
+                ),
+        )
+        .into_any_element()
+}
+
 impl Editor {
     pub(super) fn track_header(
         &self,
@@ -182,7 +248,12 @@ impl Editor {
                     .iter()
                     .filter(|(_, track_id, _)| *track_id == track.id)
                     .map(|(clip_id, _, start)| {
-                        self.timeline_clip_move_preview(*clip_id, *start, drag.invalid_reason)
+                        timeline_clip_move_preview(
+                            &timeline.data,
+                            *clip_id,
+                            *start,
+                            drag.invalid_reason,
+                        )
                     })
                     .collect::<Vec<_>>()
             })
@@ -386,80 +457,6 @@ impl Editor {
                         ),
                     )
                 },
-            )
-            .into_any_element()
-    }
-
-    fn timeline_clip_move_preview(
-        &self,
-        clip_id: Ulid,
-        start: TimelineTime,
-        invalid_reason: Option<&'static str>,
-    ) -> gpui::AnyElement {
-        let timeline = self
-            .timeline
-            .as_ref()
-            .expect("clip move previews require an active timeline");
-        let name = timeline
-            .data
-            .clip(clip_id)
-            .and_then(|clip| timeline.data.asset(clip.asset_id))
-            .map(|asset| asset.name.clone())
-            .unwrap_or_else(|| "Missing media".to_string());
-        let left = TIMELINE_PADDING
-            + timeline.data.seconds(start) as f32 * timeline.data.view.pixels_per_second;
-        let duration = timeline
-            .data
-            .clip(clip_id)
-            .map(TimelineClip::duration)
-            .unwrap_or(TimelineTime::ZERO);
-        let width = (timeline.data.seconds(duration) as f32 * timeline.data.view.pixels_per_second)
-            .max(4.0);
-        let valid = invalid_reason.is_none();
-        let feedback_color = if valid { ACCENT } else { ERROR };
-
-        div()
-            .id(gpui::SharedString::from(format!(
-                "timeline-clip-move-preview-{clip_id}"
-            )))
-            .absolute()
-            .left(px(left))
-            .top(px(5.0))
-            .w(px(width))
-            .h(px(TRACK_HEIGHT - 10.0))
-            .overflow_hidden()
-            .rounded_md()
-            .border_1()
-            .border_color(rgb(feedback_color))
-            .bg(gpui::rgba(if valid { 0xf0b75e38 } else { 0xff8b8b38 }))
-            .cursor(if valid {
-                CursorStyle::ClosedHand
-            } else {
-                CursorStyle::OperationNotAllowed
-            })
-            .child(
-                div()
-                    .absolute()
-                    .inset_0()
-                    .p_2()
-                    .flex()
-                    .flex_col()
-                    .justify_between()
-                    .text_color(rgb(feedback_color))
-                    .child(
-                        div()
-                            .text_xs()
-                            .font_weight(gpui::FontWeight::SEMIBOLD)
-                            .text_ellipsis()
-                            .child(name),
-                    )
-                    .child(
-                        div()
-                            .font_family("monospace")
-                            .text_xs()
-                            .text_ellipsis()
-                            .child(invalid_reason.unwrap_or("Move")),
-                    ),
             )
             .into_any_element()
     }
