@@ -1,5 +1,6 @@
 use super::timeline_video::{create_timeline_video, set_timeline_audio};
 use super::*;
+use preview_image::preview_image_file;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(super) enum PreviewTarget {
@@ -37,7 +38,9 @@ impl Editor {
             PreviewTarget::AudioFile(path) => {
                 self.preview_audio_file(path, origin_x, width, height, cx)
             }
-            PreviewTarget::ImageFile(path) => self.preview_image_file(path, width, height),
+            PreviewTarget::ImageFile(path) => {
+                preview_image_file(self.global_settings.project_root.join(path), width, height)
+            }
         }
     }
 
