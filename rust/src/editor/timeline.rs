@@ -653,6 +653,24 @@ const TICK_STEPS: [f64; 12] = [
     1.0, 2.0, 5.0, 10.0, 15.0, 20.0, 30.0, 60.0, 120.0, 300.0, 600.0, 1800.0,
 ];
 
+fn timeline_marquee(selection: &MarqueeSelection) -> gpui::AnyElement {
+    let left = selection.start_x.min(selection.current_x);
+    let top = selection.start_y.min(selection.current_y);
+    let width = (selection.start_x - selection.current_x).abs();
+    let height = (selection.start_y - selection.current_y).abs();
+
+    div()
+        .absolute()
+        .left(px(left))
+        .top(px(top))
+        .w(px(width))
+        .h(px(height))
+        .border_1()
+        .border_color(rgb(ACCENT))
+        .bg(gpui::rgba(0xf0b75e24))
+        .into_any_element()
+}
+
 impl Editor {
     pub(super) fn timeline(&self, cx: &mut Context<Self>) -> gpui::AnyElement {
         let Some(timeline) = self.timeline.as_ref() else {
@@ -703,34 +721,11 @@ impl Editor {
             )
             .child(self.timeline_toolbar(frames_per_second, cx))
             .child(self.timeline_tracks_container(cx))
-            .when_some(self.timeline_marquee(), |this, marquee| this.child(marquee))
+            .when_some(
+                timeline.interaction.marquee_selection.as_ref(),
+                |this, selection| this.child(timeline_marquee(selection)),
+            )
             .into_any_element()
-    }
-
-    fn timeline_marquee(&self) -> Option<gpui::AnyElement> {
-        let selection = self
-            .timeline
-            .as_ref()?
-            .interaction
-            .marquee_selection
-            .as_ref()?;
-        let left = selection.start_x.min(selection.current_x);
-        let top = selection.start_y.min(selection.current_y);
-        let width = (selection.start_x - selection.current_x).abs();
-        let height = (selection.start_y - selection.current_y).abs();
-
-        Some(
-            div()
-                .absolute()
-                .left(px(left))
-                .top(px(top))
-                .w(px(width))
-                .h(px(height))
-                .border_1()
-                .border_color(rgb(ACCENT))
-                .bg(gpui::rgba(0xf0b75e24))
-                .into_any_element(),
-        )
     }
 
     fn timeline_tracks_container(&self, cx: &mut Context<Self>) -> gpui::AnyElement {
