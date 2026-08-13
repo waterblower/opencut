@@ -63,7 +63,6 @@ pub(crate) fn bind_keys(cx: &mut App) {
 
 pub(crate) struct Player {
     video: Option<Video>,
-    video_codec: Option<String>,
     bitrate_bps: Option<f64>,
     history: HistoryData,
     current_media_path: Option<PathBuf>,
@@ -96,25 +95,23 @@ impl Player {
     ) -> Self {
         let mut history = HistoryData::load();
         let mut current_media_path = None;
-        let (video, video_codec, bitrate_bps, title) = match initial_media {
+        let (video, bitrate_bps, title) = match initial_media {
             Some((url, title)) => match create_video(&url, looping) {
                 Ok(video) => {
-                    let codec =
-                        read_video_codec(&video.pipeline()).map(|codec| format_codec_name(&codec));
                     let bitrate = average_bitrate(&url, video.duration());
                     if let Ok(path) = url.to_file_path() {
                         let path = std::fs::canonicalize(&path).unwrap_or(path);
                         history.record(&path, title.clone());
                         current_media_path = Some(path);
                     }
-                    (Some(video), codec, bitrate, title)
+                    (Some(video), bitrate, title)
                 }
                 Err(error) => {
                     eprintln!("{error}");
-                    (None, None, None, "No video selected".to_string())
+                    (None, None, "No video selected".to_string())
                 }
             },
-            None => (None, None, None, "No video selected".to_string()),
+            None => (None, None, "No video selected".to_string()),
         };
 
         let focus_handle = cx.focus_handle();
@@ -123,7 +120,6 @@ impl Player {
 
         Self {
             video,
-            video_codec,
             bitrate_bps,
             history,
             current_media_path,
@@ -236,8 +232,6 @@ impl Player {
 
         match create_video(&url, self.looping) {
             Ok(video) => {
-                self.video_codec =
-                    read_video_codec(&video.pipeline()).map(|codec| format_codec_name(&codec));
                 self.bitrate_bps = average_bitrate(&url, video.duration());
                 self.video = Some(video);
                 self.history.record(&path, title.clone());
@@ -580,13 +574,16 @@ fn create_video(url: &Url, looping: bool) -> Result<Video, String> {
     Video::open(url, looping).map_err(|error| format!("Could not open video: {error}"))
 }
 
-fn read_video_codec(pipeline: &gst::Pipeline) -> Option<String> {
+fn video_codec(video: &Video) -> Option<String> {
+    let pipeline = video.pipeline();
     let stream_index = pipeline.property::<i32>("current-video");
     if stream_index < 0 {
         return None;
     }
     let tags = pipeline.emit_by_name::<Option<gst::TagList>>("get-video-tags", &[&stream_index])?;
-    Some(tags.get::<gst::tags::VideoCodec>()?.get().to_string())
+    Some(format_codec_name(
+        tags.get::<gst::tags::VideoCodec>()?.get(),
+    ))
 }
 
 fn format_codec_name(codec: &str) -> String {
