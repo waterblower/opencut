@@ -107,6 +107,10 @@ impl Render for ExplorerDragView {
     }
 }
 
+fn explorer_filter(filter: &Entity<ExplorerFilter>) -> gpui::AnyElement {
+    filter.clone().into_any_element()
+}
+
 impl Editor {
     pub(super) fn explorer_panel(&self, cx: &mut Context<Self>) -> gpui::AnyElement {
         let project_name = self
@@ -183,7 +187,7 @@ impl Editor {
                     .flex_col()
                     .overflow_hidden()
                     .bg(rgb(PANEL))
-                    .child(self.explorer_filter())
+                    .child(explorer_filter(&self.explorer.filter))
                     .child(
                         div()
                             .id("editor-media-scroll")
@@ -210,10 +214,6 @@ impl Editor {
                     ),
             )
             .into_any_element()
-    }
-
-    fn explorer_filter(&self) -> gpui::AnyElement {
-        self.explorer.filter.clone().into_any_element()
     }
 
     pub(super) fn schedule_explorer_search(&mut self, cx: &mut Context<Self>) {
