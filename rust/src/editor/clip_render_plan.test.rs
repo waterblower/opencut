@@ -8,10 +8,6 @@ fn resolves_visual_geometry_in_target_pixels() {
             position_y: -60.0,
             scale: 0.5,
             opacity: 0.25,
-            crop_left: 0.1,
-            crop_right: 0.2,
-            crop_top: 0.1,
-            crop_bottom: 0.2,
         },
         320,
         180,
@@ -21,20 +17,11 @@ fn resolves_visual_geometry_in_target_pixels() {
         1080.0,
     );
 
-    assert_eq!(plan.visible.left, 696.0);
-    assert_eq!(plan.visible.top, 264.0);
-    assert_eq!(plan.visible.width, 672.0);
-    assert_eq!(plan.visible.height, 378.0);
+    assert_eq!(plan.visible.left, 600.0);
+    assert_eq!(plan.visible.top, 210.0);
+    assert_eq!(plan.visible.width, 960.0);
+    assert_eq!(plan.visible.height, 540.0);
     assert_eq!(plan.opacity, 0.25);
-    assert_eq!(
-        plan.crop,
-        SourceCrop {
-            left: 32,
-            right: 64,
-            top: 18,
-            bottom: 36,
-        }
-    );
 }
 
 #[test]

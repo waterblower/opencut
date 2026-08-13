@@ -227,10 +227,6 @@ fn creates_gstreamer_timeline_from_real_media() {
         position_y: -60.0,
         scale: 0.5,
         opacity: 0.25,
-        crop_left: 0.1,
-        crop_right: 0.2,
-        crop_top: 0.1,
-        crop_bottom: 0.2,
     };
     project.clips.push(TimelineClip {
         id: ulid(11),
@@ -261,7 +257,7 @@ fn creates_gstreamer_timeline_from_real_media() {
             .unwrap()
             .get::<i32>()
             .unwrap(),
-        696
+        600
     );
     assert_eq!(
         exported_clip
@@ -269,7 +265,7 @@ fn creates_gstreamer_timeline_from_real_media() {
             .unwrap()
             .get::<i32>()
             .unwrap(),
-        264
+        210
     );
     assert_eq!(
         exported_clip
@@ -277,7 +273,7 @@ fn creates_gstreamer_timeline_from_real_media() {
             .unwrap()
             .get::<i32>()
             .unwrap(),
-        672
+        960
     );
     assert_eq!(
         exported_clip
@@ -285,7 +281,7 @@ fn creates_gstreamer_timeline_from_real_media() {
             .unwrap()
             .get::<i32>()
             .unwrap(),
-        378
+        540
     );
     assert_eq!(
         exported_clip
@@ -295,16 +291,6 @@ fn creates_gstreamer_timeline_from_real_media() {
             .unwrap(),
         0.25
     );
-    for (name, expected) in [("left", 32), ("right", 64), ("top", 18), ("bottom", 36)] {
-        assert_eq!(
-            exported_clip
-                .child_property(name)
-                .unwrap()
-                .get::<i32>()
-                .unwrap(),
-            expected
-        );
-    }
 }
 
 #[test]

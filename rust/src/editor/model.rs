@@ -294,10 +294,6 @@ pub(super) struct VideoClipProperties {
     pub position_y: f64,
     pub scale: f64,
     pub opacity: f64,
-    pub crop_left: f64,
-    pub crop_right: f64,
-    pub crop_top: f64,
-    pub crop_bottom: f64,
 }
 
 impl Default for VideoClipProperties {
@@ -307,10 +303,6 @@ impl Default for VideoClipProperties {
             position_y: 0.0,
             scale: 1.0,
             opacity: 1.0,
-            crop_left: 0.0,
-            crop_right: 0.0,
-            crop_top: 0.0,
-            crop_bottom: 0.0,
         }
     }
 }

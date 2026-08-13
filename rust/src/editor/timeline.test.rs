@@ -411,10 +411,6 @@ fn clip_properties_have_neutral_defaults() {
             position_y: 0.0,
             scale: 1.0,
             opacity: 1.0,
-            crop_left: 0.0,
-            crop_right: 0.0,
-            crop_top: 0.0,
-            crop_bottom: 0.0,
         }
     );
     assert_eq!(
@@ -453,10 +449,6 @@ fn clip_properties_round_trip_through_timeline_json() {
         position_y: -45.0,
         scale: 1.25,
         opacity: 0.8,
-        crop_left: 0.1,
-        crop_right: 0.2,
-        crop_top: 0.05,
-        crop_bottom: 0.15,
     };
     clip.audio_properties = AudioClipProperties {
         gain_db: -6.0,
