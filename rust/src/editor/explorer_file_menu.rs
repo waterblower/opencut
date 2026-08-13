@@ -351,7 +351,11 @@ impl Editor {
     }
 
     fn reveal_selected_file(&mut self, cx: &mut Context<Self>) {
-        let Some(path) = self.file_action_path() else {
+        let Some(path) = file_action_path(
+            self.explorer.context_menu.as_ref(),
+            self.explorer.selected_file.as_deref(),
+            &self.global_settings.project_root,
+        ) else {
             return;
         };
         self.explorer.context_menu = None;
@@ -359,7 +363,11 @@ impl Editor {
     }
 
     fn open_selected_file_in_default_app(&mut self, cx: &mut Context<Self>) {
-        let Some(path) = self.file_action_path() else {
+        let Some(path) = file_action_path(
+            self.explorer.context_menu.as_ref(),
+            self.explorer.selected_file.as_deref(),
+            &self.global_settings.project_root,
+        ) else {
             return;
         };
         self.explorer.context_menu = None;
@@ -412,16 +420,6 @@ impl Editor {
         Ok(())
     }
 
-    fn file_action_path(&self) -> Option<PathBuf> {
-        let relative_path = self
-            .explorer
-            .context_menu
-            .as_ref()
-            .map(|menu| &menu.relative_path)
-            .or(self.explorer.selected_file.as_ref())?;
-        Some(self.global_settings.project_root.join(relative_path))
-    }
-
     pub(crate) fn action_reveal_in_finder(
         &mut self,
         _: &RevealInFinder,
@@ -462,4 +460,15 @@ fn file_menu_item(label: &'static str, shortcut: &'static str) -> gpui::Stateful
                 .text_color(rgb(MUTED))
                 .child(shortcut),
         )
+}
+
+fn file_action_path(
+    context_menu: Option<&FileContextMenu>,
+    selected_file: Option<&Path>,
+    project_root: &Path,
+) -> Option<PathBuf> {
+    let relative_path = context_menu
+        .map(|menu| menu.relative_path.as_path())
+        .or(selected_file)?;
+    Some(project_root.join(relative_path))
 }
