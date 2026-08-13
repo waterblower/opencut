@@ -488,8 +488,16 @@ impl Editor {
             },
             window,
         );
+        let Some(timeline) = self.timeline.as_ref() else {
+            return;
+        };
         if !self.explorer.drag_probe_jobs.contains(&drag.relative_path)
-            && self.explorer_asset_for_path(&drag.relative_path).is_none()
+            && explorer_asset_for_path(
+                &timeline.data.assets,
+                &self.explorer.drag_assets,
+                &drag.relative_path,
+            )
+            .is_none()
         {
             self.request_explorer_drag_probe(drag.relative_path.clone(), cx);
         }
@@ -502,11 +510,15 @@ impl Editor {
         track_id: Ulid,
         raw_start: TimelineTime,
     ) {
-        let asset = self.explorer_asset_for_path(&drag.relative_path).cloned();
-        let analyzing = asset.is_none();
         let Some(timeline) = self.timeline.as_ref() else {
             return;
         };
+        let asset = explorer_asset_for_path(
+            &timeline.data.assets,
+            &self.explorer.drag_assets,
+            &drag.relative_path,
+        );
+        let analyzing = asset.is_none();
         let duration = asset
             .as_ref()
             .map(|asset| timeline.data.ceil_time(asset.duration))
@@ -563,7 +575,14 @@ impl Editor {
             return;
         }
 
-        if let Some(asset) = self.explorer_asset_for_path(&drag.relative_path).cloned() {
+        let Some(timeline) = self.timeline.as_ref() else {
+            return;
+        };
+        if let Some(asset) = explorer_asset_for_path(
+            &timeline.data.assets,
+            &self.explorer.drag_assets,
+            &drag.relative_path,
+        ) {
             self.place_explorer_asset(
                 drag.relative_path.clone(),
                 preview.track_id,
@@ -583,15 +602,16 @@ impl Editor {
         cx.notify();
     }
 
-    fn explorer_asset_for_path(&self, relative_path: &std::path::Path) -> Option<&MediaAsset> {
-        self.timeline
-            .as_ref()
-            .and_then(|timeline| timeline.data.asset_for_path(relative_path))
-            .or_else(|| self.explorer.drag_assets.get(relative_path))
-    }
-
     fn request_explorer_drag_probe(&mut self, relative_path: PathBuf, cx: &mut Context<Self>) {
-        if self.explorer_asset_for_path(&relative_path).is_some()
+        let Some(timeline) = self.timeline.as_ref() else {
+            return;
+        };
+        if explorer_asset_for_path(
+            &timeline.data.assets,
+            &self.explorer.drag_assets,
+            &relative_path,
+        )
+        .is_some()
             || !self.explorer.drag_probe_jobs.insert(relative_path.clone())
         {
             return;
@@ -858,6 +878,18 @@ fn explorer_file_badge(entry: &FileTreeEntry) -> gpui::Div {
         .text_xs()
         .text_color(rgb(text))
         .child(extension)
+}
+
+fn explorer_asset_for_path(
+    timeline_assets: &[MediaAsset],
+    drag_assets: &HashMap<PathBuf, MediaAsset>,
+    relative_path: &Path,
+) -> Option<MediaAsset> {
+    timeline_assets
+        .iter()
+        .find(|asset| asset.path == relative_path)
+        .or_else(|| drag_assets.get(relative_path))
+        .cloned()
 }
 
 #[cfg(test)]
