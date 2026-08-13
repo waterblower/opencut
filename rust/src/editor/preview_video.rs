@@ -45,46 +45,17 @@ impl Editor {
             .map_or((Duration::ZERO, Duration::ZERO, true), |video| {
                 (video.position(), video.duration(), video.paused())
             });
-        self.playable_preview(
-            origin_x,
-            origin_y,
-            width,
-            height,
-            self.preview.video.is_some(),
-            paused,
-            position,
-            duration,
-            content,
-            cx,
-        )
-    }
-
-    #[allow(clippy::too_many_arguments)]
-    fn playable_preview(
-        &self,
-        origin_x: f32,
-        origin_y: f32,
-        width: f32,
-        height: f32,
-        has_media: bool,
-        paused: bool,
-        reported_position: Duration,
-        duration: Duration,
-        content: gpui::AnyElement,
-        cx: &mut Context<Self>,
-    ) -> gpui::AnyElement {
         let reported_progress = if duration.is_zero() {
             0.0
         } else {
-            (reported_position.as_secs_f64() / duration.as_secs_f64()).clamp(0.0, 1.0) as f32
+            (position.as_secs_f64() / duration.as_secs_f64()).clamp(0.0, 1.0) as f32
         };
         let progress = self.preview.scrub_fraction.unwrap_or(reported_progress);
         let position = self
             .preview
             .scrub_fraction
-            .map_or(reported_position, |fraction| {
-                duration.mul_f64(fraction as f64)
-            });
+            .map_or(position, |fraction| duration.mul_f64(fraction as f64));
+        let has_media = self.preview.video.is_some();
 
         playback_view(
             PlaybackViewProps {
