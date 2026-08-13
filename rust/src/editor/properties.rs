@@ -242,15 +242,15 @@ fn image_file_properties(path: &Path, asset: Option<&MediaAsset>) -> gpui::AnyEl
         .into_any_element()
 }
 
-impl Editor {
-    fn set_properties_panel_width_from_x(&mut self, x: f32, window: &Window) {
-        let viewport_width: f32 = window.viewport_size().width.into();
-        let editor_width = (viewport_width - crate::gpui_inspector::docked_width(window)).max(0.0);
-        let available_max = (editor_width - MEDIA_PANEL_WIDTH - MIN_PREVIEW_WIDTH)
-            .clamp(MIN_PROPERTIES_PANEL_WIDTH, MAX_PROPERTIES_PANEL_WIDTH);
-        self.properties.width = (editor_width - x).clamp(MIN_PROPERTIES_PANEL_WIDTH, available_max);
-    }
+fn set_properties_panel_width_from_x(panel: &mut PropertiesPanelState, x: f32, window: &Window) {
+    let viewport_width: f32 = window.viewport_size().width.into();
+    let editor_width = (viewport_width - crate::gpui_inspector::docked_width(window)).max(0.0);
+    let available_max = (editor_width - MEDIA_PANEL_WIDTH - MIN_PREVIEW_WIDTH)
+        .clamp(MIN_PROPERTIES_PANEL_WIDTH, MAX_PROPERTIES_PANEL_WIDTH);
+    panel.width = (editor_width - x).clamp(MIN_PROPERTIES_PANEL_WIDTH, available_max);
+}
 
+impl Editor {
     pub(super) fn begin_properties_panel_resize(
         &mut self,
         event: &MouseDownEvent,
@@ -258,7 +258,7 @@ impl Editor {
         cx: &mut Context<Self>,
     ) {
         self.properties.resizing = true;
-        self.set_properties_panel_width_from_x(event.position.x.into(), window);
+        set_properties_panel_width_from_x(&mut self.properties, event.position.x.into(), window);
         cx.notify();
     }
 
@@ -269,7 +269,11 @@ impl Editor {
         cx: &mut Context<Self>,
     ) {
         if self.properties.resizing {
-            self.set_properties_panel_width_from_x(event.event.position.x.into(), window);
+            set_properties_panel_width_from_x(
+                &mut self.properties,
+                event.event.position.x.into(),
+                window,
+            );
             cx.notify();
         }
     }
@@ -281,7 +285,11 @@ impl Editor {
         cx: &mut Context<Self>,
     ) {
         if self.properties.resizing && event.button == MouseButton::Left {
-            self.set_properties_panel_width_from_x(event.position.x.into(), window);
+            set_properties_panel_width_from_x(
+                &mut self.properties,
+                event.position.x.into(),
+                window,
+            );
             self.properties.resizing = false;
             cx.notify();
         }
