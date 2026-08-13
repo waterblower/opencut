@@ -86,17 +86,6 @@ const DEFAULT_TIMELINE_PIXELS_PER_SECOND: f32 = 72.0;
 const SCRUB_SEEK_INTERVAL: Duration = Duration::from_millis(50);
 const IDLE_UPDATE_INTERVAL: Duration = Duration::from_millis(16);
 
-#[cfg(test)]
-fn lock_gstreamer_test() -> std::sync::MutexGuard<'static, ()> {
-    static LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
-    LOCK.lock().unwrap_or_else(|error| error.into_inner())
-}
-
-#[cfg(test)]
-fn ulid(value: u64) -> Ulid {
-    Ulid::from(u128::from(value))
-}
-
 const BACKGROUND: u32 = 0x080809;
 const PANEL: u32 = 0x0d0d0f;
 const SURFACE: u32 = 0x17171a;
@@ -699,5 +688,8 @@ fn format_time(seconds: f64, padded_minutes: bool) -> String {
 }
 
 #[cfg(test)]
-#[path = "editor.test.rs"]
+#[path = "mod.test.rs"]
 mod tests;
+
+#[cfg(test)]
+use tests::{lock_gstreamer_test, ulid};
