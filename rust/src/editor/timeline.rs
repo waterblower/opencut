@@ -240,10 +240,6 @@ impl Timeline {
         self.settings.frame_rate.nearest(seconds)
     }
 
-    pub fn floor_duration(&self, duration: Duration) -> TimelineTime {
-        self.settings.frame_rate.floor_duration(duration)
-    }
-
     pub fn audio_duration(&self, time: TimelineTime) -> Duration {
         let samples = self
             .settings

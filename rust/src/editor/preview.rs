@@ -205,9 +205,12 @@ pub(super) fn update_playback(timeline: &mut TimelineState, preview: &mut Previe
     let (origin, started_at) = *preview
         .timeline_clock
         .get_or_insert((timeline.playhead, Instant::now()));
-    timeline.playhead =
-        timeline_playhead_from_elapsed(&timeline.data, origin, started_at.elapsed())
-            .clamp(TimelineTime::ZERO, duration);
+    timeline.playhead = timeline_playhead_from_elapsed(
+        timeline.data.settings.frame_rate,
+        origin,
+        started_at.elapsed(),
+    )
+    .clamp(TimelineTime::ZERO, duration);
     if video.eos() || timeline.playhead >= duration {
         video.set_paused(true);
         timeline.playhead = duration;
@@ -217,11 +220,11 @@ pub(super) fn update_playback(timeline: &mut TimelineState, preview: &mut Previe
 }
 
 fn timeline_playhead_from_elapsed(
-    timeline: &Timeline,
+    frame_rate: FrameRate,
     origin: TimelineTime,
     elapsed: Duration,
 ) -> TimelineTime {
-    origin + timeline.floor_duration(elapsed)
+    origin + frame_rate.floor_duration(elapsed)
 }
 
 impl Editor {
