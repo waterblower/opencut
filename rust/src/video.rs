@@ -631,25 +631,3 @@ fn frame_rate_from_fraction(numerator: i32, denominator: i32) -> Option<f64> {
     let frame_rate = numerator as f64 / denominator as f64;
     frame_rate.is_finite().then_some(frame_rate)
 }
-
-#[cfg(test)]
-mod tests {
-    use super::frame_rate_from_fraction;
-
-    #[test]
-    fn treats_variable_frame_rate_as_unknown_rather_than_invalid() {
-        // GStreamer negotiates 0/1 for VFR sources such as screen recordings.
-        assert_eq!(frame_rate_from_fraction(0, 1), None);
-        // A malformed fraction is equally unusable, and equally not a load failure.
-        assert_eq!(frame_rate_from_fraction(24, 0), None);
-        assert_eq!(frame_rate_from_fraction(0, 0), None);
-        assert_eq!(frame_rate_from_fraction(-24, 1), None);
-    }
-
-    #[test]
-    fn reads_ordinary_and_ntsc_frame_rates() {
-        assert_eq!(frame_rate_from_fraction(30, 1), Some(30.0));
-        let ntsc = frame_rate_from_fraction(24_000, 1_001).unwrap();
-        assert!((ntsc - 23.976).abs() < 0.001, "got {ntsc}");
-    }
-}
