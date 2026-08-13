@@ -92,9 +92,10 @@ impl Render for Player {
         let speed = self.video.as_ref().map_or(1.0, Video::speed);
         let source_metadata = self.video.as_ref().map(|video| {
             let (width, height) = video.display_size();
+            let codec = video_codec(video).unwrap_or_else(|| "codec unavailable".to_string());
             format!(
                 "{} · {}×{} · {} · {}",
-                self.video_codec.as_deref().unwrap_or("codec unavailable"),
+                codec,
                 width,
                 height,
                 video
