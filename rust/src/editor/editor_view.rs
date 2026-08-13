@@ -81,7 +81,6 @@ impl Render for Editor {
             .on_action(cx.listener(Self::action_select_all_unlocked_clips))
             .on_action(cx.listener(Self::action_activate_selection_tool))
             .on_action(cx.listener(Self::action_activate_blade_tool))
-            .on_action(cx.listener(Self::action_activate_trim_tool))
             .on_action(cx.listener(Self::action_toggle_fullscreen))
             .on_action(cx.listener(Self::action_exit_fullscreen))
             .on_action(cx.listener(Self::action_toggle_inspector))
