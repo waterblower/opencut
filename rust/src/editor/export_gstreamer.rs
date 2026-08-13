@@ -226,8 +226,6 @@ pub(super) fn apply_video_transform(
         clip.set_child_property(name, value)
             .map_err(|error| format!("could not apply video {name}: {error}"))?;
     }
-    clip.set_child_property("alpha", plan.opacity)
-        .map_err(|error| format!("could not apply video opacity: {error}"))?;
     Ok(())
 }
 

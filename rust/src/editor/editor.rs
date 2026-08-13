@@ -74,7 +74,6 @@ impl Editor {
                 resizing: false,
                 transform_inputs: video_transform_inputs,
                 transform_input_clip_id: None,
-                opacity_drag: None,
             },
             settings_open: false,
             export: ExportState {

@@ -7,7 +7,6 @@ fn resolves_visual_geometry_in_target_pixels() {
             position_x: 120.0,
             position_y: -60.0,
             scale: 0.5,
-            opacity: 0.25,
         },
         320,
         180,
@@ -21,7 +20,6 @@ fn resolves_visual_geometry_in_target_pixels() {
     assert_eq!(plan.visible.top, 210.0);
     assert_eq!(plan.visible.width, 960.0);
     assert_eq!(plan.visible.height, 540.0);
-    assert_eq!(plan.opacity, 0.25);
 }
 
 #[test]

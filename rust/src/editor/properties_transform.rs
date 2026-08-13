@@ -13,13 +13,6 @@ pub(super) struct VideoTransformInputs {
     scale: Entity<ExplorerFilter>,
 }
 
-pub(super) struct OpacityDrag {
-    clip_id: Ulid,
-    slider_left: f32,
-    slider_width: f32,
-    changed: bool,
-}
-
 impl VideoTransformInputs {
     pub(super) fn new(return_focus: FocusHandle, cx: &mut Context<Editor>) -> Self {
         let field = |cx: &mut Context<Editor>, id, value: &str| {
@@ -110,10 +103,7 @@ impl Editor {
 
 pub(super) fn video_transform_panel(
     panel: &PropertiesPanelState,
-    clip_id: Ulid,
-    properties: VideoClipProperties,
     editable: bool,
-    cx: &mut Context<Editor>,
 ) -> gpui::AnyElement {
     div()
         .id("video-transform-properties")
@@ -164,12 +154,6 @@ pub(super) fn video_transform_panel(
                     "%",
                     "transform-scale",
                     editable,
-                ))
-                .child(video_opacity_control(
-                    clip_id,
-                    properties.opacity,
-                    editable,
-                    cx,
                 )),
         )
         .into_any_element()
@@ -227,191 +211,7 @@ fn video_transform_field(
         .into_any_element()
 }
 
-fn video_opacity_control(
-    clip_id: Ulid,
-    opacity: f64,
-    editable: bool,
-    cx: &mut Context<Editor>,
-) -> gpui::AnyElement {
-    let opacity = opacity.clamp(0.0, 1.0);
-    div()
-        .h(px(42.0))
-        .flex()
-        .items_center()
-        .gap_4()
-        .child(
-            div()
-                .w(px(112.0))
-                .flex_shrink_0()
-                .text_sm()
-                .text_color(rgb(MUTED))
-                .child("Opacity"),
-        )
-        .child(
-            div()
-                .min_w_0()
-                .flex_1()
-                .flex()
-                .items_center()
-                .gap_3()
-                .child(
-                    div()
-                        .id("transform-opacity-slider")
-                        .relative()
-                        .h(px(24.0))
-                        .min_w_0()
-                        .flex_1()
-                        .flex()
-                        .items_center()
-                        .cursor(if editable {
-                            CursorStyle::PointingHand
-                        } else {
-                            CursorStyle::Arrow
-                        })
-                        .child(
-                            div()
-                                .absolute()
-                                .left_0()
-                                .right_0()
-                                .h(px(4.0))
-                                .rounded_full()
-                                .bg(rgb(0x45454d)),
-                        )
-                        .child(
-                            div()
-                                .absolute()
-                                .left_0()
-                                .w(gpui::relative(opacity as f32))
-                                .h(px(4.0))
-                                .rounded_full()
-                                .bg(rgb(ACCENT)),
-                        )
-                        .child(
-                            div()
-                                .absolute()
-                                .left(gpui::relative(opacity as f32))
-                                .ml(px(-8.0))
-                                .size(px(16.0))
-                                .rounded_full()
-                                .bg(rgb(0xf7f7f8)),
-                        )
-                        .when(editable, |slider| {
-                            slider.on_mouse_down(
-                                MouseButton::Left,
-                                cx.listener(move |editor, event, window, cx| {
-                                    editor.begin_video_opacity_drag(clip_id, event, window, cx);
-                                }),
-                            )
-                        }),
-                )
-                .child(
-                    div()
-                        .w(px(38.0))
-                        .font_family("monospace")
-                        .text_base()
-                        .text_color(rgb(if editable { TEXT } else { MUTED }))
-                        .child(format!("{:.0}", opacity * 100.0)),
-                ),
-        )
-        .into_any_element()
-}
-
 impl Editor {
-    fn begin_video_opacity_drag(
-        &mut self,
-        clip_id: Ulid,
-        event: &MouseDownEvent,
-        window: &mut Window,
-        cx: &mut Context<Self>,
-    ) {
-        let Some(timeline) = self.timeline.as_ref() else {
-            return;
-        };
-        if timeline.data.clip_locked(clip_id) {
-            return;
-        }
-        let viewport_width = f32::from(window.viewport_size().width);
-        let editor_width = (viewport_width - crate::gpui_inspector::docked_width(window)).max(0.0);
-        let slider_left = editor_width - self.properties.width + 148.0;
-        let slider_width = (self.properties.width - 218.0).max(1.0);
-        self.properties.opacity_drag = Some(OpacityDrag {
-            clip_id,
-            slider_left,
-            slider_width,
-            changed: false,
-        });
-        self.apply_video_opacity_drag(f32::from(event.position.x), cx);
-        cx.stop_propagation();
-    }
-
-    pub(super) fn update_video_opacity_drag(
-        &mut self,
-        event: &MouseMoveEvent,
-        _: &mut Window,
-        cx: &mut Context<Self>,
-    ) {
-        if self.properties.opacity_drag.is_some() && event.dragging() {
-            self.apply_video_opacity_drag(f32::from(event.position.x), cx);
-        }
-    }
-
-    pub(super) fn finish_video_opacity_drag(
-        &mut self,
-        event: &MouseUpEvent,
-        _: &mut Window,
-        cx: &mut Context<Self>,
-    ) {
-        if event.button != MouseButton::Left || self.properties.opacity_drag.is_none() {
-            return;
-        }
-        self.apply_video_opacity_drag(f32::from(event.position.x), cx);
-        let changed = self
-            .properties
-            .opacity_drag
-            .take()
-            .is_some_and(|drag| drag.changed);
-        if changed {
-            let Some(timeline) = self.timeline.as_ref() else {
-                return;
-            };
-            timeline.save(&self.global_settings.project_root);
-            self.rebuild_timeline_preview_if_needed();
-        }
-        cx.notify();
-    }
-
-    fn apply_video_opacity_drag(&mut self, pointer_x: f32, cx: &mut Context<Self>) {
-        let Some(mut drag) = self.properties.opacity_drag.take() else {
-            return;
-        };
-        let opacity = opacity_from_pointer(pointer_x, drag.slider_left, drag.slider_width);
-        let Some(timeline) = self.timeline.as_ref() else {
-            self.properties.opacity_drag = None;
-            return;
-        };
-        let Some(index) = timeline.data.clip_index(drag.clip_id) else {
-            self.properties.opacity_drag = None;
-            return;
-        };
-        if (timeline.data.clips[index].video_properties.opacity - opacity).abs() <= f64::EPSILON {
-            self.properties.opacity_drag = Some(drag);
-            return;
-        }
-        let Some(timeline) = self.timeline.as_mut() else {
-            self.properties.opacity_drag = None;
-            return;
-        };
-        if !drag.changed {
-            timeline.record_editing_history();
-            self.preview.timeline_needs_rebuild = true;
-            drag.changed = true;
-        }
-        timeline.data.clips[index].video_properties.opacity = opacity;
-        self.properties.opacity_drag = Some(drag);
-        self.preview.refresh_ticks = 2;
-        cx.notify();
-    }
-
     fn set_video_transform_from_text(&mut self, property: VideoTransformProperty, text: &str) {
         let Some(clip_id) = self.properties.transform_input_clip_id else {
             return;
@@ -470,10 +270,6 @@ fn disabled_field_overlay(field: gpui::Stateful<gpui::Div>) -> gpui::Stateful<gp
     field.child(div().absolute().inset_0().occlude())
 }
 
-fn opacity_from_pointer(pointer_x: f32, slider_left: f32, slider_width: f32) -> f64 {
-    ((pointer_x - slider_left) / slider_width.max(1.0)).clamp(0.0, 1.0) as f64
-}
-
 fn properties_tab(label: &'static str, active: bool) -> gpui::Div {
     div()
         .h_full()
@@ -493,7 +289,3 @@ fn properties_section_label(label: &'static str) -> gpui::Div {
         .text_color(rgb(MUTED))
         .child(label)
 }
-
-#[cfg(test)]
-#[path = "properties_transform.test.rs"]
-mod tests;

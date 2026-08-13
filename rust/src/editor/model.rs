@@ -285,15 +285,14 @@ impl MediaAsset {
 
 /// Static visual adjustments for one timeline clip.
 ///
-/// Position is an offset in timeline pixels from the clip's centered placement. Scale and
-/// opacity are normalized multipliers, so `1.0` means 100%.
+/// Position is an offset in timeline pixels from the clip's centered placement. Scale is a
+/// normalized multiplier, so `1.0` means 100%.
 #[derive(Clone, Copy, Debug, Deserialize, PartialEq, Serialize)]
 #[serde(default)]
 pub(super) struct VideoClipProperties {
     pub position_x: f64,
     pub position_y: f64,
     pub scale: f64,
-    pub opacity: f64,
 }
 
 impl Default for VideoClipProperties {
@@ -302,7 +301,6 @@ impl Default for VideoClipProperties {
             position_x: 0.0,
             position_y: 0.0,
             scale: 1.0,
-            opacity: 1.0,
         }
     }
 }
