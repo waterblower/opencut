@@ -5,6 +5,69 @@ use std::sync::Arc;
 const CLIP_WAVEFORM_HEIGHT: f32 = 80.0;
 const CLIP_WAVEFORM_VISUAL_GAIN: f32 = 2.0;
 
+fn explorer_drop_preview(
+    preview: &ExplorerDropPreview,
+    frame_rate: FrameRate,
+    pixels_per_second: f32,
+) -> gpui::AnyElement {
+    let left = TIMELINE_PADDING + frame_rate.seconds(preview.start) as f32 * pixels_per_second;
+    let width = (frame_rate.seconds(preview.duration) as f32 * pixels_per_second).max(4.0);
+    let invalid = preview.invalid_reason.is_some();
+    let feedback_color = if invalid { ERROR } else { ACCENT };
+    let detail = preview
+        .invalid_reason
+        .as_deref()
+        .unwrap_or(if preview.analyzing {
+            "Inspecting media…"
+        } else {
+            "Drop to add"
+        })
+        .to_string();
+
+    div()
+        .id("explorer-media-drop-preview")
+        .absolute()
+        .left(px(left))
+        .top(px(5.0))
+        .w(px(width))
+        .h(px(TRACK_HEIGHT - 10.0))
+        .overflow_hidden()
+        .rounded_md()
+        .border_1()
+        .border_color(rgb(feedback_color))
+        .bg(gpui::rgba(if invalid { 0xff8b8b38 } else { 0xf0b75e38 }))
+        .cursor(if invalid {
+            CursorStyle::OperationNotAllowed
+        } else {
+            CursorStyle::DragCopy
+        })
+        .child(
+            div()
+                .absolute()
+                .inset_0()
+                .p_2()
+                .flex()
+                .flex_col()
+                .justify_between()
+                .text_color(rgb(feedback_color))
+                .child(
+                    div()
+                        .text_xs()
+                        .font_weight(gpui::FontWeight::SEMIBOLD)
+                        .text_ellipsis()
+                        .child(preview.name.clone()),
+                )
+                .child(
+                    div()
+                        .font_family("monospace")
+                        .text_xs()
+                        .text_ellipsis()
+                        .child(detail),
+                ),
+        )
+        .into_any_element()
+}
+
 impl Editor {
     pub(super) fn track_header(
         &self,
@@ -129,7 +192,13 @@ impl Editor {
             .drop_preview
             .as_ref()
             .filter(|preview| preview.track_id == track.id)
-            .map(|preview| self.explorer_drop_preview(preview));
+            .map(|preview| {
+                explorer_drop_preview(
+                    preview,
+                    timeline.data.settings.frame_rate,
+                    timeline.data.view.pixels_per_second,
+                )
+            });
 
         div()
             .id(("track-row", index))
@@ -390,72 +459,6 @@ impl Editor {
                             .text_xs()
                             .text_ellipsis()
                             .child(invalid_reason.unwrap_or("Move")),
-                    ),
-            )
-            .into_any_element()
-    }
-
-    fn explorer_drop_preview(&self, preview: &ExplorerDropPreview) -> gpui::AnyElement {
-        let timeline = self
-            .timeline
-            .as_ref()
-            .expect("explorer drop previews require an active timeline");
-        let left = TIMELINE_PADDING
-            + timeline.data.seconds(preview.start) as f32 * timeline.data.view.pixels_per_second;
-        let width = (timeline.data.seconds(preview.duration) as f32
-            * timeline.data.view.pixels_per_second)
-            .max(4.0);
-        let invalid = preview.invalid_reason.is_some();
-        let feedback_color = if invalid { ERROR } else { ACCENT };
-        let detail = preview
-            .invalid_reason
-            .as_deref()
-            .unwrap_or(if preview.analyzing {
-                "Inspecting media…"
-            } else {
-                "Drop to add"
-            })
-            .to_string();
-
-        div()
-            .id("explorer-media-drop-preview")
-            .absolute()
-            .left(px(left))
-            .top(px(5.0))
-            .w(px(width))
-            .h(px(TRACK_HEIGHT - 10.0))
-            .overflow_hidden()
-            .rounded_md()
-            .border_1()
-            .border_color(rgb(feedback_color))
-            .bg(gpui::rgba(if invalid { 0xff8b8b38 } else { 0xf0b75e38 }))
-            .cursor(if invalid {
-                CursorStyle::OperationNotAllowed
-            } else {
-                CursorStyle::DragCopy
-            })
-            .child(
-                div()
-                    .absolute()
-                    .inset_0()
-                    .p_2()
-                    .flex()
-                    .flex_col()
-                    .justify_between()
-                    .text_color(rgb(feedback_color))
-                    .child(
-                        div()
-                            .text_xs()
-                            .font_weight(gpui::FontWeight::SEMIBOLD)
-                            .text_ellipsis()
-                            .child(preview.name.clone()),
-                    )
-                    .child(
-                        div()
-                            .font_family("monospace")
-                            .text_xs()
-                            .text_ellipsis()
-                            .child(detail),
                     ),
             )
             .into_any_element()
