@@ -14,13 +14,13 @@ use std::{
 mod clip_placement;
 mod clip_render_plan;
 mod editing;
-mod editor;
 mod editor_view;
 mod explorer;
 mod explorer_filter;
 mod export;
 mod export_dialog;
 mod export_gstreamer;
+mod lifecycle;
 mod media_probe;
 mod model;
 mod preview;
