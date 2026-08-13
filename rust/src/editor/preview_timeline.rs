@@ -51,40 +51,39 @@ fn nearest_canvas_snap(clip_anchors: [f64; 3], canvas_guides: [f64; 3]) -> Optio
     nearest
 }
 
-impl Editor {
-    fn timeline_preview_clip_rect(
-        &self,
-        clip: &TimelineClip,
-        properties: VideoClipProperties,
-        canvas: TimelinePreviewCanvas,
-    ) -> Option<RenderRect> {
-        let timeline = self.timeline.as_ref()?;
-        let track = timeline.data.track(clip.track_id)?;
-        if track.kind != TrackKind::Video || !track.visible {
-            return None;
-        }
-        let asset = timeline.data.asset(clip.asset_id)?;
-        if asset.kind == MediaKind::Audio {
-            return None;
-        }
-        let visible = resolve_visual_clip_render_plan(
-            properties,
-            asset.width,
-            asset.height,
-            timeline.data.settings.width,
-            timeline.data.settings.height,
-            canvas.width,
-            canvas.height,
-        )
-        .visible;
-        Some(RenderRect {
-            left: canvas.left + visible.left,
-            top: canvas.top + visible.top,
-            width: visible.width,
-            height: visible.height,
-        })
+fn timeline_preview_clip_rect(
+    timeline: &Timeline,
+    clip: &TimelineClip,
+    properties: VideoClipProperties,
+    canvas: TimelinePreviewCanvas,
+) -> Option<RenderRect> {
+    let track = timeline.track(clip.track_id)?;
+    if track.kind != TrackKind::Video || !track.visible {
+        return None;
     }
+    let asset = timeline.asset(clip.asset_id)?;
+    if asset.kind == MediaKind::Audio {
+        return None;
+    }
+    let visible = resolve_visual_clip_render_plan(
+        properties,
+        asset.width,
+        asset.height,
+        timeline.settings.width,
+        timeline.settings.height,
+        canvas.width,
+        canvas.height,
+    )
+    .visible;
+    Some(RenderRect {
+        left: canvas.left + visible.left,
+        top: canvas.top + visible.top,
+        width: visible.width,
+        height: visible.height,
+    })
+}
 
+impl Editor {
     fn begin_timeline_preview_clip_drag(
         &mut self,
         event: &MouseDownEvent,
@@ -106,7 +105,12 @@ impl Editor {
                 {
                     return None;
                 }
-                let rect = self.timeline_preview_clip_rect(clip, clip.video_properties, canvas)?;
+                let rect = timeline_preview_clip_rect(
+                    &timeline.data,
+                    clip,
+                    clip.video_properties,
+                    canvas,
+                )?;
                 (f64::from(pointer_x) >= rect.left
                     && f64::from(pointer_x) <= rect.left + rect.width
                     && f64::from(pointer_y) >= rect.top
@@ -183,7 +187,8 @@ impl Editor {
             .interaction
             .snapping_enabled
             .then(|| {
-                self.timeline_preview_clip_rect(
+                timeline_preview_clip_rect(
+                    &timeline.data,
                     &timeline.data.clips[index],
                     properties,
                     drag.canvas,
@@ -495,7 +500,7 @@ impl Editor {
             if clip.timeline_start > timeline.playhead || timeline.playhead >= clip.timeline_end() {
                 return None;
             }
-            self.timeline_preview_clip_rect(clip, clip.video_properties, canvas)
+            timeline_preview_clip_rect(&timeline.data, clip, clip.video_properties, canvas)
         });
         let (snap_x, snap_y) = self
             .preview
