@@ -247,34 +247,32 @@ impl Editor {
             PreviewTarget::AudioFile(_) | PreviewTarget::ImageFile(_) => {}
         }
     }
+}
 
-    pub(super) fn reconcile_preview_seek(&mut self) {
-        if self.preview.is_scrubbing {
-            return;
-        }
-        let (Some(fraction), Some(started)) = (
-            self.preview.scrub_fraction,
-            self.preview.pending_seek_started,
-        ) else {
-            return;
-        };
+pub(super) fn reconcile_preview_seek(preview: &mut PreviewState) {
+    if preview.is_scrubbing {
+        return;
+    }
+    let (Some(fraction), Some(started)) = (preview.scrub_fraction, preview.pending_seek_started)
+    else {
+        return;
+    };
 
-        let settled = match self.preview.target {
-            PreviewTarget::Timeline => true,
-            PreviewTarget::VideoFile(_) => self.preview.video.as_ref().is_some_and(|video| {
-                let target = video.duration().mul_f64(fraction as f64);
-                video.position().abs_diff(target) <= Duration::from_millis(40)
-            }),
-            PreviewTarget::AudioFile(_) => self.preview.audio.as_ref().is_some_and(|audio| {
-                let target = audio.duration().mul_f64(fraction as f64);
-                audio.position().abs_diff(target) <= Duration::from_millis(40)
-            }),
-            PreviewTarget::ImageFile(_) => true,
-        };
-        if settled || started.elapsed() >= Duration::from_secs(2) {
-            self.preview.scrub_fraction = None;
-            self.preview.pending_seek_started = None;
-        }
+    let settled = match preview.target {
+        PreviewTarget::Timeline => true,
+        PreviewTarget::VideoFile(_) => preview.video.as_ref().is_some_and(|video| {
+            let target = video.duration().mul_f64(fraction as f64);
+            video.position().abs_diff(target) <= Duration::from_millis(40)
+        }),
+        PreviewTarget::AudioFile(_) => preview.audio.as_ref().is_some_and(|audio| {
+            let target = audio.duration().mul_f64(fraction as f64);
+            audio.position().abs_diff(target) <= Duration::from_millis(40)
+        }),
+        PreviewTarget::ImageFile(_) => true,
+    };
+    if settled || started.elapsed() >= Duration::from_secs(2) {
+        preview.scrub_fraction = None;
+        preview.pending_seek_started = None;
     }
 }
 

@@ -138,7 +138,7 @@ fn start_updates(cx: &mut Context<Editor>) {
                 if let Some(timeline) = editor.timeline.as_mut() {
                     update_playback(timeline, &mut editor.preview);
                 }
-                editor.reconcile_preview_seek();
+                reconcile_preview_seek(&mut editor.preview);
                 if should_render {
                     cx.notify();
                 }
