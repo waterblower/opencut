@@ -104,7 +104,7 @@ impl Editor {
             match create_timeline_video(&timeline.data, &self.global_settings.project_root) {
                 Ok(video) => {
                     set_timeline_audio(
-                        &video,
+                        &video.pipeline(),
                         self.preview.volume,
                         self.preview.volume <= f64::EPSILON,
                     );
@@ -122,7 +122,7 @@ impl Editor {
         if let Some(video) = &self.preview.video {
             let _ = video.seek(timeline.data.duration(position), accurate);
             set_timeline_audio(
-                video,
+                &video.pipeline(),
                 self.preview.volume,
                 self.preview.volume <= f64::EPSILON,
             );
@@ -369,7 +369,7 @@ impl PlaybackViewDelegate for Editor {
         if let Some(video) = &self.preview.video {
             if self.preview.target == PreviewTarget::Timeline {
                 set_timeline_audio(
-                    video,
+                    &video.pipeline(),
                     self.preview.volume,
                     self.preview.volume <= f64::EPSILON,
                 );

@@ -21,8 +21,8 @@ pub(super) fn create_timeline_video(
         .map_err(|error| format!("could not initialize timeline video: {error}"))
 }
 
-pub(super) fn set_timeline_audio(video: &Video, volume: f64, muted: bool) {
-    if let Some(control) = video.pipeline().by_name("gpui_audio_volume") {
+pub(super) fn set_timeline_audio(pipeline: &gst::Pipeline, volume: f64, muted: bool) {
+    if let Some(control) = pipeline.by_name("gpui_audio_volume") {
         control.set_property("volume", volume.clamp(0.0, 1.0));
         control.set_property("mute", muted);
     }
