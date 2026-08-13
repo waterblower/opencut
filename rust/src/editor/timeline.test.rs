@@ -353,7 +353,6 @@ fn splitting_clip_preserves_ranges_and_properties() {
     clip.source_in = frames(30);
     clip.source_out = frames(90);
     clip.video_properties.position_x = 42.0;
-    clip.video_properties.opacity = 0.5;
     clip.audio_properties.gain_db = -6.0;
     clip.audio_properties.muted = true;
 
@@ -410,7 +409,6 @@ fn clip_properties_have_neutral_defaults() {
             position_x: 0.0,
             position_y: 0.0,
             scale: 1.0,
-            opacity: 1.0,
         }
     );
     assert_eq!(
@@ -448,7 +446,6 @@ fn clip_properties_round_trip_through_timeline_json() {
         position_x: 120.0,
         position_y: -45.0,
         scale: 1.25,
-        opacity: 0.8,
     };
     clip.audio_properties = AudioClipProperties {
         gain_db: -6.0,

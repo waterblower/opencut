@@ -23,7 +23,7 @@ pub(super) fn properties_panel(editor: &Editor, cx: &mut Context<Editor>) -> gpu
                     .child("No timeline selected")
                     .into_any_element();
             };
-            timeline_properties(timeline, &editor.properties, cx)
+            timeline_properties(timeline, &editor.properties)
         }
         PreviewTarget::VideoFile(path) => editor.video_file_properties(path),
         PreviewTarget::AudioFile(path) => editor.audio_file_properties(path),
@@ -78,11 +78,7 @@ pub(super) fn properties_panel(editor: &Editor, cx: &mut Context<Editor>) -> gpu
         .into_any_element()
 }
 
-fn timeline_properties(
-    timeline: &TimelineState,
-    panel: &PropertiesPanelState,
-    cx: &mut Context<Editor>,
-) -> gpui::AnyElement {
+fn timeline_properties(timeline: &TimelineState, panel: &PropertiesPanelState) -> gpui::AnyElement {
     let selection_count = timeline.interaction.selected_clip_ids.len();
     if selection_count > 1 {
         return div()
@@ -118,13 +114,7 @@ fn timeline_properties(
             this.flex()
                 .flex_col()
                 .when(has_video_transform, |this| {
-                    this.child(video_transform_panel(
-                        panel,
-                        clip.id,
-                        clip.video_properties,
-                        editable,
-                        cx,
-                    ))
+                    this.child(video_transform_panel(panel, editable))
                 })
                 .when(!has_video_transform, |this| {
                     this.gap_4()

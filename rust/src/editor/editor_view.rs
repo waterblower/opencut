@@ -90,9 +90,7 @@ impl Render for Editor {
             .on_drag_move::<PropertiesPanelResizeDrag>(
                 cx.listener(Self::resize_properties_panel_drag),
             )
-            .on_mouse_move(cx.listener(Self::update_video_opacity_drag))
             .capture_any_mouse_up(cx.listener(Self::finish_properties_panel_resize))
-            .capture_any_mouse_up(cx.listener(Self::finish_video_opacity_drag))
             .capture_any_mouse_down(cx.listener(|editor, event: &MouseDownEvent, window, cx| {
                 if event.button == MouseButton::Left {
                     editor.focus_handle.focus(window);

@@ -59,7 +59,7 @@ use preview::{PreviewTarget, update_playback};
 use preview_audio::AudioPreview;
 use preview_timeline::TimelinePreviewDrag;
 use properties::{PropertiesPanelResizeDrag, properties_panel};
-use properties_transform::{OpacityDrag, VideoTransformInputs};
+use properties_transform::VideoTransformInputs;
 use timeline::{Timeline, TimelineState};
 use timeline_clip_menu::TimelineClipContextMenu;
 use timeline_document::{load_existing, project_timeline_files};
@@ -213,7 +213,6 @@ struct PropertiesPanelState {
     resizing: bool,
     transform_inputs: VideoTransformInputs,
     transform_input_clip_id: Option<Ulid>,
-    opacity_drag: Option<OpacityDrag>,
 }
 
 struct ExportState {
@@ -369,7 +368,6 @@ impl Editor {
         self.preview.last_scrub_seek = None;
         self.preview.timeline_drag = None;
         self.properties.transform_input_clip_id = None;
-        self.properties.opacity_drag = None;
         self.preview.refresh_ticks = 2;
         self.timeline = active_timeline.map(|(path, data)| TimelineState::new(path, data));
         self.explorer.search_query = None;

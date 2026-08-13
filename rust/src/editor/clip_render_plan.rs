@@ -11,7 +11,6 @@ pub(super) struct RenderRect {
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(super) struct VisualClipRenderPlan {
     pub(super) visible: RenderRect,
-    pub(super) opacity: f64,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -53,14 +52,7 @@ pub(super) fn resolve_visual_clip_render_plan(
         height: full_height,
     };
 
-    VisualClipRenderPlan {
-        visible,
-        opacity: if source_scale <= f64::EPSILON {
-            0.0
-        } else {
-            properties.opacity
-        },
-    }
+    VisualClipRenderPlan { visible }
 }
 
 pub(super) fn resolve_audio_clip_render_plan(
@@ -78,7 +70,6 @@ fn sanitize_video_properties(mut properties: VideoClipProperties) -> VideoClipPr
     properties.position_x = finite_or(properties.position_x, 0.0);
     properties.position_y = finite_or(properties.position_y, 0.0);
     properties.scale = finite_or(properties.scale, 1.0).max(0.0);
-    properties.opacity = finite_or(properties.opacity, 1.0).clamp(0.0, 1.0);
     properties
 }
 

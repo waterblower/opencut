@@ -226,7 +226,6 @@ fn creates_gstreamer_timeline_from_real_media() {
         position_x: 120.0,
         position_y: -60.0,
         scale: 0.5,
-        opacity: 0.25,
     };
     project.clips.push(TimelineClip {
         id: ulid(11),
@@ -282,14 +281,6 @@ fn creates_gstreamer_timeline_from_real_media() {
             .get::<i32>()
             .unwrap(),
         540
-    );
-    assert_eq!(
-        exported_clip
-            .child_property("alpha")
-            .unwrap()
-            .get::<f64>()
-            .unwrap(),
-        0.25
     );
 }
 
