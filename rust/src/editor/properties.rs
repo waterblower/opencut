@@ -23,7 +23,12 @@ pub(super) fn properties_panel(editor: &Editor, cx: &mut Context<Editor>) -> gpu
                     .child("No timeline selected")
                     .into_any_element();
             };
-            timeline_properties(timeline, &editor.properties)
+            timeline_properties(
+                &timeline.data,
+                timeline.interaction.selected_clip_id,
+                &timeline.interaction.selected_clip_ids,
+                &editor.properties,
+            )
         }
         file_target @ (PreviewTarget::VideoFile(path)
         | PreviewTarget::AudioFile(path)
@@ -93,8 +98,13 @@ pub(super) fn properties_panel(editor: &Editor, cx: &mut Context<Editor>) -> gpu
         .into_any_element()
 }
 
-fn timeline_properties(timeline: &TimelineState, panel: &PropertiesPanelState) -> gpui::AnyElement {
-    let selection_count = timeline.interaction.selected_clip_ids.len();
+fn timeline_properties(
+    timeline: &Timeline,
+    selected_clip_id: Option<Ulid>,
+    selected_clip_ids: &HashSet<Ulid>,
+    panel: &PropertiesPanelState,
+) -> gpui::AnyElement {
+    let selection_count = selected_clip_ids.len();
     if selection_count > 1 {
         return div()
             .id("timeline-multi-properties")
@@ -108,14 +118,17 @@ fn timeline_properties(timeline: &TimelineState, panel: &PropertiesPanelState) -
             .into_any_element();
     }
 
-    let selected = timeline.interaction.selected_clip_id.and_then(|id| {
-        let index = timeline.data.clip_index(id)?;
-        let clip = &timeline.data.clips[index];
-        let asset = timeline.data.asset(clip.asset_id);
-        let track = timeline.data.track(clip.track_id)?;
+    let selected = selected_clip_id.and_then(|id| {
+        let index = timeline.clip_index(id)?;
+        let clip = &timeline.clips[index];
+        let asset = timeline.asset(clip.asset_id);
+        let track = timeline.track(clip.track_id)?;
         Some((clip, asset, track))
     });
-    let editable = timeline.selected_clips_editable();
+    let editable = !selected_clip_ids.is_empty()
+        && selected_clip_ids
+            .iter()
+            .all(|clip_id| timeline.clip(*clip_id).is_some() && !timeline.clip_locked(*clip_id));
 
     div()
         .id("timeline-properties")
@@ -136,17 +149,16 @@ fn timeline_properties(timeline: &TimelineState, panel: &PropertiesPanelState) -
                         .child(properties_title(title, "Timeline clip"))
                         .child(properties_value(
                             "Timeline start",
-                            format_time(timeline.data.seconds(clip.timeline_start), false),
+                            format_time(timeline.seconds(clip.timeline_start), false),
                         ))
                         .child(properties_value(
                             "Source in",
-                            format_time(timeline.data.source_start_seconds(clip), false),
+                            format_time(timeline.source_start_seconds(clip), false),
                         ))
                         .child(properties_value(
                             "Source out",
                             format_time(
                                 timeline
-                                    .data
                                     .source_position_at(clip, clip.timeline_end())
                                     .as_secs_f64(),
                                 false,
@@ -154,7 +166,7 @@ fn timeline_properties(timeline: &TimelineState, panel: &PropertiesPanelState) -
                         ))
                         .child(properties_value(
                             "Clip duration",
-                            format_time(timeline.data.seconds(clip.duration()), false),
+                            format_time(timeline.seconds(clip.duration()), false),
                         ))
                         .child(properties_value("Track", track.name.clone()))
                         .when_some(asset, |this, asset| {
