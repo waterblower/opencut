@@ -99,7 +99,8 @@ impl Player {
         let (video, video_codec, bitrate_bps, title) = match initial_media {
             Some((url, title)) => match create_video(&url, looping) {
                 Ok(video) => {
-                    let codec = read_video_codec(&video).map(|codec| format_codec_name(&codec));
+                    let codec =
+                        read_video_codec(&video.pipeline()).map(|codec| format_codec_name(&codec));
                     let bitrate = average_bitrate(&url, video.duration());
                     if let Ok(path) = url.to_file_path() {
                         let path = std::fs::canonicalize(&path).unwrap_or(path);
@@ -235,7 +236,8 @@ impl Player {
 
         match create_video(&url, self.looping) {
             Ok(video) => {
-                self.video_codec = read_video_codec(&video).map(|codec| format_codec_name(&codec));
+                self.video_codec =
+                    read_video_codec(&video.pipeline()).map(|codec| format_codec_name(&codec));
                 self.bitrate_bps = average_bitrate(&url, video.duration());
                 self.video = Some(video);
                 self.history.record(&path, title.clone());
@@ -578,8 +580,7 @@ fn create_video(url: &Url, looping: bool) -> Result<Video, String> {
     Video::open(url, looping).map_err(|error| format!("Could not open video: {error}"))
 }
 
-fn read_video_codec(video: &Video) -> Option<String> {
-    let pipeline = video.pipeline();
+fn read_video_codec(pipeline: &gst::Pipeline) -> Option<String> {
     let stream_index = pipeline.property::<i32>("current-video");
     if stream_index < 0 {
         return None;
