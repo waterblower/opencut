@@ -217,16 +217,6 @@ pub(super) fn apply_video_transform(
         options.height.max(2) as f64,
     );
 
-    if plan.crop.left != 0 || plan.crop.right != 0 || plan.crop.top != 0 || plan.crop.bottom != 0 {
-        let effect = ges::Effect::new(&format!(
-            "videocrop left={} right={} top={} bottom={}",
-            plan.crop.left, plan.crop.right, plan.crop.top, plan.crop.bottom
-        ))
-        .map_err(|error| format!("could not create video crop effect: {error}"))?;
-        clip.add_top_effect(&effect, 0)
-            .map_err(|error| format!("could not apply video crop: {error}"))?;
-    }
-
     for (name, value) in [
         ("posx", rounded_i32(plan.visible.left)),
         ("posy", rounded_i32(plan.visible.top)),

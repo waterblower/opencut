@@ -8,18 +8,9 @@ pub(super) struct RenderRect {
     pub(super) height: f64,
 }
 
-#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
-pub(super) struct SourceCrop {
-    pub(super) left: u32,
-    pub(super) right: u32,
-    pub(super) top: u32,
-    pub(super) bottom: u32,
-}
-
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(super) struct VisualClipRenderPlan {
     pub(super) visible: RenderRect,
-    pub(super) crop: SourceCrop,
     pub(super) opacity: f64,
 }
 
@@ -51,39 +42,19 @@ pub(super) fn resolve_visual_clip_render_plan(
         .min(project_height * project_scale / source_height as f64);
     let source_scale = fitted_scale * properties.scale;
 
-    let crop_left = crop_pixels(source_width, properties.crop_left, 0);
-    let crop_right = crop_pixels(source_width, properties.crop_right, crop_left);
-    let crop_top = crop_pixels(source_height, properties.crop_top, 0);
-    let crop_bottom = crop_pixels(source_height, properties.crop_bottom, crop_top);
-    let crop = SourceCrop {
-        left: crop_left,
-        right: crop_right,
-        top: crop_top,
-        bottom: crop_bottom,
-    };
-
     let full_width = source_width as f64 * source_scale;
     let full_height = source_height as f64 * source_scale;
     let center_x = target_width * 0.5 + properties.position_x * project_scale;
     let center_y = target_height * 0.5 + properties.position_y * project_scale;
-    let uncropped = RenderRect {
+    let visible = RenderRect {
         left: center_x - full_width * 0.5,
         top: center_y - full_height * 0.5,
         width: full_width,
         height: full_height,
     };
-    let visible_source_width = source_width.saturating_sub(crop_left + crop_right).max(1);
-    let visible_source_height = source_height.saturating_sub(crop_top + crop_bottom).max(1);
-    let visible = RenderRect {
-        left: uncropped.left + crop_left as f64 * source_scale,
-        top: uncropped.top + crop_top as f64 * source_scale,
-        width: visible_source_width as f64 * source_scale,
-        height: visible_source_height as f64 * source_scale,
-    };
 
     VisualClipRenderPlan {
         visible,
-        crop,
         opacity: if source_scale <= f64::EPSILON {
             0.0
         } else {
@@ -108,17 +79,7 @@ fn sanitize_video_properties(mut properties: VideoClipProperties) -> VideoClipPr
     properties.position_y = finite_or(properties.position_y, 0.0);
     properties.scale = finite_or(properties.scale, 1.0).max(0.0);
     properties.opacity = finite_or(properties.opacity, 1.0).clamp(0.0, 1.0);
-    properties.crop_left = finite_or(properties.crop_left, 0.0).clamp(0.0, 0.99);
-    properties.crop_right =
-        finite_or(properties.crop_right, 0.0).clamp(0.0, 0.99 - properties.crop_left);
-    properties.crop_top = finite_or(properties.crop_top, 0.0).clamp(0.0, 0.99);
-    properties.crop_bottom =
-        finite_or(properties.crop_bottom, 0.0).clamp(0.0, 0.99 - properties.crop_top);
     properties
-}
-
-fn crop_pixels(size: u32, fraction: f64, already_cropped: u32) -> u32 {
-    ((size as f64 * fraction).round() as u32).min(size.saturating_sub(already_cropped + 1))
 }
 
 fn finite_or(value: f64, fallback: f64) -> f64 {

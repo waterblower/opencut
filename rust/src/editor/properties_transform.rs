@@ -5,20 +5,12 @@ enum VideoTransformProperty {
     PositionX,
     PositionY,
     Scale,
-    CropLeft,
-    CropRight,
-    CropTop,
-    CropBottom,
 }
 
 pub(super) struct VideoTransformInputs {
     position_x: Entity<ExplorerFilter>,
     position_y: Entity<ExplorerFilter>,
     scale: Entity<ExplorerFilter>,
-    crop_left: Entity<ExplorerFilter>,
-    crop_right: Entity<ExplorerFilter>,
-    crop_top: Entity<ExplorerFilter>,
-    crop_bottom: Entity<ExplorerFilter>,
 }
 
 pub(super) struct OpacityDrag {
@@ -45,10 +37,6 @@ impl VideoTransformInputs {
             position_x: field(cx, "transform-position-x-input", "0.0"),
             position_y: field(cx, "transform-position-y-input", "0.0"),
             scale: field(cx, "transform-scale-input", "100.0"),
-            crop_left: field(cx, "transform-crop-left-input", "0.0"),
-            crop_right: field(cx, "transform-crop-right-input", "0.0"),
-            crop_top: field(cx, "transform-crop-top-input", "0.0"),
-            crop_bottom: field(cx, "transform-crop-bottom-input", "0.0"),
         }
     }
 
@@ -57,22 +45,14 @@ impl VideoTransformInputs {
             VideoTransformProperty::PositionX => self.position_x.clone(),
             VideoTransformProperty::PositionY => self.position_y.clone(),
             VideoTransformProperty::Scale => self.scale.clone(),
-            VideoTransformProperty::CropLeft => self.crop_left.clone(),
-            VideoTransformProperty::CropRight => self.crop_right.clone(),
-            VideoTransformProperty::CropTop => self.crop_top.clone(),
-            VideoTransformProperty::CropBottom => self.crop_bottom.clone(),
         }
     }
 
-    fn fields(&self) -> [(VideoTransformProperty, Entity<ExplorerFilter>); 7] {
+    fn fields(&self) -> [(VideoTransformProperty, Entity<ExplorerFilter>); 3] {
         [
             (VideoTransformProperty::PositionX, self.position_x.clone()),
             (VideoTransformProperty::PositionY, self.position_y.clone()),
             (VideoTransformProperty::Scale, self.scale.clone()),
-            (VideoTransformProperty::CropLeft, self.crop_left.clone()),
-            (VideoTransformProperty::CropRight, self.crop_right.clone()),
-            (VideoTransformProperty::CropTop, self.crop_top.clone()),
-            (VideoTransformProperty::CropBottom, self.crop_bottom.clone()),
         ]
     }
 }
@@ -117,19 +97,6 @@ impl Editor {
             (VideoTransformProperty::PositionX, properties.position_x),
             (VideoTransformProperty::PositionY, properties.position_y),
             (VideoTransformProperty::Scale, properties.scale * 100.0),
-            (
-                VideoTransformProperty::CropLeft,
-                properties.crop_left * 100.0,
-            ),
-            (
-                VideoTransformProperty::CropRight,
-                properties.crop_right * 100.0,
-            ),
-            (VideoTransformProperty::CropTop, properties.crop_top * 100.0),
-            (
-                VideoTransformProperty::CropBottom,
-                properties.crop_bottom * 100.0,
-            ),
         ];
         for (property, value) in values {
             let text = format_transform_value(value);
@@ -203,55 +170,7 @@ pub(super) fn video_transform_panel(
                     properties.opacity,
                     editable,
                     cx,
-                ))
-                .child(
-                    div()
-                        .mt_2()
-                        .flex()
-                        .items_center()
-                        .justify_between()
-                        .child(properties_section_label("CROP"))
-                        .child(crop_reset_button(editable).when(editable, |button| {
-                            button.on_click(cx.listener(move |editor, _, _, cx| {
-                                editor.reset_video_crop(clip_id);
-                                cx.notify();
-                            }))
-                        })),
-                )
-                .child(
-                    div()
-                        .grid()
-                        .grid_cols(2)
-                        .gap_3()
-                        .child(video_crop_field(
-                            panel,
-                            VideoTransformProperty::CropLeft,
-                            "Left",
-                            "transform-crop-left",
-                            editable,
-                        ))
-                        .child(video_crop_field(
-                            panel,
-                            VideoTransformProperty::CropRight,
-                            "Right",
-                            "transform-crop-right",
-                            editable,
-                        ))
-                        .child(video_crop_field(
-                            panel,
-                            VideoTransformProperty::CropTop,
-                            "Top",
-                            "transform-crop-top",
-                            editable,
-                        ))
-                        .child(video_crop_field(
-                            panel,
-                            VideoTransformProperty::CropBottom,
-                            "Bottom",
-                            "transform-crop-bottom",
-                            editable,
-                        )),
-                ),
+                )),
         )
         .into_any_element()
 }
@@ -300,57 +219,6 @@ fn video_transform_field(
                 })
                 .child(input)
                 .child(div().text_sm().text_color(rgb(MUTED)).child(unit))
-                .when(editable, |field| {
-                    field.hover(|style| style.border_color(rgb(0x4a4a52)))
-                })
-                .when(!editable, disabled_field_overlay),
-        )
-        .into_any_element()
-}
-
-fn video_crop_field(
-    panel: &PropertiesPanelState,
-    property: VideoTransformProperty,
-    label: &'static str,
-    field_id: &'static str,
-    editable: bool,
-) -> gpui::AnyElement {
-    let input = panel.transform_inputs.input(property);
-    div()
-        .min_w_0()
-        .flex()
-        .items_center()
-        .gap_2()
-        .child(
-            div()
-                .w(px(58.0))
-                .flex_shrink_0()
-                .text_sm()
-                .text_color(rgb(MUTED))
-                .child(label),
-        )
-        .child(
-            div()
-                .id(field_id)
-                .h(px(46.0))
-                .relative()
-                .min_w_0()
-                .flex_1()
-                .flex()
-                .items_center()
-                .justify_between()
-                .px_3()
-                .rounded_md()
-                .border_1()
-                .border_color(rgb(BORDER))
-                .bg(rgb(SURFACE))
-                .cursor(if editable {
-                    CursorStyle::IBeam
-                } else {
-                    CursorStyle::Arrow
-                })
-                .child(input)
-                .child(div().text_sm().text_color(rgb(MUTED)).child("%"))
                 .when(editable, |field| {
                     field.hover(|style| style.border_color(rgb(0x4a4a52)))
                 })
@@ -574,18 +442,6 @@ impl Editor {
             VideoTransformProperty::PositionX => properties.position_x = value,
             VideoTransformProperty::PositionY => properties.position_y = value,
             VideoTransformProperty::Scale => properties.scale = value.clamp(0.0, 100.0),
-            VideoTransformProperty::CropLeft => {
-                properties.crop_left = value.clamp(0.0, 0.99 - properties.crop_right)
-            }
-            VideoTransformProperty::CropRight => {
-                properties.crop_right = value.clamp(0.0, 0.99 - properties.crop_left)
-            }
-            VideoTransformProperty::CropTop => {
-                properties.crop_top = value.clamp(0.0, 0.99 - properties.crop_bottom)
-            }
-            VideoTransformProperty::CropBottom => {
-                properties.crop_bottom = value.clamp(0.0, 0.99 - properties.crop_top)
-            }
         }
         if properties == timeline.data.clips[index].video_properties {
             return;
@@ -596,40 +452,6 @@ impl Editor {
         timeline.record_editing_history();
         self.preview.timeline_needs_rebuild = true;
         timeline.data.clips[index].video_properties = properties;
-        self.preview.refresh_ticks = 2;
-        timeline.save(&self.global_settings.project_root);
-        self.rebuild_timeline_preview_if_needed();
-    }
-
-    fn reset_video_crop(&mut self, clip_id: Ulid) {
-        let Some(timeline) = self.timeline.as_ref() else {
-            return;
-        };
-        if timeline.data.clip_locked(clip_id) {
-            return;
-        }
-        let Some(index) = timeline.data.clip_index(clip_id) else {
-            return;
-        };
-        let mut properties = timeline.data.clips[index].video_properties;
-        if properties.crop_left == 0.0
-            && properties.crop_right == 0.0
-            && properties.crop_top == 0.0
-            && properties.crop_bottom == 0.0
-        {
-            return;
-        }
-        properties.crop_left = 0.0;
-        properties.crop_right = 0.0;
-        properties.crop_top = 0.0;
-        properties.crop_bottom = 0.0;
-        let Some(timeline) = self.timeline.as_mut() else {
-            return;
-        };
-        timeline.record_editing_history();
-        self.preview.timeline_needs_rebuild = true;
-        timeline.data.clips[index].video_properties = properties;
-        self.properties.transform_input_clip_id = None;
         self.preview.refresh_ticks = 2;
         timeline.save(&self.global_settings.project_root);
         self.rebuild_timeline_preview_if_needed();
@@ -670,28 +492,6 @@ fn properties_section_label(label: &'static str) -> gpui::Div {
         .font_weight(gpui::FontWeight::SEMIBOLD)
         .text_color(rgb(MUTED))
         .child(label)
-}
-
-fn crop_reset_button(enabled: bool) -> gpui::Stateful<gpui::Div> {
-    div()
-        .id("reset-video-crop")
-        .h_8()
-        .px_2()
-        .flex()
-        .items_center()
-        .justify_center()
-        .rounded_md()
-        .cursor(if enabled {
-            CursorStyle::PointingHand
-        } else {
-            CursorStyle::Arrow
-        })
-        .text_sm()
-        .text_color(rgb(if enabled { ACCENT } else { MUTED }))
-        .when(enabled, |this| {
-            this.hover(|style| style.bg(rgb(SURFACE_HOVER)))
-        })
-        .child("Reset")
 }
 
 #[cfg(test)]
