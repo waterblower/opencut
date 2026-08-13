@@ -78,7 +78,7 @@ fn print_counts(root: &Path, counts: &BTreeMap<String, Count>) {
     } else {
         for count in counts.values() {
             for path in &count.large_files {
-                if let Ok(relative) = path.strip_prefix(&root) {
+                if let Ok(relative) = path.strip_prefix(root) {
                     println!("  {}", relative.display());
                 } else {
                     println!("  {}", path.display());

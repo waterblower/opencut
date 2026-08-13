@@ -326,10 +326,10 @@ impl Editor {
             .timeline
             .as_ref()
             .and_then(|timeline| remap_relative_path(&timeline.path, &old_relative, &new_relative));
-        if let Some(renamed_active_timeline) = renamed_active_timeline {
-            if let Some(timeline) = self.timeline.as_mut() {
-                timeline.path = renamed_active_timeline;
-            }
+        if let Some(renamed_active_timeline) = renamed_active_timeline
+            && let Some(timeline) = self.timeline.as_mut()
+        {
+            timeline.path = renamed_active_timeline;
         }
         if let Some(timeline) = self.timeline.as_ref() {
             timeline.save(&self.global_settings.project_root);
