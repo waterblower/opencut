@@ -7,3 +7,6 @@
 - When a function call returns an error, propagate it through intermediate
   functions instead of logging it there. Log the error only at the highest-level
   application, event, or task boundary.
+- Functions and methods should accept only the data they use. Prefer passing the
+  smallest required values over accepting a broader type such as `&self` when
+  the function does not depend on the rest of that type's state.
