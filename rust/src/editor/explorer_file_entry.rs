@@ -479,7 +479,9 @@ impl Editor {
                         format!("Could not preview {}: {error}", source_path.display())
                     })?;
                     video.set_paused(true);
-                    let _ = video.seek(Duration::ZERO, true);
+                    video.seek(Duration::ZERO, true).map_err(|error| {
+                        format!("Could not preview {}: {error}", source_path.display())
+                    })?;
                     Ok::<_, String>(video)
                 })
                 .await;
