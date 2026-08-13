@@ -155,7 +155,7 @@ impl Editor {
                     return;
                 };
                 if audio.finished() {
-                    audio.seek(Duration::ZERO);
+                    audio.seek_with_accuracy(Duration::ZERO, true);
                     audio.set_playing(true);
                 } else {
                     audio.set_playing(!audio.playing());

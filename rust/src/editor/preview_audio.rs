@@ -30,10 +30,6 @@ impl AudioPreview {
         Ok(Self { pipeline })
     }
 
-    pub(super) fn seek(&self, position: Duration) {
-        self.seek_with_accuracy(position, true);
-    }
-
     pub(super) fn seek_with_accuracy(&self, position: Duration, accurate: bool) {
         let nanos = position.as_nanos().min(u64::MAX as u128) as u64;
         let flags = if accurate {
