@@ -25,7 +25,14 @@ pub(super) fn properties_panel(editor: &Editor, cx: &mut Context<Editor>) -> gpu
             };
             timeline_properties(timeline, &editor.properties)
         }
-        PreviewTarget::VideoFile(path) => editor.video_file_properties(path),
+        PreviewTarget::VideoFile(path) => video_file_properties(
+            path,
+            editor
+                .timeline
+                .as_ref()
+                .and_then(|timeline| timeline.data.asset_for_path(path)),
+            editor.preview.video.as_ref(),
+        ),
         PreviewTarget::AudioFile(path) => editor.audio_file_properties(path),
         PreviewTarget::ImageFile(path) => editor.image_file_properties(path),
     };
@@ -155,6 +162,47 @@ fn timeline_properties(timeline: &TimelineState, panel: &PropertiesPanelState) -
         .into_any_element()
 }
 
+fn video_file_properties(
+    path: &Path,
+    asset: Option<&MediaAsset>,
+    runtime: Option<&Video>,
+) -> gpui::AnyElement {
+    let duration = asset
+        .map(|asset| asset.duration)
+        .or_else(|| runtime.map(|video| video.duration().as_secs_f64()));
+    let resolution = asset
+        .map(|asset| (asset.width, asset.height))
+        .or_else(|| runtime.map(|video| video.display_size()));
+    let framerate = asset
+        .map(|asset| asset.framerate)
+        .or_else(|| runtime.and_then(|video| video.framerate()));
+
+    file_properties(path, "Video")
+        .when_some(asset, |this, asset| {
+            this.child(properties_value("Codec", asset.codec.clone()))
+                .child(properties_value(
+                    "Audio",
+                    if asset.has_audio { "Yes" } else { "No" }.to_string(),
+                ))
+        })
+        .when_some(resolution, |this, (width, height)| {
+            this.child(properties_value(
+                "Resolution",
+                format!("{width} × {height}"),
+            ))
+        })
+        .when_some(framerate, |this, framerate| {
+            this.child(properties_value(
+                "Frame rate",
+                format!("{framerate:.2} fps"),
+            ))
+        })
+        .when_some(duration, |this, duration| {
+            this.child(properties_value("Duration", format_time(duration, false)))
+        })
+        .into_any_element()
+}
+
 impl Editor {
     fn set_properties_panel_width_from_x(&mut self, x: f32, window: &Window) {
         let viewport_width: f32 = window.viewport_size().width.into();
@@ -198,48 +246,6 @@ impl Editor {
             self.properties.resizing = false;
             cx.notify();
         }
-    }
-
-    fn video_file_properties(&self, path: &Path) -> gpui::AnyElement {
-        let asset = self
-            .timeline
-            .as_ref()
-            .and_then(|timeline| timeline.data.asset_for_path(path));
-        let runtime = self.preview.video.as_ref();
-        let duration = asset
-            .map(|asset| asset.duration)
-            .or_else(|| runtime.map(|video| video.duration().as_secs_f64()));
-        let resolution = asset
-            .map(|asset| (asset.width, asset.height))
-            .or_else(|| runtime.map(|video| video.display_size()));
-        let framerate = asset
-            .map(|asset| asset.framerate)
-            .or_else(|| runtime.and_then(|video| video.framerate()));
-
-        file_properties(path, "Video")
-            .when_some(asset, |this, asset| {
-                this.child(properties_value("Codec", asset.codec.clone()))
-                    .child(properties_value(
-                        "Audio",
-                        if asset.has_audio { "Yes" } else { "No" }.to_string(),
-                    ))
-            })
-            .when_some(resolution, |this, (width, height)| {
-                this.child(properties_value(
-                    "Resolution",
-                    format!("{width} × {height}"),
-                ))
-            })
-            .when_some(framerate, |this, framerate| {
-                this.child(properties_value(
-                    "Frame rate",
-                    format!("{framerate:.2} fps"),
-                ))
-            })
-            .when_some(duration, |this, duration| {
-                this.child(properties_value("Duration", format_time(duration, false)))
-            })
-            .into_any_element()
     }
 
     fn audio_file_properties(&self, path: &Path) -> gpui::AnyElement {
