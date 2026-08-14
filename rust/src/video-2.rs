@@ -184,7 +184,7 @@ impl Video {
 
     pub(crate) fn seek(&self, position: Duration, accurate: bool) -> Result<(), String> {
         self.0.state.eos.store(false, Ordering::Release);
-        let speed = self.speed();
+        let speed = f64::from_bits(self.0.state.speed.load(Ordering::Acquire));
         let mut flags = gst::SeekFlags::FLUSH;
         if accurate {
             flags |= gst::SeekFlags::ACCURATE;
@@ -214,10 +214,6 @@ impl Video {
 
     pub(crate) fn eos(&self) -> bool {
         self.0.state.eos.load(Ordering::Acquire)
-    }
-
-    pub(crate) fn speed(&self) -> f64 {
-        f64::from_bits(self.0.state.speed.load(Ordering::Acquire))
     }
 
     #[allow(dead_code)] // Used by the player binary, but not the editor binary.
