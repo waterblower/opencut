@@ -217,31 +217,6 @@ impl Video {
     }
 
     #[allow(dead_code)] // Used by the player binary, but not the editor binary.
-    pub(crate) fn set_speed(&self, speed: f64) -> Result<(), String> {
-        if !speed.is_finite() || speed <= 0.0 {
-            return Err("playback speed must be greater than zero".to_string());
-        }
-        let position = self
-            .0
-            .pipeline
-            .query_position::<gst::ClockTime>()
-            .ok_or_else(|| "video position is unavailable".to_string())?;
-        self.0
-            .pipeline
-            .seek(
-                speed,
-                gst::SeekFlags::FLUSH | gst::SeekFlags::ACCURATE,
-                gst::SeekType::Set,
-                position,
-                gst::SeekType::End,
-                gst::ClockTime::ZERO,
-            )
-            .map_err(|error| format!("could not change playback speed: {error}"))?;
-        self.0.state.speed.store(speed.to_bits(), Ordering::Release);
-        Ok(())
-    }
-
-    #[allow(dead_code)] // Used by the player binary, but not the editor binary.
     pub(crate) fn volume(&self) -> f64 {
         self.0.pipeline.property("volume")
     }
