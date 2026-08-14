@@ -96,7 +96,7 @@ impl Player {
         let mut history = HistoryData::load();
         let mut current_media_path = None;
         let (video, bitrate_bps, title) = match initial_media {
-            Some((url, title)) => match create_video(&url, looping) {
+            Some((url, title)) => match Video::open(&url, looping) {
                 Ok(video) => {
                     let bitrate = average_bitrate(&url, video.duration());
                     if let Ok(path) = url.to_file_path() {
@@ -230,7 +230,7 @@ impl Player {
             return;
         };
 
-        match create_video(&url, self.looping) {
+        match Video::open(&url, self.looping) {
             Ok(video) => {
                 self.bitrate_bps = average_bitrate(&url, video.duration());
                 self.video = Some(video);
@@ -568,10 +568,6 @@ impl PlaybackViewDelegate for Player {
             cx.notify();
         }
     }
-}
-
-fn create_video(url: &Url, looping: bool) -> Result<Video, String> {
-    Video::open(url, looping).map_err(|error| format!("Could not open video: {error}"))
 }
 
 fn video_codec(video: &Video) -> Option<String> {
