@@ -63,7 +63,6 @@ pub(crate) fn bind_keys(cx: &mut App) {
 
 pub(crate) struct Player {
     video: Option<Video>,
-    bitrate_bps: Option<f64>,
     history: HistoryData,
     current_media_path: Option<PathBuf>,
     title: String,
@@ -95,23 +94,22 @@ impl Player {
     ) -> Self {
         let mut history = HistoryData::load();
         let mut current_media_path = None;
-        let (video, bitrate_bps, title) = match initial_media {
+        let (video, title) = match initial_media {
             Some((url, title)) => match Video::open(&url, looping) {
                 Ok(video) => {
-                    let bitrate = average_bitrate(&url, video.duration());
                     if let Ok(path) = url.to_file_path() {
                         let path = std::fs::canonicalize(&path).unwrap_or(path);
                         history.record(&path, title.clone());
                         current_media_path = Some(path);
                     }
-                    (Some(video), bitrate, title)
+                    (Some(video), title)
                 }
                 Err(error) => {
                     eprintln!("{error}");
-                    (None, None, "No video selected".to_string())
+                    (None, "No video selected".to_string())
                 }
             },
-            None => (None, None, "No video selected".to_string()),
+            None => (None, "No video selected".to_string()),
         };
 
         let focus_handle = cx.focus_handle();
@@ -120,7 +118,6 @@ impl Player {
 
         Self {
             video,
-            bitrate_bps,
             history,
             current_media_path,
             title,
@@ -232,7 +229,6 @@ impl Player {
 
         match Video::open(&url, self.looping) {
             Ok(video) => {
-                self.bitrate_bps = average_bitrate(&url, video.duration());
                 self.video = Some(video);
                 self.history.record(&path, title.clone());
                 self.current_media_path = Some(path);
@@ -611,16 +607,6 @@ fn format_codec_name(codec: &str) -> String {
     }
 }
 
-fn average_bitrate(url: &Url, duration: Duration) -> Option<f64> {
-    if duration.is_zero() {
-        return None;
-    }
-
-    let path = url.to_file_path().ok()?;
-    let bytes = std::fs::metadata(path).ok()?.len();
-    Some(bytes as f64 * 8.0 / duration.as_secs_f64())
-}
-
 fn format_speed(speed: f64) -> String {
     if (speed - speed.round()).abs() < 0.01 {
         format!("{speed:.0}.0×")
@@ -634,13 +620,5 @@ fn format_source_fps(fps: f64) -> String {
         format!("{fps:.0} fps")
     } else {
         format!("{fps:.2} fps")
-    }
-}
-
-fn format_bitrate(bitrate_bps: Option<f64>) -> String {
-    match bitrate_bps {
-        Some(bitrate) if bitrate >= 1_000_000.0 => format!("{:.1} Mbps", bitrate / 1_000_000.0),
-        Some(bitrate) => format!("{:.0} kbps", bitrate / 1_000.0),
-        None => "bitrate unavailable".to_string(),
     }
 }

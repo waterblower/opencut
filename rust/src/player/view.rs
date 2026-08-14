@@ -94,14 +94,13 @@ impl Render for Player {
             let (width, height) = video.display_size();
             let codec = video_codec(video).unwrap_or_else(|| "codec unavailable".to_string());
             format!(
-                "{} · {}×{} · {} · {}",
+                "{} · {}×{} · {}",
                 codec,
                 width,
                 height,
                 video
                     .framerate()
                     .map_or_else(|| "variable fps".to_string(), format_source_fps),
-                format_bitrate(self.bitrate_bps)
             )
         });
         let reported_progress = if duration.is_zero() {
