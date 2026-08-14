@@ -18,7 +18,7 @@ impl Render for Player {
                 })
             .max(1.0);
             let playback_area = if let Some(video_handle) = &self.video {
-                video(video_handle.clone())
+                video(&video_handle)
                     .id("fullscreen-video")
                     .size(px(fullscreen_content_width), px(viewport_height))
                     .into_any_element()
@@ -89,7 +89,6 @@ impl Render for Player {
             .map_or(0.0, |video| video.volume().clamp(0.0, 1.0));
         let reported_position = self.video.as_ref().map_or(Duration::ZERO, Video::position);
         let duration = self.video.as_ref().map_or(Duration::ZERO, Video::duration);
-        let speed = self.video.as_ref().map_or(1.0, Video::speed);
         let source_metadata = self.video.as_ref().map(|video| {
             let (width, height) = video.display_size();
             let codec = video_codec(video).unwrap_or_else(|| "codec unavailable".to_string());
@@ -125,7 +124,7 @@ impl Render for Player {
         };
 
         let video_content = if let Some(video_handle) = &self.video {
-            video(video_handle.clone())
+            video(&video_handle)
                 .id("main-video")
                 .size(px(content_width), px(video_height))
                 .into_any_element()
@@ -177,7 +176,6 @@ impl Render for Player {
             .py_2()
             .text_sm()
             .text_color(rgb(MUTED))
-            .child(format_speed(speed))
             .on_mouse_down(
                 MouseButton::Left,
                 cx.listener(|_, _, _, cx| cx.stop_propagation()),
@@ -187,34 +185,6 @@ impl Render for Player {
                 cx.notify();
             }))
             .into_any_element();
-
-        let speed_items =
-            [0.5_f64, 1.0, 1.25, 1.5, 2.0]
-                .into_iter()
-                .enumerate()
-                .map(|(index, value)| {
-                    let selected = (value - speed).abs() < 0.01;
-                    div()
-                        .id(("speed", index))
-                        .h_9()
-                        .flex()
-                        .items_center()
-                        .justify_between()
-                        .cursor(CursorStyle::PointingHand)
-                        .rounded_md()
-                        .px_3()
-                        .text_sm()
-                        .text_color(if selected { rgb(TEXT) } else { rgb(MUTED) })
-                        .hover(|style| style.bg(rgb(SURFACE_HOVER)).text_color(rgb(TEXT)))
-                        .child(format_speed(value))
-                        .when(selected, |this| {
-                            this.child(div().size_2().rounded_full().bg(rgb(ACCENT)))
-                        })
-                        .on_click(cx.listener(move |this, _, _, cx| {
-                            this.set_speed(value);
-                            cx.notify();
-                        }))
-                });
 
         let settings_menu = (self.settings_open && has_video).then(|| {
             div()
@@ -257,7 +227,6 @@ impl Render for Player {
                         .text_color(rgb(0x65656d))
                         .child("PLAYBACK SPEED"),
                 )
-                .children(speed_items)
                 .child(div().h_px().bg(rgb(BORDER)))
                 .child(
                     div()

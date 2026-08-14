@@ -393,16 +393,6 @@ impl Player {
         }
     }
 
-    fn set_speed(&mut self, speed: f64) {
-        let Some(video) = &self.video else {
-            return;
-        };
-        match video.set_speed(speed) {
-            Ok(()) => {}
-            Err(error) => eprintln!("Could not change speed: {error}"),
-        }
-    }
-
     fn dismiss_settings(&mut self, _: &MouseDownEvent, _: &mut Window, cx: &mut Context<Self>) {
         if self.settings_open || self.volume_open {
             self.settings_open = false;
@@ -604,14 +594,6 @@ fn format_codec_name(codec: &str) -> String {
         "VP8".to_string()
     } else {
         codec.to_string()
-    }
-}
-
-fn format_speed(speed: f64) -> String {
-    if (speed - speed.round()).abs() < 0.01 {
-        format!("{speed:.0}.0×")
-    } else {
-        format!("{speed:.2}×").replace('0', "")
     }
 }
 

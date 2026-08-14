@@ -600,7 +600,7 @@ impl IntoElement for VideoElement {
     }
 }
 
-pub(crate) fn video(video: Video) -> VideoElement {
+pub(crate) fn video(video: &Video) -> VideoElement {
     let (width, height) = video.display_size();
     VideoElement {
         frame: video.0.state.frame.lock().as_ref().cloned(),
