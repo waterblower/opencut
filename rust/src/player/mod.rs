@@ -66,7 +66,6 @@ pub(crate) struct Player {
     history: HistoryData,
     current_media_path: Option<PathBuf>,
     title: String,
-    looping: bool,
     history_open: bool,
     history_width: f32,
     is_resizing_history: bool,
@@ -95,7 +94,7 @@ impl Player {
         let mut history = HistoryData::load();
         let mut current_media_path = None;
         let (video, title) = match initial_media {
-            Some((url, title)) => match Video::open(&url, looping) {
+            Some((url, title)) => match Video::open(&url) {
                 Ok(video) => {
                     if let Ok(path) = url.to_file_path() {
                         let path = std::fs::canonicalize(&path).unwrap_or(path);
@@ -121,7 +120,6 @@ impl Player {
             history,
             current_media_path,
             title,
-            looping,
             history_open: true,
             history_width: load_history_width(),
             is_resizing_history: false,
@@ -227,7 +225,7 @@ impl Player {
             return;
         };
 
-        match Video::open(&url, self.looping) {
+        match Video::open(&url) {
             Ok(video) => {
                 self.video = Some(video);
                 self.history.record(&path, title.clone());

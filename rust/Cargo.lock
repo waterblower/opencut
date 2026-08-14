@@ -4112,6 +4112,7 @@ dependencies = [
  "core-video",
  "env_logger",
  "ffmpeg-next",
+ "futures-util",
  "gpui",
  "gstreamer",
  "gstreamer-app",

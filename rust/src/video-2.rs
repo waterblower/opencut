@@ -14,14 +14,16 @@ use core_video::{
 use gpui::{
     Element, ElementId, GlobalElementId, InspectorElementId, IntoElement, LayoutId, Window,
 };
+
 use gst::{message::MessageView, prelude::*};
 use gst_video::VideoFrameExt as _;
 use gstreamer as gst;
 use gstreamer_app as gst_app;
+
 use gstreamer_video as gst_video;
 
 use parking_lot::Mutex;
-use std::{sync::Arc, thread::JoinHandle, time::Duration};
+use std::{path::Path, sync::Arc, thread::JoinHandle, time::Duration};
 use url::Url;
 use yuv::{YuvBiPlanarImage, YuvConversionMode, YuvRange, YuvStandardMatrix, yuv_nv12_to_bgra};
 
@@ -30,7 +32,6 @@ struct PlaybackState {
     frame: Mutex<Option<gst::Sample>>,
     frame_ready: AtomicBool,
     eos: AtomicBool,
-    looping: AtomicBool,
     speed: AtomicU64,
 }
 
@@ -62,18 +63,46 @@ impl Drop for VideoInner {
 pub(crate) struct Video(Arc<VideoInner>);
 
 impl Video {
-    pub(crate) fn open(uri: &Url, looping: bool) -> Result<Self, String> {
+    // pub fn from_file(path: Path) -> Result<Self, String> {}
+    pub(crate) fn open(uri: &Url) -> Result<Self, String> {
         gst::init().map_err(|error| format!("could not initialize GStreamer: {error}"))?;
-        let video_sink = gst::parse::bin_from_description(
-            "videoconvert ! appsink name=opencut_player_video drop=true max-buffers=3 enable-last-sample=false caps=video/x-raw,format=NV12,pixel-aspect-ratio=1/1",
-            true,
-        )
-        .map_err(|error| format!("could not create video sink: {error}"))?;
-        let sink = video_sink
-            .by_name("opencut_player_video")
-            .ok_or_else(|| "video sink was not created".to_string())?
-            .downcast::<gst_app::AppSink>()
-            .map_err(|_| "video sink had an unexpected type".to_string())?;
+        let caps = gst_video::VideoCapsBuilder::new()
+            .format(gst_video::VideoFormat::Nv12)
+            .pixel_aspect_ratio(gst::Fraction::new(1, 1))
+            .build();
+        let converter = gst::ElementFactory::make("videoconvert")
+            .build()
+            .map_err(|error| format!("could not create video converter: {error}"))?;
+        let sink = gst_app::AppSink::builder()
+            .name("opencut_player_video")
+            .drop(true)
+            .max_buffers(3)
+            .enable_last_sample(false)
+            .caps(&caps)
+            .build();
+        let video_sink = gst::Bin::new();
+        video_sink
+            .add(&converter)
+            .map_err(|error| format!("could not add video converter: {error}"))?;
+        video_sink
+            .add(&sink)
+            .map_err(|error| format!("could not add video sink: {error}"))?;
+        converter
+            .link(&sink)
+            .map_err(|error| format!("could not link video sink: {error}"))?;
+        let converter_sink_pad = converter
+            .static_pad("sink")
+            .ok_or_else(|| "video converter has no sink pad".to_string())?;
+        let ghost_pad = gst::GhostPad::builder_with_target(&converter_sink_pad)
+            .map_err(|error| format!("could not create video sink pad: {error}"))?
+            .name("sink")
+            .build();
+        ghost_pad
+            .set_active(true)
+            .map_err(|error| format!("could not activate video sink pad: {error}"))?;
+        video_sink
+            .add_pad(&ghost_pad)
+            .map_err(|error| format!("could not expose video sink pad: {error}"))?;
         let playbin = gst::ElementFactory::make("playbin")
             .property("uri", uri.as_str())
             .property("video-sink", &video_sink)
@@ -83,7 +112,7 @@ impl Video {
             .downcast::<gst::Pipeline>()
             .map_err(|_| "video pipeline had an unexpected type".to_string())?;
 
-        let video = Self::from_pipeline(pipeline, sink, looping)?;
+        let video = Self::from_pipeline(pipeline, sink)?;
         video.set_paused(false);
         Ok(video)
     }
@@ -91,7 +120,6 @@ impl Video {
     pub(crate) fn from_pipeline(
         pipeline: gst::Pipeline,
         sink: gst_app::AppSink,
-        looping: bool,
     ) -> Result<Self, String> {
         gst::init().map_err(|error| format!("could not initialize GStreamer: {error}"))?;
         pipeline
@@ -128,7 +156,6 @@ impl Video {
             frame: Mutex::new(None),
             frame_ready: AtomicBool::new(false),
             eos: AtomicBool::new(false),
-            looping: AtomicBool::new(looping),
             speed: AtomicU64::new(1.0_f64.to_bits()),
         });
         let worker = spawn_video_worker(pipeline.clone(), sink, state.clone());
@@ -241,6 +268,22 @@ impl Video {
     }
 }
 
+use futures_util::StreamExt as _;
+
+async fn sub(sink: gst_app::AppSink) {
+    let mut samples = sink.stream();
+
+    loop {
+        match samples.next().await {
+            Some(sample) => log::info!("received video sample: {sample:?}"),
+            None => {
+                log::info!("video sample stream ended");
+                return;
+            }
+        }
+    }
+}
+
 fn spawn_video_worker(
     pipeline: gst::Pipeline,
     sink: gst_app::AppSink,
@@ -254,16 +297,6 @@ fn spawn_video_worker(
         while state.alive.load(Ordering::Acquire) {
             while let Some(message) = bus.timed_pop(gst::ClockTime::ZERO) {
                 match message.view() {
-                    MessageView::Eos(_) if state.looping.load(Ordering::Acquire) => {
-                        state.eos.store(false, Ordering::Release);
-                        if let Err(error) = pipeline.seek_simple(
-                            gst::SeekFlags::FLUSH | gst::SeekFlags::KEY_UNIT,
-                            gst::ClockTime::ZERO,
-                        ) {
-                            log::error!("could not loop video: {error}");
-                            state.eos.store(true, Ordering::Release);
-                        }
-                    }
                     MessageView::Eos(_) => state.eos.store(true, Ordering::Release),
                     MessageView::Error(error) => {
                         log::error!(
