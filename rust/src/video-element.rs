@@ -276,17 +276,16 @@ impl IntoElement for VideoElement {
     }
 }
 
-pub(crate) fn video(video: &Video) -> VideoElement {
+pub(crate) fn video(video: &mut Video) -> VideoElement {
     let Some((width, height)) = video.frame_size() else {
-        return VideoElement {
-            frame: video.get_current_frame(),
-            width: gpui::px(0.0),
-            height: gpui::px(0.0),
-            id: None,
-        };
+        panic!("impossible")
     };
+    let frame = video.get_current_frame();
+    if frame.is_some() {
+        video.0.last_frame = frame.clone()
+    }
     VideoElement {
-        frame: video.get_current_frame(),
+        frame: video.0.last_frame,
         width: gpui::px(width as f32),
         height: gpui::px(height as f32),
         id: None,

@@ -3,7 +3,7 @@ use core::sync::atomic::{AtomicBool, Ordering};
 use gst::{message::MessageView, prelude::*};
 
 use gstreamer as gst;
-use gstreamer_app as gst_app;
+use gstreamer_app::{self as gst_app, gst_base::prelude::BaseSinkExt};
 
 use gstreamer_video as gst_video;
 
@@ -18,13 +18,15 @@ pub(crate) use video_element::video;
 
 struct PlaybackState {
     worker_running: AtomicBool,
-    frame: Mutex<Option<gst::Sample>>,
-    frame_ready: AtomicBool,
 }
+
+#[derive(Clone)]
+pub(crate) struct Video(Arc<VideoInner>);
 
 struct VideoInner {
     pipeline: gst::Pipeline,
     sink: gst_app::AppSink,
+    last_frame: Option<gst::Sample>,
     state: Arc<PlaybackState>,
     worker: Mutex<Option<JoinHandle<()>>>,
 }
@@ -43,9 +45,6 @@ impl Drop for VideoInner {
     }
 }
 
-#[derive(Clone)]
-pub(crate) struct Video(Arc<VideoInner>);
-
 impl Video {
     // pub fn from_file(path: Path) -> Result<Self, String> {}
     pub(crate) fn open(uri: &Url) -> Result<Self, String> {
@@ -61,7 +60,7 @@ impl Video {
             .name("opencut_player_video")
             .drop(true)
             .max_buffers(3)
-            .enable_last_sample(false)
+            .enable_last_sample(true)
             .caps(&caps)
             .build();
         let video_sink = gst::Bin::new();
@@ -121,8 +120,6 @@ impl Video {
 
         let state = Arc::new(PlaybackState {
             worker_running: AtomicBool::new(true),
-            frame: Mutex::new(None),
-            frame_ready: AtomicBool::new(false),
         });
         let worker = spawn_video_worker(pipeline.clone(), sink.clone(), state.clone());
         let video = Self(Arc::new(VideoInner {
@@ -139,20 +136,6 @@ impl Video {
         let info = gst_video::VideoInfo::from_caps(&caps)
             .expect("negotiated AppSink caps must describe raw video");
         Some((info.width(), info.height()))
-    }
-
-    fn cap(&self) -> Result<gst::Caps, String> {
-        let pad = self
-            .0
-            .sink
-            .static_pad("sink")
-            .expect("AppSink must have a static sink pad");
-
-        let Some(caps) = pad.current_caps() else {
-            let _ = self.pipeline().set_state(gst::State::Null);
-            return Err("video caps were not negotiated".to_string());
-        };
-        return Ok(caps);
     }
 
     /// The negotiated frame rate, or `None` for variable-frame-rate sources where
@@ -186,7 +169,11 @@ impl Video {
     }
 
     pub(crate) fn paused(&self) -> bool {
-        self.0.pipeline.state(gst::ClockTime::ZERO).1 != gst::State::Playing
+        self.0.pipeline.current_state() != gst::State::Playing
+    }
+
+    pub fn current_state(&self) -> gst::State {
+        self.0.pipeline.current_state()
     }
 
     pub(crate) fn set_paused(&self, paused: bool) {
@@ -218,7 +205,6 @@ impl Video {
                 gst::ClockTime::NONE,
             )
             .map_err(|error| format!("could not seek video: {error}"))?;
-        self.0.state.frame_ready.store(false, Ordering::Release);
         Ok(())
     }
 
@@ -247,25 +233,32 @@ impl Video {
     }
 
     pub fn get_current_frame(&self) -> Option<gst::Sample> {
-        self.0.state.frame.lock().as_ref().cloned()
+        self.0
+            .sink
+            .dynamic_cast_ref::<gst_app::gst_base::BaseSink>()
+            .expect("AppSink must derive from BaseSink")
+            .last_sample()
+    }
+
+    //////////////////////
+    // Private  Methods //
+    //////////////////////
+    fn cap(&self) -> Result<gst::Caps, String> {
+        let pad = self
+            .0
+            .sink
+            .static_pad("sink")
+            .expect("AppSink must have a static sink pad");
+
+        let Some(caps) = pad.current_caps() else {
+            let _ = self.pipeline().set_state(gst::State::Null);
+            return Err("video caps were not negotiated".to_string());
+        };
+        return Ok(caps);
     }
 }
 
 use futures_util::StreamExt as _;
-
-async fn sub(sink: gst_app::AppSink) {
-    let mut samples = sink.stream();
-
-    loop {
-        match samples.next().await {
-            Some(sample) => log::info!("received video sample: {sample:?}"),
-            None => {
-                log::info!("video sample stream ended");
-                return;
-            }
-        }
-    }
-}
 
 fn spawn_video_worker(
     pipeline: gst::Pipeline,
@@ -292,15 +285,11 @@ fn spawn_video_worker(
                 }
             }
 
-            let sample = if pipeline.state(gst::ClockTime::ZERO).1 == gst::State::Playing {
+            if pipeline.state(gst::ClockTime::ZERO).1 == gst::State::Playing {
                 sink.try_pull_sample(gst::ClockTime::from_mseconds(16))
             } else {
                 sink.try_pull_preroll(gst::ClockTime::from_mseconds(16))
             };
-            if let Some(sample) = sample {
-                *state.frame.lock() = Some(sample);
-                state.frame_ready.store(true, Ordering::Release);
-            }
         }
     })
 }

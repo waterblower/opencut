@@ -437,6 +437,12 @@ impl PlaybackViewDelegate for Player {
             }
             _ => return,
         }
+        if let Some(video) = &self.video {
+            eprintln!(
+                "video state after {phase:?} seek: {:?}",
+                video.current_state()
+            );
+        }
         cx.notify();
     }
 

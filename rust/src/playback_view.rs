@@ -28,7 +28,7 @@ pub(crate) fn format_duration(duration: Duration) -> String {
     }
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub(crate) enum DragPhase {
     Start,
     Update,
