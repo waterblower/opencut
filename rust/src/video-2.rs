@@ -20,6 +20,7 @@ pub(crate) use video_element::video;
 pub(crate) struct Video {
     pipeline: gst::Pipeline,
     sink: gst_app::AppSink,
+    current_frame: Option<gst::Sample>,
     worker_running: Arc<AtomicBool>,
     worker: Mutex<Option<JoinHandle<()>>>,
 }
@@ -114,6 +115,7 @@ impl Video {
         let worker_running = Arc::new(AtomicBool::new(true));
         let worker = spawn_video_worker(pipeline.clone(), sink.clone(), worker_running.clone());
         let video = Video {
+            current_frame: None,
             pipeline,
             sink,
             worker_running,

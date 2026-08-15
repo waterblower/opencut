@@ -18,7 +18,7 @@ impl Render for Player {
                     0.0
                 })
             .max(1.0);
-            let playback_area = if let Some(video_handle) = &self.video {
+            let playback_area = if let Some(video_handle) = self.video.as_mut() {
                 video(video_handle)
                     .id("fullscreen-video")
                     .size(px(fullscreen_content_width), px(viewport_height))
@@ -102,8 +102,8 @@ impl Render for Player {
         });
         let display_title = self.display_title();
 
-        let video_content = if let Some(video_handle) = &self.video {
-            video(&video_handle)
+        let video_content = if let Some(video_handle) = self.video.as_mut() {
+            video(video_handle)
                 .id("main-video")
                 .size(px(content_width), px(video_height))
                 .into_any_element()
