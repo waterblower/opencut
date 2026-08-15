@@ -1,4 +1,5 @@
 use core::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 
 use gst::{message::MessageView, prelude::*};
 
@@ -8,7 +9,7 @@ use gstreamer_app::{self as gst_app, gst_base::prelude::BaseSinkExt};
 use gstreamer_video as gst_video;
 
 use parking_lot::Mutex;
-use std::{sync::Arc, thread::JoinHandle, time::Duration};
+use std::{thread::JoinHandle, time::Duration};
 use url::Url;
 
 #[path = "video-element.rs"]
@@ -16,24 +17,16 @@ mod video_element;
 
 pub(crate) use video_element::video;
 
-struct PlaybackState {
-    worker_running: AtomicBool,
-}
-
-#[derive(Clone)]
-pub(crate) struct Video(Arc<VideoInner>);
-
-struct VideoInner {
+pub(crate) struct Video {
     pipeline: gst::Pipeline,
     sink: gst_app::AppSink,
-    last_frame: Option<gst::Sample>,
-    state: Arc<PlaybackState>,
+    worker_running: Arc<AtomicBool>,
     worker: Mutex<Option<JoinHandle<()>>>,
 }
 
-impl Drop for VideoInner {
+impl Drop for Video {
     fn drop(&mut self) {
-        self.state.worker_running.store(false, Ordering::Release);
+        self.worker_running.store(false, Ordering::Release);
         if let Some(worker) = self.worker.lock().take()
             && let Err(error) = worker.join()
         {
@@ -118,16 +111,14 @@ impl Video {
         // it must not fail the load — the container's nominal rate is still available from
         // the probed asset when a caller needs one.
 
-        let state = Arc::new(PlaybackState {
-            worker_running: AtomicBool::new(true),
-        });
-        let worker = spawn_video_worker(pipeline.clone(), sink.clone(), state.clone());
-        let video = Self(Arc::new(VideoInner {
+        let worker_running = Arc::new(AtomicBool::new(true));
+        let worker = spawn_video_worker(pipeline.clone(), sink.clone(), worker_running.clone());
+        let video = Video {
             pipeline,
             sink,
-            state,
+            worker_running,
             worker: Mutex::new(Some(worker)),
-        }));
+        };
         Ok(video)
     }
 
@@ -161,19 +152,18 @@ impl Video {
 
     pub(crate) fn position(&self) -> Duration {
         Duration::from_nanos(
-            self.0
-                .pipeline
+            self.pipeline
                 .query_position::<gst::ClockTime>()
                 .map_or(0, |position| position.nseconds()),
         )
     }
 
     pub(crate) fn paused(&self) -> bool {
-        self.0.pipeline.current_state() != gst::State::Playing
+        self.pipeline.current_state() != gst::State::Playing
     }
 
     pub fn current_state(&self) -> gst::State {
-        self.0.pipeline.current_state()
+        self.pipeline.current_state()
     }
 
     pub(crate) fn set_paused(&self, paused: bool) {
@@ -182,7 +172,7 @@ impl Video {
         } else {
             gst::State::Playing
         };
-        if let Err(error) = self.0.pipeline.set_state(state) {
+        if let Err(error) = self.pipeline.set_state(state) {
             log::error!("could not change video playback state: {error}");
         }
     }
@@ -194,8 +184,7 @@ impl Video {
         } else {
             flags |= gst::SeekFlags::KEY_UNIT | gst::SeekFlags::SNAP_AFTER;
         }
-        self.0
-            .pipeline
+        self.pipeline
             .seek(
                 1.0,
                 flags,
@@ -210,31 +199,28 @@ impl Video {
 
     #[allow(dead_code)] // Used by the player binary, but not the editor binary.
     pub(crate) fn volume(&self) -> f64 {
-        self.0.pipeline.property("volume")
+        self.pipeline.property("volume")
     }
 
     pub(crate) fn set_volume(&self, volume: f64) {
-        self.0
-            .pipeline
-            .set_property("volume", volume.clamp(0.0, 1.0));
+        self.pipeline.set_property("volume", volume.clamp(0.0, 1.0));
     }
 
     #[allow(dead_code)] // Used by the player binary, but not the editor binary.
     pub(crate) fn muted(&self) -> bool {
-        self.0.pipeline.property("mute")
+        self.pipeline.property("mute")
     }
 
     pub(crate) fn set_muted(&self, muted: bool) {
-        self.0.pipeline.set_property("mute", muted);
+        self.pipeline.set_property("mute", muted);
     }
 
     pub(crate) fn pipeline(&self) -> gst::Pipeline {
-        self.0.pipeline.clone()
+        self.pipeline.clone()
     }
 
     pub fn get_current_frame(&self) -> Option<gst::Sample> {
-        self.0
-            .sink
+        self.sink
             .dynamic_cast_ref::<gst_app::gst_base::BaseSink>()
             .expect("AppSink must derive from BaseSink")
             .last_sample()
@@ -245,7 +231,6 @@ impl Video {
     //////////////////////
     fn cap(&self) -> Result<gst::Caps, String> {
         let pad = self
-            .0
             .sink
             .static_pad("sink")
             .expect("AppSink must have a static sink pad");
@@ -258,19 +243,17 @@ impl Video {
     }
 }
 
-use futures_util::StreamExt as _;
-
 fn spawn_video_worker(
     pipeline: gst::Pipeline,
     sink: gst_app::AppSink,
-    state: Arc<PlaybackState>,
+    worker_running: Arc<AtomicBool>,
 ) -> JoinHandle<()> {
     std::thread::spawn(move || {
         let Some(bus) = pipeline.bus() else {
             log::error!("video pipeline has no message bus");
             return;
         };
-        while state.worker_running.load(Ordering::Acquire) {
+        while worker_running.load(Ordering::Acquire) {
             while let Some(message) = bus.timed_pop(gst::ClockTime::ZERO) {
                 match message.view() {
                     MessageView::Error(error) => {

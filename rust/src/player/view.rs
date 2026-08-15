@@ -19,7 +19,7 @@ impl Render for Player {
                 })
             .max(1.0);
             let playback_area = if let Some(video_handle) = &self.video {
-                video(&video_handle)
+                video(video_handle)
                     .id("fullscreen-video")
                     .size(px(fullscreen_content_width), px(viewport_height))
                     .into_any_element()
