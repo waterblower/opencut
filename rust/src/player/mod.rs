@@ -305,12 +305,7 @@ impl Player {
         let Some(video) = &self.video else {
             return;
         };
-        if video.eos() {
-            let _ = video.restart_stream();
-            video.set_paused(false);
-        } else {
-            video.set_paused(!video.paused());
-        }
+        video.set_paused(!video.paused());
     }
 
     fn toggle_mute(&self) {

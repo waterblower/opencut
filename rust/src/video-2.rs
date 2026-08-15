@@ -17,10 +17,9 @@ mod video_element;
 pub(crate) use video_element::video;
 
 struct PlaybackState {
-    alive: AtomicBool,
+    worker_running: AtomicBool,
     frame: Mutex<Option<gst::Sample>>,
     frame_ready: AtomicBool,
-    eos: AtomicBool,
 }
 
 struct VideoInner {
@@ -30,12 +29,11 @@ struct VideoInner {
     width: u32,
     height: u32,
     framerate: Option<f64>,
-    duration: Duration,
 }
 
 impl Drop for VideoInner {
     fn drop(&mut self) {
-        self.state.alive.store(false, Ordering::Release);
+        self.state.worker_running.store(false, Ordering::Release);
         if let Some(worker) = self.worker.lock().take()
             && let Err(error) = worker.join()
         {
@@ -134,16 +132,11 @@ impl Video {
         // it must not fail the load — the container's nominal rate is still available from
         // the probed asset when a caller needs one.
         let framerate = frame_rate_from_caps(&info);
-        let duration = Duration::from_nanos(
-            pipeline
-                .query_duration::<gst::ClockTime>()
-                .map_or(0, |duration| duration.nseconds()),
-        );
+
         let state = Arc::new(PlaybackState {
-            alive: AtomicBool::new(true),
+            worker_running: AtomicBool::new(true),
             frame: Mutex::new(None),
             frame_ready: AtomicBool::new(false),
-            eos: AtomicBool::new(false),
         });
         let worker = spawn_video_worker(pipeline.clone(), sink, state.clone());
         let video = Self(Arc::new(VideoInner {
@@ -153,7 +146,6 @@ impl Video {
             width: info.width(),
             height: info.height(),
             framerate,
-            duration,
         }));
         Ok(video)
     }
@@ -169,7 +161,12 @@ impl Video {
     }
 
     pub(crate) fn duration(&self) -> Duration {
-        self.0.duration
+        let duration = Duration::from_nanos(
+            self.pipeline()
+                .query_duration::<gst::ClockTime>()
+                .map_or(0, |duration| duration.nseconds()),
+        );
+        return duration;
     }
 
     pub(crate) fn position(&self) -> Duration {
@@ -197,7 +194,6 @@ impl Video {
     }
 
     pub(crate) fn seek(&self, position: Duration, accurate: bool) -> Result<(), String> {
-        self.0.state.eos.store(false, Ordering::Release);
         let mut flags = gst::SeekFlags::FLUSH;
         if accurate {
             flags |= gst::SeekFlags::ACCURATE;
@@ -217,16 +213,6 @@ impl Video {
             .map_err(|error| format!("could not seek video: {error}"))?;
         self.0.state.frame_ready.store(false, Ordering::Release);
         Ok(())
-    }
-
-    pub(crate) fn restart_stream(&self) -> Result<(), String> {
-        self.seek(Duration::ZERO, false)?;
-        self.set_paused(false);
-        Ok(())
-    }
-
-    pub(crate) fn eos(&self) -> bool {
-        self.0.state.eos.load(Ordering::Acquire)
     }
 
     #[allow(dead_code)] // Used by the player binary, but not the editor binary.
@@ -284,10 +270,9 @@ fn spawn_video_worker(
             log::error!("video pipeline has no message bus");
             return;
         };
-        while state.alive.load(Ordering::Acquire) {
+        while state.worker_running.load(Ordering::Acquire) {
             while let Some(message) = bus.timed_pop(gst::ClockTime::ZERO) {
                 match message.view() {
-                    MessageView::Eos(_) => state.eos.store(true, Ordering::Release),
                     MessageView::Error(error) => {
                         log::error!(
                             "GStreamer error from {:?}: {} ({})",
@@ -299,10 +284,7 @@ fn spawn_video_worker(
                     _ => {}
                 }
             }
-            if state.eos.load(Ordering::Acquire) {
-                std::thread::sleep(Duration::from_millis(25));
-                continue;
-            }
+
             let sample = if pipeline.state(gst::ClockTime::ZERO).1 == gst::State::Playing {
                 sink.try_pull_sample(gst::ClockTime::from_mseconds(16))
             } else {
