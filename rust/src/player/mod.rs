@@ -91,7 +91,6 @@ impl Player {
 
         let focus_handle = cx.focus_handle();
         focus_handle.focus(window);
-        Self::start_progress_updates(cx);
 
         Self {
             video: None,
@@ -115,26 +114,6 @@ impl Player {
             fps_sample_started: Instant::now(),
             focus_handle,
         }
-    }
-
-    fn start_progress_updates(cx: &mut Context<Self>) {
-        cx.spawn(async move |player, cx| {
-            loop {
-                cx.background_executor()
-                    .timer(Duration::from_millis(250))
-                    .await;
-                if player
-                    .update(cx, |player, cx| {
-                        player.reconcile_pending_seek();
-                        cx.notify();
-                    })
-                    .is_err()
-                {
-                    break;
-                }
-            }
-        })
-        .detach();
     }
 
     fn record_render_frame(&mut self) {
@@ -319,35 +298,6 @@ impl Player {
             self.is_resizing_history = false;
             save_history_width(self.history_width);
             cx.notify();
-        }
-    }
-
-    fn reconcile_pending_seek(&mut self) {
-        if self.is_scrubbing {
-            return;
-        }
-
-        let (Some(target_fraction), Some(started), Some(video)) = (
-            self.scrub_fraction,
-            self.pending_seek_started,
-            self.video.as_ref(),
-        ) else {
-            return;
-        };
-
-        let duration = video.duration();
-        let target = duration.mul_f64(target_fraction as f64);
-        let actual = video.position();
-        let settle_tolerance = video
-            .framerate()
-            .map(|frames_per_second| Duration::from_secs_f64(0.75 / frames_per_second))
-            .unwrap_or_else(|| Duration::from_millis(20));
-        let settled = actual.abs_diff(target) <= settle_tolerance;
-        let timed_out = started.elapsed() >= Duration::from_secs(2);
-
-        if settled || timed_out {
-            self.scrub_fraction = None;
-            self.pending_seek_started = None;
         }
     }
 
