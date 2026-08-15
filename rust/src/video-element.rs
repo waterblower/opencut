@@ -278,8 +278,9 @@ impl IntoElement for VideoElement {
 
 pub(crate) fn video(video: &Video) -> VideoElement {
     let (width, height) = video.display_size();
+
     VideoElement {
-        frame: video.0.state.frame.lock().as_ref().cloned(),
+        frame: video.get_current_frame(),
         width: gpui::px(width as f32),
         height: gpui::px(height as f32),
         id: None,

@@ -255,6 +255,10 @@ impl Video {
     pub(crate) fn pipeline(&self) -> gst::Pipeline {
         self.0.pipeline.clone()
     }
+
+    pub fn get_current_frame(&self) -> Option<gst::Sample> {
+        self.0.state.frame.lock().as_ref().cloned()
+    }
 }
 
 use futures_util::StreamExt as _;
