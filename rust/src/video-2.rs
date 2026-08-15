@@ -24,11 +24,11 @@ struct PlaybackState {
 
 struct VideoInner {
     pipeline: gst::Pipeline,
+    sink: gst_app::AppSink,
     state: Arc<PlaybackState>,
     worker: Mutex<Option<JoinHandle<()>>>,
     width: u32,
     height: u32,
-    framerate: Option<f64>,
 }
 
 impl Drop for VideoInner {
@@ -131,21 +131,20 @@ impl Video {
         // screen recordings. That is a valid "unknown rate" marker, not a broken file, so
         // it must not fail the load — the container's nominal rate is still available from
         // the probed asset when a caller needs one.
-        let framerate = frame_rate_from_caps(&info);
 
         let state = Arc::new(PlaybackState {
             worker_running: AtomicBool::new(true),
             frame: Mutex::new(None),
             frame_ready: AtomicBool::new(false),
         });
-        let worker = spawn_video_worker(pipeline.clone(), sink, state.clone());
+        let worker = spawn_video_worker(pipeline.clone(), sink.clone(), state.clone());
         let video = Self(Arc::new(VideoInner {
             pipeline,
+            sink,
             state,
             worker: Mutex::new(Some(worker)),
             width: info.width(),
             height: info.height(),
-            framerate,
         }));
         Ok(video)
     }
@@ -157,7 +156,20 @@ impl Video {
     /// The negotiated frame rate, or `None` for variable-frame-rate sources where
     /// GStreamer reports `0/1`.
     pub(crate) fn framerate(&self) -> Option<f64> {
-        self.0.framerate
+        let Some(caps) = self
+            .0
+            .sink
+            .static_pad("sink")
+            .and_then(|pad| pad.current_caps())
+        else {
+            return None;
+        };
+        let info = match gst_video::VideoInfo::from_caps(&caps) {
+            Ok(info) => info,
+            Err(_) => return None,
+        };
+        let framerate = frame_rate_from_caps(&info);
+        return framerate;
     }
 
     pub(crate) fn duration(&self) -> Duration {
