@@ -1,4 +1,4 @@
-use core::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use core::sync::atomic::{AtomicBool, Ordering};
 
 use gst::{message::MessageView, prelude::*};
 
@@ -21,7 +21,6 @@ struct PlaybackState {
     frame: Mutex<Option<gst::Sample>>,
     frame_ready: AtomicBool,
     eos: AtomicBool,
-    speed: AtomicU64,
 }
 
 struct VideoInner {
@@ -145,7 +144,6 @@ impl Video {
             frame: Mutex::new(None),
             frame_ready: AtomicBool::new(false),
             eos: AtomicBool::new(false),
-            speed: AtomicU64::new(1.0_f64.to_bits()),
         });
         let worker = spawn_video_worker(pipeline.clone(), sink, state.clone());
         let video = Self(Arc::new(VideoInner {
@@ -200,7 +198,6 @@ impl Video {
 
     pub(crate) fn seek(&self, position: Duration, accurate: bool) -> Result<(), String> {
         self.0.state.eos.store(false, Ordering::Release);
-        let speed = f64::from_bits(self.0.state.speed.load(Ordering::Acquire));
         let mut flags = gst::SeekFlags::FLUSH;
         if accurate {
             flags |= gst::SeekFlags::ACCURATE;
@@ -210,7 +207,7 @@ impl Video {
         self.0
             .pipeline
             .seek(
-                speed,
+                1.0,
                 flags,
                 gst::SeekType::Set,
                 gst::ClockTime::from_nseconds(position.as_nanos() as u64),
