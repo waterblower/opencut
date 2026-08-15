@@ -8,7 +8,7 @@ use gstreamer as gst;
 use std::{path::PathBuf, time::Duration, time::Instant};
 use url::Url;
 
-use crate::playback_view::{DragPhase, PlaybackViewDelegate, format_duration};
+use crate::playback_view::{DragPhase, PlaybackViewDelegate};
 use crate::video::Video;
 
 mod history;
@@ -474,54 +474,5 @@ impl PlaybackViewDelegate for Player {
             self.volume_open = false;
             cx.notify();
         }
-    }
-}
-
-fn video_codec(video: &Video) -> Option<String> {
-    let pipeline = video.pipeline();
-    let stream_index = pipeline.property::<i32>("current-video");
-    if stream_index < 0 {
-        return None;
-    }
-    let tags = pipeline.emit_by_name::<Option<gst::TagList>>("get-video-tags", &[&stream_index])?;
-    Some(format_codec_name(
-        tags.get::<gst::tags::VideoCodec>()?.get(),
-    ))
-}
-
-fn format_codec_name(codec: &str) -> String {
-    let lowercase = codec.to_ascii_lowercase();
-    if lowercase.contains("h.264")
-        || lowercase.contains("h264")
-        || lowercase.contains("avc")
-        || lowercase.contains("avc1")
-        || lowercase.contains("x264")
-    {
-        "H.264".to_string()
-    } else if lowercase.contains("h.265")
-        || lowercase.contains("h265")
-        || lowercase.contains("hevc")
-        || lowercase.contains("hvec")
-        || lowercase.contains("hvc1")
-        || lowercase.contains("hev1")
-        || lowercase.contains("x265")
-    {
-        "H.265/HEVC".to_string()
-    } else if lowercase.contains("av1") {
-        "AV1".to_string()
-    } else if lowercase.contains("vp9") {
-        "VP9".to_string()
-    } else if lowercase.contains("vp8") {
-        "VP8".to_string()
-    } else {
-        codec.to_string()
-    }
-}
-
-fn format_source_fps(fps: f64) -> String {
-    if (fps - fps.round()).abs() < 0.01 {
-        format!("{fps:.0} fps")
-    } else {
-        format!("{fps:.2} fps")
     }
 }

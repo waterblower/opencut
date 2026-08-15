@@ -27,8 +27,6 @@ struct VideoInner {
     sink: gst_app::AppSink,
     state: Arc<PlaybackState>,
     worker: Mutex<Option<JoinHandle<()>>>,
-    width: u32,
-    height: u32,
 }
 
 impl Drop for VideoInner {
@@ -116,17 +114,6 @@ impl Video {
             return Err(format!("video did not finish preparing: {error}"));
         }
 
-        let Some(caps) = sink.static_pad("sink").and_then(|pad| pad.current_caps()) else {
-            let _ = pipeline.set_state(gst::State::Null);
-            return Err("video format is unavailable".to_string());
-        };
-        let info = match gst_video::VideoInfo::from_caps(&caps) {
-            Ok(info) => info,
-            Err(error) => {
-                let _ = pipeline.set_state(gst::State::Null);
-                return Err(format!("could not read video format: {error}"));
-            }
-        };
         // GStreamer negotiates `framerate=0/1` for variable-frame-rate sources such as
         // screen recordings. That is a valid "unknown rate" marker, not a broken file, so
         // it must not fail the load — the container's nominal rate is still available from
@@ -143,27 +130,35 @@ impl Video {
             sink,
             state,
             worker: Mutex::new(Some(worker)),
-            width: info.width(),
-            height: info.height(),
         }));
         Ok(video)
     }
 
-    pub(crate) fn display_size(&self) -> (u32, u32) {
-        (self.0.width, self.0.height)
+    pub(crate) fn frame_size(&self) -> Option<(u32, u32)> {
+        let caps = self.cap().ok()?;
+        let info = gst_video::VideoInfo::from_caps(&caps)
+            .expect("negotiated AppSink caps must describe raw video");
+        Some((info.width(), info.height()))
+    }
+
+    fn cap(&self) -> Result<gst::Caps, String> {
+        let pad = self
+            .0
+            .sink
+            .static_pad("sink")
+            .expect("AppSink must have a static sink pad");
+
+        let Some(caps) = pad.current_caps() else {
+            let _ = self.pipeline().set_state(gst::State::Null);
+            return Err("video caps were not negotiated".to_string());
+        };
+        return Ok(caps);
     }
 
     /// The negotiated frame rate, or `None` for variable-frame-rate sources where
     /// GStreamer reports `0/1`.
     pub(crate) fn framerate(&self) -> Option<f64> {
-        let Some(caps) = self
-            .0
-            .sink
-            .static_pad("sink")
-            .and_then(|pad| pad.current_caps())
-        else {
-            return None;
-        };
+        let caps = self.cap().ok()?;
         let info = match gst_video::VideoInfo::from_caps(&caps) {
             Ok(info) => info,
             Err(_) => return None,

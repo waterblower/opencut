@@ -90,19 +90,7 @@ impl Render for Player {
             .map_or(0.0, |video| video.volume().clamp(0.0, 1.0));
         let reported_position = self.video.as_ref().map_or(Duration::ZERO, Video::position);
         let duration = self.video.as_ref().map_or(Duration::ZERO, Video::duration);
-        let source_metadata = self.video.as_ref().map(|video| {
-            let (width, height) = video.display_size();
-            let codec = video_codec(video).unwrap_or_else(|| "codec unavailable".to_string());
-            format!(
-                "{} · {}×{} · {}",
-                codec,
-                width,
-                height,
-                video
-                    .framerate()
-                    .map_or_else(|| "variable fps".to_string(), format_source_fps),
-            )
-        });
+
         let reported_progress = if duration.is_zero() {
             0.0
         } else {
@@ -113,16 +101,6 @@ impl Render for Player {
             duration.mul_f64(fraction as f64)
         });
         let display_title = self.display_title();
-        let metadata_text = if has_video {
-            format!(
-                "MP4 · {} · {} · Original · {}",
-                source_metadata.as_deref().unwrap_or("metadata unavailable"),
-                format_duration(duration),
-                if is_muted { "Muted" } else { "Audio enabled" }
-            )
-        } else {
-            "No media loaded".to_string()
-        };
 
         let video_content = if let Some(video_handle) = &self.video {
             video(&video_handle)
@@ -361,26 +339,13 @@ impl Render for Player {
                                             })),
                                     )
                                     .child(
-                                        div()
-                                            .min_w_0()
-                                            .flex()
-                                            .flex_col()
-                                            .gap_1()
-                                            .child(
-                                                div()
-                                                    .text_lg()
-                                                    .font_weight(gpui::FontWeight::SEMIBOLD)
-                                                    .text_ellipsis()
-                                                    .child(display_title),
-                                            )
-                                            .child(
-                                                div()
-                                                    .text_xs()
-                                                    .font_family("monospace")
-                                                    .text_color(rgb(0x55555d))
-                                                    .text_ellipsis()
-                                                    .child(metadata_text),
-                                            ),
+                                        div().min_w_0().flex().flex_col().gap_1().child(
+                                            div()
+                                                .text_lg()
+                                                .font_weight(gpui::FontWeight::SEMIBOLD)
+                                                .text_ellipsis()
+                                                .child(display_title),
+                                        ),
                                     ),
                             )
                             .child(

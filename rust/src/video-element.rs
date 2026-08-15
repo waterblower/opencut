@@ -277,8 +277,14 @@ impl IntoElement for VideoElement {
 }
 
 pub(crate) fn video(video: &Video) -> VideoElement {
-    let (width, height) = video.display_size();
-
+    let Some((width, height)) = video.frame_size() else {
+        return VideoElement {
+            frame: video.get_current_frame(),
+            width: gpui::px(0.0),
+            height: gpui::px(0.0),
+            id: None,
+        };
+    };
     VideoElement {
         frame: video.get_current_frame(),
         width: gpui::px(width as f32),
