@@ -85,41 +85,19 @@ pub(crate) struct Player {
 }
 
 impl Player {
-    pub(crate) fn new(
-        initial_media: Option<(Url, String)>,
-        looping: bool,
-        window: &mut Window,
-        cx: &mut Context<Self>,
-    ) -> Self {
-        let mut history = HistoryData::load();
-        let mut current_media_path = None;
-        let (video, title) = match initial_media {
-            Some((url, title)) => match Video::open(&url) {
-                Ok(video) => {
-                    if let Ok(path) = url.to_file_path() {
-                        let path = std::fs::canonicalize(&path).unwrap_or(path);
-                        history.record(&path, title.clone());
-                        current_media_path = Some(path);
-                    }
-                    (Some(video), title)
-                }
-                Err(error) => {
-                    eprintln!("{error}");
-                    (None, "No video selected".to_string())
-                }
-            },
-            None => (None, "No video selected".to_string()),
-        };
+    pub(crate) fn new(window: &mut Window, cx: &mut Context<Self>) -> Self {
+        let history = HistoryData::load();
+        let current_media_path = None;
 
         let focus_handle = cx.focus_handle();
         focus_handle.focus(window);
         Self::start_progress_updates(cx);
 
         Self {
-            video,
+            video: None,
             history,
             current_media_path,
-            title,
+            title: "".to_owned(),
             history_open: true,
             history_width: load_history_width(),
             is_resizing_history: false,

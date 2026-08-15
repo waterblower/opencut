@@ -23,7 +23,7 @@ use gstreamer_app as gst_app;
 use gstreamer_video as gst_video;
 
 use parking_lot::Mutex;
-use std::{path::Path, sync::Arc, thread::JoinHandle, time::Duration};
+use std::{sync::Arc, thread::JoinHandle, time::Duration};
 use url::Url;
 use yuv::{YuvBiPlanarImage, YuvConversionMode, YuvRange, YuvStandardMatrix, yuv_nv12_to_bgra};
 
@@ -326,31 +326,9 @@ fn spawn_video_worker(
     })
 }
 
-fn pack_nv12(sample: &gst::Sample) -> Option<(Vec<u8>, u32, u32)> {
-    let info = gst_video::VideoInfo::from_caps(sample.caps()?).ok()?;
-    if info.format() != gst_video::VideoFormat::Nv12 {
-        return None;
-    }
-    let buffer = sample.buffer()?;
-    let frame = gst_video::VideoFrameRef::from_buffer_ref_readable(buffer, &info).ok()?;
-    let width = frame.width() as usize;
-    let height = frame.height() as usize;
-    let uv_rows = height.div_ceil(2);
-    let mut packed = Vec::with_capacity(width.checked_mul(height.checked_add(uv_rows)?)?);
-    for (plane, rows) in [(0_u32, height), (1_u32, uv_rows)] {
-        let stride = usize::try_from(*frame.info().stride().get(plane as usize)?).ok()?;
-        let source = frame.plane_data(plane).ok()?;
-        if stride < width {
-            return None;
-        }
-        for row in 0..rows {
-            let start = row.checked_mul(stride)?;
-            packed.extend_from_slice(source.get(start..start.checked_add(width)?)?);
-        }
-    }
-    Some((packed, frame.width(), frame.height()))
-}
-
+//////////////////
+// VideoElement //
+//////////////////
 pub(crate) struct VideoElement {
     frame: Option<gst::Sample>,
     width: gpui::Pixels,
@@ -629,4 +607,29 @@ fn frame_rate_from_fraction(numerator: i32, denominator: i32) -> Option<f64> {
     }
     let frame_rate = numerator as f64 / denominator as f64;
     frame_rate.is_finite().then_some(frame_rate)
+}
+
+fn pack_nv12(sample: &gst::Sample) -> Option<(Vec<u8>, u32, u32)> {
+    let info = gst_video::VideoInfo::from_caps(sample.caps()?).ok()?;
+    if info.format() != gst_video::VideoFormat::Nv12 {
+        return None;
+    }
+    let buffer = sample.buffer()?;
+    let frame = gst_video::VideoFrameRef::from_buffer_ref_readable(buffer, &info).ok()?;
+    let width = frame.width() as usize;
+    let height = frame.height() as usize;
+    let uv_rows = height.div_ceil(2);
+    let mut packed = Vec::with_capacity(width.checked_mul(height.checked_add(uv_rows)?)?);
+    for (plane, rows) in [(0_u32, height), (1_u32, uv_rows)] {
+        let stride = usize::try_from(*frame.info().stride().get(plane as usize)?).ok()?;
+        let source = frame.plane_data(plane).ok()?;
+        if stride < width {
+            return None;
+        }
+        for row in 0..rows {
+            let start = row.checked_mul(stride)?;
+            packed.extend_from_slice(source.get(start..start.checked_add(width)?)?);
+        }
+    }
+    Some((packed, frame.width(), frame.height()))
 }
