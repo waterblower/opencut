@@ -20,6 +20,7 @@ pub(crate) struct Video {
     pipeline: gst::Pipeline,
     sink: gst_app::AppSink,
     current_frame: Arc<Mutex<Option<gst::Sample>>>,
+    cached_position: Duration,
 }
 
 impl Drop for Video {
@@ -119,6 +120,7 @@ impl Video {
             current_frame,
             pipeline,
             sink,
+            cached_position: Duration::ZERO,
         };
 
         video.set_paused(false);
@@ -155,7 +157,7 @@ impl Video {
 
     pub(crate) fn position(&self) -> Duration {
         let Some(position) = self.pipeline.query_position::<gst::ClockTime>() else {
-            return Duration::ZERO;
+            return self.cached_position;
         };
         Duration::from_nanos(position.nseconds())
     }
@@ -179,7 +181,7 @@ impl Video {
         }
     }
 
-    pub(crate) fn seek(&self, position: Duration, accurate: bool) -> Result<(), String> {
+    pub(crate) fn seek(&mut self, position: Duration, accurate: bool) -> Result<(), String> {
         let mut flags = gst::SeekFlags::FLUSH;
         if accurate {
             flags |= gst::SeekFlags::ACCURATE;
@@ -196,6 +198,7 @@ impl Video {
                 gst::ClockTime::NONE,
             )
             .map_err(|error| format!("could not seek video: {error}"))?;
+        self.cached_position = position;
         Ok(())
     }
 

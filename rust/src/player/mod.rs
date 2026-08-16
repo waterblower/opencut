@@ -209,7 +209,7 @@ impl Player {
     }
 
     fn seek_by_frame(&mut self, direction: i8) {
-        let Some(video) = &self.video else {
+        let Some(video) = self.video.as_mut() else {
             return;
         };
 
@@ -237,8 +237,8 @@ impl Player {
         let _ = video.seek(target, true);
     }
 
-    fn seek_to_fraction(&self, fraction: f64, accurate: bool) {
-        let Some(video) = &self.video else {
+    fn seek_to_fraction(&mut self, fraction: f64, accurate: bool) {
+        let Some(video) = self.video.as_mut() else {
             return;
         };
         let target = video.duration().mul_f64(fraction.clamp(0.0, 1.0));
