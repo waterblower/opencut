@@ -4,7 +4,7 @@ use super::{
     timeline_video::update_timeline_video_position,
 };
 use crate::playback_view::{CONTROL_HEIGHT, format_duration};
-use crate::video::video;
+use crate::video2::video;
 use gpui::relative;
 
 const TIMELINE_HORIZONTAL_PADDING: f32 = 22.0;
@@ -257,7 +257,7 @@ impl Editor {
             })
         {
             drag.last_pipeline_update = Some(now);
-            if let Some(video) = &self.preview.video
+            if let Some(video) = self.preview.video.as_mut()
                 && let Err(error) =
                     update_timeline_video_position(video, &timeline.data, drag.clip_id, false)
             {
@@ -276,7 +276,7 @@ impl Editor {
         };
         if drag.changed {
             if !drag.timeline_was_dirty
-                && let Some(video) = &self.preview.video
+                && let Some(video) = self.preview.video.as_mut()
             {
                 let Some(timeline) = self.timeline.as_ref() else {
                     return true;
@@ -619,8 +619,7 @@ impl Editor {
                         )
                     })
                     .child(if let Some(video_handle) = self.preview.video.as_ref() {
-                        let (v_width, v_height) =  video_handle.display_size();
-                        video(video_handle.frame(), v_width, v_height)
+                        video(video_handle)
                             .id("editor-timeline-video")
                             .size(px(width), px(surface_height))
                             .into_any_element()

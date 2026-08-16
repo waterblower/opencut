@@ -1,6 +1,6 @@
 use super::*;
 use crate::playback_view::{CONTROL_HEIGHT, PlaybackViewProps, playback_view};
-use crate::video::video;
+use crate::video2::video;
 
 impl Editor {
     pub(super) fn preview_video_file(
@@ -23,8 +23,7 @@ impl Editor {
             .overflow_hidden()
             .bg(rgb(0x000000))
             .child(if let Some(video_handle) = &self.preview.video {
-                let (v_width, v_height) = video_handle.display_size();
-                video(video_handle.frame(), v_width, v_height)
+                video(video_handle)
                     .id("editor-video-file-preview")
                     .size(px(width), px(surface_height))
                     .into_any_element()

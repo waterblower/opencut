@@ -119,7 +119,7 @@ impl Editor {
             }
         }
 
-        if let Some(video) = &self.preview.video {
+        if let Some(video) = self.preview.video.as_mut() {
             let _ = video.seek(timeline.data.duration(position), accurate);
             set_timeline_audio(
                 &video.pipeline(),
@@ -141,12 +141,7 @@ impl Editor {
                 let Some(video) = &self.preview.video else {
                     return;
                 };
-                if video.eos() {
-                    let _ = video.restart_stream();
-                    video.set_paused(false);
-                } else {
-                    video.set_paused(!video.paused());
-                }
+                video.set_paused(!video.paused());
                 self.preview.refresh_ticks = 12;
                 return;
             }
@@ -211,7 +206,7 @@ pub(super) fn update_playback(timeline: &mut TimelineState, preview: &mut Previe
         started_at.elapsed(),
     )
     .clamp(TimelineTime::ZERO, duration);
-    if video.eos() || timeline.playhead >= duration {
+    if timeline.playhead >= duration {
         video.set_paused(true);
         timeline.playhead = duration;
         preview.playing = false;
@@ -241,7 +236,7 @@ impl Editor {
                 self.load_timeline_position_with_options(position, play, accurate);
             }
             PreviewTarget::VideoFile(_) => {
-                if let Some(video) = &self.preview.video {
+                if let Some(video) = self.preview.video.as_mut() {
                     let target = video.duration().mul_f64(fraction as f64);
                     let _ = video.seek(target, accurate);
                     video.set_paused(!play);

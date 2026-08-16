@@ -39,7 +39,13 @@ pub(super) fn properties_panel(editor: &Editor, cx: &mut Context<Editor>) -> gpu
                 .and_then(|timeline| timeline.data.asset_for_path(path));
             match file_target {
                 PreviewTarget::VideoFile(path) => {
-                    video_file_properties(path, file_asset, editor.preview.video.as_ref())
+                    let video = editor
+                        .preview
+                        .video
+                        .as_ref()
+                        .expect("video preview must exist for a video file target");
+
+                    video_file_properties(path, file_asset, video)
                 }
                 PreviewTarget::AudioFile(path) => {
                     audio_file_properties(path, file_asset, editor.preview.audio.as_ref())
@@ -185,17 +191,11 @@ fn timeline_properties(
 fn video_file_properties(
     path: &Path,
     asset: Option<&MediaAsset>,
-    runtime: Option<&Video>,
+    video: &Video,
 ) -> gpui::AnyElement {
-    let duration = asset
-        .map(|asset| asset.duration)
-        .or_else(|| runtime.map(|video| video.duration().as_secs_f64()));
-    let resolution = asset
-        .map(|asset| (asset.width, asset.height))
-        .or_else(|| runtime.map(|video| video.display_size()));
-    let framerate = asset
-        .map(|asset| asset.framerate)
-        .or_else(|| runtime.and_then(|video| video.framerate()));
+    let duration = video.duration().as_secs_f64();
+    let resolution = video.frame_size();
+    let framerate = video.framerate();
 
     file_properties(path, "Video")
         .when_some(asset, |this, asset| {
@@ -217,9 +217,7 @@ fn video_file_properties(
                 format!("{framerate:.2} fps"),
             ))
         })
-        .when_some(duration, |this, duration| {
-            this.child(properties_value("Duration", format_time(duration, false)))
-        })
+        .child(properties_value("Duration", format_time(duration, false)))
         .into_any_element()
 }
 

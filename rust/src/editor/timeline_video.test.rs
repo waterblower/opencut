@@ -108,7 +108,7 @@ fn timeline_pipeline_converts_the_output_frame_rate() {
 fn timeline_video_shutdown_does_not_wait_on_the_frame_worker() {
     let _gstreamer_test = crate::editor::lock_gstreamer_test();
     let (pipeline, sink) = headless_test_pipeline();
-    let video = Video::from_pipeline(pipeline, sink, false).unwrap();
+    let video = Video::from_pipeline(pipeline, sink).unwrap();
     let (finished, completion) = mpsc::channel();
     std::thread::spawn(move || {
         drop(video);

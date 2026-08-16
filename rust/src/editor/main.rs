@@ -6,8 +6,7 @@ mod gpui_inspector;
 mod macos_pinch;
 #[path = "../playback_view.rs"]
 mod playback_view;
-#[path = "../video.rs"]
-mod video;
+
 #[path = "../video2/mod.rs"]
 mod video2;
 
