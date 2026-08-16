@@ -74,7 +74,6 @@ pub(crate) struct Player {
     is_scrubbing: bool,
     is_adjusting_volume: bool,
     resume_after_scrub: bool,
-    scrub_fraction: Option<f32>,
     pending_seek_started: Option<Instant>,
     last_scrub_seek: Option<Instant>,
     inspector_open: bool,
@@ -105,7 +104,6 @@ impl Player {
             is_scrubbing: false,
             is_adjusting_volume: false,
             resume_after_scrub: false,
-            scrub_fraction: None,
             pending_seek_started: None,
             last_scrub_seek: None,
             inspector_open: false,
@@ -192,7 +190,6 @@ impl Player {
                 self.is_scrubbing = false;
                 self.is_adjusting_volume = false;
                 self.resume_after_scrub = false;
-                self.scrub_fraction = None;
                 self.pending_seek_started = None;
                 self.last_scrub_seek = None;
             }
@@ -227,10 +224,7 @@ impl Player {
             return;
         }
 
-        let position = self.scrub_fraction.map_or_else(
-            || video.position(),
-            |fraction| duration.mul_f64(fraction as f64),
-        );
+        let position = video.position();
         let frame_duration = Duration::from_secs_f64(1.0 / frames_per_second);
         let target = if direction.is_negative() {
             position.saturating_sub(frame_duration)
@@ -239,7 +233,6 @@ impl Player {
         }
         .min(duration);
 
-        self.scrub_fraction = Some((target.as_secs_f64() / duration.as_secs_f64()) as f32);
         self.pending_seek_started = Some(Instant::now());
         let _ = video.seek(target, true);
     }
@@ -406,13 +399,11 @@ impl PlaybackViewDelegate for Player {
                     video.set_paused(true);
                 }
                 self.is_scrubbing = true;
-                self.scrub_fraction = Some(fraction);
                 self.pending_seek_started = None;
                 self.last_scrub_seek = Some(Instant::now());
                 self.seek_to_fraction(fraction as f64, false);
             }
             DragPhase::Update if self.is_scrubbing => {
-                self.scrub_fraction = Some(fraction);
                 let now = Instant::now();
                 let should_seek = self.last_scrub_seek.is_none_or(|last_seek| {
                     now.duration_since(last_seek) >= Duration::from_millis(50)
@@ -423,7 +414,6 @@ impl PlaybackViewDelegate for Player {
                 }
             }
             DragPhase::End if self.is_scrubbing => {
-                self.scrub_fraction = Some(fraction);
                 self.pending_seek_started = Some(Instant::now());
                 self.last_scrub_seek = None;
                 self.is_scrubbing = false;

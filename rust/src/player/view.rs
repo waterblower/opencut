@@ -88,12 +88,10 @@ impl Render for Player {
             .video
             .as_ref()
             .map_or(0.0, |video| video.volume().clamp(0.0, 1.0));
-        let reported_position = self.video.as_ref().map_or(Duration::ZERO, Video::position);
-        let duration = self.video.as_ref().map_or(Duration::ZERO, Video::duration);
 
-        let position = self.scrub_fraction.map_or(reported_position, |fraction| {
-            duration.mul_f64(fraction as f64)
-        });
+        let duration = self.video.as_ref().map_or(Duration::ZERO, Video::duration);
+        let position = self.video.as_ref().map_or(Duration::ZERO, Video::position);
+
         let display_title = self.display_title();
 
         let video_content = if let Some(video_handle) = self.video.as_mut() {
