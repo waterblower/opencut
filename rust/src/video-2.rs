@@ -1,7 +1,6 @@
-use core::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
-use gst::{message::MessageView, prelude::*};
+use gst::prelude::*;
 
 use gstreamer as gst;
 use gstreamer_app as gst_app;
@@ -9,7 +8,7 @@ use gstreamer_app as gst_app;
 use gstreamer_video as gst_video;
 
 use parking_lot::Mutex;
-use std::{thread::JoinHandle, time::Duration};
+use std::time::Duration;
 use url::Url;
 
 #[path = "video-element.rs"]
@@ -21,18 +20,10 @@ pub(crate) struct Video {
     pipeline: gst::Pipeline,
     sink: gst_app::AppSink,
     current_frame: Arc<Mutex<Option<gst::Sample>>>,
-    worker_running: Arc<AtomicBool>,
-    worker: Mutex<Option<JoinHandle<()>>>,
 }
 
 impl Drop for Video {
     fn drop(&mut self) {
-        self.worker_running.store(false, Ordering::Release);
-        if let Some(worker) = self.worker.lock().take()
-            && let Err(error) = worker.join()
-        {
-            log::error!("video worker panicked: {error:?}");
-        }
         if let Err(error) = self.pipeline.set_state(gst::State::Null) {
             log::error!("could not stop video pipeline: {error}");
         }
@@ -57,6 +48,27 @@ impl Video {
             .enable_last_sample(false)
             .caps(&caps)
             .build();
+        let current_frame = Arc::new(Mutex::new(None));
+        sink.set_callbacks(
+            gst_app::AppSinkCallbacks::builder()
+                .new_sample({
+                    let current_frame = current_frame.clone();
+                    move |sink| {
+                        let sample = sink.pull_sample().map_err(|_| gst::FlowError::Eos)?;
+                        *current_frame.lock() = Some(sample);
+                        Ok(gst::FlowSuccess::Ok)
+                    }
+                })
+                .new_preroll({
+                    let current_frame = current_frame.clone();
+                    move |sink| {
+                        let sample = sink.pull_preroll().map_err(|_| gst::FlowError::Eos)?;
+                        *current_frame.lock() = Some(sample);
+                        Ok(gst::FlowSuccess::Ok)
+                    }
+                })
+                .build(),
+        );
         let video_sink = gst::Bin::new();
         video_sink
             .add(&converter)
@@ -89,15 +101,6 @@ impl Video {
             .downcast::<gst::Pipeline>()
             .map_err(|_| "video pipeline had an unexpected type".to_string())?;
 
-        let video = Self::from_pipeline(pipeline, sink)?;
-        video.set_paused(false);
-        Ok(video)
-    }
-
-    pub(crate) fn from_pipeline(
-        pipeline: gst::Pipeline,
-        sink: gst_app::AppSink,
-    ) -> Result<Self, String> {
         gst::init().map_err(|error| format!("could not initialize GStreamer: {error}"))?;
         pipeline
             .set_state(gst::State::Paused)
@@ -112,23 +115,13 @@ impl Video {
         // it must not fail the load — the container's nominal rate is still available from
         // the probed asset when a caller needs one.
 
-        let worker_running = Arc::new(AtomicBool::new(true));
-
-        let current_frame = Arc::new(Mutex::new(None));
-        let worker = spawn_video_worker(
-            pipeline.clone(),
-            sink.clone(),
-            current_frame.clone(),
-            worker_running.clone(),
-        );
-
         let video = Video {
             current_frame,
             pipeline,
             sink,
-            worker_running,
-            worker: Mutex::new(Some(worker)),
         };
+
+        video.set_paused(false);
         Ok(video)
     }
 
@@ -248,46 +241,6 @@ impl Video {
         };
         return Ok(caps);
     }
-}
-
-fn spawn_video_worker(
-    pipeline: gst::Pipeline,
-    sink: gst_app::AppSink,
-    current_frame: Arc<Mutex<Option<gst::Sample>>>,
-    worker_running: Arc<AtomicBool>,
-) -> JoinHandle<()> {
-    // https://gstreamer.freedesktop.org/documentation/gstreamer/gstbus.html
-    let bus = pipeline.bus().expect("GStreamer Pipeline must have a bus");
-
-    std::thread::spawn(move || {
-        while worker_running.load(Ordering::Acquire) {
-            loop {
-                let Some(message) = bus.timed_pop(gst::ClockTime::ZERO) else {
-                    break;
-                };
-                match message.view() {
-                    MessageView::Error(error) => {
-                        log::error!(
-                            "GStreamer error from {:?}: {} ({})",
-                            error.src(),
-                            error.error(),
-                            error.debug().unwrap_or_default()
-                        );
-                    }
-                    _ => {}
-                }
-            }
-
-            let frame = if pipeline.state(gst::ClockTime::ZERO).1 == gst::State::Playing {
-                sink.try_pull_sample(gst::ClockTime::from_mseconds(16))
-            } else {
-                sink.try_pull_preroll(gst::ClockTime::from_mseconds(16))
-            };
-            if let Some(frame) = frame {
-                *current_frame.lock() = Some(frame);
-            }
-        }
-    })
 }
 
 /// Reads the negotiated frame rate, returning `None` when it is unusable.
