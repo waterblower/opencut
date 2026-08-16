@@ -61,7 +61,7 @@ impl Editor {
                 is_scrubbing: false,
                 is_adjusting_volume: false,
                 resume_after_scrub: false,
-                scrub_fraction: None,
+
                 pending_seek_started: None,
                 last_scrub_seek: None,
                 timeline_drag: None,
@@ -138,7 +138,6 @@ fn start_updates(cx: &mut Context<Editor>) {
                 if let Some(timeline) = editor.timeline.as_mut() {
                     update_playback(timeline, &mut editor.preview);
                 }
-                reconcile_preview_seek(&mut editor.preview);
                 if should_render {
                     cx.notify();
                 }

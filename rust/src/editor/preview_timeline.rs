@@ -511,24 +511,18 @@ impl Editor {
         let timeline_left = origin_x + TIMELINE_HORIZONTAL_PADDING;
         let volume_track_bottom = origin_y + height - TIMELINE_VOLUME_TRACK_BOTTOM_OFFSET;
         let has_media = !timeline.data.clips.is_empty();
+
         let duration = timeline.data.duration(timeline.data.timeline_duration());
-        let reported_position = timeline.data.duration(timeline.playhead);
-        let reported_progress = if duration.is_zero() {
-            0.0
-        } else {
-            (reported_position.as_secs_f64() / duration.as_secs_f64()).clamp(0.0, 1.0) as f32
-        };
-        let progress = self
-            .preview
-            .scrub_fraction
-            .unwrap_or(reported_progress)
-            .clamp(0.0, 1.0);
         let position = self
             .preview
-            .scrub_fraction
-            .map_or(reported_position, |fraction| {
-                duration.mul_f64(fraction as f64)
-            });
+            .video
+            .as_ref()
+            .map_or(Duration::ZERO, |v| v.position());
+        let progress = if duration.is_zero() {
+            0.0
+        } else {
+            (position.as_secs_f64() / duration.as_secs_f64()).clamp(0.0, 1.0) as f32
+        };
         let volume = self.preview.volume.clamp(0.0, 1.0);
         let muted = volume <= f64::EPSILON;
         let displayed_volume = if muted { 0.0 } else { volume } as f32;

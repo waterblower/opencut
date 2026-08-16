@@ -122,16 +122,12 @@ impl Editor {
                         !audio.playing() || audio.finished(),
                     )
                 });
-        let reported_progress = if duration.is_zero() {
+
+        let progress = if duration.is_zero() {
             0.0
         } else {
             (position.as_secs_f64() / duration.as_secs_f64()).clamp(0.0, 1.0) as f32
         };
-        let progress = self.preview.scrub_fraction.unwrap_or(reported_progress);
-        let position = self
-            .preview
-            .scrub_fraction
-            .map_or(position, |fraction| duration.mul_f64(fraction as f64));
         let has_media = self.preview.audio.is_some();
         let usable_width = (width - AUDIO_HORIZONTAL_PADDING * 2.0).max(1.0);
         let timeline_left = origin_x + AUDIO_HORIZONTAL_PADDING;
@@ -426,7 +422,6 @@ impl Editor {
         self.preview.resume_after_scrub = audio.playing();
         audio.set_playing(false);
         self.preview.is_scrubbing = true;
-        self.preview.scrub_fraction = Some(fraction);
         self.preview.pending_seek_started = None;
         self.preview.last_scrub_seek = Some(Instant::now());
         seek_audio_to_fraction(audio, fraction, false, false);
@@ -438,7 +433,6 @@ impl Editor {
         if !self.preview.is_scrubbing {
             return;
         }
-        self.preview.scrub_fraction = Some(fraction);
         let now = Instant::now();
         if self
             .preview
@@ -456,7 +450,6 @@ impl Editor {
 
     fn finish_audio_scrub(&mut self, fraction: f32, cx: &mut Context<Self>) {
         let resume = self.preview.resume_after_scrub;
-        self.preview.scrub_fraction = Some(fraction);
         self.preview.pending_seek_started = Some(Instant::now());
         self.preview.last_scrub_seek = None;
         self.preview.is_scrubbing = false;

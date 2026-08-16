@@ -247,33 +247,6 @@ impl Editor {
     }
 }
 
-pub(super) fn reconcile_preview_seek(preview: &mut PreviewState) {
-    if preview.is_scrubbing {
-        return;
-    }
-    let (Some(fraction), Some(started)) = (preview.scrub_fraction, preview.pending_seek_started)
-    else {
-        return;
-    };
-
-    let settled = match preview.target {
-        PreviewTarget::Timeline => true,
-        PreviewTarget::VideoFile(_) => preview.video.as_ref().is_some_and(|video| {
-            let target = video.duration().mul_f64(fraction as f64);
-            video.position().abs_diff(target) <= Duration::from_millis(40)
-        }),
-        PreviewTarget::AudioFile(_) => preview.audio.as_ref().is_some_and(|audio| {
-            let target = audio.duration().mul_f64(fraction as f64);
-            audio.position().abs_diff(target) <= Duration::from_millis(40)
-        }),
-        PreviewTarget::ImageFile(_) => true,
-    };
-    if settled || started.elapsed() >= Duration::from_secs(2) {
-        preview.scrub_fraction = None;
-        preview.pending_seek_started = None;
-    }
-}
-
 impl PlaybackViewDelegate for Editor {
     fn playback_toggle(&mut self, _: &mut Window, cx: &mut Context<Self>) {
         self.toggle_playback();
@@ -311,13 +284,11 @@ impl PlaybackViewDelegate for Editor {
                 self.preview.playing = false;
                 self.preview.timeline_clock = None;
                 self.preview.is_scrubbing = true;
-                self.preview.scrub_fraction = Some(fraction);
                 self.preview.pending_seek_started = None;
                 self.preview.last_scrub_seek = Some(Instant::now());
                 self.seek_preview_to_fraction(fraction, false, false);
             }
             DragPhase::Update if self.preview.is_scrubbing => {
-                self.preview.scrub_fraction = Some(fraction);
                 let now = Instant::now();
                 let should_seek = self
                     .preview
@@ -330,7 +301,7 @@ impl PlaybackViewDelegate for Editor {
             }
             DragPhase::End if self.preview.is_scrubbing => {
                 let resume = self.preview.resume_after_scrub;
-                self.preview.scrub_fraction = Some(fraction);
+
                 self.preview.pending_seek_started = Some(Instant::now());
                 self.preview.last_scrub_seek = None;
                 self.preview.is_scrubbing = false;

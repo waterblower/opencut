@@ -55,7 +55,7 @@ use model::{
     MediaKind, TimelineClip, TimelineTime, TimelineTrack, TrackKind, VideoClipProperties,
     timeline_ranges_overlap,
 };
-use preview::{PreviewTarget, reconcile_preview_seek, update_playback};
+use preview::{PreviewTarget, update_playback};
 use preview_audio::AudioPreview;
 use preview_timeline::TimelinePreviewDrag;
 use properties::{PropertiesPanelResizeDrag, properties_panel};
@@ -199,7 +199,6 @@ struct PreviewState {
     is_scrubbing: bool,
     is_adjusting_volume: bool,
     resume_after_scrub: bool,
-    scrub_fraction: Option<f32>,
     pending_seek_started: Option<Instant>,
     last_scrub_seek: Option<Instant>,
     timeline_drag: Option<TimelinePreviewDrag>,
@@ -361,7 +360,7 @@ impl Editor {
         self.preview.is_scrubbing = false;
         self.preview.is_adjusting_volume = false;
         self.preview.resume_after_scrub = false;
-        self.preview.scrub_fraction = None;
+
         self.preview.pending_seek_started = None;
         self.preview.last_scrub_seek = None;
         self.preview.timeline_drag = None;

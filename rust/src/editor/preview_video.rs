@@ -45,10 +45,7 @@ impl Editor {
             .map_or((Duration::ZERO, Duration::ZERO, true), |video| {
                 (video.position(), video.duration(), video.paused())
             });
-        let position = self
-            .preview
-            .scrub_fraction
-            .map_or(position, |fraction| duration.mul_f64(fraction as f64));
+
         let has_media = self.preview.video.is_some();
 
         playback_view(

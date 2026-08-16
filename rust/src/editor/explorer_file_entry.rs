@@ -414,7 +414,7 @@ impl Editor {
             self.preview.is_scrubbing = false;
             self.preview.is_adjusting_volume = false;
             self.preview.resume_after_scrub = false;
-            self.preview.scrub_fraction = None;
+
             self.preview.pending_seek_started = None;
             self.preview.last_scrub_seek = None;
             self.preview.timeline_drag = None;
