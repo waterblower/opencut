@@ -2,8 +2,8 @@
 mod playback_view;
 #[path = "mod.rs"]
 mod player;
-#[path = "../video2/mod.rs"]
-mod video2;
+#[path = "../video/mod.rs"]
+mod video;
 
 use crate::player::Player;
 use gpui::{App, Application, Bounds, WindowBounds, WindowOptions, prelude::*, px, size};

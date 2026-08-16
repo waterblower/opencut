@@ -1,6 +1,6 @@
 use super::*;
 use crate::playback_view::{CONTROL_HEIGHT, PlaybackViewProps, playback_view};
-use crate::video2::video;
+use crate::video::video;
 
 impl Editor {
     pub(super) fn preview_video_file(

@@ -1,6 +1,6 @@
 use super::*;
 use crate::playback_view::{PlaybackViewProps, playback_view};
-use crate::video2::video;
+use crate::video::video;
 
 impl Render for Player {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {

@@ -4,7 +4,7 @@ use super::{
     timeline_video::update_timeline_video_position,
 };
 use crate::playback_view::{CONTROL_HEIGHT, format_duration};
-use crate::video2::video;
+use crate::video::video;
 use gpui::relative;
 
 const TIMELINE_HORIZONTAL_PADDING: f32 = 22.0;

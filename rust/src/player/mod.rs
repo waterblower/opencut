@@ -9,7 +9,7 @@ use std::{path::PathBuf, time::Duration, time::Instant};
 use url::Url;
 
 use crate::playback_view::{DragPhase, PlaybackViewDelegate};
-use crate::video2::Video;
+use crate::video::Video;
 
 mod history;
 mod inspector;
