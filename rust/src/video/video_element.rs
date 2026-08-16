@@ -1,4 +1,4 @@
-use super::Video;
+use super::VideoBackend;
 #[cfg(target_os = "macos")]
 use core_foundation::{
     base::TCFType,
@@ -276,7 +276,7 @@ impl IntoElement for VideoElement {
     }
 }
 
-pub(crate) fn video(video: &Video) -> VideoElement {
+pub(crate) fn video(video: &VideoBackend) -> VideoElement {
     let Some((width, height)) = video.frame_size() else {
         panic!("impossible")
     };

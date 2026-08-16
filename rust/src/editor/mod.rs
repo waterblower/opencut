@@ -1,4 +1,4 @@
-use crate::video::Video;
+use crate::video::VideoBackend;
 use gpui::{
     App, Context, CursorStyle, DragMoveEvent, Entity, FocusHandle, KeyBinding, MouseButton,
     MouseDownEvent, MouseMoveEvent, MouseUpEvent, ObjectFit, PathPromptOptions, Render,
@@ -189,7 +189,7 @@ struct ExplorerState {
 struct PreviewState {
     target: PreviewTarget,
     fullscreen: bool,
-    video: Option<Video>,
+    video: Option<VideoBackend>,
     audio: Option<AudioPreview>,
     timeline_needs_rebuild: bool,
     timeline_clock: Option<(TimelineTime, Instant)>,

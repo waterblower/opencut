@@ -475,7 +475,7 @@ impl Editor {
             let result = cx
                 .background_executor()
                 .spawn(async move {
-                    let mut video = Video::open(&url).map_err(|error| {
+                    let mut video = VideoBackend::open(&url).map_err(|error| {
                         format!("Could not preview {}: {error}", source_path.display())
                     })?;
                     video.set_paused(true);

@@ -191,7 +191,7 @@ fn timeline_properties(
 fn video_file_properties(
     path: &Path,
     asset: Option<&MediaAsset>,
-    video: &Video,
+    video: &VideoBackend,
 ) -> gpui::AnyElement {
     let duration = video.duration().as_secs_f64();
     let resolution = video.frame_size();
