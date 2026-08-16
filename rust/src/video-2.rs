@@ -4,7 +4,7 @@ use std::sync::Arc;
 use gst::{message::MessageView, prelude::*};
 
 use gstreamer as gst;
-use gstreamer_app::{self as gst_app, gst_base::prelude::BaseSinkExt};
+use gstreamer_app as gst_app;
 
 use gstreamer_video as gst_video;
 
@@ -20,7 +20,7 @@ pub(crate) use video_element::video;
 pub(crate) struct Video {
     pipeline: gst::Pipeline,
     sink: gst_app::AppSink,
-    current_frame: Option<gst::Sample>,
+    current_frame: Arc<Mutex<Option<gst::Sample>>>,
     worker_running: Arc<AtomicBool>,
     worker: Mutex<Option<JoinHandle<()>>>,
 }
@@ -54,7 +54,7 @@ impl Video {
             .name("opencut_player_video")
             .drop(true)
             .max_buffers(3)
-            .enable_last_sample(true)
+            .enable_last_sample(false)
             .caps(&caps)
             .build();
         let video_sink = gst::Bin::new();
@@ -113,9 +113,17 @@ impl Video {
         // the probed asset when a caller needs one.
 
         let worker_running = Arc::new(AtomicBool::new(true));
-        let worker = spawn_video_worker(pipeline.clone(), sink.clone(), worker_running.clone());
+
+        let current_frame = Arc::new(Mutex::new(None));
+        let worker = spawn_video_worker(
+            pipeline.clone(),
+            sink.clone(),
+            current_frame.clone(),
+            worker_running.clone(),
+        );
+
         let video = Video {
-            current_frame: None,
+            current_frame,
             pipeline,
             sink,
             worker_running,
@@ -222,13 +230,7 @@ impl Video {
     }
 
     pub fn get_current_frame(&self) -> Option<gst::Sample> {
-        let frame = self
-            .sink
-            .dynamic_cast_ref::<gst_app::gst_base::BaseSink>()
-            .expect("AppSink must derive from BaseSink")
-            .last_sample();
-
-        return frame;
+        self.current_frame.lock().clone()
     }
 
     //////////////////////
@@ -251,6 +253,7 @@ impl Video {
 fn spawn_video_worker(
     pipeline: gst::Pipeline,
     sink: gst_app::AppSink,
+    current_frame: Arc<Mutex<Option<gst::Sample>>>,
     worker_running: Arc<AtomicBool>,
 ) -> JoinHandle<()> {
     // https://gstreamer.freedesktop.org/documentation/gstreamer/gstbus.html
@@ -275,11 +278,14 @@ fn spawn_video_worker(
                 }
             }
 
-            if pipeline.state(gst::ClockTime::ZERO).1 == gst::State::Playing {
+            let frame = if pipeline.state(gst::ClockTime::ZERO).1 == gst::State::Playing {
                 sink.try_pull_sample(gst::ClockTime::from_mseconds(16))
             } else {
                 sink.try_pull_preroll(gst::ClockTime::from_mseconds(16))
             };
+            if let Some(frame) = frame {
+                *current_frame.lock() = Some(frame);
+            }
         }
     })
 }
