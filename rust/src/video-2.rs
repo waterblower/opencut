@@ -222,10 +222,13 @@ impl Video {
     }
 
     pub fn get_current_frame(&self) -> Option<gst::Sample> {
-        self.sink
+        let frame = self
+            .sink
             .dynamic_cast_ref::<gst_app::gst_base::BaseSink>()
             .expect("AppSink must derive from BaseSink")
-            .last_sample()
+            .last_sample();
+
+        return frame;
     }
 
     //////////////////////
@@ -250,13 +253,15 @@ fn spawn_video_worker(
     sink: gst_app::AppSink,
     worker_running: Arc<AtomicBool>,
 ) -> JoinHandle<()> {
+    // https://gstreamer.freedesktop.org/documentation/gstreamer/gstbus.html
+    let bus = pipeline.bus().expect("GStreamer Pipeline must have a bus");
+
     std::thread::spawn(move || {
-        let Some(bus) = pipeline.bus() else {
-            log::error!("video pipeline has no message bus");
-            return;
-        };
         while worker_running.load(Ordering::Acquire) {
-            while let Some(message) = bus.timed_pop(gst::ClockTime::ZERO) {
+            loop {
+                let Some(message) = bus.timed_pop(gst::ClockTime::ZERO) else {
+                    break;
+                };
                 match message.view() {
                     MessageView::Error(error) => {
                         log::error!(
