@@ -154,11 +154,10 @@ impl Video {
     }
 
     pub(crate) fn position(&self) -> Duration {
-        Duration::from_nanos(
-            self.pipeline
-                .query_position::<gst::ClockTime>()
-                .map_or(0, |position| position.nseconds()),
-        )
+        let Some(position) = self.pipeline.query_position::<gst::ClockTime>() else {
+            return Duration::ZERO;
+        };
+        Duration::from_nanos(position.nseconds())
     }
 
     pub(crate) fn paused(&self) -> bool {
