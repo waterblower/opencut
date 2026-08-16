@@ -512,7 +512,7 @@ impl Editor {
         let volume_track_bottom = origin_y + height - TIMELINE_VOLUME_TRACK_BOTTOM_OFFSET;
         let has_media = !timeline.data.clips.is_empty();
 
-        let duration = timeline.data.duration(timeline.data.timeline_duration());
+        let duration = timeline.data.duration(timeline.data.content_duration());
         let position = self
             .preview
             .video

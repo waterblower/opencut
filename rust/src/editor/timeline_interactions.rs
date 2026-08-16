@@ -49,7 +49,7 @@ impl Editor {
         }
         let position = timeline
             .timeline_position_from_x(event.position.x.into())
-            .clamp(TimelineTime::ZERO, timeline.data.timeline_duration());
+            .clamp(TimelineTime::ZERO, timeline.data.content_duration());
         let timeline = self.timeline.as_mut().expect("timeline was checked above");
         if timeline.interaction.blade_guide != Some(position) {
             timeline.interaction.blade_guide = Some(position);
@@ -582,7 +582,7 @@ impl Editor {
             return;
         }
         let target = (timeline.playhead + TimelineTime::from_frames(frames))
-            .clamp(TimelineTime::ZERO, timeline.data.timeline_duration());
+            .clamp(TimelineTime::ZERO, timeline.data.content_duration());
         if target != timeline.playhead || self.preview.target != PreviewTarget::Timeline {
             self.load_timeline_position_with_options(target, false, true);
             self.save_timeline_playhead();

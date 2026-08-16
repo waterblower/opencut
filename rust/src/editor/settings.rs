@@ -151,7 +151,7 @@ impl Editor {
         };
         timeline.record_editing_history();
         timeline.data.set_frame_rate(frame_rate);
-        timeline.playhead = playhead.clamp(TimelineTime::ZERO, timeline.data.timeline_duration());
+        timeline.playhead = playhead.clamp(TimelineTime::ZERO, timeline.data.content_duration());
         let playhead = timeline.playhead;
         let has_clips = !timeline.data.clips.is_empty();
         self.preview.video = None;

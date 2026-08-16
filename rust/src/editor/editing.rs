@@ -661,7 +661,7 @@ impl Editor {
         self.preview.timeline_clock = None;
         timeline.playhead = timeline
             .playhead
-            .clamp(TimelineTime::ZERO, timeline.data.timeline_duration());
+            .clamp(TimelineTime::ZERO, timeline.data.content_duration());
         let available_clip_ids = timeline
             .data
             .clips

@@ -206,10 +206,6 @@ impl Timeline {
             .unwrap_or(TimelineTime::ZERO)
     }
 
-    pub fn timeline_duration(&self) -> TimelineTime {
-        self.content_duration()
-    }
-
     pub fn seconds(&self, time: TimelineTime) -> f64 {
         self.settings.frame_rate.seconds(time)
     }
@@ -363,7 +359,7 @@ impl TimelineState {
         let playhead = data
             .view
             .saved_playhead_frame
-            .clamp(TimelineTime::ZERO, data.timeline_duration());
+            .clamp(TimelineTime::ZERO, data.content_duration());
         let scroll = ScrollHandle::new();
         scroll.set_offset(point(px(-data.view.horizontal_scroll), px(0.0)));
         let vertical_scroll = ScrollHandle::new();
@@ -565,7 +561,7 @@ impl TimelineState {
         let content_x = x - TRACK_HEADER_WIDTH - scroll_x - TIMELINE_PADDING;
         self.data
             .nearest_time(content_x as f64 / self.data.view.pixels_per_second as f64)
-            .clamp(TimelineTime::ZERO, self.data.timeline_duration())
+            .clamp(TimelineTime::ZERO, self.data.content_duration())
     }
 }
 
@@ -699,7 +695,7 @@ impl Editor {
             .expect("timeline view requires timeline state");
         let duration = timeline
             .data
-            .seconds(timeline.data.timeline_duration())
+            .seconds(timeline.data.content_duration())
             .max(12.0);
         let timeline_width = (duration as f32 * timeline.data.view.pixels_per_second
             + TIMELINE_PADDING * 2.0)
@@ -1043,7 +1039,7 @@ impl Editor {
                                 "{} / {}",
                                 format_time(timeline.data.seconds(timeline.playhead), false),
                                 format_time(
-                                    timeline.data.seconds(timeline.data.timeline_duration()),
+                                    timeline.data.seconds(timeline.data.content_duration()),
                                     false
                                 )
                             )),

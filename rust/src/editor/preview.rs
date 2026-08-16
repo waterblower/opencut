@@ -70,7 +70,7 @@ impl Editor {
         self.preview.target = PreviewTarget::Timeline;
         self.explorer.selected_file = None;
         self.explorer.context_menu = None;
-        let duration = timeline.data.timeline_duration();
+        let duration = timeline.data.content_duration();
         let position = position.clamp(TimelineTime::ZERO, duration);
         timeline.playhead = position;
         self.preview.playing = play;
@@ -176,7 +176,7 @@ impl Editor {
             self.preview.timeline_clock = None;
             return;
         }
-        let duration = timeline.data.timeline_duration();
+        let duration = timeline.data.content_duration();
         let start = if timeline.playhead >= duration {
             TimelineTime::ZERO
         } else {
@@ -196,7 +196,7 @@ pub(super) fn update_playback(timeline: &mut TimelineState, preview: &mut Previe
         preview.timeline_clock = None;
         return;
     };
-    let duration = timeline.data.timeline_duration();
+    let duration = timeline.data.content_duration();
     let (origin, started_at) = *preview
         .timeline_clock
         .get_or_insert((timeline.playhead, Instant::now()));
@@ -230,7 +230,7 @@ impl Editor {
                 let Some(timeline) = self.timeline.as_ref() else {
                     return;
                 };
-                let duration = timeline.data.timeline_duration().frames();
+                let duration = timeline.data.content_duration().frames();
                 let position =
                     TimelineTime::from_frames((duration as f64 * fraction as f64).round() as i64);
                 self.load_timeline_position_with_options(position, play, accurate);
