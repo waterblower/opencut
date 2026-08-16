@@ -23,7 +23,8 @@ impl Editor {
             .overflow_hidden()
             .bg(rgb(0x000000))
             .child(if let Some(video_handle) = &self.preview.video {
-                video(video_handle.clone())
+                let (v_width, v_height) = video_handle.display_size();
+                video(video_handle.frame(), v_width, v_height)
                     .id("editor-video-file-preview")
                     .size(px(width), px(surface_height))
                     .into_any_element()

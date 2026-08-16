@@ -619,7 +619,8 @@ impl Editor {
                         )
                     })
                     .child(if let Some(video_handle) = self.preview.video.as_ref() {
-                        video(video_handle.clone())
+                        let (v_width, v_height) =  video_handle.display_size();
+                        video(video_handle.frame(), v_width, v_height)
                             .id("editor-timeline-video")
                             .size(px(width), px(surface_height))
                             .into_any_element()

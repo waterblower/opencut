@@ -8,6 +8,8 @@ mod macos_pinch;
 mod playback_view;
 #[path = "../video.rs"]
 mod video;
+#[path = "../video2/mod.rs"]
+mod video2;
 
 use editor::Editor;
 use gpui::{

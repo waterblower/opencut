@@ -13,7 +13,7 @@ use url::Url;
 
 mod video_element;
 
-pub(crate) use video_element::video;
+pub(crate) use video_element::{VideoElement, video};
 
 pub(crate) struct Video {
     pipeline: gst::Pipeline,
