@@ -91,12 +91,6 @@ impl Render for Player {
         let reported_position = self.video.as_ref().map_or(Duration::ZERO, Video::position);
         let duration = self.video.as_ref().map_or(Duration::ZERO, Video::duration);
 
-        let reported_progress = if duration.is_zero() {
-            0.0
-        } else {
-            (reported_position.as_secs_f64() / duration.as_secs_f64()).clamp(0.0, 1.0) as f32
-        };
-        let progress = self.scrub_fraction.unwrap_or(reported_progress);
         let position = self.scrub_fraction.map_or(reported_position, |fraction| {
             duration.mul_f64(fraction as f64)
         });
@@ -246,7 +240,6 @@ impl Render for Player {
                 can_play: has_video,
                 paused: is_paused,
                 scrubbing: self.is_scrubbing,
-                progress,
                 position,
                 duration,
                 volume,

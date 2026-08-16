@@ -45,12 +45,6 @@ impl Editor {
             .map_or((Duration::ZERO, Duration::ZERO, true), |video| {
                 (video.position(), video.duration(), video.paused())
             });
-        let reported_progress = if duration.is_zero() {
-            0.0
-        } else {
-            (position.as_secs_f64() / duration.as_secs_f64()).clamp(0.0, 1.0) as f32
-        };
-        let progress = self.preview.scrub_fraction.unwrap_or(reported_progress);
         let position = self
             .preview
             .scrub_fraction
@@ -67,7 +61,6 @@ impl Editor {
                 can_play: has_media,
                 paused,
                 scrubbing: self.preview.is_scrubbing,
-                progress,
                 position,
                 duration,
                 volume: self.preview.volume,

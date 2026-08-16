@@ -64,7 +64,6 @@ pub(crate) struct PlaybackViewProps {
     pub(crate) can_play: bool,
     pub(crate) paused: bool,
     pub(crate) scrubbing: bool,
-    pub(crate) progress: f32,
     pub(crate) position: Duration,
     pub(crate) duration: Duration,
     pub(crate) volume: f64,
@@ -88,7 +87,11 @@ pub(crate) fn playback_view<T: PlaybackViewDelegate>(
     let volume_percent = (displayed_volume * 100.0).round() as u32;
     let volume_fill_height = displayed_volume * VOLUME_TRACK_HEIGHT;
     let volume_thumb_bottom = displayed_volume * (VOLUME_TRACK_HEIGHT - 20.0);
-    let progress = props.progress.clamp(0.0, 1.0);
+    let progress = if props.duration.is_zero() {
+        0.0
+    } else {
+        (props.position.as_secs_f64() / props.duration.as_secs_f64()).clamp(0.0, 1.0) as f32
+    };
 
     div()
         .id("shared-playback-view")
