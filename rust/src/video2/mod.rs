@@ -11,7 +11,6 @@ use parking_lot::Mutex;
 use std::time::Duration;
 use url::Url;
 
-#[path = "video-element.rs"]
 mod video_element;
 
 pub(crate) use video_element::video;
