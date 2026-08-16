@@ -48,27 +48,6 @@ impl Video {
             .enable_last_sample(false)
             .caps(&caps)
             .build();
-        let current_frame = Arc::new(Mutex::new(None));
-        sink.set_callbacks(
-            gst_app::AppSinkCallbacks::builder()
-                .new_sample({
-                    let current_frame = current_frame.clone();
-                    move |sink| {
-                        let sample = sink.pull_sample().map_err(|_| gst::FlowError::Eos)?;
-                        *current_frame.lock() = Some(sample);
-                        Ok(gst::FlowSuccess::Ok)
-                    }
-                })
-                .new_preroll({
-                    let current_frame = current_frame.clone();
-                    move |sink| {
-                        let sample = sink.pull_preroll().map_err(|_| gst::FlowError::Eos)?;
-                        *current_frame.lock() = Some(sample);
-                        Ok(gst::FlowSuccess::Ok)
-                    }
-                })
-                .build(),
-        );
         let video_sink = gst::Bin::new();
         video_sink
             .add(&converter)
@@ -101,7 +80,37 @@ impl Video {
             .downcast::<gst::Pipeline>()
             .map_err(|_| "video pipeline had an unexpected type".to_string())?;
 
+        let video = Self::from_pipeline(pipeline, sink)?;
+        video.set_paused(false);
+        Ok(video)
+    }
+
+    pub(crate) fn from_pipeline(
+        pipeline: gst::Pipeline,
+        sink: gst_app::AppSink,
+    ) -> Result<Self, String> {
         gst::init().map_err(|error| format!("could not initialize GStreamer: {error}"))?;
+        let current_frame = Arc::new(Mutex::new(None));
+        sink.set_callbacks(
+            gst_app::AppSinkCallbacks::builder()
+                .new_sample({
+                    let current_frame = current_frame.clone();
+                    move |sink| {
+                        let sample = sink.pull_sample().map_err(|_| gst::FlowError::Eos)?;
+                        *current_frame.lock() = Some(sample);
+                        Ok(gst::FlowSuccess::Ok)
+                    }
+                })
+                .new_preroll({
+                    let current_frame = current_frame.clone();
+                    move |sink| {
+                        let sample = sink.pull_preroll().map_err(|_| gst::FlowError::Eos)?;
+                        *current_frame.lock() = Some(sample);
+                        Ok(gst::FlowSuccess::Ok)
+                    }
+                })
+                .build(),
+        );
         pipeline
             .set_state(gst::State::Paused)
             .map_err(|error| format!("could not prepare video: {error}"))?;
@@ -115,15 +124,12 @@ impl Video {
         // it must not fail the load — the container's nominal rate is still available from
         // the probed asset when a caller needs one.
 
-        let video = Video {
+        Ok(Video {
             current_frame,
             pipeline,
             sink,
             cached_position: Duration::ZERO,
-        };
-
-        video.set_paused(false);
-        Ok(video)
+        })
     }
 
     pub(crate) fn frame_size(&self) -> Option<(u32, u32)> {
