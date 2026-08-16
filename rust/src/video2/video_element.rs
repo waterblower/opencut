@@ -24,10 +24,10 @@ use yuv::{YuvBiPlanarImage, YuvConversionMode, YuvRange, YuvStandardMatrix, yuv_
 // VideoElement //
 //////////////////
 pub(crate) struct VideoElement {
-    frame: Option<gst::Sample>,
-    width: gpui::Pixels,
-    height: gpui::Pixels,
-    id: Option<ElementId>,
+    pub frame: Option<gst::Sample>,
+    pub width: gpui::Pixels,
+    pub height: gpui::Pixels,
+    pub id: Option<ElementId>,
 }
 
 impl VideoElement {
