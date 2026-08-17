@@ -425,7 +425,7 @@ impl Editor {
         self.preview.pending_seek_started = None;
         self.preview.last_scrub_seek = Some(Instant::now());
         seek_audio_to_fraction(audio, fraction, false, false);
-        self.preview.refresh_ticks = 12;
+
         cx.notify();
     }
 
@@ -444,7 +444,7 @@ impl Editor {
                 seek_audio_to_fraction(audio, fraction, false, false);
             }
         }
-        self.preview.refresh_ticks = 12;
+
         cx.notify();
     }
 
@@ -457,7 +457,7 @@ impl Editor {
             seek_audio_to_fraction(audio, fraction, true, resume);
         }
         self.preview.resume_after_scrub = false;
-        self.preview.refresh_ticks = 12;
+
         cx.notify();
     }
 

@@ -236,7 +236,7 @@ impl Editor {
             && (current_properties.position_y - properties.position_y).abs() <= f64::EPSILON
         {
             self.preview.timeline_drag = Some(drag);
-            self.preview.refresh_ticks = 2;
+
             cx.notify();
             return true;
         }
@@ -265,7 +265,7 @@ impl Editor {
             }
         }
         self.preview.timeline_drag = Some(drag);
-        self.preview.refresh_ticks = 2;
+
         cx.notify();
         true
     }

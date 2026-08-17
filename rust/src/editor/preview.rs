@@ -124,7 +124,7 @@ impl Editor {
             self.preview.target = PreviewTarget::None;
             self.preview.timeline_needs_rebuild = true;
             self.preview.playing = false;
-            self.preview.refresh_ticks = 2;
+
             return;
         }
 
@@ -163,7 +163,6 @@ impl Editor {
                 self.preview.timeline_clock = Some((position, Instant::now()));
             }
         }
-        self.preview.refresh_ticks = 12;
     }
 
     pub(super) fn toggle_playback(&mut self) {
@@ -171,7 +170,7 @@ impl Editor {
             PreviewTarget::None | PreviewTarget::ImageFile(_) => return,
             PreviewTarget::VideoFile(_, video) => {
                 video.set_paused(!video.paused());
-                self.preview.refresh_ticks = 12;
+
                 return;
             }
             PreviewTarget::AudioFile(_, audio) => {
@@ -181,7 +180,7 @@ impl Editor {
                 } else {
                     audio.set_playing(!audio.playing());
                 }
-                self.preview.refresh_ticks = 12;
+
                 return;
             }
             PreviewTarget::Timeline(_) => {}
@@ -333,7 +332,7 @@ impl PlaybackViewDelegate for Editor {
             }
             _ => return,
         }
-        self.preview.refresh_ticks = 12;
+
         cx.notify();
     }
 

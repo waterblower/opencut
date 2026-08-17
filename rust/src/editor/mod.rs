@@ -200,7 +200,6 @@ struct PreviewState {
     pending_seek_started: Option<Instant>,
     last_scrub_seek: Option<Instant>,
     timeline_drag: Option<TimelinePreviewDrag>,
-    refresh_ticks: u8,
 }
 
 struct PropertiesPanelState {
@@ -368,7 +367,7 @@ impl Editor {
         self.preview.last_scrub_seek = None;
         self.preview.timeline_drag = None;
         self.properties.transform_input_clip_id = None;
-        self.preview.refresh_ticks = 2;
+
         self.timeline = active_timeline.map(|(path, data)| TimelineState::new(path, data));
         self.explorer.search_query = None;
         self.explorer.search_results.clear();

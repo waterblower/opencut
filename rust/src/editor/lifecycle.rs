@@ -63,7 +63,6 @@ impl Editor {
                 pending_seek_started: None,
                 last_scrub_seek: None,
                 timeline_drag: None,
-                refresh_ticks: 0,
             },
             waveform_jobs: HashSet::new(),
             waveform_cache: HashMap::new(),
@@ -115,11 +114,10 @@ fn start_updates(cx: &mut Context<Editor>) {
                 let should_render = editor.preview.playing
                     || file_preview_playing
                     || editor.export.running
-                    || editor.preview.refresh_ticks > 0
                     || refresh_tree
                     || pinch_zoomed
                     || ended_explorer_drag;
-                editor.preview.refresh_ticks = editor.preview.refresh_ticks.saturating_sub(1);
+
                 if refresh_tree {
                     editor
                         .explorer

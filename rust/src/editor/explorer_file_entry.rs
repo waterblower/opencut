@@ -412,7 +412,6 @@ impl Editor {
             self.preview.pending_seek_started = None;
             self.preview.last_scrub_seek = None;
             self.preview.timeline_drag = None;
-            self.preview.refresh_ticks = 2;
         }
 
         if !is_video && !is_audio {
@@ -452,7 +451,6 @@ impl Editor {
                                 editor.preview.target =
                                     PreviewTarget::AudioFile(relative_path.clone(), audio);
                                 editor.status = Some("Audio preview ready.".to_string());
-                                editor.preview.refresh_ticks = 12;
                             }
                             Err(error) => {
                                 editor.status = None;
@@ -483,7 +481,6 @@ impl Editor {
                 video.set_volume(self.preview.volume);
                 self.preview.target = PreviewTarget::VideoFile(relative_path, video);
                 self.status = Some("Video preview ready.".to_string());
-                self.preview.refresh_ticks = 12;
             }
             Err(error) => {
                 self.status = None;
