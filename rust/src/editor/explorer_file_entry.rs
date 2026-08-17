@@ -406,7 +406,6 @@ impl Editor {
             self.preview.volume_control_open = false;
             self.preview.is_scrubbing = false;
             self.preview.is_adjusting_volume = false;
-            self.preview.resume_after_scrub = false;
             self.preview.last_scrub_seek = None;
             self.preview.timeline_drag = None;
         }

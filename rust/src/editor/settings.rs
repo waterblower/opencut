@@ -160,7 +160,7 @@ impl Editor {
         self.preview.timeline_clock = None;
         self.save_timeline_playhead();
         if has_clips {
-            self.load_timeline_position_with_options(playhead, false, true);
+            self.load_timeline_position_with_options(playhead, true);
         }
         self.status = Some(format!(
             "Timeline frame rate changed to {}.",

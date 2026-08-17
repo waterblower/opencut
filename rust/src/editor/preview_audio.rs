@@ -89,10 +89,9 @@ impl AudioBackend {
     }
 }
 
-fn seek_audio_to_fraction(audio: &AudioBackend, fraction: f32, accurate: bool, playing: bool) {
+fn seek_audio_to_fraction(audio: &AudioBackend, fraction: f32, accurate: bool) {
     let target = audio.duration().mul_f64(fraction.clamp(0.0, 1.0) as f64);
     audio.seek_with_accuracy(target, accurate);
-    audio.set_playing(playing);
 }
 
 impl Drop for AudioBackend {
@@ -427,11 +426,10 @@ impl Editor {
         let Some(audio) = self.preview.target.audio() else {
             return;
         };
-        self.preview.resume_after_scrub = audio.playing();
         audio.set_playing(false);
         self.preview.is_scrubbing = true;
         self.preview.last_scrub_seek = Some(Instant::now());
-        seek_audio_to_fraction(audio, fraction, false, false);
+        seek_audio_to_fraction(audio, fraction, false);
 
         cx.notify();
     }
@@ -448,7 +446,7 @@ impl Editor {
         {
             self.preview.last_scrub_seek = Some(now);
             if let Some(audio) = self.preview.target.audio() {
-                seek_audio_to_fraction(audio, fraction, false, false);
+                seek_audio_to_fraction(audio, fraction, false);
             }
         }
 
@@ -456,13 +454,11 @@ impl Editor {
     }
 
     fn finish_audio_scrub(&mut self, fraction: f32, cx: &mut Context<Self>) {
-        let resume = self.preview.resume_after_scrub;
         self.preview.last_scrub_seek = None;
         self.preview.is_scrubbing = false;
         if let Some(audio) = self.preview.target.audio() {
-            seek_audio_to_fraction(audio, fraction, true, resume);
+            seek_audio_to_fraction(audio, fraction, true);
         }
-        self.preview.resume_after_scrub = false;
 
         cx.notify();
     }

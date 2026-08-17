@@ -56,7 +56,6 @@ impl Editor {
                 volume_control_open: false,
                 is_scrubbing: false,
                 is_adjusting_volume: false,
-                resume_after_scrub: false,
                 last_scrub_seek: None,
                 timeline_drag: None,
             },
@@ -81,7 +80,7 @@ impl Editor {
         if let Some(timeline) = editor.timeline.as_ref()
             && !timeline.data.clips.is_empty()
         {
-            editor.load_timeline_position_with_options(timeline.playhead, false, true);
+            editor.load_timeline_position_with_options(timeline.playhead, true);
         }
         editor.schedule_project_waveforms(cx);
         editor
@@ -93,8 +92,10 @@ fn start_updates(cx: &mut Context<Editor>) {
         loop {
             cx.background_executor().timer(IDLE_UPDATE_INTERVAL).await;
             let result = editor.update(cx, |editor, cx| {
-                let file_preview_playing = match &editor.preview.target {
-                    PreviewTarget::VideoFile(_, video) => !video.paused(),
+                let preview_playing = match &editor.preview.target {
+                    PreviewTarget::Timeline(video) | PreviewTarget::VideoFile(_, video) => {
+                        !video.paused()
+                    }
                     PreviewTarget::AudioFile(_, audio) => audio.playing(),
                     _ => false,
                 };
@@ -107,7 +108,7 @@ fn start_updates(cx: &mut Context<Editor>) {
                 let refresh_tree =
                     editor.explorer.last_tree_scan.elapsed() >= Duration::from_secs(1);
 
-                let should_render = file_preview_playing
+                let should_render = preview_playing
                     || editor.export.running
                     || refresh_tree
                     || pinch_zoomed

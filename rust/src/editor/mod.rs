@@ -194,7 +194,6 @@ struct PreviewState {
     volume_control_open: bool,
     is_scrubbing: bool,
     is_adjusting_volume: bool,
-    resume_after_scrub: bool,
     last_scrub_seek: Option<Instant>,
     timeline_drag: Option<TimelinePreviewDrag>,
 }
@@ -299,7 +298,7 @@ impl Editor {
             let timeline = self.timeline.as_ref().expect("timeline was checked above");
             let playhead = timeline.playhead;
             if !timeline.data.clips.is_empty() {
-                self.load_timeline_position_with_options(playhead, false, true);
+                self.load_timeline_position_with_options(playhead, true);
             }
             cx.notify();
             return Ok(());
@@ -357,7 +356,6 @@ impl Editor {
         self.preview.volume_control_open = false;
         self.preview.is_scrubbing = false;
         self.preview.is_adjusting_volume = false;
-        self.preview.resume_after_scrub = false;
         self.preview.last_scrub_seek = None;
         self.preview.timeline_drag = None;
         self.properties.transform_input_clip_id = None;
@@ -375,7 +373,7 @@ impl Editor {
         if let Some(timeline) = self.timeline.as_ref()
             && !timeline.data.clips.is_empty()
         {
-            self.load_timeline_position_with_options(timeline.playhead, false, true);
+            self.load_timeline_position_with_options(timeline.playhead, true);
         }
         self.schedule_active_timeline_waveforms(cx);
         Ok(())

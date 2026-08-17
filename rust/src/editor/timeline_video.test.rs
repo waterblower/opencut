@@ -124,3 +124,27 @@ fn timeline_audio_volume_uses_the_preview_volume_element() {
     let volume = video.volume();
     assert!((volume - 0.35).abs() < 0.000_001, "volume was {volume}");
 }
+
+#[test]
+fn timeline_video_backend_toggles_playback_state() {
+    let _gstreamer_test = crate::editor::lock_gstreamer_test();
+    let (pipeline, sink, volume_control) = headless_test_pipeline();
+    let video = VideoBackend::from_pipeline(pipeline, sink, volume_control).unwrap();
+
+    assert!(video.paused());
+    video.set_paused(false);
+    video
+        .pipeline()
+        .state(gst::ClockTime::from_seconds(5))
+        .0
+        .expect("timeline pipeline did not start playing");
+    assert!(!video.paused());
+
+    video.set_paused(true);
+    video
+        .pipeline()
+        .state(gst::ClockTime::from_seconds(5))
+        .0
+        .expect("timeline pipeline did not pause");
+    assert!(video.paused());
+}

@@ -46,7 +46,7 @@ impl Editor {
             return;
         };
         let playhead = timeline.playhead;
-        self.load_timeline_position_with_options(playhead, true, true);
+        self.load_timeline_position_with_options(playhead, true);
     }
 
     pub(super) fn preview_player(
@@ -95,7 +95,6 @@ impl Editor {
     pub(super) fn load_timeline_position_with_options(
         &mut self,
         position: TimelineTime,
-        play: bool,
         accurate: bool,
     ) {
         let Some(timeline) = self.timeline.as_mut() else {
@@ -152,10 +151,6 @@ impl Editor {
 
         if let Some(video) = self.preview.target.video_mut() {
             let _ = video.seek(timeline.data.duration(position), accurate);
-            video.set_paused(!play);
-            if play {
-                self.preview.timeline_clock = Some((position, Instant::now()));
-            }
         }
     }
 
@@ -191,7 +186,14 @@ impl Editor {
                 } else {
                     timeline.playhead
                 };
-                self.load_timeline_position_with_options(start, play, true);
+                self.load_timeline_position_with_options(start, true);
+                let PreviewTarget::Timeline(video) = &self.preview.target else {
+                    return;
+                };
+                video.set_paused(!play);
+                if play {
+                    self.preview.timeline_clock = Some((start, Instant::now()));
+                }
             }
         }
     }
@@ -233,7 +235,7 @@ fn timeline_playhead_from_elapsed(
 }
 
 impl Editor {
-    fn seek_preview_to_fraction(&mut self, fraction: f32, accurate: bool, play: bool) {
+    fn seek_preview_to_fraction(&mut self, fraction: f32, accurate: bool) {
         let fraction = fraction.clamp(0.0, 1.0);
         if self.preview.target.is_timeline() {
             let Some(timeline) = self.timeline.as_ref() else {
@@ -242,13 +244,12 @@ impl Editor {
             let duration = timeline.data.content_duration().frames();
             let position =
                 TimelineTime::from_frames((duration as f64 * fraction as f64).round() as i64);
-            self.load_timeline_position_with_options(position, play, accurate);
+            self.load_timeline_position_with_options(position, accurate);
             return;
         }
         if let PreviewTarget::VideoFile(_, video) = &mut self.preview.target {
             let target = video.duration().mul_f64(fraction as f64);
             let _ = video.seek(target, accurate);
-            video.set_paused(!play);
         }
     }
 }
@@ -275,13 +276,6 @@ impl PlaybackViewDelegate for Editor {
 
         match phase {
             DragPhase::Start => {
-                self.preview.resume_after_scrub = match &self.preview.target {
-                    PreviewTarget::Timeline(video) => !video.paused(),
-                    PreviewTarget::VideoFile(_, video) => !video.paused(),
-                    PreviewTarget::None
-                    | PreviewTarget::AudioFile(_, _)
-                    | PreviewTarget::ImageFile(_) => return,
-                };
                 if let Some(video) = self.preview.target.video() {
                     video.set_paused(true);
                 }
@@ -289,7 +283,7 @@ impl PlaybackViewDelegate for Editor {
                 self.preview.timeline_clock = None;
                 self.preview.is_scrubbing = true;
                 self.preview.last_scrub_seek = Some(Instant::now());
-                self.seek_preview_to_fraction(fraction, false, false);
+                self.seek_preview_to_fraction(fraction, false);
             }
             DragPhase::Update if self.preview.is_scrubbing => {
                 let now = Instant::now();
@@ -299,15 +293,13 @@ impl PlaybackViewDelegate for Editor {
                     .is_none_or(|last_seek| now.duration_since(last_seek) >= SCRUB_SEEK_INTERVAL);
                 if should_seek {
                     self.preview.last_scrub_seek = Some(now);
-                    self.seek_preview_to_fraction(fraction, false, false);
+                    self.seek_preview_to_fraction(fraction, false);
                 }
             }
             DragPhase::End if self.preview.is_scrubbing => {
-                let resume = self.preview.resume_after_scrub;
                 self.preview.last_scrub_seek = None;
                 self.preview.is_scrubbing = false;
-                self.seek_preview_to_fraction(fraction, true, resume);
-                self.preview.resume_after_scrub = false;
+                self.seek_preview_to_fraction(fraction, true);
                 if self.preview.target.is_timeline() {
                     self.save_timeline_playhead();
                 }
