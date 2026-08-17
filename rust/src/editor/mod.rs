@@ -195,7 +195,6 @@ struct PreviewState {
     is_scrubbing: bool,
     is_adjusting_volume: bool,
     resume_after_scrub: bool,
-    pending_seek_started: Option<Instant>,
     last_scrub_seek: Option<Instant>,
     timeline_drag: Option<TimelinePreviewDrag>,
 }
@@ -355,17 +354,13 @@ impl Editor {
         self.explorer.pending_drop = None;
         self.preview.timeline_needs_rebuild = true;
         self.preview.timeline_clock = None;
-
         self.preview.volume_control_open = false;
         self.preview.is_scrubbing = false;
         self.preview.is_adjusting_volume = false;
         self.preview.resume_after_scrub = false;
-
-        self.preview.pending_seek_started = None;
         self.preview.last_scrub_seek = None;
         self.preview.timeline_drag = None;
         self.properties.transform_input_clip_id = None;
-
         self.timeline = active_timeline.map(|(path, data)| TimelineState::new(path, data));
         self.explorer.search_query = None;
         self.explorer.search_results.clear();

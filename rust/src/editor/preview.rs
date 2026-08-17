@@ -288,7 +288,6 @@ impl PlaybackViewDelegate for Editor {
 
                 self.preview.timeline_clock = None;
                 self.preview.is_scrubbing = true;
-                self.preview.pending_seek_started = None;
                 self.preview.last_scrub_seek = Some(Instant::now());
                 self.seek_preview_to_fraction(fraction, false, false);
             }
@@ -305,8 +304,6 @@ impl PlaybackViewDelegate for Editor {
             }
             DragPhase::End if self.preview.is_scrubbing => {
                 let resume = self.preview.resume_after_scrub;
-
-                self.preview.pending_seek_started = Some(Instant::now());
                 self.preview.last_scrub_seek = None;
                 self.preview.is_scrubbing = false;
                 self.seek_preview_to_fraction(fraction, true, resume);

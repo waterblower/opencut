@@ -430,7 +430,6 @@ impl Editor {
         self.preview.resume_after_scrub = audio.playing();
         audio.set_playing(false);
         self.preview.is_scrubbing = true;
-        self.preview.pending_seek_started = None;
         self.preview.last_scrub_seek = Some(Instant::now());
         seek_audio_to_fraction(audio, fraction, false, false);
 
@@ -458,7 +457,6 @@ impl Editor {
 
     fn finish_audio_scrub(&mut self, fraction: f32, cx: &mut Context<Self>) {
         let resume = self.preview.resume_after_scrub;
-        self.preview.pending_seek_started = Some(Instant::now());
         self.preview.last_scrub_seek = None;
         self.preview.is_scrubbing = false;
         if let Some(audio) = self.preview.target.audio() {

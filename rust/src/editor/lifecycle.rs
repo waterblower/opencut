@@ -57,7 +57,6 @@ impl Editor {
                 is_scrubbing: false,
                 is_adjusting_volume: false,
                 resume_after_scrub: false,
-                pending_seek_started: None,
                 last_scrub_seek: None,
                 timeline_drag: None,
             },
