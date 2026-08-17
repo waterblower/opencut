@@ -2,7 +2,7 @@ use super::timeline_video::{create_timeline_video, set_timeline_audio};
 use super::*;
 use preview_image::preview_image_file;
 
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug)]
 pub(super) enum PreviewTarget {
     Timeline,
     VideoFile(PathBuf),
@@ -12,7 +12,9 @@ pub(super) enum PreviewTarget {
 
 impl Editor {
     pub(super) fn rebuild_timeline_preview_if_needed(&mut self) {
-        if !self.preview.timeline_needs_rebuild || self.preview.target != PreviewTarget::Timeline {
+        if !self.preview.timeline_needs_rebuild
+            || !matches!(&self.preview.target, PreviewTarget::Timeline)
+        {
             return;
         }
         let Some(timeline) = self.timeline.as_ref() else {
@@ -65,7 +67,7 @@ impl Editor {
             self.preview.timeline_clock = None;
             return;
         };
-        let was_timeline = self.preview.target == PreviewTarget::Timeline;
+        let was_timeline = matches!(&self.preview.target, PreviewTarget::Timeline);
         self.preview.audio = None;
         self.preview.target = PreviewTarget::Timeline;
         self.explorer.selected_file = None;
@@ -307,7 +309,7 @@ impl PlaybackViewDelegate for Editor {
                 self.preview.is_scrubbing = false;
                 self.seek_preview_to_fraction(fraction, true, resume);
                 self.preview.resume_after_scrub = false;
-                if self.preview.target == PreviewTarget::Timeline {
+                if matches!(&self.preview.target, PreviewTarget::Timeline) {
                     self.save_timeline_playhead();
                 }
             }
@@ -333,7 +335,7 @@ impl PlaybackViewDelegate for Editor {
         }
         self.preview.volume = volume.clamp(0.0, 1.0);
         if let Some(video) = &self.preview.video {
-            if self.preview.target == PreviewTarget::Timeline {
+            if matches!(&self.preview.target, PreviewTarget::Timeline) {
                 set_timeline_audio(
                     &video.pipeline(),
                     self.preview.volume,

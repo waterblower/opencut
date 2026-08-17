@@ -583,7 +583,7 @@ impl Editor {
         }
         let target = (timeline.playhead + TimelineTime::from_frames(frames))
             .clamp(TimelineTime::ZERO, timeline.data.content_duration());
-        if target != timeline.playhead || self.preview.target != PreviewTarget::Timeline {
+        if target != timeline.playhead || !matches!(&self.preview.target, PreviewTarget::Timeline) {
             self.load_timeline_position_with_options(target, false, true);
             self.save_timeline_playhead();
         }
