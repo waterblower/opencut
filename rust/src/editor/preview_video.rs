@@ -68,7 +68,7 @@ impl Editor {
                 duration,
                 volume: volume,
                 muted: volume <= f64::EPSILON,
-                volume_open: self.preview.volume_open,
+                volume_open: self.preview.volume_control_open,
                 content,
                 extra_control: None,
                 fullscreen_control: div()

@@ -361,14 +361,14 @@ impl PlaybackViewDelegate for Editor {
             }
         };
         if has_playable_target {
-            self.preview.volume_open = !self.preview.volume_open;
+            self.preview.volume_control_open = !self.preview.volume_control_open;
             cx.notify();
         }
     }
 
     fn playback_dismiss_volume(&mut self, _: &mut Window, cx: &mut Context<Self>) {
-        if self.preview.volume_open {
-            self.preview.volume_open = false;
+        if self.preview.volume_control_open {
+            self.preview.volume_control_open = false;
             cx.notify();
         }
     }

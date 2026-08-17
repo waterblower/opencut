@@ -92,7 +92,7 @@ impl Editor {
         canvas: TimelinePreviewCanvas,
         cx: &mut Context<Self>,
     ) {
-        self.preview.volume_open = false;
+        self.preview.volume_control_open = false;
         let pointer_x = f32::from(event.position.x) - surface_left;
         let pointer_y = f32::from(event.position.y) - surface_top;
         let Some(timeline) = self.timeline.as_ref() else {
@@ -302,8 +302,8 @@ impl Editor {
         _: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        if self.preview.volume_open {
-            self.preview.volume_open = false;
+        if self.preview.volume_control_open {
+            self.preview.volume_control_open = false;
             cx.notify();
         }
     }
@@ -463,7 +463,7 @@ impl Editor {
             .as_ref()
             .is_some_and(|timeline| !timeline.data.clips.is_empty())
         {
-            self.preview.volume_open = !self.preview.volume_open;
+            self.preview.volume_control_open = !self.preview.volume_control_open;
             cx.notify();
         }
     }
@@ -790,7 +790,7 @@ impl Editor {
                                             .w(px(72.0))
                                             .h_12()
                                             .flex_shrink_0()
-                                            .when(self.preview.volume_open && has_media, |this| {
+                                            .when(self.preview.volume_control_open && has_media, |this| {
                                                 this.child(
                                                     div()
                                                         .absolute()

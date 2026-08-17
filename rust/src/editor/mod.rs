@@ -191,7 +191,7 @@ struct PreviewState {
     fullscreen: bool,
     timeline_needs_rebuild: bool,
     timeline_clock: Option<(TimelineTime, Instant)>,
-    volume_open: bool,
+    volume_control_open: bool,
     is_scrubbing: bool,
     is_adjusting_volume: bool,
     resume_after_scrub: bool,
@@ -356,7 +356,7 @@ impl Editor {
         self.preview.timeline_needs_rebuild = true;
         self.preview.timeline_clock = None;
 
-        self.preview.volume_open = false;
+        self.preview.volume_control_open = false;
         self.preview.is_scrubbing = false;
         self.preview.is_adjusting_volume = false;
         self.preview.resume_after_scrub = false;
