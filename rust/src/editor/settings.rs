@@ -156,7 +156,7 @@ impl Editor {
         let has_clips = !timeline.data.clips.is_empty();
         self.preview.target = PreviewTarget::None;
         self.preview.timeline_needs_rebuild = true;
-        self.preview.playing = false;
+
         self.preview.timeline_clock = None;
         self.save_timeline_playhead();
         if has_clips {

@@ -53,7 +53,7 @@ impl Editor {
                 fullscreen: false,
                 timeline_needs_rebuild: true,
                 timeline_clock: None,
-                playing: false,
+
                 volume: 1.0,
                 volume_open: false,
                 is_scrubbing: false,
@@ -111,8 +111,7 @@ fn start_updates(cx: &mut Context<Editor>) {
                 let refresh_tree =
                     editor.explorer.last_tree_scan.elapsed() >= Duration::from_secs(1);
 
-                let should_render = editor.preview.playing
-                    || file_preview_playing
+                let should_render = file_preview_playing
                     || editor.export.running
                     || refresh_tree
                     || pinch_zoomed

@@ -1023,7 +1023,11 @@ impl Editor {
                     .child(
                         timeline_icon_button(
                             "timeline-play",
-                            if self.preview.playing { "Ⅱ" } else { "▶" },
+                            if self.preview.target.video().map_or(false, |v| !v.paused()) {
+                                "Ⅱ"
+                            } else {
+                                "▶"
+                            },
                         )
                         .on_click(cx.listener(|editor, _, _, cx| {
                             editor.toggle_playback();

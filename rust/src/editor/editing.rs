@@ -321,7 +321,7 @@ impl Editor {
         self.properties.transform_input_clip_id = None;
         self.preview.target = PreviewTarget::None;
         self.preview.timeline_needs_rebuild = true;
-        self.preview.playing = false;
+
         self.preview.timeline_clock = None;
         let clips_empty = timeline.data.clips.is_empty();
         let playhead = timeline.playhead;
@@ -494,7 +494,7 @@ impl Editor {
         }
         timeline.save(&self.global_settings.project_root);
         self.rebuild_timeline_preview_if_needed();
-        self.load_timeline_position_with_options(playhead, self.preview.playing, true);
+        self.load_timeline_position_with_options(playhead, true, true);
     }
 
     pub(super) fn move_track(&mut self, track_id: Ulid, direction: i8) {
@@ -653,7 +653,7 @@ impl Editor {
         };
         self.preview.target = PreviewTarget::None;
         self.preview.timeline_needs_rebuild = true;
-        self.preview.playing = false;
+
         self.preview.timeline_clock = None;
         timeline.playhead = timeline
             .playhead

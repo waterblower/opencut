@@ -758,7 +758,7 @@ impl Editor {
                                             } else {
                                                 rgb(MUTED)
                                             })
-                                            .child(if self.preview.playing { "Ⅱ" } else { "▶" })
+                                            .child(if self.preview.target.video().map_or(false, |v| !v.paused()) { "Ⅱ" } else { "▶" })
                                             .on_click(
                                                 cx.listener(Self::toggle_timeline_preview_playback),
                                             ),

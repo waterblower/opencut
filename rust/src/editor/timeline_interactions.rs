@@ -271,7 +271,6 @@ impl Editor {
         if let Some(video) = self.preview.target.video() {
             video.set_paused(true);
         }
-        self.preview.playing = false;
         self.preview.timeline_clock = None;
         let timeline = self.timeline.as_mut().expect("timeline was checked above");
         timeline.interaction.snap_guide = None;
@@ -517,7 +516,6 @@ impl Editor {
         if let Some(video) = self.preview.target.video() {
             video.set_paused(true);
         }
-        self.preview.playing = false;
         self.preview.timeline_clock = None;
         let position = timeline.timeline_position_from_x(event.position.x.into());
         timeline.interaction.last_scrub_seek = Some(Instant::now());
