@@ -472,19 +472,8 @@ impl Editor {
         }
 
         cx.spawn(async move |editor, cx| {
-            let result = cx
-                .background_executor()
-                .spawn(async move {
-                    let mut video = VideoBackend::open(&url).map_err(|error| {
-                        format!("Could not preview {}: {error}", source_path.display())
-                    })?;
-                    video.set_paused(true);
-                    video.seek(Duration::ZERO, true).map_err(|error| {
-                        format!("Could not preview {}: {error}", source_path.display())
-                    })?;
-                    Ok::<_, String>(video)
-                })
-                .await;
+            let video = VideoBackend::open(&url)
+                .map_err(|error| format!("Could not preview {}: {error}", source_path.display()));
 
             editor
                 .update(cx, |editor, cx| {
@@ -496,7 +485,7 @@ impl Editor {
                         return;
                     }
 
-                    match result {
+                    match video {
                         Ok(video) => {
                             video.set_volume(editor.preview.volume);
                             editor.preview.video = Some(video);
