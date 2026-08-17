@@ -11,6 +11,7 @@ use parking_lot::Mutex;
 use std::time::Duration;
 use url::Url;
 
+#[derive(Debug)]
 pub(crate) struct VideoBackend {
     pipeline: gst::Pipeline,
     sink: gst_app::AppSink,

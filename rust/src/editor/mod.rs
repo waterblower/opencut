@@ -56,7 +56,7 @@ use model::{
     timeline_ranges_overlap,
 };
 use preview::{PreviewTarget, update_playback};
-use preview_audio::AudioPreview;
+use preview_audio::AudioBackend;
 use preview_timeline::TimelinePreviewDrag;
 use properties::{PropertiesPanelResizeDrag, properties_panel};
 use properties_transform::VideoTransformInputs;
@@ -190,7 +190,7 @@ struct PreviewState {
     target: PreviewTarget,
     fullscreen: bool,
     video: Option<VideoBackend>,
-    audio: Option<AudioPreview>,
+    audio: Option<AudioBackend>,
     timeline_needs_rebuild: bool,
     timeline_clock: Option<(TimelineTime, Instant)>,
     playing: bool,

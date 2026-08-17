@@ -8,11 +8,11 @@ const AUDIO_CONTROL_HEIGHT: f32 = 96.0;
 const AUDIO_HORIZONTAL_PADDING: f32 = 22.0;
 const AUDIO_VOLUME_WIDTH: f32 = 96.0;
 
-pub(super) struct AudioPreview {
+pub(super) struct AudioBackend {
     pipeline: gst::Element,
 }
 
-impl AudioPreview {
+impl AudioBackend {
     pub(super) fn new(url: &Url) -> Result<Self, String> {
         gst::init().map_err(|error| format!("could not initialize GStreamer: {error}"))?;
         let video_sink = gst::ElementFactory::make("fakesink")
@@ -85,13 +85,13 @@ impl AudioPreview {
     }
 }
 
-fn seek_audio_to_fraction(audio: &AudioPreview, fraction: f32, accurate: bool, playing: bool) {
+fn seek_audio_to_fraction(audio: &AudioBackend, fraction: f32, accurate: bool, playing: bool) {
     let target = audio.duration().mul_f64(fraction.clamp(0.0, 1.0) as f64);
     audio.seek_with_accuracy(target, accurate);
     audio.set_playing(playing);
 }
 
-impl Drop for AudioPreview {
+impl Drop for AudioBackend {
     fn drop(&mut self) {
         let _ = self.pipeline.set_state(gst::State::Null);
     }

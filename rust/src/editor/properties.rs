@@ -224,7 +224,7 @@ fn video_file_properties(
 fn audio_file_properties(
     path: &Path,
     asset: Option<&MediaAsset>,
-    runtime: Option<&AudioPreview>,
+    runtime: Option<&AudioBackend>,
 ) -> gpui::AnyElement {
     let duration = asset
         .map(|asset| asset.duration)

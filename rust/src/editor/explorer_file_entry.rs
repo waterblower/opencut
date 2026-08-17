@@ -437,7 +437,7 @@ impl Editor {
             cx.spawn(async move |editor, cx| {
                 let result = cx
                     .background_executor()
-                    .spawn(async move { AudioPreview::new(&url) })
+                    .spawn(async move { AudioBackend::new(&url) })
                     .await;
 
                 editor

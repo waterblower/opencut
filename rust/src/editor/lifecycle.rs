@@ -110,7 +110,7 @@ fn start_updates(cx: &mut Context<Editor>) {
                         .preview
                         .audio
                         .as_ref()
-                        .is_some_and(AudioPreview::playing),
+                        .is_some_and(AudioBackend::playing),
                     _ => false,
                 };
                 let pinch_zoomed = editor.apply_timeline_pinch();

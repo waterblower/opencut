@@ -2,7 +2,7 @@ use super::timeline_video::{create_timeline_video, set_timeline_audio};
 use super::*;
 use preview_image::preview_image_file;
 
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 pub(super) enum PreviewTarget {
     Timeline,
     VideoFile(PathBuf),
@@ -227,7 +227,7 @@ fn timeline_playhead_from_elapsed(
 impl Editor {
     fn seek_preview_to_fraction(&mut self, fraction: f32, accurate: bool, play: bool) {
         let fraction = fraction.clamp(0.0, 1.0);
-        match self.preview.target.clone() {
+        match self.preview.target {
             PreviewTarget::Timeline => {
                 let Some(timeline) = self.timeline.as_ref() else {
                     return;
