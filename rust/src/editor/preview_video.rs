@@ -48,6 +48,12 @@ impl Editor {
 
         let has_media = self.preview.target.video().is_some();
 
+        let volume = self
+            .preview
+            .target
+            .video()
+            .map_or(0.0, |video| video.volume().clamp(0.0, 1.0));
+
         playback_view(
             PlaybackViewProps {
                 origin_x,
@@ -60,8 +66,8 @@ impl Editor {
                 scrubbing: self.preview.is_scrubbing,
                 position,
                 duration,
-                volume: self.preview.volume,
-                muted: self.preview.volume <= f64::EPSILON,
+                volume: volume,
+                muted: volume <= f64::EPSILON,
                 volume_open: self.preview.volume_open,
                 content,
                 extra_control: None,

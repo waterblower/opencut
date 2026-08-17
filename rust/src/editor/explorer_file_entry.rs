@@ -446,7 +446,6 @@ impl Editor {
 
                         match result {
                             Ok(audio) => {
-                                audio.set_volume(editor.preview.volume);
                                 audio.set_playing(false);
                                 editor.preview.target =
                                     PreviewTarget::AudioFile(relative_path.clone(), audio);
@@ -478,7 +477,6 @@ impl Editor {
 
         match video {
             Ok(video) => {
-                video.set_volume(self.preview.volume);
                 self.preview.target = PreviewTarget::VideoFile(relative_path, video);
                 self.status = Some("Video preview ready.".to_string());
             }

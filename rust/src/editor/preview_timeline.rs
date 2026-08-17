@@ -523,7 +523,11 @@ impl Editor {
         } else {
             (position.as_secs_f64() / duration.as_secs_f64()).clamp(0.0, 1.0) as f32
         };
-        let volume = self.preview.volume.clamp(0.0, 1.0);
+        let volume = self
+            .preview
+            .target
+            .video()
+            .map_or(0.0, |video| video.volume().clamp(0.0, 1.0));
         let muted = volume <= f64::EPSILON;
         let displayed_volume = if muted { 0.0 } else { volume } as f32;
         let volume_percent = (displayed_volume * 100.0).round() as u32;

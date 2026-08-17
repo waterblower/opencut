@@ -191,7 +191,6 @@ struct PreviewState {
     fullscreen: bool,
     timeline_needs_rebuild: bool,
     timeline_clock: Option<(TimelineTime, Instant)>,
-    volume: f64,
     volume_open: bool,
     is_scrubbing: bool,
     is_adjusting_volume: bool,

@@ -1,4 +1,4 @@
-use super::timeline_video::{create_timeline_video, set_timeline_audio};
+use super::timeline_video::create_timeline_video;
 use super::*;
 use preview_image::preview_image_file;
 
@@ -127,17 +127,18 @@ impl Editor {
         }
 
         if self.preview.target.video().is_none() || self.preview.timeline_needs_rebuild {
+            let volume = match &self.preview.target {
+                PreviewTarget::Timeline(video) => video.volume(),
+                _ => 1.0,
+            };
             if let Some(video) = self.preview.target.video() {
                 video.set_paused(true);
             }
             self.preview.target = PreviewTarget::None;
             match create_timeline_video(&timeline.data, &self.global_settings.project_root) {
                 Ok(video) => {
-                    set_timeline_audio(
-                        &video.pipeline(),
-                        self.preview.volume,
-                        self.preview.volume <= f64::EPSILON,
-                    );
+                    video.set_volume(volume);
+                    video.set_muted(volume <= f64::EPSILON);
                     self.preview.target = PreviewTarget::Timeline(video);
                     self.preview.timeline_needs_rebuild = false;
                 }
@@ -151,11 +152,6 @@ impl Editor {
 
         if let Some(video) = self.preview.target.video_mut() {
             let _ = video.seek(timeline.data.duration(position), accurate);
-            set_timeline_audio(
-                &video.pipeline(),
-                self.preview.volume,
-                self.preview.volume <= f64::EPSILON,
-            );
             video.set_paused(!play);
             if play {
                 self.preview.timeline_clock = Some((position, Instant::now()));
@@ -339,18 +335,14 @@ impl PlaybackViewDelegate for Editor {
             DragPhase::End => self.preview.is_adjusting_volume = false,
             DragPhase::Update => {}
         }
-        self.preview.volume = volume.clamp(0.0, 1.0);
         match &self.preview.target {
             PreviewTarget::Timeline(video) => {
-                set_timeline_audio(
-                    &video.pipeline(),
-                    self.preview.volume,
-                    self.preview.volume <= f64::EPSILON,
-                );
+                video.set_volume(volume.clamp(0.0, 1.0));
+                video.set_muted(volume.clamp(0.0, 1.0) <= f64::EPSILON);
             }
             PreviewTarget::VideoFile(_, video) => {
-                video.set_volume(self.preview.volume);
-                video.set_muted(self.preview.volume <= f64::EPSILON);
+                video.set_volume(volume.clamp(0.0, 1.0));
+                video.set_muted(volume.clamp(0.0, 1.0) <= f64::EPSILON);
             }
             _ => {}
         }

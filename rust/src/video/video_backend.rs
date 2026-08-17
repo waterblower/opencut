@@ -15,6 +15,7 @@ use url::Url;
 pub(crate) struct VideoBackend {
     pipeline: gst::Pipeline,
     sink: gst_app::AppSink,
+    volume_control: gst::Element,
     current_frame: Arc<Mutex<Option<gst::Sample>>>,
     cached_position: Duration,
 }
@@ -77,7 +78,8 @@ impl VideoBackend {
             .downcast::<gst::Pipeline>()
             .map_err(|_| "video pipeline had an unexpected type".to_string())?;
 
-        let video = Self::from_pipeline(pipeline, sink)?;
+        let volume_control = pipeline.clone().upcast::<gst::Element>();
+        let video = Self::from_pipeline(pipeline, sink, volume_control)?;
         video.set_paused(false);
         Ok(video)
     }
@@ -85,6 +87,7 @@ impl VideoBackend {
     pub(crate) fn from_pipeline(
         pipeline: gst::Pipeline,
         sink: gst_app::AppSink,
+        volume_control: gst::Element,
     ) -> Result<Self, String> {
         gst::init().map_err(|error| format!("could not initialize GStreamer: {error}"))?;
         let current_frame = Arc::new(Mutex::new(None));
@@ -125,6 +128,7 @@ impl VideoBackend {
             current_frame,
             pipeline,
             sink,
+            volume_control,
             cached_position: Duration::ZERO,
         })
     }
@@ -206,20 +210,21 @@ impl VideoBackend {
 
     #[allow(dead_code)] // Used by the player binary, but not the editor binary.
     pub(crate) fn volume(&self) -> f64 {
-        self.pipeline.property("volume")
+        self.volume_control.property("volume")
     }
 
     pub(crate) fn set_volume(&self, volume: f64) {
-        self.pipeline.set_property("volume", volume.clamp(0.0, 1.0));
+        self.volume_control
+            .set_property("volume", volume.clamp(0.0, 1.0));
     }
 
     #[allow(dead_code)] // Used by the player binary, but not the editor binary.
     pub(crate) fn muted(&self) -> bool {
-        self.pipeline.property("mute")
+        self.volume_control.property("mute")
     }
 
     pub(crate) fn set_muted(&self, muted: bool) {
-        self.pipeline.set_property("mute", muted);
+        self.volume_control.set_property("mute", muted);
     }
 
     pub(crate) fn pipeline(&self) -> gst::Pipeline {

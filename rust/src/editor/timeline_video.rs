@@ -15,17 +15,10 @@ pub(super) fn create_timeline_video(
     project_root: &Path,
 ) -> Result<VideoBackend, String> {
     initialize_gstreamer()?;
-    let audio_sink = preview_audio_sink()?;
+    let (audio_sink, volume_control) = preview_audio_sink()?;
     let (pipeline, sink) = create_timeline_pipeline(timeline, project_root, &audio_sink)?;
-    VideoBackend::from_pipeline(pipeline, sink)
+    VideoBackend::from_pipeline(pipeline, sink, volume_control)
         .map_err(|error| format!("could not initialize timeline video: {error}"))
-}
-
-pub(super) fn set_timeline_audio(pipeline: &gst::Pipeline, volume: f64, muted: bool) {
-    if let Some(control) = pipeline.by_name("gpui_audio_volume") {
-        control.set_property("volume", volume.clamp(0.0, 1.0));
-        control.set_property("mute", muted);
-    }
 }
 
 pub(super) fn update_timeline_video_position(
@@ -129,16 +122,17 @@ fn initialize_gstreamer() -> Result<(), String> {
     ges::init().map_err(|error| format!("could not initialize GStreamer Editing Services: {error}"))
 }
 
-fn preview_audio_sink() -> Result<gst::Element, String> {
+fn preview_audio_sink() -> Result<(gst::Element, gst::Element), String> {
     let sink = gst::parse::bin_from_description(
         "audioconvert ! audioresample ! volume name=gpui_audio_volume ! autoaudiosink",
         true,
     )
     .map_err(|error| format!("could not create timeline preview audio sink: {error}"))?;
-    if let Some(control) = sink.by_name("gpui_audio_volume") {
-        control.set_property("mute", true);
-    }
-    Ok(sink.upcast())
+    let control = sink
+        .by_name("gpui_audio_volume")
+        .ok_or_else(|| "timeline preview volume control was not created".to_string())?;
+    control.set_property("mute", true);
+    Ok((sink.upcast(), control))
 }
 
 #[cfg(test)]

@@ -83,6 +83,10 @@ impl AudioBackend {
     pub(super) fn set_volume(&self, volume: f64) {
         self.pipeline.set_property("volume", volume.clamp(0.0, 1.0));
     }
+
+    pub fn volume(&self) -> f64 {
+        self.pipeline.property::<f64>("volume")
+    }
 }
 
 fn seek_audio_to_fraction(audio: &AudioBackend, fraction: f32, accurate: bool, playing: bool) {
@@ -132,7 +136,11 @@ impl Editor {
         let usable_width = (width - AUDIO_HORIZONTAL_PADDING * 2.0).max(1.0);
         let timeline_left = origin_x + AUDIO_HORIZONTAL_PADDING;
         let volume_left = origin_x + width - AUDIO_HORIZONTAL_PADDING - AUDIO_VOLUME_WIDTH;
-        let volume = self.preview.volume.clamp(0.0, 1.0) as f32;
+        let volume = self
+            .preview
+            .target
+            .audio()
+            .map_or(0.0, |a| a.volume().clamp(0.0, 1.0)) as f32;
         let format_time = |duration: Duration| {
             let total_seconds = duration.as_secs();
             let hours = total_seconds / 3600;
@@ -462,10 +470,10 @@ impl Editor {
     }
 
     fn set_audio_preview_volume(&mut self, volume: f64, cx: &mut Context<Self>) {
-        self.preview.volume = volume.clamp(0.0, 1.0);
-        if let Some(audio) = self.preview.target.audio() {
-            audio.set_volume(self.preview.volume);
-        }
+        let Some(audio) = self.preview.target.audio() else {
+            return;
+        };
+        audio.set_volume(volume.clamp(0.0, 1.0));
         cx.notify();
     }
 }

@@ -53,13 +53,10 @@ impl Editor {
                 fullscreen: false,
                 timeline_needs_rebuild: true,
                 timeline_clock: None,
-
-                volume: 1.0,
                 volume_open: false,
                 is_scrubbing: false,
                 is_adjusting_volume: false,
                 resume_after_scrub: false,
-
                 pending_seek_started: None,
                 last_scrub_seek: None,
                 timeline_drag: None,
