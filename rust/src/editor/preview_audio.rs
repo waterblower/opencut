@@ -113,8 +113,8 @@ impl Editor {
             .unwrap_or_else(|| path.display().to_string());
         let (position, duration, paused) =
             self.preview
-                .audio
-                .as_ref()
+                .target
+                .audio()
                 .map_or((Duration::ZERO, Duration::ZERO, true), |audio| {
                     (
                         audio.position(),
@@ -128,7 +128,7 @@ impl Editor {
         } else {
             (position.as_secs_f64() / duration.as_secs_f64()).clamp(0.0, 1.0) as f32
         };
-        let has_media = self.preview.audio.is_some();
+        let has_media = self.preview.target.audio().is_some();
         let usable_width = (width - AUDIO_HORIZONTAL_PADDING * 2.0).max(1.0);
         let timeline_left = origin_x + AUDIO_HORIZONTAL_PADDING;
         let volume_left = origin_x + width - AUDIO_HORIZONTAL_PADDING - AUDIO_VOLUME_WIDTH;
@@ -416,7 +416,7 @@ impl Editor {
     }
 
     fn begin_audio_scrub(&mut self, fraction: f32, cx: &mut Context<Self>) {
-        let Some(audio) = &self.preview.audio else {
+        let Some(audio) = self.preview.target.audio() else {
             return;
         };
         self.preview.resume_after_scrub = audio.playing();
@@ -440,7 +440,7 @@ impl Editor {
             .is_none_or(|last_seek| now.duration_since(last_seek) >= SCRUB_SEEK_INTERVAL)
         {
             self.preview.last_scrub_seek = Some(now);
-            if let Some(audio) = &self.preview.audio {
+            if let Some(audio) = self.preview.target.audio() {
                 seek_audio_to_fraction(audio, fraction, false, false);
             }
         }
@@ -453,7 +453,7 @@ impl Editor {
         self.preview.pending_seek_started = Some(Instant::now());
         self.preview.last_scrub_seek = None;
         self.preview.is_scrubbing = false;
-        if let Some(audio) = &self.preview.audio {
+        if let Some(audio) = self.preview.target.audio() {
             seek_audio_to_fraction(audio, fraction, true, resume);
         }
         self.preview.resume_after_scrub = false;
@@ -463,7 +463,7 @@ impl Editor {
 
     fn set_audio_preview_volume(&mut self, volume: f64, cx: &mut Context<Self>) {
         self.preview.volume = volume.clamp(0.0, 1.0);
-        if let Some(audio) = &self.preview.audio {
+        if let Some(audio) = self.preview.target.audio() {
             audio.set_volume(self.preview.volume);
         }
         cx.notify();

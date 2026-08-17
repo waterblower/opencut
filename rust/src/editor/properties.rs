@@ -15,7 +15,12 @@ impl Render for PropertiesPanelResizeDragView {
 
 pub(super) fn properties_panel(editor: &Editor, cx: &mut Context<Editor>) -> gpui::AnyElement {
     let content = match &editor.preview.target {
-        PreviewTarget::Timeline => {
+        PreviewTarget::None => div()
+            .p_4()
+            .text_color(rgb(MUTED))
+            .child("No preview available")
+            .into_any_element(),
+        PreviewTarget::Timeline(_) => {
             let Some(timeline) = editor.timeline.as_ref() else {
                 return div()
                     .p_4()
@@ -30,28 +35,24 @@ pub(super) fn properties_panel(editor: &Editor, cx: &mut Context<Editor>) -> gpu
                 &editor.properties,
             )
         }
-        file_target @ (PreviewTarget::VideoFile(path)
-        | PreviewTarget::AudioFile(path)
+        file_target @ (PreviewTarget::VideoFile(path, _)
+        | PreviewTarget::AudioFile(path, _)
         | PreviewTarget::ImageFile(path)) => {
             let file_asset = editor
                 .timeline
                 .as_ref()
                 .and_then(|timeline| timeline.data.asset_for_path(path));
             match file_target {
-                PreviewTarget::VideoFile(path) => {
-                    let video = editor
-                        .preview
-                        .video
-                        .as_ref()
-                        .expect("video preview must exist for a video file target");
-
+                PreviewTarget::VideoFile(path, video) => {
                     video_file_properties(path, file_asset, video)
                 }
-                PreviewTarget::AudioFile(path) => {
-                    audio_file_properties(path, file_asset, editor.preview.audio.as_ref())
+                PreviewTarget::AudioFile(path, audio) => {
+                    audio_file_properties(path, file_asset, audio)
                 }
                 PreviewTarget::ImageFile(path) => image_file_properties(path, file_asset),
-                PreviewTarget::Timeline => unreachable!("timeline target handled separately"),
+                PreviewTarget::None | PreviewTarget::Timeline(_) => {
+                    unreachable!("non-file target handled separately")
+                }
             }
         }
     };
@@ -224,19 +225,17 @@ fn video_file_properties(
 fn audio_file_properties(
     path: &Path,
     asset: Option<&MediaAsset>,
-    runtime: Option<&AudioBackend>,
+    audio: &AudioBackend,
 ) -> gpui::AnyElement {
     let duration = asset
         .map(|asset| asset.duration)
-        .or_else(|| runtime.map(|audio| audio.duration().as_secs_f64()));
+        .unwrap_or_else(|| audio.duration().as_secs_f64());
 
     file_properties(path, "Audio")
         .when_some(asset, |this, asset| {
             this.child(properties_value("Codec", asset.codec.clone()))
         })
-        .when_some(duration, |this, duration| {
-            this.child(properties_value("Duration", format_time(duration, false)))
-        })
+        .child(properties_value("Duration", format_time(duration, false)))
         .into_any_element()
 }
 

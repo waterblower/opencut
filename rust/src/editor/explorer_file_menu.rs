@@ -312,14 +312,14 @@ impl Editor {
             *selected = path;
         }
         match &mut self.preview.target {
-            PreviewTarget::VideoFile(path)
-            | PreviewTarget::AudioFile(path)
+            PreviewTarget::VideoFile(path, _)
+            | PreviewTarget::AudioFile(path, _)
             | PreviewTarget::ImageFile(path) => {
                 if let Some(new_path) = remap_relative_path(path, &old_relative, &new_relative) {
                     *path = new_path;
                 }
             }
-            PreviewTarget::Timeline => {}
+            PreviewTarget::None | PreviewTarget::Timeline(_) => {}
         }
 
         let renamed_active_timeline = self

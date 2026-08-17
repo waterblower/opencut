@@ -143,7 +143,7 @@ impl Editor {
         }
         let playhead = previous.rescale_nearest(timeline.playhead, frame_rate);
 
-        if let Some(video) = &self.preview.video {
+        if let Some(video) = self.preview.target.video() {
             video.set_paused(true);
         }
         let Some(timeline) = self.timeline.as_mut() else {
@@ -154,7 +154,7 @@ impl Editor {
         timeline.playhead = playhead.clamp(TimelineTime::ZERO, timeline.data.content_duration());
         let playhead = timeline.playhead;
         let has_clips = !timeline.data.clips.is_empty();
-        self.preview.video = None;
+        self.preview.target = PreviewTarget::None;
         self.preview.timeline_needs_rebuild = true;
         self.preview.playing = false;
         self.preview.timeline_clock = None;

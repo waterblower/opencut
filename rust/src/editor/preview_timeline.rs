@@ -257,7 +257,7 @@ impl Editor {
             })
         {
             drag.last_pipeline_update = Some(now);
-            if let Some(video) = self.preview.video.as_mut()
+            if let Some(video) = self.preview.target.video_mut()
                 && let Err(error) =
                     update_timeline_video_position(video, &timeline.data, drag.clip_id, false)
             {
@@ -276,7 +276,7 @@ impl Editor {
         };
         if drag.changed {
             if !drag.timeline_was_dirty
-                && let Some(video) = self.preview.video.as_mut()
+                && let Some(video) = self.preview.target.video_mut()
             {
                 let Some(timeline) = self.timeline.as_ref() else {
                     return true;
@@ -515,8 +515,8 @@ impl Editor {
         let duration = timeline.data.duration(timeline.data.content_duration());
         let position = self
             .preview
-            .video
-            .as_ref()
+            .target
+            .video()
             .map_or(Duration::ZERO, |v| v.position());
         let progress = if duration.is_zero() {
             0.0
@@ -612,7 +612,7 @@ impl Editor {
                             }),
                         )
                     })
-                    .child(if let Some(video_handle) = self.preview.video.as_ref() {
+                    .child(if let Some(video_handle) = self.preview.target.video() {
                         video(video_handle)
                             .id("editor-timeline-video")
                             .size(px(width), px(surface_height))

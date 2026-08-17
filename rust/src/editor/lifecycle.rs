@@ -49,10 +49,8 @@ impl Editor {
                 last_tree_scan: Instant::now(),
             },
             preview: PreviewState {
-                target: PreviewTarget::Timeline,
+                target: PreviewTarget::None,
                 fullscreen: false,
-                video: None,
-                audio: None,
                 timeline_needs_rebuild: true,
                 timeline_clock: None,
                 playing: false,
@@ -100,17 +98,9 @@ fn start_updates(cx: &mut Context<Editor>) {
         loop {
             cx.background_executor().timer(IDLE_UPDATE_INTERVAL).await;
             let result = editor.update(cx, |editor, cx| {
-                let file_preview_playing = match editor.preview.target {
-                    PreviewTarget::VideoFile(_) => editor
-                        .preview
-                        .video
-                        .as_ref()
-                        .is_some_and(|video| !video.paused()),
-                    PreviewTarget::AudioFile(_) => editor
-                        .preview
-                        .audio
-                        .as_ref()
-                        .is_some_and(AudioBackend::playing),
+                let file_preview_playing = match &editor.preview.target {
+                    PreviewTarget::VideoFile(_, video) => !video.paused(),
+                    PreviewTarget::AudioFile(_, audio) => audio.playing(),
                     _ => false,
                 };
                 let pinch_zoomed = editor.apply_timeline_pinch();

@@ -297,7 +297,7 @@ impl Editor {
             .or_else(|| clips.first())
             .map(|clip| clip.id);
         timeline.data.clips.extend(clips);
-        self.preview.target = PreviewTarget::Timeline;
+        self.preview.target = PreviewTarget::None;
         self.status = Some(format!("Pasted {count} clip{}.", plural_suffix(count)));
         timeline.save(&self.global_settings.project_root);
         self.rebuild_timeline_preview_if_needed();
@@ -319,9 +319,7 @@ impl Editor {
         timeline.interaction.selected_clip_ids.clear();
         timeline.interaction.selected_clip_id = None;
         self.properties.transform_input_clip_id = None;
-        self.preview.target = PreviewTarget::Timeline;
-        self.preview.video = None;
-        self.preview.audio = None;
+        self.preview.target = PreviewTarget::None;
         self.preview.timeline_needs_rebuild = true;
         self.preview.playing = false;
         self.preview.timeline_clock = None;
@@ -653,9 +651,7 @@ impl Editor {
         let Some(timeline) = self.timeline.as_mut() else {
             return;
         };
-        self.preview.target = PreviewTarget::Timeline;
-        self.preview.video = None;
-        self.preview.audio = None;
+        self.preview.target = PreviewTarget::None;
         self.preview.timeline_needs_rebuild = true;
         self.preview.playing = false;
         self.preview.timeline_clock = None;

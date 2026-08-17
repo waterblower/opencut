@@ -398,16 +398,10 @@ impl Editor {
 
         if is_image || is_video || is_audio {
             self.preview.target = match (is_video, is_audio) {
-                (true, _) => PreviewTarget::VideoFile(relative_path.clone()),
-                (_, true) => PreviewTarget::AudioFile(relative_path.clone()),
+                (true, _) | (_, true) => PreviewTarget::None,
                 _ => PreviewTarget::ImageFile(relative_path.clone()),
             };
             self.status = None;
-            if let Some(video) = &self.preview.video {
-                video.set_paused(true);
-            }
-            self.preview.video = None;
-            self.preview.audio = None;
             self.preview.playing = false;
             self.preview.timeline_clock = None;
             self.preview.volume_open = false;
@@ -442,10 +436,11 @@ impl Editor {
 
                 editor
                     .update(cx, |editor, cx| {
-                        let still_requested = matches!(
-                            &editor.preview.target,
-                            PreviewTarget::AudioFile(path) if path == &relative_path
-                        );
+                        let still_requested =
+                            matches!(
+                                editor.explorer.selected_file.as_ref(),
+                                Some(path) if path == &relative_path
+                            ) && matches!(&editor.preview.target, PreviewTarget::None);
                         if editor.global_settings.project_root != project_root || !still_requested {
                             return;
                         }
@@ -454,7 +449,8 @@ impl Editor {
                             Ok(audio) => {
                                 audio.set_volume(editor.preview.volume);
                                 audio.set_playing(false);
-                                editor.preview.audio = Some(audio);
+                                editor.preview.target =
+                                    PreviewTarget::AudioFile(relative_path.clone(), audio);
                                 editor.status = Some("Audio preview ready.".to_string());
                                 editor.preview.refresh_ticks = 12;
                             }
@@ -475,9 +471,9 @@ impl Editor {
             .map_err(|error| format!("Could not preview {}: {error}", source_path.display()));
 
         let still_requested = matches!(
-            &self.preview.target,
-            PreviewTarget::VideoFile(path) if path == &relative_path
-        );
+            self.explorer.selected_file.as_ref(),
+            Some(path) if path == &relative_path
+        ) && matches!(&self.preview.target, PreviewTarget::None);
         if self.global_settings.project_root != project_root || !still_requested {
             return;
         }
@@ -485,7 +481,7 @@ impl Editor {
         match video {
             Ok(video) => {
                 video.set_volume(self.preview.volume);
-                self.preview.video = Some(video);
+                self.preview.target = PreviewTarget::VideoFile(relative_path, video);
                 self.status = Some("Video preview ready.".to_string());
                 self.preview.refresh_ticks = 12;
             }
