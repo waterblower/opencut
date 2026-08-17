@@ -263,3 +263,7 @@ fn frame_rate_from_fraction(numerator: i32, denominator: i32) -> Option<f64> {
     let frame_rate = numerator as f64 / denominator as f64;
     frame_rate.is_finite().then_some(frame_rate)
 }
+
+#[cfg(test)]
+#[path = "video_backend.test.rs"]
+mod tests;
