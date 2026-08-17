@@ -471,37 +471,29 @@ impl Editor {
             return;
         }
 
-        cx.spawn(async move |editor, cx| {
-            let video = VideoBackend::open(&url)
-                .map_err(|error| format!("Could not preview {}: {error}", source_path.display()));
+        let video = VideoBackend::open(&url)
+            .map_err(|error| format!("Could not preview {}: {error}", source_path.display()));
 
-            editor
-                .update(cx, |editor, cx| {
-                    let still_requested = matches!(
-                        &editor.preview.target,
-                        PreviewTarget::VideoFile(path) if path == &relative_path
-                    );
-                    if editor.global_settings.project_root != project_root || !still_requested {
-                        return;
-                    }
+        let still_requested = matches!(
+            &self.preview.target,
+            PreviewTarget::VideoFile(path) if path == &relative_path
+        );
+        if self.global_settings.project_root != project_root || !still_requested {
+            return;
+        }
 
-                    match video {
-                        Ok(video) => {
-                            video.set_volume(editor.preview.volume);
-                            editor.preview.video = Some(video);
-                            editor.status = Some("Video preview ready.".to_string());
-                            editor.preview.refresh_ticks = 12;
-                        }
-                        Err(error) => {
-                            editor.status = None;
-                            eprintln!("{error}");
-                        }
-                    }
-                    cx.notify();
-                })
-                .ok();
-        })
-        .detach();
+        match video {
+            Ok(video) => {
+                video.set_volume(self.preview.volume);
+                self.preview.video = Some(video);
+                self.status = Some("Video preview ready.".to_string());
+                self.preview.refresh_ticks = 12;
+            }
+            Err(error) => {
+                self.status = None;
+                eprintln!("{error}");
+            }
+        }
     }
 }
 
