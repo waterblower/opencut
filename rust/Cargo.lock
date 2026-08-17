@@ -4116,6 +4116,7 @@ dependencies = [
  "gpui",
  "gstreamer",
  "gstreamer-app",
+ "gstreamer-audio",
  "gstreamer-editing-services",
  "gstreamer-pbutils",
  "gstreamer-video",

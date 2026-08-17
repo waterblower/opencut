@@ -5,7 +5,7 @@ use crate::editor::model::{
 use crate::editor::ulid;
 use std::{path::Path, time::Duration};
 
-fn headless_test_pipeline() -> (gst::Pipeline, gst_app::AppSink, gst::Element) {
+fn headless_test_pipeline() -> (gst::Pipeline, gst_app::AppSink, gst_audio::StreamVolume) {
     ges::init().unwrap();
     let project_root = Path::new(env!("CARGO_MANIFEST_DIR"));
     let mut project = Timeline::with_test_tracks();
@@ -49,7 +49,11 @@ fn headless_test_pipeline() -> (gst::Pipeline, gst_app::AppSink, gst::Element) {
         true,
     )
     .unwrap();
-    let volume_control = audio_sink.by_name("gpui_audio_volume").unwrap();
+    let volume_control = audio_sink
+        .by_name("gpui_audio_volume")
+        .unwrap()
+        .dynamic_cast::<gst_audio::StreamVolume>()
+        .unwrap();
     let audio_sink = audio_sink.upcast::<gst::Element>();
     let (pipeline, sink) = create_timeline_pipeline(&project, project_root, &audio_sink).unwrap();
     (pipeline, sink, volume_control)

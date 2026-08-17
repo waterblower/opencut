@@ -6,6 +6,7 @@ use crate::video::VideoBackend;
 use ges::prelude::*;
 use gstreamer as gst;
 use gstreamer_app as gst_app;
+use gstreamer_audio as gst_audio;
 use gstreamer_editing_services as ges;
 use std::path::Path;
 use ulid::Ulid;
@@ -122,7 +123,7 @@ fn initialize_gstreamer() -> Result<(), String> {
     ges::init().map_err(|error| format!("could not initialize GStreamer Editing Services: {error}"))
 }
 
-fn preview_audio_sink() -> Result<(gst::Element, gst::Element), String> {
+fn preview_audio_sink() -> Result<(gst::Element, gst_audio::StreamVolume), String> {
     let sink = gst::parse::bin_from_description(
         "audioconvert ! audioresample ! volume name=gpui_audio_volume ! autoaudiosink",
         true,
@@ -130,8 +131,10 @@ fn preview_audio_sink() -> Result<(gst::Element, gst::Element), String> {
     .map_err(|error| format!("could not create timeline preview audio sink: {error}"))?;
     let control = sink
         .by_name("gpui_audio_volume")
-        .ok_or_else(|| "timeline preview volume control was not created".to_string())?;
-    control.set_property("mute", true);
+        .ok_or_else(|| "timeline preview volume control was not created".to_string())?
+        .dynamic_cast::<gst_audio::StreamVolume>()
+        .map_err(|_| "timeline preview volume control has an unexpected type".to_string())?;
+    gst_audio::prelude::StreamVolumeExt::set_mute(&control, true);
     Ok((sink.upcast(), control))
 }
 

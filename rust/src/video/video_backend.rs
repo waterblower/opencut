@@ -2,8 +2,10 @@ use std::sync::Arc;
 
 use gst::prelude::*;
 
+use gst_audio::prelude::StreamVolumeExt as _;
 use gstreamer as gst;
 use gstreamer_app as gst_app;
+use gstreamer_audio as gst_audio;
 
 use gstreamer_video as gst_video;
 
@@ -15,7 +17,7 @@ use url::Url;
 pub(crate) struct VideoBackend {
     pipeline: gst::Pipeline,
     sink: gst_app::AppSink,
-    volume_control: gst::Element,
+    volume_control: gst_audio::StreamVolume,
     current_frame: Arc<Mutex<Option<gst::Sample>>>,
     cached_position: Duration,
 }
@@ -78,7 +80,11 @@ impl VideoBackend {
             .downcast::<gst::Pipeline>()
             .map_err(|_| "video pipeline had an unexpected type".to_string())?;
 
-        let volume_control = pipeline.clone().upcast::<gst::Element>();
+        let volume_control = pipeline
+            .clone()
+            .upcast::<gst::Element>()
+            .dynamic_cast::<gst_audio::StreamVolume>()
+            .map_err(|_| "video pipeline does not support stream volume".to_string())?;
         let video = Self::from_pipeline(pipeline, sink, volume_control)?;
         video.set_paused(false);
         Ok(video)
@@ -87,7 +93,7 @@ impl VideoBackend {
     pub(crate) fn from_pipeline(
         pipeline: gst::Pipeline,
         sink: gst_app::AppSink,
-        volume_control: gst::Element,
+        volume_control: gst_audio::StreamVolume,
     ) -> Result<Self, String> {
         gst::init().map_err(|error| format!("could not initialize GStreamer: {error}"))?;
         let current_frame = Arc::new(Mutex::new(None));
@@ -210,21 +216,24 @@ impl VideoBackend {
 
     #[allow(dead_code)] // Used by the player binary, but not the editor binary.
     pub(crate) fn volume(&self) -> f64 {
-        self.volume_control.property("volume")
+        self.volume_control
+            .volume(gst_audio::StreamVolumeFormat::Linear)
     }
 
     pub(crate) fn set_volume(&self, volume: f64) {
-        self.volume_control
-            .set_property("volume", volume.clamp(0.0, 1.0));
+        self.volume_control.set_volume(
+            gst_audio::StreamVolumeFormat::Linear,
+            volume.clamp(0.0, 1.0),
+        );
     }
 
     #[allow(dead_code)] // Used by the player binary, but not the editor binary.
     pub(crate) fn muted(&self) -> bool {
-        self.volume_control.property("mute")
+        self.volume_control.is_muted()
     }
 
     pub(crate) fn set_muted(&self, muted: bool) {
-        self.volume_control.set_property("mute", muted);
+        self.volume_control.set_mute(muted);
     }
 
     pub(crate) fn pipeline(&self) -> gst::Pipeline {
