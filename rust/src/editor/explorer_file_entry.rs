@@ -398,27 +398,16 @@ impl Editor {
 
         if is_image || is_video || is_audio {
             self.preview.target = match (is_video, is_audio) {
-                (true, _) => PreviewTarget::VideoFile(relative_path.clone()),
-                (_, true) => PreviewTarget::AudioFile(relative_path.clone()),
+                (true, _) | (_, true) => PreviewTarget::None,
                 _ => PreviewTarget::ImageFile(relative_path.clone()),
             };
             self.status = None;
-            if let Some(video) = &self.preview.video {
-                video.set_paused(true);
-            }
-            self.preview.video = None;
-            self.preview.audio = None;
-            self.preview.playing = false;
             self.preview.timeline_clock = None;
-            self.preview.volume_open = false;
+            self.preview.volume_control_open = false;
             self.preview.is_scrubbing = false;
             self.preview.is_adjusting_volume = false;
-            self.preview.resume_after_scrub = false;
-            self.preview.scrub_fraction = None;
-            self.preview.pending_seek_started = None;
             self.preview.last_scrub_seek = None;
             self.preview.timeline_drag = None;
-            self.preview.refresh_ticks = 2;
         }
 
         if !is_video && !is_audio {
@@ -437,26 +426,26 @@ impl Editor {
             cx.spawn(async move |editor, cx| {
                 let result = cx
                     .background_executor()
-                    .spawn(async move { AudioPreview::new(&url) })
+                    .spawn(async move { AudioBackend::new(&url) })
                     .await;
 
                 editor
                     .update(cx, |editor, cx| {
-                        let still_requested = matches!(
-                            &editor.preview.target,
-                            PreviewTarget::AudioFile(path) if path == &relative_path
-                        );
+                        let still_requested =
+                            matches!(
+                                editor.explorer.selected_file.as_ref(),
+                                Some(path) if path == &relative_path
+                            ) && matches!(&editor.preview.target, PreviewTarget::None);
                         if editor.global_settings.project_root != project_root || !still_requested {
                             return;
                         }
 
                         match result {
                             Ok(audio) => {
-                                audio.set_volume(editor.preview.volume);
                                 audio.set_playing(false);
-                                editor.preview.audio = Some(audio);
+                                editor.preview.target =
+                                    PreviewTarget::AudioFile(relative_path.clone(), audio);
                                 editor.status = Some("Audio preview ready.".to_string());
-                                editor.preview.refresh_ticks = 12;
                             }
                             Err(error) => {
                                 editor.status = None;
@@ -471,48 +460,27 @@ impl Editor {
             return;
         }
 
-        cx.spawn(async move |editor, cx| {
-            let result = cx
-                .background_executor()
-                .spawn(async move {
-                    let video = Video::open(&url, false).map_err(|error| {
-                        format!("Could not preview {}: {error}", source_path.display())
-                    })?;
-                    video.set_paused(true);
-                    video.seek(Duration::ZERO, true).map_err(|error| {
-                        format!("Could not preview {}: {error}", source_path.display())
-                    })?;
-                    Ok::<_, String>(video)
-                })
-                .await;
+        let video = VideoBackend::open(&url)
+            .map_err(|error| format!("Could not preview {}: {error}", source_path.display()));
 
-            editor
-                .update(cx, |editor, cx| {
-                    let still_requested = matches!(
-                        &editor.preview.target,
-                        PreviewTarget::VideoFile(path) if path == &relative_path
-                    );
-                    if editor.global_settings.project_root != project_root || !still_requested {
-                        return;
-                    }
+        let still_requested = matches!(
+            self.explorer.selected_file.as_ref(),
+            Some(path) if path == &relative_path
+        ) && matches!(&self.preview.target, PreviewTarget::None);
+        if self.global_settings.project_root != project_root || !still_requested {
+            return;
+        }
 
-                    match result {
-                        Ok(video) => {
-                            video.set_volume(editor.preview.volume);
-                            editor.preview.video = Some(video);
-                            editor.status = Some("Video preview ready.".to_string());
-                            editor.preview.refresh_ticks = 12;
-                        }
-                        Err(error) => {
-                            editor.status = None;
-                            eprintln!("{error}");
-                        }
-                    }
-                    cx.notify();
-                })
-                .ok();
-        })
-        .detach();
+        match video {
+            Ok(video) => {
+                self.preview.target = PreviewTarget::VideoFile(relative_path, video);
+                self.status = Some("Video preview ready.".to_string());
+            }
+            Err(error) => {
+                self.status = None;
+                eprintln!("{error}");
+            }
+        }
     }
 }
 

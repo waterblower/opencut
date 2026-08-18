@@ -22,8 +22,8 @@ impl Editor {
             .justify_center()
             .overflow_hidden()
             .bg(rgb(0x000000))
-            .child(if let Some(video_handle) = &self.preview.video {
-                video(video_handle.clone())
+            .child(if let Some(video_handle) = self.preview.target.video() {
+                video(video_handle)
                     .id("editor-video-file-preview")
                     .size(px(width), px(surface_height))
                     .into_any_element()
@@ -40,22 +40,19 @@ impl Editor {
             .into_any_element();
         let (position, duration, paused) = self
             .preview
-            .video
-            .as_ref()
+            .target
+            .video()
             .map_or((Duration::ZERO, Duration::ZERO, true), |video| {
                 (video.position(), video.duration(), video.paused())
             });
-        let reported_progress = if duration.is_zero() {
-            0.0
-        } else {
-            (position.as_secs_f64() / duration.as_secs_f64()).clamp(0.0, 1.0) as f32
-        };
-        let progress = self.preview.scrub_fraction.unwrap_or(reported_progress);
-        let position = self
+
+        let has_media = self.preview.target.video().is_some();
+
+        let volume = self
             .preview
-            .scrub_fraction
-            .map_or(position, |fraction| duration.mul_f64(fraction as f64));
-        let has_media = self.preview.video.is_some();
+            .target
+            .video()
+            .map_or(0.0, |video| video.volume().clamp(0.0, 1.0));
 
         playback_view(
             PlaybackViewProps {
@@ -67,12 +64,11 @@ impl Editor {
                 can_play: has_media,
                 paused,
                 scrubbing: self.preview.is_scrubbing,
-                progress,
                 position,
                 duration,
-                volume: self.preview.volume,
-                muted: self.preview.volume <= f64::EPSILON,
-                volume_open: self.preview.volume_open,
+                volume: volume,
+                muted: volume <= f64::EPSILON,
+                volume_open: self.preview.volume_control_open,
                 content,
                 extra_control: None,
                 fullscreen_control: div()

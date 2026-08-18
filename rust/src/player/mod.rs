@@ -8,8 +8,8 @@ use gstreamer as gst;
 use std::{path::PathBuf, time::Duration, time::Instant};
 use url::Url;
 
-use crate::playback_view::{DragPhase, PlaybackViewDelegate, format_duration};
-use crate::video::{Video, video};
+use crate::playback_view::{DragPhase, PlaybackViewDelegate};
+use crate::video::VideoBackend;
 
 mod history;
 mod inspector;
@@ -62,12 +62,10 @@ pub(crate) fn bind_keys(cx: &mut App) {
 }
 
 pub(crate) struct Player {
-    video: Option<Video>,
-    bitrate_bps: Option<f64>,
+    video: Option<VideoBackend>,
     history: HistoryData,
     current_media_path: Option<PathBuf>,
     title: String,
-    looping: bool,
     history_open: bool,
     history_width: f32,
     is_resizing_history: bool,
@@ -76,7 +74,6 @@ pub(crate) struct Player {
     is_scrubbing: bool,
     is_adjusting_volume: bool,
     resume_after_scrub: bool,
-    scrub_fraction: Option<f32>,
     pending_seek_started: Option<Instant>,
     last_scrub_seek: Option<Instant>,
     inspector_open: bool,
@@ -87,44 +84,18 @@ pub(crate) struct Player {
 }
 
 impl Player {
-    pub(crate) fn new(
-        initial_media: Option<(Url, String)>,
-        looping: bool,
-        window: &mut Window,
-        cx: &mut Context<Self>,
-    ) -> Self {
-        let mut history = HistoryData::load();
-        let mut current_media_path = None;
-        let (video, bitrate_bps, title) = match initial_media {
-            Some((url, title)) => match create_video(&url, looping) {
-                Ok(video) => {
-                    let bitrate = average_bitrate(&url, video.duration());
-                    if let Ok(path) = url.to_file_path() {
-                        let path = std::fs::canonicalize(&path).unwrap_or(path);
-                        history.record(&path, title.clone());
-                        current_media_path = Some(path);
-                    }
-                    (Some(video), bitrate, title)
-                }
-                Err(error) => {
-                    eprintln!("{error}");
-                    (None, None, "No video selected".to_string())
-                }
-            },
-            None => (None, None, "No video selected".to_string()),
-        };
+    pub(crate) fn new(window: &mut Window, cx: &mut Context<Self>) -> Self {
+        let history = HistoryData::load();
+        let current_media_path = None;
 
         let focus_handle = cx.focus_handle();
         focus_handle.focus(window);
-        Self::start_progress_updates(cx);
 
         Self {
-            video,
-            bitrate_bps,
+            video: None,
             history,
             current_media_path,
-            title,
-            looping,
+            title: "".to_owned(),
             history_open: true,
             history_width: load_history_width(),
             is_resizing_history: false,
@@ -133,7 +104,6 @@ impl Player {
             is_scrubbing: false,
             is_adjusting_volume: false,
             resume_after_scrub: false,
-            scrub_fraction: None,
             pending_seek_started: None,
             last_scrub_seek: None,
             inspector_open: false,
@@ -142,26 +112,6 @@ impl Player {
             fps_sample_started: Instant::now(),
             focus_handle,
         }
-    }
-
-    fn start_progress_updates(cx: &mut Context<Self>) {
-        cx.spawn(async move |player, cx| {
-            loop {
-                cx.background_executor()
-                    .timer(Duration::from_millis(250))
-                    .await;
-                if player
-                    .update(cx, |player, cx| {
-                        player.reconcile_pending_seek();
-                        cx.notify();
-                    })
-                    .is_err()
-                {
-                    break;
-                }
-            }
-        })
-        .detach();
     }
 
     fn record_render_frame(&mut self) {
@@ -230,9 +180,8 @@ impl Player {
             return;
         };
 
-        match create_video(&url, self.looping) {
+        match VideoBackend::open(&url) {
             Ok(video) => {
-                self.bitrate_bps = average_bitrate(&url, video.duration());
                 self.video = Some(video);
                 self.history.record(&path, title.clone());
                 self.current_media_path = Some(path);
@@ -241,7 +190,6 @@ impl Player {
                 self.is_scrubbing = false;
                 self.is_adjusting_volume = false;
                 self.resume_after_scrub = false;
-                self.scrub_fraction = None;
                 self.pending_seek_started = None;
                 self.last_scrub_seek = None;
             }
@@ -261,7 +209,7 @@ impl Player {
     }
 
     fn seek_by_frame(&mut self, direction: i8) {
-        let Some(video) = &self.video else {
+        let Some(video) = self.video.as_mut() else {
             return;
         };
 
@@ -276,10 +224,7 @@ impl Player {
             return;
         }
 
-        let position = self.scrub_fraction.map_or_else(
-            || video.position(),
-            |fraction| duration.mul_f64(fraction as f64),
-        );
+        let position = video.position();
         let frame_duration = Duration::from_secs_f64(1.0 / frames_per_second);
         let target = if direction.is_negative() {
             position.saturating_sub(frame_duration)
@@ -288,13 +233,12 @@ impl Player {
         }
         .min(duration);
 
-        self.scrub_fraction = Some((target.as_secs_f64() / duration.as_secs_f64()) as f32);
         self.pending_seek_started = Some(Instant::now());
         let _ = video.seek(target, true);
     }
 
-    fn seek_to_fraction(&self, fraction: f64, accurate: bool) {
-        let Some(video) = &self.video else {
+    fn seek_to_fraction(&mut self, fraction: f64, accurate: bool) {
+        let Some(video) = self.video.as_mut() else {
             return;
         };
         let target = video.duration().mul_f64(fraction.clamp(0.0, 1.0));
@@ -350,60 +294,16 @@ impl Player {
         }
     }
 
-    fn reconcile_pending_seek(&mut self) {
-        if self.is_scrubbing {
-            return;
-        }
-
-        let (Some(target_fraction), Some(started), Some(video)) = (
-            self.scrub_fraction,
-            self.pending_seek_started,
-            self.video.as_ref(),
-        ) else {
-            return;
-        };
-
-        let duration = video.duration();
-        let target = duration.mul_f64(target_fraction as f64);
-        let actual = video.position();
-        let settle_tolerance = video
-            .framerate()
-            .map(|frames_per_second| Duration::from_secs_f64(0.75 / frames_per_second))
-            .unwrap_or_else(|| Duration::from_millis(20));
-        let settled = actual.abs_diff(target) <= settle_tolerance;
-        let timed_out = started.elapsed() >= Duration::from_secs(2);
-
-        if settled || timed_out {
-            self.scrub_fraction = None;
-            self.pending_seek_started = None;
-        }
-    }
-
     fn toggle_playback(&self) {
         let Some(video) = &self.video else {
             return;
         };
-        if video.eos() {
-            let _ = video.restart_stream();
-            video.set_paused(false);
-        } else {
-            video.set_paused(!video.paused());
-        }
+        video.set_paused(!video.paused());
     }
 
     fn toggle_mute(&self) {
         if let Some(video) = &self.video {
             video.set_muted(!video.muted());
-        }
-    }
-
-    fn set_speed(&mut self, speed: f64) {
-        let Some(video) = &self.video else {
-            return;
-        };
-        match video.set_speed(speed) {
-            Ok(()) => {}
-            Err(error) => eprintln!("Could not change speed: {error}"),
         }
     }
 
@@ -499,13 +399,11 @@ impl PlaybackViewDelegate for Player {
                     video.set_paused(true);
                 }
                 self.is_scrubbing = true;
-                self.scrub_fraction = Some(fraction);
                 self.pending_seek_started = None;
                 self.last_scrub_seek = Some(Instant::now());
                 self.seek_to_fraction(fraction as f64, false);
             }
             DragPhase::Update if self.is_scrubbing => {
-                self.scrub_fraction = Some(fraction);
                 let now = Instant::now();
                 let should_seek = self.last_scrub_seek.is_none_or(|last_seek| {
                     now.duration_since(last_seek) >= Duration::from_millis(50)
@@ -516,7 +414,6 @@ impl PlaybackViewDelegate for Player {
                 }
             }
             DragPhase::End if self.is_scrubbing => {
-                self.scrub_fraction = Some(fraction);
                 self.pending_seek_started = Some(Instant::now());
                 self.last_scrub_seek = None;
                 self.is_scrubbing = false;
@@ -529,6 +426,12 @@ impl PlaybackViewDelegate for Player {
                 self.resume_after_scrub = false;
             }
             _ => return,
+        }
+        if let Some(video) = &self.video {
+            eprintln!(
+                "video state after {phase:?} seek: {:?}",
+                video.current_state()
+            );
         }
         cx.notify();
     }
@@ -567,84 +470,5 @@ impl PlaybackViewDelegate for Player {
             self.volume_open = false;
             cx.notify();
         }
-    }
-}
-
-fn create_video(url: &Url, looping: bool) -> Result<Video, String> {
-    Video::open(url, looping).map_err(|error| format!("Could not open video: {error}"))
-}
-
-fn video_codec(video: &Video) -> Option<String> {
-    let pipeline = video.pipeline();
-    let stream_index = pipeline.property::<i32>("current-video");
-    if stream_index < 0 {
-        return None;
-    }
-    let tags = pipeline.emit_by_name::<Option<gst::TagList>>("get-video-tags", &[&stream_index])?;
-    Some(format_codec_name(
-        tags.get::<gst::tags::VideoCodec>()?.get(),
-    ))
-}
-
-fn format_codec_name(codec: &str) -> String {
-    let lowercase = codec.to_ascii_lowercase();
-    if lowercase.contains("h.264")
-        || lowercase.contains("h264")
-        || lowercase.contains("avc")
-        || lowercase.contains("avc1")
-        || lowercase.contains("x264")
-    {
-        "H.264".to_string()
-    } else if lowercase.contains("h.265")
-        || lowercase.contains("h265")
-        || lowercase.contains("hevc")
-        || lowercase.contains("hvec")
-        || lowercase.contains("hvc1")
-        || lowercase.contains("hev1")
-        || lowercase.contains("x265")
-    {
-        "H.265/HEVC".to_string()
-    } else if lowercase.contains("av1") {
-        "AV1".to_string()
-    } else if lowercase.contains("vp9") {
-        "VP9".to_string()
-    } else if lowercase.contains("vp8") {
-        "VP8".to_string()
-    } else {
-        codec.to_string()
-    }
-}
-
-fn average_bitrate(url: &Url, duration: Duration) -> Option<f64> {
-    if duration.is_zero() {
-        return None;
-    }
-
-    let path = url.to_file_path().ok()?;
-    let bytes = std::fs::metadata(path).ok()?.len();
-    Some(bytes as f64 * 8.0 / duration.as_secs_f64())
-}
-
-fn format_speed(speed: f64) -> String {
-    if (speed - speed.round()).abs() < 0.01 {
-        format!("{speed:.0}.0×")
-    } else {
-        format!("{speed:.2}×").replace('0', "")
-    }
-}
-
-fn format_source_fps(fps: f64) -> String {
-    if (fps - fps.round()).abs() < 0.01 {
-        format!("{fps:.0} fps")
-    } else {
-        format!("{fps:.2} fps")
-    }
-}
-
-fn format_bitrate(bitrate_bps: Option<f64>) -> String {
-    match bitrate_bps {
-        Some(bitrate) if bitrate >= 1_000_000.0 => format!("{:.1} Mbps", bitrate / 1_000_000.0),
-        Some(bitrate) => format!("{:.0} kbps", bitrate / 1_000.0),
-        None => "bitrate unavailable".to_string(),
     }
 }

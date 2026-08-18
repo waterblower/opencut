@@ -763,8 +763,8 @@ impl Editor {
             audio_properties: AudioClipProperties::default(),
         });
         let playhead = timeline.playhead;
-        self.preview.target = PreviewTarget::Timeline;
-        self.load_timeline_position_with_options(playhead, false, true);
+        self.preview.target = PreviewTarget::None;
+        self.load_timeline_position_with_options(playhead, true);
         self.explorer.selected_file = Some(relative_path);
         self.select_only_clip(Some(clip_id));
         let Some(timeline) = self.timeline.as_ref() else {

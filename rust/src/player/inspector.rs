@@ -1,80 +1,6 @@
 use super::*;
-use std::path::{Path, PathBuf};
-use yuv::{YuvBiPlanarImage, YuvConversionMode, YuvRange, YuvStandardMatrix};
 
 impl Player {
-    fn save_current_frame(&mut self, cx: &mut Context<Self>) {
-        let Some(video) = &self.video else {
-            eprintln!("Open a video before saving a frame.");
-            return;
-        };
-        let Some(frame) = current_frame_rgba(video) else {
-            eprintln!("The current video frame is not ready yet.");
-            return;
-        };
-
-        let directory = self
-            .current_media_path
-            .as_deref()
-            .and_then(Path::parent)
-            .map(Path::to_path_buf)
-            .or_else(|| std::env::current_dir().ok())
-            .unwrap_or_else(|| PathBuf::from(env!("CARGO_MANIFEST_DIR")));
-        let suggested_name = self.frame_filename();
-        let selection = cx.prompt_for_new_path(&directory, Some(&suggested_name));
-
-        cx.spawn(async move |_, cx| {
-            let path = match selection.await {
-                Ok(Ok(Some(mut path))) => {
-                    if !path
-                        .extension()
-                        .and_then(|extension| extension.to_str())
-                        .is_some_and(|extension| extension.eq_ignore_ascii_case("png"))
-                    {
-                        path.set_extension("png");
-                    }
-                    path
-                }
-                Ok(Ok(None)) => return,
-                Ok(Err(error)) => {
-                    eprintln!("Could not open save dialog: {error}");
-                    return;
-                }
-                Err(error) => {
-                    eprintln!("Save dialog closed unexpectedly: {error}");
-                    return;
-                }
-            };
-
-            let save_result = cx
-                .background_executor()
-                .spawn(async move { save_frame_as_png(frame, &path) })
-                .await;
-            if let Err(error) = save_result {
-                eprintln!("{error}");
-            }
-        })
-        .detach();
-    }
-
-    fn frame_filename(&self) -> String {
-        let title = self
-            .display_title()
-            .chars()
-            .map(|character| match character {
-                '/' | ':' => '-',
-                _ => character,
-            })
-            .collect::<String>();
-        let position = self.video.as_ref().map_or(Duration::ZERO, Video::position);
-        let total_seconds = position.as_secs();
-        let hours = total_seconds / 3600;
-        let minutes = (total_seconds % 3600) / 60;
-        let seconds = total_seconds % 60;
-
-        format!("{title}-frame-{hours:02}-{minutes:02}-{seconds:02}.png")
-    }
-
     pub(super) fn inspector_panel(&self, cx: &mut Context<Self>) -> gpui::AnyElement {
         div()
             .id("inspector-panel")
@@ -174,67 +100,8 @@ impl Player {
                             .font_weight(gpui::FontWeight::SEMIBOLD)
                             .text_color(rgb(0x777780))
                             .child("FRAME"),
-                    )
-                    .child(
-                        div()
-                            .id("save-current-frame")
-                            .h(px(44.0))
-                            .flex()
-                            .items_center()
-                            .justify_center()
-                            .rounded_lg()
-                            .border_1()
-                            .border_color(rgb(BORDER))
-                            .bg(rgb(0x17171a))
-                            .cursor(CursorStyle::PointingHand)
-                            .text_sm()
-                            .font_weight(gpui::FontWeight::SEMIBOLD)
-                            .hover(|style| style.bg(rgb(SURFACE_HOVER)).border_color(rgb(0x3b3b42)))
-                            .child("Save current frame as PNG")
-                            .on_click(cx.listener(|player, _, _, cx| {
-                                player.save_current_frame(cx);
-                            })),
                     ),
             )
             .into_any_element()
     }
-}
-
-fn current_frame_rgba(video: &Video) -> Option<(Vec<u8>, u32, u32)> {
-    let (nv12, width, height) = video.current_frame_data()?;
-    let y_size = width as usize * height as usize;
-    let uv_size = width as usize * (height as usize).div_ceil(2);
-    let image = YuvBiPlanarImage {
-        y_plane: nv12.get(..y_size)?,
-        y_stride: width,
-        uv_plane: nv12.get(y_size..y_size.checked_add(uv_size)?)?,
-        uv_stride: width,
-        width,
-        height,
-    };
-    let mut rgba = vec![0; y_size.checked_mul(4)?];
-    yuv::yuv_nv12_to_rgba(
-        &image,
-        &mut rgba,
-        width.checked_mul(4)?,
-        YuvRange::Full,
-        YuvStandardMatrix::Bt709,
-        YuvConversionMode::Balanced,
-    )
-    .ok()?;
-    Some((rgba, width, height))
-}
-
-fn save_frame_as_png(frame: (Vec<u8>, u32, u32), path: &Path) -> Result<(), String> {
-    let (rgba, width, height) = frame;
-
-    image::save_buffer_with_format(
-        path,
-        &rgba,
-        width,
-        height,
-        image::ColorType::Rgba8,
-        image::ImageFormat::Png,
-    )
-    .map_err(|error| format!("Could not save {}: {error}", path.display()))
 }

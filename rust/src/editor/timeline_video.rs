@@ -2,10 +2,11 @@ use super::{
     clip_render_plan::resolve_visual_clip_render_plan, export::ExportOptions,
     export_gstreamer::build_timeline, timeline::Timeline,
 };
-use crate::video::Video;
+use crate::video::VideoBackend;
 use ges::prelude::*;
 use gstreamer as gst;
 use gstreamer_app as gst_app;
+use gstreamer_audio as gst_audio;
 use gstreamer_editing_services as ges;
 use std::path::Path;
 use ulid::Ulid;
@@ -13,23 +14,16 @@ use ulid::Ulid;
 pub(super) fn create_timeline_video(
     timeline: &Timeline,
     project_root: &Path,
-) -> Result<Video, String> {
+) -> Result<VideoBackend, String> {
     initialize_gstreamer()?;
-    let audio_sink = preview_audio_sink()?;
+    let (audio_sink, volume_control) = preview_audio_sink()?;
     let (pipeline, sink) = create_timeline_pipeline(timeline, project_root, &audio_sink)?;
-    Video::from_pipeline(pipeline, sink, false)
+    VideoBackend::from_pipeline(pipeline, sink, volume_control)
         .map_err(|error| format!("could not initialize timeline video: {error}"))
 }
 
-pub(super) fn set_timeline_audio(pipeline: &gst::Pipeline, volume: f64, muted: bool) {
-    if let Some(control) = pipeline.by_name("gpui_audio_volume") {
-        control.set_property("volume", volume.clamp(0.0, 1.0));
-        control.set_property("mute", muted);
-    }
-}
-
 pub(super) fn update_timeline_video_position(
-    video: &Video,
+    video: &mut VideoBackend,
     timeline_data: &Timeline,
     clip_id: Ulid,
     refresh_frame: bool,
@@ -129,16 +123,19 @@ fn initialize_gstreamer() -> Result<(), String> {
     ges::init().map_err(|error| format!("could not initialize GStreamer Editing Services: {error}"))
 }
 
-fn preview_audio_sink() -> Result<gst::Element, String> {
+fn preview_audio_sink() -> Result<(gst::Element, gst_audio::StreamVolume), String> {
     let sink = gst::parse::bin_from_description(
         "audioconvert ! audioresample ! volume name=gpui_audio_volume ! autoaudiosink",
         true,
     )
     .map_err(|error| format!("could not create timeline preview audio sink: {error}"))?;
-    if let Some(control) = sink.by_name("gpui_audio_volume") {
-        control.set_property("mute", true);
-    }
-    Ok(sink.upcast())
+    let control = sink
+        .by_name("gpui_audio_volume")
+        .ok_or_else(|| "timeline preview volume control was not created".to_string())?
+        .dynamic_cast::<gst_audio::StreamVolume>()
+        .map_err(|_| "timeline preview volume control has an unexpected type".to_string())?;
+    gst_audio::prelude::StreamVolumeExt::set_mute(&control, true);
+    Ok((sink.upcast(), control))
 }
 
 #[cfg(test)]
