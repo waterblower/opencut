@@ -92,7 +92,7 @@ impl Editor {
         canvas: TimelinePreviewCanvas,
         cx: &mut Context<Self>,
     ) {
-        self.preview.volume_open = false;
+        self.preview.volume_control_open = false;
         let pointer_x = f32::from(event.position.x) - surface_left;
         let pointer_y = f32::from(event.position.y) - surface_top;
         let Some(timeline) = self.timeline.as_ref() else {
@@ -236,7 +236,7 @@ impl Editor {
             && (current_properties.position_y - properties.position_y).abs() <= f64::EPSILON
         {
             self.preview.timeline_drag = Some(drag);
-            self.preview.refresh_ticks = 2;
+
             cx.notify();
             return true;
         }
@@ -257,7 +257,7 @@ impl Editor {
             })
         {
             drag.last_pipeline_update = Some(now);
-            if let Some(video) = &self.preview.video
+            if let Some(video) = self.preview.target.video_mut()
                 && let Err(error) =
                     update_timeline_video_position(video, &timeline.data, drag.clip_id, false)
             {
@@ -265,7 +265,7 @@ impl Editor {
             }
         }
         self.preview.timeline_drag = Some(drag);
-        self.preview.refresh_ticks = 2;
+
         cx.notify();
         true
     }
@@ -276,7 +276,7 @@ impl Editor {
         };
         if drag.changed {
             if !drag.timeline_was_dirty
-                && let Some(video) = &self.preview.video
+                && let Some(video) = self.preview.target.video_mut()
             {
                 let Some(timeline) = self.timeline.as_ref() else {
                     return true;
@@ -302,8 +302,8 @@ impl Editor {
         _: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        if self.preview.volume_open {
-            self.preview.volume_open = false;
+        if self.preview.volume_control_open {
+            self.preview.volume_control_open = false;
             cx.notify();
         }
     }
@@ -463,7 +463,7 @@ impl Editor {
             .as_ref()
             .is_some_and(|timeline| !timeline.data.clips.is_empty())
         {
-            self.preview.volume_open = !self.preview.volume_open;
+            self.preview.volume_control_open = !self.preview.volume_control_open;
             cx.notify();
         }
     }
@@ -511,25 +511,23 @@ impl Editor {
         let timeline_left = origin_x + TIMELINE_HORIZONTAL_PADDING;
         let volume_track_bottom = origin_y + height - TIMELINE_VOLUME_TRACK_BOTTOM_OFFSET;
         let has_media = !timeline.data.clips.is_empty();
-        let duration = timeline.data.duration(timeline.data.timeline_duration());
-        let reported_position = timeline.data.duration(timeline.playhead);
-        let reported_progress = if duration.is_zero() {
-            0.0
-        } else {
-            (reported_position.as_secs_f64() / duration.as_secs_f64()).clamp(0.0, 1.0) as f32
-        };
-        let progress = self
-            .preview
-            .scrub_fraction
-            .unwrap_or(reported_progress)
-            .clamp(0.0, 1.0);
+
+        let duration = timeline.data.duration(timeline.data.content_duration());
         let position = self
             .preview
-            .scrub_fraction
-            .map_or(reported_position, |fraction| {
-                duration.mul_f64(fraction as f64)
-            });
-        let volume = self.preview.volume.clamp(0.0, 1.0);
+            .target
+            .video()
+            .map_or(Duration::ZERO, |v| v.position());
+        let progress = if duration.is_zero() {
+            0.0
+        } else {
+            (position.as_secs_f64() / duration.as_secs_f64()).clamp(0.0, 1.0) as f32
+        };
+        let volume = self
+            .preview
+            .target
+            .video()
+            .map_or(0.0, |video| video.volume().clamp(0.0, 1.0));
         let muted = volume <= f64::EPSILON;
         let displayed_volume = if muted { 0.0 } else { volume } as f32;
         let volume_percent = (displayed_volume * 100.0).round() as u32;
@@ -618,8 +616,8 @@ impl Editor {
                             }),
                         )
                     })
-                    .child(if let Some(video_handle) = self.preview.video.as_ref() {
-                        video(video_handle.clone())
+                    .child(if let Some(video_handle) = self.preview.target.video() {
+                        video(video_handle)
                             .id("editor-timeline-video")
                             .size(px(width), px(surface_height))
                             .into_any_element()
@@ -764,7 +762,7 @@ impl Editor {
                                             } else {
                                                 rgb(MUTED)
                                             })
-                                            .child(if self.preview.playing { "Ⅱ" } else { "▶" })
+                                            .child(if self.preview.target.video().map_or(false, |v| !v.paused()) { "Ⅱ" } else { "▶" })
                                             .on_click(
                                                 cx.listener(Self::toggle_timeline_preview_playback),
                                             ),
@@ -792,7 +790,7 @@ impl Editor {
                                             .w(px(72.0))
                                             .h_12()
                                             .flex_shrink_0()
-                                            .when(self.preview.volume_open && has_media, |this| {
+                                            .when(self.preview.volume_control_open && has_media, |this| {
                                                 this.child(
                                                     div()
                                                         .absolute()

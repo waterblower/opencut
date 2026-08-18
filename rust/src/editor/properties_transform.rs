@@ -252,7 +252,7 @@ impl Editor {
         timeline.record_editing_history();
         self.preview.timeline_needs_rebuild = true;
         timeline.data.clips[index].video_properties = properties;
-        self.preview.refresh_ticks = 2;
+
         timeline.save(&self.global_settings.project_root);
         self.rebuild_timeline_preview_if_needed();
     }

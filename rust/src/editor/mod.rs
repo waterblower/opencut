@@ -1,4 +1,4 @@
-use crate::video::Video;
+use crate::video::VideoBackend;
 use gpui::{
     App, Context, CursorStyle, DragMoveEvent, Entity, FocusHandle, KeyBinding, MouseButton,
     MouseDownEvent, MouseMoveEvent, MouseUpEvent, ObjectFit, PathPromptOptions, Render,
@@ -55,8 +55,8 @@ use model::{
     MediaKind, TimelineClip, TimelineTime, TimelineTrack, TrackKind, VideoClipProperties,
     timeline_ranges_overlap,
 };
-use preview::{PreviewTarget, reconcile_preview_seek, update_playback};
-use preview_audio::AudioPreview;
+use preview::{PreviewTarget, update_playback};
+use preview_audio::AudioBackend;
 use preview_timeline::TimelinePreviewDrag;
 use properties::{PropertiesPanelResizeDrag, properties_panel};
 use properties_transform::VideoTransformInputs;
@@ -189,21 +189,13 @@ struct ExplorerState {
 struct PreviewState {
     target: PreviewTarget,
     fullscreen: bool,
-    video: Option<Video>,
-    audio: Option<AudioPreview>,
     timeline_needs_rebuild: bool,
     timeline_clock: Option<(TimelineTime, Instant)>,
-    playing: bool,
-    volume: f64,
-    volume_open: bool,
+    volume_control_open: bool,
     is_scrubbing: bool,
     is_adjusting_volume: bool,
-    resume_after_scrub: bool,
-    scrub_fraction: Option<f32>,
-    pending_seek_started: Option<Instant>,
     last_scrub_seek: Option<Instant>,
     timeline_drag: Option<TimelinePreviewDrag>,
-    refresh_ticks: u8,
 }
 
 struct PropertiesPanelState {
@@ -301,7 +293,13 @@ impl Editor {
             .is_some_and(|timeline| timeline.path == relative_path)
         {
             self.explorer.selected_file = Some(relative_path);
-            self.preview.target = PreviewTarget::Timeline;
+            self.preview.target = PreviewTarget::None;
+            self.preview.timeline_needs_rebuild = true;
+            let timeline = self.timeline.as_ref().expect("timeline was checked above");
+            let playhead = timeline.playhead;
+            if !timeline.data.clips.is_empty() {
+                self.load_timeline_position_with_options(playhead, true);
+            }
             cx.notify();
             return Ok(());
         }
@@ -348,25 +346,19 @@ impl Editor {
         active_timeline: Option<(PathBuf, Timeline)>,
         cx: &mut Context<Self>,
     ) -> Result<(), String> {
-        self.preview.video = None;
-        self.preview.audio = None;
+        self.preview.target = PreviewTarget::None;
         self.explorer.drag_assets.clear();
         self.explorer.drag_probe_jobs.clear();
         self.explorer.drop_preview = None;
         self.explorer.pending_drop = None;
         self.preview.timeline_needs_rebuild = true;
         self.preview.timeline_clock = None;
-        self.preview.playing = false;
-        self.preview.volume_open = false;
+        self.preview.volume_control_open = false;
         self.preview.is_scrubbing = false;
         self.preview.is_adjusting_volume = false;
-        self.preview.resume_after_scrub = false;
-        self.preview.scrub_fraction = None;
-        self.preview.pending_seek_started = None;
         self.preview.last_scrub_seek = None;
         self.preview.timeline_drag = None;
         self.properties.transform_input_clip_id = None;
-        self.preview.refresh_ticks = 2;
         self.timeline = active_timeline.map(|(path, data)| TimelineState::new(path, data));
         self.explorer.search_query = None;
         self.explorer.search_results.clear();
@@ -376,13 +368,12 @@ impl Editor {
             .update(cx, |filter, cx| filter.clear(cx));
         self.explorer.selected_file = self.timeline.as_ref().map(|timeline| timeline.path.clone());
         self.explorer.context_menu = None;
-        self.preview.target = PreviewTarget::Timeline;
         self.explorer
             .refresh_file_tree(&self.global_settings.project_root)?;
         if let Some(timeline) = self.timeline.as_ref()
             && !timeline.data.clips.is_empty()
         {
-            self.load_timeline_position_with_options(timeline.playhead, false, true);
+            self.load_timeline_position_with_options(timeline.playhead, true);
         }
         self.schedule_active_timeline_waveforms(cx);
         Ok(())

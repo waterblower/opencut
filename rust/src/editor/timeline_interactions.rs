@@ -49,7 +49,7 @@ impl Editor {
         }
         let position = timeline
             .timeline_position_from_x(event.position.x.into())
-            .clamp(TimelineTime::ZERO, timeline.data.timeline_duration());
+            .clamp(TimelineTime::ZERO, timeline.data.content_duration());
         let timeline = self.timeline.as_mut().expect("timeline was checked above");
         if timeline.interaction.blade_guide != Some(position) {
             timeline.interaction.blade_guide = Some(position);
@@ -268,10 +268,9 @@ impl Editor {
         {
             return;
         }
-        if let Some(video) = &self.preview.video {
+        if let Some(video) = self.preview.target.video() {
             video.set_paused(true);
         }
-        self.preview.playing = false;
         self.preview.timeline_clock = None;
         let timeline = self.timeline.as_mut().expect("timeline was checked above");
         timeline.interaction.snap_guide = None;
@@ -431,7 +430,7 @@ impl Editor {
             let playhead = timeline.playhead;
             timeline.save(&self.global_settings.project_root);
             self.rebuild_timeline_preview_if_needed();
-            self.load_timeline_position_with_options(playhead, false, true);
+            self.load_timeline_position_with_options(playhead, true);
         }
         cx.notify();
     }
@@ -514,14 +513,13 @@ impl Editor {
             return;
         };
         timeline.interaction.scrubbing_playhead = true;
-        if let Some(video) = &self.preview.video {
+        if let Some(video) = self.preview.target.video() {
             video.set_paused(true);
         }
-        self.preview.playing = false;
         self.preview.timeline_clock = None;
         let position = timeline.timeline_position_from_x(event.position.x.into());
         timeline.interaction.last_scrub_seek = Some(Instant::now());
-        self.load_timeline_position_with_options(position, false, false);
+        self.load_timeline_position_with_options(position, false);
     }
 
     pub(super) fn update_playhead_scrub(
@@ -549,7 +547,7 @@ impl Editor {
             .is_none_or(|last_seek| now.duration_since(last_seek) >= SCRUB_SEEK_INTERVAL);
         if should_seek {
             timeline.interaction.last_scrub_seek = Some(now);
-            self.load_timeline_position_with_options(position, false, false);
+            self.load_timeline_position_with_options(position, false);
         }
         cx.notify();
     }
@@ -569,7 +567,7 @@ impl Editor {
         timeline.interaction.scrubbing_playhead = false;
         timeline.interaction.last_scrub_seek = None;
         let position = timeline.timeline_position_from_x(event.position.x.into());
-        self.load_timeline_position_with_options(position, false, true);
+        self.load_timeline_position_with_options(position, true);
         self.save_timeline_playhead();
         cx.notify();
     }
@@ -582,9 +580,9 @@ impl Editor {
             return;
         }
         let target = (timeline.playhead + TimelineTime::from_frames(frames))
-            .clamp(TimelineTime::ZERO, timeline.data.timeline_duration());
-        if target != timeline.playhead || self.preview.target != PreviewTarget::Timeline {
-            self.load_timeline_position_with_options(target, false, true);
+            .clamp(TimelineTime::ZERO, timeline.data.content_duration());
+        if target != timeline.playhead || !self.preview.target.is_timeline() {
+            self.load_timeline_position_with_options(target, true);
             self.save_timeline_playhead();
         }
     }

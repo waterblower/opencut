@@ -3,9 +3,9 @@ use crate::editor::model::{
     AudioClipProperties, MediaAsset, MediaKind, TimelineClip, TimelineTime, VideoClipProperties,
 };
 use crate::editor::ulid;
-use std::{path::Path, sync::mpsc, time::Duration};
+use std::{path::Path, time::Duration};
 
-fn headless_test_pipeline() -> (gst::Pipeline, gst_app::AppSink) {
+fn headless_test_pipeline() -> (gst::Pipeline, gst_app::AppSink, gst_audio::StreamVolume) {
     ges::init().unwrap();
     let project_root = Path::new(env!("CARGO_MANIFEST_DIR"));
     let mut project = Timeline::with_test_tracks();
@@ -44,17 +44,25 @@ fn headless_test_pipeline() -> (gst::Pipeline, gst_app::AppSink) {
         video_properties: VideoClipProperties::default(),
         audio_properties: AudioClipProperties::default(),
     });
-    let audio_sink = gst::ElementFactory::make("fakesink")
-        .property("sync", false)
-        .build()
+    let audio_sink = gst::parse::bin_from_description(
+        "volume name=gpui_audio_volume ! fakesink sync=false",
+        true,
+    )
+    .unwrap();
+    let volume_control = audio_sink
+        .by_name("gpui_audio_volume")
+        .unwrap()
+        .dynamic_cast::<gst_audio::StreamVolume>()
         .unwrap();
-    create_timeline_pipeline(&project, project_root, &audio_sink).unwrap()
+    let audio_sink = audio_sink.upcast::<gst::Element>();
+    let (pipeline, sink) = create_timeline_pipeline(&project, project_root, &audio_sink).unwrap();
+    (pipeline, sink, volume_control)
 }
 
 #[test]
 fn timeline_pipeline_plays_across_a_discontinuous_source_cut() {
     let _gstreamer_test = crate::editor::lock_gstreamer_test();
-    let (pipeline, sink) = headless_test_pipeline();
+    let (pipeline, sink, _) = headless_test_pipeline();
     pipeline.set_state(gst::State::Playing).unwrap();
 
     let deadline = std::time::Instant::now() + Duration::from_secs(3);
@@ -82,7 +90,7 @@ fn timeline_pipeline_plays_across_a_discontinuous_source_cut() {
 #[test]
 fn timeline_pipeline_converts_the_output_frame_rate() {
     let _gstreamer_test = crate::editor::lock_gstreamer_test();
-    let (pipeline, sink) = headless_test_pipeline();
+    let (pipeline, sink, _) = headless_test_pipeline();
 
     let negotiated_frame_rate = (|| -> Result<gst::Fraction, String> {
         pipeline
@@ -105,17 +113,38 @@ fn timeline_pipeline_converts_the_output_frame_rate() {
 }
 
 #[test]
-fn timeline_video_shutdown_does_not_wait_on_the_frame_worker() {
+fn timeline_audio_volume_uses_the_preview_volume_element() {
     let _gstreamer_test = crate::editor::lock_gstreamer_test();
-    let (pipeline, sink) = headless_test_pipeline();
-    let video = Video::from_pipeline(pipeline, sink, false).unwrap();
-    let (finished, completion) = mpsc::channel();
-    std::thread::spawn(move || {
-        drop(video);
-        let _ = finished.send(());
-    });
+    let (pipeline, sink, volume_control) = headless_test_pipeline();
+    let video = VideoBackend::from_pipeline(pipeline, sink, volume_control).unwrap();
 
-    completion
-        .recv_timeout(Duration::from_secs(5))
-        .expect("video shutdown did not finish within five seconds");
+    video.set_volume(0.35);
+    video.set_muted(false);
+
+    let volume = video.volume();
+    assert!((volume - 0.35).abs() < 0.000_001, "volume was {volume}");
+}
+
+#[test]
+fn timeline_video_backend_toggles_playback_state() {
+    let _gstreamer_test = crate::editor::lock_gstreamer_test();
+    let (pipeline, sink, volume_control) = headless_test_pipeline();
+    let video = VideoBackend::from_pipeline(pipeline, sink, volume_control).unwrap();
+
+    assert!(video.paused());
+    video.set_paused(false);
+    video
+        .pipeline()
+        .state(gst::ClockTime::from_seconds(5))
+        .0
+        .expect("timeline pipeline did not start playing");
+    assert!(!video.paused());
+
+    video.set_paused(true);
+    video
+        .pipeline()
+        .state(gst::ClockTime::from_seconds(5))
+        .0
+        .expect("timeline pipeline did not pause");
+    assert!(video.paused());
 }

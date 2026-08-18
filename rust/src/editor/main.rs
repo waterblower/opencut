@@ -6,7 +6,8 @@ mod gpui_inspector;
 mod macos_pinch;
 #[path = "../playback_view.rs"]
 mod playback_view;
-#[path = "../video.rs"]
+
+#[path = "../video/mod.rs"]
 mod video;
 
 use editor::Editor;
