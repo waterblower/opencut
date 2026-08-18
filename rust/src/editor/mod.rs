@@ -35,6 +35,7 @@ mod timeline;
 mod timeline_clip_menu;
 mod timeline_document;
 mod timeline_interactions;
+mod timeline_ui;
 mod timeline_video;
 mod track;
 mod waveform;
@@ -62,7 +63,7 @@ use timeline::{
 };
 use timeline_clip_menu::TimelineClipContextMenu;
 use timeline_document::{load_existing, project_timeline_files};
-use timeline_interactions::{ClipMoveDrag, MarqueeSelection, TimelineTool};
+use timeline_interactions::{MarqueeSelection, TimelineInteractionState, TimelineTool};
 use ulid::Ulid;
 use workspace::{GlobalEditorSettings, load_global_editor_settings, save_global_editor_settings};
 
