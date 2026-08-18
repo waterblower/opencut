@@ -1,15 +1,16 @@
 use super::*;
-use crate::editor::model::{
-    AudioClipProperties, MediaAsset, MediaKind, TimelineClip, TimelineTime, VideoClipProperties,
-};
 use crate::editor::ulid;
+use crate::editor::{
+    model::{MediaAsset, MediaKind},
+    timeline::{AudioClipProperties, FrameRate, TimelineClip, TimelineTime, VideoClipProperties},
+};
 use std::{path::Path, time::Duration};
 
 fn headless_test_pipeline() -> (gst::Pipeline, gst_app::AppSink, gst_audio::StreamVolume) {
     ges::init().unwrap();
     let project_root = Path::new(env!("CARGO_MANIFEST_DIR"));
     let mut project = Timeline::with_test_tracks();
-    project.settings.frame_rate = super::super::model::FrameRate::new(24, 1);
+    project.settings.frame_rate = FrameRate::new(24, 1);
     project.assets.push(MediaAsset {
         id: ulid(10),
         kind: MediaKind::Video,

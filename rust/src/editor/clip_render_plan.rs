@@ -1,4 +1,4 @@
-use super::model::{AudioClipProperties, VideoClipProperties};
+use super::timeline::{AudioClipProperties, VideoClipProperties};
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(super) struct RenderRect {

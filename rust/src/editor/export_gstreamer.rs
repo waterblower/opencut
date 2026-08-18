@@ -1,8 +1,8 @@
 use super::{
     clip_render_plan::{resolve_audio_clip_render_plan, resolve_visual_clip_render_plan},
     export::{ExportEncoder, ExportOptions},
-    model::{MediaAsset, MediaKind, TimelineClip, TrackKind, VideoClipProperties},
-    timeline::Timeline,
+    model::{MediaAsset, MediaKind},
+    timeline::{Timeline, TimelineClip, TimelineTrack, TrackKind, VideoClipProperties},
 };
 use ges::prelude::*;
 use gstreamer as gst;
@@ -234,7 +234,7 @@ fn rounded_i32(value: f64) -> i32 {
 }
 
 fn exported_track_types(
-    track: &super::model::TimelineTrack,
+    track: &TimelineTrack,
     clip: &TimelineClip,
     asset_kind: MediaKind,
     has_audio: bool,

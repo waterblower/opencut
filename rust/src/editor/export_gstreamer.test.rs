@@ -3,7 +3,8 @@
 use super::*;
 use crate::editor::{
     media_probe::probe_video,
-    model::{AudioClipProperties, MediaAsset, TimelineTime, VideoClipProperties},
+    model::MediaAsset,
+    timeline::{AudioClipProperties, TimelineTime, VideoClipProperties},
     ulid,
 };
 use std::path::Path;

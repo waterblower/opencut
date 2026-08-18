@@ -1,4 +1,4 @@
-use super::{model::FrameRate, timeline::Timeline};
+use super::timeline::{FrameRate, Timeline};
 use std::path::Path;
 
 pub(super) const DEFAULT_VIDEO_BIT_RATE: usize = 8_000_000;

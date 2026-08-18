@@ -50,17 +50,16 @@ use explorer::{
 use explorer_filter::ExplorerFilter;
 use export_dialog::ExportDialogState;
 use media_probe::probe_asset;
-use model::{
-    AudioClipProperties, DEFAULT_IMAGE_CLIP_DURATION, FRAME_RATE_PRESETS, FrameRate, MediaAsset,
-    MediaKind, TimelineClip, TimelineTime, TimelineTrack, TrackKind, VideoClipProperties,
-    timeline_ranges_overlap,
-};
+use model::{DEFAULT_IMAGE_CLIP_DURATION, MediaAsset, MediaKind};
 use preview::{PreviewTarget, update_playback};
 use preview_audio::AudioBackend;
 use preview_timeline::TimelinePreviewDrag;
 use properties::{PropertiesPanelResizeDrag, properties_panel};
 use properties_transform::VideoTransformInputs;
-use timeline::{Timeline, TimelineState};
+use timeline::{
+    AudioClipProperties, FRAME_RATE_PRESETS, FrameRate, Timeline, TimelineClip, TimelineState,
+    TimelineTime, TimelineTrack, TrackKind, VideoClipProperties, timeline_ranges_overlap,
+};
 use timeline_clip_menu::TimelineClipContextMenu;
 use timeline_document::{load_existing, project_timeline_files};
 use timeline_interactions::{ClipMoveDrag, MarqueeSelection, TimelineTool};
