@@ -402,7 +402,6 @@ impl Editor {
                 _ => PreviewTarget::ImageFile(relative_path.clone()),
             };
             self.status = None;
-            self.preview.timeline_clock = None;
             self.preview.volume_control_open = false;
             self.preview.is_scrubbing = false;
             self.preview.is_adjusting_volume = false;

@@ -321,8 +321,6 @@ impl Editor {
         self.properties.transform_input_clip_id = None;
         self.preview.target = PreviewTarget::None;
         self.preview.timeline_needs_rebuild = true;
-
-        self.preview.timeline_clock = None;
         let clips_empty = timeline.data.clips.is_empty();
         let playhead = timeline.playhead;
         if clips_empty {
@@ -654,7 +652,6 @@ impl Editor {
         self.preview.target = PreviewTarget::None;
         self.preview.timeline_needs_rebuild = true;
 
-        self.preview.timeline_clock = None;
         timeline.playhead = timeline
             .playhead
             .clamp(TimelineTime::ZERO, timeline.data.content_duration());

@@ -466,7 +466,6 @@ impl Editor {
         if let Some(video) = self.preview.target.video() {
             video.set_paused(true);
         }
-        self.preview.timeline_clock = None;
         let timeline = self.timeline.as_mut().expect("timeline was checked above");
         timeline.interaction.snap_guide = None;
         timeline.interaction.clip_move_drag = Some(ClipMoveDrag {
@@ -711,7 +710,6 @@ impl Editor {
         if let Some(video) = self.preview.target.video() {
             video.set_paused(true);
         }
-        self.preview.timeline_clock = None;
         let position = timeline.timeline_position_from_x(event.position.x.into());
         timeline.interaction.last_scrub_seek = Some(Instant::now());
         self.load_timeline_position_with_options(position, false);

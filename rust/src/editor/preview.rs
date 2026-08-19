@@ -98,7 +98,6 @@ impl Editor {
         accurate: bool,
     ) {
         let Some(timeline) = self.timeline.as_mut() else {
-            self.preview.timeline_clock = None;
             return;
         };
         let was_timeline = self.preview.target.is_timeline();
@@ -111,8 +110,6 @@ impl Editor {
         let duration = timeline.data.content_duration();
         let position = position.clamp(TimelineTime::ZERO, duration);
         timeline.playhead = position;
-
-        self.preview.timeline_clock = None;
         self.preview.timeline_drag = None;
 
         if timeline.data.clips.is_empty() {
@@ -191,10 +188,6 @@ impl Editor {
                 };
                 video.set_paused(!is_paused);
                 self.load_timeline_position_with_options(start, true);
-
-                if is_paused {
-                    self.preview.timeline_clock = Some((start, Instant::now()));
-                }
             }
         }
     }
@@ -202,37 +195,22 @@ impl Editor {
 
 pub(super) fn update_playback(timeline: &mut TimelineRuntimeState, preview: &mut PreviewState) {
     let PreviewTarget::Timeline(video) = &preview.target else {
-        preview.timeline_clock = None;
         return;
     };
     if video.paused() {
-        preview.timeline_clock = None;
         return;
     }
     let duration = timeline.data.content_duration();
-    let (origin, started_at) = *preview
-        .timeline_clock
-        .get_or_insert((timeline.playhead, Instant::now()));
-    timeline.playhead = timeline_playhead_from_elapsed(
-        timeline.data.settings.frame_rate,
-        origin,
-        started_at.elapsed(),
-    )
-    .clamp(TimelineTime::ZERO, duration);
+    timeline.playhead = timeline
+        .data
+        .settings
+        .frame_rate
+        .frames_from_duration_nearest(video.position());
+
     if timeline.playhead >= duration {
         video.set_paused(true);
         timeline.playhead = duration;
-
-        preview.timeline_clock = None;
     }
-}
-
-fn timeline_playhead_from_elapsed(
-    frame_rate: FrameRate,
-    origin: TimelineTime,
-    elapsed: Duration,
-) -> TimelineTime {
-    origin + frame_rate.floor_duration(elapsed)
 }
 
 impl Editor {
@@ -280,8 +258,6 @@ impl PlaybackViewDelegate for Editor {
                 if let Some(video) = self.preview.target.video() {
                     video.set_paused(true);
                 }
-
-                self.preview.timeline_clock = None;
                 self.preview.is_scrubbing = true;
                 self.preview.last_scrub_seek = Some(Instant::now());
                 self.seek_preview_to_fraction(fraction);
@@ -363,7 +339,3 @@ impl PlaybackViewDelegate for Editor {
         }
     }
 }
-
-#[cfg(test)]
-#[path = "preview.test.rs"]
-mod tests;

@@ -52,7 +52,6 @@ impl Editor {
                 target: PreviewTarget::None,
                 fullscreen: false,
                 timeline_needs_rebuild: true,
-                timeline_clock: None,
                 volume_control_open: false,
                 is_scrubbing: false,
                 is_adjusting_volume: false,
