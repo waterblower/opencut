@@ -172,7 +172,7 @@ impl Editor {
                 return;
             }
             PreviewTarget::Timeline(video) => {
-                let play = video.paused();
+                let is_paused = video.paused();
                 let Some(timeline) = self.timeline.as_mut() else {
                     return;
                 };
@@ -186,12 +186,13 @@ impl Editor {
                 } else {
                     timeline.playhead
                 };
-                self.load_timeline_position_with_options(start, true);
                 let PreviewTarget::Timeline(video) = &self.preview.target else {
                     return;
                 };
-                video.set_paused(!play);
-                if play {
+                video.set_paused(!is_paused);
+                self.load_timeline_position_with_options(start, true);
+
+                if is_paused {
                     self.preview.timeline_clock = Some((start, Instant::now()));
                 }
             }
