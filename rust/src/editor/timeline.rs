@@ -1,5 +1,6 @@
-use super::model::{MediaAsset, MediaKind, deserialize_ulid};
+use super::model::{MediaAsset, MediaKind};
 use super::timeline_clip::Clip;
+use super::track::Track;
 use super::*;
 use gpui::point;
 use serde::{Deserialize, Serialize};
@@ -40,15 +41,6 @@ impl Default for TimelineSettings {
     }
 }
 
-#[derive(Clone, Copy, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
-pub(super) enum TrackKind {
-    #[default]
-    #[serde(alias = "video")]
-    Video,
-    #[serde(alias = "audio")]
-    Audio,
-}
-
 pub fn timeline_ranges_overlap(
     left_start: TimelineTime,
     left_end: TimelineTime,
@@ -56,24 +48,6 @@ pub fn timeline_ranges_overlap(
     right_end: TimelineTime,
 ) -> bool {
     left_start < right_end && right_start < left_end
-}
-
-#[derive(Clone, Debug, Deserialize, Serialize)]
-pub(super) struct Track {
-    #[serde(deserialize_with = "deserialize_ulid")]
-    pub id: Ulid,
-    pub name: String,
-    pub kind: TrackKind,
-    #[serde(default)]
-    pub locked: bool,
-    #[serde(default)]
-    pub muted: bool,
-    #[serde(default = "default_visible")]
-    pub visible: bool,
-}
-
-fn default_visible() -> bool {
-    true
 }
 
 fn divide_round(numerator: u128, denominator: u128) -> u128 {
@@ -188,12 +162,6 @@ impl TimelineSerialization {
         self.clips.iter().position(|clip| clip.id == id)
     }
 
-    pub fn clip_locked(&self, clip_id: Ulid) -> bool {
-        self.clip(clip_id)
-            .and_then(|clip| self.track(clip.track_id))
-            .is_some_and(|track| track.locked)
-    }
-
     pub fn validate_clip_move_placements(
         &self,
         placements: &[(Ulid, Ulid, TimelineTime)],
@@ -243,20 +211,6 @@ impl TimelineSerialization {
             }
         }
         Ok(())
-    }
-
-    pub fn track(&self, id: Ulid) -> Option<&Track> {
-        self.tracks.iter().find(|track| track.id == id)
-    }
-
-    pub fn track_mut(&mut self, id: Ulid) -> Option<&mut Track> {
-        self.tracks.iter_mut().find(|track| track.id == id)
-    }
-
-    pub fn clips_on_track(&self, track_id: Ulid) -> impl Iterator<Item = &Clip> {
-        self.clips
-            .iter()
-            .filter(move |clip| clip.track_id == track_id)
     }
 
     pub fn content_duration(&self) -> TimelineTime {

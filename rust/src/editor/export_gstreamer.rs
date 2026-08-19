@@ -2,8 +2,9 @@ use super::{
     clip_render_plan::{resolve_audio_clip_render_plan, resolve_visual_clip_render_plan},
     export::{ExportEncoder, ExportOptions},
     model::{MediaAsset, MediaKind},
-    timeline::{TimelineSerialization, Track, TrackKind},
+    timeline::TimelineSerialization,
     timeline_clip::{Clip, VideoClipProperties},
+    track::{Track, TrackKind},
 };
 use ges::prelude::*;
 use gstreamer as gst;

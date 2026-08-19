@@ -39,6 +39,7 @@ mod timeline_interactions;
 mod timeline_ui;
 mod timeline_video;
 mod track;
+mod track_ui;
 mod waveform;
 mod workspace;
 
@@ -60,12 +61,13 @@ use properties::{PropertiesPanelResizeDrag, properties_panel};
 use properties_transform::VideoTransformInputs;
 use timeline::{
     FRAME_RATE_PRESETS, FrameRate, TimelineRuntimeState, TimelineSerialization, TimelineTime,
-    Track, TrackKind, timeline_ranges_overlap,
+    timeline_ranges_overlap,
 };
 use timeline_clip::{AudioClipProperties, Clip, VideoClipProperties};
 use timeline_clip_menu::TimelineClipContextMenu;
 use timeline_document::{load_existing, project_timeline_files};
 use timeline_interactions::{MarqueeSelection, TimelineInteractionState, TimelineTool};
+use track::{Track, TrackKind};
 use ulid::Ulid;
 use workspace::{GlobalEditorSettings, load_global_editor_settings, save_global_editor_settings};
 
