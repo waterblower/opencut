@@ -235,7 +235,7 @@ fn timeline_playhead_from_elapsed(
 }
 
 impl Editor {
-    fn seek_preview_to_fraction(&mut self, fraction: f32, accurate: bool) {
+    fn seek_preview_to_fraction(&mut self, fraction: f32) {
         let fraction = fraction.clamp(0.0, 1.0);
         if self.preview.target.is_timeline() {
             let Some(timeline) = self.timeline.as_ref() else {
@@ -244,12 +244,12 @@ impl Editor {
             let duration = timeline.data.content_duration().frames();
             let position =
                 TimelineTime::from_frames((duration as f64 * fraction as f64).round() as i64);
-            self.load_timeline_position_with_options(position, accurate);
+            self.load_timeline_position_with_options(position, true);
             return;
         }
         if let PreviewTarget::VideoFile(_, video) = &mut self.preview.target {
             let target = video.duration().mul_f64(fraction as f64);
-            let _ = video.seek(target, accurate);
+            let _ = video.seek(target, true);
         }
     }
 }
@@ -283,7 +283,7 @@ impl PlaybackViewDelegate for Editor {
                 self.preview.timeline_clock = None;
                 self.preview.is_scrubbing = true;
                 self.preview.last_scrub_seek = Some(Instant::now());
-                self.seek_preview_to_fraction(fraction, false);
+                self.seek_preview_to_fraction(fraction);
             }
             DragPhase::Update if self.preview.is_scrubbing => {
                 let now = Instant::now();
@@ -293,13 +293,13 @@ impl PlaybackViewDelegate for Editor {
                     .is_none_or(|last_seek| now.duration_since(last_seek) >= SCRUB_SEEK_INTERVAL);
                 if should_seek {
                     self.preview.last_scrub_seek = Some(now);
-                    self.seek_preview_to_fraction(fraction, false);
+                    self.seek_preview_to_fraction(fraction);
                 }
             }
             DragPhase::End if self.preview.is_scrubbing => {
                 self.preview.last_scrub_seek = None;
                 self.preview.is_scrubbing = false;
-                self.seek_preview_to_fraction(fraction, true);
+                self.seek_preview_to_fraction(fraction);
                 if self.preview.target.is_timeline() {
                     self.save_timeline_playhead();
                 }
