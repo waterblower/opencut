@@ -22,38 +22,6 @@ pub(super) const FRAME_RATE_PRESETS: [(FrameRate, &str); 8] = [
     (FrameRate::new(60, 1), "60 fps"),
 ];
 
-#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
-pub(super) struct TimelineSettings {
-    pub frame_rate: FrameRate,
-    pub width: u32,
-    pub height: u32,
-    pub audio_sample_rate: u32,
-}
-
-impl Default for TimelineSettings {
-    fn default() -> Self {
-        Self {
-            frame_rate: FrameRate::default(),
-            width: 1920,
-            height: 1080,
-            audio_sample_rate: 48_000,
-        }
-    }
-}
-
-pub fn timeline_ranges_overlap(
-    left_start: TimelineTime,
-    left_end: TimelineTime,
-    right_start: TimelineTime,
-    right_end: TimelineTime,
-) -> bool {
-    left_start < right_end && right_start < left_end
-}
-
-fn divide_round(numerator: u128, denominator: u128) -> u128 {
-    numerator.saturating_add(denominator / 2) / denominator.max(1)
-}
-
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]
 #[serde(default)]
 pub(super) struct TimelineSerialization {
@@ -84,6 +52,34 @@ pub(super) struct TimelineRuntimeState {
     pub(super) interaction: TimelineInteractionState,
     pub(super) undo_stack: Vec<TimelineSerialization>,
     pub(super) redo_stack: Vec<TimelineSerialization>,
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub(super) struct TimelineSettings {
+    pub frame_rate: FrameRate,
+    pub width: u32,
+    pub height: u32,
+    pub audio_sample_rate: u32,
+}
+
+impl Default for TimelineSettings {
+    fn default() -> Self {
+        Self {
+            frame_rate: FrameRate::default(),
+            width: 1920,
+            height: 1080,
+            audio_sample_rate: 48_000,
+        }
+    }
+}
+
+pub fn timeline_ranges_overlap(
+    left_start: TimelineTime,
+    left_end: TimelineTime,
+    right_start: TimelineTime,
+    right_end: TimelineTime,
+) -> bool {
+    left_start < right_end && right_start < left_end
 }
 
 impl Default for TimelineViewState {
@@ -425,18 +421,6 @@ impl TimelineRuntimeState {
     }
 }
 
-fn default_pixels_per_second() -> f32 {
-    DEFAULT_TIMELINE_PIXELS_PER_SECOND
-}
-
-fn finite_nonnegative(value: f32) -> f32 {
-    if value.is_finite() {
-        value.max(0.0)
-    } else {
-        0.0
-    }
-}
-
 #[derive(Clone, Copy, Debug, Default, Deserialize, Eq, Ord, PartialEq, PartialOrd, Serialize)]
 #[serde(transparent)]
 pub(super) struct TimelineTime(i64);
@@ -609,6 +593,22 @@ impl FrameRate {
         }
         let frames = round(seconds * self.frames_per_second());
         TimelineTime::from_frames(frames.clamp(0.0, i64::MAX as f64) as i64)
+    }
+}
+
+fn divide_round(numerator: u128, denominator: u128) -> u128 {
+    numerator.saturating_add(denominator / 2) / denominator.max(1)
+}
+
+fn default_pixels_per_second() -> f32 {
+    DEFAULT_TIMELINE_PIXELS_PER_SECOND
+}
+
+fn finite_nonnegative(value: f32) -> f32 {
+    if value.is_finite() {
+        value.max(0.0)
+    } else {
+        0.0
     }
 }
 
