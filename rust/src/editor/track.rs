@@ -82,7 +82,7 @@ fn timeline_clip_move_preview(
     let left = TIMELINE_PADDING + timeline.seconds(start) as f32 * timeline.view.pixels_per_second;
     let duration = timeline
         .clip(clip_id)
-        .map(TimelineClip::duration)
+        .map(Clip::duration)
         .unwrap_or(TimelineTime::ZERO);
     let width = (timeline.seconds(duration) as f32 * timeline.view.pixels_per_second).max(4.0);
     let valid = invalid_reason.is_none();
@@ -138,7 +138,7 @@ impl Editor {
     pub(super) fn track_header(
         &self,
         index: usize,
-        track: &TimelineTrack,
+        track: &Track,
         cx: &mut Context<Self>,
     ) -> gpui::AnyElement {
         let track_id = track.id;
@@ -225,7 +225,7 @@ impl Editor {
     pub(super) fn track_row(
         &self,
         index: usize,
-        track: &TimelineTrack,
+        track: &Track,
         timeline_width: f32,
         cx: &mut Context<Self>,
     ) -> gpui::AnyElement {
@@ -296,8 +296,8 @@ impl Editor {
 
     fn timeline_clip(
         &self,
-        track: &TimelineTrack,
-        clip: &TimelineClip,
+        track: &Track,
+        clip: &Clip,
         cx: &mut Context<Self>,
     ) -> gpui::AnyElement {
         match track.kind {
@@ -306,7 +306,7 @@ impl Editor {
         }
     }
 
-    fn video_clip(&self, clip: &TimelineClip, cx: &mut Context<Self>) -> gpui::AnyElement {
+    fn video_clip(&self, clip: &Clip, cx: &mut Context<Self>) -> gpui::AnyElement {
         let timeline = self
             .timeline
             .as_ref()
@@ -331,7 +331,7 @@ impl Editor {
         self.timeline_clip_frame(clip, CLIP_BLUE, content.into_any_element(), cx)
     }
 
-    fn audio_clip(&self, clip: &TimelineClip, cx: &mut Context<Self>) -> gpui::AnyElement {
+    fn audio_clip(&self, clip: &Clip, cx: &mut Context<Self>) -> gpui::AnyElement {
         let timeline = self
             .timeline
             .as_ref()
@@ -361,7 +361,7 @@ impl Editor {
 
     fn timeline_clip_frame(
         &self,
-        clip: &TimelineClip,
+        clip: &Clip,
         color: u32,
         content: gpui::AnyElement,
         cx: &mut Context<Self>,

@@ -4,7 +4,8 @@ use super::*;
 use crate::editor::{
     media_probe::probe_video,
     model::MediaAsset,
-    timeline::{AudioClipProperties, TimelineTime, VideoClipProperties},
+    timeline::TimelineTime,
+    timeline_clip::{AudioClipProperties, VideoClipProperties},
     ulid,
 };
 use std::path::Path;
@@ -68,7 +69,7 @@ pub(super) fn export_mini_fixture(encoder: ExportEncoder, output_name: &str) {
         asset.path = source_path.strip_prefix(&project_root).unwrap().into();
         let duration = project.ceil_time(asset.duration);
         project.assets.push(asset);
-        project.clips.push(TimelineClip {
+        project.clips.push(Clip {
             id: clip_id,
             track_id: video_track,
             asset_id,
@@ -109,7 +110,7 @@ fn video_track_exports_visible_video_and_unmuted_audio() {
         .iter()
         .find(|track| track.kind == TrackKind::Video)
         .unwrap();
-    let clip = TimelineClip {
+    let clip = Clip {
         id: ulid(1),
         track_id: track.id,
         asset_id: ulid(2),
@@ -133,7 +134,7 @@ fn hidden_video_track_can_still_export_audio() {
         .find(|track| track.kind == TrackKind::Video)
         .unwrap();
     track.visible = false;
-    let clip = TimelineClip {
+    let clip = Clip {
         id: ulid(1),
         track_id: track.id,
         asset_id: ulid(2),
@@ -228,7 +229,7 @@ fn creates_gstreamer_timeline_from_real_media() {
         position_y: -60.0,
         scale: 0.5,
     };
-    project.clips.push(TimelineClip {
+    project.clips.push(Clip {
         id: ulid(11),
         track_id: video_track,
         asset_id: ulid(10),
@@ -312,7 +313,7 @@ fn exports_real_media_with_audio() {
         codec: "h264".into(),
         has_audio: true,
     });
-    project.clips.push(TimelineClip {
+    project.clips.push(Clip {
         id: ulid(11),
         track_id: video_track,
         asset_id: ulid(10),
@@ -378,7 +379,7 @@ fn exports_an_image_only_timeline() {
         codec: "png".into(),
         has_audio: false,
     });
-    project.clips.push(TimelineClip {
+    project.clips.push(Clip {
         id: ulid(11),
         track_id: video_track,
         asset_id: ulid(10),

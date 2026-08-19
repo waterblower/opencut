@@ -17,8 +17,8 @@ fn asset(id: u64, kind: MediaKind) -> MediaAsset {
     }
 }
 
-fn clip(id: u64, track_id: u64, asset_id: u64) -> TimelineClip {
-    TimelineClip {
+fn clip(id: u64, track_id: u64, asset_id: u64) -> Clip {
+    Clip {
         id: ulid(id),
         track_id: ulid(track_id),
         asset_id: ulid(asset_id),

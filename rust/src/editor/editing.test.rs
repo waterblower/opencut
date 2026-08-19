@@ -17,8 +17,8 @@ fn audio_asset(id: u64) -> MediaAsset {
     }
 }
 
-fn audio_clip(id: u64, start: i64, duration: i64) -> TimelineClip {
-    TimelineClip {
+fn audio_clip(id: u64, start: i64, duration: i64) -> Clip {
+    Clip {
         id: ulid(id),
         track_id: ulid(2),
         asset_id: ulid(100),
@@ -171,7 +171,7 @@ fn track_magnet_closes_deleted_durations_independently_per_track() {
         audio_clip(1, 10, 10),
         audio_clip(2, 30, 5),
         audio_clip(3, 50, 10),
-        TimelineClip {
+        Clip {
             track_id: ulid(3),
             ..audio_clip(4, 50, 10)
         },
@@ -214,7 +214,7 @@ fn select_all_excludes_clips_on_locked_tracks() {
     let mut project = TimelineSerialization::with_test_tracks();
     project.clips = vec![
         audio_clip(10, 0, 10),
-        TimelineClip {
+        Clip {
             id: ulid(11),
             track_id: ulid(1),
             ..audio_clip(11, 10, 10)

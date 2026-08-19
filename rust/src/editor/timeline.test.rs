@@ -1,4 +1,5 @@
 use super::*;
+use crate::editor::timeline_clip::{AudioClipProperties, VideoClipProperties};
 
 #[test]
 fn lowercase_media_and_track_kinds_deserialize() {
@@ -118,7 +119,7 @@ impl TimelineSerialization {
     pub fn with_test_tracks() -> Self {
         Self {
             tracks: vec![
-                TimelineTrack {
+                Track {
                     id: ulid(1),
                     name: "Video 1".into(),
                     kind: TrackKind::Video,
@@ -126,7 +127,7 @@ impl TimelineSerialization {
                     muted: false,
                     visible: true,
                 },
-                TimelineTrack {
+                Track {
                     id: ulid(2),
                     name: "Audio 1".into(),
                     kind: TrackKind::Audio,
@@ -144,8 +145,8 @@ fn frames(value: i64) -> TimelineTime {
     TimelineTime::from_frames(value)
 }
 
-fn video_clip(id: u64, start: i64, duration: i64) -> TimelineClip {
-    TimelineClip {
+fn video_clip(id: u64, start: i64, duration: i64) -> Clip {
+    Clip {
         id: ulid(id),
         track_id: ulid(1),
         asset_id: ulid(100),
@@ -454,7 +455,7 @@ fn clips_without_property_objects_deserialize_with_defaults() {
         "source_in": 0,
         "source_out": 30
     });
-    let clip = serde_json::from_value::<TimelineClip>(legacy).unwrap();
+    let clip = serde_json::from_value::<Clip>(legacy).unwrap();
 
     assert_eq!(clip.id, ulid(10));
     assert_eq!(clip.track_id, ulid(1));
@@ -476,7 +477,7 @@ fn clip_properties_round_trip_through_timeline_json() {
         muted: true,
     };
     let value = serde_json::to_value(&clip).unwrap();
-    let restored = serde_json::from_value::<TimelineClip>(value).unwrap();
+    let restored = serde_json::from_value::<Clip>(value).unwrap();
 
     assert_eq!(restored.video_properties, clip.video_properties);
     assert_eq!(restored.audio_properties, clip.audio_properties);

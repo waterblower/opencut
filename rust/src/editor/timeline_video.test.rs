@@ -2,7 +2,8 @@ use super::*;
 use crate::editor::ulid;
 use crate::editor::{
     model::{MediaAsset, MediaKind},
-    timeline::{AudioClipProperties, FrameRate, TimelineClip, TimelineTime, VideoClipProperties},
+    timeline::{FrameRate, TimelineTime},
+    timeline_clip::{AudioClipProperties, Clip, VideoClipProperties},
 };
 use std::{path::Path, time::Duration};
 
@@ -25,7 +26,7 @@ fn headless_test_pipeline() -> (gst::Pipeline, gst_app::AppSink, gst_audio::Stre
         codec: "h264".into(),
         has_audio: true,
     });
-    project.clips.push(TimelineClip {
+    project.clips.push(Clip {
         id: ulid(11),
         track_id: ulid(1),
         asset_id: ulid(10),
@@ -35,7 +36,7 @@ fn headless_test_pipeline() -> (gst::Pipeline, gst_app::AppSink, gst_audio::Stre
         video_properties: VideoClipProperties::default(),
         audio_properties: AudioClipProperties::default(),
     });
-    project.clips.push(TimelineClip {
+    project.clips.push(Clip {
         id: ulid(12),
         track_id: ulid(1),
         asset_id: ulid(10),

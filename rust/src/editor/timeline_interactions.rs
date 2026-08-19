@@ -525,7 +525,7 @@ impl Editor {
         let anchor_duration = timeline
             .data
             .clip(anchor_clip_id)
-            .map(TimelineClip::duration)
+            .map(Clip::duration)
             .unwrap_or(TimelineTime::ZERO);
         let (snapped_start, snap_guide) = timeline.snap_clip_start_ignoring(
             raw_anchor_start,

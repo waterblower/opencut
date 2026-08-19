@@ -1,4 +1,5 @@
 use super::model::{MediaAsset, MediaKind, deserialize_ulid};
+use super::timeline_clip::Clip;
 use super::*;
 use gpui::point;
 use serde::{Deserialize, Serialize};
@@ -48,96 +49,6 @@ pub(super) enum TrackKind {
     Audio,
 }
 
-/// Static visual adjustments for one timeline clip.
-///
-/// Position is an offset in timeline pixels from the clip's centered placement. Scale is a
-/// normalized multiplier, so `1.0` means 100%.
-#[derive(Clone, Copy, Debug, Deserialize, PartialEq, Serialize)]
-#[serde(default)]
-pub(super) struct VideoClipProperties {
-    pub position_x: f64,
-    pub position_y: f64,
-    pub scale: f64,
-}
-
-impl Default for VideoClipProperties {
-    fn default() -> Self {
-        Self {
-            position_x: 0.0,
-            position_y: 0.0,
-            scale: 1.0,
-        }
-    }
-}
-
-/// Static audio adjustments for one timeline clip.
-///
-/// `0 dB` is unity gain and pan ranges from `-1.0` (left) to `1.0` (right).
-#[derive(Clone, Copy, Debug, Deserialize, PartialEq, Serialize)]
-#[serde(default)]
-pub(super) struct AudioClipProperties {
-    pub gain_db: f64,
-    pub muted: bool,
-}
-
-impl Default for AudioClipProperties {
-    fn default() -> Self {
-        Self {
-            gain_db: 0.0,
-            muted: false,
-        }
-    }
-}
-
-#[derive(Clone, Debug, Deserialize, Serialize)]
-pub(super) struct TimelineClip {
-    #[serde(deserialize_with = "deserialize_ulid")]
-    pub id: Ulid,
-    #[serde(deserialize_with = "deserialize_ulid")]
-    pub track_id: Ulid,
-    #[serde(default = "Ulid::nil", deserialize_with = "deserialize_ulid")]
-    pub asset_id: Ulid,
-    pub timeline_start: TimelineTime,
-    pub source_in: TimelineTime,
-    pub source_out: TimelineTime,
-    #[serde(default)]
-    pub video_properties: VideoClipProperties,
-    #[serde(default)]
-    pub audio_properties: AudioClipProperties,
-}
-
-impl TimelineClip {
-    pub fn duration(&self) -> TimelineTime {
-        (self.source_out - self.source_in).max(TimelineTime::ZERO)
-    }
-
-    pub fn timeline_end(&self) -> TimelineTime {
-        self.timeline_start + self.duration()
-    }
-
-    pub fn source_time_at(&self, timeline_position: TimelineTime) -> TimelineTime {
-        let local =
-            (timeline_position - self.timeline_start).clamp(TimelineTime::ZERO, self.duration());
-        (self.source_in + local).min(self.source_out)
-    }
-
-    pub fn split_at(&self, timeline_position: TimelineTime) -> Option<(Self, Self)> {
-        let local = timeline_position - self.timeline_start;
-        if local < TimelineTime::ONE_FRAME || local > self.duration() - TimelineTime::ONE_FRAME {
-            return None;
-        }
-
-        let source_split = self.source_time_at(timeline_position);
-        let mut left = self.clone();
-        left.source_out = source_split;
-        let mut right = self.clone();
-        right.id = Ulid::generate();
-        right.timeline_start = timeline_position;
-        right.source_in = source_split;
-        Some((left, right))
-    }
-}
-
 pub fn timeline_ranges_overlap(
     left_start: TimelineTime,
     left_end: TimelineTime,
@@ -148,7 +59,7 @@ pub fn timeline_ranges_overlap(
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
-pub(super) struct TimelineTrack {
+pub(super) struct Track {
     #[serde(deserialize_with = "deserialize_ulid")]
     pub id: Ulid,
     pub name: String,
@@ -174,8 +85,8 @@ fn divide_round(numerator: u128, denominator: u128) -> u128 {
 pub(super) struct TimelineSerialization {
     pub settings: TimelineSettings,
     pub assets: Vec<MediaAsset>,
-    pub tracks: Vec<TimelineTrack>,
-    pub clips: Vec<TimelineClip>,
+    pub tracks: Vec<Track>,
+    pub clips: Vec<Clip>,
     pub view: TimelineViewState,
 }
 
@@ -265,11 +176,11 @@ impl TimelineSerialization {
             .find(|asset| asset.path.as_path() == path)
     }
 
-    pub fn clip(&self, id: Ulid) -> Option<&TimelineClip> {
+    pub fn clip(&self, id: Ulid) -> Option<&Clip> {
         self.clips.iter().find(|clip| clip.id == id)
     }
 
-    pub fn clip_mut(&mut self, id: Ulid) -> Option<&mut TimelineClip> {
+    pub fn clip_mut(&mut self, id: Ulid) -> Option<&mut Clip> {
         self.clips.iter_mut().find(|clip| clip.id == id)
     }
 
@@ -310,14 +221,14 @@ impl TimelineSerialization {
         for (index, (clip_id, track_id, start)) in placements.iter().enumerate() {
             let duration = self
                 .clip(*clip_id)
-                .map(TimelineClip::duration)
+                .map(Clip::duration)
                 .ok_or(ClipPlacementRejection::MissingClip)?;
             if placements[index + 1..]
                 .iter()
                 .any(|(other_id, other_track_id, other_start)| {
                     let other_duration = self
                         .clip(*other_id)
-                        .map(TimelineClip::duration)
+                        .map(Clip::duration)
                         .unwrap_or(TimelineTime::ZERO);
                     track_id == other_track_id
                         && timeline_ranges_overlap(
@@ -334,15 +245,15 @@ impl TimelineSerialization {
         Ok(())
     }
 
-    pub fn track(&self, id: Ulid) -> Option<&TimelineTrack> {
+    pub fn track(&self, id: Ulid) -> Option<&Track> {
         self.tracks.iter().find(|track| track.id == id)
     }
 
-    pub fn track_mut(&mut self, id: Ulid) -> Option<&mut TimelineTrack> {
+    pub fn track_mut(&mut self, id: Ulid) -> Option<&mut Track> {
         self.tracks.iter_mut().find(|track| track.id == id)
     }
 
-    pub fn clips_on_track(&self, track_id: Ulid) -> impl Iterator<Item = &TimelineClip> {
+    pub fn clips_on_track(&self, track_id: Ulid) -> impl Iterator<Item = &Clip> {
         self.clips
             .iter()
             .filter(move |clip| clip.track_id == track_id)
@@ -351,7 +262,7 @@ impl TimelineSerialization {
     pub fn content_duration(&self) -> TimelineTime {
         self.clips
             .iter()
-            .map(TimelineClip::timeline_end)
+            .map(Clip::timeline_end)
             .max()
             .unwrap_or(TimelineTime::ZERO)
     }
@@ -377,11 +288,7 @@ impl TimelineSerialization {
     }
 
     /// Maps a timeline position within a clip to the source frame covering that instant.
-    pub fn source_frame_at(
-        &self,
-        clip: &TimelineClip,
-        timeline_position: TimelineTime,
-    ) -> Option<i64> {
+    pub fn source_frame_at(&self, clip: &Clip, timeline_position: TimelineTime) -> Option<i64> {
         let asset = self.asset(clip.asset_id)?;
         let source_rate = asset.frame_rate()?;
         let source_time = clip.source_time_at(timeline_position);
@@ -394,11 +301,7 @@ impl TimelineSerialization {
     }
 
     /// Returns an exact source-frame timestamp for video and a timeline-clock timestamp otherwise.
-    pub fn source_position_at(
-        &self,
-        clip: &TimelineClip,
-        timeline_position: TimelineTime,
-    ) -> Duration {
+    pub fn source_position_at(&self, clip: &Clip, timeline_position: TimelineTime) -> Duration {
         let Some(asset) = self.asset(clip.asset_id) else {
             return Duration::ZERO;
         };
@@ -411,7 +314,7 @@ impl TimelineSerialization {
         self.audio_duration(clip.source_time_at(timeline_position))
     }
 
-    pub fn source_start_seconds(&self, clip: &TimelineClip) -> f64 {
+    pub fn source_start_seconds(&self, clip: &Clip) -> f64 {
         self.source_position_at(clip, clip.timeline_start)
             .as_secs_f64()
     }

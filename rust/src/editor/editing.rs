@@ -5,7 +5,7 @@ use std::path::Path;
 pub(super) struct ClipClipboard {
     source_timeline: PathBuf,
     source_frame_rate: FrameRate,
-    clips: Vec<TimelineClip>,
+    clips: Vec<Clip>,
     assets: Vec<MediaAsset>,
     tracks: Vec<(Ulid, TrackKind, usize)>,
     selection_start: TimelineTime,
@@ -79,7 +79,7 @@ impl ClipClipboard {
         })
     }
 
-    fn clips_at(&self, position: TimelineTime, frame_rate: FrameRate) -> Vec<TimelineClip> {
+    fn clips_at(&self, position: TimelineTime, frame_rate: FrameRate) -> Vec<Clip> {
         self.clips
             .iter()
             .cloned()
@@ -106,7 +106,7 @@ impl ClipClipboard {
         destination_path: &std::path::Path,
         destination: &TimelineSerialization,
         position: TimelineTime,
-    ) -> Result<(Vec<TimelineClip>, Vec<MediaAsset>), ClipPlacementRejection> {
+    ) -> Result<(Vec<Clip>, Vec<MediaAsset>), ClipPlacementRejection> {
         let mut clips = self.clips_at(position, destination.settings.frame_rate);
         let same_timeline = self.source_timeline == destination_path;
 
@@ -359,7 +359,7 @@ impl Editor {
             .unwrap_or(TimelineTime::ZERO);
         let selection_end = clips
             .iter()
-            .map(TimelineClip::timeline_end)
+            .map(Clip::timeline_end)
             .max()
             .unwrap_or(selection_start);
         let mut delta = selection_end - selection_start;
@@ -443,7 +443,7 @@ impl Editor {
         };
         timeline.record_editing_history();
         self.preview.timeline_needs_rebuild = true;
-        timeline.data.tracks.push(TimelineTrack {
+        timeline.data.tracks.push(Track {
             id,
             name: format!("{prefix} {number}"),
             kind,
@@ -735,7 +735,7 @@ fn unlocked_clip_ids(timeline: &TimelineSerialization) -> HashSet<Ulid> {
         .collect()
 }
 
-fn ripple_clips_after_deletion(clips: &mut [TimelineClip], deleted_ids: &HashSet<Ulid>) {
+fn ripple_clips_after_deletion(clips: &mut [Clip], deleted_ids: &HashSet<Ulid>) {
     let deleted = clips
         .iter()
         .filter(|clip| deleted_ids.contains(&clip.id))
@@ -760,7 +760,7 @@ fn ripple_clips_after_deletion(clips: &mut [TimelineClip], deleted_ids: &HashSet
 
 fn validate_clipboard_placements(
     timeline: &TimelineSerialization,
-    clips: &[TimelineClip],
+    clips: &[Clip],
 ) -> Result<(), ClipPlacementRejection> {
     if clips.is_empty() {
         return Err(ClipPlacementRejection::NoPlacements);

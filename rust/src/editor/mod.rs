@@ -32,6 +32,7 @@ mod properties;
 mod properties_transform;
 mod settings;
 mod timeline;
+mod timeline_clip;
 mod timeline_clip_menu;
 mod timeline_document;
 mod timeline_interactions;
@@ -58,10 +59,10 @@ use preview_timeline::TimelinePreviewDrag;
 use properties::{PropertiesPanelResizeDrag, properties_panel};
 use properties_transform::VideoTransformInputs;
 use timeline::{
-    AudioClipProperties, FRAME_RATE_PRESETS, FrameRate, TimelineClip, TimelineRuntimeState,
-    TimelineSerialization, TimelineTime, TimelineTrack, TrackKind, VideoClipProperties,
-    timeline_ranges_overlap,
+    FRAME_RATE_PRESETS, FrameRate, TimelineRuntimeState, TimelineSerialization, TimelineTime,
+    Track, TrackKind, timeline_ranges_overlap,
 };
+use timeline_clip::{AudioClipProperties, Clip, VideoClipProperties};
 use timeline_clip_menu::TimelineClipContextMenu;
 use timeline_document::{load_existing, project_timeline_files};
 use timeline_interactions::{MarqueeSelection, TimelineInteractionState, TimelineTool};
