@@ -111,7 +111,7 @@ impl Editor {
             .flex_1()
             .min_h_0()
             .overflow_y_scroll()
-            .track_scroll(&timeline.vertical_scroll)
+            .track_scroll(&timeline.v_scroll)
             .on_mouse_down(
                 MouseButton::Left,
                 cx.listener(|editor, event: &MouseDownEvent, window, cx| {
@@ -151,7 +151,7 @@ impl Editor {
                             .flex_1()
                             .h_full()
                             .overflow_x_scroll()
-                            .track_scroll(&timeline.scroll)
+                            .track_scroll(&timeline.h_scroll)
                             .cursor(match timeline.interaction.active_tool {
                                 TimelineTool::Blade => CursorStyle::Crosshair,
                                 TimelineTool::Selection => CursorStyle::Arrow,
@@ -284,9 +284,9 @@ impl Editor {
         let displayed_frames = frame_rate.ceil(duration).frames().max(1);
         let pixels_per_frame = timeline.data.view.pixels_per_second / frames_per_second as f32;
         let frame_step = frame_tick_step(pixels_per_frame);
-        let scroll_left = (-f32::from(timeline.scroll.offset().x)).max(0.0);
+        let scroll_left = (-f32::from(timeline.h_scroll.offset().x)).max(0.0);
         let viewport_width = {
-            let width = f32::from(timeline.scroll.bounds().size.width);
+            let width = f32::from(timeline.h_scroll.bounds().size.width);
             if width > 0.0 { width } else { 1_200.0 }
         };
         let visible_start = ((scroll_left - FRAME_TICK_OVERSCAN - TIMELINE_PADDING).max(0.0)

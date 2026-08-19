@@ -47,8 +47,8 @@ pub(super) struct TimelineRuntimeState {
     pub(super) path: PathBuf,
     pub(super) data: TimelineSerialization,
     pub(super) playhead: TimelineTime,
-    pub(super) scroll: ScrollHandle,
-    pub(super) vertical_scroll: ScrollHandle,
+    pub(super) h_scroll: ScrollHandle,
+    pub(super) v_scroll: ScrollHandle,
     pub(super) interaction: TimelineInteractionState,
     pub(super) undo_stack: Vec<TimelineSerialization>,
     pub(super) redo_stack: Vec<TimelineSerialization>,
@@ -389,8 +389,8 @@ impl TimelineRuntimeState {
                 last_scrub_seek: None,
                 context_menu: None,
             },
-            scroll,
-            vertical_scroll,
+            h_scroll: scroll,
+            v_scroll: vertical_scroll,
             undo_stack: Vec::new(),
             redo_stack: Vec::new(),
         }
@@ -407,9 +407,8 @@ impl TimelineRuntimeState {
     }
 
     pub(super) fn capture_scroll(&mut self) {
-        self.data.view.horizontal_scroll = finite_nonnegative(-f32::from(self.scroll.offset().x));
-        self.data.view.vertical_scroll =
-            finite_nonnegative(-f32::from(self.vertical_scroll.offset().y));
+        self.data.view.horizontal_scroll = finite_nonnegative(-f32::from(self.h_scroll.offset().x));
+        self.data.view.vertical_scroll = finite_nonnegative(-f32::from(self.v_scroll.offset().y));
     }
 
     pub(super) fn record_editing_history(&mut self) {

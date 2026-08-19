@@ -82,8 +82,8 @@ impl TimelineRuntimeState {
         let right = selection.start_x.max(selection.current_x);
         let top = selection.start_y.min(selection.current_y);
         let bottom = selection.start_y.max(selection.current_y);
-        let scroll_x = f32::from(self.scroll.offset().x);
-        let scroll_y = f32::from(self.vertical_scroll.offset().y);
+        let scroll_x = f32::from(self.h_scroll.offset().x);
+        let scroll_y = f32::from(self.v_scroll.offset().y);
 
         let mut selected = selection.initial_selection.clone();
         for (track_index, track) in self.data.tracks.iter().enumerate() {
@@ -176,7 +176,7 @@ impl TimelineRuntimeState {
             MAX_TIMELINE_PIXELS_PER_SECOND,
         );
         if pixels_per_second != previous_pixels_per_second {
-            let mut scroll_offset = self.scroll.offset();
+            let mut scroll_offset = self.h_scroll.offset();
             let playhead_seconds = self.data.seconds(self.playhead);
             scroll_offset.x = px(zoom_scroll_offset(
                 f32::from(scroll_offset.x),
@@ -184,13 +184,13 @@ impl TimelineRuntimeState {
                 previous_pixels_per_second,
                 pixels_per_second,
             ));
-            self.scroll.set_offset(scroll_offset);
+            self.h_scroll.set_offset(scroll_offset);
             self.data.view.pixels_per_second = pixels_per_second;
         }
     }
 
     pub(super) fn timeline_position_from_x(&self, x: f32) -> TimelineTime {
-        let scroll_x: f32 = self.scroll.offset().x.into();
+        let scroll_x: f32 = self.h_scroll.offset().x.into();
         let content_x = x - TRACK_HEADER_WIDTH - scroll_x - TIMELINE_PADDING;
         self.data
             .nearest_time(content_x as f64 / self.data.view.pixels_per_second as f64)
@@ -535,7 +535,7 @@ impl Editor {
         let timeline_delta = snapped_start - original_anchor_start;
         let viewport_height = f32::from(window.viewport_size().height);
         let track_top = viewport_height - TIMELINE_HEIGHT + TIMELINE_HEADER_HEIGHT + RULER_HEIGHT;
-        let scroll_y: f32 = timeline.vertical_scroll.offset().y.into();
+        let scroll_y: f32 = timeline.v_scroll.offset().y.into();
         let track_index =
             ((f32::from(event.position.y) - track_top - scroll_y) / TRACK_HEIGHT).floor() as isize;
         let requested_track_delta = usize::try_from(track_index)
