@@ -2,7 +2,7 @@ use super::*;
 
 #[test]
 fn validates_one_clip_placement() {
-    let mut timeline = Timeline::with_test_tracks();
+    let mut timeline = TimelineSerialization::with_test_tracks();
 
     assert_eq!(
         validate_clip_placement(

@@ -69,7 +69,7 @@ fn explorer_drop_preview(
 }
 
 fn timeline_clip_move_preview(
-    timeline: &Timeline,
+    timeline: &TimelineSerialization,
     clip_id: Ulid,
     start: TimelineTime,
     invalid_reason: Option<&'static str>,

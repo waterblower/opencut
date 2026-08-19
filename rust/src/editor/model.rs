@@ -23,11 +23,13 @@ where
 }
 
 #[derive(Clone, Copy, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
-#[serde(rename_all = "snake_case")]
 pub(super) enum MediaKind {
     #[default]
+    #[serde(alias = "video")]
     Video,
+    #[serde(alias = "image")]
     Image,
+    #[serde(alias = "audio")]
     Audio,
 }
 

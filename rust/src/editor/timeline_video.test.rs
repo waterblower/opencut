@@ -9,7 +9,7 @@ use std::{path::Path, time::Duration};
 fn headless_test_pipeline() -> (gst::Pipeline, gst_app::AppSink, gst_audio::StreamVolume) {
     ges::init().unwrap();
     let project_root = Path::new(env!("CARGO_MANIFEST_DIR"));
-    let mut project = Timeline::with_test_tracks();
+    let mut project = TimelineSerialization::with_test_tracks();
     project.settings.frame_rate = FrameRate::new(24, 1);
     project.assets.push(MediaAsset {
         id: ulid(10),

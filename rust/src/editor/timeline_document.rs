@@ -1,4 +1,4 @@
-use super::timeline::Timeline;
+use super::timeline::TimelineSerialization;
 use std::{
     fs,
     path::{Path, PathBuf},
@@ -63,7 +63,7 @@ fn collect_timeline_files(
 pub(super) fn load_existing(
     project_root: &Path,
     preferred: Option<&Path>,
-) -> Result<Option<(PathBuf, Timeline)>, String> {
+) -> Result<Option<(PathBuf, TimelineSerialization)>, String> {
     let timelines = timeline_files(project_root)?;
     let Some(relative_path) = preferred
         .filter(|path| {
@@ -78,7 +78,7 @@ pub(super) fn load_existing(
         return Ok(None);
     };
     let path = project_root.join(&relative_path);
-    Ok(Some((relative_path, Timeline::load(&path)?)))
+    Ok(Some((relative_path, TimelineSerialization::load(&path)?)))
 }
 
 /// Turns a user-entered name into a timeline filename, appending the extension the
@@ -121,7 +121,7 @@ pub(super) fn create(
     project_root: &Path,
     relative_directory: &Path,
     name: &str,
-) -> Result<(PathBuf, Timeline), String> {
+) -> Result<(PathBuf, TimelineSerialization), String> {
     let directory = project_root.join(relative_directory);
     if !directory.is_dir() {
         return Err(format!("{} is not a directory", directory.display()));
@@ -133,7 +133,7 @@ pub(super) fn create(
     if path.exists() {
         return Err(format!("{} already exists.", relative_path.display()));
     }
-    let timeline = Timeline::default();
+    let timeline = TimelineSerialization::default();
     timeline.save(&path)?;
     Ok((relative_path, timeline))
 }

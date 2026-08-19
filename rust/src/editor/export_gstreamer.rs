@@ -2,7 +2,7 @@ use super::{
     clip_render_plan::{resolve_audio_clip_render_plan, resolve_visual_clip_render_plan},
     export::{ExportEncoder, ExportOptions},
     model::{MediaAsset, MediaKind},
-    timeline::{Timeline, TimelineClip, TimelineTrack, TrackKind, VideoClipProperties},
+    timeline::{TimelineSerialization, TimelineClip, TimelineTrack, TrackKind, VideoClipProperties},
 };
 use ges::prelude::*;
 use gstreamer as gst;
@@ -25,7 +25,7 @@ impl ExportEncoder {
 }
 
 pub(super) fn export_timeline(
-    timeline: &Timeline,
+    timeline: &TimelineSerialization,
     project_root: &Path,
     output: &Path,
     options: ExportOptions,
@@ -66,7 +66,7 @@ pub(super) fn export_timeline(
 }
 
 fn export_timeline_with_encoder(
-    timeline_data: &Timeline,
+    timeline_data: &TimelineSerialization,
     project_root: &Path,
     temporary_output: &Path,
     options: ExportOptions,
@@ -106,7 +106,7 @@ fn export_timeline_with_encoder(
 }
 
 pub(super) fn build_timeline(
-    timeline_data: &Timeline,
+    timeline_data: &TimelineSerialization,
     project_root: &Path,
     options: ExportOptions,
 ) -> Result<ges::Timeline, String> {
@@ -202,7 +202,7 @@ pub(super) fn build_timeline(
 
 pub(super) fn apply_video_transform(
     clip: &ges::Clip,
-    timeline: &Timeline,
+    timeline: &TimelineSerialization,
     asset: &MediaAsset,
     options: ExportOptions,
     properties: VideoClipProperties,
@@ -253,7 +253,7 @@ fn exported_track_types(
 }
 
 fn source_in(
-    timeline: &Timeline,
+    timeline: &TimelineSerialization,
     clip: &TimelineClip,
     asset_kind: MediaKind,
     track_types: ges::TrackType,

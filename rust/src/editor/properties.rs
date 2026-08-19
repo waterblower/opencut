@@ -106,7 +106,7 @@ pub(super) fn properties_panel(editor: &Editor, cx: &mut Context<Editor>) -> gpu
 }
 
 fn timeline_properties(
-    timeline: &Timeline,
+    timeline: &TimelineSerialization,
     selected_clip_id: Option<Ulid>,
     selected_clip_ids: &HashSet<Ulid>,
     panel: &PropertiesPanelState,

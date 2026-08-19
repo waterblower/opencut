@@ -199,7 +199,7 @@ impl Editor {
     }
 }
 
-pub(super) fn update_playback(timeline: &mut TimelineState, preview: &mut PreviewState) {
+pub(super) fn update_playback(timeline: &mut TimelineRuntimeState, preview: &mut PreviewState) {
     let PreviewTarget::Timeline(video) = &preview.target else {
         preview.timeline_clock = None;
         return;

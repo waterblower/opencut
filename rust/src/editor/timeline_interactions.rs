@@ -49,7 +49,7 @@ pub(super) struct TimelineInteractionState {
     pub(super) context_menu: Option<TimelineClipContextMenu>,
 }
 
-impl TimelineState {
+impl TimelineRuntimeState {
     pub(super) fn selected_clips_editable(&self) -> bool {
         !self.interaction.selected_clip_ids.is_empty()
             && self.interaction.selected_clip_ids.iter().all(|clip_id| {

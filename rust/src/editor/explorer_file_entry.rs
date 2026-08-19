@@ -486,7 +486,7 @@ impl Editor {
 
 fn file_entry_metadata(
     entry: &FileTreeEntry,
-    active_timeline: Option<&TimelineState>,
+    active_timeline: Option<&TimelineRuntimeState>,
 ) -> Option<String> {
     match entry.kind {
         FileTreeEntryKind::Directory { .. } => None,

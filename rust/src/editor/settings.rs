@@ -3,7 +3,7 @@ use super::*;
 impl Editor {
     pub(super) fn settings_modal(
         &self,
-        timeline: &Timeline,
+        timeline: &TimelineSerialization,
         cx: &mut Context<Self>,
     ) -> gpui::AnyElement {
         let selected = timeline.settings.frame_rate;

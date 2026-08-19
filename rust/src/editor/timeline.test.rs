@@ -1,8 +1,32 @@
 use super::*;
 
 #[test]
+fn lowercase_media_and_track_kinds_deserialize() {
+    assert_eq!(
+        serde_json::from_str::<MediaKind>(r#""video""#).unwrap(),
+        MediaKind::Video
+    );
+    assert_eq!(
+        serde_json::from_str::<MediaKind>(r#""image""#).unwrap(),
+        MediaKind::Image
+    );
+    assert_eq!(
+        serde_json::from_str::<MediaKind>(r#""audio""#).unwrap(),
+        MediaKind::Audio
+    );
+    assert_eq!(
+        serde_json::from_str::<TrackKind>(r#""video""#).unwrap(),
+        TrackKind::Video
+    );
+    assert_eq!(
+        serde_json::from_str::<TrackKind>(r#""audio""#).unwrap(),
+        TrackKind::Audio
+    );
+}
+
+#[test]
 fn timeline_view_state_is_sanitized_when_the_timeline_is_normalized() {
-    let mut timeline = Timeline {
+    let mut timeline = TimelineSerialization {
         view: TimelineViewState {
             saved_playhead_frame: TimelineTime::from_frames(-10),
             horizontal_scroll: f32::NAN,
@@ -11,7 +35,7 @@ fn timeline_view_state_is_sanitized_when_the_timeline_is_normalized() {
             snapping_enabled: false,
             track_magnet_enabled: false,
         },
-        ..Timeline::default()
+        ..TimelineSerialization::default()
     };
 
     timeline.normalize();
@@ -29,7 +53,7 @@ fn timeline_view_state_is_sanitized_when_the_timeline_is_normalized() {
 
 #[test]
 fn timeline_view_defaults_enable_snap_and_magnet() {
-    let timeline: Timeline = serde_json::from_str(
+    let timeline: TimelineSerialization = serde_json::from_str(
         r#"{
             "settings": {
                 "frame_rate": { "numerator": 30, "denominator": 1 },
@@ -59,7 +83,7 @@ fn timeline_view_defaults_enable_snap_and_magnet() {
 
 #[test]
 fn missing_timeline_view_fields_use_defaults() {
-    let timeline: Timeline = serde_json::from_str(
+    let timeline: TimelineSerialization = serde_json::from_str(
         r#"{
             "settings": {
                 "frame_rate": { "numerator": 30, "denominator": 1 },
@@ -80,17 +104,17 @@ fn missing_timeline_view_fields_use_defaults() {
 
 #[test]
 fn timeline_view_zoom_round_trips_through_timeline_json() {
-    let mut timeline = Timeline::default();
+    let mut timeline = TimelineSerialization::default();
     timeline.view.pixels_per_second = 144.0;
 
     let json = serde_json::to_string(&timeline).unwrap();
-    let restored: Timeline = serde_json::from_str(&json).unwrap();
+    let restored: TimelineSerialization = serde_json::from_str(&json).unwrap();
 
     assert_eq!(restored.view.pixels_per_second, 144.0);
 }
 
 #[cfg(test)]
-impl Timeline {
+impl TimelineSerialization {
     pub fn with_test_tracks() -> Self {
         Self {
             tracks: vec![
@@ -169,7 +193,7 @@ fn image_asset() -> MediaAsset {
 
 #[test]
 fn new_timelines_have_no_tracks() {
-    assert!(Timeline::default().tracks.is_empty());
+    assert!(TimelineSerialization::default().tracks.is_empty());
 }
 
 #[test]
@@ -182,10 +206,10 @@ fn frame_rate_labels_use_presets_and_format_custom_rates() {
 
 #[test]
 fn repairs_overlapping_clips_when_loading_a_timeline() {
-    let mut project = Timeline {
+    let mut project = TimelineSerialization {
         assets: vec![video_asset()],
         clips: vec![video_clip(10, 0, 150), video_clip(11, 90, 120)],
-        ..Timeline::with_test_tracks()
+        ..TimelineSerialization::with_test_tracks()
     };
 
     project.normalize();
@@ -196,10 +220,10 @@ fn repairs_overlapping_clips_when_loading_a_timeline() {
 
 #[test]
 fn still_image_clips_can_extend_beyond_their_default_duration() {
-    let mut project = Timeline {
+    let mut project = TimelineSerialization {
         assets: vec![image_asset()],
         clips: vec![video_clip(10, 0, 300)],
-        ..Timeline::with_test_tracks()
+        ..TimelineSerialization::with_test_tracks()
     };
 
     project.normalize();
@@ -210,10 +234,10 @@ fn still_image_clips_can_extend_beyond_their_default_duration() {
 
 #[test]
 fn time_based_media_remains_bounded_by_its_source_duration() {
-    let mut project = Timeline {
+    let mut project = TimelineSerialization {
         assets: vec![video_asset()],
         clips: vec![video_clip(10, 0, 1_200)],
-        ..Timeline::with_test_tracks()
+        ..TimelineSerialization::with_test_tracks()
     };
 
     project.normalize();
@@ -276,7 +300,7 @@ fn long_timeline_duration_uses_exact_frame_counts() {
 
 #[test]
 fn preview_and_export_boundaries_share_the_same_frame_time() {
-    let project = Timeline {
+    let project = TimelineSerialization {
         settings: TimelineSettings {
             frame_rate: FrameRate {
                 numerator: 24_000,
@@ -284,7 +308,7 @@ fn preview_and_export_boundaries_share_the_same_frame_time() {
             },
             ..TimelineSettings::default()
         },
-        ..Timeline::default()
+        ..TimelineSerialization::default()
     };
     let boundary = frames(98_765);
     let preview_duration = project.duration(boundary).as_secs_f64();
@@ -303,14 +327,14 @@ fn timeline_frames_map_to_exact_audio_samples() {
 
 #[test]
 fn maps_30_fps_source_frames_onto_a_24_fps_timeline() {
-    let project = Timeline {
+    let project = TimelineSerialization {
         settings: TimelineSettings {
             frame_rate: FrameRate::new(24, 1),
             ..TimelineSettings::default()
         },
         assets: vec![video_asset()],
         clips: vec![video_clip(10, 0, 24)],
-        ..Timeline::default()
+        ..TimelineSerialization::default()
     };
     let clip = &project.clips[0];
     let mapped = (0..=8)
@@ -322,10 +346,10 @@ fn maps_30_fps_source_frames_onto_a_24_fps_timeline() {
 
 #[test]
 fn changing_timeline_rate_preserves_elapsed_edit_times() {
-    let mut project = Timeline {
+    let mut project = TimelineSerialization {
         assets: vec![video_asset()],
         clips: vec![video_clip(10, 30, 300)],
-        ..Timeline::with_test_tracks()
+        ..TimelineSerialization::with_test_tracks()
     };
 
     project.set_frame_rate(FrameRate::new(24, 1));
@@ -384,10 +408,10 @@ fn splitting_clip_rejects_its_outer_frames() {
 
 #[test]
 fn timeline_serialization_stores_integer_frames_and_rational_rate() {
-    let project = Timeline {
+    let project = TimelineSerialization {
         assets: vec![video_asset()],
         clips: vec![video_clip(10, 17, 83)],
-        ..Timeline::default()
+        ..TimelineSerialization::default()
     };
     let json = serde_json::to_value(project).unwrap();
     assert!(json.get("version").is_none());

@@ -15,7 +15,7 @@ pub(super) struct ClipClipboard {
 impl ClipClipboard {
     fn from_selection(
         source_timeline: PathBuf,
-        timeline: &Timeline,
+        timeline: &TimelineSerialization,
         selected_clip_ids: &HashSet<Ulid>,
         primary_clip_id: Option<Ulid>,
     ) -> Option<Self> {
@@ -104,7 +104,7 @@ impl ClipClipboard {
     fn prepare_paste(
         &self,
         destination_path: &std::path::Path,
-        destination: &Timeline,
+        destination: &TimelineSerialization,
         position: TimelineTime,
     ) -> Result<(Vec<TimelineClip>, Vec<MediaAsset>), ClipPlacementRejection> {
         let mut clips = self.clips_at(position, destination.settings.frame_rate);
@@ -185,7 +185,7 @@ impl ClipClipboard {
     }
 }
 
-impl TimelineState {
+impl TimelineRuntimeState {
     pub(super) fn blade_at_playhead(&mut self, project_root: &Path) {
         let Some(updated_timeline) = blade_at_playhead(&self.data, self.playhead) else {
             return;
@@ -722,7 +722,7 @@ impl Editor {
     }
 }
 
-fn unlocked_clip_ids(timeline: &Timeline) -> HashSet<Ulid> {
+fn unlocked_clip_ids(timeline: &TimelineSerialization) -> HashSet<Ulid> {
     timeline
         .clips
         .iter()
@@ -759,7 +759,7 @@ fn ripple_clips_after_deletion(clips: &mut [TimelineClip], deleted_ids: &HashSet
 }
 
 fn validate_clipboard_placements(
-    timeline: &Timeline,
+    timeline: &TimelineSerialization,
     clips: &[TimelineClip],
 ) -> Result<(), ClipPlacementRejection> {
     if clips.is_empty() {
@@ -798,7 +798,10 @@ fn plural_suffix(count: usize) -> &'static str {
     if count == 1 { "" } else { "s" }
 }
 
-fn blade_at_playhead(timeline: &Timeline, playhead: TimelineTime) -> Option<Timeline> {
+fn blade_at_playhead(
+    timeline: &TimelineSerialization,
+    playhead: TimelineTime,
+) -> Option<TimelineSerialization> {
     let clips_at_playhead = timeline
         .clips
         .iter()
