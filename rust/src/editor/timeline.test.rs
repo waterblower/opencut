@@ -142,18 +142,14 @@ impl TimelineSerialization {
     }
 }
 
-fn frames(value: i64) -> TimelineTime {
-    TimelineTime::from_frames(value)
-}
-
 fn video_clip(id: u64, start: i64, duration: i64) -> Clip {
     Clip {
         id: ulid(id),
         track_id: ulid(1),
         asset_id: ulid(100),
-        timeline_start: frames(start),
+        timeline_start: TimelineTime::from_frames(start),
         source_in: TimelineTime::ZERO,
-        source_out: frames(duration),
+        source_out: TimelineTime::from_frames(duration),
         video_properties: VideoClipProperties::default(),
         audio_properties: AudioClipProperties::default(),
     }
@@ -216,8 +212,14 @@ fn repairs_overlapping_clips_when_loading_a_timeline() {
 
     project.normalize();
 
-    assert_eq!(project.clips[0].timeline_start, frames(0));
-    assert_eq!(project.clips[1].timeline_start, frames(150));
+    assert_eq!(
+        project.clips[0].timeline_start,
+        TimelineTime::from_frames(0)
+    );
+    assert_eq!(
+        project.clips[1].timeline_start,
+        TimelineTime::from_frames(150)
+    );
 }
 
 #[test]
@@ -230,7 +232,7 @@ fn still_image_clips_can_extend_beyond_their_default_duration() {
 
     project.normalize();
 
-    assert_eq!(project.clips[0].duration(), frames(300));
+    assert_eq!(project.clips[0].duration(), TimelineTime::from_frames(300));
     assert_eq!(project.seconds(project.clips[0].duration()), 10.0);
 }
 
@@ -244,7 +246,7 @@ fn time_based_media_remains_bounded_by_its_source_duration() {
 
     project.normalize();
 
-    assert_eq!(project.clips[0].duration(), frames(900));
+    assert_eq!(project.clips[0].duration(), TimelineTime::from_frames(900));
 }
 
 #[test]
@@ -263,7 +265,7 @@ fn fractional_frame_rates_round_trip_without_drift() {
             denominator: 1_001,
         },
     ] {
-        let original = frames(1_000_003);
+        let original = TimelineTime::from_frames(1_000_003);
         let seconds = frame_rate.seconds(original);
         assert_eq!(frame_rate.nearest(seconds), original);
     }
@@ -280,7 +282,7 @@ fn frame_boundaries_round_trip_through_duration() {
         FrameRate::new(60_000, 1_001),
     ] {
         for frame in 0..10_000 {
-            let time = frames(frame);
+            let time = TimelineTime::from_frames(frame);
             assert_eq!(
                 frame_rate.frames_from_duration_nearest(frame_rate.duration(time)),
                 time,
@@ -303,7 +305,7 @@ fn durations_convert_to_the_nearest_frame() {
     ] {
         assert_eq!(
             frame_rate.frames_from_duration_nearest(Duration::from_nanos(nanoseconds)),
-            frames(expected_frame),
+            TimelineTime::from_frames(expected_frame),
         );
     }
 }
@@ -314,7 +316,7 @@ fn repeated_frame_splits_preserve_the_total_duration() {
     let original_duration = remaining.duration();
     let mut pieces = Vec::new();
     for split in [1, 17, 301, 999, 2_048] {
-        let position = remaining.timeline_start + frames(split);
+        let position = remaining.timeline_start + TimelineTime::from_frames(split);
         let (left, right) = remaining.split_at(position).unwrap();
         pieces.push(left.duration());
         remaining = right;
@@ -351,7 +353,7 @@ fn preview_and_export_boundaries_share_the_same_frame_time() {
         },
         ..TimelineSerialization::default()
     };
-    let boundary = frames(98_765);
+    let boundary = TimelineTime::from_frames(98_765);
     let preview_duration = project.duration(boundary).as_secs_f64();
     let export_seconds = project.seconds(boundary);
     assert!((preview_duration - export_seconds).abs() <= 1.0e-9);
@@ -363,7 +365,10 @@ fn timeline_frames_map_to_exact_audio_samples() {
         numerator: 30_000,
         denominator: 1_001,
     };
-    assert_eq!(frame_rate.audio_samples(frames(30_000), 48_000), 48_048_000);
+    assert_eq!(
+        frame_rate.audio_samples(TimelineTime::from_frames(30_000), 48_000),
+        48_048_000
+    );
 }
 
 #[test]
@@ -379,7 +384,11 @@ fn maps_30_fps_source_frames_onto_a_24_fps_timeline() {
     };
     let clip = &project.clips[0];
     let mapped = (0..=8)
-        .map(|frame| project.source_frame_at(clip, frames(frame)).unwrap())
+        .map(|frame| {
+            project
+                .source_frame_at(clip, TimelineTime::from_frames(frame))
+                .unwrap()
+        })
         .collect::<Vec<_>>();
 
     assert_eq!(mapped, vec![0, 1, 2, 3, 5, 6, 7, 8, 10]);
@@ -395,42 +404,60 @@ fn changing_timeline_rate_preserves_elapsed_edit_times() {
 
     project.set_frame_rate(FrameRate::new(24, 1));
 
-    assert_eq!(project.clips[0].timeline_start, frames(24));
-    assert_eq!(project.clips[0].duration(), frames(240));
+    assert_eq!(
+        project.clips[0].timeline_start,
+        TimelineTime::from_frames(24)
+    );
+    assert_eq!(project.clips[0].duration(), TimelineTime::from_frames(240));
 }
 
 #[test]
 fn clip_source_time_clamps_to_its_source_range() {
     let mut clip = video_clip(10, 100, 60);
-    clip.source_in = frames(30);
-    clip.source_out = frames(90);
+    clip.source_in = TimelineTime::from_frames(30);
+    clip.source_out = TimelineTime::from_frames(90);
 
-    assert_eq!(clip.source_time_at(frames(50)), frames(30));
-    assert_eq!(clip.source_time_at(frames(100)), frames(30));
-    assert_eq!(clip.source_time_at(frames(125)), frames(55));
-    assert_eq!(clip.source_time_at(frames(160)), frames(90));
-    assert_eq!(clip.source_time_at(frames(200)), frames(90));
+    assert_eq!(
+        clip.source_time_at(TimelineTime::from_frames(50)),
+        TimelineTime::from_frames(30)
+    );
+    assert_eq!(
+        clip.source_time_at(TimelineTime::from_frames(100)),
+        TimelineTime::from_frames(30)
+    );
+    assert_eq!(
+        clip.source_time_at(TimelineTime::from_frames(125)),
+        TimelineTime::from_frames(55)
+    );
+    assert_eq!(
+        clip.source_time_at(TimelineTime::from_frames(160)),
+        TimelineTime::from_frames(90)
+    );
+    assert_eq!(
+        clip.source_time_at(TimelineTime::from_frames(200)),
+        TimelineTime::from_frames(90)
+    );
 }
 
 #[test]
 fn splitting_clip_preserves_ranges_and_properties() {
     let mut clip = video_clip(10, 100, 60);
-    clip.source_in = frames(30);
-    clip.source_out = frames(90);
+    clip.source_in = TimelineTime::from_frames(30);
+    clip.source_out = TimelineTime::from_frames(90);
     clip.video_properties.position_x = 42.0;
     clip.audio_properties.gain_db = -6.0;
     clip.audio_properties.muted = true;
 
-    let (left, right) = clip.split_at(frames(125)).unwrap();
+    let (left, right) = clip.split_at(TimelineTime::from_frames(125)).unwrap();
 
     assert_eq!(left.id, ulid(10));
-    assert_eq!(left.timeline_start, frames(100));
-    assert_eq!(left.source_in, frames(30));
-    assert_eq!(left.source_out, frames(55));
+    assert_eq!(left.timeline_start, TimelineTime::from_frames(100));
+    assert_eq!(left.source_in, TimelineTime::from_frames(30));
+    assert_eq!(left.source_out, TimelineTime::from_frames(55));
     assert_ne!(right.id, clip.id);
-    assert_eq!(right.timeline_start, frames(125));
-    assert_eq!(right.source_in, frames(55));
-    assert_eq!(right.source_out, frames(90));
+    assert_eq!(right.timeline_start, TimelineTime::from_frames(125));
+    assert_eq!(right.source_in, TimelineTime::from_frames(55));
+    assert_eq!(right.source_out, TimelineTime::from_frames(90));
     assert_eq!(left.video_properties, clip.video_properties);
     assert_eq!(right.video_properties, clip.video_properties);
     assert_eq!(left.audio_properties, clip.audio_properties);
@@ -441,10 +468,10 @@ fn splitting_clip_preserves_ranges_and_properties() {
 fn splitting_clip_rejects_its_outer_frames() {
     let clip = video_clip(10, 100, 60);
 
-    assert!(clip.split_at(frames(100)).is_none());
-    assert!(clip.split_at(frames(160)).is_none());
-    assert!(clip.split_at(frames(101)).is_some());
-    assert!(clip.split_at(frames(159)).is_some());
+    assert!(clip.split_at(TimelineTime::from_frames(100)).is_none());
+    assert!(clip.split_at(TimelineTime::from_frames(160)).is_none());
+    assert!(clip.split_at(TimelineTime::from_frames(101)).is_some());
+    assert!(clip.split_at(TimelineTime::from_frames(159)).is_some());
 }
 
 #[test]
