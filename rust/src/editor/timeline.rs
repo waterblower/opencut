@@ -525,12 +525,12 @@ impl FrameRate {
         Duration::from_nanos(nanos.min(u64::MAX as u128) as u64)
     }
 
-    pub fn floor_duration(self, duration: Duration) -> TimelineTime {
+    pub fn frames_from_duration_nearest(self, duration: Duration) -> TimelineTime {
         let numerator = duration
             .as_nanos()
             .saturating_mul(self.numerator.max(1) as u128);
         let denominator = (self.denominator.max(1) as u128).saturating_mul(1_000_000_000);
-        TimelineTime::from_frames((numerator / denominator).min(i64::MAX as u128) as i64)
+        TimelineTime::from_frames(divide_round(numerator, denominator).min(i64::MAX as u128) as i64)
     }
 
     pub fn audio_samples(self, time: TimelineTime, sample_rate: u32) -> u64 {

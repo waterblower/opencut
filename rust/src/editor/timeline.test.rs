@@ -270,6 +270,45 @@ fn fractional_frame_rates_round_trip_without_drift() {
 }
 
 #[test]
+fn frame_boundaries_round_trip_through_duration() {
+    for frame_rate in [
+        FrameRate::new(24, 1),
+        FrameRate::new(30, 1),
+        FrameRate::new(60, 1),
+        FrameRate::new(24_000, 1_001),
+        FrameRate::new(30_000, 1_001),
+        FrameRate::new(60_000, 1_001),
+    ] {
+        for frame in 0..10_000 {
+            let time = frames(frame);
+            assert_eq!(
+                frame_rate.frames_from_duration_nearest(frame_rate.duration(time)),
+                time,
+                "frame {frame} did not round-trip at {frame_rate:?}",
+            );
+        }
+    }
+}
+
+#[test]
+fn durations_convert_to_the_nearest_frame() {
+    let frame_rate = FrameRate::new(30, 1);
+    for (nanoseconds, expected_frame) in [
+        (0, 0),
+        (16_666_666, 0),
+        (16_666_667, 1),
+        (33_333_333, 1),
+        (49_999_999, 1),
+        (50_000_000, 2),
+    ] {
+        assert_eq!(
+            frame_rate.frames_from_duration_nearest(Duration::from_nanos(nanoseconds)),
+            frames(expected_frame),
+        );
+    }
+}
+
+#[test]
 fn repeated_frame_splits_preserve_the_total_duration() {
     let mut remaining = video_clip(10, 0, 10_000);
     let original_duration = remaining.duration();
@@ -295,7 +334,7 @@ fn long_timeline_duration_uses_exact_frame_counts() {
     let ten_hours = frame_rate.nearest(10.0 * 60.0 * 60.0);
     assert_eq!(frame_rate.nearest(frame_rate.seconds(ten_hours)), ten_hours);
     assert_eq!(
-        frame_rate.floor_duration(frame_rate.duration(ten_hours)),
+        frame_rate.frames_from_duration_nearest(frame_rate.duration(ten_hours)),
         ten_hours
     );
 }
