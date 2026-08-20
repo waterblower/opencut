@@ -131,7 +131,7 @@ impl Player {
             files: true,
             directories: false,
             multiple: false,
-            prompt: Some("Open MP4".into()),
+            prompt: Some("Open Video".into()),
         });
 
         cx.spawn(async move |player, cx| {
@@ -160,13 +160,15 @@ impl Player {
     }
 
     fn open_path(&mut self, path: PathBuf) {
-        let is_mp4 = path
+        let is_supported_video = path
             .extension()
             .and_then(|extension| extension.to_str())
-            .is_some_and(|extension| extension.eq_ignore_ascii_case("mp4"));
+            .is_some_and(|extension| {
+                extension.eq_ignore_ascii_case("mp4") || extension.eq_ignore_ascii_case("mov")
+            });
 
-        if !is_mp4 {
-            eprintln!("Please select an MP4 video.");
+        if !is_supported_video {
+            eprintln!("Please select an MP4 or MOV video.");
             return;
         }
 

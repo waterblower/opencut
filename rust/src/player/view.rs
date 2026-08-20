@@ -124,7 +124,7 @@ impl Render for Player {
                     div()
                         .text_sm()
                         .text_color(rgb(MUTED))
-                        .child("Open a local MP4 to begin playback."),
+                        .child("Open a local MP4 or MOV video to begin playback."),
                 )
                 .child(
                     div()
@@ -137,7 +137,7 @@ impl Render for Player {
                         .px_5()
                         .py_2()
                         .font_weight(gpui::FontWeight::SEMIBOLD)
-                        .child("Open MP4")
+                        .child("Open Video")
                         .on_click(cx.listener(|this, _, _, cx| this.open_picker(cx))),
                 )
                 .into_any_element()
@@ -356,7 +356,7 @@ impl Render for Player {
                                     .px_4()
                                     .py_2()
                                     .text_xs()
-                                    .child("OPEN MP4")
+                                    .child("OPEN VIDEO")
                                     .on_click(cx.listener(|this, _, _, cx| this.open_picker(cx))),
                             ),
                     )

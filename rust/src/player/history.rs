@@ -316,6 +316,11 @@ impl Player {
                     .and_then(Path::file_name)
                     .map(|name| name.to_string_lossy().into_owned())
                     .unwrap_or_else(|| "Local file".to_string());
+                let container = entry
+                    .path
+                    .extension()
+                    .map(|extension| extension.to_string_lossy().to_uppercase())
+                    .unwrap_or_else(|| "VIDEO".to_string());
 
                 div()
                     .id(("history-item", index))
@@ -364,7 +369,7 @@ impl Player {
                                     .font_family("monospace")
                                     .text_color(rgb(MUTED))
                                     .text_ellipsis()
-                                    .child(format!("MP4 · {location}")),
+                                    .child(format!("{container} · {location}")),
                             ),
                     )
                     .child(
@@ -450,7 +455,7 @@ impl Player {
                                 .p_3()
                                 .text_sm()
                                 .text_color(rgb(MUTED))
-                                .child("Opened MP4 files will appear here."),
+                                .child("Opened videos will appear here."),
                         )
                     })
                     .children(entries),
