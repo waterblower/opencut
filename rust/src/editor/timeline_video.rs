@@ -1,6 +1,6 @@
 use super::{
     clip_render_plan::resolve_visual_clip_render_plan, export::ExportOptions,
-    export_gstreamer::build_timeline, timeline::Timeline,
+    export_gstreamer::build_timeline, timeline::TimelineSerialization,
 };
 use crate::video::VideoBackend;
 use ges::prelude::*;
@@ -12,7 +12,7 @@ use std::path::Path;
 use ulid::Ulid;
 
 pub(super) fn create_timeline_video(
-    timeline: &Timeline,
+    timeline: &TimelineSerialization,
     project_root: &Path,
 ) -> Result<VideoBackend, String> {
     initialize_gstreamer()?;
@@ -24,7 +24,7 @@ pub(super) fn create_timeline_video(
 
 pub(super) fn update_timeline_video_position(
     video: &mut VideoBackend,
-    timeline_data: &Timeline,
+    timeline_data: &TimelineSerialization,
     clip_id: Ulid,
     refresh_frame: bool,
 ) -> Result<(), String> {
@@ -88,7 +88,7 @@ pub(super) fn update_timeline_video_position(
 }
 
 fn create_timeline_pipeline(
-    timeline: &Timeline,
+    timeline: &TimelineSerialization,
     project_root: &Path,
     audio_sink: &gst::Element,
 ) -> Result<(gst::Pipeline, gst_app::AppSink), String> {

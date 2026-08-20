@@ -1,4 +1,4 @@
-use super::{model::FrameRate, timeline::Timeline};
+use super::timeline::{FrameRate, TimelineSerialization};
 use std::path::Path;
 
 pub(super) const DEFAULT_VIDEO_BIT_RATE: usize = 8_000_000;
@@ -43,7 +43,7 @@ pub(super) struct ExportOptions {
 }
 
 impl ExportOptions {
-    pub fn from_timeline(timeline: &Timeline) -> Self {
+    pub fn from_timeline(timeline: &TimelineSerialization) -> Self {
         Self {
             width: timeline.settings.width,
             height: timeline.settings.height,
@@ -55,7 +55,7 @@ impl ExportOptions {
 }
 
 pub(super) fn export_timeline(
-    timeline: &Timeline,
+    timeline: &TimelineSerialization,
     project_root: &Path,
     output: &Path,
     options: ExportOptions,

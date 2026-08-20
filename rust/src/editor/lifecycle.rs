@@ -13,7 +13,7 @@ impl Editor {
                 None
             }
         };
-        let timeline = active_timeline.map(|(path, data)| TimelineState::new(path, data));
+        let timeline = active_timeline.map(|(path, data)| TimelineRuntimeState::new(path, data));
         let selected_file = timeline.as_ref().map(|timeline| timeline.path.clone());
         let focus_handle = cx.focus_handle();
         let explorer_filter = cx.new(|cx| ExplorerFilter::new(focus_handle.clone(), cx));
@@ -52,7 +52,6 @@ impl Editor {
                 target: PreviewTarget::None,
                 fullscreen: false,
                 timeline_needs_rebuild: true,
-                timeline_clock: None,
                 volume_control_open: false,
                 is_scrubbing: false,
                 is_adjusting_volume: false,

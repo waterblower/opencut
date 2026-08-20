@@ -34,6 +34,201 @@ pub(super) struct MarqueeSelection {
     pub(super) initial_selection: HashSet<Ulid>,
 }
 
+pub(super) struct TimelineInteractionState {
+    pub(super) active_tool: TimelineTool,
+    pub(super) snapping_enabled: bool,
+    pub(super) magnet_enabled: bool,
+    pub(super) selected_clip_id: Option<Ulid>,
+    pub(super) selected_clip_ids: HashSet<Ulid>,
+    pub(super) blade_guide: Option<TimelineTime>,
+    pub(super) snap_guide: Option<TimelineTime>,
+    pub(super) clip_move_drag: Option<ClipMoveDrag>,
+    pub(super) marquee_selection: Option<MarqueeSelection>,
+    pub(super) scrubbing_playhead: bool,
+    pub(super) last_scrub_seek: Option<Instant>,
+    pub(super) context_menu: Option<TimelineClipContextMenu>,
+}
+
+impl TimelineRuntimeState {
+    pub(super) fn selected_clips_editable(&self) -> bool {
+        !self.interaction.selected_clip_ids.is_empty()
+            && self.interaction.selected_clip_ids.iter().all(|clip_id| {
+                self.data.clip(*clip_id).is_some() && !self.data.clip_locked(*clip_id)
+            })
+    }
+
+    pub(super) fn selected_clip_ids_in_timeline_order(&self) -> Vec<Ulid> {
+        self.data
+            .clips
+            .iter()
+            .filter(|clip| self.interaction.selected_clip_ids.contains(&clip.id))
+            .map(|clip| clip.id)
+            .collect()
+    }
+
+    pub(super) fn activate_timeline_tool(&mut self, tool: TimelineTool) {
+        self.interaction.active_tool = tool;
+        self.interaction.blade_guide = None;
+        self.interaction.clip_move_drag = None;
+        self.interaction.marquee_selection = None;
+        self.interaction.snap_guide = None;
+    }
+
+    pub(super) fn select_clips_in_marquee(&mut self) {
+        let Some(selection) = self.interaction.marquee_selection.as_ref() else {
+            return;
+        };
+        let left = selection.start_x.min(selection.current_x);
+        let right = selection.start_x.max(selection.current_x);
+        let top = selection.start_y.min(selection.current_y);
+        let bottom = selection.start_y.max(selection.current_y);
+        let scroll_x = f32::from(self.h_scroll.offset().x);
+        let scroll_y = f32::from(self.v_scroll.offset().y);
+
+        let mut selected = selection.initial_selection.clone();
+        for (track_index, track) in self.data.tracks.iter().enumerate() {
+            let clip_top = TIMELINE_HEADER_HEIGHT
+                + RULER_HEIGHT
+                + track_index as f32 * TRACK_HEIGHT
+                + scroll_y
+                + 5.0;
+            let clip_bottom = clip_top + TRACK_HEIGHT - 10.0;
+            for clip in self.data.clips_on_track(track.id) {
+                let clip_left = TRACK_HEADER_WIDTH
+                    + scroll_x
+                    + TIMELINE_PADDING
+                    + self.data.seconds(clip.timeline_start) as f32
+                        * self.data.view.pixels_per_second;
+                let clip_right = clip_left
+                    + (self.data.seconds(clip.duration()) as f32
+                        * self.data.view.pixels_per_second)
+                        .max(4.0);
+                if clip_left <= right
+                    && clip_right >= left
+                    && clip_top <= bottom
+                    && clip_bottom >= top
+                {
+                    selected.insert(clip.id);
+                }
+            }
+        }
+        self.interaction.selected_clip_id = self
+            .data
+            .clips
+            .iter()
+            .find(|clip| selected.contains(&clip.id))
+            .map(|clip| clip.id);
+        self.interaction.selected_clip_ids = selected;
+    }
+
+    pub(super) fn snap_time_ignoring(
+        &self,
+        time: TimelineTime,
+        ignored_clip_ids: &HashSet<Ulid>,
+    ) -> (TimelineTime, Option<TimelineTime>) {
+        if !self.interaction.snapping_enabled {
+            return (time.max(TimelineTime::ZERO), None);
+        }
+        let threshold = self
+            .data
+            .settings
+            .frame_rate
+            .ceil(SNAP_DISTANCE_PX as f64 / self.data.view.pixels_per_second as f64)
+            .frames()
+            .max(1) as u64;
+        let mut candidates = vec![TimelineTime::ZERO, self.playhead];
+        for clip in &self.data.clips {
+            if !ignored_clip_ids.contains(&clip.id) {
+                candidates.push(clip.timeline_start);
+                candidates.push(clip.timeline_end());
+            }
+        }
+        let snapped = candidates
+            .into_iter()
+            .filter(|candidate| candidate.abs_diff(time) <= threshold)
+            .min_by_key(|candidate| candidate.abs_diff(time))
+            .map(|candidate| (candidate.max(TimelineTime::ZERO), Some(candidate)));
+        snapped.unwrap_or((time.max(TimelineTime::ZERO), None))
+    }
+
+    pub(super) fn snap_clip_start_ignoring(
+        &self,
+        start: TimelineTime,
+        duration: TimelineTime,
+        ignored_clip_ids: &HashSet<Ulid>,
+    ) -> (TimelineTime, Option<TimelineTime>) {
+        let (start_candidate, start_guide) = self.snap_time_ignoring(start, ignored_clip_ids);
+        let (snapped_end, end_guide) = self.snap_time_ignoring(start + duration, ignored_clip_ids);
+        let end_candidate = snapped_end - duration;
+        choose_clip_snap(
+            start,
+            start_candidate,
+            start_guide,
+            end_candidate,
+            end_guide,
+        )
+    }
+
+    pub(super) fn zoom(&mut self, factor: f32) {
+        let previous_pixels_per_second = self.data.view.pixels_per_second;
+        let pixels_per_second = (self.data.view.pixels_per_second * factor).clamp(
+            MIN_TIMELINE_PIXELS_PER_SECOND,
+            MAX_TIMELINE_PIXELS_PER_SECOND,
+        );
+        if pixels_per_second != previous_pixels_per_second {
+            let mut scroll_offset = self.h_scroll.offset();
+            let playhead_seconds = self.data.seconds(self.playhead);
+            scroll_offset.x = px(zoom_scroll_offset(
+                f32::from(scroll_offset.x),
+                playhead_seconds,
+                previous_pixels_per_second,
+                pixels_per_second,
+            ));
+            self.h_scroll.set_offset(scroll_offset);
+            self.data.view.pixels_per_second = pixels_per_second;
+        }
+    }
+
+    pub(super) fn timeline_position_from_x(&self, x: f32) -> TimelineTime {
+        let scroll_x: f32 = self.h_scroll.offset().x.into();
+        let content_x = x - TRACK_HEADER_WIDTH - scroll_x - TIMELINE_PADDING;
+        self.data
+            .nearest_time(content_x as f64 / self.data.view.pixels_per_second as f64)
+            .clamp(TimelineTime::ZERO, self.data.content_duration())
+    }
+}
+
+pub(super) fn choose_clip_snap(
+    original_start: TimelineTime,
+    start_candidate: TimelineTime,
+    start_guide: Option<TimelineTime>,
+    end_candidate: TimelineTime,
+    end_guide: Option<TimelineTime>,
+) -> (TimelineTime, Option<TimelineTime>) {
+    match (start_guide, end_guide) {
+        (None, None) => (original_start.max(TimelineTime::ZERO), None),
+        (Some(guide), None) => (start_candidate.max(TimelineTime::ZERO), Some(guide)),
+        (None, Some(guide)) => (end_candidate.max(TimelineTime::ZERO), Some(guide)),
+        (Some(start_guide), Some(end_guide)) => {
+            if end_candidate.abs_diff(original_start) < start_candidate.abs_diff(original_start) {
+                (end_candidate.max(TimelineTime::ZERO), Some(end_guide))
+            } else {
+                (start_candidate.max(TimelineTime::ZERO), Some(start_guide))
+            }
+        }
+    }
+}
+
+pub(super) fn zoom_scroll_offset(
+    previous_offset: f32,
+    anchor_seconds: f64,
+    previous_pixels_per_second: f32,
+    pixels_per_second: f32,
+) -> f32 {
+    let anchor_seconds = anchor_seconds as f32;
+    (previous_offset + anchor_seconds * (previous_pixels_per_second - pixels_per_second)).min(0.0)
+}
+
 impl Editor {
     pub(super) fn update_blade_guide(
         &mut self,
@@ -271,7 +466,6 @@ impl Editor {
         if let Some(video) = self.preview.target.video() {
             video.set_paused(true);
         }
-        self.preview.timeline_clock = None;
         let timeline = self.timeline.as_mut().expect("timeline was checked above");
         timeline.interaction.snap_guide = None;
         timeline.interaction.clip_move_drag = Some(ClipMoveDrag {
@@ -330,7 +524,7 @@ impl Editor {
         let anchor_duration = timeline
             .data
             .clip(anchor_clip_id)
-            .map(TimelineClip::duration)
+            .map(Clip::duration)
             .unwrap_or(TimelineTime::ZERO);
         let (snapped_start, snap_guide) = timeline.snap_clip_start_ignoring(
             raw_anchor_start,
@@ -340,7 +534,7 @@ impl Editor {
         let timeline_delta = snapped_start - original_anchor_start;
         let viewport_height = f32::from(window.viewport_size().height);
         let track_top = viewport_height - TIMELINE_HEIGHT + TIMELINE_HEADER_HEIGHT + RULER_HEIGHT;
-        let scroll_y: f32 = timeline.vertical_scroll.offset().y.into();
+        let scroll_y: f32 = timeline.v_scroll.offset().y.into();
         let track_index =
             ((f32::from(event.position.y) - track_top - scroll_y) / TRACK_HEIGHT).floor() as isize;
         let requested_track_delta = usize::try_from(track_index)
@@ -516,7 +710,6 @@ impl Editor {
         if let Some(video) = self.preview.target.video() {
             video.set_paused(true);
         }
-        self.preview.timeline_clock = None;
         let position = timeline.timeline_position_from_x(event.position.x.into());
         timeline.interaction.last_scrub_seek = Some(Instant::now());
         self.load_timeline_position_with_options(position, false);

@@ -52,8 +52,8 @@ fn nearest_canvas_snap(clip_anchors: [f64; 3], canvas_guides: [f64; 3]) -> Optio
 }
 
 fn timeline_preview_clip_rect(
-    timeline: &Timeline,
-    clip: &TimelineClip,
+    timeline: &TimelineSerialization,
+    clip: &Clip,
     properties: VideoClipProperties,
     canvas: TimelinePreviewCanvas,
 ) -> Option<RenderRect> {

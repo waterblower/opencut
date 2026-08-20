@@ -402,7 +402,6 @@ impl Editor {
                 _ => PreviewTarget::ImageFile(relative_path.clone()),
             };
             self.status = None;
-            self.preview.timeline_clock = None;
             self.preview.volume_control_open = false;
             self.preview.is_scrubbing = false;
             self.preview.is_adjusting_volume = false;
@@ -486,7 +485,7 @@ impl Editor {
 
 fn file_entry_metadata(
     entry: &FileTreeEntry,
-    active_timeline: Option<&TimelineState>,
+    active_timeline: Option<&TimelineRuntimeState>,
 ) -> Option<String> {
     match entry.kind {
         FileTreeEntryKind::Directory { .. } => None,

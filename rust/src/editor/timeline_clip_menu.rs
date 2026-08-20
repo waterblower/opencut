@@ -8,7 +8,7 @@ pub(super) struct TimelineClipContextMenu {
 }
 
 fn transform_targets(
-    timeline: &Timeline,
+    timeline: &TimelineSerialization,
     source_clip_id: Ulid,
 ) -> Option<(VideoClipProperties, Vec<usize>)> {
     let source = timeline.clip(source_clip_id)?;

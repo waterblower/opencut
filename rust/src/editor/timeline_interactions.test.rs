@@ -1,5 +1,4 @@
 use super::*;
-use crate::editor::timeline::{choose_clip_snap, zoom_scroll_offset};
 
 #[test]
 fn zoom_keeps_the_playhead_at_the_same_viewport_position() {

@@ -752,7 +752,7 @@ impl Editor {
             asset_id
         };
         let clip_id = Ulid::generate();
-        timeline.data.clips.push(TimelineClip {
+        timeline.data.clips.push(Clip {
             id: clip_id,
             track_id,
             asset_id,

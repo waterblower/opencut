@@ -32,7 +32,7 @@ impl ClipPlacementRejection {
 }
 
 pub(super) fn validate_clip_placement(
-    timeline: &Timeline,
+    timeline: &TimelineSerialization,
     target_track_id: Ulid,
     media_kind: MediaKind,
     clip_length: TimelineTime,
