@@ -189,8 +189,10 @@ impl VideoElement {
             1,
         )));
         let old = previous.update(cx, |current, _| current.replace(rendered.clone()));
+        let image_bounds = Self::fitted_bounds(bounds, width, height);
         let _ = window.paint_image(
-            Self::fitted_bounds(bounds, width, height),
+            image_bounds,
+            image_bounds,
             gpui::Corners::default(),
             rendered,
             0,

@@ -201,7 +201,7 @@ impl ExplorerFilter {
         self.selected_range = 0..self.content.len();
         self.selection_reversed = false;
         self.marked_range = None;
-        self.focus_handle.focus(window);
+        self.focus_handle.focus(window, cx);
         cx.notify();
     }
 
@@ -280,7 +280,7 @@ impl ExplorerFilter {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        self.focus_handle.focus(window);
+        self.focus_handle.focus(window, cx);
         self.is_selecting = true;
         let offset = self.index_for_mouse_position(event.position);
         if event.modifiers.shift {
@@ -306,7 +306,7 @@ impl ExplorerFilter {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        self.focus_handle.focus(window);
+        self.focus_handle.focus(window, cx);
         self.clear(cx);
         cx.stop_propagation();
     }
@@ -389,11 +389,11 @@ impl ExplorerFilter {
         if self.appearance == InputAppearance::ExplorerFilter {
             self.clear(cx);
         }
-        self.return_focus.focus(window);
+        self.return_focus.focus(window, cx);
     }
 
-    fn confirm(&mut self, _: &Confirm, window: &mut Window, _: &mut Context<Self>) {
-        self.return_focus.focus(window);
+    fn confirm(&mut self, _: &Confirm, window: &mut Window, cx: &mut Context<Self>) {
+        self.return_focus.focus(window, cx);
     }
 
     fn offset_from_utf16(&self, offset: usize) -> usize {
@@ -724,8 +724,15 @@ impl Element for FilterTextElement {
             window.paint_quad(selection);
         }
         let line = prepaint.line.take().expect("filter text was not shaped");
-        line.paint(bounds.origin, window.line_height(), window, cx)
-            .expect("filter text could not be painted");
+        line.paint(
+            bounds.origin,
+            window.line_height(),
+            gpui::TextAlign::Left,
+            None,
+            window,
+            cx,
+        )
+        .expect("filter text could not be painted");
         if focus_handle.is_focused(window)
             && let Some(cursor) = prepaint.cursor.take()
         {
