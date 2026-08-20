@@ -1,8 +1,34 @@
 use super::*;
+use crate::editor::timeline_clip::{AudioClipProperties, VideoClipProperties};
+use crate::editor::track::{Track, TrackKind};
+
+#[test]
+fn lowercase_media_and_track_kinds_deserialize() {
+    assert_eq!(
+        serde_json::from_str::<MediaKind>(r#""video""#).unwrap(),
+        MediaKind::Video
+    );
+    assert_eq!(
+        serde_json::from_str::<MediaKind>(r#""image""#).unwrap(),
+        MediaKind::Image
+    );
+    assert_eq!(
+        serde_json::from_str::<MediaKind>(r#""audio""#).unwrap(),
+        MediaKind::Audio
+    );
+    assert_eq!(
+        serde_json::from_str::<TrackKind>(r#""video""#).unwrap(),
+        TrackKind::Video
+    );
+    assert_eq!(
+        serde_json::from_str::<TrackKind>(r#""audio""#).unwrap(),
+        TrackKind::Audio
+    );
+}
 
 #[test]
 fn timeline_view_state_is_sanitized_when_the_timeline_is_normalized() {
-    let mut timeline = Timeline {
+    let mut timeline = TimelineSerialization {
         view: TimelineViewState {
             saved_playhead_frame: TimelineTime::from_frames(-10),
             horizontal_scroll: f32::NAN,
@@ -11,7 +37,7 @@ fn timeline_view_state_is_sanitized_when_the_timeline_is_normalized() {
             snapping_enabled: false,
             track_magnet_enabled: false,
         },
-        ..Timeline::default()
+        ..TimelineSerialization::default()
     };
 
     timeline.normalize();
@@ -29,7 +55,7 @@ fn timeline_view_state_is_sanitized_when_the_timeline_is_normalized() {
 
 #[test]
 fn timeline_view_defaults_enable_snap_and_magnet() {
-    let timeline: Timeline = serde_json::from_str(
+    let timeline: TimelineSerialization = serde_json::from_str(
         r#"{
             "settings": {
                 "frame_rate": { "numerator": 30, "denominator": 1 },
@@ -59,7 +85,7 @@ fn timeline_view_defaults_enable_snap_and_magnet() {
 
 #[test]
 fn missing_timeline_view_fields_use_defaults() {
-    let timeline: Timeline = serde_json::from_str(
+    let timeline: TimelineSerialization = serde_json::from_str(
         r#"{
             "settings": {
                 "frame_rate": { "numerator": 30, "denominator": 1 },
@@ -80,21 +106,21 @@ fn missing_timeline_view_fields_use_defaults() {
 
 #[test]
 fn timeline_view_zoom_round_trips_through_timeline_json() {
-    let mut timeline = Timeline::default();
+    let mut timeline = TimelineSerialization::default();
     timeline.view.pixels_per_second = 144.0;
 
     let json = serde_json::to_string(&timeline).unwrap();
-    let restored: Timeline = serde_json::from_str(&json).unwrap();
+    let restored: TimelineSerialization = serde_json::from_str(&json).unwrap();
 
     assert_eq!(restored.view.pixels_per_second, 144.0);
 }
 
 #[cfg(test)]
-impl Timeline {
+impl TimelineSerialization {
     pub fn with_test_tracks() -> Self {
         Self {
             tracks: vec![
-                TimelineTrack {
+                Track {
                     id: ulid(1),
                     name: "Video 1".into(),
                     kind: TrackKind::Video,
@@ -102,7 +128,7 @@ impl Timeline {
                     muted: false,
                     visible: true,
                 },
-                TimelineTrack {
+                Track {
                     id: ulid(2),
                     name: "Audio 1".into(),
                     kind: TrackKind::Audio,
@@ -116,18 +142,14 @@ impl Timeline {
     }
 }
 
-fn frames(value: i64) -> TimelineTime {
-    TimelineTime::from_frames(value)
-}
-
-fn video_clip(id: u64, start: i64, duration: i64) -> TimelineClip {
-    TimelineClip {
+fn video_clip(id: u64, start: i64, duration: i64) -> Clip {
+    Clip {
         id: ulid(id),
         track_id: ulid(1),
         asset_id: ulid(100),
-        timeline_start: frames(start),
+        timeline_start: TimelineTime::from_frames(start),
         source_in: TimelineTime::ZERO,
-        source_out: frames(duration),
+        source_out: TimelineTime::from_frames(duration),
         video_properties: VideoClipProperties::default(),
         audio_properties: AudioClipProperties::default(),
     }
@@ -169,7 +191,7 @@ fn image_asset() -> MediaAsset {
 
 #[test]
 fn new_timelines_have_no_tracks() {
-    assert!(Timeline::default().tracks.is_empty());
+    assert!(TimelineSerialization::default().tracks.is_empty());
 }
 
 #[test]
@@ -182,43 +204,49 @@ fn frame_rate_labels_use_presets_and_format_custom_rates() {
 
 #[test]
 fn repairs_overlapping_clips_when_loading_a_timeline() {
-    let mut project = Timeline {
+    let mut project = TimelineSerialization {
         assets: vec![video_asset()],
         clips: vec![video_clip(10, 0, 150), video_clip(11, 90, 120)],
-        ..Timeline::with_test_tracks()
+        ..TimelineSerialization::with_test_tracks()
     };
 
     project.normalize();
 
-    assert_eq!(project.clips[0].timeline_start, frames(0));
-    assert_eq!(project.clips[1].timeline_start, frames(150));
+    assert_eq!(
+        project.clips[0].timeline_start,
+        TimelineTime::from_frames(0)
+    );
+    assert_eq!(
+        project.clips[1].timeline_start,
+        TimelineTime::from_frames(150)
+    );
 }
 
 #[test]
 fn still_image_clips_can_extend_beyond_their_default_duration() {
-    let mut project = Timeline {
+    let mut project = TimelineSerialization {
         assets: vec![image_asset()],
         clips: vec![video_clip(10, 0, 300)],
-        ..Timeline::with_test_tracks()
+        ..TimelineSerialization::with_test_tracks()
     };
 
     project.normalize();
 
-    assert_eq!(project.clips[0].duration(), frames(300));
+    assert_eq!(project.clips[0].duration(), TimelineTime::from_frames(300));
     assert_eq!(project.seconds(project.clips[0].duration()), 10.0);
 }
 
 #[test]
 fn time_based_media_remains_bounded_by_its_source_duration() {
-    let mut project = Timeline {
+    let mut project = TimelineSerialization {
         assets: vec![video_asset()],
         clips: vec![video_clip(10, 0, 1_200)],
-        ..Timeline::with_test_tracks()
+        ..TimelineSerialization::with_test_tracks()
     };
 
     project.normalize();
 
-    assert_eq!(project.clips[0].duration(), frames(900));
+    assert_eq!(project.clips[0].duration(), TimelineTime::from_frames(900));
 }
 
 #[test]
@@ -237,9 +265,48 @@ fn fractional_frame_rates_round_trip_without_drift() {
             denominator: 1_001,
         },
     ] {
-        let original = frames(1_000_003);
+        let original = TimelineTime::from_frames(1_000_003);
         let seconds = frame_rate.seconds(original);
         assert_eq!(frame_rate.nearest(seconds), original);
+    }
+}
+
+#[test]
+fn frame_boundaries_round_trip_through_duration() {
+    for frame_rate in [
+        FrameRate::new(24, 1),
+        FrameRate::new(30, 1),
+        FrameRate::new(60, 1),
+        FrameRate::new(24_000, 1_001),
+        FrameRate::new(30_000, 1_001),
+        FrameRate::new(60_000, 1_001),
+    ] {
+        for frame in 0..10_000 {
+            let time = TimelineTime::from_frames(frame);
+            assert_eq!(
+                frame_rate.frames_from_duration_nearest(frame_rate.duration(time)),
+                time,
+                "frame {frame} did not round-trip at {frame_rate:?}",
+            );
+        }
+    }
+}
+
+#[test]
+fn durations_convert_to_the_nearest_frame() {
+    let frame_rate = FrameRate::new(30, 1);
+    for (nanoseconds, expected_frame) in [
+        (0, 0),
+        (16_666_666, 0),
+        (16_666_667, 1),
+        (33_333_333, 1),
+        (49_999_999, 1),
+        (50_000_000, 2),
+    ] {
+        assert_eq!(
+            frame_rate.frames_from_duration_nearest(Duration::from_nanos(nanoseconds)),
+            TimelineTime::from_frames(expected_frame),
+        );
     }
 }
 
@@ -249,7 +316,7 @@ fn repeated_frame_splits_preserve_the_total_duration() {
     let original_duration = remaining.duration();
     let mut pieces = Vec::new();
     for split in [1, 17, 301, 999, 2_048] {
-        let position = remaining.timeline_start + frames(split);
+        let position = remaining.timeline_start + TimelineTime::from_frames(split);
         let (left, right) = remaining.split_at(position).unwrap();
         pieces.push(left.duration());
         remaining = right;
@@ -269,14 +336,14 @@ fn long_timeline_duration_uses_exact_frame_counts() {
     let ten_hours = frame_rate.nearest(10.0 * 60.0 * 60.0);
     assert_eq!(frame_rate.nearest(frame_rate.seconds(ten_hours)), ten_hours);
     assert_eq!(
-        frame_rate.floor_duration(frame_rate.duration(ten_hours)),
+        frame_rate.frames_from_duration_nearest(frame_rate.duration(ten_hours)),
         ten_hours
     );
 }
 
 #[test]
 fn preview_and_export_boundaries_share_the_same_frame_time() {
-    let project = Timeline {
+    let project = TimelineSerialization {
         settings: TimelineSettings {
             frame_rate: FrameRate {
                 numerator: 24_000,
@@ -284,9 +351,9 @@ fn preview_and_export_boundaries_share_the_same_frame_time() {
             },
             ..TimelineSettings::default()
         },
-        ..Timeline::default()
+        ..TimelineSerialization::default()
     };
-    let boundary = frames(98_765);
+    let boundary = TimelineTime::from_frames(98_765);
     let preview_duration = project.duration(boundary).as_secs_f64();
     let export_seconds = project.seconds(boundary);
     assert!((preview_duration - export_seconds).abs() <= 1.0e-9);
@@ -298,23 +365,30 @@ fn timeline_frames_map_to_exact_audio_samples() {
         numerator: 30_000,
         denominator: 1_001,
     };
-    assert_eq!(frame_rate.audio_samples(frames(30_000), 48_000), 48_048_000);
+    assert_eq!(
+        frame_rate.audio_samples(TimelineTime::from_frames(30_000), 48_000),
+        48_048_000
+    );
 }
 
 #[test]
 fn maps_30_fps_source_frames_onto_a_24_fps_timeline() {
-    let project = Timeline {
+    let project = TimelineSerialization {
         settings: TimelineSettings {
             frame_rate: FrameRate::new(24, 1),
             ..TimelineSettings::default()
         },
         assets: vec![video_asset()],
         clips: vec![video_clip(10, 0, 24)],
-        ..Timeline::default()
+        ..TimelineSerialization::default()
     };
     let clip = &project.clips[0];
     let mapped = (0..=8)
-        .map(|frame| project.source_frame_at(clip, frames(frame)).unwrap())
+        .map(|frame| {
+            project
+                .source_frame_at(clip, TimelineTime::from_frames(frame))
+                .unwrap()
+        })
         .collect::<Vec<_>>();
 
     assert_eq!(mapped, vec![0, 1, 2, 3, 5, 6, 7, 8, 10]);
@@ -322,50 +396,68 @@ fn maps_30_fps_source_frames_onto_a_24_fps_timeline() {
 
 #[test]
 fn changing_timeline_rate_preserves_elapsed_edit_times() {
-    let mut project = Timeline {
+    let mut project = TimelineSerialization {
         assets: vec![video_asset()],
         clips: vec![video_clip(10, 30, 300)],
-        ..Timeline::with_test_tracks()
+        ..TimelineSerialization::with_test_tracks()
     };
 
     project.set_frame_rate(FrameRate::new(24, 1));
 
-    assert_eq!(project.clips[0].timeline_start, frames(24));
-    assert_eq!(project.clips[0].duration(), frames(240));
+    assert_eq!(
+        project.clips[0].timeline_start,
+        TimelineTime::from_frames(24)
+    );
+    assert_eq!(project.clips[0].duration(), TimelineTime::from_frames(240));
 }
 
 #[test]
 fn clip_source_time_clamps_to_its_source_range() {
     let mut clip = video_clip(10, 100, 60);
-    clip.source_in = frames(30);
-    clip.source_out = frames(90);
+    clip.source_in = TimelineTime::from_frames(30);
+    clip.source_out = TimelineTime::from_frames(90);
 
-    assert_eq!(clip.source_time_at(frames(50)), frames(30));
-    assert_eq!(clip.source_time_at(frames(100)), frames(30));
-    assert_eq!(clip.source_time_at(frames(125)), frames(55));
-    assert_eq!(clip.source_time_at(frames(160)), frames(90));
-    assert_eq!(clip.source_time_at(frames(200)), frames(90));
+    assert_eq!(
+        clip.source_time_at(TimelineTime::from_frames(50)),
+        TimelineTime::from_frames(30)
+    );
+    assert_eq!(
+        clip.source_time_at(TimelineTime::from_frames(100)),
+        TimelineTime::from_frames(30)
+    );
+    assert_eq!(
+        clip.source_time_at(TimelineTime::from_frames(125)),
+        TimelineTime::from_frames(55)
+    );
+    assert_eq!(
+        clip.source_time_at(TimelineTime::from_frames(160)),
+        TimelineTime::from_frames(90)
+    );
+    assert_eq!(
+        clip.source_time_at(TimelineTime::from_frames(200)),
+        TimelineTime::from_frames(90)
+    );
 }
 
 #[test]
 fn splitting_clip_preserves_ranges_and_properties() {
     let mut clip = video_clip(10, 100, 60);
-    clip.source_in = frames(30);
-    clip.source_out = frames(90);
+    clip.source_in = TimelineTime::from_frames(30);
+    clip.source_out = TimelineTime::from_frames(90);
     clip.video_properties.position_x = 42.0;
     clip.audio_properties.gain_db = -6.0;
     clip.audio_properties.muted = true;
 
-    let (left, right) = clip.split_at(frames(125)).unwrap();
+    let (left, right) = clip.split_at(TimelineTime::from_frames(125)).unwrap();
 
     assert_eq!(left.id, ulid(10));
-    assert_eq!(left.timeline_start, frames(100));
-    assert_eq!(left.source_in, frames(30));
-    assert_eq!(left.source_out, frames(55));
+    assert_eq!(left.timeline_start, TimelineTime::from_frames(100));
+    assert_eq!(left.source_in, TimelineTime::from_frames(30));
+    assert_eq!(left.source_out, TimelineTime::from_frames(55));
     assert_ne!(right.id, clip.id);
-    assert_eq!(right.timeline_start, frames(125));
-    assert_eq!(right.source_in, frames(55));
-    assert_eq!(right.source_out, frames(90));
+    assert_eq!(right.timeline_start, TimelineTime::from_frames(125));
+    assert_eq!(right.source_in, TimelineTime::from_frames(55));
+    assert_eq!(right.source_out, TimelineTime::from_frames(90));
     assert_eq!(left.video_properties, clip.video_properties);
     assert_eq!(right.video_properties, clip.video_properties);
     assert_eq!(left.audio_properties, clip.audio_properties);
@@ -376,18 +468,18 @@ fn splitting_clip_preserves_ranges_and_properties() {
 fn splitting_clip_rejects_its_outer_frames() {
     let clip = video_clip(10, 100, 60);
 
-    assert!(clip.split_at(frames(100)).is_none());
-    assert!(clip.split_at(frames(160)).is_none());
-    assert!(clip.split_at(frames(101)).is_some());
-    assert!(clip.split_at(frames(159)).is_some());
+    assert!(clip.split_at(TimelineTime::from_frames(100)).is_none());
+    assert!(clip.split_at(TimelineTime::from_frames(160)).is_none());
+    assert!(clip.split_at(TimelineTime::from_frames(101)).is_some());
+    assert!(clip.split_at(TimelineTime::from_frames(159)).is_some());
 }
 
 #[test]
 fn timeline_serialization_stores_integer_frames_and_rational_rate() {
-    let project = Timeline {
+    let project = TimelineSerialization {
         assets: vec![video_asset()],
         clips: vec![video_clip(10, 17, 83)],
-        ..Timeline::default()
+        ..TimelineSerialization::default()
     };
     let json = serde_json::to_value(project).unwrap();
     assert!(json.get("version").is_none());
@@ -430,7 +522,7 @@ fn clips_without_property_objects_deserialize_with_defaults() {
         "source_in": 0,
         "source_out": 30
     });
-    let clip = serde_json::from_value::<TimelineClip>(legacy).unwrap();
+    let clip = serde_json::from_value::<Clip>(legacy).unwrap();
 
     assert_eq!(clip.id, ulid(10));
     assert_eq!(clip.track_id, ulid(1));
@@ -452,7 +544,7 @@ fn clip_properties_round_trip_through_timeline_json() {
         muted: true,
     };
     let value = serde_json::to_value(&clip).unwrap();
-    let restored = serde_json::from_value::<TimelineClip>(value).unwrap();
+    let restored = serde_json::from_value::<Clip>(value).unwrap();
 
     assert_eq!(restored.video_properties, clip.video_properties);
     assert_eq!(restored.audio_properties, clip.audio_properties);

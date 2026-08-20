@@ -20,7 +20,7 @@ fn asset(kind: MediaKind, has_audio: bool) -> MediaAsset {
 
 #[test]
 fn explorer_drop_rejects_incompatible_tracks() {
-    let project = Timeline::with_test_tracks();
+    let project = TimelineSerialization::with_test_tracks();
     let audio = asset(MediaKind::Audio, true);
     let audio_rejection = validate_clip_placement(
         &project,
@@ -54,8 +54,8 @@ fn explorer_drop_rejects_incompatible_tracks() {
 
 #[test]
 fn explorer_drop_detects_collisions_but_allows_adjacent_clips() {
-    let mut project = Timeline::with_test_tracks();
-    project.clips.push(TimelineClip {
+    let mut project = TimelineSerialization::with_test_tracks();
+    project.clips.push(Clip {
         id: ulid(20),
         track_id: ulid(2),
         asset_id: ulid(10),

@@ -17,8 +17,8 @@ fn asset(id: u64, kind: MediaKind) -> MediaAsset {
     }
 }
 
-fn clip(id: u64, track_id: u64, asset_id: u64) -> TimelineClip {
-    TimelineClip {
+fn clip(id: u64, track_id: u64, asset_id: u64) -> Clip {
+    Clip {
         id: ulid(id),
         track_id: ulid(track_id),
         asset_id: ulid(asset_id),
@@ -32,7 +32,7 @@ fn clip(id: u64, track_id: u64, asset_id: u64) -> TimelineClip {
 
 #[test]
 fn finds_changed_visual_clips_on_the_same_unlocked_track() {
-    let mut project = Timeline::with_test_tracks();
+    let mut project = TimelineSerialization::with_test_tracks();
     project.assets = vec![
         asset(10, MediaKind::Video),
         asset(11, MediaKind::Image),

@@ -1,8 +1,10 @@
 use super::{
     clip_render_plan::{resolve_audio_clip_render_plan, resolve_visual_clip_render_plan},
     export::{ExportEncoder, ExportOptions},
-    model::{MediaAsset, MediaKind, TimelineClip, TrackKind, VideoClipProperties},
-    timeline::Timeline,
+    model::{MediaAsset, MediaKind},
+    timeline::TimelineSerialization,
+    timeline_clip::{Clip, VideoClipProperties},
+    track::{Track, TrackKind},
 };
 use ges::prelude::*;
 use gstreamer as gst;
@@ -25,7 +27,7 @@ impl ExportEncoder {
 }
 
 pub(super) fn export_timeline(
-    timeline: &Timeline,
+    timeline: &TimelineSerialization,
     project_root: &Path,
     output: &Path,
     options: ExportOptions,
@@ -66,7 +68,7 @@ pub(super) fn export_timeline(
 }
 
 fn export_timeline_with_encoder(
-    timeline_data: &Timeline,
+    timeline_data: &TimelineSerialization,
     project_root: &Path,
     temporary_output: &Path,
     options: ExportOptions,
@@ -106,7 +108,7 @@ fn export_timeline_with_encoder(
 }
 
 pub(super) fn build_timeline(
-    timeline_data: &Timeline,
+    timeline_data: &TimelineSerialization,
     project_root: &Path,
     options: ExportOptions,
 ) -> Result<ges::Timeline, String> {
@@ -202,7 +204,7 @@ pub(super) fn build_timeline(
 
 pub(super) fn apply_video_transform(
     clip: &ges::Clip,
-    timeline: &Timeline,
+    timeline: &TimelineSerialization,
     asset: &MediaAsset,
     options: ExportOptions,
     properties: VideoClipProperties,
@@ -234,8 +236,8 @@ fn rounded_i32(value: f64) -> i32 {
 }
 
 fn exported_track_types(
-    track: &super::model::TimelineTrack,
-    clip: &TimelineClip,
+    track: &Track,
+    clip: &Clip,
     asset_kind: MediaKind,
     has_audio: bool,
 ) -> ges::TrackType {
@@ -253,8 +255,8 @@ fn exported_track_types(
 }
 
 fn source_in(
-    timeline: &Timeline,
-    clip: &TimelineClip,
+    timeline: &TimelineSerialization,
+    clip: &Clip,
     asset_kind: MediaKind,
     track_types: ges::TrackType,
 ) -> gst::ClockTime {

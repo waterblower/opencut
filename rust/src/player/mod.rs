@@ -237,12 +237,12 @@ impl Player {
         let _ = video.seek(target, true);
     }
 
-    fn seek_to_fraction(&mut self, fraction: f64, accurate: bool) {
+    fn seek_to_fraction(&mut self, fraction: f64) {
         let Some(video) = self.video.as_mut() else {
             return;
         };
         let target = video.duration().mul_f64(fraction.clamp(0.0, 1.0));
-        let _ = video.seek(target, accurate);
+        let _ = video.seek(target, true);
     }
 
     fn set_history_width_from_x(&mut self, x: f32, window: &Window) {
@@ -401,7 +401,9 @@ impl PlaybackViewDelegate for Player {
                 self.is_scrubbing = true;
                 self.pending_seek_started = None;
                 self.last_scrub_seek = Some(Instant::now());
-                self.seek_to_fraction(fraction as f64, false);
+                // A press may be the complete click, so show its exact target immediately.
+                // Drag updates below are throttled to limit the cost of accurate seeks.
+                self.seek_to_fraction(fraction as f64);
             }
             DragPhase::Update if self.is_scrubbing => {
                 let now = Instant::now();
@@ -410,14 +412,14 @@ impl PlaybackViewDelegate for Player {
                 });
                 if should_seek {
                     self.last_scrub_seek = Some(now);
-                    self.seek_to_fraction(fraction as f64, false);
+                    self.seek_to_fraction(fraction as f64);
                 }
             }
             DragPhase::End if self.is_scrubbing => {
                 self.pending_seek_started = Some(Instant::now());
                 self.last_scrub_seek = None;
                 self.is_scrubbing = false;
-                self.seek_to_fraction(fraction as f64, true);
+                self.seek_to_fraction(fraction as f64);
                 if self.resume_after_scrub
                     && let Some(video) = &self.video
                 {

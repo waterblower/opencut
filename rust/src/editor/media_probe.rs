@@ -1,6 +1,7 @@
 use super::{
     explorer::{is_audio_path, is_image_path, is_video_path},
-    model::{DEFAULT_IMAGE_CLIP_DURATION, FrameRate, MediaAsset, MediaKind},
+    model::{DEFAULT_IMAGE_CLIP_DURATION, MediaAsset, MediaKind},
+    timeline::FrameRate,
 };
 use ffmpeg::{codec, format, media::Type};
 use ffmpeg_next as ffmpeg;

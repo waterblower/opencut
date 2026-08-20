@@ -17,8 +17,8 @@ fn audio_asset(id: u64) -> MediaAsset {
     }
 }
 
-fn audio_clip(id: u64, start: i64, duration: i64) -> TimelineClip {
-    TimelineClip {
+fn audio_clip(id: u64, start: i64, duration: i64) -> Clip {
+    Clip {
         id: ulid(id),
         track_id: ulid(2),
         asset_id: ulid(100),
@@ -32,7 +32,7 @@ fn audio_clip(id: u64, start: i64, duration: i64) -> TimelineClip {
 
 #[test]
 fn clipboard_preserves_relative_timing_tracks_and_primary_selection() {
-    let mut project = Timeline::with_test_tracks();
+    let mut project = TimelineSerialization::with_test_tracks();
     project.assets.push(audio_asset(100));
     project.clips = vec![audio_clip(10, 20, 8), audio_clip(11, 40, 12)];
     let selected = HashSet::from([ulid(10), ulid(11)]);
@@ -54,7 +54,7 @@ fn clipboard_preserves_relative_timing_tracks_and_primary_selection() {
 
 #[test]
 fn clipboard_rescales_source_bounds_between_timeline_frame_rates() {
-    let mut source = Timeline::with_test_tracks();
+    let mut source = TimelineSerialization::with_test_tracks();
     source.settings.frame_rate = FrameRate::new(24, 1);
     source.assets.push(audio_asset(100));
     let mut clip = audio_clip(10, 12, 24);
@@ -69,7 +69,7 @@ fn clipboard_rescales_source_bounds_between_timeline_frame_rates() {
     )
     .unwrap();
 
-    let mut destination = Timeline::with_test_tracks();
+    let mut destination = TimelineSerialization::with_test_tracks();
     destination.settings.frame_rate = FrameRate::new(30, 1);
     destination.tracks[0].id = ulid(201);
     destination.tracks[1].id = ulid(202);
@@ -90,7 +90,7 @@ fn clipboard_rescales_source_bounds_between_timeline_frame_rates() {
 
 #[test]
 fn clipboard_remaps_tracks_and_assets_between_timelines() {
-    let mut source = Timeline::with_test_tracks();
+    let mut source = TimelineSerialization::with_test_tracks();
     source.assets.push(audio_asset(100));
     source.clips = vec![audio_clip(10, 20, 8), audio_clip(11, 40, 12)];
     let clipboard = ClipClipboard::from_selection(
@@ -101,7 +101,7 @@ fn clipboard_remaps_tracks_and_assets_between_timelines() {
     )
     .unwrap();
 
-    let mut destination = Timeline::with_test_tracks();
+    let mut destination = TimelineSerialization::with_test_tracks();
     destination.tracks[0].id = ulid(201);
     destination.tracks[1].id = ulid(202);
     let (clips, assets) = clipboard
@@ -125,7 +125,7 @@ fn clipboard_remaps_tracks_and_assets_between_timelines() {
 
 #[test]
 fn clipboard_reuses_existing_destination_assets() {
-    let mut source = Timeline::with_test_tracks();
+    let mut source = TimelineSerialization::with_test_tracks();
     source.assets.push(audio_asset(100));
     source.clips = vec![audio_clip(10, 0, 8)];
     let clipboard = ClipClipboard::from_selection(
@@ -136,7 +136,7 @@ fn clipboard_reuses_existing_destination_assets() {
     )
     .unwrap();
 
-    let mut destination = Timeline::with_test_tracks();
+    let mut destination = TimelineSerialization::with_test_tracks();
     destination.tracks[1].id = ulid(202);
     let mut existing_asset = audio_asset(300);
     existing_asset.path = PathBuf::from("audio.mp3");
@@ -155,7 +155,7 @@ fn clipboard_reuses_existing_destination_assets() {
 
 #[test]
 fn clipboard_paste_rejects_the_complete_selection_on_collision() {
-    let mut project = Timeline::with_test_tracks();
+    let mut project = TimelineSerialization::with_test_tracks();
     project.assets.push(audio_asset(100));
     project.clips = vec![audio_clip(20, 105, 10)];
     let candidates = vec![audio_clip(10, 100, 8), audio_clip(11, 120, 12)];
@@ -171,7 +171,7 @@ fn track_magnet_closes_deleted_durations_independently_per_track() {
         audio_clip(1, 10, 10),
         audio_clip(2, 30, 5),
         audio_clip(3, 50, 10),
-        TimelineClip {
+        Clip {
             track_id: ulid(3),
             ..audio_clip(4, 50, 10)
         },
@@ -185,11 +185,11 @@ fn track_magnet_closes_deleted_durations_independently_per_track() {
 
 #[test]
 fn blade_targets_unselected_clips_crossing_the_playhead() {
-    let mut project = Timeline::with_test_tracks();
+    let mut project = TimelineSerialization::with_test_tracks();
     project.assets.push(audio_asset(100));
     project.clips = vec![audio_clip(10, 0, 20), audio_clip(11, 30, 20)];
 
-    let mut timeline = TimelineState::new("timeline.json".into(), project);
+    let mut timeline = TimelineRuntimeState::new("timeline.json".into(), project);
     timeline.playhead = TimelineTime::from_frames(10);
     let mut updated = blade_at_playhead(&timeline.data, timeline.playhead).unwrap();
     updated.clips.sort_by_key(|clip| clip.timeline_start);
@@ -211,10 +211,10 @@ fn blade_targets_unselected_clips_crossing_the_playhead() {
 
 #[test]
 fn select_all_excludes_clips_on_locked_tracks() {
-    let mut project = Timeline::with_test_tracks();
+    let mut project = TimelineSerialization::with_test_tracks();
     project.clips = vec![
         audio_clip(10, 0, 10),
-        TimelineClip {
+        Clip {
             id: ulid(11),
             track_id: ulid(1),
             ..audio_clip(11, 10, 10)

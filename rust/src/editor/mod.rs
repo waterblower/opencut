@@ -32,11 +32,14 @@ mod properties;
 mod properties_transform;
 mod settings;
 mod timeline;
+mod timeline_clip;
 mod timeline_clip_menu;
 mod timeline_document;
 mod timeline_interactions;
+mod timeline_ui;
 mod timeline_video;
 mod track;
+mod track_ui;
 mod waveform;
 mod workspace;
 
@@ -50,20 +53,21 @@ use explorer::{
 use explorer_filter::ExplorerFilter;
 use export_dialog::ExportDialogState;
 use media_probe::probe_asset;
-use model::{
-    AudioClipProperties, DEFAULT_IMAGE_CLIP_DURATION, FRAME_RATE_PRESETS, FrameRate, MediaAsset,
-    MediaKind, TimelineClip, TimelineTime, TimelineTrack, TrackKind, VideoClipProperties,
-    timeline_ranges_overlap,
-};
+use model::{DEFAULT_IMAGE_CLIP_DURATION, MediaAsset, MediaKind};
 use preview::{PreviewTarget, update_playback};
 use preview_audio::AudioBackend;
 use preview_timeline::TimelinePreviewDrag;
 use properties::{PropertiesPanelResizeDrag, properties_panel};
 use properties_transform::VideoTransformInputs;
-use timeline::{Timeline, TimelineState};
+use timeline::{
+    FRAME_RATE_PRESETS, FrameRate, TimelineRuntimeState, TimelineSerialization, TimelineTime,
+    timeline_ranges_overlap,
+};
+use timeline_clip::{AudioClipProperties, Clip, VideoClipProperties};
 use timeline_clip_menu::TimelineClipContextMenu;
 use timeline_document::{load_existing, project_timeline_files};
-use timeline_interactions::{ClipMoveDrag, MarqueeSelection, TimelineTool};
+use timeline_interactions::{MarqueeSelection, TimelineInteractionState, TimelineTool};
+use track::{Track, TrackKind};
 use ulid::Ulid;
 use workspace::{GlobalEditorSettings, load_global_editor_settings, save_global_editor_settings};
 
@@ -190,7 +194,6 @@ struct PreviewState {
     target: PreviewTarget,
     fullscreen: bool,
     timeline_needs_rebuild: bool,
-    timeline_clock: Option<(TimelineTime, Instant)>,
     volume_control_open: bool,
     is_scrubbing: bool,
     is_adjusting_volume: bool,
@@ -219,7 +222,7 @@ pub(crate) struct Editor {
     properties: PropertiesPanelState,
     settings_open: bool,
     export: ExportState,
-    timeline: Option<TimelineState>,
+    timeline: Option<TimelineRuntimeState>,
     clipboard: Option<ClipClipboard>,
     status: Option<String>,
     focus_handle: FocusHandle,
@@ -304,8 +307,8 @@ impl Editor {
             return Ok(());
         }
         let path = self.global_settings.project_root.join(&relative_path);
-        let timeline =
-            Timeline::load(&path).map_err(|error| format!("Could not open timeline: {error}"))?;
+        let timeline = TimelineSerialization::load(&path)
+            .map_err(|error| format!("Could not open timeline: {error}"))?;
         if let Some(timeline) = self.timeline.as_ref() {
             timeline.save(&self.global_settings.project_root);
         }
@@ -321,7 +324,7 @@ impl Editor {
         &mut self,
         relative_directory: PathBuf,
         relative_path: PathBuf,
-        timeline: Timeline,
+        timeline: TimelineSerialization,
         cx: &mut Context<Self>,
     ) -> Result<(), String> {
         if let Some(active_timeline) = self.timeline.as_ref() {
@@ -343,7 +346,7 @@ impl Editor {
 
     fn activate_timeline(
         &mut self,
-        active_timeline: Option<(PathBuf, Timeline)>,
+        active_timeline: Option<(PathBuf, TimelineSerialization)>,
         cx: &mut Context<Self>,
     ) -> Result<(), String> {
         self.preview.target = PreviewTarget::None;
@@ -352,14 +355,13 @@ impl Editor {
         self.explorer.drop_preview = None;
         self.explorer.pending_drop = None;
         self.preview.timeline_needs_rebuild = true;
-        self.preview.timeline_clock = None;
         self.preview.volume_control_open = false;
         self.preview.is_scrubbing = false;
         self.preview.is_adjusting_volume = false;
         self.preview.last_scrub_seek = None;
         self.preview.timeline_drag = None;
         self.properties.transform_input_clip_id = None;
-        self.timeline = active_timeline.map(|(path, data)| TimelineState::new(path, data));
+        self.timeline = active_timeline.map(|(path, data)| TimelineRuntimeState::new(path, data));
         self.explorer.search_query = None;
         self.explorer.search_results.clear();
         self.explorer.search_pending = false;
@@ -389,14 +391,15 @@ impl Editor {
             }
         };
         for timeline_path in timeline_paths {
-            let timeline =
-                match Timeline::load(&self.global_settings.project_root.join(&timeline_path)) {
-                    Ok(timeline) => timeline,
-                    Err(error) => {
-                        eprintln!("Could not scan timeline for waveforms: {error}");
-                        continue;
-                    }
-                };
+            let timeline = match TimelineSerialization::load(
+                &self.global_settings.project_root.join(&timeline_path),
+            ) {
+                Ok(timeline) => timeline,
+                Err(error) => {
+                    eprintln!("Could not scan timeline for waveforms: {error}");
+                    continue;
+                }
+            };
             let referenced_assets = timeline
                 .clips
                 .iter()
