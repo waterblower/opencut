@@ -89,7 +89,7 @@ impl Player {
         let current_media_path = None;
 
         let focus_handle = cx.focus_handle();
-        focus_handle.focus(window);
+        focus_handle.focus(window, cx);
 
         Self {
             video: None,

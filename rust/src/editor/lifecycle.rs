@@ -24,7 +24,7 @@ impl Editor {
             cx.notify();
         })
         .detach();
-        focus_handle.focus(window);
+        focus_handle.focus(window, cx);
         start_updates(cx);
 
         let mut editor = Self {

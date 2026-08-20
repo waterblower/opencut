@@ -6,15 +6,16 @@ mod player;
 mod video;
 
 use crate::player::Player;
-use gpui::{App, Application, Bounds, WindowBounds, WindowOptions, prelude::*, px, size};
+use gpui::{App, Bounds, WindowBounds, WindowOptions, prelude::*, px, size};
+use gpui_platform::application;
 
 fn main() {
     env_logger::init();
 
-    Application::new().run(move |cx: &mut App| {
+    application().run(move |cx: &mut App| {
         crate::player::bind_keys(cx);
 
-        cx.on_window_closed(|cx| {
+        cx.on_window_closed(|cx, _window_id| {
             if cx.windows().is_empty() {
                 cx.quit();
             }

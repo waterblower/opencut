@@ -43,7 +43,11 @@ gstreamer-backend = [
 futures-util = "0.3"
 env_logger = "0.11"
 ffmpeg-next = { version = "8.1", optional = true }
-gpui = { version = "0.2", features = ["inspector"] }
+gpui = {
+  path = "vendor/zed/crates/gpui",
+  features = ["inspector"],
+}
+gpui_platform = { path = "vendor/zed/crates/gpui_platform", features = ["font-kit"] }
 gstreamer = { version = "0.25", optional = true }
 gstreamer-app = { version = "0.25", optional = true }
 gstreamer-audio = { version = "0.25", optional = true }
@@ -64,7 +68,7 @@ yuv = { version = "0.8", optional = true }
 [target.'cfg(target_os = "macos")'.dependencies]
 block2 = "0.6"
 core-foundation = { version = "0.10", optional = true }
-core-video = { version = "0.4", optional = true }
+core-video = { version = "0.5.2", optional = true }
 objc2-app-kit = { version = "0.3", default-features = false, features = [
     "NSEvent",
     "block2",
