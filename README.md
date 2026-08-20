@@ -9,6 +9,8 @@ OpenCut is an experimental desktop video tool written in Rust with
 
 The project is an active prototype rather than a production-ready editor.
 
+Devlog: https://www.youtube.com/playlist?list=PLRz1nfZl0jMU
+
 ## Requirements
 
 - Latest stable Rust (edition 2024)
