@@ -414,8 +414,11 @@ impl PlaybackViewDelegate for Player {
                 });
                 if should_seek {
                     self.last_scrub_seek = Some(now);
+                    let seek_started = Instant::now();
                     self.seek_to_fraction(fraction as f64);
+                    eprintln!("seek took {:?}", seek_started.elapsed());
                 }
+                eprintln!("shoud_seek {}", should_seek);
             }
             DragPhase::End if self.is_scrubbing => {
                 self.pending_seek_started = Some(Instant::now());
