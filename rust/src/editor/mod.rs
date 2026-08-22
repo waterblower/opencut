@@ -48,7 +48,7 @@ use clip_placement::{ClipPlacementRejection, validate_clip_placement};
 use editing::ClipClipboard;
 use explorer::{
     ExplorerDropPreview, ExplorerMediaDrag, FileContextMenu, FileTreeEntry, NewTimelineDialogState,
-    PendingExplorerDrop, RenameDialogState, visible_tree,
+    PendingExplorerDrop, RenameDialogState, load_explorer_expansion, visible_tree,
 };
 use explorer_filter::ExplorerFilter;
 use export_dialog::ExportDialogState;
@@ -278,11 +278,12 @@ impl Editor {
         self.waveform_jobs.clear();
         self.waveform_cache.clear();
         self.clipboard = None;
-        self.explorer.expanded_directories.clear();
-        self.explorer.root_expanded = true;
+        let explorer_expansion = load_explorer_expansion(&self.global_settings.project_root);
+        self.explorer.expanded_directories = explorer_expansion.expanded_directories;
+        self.explorer.root_expanded = explorer_expansion.root_expanded;
         self.activate_timeline(active_timeline, cx)?;
         self.schedule_project_waveforms(cx);
-        self.save_explorer_expansion()
+        save_global_editor_settings(&self.global_settings)
     }
 
     pub(super) fn open_timeline(

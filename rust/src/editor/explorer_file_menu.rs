@@ -341,6 +341,7 @@ impl Editor {
         self.explorer.search_pending = false;
         self.explorer
             .refresh_file_tree(&self.global_settings.project_root)?;
+        self.save_explorer_expansion()?;
         self.schedule_explorer_search(cx);
         self.status = Some(format!(
             "Renamed {} to {}.",
@@ -415,6 +416,7 @@ impl Editor {
         self.explorer.search_pending = false;
         self.explorer
             .refresh_file_tree(&self.global_settings.project_root)?;
+        self.save_explorer_expansion()?;
         self.schedule_explorer_search(cx);
         self.status = Some(format!("Moved {display_name} to Trash."));
         Ok(())
