@@ -457,6 +457,14 @@ impl Editor {
                         )),
                     )
                     .child(
+                        timeline_icon_button("add-text-track", "+T").on_click(cx.listener(
+                            |editor, _, _, cx| {
+                                editor.add_track(TrackKind::Text);
+                                cx.notify();
+                            },
+                        )),
+                    )
+                    .child(
                         timeline_icon_button(
                             "toggle-timeline-snapping",
                             if timeline.interaction.snapping_enabled {

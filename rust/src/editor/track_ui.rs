@@ -248,13 +248,14 @@ impl Editor {
         let clips = timeline
             .data
             .clips_on_track(track.id)
+            .filter(|_| track.kind != TrackKind::Text)
             .map(|clip| self.timeline_clip(track, clip, cx))
             .collect::<Vec<_>>();
         let move_previews = timeline
             .interaction
             .clip_move_drag
             .as_ref()
-            .filter(|drag| drag.changed)
+            .filter(|drag| drag.changed && track.kind != TrackKind::Text)
             .map(|drag| {
                 drag.placements
                     .iter()
@@ -274,7 +275,7 @@ impl Editor {
             .explorer
             .drop_preview
             .as_ref()
-            .filter(|preview| preview.track_id == track.id)
+            .filter(|preview| preview.track_id == track.id && track.kind != TrackKind::Text)
             .map(|preview| {
                 explorer_drop_preview(
                     preview,
