@@ -282,7 +282,7 @@ impl Editor {
         self.explorer.root_expanded = true;
         self.activate_timeline(active_timeline, cx)?;
         self.schedule_project_waveforms(cx);
-        save_global_editor_settings(&self.global_settings)
+        self.save_explorer_expansion()
     }
 
     pub(super) fn open_timeline(
@@ -340,6 +340,7 @@ impl Editor {
         self.activate_timeline(Some((relative_path.clone(), timeline)), cx)?;
         self.explorer
             .refresh_file_tree(&self.global_settings.project_root)?;
+        self.save_explorer_expansion()?;
         self.status = Some(format!("Created {}", relative_path.display()));
         Ok(())
     }

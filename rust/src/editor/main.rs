@@ -24,6 +24,8 @@ impl AssetSource for EditorAssets {
         let bytes = match path {
             "icons/lock.svg" => include_bytes!("../icons/lock.svg").as_slice(),
             "icons/eye.svg" => include_bytes!("../icons/eye.svg").as_slice(),
+            "icons/mute.svg" => include_bytes!("../icons/mute.svg").as_slice(),
+            "icons/unmute.svg" => include_bytes!("../icons/unmute.svg").as_slice(),
             _ => return Ok(None),
         };
         Ok(Some(Cow::Borrowed(bytes)))
@@ -31,7 +33,12 @@ impl AssetSource for EditorAssets {
 
     fn list(&self, path: &str) -> gpui::Result<Vec<SharedString>> {
         Ok(match path {
-            "icons" => vec!["lock.svg".into(), "eye.svg".into()],
+            "icons" => vec![
+                "lock.svg".into(),
+                "eye.svg".into(),
+                "mute.svg".into(),
+                "unmute.svg".into(),
+            ],
             _ => Vec::new(),
         })
     }

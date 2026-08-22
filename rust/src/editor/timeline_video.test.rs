@@ -4,6 +4,7 @@ use crate::editor::{
     model::{MediaAsset, MediaKind},
     timeline::{FrameRate, TimelineTime},
     timeline_clip::{AudioClipProperties, Clip, VideoClipProperties},
+    track::TrackKind,
 };
 use std::{path::Path, time::Duration};
 
@@ -149,4 +150,68 @@ fn timeline_video_backend_toggles_playback_state() {
         .0
         .expect("timeline pipeline did not pause");
     assert!(video.paused());
+}
+
+#[test]
+fn hidden_and_muted_timeline_previews_black_at_its_saved_position() {
+    let _gstreamer_test = crate::editor::lock_gstreamer_test();
+    ges::init().unwrap();
+    let project_root = Path::new(env!("CARGO_MANIFEST_DIR"));
+    let mut project = TimelineSerialization::with_test_tracks();
+    project.settings.frame_rate = FrameRate::new(24, 1);
+    let track = project
+        .tracks
+        .iter_mut()
+        .find(|track| track.kind == TrackKind::Video)
+        .unwrap();
+    track.visible = false;
+    track.muted = true;
+    let track_id = track.id;
+    project.assets.push(MediaAsset {
+        id: ulid(10),
+        kind: MediaKind::Video,
+        path: "hidden-video-does-not-need-to-exist.mp4".into(),
+        name: "hidden video".into(),
+        duration: 5.0,
+        width: 320,
+        height: 180,
+        framerate: 30.0,
+        frame_rate_numerator: 30,
+        frame_rate_denominator: 1,
+        codec: "h264".into(),
+        has_audio: true,
+    });
+    project.clips.push(Clip {
+        id: ulid(11),
+        track_id,
+        asset_id: ulid(10),
+        timeline_start: TimelineTime::from_frames(12),
+        source_in: TimelineTime::ZERO,
+        source_out: TimelineTime::from_frames(30),
+        video_properties: VideoClipProperties::default(),
+        audio_properties: AudioClipProperties::default(),
+    });
+    let audio_sink = gst::parse::bin_from_description(
+        "volume name=gpui_audio_volume ! fakesink sync=false",
+        true,
+    )
+    .unwrap();
+    let volume_control = audio_sink
+        .by_name("gpui_audio_volume")
+        .unwrap()
+        .dynamic_cast::<gst_audio::StreamVolume>()
+        .unwrap();
+    let (pipeline, sink) =
+        create_timeline_pipeline(&project, project_root, &audio_sink.upcast()).unwrap();
+    let mut video = VideoBackend::from_pipeline(pipeline, sink, volume_control).unwrap();
+    let duration = project.duration(project.content_duration());
+
+    assert_eq!(video.duration(), duration);
+    video.seek(Duration::from_millis(1_500), true).unwrap();
+    video
+        .pipeline()
+        .state(gst::ClockTime::from_seconds(5))
+        .0
+        .unwrap();
+    assert!(video.get_current_frame().is_some());
 }

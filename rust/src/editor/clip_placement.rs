@@ -54,6 +54,7 @@ pub(super) fn validate_clip_placement(
     let compatible = match track.kind {
         TrackKind::Video => media_kind != MediaKind::Audio,
         TrackKind::Audio => media_kind == MediaKind::Audio,
+        TrackKind::Text => false,
     };
     if !compatible {
         return Err(ClipPlacementRejection::IncompatibleTrack);

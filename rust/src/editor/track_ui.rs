@@ -189,13 +189,25 @@ impl Editor {
                                 cx.notify();
                             })),
                     )
-                    .child(
-                        track_button(("track-mute", index), if track.muted { "M×" } else { "M" })
-                            .on_click(cx.listener(move |editor, _, _, cx| {
-                                editor.toggle_track_mute(track_id);
-                                cx.notify();
-                            })),
-                    )
+                    .when(track.kind != TrackKind::Text, |this| {
+                        this.child(
+                            track_icon_button(
+                                ("track-mute", index),
+                                if track.muted {
+                                    "icons/mute.svg"
+                                } else {
+                                    "icons/unmute.svg"
+                                },
+                                track.muted,
+                            )
+                            .on_click(cx.listener(
+                                move |editor, _, _, cx| {
+                                    editor.toggle_track_mute(track_id);
+                                    cx.notify();
+                                },
+                            )),
+                        )
+                    })
                     .child(track_button(("track-up", index), "↑").on_click(cx.listener(
                         move |editor, _, _, cx| {
                             editor.move_track(track_id, -1);
@@ -303,6 +315,7 @@ impl Editor {
         match track.kind {
             TrackKind::Video => self.video_clip(clip, cx),
             TrackKind::Audio => self.audio_clip(clip, cx),
+            TrackKind::Text => div().into_any_element(),
         }
     }
 
@@ -539,5 +552,6 @@ fn track_kind_label(kind: TrackKind) -> &'static str {
     match kind {
         TrackKind::Video => "V",
         TrackKind::Audio => "A",
+        TrackKind::Text => "T",
     }
 }

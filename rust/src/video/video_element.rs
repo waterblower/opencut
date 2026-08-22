@@ -279,12 +279,10 @@ impl IntoElement for VideoElement {
 }
 
 pub(crate) fn video(video: &VideoBackend) -> VideoElement {
-    let Some((width, height)) = video.frame_size() else {
-        panic!("impossible")
-    };
     let frame = video.get_current_frame();
+    let (width, height) = video.frame_size();
     VideoElement {
-        frame: frame,
+        frame,
         width: gpui::px(width as f32),
         height: gpui::px(height as f32),
         id: None,

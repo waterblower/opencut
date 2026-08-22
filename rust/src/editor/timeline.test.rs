@@ -24,6 +24,10 @@ fn lowercase_media_and_track_kinds_deserialize() {
         serde_json::from_str::<TrackKind>(r#""audio""#).unwrap(),
         TrackKind::Audio
     );
+    assert_eq!(
+        serde_json::from_str::<TrackKind>(r#""text""#).unwrap(),
+        TrackKind::Text
+    );
 }
 
 #[test]

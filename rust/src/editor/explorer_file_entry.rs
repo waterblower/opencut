@@ -283,10 +283,12 @@ impl Editor {
                 move |editor, _, _, cx| {
                     match entry.kind {
                         FileTreeEntryKind::Directory { .. } => {
-                            if let Err(error) = editor.explorer.toggle_directory(
-                                &editor.global_settings.project_root,
-                                entry.relative_path.clone(),
-                            ) {
+                            let project_root = editor.global_settings.project_root.clone();
+                            if let Err(error) = editor
+                                .explorer
+                                .toggle_directory(&project_root, entry.relative_path.clone())
+                                .and_then(|_| editor.save_explorer_expansion())
+                            {
                                 eprintln!("{error}");
                             }
                         }

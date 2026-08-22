@@ -9,6 +9,8 @@ pub(super) enum TrackKind {
     Video,
     #[serde(alias = "audio")]
     Audio,
+    #[serde(alias = "text")]
+    Text,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]

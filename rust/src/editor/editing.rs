@@ -434,6 +434,7 @@ impl Editor {
         let prefix = match kind {
             TrackKind::Video => "Video",
             TrackKind::Audio => "Audio",
+            TrackKind::Text => "Text",
         };
         let id = Ulid::generate();
         let Some(timeline) = self.timeline.as_mut() else {

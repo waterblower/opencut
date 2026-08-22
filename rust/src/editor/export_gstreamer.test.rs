@@ -245,9 +245,10 @@ fn creates_gstreamer_timeline_from_real_media() {
         ExportOptions::from_timeline(&project),
     )
     .unwrap();
-    assert_eq!(timeline.layers().len(), project.tracks.len());
-    let exported_clip = timeline
-        .layers()
+    let layers = timeline.layers();
+    assert_eq!(layers.len(), project.tracks.len() + 1);
+    assert!(layers.last().unwrap().priority() > layers.first().unwrap().priority());
+    let exported_clip = layers
         .into_iter()
         .flat_map(|layer| layer.clips())
         .next()
@@ -284,6 +285,68 @@ fn creates_gstreamer_timeline_from_real_media() {
             .unwrap(),
         540
     );
+}
+
+#[test]
+fn hidden_and_muted_tracks_keep_their_duration_as_black_video() {
+    let _gstreamer_test = crate::editor::lock_gstreamer_test();
+    ges::init().unwrap();
+    let project_root = Path::new(env!("CARGO_MANIFEST_DIR"));
+    let mut project = TimelineSerialization::with_test_tracks();
+    let track = project
+        .tracks
+        .iter_mut()
+        .find(|track| track.kind == TrackKind::Video)
+        .unwrap();
+    track.visible = false;
+    track.muted = true;
+    let track_id = track.id;
+    project.assets.push(MediaAsset {
+        id: ulid(10),
+        kind: MediaKind::Video,
+        path: "hidden-video-does-not-need-to-exist.mp4".into(),
+        name: "hidden video".into(),
+        duration: 5.0,
+        width: 320,
+        height: 180,
+        framerate: 30.0,
+        frame_rate_numerator: 30,
+        frame_rate_denominator: 1,
+        codec: "h264".into(),
+        has_audio: true,
+    });
+    project.clips.push(Clip {
+        id: ulid(11),
+        track_id,
+        asset_id: ulid(10),
+        timeline_start: TimelineTime::from_frames(12),
+        source_in: TimelineTime::ZERO,
+        source_out: TimelineTime::from_frames(30),
+        video_properties: VideoClipProperties::default(),
+        audio_properties: AudioClipProperties::default(),
+    });
+
+    let timeline = build_timeline(
+        &project,
+        project_root,
+        ExportOptions::from_timeline(&project),
+    )
+    .unwrap();
+    let expected_duration = clock_time(project.duration(project.content_duration()));
+    let background = timeline
+        .layers()
+        .into_iter()
+        .flat_map(|layer| layer.clips())
+        .find(|clip| clip.name().as_deref() == Some("opencut-black-background"))
+        .unwrap()
+        .downcast::<ges::TestClip>()
+        .unwrap();
+
+    assert_eq!(timeline.duration(), expected_duration);
+    assert_eq!(background.duration(), expected_duration);
+    assert_eq!(background.supported_formats(), ges::TrackType::VIDEO);
+    assert_eq!(background.vpattern(), ges::VideoTestPattern::Black);
+    assert!(background.is_muted());
 }
 
 #[test]

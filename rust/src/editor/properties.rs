@@ -195,7 +195,7 @@ fn video_file_properties(
     video: &VideoBackend,
 ) -> gpui::AnyElement {
     let duration = video.duration().as_secs_f64();
-    let resolution = video.frame_size();
+    let (width, height) = video.frame_size();
     let framerate = video.framerate();
 
     file_properties(path, "Video")
@@ -206,12 +206,10 @@ fn video_file_properties(
                     if asset.has_audio { "Yes" } else { "No" }.to_string(),
                 ))
         })
-        .when_some(resolution, |this, (width, height)| {
-            this.child(properties_value(
-                "Resolution",
-                format!("{width} × {height}"),
-            ))
-        })
+        .child(properties_value(
+            "Resolution",
+            format!("{width} × {height}"),
+        ))
         .when_some(framerate, |this, framerate| {
             this.child(properties_value(
                 "Frame rate",

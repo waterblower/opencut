@@ -140,6 +140,9 @@ impl Editor {
             .hover(|style| style.bg(rgb(SURFACE_HOVER)))
             .on_click(cx.listener(|editor, _, _, cx| {
                 editor.explorer.root_expanded = !editor.explorer.root_expanded;
+                if let Err(error) = editor.save_explorer_expansion() {
+                    eprintln!("Could not save explorer expansion: {error}");
+                }
                 cx.notify();
             }))
             .on_mouse_down(

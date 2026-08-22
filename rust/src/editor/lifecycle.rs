@@ -3,7 +3,11 @@ use super::*;
 impl Editor {
     pub(crate) fn new(window: &mut Window, cx: &mut Context<Self>) -> Self {
         let global_settings = load_global_editor_settings();
-        let expanded_directories = HashSet::new();
+        let expanded_directories = global_settings
+            .expanded_directories
+            .iter()
+            .cloned()
+            .collect();
         let file_tree =
             visible_tree(&global_settings.project_root, &expanded_directories).unwrap_or_default();
         let active_timeline = match load_existing(&global_settings.project_root, None) {
@@ -32,7 +36,7 @@ impl Editor {
             explorer: ExplorerState {
                 file_tree,
                 expanded_directories,
-                root_expanded: true,
+                root_expanded: global_settings.root_expanded,
                 filter: explorer_filter,
                 search_query: None,
                 search_results: Vec::new(),

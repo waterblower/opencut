@@ -196,6 +196,26 @@ pub(super) fn build_timeline(
             }
         }
     }
+    let content_duration = timeline_data.duration(timeline_data.content_duration());
+    if !content_duration.is_zero() {
+        // Appended layers have lower visual precedence, so this preserves the
+        // timeline duration and supplies black frames without covering media.
+        let background_layer = timeline.append_layer();
+        let background = ges::TestClip::new()
+            .ok_or_else(|| "could not create the timeline background".to_string())?;
+        background.set_supported_formats(ges::TrackType::VIDEO);
+        background.set_vpattern(ges::VideoTestPattern::Black);
+        background.set_mute(true);
+        background
+            .set_name(Some("opencut-black-background"))
+            .map_err(|error| format!("could not identify the timeline background: {error}"))?;
+        if !background.set_duration(clock_time(content_duration)) {
+            return Err("could not set the timeline background duration".to_string());
+        }
+        background_layer
+            .add_clip(&background)
+            .map_err(|error| format!("could not add the timeline background: {error}"))?;
+    }
     if !timeline.commit_sync() {
         return Err("GStreamer could not commit the export timeline.".to_string());
     }
