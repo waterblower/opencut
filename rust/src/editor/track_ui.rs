@@ -1,4 +1,5 @@
 use super::*;
+use crate::IconName;
 use gpui::{Bounds, canvas, fill, point, rgba, size};
 use std::sync::Arc;
 
@@ -176,14 +177,14 @@ impl Editor {
                     .flex()
                     .gap_1()
                     .child(
-                        track_icon_button(("track-lock", index), "icons/lock.svg", track.locked)
+                        track_icon_button(("track-lock", index), IconName::Lock, track.locked)
                             .on_click(cx.listener(move |editor, _, _, cx| {
                                 editor.toggle_track_lock(track_id);
                                 cx.notify();
                             })),
                     )
                     .child(
-                        track_icon_button(("track-visible", index), "icons/eye.svg", track.visible)
+                        track_icon_button(("track-visible", index), IconName::Eye, track.visible)
                             .on_click(cx.listener(move |editor, _, _, cx| {
                                 editor.toggle_track_visibility(track_id);
                                 cx.notify();
@@ -194,9 +195,9 @@ impl Editor {
                             track_icon_button(
                                 ("track-mute", index),
                                 if track.muted {
-                                    "icons/mute.svg"
+                                    IconName::Mute
                                 } else {
-                                    "icons/unmute.svg"
+                                    IconName::Unmute
                                 },
                                 track.muted,
                             )
@@ -223,12 +224,11 @@ impl Editor {
                         )),
                     )
                     .child(
-                        track_button(("track-delete", index), "×").on_click(cx.listener(
-                            move |editor, _, _, cx| {
+                        track_icon_button(("track-delete", index), IconName::Trash, false)
+                            .on_click(cx.listener(move |editor, _, _, cx| {
                                 editor.delete_track(track_id);
                                 cx.notify();
-                            },
-                        )),
+                            })),
                     ),
             )
             .into_any_element()
@@ -524,14 +524,15 @@ fn track_button(id: impl Into<gpui::ElementId>, label: &'static str) -> gpui::St
 
 fn track_icon_button(
     id: impl Into<gpui::ElementId>,
-    path: &'static str,
+    icon: IconName,
     active: bool,
 ) -> gpui::Stateful<gpui::Div> {
-    track_button_base(id).child(gpui::svg().path(path).size_4().text_color(rgb(if active {
-        ACCENT
-    } else {
-        MUTED
-    })))
+    track_button_base(id).child(
+        gpui::svg()
+            .path(icon.path())
+            .size_4()
+            .text_color(rgb(if active { ACCENT } else { MUTED })),
+    )
 }
 
 fn track_button_base(id: impl Into<gpui::ElementId>) -> gpui::Stateful<gpui::Div> {
