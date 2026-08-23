@@ -130,11 +130,12 @@ impl Editor {
         let Some(timeline) = self.timeline.as_mut() else {
             return;
         };
-        timeline.interaction.context_menu = Some(TimelineClipContextMenu {
-            clip_id,
-            x: event.position.x.into(),
-            y: event.position.y.into(),
-        });
+        timeline.interaction.context_menu =
+            Some(TimelineContextMenu::Clip(TimelineClipContextMenu {
+                clip_id,
+                x: event.position.x.into(),
+                y: event.position.y.into(),
+            }));
         cx.stop_propagation();
         cx.notify();
     }
@@ -144,7 +145,12 @@ impl Editor {
             .timeline
             .as_mut()
             .and_then(|timeline| timeline.interaction.context_menu.take())
-            .map(|menu| menu.clip_id)
+            .and_then(|menu| {
+                let TimelineContextMenu::Clip(menu) = menu else {
+                    return None;
+                };
+                Some(menu.clip_id)
+            })
         else {
             return;
         };

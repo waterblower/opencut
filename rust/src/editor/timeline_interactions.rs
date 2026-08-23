@@ -6,6 +6,11 @@ pub(super) enum TimelineTool {
     Blade,
 }
 
+pub(super) enum TimelineContextMenu {
+    Clip(TimelineClipContextMenu),
+    TextTrack(TextTrackContextMenu),
+}
+
 #[derive(Clone)]
 pub(super) struct ClipMoveItem {
     pub(super) clip_id: Ulid,
@@ -46,7 +51,7 @@ pub(super) struct TimelineInteractionState {
     pub(super) marquee_selection: Option<MarqueeSelection>,
     pub(super) scrubbing_playhead: bool,
     pub(super) last_scrub_seek: Option<Instant>,
-    pub(super) context_menu: Option<TimelineClipContextMenu>,
+    pub(super) context_menu: Option<TimelineContextMenu>,
 }
 
 impl TimelineRuntimeState {

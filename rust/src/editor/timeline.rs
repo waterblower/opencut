@@ -306,11 +306,12 @@ impl TimelineSerialization {
         self.settings.height = self.settings.height.max(2);
         self.settings.audio_sample_rate = self.settings.audio_sample_rate.max(8_000);
         self.clips.retain(|clip| {
-            self.tracks.iter().any(|track| track.id == clip.track_id)
-                && self.assets.iter().any(|asset| asset.id == clip.asset_id)
-                && clip.timeline_start >= TimelineTime::ZERO
-                && clip.source_in >= TimelineTime::ZERO
-                && clip.source_out - clip.source_in >= TimelineTime::ONE_FRAME
+            let is_invalid = !self.tracks.iter().any(|track| track.id == clip.track_id)
+                || !self.assets.iter().any(|asset| asset.id == clip.asset_id)
+                || clip.timeline_start < TimelineTime::ZERO
+                || clip.source_in < TimelineTime::ZERO
+                || clip.source_out - clip.source_in < TimelineTime::ONE_FRAME;
+            !is_invalid
         });
         let frame_rate = self.settings.frame_rate;
         for clip in &mut self.clips {

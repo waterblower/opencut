@@ -28,6 +28,7 @@ mod preview_audio;
 mod preview_image;
 mod preview_timeline;
 mod preview_video;
+mod project_settings;
 mod properties;
 mod properties_transform;
 mod settings;
@@ -36,6 +37,7 @@ mod timeline_clip;
 mod timeline_clip_menu;
 mod timeline_document;
 mod timeline_interactions;
+mod timeline_track_menu;
 mod timeline_ui;
 mod timeline_video;
 mod track;
@@ -57,6 +59,7 @@ use model::{DEFAULT_IMAGE_CLIP_DURATION, MediaAsset, MediaKind};
 use preview::{PreviewTarget, update_playback};
 use preview_audio::AudioBackend;
 use preview_timeline::TimelinePreviewDrag;
+use project_settings::{load_project_local_settings, save_project_local_settings};
 use properties::{PropertiesPanelResizeDrag, properties_panel};
 use properties_transform::VideoTransformInputs;
 use timeline::{
@@ -66,7 +69,10 @@ use timeline::{
 use timeline_clip::{AudioClipProperties, Clip, VideoClipProperties};
 use timeline_clip_menu::TimelineClipContextMenu;
 use timeline_document::{load_existing, project_timeline_files};
-use timeline_interactions::{MarqueeSelection, TimelineInteractionState, TimelineTool};
+use timeline_interactions::{
+    MarqueeSelection, TimelineContextMenu, TimelineInteractionState, TimelineTool,
+};
+use timeline_track_menu::TextTrackContextMenu;
 use track::{Track, TrackKind};
 use ulid::Ulid;
 use workspace::{GlobalEditorSettings, load_global_editor_settings, save_global_editor_settings};
@@ -268,7 +274,8 @@ impl Editor {
 
     fn set_project_root(&mut self, root: PathBuf, cx: &mut Context<Self>) -> Result<(), String> {
         let root = std::fs::canonicalize(&root).unwrap_or(root);
-        let active_timeline = load_existing(&root, None)
+        let project_settings = load_project_local_settings(&root);
+        let active_timeline = load_existing(&root, project_settings.active_timeline.as_deref())
             .map_err(|error| format!("Could not open timeline: {error}"))?;
         if let Some(timeline) = self.timeline.as_ref() {
             timeline.save(&self.global_settings.project_root);
@@ -364,6 +371,12 @@ impl Editor {
         self.preview.timeline_drag = None;
         self.properties.transform_input_clip_id = None;
         self.timeline = active_timeline.map(|(path, data)| TimelineRuntimeState::new(path, data));
+        save_project_local_settings(
+            &self.global_settings.project_root,
+            self.timeline
+                .as_ref()
+                .map(|timeline| timeline.path.as_path()),
+        )?;
         self.explorer.search_query = None;
         self.explorer.search_results.clear();
         self.explorer.search_pending = false;

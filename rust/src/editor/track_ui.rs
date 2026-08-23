@@ -245,6 +245,7 @@ impl Editor {
             .timeline
             .as_ref()
             .expect("track rows require an active timeline");
+        let track_id = track.id;
         let clips = timeline
             .data
             .clips_on_track(track.id)
@@ -300,6 +301,14 @@ impl Editor {
             .cursor(match timeline.interaction.active_tool {
                 TimelineTool::Blade => CursorStyle::Crosshair,
                 TimelineTool::Selection => CursorStyle::Arrow,
+            })
+            .when(track.kind == TrackKind::Text, |this| {
+                this.on_mouse_down(
+                    MouseButton::Right,
+                    cx.listener(move |editor, event: &MouseDownEvent, _, cx| {
+                        editor.show_text_track_context_menu(track_id, event, cx);
+                    }),
+                )
             })
             .children(clips)
             .children(move_previews)

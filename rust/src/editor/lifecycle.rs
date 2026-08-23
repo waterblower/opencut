@@ -7,8 +7,20 @@ impl Editor {
         let expanded_directories = explorer_expansion.expanded_directories;
         let file_tree =
             visible_tree(&global_settings.project_root, &expanded_directories).unwrap_or_default();
-        let active_timeline = match load_existing(&global_settings.project_root, None) {
-            Ok(active_timeline) => active_timeline,
+        let project_settings = load_project_local_settings(&global_settings.project_root);
+        let active_timeline = match load_existing(
+            &global_settings.project_root,
+            project_settings.active_timeline.as_deref(),
+        ) {
+            Ok(active_timeline) => {
+                if let Err(error) = save_project_local_settings(
+                    &global_settings.project_root,
+                    active_timeline.as_ref().map(|(path, _)| path.as_path()),
+                ) {
+                    eprintln!("Could not save project-local settings: {error}");
+                }
+                active_timeline
+            }
             Err(error) => {
                 eprintln!("Could not open timeline: {error}");
                 None

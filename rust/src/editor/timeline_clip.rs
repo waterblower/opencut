@@ -43,6 +43,30 @@ impl Default for AudioClipProperties {
     }
 }
 
+#[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
+#[serde(default)]
+pub(super) struct TextClipProperties {
+    pub text: String,
+    pub font: String,
+    pub font_size: f64,
+    pub color: u32,
+    pub position_x: f64,
+    pub position_y: f64,
+}
+
+impl Default for TextClipProperties {
+    fn default() -> Self {
+        Self {
+            text: "Text".to_string(),
+            font: "Sans".to_string(),
+            font_size: 64.0,
+            color: 0xffffffff,
+            position_x: 0.5,
+            position_y: 0.5,
+        }
+    }
+}
+
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub(super) struct Clip {
     #[serde(deserialize_with = "deserialize_ulid")]
