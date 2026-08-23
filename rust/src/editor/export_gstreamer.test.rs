@@ -5,7 +5,7 @@ use crate::editor::{
     media_probe::probe_video,
     model::MediaAsset,
     timeline::TimelineTime,
-    timeline_clip::{AudioClipProperties, VideoClipProperties},
+    timeline_clip::{AudioClipProperties, MediaClip, VideoClipProperties},
     ulid,
 };
 use std::path::Path;
@@ -69,7 +69,7 @@ pub(super) fn export_mini_fixture(encoder: ExportEncoder, output_name: &str) {
         asset.path = source_path.strip_prefix(&project_root).unwrap().into();
         let duration = project.ceil_time(asset.duration);
         project.assets.push(asset);
-        project.clips.push(Clip {
+        project.clips.push(Clip::Media(MediaClip {
             id: clip_id,
             track_id: video_track,
             asset_id,
@@ -78,7 +78,7 @@ pub(super) fn export_mini_fixture(encoder: ExportEncoder, output_name: &str) {
             source_out: duration,
             video_properties: VideoClipProperties::default(),
             audio_properties: AudioClipProperties::default(),
-        });
+        }));
         timeline_start += duration;
     }
 
@@ -110,7 +110,7 @@ fn video_track_exports_visible_video_and_unmuted_audio() {
         .iter()
         .find(|track| track.kind == TrackKind::Video)
         .unwrap();
-    let clip = Clip {
+    let clip = Clip::Media(MediaClip {
         id: ulid(1),
         track_id: track.id,
         asset_id: ulid(2),
@@ -119,7 +119,7 @@ fn video_track_exports_visible_video_and_unmuted_audio() {
         source_out: TimelineTime::ONE_FRAME,
         video_properties: VideoClipProperties::default(),
         audio_properties: AudioClipProperties::default(),
-    };
+    });
     let types = exported_track_types(track, &clip, MediaKind::Video, true);
     assert!(types.contains(ges::TrackType::VIDEO));
     assert!(types.contains(ges::TrackType::AUDIO));
@@ -134,7 +134,7 @@ fn hidden_video_track_can_still_export_audio() {
         .find(|track| track.kind == TrackKind::Video)
         .unwrap();
     track.visible = false;
-    let clip = Clip {
+    let clip = Clip::Media(MediaClip {
         id: ulid(1),
         track_id: track.id,
         asset_id: ulid(2),
@@ -143,7 +143,7 @@ fn hidden_video_track_can_still_export_audio() {
         source_out: TimelineTime::ONE_FRAME,
         video_properties: VideoClipProperties::default(),
         audio_properties: AudioClipProperties::default(),
-    };
+    });
     assert_eq!(
         exported_track_types(track, &clip, MediaKind::Video, true),
         ges::TrackType::AUDIO
@@ -229,7 +229,7 @@ fn creates_gstreamer_timeline_from_real_media() {
         position_y: -60.0,
         scale: 0.5,
     };
-    project.clips.push(Clip {
+    project.clips.push(Clip::Media(MediaClip {
         id: ulid(11),
         track_id: video_track,
         asset_id: ulid(10),
@@ -238,7 +238,7 @@ fn creates_gstreamer_timeline_from_real_media() {
         source_out: TimelineTime::from_frames(3),
         video_properties,
         audio_properties: AudioClipProperties::default(),
-    });
+    }));
     let timeline = build_timeline(
         &project,
         project_root,
@@ -315,7 +315,7 @@ fn hidden_and_muted_tracks_keep_their_duration_as_black_video() {
         codec: "h264".into(),
         has_audio: true,
     });
-    project.clips.push(Clip {
+    project.clips.push(Clip::Media(MediaClip {
         id: ulid(11),
         track_id,
         asset_id: ulid(10),
@@ -324,7 +324,7 @@ fn hidden_and_muted_tracks_keep_their_duration_as_black_video() {
         source_out: TimelineTime::from_frames(30),
         video_properties: VideoClipProperties::default(),
         audio_properties: AudioClipProperties::default(),
-    });
+    }));
 
     let timeline = build_timeline(
         &project,
@@ -376,7 +376,7 @@ fn exports_real_media_with_audio() {
         codec: "h264".into(),
         has_audio: true,
     });
-    project.clips.push(Clip {
+    project.clips.push(Clip::Media(MediaClip {
         id: ulid(11),
         track_id: video_track,
         asset_id: ulid(10),
@@ -385,7 +385,7 @@ fn exports_real_media_with_audio() {
         source_out: TimelineTime::from_frames(30),
         video_properties: VideoClipProperties::default(),
         audio_properties: AudioClipProperties::default(),
-    });
+    }));
 
     let output = std::env::temp_dir().join(format!("opencut-ges-video-{}.mp4", std::process::id()));
     export_timeline(
@@ -442,7 +442,7 @@ fn exports_an_image_only_timeline() {
         codec: "png".into(),
         has_audio: false,
     });
-    project.clips.push(Clip {
+    project.clips.push(Clip::Media(MediaClip {
         id: ulid(11),
         track_id: video_track,
         asset_id: ulid(10),
@@ -451,7 +451,7 @@ fn exports_an_image_only_timeline() {
         source_out: TimelineTime::from_frames(3),
         video_properties: VideoClipProperties::default(),
         audio_properties: AudioClipProperties::default(),
-    });
+    }));
 
     let output = project_root.join("image-export.mp4");
     export_timeline(

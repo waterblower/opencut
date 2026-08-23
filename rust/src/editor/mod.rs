@@ -46,7 +46,9 @@ mod waveform;
 mod workspace;
 
 use crate::playback_view::{DragPhase, PlaybackViewDelegate};
-use clip_placement::{ClipPlacementRejection, validate_clip_placement};
+use clip_placement::{
+    ClipPlacementRejection, validate_clip_placement, validate_text_clip_placement,
+};
 use editing::ClipClipboard;
 use explorer::{
     ExplorerDropPreview, ExplorerMediaDrag, FileContextMenu, FileTreeEntry, NewTimelineDialogState,
@@ -66,7 +68,9 @@ use timeline::{
     FRAME_RATE_PRESETS, FrameRate, TimelineRuntimeState, TimelineSerialization, TimelineTime,
     timeline_ranges_overlap,
 };
-use timeline_clip::{AudioClipProperties, Clip, VideoClipProperties};
+use timeline_clip::{
+    AudioClipProperties, Clip, MediaClip, TextClip, TextClipProperties, VideoClipProperties,
+};
 use timeline_clip_menu::TimelineClipContextMenu;
 use timeline_document::{load_existing, project_timeline_files};
 use timeline_interactions::{
@@ -418,7 +422,7 @@ impl Editor {
             let referenced_assets = timeline
                 .clips
                 .iter()
-                .map(|clip| clip.asset_id)
+                .filter_map(|clip| clip.media().map(|clip| clip.asset_id))
                 .collect::<HashSet<_>>();
             paths.extend(
                 timeline
@@ -439,7 +443,7 @@ impl Editor {
             .data
             .clips
             .iter()
-            .map(|clip| clip.asset_id)
+            .filter_map(|clip| clip.media().map(|clip| clip.asset_id))
             .collect::<HashSet<_>>();
         let paths = timeline
             .data

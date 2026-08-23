@@ -55,7 +55,7 @@ fn explorer_drop_rejects_incompatible_tracks() {
 #[test]
 fn explorer_drop_detects_collisions_but_allows_adjacent_clips() {
     let mut project = TimelineSerialization::with_test_tracks();
-    project.clips.push(Clip {
+    project.clips.push(Clip::Media(MediaClip {
         id: ulid(20),
         track_id: ulid(2),
         asset_id: ulid(10),
@@ -64,7 +64,7 @@ fn explorer_drop_detects_collisions_but_allows_adjacent_clips() {
         source_out: TimelineTime::from_frames(30),
         video_properties: VideoClipProperties::default(),
         audio_properties: AudioClipProperties::default(),
-    });
+    }));
     let audio = asset(MediaKind::Audio, true);
 
     assert_eq!(

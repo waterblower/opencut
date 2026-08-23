@@ -3,7 +3,7 @@ use crate::editor::ulid;
 use crate::editor::{
     model::{MediaAsset, MediaKind},
     timeline::{FrameRate, TimelineTime},
-    timeline_clip::{AudioClipProperties, Clip, VideoClipProperties},
+    timeline_clip::{AudioClipProperties, Clip, MediaClip, VideoClipProperties},
     track::TrackKind,
 };
 use std::{path::Path, time::Duration};
@@ -27,7 +27,7 @@ fn headless_test_pipeline() -> (gst::Pipeline, gst_app::AppSink, gst_audio::Stre
         codec: "h264".into(),
         has_audio: true,
     });
-    project.clips.push(Clip {
+    project.clips.push(Clip::Media(MediaClip {
         id: ulid(11),
         track_id: ulid(1),
         asset_id: ulid(10),
@@ -36,8 +36,8 @@ fn headless_test_pipeline() -> (gst::Pipeline, gst_app::AppSink, gst_audio::Stre
         source_out: TimelineTime::from_frames(12),
         video_properties: VideoClipProperties::default(),
         audio_properties: AudioClipProperties::default(),
-    });
-    project.clips.push(Clip {
+    }));
+    project.clips.push(Clip::Media(MediaClip {
         id: ulid(12),
         track_id: ulid(1),
         asset_id: ulid(10),
@@ -46,7 +46,7 @@ fn headless_test_pipeline() -> (gst::Pipeline, gst_app::AppSink, gst_audio::Stre
         source_out: TimelineTime::from_frames(60),
         video_properties: VideoClipProperties::default(),
         audio_properties: AudioClipProperties::default(),
-    });
+    }));
     let audio_sink = gst::parse::bin_from_description(
         "volume name=gpui_audio_volume ! fakesink sync=false",
         true,
@@ -181,7 +181,7 @@ fn hidden_and_muted_timeline_previews_black_at_its_saved_position() {
         codec: "h264".into(),
         has_audio: true,
     });
-    project.clips.push(Clip {
+    project.clips.push(Clip::Media(MediaClip {
         id: ulid(11),
         track_id,
         asset_id: ulid(10),
@@ -190,7 +190,7 @@ fn hidden_and_muted_timeline_previews_black_at_its_saved_position() {
         source_out: TimelineTime::from_frames(30),
         video_properties: VideoClipProperties::default(),
         audio_properties: AudioClipProperties::default(),
-    });
+    }));
     let audio_sink = gst::parse::bin_from_description(
         "volume name=gpui_audio_volume ! fakesink sync=false",
         true,

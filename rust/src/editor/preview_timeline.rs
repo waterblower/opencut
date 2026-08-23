@@ -57,6 +57,7 @@ fn timeline_preview_clip_rect(
     properties: VideoClipProperties,
     canvas: TimelinePreviewCanvas,
 ) -> Option<RenderRect> {
+    let clip = clip.media()?;
     let track = timeline.track(clip.track_id)?;
     if track.kind != TrackKind::Video || !track.visible {
         return None;
@@ -100,22 +101,23 @@ impl Editor {
         };
         let clip_id = timeline.data.tracks.iter().rev().find_map(|track| {
             timeline.data.clips_on_track(track.id).find_map(|clip| {
-                if clip.timeline_start > timeline.playhead
-                    || timeline.playhead >= clip.timeline_end()
+                let media = clip.media()?;
+                if clip.timeline_start() > timeline.playhead
+                    || timeline.playhead >= clip.timeline_end(timeline.data.settings.frame_rate)
                 {
                     return None;
                 }
                 let rect = timeline_preview_clip_rect(
                     &timeline.data,
                     clip,
-                    clip.video_properties,
+                    media.video_properties,
                     canvas,
                 )?;
                 (f64::from(pointer_x) >= rect.left
                     && f64::from(pointer_x) <= rect.left + rect.width
                     && f64::from(pointer_y) >= rect.top
                     && f64::from(pointer_y) <= rect.top + rect.height)
-                    .then_some(clip.id)
+                    .then_some(clip.id())
             })
         });
         self.select_only_clip(clip_id);
@@ -135,6 +137,9 @@ impl Editor {
             return;
         }
         let Some(clip) = timeline.data.clip(clip_id) else {
+            return;
+        };
+        let Some(clip) = clip.media() else {
             return;
         };
         self.preview.timeline_drag = Some(TimelinePreviewDrag {
@@ -176,7 +181,10 @@ impl Editor {
         let Some(index) = timeline.data.clip_index(drag.clip_id) else {
             return true;
         };
-        let current_properties = timeline.data.clips[index].video_properties;
+        let Some(current_clip) = timeline.data.clips[index].media() else {
+            return true;
+        };
+        let current_properties = current_clip.video_properties;
         let mut properties = current_properties;
         properties.position_x = position_x;
         properties.position_y = position_y;
@@ -247,8 +255,11 @@ impl Editor {
             timeline.record_editing_history();
             drag.changed = true;
         }
-        timeline.data.clips[index].video_properties.position_x = properties.position_x;
-        timeline.data.clips[index].video_properties.position_y = properties.position_y;
+        let Some(clip) = timeline.data.clips[index].media_mut() else {
+            return true;
+        };
+        clip.video_properties.position_x = properties.position_x;
+        clip.video_properties.position_y = properties.position_y;
         self.properties.transform_input_clip_id = None;
         let now = Instant::now();
         if !drag.timeline_was_dirty
@@ -497,10 +508,13 @@ impl Editor {
         };
         let selected_rect = timeline.interaction.selected_clip_id.and_then(|clip_id| {
             let clip = timeline.data.clip(clip_id)?;
-            if clip.timeline_start > timeline.playhead || timeline.playhead >= clip.timeline_end() {
+            let media = clip.media()?;
+            if clip.timeline_start() > timeline.playhead
+                || timeline.playhead >= clip.timeline_end(timeline.data.settings.frame_rate)
+            {
                 return None;
             }
-            timeline_preview_clip_rect(&timeline.data, clip, clip.video_properties, canvas)
+            timeline_preview_clip_rect(&timeline.data, clip, media.video_properties, canvas)
         });
         let (snap_x, snap_y) = self
             .preview

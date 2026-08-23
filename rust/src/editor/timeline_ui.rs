@@ -222,6 +222,33 @@ impl Editor {
                                                     ),
                                             )
                                         },
+                                    )
+                                    .when_some(
+                                        timeline.interaction.context_menu.as_ref().and_then(
+                                            |menu| {
+                                                let TimelineContextMenu::TextTrack(menu) = menu
+                                                else {
+                                                    return None;
+                                                };
+                                                Some(menu.position)
+                                            },
+                                        ),
+                                        |this, position| {
+                                            let guide_left = TIMELINE_PADDING
+                                                + timeline.data.seconds(position) as f32
+                                                    * timeline.data.view.pixels_per_second;
+                                            this.child(
+                                                div()
+                                                    .absolute()
+                                                    .top_0()
+                                                    .bottom_0()
+                                                    .left(px(guide_left))
+                                                    .w_0()
+                                                    .border_l_1()
+                                                    .border_dashed()
+                                                    .border_color(rgb(ACCENT)),
+                                            )
+                                        },
                                     ),
                             ),
                     ),

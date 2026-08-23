@@ -1,5 +1,5 @@
 use super::*;
-use crate::editor::timeline_clip::{AudioClipProperties, VideoClipProperties};
+use crate::editor::timeline_clip::{AudioClipProperties, TextClipProperties, VideoClipProperties};
 use crate::editor::track::{Track, TrackKind};
 
 #[test]
@@ -147,7 +147,7 @@ impl TimelineSerialization {
 }
 
 fn video_clip(id: u64, start: i64, duration: i64) -> Clip {
-    Clip {
+    Clip::Media(MediaClip {
         id: ulid(id),
         track_id: ulid(1),
         asset_id: ulid(100),
@@ -156,7 +156,7 @@ fn video_clip(id: u64, start: i64, duration: i64) -> Clip {
         source_out: TimelineTime::from_frames(duration),
         video_properties: VideoClipProperties::default(),
         audio_properties: AudioClipProperties::default(),
-    }
+    })
 }
 
 fn video_asset() -> MediaAsset {
@@ -217,11 +217,11 @@ fn repairs_overlapping_clips_when_loading_a_timeline() {
     project.repair_and_prune_invalid_data();
 
     assert_eq!(
-        project.clips[0].timeline_start,
+        project.clips[0].timeline_start(),
         TimelineTime::from_frames(0)
     );
     assert_eq!(
-        project.clips[1].timeline_start,
+        project.clips[1].timeline_start(),
         TimelineTime::from_frames(150)
     );
 }
@@ -236,8 +236,14 @@ fn still_image_clips_can_extend_beyond_their_default_duration() {
 
     project.repair_and_prune_invalid_data();
 
-    assert_eq!(project.clips[0].duration(), TimelineTime::from_frames(300));
-    assert_eq!(project.seconds(project.clips[0].duration()), 10.0);
+    assert_eq!(
+        project.clips[0].frame_length(project.settings.frame_rate),
+        TimelineTime::from_frames(300)
+    );
+    assert_eq!(
+        project.seconds(project.clips[0].frame_length(project.settings.frame_rate)),
+        10.0
+    );
 }
 
 #[test]
@@ -250,7 +256,105 @@ fn time_based_media_remains_bounded_by_its_source_duration() {
 
     project.repair_and_prune_invalid_data();
 
-    assert_eq!(project.clips[0].duration(), TimelineTime::from_frames(900));
+    assert_eq!(
+        project.clips[0].frame_length(project.settings.frame_rate),
+        TimelineTime::from_frames(900)
+    );
+}
+
+#[test]
+fn assetless_text_clips_survive_timeline_repair() {
+    let track_id = ulid(3);
+    let mut project = TimelineSerialization {
+        tracks: vec![Track {
+            id: track_id,
+            name: "Text 1".into(),
+            kind: TrackKind::Text,
+            locked: false,
+            muted: false,
+            visible: true,
+        }],
+        clips: vec![Clip::Text(TextClip {
+            id: ulid(10),
+            track_id,
+            timeline_start: TimelineTime::ZERO,
+            length: FrameRate::default().duration(TimelineTime::from_frames(150)),
+            properties: TextClipProperties::default(),
+        })],
+        ..TimelineSerialization::default()
+    };
+
+    project.repair_and_prune_invalid_data();
+
+    assert_eq!(project.clips.len(), 1);
+}
+
+#[test]
+fn text_clips_can_move_without_a_media_asset() {
+    let track_id = ulid(3);
+    let clip_id = ulid(10);
+    let project = TimelineSerialization {
+        tracks: vec![Track {
+            id: track_id,
+            name: "Text 1".into(),
+            kind: TrackKind::Text,
+            locked: false,
+            muted: false,
+            visible: true,
+        }],
+        clips: vec![Clip::Text(TextClip {
+            id: clip_id,
+            track_id,
+            timeline_start: TimelineTime::ZERO,
+            length: FrameRate::default().duration(TimelineTime::from_frames(150)),
+            properties: TextClipProperties::default(),
+        })],
+        ..TimelineSerialization::default()
+    };
+
+    assert_eq!(
+        project.validate_clip_move_placements(
+            &[(clip_id, track_id, TimelineTime::from_frames(30))],
+            &HashSet::from([clip_id]),
+        ),
+        Ok(())
+    );
+}
+
+#[test]
+fn changing_frame_rate_keeps_text_duration_and_recomputes_frame_length() {
+    let track_id = ulid(3);
+    let mut project = TimelineSerialization {
+        settings: TimelineSettings {
+            frame_rate: FrameRate::new(30, 1),
+            ..TimelineSettings::default()
+        },
+        tracks: vec![Track {
+            id: track_id,
+            name: "Text 1".into(),
+            kind: TrackKind::Text,
+            locked: false,
+            muted: false,
+            visible: true,
+        }],
+        clips: vec![Clip::Text(TextClip {
+            id: ulid(10),
+            track_id,
+            timeline_start: TimelineTime::ZERO,
+            length: Duration::from_secs(5),
+            properties: TextClipProperties::default(),
+        })],
+        ..TimelineSerialization::default()
+    };
+
+    project.set_frame_rate(FrameRate::new(24, 1));
+
+    let text = project.clips[0].text().unwrap();
+    assert_eq!(text.length, Duration::from_secs(5));
+    assert_eq!(
+        text.frame_length(project.settings.frame_rate),
+        TimelineTime::from_frames(120)
+    );
 }
 
 #[test]
@@ -317,17 +421,20 @@ fn durations_convert_to_the_nearest_frame() {
 #[test]
 fn repeated_frame_splits_preserve_the_total_duration() {
     let mut remaining = video_clip(10, 0, 10_000);
-    let original_duration = remaining.duration();
+    let frame_rate = FrameRate::default();
+    let original_duration = remaining.frame_length(frame_rate);
     let mut pieces = Vec::new();
     for split in [1, 17, 301, 999, 2_048] {
-        let position = remaining.timeline_start + TimelineTime::from_frames(split);
-        let (left, right) = remaining.split_at(position).unwrap();
-        pieces.push(left.duration());
+        let position = remaining.timeline_start() + TimelineTime::from_frames(split);
+        let (left, right) = remaining.split_at(position, frame_rate).unwrap();
+        pieces.push(left.frame_length(frame_rate));
         remaining = right;
     }
     let reconstructed = pieces
         .into_iter()
-        .fold(remaining.duration(), |duration, piece| duration + piece);
+        .fold(remaining.frame_length(frame_rate), |duration, piece| {
+            duration + piece
+        });
     assert_eq!(reconstructed, original_duration);
 }
 
@@ -409,73 +516,150 @@ fn changing_timeline_rate_preserves_elapsed_edit_times() {
     project.set_frame_rate(FrameRate::new(24, 1));
 
     assert_eq!(
-        project.clips[0].timeline_start,
+        project.clips[0].timeline_start(),
         TimelineTime::from_frames(24)
     );
-    assert_eq!(project.clips[0].duration(), TimelineTime::from_frames(240));
+    assert_eq!(
+        project.clips[0].frame_length(project.settings.frame_rate),
+        TimelineTime::from_frames(240)
+    );
 }
 
 #[test]
 fn clip_source_time_clamps_to_its_source_range() {
     let mut clip = video_clip(10, 100, 60);
-    clip.source_in = TimelineTime::from_frames(30);
-    clip.source_out = TimelineTime::from_frames(90);
+    clip.media_mut().unwrap().source_in = TimelineTime::from_frames(30);
+    clip.media_mut().unwrap().source_out = TimelineTime::from_frames(90);
 
     assert_eq!(
         clip.source_time_at(TimelineTime::from_frames(50)),
-        TimelineTime::from_frames(30)
+        Some(TimelineTime::from_frames(30))
     );
     assert_eq!(
         clip.source_time_at(TimelineTime::from_frames(100)),
-        TimelineTime::from_frames(30)
+        Some(TimelineTime::from_frames(30))
     );
     assert_eq!(
         clip.source_time_at(TimelineTime::from_frames(125)),
-        TimelineTime::from_frames(55)
+        Some(TimelineTime::from_frames(55))
     );
     assert_eq!(
         clip.source_time_at(TimelineTime::from_frames(160)),
-        TimelineTime::from_frames(90)
+        Some(TimelineTime::from_frames(90))
     );
     assert_eq!(
         clip.source_time_at(TimelineTime::from_frames(200)),
-        TimelineTime::from_frames(90)
+        Some(TimelineTime::from_frames(90))
     );
 }
 
 #[test]
 fn splitting_clip_preserves_ranges_and_properties() {
     let mut clip = video_clip(10, 100, 60);
-    clip.source_in = TimelineTime::from_frames(30);
-    clip.source_out = TimelineTime::from_frames(90);
-    clip.video_properties.position_x = 42.0;
-    clip.audio_properties.gain_db = -6.0;
-    clip.audio_properties.muted = true;
+    let media = clip.media_mut().unwrap();
+    media.source_in = TimelineTime::from_frames(30);
+    media.source_out = TimelineTime::from_frames(90);
+    media.video_properties.position_x = 42.0;
+    media.audio_properties.gain_db = -6.0;
+    media.audio_properties.muted = true;
 
-    let (left, right) = clip.split_at(TimelineTime::from_frames(125)).unwrap();
+    let (left, right) = clip
+        .split_at(TimelineTime::from_frames(125), FrameRate::default())
+        .unwrap();
 
-    assert_eq!(left.id, ulid(10));
-    assert_eq!(left.timeline_start, TimelineTime::from_frames(100));
-    assert_eq!(left.source_in, TimelineTime::from_frames(30));
-    assert_eq!(left.source_out, TimelineTime::from_frames(55));
-    assert_ne!(right.id, clip.id);
-    assert_eq!(right.timeline_start, TimelineTime::from_frames(125));
-    assert_eq!(right.source_in, TimelineTime::from_frames(55));
-    assert_eq!(right.source_out, TimelineTime::from_frames(90));
-    assert_eq!(left.video_properties, clip.video_properties);
-    assert_eq!(right.video_properties, clip.video_properties);
-    assert_eq!(left.audio_properties, clip.audio_properties);
-    assert_eq!(right.audio_properties, clip.audio_properties);
+    assert_eq!(left.id(), ulid(10));
+    assert_eq!(left.timeline_start(), TimelineTime::from_frames(100));
+    assert_eq!(
+        left.media().unwrap().source_in,
+        TimelineTime::from_frames(30)
+    );
+    assert_eq!(
+        left.media().unwrap().source_out,
+        TimelineTime::from_frames(55)
+    );
+    assert_ne!(right.id(), clip.id());
+    assert_eq!(right.timeline_start(), TimelineTime::from_frames(125));
+    assert_eq!(
+        right.media().unwrap().source_in,
+        TimelineTime::from_frames(55)
+    );
+    assert_eq!(
+        right.media().unwrap().source_out,
+        TimelineTime::from_frames(90)
+    );
+    assert_eq!(
+        left.media().unwrap().video_properties,
+        clip.media().unwrap().video_properties
+    );
+    assert_eq!(
+        right.media().unwrap().video_properties,
+        clip.media().unwrap().video_properties
+    );
+    assert_eq!(
+        left.media().unwrap().audio_properties,
+        clip.media().unwrap().audio_properties
+    );
+    assert_eq!(
+        right.media().unwrap().audio_properties,
+        clip.media().unwrap().audio_properties
+    );
 }
 
 #[test]
 fn splitting_clip_rejects_its_outer_frames() {
     let clip = video_clip(10, 100, 60);
 
-    assert!(clip.split_at(TimelineTime::from_frames(100)).is_none());
-    assert!(clip.split_at(TimelineTime::from_frames(160)).is_none());
-    assert!(clip.split_at(TimelineTime::from_frames(101)).is_some());
-    assert!(clip.split_at(TimelineTime::from_frames(159)).is_some());
+    let frame_rate = FrameRate::default();
+    assert!(
+        clip.split_at(TimelineTime::from_frames(100), frame_rate)
+            .is_none()
+    );
+    assert!(
+        clip.split_at(TimelineTime::from_frames(160), frame_rate)
+            .is_none()
+    );
+    assert!(
+        clip.split_at(TimelineTime::from_frames(101), frame_rate)
+            .is_some()
+    );
+    assert!(
+        clip.split_at(TimelineTime::from_frames(159), frame_rate)
+            .is_some()
+    );
+}
+
+#[test]
+fn splitting_text_clip_preserves_text_and_divides_length() {
+    let clip = Clip::Text(TextClip {
+        id: ulid(10),
+        track_id: ulid(3),
+        timeline_start: TimelineTime::from_frames(100),
+        length: FrameRate::default().duration(TimelineTime::from_frames(60)),
+        properties: TextClipProperties {
+            text: "Title".to_string(),
+            ..TextClipProperties::default()
+        },
+    });
+
+    let frame_rate = FrameRate::default();
+    let (left, right) = clip
+        .split_at(TimelineTime::from_frames(125), frame_rate)
+        .unwrap();
+
+    assert_eq!(left.frame_length(frame_rate), TimelineTime::from_frames(25));
+    assert_eq!(right.timeline_start(), TimelineTime::from_frames(125));
+    assert_eq!(
+        right.frame_length(frame_rate),
+        TimelineTime::from_frames(35)
+    );
+    assert_eq!(
+        left.text().unwrap().properties,
+        clip.text().unwrap().properties
+    );
+    assert_eq!(
+        right.text().unwrap().properties,
+        clip.text().unwrap().properties
+    );
 }
 
 #[test]
@@ -490,11 +674,12 @@ fn timeline_serialization_stores_integer_frames_and_rational_rate() {
     assert_eq!(json["settings"]["frame_rate"]["numerator"], 30);
     assert_eq!(json["settings"]["frame_rate"]["denominator"], 1);
     assert_eq!(json["assets"][0]["id"], ulid(100).to_string());
-    assert_eq!(json["clips"][0]["id"], ulid(10).to_string());
-    assert_eq!(json["clips"][0]["track_id"], ulid(1).to_string());
-    assert_eq!(json["clips"][0]["asset_id"], ulid(100).to_string());
-    assert_eq!(json["clips"][0]["timeline_start"], 17);
-    assert_eq!(json["clips"][0]["source_out"], 83);
+    assert_eq!(json["clips"][0]["kind"], "Media");
+    assert_eq!(json["clips"][0]["data"]["id"], ulid(10).to_string());
+    assert_eq!(json["clips"][0]["data"]["track_id"], ulid(1).to_string());
+    assert_eq!(json["clips"][0]["data"]["asset_id"], ulid(100).to_string());
+    assert_eq!(json["clips"][0]["data"]["timeline_start"], 17);
+    assert_eq!(json["clips"][0]["data"]["source_out"], 83);
 }
 
 #[test]
@@ -528,28 +713,132 @@ fn clips_without_property_objects_deserialize_with_defaults() {
     });
     let clip = serde_json::from_value::<Clip>(legacy).unwrap();
 
-    assert_eq!(clip.id, ulid(10));
-    assert_eq!(clip.track_id, ulid(1));
+    assert_eq!(clip.id(), ulid(10));
+    assert_eq!(clip.track_id(), ulid(1));
+    let clip = clip.media().unwrap();
     assert_eq!(clip.asset_id, ulid(100));
     assert_eq!(clip.video_properties, VideoClipProperties::default());
     assert_eq!(clip.audio_properties, AudioClipProperties::default());
 }
 
 #[test]
+fn legacy_text_clip_deserializes_as_text_variant() {
+    let legacy = serde_json::json!({
+        "id": 10,
+        "track_id": 3,
+        "asset_id": 0,
+        "timeline_start": 12,
+        "source_in": 0,
+        "source_out": 90,
+        "text_properties": {
+            "text": "Legacy title"
+        }
+    });
+
+    let clip = serde_json::from_value::<Clip>(legacy).unwrap();
+    let text = clip.text().unwrap();
+    assert_eq!(
+        text.frame_length(FrameRate::default()),
+        TimelineTime::from_frames(90)
+    );
+    assert_eq!(text.properties.text, "Legacy title");
+}
+
+#[test]
+fn frame_length_text_clip_deserializes_as_duration() {
+    let legacy = serde_json::json!({
+        "id": "01M0P9DJ506ZPJ4R4V7CH565X7",
+        "track_id": "01M0MCDDQWBN2HXFPJXY4BMQES",
+        "timeline_start": 12,
+        "length": 90,
+        "text": {
+            "text": "Frame title",
+            "future_text_field": true
+        },
+        "future_clip_field": { "value": 1 }
+    });
+
+    let clip = serde_json::from_value::<Clip>(legacy).unwrap();
+    assert_eq!(clip.text().unwrap().length, Duration::from_secs(3));
+}
+
+#[test]
+fn timeline_load_migrates_frame_length_using_its_own_frame_rate() {
+    let json = serde_json::json!({
+        "settings": {
+            "frame_rate": { "numerator": 60, "denominator": 1 },
+            "width": 1920,
+            "height": 1080,
+            "audio_sample_rate": 48000
+        },
+        "clips": [{
+            "id": "01M0P9DJ506ZPJ4R4V7CH565X7",
+            "track_id": "01M0MCDDQWBN2HXFPJXY4BMQES",
+            "timeline_start": 9090,
+            "length": 300,
+            "text": { "text": "Text", "future_field": true },
+            "future_clip_field": true
+        }],
+        "future_timeline_field": true
+    });
+
+    let timeline = deserialize_timeline(&json.to_string()).unwrap();
+
+    assert_eq!(
+        timeline.clips[0].text().unwrap().length,
+        Duration::from_secs(5)
+    );
+}
+
+#[test]
+fn text_clip_round_trip_uses_text_specific_fields() {
+    let clip = Clip::Text(TextClip {
+        id: ulid(10),
+        track_id: ulid(3),
+        timeline_start: TimelineTime::from_frames(12),
+        length: FrameRate::default().duration(TimelineTime::from_frames(90)),
+        properties: TextClipProperties::default(),
+    });
+
+    let mut value = serde_json::to_value(&clip).unwrap();
+    assert_eq!(value["kind"], "Text");
+    assert_eq!(value["data"]["length"]["secs"], 3);
+    assert_eq!(value["data"]["length"]["nanos"], 0);
+    assert_eq!(value["data"]["properties"]["text"], "Text");
+    assert!(value["data"].get("asset_id").is_none());
+    assert!(value["data"].get("source_in").is_none());
+    value["future_clip_field"] = serde_json::json!(true);
+    value["data"]["future_data_field"] = serde_json::json!(true);
+    value["data"]["properties"]["future_property_field"] = serde_json::json!(true);
+
+    let restored = serde_json::from_value::<Clip>(value).unwrap();
+    assert_eq!(
+        restored.text().unwrap().frame_length(FrameRate::default()),
+        TimelineTime::from_frames(90)
+    );
+}
+
+#[test]
 fn clip_properties_round_trip_through_timeline_json() {
     let mut clip = video_clip(10, 0, 30);
-    clip.video_properties = VideoClipProperties {
+    clip.media_mut().unwrap().video_properties = VideoClipProperties {
         position_x: 120.0,
         position_y: -45.0,
         scale: 1.25,
     };
-    clip.audio_properties = AudioClipProperties {
+    clip.media_mut().unwrap().audio_properties = AudioClipProperties {
         gain_db: -6.0,
         muted: true,
     };
     let value = serde_json::to_value(&clip).unwrap();
     let restored = serde_json::from_value::<Clip>(value).unwrap();
 
-    assert_eq!(restored.video_properties, clip.video_properties);
-    assert_eq!(restored.audio_properties, clip.audio_properties);
+    assert_eq!(
+        restored.media().unwrap().video_properties,
+        clip.media().unwrap().video_properties
+    );
+    assert_eq!(
+        restored.media().unwrap().audio_properties,
+        clip.media().unwrap().audio_properties
+    );
 }

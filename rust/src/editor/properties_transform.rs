@@ -84,6 +84,10 @@ impl Editor {
             self.properties.transform_input_clip_id = None;
             return;
         };
+        let Some(clip) = clip.media() else {
+            self.properties.transform_input_clip_id = None;
+            return;
+        };
         let properties = clip.video_properties;
         self.properties.transform_input_clip_id = Some(clip_id);
         let values = [
@@ -237,13 +241,16 @@ impl Editor {
         let Some(index) = timeline.data.clip_index(clip_id) else {
             return;
         };
-        let mut properties = timeline.data.clips[index].video_properties;
+        let Some(clip) = timeline.data.clips[index].media() else {
+            return;
+        };
+        let mut properties = clip.video_properties;
         match property {
             VideoTransformProperty::PositionX => properties.position_x = value,
             VideoTransformProperty::PositionY => properties.position_y = value,
             VideoTransformProperty::Scale => properties.scale = value.clamp(0.0, 100.0),
         }
-        if properties == timeline.data.clips[index].video_properties {
+        if properties == clip.video_properties {
             return;
         }
         let Some(timeline) = self.timeline.as_mut() else {
@@ -251,7 +258,10 @@ impl Editor {
         };
         timeline.record_editing_history();
         self.preview.timeline_needs_rebuild = true;
-        timeline.data.clips[index].video_properties = properties;
+        let Some(clip) = timeline.data.clips[index].media_mut() else {
+            return;
+        };
+        clip.video_properties = properties;
 
         timeline.save(&self.global_settings.project_root);
         self.rebuild_timeline_preview_if_needed();

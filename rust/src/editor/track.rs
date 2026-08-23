@@ -30,7 +30,7 @@ pub(super) struct Track {
 impl TimelineSerialization {
     pub fn clip_locked(&self, clip_id: Ulid) -> bool {
         self.clip(clip_id)
-            .and_then(|clip| self.track(clip.track_id))
+            .and_then(|clip| self.track(clip.track_id()))
             .is_some_and(|track| track.locked)
     }
 
@@ -45,6 +45,6 @@ impl TimelineSerialization {
     pub fn clips_on_track(&self, track_id: Ulid) -> impl Iterator<Item = &Clip> {
         self.clips
             .iter()
-            .filter(move |clip| clip.track_id == track_id)
+            .filter(move |clip| clip.track_id() == track_id)
     }
 }

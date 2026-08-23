@@ -12,23 +12,27 @@ fn transform_targets(
     source_clip_id: Ulid,
 ) -> Option<(VideoClipProperties, Vec<usize>)> {
     let source = timeline.clip(source_clip_id)?;
-    let track = timeline.track(source.track_id)?;
-    let source_asset = timeline.asset(source.asset_id)?;
+    let source_media = source.media()?;
+    let track = timeline.track(source.track_id())?;
+    let source_asset = timeline.asset(source_media.asset_id)?;
     if track.locked || track.kind != TrackKind::Video || source_asset.kind == MediaKind::Audio {
         return None;
     }
-    let properties = source.video_properties;
+    let properties = source_media.video_properties;
     let targets = timeline
         .clips
         .iter()
         .enumerate()
-        .filter(|(_, clip)| clip.id != source.id && clip.track_id == source.track_id)
+        .filter(|(_, clip)| clip.id() != source.id() && clip.track_id() == source.track_id())
         .filter(|(_, clip)| {
-            timeline
-                .asset(clip.asset_id)
+            clip.media()
+                .and_then(|clip| timeline.asset(clip.asset_id))
                 .is_some_and(|asset| asset.kind != MediaKind::Audio)
         })
-        .filter(|(_, clip)| clip.video_properties != properties)
+        .filter(|(_, clip)| {
+            clip.media()
+                .is_some_and(|clip| clip.video_properties != properties)
+        })
         .map(|(index, _)| index)
         .collect();
     Some((properties, targets))
@@ -171,7 +175,9 @@ impl Editor {
         timeline.record_editing_history();
         self.preview.timeline_needs_rebuild = true;
         for index in targets {
-            timeline.data.clips[index].video_properties = properties;
+            if let Some(clip) = timeline.data.clips[index].media_mut() {
+                clip.video_properties = properties;
+            }
         }
         self.properties.transform_input_clip_id = None;
 

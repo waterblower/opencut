@@ -134,15 +134,21 @@ pub(super) fn build_timeline(
 
     let mut assets: HashMap<Ulid, ges::UriClipAsset> = HashMap::new();
     for timeline_track in &timeline_data.tracks {
+        if timeline_track.kind == TrackKind::Text {
+            continue;
+        }
         let layer = timeline.append_layer();
         let mut clips = timeline_data
             .clips_on_track(timeline_track.id)
             .collect::<Vec<_>>();
-        clips.sort_by_key(|clip| clip.timeline_start);
+        clips.sort_by_key(|clip| clip.timeline_start());
         for clip in clips {
+            let media = clip
+                .media()
+                .ok_or_else(|| format!("Text clip {} is on a media track.", clip.id()))?;
             let asset = timeline_data
-                .asset(clip.asset_id)
-                .ok_or_else(|| format!("Clip {} has no source media.", clip.id))?;
+                .asset(media.asset_id)
+                .ok_or_else(|| format!("Clip {} has no source media.", clip.id()))?;
             let track_types =
                 exported_track_types(timeline_track, clip, asset.kind, asset.has_audio);
             if track_types.is_empty() {
@@ -160,9 +166,11 @@ pub(super) fn build_timeline(
                 uri_asset
             };
 
-            let start = clock_time(timeline_data.duration(clip.timeline_start));
+            let start = clock_time(timeline_data.duration(clip.timeline_start()));
             let inpoint = source_in(timeline_data, clip, asset.kind, track_types);
-            let duration = clock_time(timeline_data.duration(clip.duration()));
+            let duration = clock_time(
+                timeline_data.duration(clip.frame_length(timeline_data.settings.frame_rate)),
+            );
             let ges_clip = layer
                 .add_asset(&uri_asset, start, inpoint, duration, track_types)
                 .map_err(|error| {
@@ -172,20 +180,20 @@ pub(super) fn build_timeline(
                     )
                 })?;
             ges_clip
-                .set_name(Some(&format!("opencut-clip-{}", clip.id)))
-                .map_err(|error| format!("could not identify clip {}: {error}", clip.id))?;
+                .set_name(Some(&format!("opencut-clip-{}", clip.id())))
+                .map_err(|error| format!("could not identify clip {}: {error}", clip.id()))?;
             if track_types.contains(ges::TrackType::VIDEO) {
                 apply_video_transform(
                     &ges_clip,
                     timeline_data,
                     asset,
                     options,
-                    clip.video_properties,
+                    media.video_properties,
                 )?;
             }
             if track_types.contains(ges::TrackType::AUDIO) {
                 let audio_plan =
-                    resolve_audio_clip_render_plan(timeline_track.muted, clip.audio_properties);
+                    resolve_audio_clip_render_plan(timeline_track.muted, media.audio_properties);
                 let gain = if audio_plan.muted {
                     0.0
                 } else {
@@ -268,7 +276,11 @@ fn exported_track_types(
     {
         types |= ges::TrackType::VIDEO;
     }
-    if has_audio && !resolve_audio_clip_render_plan(track.muted, clip.audio_properties).muted {
+    if has_audio
+        && clip.media().is_some_and(|clip| {
+            !resolve_audio_clip_render_plan(track.muted, clip.audio_properties).muted
+        })
+    {
         types |= ges::TrackType::AUDIO;
     }
     types
@@ -286,7 +298,13 @@ fn source_in(
     if track_types.contains(ges::TrackType::VIDEO) {
         return clock_time(Duration::from_secs_f64(timeline.source_start_seconds(clip)));
     }
-    clock_time(timeline.audio_duration(clip.source_in))
+    clock_time(
+        timeline.audio_duration(
+            clip.media()
+                .expect("export source clips are media clips")
+                .source_in,
+        ),
+    )
 }
 
 fn encoding_profile(options: ExportOptions) -> gst_pbutils::EncodingContainerProfile {

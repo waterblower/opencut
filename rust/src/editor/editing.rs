@@ -22,7 +22,7 @@ impl ClipClipboard {
         let clips = timeline
             .clips
             .iter()
-            .filter(|clip| selected_clip_ids.contains(&clip.id))
+            .filter(|clip| selected_clip_ids.contains(&clip.id()))
             .cloned()
             .collect::<Vec<_>>();
         if clips.is_empty() || clips.len() != selected_clip_ids.len() {
@@ -30,7 +30,7 @@ impl ClipClipboard {
         }
         let asset_ids = clips
             .iter()
-            .map(|clip| clip.asset_id)
+            .filter_map(|clip| clip.media().map(|clip| clip.asset_id))
             .collect::<HashSet<_>>();
         let assets = timeline
             .assets
@@ -41,10 +41,7 @@ impl ClipClipboard {
         if assets.len() != asset_ids.len() {
             return None;
         }
-        let track_ids = clips
-            .iter()
-            .map(|clip| clip.track_id)
-            .collect::<HashSet<_>>();
+        let track_ids = clips.iter().map(Clip::track_id).collect::<HashSet<_>>();
         let tracks = timeline
             .tracks
             .iter()
@@ -63,11 +60,11 @@ impl ClipClipboard {
         }
         let selection_start = clips
             .iter()
-            .map(|clip| clip.timeline_start)
+            .map(Clip::timeline_start)
             .min()
             .unwrap_or(TimelineTime::ZERO);
         let primary_index =
-            primary_clip_id.and_then(|clip_id| clips.iter().position(|clip| clip.id == clip_id));
+            primary_clip_id.and_then(|clip_id| clips.iter().position(|clip| clip.id() == clip_id));
         Some(Self {
             source_timeline,
             source_frame_rate: timeline.settings.frame_rate,
@@ -84,18 +81,25 @@ impl ClipClipboard {
             .iter()
             .cloned()
             .map(|mut clip| {
-                let relative_start = clip.timeline_start - self.selection_start;
-                clip.timeline_start = position
-                    + self
-                        .source_frame_rate
-                        .rescale_nearest(relative_start, frame_rate);
-                clip.source_in = self
-                    .source_frame_rate
-                    .rescale_nearest(clip.source_in, frame_rate);
-                clip.source_out = self
-                    .source_frame_rate
-                    .rescale_nearest(clip.source_out, frame_rate)
-                    .max(clip.source_in + TimelineTime::ONE_FRAME);
+                let relative_start = clip.timeline_start() - self.selection_start;
+                clip.set_timeline_start(
+                    position
+                        + self
+                            .source_frame_rate
+                            .rescale_nearest(relative_start, frame_rate),
+                );
+                match &mut clip {
+                    Clip::Media(clip) => {
+                        clip.source_in = self
+                            .source_frame_rate
+                            .rescale_nearest(clip.source_in, frame_rate);
+                        clip.source_out = self
+                            .source_frame_rate
+                            .rescale_nearest(clip.source_out, frame_rate)
+                            .max(clip.source_in + TimelineTime::ONE_FRAME);
+                    }
+                    Clip::Text(_) => {}
+                }
                 clip
             })
             .collect()
@@ -132,9 +136,10 @@ impl ClipClipboard {
                 track_ids.insert(*source_track_id, destination_track.id);
             }
             for clip in &mut clips {
-                clip.track_id = *track_ids
-                    .get(&clip.track_id)
+                let track_id = *track_ids
+                    .get(&clip.track_id())
                     .ok_or(ClipPlacementRejection::MissingTrack)?;
+                clip.set_track_id(track_id);
             }
         }
 
@@ -170,6 +175,9 @@ impl ClipClipboard {
                 asset_ids.insert(source_asset.id, destination_asset_id);
             }
             for clip in &mut clips {
+                let Some(clip) = clip.media_mut() else {
+                    continue;
+                };
                 clip.asset_id = *asset_ids
                     .get(&clip.asset_id)
                     .ok_or(ClipPlacementRejection::MissingAsset)?;
@@ -286,16 +294,16 @@ impl Editor {
         timeline.record_editing_history();
         self.preview.timeline_needs_rebuild = true;
         for clip in &mut clips {
-            clip.id = Ulid::generate();
+            clip.set_id(Ulid::generate());
         }
         let count = clips.len();
         timeline.data.assets.extend(assets);
-        timeline.interaction.selected_clip_ids = clips.iter().map(|clip| clip.id).collect();
+        timeline.interaction.selected_clip_ids = clips.iter().map(Clip::id).collect();
         timeline.interaction.selected_clip_id = clipboard
             .primary_index
             .and_then(|index| clips.get(index))
             .or_else(|| clips.first())
-            .map(|clip| clip.id);
+            .map(Clip::id);
         timeline.data.clips.extend(clips);
         self.preview.target = PreviewTarget::None;
         self.status = Some(format!("Pasted {count} clip{}.", plural_suffix(count)));
@@ -310,12 +318,16 @@ impl Editor {
             return;
         };
         if close_track_gaps {
-            ripple_clips_after_deletion(&mut timeline.data.clips, clip_ids);
+            ripple_clips_after_deletion(
+                &mut timeline.data.clips,
+                clip_ids,
+                timeline.data.settings.frame_rate,
+            );
         }
         timeline
             .data
             .clips
-            .retain(|clip| !clip_ids.contains(&clip.id));
+            .retain(|clip| !clip_ids.contains(&clip.id()));
         timeline.interaction.selected_clip_ids.clear();
         timeline.interaction.selected_clip_id = None;
         self.properties.transform_input_clip_id = None;
@@ -352,19 +364,19 @@ impl Editor {
         }
         let selection_start = clips
             .iter()
-            .map(|clip| clip.timeline_start)
+            .map(Clip::timeline_start)
             .min()
             .unwrap_or(TimelineTime::ZERO);
         let selection_end = clips
             .iter()
-            .map(Clip::timeline_end)
+            .map(|clip| clip.timeline_end(timeline.data.settings.frame_rate))
             .max()
             .unwrap_or(selection_start);
         let mut delta = selection_end - selection_start;
         let placements = loop {
             let candidate = clips
                 .iter()
-                .map(|clip| (clip.id, clip.track_id, clip.timeline_start + delta))
+                .map(|clip| (clip.id(), clip.track_id(), clip.timeline_start() + delta))
                 .collect::<Vec<_>>();
             if timeline
                 .data
@@ -379,15 +391,18 @@ impl Editor {
                     .data
                     .clips
                     .iter()
-                    .filter(|other| other.track_id == *track_id)
+                    .filter(|other| other.track_id() == *track_id)
                 {
                     if timeline_ranges_overlap(
                         *start,
-                        *start + clip.duration(),
-                        other.timeline_start,
-                        other.timeline_end(),
+                        *start + clip.frame_length(timeline.data.settings.frame_rate),
+                        other.timeline_start(),
+                        other.timeline_end(timeline.data.settings.frame_rate),
                     ) {
-                        next_delta = next_delta.max(other.timeline_end() - clip.timeline_start);
+                        next_delta = next_delta.max(
+                            other.timeline_end(timeline.data.settings.frame_rate)
+                                - clip.timeline_start(),
+                        );
                     }
                 }
             }
@@ -397,11 +412,11 @@ impl Editor {
         let primary_index = timeline
             .interaction
             .selected_clip_id
-            .and_then(|id| clips.iter().position(|clip| clip.id == id));
+            .and_then(|id| clips.iter().position(|clip| clip.id() == id));
         let mut duplicates = Vec::with_capacity(clips.len());
         for (mut clip, (_, _, start)) in clips.into_iter().zip(placements) {
-            clip.id = Ulid::generate();
-            clip.timeline_start = start;
+            clip.set_id(Ulid::generate());
+            clip.set_timeline_start(start);
             duplicates.push(clip);
         }
         let Some(timeline) = self.timeline.as_mut() else {
@@ -409,11 +424,11 @@ impl Editor {
         };
         timeline.record_editing_history();
         self.preview.timeline_needs_rebuild = true;
-        timeline.interaction.selected_clip_ids = duplicates.iter().map(|clip| clip.id).collect();
+        timeline.interaction.selected_clip_ids = duplicates.iter().map(Clip::id).collect();
         timeline.interaction.selected_clip_id = primary_index
             .and_then(|index| duplicates.get(index))
             .or_else(|| duplicates.first())
-            .map(|clip| clip.id);
+            .map(Clip::id);
         timeline.data.clips.extend(duplicates);
         timeline.save(&self.global_settings.project_root);
         self.rebuild_timeline_preview_if_needed();
@@ -546,12 +561,15 @@ impl Editor {
         timeline.record_editing_history();
         self.preview.timeline_needs_rebuild = true;
         timeline.data.tracks.remove(index);
-        timeline.data.clips.retain(|clip| clip.track_id != track_id);
+        timeline
+            .data
+            .clips
+            .retain(|clip| clip.track_id() != track_id);
         let remaining_clip_ids = timeline
             .data
             .clips
             .iter()
-            .map(|clip| clip.id)
+            .map(Clip::id)
             .collect::<HashSet<_>>();
         timeline
             .interaction
@@ -566,8 +584,8 @@ impl Editor {
                 .data
                 .clips
                 .iter()
-                .find(|clip| timeline.interaction.selected_clip_ids.contains(&clip.id))
-                .map(|clip| clip.id);
+                .find(|clip| timeline.interaction.selected_clip_ids.contains(&clip.id()))
+                .map(Clip::id);
         }
         timeline.save(&self.global_settings.project_root);
         self.rebuild_timeline_preview_if_needed();
@@ -595,8 +613,8 @@ impl Editor {
             .data
             .clips
             .iter()
-            .find(|clip| timeline.interaction.selected_clip_ids.contains(&clip.id))
-            .map(|clip| clip.id);
+            .find(|clip| timeline.interaction.selected_clip_ids.contains(&clip.id()))
+            .map(Clip::id);
         self.properties.transform_input_clip_id = None;
     }
 
@@ -610,8 +628,8 @@ impl Editor {
                     .data
                     .clips
                     .iter()
-                    .find(|clip| timeline.interaction.selected_clip_ids.contains(&clip.id))
-                    .map(|clip| clip.id);
+                    .find(|clip| timeline.interaction.selected_clip_ids.contains(&clip.id()))
+                    .map(Clip::id);
             }
         } else if timeline.data.clip(clip_id).is_some() {
             timeline.interaction.selected_clip_ids.insert(clip_id);
@@ -660,7 +678,7 @@ impl Editor {
             .data
             .clips
             .iter()
-            .map(|clip| clip.id)
+            .map(Clip::id)
             .collect::<HashSet<_>>();
         timeline
             .interaction
@@ -675,8 +693,8 @@ impl Editor {
                     .data
                     .clips
                     .iter()
-                    .find(|clip| timeline.interaction.selected_clip_ids.contains(&clip.id))
-                    .map(|clip| clip.id)
+                    .find(|clip| timeline.interaction.selected_clip_ids.contains(&clip.id()))
+                    .map(Clip::id)
             });
         let has_clips = !timeline.data.clips.is_empty();
         let playhead = timeline.playhead;
@@ -726,33 +744,43 @@ fn unlocked_clip_ids(timeline: &TimelineSerialization) -> HashSet<Ulid> {
         .iter()
         .filter(|clip| {
             timeline
-                .track(clip.track_id)
+                .track(clip.track_id())
                 .is_some_and(|track| !track.locked)
         })
-        .map(|clip| clip.id)
+        .map(Clip::id)
         .collect()
 }
 
-fn ripple_clips_after_deletion(clips: &mut [Clip], deleted_ids: &HashSet<Ulid>) {
+fn ripple_clips_after_deletion(
+    clips: &mut [Clip],
+    deleted_ids: &HashSet<Ulid>,
+    frame_rate: FrameRate,
+) {
     let deleted = clips
         .iter()
-        .filter(|clip| deleted_ids.contains(&clip.id))
-        .map(|clip| (clip.track_id, clip.timeline_end(), clip.duration()))
+        .filter(|clip| deleted_ids.contains(&clip.id()))
+        .map(|clip| {
+            (
+                clip.track_id(),
+                clip.timeline_end(frame_rate),
+                clip.frame_length(frame_rate),
+            )
+        })
         .collect::<Vec<_>>();
 
     for clip in clips
         .iter_mut()
-        .filter(|clip| !deleted_ids.contains(&clip.id))
+        .filter(|clip| !deleted_ids.contains(&clip.id()))
     {
         let shift = deleted
             .iter()
             .filter(|(track_id, deleted_end, _)| {
-                *track_id == clip.track_id && *deleted_end <= clip.timeline_start
+                *track_id == clip.track_id() && *deleted_end <= clip.timeline_start()
             })
             .fold(TimelineTime::ZERO, |total, (_, _, duration)| {
                 total + *duration
             });
-        clip.timeline_start -= shift;
+        clip.set_timeline_start(clip.timeline_start() - shift);
     }
 }
 
@@ -764,26 +792,37 @@ fn validate_clipboard_placements(
         return Err(ClipPlacementRejection::NoPlacements);
     }
     for clip in clips {
-        let Some(asset) = timeline.asset(clip.asset_id) else {
-            return Err(ClipPlacementRejection::MissingAsset);
-        };
-        validate_clip_placement(
-            timeline,
-            clip.track_id,
-            asset.kind,
-            clip.duration(),
-            clip.timeline_start,
-            &HashSet::new(),
-        )?;
+        match clip {
+            Clip::Media(clip) => {
+                let Some(asset) = timeline.asset(clip.asset_id) else {
+                    return Err(ClipPlacementRejection::MissingAsset);
+                };
+                validate_clip_placement(
+                    timeline,
+                    clip.track_id,
+                    asset.kind,
+                    clip.source_out - clip.source_in,
+                    clip.timeline_start,
+                    &HashSet::new(),
+                )?;
+            }
+            Clip::Text(clip) => validate_text_clip_placement(
+                timeline,
+                clip.track_id,
+                clip.frame_length(timeline.settings.frame_rate),
+                clip.timeline_start,
+                &HashSet::new(),
+            )?,
+        }
     }
     for (index, clip) in clips.iter().enumerate() {
         if clips[index + 1..].iter().any(|other| {
-            clip.track_id == other.track_id
+            clip.track_id() == other.track_id()
                 && timeline_ranges_overlap(
-                    clip.timeline_start,
-                    clip.timeline_end(),
-                    other.timeline_start,
-                    other.timeline_end(),
+                    clip.timeline_start(),
+                    clip.timeline_end(timeline.settings.frame_rate),
+                    other.timeline_start(),
+                    other.timeline_end(timeline.settings.frame_rate),
                 )
         }) {
             return Err(ClipPlacementRejection::ProposedClipsOverlap);
@@ -804,11 +843,12 @@ fn blade_at_playhead(
         .clips
         .iter()
         .filter(|clip| {
-            let local = playhead - clip.timeline_start;
+            let local = playhead - clip.timeline_start();
             let crosses_playhead = local >= TimelineTime::ONE_FRAME
-                && local <= clip.duration() - TimelineTime::ONE_FRAME;
+                && local
+                    <= clip.frame_length(timeline.settings.frame_rate) - TimelineTime::ONE_FRAME;
             let track_is_editable = timeline
-                .track(clip.track_id)
+                .track(clip.track_id())
                 .is_some_and(|track| !track.locked);
             crosses_playhead && track_is_editable
         })
@@ -822,19 +862,19 @@ fn blade_at_playhead(
         .iter()
         .flat_map(|clip| {
             let (left, right) = clip
-                .split_at(playhead)
+                .split_at(playhead, timeline.settings.frame_rate)
                 .expect("clips at the playhead must be splittable");
             [left, right]
         })
         .collect::<Vec<_>>();
     let removed_clip_ids = clips_at_playhead
         .into_iter()
-        .map(|clip| clip.id)
+        .map(|clip| clip.id())
         .collect::<HashSet<_>>();
     let mut updated_timeline = timeline.clone();
     updated_timeline
         .clips
-        .retain(|clip| !removed_clip_ids.contains(&clip.id));
+        .retain(|clip| !removed_clip_ids.contains(&clip.id()));
     updated_timeline.clips.extend(split_clips);
 
     Some(updated_timeline)

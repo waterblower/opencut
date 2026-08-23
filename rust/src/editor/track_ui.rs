@@ -77,13 +77,14 @@ fn timeline_clip_move_preview(
 ) -> gpui::AnyElement {
     let name = timeline
         .clip(clip_id)
+        .and_then(Clip::media)
         .and_then(|clip| timeline.asset(clip.asset_id))
         .map(|asset| asset.name.clone())
         .unwrap_or_else(|| "Missing media".to_string());
     let left = TIMELINE_PADDING + timeline.seconds(start) as f32 * timeline.view.pixels_per_second;
     let duration = timeline
         .clip(clip_id)
-        .map(Clip::duration)
+        .map(|clip| clip.frame_length(timeline.settings.frame_rate))
         .unwrap_or(TimelineTime::ZERO);
     let width = (timeline.seconds(duration) as f32 * timeline.view.pixels_per_second).max(4.0);
     let valid = invalid_reason.is_none();
@@ -249,7 +250,6 @@ impl Editor {
         let clips = timeline
             .data
             .clips_on_track(track.id)
-            .filter(|_| track.kind != TrackKind::Text)
             .map(|clip| self.timeline_clip(track, clip, cx))
             .collect::<Vec<_>>();
         let move_previews = timeline
@@ -325,8 +325,25 @@ impl Editor {
         match track.kind {
             TrackKind::Video => self.video_clip(clip, cx),
             TrackKind::Audio => self.audio_clip(clip, cx),
-            TrackKind::Text => div().into_any_element(),
+            TrackKind::Text => self.text_clip(clip, cx),
         }
+    }
+
+    fn text_clip(&self, clip: &Clip, cx: &mut Context<Self>) -> gpui::AnyElement {
+        let label = clip
+            .text()
+            .map(|clip| clip.properties.text.clone())
+            .unwrap_or_else(|| "Text".to_string());
+        let content = div()
+            .absolute()
+            .inset_0()
+            .p_2()
+            .text_xs()
+            .font_weight(gpui::FontWeight::SEMIBOLD)
+            .text_ellipsis()
+            .child(label);
+
+        self.timeline_clip_frame(clip, 0x7251a3, content.into_any_element(), cx)
     }
 
     fn video_clip(&self, clip: &Clip, cx: &mut Context<Self>) -> gpui::AnyElement {
@@ -334,14 +351,15 @@ impl Editor {
             .timeline
             .as_ref()
             .expect("timeline clips require an active timeline");
-        let asset = timeline.data.asset(clip.asset_id);
+        let media = clip.media().expect("video tracks contain media clips");
+        let asset = timeline.data.asset(media.asset_id);
         let name = asset
             .map(|asset| asset.name.clone())
             .unwrap_or_else(|| "Missing media".to_string());
 
         let waveform = asset.and_then(|asset| self.waveform_cache.get(&asset.path).cloned());
-        let source_start = timeline.data.seconds(clip.source_in);
-        let source_end = timeline.data.seconds(clip.source_out);
+        let source_start = timeline.data.seconds(media.source_in);
+        let source_end = timeline.data.seconds(media.source_out);
         let content = div()
             .absolute()
             .inset_0()
@@ -359,17 +377,24 @@ impl Editor {
             .timeline
             .as_ref()
             .expect("timeline clips require an active timeline");
-        let asset = timeline.data.asset(clip.asset_id);
+        let media = clip.media().expect("audio tracks contain media clips");
+        let asset = timeline.data.asset(media.asset_id);
         let name = asset
             .map(|asset| asset.name.clone())
             .unwrap_or_else(|| "Missing media".to_string());
         let waveform = asset.and_then(|asset| self.waveform_cache.get(&asset.path).cloned());
-        let source_start = timeline.data.seconds(clip.source_in);
-        let source_end = timeline.data.seconds(clip.source_out);
+        let source_start = timeline.data.seconds(media.source_in);
+        let source_end = timeline.data.seconds(media.source_out);
         let detail = if asset.is_some_and(|asset| asset.has_audio) {
             "Audio".to_string()
         } else {
-            format!("{}s", timeline.data.seconds(clip.duration()).round())
+            format!(
+                "{}s",
+                timeline
+                    .data
+                    .seconds(clip.frame_length(timeline.data.settings.frame_rate))
+                    .round()
+            )
         };
         let content = div()
             .absolute()
@@ -393,7 +418,7 @@ impl Editor {
             .timeline
             .as_ref()
             .expect("timeline clips require an active timeline");
-        let clip_id = clip.id;
+        let clip_id = clip.id();
         let selected = timeline.interaction.selected_clip_ids.contains(&clip_id);
         let moving = timeline
             .interaction
@@ -403,9 +428,12 @@ impl Editor {
                 drag.changed && drag.items.iter().any(|item| item.clip_id == clip_id)
             });
         let left = TIMELINE_PADDING
-            + timeline.data.seconds(clip.timeline_start) as f32
+            + timeline.data.seconds(clip.timeline_start()) as f32
                 * timeline.data.view.pixels_per_second;
-        let width = (timeline.data.seconds(clip.duration()) as f32
+        let width = (timeline
+            .data
+            .seconds(clip.frame_length(timeline.data.settings.frame_rate))
+            as f32
             * timeline.data.view.pixels_per_second)
             .max(4.0);
 

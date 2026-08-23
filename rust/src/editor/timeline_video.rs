@@ -31,6 +31,9 @@ pub(super) fn update_timeline_video_position(
     let clip = timeline_data
         .clip(clip_id)
         .ok_or_else(|| format!("Clip {clip_id} is unavailable."))?;
+    let clip = clip
+        .media()
+        .ok_or_else(|| format!("Clip {clip_id} is not a media clip."))?;
     let asset = timeline_data
         .asset(clip.asset_id)
         .ok_or_else(|| format!("Clip {clip_id} has no source media."))?;

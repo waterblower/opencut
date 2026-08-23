@@ -39,6 +39,46 @@ pub(super) fn validate_clip_placement(
     target_timeline_start: TimelineTime,
     ignored_clip_ids: &HashSet<Ulid>,
 ) -> Result<(), ClipPlacementRejection> {
+    let expected_track_kind = if media_kind == MediaKind::Audio {
+        TrackKind::Audio
+    } else {
+        TrackKind::Video
+    };
+    validate_clip_placement_on_track(
+        timeline,
+        target_track_id,
+        expected_track_kind,
+        clip_length,
+        target_timeline_start,
+        ignored_clip_ids,
+    )
+}
+
+pub(super) fn validate_text_clip_placement(
+    timeline: &TimelineSerialization,
+    target_track_id: Ulid,
+    clip_length: TimelineTime,
+    target_timeline_start: TimelineTime,
+    ignored_clip_ids: &HashSet<Ulid>,
+) -> Result<(), ClipPlacementRejection> {
+    validate_clip_placement_on_track(
+        timeline,
+        target_track_id,
+        TrackKind::Text,
+        clip_length,
+        target_timeline_start,
+        ignored_clip_ids,
+    )
+}
+
+fn validate_clip_placement_on_track(
+    timeline: &TimelineSerialization,
+    target_track_id: Ulid,
+    expected_track_kind: TrackKind,
+    clip_length: TimelineTime,
+    target_timeline_start: TimelineTime,
+    ignored_clip_ids: &HashSet<Ulid>,
+) -> Result<(), ClipPlacementRejection> {
     if target_timeline_start < TimelineTime::ZERO {
         return Err(ClipPlacementRejection::BeforeTimelineStart);
     }
@@ -51,22 +91,17 @@ pub(super) fn validate_clip_placement(
     if track.locked {
         return Err(ClipPlacementRejection::LockedTrack);
     }
-    let compatible = match track.kind {
-        TrackKind::Video => media_kind != MediaKind::Audio,
-        TrackKind::Audio => media_kind == MediaKind::Audio,
-        TrackKind::Text => false,
-    };
-    if !compatible {
+    if track.kind != expected_track_kind {
         return Err(ClipPlacementRejection::IncompatibleTrack);
     }
     if timeline.clips.iter().any(|clip| {
-        !ignored_clip_ids.contains(&clip.id)
-            && clip.track_id == target_track_id
+        !ignored_clip_ids.contains(&clip.id())
+            && clip.track_id() == target_track_id
             && timeline_ranges_overlap(
                 target_timeline_start,
                 target_timeline_start + clip_length,
-                clip.timeline_start,
-                clip.timeline_end(),
+                clip.timeline_start(),
+                clip.timeline_end(timeline.settings.frame_rate),
             )
     }) {
         return Err(ClipPlacementRejection::ExistingClipOverlap);

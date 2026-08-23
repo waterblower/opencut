@@ -1,5 +1,9 @@
-use super::{model::deserialize_ulid, timeline::TimelineTime};
+use super::{
+    model::deserialize_ulid,
+    timeline::{FrameRate, TimelineTime},
+};
 use serde::{Deserialize, Serialize};
+use std::time::Duration;
 use ulid::Ulid;
 
 /// Static visual adjustments for one timeline clip.
@@ -67,8 +71,15 @@ impl Default for TextClipProperties {
     }
 }
 
+#[derive(Clone, Debug, Serialize)]
+#[serde(tag = "kind", content = "data")]
+pub(super) enum Clip {
+    Media(MediaClip),
+    Text(TextClip),
+}
+
 #[derive(Clone, Debug, Deserialize, Serialize)]
-pub(super) struct Clip {
+pub(super) struct MediaClip {
     #[serde(deserialize_with = "deserialize_ulid")]
     pub id: Ulid,
     #[serde(deserialize_with = "deserialize_ulid")]
@@ -84,34 +95,256 @@ pub(super) struct Clip {
     pub audio_properties: AudioClipProperties,
 }
 
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub(super) struct TextClip {
+    #[serde(deserialize_with = "deserialize_ulid")]
+    pub id: Ulid,
+    #[serde(deserialize_with = "deserialize_ulid")]
+    pub track_id: Ulid,
+    pub timeline_start: TimelineTime,
+    pub length: Duration,
+    pub properties: TextClipProperties,
+}
+
+impl TextClip {
+    pub fn frame_length(&self, frame_rate: FrameRate) -> TimelineTime {
+        frame_rate.frames_from_duration_nearest(self.length)
+    }
+}
+
 impl Clip {
-    pub fn duration(&self) -> TimelineTime {
-        (self.source_out - self.source_in).max(TimelineTime::ZERO)
+    pub fn id(&self) -> Ulid {
+        match self {
+            Self::Media(clip) => clip.id,
+            Self::Text(clip) => clip.id,
+        }
     }
 
-    pub fn timeline_end(&self) -> TimelineTime {
-        self.timeline_start + self.duration()
+    pub fn set_id(&mut self, id: Ulid) {
+        match self {
+            Self::Media(clip) => clip.id = id,
+            Self::Text(clip) => clip.id = id,
+        }
     }
 
-    pub fn source_time_at(&self, timeline_position: TimelineTime) -> TimelineTime {
-        let local =
-            (timeline_position - self.timeline_start).clamp(TimelineTime::ZERO, self.duration());
-        (self.source_in + local).min(self.source_out)
+    pub fn track_id(&self) -> Ulid {
+        match self {
+            Self::Media(clip) => clip.track_id,
+            Self::Text(clip) => clip.track_id,
+        }
     }
 
-    pub fn split_at(&self, timeline_position: TimelineTime) -> Option<(Self, Self)> {
-        let local = timeline_position - self.timeline_start;
-        if local < TimelineTime::ONE_FRAME || local > self.duration() - TimelineTime::ONE_FRAME {
+    pub fn set_track_id(&mut self, track_id: Ulid) {
+        match self {
+            Self::Media(clip) => clip.track_id = track_id,
+            Self::Text(clip) => clip.track_id = track_id,
+        }
+    }
+
+    pub fn timeline_start(&self) -> TimelineTime {
+        match self {
+            Self::Media(clip) => clip.timeline_start,
+            Self::Text(clip) => clip.timeline_start,
+        }
+    }
+
+    pub fn set_timeline_start(&mut self, timeline_start: TimelineTime) {
+        match self {
+            Self::Media(clip) => clip.timeline_start = timeline_start,
+            Self::Text(clip) => clip.timeline_start = timeline_start,
+        }
+    }
+
+    pub fn media(&self) -> Option<&MediaClip> {
+        let Self::Media(clip) = self else {
+            return None;
+        };
+        Some(clip)
+    }
+
+    pub fn media_mut(&mut self) -> Option<&mut MediaClip> {
+        let Self::Media(clip) = self else {
+            return None;
+        };
+        Some(clip)
+    }
+
+    pub fn text(&self) -> Option<&TextClip> {
+        let Self::Text(clip) = self else {
+            return None;
+        };
+        Some(clip)
+    }
+
+    pub fn frame_length(&self, frame_rate: FrameRate) -> TimelineTime {
+        match self {
+            Self::Media(clip) => (clip.source_out - clip.source_in).max(TimelineTime::ZERO),
+            Self::Text(clip) => clip.frame_length(frame_rate).max(TimelineTime::ZERO),
+        }
+    }
+
+    pub fn timeline_end(&self, frame_rate: FrameRate) -> TimelineTime {
+        self.timeline_start() + self.frame_length(frame_rate)
+    }
+
+    pub fn source_time_at(&self, timeline_position: TimelineTime) -> Option<TimelineTime> {
+        let clip = self.media()?;
+        let local = (timeline_position - clip.timeline_start)
+            .clamp(TimelineTime::ZERO, clip.source_out - clip.source_in);
+        Some((clip.source_in + local).min(clip.source_out))
+    }
+
+    pub fn split_at(
+        &self,
+        timeline_position: TimelineTime,
+        frame_rate: FrameRate,
+    ) -> Option<(Self, Self)> {
+        let local = timeline_position - self.timeline_start();
+        if local < TimelineTime::ONE_FRAME
+            || local > self.frame_length(frame_rate) - TimelineTime::ONE_FRAME
+        {
             return None;
         }
 
-        let source_split = self.source_time_at(timeline_position);
         let mut left = self.clone();
-        left.source_out = source_split;
         let mut right = self.clone();
-        right.id = Ulid::generate();
-        right.timeline_start = timeline_position;
-        right.source_in = source_split;
+        right.set_id(Ulid::generate());
+        right.set_timeline_start(timeline_position);
+        match (&mut left, &mut right) {
+            (Self::Media(left), Self::Media(right)) => {
+                let source_split = left.source_in + local;
+                left.source_out = source_split;
+                right.source_in = source_split;
+            }
+            (Self::Text(left), Self::Text(right)) => {
+                left.length = frame_rate.duration(local);
+                right.length = right.length.saturating_sub(left.length);
+            }
+            _ => unreachable!("a cloned clip must retain its variant"),
+        }
         Some((left, right))
     }
+}
+
+impl<'de> Deserialize<'de> for Clip {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let value = serde_json::Value::deserialize(deserializer)?;
+        if let (Some(kind), Some(data)) = (
+            value.get("kind").and_then(serde_json::Value::as_str),
+            value.get("data").cloned(),
+        ) {
+            return match kind {
+                "Media" => serde_json::from_value::<MediaClip>(data)
+                    .map(Self::Media)
+                    .map_err(serde::de::Error::custom),
+                "Text" => serde_json::from_value::<TextClip>(data)
+                    .map(Self::Text)
+                    .map_err(serde::de::Error::custom),
+                _ => Err(serde::de::Error::custom(format!(
+                    "unknown clip kind `{kind}`"
+                ))),
+            };
+        }
+        if value.get("text").is_some() {
+            if value
+                .get("length")
+                .is_some_and(serde_json::Value::is_number)
+            {
+                let clip = serde_json::from_value::<FrameLengthTextClip>(value)
+                    .map_err(serde::de::Error::custom)?;
+                return Ok(Self::Text(TextClip {
+                    id: clip.id,
+                    track_id: clip.track_id,
+                    timeline_start: clip.timeline_start,
+                    length: FrameRate::default().duration(clip.length),
+                    properties: clip.text,
+                }));
+            }
+            let mut value = value;
+            let object = value
+                .as_object_mut()
+                .ok_or_else(|| serde::de::Error::custom("clip must be a JSON object"))?;
+            let properties = object
+                .remove("text")
+                .ok_or_else(|| serde::de::Error::custom("text clip properties are missing"))?;
+            object.insert("properties".to_string(), properties);
+            return serde_json::from_value::<TextClip>(value)
+                .map(Self::Text)
+                .map_err(serde::de::Error::custom);
+        }
+        if value.get("properties").is_some() {
+            let mut value = value;
+            if value
+                .get("length")
+                .is_some_and(serde_json::Value::is_number)
+            {
+                let frames = value
+                    .get("length")
+                    .and_then(serde_json::Value::as_i64)
+                    .ok_or_else(|| serde::de::Error::custom("text clip length is invalid"))?;
+                value["length"] = serde_json::to_value(
+                    FrameRate::default().duration(TimelineTime::from_frames(frames)),
+                )
+                .map_err(serde::de::Error::custom)?;
+            }
+            return serde_json::from_value::<TextClip>(value)
+                .map(Self::Text)
+                .map_err(serde::de::Error::custom);
+        }
+
+        let clip = serde_json::from_value::<LegacyClip>(value).map_err(serde::de::Error::custom)?;
+        Ok(if let Some(text) = clip.text_properties {
+            Self::Text(TextClip {
+                id: clip.id,
+                track_id: clip.track_id,
+                timeline_start: clip.timeline_start,
+                length: FrameRate::default().duration(clip.source_out - clip.source_in),
+                properties: text,
+            })
+        } else {
+            Self::Media(MediaClip {
+                id: clip.id,
+                track_id: clip.track_id,
+                asset_id: clip.asset_id,
+                timeline_start: clip.timeline_start,
+                source_in: clip.source_in,
+                source_out: clip.source_out,
+                video_properties: clip.video_properties,
+                audio_properties: clip.audio_properties,
+            })
+        })
+    }
+}
+
+#[derive(Deserialize)]
+struct FrameLengthTextClip {
+    #[serde(deserialize_with = "deserialize_ulid")]
+    id: Ulid,
+    #[serde(deserialize_with = "deserialize_ulid")]
+    track_id: Ulid,
+    timeline_start: TimelineTime,
+    length: TimelineTime,
+    text: TextClipProperties,
+}
+
+#[derive(Deserialize)]
+struct LegacyClip {
+    #[serde(deserialize_with = "deserialize_ulid")]
+    id: Ulid,
+    #[serde(deserialize_with = "deserialize_ulid")]
+    track_id: Ulid,
+    #[serde(default = "Ulid::nil", deserialize_with = "deserialize_ulid")]
+    asset_id: Ulid,
+    timeline_start: TimelineTime,
+    source_in: TimelineTime,
+    source_out: TimelineTime,
+    #[serde(default)]
+    video_properties: VideoClipProperties,
+    #[serde(default)]
+    audio_properties: AudioClipProperties,
+    #[serde(default)]
+    text_properties: Option<TextClipProperties>,
 }

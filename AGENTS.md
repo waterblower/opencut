@@ -13,3 +13,5 @@
 - Never use `#[serde(rename_all = "snake_case")]`.
 - Place private code at the bottom of each file, after public and
   restricted-public (`pub(...)`) code.
+- When reporting a code location or file to the user, always include the relevant
+  line number in the clickable file link.
