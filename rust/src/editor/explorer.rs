@@ -822,7 +822,9 @@ impl Editor {
             audio_properties: AudioClipProperties::default(),
         });
 
-        if let Err(rejection) = edit(
+        if let Err(rejection) = edit_and_rebuild_timeline(
+            &mut self.preview,
+            &self.global_settings.project_root,
             timeline,
             EditAction::AddClips {
                 clips: vec![media_clip],

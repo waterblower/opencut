@@ -150,8 +150,13 @@ impl Editor {
             return;
         };
         timeline.record_editing_history();
-        edit(timeline, EditAction::SetFrameRate { frame_rate })
-            .expect("changing the frame rate cannot be rejected");
+        edit_and_rebuild_timeline(
+            &mut self.preview,
+            &self.global_settings.project_root,
+            timeline,
+            EditAction::SetFrameRate { frame_rate },
+        )
+        .expect("changing the frame rate cannot be rejected");
         timeline.playhead = playhead.clamp(TimelineTime::ZERO, timeline.data.content_duration());
         let playhead = timeline.playhead;
         let has_clips = !timeline.data.clips.is_empty();

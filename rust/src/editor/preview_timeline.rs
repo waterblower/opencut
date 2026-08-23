@@ -255,7 +255,9 @@ impl Editor {
             timeline.record_editing_history();
             drag.changed = true;
         }
-        edit(
+        edit_and_rebuild_timeline(
+            &mut self.preview,
+            &self.global_settings.project_root,
             timeline,
             EditAction::SetVideoProperties {
                 clip_ids: vec![drag.clip_id],

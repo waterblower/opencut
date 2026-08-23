@@ -196,24 +196,21 @@ impl ClipClipboard {
 }
 
 impl TimelineRuntimeState {
-    pub(super) fn blade_at_playhead(&mut self, project_root: &Path) {
+    pub(super) fn blade_at_playhead(&mut self, preview: &mut PreviewState, project_root: &Path) {
         let Some(updated_timeline) = blade_at_playhead(&self.data, self.playhead) else {
             return;
         };
 
         self.record_editing_history();
-        edit(
+        edit_and_rebuild_timeline(
+            preview,
+            project_root,
             self,
             EditAction::ReplaceTimeline {
                 timeline: updated_timeline,
             },
         )
         .expect("replacing a timeline cannot be rejected");
-        let split_count = self.data.clips.len();
-        eprintln!(
-            "Bladed {split_count} clip{} at the playhead.",
-            plural_suffix(split_count)
-        );
         self.save(project_root);
     }
 }
@@ -312,8 +309,13 @@ impl Editor {
             .or_else(|| clips.first())
             .map(Clip::id);
 
-        edit(timeline, EditAction::AddClips { clips, assets })
-            .expect("clipboard placements were validated before recording history");
+        edit_and_rebuild_timeline(
+            &mut self.preview,
+            &self.global_settings.project_root,
+            timeline,
+            EditAction::AddClips { clips, assets },
+        )
+        .expect("clipboard placements were validated before recording history");
 
         self.preview.target = PreviewTarget::None;
         self.status = Some(format!("Pasted {count} clip{}.", plural_suffix(count)));
@@ -327,7 +329,9 @@ impl Editor {
         let Some(timeline) = self.timeline.as_mut() else {
             return;
         };
-        edit(
+        edit_and_rebuild_timeline(
+            &mut self.preview,
+            &self.global_settings.project_root,
             timeline,
             EditAction::RemoveClips {
                 clip_ids: clip_ids.clone(),
@@ -437,7 +441,9 @@ impl Editor {
             .and_then(|index| duplicates.get(index))
             .or_else(|| duplicates.first())
             .map(Clip::id);
-        edit(
+        edit_and_rebuild_timeline(
+            &mut self.preview,
+            &self.global_settings.project_root,
             timeline,
             EditAction::AddClips {
                 clips: duplicates,
@@ -472,7 +478,9 @@ impl Editor {
         };
         timeline.record_editing_history();
         self.preview.timeline_needs_rebuild = true;
-        edit(
+        edit_and_rebuild_timeline(
+            &mut self.preview,
+            &self.global_settings.project_root,
             timeline,
             EditAction::AddTrack {
                 track: Track {
@@ -495,8 +503,13 @@ impl Editor {
             return;
         };
         timeline.record_editing_history();
-        edit(timeline, EditAction::ToggleTrackLock { track_id })
-            .expect("toggling a track lock cannot be rejected");
+        edit_and_rebuild_timeline(
+            &mut self.preview,
+            &self.global_settings.project_root,
+            timeline,
+            EditAction::ToggleTrackLock { track_id },
+        )
+        .expect("toggling a track lock cannot be rejected");
         timeline.save(&self.global_settings.project_root);
         self.rebuild_timeline_preview_if_needed();
     }
@@ -508,8 +521,13 @@ impl Editor {
         let playhead = timeline.playhead;
         timeline.record_editing_history();
         self.preview.timeline_needs_rebuild = true;
-        edit(timeline, EditAction::ToggleTrackVisibility { track_id })
-            .expect("toggling track visibility cannot be rejected");
+        edit_and_rebuild_timeline(
+            &mut self.preview,
+            &self.global_settings.project_root,
+            timeline,
+            EditAction::ToggleTrackVisibility { track_id },
+        )
+        .expect("toggling track visibility cannot be rejected");
         timeline.save(&self.global_settings.project_root);
         self.rebuild_timeline_preview_if_needed();
         self.load_timeline_position_with_options(playhead, true);
@@ -522,8 +540,13 @@ impl Editor {
         let playhead = timeline.playhead;
         timeline.record_editing_history();
         self.preview.timeline_needs_rebuild = true;
-        edit(timeline, EditAction::ToggleTrackMute { track_id })
-            .expect("toggling track mute cannot be rejected");
+        edit_and_rebuild_timeline(
+            &mut self.preview,
+            &self.global_settings.project_root,
+            timeline,
+            EditAction::ToggleTrackMute { track_id },
+        )
+        .expect("toggling track mute cannot be rejected");
         timeline.save(&self.global_settings.project_root);
         self.rebuild_timeline_preview_if_needed();
         self.load_timeline_position_with_options(playhead, true);
@@ -554,8 +577,13 @@ impl Editor {
         let playhead = timeline.playhead;
         timeline.record_editing_history();
         self.preview.timeline_needs_rebuild = true;
-        edit(timeline, EditAction::MoveTrack { index, target })
-            .expect("moving a track cannot be rejected");
+        edit_and_rebuild_timeline(
+            &mut self.preview,
+            &self.global_settings.project_root,
+            timeline,
+            EditAction::MoveTrack { index, target },
+        )
+        .expect("moving a track cannot be rejected");
         timeline.save(&self.global_settings.project_root);
         self.rebuild_timeline_preview_if_needed();
         self.load_timeline_position_with_options(playhead, true);
@@ -579,8 +607,13 @@ impl Editor {
         let playhead = timeline.playhead;
         timeline.record_editing_history();
         self.preview.timeline_needs_rebuild = true;
-        edit(timeline, EditAction::DeleteTrack { track_id })
-            .expect("deleting a track cannot be rejected");
+        edit_and_rebuild_timeline(
+            &mut self.preview,
+            &self.global_settings.project_root,
+            timeline,
+            EditAction::DeleteTrack { track_id },
+        )
+        .expect("deleting a track cannot be rejected");
         let remaining_clip_ids = timeline
             .data
             .clips
@@ -666,8 +699,13 @@ impl Editor {
         };
         snapshot.view = timeline.data.view.clone();
         let current = timeline.data.clone();
-        edit(timeline, EditAction::ReplaceTimeline { timeline: snapshot })
-            .expect("restoring history cannot be rejected");
+        edit_and_rebuild_timeline(
+            &mut self.preview,
+            &self.global_settings.project_root,
+            timeline,
+            EditAction::ReplaceTimeline { timeline: snapshot },
+        )
+        .expect("restoring history cannot be rejected");
         timeline.redo_stack.push(current);
         self.reset_after_history_change();
     }
@@ -681,8 +719,13 @@ impl Editor {
         };
         snapshot.view = timeline.data.view.clone();
         let current = timeline.data.clone();
-        edit(timeline, EditAction::ReplaceTimeline { timeline: snapshot })
-            .expect("restoring history cannot be rejected");
+        edit_and_rebuild_timeline(
+            &mut self.preview,
+            &self.global_settings.project_root,
+            timeline,
+            EditAction::ReplaceTimeline { timeline: snapshot },
+        )
+        .expect("restoring history cannot be rejected");
         timeline.undo_stack.push(current);
         self.reset_after_history_change();
     }
@@ -756,7 +799,9 @@ impl Editor {
             return;
         };
         timeline.interaction.magnet_enabled = !timeline.interaction.magnet_enabled;
-        edit(
+        edit_and_rebuild_timeline(
+            &mut self.preview,
+            &self.global_settings.project_root,
             timeline,
             EditAction::SetTrackMagnet {
                 enabled: timeline.interaction.magnet_enabled,
@@ -976,7 +1021,20 @@ pub(super) enum EditAction {
     },
 }
 
-pub(super) fn edit(
+pub(super) fn edit_and_rebuild_timeline(
+    preview: &mut PreviewState,
+    project_root: &Path,
+    timeline: &mut TimelineRuntimeState,
+    action: EditAction,
+) -> Result<(), ClipPlacementRejection> {
+    edit_timeline(timeline, action)?;
+
+    let video = create_timeline_video(&timeline.data, project_root).unwrap();
+    preview.target = PreviewTarget::Timeline(video);
+    Ok(())
+}
+
+pub(super) fn edit_timeline(
     timeline: &mut TimelineRuntimeState,
     action: EditAction,
 ) -> Result<(), ClipPlacementRejection> {
@@ -1098,6 +1156,7 @@ pub(super) fn edit(
         }
         EditAction::ReplaceTimeline { timeline: data } => timeline.data = data,
     }
+
     Ok(())
 }
 

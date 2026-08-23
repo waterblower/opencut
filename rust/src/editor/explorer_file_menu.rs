@@ -286,8 +286,13 @@ impl Editor {
                         .map(|path| (asset.id, path))
                 })
                 .collect();
-            edit(timeline, EditAction::UpdateAssetPaths { paths })
-                .expect("updating asset paths cannot be rejected");
+            edit_and_rebuild_timeline(
+                &mut self.preview,
+                &self.global_settings.project_root,
+                timeline,
+                EditAction::UpdateAssetPaths { paths },
+            )
+            .expect("updating asset paths cannot be rejected");
             for snapshot in timeline
                 .undo_stack
                 .iter_mut()

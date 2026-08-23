@@ -50,7 +50,7 @@ use crate::playback_view::{DragPhase, PlaybackViewDelegate};
 use clip_placement::{
     ClipPlacementRejection, validate_clip_placement, validate_text_clip_placement,
 };
-use editing::{ClipClipboard, EditAction, edit};
+use editing::{ClipClipboard, EditAction, edit_and_rebuild_timeline, edit_timeline};
 use explorer::{
     ExplorerDropPreview, ExplorerMediaDrag, FileContextMenu, FileTreeEntry, NewTimelineDialogState,
     PendingExplorerDrop, RenameDialogState, load_explorer_expansion, visible_tree,
@@ -554,7 +554,7 @@ impl Editor {
         let Some(timeline) = self.timeline.as_mut() else {
             return;
         };
-        timeline.blade_at_playhead(&self.global_settings.project_root);
+        timeline.blade_at_playhead(&mut self.preview, &self.global_settings.project_root);
         cx.notify();
     }
 

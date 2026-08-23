@@ -193,7 +193,7 @@ impl TimelineRuntimeState {
                 pixels_per_second,
             ));
             self.h_scroll.set_offset(scroll_offset);
-            edit(self, EditAction::SetTimelineZoom { pixels_per_second })
+            edit_timeline(self, EditAction::SetTimelineZoom { pixels_per_second })
                 .expect("changing timeline zoom cannot be rejected");
         }
     }
@@ -299,7 +299,7 @@ impl Editor {
                 };
                 let position = timeline.timeline_position_from_x(event.position.x.into());
                 timeline.playhead = position;
-                timeline.blade_at_playhead(&self.global_settings.project_root);
+                timeline.blade_at_playhead(&mut self.preview, &self.global_settings.project_root);
             }
         }
     }
@@ -624,7 +624,9 @@ impl Editor {
         if drag.changed && drag.invalid_reason.is_none() {
             timeline.record_editing_history();
             self.preview.timeline_needs_rebuild = true;
-            edit(
+            edit_and_rebuild_timeline(
+                &mut self.preview,
+                &self.global_settings.project_root,
                 timeline,
                 EditAction::MoveClips {
                     placements: drag.placements,
@@ -645,7 +647,9 @@ impl Editor {
         };
         timeline.interaction.snapping_enabled = !timeline.interaction.snapping_enabled;
         timeline.interaction.snap_guide = None;
-        edit(
+        edit_and_rebuild_timeline(
+            &mut self.preview,
+            &self.global_settings.project_root,
             timeline,
             EditAction::SetSnapping {
                 enabled: timeline.interaction.snapping_enabled,

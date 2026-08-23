@@ -246,7 +246,9 @@ impl Editor {
         };
         timeline.record_editing_history();
         self.preview.timeline_needs_rebuild = true;
-        edit(
+        edit_and_rebuild_timeline(
+            &mut self.preview,
+            &self.global_settings.project_root,
             timeline,
             EditAction::SetTextProperties {
                 clip_id,
