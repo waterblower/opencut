@@ -30,6 +30,7 @@ mod preview_timeline;
 mod preview_video;
 mod project_settings;
 mod properties;
+mod properties_text;
 mod properties_transform;
 mod settings;
 mod timeline;
@@ -63,6 +64,7 @@ use preview_audio::AudioBackend;
 use preview_timeline::TimelinePreviewDrag;
 use project_settings::{load_project_local_settings, save_project_local_settings};
 use properties::{PropertiesPanelResizeDrag, properties_panel};
+use properties_text::TextClipInputs;
 use properties_transform::VideoTransformInputs;
 use timeline::{
     FRAME_RATE_PRESETS, FrameRate, TimelineRuntimeState, TimelineSerialization, TimelineTime,
@@ -216,6 +218,8 @@ struct PropertiesPanelState {
     resizing: bool,
     transform_inputs: VideoTransformInputs,
     transform_input_clip_id: Option<Ulid>,
+    text_inputs: TextClipInputs,
+    text_input_clip_id: Option<Ulid>,
 }
 
 struct ExportState {
@@ -374,6 +378,7 @@ impl Editor {
         self.preview.last_scrub_seek = None;
         self.preview.timeline_drag = None;
         self.properties.transform_input_clip_id = None;
+        self.properties.text_input_clip_id = None;
         self.timeline = active_timeline.map(|(path, data)| TimelineRuntimeState::new(path, data));
         save_project_local_settings(
             &self.global_settings.project_root,

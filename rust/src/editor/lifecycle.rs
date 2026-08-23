@@ -32,6 +32,8 @@ impl Editor {
         let explorer_filter = cx.new(|cx| ExplorerFilter::new(focus_handle.clone(), cx));
         let video_transform_inputs = VideoTransformInputs::new(focus_handle.clone(), cx);
         Self::observe_video_transform_inputs(&video_transform_inputs, cx);
+        let text_clip_inputs = TextClipInputs::new(focus_handle.clone(), cx);
+        Self::observe_text_clip_inputs(&text_clip_inputs, cx);
         cx.observe(&explorer_filter, |editor, _, cx| {
             editor.schedule_explorer_search(cx);
             cx.notify();
@@ -78,6 +80,8 @@ impl Editor {
                 resizing: false,
                 transform_inputs: video_transform_inputs,
                 transform_input_clip_id: None,
+                text_inputs: text_clip_inputs,
+                text_input_clip_id: None,
             },
             settings_open: false,
             export: ExportState {

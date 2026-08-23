@@ -276,11 +276,13 @@ fn format_transform_value(value: f64) -> String {
         .to_string()
 }
 
-fn disabled_field_overlay(field: gpui::Stateful<gpui::Div>) -> gpui::Stateful<gpui::Div> {
+pub(super) fn disabled_field_overlay(
+    field: gpui::Stateful<gpui::Div>,
+) -> gpui::Stateful<gpui::Div> {
     field.child(div().absolute().inset_0().occlude())
 }
 
-fn properties_tab(label: &'static str, active: bool) -> gpui::Div {
+pub(super) fn properties_tab(label: &'static str, active: bool) -> gpui::Div {
     div()
         .h_full()
         .flex()
@@ -292,7 +294,7 @@ fn properties_tab(label: &'static str, active: bool) -> gpui::Div {
         .child(label)
 }
 
-fn properties_section_label(label: &'static str) -> gpui::Div {
+pub(super) fn properties_section_label(label: &'static str) -> gpui::Div {
     div()
         .text_xs()
         .font_weight(gpui::FontWeight::SEMIBOLD)

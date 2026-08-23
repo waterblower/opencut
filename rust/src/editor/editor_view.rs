@@ -3,6 +3,7 @@ use super::*;
 impl Render for Editor {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         self.sync_video_transform_inputs(cx);
+        self.sync_text_clip_inputs(cx);
         let viewport = window.viewport_size();
         let editor_width =
             (f32::from(viewport.width) - crate::gpui_inspector::docked_width(window)).max(0.0);

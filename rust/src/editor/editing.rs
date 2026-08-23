@@ -331,6 +331,7 @@ impl Editor {
         timeline.interaction.selected_clip_ids.clear();
         timeline.interaction.selected_clip_id = None;
         self.properties.transform_input_clip_id = None;
+        self.properties.text_input_clip_id = None;
         self.preview.target = PreviewTarget::None;
         self.preview.timeline_needs_rebuild = true;
         let clips_empty = timeline.data.clips.is_empty();
@@ -602,6 +603,7 @@ impl Editor {
         }
         timeline.interaction.selected_clip_id = clip_id;
         self.properties.transform_input_clip_id = None;
+        self.properties.text_input_clip_id = None;
     }
 
     pub(super) fn select_all_unlocked_clips(&mut self) {
@@ -616,6 +618,7 @@ impl Editor {
             .find(|clip| timeline.interaction.selected_clip_ids.contains(&clip.id()))
             .map(Clip::id);
         self.properties.transform_input_clip_id = None;
+        self.properties.text_input_clip_id = None;
     }
 
     pub(super) fn toggle_clip_selection(&mut self, clip_id: Ulid) {
@@ -636,6 +639,7 @@ impl Editor {
             timeline.interaction.selected_clip_id = Some(clip_id);
         }
         self.properties.transform_input_clip_id = None;
+        self.properties.text_input_clip_id = None;
     }
 
     pub(super) fn undo(&mut self) {
@@ -699,6 +703,7 @@ impl Editor {
         let has_clips = !timeline.data.clips.is_empty();
         let playhead = timeline.playhead;
         self.properties.transform_input_clip_id = None;
+        self.properties.text_input_clip_id = None;
         if has_clips {
             self.load_timeline_position_with_options(playhead, true);
         }

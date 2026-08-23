@@ -1,3 +1,4 @@
+use super::properties_text::text_clip_panel;
 use super::properties_transform::video_transform_panel;
 use super::*;
 use std::path::Path;
@@ -190,23 +191,7 @@ fn timeline_properties(
                         })
                 })
                 .when_some(clip.text(), |this, text_clip| {
-                    this.gap_4()
-                        .child(properties_title(
-                            text_clip.properties.text.clone(),
-                            "Text clip",
-                        ))
-                        .child(properties_value(
-                            "Timeline start",
-                            format_time(timeline.seconds(clip.timeline_start()), false),
-                        ))
-                        .child(properties_value(
-                            "Clip duration",
-                            format_time(
-                                timeline.seconds(clip.frame_length(timeline.settings.frame_rate)),
-                                false,
-                            ),
-                        ))
-                        .child(properties_value("Track", track.name.clone()))
+                    this.child(text_clip_panel(panel, editable, text_clip.properties.color))
                 })
         })
         .when(selected.is_none(), |this| {
