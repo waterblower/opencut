@@ -149,8 +149,6 @@ impl Editor {
         timeline.interaction.selected_clip_ids.clear();
         timeline.interaction.selected_clip_ids.insert(clip_id);
         timeline.save(&self.global_settings.project_root);
-        self.preview.timeline_needs_rebuild = true;
-        self.rebuild_timeline_preview_if_needed();
         self.status = Some("Added text clip.".to_string());
         cx.notify();
     }

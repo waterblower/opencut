@@ -257,7 +257,6 @@ impl Editor {
             return;
         };
         timeline.record_editing_history();
-        self.preview.timeline_needs_rebuild = true;
         edit_and_rebuild_timeline(
             &mut self.preview,
             &self.global_settings.project_root,
@@ -270,7 +269,6 @@ impl Editor {
         .expect("setting video properties cannot be rejected");
 
         timeline.save(&self.global_settings.project_root);
-        self.rebuild_timeline_preview_if_needed();
     }
 }
 

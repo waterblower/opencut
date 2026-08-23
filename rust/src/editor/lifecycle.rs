@@ -66,7 +66,6 @@ impl Editor {
             preview: PreviewState {
                 target: PreviewTarget::None,
                 fullscreen: false,
-                timeline_needs_rebuild: true,
                 volume_control_open: false,
                 is_scrubbing: false,
                 is_adjusting_volume: false,

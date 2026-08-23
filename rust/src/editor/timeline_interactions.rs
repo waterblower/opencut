@@ -623,7 +623,6 @@ impl Editor {
         timeline.interaction.snap_guide = None;
         if drag.changed && drag.invalid_reason.is_none() {
             timeline.record_editing_history();
-            self.preview.timeline_needs_rebuild = true;
             edit_and_rebuild_timeline(
                 &mut self.preview,
                 &self.global_settings.project_root,
@@ -635,7 +634,7 @@ impl Editor {
             .expect("clip move placements were validated during the drag");
             let playhead = timeline.playhead;
             timeline.save(&self.global_settings.project_root);
-            self.rebuild_timeline_preview_if_needed();
+
             self.load_timeline_position_with_options(playhead, true);
         }
         cx.notify();
@@ -657,7 +656,6 @@ impl Editor {
         )
         .expect("changing snapping cannot be rejected");
         timeline.save(&self.global_settings.project_root);
-        self.rebuild_timeline_preview_if_needed();
     }
 
     pub(super) fn finish_timeline_scroll(

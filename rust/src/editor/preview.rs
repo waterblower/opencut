@@ -38,17 +38,6 @@ impl PreviewTarget {
 }
 
 impl Editor {
-    pub(super) fn rebuild_timeline_preview_if_needed(&mut self) {
-        if !self.preview.timeline_needs_rebuild || !self.preview.target.is_timeline() {
-            return;
-        }
-        let Some(timeline) = self.timeline.as_ref() else {
-            return;
-        };
-        let playhead = timeline.playhead;
-        self.load_timeline_position_with_options(playhead, true);
-    }
-
     pub(super) fn preview_player(
         &self,
         origin_x: f32,
@@ -105,7 +94,6 @@ impl Editor {
         let was_timeline = self.preview.target.is_timeline();
         if !was_timeline {
             self.preview.target = PreviewTarget::None;
-            self.preview.timeline_needs_rebuild = true;
         }
         self.explorer.selected_file = None;
         self.explorer.context_menu = None;
@@ -119,12 +107,11 @@ impl Editor {
                 video.set_paused(true);
             }
             self.preview.target = PreviewTarget::None;
-            self.preview.timeline_needs_rebuild = true;
 
             return;
         }
 
-        if self.preview.target.video().is_none() || self.preview.timeline_needs_rebuild {
+        if self.preview.target.video().is_none() {
             let volume = match &self.preview.target {
                 PreviewTarget::Timeline(video) => video.volume(),
                 _ => 1.0,
@@ -138,7 +125,6 @@ impl Editor {
                     video.set_volume(volume);
                     video.set_muted(volume <= f64::EPSILON);
                     self.preview.target = PreviewTarget::Timeline(video);
-                    self.preview.timeline_needs_rebuild = false;
                 }
                 Err(error) => {
                     eprintln!("{error}");

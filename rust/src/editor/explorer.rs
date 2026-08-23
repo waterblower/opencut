@@ -795,7 +795,6 @@ impl Editor {
             return;
         };
         timeline.record_editing_history();
-        self.preview.timeline_needs_rebuild = true;
         let (asset_id, assets) = if let Some(asset_id) = timeline
             .data
             .assets
@@ -841,7 +840,7 @@ impl Editor {
             return;
         };
         timeline.save(&self.global_settings.project_root);
-        self.rebuild_timeline_preview_if_needed();
+
         self.schedule_active_timeline_waveforms(cx);
         self.status = Some("Added media at the selected timeline position.".to_string());
     }

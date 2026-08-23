@@ -173,7 +173,6 @@ impl Editor {
             return;
         };
         timeline.record_editing_history();
-        self.preview.timeline_needs_rebuild = true;
         let clip_ids = targets
             .into_iter()
             .map(|index| timeline.data.clips[index].id())
@@ -191,7 +190,7 @@ impl Editor {
         self.properties.transform_input_clip_id = None;
 
         timeline.save(&self.global_settings.project_root);
-        self.rebuild_timeline_preview_if_needed();
+
         self.status = Some(format!(
             "Applied transforms to {changed} other clip{}.",
             if changed == 1 { "" } else { "s" }

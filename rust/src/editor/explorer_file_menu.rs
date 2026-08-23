@@ -307,7 +307,6 @@ impl Editor {
                 }
             }
         }
-        self.preview.timeline_needs_rebuild = true;
         self.explorer.expanded_directories = self
             .explorer
             .expanded_directories
@@ -351,7 +350,7 @@ impl Editor {
                 .as_ref()
                 .map(|timeline| timeline.path.as_path()),
         )?;
-        self.rebuild_timeline_preview_if_needed();
+
         self.explorer.rename_dialog = None;
         self.explorer.search_query = None;
         self.explorer.search_results.clear();

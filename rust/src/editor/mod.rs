@@ -205,7 +205,6 @@ struct ExplorerState {
 struct PreviewState {
     target: PreviewTarget,
     fullscreen: bool,
-    timeline_needs_rebuild: bool,
     volume_control_open: bool,
     is_scrubbing: bool,
     is_adjusting_volume: bool,
@@ -288,7 +287,7 @@ impl Editor {
         if let Some(timeline) = self.timeline.as_ref() {
             timeline.save(&self.global_settings.project_root);
         }
-        self.rebuild_timeline_preview_if_needed();
+
         self.global_settings.project_root = root;
         self.waveform_jobs.clear();
         self.waveform_cache.clear();
@@ -313,7 +312,6 @@ impl Editor {
         {
             self.explorer.selected_file = Some(relative_path);
             self.preview.target = PreviewTarget::None;
-            self.preview.timeline_needs_rebuild = true;
             let timeline = self.timeline.as_ref().expect("timeline was checked above");
             let playhead = timeline.playhead;
             if !timeline.data.clips.is_empty() {
@@ -328,7 +326,7 @@ impl Editor {
         if let Some(timeline) = self.timeline.as_ref() {
             timeline.save(&self.global_settings.project_root);
         }
-        self.rebuild_timeline_preview_if_needed();
+
         self.activate_timeline(Some((relative_path.clone(), timeline)), cx)?;
         self.status = Some(format!("Opened {}", relative_path.display()));
         Ok(())
@@ -346,7 +344,7 @@ impl Editor {
         if let Some(active_timeline) = self.timeline.as_ref() {
             active_timeline.save(&self.global_settings.project_root);
         }
-        self.rebuild_timeline_preview_if_needed();
+
         // Expand the target folder so the new timeline is visible in the tree.
         if !relative_directory.as_os_str().is_empty() {
             self.explorer
@@ -371,7 +369,6 @@ impl Editor {
         self.explorer.drag_probe_jobs.clear();
         self.explorer.drop_preview = None;
         self.explorer.pending_drop = None;
-        self.preview.timeline_needs_rebuild = true;
         self.preview.volume_control_open = false;
         self.preview.is_scrubbing = false;
         self.preview.is_adjusting_volume = false;

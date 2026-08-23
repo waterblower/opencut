@@ -161,7 +161,6 @@ impl Editor {
         let playhead = timeline.playhead;
         let has_clips = !timeline.data.clips.is_empty();
         self.preview.target = PreviewTarget::None;
-        self.preview.timeline_needs_rebuild = true;
         self.save_timeline_playhead();
         if has_clips {
             self.load_timeline_position_with_options(playhead, true);

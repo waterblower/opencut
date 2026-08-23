@@ -297,7 +297,6 @@ impl Editor {
             return;
         };
         timeline.record_editing_history();
-        self.preview.timeline_needs_rebuild = true;
         for clip in &mut clips {
             clip.set_id(Ulid::generate());
         }
@@ -320,7 +319,7 @@ impl Editor {
         self.preview.target = PreviewTarget::None;
         self.status = Some(format!("Pasted {count} clip{}.", plural_suffix(count)));
         timeline.save(&self.global_settings.project_root);
-        self.rebuild_timeline_preview_if_needed();
+
         self.load_timeline_position_with_options(playhead, true);
         self.schedule_active_timeline_waveforms(cx);
     }
@@ -344,7 +343,6 @@ impl Editor {
         self.properties.transform_input_clip_id = None;
         self.properties.text_input_clip_id = None;
         self.preview.target = PreviewTarget::None;
-        self.preview.timeline_needs_rebuild = true;
         let clips_empty = timeline.data.clips.is_empty();
         let playhead = timeline.playhead;
         if clips_empty {
@@ -356,7 +354,6 @@ impl Editor {
             return;
         };
         timeline.save(&self.global_settings.project_root);
-        self.rebuild_timeline_preview_if_needed();
     }
 
     pub(super) fn duplicate_selected(&mut self) {
@@ -435,7 +432,6 @@ impl Editor {
             return;
         };
         timeline.record_editing_history();
-        self.preview.timeline_needs_rebuild = true;
         timeline.interaction.selected_clip_ids = duplicates.iter().map(Clip::id).collect();
         timeline.interaction.selected_clip_id = primary_index
             .and_then(|index| duplicates.get(index))
@@ -452,7 +448,6 @@ impl Editor {
         )
         .expect("duplicate placements were validated before recording history");
         timeline.save(&self.global_settings.project_root);
-        self.rebuild_timeline_preview_if_needed();
     }
 
     pub(super) fn add_track(&mut self, kind: TrackKind) {
@@ -477,7 +472,6 @@ impl Editor {
             return;
         };
         timeline.record_editing_history();
-        self.preview.timeline_needs_rebuild = true;
         edit_and_rebuild_timeline(
             &mut self.preview,
             &self.global_settings.project_root,
@@ -495,7 +489,6 @@ impl Editor {
         )
         .expect("adding a track cannot be rejected");
         timeline.save(&self.global_settings.project_root);
-        self.rebuild_timeline_preview_if_needed();
     }
 
     pub(super) fn toggle_track_lock(&mut self, track_id: Ulid) {
@@ -511,7 +504,6 @@ impl Editor {
         )
         .expect("toggling a track lock cannot be rejected");
         timeline.save(&self.global_settings.project_root);
-        self.rebuild_timeline_preview_if_needed();
     }
 
     pub(super) fn toggle_track_visibility(&mut self, track_id: Ulid) {
@@ -520,7 +512,6 @@ impl Editor {
         };
         let playhead = timeline.playhead;
         timeline.record_editing_history();
-        self.preview.timeline_needs_rebuild = true;
         edit_and_rebuild_timeline(
             &mut self.preview,
             &self.global_settings.project_root,
@@ -529,7 +520,7 @@ impl Editor {
         )
         .expect("toggling track visibility cannot be rejected");
         timeline.save(&self.global_settings.project_root);
-        self.rebuild_timeline_preview_if_needed();
+
         self.load_timeline_position_with_options(playhead, true);
     }
 
@@ -539,7 +530,6 @@ impl Editor {
         };
         let playhead = timeline.playhead;
         timeline.record_editing_history();
-        self.preview.timeline_needs_rebuild = true;
         edit_and_rebuild_timeline(
             &mut self.preview,
             &self.global_settings.project_root,
@@ -548,7 +538,7 @@ impl Editor {
         )
         .expect("toggling track mute cannot be rejected");
         timeline.save(&self.global_settings.project_root);
-        self.rebuild_timeline_preview_if_needed();
+
         self.load_timeline_position_with_options(playhead, true);
     }
 
@@ -576,7 +566,6 @@ impl Editor {
         };
         let playhead = timeline.playhead;
         timeline.record_editing_history();
-        self.preview.timeline_needs_rebuild = true;
         edit_and_rebuild_timeline(
             &mut self.preview,
             &self.global_settings.project_root,
@@ -585,7 +574,7 @@ impl Editor {
         )
         .expect("moving a track cannot be rejected");
         timeline.save(&self.global_settings.project_root);
-        self.rebuild_timeline_preview_if_needed();
+
         self.load_timeline_position_with_options(playhead, true);
     }
 
@@ -606,7 +595,6 @@ impl Editor {
         }
         let playhead = timeline.playhead;
         timeline.record_editing_history();
-        self.preview.timeline_needs_rebuild = true;
         edit_and_rebuild_timeline(
             &mut self.preview,
             &self.global_settings.project_root,
@@ -637,7 +625,7 @@ impl Editor {
                 .map(Clip::id);
         }
         timeline.save(&self.global_settings.project_root);
-        self.rebuild_timeline_preview_if_needed();
+
         self.load_timeline_position_with_options(playhead, true);
     }
 
@@ -735,7 +723,6 @@ impl Editor {
             return;
         };
         self.preview.target = PreviewTarget::None;
-        self.preview.timeline_needs_rebuild = true;
 
         timeline.playhead = timeline
             .playhead
@@ -773,7 +760,6 @@ impl Editor {
             return;
         };
         timeline.save(&self.global_settings.project_root);
-        self.rebuild_timeline_preview_if_needed();
     }
 
     pub(super) fn save_timeline_playhead(&mut self) {
@@ -782,7 +768,6 @@ impl Editor {
         };
         timeline.capture_playhead();
         timeline.save(&self.global_settings.project_root);
-        self.rebuild_timeline_preview_if_needed();
     }
 
     pub(super) fn save_timeline_scroll(&mut self) {
@@ -791,7 +776,6 @@ impl Editor {
         };
         timeline.capture_scroll();
         timeline.save(&self.global_settings.project_root);
-        self.rebuild_timeline_preview_if_needed();
     }
 
     pub(super) fn toggle_track_magnet(&mut self) {
@@ -809,7 +793,6 @@ impl Editor {
         )
         .expect("changing the track magnet preference cannot be rejected");
         timeline.save(&self.global_settings.project_root);
-        self.rebuild_timeline_preview_if_needed();
     }
 }
 

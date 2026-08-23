@@ -30,7 +30,6 @@ pub(super) struct TimelinePreviewDrag {
     canvas: TimelinePreviewCanvas,
     snap_x: Option<f64>,
     snap_y: Option<f64>,
-    timeline_was_dirty: bool,
     last_pipeline_update: Option<Instant>,
     changed: bool,
 }
@@ -151,7 +150,7 @@ impl Editor {
             canvas,
             snap_x: None,
             snap_y: None,
-            timeline_was_dirty: self.preview.timeline_needs_rebuild,
+
             last_pipeline_update: None,
             changed: false,
         });
@@ -267,11 +266,9 @@ impl Editor {
         .expect("setting video properties cannot be rejected");
         self.properties.transform_input_clip_id = None;
         let now = Instant::now();
-        if !drag.timeline_was_dirty
-            && drag.last_pipeline_update.is_none_or(|last_update| {
-                now.duration_since(last_update) >= TIMELINE_TRANSFORM_UPDATE_INTERVAL
-            })
-        {
+        if drag.last_pipeline_update.is_none_or(|last_update| {
+            now.duration_since(last_update) >= TIMELINE_TRANSFORM_UPDATE_INTERVAL
+        }) {
             drag.last_pipeline_update = Some(now);
             if let Some(video) = self.preview.target.video_mut()
                 && let Err(error) =
@@ -291,14 +288,12 @@ impl Editor {
             return false;
         };
         if drag.changed {
-            if !drag.timeline_was_dirty
-                && let Some(video) = self.preview.target.video_mut()
-            {
+            if let Some(video) = self.preview.target.video_mut() {
                 let Some(timeline) = self.timeline.as_ref() else {
                     return true;
                 };
                 match update_timeline_video_position(video, &timeline.data, drag.clip_id, true) {
-                    Ok(()) => self.preview.timeline_needs_rebuild = false,
+                    Ok(()) => {}
                     Err(error) => eprintln!("{error}"),
                 }
             }
@@ -306,7 +301,6 @@ impl Editor {
                 return true;
             };
             timeline.save(&self.global_settings.project_root);
-            self.rebuild_timeline_preview_if_needed();
         }
         cx.notify();
         true
