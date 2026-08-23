@@ -3,8 +3,10 @@ use crate::editor::ulid;
 use crate::editor::{
     model::{MediaAsset, MediaKind},
     timeline::{FrameRate, TimelineTime},
-    timeline_clip::{AudioClipProperties, Clip, MediaClip, VideoClipProperties},
-    track::TrackKind,
+    timeline_clip::{
+        AudioClipProperties, Clip, MediaClip, TextClip, TextClipProperties, VideoClipProperties,
+    },
+    track::{Track, TrackKind},
 };
 use std::{path::Path, time::Duration};
 
@@ -36,6 +38,25 @@ fn headless_test_pipeline() -> (gst::Pipeline, gst_app::AppSink, gst_audio::Stre
         source_out: TimelineTime::from_frames(12),
         video_properties: VideoClipProperties::default(),
         audio_properties: AudioClipProperties::default(),
+    }));
+    project.tracks.push(Track {
+        id: ulid(3),
+        name: "Text 1".into(),
+        kind: TrackKind::Text,
+        locked: false,
+        muted: false,
+        visible: true,
+    });
+    project.clips.push(Clip::Text(TextClip {
+        id: ulid(13),
+        track_id: ulid(3),
+        timeline_start: TimelineTime::ZERO,
+        length: Duration::from_millis(500),
+        properties: TextClipProperties {
+            text: "GES preview".into(),
+            font_size: 32.0,
+            ..TextClipProperties::default()
+        },
     }));
     project.clips.push(Clip::Media(MediaClip {
         id: ulid(12),
@@ -113,6 +134,53 @@ fn timeline_pipeline_converts_the_output_frame_rate() {
     let _ = pipeline.set_state(gst::State::Null);
 
     assert_eq!(negotiated_frame_rate.unwrap(), gst::Fraction::new(24, 1));
+}
+
+#[test]
+fn timeline_preview_frame_contains_ges_text() {
+    let _gstreamer_test = crate::editor::lock_gstreamer_test();
+    ges::init().unwrap();
+    let project_root = Path::new(env!("CARGO_MANIFEST_DIR"));
+    let mut project = TimelineSerialization::default();
+    project.settings.width = 320;
+    project.settings.height = 180;
+    project.tracks.push(Track {
+        id: ulid(1),
+        name: "Text 1".into(),
+        kind: TrackKind::Text,
+        locked: false,
+        muted: false,
+        visible: true,
+    });
+    project.clips.push(Clip::Text(TextClip {
+        id: ulid(2),
+        track_id: ulid(1),
+        timeline_start: TimelineTime::ZERO,
+        length: Duration::from_secs(1),
+        properties: TextClipProperties {
+            text: "GES FRAME".into(),
+            font_size: 72.0,
+            ..TextClipProperties::default()
+        },
+    }));
+    let audio_sink = gst::parse::bin_from_description("fakesink sync=false", true).unwrap();
+    let (pipeline, sink) =
+        create_timeline_pipeline(&project, project_root, &audio_sink.upcast()).unwrap();
+
+    pipeline.set_state(gst::State::Paused).unwrap();
+    let sample = sink
+        .try_pull_preroll(gst::ClockTime::from_seconds(5))
+        .expect("text timeline did not produce a preview frame");
+    let buffer = sample.buffer().unwrap();
+    let map = buffer.map_readable().unwrap();
+    let luma = &map.as_slice()[..(project.settings.width * project.settings.height) as usize];
+    let contains_text = luma.iter().any(|value| *value > 200);
+    let _ = pipeline.set_state(gst::State::Null);
+
+    assert!(
+        contains_text,
+        "the GES preview frame contained only black video"
+    );
 }
 
 #[test]

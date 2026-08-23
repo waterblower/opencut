@@ -133,11 +133,63 @@ pub(super) fn build_timeline(
     }
 
     let mut assets: HashMap<Ulid, ges::UriClipAsset> = HashMap::new();
-    for timeline_track in &timeline_data.tracks {
+    for timeline_track in timeline_data
+        .tracks
+        .iter()
+        .filter(|track| track.kind == TrackKind::Text)
+        .chain(
+            timeline_data
+                .tracks
+                .iter()
+                .filter(|track| track.kind != TrackKind::Text),
+        )
+    {
+        let layer = timeline.append_layer();
         if timeline_track.kind == TrackKind::Text {
+            if !timeline_track.visible {
+                continue;
+            }
+            let output_scale = (options.width.max(2) as f64
+                / timeline_data.settings.width.max(2) as f64)
+                .min(options.height.max(2) as f64 / timeline_data.settings.height.max(2) as f64);
+            let mut clips = timeline_data
+                .clips_on_track(timeline_track.id)
+                .collect::<Vec<_>>();
+            clips.sort_by_key(|clip| clip.timeline_start());
+            for clip in clips {
+                let text = clip
+                    .text()
+                    .ok_or_else(|| format!("Media clip {} is on a text track.", clip.id()))?;
+                let overlay = ges::TextOverlayClip::new()
+                    .ok_or_else(|| format!("could not create text clip {}", clip.id()))?;
+                let font_size = (text.properties.font_size * output_scale).clamp(1.0, 1000.0);
+                overlay.set_text(Some(&text.properties.text));
+                overlay.set_font_desc(Some(&format!("Sans {font_size}px")));
+                overlay.set_color(text.properties.color);
+                overlay.set_halign(ges::TextHAlign::Position);
+                overlay.set_valign(ges::TextVAlign::Position);
+                overlay.set_xpos(text.properties.position_x);
+                overlay.set_ypos(text.properties.position_y);
+                overlay
+                    .set_name(Some(&format!("opencut-clip-{}", clip.id())))
+                    .map_err(|error| format!("could not identify clip {}: {error}", clip.id()))?;
+                if !overlay.set_start(clock_time(timeline_data.duration(clip.timeline_start()))) {
+                    return Err(format!("could not set text clip {} start", clip.id()));
+                }
+                if !overlay.set_duration(clock_time(
+                    timeline_data.duration(clip.frame_length(timeline_data.settings.frame_rate)),
+                )) {
+                    return Err(format!("could not set text clip {} duration", clip.id()));
+                }
+                layer.add_clip(&overlay).map_err(|error| {
+                    format!(
+                        "could not add text clip {} to the timeline: {error}",
+                        clip.id()
+                    )
+                })?;
+            }
             continue;
         }
-        let layer = timeline.append_layer();
         let mut clips = timeline_data
             .clips_on_track(timeline_track.id)
             .collect::<Vec<_>>();

@@ -25,12 +25,24 @@ impl TextClipInputs {
                     )
                 })
             };
+        let number_field =
+            |cx: &mut Context<Editor>, id: &'static str, value: &str, placeholder: &'static str| {
+                cx.new(|cx| {
+                    ExplorerFilter::new_inline_number_field(
+                        id,
+                        value.to_string(),
+                        placeholder,
+                        return_focus.clone(),
+                        cx,
+                    )
+                })
+            };
         Self {
             text: field(cx, "text-clip-text-input", "Text", "Enter text"),
-            font_size: field(cx, "text-clip-font-size-input", "64", "64"),
+            font_size: number_field(cx, "text-clip-font-size-input", "64", "64"),
             color: field(cx, "text-clip-color-input", "#FFFFFFFF", "#FFFFFFFF"),
-            position_x: field(cx, "text-clip-position-x-input", "0.5", "0.5"),
-            position_y: field(cx, "text-clip-position-y-input", "0.5", "0.5"),
+            position_x: number_field(cx, "text-clip-position-x-input", "0.5", "0.5"),
+            position_y: number_field(cx, "text-clip-position-y-input", "0.5", "0.5"),
         }
     }
 

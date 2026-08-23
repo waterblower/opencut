@@ -17,7 +17,7 @@ impl VideoTransformInputs {
     pub(super) fn new(return_focus: FocusHandle, cx: &mut Context<Editor>) -> Self {
         let field = |cx: &mut Context<Editor>, id, value: &str| {
             cx.new(|cx| {
-                ExplorerFilter::new_inline_field(
+                ExplorerFilter::new_inline_number_field(
                     id,
                     value.to_string(),
                     "0.0",

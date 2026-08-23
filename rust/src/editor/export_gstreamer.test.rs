@@ -5,10 +5,13 @@ use crate::editor::{
     media_probe::probe_video,
     model::MediaAsset,
     timeline::TimelineTime,
-    timeline_clip::{AudioClipProperties, MediaClip, VideoClipProperties},
+    timeline_clip::{
+        AudioClipProperties, MediaClip, TextClip, TextClipProperties, VideoClipProperties,
+    },
+    track::Track,
     ulid,
 };
-use std::path::Path;
+use std::{path::Path, time::Duration};
 
 #[test]
 fn exports_every_video_in_the_mini_fixture_as_one_sequence() {
@@ -285,6 +288,69 @@ fn creates_gstreamer_timeline_from_real_media() {
             .unwrap(),
         540
     );
+}
+
+#[test]
+fn adds_text_clips_as_ges_overlays() {
+    let _gstreamer_test = crate::editor::lock_gstreamer_test();
+    ges::init().unwrap();
+    let project_root = Path::new(env!("CARGO_MANIFEST_DIR"));
+    let mut project = TimelineSerialization::with_test_tracks();
+    let text_track_id = ulid(20);
+    let text_clip_id = ulid(21);
+    project.tracks.push(Track {
+        id: text_track_id,
+        name: "Text 1".into(),
+        kind: TrackKind::Text,
+        locked: false,
+        muted: false,
+        visible: true,
+    });
+    project.clips.push(Clip::Text(TextClip {
+        id: text_clip_id,
+        track_id: text_track_id,
+        timeline_start: TimelineTime::from_frames(12),
+        length: Duration::from_secs(2),
+        properties: TextClipProperties {
+            text: "GES text".into(),
+            font_size: 72.0,
+            color: 0x12_34_56_78,
+            position_x: 0.25,
+            position_y: 0.75,
+            ..TextClipProperties::default()
+        },
+    }));
+
+    let timeline = build_timeline(
+        &project,
+        project_root,
+        ExportOptions::from_timeline(&project),
+    )
+    .unwrap();
+    let layers = timeline.layers();
+    let overlay = layers
+        .iter()
+        .flat_map(|layer| layer.clips())
+        .find(|clip| {
+            clip.name().as_deref() == Some(format!("opencut-clip-{text_clip_id}").as_str())
+        })
+        .unwrap()
+        .downcast::<ges::TextOverlayClip>()
+        .unwrap();
+
+    assert_eq!(overlay.layer().unwrap().priority(), 0);
+    assert_eq!(overlay.text().as_deref(), Some("GES text"));
+    assert_eq!(overlay.font_desc().as_deref(), Some("Sans 72px"));
+    assert_eq!(overlay.color(), 0x12_34_56_78);
+    assert_eq!(overlay.halignment(), ges::TextHAlign::Position);
+    assert_eq!(overlay.valignment(), ges::TextVAlign::Position);
+    assert_eq!(overlay.xpos(), 0.25);
+    assert_eq!(overlay.ypos(), 0.75);
+    assert_eq!(
+        overlay.start(),
+        clock_time(project.duration(TimelineTime::from_frames(12)))
+    );
+    assert_eq!(overlay.duration(), clock_time(Duration::from_secs(2)));
 }
 
 #[test]
