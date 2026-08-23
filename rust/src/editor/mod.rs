@@ -50,7 +50,7 @@ use crate::playback_view::{DragPhase, PlaybackViewDelegate};
 use clip_placement::{
     ClipPlacementRejection, validate_clip_placement, validate_text_clip_placement,
 };
-use editing::ClipClipboard;
+use editing::{ClipClipboard, EditAction, edit};
 use explorer::{
     ExplorerDropPreview, ExplorerMediaDrag, FileContextMenu, FileTreeEntry, NewTimelineDialogState,
     PendingExplorerDrop, RenameDialogState, load_explorer_expansion, visible_tree,

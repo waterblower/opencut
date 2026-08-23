@@ -193,7 +193,8 @@ impl TimelineRuntimeState {
                 pixels_per_second,
             ));
             self.h_scroll.set_offset(scroll_offset);
-            self.data.view.pixels_per_second = pixels_per_second;
+            edit(self, EditAction::SetTimelineZoom { pixels_per_second })
+                .expect("changing timeline zoom cannot be rejected");
         }
     }
 
@@ -623,12 +624,13 @@ impl Editor {
         if drag.changed && drag.invalid_reason.is_none() {
             timeline.record_editing_history();
             self.preview.timeline_needs_rebuild = true;
-            for (clip_id, track_id, start) in drag.placements {
-                if let Some(clip) = timeline.data.clip_mut(clip_id) {
-                    clip.set_timeline_start(start);
-                    clip.set_track_id(track_id);
-                }
-            }
+            edit(
+                timeline,
+                EditAction::MoveClips {
+                    placements: drag.placements,
+                },
+            )
+            .expect("clip move placements were validated during the drag");
             let playhead = timeline.playhead;
             timeline.save(&self.global_settings.project_root);
             self.rebuild_timeline_preview_if_needed();
@@ -643,7 +645,13 @@ impl Editor {
         };
         timeline.interaction.snapping_enabled = !timeline.interaction.snapping_enabled;
         timeline.interaction.snap_guide = None;
-        timeline.data.view.snapping_enabled = timeline.interaction.snapping_enabled;
+        edit(
+            timeline,
+            EditAction::SetSnapping {
+                enabled: timeline.interaction.snapping_enabled,
+            },
+        )
+        .expect("changing snapping cannot be rejected");
         timeline.save(&self.global_settings.project_root);
         self.rebuild_timeline_preview_if_needed();
     }

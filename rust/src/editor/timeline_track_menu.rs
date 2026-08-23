@@ -135,7 +135,14 @@ impl Editor {
         };
         timeline.record_editing_history();
         let clip_id = clip.id();
-        timeline.data.clips.push(clip);
+        edit(
+            timeline,
+            EditAction::AddClips {
+                clips: vec![clip],
+                assets: Vec::new(),
+            },
+        )
+        .expect("text clip placement was validated before recording history");
         timeline.interaction.selected_clip_id = Some(clip_id);
         timeline.interaction.selected_clip_ids.clear();
         timeline.interaction.selected_clip_ids.insert(clip_id);

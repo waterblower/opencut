@@ -255,11 +255,14 @@ impl Editor {
             timeline.record_editing_history();
             drag.changed = true;
         }
-        let Some(clip) = timeline.data.clips[index].media_mut() else {
-            return true;
-        };
-        clip.video_properties.position_x = properties.position_x;
-        clip.video_properties.position_y = properties.position_y;
+        edit(
+            timeline,
+            EditAction::SetVideoProperties {
+                clip_ids: vec![drag.clip_id],
+                properties,
+            },
+        )
+        .expect("setting video properties cannot be rejected");
         self.properties.transform_input_clip_id = None;
         let now = Instant::now();
         if !drag.timeline_was_dirty

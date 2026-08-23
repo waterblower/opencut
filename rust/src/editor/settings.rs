@@ -150,7 +150,8 @@ impl Editor {
             return;
         };
         timeline.record_editing_history();
-        timeline.data.set_frame_rate(frame_rate);
+        edit(timeline, EditAction::SetFrameRate { frame_rate })
+            .expect("changing the frame rate cannot be rejected");
         timeline.playhead = playhead.clamp(TimelineTime::ZERO, timeline.data.content_duration());
         let playhead = timeline.playhead;
         let has_clips = !timeline.data.clips.is_empty();

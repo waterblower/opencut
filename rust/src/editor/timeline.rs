@@ -435,7 +435,13 @@ impl TimelineRuntimeState {
     }
 
     pub(super) fn capture_playhead(&mut self) {
-        self.data.view.saved_playhead_frame = self.playhead.max(TimelineTime::ZERO);
+        edit(
+            self,
+            EditAction::SetSavedPlayhead {
+                playhead: self.playhead,
+            },
+        )
+        .expect("saving the playhead cannot be rejected");
     }
 
     pub(super) fn save(&self, project_root: &Path) {
@@ -445,8 +451,14 @@ impl TimelineRuntimeState {
     }
 
     pub(super) fn capture_scroll(&mut self) {
-        self.data.view.horizontal_scroll = finite_nonnegative(-f32::from(self.h_scroll.offset().x));
-        self.data.view.vertical_scroll = finite_nonnegative(-f32::from(self.v_scroll.offset().y));
+        edit(
+            self,
+            EditAction::SetScroll {
+                horizontal: -f32::from(self.h_scroll.offset().x),
+                vertical: -f32::from(self.v_scroll.offset().y),
+            },
+        )
+        .expect("saving timeline scroll cannot be rejected");
     }
 
     pub(super) fn record_editing_history(&mut self) {

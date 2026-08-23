@@ -1,5 +1,3 @@
-use crate::editor::editing::{EditAction, edit};
-
 use super::*;
 use serde::{Deserialize, Serialize};
 use std::fs;
@@ -798,20 +796,19 @@ impl Editor {
         };
         timeline.record_editing_history();
         self.preview.timeline_needs_rebuild = true;
-        let asset_id = if let Some(asset_id) = timeline
+        let (asset_id, assets) = if let Some(asset_id) = timeline
             .data
             .assets
             .iter()
             .find(|existing| existing.path == relative_path)
             .map(|existing| existing.id)
         {
-            asset_id
+            (asset_id, Vec::new())
         } else {
             asset.id = Ulid::generate();
             asset.path = relative_path.clone();
             let asset_id = asset.id;
-            timeline.data.assets.push(asset);
-            asset_id
+            (asset_id, vec![asset])
         };
         let clip_id = Ulid::generate();
         let media_clip = Clip::Media(MediaClip {
@@ -825,7 +822,13 @@ impl Editor {
             audio_properties: AudioClipProperties::default(),
         });
 
-        if let Err(rejection) = edit(timeline, EditAction::AddClip { clip: media_clip }) {
+        if let Err(rejection) = edit(
+            timeline,
+            EditAction::AddClips {
+                clips: vec![media_clip],
+                assets,
+            },
+        ) {
             eprintln!("Cannot add media to the timeline: {}", rejection.message());
             return;
         }

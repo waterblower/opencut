@@ -246,10 +246,14 @@ impl Editor {
         };
         timeline.record_editing_history();
         self.preview.timeline_needs_rebuild = true;
-        let Clip::Text(clip) = &mut timeline.data.clips[index] else {
-            return;
-        };
-        clip.properties = properties;
+        edit(
+            timeline,
+            EditAction::SetTextProperties {
+                clip_id,
+                properties,
+            },
+        )
+        .expect("setting text properties cannot be rejected");
         timeline.save(&self.global_settings.project_root);
         self.rebuild_timeline_preview_if_needed();
     }

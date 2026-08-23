@@ -258,10 +258,14 @@ impl Editor {
         };
         timeline.record_editing_history();
         self.preview.timeline_needs_rebuild = true;
-        let Some(clip) = timeline.data.clips[index].media_mut() else {
-            return;
-        };
-        clip.video_properties = properties;
+        edit(
+            timeline,
+            EditAction::SetVideoProperties {
+                clip_ids: vec![clip_id],
+                properties,
+            },
+        )
+        .expect("setting video properties cannot be rejected");
 
         timeline.save(&self.global_settings.project_root);
         self.rebuild_timeline_preview_if_needed();

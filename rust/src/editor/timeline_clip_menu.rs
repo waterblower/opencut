@@ -174,11 +174,18 @@ impl Editor {
         };
         timeline.record_editing_history();
         self.preview.timeline_needs_rebuild = true;
-        for index in targets {
-            if let Some(clip) = timeline.data.clips[index].media_mut() {
-                clip.video_properties = properties;
-            }
-        }
+        let clip_ids = targets
+            .into_iter()
+            .map(|index| timeline.data.clips[index].id())
+            .collect();
+        edit(
+            timeline,
+            EditAction::SetVideoProperties {
+                clip_ids,
+                properties,
+            },
+        )
+        .expect("setting video properties cannot be rejected");
         self.properties.transform_input_clip_id = None;
 
         timeline.save(&self.global_settings.project_root);

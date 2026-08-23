@@ -277,11 +277,17 @@ impl Editor {
             .map_err(|error| format!("Could not rename {}: {error}", old_relative.display()))?;
 
         if let Some(timeline) = self.timeline.as_mut() {
-            for asset in &mut timeline.data.assets {
-                if let Some(path) = remap_relative_path(&asset.path, &old_relative, &new_relative) {
-                    asset.path = path;
-                }
-            }
+            let paths = timeline
+                .data
+                .assets
+                .iter()
+                .filter_map(|asset| {
+                    remap_relative_path(&asset.path, &old_relative, &new_relative)
+                        .map(|path| (asset.id, path))
+                })
+                .collect();
+            edit(timeline, EditAction::UpdateAssetPaths { paths })
+                .expect("updating asset paths cannot be rejected");
             for snapshot in timeline
                 .undo_stack
                 .iter_mut()
