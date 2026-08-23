@@ -44,7 +44,7 @@ fn timeline_view_state_is_sanitized_when_the_timeline_is_normalized() {
         ..TimelineSerialization::default()
     };
 
-    timeline.normalize();
+    timeline.repair_and_prune_invalid_data();
 
     assert_eq!(timeline.view.saved_playhead_frame, TimelineTime::ZERO);
     assert_eq!(timeline.view.horizontal_scroll, 0.0);
@@ -214,7 +214,7 @@ fn repairs_overlapping_clips_when_loading_a_timeline() {
         ..TimelineSerialization::with_test_tracks()
     };
 
-    project.normalize();
+    project.repair_and_prune_invalid_data();
 
     assert_eq!(
         project.clips[0].timeline_start,
@@ -234,7 +234,7 @@ fn still_image_clips_can_extend_beyond_their_default_duration() {
         ..TimelineSerialization::with_test_tracks()
     };
 
-    project.normalize();
+    project.repair_and_prune_invalid_data();
 
     assert_eq!(project.clips[0].duration(), TimelineTime::from_frames(300));
     assert_eq!(project.seconds(project.clips[0].duration()), 10.0);
@@ -248,7 +248,7 @@ fn time_based_media_remains_bounded_by_its_source_duration() {
         ..TimelineSerialization::with_test_tracks()
     };
 
-    project.normalize();
+    project.repair_and_prune_invalid_data();
 
     assert_eq!(project.clips[0].duration(), TimelineTime::from_frames(900));
 }

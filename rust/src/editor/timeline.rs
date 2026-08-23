@@ -117,7 +117,7 @@ impl TimelineSerialization {
             .map_err(|error| format!("could not read {}: {error}", path.display()))?;
         let mut timeline = serde_json::from_str::<Self>(&contents)
             .map_err(|error| format!("could not parse {}: {error}", path.display()))?;
-        timeline.normalize();
+        timeline.repair_and_prune_invalid_data();
         Ok(timeline)
     }
 
@@ -287,14 +287,14 @@ impl TimelineSerialization {
             clip.source_out = clip.source_in + new_duration;
         }
         self.settings.frame_rate = frame_rate;
-        self.normalize();
+        self.repair_and_prune_invalid_data();
     }
 
     pub fn ceil_time(&self, seconds: f64) -> TimelineTime {
         self.settings.frame_rate.ceil(seconds)
     }
 
-    fn normalize(&mut self) {
+    fn repair_and_prune_invalid_data(&mut self) {
         self.view.normalize();
         if self.settings.frame_rate.numerator == 0 {
             self.settings.frame_rate.numerator = 30;
