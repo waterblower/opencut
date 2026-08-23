@@ -188,7 +188,7 @@ impl ClipClipboard {
         validation_timeline
             .assets
             .extend(new_assets.iter().cloned());
-        validate_clipboard_placements(&validation_timeline, &clips)?;
+        validate_clips_placements(&validation_timeline, &clips)?;
         Ok((clips, new_assets))
     }
 }
@@ -304,7 +304,9 @@ impl Editor {
             .and_then(|index| clips.get(index))
             .or_else(|| clips.first())
             .map(Clip::id);
+
         timeline.data.clips.extend(clips);
+
         self.preview.target = PreviewTarget::None;
         self.status = Some(format!("Pasted {count} clip{}.", plural_suffix(count)));
         timeline.save(&self.global_settings.project_root);
@@ -789,7 +791,7 @@ fn ripple_clips_after_deletion(
     }
 }
 
-fn validate_clipboard_placements(
+fn validate_clips_placements(
     timeline: &TimelineSerialization,
     clips: &[Clip],
 ) -> Result<(), ClipPlacementRejection> {
@@ -883,6 +885,23 @@ fn blade_at_playhead(
     updated_timeline.clips.extend(split_clips);
 
     Some(updated_timeline)
+}
+
+pub(super) enum EditAction {
+    AddClip { clip: Clip },
+}
+
+pub(super) fn edit(
+    timeline: &mut TimelineRuntimeState,
+    action: EditAction,
+) -> Result<(), ClipPlacementRejection> {
+    match action {
+        EditAction::AddClip { clip } => {
+            validate_clips_placements(&timeline.data, std::slice::from_ref(&clip))?;
+            timeline.data.clips.push(clip);
+            Ok(())
+        }
+    }
 }
 
 #[cfg(test)]

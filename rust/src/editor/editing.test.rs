@@ -168,7 +168,7 @@ fn clipboard_paste_rejects_the_complete_selection_on_collision() {
     project.assets.push(audio_asset(100));
     project.clips = vec![audio_clip(20, 105, 10)];
     let candidates = vec![audio_clip(10, 100, 8), audio_clip(11, 120, 12)];
-    let rejection = validate_clipboard_placements(&project, &candidates).unwrap_err();
+    let rejection = validate_clips_placements(&project, &candidates).unwrap_err();
 
     assert_eq!(rejection, ClipPlacementRejection::ExistingClipOverlap);
     assert_eq!(rejection.message(), "Placement overlaps an existing clip");

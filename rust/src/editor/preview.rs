@@ -92,6 +92,11 @@ impl Editor {
         cx.notify();
     }
 
+    /// Deprecated because this couples playhead seeking to rebuilding the entire
+    /// GES preview pipeline instead of synchronizing timeline edits in place.
+    #[deprecated(
+        note = "replace with focused playhead seeking and incremental GES timeline synchronization"
+    )]
     pub(super) fn load_timeline_position_with_options(
         &mut self,
         position: TimelineTime,

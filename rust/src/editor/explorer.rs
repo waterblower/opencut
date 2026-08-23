@@ -1,3 +1,5 @@
+use crate::editor::editing::{EditAction, edit};
+
 use super::*;
 use serde::{Deserialize, Serialize};
 use std::fs;
@@ -812,7 +814,7 @@ impl Editor {
             asset_id
         };
         let clip_id = Ulid::generate();
-        timeline.data.clips.push(Clip::Media(MediaClip {
+        let media_clip = Clip::Media(MediaClip {
             id: clip_id,
             track_id,
             asset_id,
@@ -821,10 +823,13 @@ impl Editor {
             source_out: duration,
             video_properties: VideoClipProperties::default(),
             audio_properties: AudioClipProperties::default(),
-        }));
-        let playhead = timeline.playhead;
-        self.preview.target = PreviewTarget::None;
-        self.load_timeline_position_with_options(playhead, true);
+        });
+
+        if let Err(rejection) = edit(timeline, EditAction::AddClip { clip: media_clip }) {
+            eprintln!("Cannot add media to the timeline: {}", rejection.message());
+            return;
+        }
+
         self.explorer.selected_file = Some(relative_path);
         self.select_only_clip(Some(clip_id));
         let Some(timeline) = self.timeline.as_ref() else {
