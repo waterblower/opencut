@@ -1012,7 +1012,25 @@ pub(super) fn edit_and_rebuild_timeline(
 ) -> Result<(), ClipPlacementRejection> {
     edit_timeline(timeline, action)?;
 
-    let video = create_timeline_video(&timeline.data, project_root).unwrap();
+    let volume = match &preview.target {
+        PreviewTarget::Timeline(video) => video.volume(),
+        _ => 1.0,
+    };
+    if let Some(video) = preview.target.video() {
+        video.set_paused(true);
+    }
+    timeline.playhead = timeline
+        .playhead
+        .clamp(TimelineTime::ZERO, timeline.data.content_duration());
+    if timeline.data.clips.is_empty() {
+        preview.target = PreviewTarget::None;
+        return Ok(());
+    }
+
+    let mut video = create_timeline_video(&timeline.data, project_root).unwrap();
+    video.set_volume(volume);
+    video.set_muted(volume <= f64::EPSILON);
+    let _ = video.seek(timeline.data.duration(timeline.playhead), true);
     preview.target = PreviewTarget::Timeline(video);
     Ok(())
 }
