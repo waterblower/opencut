@@ -316,7 +316,6 @@ impl Editor {
         )
         .expect("clipboard placements were validated before recording history");
 
-        self.preview.target = PreviewTarget::None;
         self.status = Some(format!("Pasted {count} clip{}.", plural_suffix(count)));
         timeline.save(&self.global_settings.project_root);
 
@@ -342,7 +341,7 @@ impl Editor {
         timeline.interaction.selected_clip_id = None;
         self.properties.transform_input_clip_id = None;
         self.properties.text_input_clip_id = None;
-        self.preview.target = PreviewTarget::None;
+
         let clips_empty = timeline.data.clips.is_empty();
         let playhead = timeline.playhead;
         if clips_empty {
@@ -722,7 +721,6 @@ impl Editor {
         let Some(timeline) = self.timeline.as_mut() else {
             return;
         };
-        self.preview.target = PreviewTarget::None;
 
         timeline.playhead = timeline
             .playhead

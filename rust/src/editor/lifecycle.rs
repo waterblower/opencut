@@ -95,7 +95,14 @@ impl Editor {
         if let Some(timeline) = editor.timeline.as_ref()
             && !timeline.data.clips.is_empty()
         {
-            editor.load_timeline_position_with_options(timeline.playhead, true);
+            match create_timeline_video(&timeline.data, &editor.global_settings.project_root) {
+                Ok(video) => {
+                    let playhead = timeline.playhead;
+                    editor.preview.target = PreviewTarget::Timeline(video);
+                    editor.load_timeline_position_with_options(playhead, true);
+                }
+                Err(error) => eprintln!("{error}"),
+            }
         }
         editor.schedule_project_waveforms(cx);
         editor

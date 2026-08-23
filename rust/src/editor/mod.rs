@@ -79,6 +79,7 @@ use timeline_interactions::{
     MarqueeSelection, TimelineContextMenu, TimelineInteractionState, TimelineTool,
 };
 use timeline_track_menu::TextTrackContextMenu;
+use timeline_video::create_timeline_video;
 use track::{Track, TrackKind};
 use ulid::Ulid;
 use workspace::{GlobalEditorSettings, load_global_editor_settings, save_global_editor_settings};
@@ -311,7 +312,6 @@ impl Editor {
             .is_some_and(|timeline| timeline.path == relative_path)
         {
             self.explorer.selected_file = Some(relative_path);
-            self.preview.target = PreviewTarget::None;
             let timeline = self.timeline.as_ref().expect("timeline was checked above");
             let playhead = timeline.playhead;
             if !timeline.data.clips.is_empty() {
@@ -364,7 +364,6 @@ impl Editor {
         active_timeline: Option<(PathBuf, TimelineSerialization)>,
         cx: &mut Context<Self>,
     ) -> Result<(), String> {
-        self.preview.target = PreviewTarget::None;
         self.explorer.drag_assets.clear();
         self.explorer.drag_probe_jobs.clear();
         self.explorer.drop_preview = None;
@@ -396,7 +395,12 @@ impl Editor {
         if let Some(timeline) = self.timeline.as_ref()
             && !timeline.data.clips.is_empty()
         {
-            self.load_timeline_position_with_options(timeline.playhead, true);
+            let playhead = timeline.playhead;
+            let video = create_timeline_video(&timeline.data, &self.global_settings.project_root)?;
+            self.preview.target = PreviewTarget::Timeline(video);
+            self.load_timeline_position_with_options(playhead, true);
+        } else {
+            self.preview.target = PreviewTarget::None;
         }
         self.schedule_active_timeline_waveforms(cx);
         Ok(())

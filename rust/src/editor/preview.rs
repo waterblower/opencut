@@ -1,4 +1,3 @@
-use super::timeline_video::create_timeline_video;
 use super::*;
 use preview_image::preview_image_file;
 
@@ -88,13 +87,15 @@ impl Editor {
         position: TimelineTime,
         accurate: bool,
     ) {
-        let Some(timeline) = self.timeline.as_mut() else {
-            return;
-        };
-        let was_timeline = self.preview.target.is_timeline();
-        if !was_timeline {
-            self.preview.target = PreviewTarget::None;
-        }
+        let timeline = self
+            .timeline
+            .as_mut()
+            .expect("loading a timeline position requires an active timeline");
+        let video = self
+            .preview
+            .target
+            .video_mut()
+            .expect("loading a timeline position requires an active video preview");
         self.explorer.selected_file = None;
         self.explorer.context_menu = None;
         let duration = timeline.data.content_duration();
@@ -102,41 +103,7 @@ impl Editor {
         timeline.playhead = position;
         self.preview.timeline_drag = None;
 
-        if timeline.data.clips.is_empty() {
-            if let Some(video) = self.preview.target.video() {
-                video.set_paused(true);
-            }
-            self.preview.target = PreviewTarget::None;
-
-            return;
-        }
-
-        if self.preview.target.video().is_none() {
-            let volume = match &self.preview.target {
-                PreviewTarget::Timeline(video) => video.volume(),
-                _ => 1.0,
-            };
-            if let Some(video) = self.preview.target.video() {
-                video.set_paused(true);
-            }
-            self.preview.target = PreviewTarget::None;
-            match create_timeline_video(&timeline.data, &self.global_settings.project_root) {
-                Ok(video) => {
-                    video.set_volume(volume);
-                    video.set_muted(volume <= f64::EPSILON);
-                    self.preview.target = PreviewTarget::Timeline(video);
-                }
-                Err(error) => {
-                    eprintln!("{error}");
-
-                    return;
-                }
-            }
-        }
-
-        if let Some(video) = self.preview.target.video_mut() {
-            let _ = video.seek(timeline.data.duration(position), accurate);
-        }
+        let _ = video.seek(timeline.data.duration(position), accurate);
     }
 
     pub(super) fn toggle_playback(&mut self) {
