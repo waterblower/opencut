@@ -256,7 +256,7 @@ impl Editor {
             .interaction
             .clip_move_drag
             .as_ref()
-            .filter(|drag| drag.changed && track.kind != TrackKind::Text)
+            .filter(|drag| drag.changed)
             .map(|drag| {
                 drag.placements
                     .iter()
