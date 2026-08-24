@@ -1,4 +1,5 @@
 use super::*;
+use std::path::Path;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(super) enum TimelineTool {
@@ -177,7 +178,7 @@ impl TimelineRuntimeState {
         )
     }
 
-    pub(super) fn zoom(&mut self, factor: f32) {
+    pub(super) fn zoom(&mut self, factor: f32, project_root: &Path) {
         let previous_pixels_per_second = self.data.view.pixels_per_second;
         let pixels_per_second = (self.data.view.pixels_per_second * factor).clamp(
             MIN_TIMELINE_PIXELS_PER_SECOND,
@@ -193,8 +194,12 @@ impl TimelineRuntimeState {
                 pixels_per_second,
             ));
             self.h_scroll.set_offset(scroll_offset);
-            edit_timeline(self, EditAction::SetTimelineZoom { pixels_per_second })
-                .expect("changing timeline zoom cannot be rejected");
+            edit_timeline(
+                self,
+                project_root,
+                EditAction::SetTimelineZoom { pixels_per_second },
+            )
+            .expect("changing timeline zoom cannot be rejected");
         }
     }
 
@@ -703,7 +708,7 @@ impl Editor {
         };
         let previous_zoom = timeline.data.view.pixels_per_second;
         let factor = (gesture.magnification as f32).exp().clamp(0.5, 2.0);
-        timeline.zoom(factor);
+        timeline.zoom(factor, &self.global_settings.project_root);
         let current_zoom = timeline.data.view.pixels_per_second;
         log::debug!(
             target: "opencut::timeline",

@@ -440,9 +440,10 @@ impl TimelineRuntimeState {
         }
     }
 
-    pub(super) fn capture_playhead(&mut self) {
+    pub(super) fn capture_playhead(&mut self, project_root: &Path) {
         edit_timeline(
             self,
+            project_root,
             EditAction::SetSavedPlayhead {
                 playhead: self.playhead,
             },
@@ -456,9 +457,10 @@ impl TimelineRuntimeState {
         }
     }
 
-    pub(super) fn capture_scroll(&mut self) {
+    pub(super) fn capture_scroll(&mut self, project_root: &Path) {
         edit_timeline(
             self,
+            project_root,
             EditAction::SetScroll {
                 horizontal: -f32::from(self.h_scroll.offset().x),
                 vertical: -f32::from(self.v_scroll.offset().y),
