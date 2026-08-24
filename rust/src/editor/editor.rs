@@ -1,4 +1,5 @@
 use super::*;
+use gpui::EventEmitter;
 
 pub(crate) struct Editor {
     // main UI sections
@@ -16,6 +17,13 @@ pub(crate) struct Editor {
     pub(super) status: Option<String>,
     pub(super) focus_handle: FocusHandle,
 }
+
+#[derive(Debug)]
+pub enum EditorEvent {
+    Test,
+}
+
+impl EventEmitter<EditorEvent> for Editor {}
 
 impl Editor {
     pub(crate) fn new(cx: &mut Context<Self>) -> Self {

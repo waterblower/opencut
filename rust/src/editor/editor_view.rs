@@ -1,3 +1,5 @@
+use crate::editor::editor::EditorEvent;
+
 use super::*;
 
 impl Render for Editor {
@@ -241,6 +243,7 @@ impl Editor {
                         .text_color(rgb(0x17120a))
                         .on_click(cx.listener(|editor, _, _, cx| {
                             editor.open_export_dialog(cx);
+                            cx.emit(EditorEvent::Test);
                             cx.notify();
                         })),
                     ),
