@@ -277,11 +277,22 @@ impl Editor {
             .map_err(|error| format!("Could not rename {}: {error}", old_relative.display()))?;
 
         if let Some(timeline) = self.timeline.as_mut() {
-            for asset in &mut timeline.data.assets {
-                if let Some(path) = remap_relative_path(&asset.path, &old_relative, &new_relative) {
-                    asset.path = path;
-                }
-            }
+            let paths = timeline
+                .data
+                .assets
+                .iter()
+                .filter_map(|asset| {
+                    remap_relative_path(&asset.path, &old_relative, &new_relative)
+                        .map(|path| (asset.id, path))
+                })
+                .collect();
+            edit_and_rebuild_timeline(
+                &mut self.preview,
+                &self.global_settings.project_root,
+                timeline,
+                EditAction::UpdateAssetPaths { paths },
+            )
+            .expect("updating asset paths cannot be rejected");
             for snapshot in timeline
                 .undo_stack
                 .iter_mut()
@@ -296,7 +307,6 @@ impl Editor {
                 }
             }
         }
-        self.preview.timeline_needs_rebuild = true;
         self.explorer.expanded_directories = self
             .explorer
             .expanded_directories
@@ -334,13 +344,20 @@ impl Editor {
         if let Some(timeline) = self.timeline.as_ref() {
             timeline.save(&self.global_settings.project_root);
         }
-        self.rebuild_timeline_preview_if_needed();
+        save_project_local_settings(
+            &self.global_settings.project_root,
+            self.timeline
+                .as_ref()
+                .map(|timeline| timeline.path.as_path()),
+        )?;
+
         self.explorer.rename_dialog = None;
         self.explorer.search_query = None;
         self.explorer.search_results.clear();
         self.explorer.search_pending = false;
         self.explorer
             .refresh_file_tree(&self.global_settings.project_root)?;
+        self.save_explorer_expansion()?;
         self.schedule_explorer_search(cx);
         self.status = Some(format!(
             "Renamed {} to {}.",
@@ -415,6 +432,7 @@ impl Editor {
         self.explorer.search_pending = false;
         self.explorer
             .refresh_file_tree(&self.global_settings.project_root)?;
+        self.save_explorer_expansion()?;
         self.schedule_explorer_search(cx);
         self.status = Some(format!("Moved {display_name} to Trash."));
         Ok(())

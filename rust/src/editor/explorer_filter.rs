@@ -140,6 +140,24 @@ impl ExplorerFilter {
             &content,
             placeholder,
             InputAppearance::InlineField,
+            InputConstraint::Any,
+            return_focus,
+            cx,
+        )
+    }
+
+    pub(super) fn new_inline_number_field(
+        element_id: &'static str,
+        content: String,
+        placeholder: &'static str,
+        return_focus: FocusHandle,
+        cx: &mut Context<Self>,
+    ) -> Self {
+        Self::new_with_appearance(
+            element_id,
+            &content,
+            placeholder,
+            InputAppearance::InlineField,
             InputConstraint::Number,
             return_focus,
             cx,

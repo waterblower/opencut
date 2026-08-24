@@ -3,6 +3,7 @@ use super::*;
 impl Render for Editor {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         self.sync_video_transform_inputs(cx);
+        self.sync_text_clip_inputs(cx);
         let viewport = window.viewport_size();
         let editor_width =
             (f32::from(viewport.width) - crate::gpui_inspector::docked_width(window)).max(0.0);
@@ -40,11 +41,22 @@ impl Render for Editor {
             .context_menu
             .as_ref()
             .map(|menu| self.file_menu_overlay(menu, editor_viewport, cx));
-        let clip_menu = self
+        let timeline_menu = self
             .timeline
             .as_ref()
-            .and_then(|timeline| timeline.interaction.context_menu.as_ref())
-            .map(|menu| self.timeline_clip_menu_overlay(menu, editor_viewport, cx));
+            .and_then(|timeline| timeline.interaction.context_menu.as_ref());
+        let clip_menu = timeline_menu.and_then(|menu| {
+            let TimelineContextMenu::Clip(menu) = menu else {
+                return None;
+            };
+            Some(self.timeline_clip_menu_overlay(menu, editor_viewport, cx))
+        });
+        let text_track_menu = timeline_menu.and_then(|menu| {
+            let TimelineContextMenu::TextTrack(menu) = menu else {
+                return None;
+            };
+            Some(self.text_track_menu_overlay(menu, editor_viewport, cx))
+        });
         let rename_dialog = self
             .explorer
             .rename_dialog
@@ -135,6 +147,7 @@ impl Render for Editor {
             )
             .when_some(file_menu, |this, menu| this.child(menu))
             .when_some(clip_menu, |this, menu| this.child(menu))
+            .when_some(text_track_menu, |this, menu| this.child(menu))
             .when_some(rename_dialog, |this, dialog| this.child(dialog))
             .when_some(new_timeline_dialog, |this, dialog| this.child(dialog))
             .when_some(settings_modal, |this, modal| this.child(modal))

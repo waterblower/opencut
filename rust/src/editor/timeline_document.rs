@@ -60,7 +60,7 @@ fn collect_timeline_files(
     Ok(())
 }
 
-pub(super) fn load_existing(
+pub(super) fn load_existing_timeline(
     project_root: &Path,
     preferred: Option<&Path>,
 ) -> Result<Option<(PathBuf, TimelineSerialization)>, String> {

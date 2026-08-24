@@ -27,3 +27,18 @@ fn directory_entries_own_their_expansion_state() {
 
     assert_eq!(entry.kind, FileTreeEntryKind::Directory { expanded: true });
 }
+
+#[test]
+fn only_the_active_timeline_uses_active_metadata() {
+    let entry = file_tree_entry(
+        PathBuf::from("timelines/devlog.timeline.json"),
+        "devlog.timeline.json".to_string(),
+        1,
+        false,
+        Some(1024),
+        false,
+    );
+
+    assert_eq!(file_entry_metadata(&entry, true).as_deref(), Some("ACTIVE"));
+    assert_eq!(file_entry_metadata(&entry, false).as_deref(), Some("1 KB"));
+}

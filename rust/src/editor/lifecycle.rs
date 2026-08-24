@@ -2,23 +2,50 @@ use super::*;
 
 impl Editor {
     pub(crate) fn new(window: &mut Window, cx: &mut Context<Self>) -> Self {
+        gstreamer_editing_services::init()
+            .expect("could not initialize GStreamer Editing Services");
+
         let global_settings = load_global_editor_settings();
-        let expanded_directories = HashSet::new();
+        let explorer_expansion = load_explorer_expansion(&global_settings.project_root);
+        let expanded_directories = explorer_expansion.expanded_directories;
         let file_tree =
             visible_tree(&global_settings.project_root, &expanded_directories).unwrap_or_default();
-        let active_timeline = match load_existing(&global_settings.project_root, None) {
-            Ok(active_timeline) => active_timeline,
-            Err(error) => {
-                eprintln!("Could not open timeline: {error}");
-                None
-            }
+        let project_settings = load_project_local_settings(&global_settings.project_root);
+
+        //
+        // Load the active timeline
+        //
+        let timeline = {
+            let active_timeline = load_existing_timeline(
+                &global_settings.project_root,
+                project_settings.active_timeline.as_deref(),
+            )
+            .unwrap();
+            (|| {
+                let Some((timeline_path, timeline_data)) = active_timeline else {
+                    return None;
+                };
+                let ges_timeline = build_ges_timeline(
+                    &timeline_data,
+                    &global_settings.project_root,
+                    export::ExportOptions::from_timeline(&timeline_data),
+                )
+                .unwrap();
+                Some(TimelineRuntimeState::new(
+                    timeline_path,
+                    timeline_data,
+                    ges_timeline,
+                ))
+            })()
         };
-        let timeline = active_timeline.map(|(path, data)| TimelineRuntimeState::new(path, data));
-        let selected_file = timeline.as_ref().map(|timeline| timeline.path.clone());
+        // load timeline end
+
         let focus_handle = cx.focus_handle();
         let explorer_filter = cx.new(|cx| ExplorerFilter::new(focus_handle.clone(), cx));
         let video_transform_inputs = VideoTransformInputs::new(focus_handle.clone(), cx);
         Self::observe_video_transform_inputs(&video_transform_inputs, cx);
+        let text_clip_inputs = TextClipInputs::new(focus_handle.clone(), cx);
+        Self::observe_text_clip_inputs(&text_clip_inputs, cx);
         cx.observe(&explorer_filter, |editor, _, cx| {
             editor.schedule_explorer_search(cx);
             cx.notify();
@@ -32,13 +59,13 @@ impl Editor {
             explorer: ExplorerState {
                 file_tree,
                 expanded_directories,
-                root_expanded: true,
+                root_expanded: explorer_expansion.root_expanded,
                 filter: explorer_filter,
                 search_query: None,
                 search_results: Vec::new(),
                 search_pending: false,
                 scroll: ScrollHandle::new(),
-                selected_file,
+                selected_file: timeline.as_ref().map(|timeline| timeline.path.clone()),
                 context_menu: None,
                 rename_dialog: None,
                 new_timeline_dialog: None,
@@ -51,7 +78,6 @@ impl Editor {
             preview: PreviewState {
                 target: PreviewTarget::None,
                 fullscreen: false,
-                timeline_needs_rebuild: true,
                 volume_control_open: false,
                 is_scrubbing: false,
                 is_adjusting_volume: false,
@@ -65,6 +91,8 @@ impl Editor {
                 resizing: false,
                 transform_inputs: video_transform_inputs,
                 transform_input_clip_id: None,
+                text_inputs: text_clip_inputs,
+                text_input_clip_id: None,
             },
             settings_open: false,
             export: ExportState {
@@ -79,7 +107,14 @@ impl Editor {
         if let Some(timeline) = editor.timeline.as_ref()
             && !timeline.data.clips.is_empty()
         {
-            editor.load_timeline_position_with_options(timeline.playhead, true);
+            match create_timeline_video_v2(&timeline.ges_timeline) {
+                Ok(video) => {
+                    let playhead = timeline.playhead;
+                    editor.preview.target = PreviewTarget::Timeline(video);
+                    editor.load_timeline_position_with_options(playhead, true);
+                }
+                Err(error) => eprintln!("{error}"),
+            }
         }
         editor.schedule_project_waveforms(cx);
         editor

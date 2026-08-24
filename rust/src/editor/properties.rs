@@ -1,3 +1,4 @@
+use super::properties_text::text_clip_panel;
 use super::properties_transform::video_transform_panel;
 use super::*;
 use std::path::Path;
@@ -128,8 +129,8 @@ fn timeline_properties(
     let selected = selected_clip_id.and_then(|id| {
         let index = timeline.clip_index(id)?;
         let clip = &timeline.clips[index];
-        let asset = timeline.asset(clip.asset_id);
-        let track = timeline.track(clip.track_id)?;
+        let asset = clip.media().and_then(|clip| timeline.asset(clip.asset_id));
+        let track = timeline.track(clip.track_id())?;
         Some((clip, asset, track))
     });
     let editable = !selected_clip_ids.is_empty()
@@ -140,9 +141,12 @@ fn timeline_properties(
     div()
         .id("timeline-properties")
         .when_some(selected, |this, (clip, asset, track)| {
-            let title = asset
-                .map(|asset| asset.name.clone())
-                .unwrap_or_else(|| "Missing media".to_string());
+            let title = asset.map(|asset| asset.name.clone()).unwrap_or_else(|| {
+                clip.text().map_or_else(
+                    || "Missing media".to_string(),
+                    |clip| clip.properties.text.clone(),
+                )
+            });
             let has_video_transform = track.kind == TrackKind::Video
                 && asset.is_some_and(|asset| asset.kind != MediaKind::Audio);
 
@@ -151,12 +155,12 @@ fn timeline_properties(
                 .when(has_video_transform, |this| {
                     this.child(video_transform_panel(panel, editable))
                 })
-                .when(!has_video_transform, |this| {
+                .when(!has_video_transform && clip.media().is_some(), |this| {
                     this.gap_4()
                         .child(properties_title(title, "Timeline clip"))
                         .child(properties_value(
                             "Timeline start",
-                            format_time(timeline.seconds(clip.timeline_start), false),
+                            format_time(timeline.seconds(clip.timeline_start()), false),
                         ))
                         .child(properties_value(
                             "Source in",
@@ -166,19 +170,28 @@ fn timeline_properties(
                             "Source out",
                             format_time(
                                 timeline
-                                    .source_position_at(clip, clip.timeline_end())
+                                    .source_position_at(
+                                        clip,
+                                        clip.timeline_end(timeline.settings.frame_rate),
+                                    )
                                     .as_secs_f64(),
                                 false,
                             ),
                         ))
                         .child(properties_value(
                             "Clip duration",
-                            format_time(timeline.seconds(clip.duration()), false),
+                            format_time(
+                                timeline.seconds(clip.frame_length(timeline.settings.frame_rate)),
+                                false,
+                            ),
                         ))
                         .child(properties_value("Track", track.name.clone()))
                         .when_some(asset, |this, asset| {
                             this.child(properties_value("Source", asset_description(asset)))
                         })
+                })
+                .when_some(clip.text(), |this, text_clip| {
+                    this.child(text_clip_panel(panel, editable, text_clip.properties.color))
                 })
         })
         .when(selected.is_none(), |this| {
@@ -195,7 +208,7 @@ fn video_file_properties(
     video: &VideoBackend,
 ) -> gpui::AnyElement {
     let duration = video.duration().as_secs_f64();
-    let resolution = video.frame_size();
+    let (width, height) = video.frame_size();
     let framerate = video.framerate();
 
     file_properties(path, "Video")
@@ -206,12 +219,10 @@ fn video_file_properties(
                     if asset.has_audio { "Yes" } else { "No" }.to_string(),
                 ))
         })
-        .when_some(resolution, |this, (width, height)| {
-            this.child(properties_value(
-                "Resolution",
-                format!("{width} × {height}"),
-            ))
-        })
+        .child(properties_value(
+            "Resolution",
+            format!("{width} × {height}"),
+        ))
         .when_some(framerate, |this, framerate| {
             this.child(properties_value(
                 "Frame rate",

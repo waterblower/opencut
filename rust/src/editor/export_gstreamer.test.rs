@@ -5,10 +5,13 @@ use crate::editor::{
     media_probe::probe_video,
     model::MediaAsset,
     timeline::TimelineTime,
-    timeline_clip::{AudioClipProperties, VideoClipProperties},
+    timeline_clip::{
+        AudioClipProperties, MediaClip, TextClip, TextClipProperties, VideoClipProperties,
+    },
+    track::Track,
     ulid,
 };
-use std::path::Path;
+use std::{path::Path, time::Duration};
 
 #[test]
 fn exports_every_video_in_the_mini_fixture_as_one_sequence() {
@@ -69,7 +72,7 @@ pub(super) fn export_mini_fixture(encoder: ExportEncoder, output_name: &str) {
         asset.path = source_path.strip_prefix(&project_root).unwrap().into();
         let duration = project.ceil_time(asset.duration);
         project.assets.push(asset);
-        project.clips.push(Clip {
+        project.clips.push(Clip::Media(MediaClip {
             id: clip_id,
             track_id: video_track,
             asset_id,
@@ -78,7 +81,7 @@ pub(super) fn export_mini_fixture(encoder: ExportEncoder, output_name: &str) {
             source_out: duration,
             video_properties: VideoClipProperties::default(),
             audio_properties: AudioClipProperties::default(),
-        });
+        }));
         timeline_start += duration;
     }
 
@@ -110,7 +113,7 @@ fn video_track_exports_visible_video_and_unmuted_audio() {
         .iter()
         .find(|track| track.kind == TrackKind::Video)
         .unwrap();
-    let clip = Clip {
+    let clip = Clip::Media(MediaClip {
         id: ulid(1),
         track_id: track.id,
         asset_id: ulid(2),
@@ -119,7 +122,7 @@ fn video_track_exports_visible_video_and_unmuted_audio() {
         source_out: TimelineTime::ONE_FRAME,
         video_properties: VideoClipProperties::default(),
         audio_properties: AudioClipProperties::default(),
-    };
+    });
     let types = exported_track_types(track, &clip, MediaKind::Video, true);
     assert!(types.contains(ges::TrackType::VIDEO));
     assert!(types.contains(ges::TrackType::AUDIO));
@@ -134,7 +137,7 @@ fn hidden_video_track_can_still_export_audio() {
         .find(|track| track.kind == TrackKind::Video)
         .unwrap();
     track.visible = false;
-    let clip = Clip {
+    let clip = Clip::Media(MediaClip {
         id: ulid(1),
         track_id: track.id,
         asset_id: ulid(2),
@@ -143,7 +146,7 @@ fn hidden_video_track_can_still_export_audio() {
         source_out: TimelineTime::ONE_FRAME,
         video_properties: VideoClipProperties::default(),
         audio_properties: AudioClipProperties::default(),
-    };
+    });
     assert_eq!(
         exported_track_types(track, &clip, MediaKind::Video, true),
         ges::TrackType::AUDIO
@@ -229,7 +232,7 @@ fn creates_gstreamer_timeline_from_real_media() {
         position_y: -60.0,
         scale: 0.5,
     };
-    project.clips.push(Clip {
+    project.clips.push(Clip::Media(MediaClip {
         id: ulid(11),
         track_id: video_track,
         asset_id: ulid(10),
@@ -238,16 +241,17 @@ fn creates_gstreamer_timeline_from_real_media() {
         source_out: TimelineTime::from_frames(3),
         video_properties,
         audio_properties: AudioClipProperties::default(),
-    });
-    let timeline = build_timeline(
+    }));
+    let timeline = build_ges_timeline(
         &project,
         project_root,
         ExportOptions::from_timeline(&project),
     )
     .unwrap();
-    assert_eq!(timeline.layers().len(), project.tracks.len());
-    let exported_clip = timeline
-        .layers()
+    let layers = timeline.layers();
+    assert_eq!(layers.len(), project.tracks.len() + 1);
+    assert!(layers.last().unwrap().priority() > layers.first().unwrap().priority());
+    let exported_clip = layers
         .into_iter()
         .flat_map(|layer| layer.clips())
         .next()
@@ -287,6 +291,131 @@ fn creates_gstreamer_timeline_from_real_media() {
 }
 
 #[test]
+fn adds_text_clips_as_ges_overlays() {
+    let _gstreamer_test = crate::editor::lock_gstreamer_test();
+    ges::init().unwrap();
+    let project_root = Path::new(env!("CARGO_MANIFEST_DIR"));
+    let mut project = TimelineSerialization::with_test_tracks();
+    let text_track_id = ulid(20);
+    let text_clip_id = ulid(21);
+    project.tracks.push(Track {
+        id: text_track_id,
+        name: "Text 1".into(),
+        kind: TrackKind::Text,
+        locked: false,
+        muted: false,
+        visible: true,
+    });
+    project.clips.push(Clip::Text(TextClip {
+        id: text_clip_id,
+        track_id: text_track_id,
+        timeline_start: TimelineTime::from_frames(12),
+        length: Duration::from_secs(2),
+        properties: TextClipProperties {
+            text: "GES text".into(),
+            font_size: 72.0,
+            color: 0x12_34_56_78,
+            position_x: 0.25,
+            position_y: 0.75,
+            ..TextClipProperties::default()
+        },
+    }));
+
+    let timeline = build_ges_timeline(
+        &project,
+        project_root,
+        ExportOptions::from_timeline(&project),
+    )
+    .unwrap();
+    let layers = timeline.layers();
+    let overlay = layers
+        .iter()
+        .flat_map(|layer| layer.clips())
+        .find(|clip| {
+            clip.name().as_deref() == Some(format!("opencut-clip-{text_clip_id}").as_str())
+        })
+        .unwrap()
+        .downcast::<ges::TextOverlayClip>()
+        .unwrap();
+
+    assert_eq!(overlay.layer().unwrap().priority(), 0);
+    assert_eq!(overlay.text().as_deref(), Some("GES text"));
+    assert_eq!(overlay.font_desc().as_deref(), Some("Sans 72px"));
+    assert_eq!(overlay.color(), 0x12_34_56_78);
+    assert_eq!(overlay.halignment(), ges::TextHAlign::Position);
+    assert_eq!(overlay.valignment(), ges::TextVAlign::Position);
+    assert_eq!(overlay.xpos(), 0.25);
+    assert_eq!(overlay.ypos(), 0.75);
+    assert_eq!(
+        overlay.start(),
+        clock_time(project.duration(TimelineTime::from_frames(12)))
+    );
+    assert_eq!(overlay.duration(), clock_time(Duration::from_secs(2)));
+}
+
+#[test]
+fn hidden_and_muted_tracks_keep_their_duration_as_black_video() {
+    let _gstreamer_test = crate::editor::lock_gstreamer_test();
+    ges::init().unwrap();
+    let project_root = Path::new(env!("CARGO_MANIFEST_DIR"));
+    let mut project = TimelineSerialization::with_test_tracks();
+    let track = project
+        .tracks
+        .iter_mut()
+        .find(|track| track.kind == TrackKind::Video)
+        .unwrap();
+    track.visible = false;
+    track.muted = true;
+    let track_id = track.id;
+    project.assets.push(MediaAsset {
+        id: ulid(10),
+        kind: MediaKind::Video,
+        path: "hidden-video-does-not-need-to-exist.mp4".into(),
+        name: "hidden video".into(),
+        duration: 5.0,
+        width: 320,
+        height: 180,
+        framerate: 30.0,
+        frame_rate_numerator: 30,
+        frame_rate_denominator: 1,
+        codec: "h264".into(),
+        has_audio: true,
+    });
+    project.clips.push(Clip::Media(MediaClip {
+        id: ulid(11),
+        track_id,
+        asset_id: ulid(10),
+        timeline_start: TimelineTime::from_frames(12),
+        source_in: TimelineTime::ZERO,
+        source_out: TimelineTime::from_frames(30),
+        video_properties: VideoClipProperties::default(),
+        audio_properties: AudioClipProperties::default(),
+    }));
+
+    let timeline = build_ges_timeline(
+        &project,
+        project_root,
+        ExportOptions::from_timeline(&project),
+    )
+    .unwrap();
+    let expected_duration = clock_time(project.duration(project.content_duration()));
+    let background = timeline
+        .layers()
+        .into_iter()
+        .flat_map(|layer| layer.clips())
+        .find(|clip| clip.name().as_deref() == Some("opencut-black-background"))
+        .unwrap()
+        .downcast::<ges::TestClip>()
+        .unwrap();
+
+    assert_eq!(timeline.duration(), expected_duration);
+    assert_eq!(background.duration(), expected_duration);
+    assert_eq!(background.supported_formats(), ges::TrackType::VIDEO);
+    assert_eq!(background.vpattern(), ges::VideoTestPattern::Black);
+    assert!(background.is_muted());
+}
+
+#[test]
 fn exports_real_media_with_audio() {
     let _gstreamer_test = crate::editor::lock_gstreamer_test();
     let project_root = Path::new(env!("CARGO_MANIFEST_DIR"));
@@ -313,7 +442,7 @@ fn exports_real_media_with_audio() {
         codec: "h264".into(),
         has_audio: true,
     });
-    project.clips.push(Clip {
+    project.clips.push(Clip::Media(MediaClip {
         id: ulid(11),
         track_id: video_track,
         asset_id: ulid(10),
@@ -322,7 +451,7 @@ fn exports_real_media_with_audio() {
         source_out: TimelineTime::from_frames(30),
         video_properties: VideoClipProperties::default(),
         audio_properties: AudioClipProperties::default(),
-    });
+    }));
 
     let output = std::env::temp_dir().join(format!("opencut-ges-video-{}.mp4", std::process::id()));
     export_timeline(
@@ -379,7 +508,7 @@ fn exports_an_image_only_timeline() {
         codec: "png".into(),
         has_audio: false,
     });
-    project.clips.push(Clip {
+    project.clips.push(Clip::Media(MediaClip {
         id: ulid(11),
         track_id: video_track,
         asset_id: ulid(10),
@@ -388,7 +517,7 @@ fn exports_an_image_only_timeline() {
         source_out: TimelineTime::from_frames(3),
         video_properties: VideoClipProperties::default(),
         audio_properties: AudioClipProperties::default(),
-    });
+    }));
 
     let output = project_root.join("image-export.mp4");
     export_timeline(

@@ -12,23 +12,27 @@ fn transform_targets(
     source_clip_id: Ulid,
 ) -> Option<(VideoClipProperties, Vec<usize>)> {
     let source = timeline.clip(source_clip_id)?;
-    let track = timeline.track(source.track_id)?;
-    let source_asset = timeline.asset(source.asset_id)?;
+    let source_media = source.media()?;
+    let track = timeline.track(source.track_id())?;
+    let source_asset = timeline.asset(source_media.asset_id)?;
     if track.locked || track.kind != TrackKind::Video || source_asset.kind == MediaKind::Audio {
         return None;
     }
-    let properties = source.video_properties;
+    let properties = source_media.video_properties;
     let targets = timeline
         .clips
         .iter()
         .enumerate()
-        .filter(|(_, clip)| clip.id != source.id && clip.track_id == source.track_id)
+        .filter(|(_, clip)| clip.id() != source.id() && clip.track_id() == source.track_id())
         .filter(|(_, clip)| {
-            timeline
-                .asset(clip.asset_id)
+            clip.media()
+                .and_then(|clip| timeline.asset(clip.asset_id))
                 .is_some_and(|asset| asset.kind != MediaKind::Audio)
         })
-        .filter(|(_, clip)| clip.video_properties != properties)
+        .filter(|(_, clip)| {
+            clip.media()
+                .is_some_and(|clip| clip.video_properties != properties)
+        })
         .map(|(index, _)| index)
         .collect();
     Some((properties, targets))
@@ -130,11 +134,12 @@ impl Editor {
         let Some(timeline) = self.timeline.as_mut() else {
             return;
         };
-        timeline.interaction.context_menu = Some(TimelineClipContextMenu {
-            clip_id,
-            x: event.position.x.into(),
-            y: event.position.y.into(),
-        });
+        timeline.interaction.context_menu =
+            Some(TimelineContextMenu::Clip(TimelineClipContextMenu {
+                clip_id,
+                x: event.position.x.into(),
+                y: event.position.y.into(),
+            }));
         cx.stop_propagation();
         cx.notify();
     }
@@ -144,7 +149,12 @@ impl Editor {
             .timeline
             .as_mut()
             .and_then(|timeline| timeline.interaction.context_menu.take())
-            .map(|menu| menu.clip_id)
+            .and_then(|menu| {
+                let TimelineContextMenu::Clip(menu) = menu else {
+                    return None;
+                };
+                Some(menu.clip_id)
+            })
         else {
             return;
         };
@@ -163,14 +173,24 @@ impl Editor {
             return;
         };
         timeline.record_editing_history();
-        self.preview.timeline_needs_rebuild = true;
-        for index in targets {
-            timeline.data.clips[index].video_properties = properties;
-        }
+        let clip_ids = targets
+            .into_iter()
+            .map(|index| timeline.data.clips[index].id())
+            .collect();
+        edit_and_rebuild_timeline(
+            &mut self.preview,
+            &self.global_settings.project_root,
+            timeline,
+            EditAction::SetVideoProperties {
+                clip_ids,
+                properties,
+            },
+        )
+        .expect("setting video properties cannot be rejected");
         self.properties.transform_input_clip_id = None;
 
         timeline.save(&self.global_settings.project_root);
-        self.rebuild_timeline_preview_if_needed();
+
         self.status = Some(format!(
             "Applied transforms to {changed} other clip{}.",
             if changed == 1 { "" } else { "s" }

@@ -1,4 +1,5 @@
 use super::*;
+use crate::IconName;
 use gpui::{Bounds, canvas, fill, point, rgba, size};
 use std::sync::Arc;
 
@@ -76,13 +77,14 @@ fn timeline_clip_move_preview(
 ) -> gpui::AnyElement {
     let name = timeline
         .clip(clip_id)
+        .and_then(Clip::media)
         .and_then(|clip| timeline.asset(clip.asset_id))
         .map(|asset| asset.name.clone())
         .unwrap_or_else(|| "Missing media".to_string());
     let left = TIMELINE_PADDING + timeline.seconds(start) as f32 * timeline.view.pixels_per_second;
     let duration = timeline
         .clip(clip_id)
-        .map(Clip::duration)
+        .map(|clip| clip.frame_length(timeline.settings.frame_rate))
         .unwrap_or(TimelineTime::ZERO);
     let width = (timeline.seconds(duration) as f32 * timeline.view.pixels_per_second).max(4.0);
     let valid = invalid_reason.is_none();
@@ -176,26 +178,38 @@ impl Editor {
                     .flex()
                     .gap_1()
                     .child(
-                        track_icon_button(("track-lock", index), "icons/lock.svg", track.locked)
+                        track_icon_button(("track-lock", index), IconName::Lock, track.locked)
                             .on_click(cx.listener(move |editor, _, _, cx| {
                                 editor.toggle_track_lock(track_id);
                                 cx.notify();
                             })),
                     )
                     .child(
-                        track_icon_button(("track-visible", index), "icons/eye.svg", track.visible)
+                        track_icon_button(("track-visible", index), IconName::Eye, track.visible)
                             .on_click(cx.listener(move |editor, _, _, cx| {
                                 editor.toggle_track_visibility(track_id);
                                 cx.notify();
                             })),
                     )
-                    .child(
-                        track_button(("track-mute", index), if track.muted { "M×" } else { "M" })
-                            .on_click(cx.listener(move |editor, _, _, cx| {
-                                editor.toggle_track_mute(track_id);
-                                cx.notify();
-                            })),
-                    )
+                    .when(track.kind != TrackKind::Text, |this| {
+                        this.child(
+                            track_icon_button(
+                                ("track-mute", index),
+                                if track.muted {
+                                    IconName::Mute
+                                } else {
+                                    IconName::Unmute
+                                },
+                                track.muted,
+                            )
+                            .on_click(cx.listener(
+                                move |editor, _, _, cx| {
+                                    editor.toggle_track_mute(track_id);
+                                    cx.notify();
+                                },
+                            )),
+                        )
+                    })
                     .child(track_button(("track-up", index), "↑").on_click(cx.listener(
                         move |editor, _, _, cx| {
                             editor.move_track(track_id, -1);
@@ -211,12 +225,11 @@ impl Editor {
                         )),
                     )
                     .child(
-                        track_button(("track-delete", index), "×").on_click(cx.listener(
-                            move |editor, _, _, cx| {
+                        track_icon_button(("track-delete", index), IconName::Trash, false)
+                            .on_click(cx.listener(move |editor, _, _, cx| {
                                 editor.delete_track(track_id);
                                 cx.notify();
-                            },
-                        )),
+                            })),
                     ),
             )
             .into_any_element()
@@ -233,6 +246,7 @@ impl Editor {
             .timeline
             .as_ref()
             .expect("track rows require an active timeline");
+        let track_id = track.id;
         let clips = timeline
             .data
             .clips_on_track(track.id)
@@ -262,7 +276,7 @@ impl Editor {
             .explorer
             .drop_preview
             .as_ref()
-            .filter(|preview| preview.track_id == track.id)
+            .filter(|preview| preview.track_id == track.id && track.kind != TrackKind::Text)
             .map(|preview| {
                 explorer_drop_preview(
                     preview,
@@ -288,6 +302,14 @@ impl Editor {
                 TimelineTool::Blade => CursorStyle::Crosshair,
                 TimelineTool::Selection => CursorStyle::Arrow,
             })
+            .when(track.kind == TrackKind::Text, |this| {
+                this.on_mouse_down(
+                    MouseButton::Right,
+                    cx.listener(move |editor, event: &MouseDownEvent, _, cx| {
+                        editor.show_text_track_context_menu(track_id, event, cx);
+                    }),
+                )
+            })
             .children(clips)
             .children(move_previews)
             .when_some(explorer_drop_preview, |this, preview| this.child(preview))
@@ -303,7 +325,25 @@ impl Editor {
         match track.kind {
             TrackKind::Video => self.video_clip(clip, cx),
             TrackKind::Audio => self.audio_clip(clip, cx),
+            TrackKind::Text => self.text_clip(clip, cx),
         }
+    }
+
+    fn text_clip(&self, clip: &Clip, cx: &mut Context<Self>) -> gpui::AnyElement {
+        let label = clip
+            .text()
+            .map(|clip| clip.properties.text.clone())
+            .unwrap_or_else(|| "Text".to_string());
+        let content = div()
+            .absolute()
+            .inset_0()
+            .p_2()
+            .text_xs()
+            .font_weight(gpui::FontWeight::SEMIBOLD)
+            .text_ellipsis()
+            .child(label);
+
+        self.timeline_clip_frame(clip, 0x7251a3, content.into_any_element(), cx)
     }
 
     fn video_clip(&self, clip: &Clip, cx: &mut Context<Self>) -> gpui::AnyElement {
@@ -311,14 +351,15 @@ impl Editor {
             .timeline
             .as_ref()
             .expect("timeline clips require an active timeline");
-        let asset = timeline.data.asset(clip.asset_id);
+        let media = clip.media().expect("video tracks contain media clips");
+        let asset = timeline.data.asset(media.asset_id);
         let name = asset
             .map(|asset| asset.name.clone())
             .unwrap_or_else(|| "Missing media".to_string());
 
         let waveform = asset.and_then(|asset| self.waveform_cache.get(&asset.path).cloned());
-        let source_start = timeline.data.seconds(clip.source_in);
-        let source_end = timeline.data.seconds(clip.source_out);
+        let source_start = timeline.data.seconds(media.source_in);
+        let source_end = timeline.data.seconds(media.source_out);
         let content = div()
             .absolute()
             .inset_0()
@@ -336,17 +377,24 @@ impl Editor {
             .timeline
             .as_ref()
             .expect("timeline clips require an active timeline");
-        let asset = timeline.data.asset(clip.asset_id);
+        let media = clip.media().expect("audio tracks contain media clips");
+        let asset = timeline.data.asset(media.asset_id);
         let name = asset
             .map(|asset| asset.name.clone())
             .unwrap_or_else(|| "Missing media".to_string());
         let waveform = asset.and_then(|asset| self.waveform_cache.get(&asset.path).cloned());
-        let source_start = timeline.data.seconds(clip.source_in);
-        let source_end = timeline.data.seconds(clip.source_out);
+        let source_start = timeline.data.seconds(media.source_in);
+        let source_end = timeline.data.seconds(media.source_out);
         let detail = if asset.is_some_and(|asset| asset.has_audio) {
             "Audio".to_string()
         } else {
-            format!("{}s", timeline.data.seconds(clip.duration()).round())
+            format!(
+                "{}s",
+                timeline
+                    .data
+                    .seconds(clip.frame_length(timeline.data.settings.frame_rate))
+                    .round()
+            )
         };
         let content = div()
             .absolute()
@@ -370,7 +418,7 @@ impl Editor {
             .timeline
             .as_ref()
             .expect("timeline clips require an active timeline");
-        let clip_id = clip.id;
+        let clip_id = clip.id();
         let selected = timeline.interaction.selected_clip_ids.contains(&clip_id);
         let moving = timeline
             .interaction
@@ -380,9 +428,12 @@ impl Editor {
                 drag.changed && drag.items.iter().any(|item| item.clip_id == clip_id)
             });
         let left = TIMELINE_PADDING
-            + timeline.data.seconds(clip.timeline_start) as f32
+            + timeline.data.seconds(clip.timeline_start()) as f32
                 * timeline.data.view.pixels_per_second;
-        let width = (timeline.data.seconds(clip.duration()) as f32
+        let width = (timeline
+            .data
+            .seconds(clip.frame_length(timeline.data.settings.frame_rate))
+            as f32
             * timeline.data.view.pixels_per_second)
             .max(4.0);
 
@@ -510,14 +561,15 @@ fn track_button(id: impl Into<gpui::ElementId>, label: &'static str) -> gpui::St
 
 fn track_icon_button(
     id: impl Into<gpui::ElementId>,
-    path: &'static str,
+    icon: IconName,
     active: bool,
 ) -> gpui::Stateful<gpui::Div> {
-    track_button_base(id).child(gpui::svg().path(path).size_4().text_color(rgb(if active {
-        ACCENT
-    } else {
-        MUTED
-    })))
+    track_button_base(id).child(
+        gpui::svg()
+            .path(icon.path())
+            .size_4()
+            .text_color(rgb(if active { ACCENT } else { MUTED })),
+    )
 }
 
 fn track_button_base(id: impl Into<gpui::ElementId>) -> gpui::Stateful<gpui::Div> {
@@ -539,5 +591,6 @@ fn track_kind_label(kind: TrackKind) -> &'static str {
     match kind {
         TrackKind::Video => "V",
         TrackKind::Audio => "A",
+        TrackKind::Text => "T",
     }
 }

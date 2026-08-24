@@ -238,6 +238,11 @@ impl Editor {
         let path = entry.relative_path.clone();
 
         let selected = self.explorer.selected_file.as_ref() == Some(&path);
+        let active_timeline = matches!(entry.kind, FileTreeEntryKind::Timeline)
+            && self
+                .timeline
+                .as_ref()
+                .is_some_and(|timeline| timeline.path == path);
         let media_kind = match entry.kind {
             FileTreeEntryKind::Video => Some(MediaKind::Video),
             FileTreeEntryKind::Image => Some(MediaKind::Image),
@@ -251,7 +256,7 @@ impl Editor {
             name: entry.name.clone(),
             kind,
         });
-        let metadata = file_entry_metadata(entry, self.timeline.as_ref());
+        let metadata = file_entry_metadata(entry, active_timeline);
 
         div()
             .id(("project-file", index))
@@ -263,7 +268,13 @@ impl Editor {
             .gap_2()
             .pr_2()
             .pl(px(10.0 + (entry.depth + 1) as f32 * 16.0))
-            .bg(rgb(if selected { 0x1e1b13 } else { PANEL }))
+            .bg(rgb(if active_timeline {
+                0x211a0f
+            } else if selected {
+                0x1e1b13
+            } else {
+                PANEL
+            }))
             .cursor(CursorStyle::PointingHand)
             .hover(|style| style.bg(rgb(SURFACE_HOVER)))
             .when_some(media_drag, |this, drag| {
@@ -283,10 +294,12 @@ impl Editor {
                 move |editor, _, _, cx| {
                     match entry.kind {
                         FileTreeEntryKind::Directory { .. } => {
-                            if let Err(error) = editor.explorer.toggle_directory(
-                                &editor.global_settings.project_root,
-                                entry.relative_path.clone(),
-                            ) {
+                            let project_root = editor.global_settings.project_root.clone();
+                            if let Err(error) = editor
+                                .explorer
+                                .toggle_directory(&project_root, entry.relative_path.clone())
+                                .and_then(|_| editor.save_explorer_expansion())
+                            {
                                 eprintln!("{error}");
                             }
                         }
@@ -367,6 +380,9 @@ impl Editor {
                     .flex_1()
                     .text_sm()
                     .font_family("monospace")
+                    .when(active_timeline, |this| {
+                        this.font_weight(gpui::FontWeight::SEMIBOLD)
+                    })
                     .text_ellipsis()
                     .text_color(rgb(if entry.kind != FileTreeEntryKind::Other {
                         TEXT
@@ -378,12 +394,25 @@ impl Editor {
             .when_some(metadata, |this, metadata| {
                 this.child(
                     div()
-                        .max_w(px(58.0))
                         .flex_shrink_0()
                         .font_family("monospace")
                         .text_xs()
                         .text_ellipsis()
-                        .text_color(rgb(0x55555e))
+                        .when(active_timeline, |this| {
+                            this.h(px(20.0))
+                                .px_2()
+                                .flex()
+                                .items_center()
+                                .rounded_sm()
+                                .border_1()
+                                .border_color(rgb(0x8a652d))
+                                .bg(rgb(0x2a241b))
+                                .font_weight(gpui::FontWeight::SEMIBOLD)
+                                .text_color(rgb(ACCENT))
+                        })
+                        .when(!active_timeline, |this| {
+                            this.max_w(px(58.0)).text_color(rgb(0x55555e))
+                        })
                         .child(metadata),
                 )
             })
@@ -483,17 +512,10 @@ impl Editor {
     }
 }
 
-fn file_entry_metadata(
-    entry: &FileTreeEntry,
-    active_timeline: Option<&TimelineRuntimeState>,
-) -> Option<String> {
+fn file_entry_metadata(entry: &FileTreeEntry, active_timeline: bool) -> Option<String> {
     match entry.kind {
         FileTreeEntryKind::Directory { .. } => None,
-        FileTreeEntryKind::Timeline
-            if active_timeline.is_some_and(|timeline| timeline.path == entry.relative_path) =>
-        {
-            Some("ACTIVE".to_string())
-        }
+        FileTreeEntryKind::Timeline if active_timeline => Some("ACTIVE".to_string()),
         FileTreeEntryKind::Video
         | FileTreeEntryKind::Image
         | FileTreeEntryKind::Audio
