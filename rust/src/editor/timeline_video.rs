@@ -11,16 +11,16 @@ use gstreamer_editing_services as ges;
 use std::path::Path;
 use ulid::Ulid;
 
-pub(super) fn create_timeline_video(
-    timeline: &TimelineSerialization,
-    project_root: &Path,
-) -> Result<VideoBackend, String> {
-    initialize_gstreamer()?;
-    let (audio_sink, volume_control) = preview_audio_sink()?;
-    let (pipeline, sink) = create_timeline_pipeline(timeline, project_root, &audio_sink)?;
-    VideoBackend::from_pipeline(pipeline, sink, volume_control)
-        .map_err(|error| format!("could not initialize timeline video: {error}"))
-}
+// pub(super) fn create_timeline_video(
+//     timeline: &TimelineSerialization,
+//     project_root: &Path,
+// ) -> Result<VideoBackend, String> {
+//     initialize_gstreamer()?;
+//     let (audio_sink, volume_control) = preview_audio_sink()?;
+//     let (pipeline, sink) = create_timeline_pipeline(timeline, project_root, &audio_sink)?;
+//     VideoBackend::from_pipeline(pipeline, sink, volume_control)
+//         .map_err(|error| format!("could not initialize timeline video: {error}"))
+// }
 
 pub(super) fn create_timeline_video_v2(timeline: &ges::Timeline) -> Result<VideoBackend, String> {
     initialize_gstreamer()?;

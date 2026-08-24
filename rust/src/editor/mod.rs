@@ -79,7 +79,6 @@ use timeline_interactions::{
     MarqueeSelection, TimelineContextMenu, TimelineInteractionState, TimelineTool,
 };
 use timeline_track_menu::TextTrackContextMenu;
-use timeline_video::create_timeline_video;
 use timeline_video::create_timeline_video_v2;
 use track::{Track, TrackKind};
 use ulid::Ulid;
@@ -407,7 +406,7 @@ impl Editor {
             && !timeline.data.clips.is_empty()
         {
             let playhead = timeline.playhead;
-            let video = create_timeline_video(&timeline.data, &self.global_settings.project_root)?;
+            let video = create_timeline_video_v2(&timeline.ges_timeline)?;
             self.preview.target = PreviewTarget::Timeline(video);
             self.load_timeline_position_with_options(playhead, true);
         } else {

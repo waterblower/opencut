@@ -1,5 +1,3 @@
-use crate::editor::timeline_video::create_timeline_video;
-
 use super::*;
 use std::path::Path;
 
@@ -1029,7 +1027,7 @@ pub(super) fn edit_and_rebuild_timeline(
         return Ok(());
     }
 
-    let mut video = create_timeline_video(&timeline.data, project_root).unwrap();
+    let mut video = create_timeline_video_v2(&timeline.ges_timeline).unwrap();
     video.set_volume(volume);
     video.set_muted(volume <= f64::EPSILON);
     let _ = video.seek(timeline.data.duration(timeline.playhead), true);
