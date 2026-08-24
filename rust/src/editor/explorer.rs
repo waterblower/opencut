@@ -821,7 +821,7 @@ impl Editor {
             audio_properties: AudioClipProperties::default(),
         });
 
-        if let Err(rejection) = edit_and_rebuild_timeline(
+        edit_and_rebuild_timeline(
             &mut self.preview,
             &self.global_settings.project_root,
             timeline,
@@ -829,10 +829,8 @@ impl Editor {
                 clips: vec![media_clip],
                 assets,
             },
-        ) {
-            eprintln!("Cannot add media to the timeline: {}", rejection.message());
-            return;
-        }
+        )
+        .unwrap();
 
         self.explorer.selected_file = Some(relative_path);
         self.select_only_clip(Some(clip_id));

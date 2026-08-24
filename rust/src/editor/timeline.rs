@@ -46,6 +46,7 @@ pub(super) struct TimelineViewState {
 pub(super) struct TimelineRuntimeState {
     pub(super) path: PathBuf,
     pub(super) data: TimelineSerialization,
+    pub(super) ges_timeline: gstreamer_editing_services::Timeline,
     pub(super) playhead: TimelineTime,
     pub(super) h_scroll: ScrollHandle,
     pub(super) v_scroll: ScrollHandle,
@@ -396,7 +397,11 @@ impl TimelineSerialization {
 }
 
 impl TimelineRuntimeState {
-    pub(super) fn new(path: PathBuf, data: TimelineSerialization) -> Self {
+    pub(super) fn new(
+        path: PathBuf,
+        data: TimelineSerialization,
+        ges_timeline: gstreamer_editing_services::Timeline,
+    ) -> Self {
         let playhead = data
             .view
             .saved_playhead_frame
@@ -412,6 +417,7 @@ impl TimelineRuntimeState {
         Self {
             path,
             data,
+            ges_timeline,
             playhead,
             interaction: TimelineInteractionState {
                 active_tool: TimelineTool::Selection,

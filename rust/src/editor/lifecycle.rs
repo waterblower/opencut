@@ -2,32 +2,32 @@ use super::*;
 
 impl Editor {
     pub(crate) fn new(window: &mut Window, cx: &mut Context<Self>) -> Self {
+        gstreamer_editing_services::init()
+            .expect("could not initialize GStreamer Editing Services");
+
         let global_settings = load_global_editor_settings();
         let explorer_expansion = load_explorer_expansion(&global_settings.project_root);
         let expanded_directories = explorer_expansion.expanded_directories;
         let file_tree =
             visible_tree(&global_settings.project_root, &expanded_directories).unwrap_or_default();
         let project_settings = load_project_local_settings(&global_settings.project_root);
-        let active_timeline = match load_existing(
+        let active_timeline_data = load_existing_timeline(
             &global_settings.project_root,
             project_settings.active_timeline.as_deref(),
-        ) {
-            Ok(active_timeline) => {
-                if let Err(error) = save_project_local_settings(
-                    &global_settings.project_root,
-                    active_timeline.as_ref().map(|(path, _)| path.as_path()),
-                ) {
-                    eprintln!("Could not save project-local settings: {error}");
-                }
-                active_timeline
-            }
-            Err(error) => {
-                eprintln!("Could not open timeline: {error}");
-                None
-            }
-        };
-        let timeline = active_timeline.map(|(path, data)| TimelineRuntimeState::new(path, data));
-        let selected_file = timeline.as_ref().map(|timeline| timeline.path.clone());
+        )
+        .expect("could not load the active timeline")
+        .expect("should have timeline");
+        let timeline_path = active_timeline_data.0;
+        let timeline_data = active_timeline_data.1;
+
+        let ges_timeline = build_timeline(
+            &timeline_data,
+            &global_settings.project_root,
+            export::ExportOptions::from_timeline(&timeline_data),
+        )
+        .expect("could not build the active GES timeline");
+        let timeline = TimelineRuntimeState::new(timeline_path, timeline_data, ges_timeline);
+
         let focus_handle = cx.focus_handle();
         let explorer_filter = cx.new(|cx| ExplorerFilter::new(focus_handle.clone(), cx));
         let video_transform_inputs = VideoTransformInputs::new(focus_handle.clone(), cx);
@@ -53,7 +53,7 @@ impl Editor {
                 search_results: Vec::new(),
                 search_pending: false,
                 scroll: ScrollHandle::new(),
-                selected_file,
+                selected_file: Some(timeline.path.clone()),
                 context_menu: None,
                 rename_dialog: None,
                 new_timeline_dialog: None,

@@ -1,4 +1,4 @@
-use crate::video::VideoBackend;
+use crate::{editor::export_gstreamer::build_timeline, video::VideoBackend};
 use gpui::{
     App, Context, CursorStyle, DragMoveEvent, Entity, FocusHandle, KeyBinding, MouseButton,
     MouseDownEvent, MouseMoveEvent, MouseUpEvent, ObjectFit, PathPromptOptions, Render,
@@ -74,7 +74,7 @@ use timeline_clip::{
     AudioClipProperties, Clip, MediaClip, TextClip, TextClipProperties, VideoClipProperties,
 };
 use timeline_clip_menu::TimelineClipContextMenu;
-use timeline_document::{load_existing, project_timeline_files};
+use timeline_document::{load_existing_timeline, project_timeline_files};
 use timeline_interactions::{
     MarqueeSelection, TimelineContextMenu, TimelineInteractionState, TimelineTool,
 };
@@ -283,8 +283,9 @@ impl Editor {
     fn set_project_root(&mut self, root: PathBuf, cx: &mut Context<Self>) -> Result<(), String> {
         let root = std::fs::canonicalize(&root).unwrap_or(root);
         let project_settings = load_project_local_settings(&root);
-        let active_timeline = load_existing(&root, project_settings.active_timeline.as_deref())
-            .map_err(|error| format!("Could not open timeline: {error}"))?;
+        let active_timeline =
+            load_existing_timeline(&root, project_settings.active_timeline.as_deref())?
+                .expect("the selected project has no timeline");
         if let Some(timeline) = self.timeline.as_ref() {
             timeline.save(&self.global_settings.project_root);
         }
@@ -296,7 +297,7 @@ impl Editor {
         let explorer_expansion = load_explorer_expansion(&self.global_settings.project_root);
         self.explorer.expanded_directories = explorer_expansion.expanded_directories;
         self.explorer.root_expanded = explorer_expansion.root_expanded;
-        self.activate_timeline(active_timeline, cx)?;
+        self.activate_timeline(active_timeline.0, active_timeline.1, cx)?;
         self.schedule_project_waveforms(cx);
         save_global_editor_settings(&self.global_settings)
     }
@@ -361,7 +362,8 @@ impl Editor {
 
     fn activate_timeline(
         &mut self,
-        active_timeline: Option<(PathBuf, TimelineSerialization)>,
+        timeline_path: PathBuf,
+        active_timeline: TimelineSerialization,
         cx: &mut Context<Self>,
     ) -> Result<(), String> {
         self.explorer.drag_assets.clear();
@@ -375,7 +377,8 @@ impl Editor {
         self.preview.timeline_drag = None;
         self.properties.transform_input_clip_id = None;
         self.properties.text_input_clip_id = None;
-        self.timeline = active_timeline.map(|(path, data)| TimelineRuntimeState::new(path, data));
+        // todo: should build the timeline
+        self.timeline = Some(TimelineRuntimeState::new(timeline_path, active_timeline));
         save_project_local_settings(
             &self.global_settings.project_root,
             self.timeline

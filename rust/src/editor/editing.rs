@@ -1007,8 +1007,12 @@ pub(super) fn edit_and_rebuild_timeline(
     project_root: &Path,
     timeline: &mut TimelineRuntimeState,
     action: EditAction,
-) -> Result<(), ClipPlacementRejection> {
-    edit_timeline(timeline, action)?;
+) -> Result<(), EditError> {
+    let rebuild_timeline = edit_timeline(timeline, action)?;
+
+    if !rebuild_timeline {
+        return Ok(());
+    }
 
     let volume = match &preview.target {
         PreviewTarget::Timeline(video) => video.volume(),
@@ -1036,7 +1040,7 @@ pub(super) fn edit_and_rebuild_timeline(
 pub(super) fn edit_timeline(
     timeline: &mut TimelineRuntimeState,
     action: EditAction,
-) -> Result<(), ClipPlacementRejection> {
+) -> Result<bool, EditError> {
     match action {
         EditAction::AddClips { clips, assets } => {
             let mut validation_timeline = timeline.data.clone();
@@ -1089,7 +1093,10 @@ pub(super) fn edit_timeline(
         } => {
             if let Some(Clip::Text(clip)) = timeline.data.clip_mut(clip_id) {
                 clip.properties = properties;
+                // change the text of a text clip
+                ges_change_text_clip(&timeline.ges_timeline, clip_id, &clip.properties)?;
             }
+            return Ok(false); // should not rebuild timeline
         }
         EditAction::AddTrack { track } => timeline.data.tracks.push(track),
         EditAction::DeleteTrack { track_id } => {
@@ -1156,6 +1163,58 @@ pub(super) fn edit_timeline(
         EditAction::ReplaceTimeline { timeline: data } => timeline.data = data,
     }
 
+    Ok(true)
+}
+
+#[derive(Debug)]
+pub(super) enum EditError {
+    ClipPlacement(ClipPlacementRejection),
+    Preview(String),
+}
+
+impl From<ClipPlacementRejection> for EditError {
+    fn from(error: ClipPlacementRejection) -> Self {
+        Self::ClipPlacement(error)
+    }
+}
+
+impl From<String> for EditError {
+    fn from(error: String) -> Self {
+        Self::Preview(error)
+    }
+}
+
+// change the text of a text clip in the ges timeline
+fn ges_change_text_clip(
+    ges: &gstreamer_editing_services::Timeline,
+    clip_id: Ulid,
+    properties: &TextClipProperties,
+) -> Result<(), String> {
+    use gstreamer_editing_services::prelude::*;
+
+    let clip_name = format!("opencut-clip-{clip_id}");
+    let clip = ges
+        .layers()
+        .into_iter()
+        .flat_map(|layer| layer.clips())
+        .find(|clip| clip.name().as_deref() == Some(clip_name.as_str()))
+        .ok_or_else(|| format!("timeline preview has no text clip for {clip_id}"))?;
+    let overlay = clip
+        .downcast::<gstreamer_editing_services::TextOverlayClip>()
+        .map_err(|_| format!("timeline preview clip {clip_id} is not a text clip"))?;
+    overlay.set_text(Some(&properties.text));
+    overlay.set_font_desc(Some(&format!(
+        "{} {}px",
+        properties.font, properties.font_size
+    )));
+    overlay.set_color(properties.color);
+    overlay.set_halign(gstreamer_editing_services::TextHAlign::Position);
+    overlay.set_valign(gstreamer_editing_services::TextVAlign::Position);
+    overlay.set_xpos(properties.position_x);
+    overlay.set_ypos(properties.position_y);
+    if !ges.commit_sync() {
+        return Err("GStreamer could not commit the preview text change.".to_string());
+    }
     Ok(())
 }
 

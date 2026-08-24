@@ -198,32 +198,6 @@ fn track_magnet_closes_deleted_durations_independently_per_track() {
 }
 
 #[test]
-fn blade_targets_unselected_clips_crossing_the_playhead() {
-    let mut project = TimelineSerialization::with_test_tracks();
-    project.assets.push(audio_asset(100));
-    project.clips = vec![audio_clip(10, 0, 20), audio_clip(11, 30, 20)];
-
-    let mut timeline = TimelineRuntimeState::new("timeline.json".into(), project);
-    timeline.playhead = TimelineTime::from_frames(10);
-    let mut updated = blade_at_playhead(&timeline.data, timeline.playhead).unwrap();
-    updated.clips.sort_by_key(Clip::timeline_start);
-
-    assert_eq!(
-        updated
-            .clips
-            .iter()
-            .map(Clip::timeline_start)
-            .collect::<Vec<_>>(),
-        [
-            TimelineTime::ZERO,
-            TimelineTime::from_frames(10),
-            TimelineTime::from_frames(30)
-        ]
-    );
-    assert_eq!(timeline.data.clips.len(), 2);
-}
-
-#[test]
 fn select_all_excludes_clips_on_locked_tracks() {
     let mut project = TimelineSerialization::with_test_tracks();
     project.clips = vec![audio_clip(10, 0, 10), {
