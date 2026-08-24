@@ -19,28 +19,30 @@ use gpui_platform::application;
 
 fn main() {
     env_logger::init();
+    macos_pinch::install();
+    application().with_assets(EditorAssets).run(run_app);
+}
 
-    application().with_assets(EditorAssets).run(|cx: &mut App| {
-        macos_pinch::install();
-        gpui_inspector::init(cx);
-        editor::bind_keys(cx);
-        cx.on_window_closed(|cx, _window_id| {
-            if cx.windows().is_empty() {
-                cx.quit();
-            }
-        })
-        .detach();
+fn run_app(cx: &mut App) {
+    gpui_inspector::init(cx);
+    editor::bind_keys(cx);
+    cx.on_window_closed(|cx, _window_id| {
+        if cx.windows().is_empty() {
+            cx.quit();
+        }
+    })
+    .detach();
 
-        let bounds = Bounds::centered(None, size(px(1440.0), px(900.0)), cx);
-        cx.open_window(
-            WindowOptions {
-                window_bounds: Some(WindowBounds::Windowed(bounds)),
-                focus: true,
-                ..WindowOptions::default()
-            },
-            |window, cx| cx.new(|cx| Editor::new(window, cx)),
-        )
-        .expect("failed to create the OpenCut editor window");
-        cx.activate(true);
-    });
+    let bounds = Bounds::centered(None, size(px(1440.0), px(900.0)), cx);
+    let editor = cx.new(Editor::new);
+    cx.open_window(
+        WindowOptions {
+            window_bounds: Some(WindowBounds::Windowed(bounds)),
+            focus: true,
+            ..WindowOptions::default()
+        },
+        |_window, _cx| editor,
+    )
+    .expect("failed to create the OpenCut editor window");
+    cx.activate(true);
 }

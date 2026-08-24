@@ -1,7 +1,7 @@
 use super::*;
 
 impl Editor {
-    pub(crate) fn new(window: &mut Window, cx: &mut Context<Self>) -> Self {
+    pub(crate) fn new(cx: &mut Context<Self>) -> Self {
         gstreamer_editing_services::init()
             .expect("could not initialize GStreamer Editing Services");
 
@@ -51,7 +51,7 @@ impl Editor {
             cx.notify();
         })
         .detach();
-        focus_handle.focus(window, cx);
+
         start_updates(cx);
 
         let mut editor = Self {
