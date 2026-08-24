@@ -1,4 +1,4 @@
-use crate::{editor::export_gstreamer::build_ges_timeline, video::VideoBackend};
+use crate::video::VideoBackend;
 use gpui::{
     App, Context, CursorStyle, DragMoveEvent, Entity, FocusHandle, KeyBinding, MouseButton,
     MouseDownEvent, MouseMoveEvent, MouseUpEvent, ObjectFit, PathPromptOptions, Render,
@@ -14,13 +14,13 @@ use std::{
 mod clip_placement;
 mod clip_render_plan;
 mod editing;
+mod editor;
 mod editor_view;
 mod explorer;
 mod explorer_filter;
 mod export;
 mod export_dialog;
-mod export_gstreamer;
-mod lifecycle;
+pub mod export_gstreamer;
 mod media_probe;
 mod model;
 mod preview;
@@ -57,6 +57,7 @@ use explorer::{
 };
 use explorer_filter::ExplorerFilter;
 use export_dialog::ExportDialogState;
+use export_gstreamer::build_ges_timeline;
 use media_probe::probe_asset;
 use model::{DEFAULT_IMAGE_CLIP_DURATION, MediaAsset, MediaKind};
 use preview::{PreviewTarget, update_playback};
@@ -704,4 +705,4 @@ fn format_time(seconds: f64, padded_minutes: bool) -> String {
 mod tests;
 
 #[cfg(test)]
-use tests::{lock_gstreamer_test, ulid};
+use tests::ulid;

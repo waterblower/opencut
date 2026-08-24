@@ -1,15 +1,16 @@
 //! Integration-style tests for the GStreamer exporter.
 
 use super::*;
-use crate::editor::{
+
+use super::super::{
     media_probe::probe_video,
     model::MediaAsset,
+    tests::{lock_gstreamer_test, ulid},
     timeline::TimelineTime,
     timeline_clip::{
         AudioClipProperties, MediaClip, TextClip, TextClipProperties, VideoClipProperties,
     },
     track::Track,
-    ulid,
 };
 use std::{path::Path, time::Duration};
 
@@ -31,7 +32,7 @@ fn exports_videotoolbox() {
 }
 
 pub(super) fn export_mini_fixture(encoder: ExportEncoder, output_name: &str) {
-    let _gstreamer_test = crate::editor::lock_gstreamer_test();
+    let _gstreamer_test = lock_gstreamer_test();
     let project_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("data/tests/mini测试");
     let output = project_root.join(output_name);
     let mut source_paths = std::fs::read_dir(&project_root)
@@ -155,7 +156,7 @@ fn hidden_video_track_can_still_export_audio() {
 
 #[test]
 fn applies_the_requested_bitrate_to_x264() {
-    let _gstreamer_test = crate::editor::lock_gstreamer_test();
+    let _gstreamer_test = lock_gstreamer_test();
     ges::init().unwrap();
     let pipeline = ges::Pipeline::new();
     configure_export_elements(&pipeline, 12_345_000);
@@ -170,7 +171,7 @@ fn applies_the_requested_bitrate_to_x264() {
 #[cfg(target_os = "macos")]
 #[test]
 fn configures_videotoolbox_for_mp4_timeline_export() {
-    let _gstreamer_test = crate::editor::lock_gstreamer_test();
+    let _gstreamer_test = lock_gstreamer_test();
     ges::init().unwrap();
     let Some(factory) = gst::ElementFactory::find("vtenc_h264_hw") else {
         return;
@@ -185,7 +186,7 @@ fn configures_videotoolbox_for_mp4_timeline_export() {
 
 #[test]
 fn enables_automatic_threading_for_video_conversion_and_scaling() {
-    let _gstreamer_test = crate::editor::lock_gstreamer_test();
+    let _gstreamer_test = lock_gstreamer_test();
     ges::init().unwrap();
     let pipeline = ges::Pipeline::new();
     configure_export_elements(&pipeline, 12_345_000);
@@ -203,7 +204,7 @@ fn enables_automatic_threading_for_video_conversion_and_scaling() {
 
 #[test]
 fn creates_gstreamer_timeline_from_real_media() {
-    let _gstreamer_test = crate::editor::lock_gstreamer_test();
+    let _gstreamer_test = lock_gstreamer_test();
     ges::init().unwrap();
     let project_root = Path::new(env!("CARGO_MANIFEST_DIR"));
     let mut project = TimelineSerialization::with_test_tracks();
@@ -292,7 +293,7 @@ fn creates_gstreamer_timeline_from_real_media() {
 
 #[test]
 fn adds_text_clips_as_ges_overlays() {
-    let _gstreamer_test = crate::editor::lock_gstreamer_test();
+    let _gstreamer_test = lock_gstreamer_test();
     ges::init().unwrap();
     let project_root = Path::new(env!("CARGO_MANIFEST_DIR"));
     let mut project = TimelineSerialization::with_test_tracks();
@@ -355,7 +356,7 @@ fn adds_text_clips_as_ges_overlays() {
 
 #[test]
 fn hidden_and_muted_tracks_keep_their_duration_as_black_video() {
-    let _gstreamer_test = crate::editor::lock_gstreamer_test();
+    let _gstreamer_test = lock_gstreamer_test();
     ges::init().unwrap();
     let project_root = Path::new(env!("CARGO_MANIFEST_DIR"));
     let mut project = TimelineSerialization::with_test_tracks();
@@ -417,7 +418,7 @@ fn hidden_and_muted_tracks_keep_their_duration_as_black_video() {
 
 #[test]
 fn exports_real_media_with_audio() {
-    let _gstreamer_test = crate::editor::lock_gstreamer_test();
+    let _gstreamer_test = lock_gstreamer_test();
     let project_root = Path::new(env!("CARGO_MANIFEST_DIR"));
     let mut project = TimelineSerialization::with_test_tracks();
     project.settings.width = 320;
@@ -468,7 +469,7 @@ fn exports_real_media_with_audio() {
 
 #[test]
 fn exports_an_image_only_timeline() {
-    let _gstreamer_test = crate::editor::lock_gstreamer_test();
+    let _gstreamer_test = lock_gstreamer_test();
     let unique = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap()

@@ -107,7 +107,7 @@ fn export_timeline_with_encoder(
     result
 }
 
-pub(super) fn build_ges_timeline(
+pub fn build_ges_timeline(
     timeline_data: &TimelineSerialization,
     project_root: &Path,
     options: ExportOptions,

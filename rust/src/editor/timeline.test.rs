@@ -1,6 +1,6 @@
+use super::super::timeline_clip::{AudioClipProperties, TextClipProperties, VideoClipProperties};
+use super::super::track::{Track, TrackKind};
 use super::*;
-use crate::editor::timeline_clip::{AudioClipProperties, TextClipProperties, VideoClipProperties};
-use crate::editor::track::{Track, TrackKind};
 
 #[test]
 fn lowercase_media_and_track_kinds_deserialize() {

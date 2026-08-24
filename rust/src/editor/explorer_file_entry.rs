@@ -3,7 +3,7 @@ use std::{collections::HashSet, fs, path::Path};
 use url::Url;
 
 #[derive(Clone, PartialEq)]
-pub(in crate::editor) struct FileTreeEntry {
+pub struct FileTreeEntry {
     pub relative_path: PathBuf,
     pub name: String,
     pub depth: usize,
@@ -12,7 +12,7 @@ pub(in crate::editor) struct FileTreeEntry {
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(in crate::editor) enum FileTreeEntryKind {
+pub enum FileTreeEntryKind {
     Directory { expanded: bool },
     Video,
     Image,
@@ -21,7 +21,7 @@ pub(in crate::editor) enum FileTreeEntryKind {
     Other,
 }
 
-pub(in crate::editor) fn visible_tree(
+pub fn visible_tree(
     project_root: &Path,
     expanded_directories: &HashSet<PathBuf>,
 ) -> Result<Vec<FileTreeEntry>, String> {
@@ -38,10 +38,7 @@ pub(in crate::editor) fn visible_tree(
 
 /// Searches the complete project tree, independently of which folders are expanded.
 /// Matching ancestor directories are included so results retain their hierarchy.
-pub(in crate::editor) fn search_tree(
-    project_root: &Path,
-    query: &str,
-) -> Result<Vec<FileTreeEntry>, String> {
+pub fn search_tree(project_root: &Path, query: &str) -> Result<Vec<FileTreeEntry>, String> {
     let query = query.trim().to_lowercase();
     if query.is_empty() {
         return Ok(Vec::new());
@@ -195,7 +192,7 @@ fn file_tree_entry(
     }
 }
 
-pub(in crate::editor) fn is_image_path(path: &Path) -> bool {
+pub fn is_image_path(path: &Path) -> bool {
     path.extension()
         .and_then(|extension| extension.to_str())
         .is_some_and(|extension| {
@@ -206,7 +203,7 @@ pub(in crate::editor) fn is_image_path(path: &Path) -> bool {
         })
 }
 
-pub(in crate::editor) fn is_video_path(path: &Path) -> bool {
+pub fn is_video_path(path: &Path) -> bool {
     path.extension()
         .and_then(|extension| extension.to_str())
         .is_some_and(|extension| {
@@ -217,7 +214,7 @@ pub(in crate::editor) fn is_video_path(path: &Path) -> bool {
         })
 }
 
-pub(in crate::editor) fn is_audio_path(path: &Path) -> bool {
+pub fn is_audio_path(path: &Path) -> bool {
     path.extension()
         .and_then(|extension| extension.to_str())
         .is_some_and(|extension| {

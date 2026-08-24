@@ -1,5 +1,5 @@
 use super::*;
-use crate::IconName;
+use crate::asset::IconName;
 use gpui::{Bounds, canvas, fill, point, rgba, size};
 use std::sync::Arc;
 
