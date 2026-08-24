@@ -55,7 +55,7 @@ fn explorer_drop_rejects_incompatible_tracks() {
 #[test]
 fn explorer_drop_detects_collisions_but_allows_adjacent_clips() {
     let mut project = TimelineSerialization::with_test_tracks();
-    project.clips.push(Clip {
+    project.clips.push(Clip::Media(MediaClip {
         id: ulid(20),
         track_id: ulid(2),
         asset_id: ulid(10),
@@ -64,7 +64,7 @@ fn explorer_drop_detects_collisions_but_allows_adjacent_clips() {
         source_out: TimelineTime::from_frames(30),
         video_properties: VideoClipProperties::default(),
         audio_properties: AudioClipProperties::default(),
-    });
+    }));
     let audio = asset(MediaKind::Audio, true);
 
     assert_eq!(
@@ -113,4 +113,36 @@ fn directory_rename_remaps_descendants() {
         ),
         Some(PathBuf::from("new/nested/clip.mp4"))
     );
+}
+
+#[test]
+fn explorer_expansion_round_trips_in_the_project_directory() {
+    let unique = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_nanos();
+    let project_root = std::env::temp_dir().join(format!("opencut-explorer-state-{unique}"));
+    std::fs::create_dir_all(&project_root).unwrap();
+    let expanded_directories =
+        HashSet::from([PathBuf::from("media"), PathBuf::from("timelines/drafts")]);
+
+    save_explorer_expansion(&project_root, &expanded_directories, false).unwrap();
+    let restored = load_explorer_expansion(&project_root);
+
+    assert_eq!(restored.expanded_directories, expanded_directories);
+    assert!(!restored.root_expanded);
+    assert!(project_root.join(".opencut/file-explorer.json").is_file());
+    std::fs::remove_dir_all(project_root).unwrap();
+}
+
+#[test]
+fn explorer_expansion_defaults_to_an_open_root() {
+    let project_root = std::env::temp_dir().join(format!(
+        "opencut-missing-explorer-state-{}",
+        std::process::id()
+    ));
+    let restored = load_explorer_expansion(&project_root);
+
+    assert!(restored.expanded_directories.is_empty());
+    assert!(restored.root_expanded);
 }

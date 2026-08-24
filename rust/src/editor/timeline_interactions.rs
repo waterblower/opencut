@@ -1,9 +1,15 @@
 use super::*;
+use std::path::Path;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(super) enum TimelineTool {
     Selection,
     Blade,
+}
+
+pub(super) enum TimelineContextMenu {
+    Clip(TimelineClipContextMenu),
+    TextTrack(TextTrackContextMenu),
 }
 
 #[derive(Clone)]
@@ -46,7 +52,7 @@ pub(super) struct TimelineInteractionState {
     pub(super) marquee_selection: Option<MarqueeSelection>,
     pub(super) scrubbing_playhead: bool,
     pub(super) last_scrub_seek: Option<Instant>,
-    pub(super) context_menu: Option<TimelineClipContextMenu>,
+    pub(super) context_menu: Option<TimelineContextMenu>,
 }
 
 impl TimelineRuntimeState {
@@ -61,8 +67,8 @@ impl TimelineRuntimeState {
         self.data
             .clips
             .iter()
-            .filter(|clip| self.interaction.selected_clip_ids.contains(&clip.id))
-            .map(|clip| clip.id)
+            .filter(|clip| self.interaction.selected_clip_ids.contains(&clip.id()))
+            .map(Clip::id)
             .collect()
     }
 
@@ -97,10 +103,13 @@ impl TimelineRuntimeState {
                 let clip_left = TRACK_HEADER_WIDTH
                     + scroll_x
                     + TIMELINE_PADDING
-                    + self.data.seconds(clip.timeline_start) as f32
+                    + self.data.seconds(clip.timeline_start()) as f32
                         * self.data.view.pixels_per_second;
                 let clip_right = clip_left
-                    + (self.data.seconds(clip.duration()) as f32
+                    + (self
+                        .data
+                        .seconds(clip.frame_length(self.data.settings.frame_rate))
+                        as f32
                         * self.data.view.pixels_per_second)
                         .max(4.0);
                 if clip_left <= right
@@ -108,7 +117,7 @@ impl TimelineRuntimeState {
                     && clip_top <= bottom
                     && clip_bottom >= top
                 {
-                    selected.insert(clip.id);
+                    selected.insert(clip.id());
                 }
             }
         }
@@ -116,8 +125,8 @@ impl TimelineRuntimeState {
             .data
             .clips
             .iter()
-            .find(|clip| selected.contains(&clip.id))
-            .map(|clip| clip.id);
+            .find(|clip| selected.contains(&clip.id()))
+            .map(Clip::id);
         self.interaction.selected_clip_ids = selected;
     }
 
@@ -138,9 +147,9 @@ impl TimelineRuntimeState {
             .max(1) as u64;
         let mut candidates = vec![TimelineTime::ZERO, self.playhead];
         for clip in &self.data.clips {
-            if !ignored_clip_ids.contains(&clip.id) {
-                candidates.push(clip.timeline_start);
-                candidates.push(clip.timeline_end());
+            if !ignored_clip_ids.contains(&clip.id()) {
+                candidates.push(clip.timeline_start());
+                candidates.push(clip.timeline_end(self.data.settings.frame_rate));
             }
         }
         let snapped = candidates
@@ -169,7 +178,7 @@ impl TimelineRuntimeState {
         )
     }
 
-    pub(super) fn zoom(&mut self, factor: f32) {
+    pub(super) fn zoom(&mut self, factor: f32, project_root: &Path) {
         let previous_pixels_per_second = self.data.view.pixels_per_second;
         let pixels_per_second = (self.data.view.pixels_per_second * factor).clamp(
             MIN_TIMELINE_PIXELS_PER_SECOND,
@@ -185,7 +194,12 @@ impl TimelineRuntimeState {
                 pixels_per_second,
             ));
             self.h_scroll.set_offset(scroll_offset);
-            self.data.view.pixels_per_second = pixels_per_second;
+            edit_timeline(
+                self,
+                project_root,
+                EditAction::SetTimelineZoom { pixels_per_second },
+            )
+            .expect("changing timeline zoom cannot be rejected");
         }
     }
 
@@ -290,7 +304,7 @@ impl Editor {
                 };
                 let position = timeline.timeline_position_from_x(event.position.x.into());
                 timeline.playhead = position;
-                timeline.blade_at_playhead(&self.global_settings.project_root);
+                timeline.blade_at_playhead(&mut self.preview, &self.global_settings.project_root);
             }
         }
     }
@@ -430,7 +444,7 @@ impl Editor {
             .data
             .tracks
             .iter()
-            .position(|track| track.id == anchor.track_id)
+            .position(|track| track.id == anchor.track_id())
         else {
             return;
         };
@@ -443,11 +457,11 @@ impl Editor {
                     .data
                     .tracks
                     .iter()
-                    .position(|track| track.id == clip.track_id)?;
+                    .position(|track| track.id == clip.track_id())?;
                 Some(ClipMoveItem {
                     clip_id: selected_id,
-                    original_timeline_start: clip.timeline_start,
-                    original_track_id: clip.track_id,
+                    original_timeline_start: clip.timeline_start(),
+                    original_track_id: clip.track_id(),
                     original_track_index,
                 })
             })
@@ -471,7 +485,7 @@ impl Editor {
         timeline.interaction.clip_move_drag = Some(ClipMoveDrag {
             anchor_clip_id: clip_id,
             start_x: event.position.x.into(),
-            original_anchor_start: anchor.timeline_start,
+            original_anchor_start: anchor.timeline_start(),
             original_anchor_track_index,
             placements: items
                 .iter()
@@ -524,7 +538,7 @@ impl Editor {
         let anchor_duration = timeline
             .data
             .clip(anchor_clip_id)
-            .map(Clip::duration)
+            .map(|clip| clip.frame_length(timeline.data.settings.frame_rate))
             .unwrap_or(TimelineTime::ZERO);
         let (snapped_start, snap_guide) = timeline.snap_clip_start_ignoring(
             raw_anchor_start,
@@ -614,16 +628,18 @@ impl Editor {
         timeline.interaction.snap_guide = None;
         if drag.changed && drag.invalid_reason.is_none() {
             timeline.record_editing_history();
-            self.preview.timeline_needs_rebuild = true;
-            for (clip_id, track_id, start) in drag.placements {
-                if let Some(clip) = timeline.data.clip_mut(clip_id) {
-                    clip.timeline_start = start;
-                    clip.track_id = track_id;
-                }
-            }
+            edit_and_rebuild_timeline(
+                &mut self.preview,
+                &self.global_settings.project_root,
+                timeline,
+                EditAction::MoveClips {
+                    placements: drag.placements,
+                },
+            )
+            .expect("clip move placements were validated during the drag");
             let playhead = timeline.playhead;
             timeline.save(&self.global_settings.project_root);
-            self.rebuild_timeline_preview_if_needed();
+
             self.load_timeline_position_with_options(playhead, true);
         }
         cx.notify();
@@ -635,9 +651,16 @@ impl Editor {
         };
         timeline.interaction.snapping_enabled = !timeline.interaction.snapping_enabled;
         timeline.interaction.snap_guide = None;
-        timeline.data.view.snapping_enabled = timeline.interaction.snapping_enabled;
+        edit_and_rebuild_timeline(
+            &mut self.preview,
+            &self.global_settings.project_root,
+            timeline,
+            EditAction::SetSnapping {
+                enabled: timeline.interaction.snapping_enabled,
+            },
+        )
+        .expect("changing snapping cannot be rejected");
         timeline.save(&self.global_settings.project_root);
-        self.rebuild_timeline_preview_if_needed();
     }
 
     pub(super) fn finish_timeline_scroll(
@@ -685,7 +708,7 @@ impl Editor {
         };
         let previous_zoom = timeline.data.view.pixels_per_second;
         let factor = (gesture.magnification as f32).exp().clamp(0.5, 2.0);
-        timeline.zoom(factor);
+        timeline.zoom(factor, &self.global_settings.project_root);
         let current_zoom = timeline.data.view.pixels_per_second;
         log::debug!(
             target: "opencut::timeline",

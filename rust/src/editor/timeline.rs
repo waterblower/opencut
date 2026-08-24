@@ -46,6 +46,7 @@ pub(super) struct TimelineViewState {
 pub(super) struct TimelineRuntimeState {
     pub(super) path: PathBuf,
     pub(super) data: TimelineSerialization,
+    pub(super) ges_timeline: gstreamer_editing_services::Timeline,
     pub(super) playhead: TimelineTime,
     pub(super) h_scroll: ScrollHandle,
     pub(super) v_scroll: ScrollHandle,
@@ -115,9 +116,9 @@ impl TimelineSerialization {
     pub fn load(path: &Path) -> Result<Self, String> {
         let contents = fs::read_to_string(path)
             .map_err(|error| format!("could not read {}: {error}", path.display()))?;
-        let mut timeline = serde_json::from_str::<Self>(&contents)
+        let mut timeline = deserialize_timeline(&contents)
             .map_err(|error| format!("could not parse {}: {error}", path.display()))?;
-        timeline.normalize();
+        timeline.repair_and_prune_invalid_data();
         Ok(timeline)
     }
 
@@ -147,15 +148,15 @@ impl TimelineSerialization {
     }
 
     pub fn clip(&self, id: Ulid) -> Option<&Clip> {
-        self.clips.iter().find(|clip| clip.id == id)
+        self.clips.iter().find(|clip| clip.id() == id)
     }
 
     pub fn clip_mut(&mut self, id: Ulid) -> Option<&mut Clip> {
-        self.clips.iter_mut().find(|clip| clip.id == id)
+        self.clips.iter_mut().find(|clip| clip.id() == id)
     }
 
     pub fn clip_index(&self, id: Ulid) -> Option<usize> {
-        self.clips.iter().position(|clip| clip.id == id)
+        self.clips.iter().position(|clip| clip.id() == id)
     }
 
     pub fn validate_clip_move_placements(
@@ -170,29 +171,41 @@ impl TimelineSerialization {
             let Some(clip) = self.clip(*clip_id) else {
                 return Err(ClipPlacementRejection::MissingClip);
             };
-            let Some(asset) = self.asset(clip.asset_id) else {
-                return Err(ClipPlacementRejection::MissingAsset);
-            };
-            validate_clip_placement(
-                self,
-                *track_id,
-                asset.kind,
-                clip.duration(),
-                *start,
-                ignored_clip_ids,
-            )?;
+            match clip {
+                Clip::Media(clip) => {
+                    let Some(asset) = self.asset(clip.asset_id) else {
+                        return Err(ClipPlacementRejection::MissingAsset);
+                    };
+                    validate_clip_placement(
+                        self,
+                        *track_id,
+                        asset.kind,
+                        clip.source_out - clip.source_in,
+                        *start,
+                        ignored_clip_ids,
+                    )?;
+                }
+                Clip::Text(clip) => validate_text_clip_placement(
+                    self,
+                    *track_id,
+                    clip.frame_length(self.settings.frame_rate),
+                    *start,
+                    ignored_clip_ids,
+                )?,
+            }
         }
         for (index, (clip_id, track_id, start)) in placements.iter().enumerate() {
+            let frame_rate = self.settings.frame_rate;
             let duration = self
                 .clip(*clip_id)
-                .map(Clip::duration)
+                .map(|clip| clip.frame_length(frame_rate))
                 .ok_or(ClipPlacementRejection::MissingClip)?;
             if placements[index + 1..]
                 .iter()
                 .any(|(other_id, other_track_id, other_start)| {
                     let other_duration = self
                         .clip(*other_id)
-                        .map(Clip::duration)
+                        .map(|clip| clip.frame_length(frame_rate))
                         .unwrap_or(TimelineTime::ZERO);
                     track_id == other_track_id
                         && timeline_ranges_overlap(
@@ -210,9 +223,10 @@ impl TimelineSerialization {
     }
 
     pub fn content_duration(&self) -> TimelineTime {
+        let frame_rate = self.settings.frame_rate;
         self.clips
             .iter()
-            .map(Clip::timeline_end)
+            .map(|clip| clip.timeline_end(frame_rate))
             .max()
             .unwrap_or(TimelineTime::ZERO)
     }
@@ -239,9 +253,9 @@ impl TimelineSerialization {
 
     /// Maps a timeline position within a clip to the source frame covering that instant.
     pub fn source_frame_at(&self, clip: &Clip, timeline_position: TimelineTime) -> Option<i64> {
-        let asset = self.asset(clip.asset_id)?;
+        let asset = self.asset(clip.media()?.asset_id)?;
         let source_rate = asset.frame_rate()?;
-        let source_time = clip.source_time_at(timeline_position);
+        let source_time = clip.source_time_at(timeline_position)?;
         Some(
             self.settings
                 .frame_rate
@@ -252,7 +266,10 @@ impl TimelineSerialization {
 
     /// Returns an exact source-frame timestamp for video and a timeline-clock timestamp otherwise.
     pub fn source_position_at(&self, clip: &Clip, timeline_position: TimelineTime) -> Duration {
-        let Some(asset) = self.asset(clip.asset_id) else {
+        let Some(media) = clip.media() else {
+            return Duration::ZERO;
+        };
+        let Some(asset) = self.asset(media.asset_id) else {
             return Duration::ZERO;
         };
         if let (Some(source_rate), Some(source_frame)) = (
@@ -261,11 +278,11 @@ impl TimelineSerialization {
         ) {
             return source_rate.duration(TimelineTime::from_frames(source_frame));
         }
-        self.audio_duration(clip.source_time_at(timeline_position))
+        self.audio_duration(clip.source_time_at(timeline_position).unwrap_or_default())
     }
 
     pub fn source_start_seconds(&self, clip: &Clip) -> f64 {
-        self.source_position_at(clip, clip.timeline_start)
+        self.source_position_at(clip, clip.timeline_start())
             .as_secs_f64()
     }
 
@@ -277,24 +294,29 @@ impl TimelineSerialization {
         }
 
         for clip in &mut self.clips {
-            let old_start = clip.timeline_start;
-            let old_end = clip.timeline_end();
-            let old_source_in = clip.source_in;
-            clip.timeline_start = previous.rescale_nearest(old_start, frame_rate);
-            let new_end = previous.rescale_nearest(old_end, frame_rate);
-            let new_duration = (new_end - clip.timeline_start).max(TimelineTime::ONE_FRAME);
-            clip.source_in = previous.rescale_nearest(old_source_in, frame_rate);
-            clip.source_out = clip.source_in + new_duration;
+            let old_start = clip.timeline_start();
+            let old_end = clip.timeline_end(previous);
+            let timeline_start = previous.rescale_nearest(old_start, frame_rate);
+            clip.set_timeline_start(timeline_start);
+            let new_duration = (previous.rescale_nearest(old_end, frame_rate) - timeline_start)
+                .max(TimelineTime::ONE_FRAME);
+            match clip {
+                Clip::Media(clip) => {
+                    clip.source_in = previous.rescale_nearest(clip.source_in, frame_rate);
+                    clip.source_out = clip.source_in + new_duration;
+                }
+                Clip::Text(_) => {}
+            }
         }
         self.settings.frame_rate = frame_rate;
-        self.normalize();
+        self.repair_and_prune_invalid_data();
     }
 
     pub fn ceil_time(&self, seconds: f64) -> TimelineTime {
         self.settings.frame_rate.ceil(seconds)
     }
 
-    fn normalize(&mut self) {
+    fn repair_and_prune_invalid_data(&mut self) {
         self.view.normalize();
         if self.settings.frame_rate.numerator == 0 {
             self.settings.frame_rate.numerator = 30;
@@ -305,15 +327,32 @@ impl TimelineSerialization {
         self.settings.width = self.settings.width.max(2);
         self.settings.height = self.settings.height.max(2);
         self.settings.audio_sample_rate = self.settings.audio_sample_rate.max(8_000);
-        self.clips.retain(|clip| {
-            self.tracks.iter().any(|track| track.id == clip.track_id)
-                && self.assets.iter().any(|asset| asset.id == clip.asset_id)
-                && clip.timeline_start >= TimelineTime::ZERO
-                && clip.source_in >= TimelineTime::ZERO
-                && clip.source_out - clip.source_in >= TimelineTime::ONE_FRAME
-        });
         let frame_rate = self.settings.frame_rate;
+        self.clips.retain(|clip| {
+            let track = self.tracks.iter().find(|track| track.id == clip.track_id());
+            let is_invalid = track.is_none()
+                || match (track.map(|track| track.kind), clip) {
+                    (Some(TrackKind::Text), Clip::Text(_)) => false,
+                    (Some(TrackKind::Video | TrackKind::Audio), Clip::Media(clip)) => {
+                        !self.assets.iter().any(|asset| asset.id == clip.asset_id)
+                    }
+                    (Some(_), _) => true,
+                    (None, _) => true,
+                }
+                || clip.timeline_start() < TimelineTime::ZERO
+                || match clip {
+                    Clip::Media(clip) => {
+                        clip.source_in < TimelineTime::ZERO
+                            || clip.source_out - clip.source_in < TimelineTime::ONE_FRAME
+                    }
+                    Clip::Text(clip) => clip.frame_length(frame_rate) < TimelineTime::ONE_FRAME,
+                };
+            !is_invalid
+        });
         for clip in &mut self.clips {
+            let Clip::Media(clip) = clip else {
+                continue;
+            };
             if let Some(asset) = self.assets.iter().find(|asset| asset.id == clip.asset_id) {
                 if asset.kind == MediaKind::Image {
                     // An image has no time-based source to exhaust. Its five-second
@@ -338,27 +377,31 @@ impl TimelineSerialization {
                 .clips
                 .iter()
                 .enumerate()
-                .filter(|(_, clip)| clip.track_id == track.id)
+                .filter(|(_, clip)| clip.track_id() == track.id)
                 .map(|(index, _)| index)
                 .collect::<Vec<_>>();
             indices.sort_by(|left, right| {
                 self.clips[*left]
-                    .timeline_start
-                    .cmp(&self.clips[*right].timeline_start)
-                    .then_with(|| self.clips[*left].id.cmp(&self.clips[*right].id))
+                    .timeline_start()
+                    .cmp(&self.clips[*right].timeline_start())
+                    .then_with(|| self.clips[*left].id().cmp(&self.clips[*right].id()))
             });
             let mut next_available = TimelineTime::ZERO;
             for index in indices {
-                self.clips[index].timeline_start =
-                    self.clips[index].timeline_start.max(next_available);
-                next_available = self.clips[index].timeline_end();
+                let timeline_start = self.clips[index].timeline_start().max(next_available);
+                self.clips[index].set_timeline_start(timeline_start);
+                next_available = self.clips[index].timeline_end(frame_rate);
             }
         }
     }
 }
 
 impl TimelineRuntimeState {
-    pub(super) fn new(path: PathBuf, data: TimelineSerialization) -> Self {
+    pub(super) fn new(
+        path: PathBuf,
+        data: TimelineSerialization,
+        ges_timeline: gstreamer_editing_services::Timeline,
+    ) -> Self {
         let playhead = data
             .view
             .saved_playhead_frame
@@ -369,11 +412,12 @@ impl TimelineRuntimeState {
         vertical_scroll.set_offset(point(px(0.0), px(-data.view.vertical_scroll)));
         let snapping_enabled = data.view.snapping_enabled;
         let magnet_enabled = data.view.track_magnet_enabled;
-        let selected_clip_id = data.clips.first().map(|clip| clip.id);
+        let selected_clip_id = data.clips.first().map(Clip::id);
         let selected_clip_ids = selected_clip_id.into_iter().collect();
         Self {
             path,
             data,
+            ges_timeline,
             playhead,
             interaction: TimelineInteractionState {
                 active_tool: TimelineTool::Selection,
@@ -396,8 +440,15 @@ impl TimelineRuntimeState {
         }
     }
 
-    pub(super) fn capture_playhead(&mut self) {
-        self.data.view.saved_playhead_frame = self.playhead.max(TimelineTime::ZERO);
+    pub(super) fn capture_playhead(&mut self, project_root: &Path) {
+        edit_timeline(
+            self,
+            project_root,
+            EditAction::SetSavedPlayhead {
+                playhead: self.playhead,
+            },
+        )
+        .expect("saving the playhead cannot be rejected");
     }
 
     pub(super) fn save(&self, project_root: &Path) {
@@ -406,9 +457,16 @@ impl TimelineRuntimeState {
         }
     }
 
-    pub(super) fn capture_scroll(&mut self) {
-        self.data.view.horizontal_scroll = finite_nonnegative(-f32::from(self.h_scroll.offset().x));
-        self.data.view.vertical_scroll = finite_nonnegative(-f32::from(self.v_scroll.offset().y));
+    pub(super) fn capture_scroll(&mut self, project_root: &Path) {
+        edit_timeline(
+            self,
+            project_root,
+            EditAction::SetScroll {
+                horizontal: -f32::from(self.h_scroll.offset().x),
+                vertical: -f32::from(self.v_scroll.offset().y),
+            },
+        )
+        .expect("saving timeline scroll cannot be rejected");
     }
 
     pub(super) fn record_editing_history(&mut self) {
@@ -609,6 +667,37 @@ fn finite_nonnegative(value: f32) -> f32 {
     } else {
         0.0
     }
+}
+
+fn deserialize_timeline(contents: &str) -> Result<TimelineSerialization, serde_json::Error> {
+    let mut value = serde_json::from_str::<serde_json::Value>(contents)?;
+    let frame_rate = value
+        .pointer("/settings/frame_rate")
+        .cloned()
+        .map(serde_json::from_value::<FrameRate>)
+        .transpose()?
+        .unwrap_or_default();
+    if let Some(clips) = value
+        .get_mut("clips")
+        .and_then(serde_json::Value::as_array_mut)
+    {
+        for clip in clips {
+            let Some(clip) = clip.as_object_mut() else {
+                continue;
+            };
+            if !clip.contains_key("text") && !clip.contains_key("properties") {
+                continue;
+            }
+            let Some(frames) = clip.get("length").and_then(serde_json::Value::as_i64) else {
+                continue;
+            };
+            clip.insert(
+                "length".to_string(),
+                serde_json::to_value(frame_rate.duration(TimelineTime::from_frames(frames)))?,
+            );
+        }
+    }
+    serde_json::from_value(value)
 }
 
 #[cfg(test)]

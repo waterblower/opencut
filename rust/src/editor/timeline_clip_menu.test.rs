@@ -18,7 +18,7 @@ fn asset(id: u64, kind: MediaKind) -> MediaAsset {
 }
 
 fn clip(id: u64, track_id: u64, asset_id: u64) -> Clip {
-    Clip {
+    Clip::Media(MediaClip {
         id: ulid(id),
         track_id: ulid(track_id),
         asset_id: ulid(asset_id),
@@ -27,7 +27,7 @@ fn clip(id: u64, track_id: u64, asset_id: u64) -> Clip {
         source_out: TimelineTime::ONE_FRAME,
         video_properties: VideoClipProperties::default(),
         audio_properties: AudioClipProperties::default(),
-    }
+    })
 }
 
 #[test]
@@ -39,10 +39,10 @@ fn finds_changed_visual_clips_on_the_same_unlocked_track() {
         asset(12, MediaKind::Audio),
     ];
     let mut source = clip(20, 1, 10);
-    source.video_properties.position_x = 120.0;
+    source.media_mut().unwrap().video_properties.position_x = 120.0;
     let target = clip(21, 1, 11);
     let mut unchanged = clip(22, 1, 10);
-    unchanged.video_properties = source.video_properties;
+    unchanged.media_mut().unwrap().video_properties = source.media().unwrap().video_properties;
     let audio = clip(23, 2, 12);
     project.clips = vec![source, target, unchanged, audio];
 

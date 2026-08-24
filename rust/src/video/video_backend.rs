@@ -20,6 +20,7 @@ pub(crate) struct VideoBackend {
     volume_control: gst_audio::StreamVolume,
     current_frame: Arc<Mutex<Option<gst::Sample>>>,
     cached_position: Duration,
+    _frame_size: (u32, u32),
 }
 
 impl Drop for VideoBackend {
@@ -124,6 +125,22 @@ impl VideoBackend {
             let _ = pipeline.set_state(gst::State::Null);
             return Err(format!("video did not finish preparing: {error}"));
         }
+        let Some(caps) = sink
+            .static_pad("sink")
+            .expect("AppSink must have a static sink pad")
+            .current_caps()
+        else {
+            let _ = pipeline.set_state(gst::State::Null);
+            return Err("video caps were not negotiated".to_string());
+        };
+        let info = match gst_video::VideoInfo::from_caps(&caps) {
+            Ok(info) => info,
+            Err(error) => {
+                let _ = pipeline.set_state(gst::State::Null);
+                return Err(format!("video caps did not describe raw video: {error}"));
+            }
+        };
+        let _frame_size = (info.width(), info.height());
 
         // GStreamer negotiates `framerate=0/1` for variable-frame-rate sources such as
         // screen recordings. That is a valid "unknown rate" marker, not a broken file, so
@@ -136,14 +153,12 @@ impl VideoBackend {
             sink,
             volume_control,
             cached_position: Duration::ZERO,
+            _frame_size,
         })
     }
 
-    pub(crate) fn frame_size(&self) -> Option<(u32, u32)> {
-        let caps = self.cap().ok()?;
-        let info = gst_video::VideoInfo::from_caps(&caps)
-            .expect("negotiated AppSink caps must describe raw video");
-        Some((info.width(), info.height()))
+    pub(crate) fn frame_size(&self) -> (u32, u32) {
+        return self._frame_size;
     }
 
     /// The negotiated frame rate, or `None` for variable-frame-rate sources where
@@ -254,7 +269,6 @@ impl VideoBackend {
             .expect("AppSink must have a static sink pad");
 
         let Some(caps) = pad.current_caps() else {
-            let _ = self.pipeline().set_state(gst::State::Null);
             return Err("video caps were not negotiated".to_string());
         };
         return Ok(caps);

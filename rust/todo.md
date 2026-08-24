@@ -17,6 +17,92 @@ binaries use — `src/video.rs`, `src/playback_view.rs` — is in scope.
       pipeline, but initial loading and edits that mark the preview dirty rebuild
       the whole GES timeline on the main thread, with cost growing by clip count.
 
+- [ ] Keep the existing GES preview pipeline and timeline alive while editing.
+      Apply each committed model change to its corresponding GES layer, clip,
+      source, or child property, commit the timeline, and refresh the current
+      frame without reconstructing the pipeline. The current rebuild boundary is
+      [preview.rs](/Users/mac/Documents/GitHub/OpenCut/rust/src/editor/preview.rs:41),
+      and [preview.rs](/Users/mac/Documents/GitHub/OpenCut/rust/src/editor/preview.rs:125)
+      replaces the pipeline whenever `timeline_needs_rebuild` is set. Cover every
+      output-affecting action below:
+      - Add a media clip:
+        [explorer.rs](/Users/mac/Documents/GitHub/OpenCut/rust/src/editor/explorer.rs:767).
+      - Add a text clip:
+        [timeline_track_menu.rs](/Users/mac/Documents/GitHub/OpenCut/rust/src/editor/timeline_track_menu.rs:123).
+      - Delete selected clips, including magnet/ripple gap closing:
+        [editing.rs](/Users/mac/Documents/GitHub/OpenCut/rust/src/editor/editing.rs:214)
+        and [editing.rs](/Users/mac/Documents/GitHub/OpenCut/rust/src/editor/editing.rs:316).
+      - Cut selected clips:
+        [editing.rs](/Users/mac/Documents/GitHub/OpenCut/rust/src/editor/editing.rs:247).
+      - Paste clips and any newly imported assets:
+        [editing.rs](/Users/mac/Documents/GitHub/OpenCut/rust/src/editor/editing.rs:274).
+      - Duplicate selected clips:
+        [editing.rs](/Users/mac/Documents/GitHub/OpenCut/rust/src/editor/editing.rs:351).
+      - Split or blade clips:
+        [editing.rs](/Users/mac/Documents/GitHub/OpenCut/rust/src/editor/editing.rs:197)
+        and [mod.rs](/Users/mac/Documents/GitHub/OpenCut/rust/src/editor/mod.rs:553).
+      - Move one or more clips in time or between compatible tracks:
+        [timeline_interactions.rs](/Users/mac/Documents/GitHub/OpenCut/rust/src/editor/timeline_interactions.rs:610).
+      - Change video position or scale from the properties panel:
+        [properties_transform.rs](/Users/mac/Documents/GitHub/OpenCut/rust/src/editor/properties_transform.rs:219).
+      - Apply one clip's video transform to the other clips on its track:
+        [timeline_clip_menu.rs](/Users/mac/Documents/GitHub/OpenCut/rust/src/editor/timeline_clip_menu.rs:147).
+      - Drag a video's position directly in the preview:
+        [preview_timeline.rs](/Users/mac/Documents/GitHub/OpenCut/rust/src/editor/preview_timeline.rs:245).
+        This is already partially updated in place by
+        [timeline_video.rs](/Users/mac/Documents/GitHub/OpenCut/rust/src/editor/timeline_video.rs:25);
+        extend that path to all transform properties and use it as the pattern
+        for other property edits.
+      - Change text content, font size, color, or position:
+        [properties_text.rs](/Users/mac/Documents/GitHub/OpenCut/rust/src/editor/properties_text.rs:222).
+      - Add an application track/GES layer:
+        [editing.rs](/Users/mac/Documents/GitHub/OpenCut/rust/src/editor/editing.rs:438).
+      - Delete a track and its clips:
+        [editing.rs](/Users/mac/Documents/GitHub/OpenCut/rust/src/editor/editing.rs:546).
+      - Reorder tracks/layers:
+        [editing.rs](/Users/mac/Documents/GitHub/OpenCut/rust/src/editor/editing.rs:515).
+      - Toggle track visibility:
+        [editing.rs](/Users/mac/Documents/GitHub/OpenCut/rust/src/editor/editing.rs:485).
+      - Toggle track mute:
+        [editing.rs](/Users/mac/Documents/GitHub/OpenCut/rust/src/editor/editing.rs:500).
+      - Change the timeline frame rate and retime clips:
+        [settings.rs](/Users/mac/Documents/GitHub/OpenCut/rust/src/editor/settings.rs:135).
+      - Rename a media file or directory and replace affected GES source URIs:
+        [explorer_file_menu.rs](/Users/mac/Documents/GitHub/OpenCut/rust/src/editor/explorer_file_menu.rs:254).
+      - Apply arbitrary model differences produced by undo and redo:
+        [editing.rs](/Users/mac/Documents/GitHub/OpenCut/rust/src/editor/editing.rs:645)
+        and [editing.rs](/Users/mac/Documents/GitHub/OpenCut/rust/src/editor/editing.rs:658).
+
+      The following actions are editor/view state only and must never mutate,
+      commit, or rebuild the GES timeline:
+      - Copy clips:
+        [editing.rs](/Users/mac/Documents/GitHub/OpenCut/rust/src/editor/editing.rs:230).
+      - Single, toggle, select-all, and marquee selection:
+        [editing.rs](/Users/mac/Documents/GitHub/OpenCut/rust/src/editor/editing.rs:596),
+        [editing.rs](/Users/mac/Documents/GitHub/OpenCut/rust/src/editor/editing.rs:609),
+        [editing.rs](/Users/mac/Documents/GitHub/OpenCut/rust/src/editor/editing.rs:624),
+        and [timeline_interactions.rs](/Users/mac/Documents/GitHub/OpenCut/rust/src/editor/timeline_interactions.rs:306).
+      - Track locking:
+        [editing.rs](/Users/mac/Documents/GitHub/OpenCut/rust/src/editor/editing.rs:473).
+      - Snapping and track-magnet toggles:
+        [timeline_interactions.rs](/Users/mac/Documents/GitHub/OpenCut/rust/src/editor/timeline_interactions.rs:640)
+        and [editing.rs](/Users/mac/Documents/GitHub/OpenCut/rust/src/editor/editing.rs:735).
+      - Timeline zoom and scrolling:
+        [timeline_interactions.rs](/Users/mac/Documents/GitHub/OpenCut/rust/src/editor/timeline_interactions.rs:180)
+        and [timeline_interactions.rs](/Users/mac/Documents/GitHub/OpenCut/rust/src/editor/timeline_interactions.rs:651).
+      - Playhead scrubbing and frame stepping:
+        [timeline_interactions.rs](/Users/mac/Documents/GitHub/OpenCut/rust/src/editor/timeline_interactions.rs:713),
+        [timeline_interactions.rs](/Users/mac/Documents/GitHub/OpenCut/rust/src/editor/timeline_interactions.rs:726),
+        and [timeline_interactions.rs](/Users/mac/Documents/GitHub/OpenCut/rust/src/editor/timeline_interactions.rs:776).
+      - Persisting playhead and scroll state:
+        [editing.rs](/Users/mac/Documents/GitHub/OpenCut/rust/src/editor/editing.rs:717)
+        and [editing.rs](/Users/mac/Documents/GitHub/OpenCut/rust/src/editor/editing.rs:726).
+      - Context-menu state, preview volume, and playback controls.
+
+      Clip trimming, text-duration resizing, and per-clip audio-property editing
+      do not currently have editor actions. Add them to this in-place GES update
+      matrix when their UI operations are implemented.
+
 ### P1 — visible correctness and resilience
 
 - [ ] Store the editor's application-global settings in the platform

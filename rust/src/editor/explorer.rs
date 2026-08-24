@@ -1,4 +1,6 @@
 use super::*;
+use serde::{Deserialize, Serialize};
+use std::fs;
 use std::path::Path;
 
 #[path = "explorer_file_menu.rs"]
@@ -47,6 +49,51 @@ pub(super) struct PendingExplorerDrop {
     raw_start: TimelineTime,
 }
 
+pub(super) struct ExplorerExpansion {
+    pub(super) expanded_directories: HashSet<PathBuf>,
+    pub(super) root_expanded: bool,
+}
+
+pub(super) fn load_explorer_expansion(project_root: &Path) -> ExplorerExpansion {
+    let Ok(contents) = fs::read_to_string(file_explorer_settings_path(project_root)) else {
+        return ExplorerExpansion::default();
+    };
+    let Ok(settings) = serde_json::from_str::<FileExplorerSettings>(&contents) else {
+        return ExplorerExpansion::default();
+    };
+    ExplorerExpansion {
+        expanded_directories: settings
+            .expanded_directories
+            .into_iter()
+            .filter(|path| {
+                !path.as_os_str().is_empty()
+                    && path.is_relative()
+                    && path
+                        .components()
+                        .all(|component| matches!(component, std::path::Component::Normal(_)))
+            })
+            .collect(),
+        root_expanded: settings.root_expanded,
+    }
+}
+
+#[derive(Deserialize, Serialize)]
+struct FileExplorerSettings {
+    #[serde(default)]
+    expanded_directories: Vec<PathBuf>,
+    #[serde(default = "root_expanded_by_default")]
+    root_expanded: bool,
+}
+
+impl Default for ExplorerExpansion {
+    fn default() -> Self {
+        Self {
+            expanded_directories: HashSet::new(),
+            root_expanded: true,
+        }
+    }
+}
+
 struct ExplorerDragView {
     name: String,
     kind: MediaKind,
@@ -68,6 +115,16 @@ impl ExplorerState {
             self.expanded_directories.insert(relative_path);
         }
         self.refresh_file_tree(project_root)
+    }
+}
+
+impl Editor {
+    pub(super) fn save_explorer_expansion(&self) -> Result<(), String> {
+        save_explorer_expansion(
+            &self.global_settings.project_root,
+            &self.explorer.expanded_directories,
+            self.explorer.root_expanded,
+        )
     }
 }
 
@@ -140,6 +197,9 @@ impl Editor {
             .hover(|style| style.bg(rgb(SURFACE_HOVER)))
             .on_click(cx.listener(|editor, _, _, cx| {
                 editor.explorer.root_expanded = !editor.explorer.root_expanded;
+                if let Err(error) = editor.save_explorer_expansion() {
+                    eprintln!("Could not save explorer expansion: {error}");
+                }
                 cx.notify();
             }))
             .on_mouse_down(
@@ -735,24 +795,22 @@ impl Editor {
             return;
         };
         timeline.record_editing_history();
-        self.preview.timeline_needs_rebuild = true;
-        let asset_id = if let Some(asset_id) = timeline
+        let (asset_id, assets) = if let Some(asset_id) = timeline
             .data
             .assets
             .iter()
             .find(|existing| existing.path == relative_path)
             .map(|existing| existing.id)
         {
-            asset_id
+            (asset_id, Vec::new())
         } else {
             asset.id = Ulid::generate();
             asset.path = relative_path.clone();
             let asset_id = asset.id;
-            timeline.data.assets.push(asset);
-            asset_id
+            (asset_id, vec![asset])
         };
         let clip_id = Ulid::generate();
-        timeline.data.clips.push(Clip {
+        let media_clip = Clip::Media(MediaClip {
             id: clip_id,
             track_id,
             asset_id,
@@ -762,16 +820,25 @@ impl Editor {
             video_properties: VideoClipProperties::default(),
             audio_properties: AudioClipProperties::default(),
         });
-        let playhead = timeline.playhead;
-        self.preview.target = PreviewTarget::None;
-        self.load_timeline_position_with_options(playhead, true);
+
+        edit_and_rebuild_timeline(
+            &mut self.preview,
+            &self.global_settings.project_root,
+            timeline,
+            EditAction::AddClips {
+                clips: vec![media_clip],
+                assets,
+            },
+        )
+        .unwrap();
+
         self.explorer.selected_file = Some(relative_path);
         self.select_only_clip(Some(clip_id));
         let Some(timeline) = self.timeline.as_ref() else {
             return;
         };
         timeline.save(&self.global_settings.project_root);
-        self.rebuild_timeline_preview_if_needed();
+
         self.schedule_active_timeline_waveforms(cx);
         self.status = Some("Added media at the selected timeline position.".to_string());
     }
@@ -890,6 +957,36 @@ fn explorer_asset_for_path(
         .find(|asset| asset.path == relative_path)
         .or_else(|| drag_assets.get(relative_path))
         .cloned()
+}
+
+fn save_explorer_expansion(
+    project_root: &Path,
+    expanded_directories: &HashSet<PathBuf>,
+    root_expanded: bool,
+) -> Result<(), String> {
+    let path = file_explorer_settings_path(project_root);
+    let Some(directory) = path.parent() else {
+        return Err("file explorer settings path had no parent directory".to_string());
+    };
+    fs::create_dir_all(directory)
+        .map_err(|error| format!("could not create {}: {error}", directory.display()))?;
+    let mut expanded_directories = expanded_directories.iter().cloned().collect::<Vec<_>>();
+    expanded_directories.sort();
+    let json = serde_json::to_string_pretty(&FileExplorerSettings {
+        expanded_directories,
+        root_expanded,
+    })
+    .map_err(|error| format!("could not serialize file explorer settings: {error}"))?;
+    fs::write(&path, format!("{json}\n"))
+        .map_err(|error| format!("could not write {}: {error}", path.display()))
+}
+
+fn file_explorer_settings_path(project_root: &Path) -> PathBuf {
+    project_root.join(".opencut/file-explorer.json")
+}
+
+fn root_expanded_by_default() -> bool {
+    true
 }
 
 #[cfg(test)]

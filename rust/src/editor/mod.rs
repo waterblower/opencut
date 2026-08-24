@@ -1,4 +1,4 @@
-use crate::video::VideoBackend;
+use crate::{editor::export_gstreamer::build_ges_timeline, video::VideoBackend};
 use gpui::{
     App, Context, CursorStyle, DragMoveEvent, Entity, FocusHandle, KeyBinding, MouseButton,
     MouseDownEvent, MouseMoveEvent, MouseUpEvent, ObjectFit, PathPromptOptions, Render,
@@ -28,7 +28,9 @@ mod preview_audio;
 mod preview_image;
 mod preview_timeline;
 mod preview_video;
+mod project_settings;
 mod properties;
+mod properties_text;
 mod properties_transform;
 mod settings;
 mod timeline;
@@ -36,6 +38,7 @@ mod timeline_clip;
 mod timeline_clip_menu;
 mod timeline_document;
 mod timeline_interactions;
+mod timeline_track_menu;
 mod timeline_ui;
 mod timeline_video;
 mod track;
@@ -44,11 +47,13 @@ mod waveform;
 mod workspace;
 
 use crate::playback_view::{DragPhase, PlaybackViewDelegate};
-use clip_placement::{ClipPlacementRejection, validate_clip_placement};
-use editing::ClipClipboard;
+use clip_placement::{
+    ClipPlacementRejection, validate_clip_placement, validate_text_clip_placement,
+};
+use editing::{ClipClipboard, EditAction, edit_and_rebuild_timeline, edit_timeline};
 use explorer::{
     ExplorerDropPreview, ExplorerMediaDrag, FileContextMenu, FileTreeEntry, NewTimelineDialogState,
-    PendingExplorerDrop, RenameDialogState, visible_tree,
+    PendingExplorerDrop, RenameDialogState, load_explorer_expansion, visible_tree,
 };
 use explorer_filter::ExplorerFilter;
 use export_dialog::ExportDialogState;
@@ -57,16 +62,24 @@ use model::{DEFAULT_IMAGE_CLIP_DURATION, MediaAsset, MediaKind};
 use preview::{PreviewTarget, update_playback};
 use preview_audio::AudioBackend;
 use preview_timeline::TimelinePreviewDrag;
+use project_settings::{load_project_local_settings, save_project_local_settings};
 use properties::{PropertiesPanelResizeDrag, properties_panel};
+use properties_text::TextClipInputs;
 use properties_transform::VideoTransformInputs;
 use timeline::{
     FRAME_RATE_PRESETS, FrameRate, TimelineRuntimeState, TimelineSerialization, TimelineTime,
     timeline_ranges_overlap,
 };
-use timeline_clip::{AudioClipProperties, Clip, VideoClipProperties};
+use timeline_clip::{
+    AudioClipProperties, Clip, MediaClip, TextClip, TextClipProperties, VideoClipProperties,
+};
 use timeline_clip_menu::TimelineClipContextMenu;
-use timeline_document::{load_existing, project_timeline_files};
-use timeline_interactions::{MarqueeSelection, TimelineInteractionState, TimelineTool};
+use timeline_document::{load_existing_timeline, project_timeline_files};
+use timeline_interactions::{
+    MarqueeSelection, TimelineContextMenu, TimelineInteractionState, TimelineTool,
+};
+use timeline_track_menu::TextTrackContextMenu;
+use timeline_video::create_timeline_video_v2;
 use track::{Track, TrackKind};
 use ulid::Ulid;
 use workspace::{GlobalEditorSettings, load_global_editor_settings, save_global_editor_settings};
@@ -193,7 +206,6 @@ struct ExplorerState {
 struct PreviewState {
     target: PreviewTarget,
     fullscreen: bool,
-    timeline_needs_rebuild: bool,
     volume_control_open: bool,
     is_scrubbing: bool,
     is_adjusting_volume: bool,
@@ -206,6 +218,8 @@ struct PropertiesPanelState {
     resizing: bool,
     transform_inputs: VideoTransformInputs,
     transform_input_clip_id: Option<Ulid>,
+    text_inputs: TextClipInputs,
+    text_input_clip_id: Option<Ulid>,
 }
 
 struct ExportState {
@@ -268,19 +282,22 @@ impl Editor {
 
     fn set_project_root(&mut self, root: PathBuf, cx: &mut Context<Self>) -> Result<(), String> {
         let root = std::fs::canonicalize(&root).unwrap_or(root);
-        let active_timeline = load_existing(&root, None)
-            .map_err(|error| format!("Could not open timeline: {error}"))?;
+        let project_settings = load_project_local_settings(&root);
+        let active_timeline =
+            load_existing_timeline(&root, project_settings.active_timeline.as_deref())?
+                .expect("the selected project has no timeline");
         if let Some(timeline) = self.timeline.as_ref() {
             timeline.save(&self.global_settings.project_root);
         }
-        self.rebuild_timeline_preview_if_needed();
+
         self.global_settings.project_root = root;
         self.waveform_jobs.clear();
         self.waveform_cache.clear();
         self.clipboard = None;
-        self.explorer.expanded_directories.clear();
-        self.explorer.root_expanded = true;
-        self.activate_timeline(active_timeline, cx)?;
+        let explorer_expansion = load_explorer_expansion(&self.global_settings.project_root);
+        self.explorer.expanded_directories = explorer_expansion.expanded_directories;
+        self.explorer.root_expanded = explorer_expansion.root_expanded;
+        self.activate_timeline(active_timeline.0, active_timeline.1, cx)?;
         self.schedule_project_waveforms(cx);
         save_global_editor_settings(&self.global_settings)
     }
@@ -296,8 +313,6 @@ impl Editor {
             .is_some_and(|timeline| timeline.path == relative_path)
         {
             self.explorer.selected_file = Some(relative_path);
-            self.preview.target = PreviewTarget::None;
-            self.preview.timeline_needs_rebuild = true;
             let timeline = self.timeline.as_ref().expect("timeline was checked above");
             let playhead = timeline.playhead;
             if !timeline.data.clips.is_empty() {
@@ -312,8 +327,7 @@ impl Editor {
         if let Some(timeline) = self.timeline.as_ref() {
             timeline.save(&self.global_settings.project_root);
         }
-        self.rebuild_timeline_preview_if_needed();
-        self.activate_timeline(Some((relative_path.clone(), timeline)), cx)?;
+        self.activate_timeline(relative_path.clone(), timeline, cx)?;
         self.status = Some(format!("Opened {}", relative_path.display()));
         Ok(())
     }
@@ -330,38 +344,54 @@ impl Editor {
         if let Some(active_timeline) = self.timeline.as_ref() {
             active_timeline.save(&self.global_settings.project_root);
         }
-        self.rebuild_timeline_preview_if_needed();
+
         // Expand the target folder so the new timeline is visible in the tree.
         if !relative_directory.as_os_str().is_empty() {
             self.explorer
                 .expanded_directories
                 .insert(relative_directory);
         }
-        self.activate_timeline(Some((relative_path.clone(), timeline)), cx)?;
+        self.activate_timeline(relative_path.clone(), timeline, cx)?;
         self.explorer
             .refresh_file_tree(&self.global_settings.project_root)?;
+        self.save_explorer_expansion()?;
         self.status = Some(format!("Created {}", relative_path.display()));
         Ok(())
     }
 
     fn activate_timeline(
         &mut self,
-        active_timeline: Option<(PathBuf, TimelineSerialization)>,
+        timeline_path: PathBuf,
+        active_timeline: TimelineSerialization,
         cx: &mut Context<Self>,
     ) -> Result<(), String> {
-        self.preview.target = PreviewTarget::None;
         self.explorer.drag_assets.clear();
         self.explorer.drag_probe_jobs.clear();
         self.explorer.drop_preview = None;
         self.explorer.pending_drop = None;
-        self.preview.timeline_needs_rebuild = true;
         self.preview.volume_control_open = false;
         self.preview.is_scrubbing = false;
         self.preview.is_adjusting_volume = false;
         self.preview.last_scrub_seek = None;
         self.preview.timeline_drag = None;
         self.properties.transform_input_clip_id = None;
-        self.timeline = active_timeline.map(|(path, data)| TimelineRuntimeState::new(path, data));
+        self.properties.text_input_clip_id = None;
+        let ges_timeline = build_ges_timeline(
+            &active_timeline,
+            &self.global_settings.project_root,
+            export::ExportOptions::from_timeline(&active_timeline),
+        )?;
+        self.timeline = Some(TimelineRuntimeState::new(
+            timeline_path,
+            active_timeline,
+            ges_timeline,
+        ));
+        save_project_local_settings(
+            &self.global_settings.project_root,
+            self.timeline
+                .as_ref()
+                .map(|timeline| timeline.path.as_path()),
+        )?;
         self.explorer.search_query = None;
         self.explorer.search_results.clear();
         self.explorer.search_pending = false;
@@ -375,7 +405,12 @@ impl Editor {
         if let Some(timeline) = self.timeline.as_ref()
             && !timeline.data.clips.is_empty()
         {
-            self.load_timeline_position_with_options(timeline.playhead, true);
+            let playhead = timeline.playhead;
+            let video = create_timeline_video_v2(&timeline.ges_timeline)?;
+            self.preview.target = PreviewTarget::Timeline(video);
+            self.load_timeline_position_with_options(playhead, true);
+        } else {
+            self.preview.target = PreviewTarget::None;
         }
         self.schedule_active_timeline_waveforms(cx);
         Ok(())
@@ -403,7 +438,7 @@ impl Editor {
             let referenced_assets = timeline
                 .clips
                 .iter()
-                .map(|clip| clip.asset_id)
+                .filter_map(|clip| clip.media().map(|clip| clip.asset_id))
                 .collect::<HashSet<_>>();
             paths.extend(
                 timeline
@@ -424,7 +459,7 @@ impl Editor {
             .data
             .clips
             .iter()
-            .map(|clip| clip.asset_id)
+            .filter_map(|clip| clip.media().map(|clip| clip.asset_id))
             .collect::<HashSet<_>>();
         let paths = timeline
             .data
@@ -530,7 +565,7 @@ impl Editor {
         let Some(timeline) = self.timeline.as_mut() else {
             return;
         };
-        timeline.blade_at_playhead(&self.global_settings.project_root);
+        timeline.blade_at_playhead(&mut self.preview, &self.global_settings.project_root);
         cx.notify();
     }
 

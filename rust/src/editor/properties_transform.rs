@@ -17,7 +17,7 @@ impl VideoTransformInputs {
     pub(super) fn new(return_focus: FocusHandle, cx: &mut Context<Editor>) -> Self {
         let field = |cx: &mut Context<Editor>, id, value: &str| {
             cx.new(|cx| {
-                ExplorerFilter::new_inline_field(
+                ExplorerFilter::new_inline_number_field(
                     id,
                     value.to_string(),
                     "0.0",
@@ -81,6 +81,10 @@ impl Editor {
             return;
         }
         let Some(clip) = timeline.data.clip(clip_id) else {
+            self.properties.transform_input_clip_id = None;
+            return;
+        };
+        let Some(clip) = clip.media() else {
             self.properties.transform_input_clip_id = None;
             return;
         };
@@ -237,24 +241,34 @@ impl Editor {
         let Some(index) = timeline.data.clip_index(clip_id) else {
             return;
         };
-        let mut properties = timeline.data.clips[index].video_properties;
+        let Some(clip) = timeline.data.clips[index].media() else {
+            return;
+        };
+        let mut properties = clip.video_properties;
         match property {
             VideoTransformProperty::PositionX => properties.position_x = value,
             VideoTransformProperty::PositionY => properties.position_y = value,
             VideoTransformProperty::Scale => properties.scale = value.clamp(0.0, 100.0),
         }
-        if properties == timeline.data.clips[index].video_properties {
+        if properties == clip.video_properties {
             return;
         }
         let Some(timeline) = self.timeline.as_mut() else {
             return;
         };
         timeline.record_editing_history();
-        self.preview.timeline_needs_rebuild = true;
-        timeline.data.clips[index].video_properties = properties;
+        edit_and_rebuild_timeline(
+            &mut self.preview,
+            &self.global_settings.project_root,
+            timeline,
+            EditAction::SetVideoProperties {
+                clip_ids: vec![clip_id],
+                properties,
+            },
+        )
+        .expect("setting video properties cannot be rejected");
 
         timeline.save(&self.global_settings.project_root);
-        self.rebuild_timeline_preview_if_needed();
     }
 }
 
@@ -266,11 +280,13 @@ fn format_transform_value(value: f64) -> String {
         .to_string()
 }
 
-fn disabled_field_overlay(field: gpui::Stateful<gpui::Div>) -> gpui::Stateful<gpui::Div> {
+pub(super) fn disabled_field_overlay(
+    field: gpui::Stateful<gpui::Div>,
+) -> gpui::Stateful<gpui::Div> {
     field.child(div().absolute().inset_0().occlude())
 }
 
-fn properties_tab(label: &'static str, active: bool) -> gpui::Div {
+pub(super) fn properties_tab(label: &'static str, active: bool) -> gpui::Div {
     div()
         .h_full()
         .flex()
@@ -282,7 +298,7 @@ fn properties_tab(label: &'static str, active: bool) -> gpui::Div {
         .child(label)
 }
 
-fn properties_section_label(label: &'static str) -> gpui::Div {
+pub(super) fn properties_section_label(label: &'static str) -> gpui::Div {
     div()
         .text_xs()
         .font_weight(gpui::FontWeight::SEMIBOLD)

@@ -222,6 +222,33 @@ impl Editor {
                                                     ),
                                             )
                                         },
+                                    )
+                                    .when_some(
+                                        timeline.interaction.context_menu.as_ref().and_then(
+                                            |menu| {
+                                                let TimelineContextMenu::TextTrack(menu) = menu
+                                                else {
+                                                    return None;
+                                                };
+                                                Some(menu.position)
+                                            },
+                                        ),
+                                        |this, position| {
+                                            let guide_left = TIMELINE_PADDING
+                                                + timeline.data.seconds(position) as f32
+                                                    * timeline.data.view.pixels_per_second;
+                                            this.child(
+                                                div()
+                                                    .absolute()
+                                                    .top_0()
+                                                    .bottom_0()
+                                                    .left(px(guide_left))
+                                                    .w_0()
+                                                    .border_l_1()
+                                                    .border_dashed()
+                                                    .border_color(rgb(ACCENT)),
+                                            )
+                                        },
                                     ),
                             ),
                     ),
@@ -457,6 +484,14 @@ impl Editor {
                         )),
                     )
                     .child(
+                        timeline_icon_button("add-text-track", "+T").on_click(cx.listener(
+                            |editor, _, _, cx| {
+                                editor.add_track(TrackKind::Text);
+                                cx.notify();
+                            },
+                        )),
+                    )
+                    .child(
                         timeline_icon_button(
                             "toggle-timeline-snapping",
                             if timeline.interaction.snapping_enabled {
@@ -517,7 +552,7 @@ impl Editor {
                             let Some(timeline) = editor.timeline.as_mut() else {
                                 return;
                             };
-                            timeline.zoom(0.8);
+                            timeline.zoom(0.8, &editor.global_settings.project_root);
                             editor.save_timeline_scroll();
                             cx.notify();
                         },
@@ -545,7 +580,7 @@ impl Editor {
                             let Some(timeline) = editor.timeline.as_mut() else {
                                 return;
                             };
-                            timeline.zoom(1.25);
+                            timeline.zoom(1.25, &editor.global_settings.project_root);
                             editor.save_timeline_scroll();
                             cx.notify();
                         },
