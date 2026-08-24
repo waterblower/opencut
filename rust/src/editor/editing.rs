@@ -1058,11 +1058,16 @@ pub(super) fn edit_and_rebuild_timeline(
     if let Some(video) = preview.target.video() {
         video.set_paused(true);
     }
+    preview.target = PreviewTarget::None;
+    timeline.ges_timeline = build_ges_timeline(
+        &timeline.data,
+        project_root,
+        export::ExportOptions::from_timeline(&timeline.data),
+    )?;
     timeline.playhead = timeline
         .playhead
         .clamp(TimelineTime::ZERO, timeline.data.content_duration());
     if timeline.data.clips.is_empty() {
-        preview.target = PreviewTarget::None;
         return Ok(());
     }
 
