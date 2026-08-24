@@ -242,7 +242,7 @@ fn creates_gstreamer_timeline_from_real_media() {
         video_properties,
         audio_properties: AudioClipProperties::default(),
     }));
-    let timeline = build_timeline(
+    let timeline = build_ges_timeline(
         &project,
         project_root,
         ExportOptions::from_timeline(&project),
@@ -321,7 +321,7 @@ fn adds_text_clips_as_ges_overlays() {
         },
     }));
 
-    let timeline = build_timeline(
+    let timeline = build_ges_timeline(
         &project,
         project_root,
         ExportOptions::from_timeline(&project),
@@ -392,7 +392,7 @@ fn hidden_and_muted_tracks_keep_their_duration_as_black_video() {
         audio_properties: AudioClipProperties::default(),
     }));
 
-    let timeline = build_timeline(
+    let timeline = build_ges_timeline(
         &project,
         project_root,
         ExportOptions::from_timeline(&project),

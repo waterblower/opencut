@@ -25,7 +25,7 @@ impl Editor {
                 let Some((timeline_path, timeline_data)) = active_timeline else {
                     return None;
                 };
-                let ges_timeline = build_timeline(
+                let ges_timeline = build_ges_timeline(
                     &timeline_data,
                     &global_settings.project_root,
                     export::ExportOptions::from_timeline(&timeline_data),

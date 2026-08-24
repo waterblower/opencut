@@ -1,4 +1,4 @@
-use crate::{editor::export_gstreamer::build_timeline, video::VideoBackend};
+use crate::{editor::export_gstreamer::build_ges_timeline, video::VideoBackend};
 use gpui::{
     App, Context, CursorStyle, DragMoveEvent, Entity, FocusHandle, KeyBinding, MouseButton,
     MouseDownEvent, MouseMoveEvent, MouseUpEvent, ObjectFit, PathPromptOptions, Render,
@@ -327,8 +327,7 @@ impl Editor {
         if let Some(timeline) = self.timeline.as_ref() {
             timeline.save(&self.global_settings.project_root);
         }
-
-        self.activate_timeline(Some((relative_path.clone(), timeline)), cx)?;
+        self.activate_timeline(relative_path.clone(), timeline, cx)?;
         self.status = Some(format!("Opened {}", relative_path.display()));
         Ok(())
     }
@@ -352,7 +351,7 @@ impl Editor {
                 .expanded_directories
                 .insert(relative_directory);
         }
-        self.activate_timeline(Some((relative_path.clone(), timeline)), cx)?;
+        self.activate_timeline(relative_path.clone(), timeline, cx)?;
         self.explorer
             .refresh_file_tree(&self.global_settings.project_root)?;
         self.save_explorer_expansion()?;
@@ -377,8 +376,16 @@ impl Editor {
         self.preview.timeline_drag = None;
         self.properties.transform_input_clip_id = None;
         self.properties.text_input_clip_id = None;
-        // todo: should build the timeline
-        self.timeline = Some(TimelineRuntimeState::new(timeline_path, active_timeline));
+        let ges_timeline = build_ges_timeline(
+            &active_timeline,
+            &self.global_settings.project_root,
+            export::ExportOptions::from_timeline(&active_timeline),
+        )?;
+        self.timeline = Some(TimelineRuntimeState::new(
+            timeline_path,
+            active_timeline,
+            ges_timeline,
+        ));
         save_project_local_settings(
             &self.global_settings.project_root,
             self.timeline

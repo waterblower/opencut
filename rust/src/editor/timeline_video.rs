@@ -1,6 +1,6 @@
 use super::{
     clip_render_plan::resolve_visual_clip_render_plan, export::ExportOptions,
-    export_gstreamer::build_timeline, timeline::TimelineSerialization,
+    export_gstreamer::build_ges_timeline, timeline::TimelineSerialization,
 };
 use crate::video::VideoBackend;
 use ges::prelude::*;
@@ -97,7 +97,7 @@ fn create_timeline_pipeline(
 ) -> Result<(gst::Pipeline, gst_app::AppSink), String> {
     initialize_gstreamer()?;
     let options = ExportOptions::from_timeline(timeline);
-    let ges_timeline = build_timeline(timeline, project_root, options)?;
+    let ges_timeline = build_ges_timeline(timeline, project_root, options)?;
     let video_sink = gst::parse::bin_from_description(
         "queue ! videoconvert ! appsink name=opencut_timeline_video drop=true max-buffers=3 enable-last-sample=false caps=video/x-raw,format=NV12,pixel-aspect-ratio=1/1",
         true,

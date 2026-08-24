@@ -75,7 +75,7 @@ fn export_timeline_with_encoder(
     encoder: ExportEncoder,
     report_progress: &mut impl FnMut(f32),
 ) -> Result<(), String> {
-    let timeline = build_timeline(timeline_data, project_root, options)?;
+    let timeline = build_ges_timeline(timeline_data, project_root, options)?;
     let profile = encoding_profile(options);
     let _encoder_selection = EncoderSelection::for_export(encoder)?;
     let pipeline = ges::Pipeline::new();
@@ -107,7 +107,7 @@ fn export_timeline_with_encoder(
     result
 }
 
-pub(super) fn build_timeline(
+pub(super) fn build_ges_timeline(
     timeline_data: &TimelineSerialization,
     project_root: &Path,
     options: ExportOptions,
