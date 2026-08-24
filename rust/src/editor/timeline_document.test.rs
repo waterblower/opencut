@@ -51,7 +51,9 @@ fn creates_named_timelines_inside_a_subdirectory() {
         project_timeline_files(&root).unwrap(),
         vec![opening.clone()]
     );
-    let (loaded_path, _) = load_existing_timeline(&root, Some(&opening)).unwrap().unwrap();
+    let (loaded_path, _) = load_existing_timeline(&root, Some(&opening))
+        .unwrap()
+        .unwrap();
     assert_eq!(loaded_path, opening);
 
     fs::remove_dir_all(root).unwrap();
@@ -121,7 +123,9 @@ fn preferred_timeline_is_loaded() {
     second.settings.width = 1280;
     second.save(&root.join(&second_path)).unwrap();
 
-    let (loaded_path, loaded) = load_existing_timeline(&root, Some(&second_path)).unwrap().unwrap();
+    let (loaded_path, loaded) = load_existing_timeline(&root, Some(&second_path))
+        .unwrap()
+        .unwrap();
     assert_eq!(loaded_path, second_path);
     assert_eq!(loaded.settings.width, 1280);
     fs::remove_dir_all(root).unwrap();

@@ -928,51 +928,6 @@ fn plural_suffix(count: usize) -> &'static str {
     if count == 1 { "" } else { "s" }
 }
 
-fn blade_at_playhead(
-    timeline: &TimelineSerialization,
-    playhead: TimelineTime,
-) -> Option<TimelineSerialization> {
-    let clips_at_playhead = timeline
-        .clips
-        .iter()
-        .filter(|clip| {
-            let local = playhead - clip.timeline_start();
-            let crosses_playhead = local >= TimelineTime::ONE_FRAME
-                && local
-                    <= clip.frame_length(timeline.settings.frame_rate) - TimelineTime::ONE_FRAME;
-            let track_is_editable = timeline
-                .track(clip.track_id())
-                .is_some_and(|track| !track.locked);
-            crosses_playhead && track_is_editable
-        })
-        .cloned()
-        .collect::<Vec<_>>();
-    if clips_at_playhead.is_empty() {
-        return None;
-    }
-
-    let split_clips = clips_at_playhead
-        .iter()
-        .flat_map(|clip| {
-            let (left, right) = clip
-                .split_at(playhead, timeline.settings.frame_rate)
-                .expect("clips at the playhead must be splittable");
-            [left, right]
-        })
-        .collect::<Vec<_>>();
-    let removed_clip_ids = clips_at_playhead
-        .into_iter()
-        .map(|clip| clip.id())
-        .collect::<HashSet<_>>();
-    let mut updated_timeline = timeline.clone();
-    updated_timeline
-        .clips
-        .retain(|clip| !removed_clip_ids.contains(&clip.id()));
-    updated_timeline.clips.extend(split_clips);
-
-    Some(updated_timeline)
-}
-
 pub(super) enum EditAction {
     AddClips {
         clips: Vec<Clip>,

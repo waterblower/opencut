@@ -1,6 +1,6 @@
 use super::{
     clip_render_plan::resolve_visual_clip_render_plan, export::ExportOptions,
-    export_gstreamer::build_ges_timeline, timeline::TimelineSerialization,
+    timeline::TimelineSerialization,
 };
 use crate::video::VideoBackend;
 use ges::prelude::*;
@@ -8,7 +8,7 @@ use gstreamer as gst;
 use gstreamer_app as gst_app;
 use gstreamer_audio as gst_audio;
 use gstreamer_editing_services as ges;
-use std::path::Path;
+
 use ulid::Ulid;
 
 // pub(super) fn create_timeline_video(
@@ -98,38 +98,6 @@ pub(super) fn update_timeline_video_position(
     video.seek(video.position(), true)
 }
 
-fn create_timeline_pipeline(
-    timeline: &TimelineSerialization,
-    project_root: &Path,
-    audio_sink: &gst::Element,
-) -> Result<(gst::Pipeline, gst_app::AppSink), String> {
-    initialize_gstreamer()?;
-    let options = ExportOptions::from_timeline(timeline);
-    let ges_timeline = build_ges_timeline(timeline, project_root, options)?;
-    let video_sink = gst::parse::bin_from_description(
-        "queue ! videoconvert ! appsink name=opencut_timeline_video drop=true max-buffers=3 enable-last-sample=false caps=video/x-raw,format=NV12,pixel-aspect-ratio=1/1",
-        true,
-    )
-    .map_err(|error| format!("could not create timeline preview video sink: {error}"))?;
-    let sink = video_sink
-        .by_name("opencut_timeline_video")
-        .ok_or_else(|| "timeline video appsink was not created".to_string())?
-        .downcast::<gst_app::AppSink>()
-        .map_err(|_| "timeline video sink had an unexpected type".to_string())?;
-
-    let pipeline = ges::Pipeline::new();
-    pipeline.preview_set_video_sink(Some(&video_sink));
-    pipeline.preview_set_audio_sink(Some(audio_sink));
-    pipeline
-        .set_timeline(&ges_timeline)
-        .map_err(|error| format!("could not attach the preview timeline: {error}"))?;
-    pipeline
-        .set_mode(ges::PipelineFlags::FULL_PREVIEW)
-        .map_err(|error| format!("could not enable GStreamer preview mode: {error}"))?;
-
-    Ok((pipeline.upcast(), sink))
-}
-
 pub fn create_timeline_pipeline_v2(
     ges_timeline: &ges::Timeline,
     audio_sink: &gst::Element,
@@ -176,7 +144,3 @@ fn preview_audio_sink() -> Result<(gst::Element, gst_audio::StreamVolume), Strin
     gst_audio::prelude::StreamVolumeExt::set_mute(&control, true);
     Ok((sink.upcast(), control))
 }
-
-#[cfg(test)]
-#[path = "timeline_video.test.rs"]
-mod tests;
