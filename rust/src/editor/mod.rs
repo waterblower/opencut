@@ -80,6 +80,7 @@ use timeline_interactions::{
 };
 use timeline_track_menu::TextTrackContextMenu;
 use timeline_video::create_timeline_video;
+use timeline_video::create_timeline_video_v2;
 use track::{Track, TrackKind};
 use ulid::Ulid;
 use workspace::{GlobalEditorSettings, load_global_editor_settings, save_global_editor_settings};

@@ -22,6 +22,14 @@ pub(super) fn create_timeline_video(
         .map_err(|error| format!("could not initialize timeline video: {error}"))
 }
 
+pub(super) fn create_timeline_video_v2(timeline: &ges::Timeline) -> Result<VideoBackend, String> {
+    initialize_gstreamer()?;
+    let (audio_sink, volume_control) = preview_audio_sink()?;
+    let (pipeline, sink) = create_timeline_pipeline_v2(timeline, &audio_sink)?;
+    VideoBackend::from_pipeline(pipeline, sink, volume_control)
+        .map_err(|error| format!("could not initialize timeline video: {error}"))
+}
+
 pub(super) fn update_timeline_video_position(
     video: &mut VideoBackend,
     timeline_data: &TimelineSerialization,
@@ -114,6 +122,34 @@ fn create_timeline_pipeline(
     pipeline.preview_set_audio_sink(Some(audio_sink));
     pipeline
         .set_timeline(&ges_timeline)
+        .map_err(|error| format!("could not attach the preview timeline: {error}"))?;
+    pipeline
+        .set_mode(ges::PipelineFlags::FULL_PREVIEW)
+        .map_err(|error| format!("could not enable GStreamer preview mode: {error}"))?;
+
+    Ok((pipeline.upcast(), sink))
+}
+
+pub fn create_timeline_pipeline_v2(
+    ges_timeline: &ges::Timeline,
+    audio_sink: &gst::Element,
+) -> Result<(gst::Pipeline, gst_app::AppSink), String> {
+    let video_sink = gst::parse::bin_from_description(
+        "queue ! videoconvert ! appsink name=opencut_timeline_video drop=true max-buffers=3 enable-last-sample=false caps=video/x-raw,format=NV12,pixel-aspect-ratio=1/1",
+        true,
+    )
+    .map_err(|error| format!("could not create timeline preview video sink: {error}"))?;
+    let sink = video_sink
+        .by_name("opencut_timeline_video")
+        .ok_or_else(|| "timeline video appsink was not created".to_string())?
+        .downcast::<gst_app::AppSink>()
+        .map_err(|_| "timeline video sink had an unexpected type".to_string())?;
+
+    let pipeline = ges::Pipeline::new();
+    pipeline.preview_set_video_sink(Some(&video_sink));
+    pipeline.preview_set_audio_sink(Some(audio_sink));
+    pipeline
+        .set_timeline(ges_timeline)
         .map_err(|error| format!("could not attach the preview timeline: {error}"))?;
     pipeline
         .set_mode(ges::PipelineFlags::FULL_PREVIEW)
