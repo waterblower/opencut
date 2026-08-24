@@ -11,22 +11,34 @@ impl Editor {
         let file_tree =
             visible_tree(&global_settings.project_root, &expanded_directories).unwrap_or_default();
         let project_settings = load_project_local_settings(&global_settings.project_root);
-        let active_timeline_data = load_existing_timeline(
-            &global_settings.project_root,
-            project_settings.active_timeline.as_deref(),
-        )
-        .expect("could not load the active timeline")
-        .expect("should have timeline");
-        let timeline_path = active_timeline_data.0;
-        let timeline_data = active_timeline_data.1;
 
-        let ges_timeline = build_timeline(
-            &timeline_data,
-            &global_settings.project_root,
-            export::ExportOptions::from_timeline(&timeline_data),
-        )
-        .expect("could not build the active GES timeline");
-        let timeline = TimelineRuntimeState::new(timeline_path, timeline_data, ges_timeline);
+        //
+        // Load the active timeline
+        //
+        let timeline = {
+            let active_timeline = load_existing_timeline(
+                &global_settings.project_root,
+                project_settings.active_timeline.as_deref(),
+            )
+            .unwrap();
+            (|| {
+                let Some((timeline_path, timeline_data)) = active_timeline else {
+                    return None;
+                };
+                let ges_timeline = build_timeline(
+                    &timeline_data,
+                    &global_settings.project_root,
+                    export::ExportOptions::from_timeline(&timeline_data),
+                )
+                .unwrap();
+                Some(TimelineRuntimeState::new(
+                    timeline_path,
+                    timeline_data,
+                    ges_timeline,
+                ))
+            })()
+        };
+        // load timeline end
 
         let focus_handle = cx.focus_handle();
         let explorer_filter = cx.new(|cx| ExplorerFilter::new(focus_handle.clone(), cx));
@@ -53,7 +65,7 @@ impl Editor {
                 search_results: Vec::new(),
                 search_pending: false,
                 scroll: ScrollHandle::new(),
-                selected_file: Some(timeline.path.clone()),
+                selected_file: timeline.as_ref().map(|timeline| timeline.path.clone()),
                 context_menu: None,
                 rename_dialog: None,
                 new_timeline_dialog: None,
