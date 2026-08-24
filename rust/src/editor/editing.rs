@@ -1092,6 +1092,7 @@ pub(super) fn edit_timeline(
                 &clips,
             )?;
             timeline.data = updated_timeline;
+            return Ok(false);
         }
         EditAction::RemoveClips {
             clip_ids,
@@ -1105,6 +1106,8 @@ pub(super) fn edit_timeline(
                 .data
                 .clips
                 .retain(|clip| !clip_ids.contains(&clip.id()));
+            ges_remove_clips(&timeline.ges_timeline, &clip_ids)?;
+            return Ok(false);
         }
         EditAction::MoveClips { placements } => {
             let moved_clip_ids = placements
@@ -1258,6 +1261,75 @@ fn ges_change_text_clip(
     overlay.set_ypos(properties.position_y);
     if !ges.commit_sync() {
         return Err("GStreamer could not commit the preview text change.".to_string());
+    }
+    Ok(())
+}
+
+fn ges_remove_clips(
+    ges: &gstreamer_editing_services::Timeline,
+    clips: &HashSet<Ulid>,
+) -> Result<(), String> {
+    use gstreamer_editing_services::prelude::*;
+
+    if clips.is_empty() {
+        return Ok(());
+    }
+    let clip_names = clips
+        .iter()
+        .map(|clip_id| format!("opencut-clip-{clip_id}"))
+        .collect::<HashSet<_>>();
+    let clips_to_remove = ges
+        .layers()
+        .into_iter()
+        .flat_map(|layer| {
+            layer
+                .clips()
+                .into_iter()
+                .filter(|clip| {
+                    clip.name()
+                        .is_some_and(|name| clip_names.contains(name.as_str()))
+                })
+                .map(move |clip| (layer.clone(), clip))
+        })
+        .collect::<Vec<_>>();
+
+    for (layer, clip) in clips_to_remove {
+        let name = clip
+            .name()
+            .map(|name| name.to_string())
+            .unwrap_or_else(|| "<unnamed>".to_string());
+        layer
+            .remove_clip(&clip)
+            .map_err(|error| format!("could not remove GES clip {name}: {error}"))?;
+    }
+
+    let mut background = None;
+    let mut content_duration_ns = 0;
+    for layer in ges.layers() {
+        for clip in layer.clips() {
+            if clip.name().as_deref() == Some("opencut-black-background") {
+                background = Some((layer.clone(), clip));
+                continue;
+            }
+            content_duration_ns = content_duration_ns.max(
+                clip.start()
+                    .nseconds()
+                    .saturating_add(clip.duration().nseconds()),
+            );
+        }
+    }
+    if let Some((background_layer, background)) = background {
+        if content_duration_ns == 0 {
+            background_layer
+                .remove_clip(&background)
+                .map_err(|error| format!("could not remove the GES background: {error}"))?;
+        } else if !background.set_duration(gstreamer::ClockTime::from_nseconds(content_duration_ns))
+        {
+            return Err("could not update the GES timeline background duration".to_string());
+        }
+    }
+    if !ges.commit_sync() {
+        return Err("GStreamer could not commit the removed clips.".to_string());
     }
     Ok(())
 }
