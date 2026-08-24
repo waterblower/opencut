@@ -5,6 +5,7 @@ use super::*;
 
 pub(super) struct TextClipInputs {
     text: Entity<ExplorerFilter>,
+    length: Entity<ExplorerFilter>,
     font_size: Entity<ExplorerFilter>,
     color: Entity<ExplorerFilter>,
     position_x: Entity<ExplorerFilter>,
@@ -39,6 +40,7 @@ impl TextClipInputs {
             };
         Self {
             text: field(cx, "text-clip-text-input", "Text", "Enter text"),
+            length: number_field(cx, "text-clip-length-input", "5", "5"),
             font_size: number_field(cx, "text-clip-font-size-input", "64", "64"),
             color: field(cx, "text-clip-color-input", "#FFFFFFFF", "#FFFFFFFF"),
             position_x: number_field(cx, "text-clip-position-x-input", "0.5", "0.5"),
@@ -49,6 +51,7 @@ impl TextClipInputs {
     fn input(&self, property: TextProperty) -> Entity<ExplorerFilter> {
         match property {
             TextProperty::Text => self.text.clone(),
+            TextProperty::Length => self.length.clone(),
             TextProperty::FontSize => self.font_size.clone(),
             TextProperty::Color => self.color.clone(),
             TextProperty::PositionX => self.position_x.clone(),
@@ -56,9 +59,10 @@ impl TextClipInputs {
         }
     }
 
-    fn fields(&self) -> [(TextProperty, Entity<ExplorerFilter>); 5] {
+    fn fields(&self) -> [(TextProperty, Entity<ExplorerFilter>); 6] {
         [
             (TextProperty::Text, self.text.clone()),
+            (TextProperty::Length, self.length.clone()),
             (TextProperty::FontSize, self.font_size.clone()),
             (TextProperty::Color, self.color.clone()),
             (TextProperty::PositionX, self.position_x.clone()),
@@ -101,6 +105,10 @@ impl Editor {
         self.properties.text_input_clip_id = Some(clip_id);
         let values = [
             (TextProperty::Text, clip.properties.text.clone()),
+            (
+                TextProperty::Length,
+                format_text_number(clip.length.as_secs_f64()),
+            ),
             (
                 TextProperty::FontSize,
                 format_text_number(clip.properties.font_size),
@@ -167,6 +175,15 @@ pub(super) fn text_clip_panel(
                     editable,
                     None,
                 ))
+                .child(text_property_field(
+                    panel,
+                    TextProperty::Length,
+                    "Length",
+                    "s",
+                    "text-clip-length",
+                    editable,
+                    None,
+                ))
                 .child(properties_section_label("STYLE"))
                 .child(text_property_field(
                     panel,
@@ -209,9 +226,10 @@ pub(super) fn text_clip_panel(
         .into_any_element()
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Eq, PartialEq)]
 enum TextProperty {
     Text,
+    Length,
     FontSize,
     Color,
     PositionX,
@@ -235,6 +253,44 @@ impl Editor {
         let Some(clip) = timeline.data.clips[index].text() else {
             return;
         };
+        if property == TextProperty::Length {
+            let Some(length) = text_length_with_input(timeline.data.settings.frame_rate, text)
+            else {
+                return;
+            };
+            if length == clip.length {
+                return;
+            }
+            let clip_length = timeline
+                .data
+                .settings
+                .frame_rate
+                .frames_from_duration_nearest(length);
+            if validate_text_clip_placement(
+                &timeline.data,
+                clip.track_id,
+                clip_length,
+                clip.timeline_start,
+                &HashSet::from([clip_id]),
+            )
+            .is_err()
+            {
+                return;
+            }
+            let Some(timeline) = self.timeline.as_mut() else {
+                return;
+            };
+            timeline.record_editing_history();
+            edit_and_rebuild_timeline(
+                &mut self.preview,
+                &self.global_settings.project_root,
+                timeline,
+                EditAction::SetTextLength { clip_id, length },
+            )
+            .expect("text clip length was validated before recording history");
+            timeline.save(&self.global_settings.project_root);
+            return;
+        }
         let Some(properties) = text_properties_with_input(&clip.properties, property, text) else {
             return;
         };
@@ -331,6 +387,15 @@ fn finite_text_number(text: &str) -> Result<f64, ()> {
     value.is_finite().then_some(value).ok_or(())
 }
 
+fn text_length_with_input(frame_rate: FrameRate, text: &str) -> Option<Duration> {
+    let seconds = finite_text_number(text).ok()?;
+    let requested = Duration::try_from_secs_f64(seconds).ok()?;
+    let frames = frame_rate
+        .frames_from_duration_nearest(requested)
+        .max(TimelineTime::ONE_FRAME);
+    Some(frame_rate.duration(frames))
+}
+
 fn text_properties_with_input(
     current: &TextClipProperties,
     property: TextProperty,
@@ -339,6 +404,7 @@ fn text_properties_with_input(
     let mut properties = current.clone();
     match property {
         TextProperty::Text => properties.text = text.to_string(),
+        TextProperty::Length => return None,
         TextProperty::FontSize => {
             properties.font_size = finite_text_number(text).ok()?.clamp(1.0, 1000.0);
         }
@@ -412,5 +478,18 @@ mod tests {
                 .position_y,
             0.75
         );
+    }
+
+    #[test]
+    fn quantizes_text_length_to_timeline_frames() {
+        assert_eq!(
+            text_length_with_input(FrameRate::new(30, 1), "2.5"),
+            Some(Duration::from_millis(2500))
+        );
+        assert_eq!(
+            text_length_with_input(FrameRate::new(30, 1), "0"),
+            Some(FrameRate::new(30, 1).duration(TimelineTime::ONE_FRAME))
+        );
+        assert_eq!(text_length_with_input(FrameRate::new(30, 1), "-1"), None);
     }
 }

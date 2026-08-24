@@ -993,6 +993,10 @@ pub(super) enum EditAction {
         clip_id: Ulid,
         properties: TextClipProperties,
     },
+    SetTextLength {
+        clip_id: Ulid,
+        length: Duration,
+    },
     AddTrack {
         track: Track,
     },
@@ -1050,7 +1054,7 @@ pub(super) fn edit_and_rebuild_timeline(
     if !rebuild_timeline {
         return Ok(());
     }
-
+    eprintln!("rebuild the timeline is slow");
     let volume = match &preview.target {
         PreviewTarget::Timeline(video) => video.volume(),
         _ => 1.0,
@@ -1146,9 +1150,34 @@ pub(super) fn edit_timeline(
             if let Some(Clip::Text(clip)) = timeline.data.clip_mut(clip_id) {
                 clip.properties = properties;
                 // change the text of a text clip
-                ges_change_text_clip(&timeline.ges_timeline, clip_id, &clip.properties)?;
+                ges_change_text_clip(
+                    &timeline.ges_timeline,
+                    clip_id,
+                    &clip.properties,
+                    clip.length,
+                )?;
             }
             return Ok(false); // should not rebuild timeline
+        }
+        EditAction::SetTextLength { clip_id, length } => {
+            let Some(Clip::Text(clip)) = timeline.data.clip(clip_id) else {
+                return Err(ClipPlacementRejection::MissingClip.into());
+            };
+            let frame_rate = timeline.data.settings.frame_rate;
+            validate_text_clip_placement(
+                &timeline.data,
+                clip.track_id,
+                frame_rate.frames_from_duration_nearest(length),
+                clip.timeline_start,
+                &HashSet::from([clip_id]),
+            )?;
+            let properties = clip.properties.clone();
+            ges_change_text_clip(&timeline.ges_timeline, clip_id, &properties, length)?;
+            let Some(Clip::Text(clip)) = timeline.data.clip_mut(clip_id) else {
+                return Err(ClipPlacementRejection::MissingClip.into());
+            };
+            clip.length = length;
+            return Ok(false);
         }
         EditAction::AddTrack { track } => timeline.data.tracks.push(track),
         EditAction::DeleteTrack { track_id } => {
@@ -1241,6 +1270,7 @@ fn ges_change_text_clip(
     ges: &gstreamer_editing_services::Timeline,
     clip_id: Ulid,
     properties: &TextClipProperties,
+    length: Duration,
 ) -> Result<(), String> {
     use gstreamer_editing_services::prelude::*;
 
@@ -1264,6 +1294,34 @@ fn ges_change_text_clip(
     overlay.set_valign(gstreamer_editing_services::TextVAlign::Position);
     overlay.set_xpos(properties.position_x);
     overlay.set_ypos(properties.position_y);
+    if !overlay.set_duration(gstreamer::ClockTime::from_nseconds(
+        length.as_nanos().min(u64::MAX as u128) as u64,
+    )) {
+        return Err(format!(
+            "could not change the duration of GES text clip {clip_id}"
+        ));
+    }
+    let content_duration_ns = ges
+        .layers()
+        .into_iter()
+        .flat_map(|layer| layer.clips())
+        .filter(|clip| clip.name().as_deref() != Some("opencut-black-background"))
+        .map(|clip| {
+            clip.start()
+                .nseconds()
+                .saturating_add(clip.duration().nseconds())
+        })
+        .max()
+        .unwrap_or(0);
+    if let Some(background) = ges
+        .layers()
+        .into_iter()
+        .flat_map(|layer| layer.clips())
+        .find(|clip| clip.name().as_deref() == Some("opencut-black-background"))
+        && !background.set_duration(gstreamer::ClockTime::from_nseconds(content_duration_ns))
+    {
+        return Err("could not update the GES timeline background duration".to_string());
+    }
     if !ges.commit_sync() {
         return Err("GStreamer could not commit the preview text change.".to_string());
     }
