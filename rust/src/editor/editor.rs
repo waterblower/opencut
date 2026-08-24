@@ -1,21 +1,34 @@
 use super::*;
 
+pub(crate) struct Editor {
+    // main UI sections
+    pub(super) explorer: ExplorerState,
+    pub(super) preview: PreviewState,
+    pub(super) timeline: Option<TimelineRuntimeState>,
+    // other
+    pub(super) global_settings: GlobalEditorSettings,
+    pub(super) waveform_jobs: HashSet<PathBuf>,
+    pub(super) waveform_cache: HashMap<PathBuf, Arc<waveform::WaveformData>>,
+    pub(super) properties: PropertiesPanelState,
+    pub(super) settings_open: bool,
+    pub(super) export: ExportState,
+    pub(super) clipboard: Option<ClipClipboard>,
+    pub(super) status: Option<String>,
+    pub(super) focus_handle: FocusHandle,
+}
+
 impl Editor {
     pub(crate) fn new(cx: &mut Context<Self>) -> Self {
         gstreamer_editing_services::init()
             .expect("could not initialize GStreamer Editing Services");
 
         let global_settings = load_global_editor_settings();
-        let explorer_expansion = load_explorer_expansion(&global_settings.project_root);
-        let expanded_directories = explorer_expansion.expanded_directories;
-        let file_tree =
-            visible_tree(&global_settings.project_root, &expanded_directories).unwrap_or_default();
-        let project_settings = load_project_local_settings(&global_settings.project_root);
 
         //
         // Load the active timeline
         //
         let timeline = {
+            let project_settings = load_project_local_settings(&global_settings.project_root);
             let active_timeline = load_existing_timeline(
                 &global_settings.project_root,
                 project_settings.active_timeline.as_deref(),
@@ -41,22 +54,19 @@ impl Editor {
         // load timeline end
 
         let focus_handle = cx.focus_handle();
-        let explorer_filter = cx.new(|cx| ExplorerFilter::new(focus_handle.clone(), cx));
-        let video_transform_inputs = VideoTransformInputs::new(focus_handle.clone(), cx);
-        Self::observe_video_transform_inputs(&video_transform_inputs, cx);
-        let text_clip_inputs = TextClipInputs::new(focus_handle.clone(), cx);
-        Self::observe_text_clip_inputs(&text_clip_inputs, cx);
-        cx.observe(&explorer_filter, |editor, _, cx| {
-            editor.schedule_explorer_search(cx);
-            cx.notify();
-        })
-        .detach();
+        let explorer = {
+            let explorer_filter = cx.new(|cx| ExplorerFilter::new(focus_handle.clone(), cx));
+            cx.observe(&explorer_filter, |editor, _, cx| {
+                editor.schedule_explorer_search(cx);
+                cx.notify();
+            })
+            .detach();
 
-        start_updates(cx);
-
-        let mut editor = Self {
-            global_settings,
-            explorer: ExplorerState {
+            let explorer_expansion = load_explorer_expansion(&global_settings.project_root);
+            let expanded_directories = explorer_expansion.expanded_directories;
+            let file_tree = visible_tree(&global_settings.project_root, &expanded_directories)
+                .unwrap_or_default();
+            ExplorerState {
                 file_tree,
                 expanded_directories,
                 root_expanded: explorer_expansion.root_expanded,
@@ -74,31 +84,50 @@ impl Editor {
                 drop_preview: None,
                 pending_drop: None,
                 last_tree_scan: Instant::now(),
-            },
-            preview: PreviewState {
-                target: PreviewTarget::None,
-                fullscreen: false,
-                volume_control_open: false,
-                is_scrubbing: false,
-                is_adjusting_volume: false,
-                last_scrub_seek: None,
-                timeline_drag: None,
-            },
-            waveform_jobs: HashSet::new(),
-            waveform_cache: HashMap::new(),
-            properties: PropertiesPanelState {
+            }
+        };
+
+        let preview = PreviewState {
+            target: PreviewTarget::None,
+            fullscreen: false,
+            volume_control_open: false,
+            is_scrubbing: false,
+            is_adjusting_volume: false,
+            last_scrub_seek: None,
+            timeline_drag: None,
+        };
+
+        let properties = {
+            let video_transform_inputs = VideoTransformInputs::new(focus_handle.clone(), cx);
+            Self::observe_video_transform_inputs(&video_transform_inputs, cx);
+            let text_clip_inputs = TextClipInputs::new(focus_handle.clone(), cx);
+            Self::observe_text_clip_inputs(&text_clip_inputs, cx);
+
+            PropertiesPanelState {
                 width: DEFAULT_PROPERTIES_PANEL_WIDTH,
                 resizing: false,
                 transform_inputs: video_transform_inputs,
                 transform_input_clip_id: None,
                 text_inputs: text_clip_inputs,
                 text_input_clip_id: None,
-            },
+            }
+        };
+
+        let export = ExportState {
+            dialog: None,
+            running: false,
+        };
+
+        start_updates(cx);
+        let mut editor = Self {
+            global_settings,
+            explorer,
+            preview,
+            waveform_jobs: HashSet::new(),
+            waveform_cache: HashMap::new(),
+            properties,
             settings_open: false,
-            export: ExportState {
-                dialog: None,
-                running: false,
-            },
+            export,
             timeline,
             clipboard: None,
             status: None,

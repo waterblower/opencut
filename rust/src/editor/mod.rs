@@ -51,6 +51,7 @@ use clip_placement::{
     ClipPlacementRejection, validate_clip_placement, validate_text_clip_placement,
 };
 use editing::{ClipClipboard, EditAction, edit_and_rebuild_timeline, edit_timeline};
+pub(crate) use editor::Editor;
 use explorer::{
     ExplorerDropPreview, ExplorerMediaDrag, FileContextMenu, FileTreeEntry, NewTimelineDialogState,
     PendingExplorerDrop, RenameDialogState, load_explorer_expansion, visible_tree,
@@ -226,21 +227,6 @@ struct PropertiesPanelState {
 struct ExportState {
     dialog: Option<ExportDialogState>,
     running: bool,
-}
-
-pub(crate) struct Editor {
-    global_settings: GlobalEditorSettings,
-    explorer: ExplorerState,
-    preview: PreviewState,
-    waveform_jobs: HashSet<PathBuf>,
-    waveform_cache: HashMap<PathBuf, Arc<waveform::WaveformData>>,
-    properties: PropertiesPanelState,
-    settings_open: bool,
-    export: ExportState,
-    timeline: Option<TimelineRuntimeState>,
-    clipboard: Option<ClipClipboard>,
-    status: Option<String>,
-    focus_handle: FocusHandle,
 }
 
 impl Editor {
