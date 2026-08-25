@@ -1,4 +1,5 @@
 use super::*;
+use gstreamer_editing_services::prelude::*;
 
 fn audio_asset(id: u64) -> MediaAsset {
     MediaAsset {
@@ -266,4 +267,51 @@ fn moves_ges_clip_without_rebuilding_timeline() {
         background.duration().nseconds(),
         project.duration(project.content_duration()).as_nanos() as u64
     );
+}
+
+#[test]
+fn detects_timeline_and_ges_data_divergence() {
+    let _gstreamer_test = crate::editor::tests::lock_gstreamer_test();
+    gstreamer_editing_services::init().unwrap();
+    let track_id = ulid(3);
+    let clip_id = ulid(10);
+    let project = TimelineSerialization {
+        tracks: vec![Track {
+            id: track_id,
+            name: "Text 1".to_string(),
+            kind: TrackKind::Text,
+            locked: false,
+            muted: false,
+            visible: true,
+        }],
+        clips: vec![Clip::Text(TextClip {
+            id: clip_id,
+            track_id,
+            timeline_start: TimelineTime::ZERO,
+            length: Duration::from_secs(2),
+            properties: TextClipProperties::default(),
+        })],
+        ..TimelineSerialization::default()
+    };
+    let ges = build_ges_timeline(
+        &project,
+        Path::new(env!("CARGO_MANIFEST_DIR")),
+        export::ExportOptions::from_timeline(&project),
+    )
+    .unwrap();
+    let mut runtime = TimelineRuntimeState::new("test.timeline.json".into(), project, ges.clone());
+
+    let rendered = ges
+        .layers()
+        .into_iter()
+        .flat_map(|layer| layer.clips())
+        .find(|clip| clip.name().as_deref() == Some(format!("opencut-clip-{clip_id}").as_str()))
+        .unwrap();
+    assert!(rendered.set_duration(gstreamer::ClockTime::from_mseconds(1_985)));
+    assert!(ges.commit_sync());
+    data_parity_check(&runtime, &ges).unwrap();
+
+    runtime.data.clips[0].set_timeline_start(TimelineTime::ONE_FRAME);
+    let error = data_parity_check(&runtime, &ges).unwrap_err();
+    assert!(error.contains("starts at"), "unexpected error: {error}");
 }
