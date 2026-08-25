@@ -342,6 +342,81 @@ fn moves_adjacent_ges_clips_together_without_transient_overlap() {
 }
 
 #[test]
+fn removes_ges_clip_and_ripples_surviving_clips() {
+    use gstreamer_editing_services::prelude::*;
+
+    let _gstreamer_test = crate::editor::tests::lock_gstreamer_test();
+    gstreamer_editing_services::init().unwrap();
+    let track_id = ulid(3);
+    let removed_clip_id = ulid(10);
+    let surviving_clip_id = ulid(11);
+    let project = TimelineSerialization {
+        tracks: vec![Track {
+            id: track_id,
+            name: "Text 1".to_string(),
+            kind: TrackKind::Text,
+            locked: false,
+            muted: false,
+            visible: true,
+        }],
+        clips: vec![
+            Clip::Text(TextClip {
+                id: removed_clip_id,
+                track_id,
+                timeline_start: TimelineTime::ZERO,
+                length: Duration::from_secs(2),
+                properties: TextClipProperties::default(),
+            }),
+            Clip::Text(TextClip {
+                id: surviving_clip_id,
+                track_id,
+                timeline_start: TimelineTime::from_frames(60),
+                length: Duration::from_secs(2),
+                properties: TextClipProperties::default(),
+            }),
+        ],
+        ..TimelineSerialization::default()
+    };
+    let ges = build_ges_timeline(
+        &project,
+        Path::new(env!("CARGO_MANIFEST_DIR")),
+        export::ExportOptions::from_timeline(&project),
+    )
+    .unwrap();
+    let mut runtime = TimelineRuntimeState::new("test.timeline.json".into(), project, ges.clone());
+
+    edit_timeline(
+        &mut runtime,
+        Path::new(env!("CARGO_MANIFEST_DIR")),
+        EditAction::RemoveClips {
+            clip_ids: HashSet::from([removed_clip_id]),
+            close_track_gaps: true,
+        },
+    )
+    .unwrap();
+
+    assert!(runtime.data.clip(removed_clip_id).is_none());
+    assert_eq!(
+        runtime
+            .data
+            .clip(surviving_clip_id)
+            .unwrap()
+            .timeline_start(),
+        TimelineTime::ZERO
+    );
+    let surviving_clip = ges
+        .layers()
+        .into_iter()
+        .flat_map(|layer| layer.clips())
+        .find(|clip| {
+            clip.name().as_deref() == Some(format!("opencut-clip-{surviving_clip_id}").as_str())
+        })
+        .unwrap();
+    assert_eq!(surviving_clip.start(), gstreamer::ClockTime::ZERO);
+    data_parity_check(&runtime, &ges).unwrap();
+}
+
+#[test]
 fn detects_timeline_and_ges_data_divergence() {
     let _gstreamer_test = crate::editor::tests::lock_gstreamer_test();
     gstreamer_editing_services::init().unwrap();

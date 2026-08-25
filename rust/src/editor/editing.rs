@@ -1035,9 +1035,8 @@ pub(super) fn edit_and_rebuild_timeline(
     let t = Instant::now();
     let rebuild_timeline = edit_timeline(timeline, project_root, action)?;
     eprintln!("edit_timeline {action_type} - {:?}", t.elapsed());
-    data_parity_check(&timeline, &timeline.ges_timeline)?;
-
     if !rebuild_timeline {
+        data_parity_check(&timeline, &timeline.ges_timeline)?;
         return Ok(());
     }
     eprintln!("rebuild the timeline is slow");
@@ -1066,6 +1065,7 @@ pub(super) fn edit_and_rebuild_timeline(
     video.set_muted(volume <= f64::EPSILON);
     let _ = video.seek(timeline.data.duration(timeline.playhead), true);
     preview.target = PreviewTarget::Timeline(video);
+    data_parity_check(&timeline, &timeline.ges_timeline)?;
     Ok(())
 }
 
@@ -1093,15 +1093,32 @@ pub(super) fn edit_timeline(
             clip_ids,
             close_track_gaps,
         } => {
+            let mut updated_timeline = timeline.data.clone();
             if close_track_gaps {
-                let frame_rate = timeline.data.settings.frame_rate;
-                ripple_clips_after_deletion(&mut timeline.data.clips, &clip_ids, frame_rate);
+                let frame_rate = updated_timeline.settings.frame_rate;
+                ripple_clips_after_deletion(&mut updated_timeline.clips, &clip_ids, frame_rate);
             }
-            timeline
-                .data
+            updated_timeline
                 .clips
                 .retain(|clip| !clip_ids.contains(&clip.id()));
+            let ripple_placements = updated_timeline
+                .clips
+                .iter()
+                .filter(|clip| {
+                    timeline.data.clip(clip.id()).is_some_and(|previous| {
+                        previous.track_id() != clip.track_id()
+                            || previous.timeline_start() != clip.timeline_start()
+                    })
+                })
+                .map(|clip| (clip.id(), clip.track_id(), clip.timeline_start()))
+                .collect::<Vec<_>>();
             ges_remove_clips(&timeline.ges_timeline, &clip_ids)?;
+            ges_move_clips(
+                &timeline.ges_timeline,
+                &updated_timeline,
+                &ripple_placements,
+            )?;
+            timeline.data = updated_timeline;
             return Ok(false);
         }
         EditAction::MoveClips { placements } => {
