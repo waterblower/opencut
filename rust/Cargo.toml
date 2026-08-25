@@ -15,6 +15,10 @@ name = "loc"
 path = "scripts/count_lines.rs"
 
 [[bin]]
+name = "2windows"
+path = "src/examples/2windows.rs"
+
+[[bin]]
 name = "opencut-editor"
 path = "src/editor/.main.rs"
 required-features = ["editor"]
