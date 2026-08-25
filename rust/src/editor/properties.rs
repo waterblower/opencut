@@ -180,12 +180,18 @@ pub(super) fn properties_panel(editor: &Editor, cx: &mut Context<Editor>) -> gpu
                     .child("No timeline selected")
                     .into_any_element();
             };
-            timeline_properties(
-                &timeline.data,
-                timeline.interaction.selected_clip_id,
-                &timeline.interaction.selected_clip_ids,
-                &editor.properties,
-            )
+            let selected_clip_ids = &timeline.interaction.selected_clip_ids;
+            let selection = match selected_clip_ids.len() {
+                0 => TimelineClipSelection::None,
+                1 => TimelineClipSelection::Single(
+                    *selected_clip_ids
+                        .iter()
+                        .next()
+                        .expect("one selected clip ID was counted"),
+                ),
+                _ => TimelineClipSelection::Multiple(selected_clip_ids),
+            };
+            timeline_properties(&timeline.data, selection, &editor.properties)
         }
         file_target @ (PreviewTarget::VideoFile(path, _)
         | PreviewTarget::AudioFile(path, _)
@@ -257,25 +263,33 @@ pub(super) fn properties_panel(editor: &Editor, cx: &mut Context<Editor>) -> gpu
         .into_any_element()
 }
 
+enum TimelineClipSelection<'a> {
+    None,
+    Single(Ulid),
+    Multiple(&'a HashSet<Ulid>),
+}
+
 fn timeline_properties(
     timeline: &TimelineSerialization,
-    selected_clip_id: Option<Ulid>,
-    selected_clip_ids: &HashSet<Ulid>,
+    selection: TimelineClipSelection<'_>,
     panel: &PropertiesPanelState,
 ) -> gpui::AnyElement {
-    let selection_count = selected_clip_ids.len();
-    if selection_count > 1 {
-        return div()
-            .id("timeline-multi-properties")
-            .flex()
-            .flex_col()
-            .gap_4()
-            .child(properties_title(
-                format!("{selection_count} clips selected"),
-                "Timeline selection",
-            ))
-            .into_any_element();
-    }
+    let selected_clip_id = match selection {
+        TimelineClipSelection::None => None,
+        TimelineClipSelection::Single(clip_id) => Some(clip_id),
+        TimelineClipSelection::Multiple(clip_ids) => {
+            return div()
+                .id("timeline-multi-properties")
+                .flex()
+                .flex_col()
+                .gap_4()
+                .child(properties_title(
+                    format!("{} clips selected", clip_ids.len()),
+                    "Timeline selection",
+                ))
+                .into_any_element();
+        }
+    };
 
     let selected = selected_clip_id.and_then(|id| {
         let index = timeline.clip_index(id)?;
@@ -284,10 +298,8 @@ fn timeline_properties(
         let track = timeline.track(clip.track_id())?;
         Some((clip, asset, track))
     });
-    let editable = !selected_clip_ids.is_empty()
-        && selected_clip_ids
-            .iter()
-            .all(|clip_id| timeline.clip(*clip_id).is_some() && !timeline.clip_locked(*clip_id));
+    let editable = selected_clip_id
+        .is_some_and(|clip_id| timeline.clip(clip_id).is_some() && !timeline.clip_locked(clip_id));
 
     div()
         .id("timeline-properties")
