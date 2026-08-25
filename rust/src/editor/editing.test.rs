@@ -18,7 +18,7 @@ fn audio_asset(id: u64) -> MediaAsset {
 }
 
 fn audio_clip(id: u64, start: i64, duration: i64) -> Clip {
-    Clip::Media(MediaClip {
+    Clip::Audio(AudioClip {
         id: ulid(id),
         track_id: ulid(2),
         asset_id: ulid(100),

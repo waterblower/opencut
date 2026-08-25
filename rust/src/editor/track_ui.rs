@@ -1,5 +1,5 @@
 use super::*;
-use crate::asset::IconName;
+use crate::{asset::IconName, editor::timeline_clip::TextClipComponent};
 use gpui::{Bounds, canvas, fill, point, rgba, size};
 use std::sync::Arc;
 
@@ -250,7 +250,7 @@ impl Editor {
         let clips = timeline
             .data
             .clips_on_track(track.id)
-            .map(|clip| self.timeline_clip(track, clip, cx))
+            .map(|clip| self.timeline_clip(clip, cx))
             .collect::<Vec<_>>();
         let move_previews = timeline
             .interaction
@@ -316,34 +316,32 @@ impl Editor {
             .into_any_element()
     }
 
-    fn timeline_clip(
-        &self,
-        track: &Track,
-        clip: &Clip,
-        cx: &mut Context<Self>,
-    ) -> gpui::AnyElement {
-        match track.kind {
-            TrackKind::Video => self.video_clip(clip, cx),
-            TrackKind::Audio => self.audio_clip(clip, cx),
-            TrackKind::Text => self.text_clip(clip, cx),
+    fn timeline_clip(&self, clip: &Clip, cx: &mut Context<Self>) -> gpui::AnyElement {
+        match clip {
+            Clip::Video(_) => self.video_clip(clip, cx),
+            Clip::Audio(_) => self.audio_clip(clip, cx),
+            Clip::Text(clip) => {
+                let timeline = self
+                    .timeline
+                    .as_ref()
+                    .expect("timeline clips require an active timeline");
+                let clip_id = clip.id;
+                TextClipComponent {
+                    clip: clip.clone(),
+                    frame_rate: timeline.data.settings.frame_rate,
+                    pixels_per_second: timeline.data.view.pixels_per_second,
+                    selected: timeline.interaction.selected_clip_ids.contains(&clip_id),
+                    moving: timeline
+                        .interaction
+                        .clip_move_drag
+                        .as_ref()
+                        .is_some_and(|drag| {
+                            drag.changed && drag.items.iter().any(|item| item.clip_id == clip_id)
+                        }),
+                }
+                .into_any_element()
+            }
         }
-    }
-
-    fn text_clip(&self, clip: &Clip, cx: &mut Context<Self>) -> gpui::AnyElement {
-        let label = clip
-            .text()
-            .map(|clip| clip.properties.text.clone())
-            .unwrap_or_else(|| "Text".to_string());
-        let content = div()
-            .absolute()
-            .inset_0()
-            .p_2()
-            .text_xs()
-            .font_weight(gpui::FontWeight::SEMIBOLD)
-            .text_ellipsis()
-            .child(label);
-
-        self.timeline_clip_frame(clip, 0x7251a3, content.into_any_element(), cx)
     }
 
     fn video_clip(&self, clip: &Clip, cx: &mut Context<Self>) -> gpui::AnyElement {

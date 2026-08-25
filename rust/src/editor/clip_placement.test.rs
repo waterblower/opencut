@@ -63,7 +63,7 @@ fn validates_one_clip_placement() {
         Err(ClipPlacementRejection::IncompatibleTrack)
     );
 
-    timeline.clips.push(Clip::Media(MediaClip {
+    timeline.clips.push(Clip::Audio(AudioClip {
         id: ulid(20),
         track_id: ulid(2),
         asset_id: ulid(100),

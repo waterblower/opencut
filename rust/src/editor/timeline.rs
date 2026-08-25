@@ -172,7 +172,7 @@ impl TimelineSerialization {
                 return Err(ClipPlacementRejection::MissingClip);
             };
             match clip {
-                Clip::Media(clip) => {
+                Clip::Video(clip) | Clip::Audio(clip) => {
                     let Some(asset) = self.asset(clip.asset_id) else {
                         return Err(ClipPlacementRejection::MissingAsset);
                     };
@@ -301,7 +301,7 @@ impl TimelineSerialization {
             let new_duration = (previous.rescale_nearest(old_end, frame_rate) - timeline_start)
                 .max(TimelineTime::ONE_FRAME);
             match clip {
-                Clip::Media(clip) => {
+                Clip::Video(clip) | Clip::Audio(clip) => {
                     clip.source_in = previous.rescale_nearest(clip.source_in, frame_rate);
                     clip.source_out = clip.source_in + new_duration;
                 }
@@ -333,7 +333,8 @@ impl TimelineSerialization {
             let is_invalid = track.is_none()
                 || match (track.map(|track| track.kind), clip) {
                     (Some(TrackKind::Text), Clip::Text(_)) => false,
-                    (Some(TrackKind::Video | TrackKind::Audio), Clip::Media(clip)) => {
+                    (Some(TrackKind::Video), Clip::Video(clip))
+                    | (Some(TrackKind::Audio), Clip::Audio(clip)) => {
                         !self.assets.iter().any(|asset| asset.id == clip.asset_id)
                     }
                     (Some(_), _) => true,
@@ -341,7 +342,7 @@ impl TimelineSerialization {
                 }
                 || clip.timeline_start() < TimelineTime::ZERO
                 || match clip {
-                    Clip::Media(clip) => {
+                    Clip::Video(clip) | Clip::Audio(clip) => {
                         clip.source_in < TimelineTime::ZERO
                             || clip.source_out - clip.source_in < TimelineTime::ONE_FRAME
                     }
@@ -350,7 +351,7 @@ impl TimelineSerialization {
             !is_invalid
         });
         for clip in &mut self.clips {
-            let Clip::Media(clip) = clip else {
+            let Some(clip) = clip.media_mut() else {
                 continue;
             };
             if let Some(asset) = self.assets.iter().find(|asset| asset.id == clip.asset_id) {
@@ -697,7 +698,23 @@ fn deserialize_timeline(contents: &str) -> Result<TimelineSerialization, serde_j
             );
         }
     }
-    serde_json::from_value(value)
+    let mut timeline = serde_json::from_value::<TimelineSerialization>(value)?;
+    for clip in &mut timeline.clips {
+        let track_kind = timeline
+            .tracks
+            .iter()
+            .find(|track| track.id == clip.track_id())
+            .map(|track| track.kind);
+        let replacement = match (track_kind, &*clip) {
+            (Some(TrackKind::Audio), Clip::Video(data)) => Some(Clip::Audio(data.clone())),
+            (Some(TrackKind::Video), Clip::Audio(data)) => Some(Clip::Video(data.clone())),
+            _ => None,
+        };
+        if let Some(replacement) = replacement {
+            *clip = replacement;
+        }
+    }
+    Ok(timeline)
 }
 
 #[cfg(test)]

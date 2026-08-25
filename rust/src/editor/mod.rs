@@ -72,8 +72,10 @@ use timeline::{
     FRAME_RATE_PRESETS, FrameRate, TimelineRuntimeState, TimelineSerialization, TimelineTime,
     timeline_ranges_overlap,
 };
+#[cfg(test)]
+use timeline_clip::AudioClip;
 use timeline_clip::{
-    AudioClipProperties, Clip, MediaClip, TextClip, TextClipProperties, VideoClipProperties,
+    AudioClipProperties, Clip, TextClip, TextClipProperties, VideoClip, VideoClipProperties,
 };
 use timeline_clip_menu::TimelineClipContextMenu;
 use timeline_document::{load_existing_timeline, project_timeline_files};

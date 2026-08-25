@@ -776,6 +776,12 @@ impl Editor {
             return;
         };
         let duration = timeline.data.ceil_time(asset.duration);
+        let track_kind = timeline
+            .data
+            .tracks
+            .iter()
+            .find(|track| track.id == track_id)
+            .map(|track| track.kind);
         let (start, _) = timeline.snap_clip_start_ignoring(raw_start, duration, &HashSet::new());
         if let Err(rejection) = validate_clip_placement(
             &timeline.data,
@@ -810,7 +816,7 @@ impl Editor {
             (asset_id, vec![asset])
         };
         let clip_id = Ulid::generate();
-        let media_clip = Clip::Media(MediaClip {
+        let media_clip = VideoClip {
             id: clip_id,
             track_id,
             asset_id,
@@ -819,7 +825,12 @@ impl Editor {
             source_out: duration,
             video_properties: VideoClipProperties::default(),
             audio_properties: AudioClipProperties::default(),
-        });
+        };
+        let media_clip = match track_kind {
+            Some(TrackKind::Video) => Clip::Video(media_clip),
+            Some(TrackKind::Audio) => Clip::Audio(media_clip),
+            _ => return,
+        };
 
         edit_and_rebuild_timeline(
             &mut self.preview,

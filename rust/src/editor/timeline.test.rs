@@ -147,7 +147,7 @@ impl TimelineSerialization {
 }
 
 fn video_clip(id: u64, start: i64, duration: i64) -> Clip {
-    Clip::Media(MediaClip {
+    Clip::Video(VideoClip {
         id: ulid(id),
         track_id: ulid(1),
         asset_id: ulid(100),
@@ -674,7 +674,7 @@ fn timeline_serialization_stores_integer_frames_and_rational_rate() {
     assert_eq!(json["settings"]["frame_rate"]["numerator"], 30);
     assert_eq!(json["settings"]["frame_rate"]["denominator"], 1);
     assert_eq!(json["assets"][0]["id"], ulid(100).to_string());
-    assert_eq!(json["clips"][0]["kind"], "Media");
+    assert_eq!(json["clips"][0]["kind"], "Video");
     assert_eq!(json["clips"][0]["data"]["id"], ulid(10).to_string());
     assert_eq!(json["clips"][0]["data"]["track_id"], ulid(1).to_string());
     assert_eq!(json["clips"][0]["data"]["asset_id"], ulid(100).to_string());

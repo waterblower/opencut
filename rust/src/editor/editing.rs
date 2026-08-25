@@ -89,7 +89,7 @@ impl ClipClipboard {
                             .rescale_nearest(relative_start, frame_rate),
                 );
                 match &mut clip {
-                    Clip::Media(clip) => {
+                    Clip::Video(clip) | Clip::Audio(clip) => {
                         clip.source_in = self
                             .source_frame_rate
                             .rescale_nearest(clip.source_in, frame_rate);
@@ -886,7 +886,7 @@ fn validate_clips_placements(
     }
     for clip in clips {
         match clip {
-            Clip::Media(clip) => {
+            Clip::Video(clip) | Clip::Audio(clip) => {
                 let Some(asset) = timeline.asset(clip.asset_id) else {
                     return Err(ClipPlacementRejection::MissingAsset);
                 };

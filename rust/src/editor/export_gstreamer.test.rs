@@ -8,7 +8,7 @@ use super::super::{
     tests::{lock_gstreamer_test, ulid},
     timeline::TimelineTime,
     timeline_clip::{
-        AudioClipProperties, MediaClip, TextClip, TextClipProperties, VideoClipProperties,
+        AudioClipProperties, TextClip, TextClipProperties, VideoClip, VideoClipProperties,
     },
     track::Track,
 };
@@ -73,7 +73,7 @@ pub(super) fn export_mini_fixture(encoder: ExportEncoder, output_name: &str) {
         asset.path = source_path.strip_prefix(&project_root).unwrap().into();
         let duration = project.ceil_time(asset.duration);
         project.assets.push(asset);
-        project.clips.push(Clip::Media(MediaClip {
+        project.clips.push(Clip::Video(VideoClip {
             id: clip_id,
             track_id: video_track,
             asset_id,
@@ -114,7 +114,7 @@ fn video_track_exports_visible_video_and_unmuted_audio() {
         .iter()
         .find(|track| track.kind == TrackKind::Video)
         .unwrap();
-    let clip = Clip::Media(MediaClip {
+    let clip = Clip::Video(VideoClip {
         id: ulid(1),
         track_id: track.id,
         asset_id: ulid(2),
@@ -138,7 +138,7 @@ fn hidden_video_track_can_still_export_audio() {
         .find(|track| track.kind == TrackKind::Video)
         .unwrap();
     track.visible = false;
-    let clip = Clip::Media(MediaClip {
+    let clip = Clip::Video(VideoClip {
         id: ulid(1),
         track_id: track.id,
         asset_id: ulid(2),
@@ -233,7 +233,7 @@ fn creates_gstreamer_timeline_from_real_media() {
         position_y: -60.0,
         scale: 0.5,
     };
-    project.clips.push(Clip::Media(MediaClip {
+    project.clips.push(Clip::Video(VideoClip {
         id: ulid(11),
         track_id: video_track,
         asset_id: ulid(10),
@@ -382,7 +382,7 @@ fn hidden_and_muted_tracks_keep_their_duration_as_black_video() {
         codec: "h264".into(),
         has_audio: true,
     });
-    project.clips.push(Clip::Media(MediaClip {
+    project.clips.push(Clip::Video(VideoClip {
         id: ulid(11),
         track_id,
         asset_id: ulid(10),
@@ -443,7 +443,7 @@ fn exports_real_media_with_audio() {
         codec: "h264".into(),
         has_audio: true,
     });
-    project.clips.push(Clip::Media(MediaClip {
+    project.clips.push(Clip::Video(VideoClip {
         id: ulid(11),
         track_id: video_track,
         asset_id: ulid(10),
@@ -509,7 +509,7 @@ fn exports_an_image_only_timeline() {
         codec: "png".into(),
         has_audio: false,
     });
-    project.clips.push(Clip::Media(MediaClip {
+    project.clips.push(Clip::Video(VideoClip {
         id: ulid(11),
         track_id: video_track,
         asset_id: ulid(10),
