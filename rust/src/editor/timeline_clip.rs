@@ -4,8 +4,8 @@ use super::{
     timeline::{FrameRate, TimelineTime},
 };
 use gpui::{
-    App, InteractiveElement, IntoElement, MouseButton, MouseDownEvent, ParentElement, RenderOnce,
-    Styled, Window, div, prelude::FluentBuilder, px, rgb,
+    InteractiveElement, IntoElement, ParentElement, StatefulInteractiveElement, Styled, div, px,
+    rgb,
 };
 use serde::{Deserialize, Serialize};
 use std::time::Duration;
@@ -333,6 +333,44 @@ impl<'de> Deserialize<'de> for Clip {
     }
 }
 
+pub(super) fn text_clip_component(
+    clip: TextClip,
+    frame_rate: FrameRate,
+    pixels_per_second: f32,
+    selected: bool,
+    moving: bool,
+) -> impl StatefulInteractiveElement + IntoElement {
+    let clip_id = clip.id;
+    let left =
+        TIMELINE_PADDING + frame_rate.seconds(clip.timeline_start) as f32 * pixels_per_second;
+    let width =
+        (frame_rate.seconds(clip.frame_length(frame_rate)) as f32 * pixels_per_second).max(4.0);
+
+    div()
+        .id(gpui::SharedString::from(format!("timeline-clip-{clip_id}")))
+        .absolute()
+        .left(px(left))
+        .top(px(5.0))
+        .w(px(width))
+        .h(px(TRACK_HEIGHT - 10.0))
+        .overflow_hidden()
+        .rounded_md()
+        .border_1()
+        .border_color(rgb(if selected { ACCENT } else { 0x8261b3 }))
+        .bg(rgb(0x7251a3))
+        .opacity(if moving { 0.3 } else { 1.0 })
+        .child(
+            div()
+                .absolute()
+                .inset_0()
+                .p_2()
+                .text_xs()
+                .font_weight(gpui::FontWeight::SEMIBOLD)
+                .text_ellipsis()
+                .child(clip.properties.text),
+        )
+}
+
 #[derive(Deserialize)]
 struct FrameLengthTextClip {
     #[serde(deserialize_with = "deserialize_ulid")]
@@ -361,83 +399,4 @@ struct LegacyClip {
     audio_properties: AudioClipProperties,
     #[serde(default)]
     text_properties: Option<TextClipProperties>,
-}
-
-#[derive(IntoElement)]
-pub struct TextClipComponent {
-    clip: TextClip,
-    frame_rate: FrameRate,
-    pixels_per_second: f32,
-    selected: bool,
-    moving: bool,
-    drag_handler: Option<Box<dyn Fn(&MouseDownEvent, &mut Window, &mut App)>>,
-}
-
-impl TextClipComponent {
-    pub(super) fn new(
-        clip: TextClip,
-        frame_rate: FrameRate,
-        pixels_per_second: f32,
-        selected: bool,
-        moving: bool,
-    ) -> Self {
-        Self {
-            clip,
-            frame_rate,
-            pixels_per_second,
-            selected,
-            moving,
-            drag_handler: None,
-        }
-    }
-
-    pub(super) fn on_drag(
-        mut self,
-        handler: impl Fn(&MouseDownEvent, &mut Window, &mut App) + 'static,
-    ) -> Self {
-        self.drag_handler = Some(Box::new(handler));
-        self
-    }
-}
-
-impl RenderOnce for TextClipComponent {
-    fn render(self, _window: &mut Window, _cx: &mut App) -> impl IntoElement {
-        let clip_id = self.clip.id;
-        let left = TIMELINE_PADDING
-            + self.frame_rate.seconds(self.clip.timeline_start) as f32 * self.pixels_per_second;
-        let width = (self
-            .frame_rate
-            .seconds(self.clip.frame_length(self.frame_rate)) as f32
-            * self.pixels_per_second)
-            .max(4.0);
-
-        div()
-            .id(gpui::SharedString::from(format!("timeline-clip-{clip_id}")))
-            .absolute()
-            .left(px(left))
-            .top(px(5.0))
-            .w(px(width))
-            .h(px(TRACK_HEIGHT - 10.0))
-            .overflow_hidden()
-            .rounded_md()
-            .border_1()
-            .border_color(rgb(if self.selected { ACCENT } else { 0x8261b3 }))
-            .bg(rgb(0x7251a3))
-            .opacity(if self.moving { 0.3 } else { 1.0 })
-            .when_some(self.drag_handler, |this, handler| {
-                this.on_mouse_down(MouseButton::Left, move |event, window, cx| {
-                    handler(event, window, cx);
-                })
-            })
-            .child(
-                div()
-                    .absolute()
-                    .inset_0()
-                    .p_2()
-                    .text_xs()
-                    .font_weight(gpui::FontWeight::SEMIBOLD)
-                    .text_ellipsis()
-                    .child(self.clip.properties.text),
-            )
-    }
 }

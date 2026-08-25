@@ -1,5 +1,5 @@
 use super::*;
-use crate::{asset::IconName, editor::timeline_clip::TextClipComponent};
+use crate::{asset::IconName, editor::timeline_clip::text_clip_component};
 use gpui::{Bounds, canvas, fill, point, rgba, size};
 use std::sync::Arc;
 
@@ -333,17 +333,20 @@ impl Editor {
                     .is_some_and(|drag| {
                         drag.changed && drag.items.iter().any(|item| item.clip_id == clip_id)
                     });
-                TextClipComponent::new(
+                text_clip_component(
                     clip.clone(),
                     timeline.data.settings.frame_rate,
                     timeline.data.view.pixels_per_second,
                     timeline.interaction.selected_clip_ids.contains(&clip_id),
                     moving,
                 )
-                .on_drag(cx.listener(move |editor, event, _, cx| {
-                    editor.handle_clip_mouse_down(clip_id, event, cx);
-                    cx.notify();
-                }))
+                .on_mouse_down(
+                    MouseButton::Left,
+                    cx.listener(move |editor, event, _, cx| {
+                        editor.handle_clip_mouse_down(clip_id, event, cx);
+                        cx.notify();
+                    }),
+                )
                 .into_any_element()
             }
         }
