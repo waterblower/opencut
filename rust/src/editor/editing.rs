@@ -1081,12 +1081,17 @@ pub(super) fn edit_timeline(
             timeline
                 .data
                 .validate_clip_move_placements(&placements, &moved_clip_ids)?;
+            let t = Instant::now();
+            ges_move_clips(&timeline.ges_timeline, &timeline.data, &placements)?;
+            eprintln!("ges_move_clips {:?}", t.elapsed());
+
             for (clip_id, track_id, start) in placements {
                 if let Some(clip) = timeline.data.clip_mut(clip_id) {
                     clip.set_timeline_start(start);
                     clip.set_track_id(track_id);
                 }
             }
+            return Ok(false);
         }
         EditAction::SetVideoProperties {
             clip_ids,
@@ -1218,6 +1223,93 @@ impl From<String> for EditError {
     fn from(error: String) -> Self {
         Self::Preview(error)
     }
+}
+
+fn ges_move_clips(
+    ges: &gstreamer_editing_services::Timeline,
+    timeline: &TimelineSerialization,
+    placements: &[(Ulid, Ulid, TimelineTime)],
+) -> Result<(), String> {
+    use gstreamer_editing_services::prelude::*;
+
+    if placements.is_empty() {
+        return Ok(());
+    }
+
+    let layers = ges.layers();
+    let ordered_tracks = timeline
+        .tracks
+        .iter()
+        .filter(|track| track.kind == TrackKind::Text)
+        .chain(
+            timeline
+                .tracks
+                .iter()
+                .filter(|track| track.kind != TrackKind::Text),
+        )
+        .collect::<Vec<_>>();
+    let clips_by_name = layers
+        .iter()
+        .flat_map(|layer| layer.clips())
+        .filter_map(|clip| Some((clip.name()?.to_string(), clip)))
+        .collect::<HashMap<_, _>>();
+    let clock_time = |time| {
+        let duration = timeline.duration(time);
+        gstreamer::ClockTime::from_nseconds(duration.as_nanos().min(u64::MAX as u128) as u64)
+    };
+
+    for (clip_id, track_id, start) in placements {
+        let layer_index = ordered_tracks
+            .iter()
+            .position(|track| track.id == *track_id)
+            .ok_or_else(|| format!("Track {track_id} has no GES layer."))?;
+        if layers.get(layer_index).is_none() {
+            return Err(format!("Track {track_id} has no GES layer."));
+        }
+        let clip_name = format!("opencut-clip-{clip_id}");
+        let Some(clip) = clips_by_name.get(&clip_name) else {
+            continue;
+        };
+        clip.edit_full(
+            layer_index as i64,
+            gstreamer_editing_services::EditMode::Normal,
+            gstreamer_editing_services::Edge::None,
+            clock_time(*start).nseconds(),
+        )
+        .map_err(|error| format!("could not move GES clip {clip_id}: {error}"))?;
+    }
+
+    let placements_by_clip = placements
+        .iter()
+        .map(|(clip_id, _, start)| (*clip_id, *start))
+        .collect::<HashMap<_, _>>();
+    let content_duration = timeline
+        .clips
+        .iter()
+        .map(|clip| {
+            placements_by_clip
+                .get(&clip.id())
+                .copied()
+                .unwrap_or_else(|| clip.timeline_start())
+                + clip.frame_length(timeline.settings.frame_rate)
+        })
+        .max()
+        .map(clock_time)
+        .unwrap_or(gstreamer::ClockTime::ZERO);
+    if let Some(background) = layers
+        .iter()
+        .flat_map(|layer| layer.clips())
+        .find(|clip| clip.name().as_deref() == Some("opencut-black-background"))
+        && !background.set_duration(content_duration)
+    {
+        return Err("could not update the GES timeline background duration".to_string());
+    }
+    let i = Instant::now();
+    if !ges.commit_sync() {
+        return Err("GStreamer could not commit the moved clips.".to_string());
+    }
+    eprintln!("ges_move_clips commit_sync {:?}", i.elapsed());
+    Ok(())
 }
 
 // change the text of a text clip in the ges timeline

@@ -209,3 +209,61 @@ fn select_all_excludes_clips_on_locked_tracks() {
 
     assert_eq!(unlocked_clip_ids(&project), HashSet::from([ulid(11)]));
 }
+
+#[test]
+fn moves_ges_clip_without_rebuilding_timeline() {
+    use gstreamer_editing_services::prelude::*;
+
+    let _gstreamer_test = crate::editor::tests::lock_gstreamer_test();
+    gstreamer_editing_services::init().unwrap();
+    let track_id = ulid(3);
+    let clip_id = ulid(10);
+    let mut project = TimelineSerialization {
+        tracks: vec![Track {
+            id: track_id,
+            name: "Text 1".to_string(),
+            kind: TrackKind::Text,
+            locked: false,
+            muted: false,
+            visible: true,
+        }],
+        clips: vec![Clip::Text(TextClip {
+            id: clip_id,
+            track_id,
+            timeline_start: TimelineTime::ZERO,
+            length: Duration::from_secs(2),
+            properties: TextClipProperties::default(),
+        })],
+        ..TimelineSerialization::default()
+    };
+    let ges = build_ges_timeline(
+        &project,
+        Path::new(env!("CARGO_MANIFEST_DIR")),
+        export::ExportOptions::from_timeline(&project),
+    )
+    .unwrap();
+    let start = TimelineTime::from_frames(45);
+
+    ges_move_clips(&ges, &project, &[(clip_id, track_id, start)]).unwrap();
+    project.clips[0].set_timeline_start(start);
+
+    let clip = ges
+        .layers()
+        .into_iter()
+        .flat_map(|layer| layer.clips())
+        .find(|clip| clip.name().as_deref() == Some(format!("opencut-clip-{clip_id}").as_str()))
+        .unwrap();
+    let expected_start = project.duration(start);
+    assert_eq!(clip.start().nseconds(), expected_start.as_nanos() as u64);
+
+    let background = ges
+        .layers()
+        .into_iter()
+        .flat_map(|layer| layer.clips())
+        .find(|clip| clip.name().as_deref() == Some("opencut-black-background"))
+        .unwrap();
+    assert_eq!(
+        background.duration().nseconds(),
+        project.duration(project.content_duration()).as_nanos() as u64
+    );
+}
