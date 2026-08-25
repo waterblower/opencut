@@ -4,7 +4,8 @@ use super::{
     timeline::{FrameRate, TimelineTime},
 };
 use gpui::{
-    App, InteractiveElement, IntoElement, ParentElement, RenderOnce, Styled, Window, div, px, rgb,
+    App, InteractiveElement, IntoElement, MouseButton, MouseDownEvent, ParentElement, RenderOnce,
+    Styled, Window, div, prelude::FluentBuilder, px, rgb,
 };
 use serde::{Deserialize, Serialize};
 use std::time::Duration;
@@ -364,11 +365,39 @@ struct LegacyClip {
 
 #[derive(IntoElement)]
 pub struct TextClipComponent {
-    pub(super) clip: TextClip,
-    pub(super) frame_rate: FrameRate,
-    pub(super) pixels_per_second: f32,
-    pub(super) selected: bool,
-    pub(super) moving: bool,
+    clip: TextClip,
+    frame_rate: FrameRate,
+    pixels_per_second: f32,
+    selected: bool,
+    moving: bool,
+    drag_handler: Option<Box<dyn Fn(&MouseDownEvent, &mut Window, &mut App)>>,
+}
+
+impl TextClipComponent {
+    pub(super) fn new(
+        clip: TextClip,
+        frame_rate: FrameRate,
+        pixels_per_second: f32,
+        selected: bool,
+        moving: bool,
+    ) -> Self {
+        Self {
+            clip,
+            frame_rate,
+            pixels_per_second,
+            selected,
+            moving,
+            drag_handler: None,
+        }
+    }
+
+    pub(super) fn on_drag(
+        mut self,
+        handler: impl Fn(&MouseDownEvent, &mut Window, &mut App) + 'static,
+    ) -> Self {
+        self.drag_handler = Some(Box::new(handler));
+        self
+    }
 }
 
 impl RenderOnce for TextClipComponent {
@@ -395,6 +424,11 @@ impl RenderOnce for TextClipComponent {
             .border_color(rgb(if self.selected { ACCENT } else { 0x8261b3 }))
             .bg(rgb(0x7251a3))
             .opacity(if self.moving { 0.3 } else { 1.0 })
+            .when_some(self.drag_handler, |this, handler| {
+                this.on_mouse_down(MouseButton::Left, move |event, window, cx| {
+                    handler(event, window, cx);
+                })
+            })
             .child(
                 div()
                     .absolute()

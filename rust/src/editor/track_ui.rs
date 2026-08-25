@@ -326,19 +326,24 @@ impl Editor {
                     .as_ref()
                     .expect("timeline clips require an active timeline");
                 let clip_id = clip.id;
-                TextClipComponent {
-                    clip: clip.clone(),
-                    frame_rate: timeline.data.settings.frame_rate,
-                    pixels_per_second: timeline.data.view.pixels_per_second,
-                    selected: timeline.interaction.selected_clip_ids.contains(&clip_id),
-                    moving: timeline
-                        .interaction
-                        .clip_move_drag
-                        .as_ref()
-                        .is_some_and(|drag| {
-                            drag.changed && drag.items.iter().any(|item| item.clip_id == clip_id)
-                        }),
-                }
+                let moving = timeline
+                    .interaction
+                    .clip_move_drag
+                    .as_ref()
+                    .is_some_and(|drag| {
+                        drag.changed && drag.items.iter().any(|item| item.clip_id == clip_id)
+                    });
+                TextClipComponent::new(
+                    clip.clone(),
+                    timeline.data.settings.frame_rate,
+                    timeline.data.view.pixels_per_second,
+                    timeline.interaction.selected_clip_ids.contains(&clip_id),
+                    moving,
+                )
+                .on_drag(cx.listener(move |editor, event, _, cx| {
+                    editor.handle_clip_mouse_down(clip_id, event, cx);
+                    cx.notify();
+                }))
                 .into_any_element()
             }
         }
