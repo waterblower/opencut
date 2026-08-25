@@ -1294,14 +1294,21 @@ fn ges_move_clips(
         .collect::<Vec<_>>();
     let clips_by_name = layers
         .iter()
-        .flat_map(|layer| layer.clips())
-        .filter_map(|clip| Some((clip.name()?.to_string(), clip)))
+        .enumerate()
+        .flat_map(|(layer_index, layer)| {
+            layer
+                .clips()
+                .into_iter()
+                .map(move |clip| (layer_index, clip))
+        })
+        .filter_map(|(layer_index, clip)| Some((clip.name()?.to_string(), (layer_index, clip))))
         .collect::<HashMap<_, _>>();
     let clock_time = |time| {
         let duration = timeline.duration(time);
         gstreamer::ClockTime::from_nseconds(duration.as_nanos().min(u64::MAX as u128) as u64)
     };
 
+    let mut moves = Vec::new();
     for (clip_id, track_id, start) in placements {
         let layer_index = ordered_tracks
             .iter()
@@ -1311,14 +1318,51 @@ fn ges_move_clips(
             return Err(format!("Track {track_id} has no GES layer."));
         }
         let clip_name = format!("opencut-clip-{clip_id}");
-        let Some(clip) = clips_by_name.get(&clip_name) else {
+        let Some((original_layer_index, clip)) = clips_by_name.get(&clip_name) else {
             continue;
         };
+        moves.push((
+            *clip_id,
+            clip.clone(),
+            *original_layer_index,
+            layer_index,
+            clock_time(*start),
+        ));
+    }
+
+    if moves.len() > 1 {
+        let parking_gap = clock_time(TimelineTime::ONE_FRAME).nseconds().max(1);
+        let mut parking_start = layers
+            .iter()
+            .flat_map(|layer| layer.clips())
+            .map(|clip| {
+                clip.start()
+                    .nseconds()
+                    .saturating_add(clip.duration().nseconds())
+            })
+            .max()
+            .unwrap_or(0)
+            .saturating_add(parking_gap);
+        for (clip_id, clip, original_layer_index, _, _) in &moves {
+            clip.edit_full(
+                *original_layer_index as i64,
+                gstreamer_editing_services::EditMode::Normal,
+                gstreamer_editing_services::Edge::None,
+                parking_start,
+            )
+            .map_err(|error| format!("could not stage GES clip {clip_id}: {error}"))?;
+            parking_start = parking_start
+                .saturating_add(clip.duration().nseconds())
+                .saturating_add(parking_gap);
+        }
+    }
+
+    for (clip_id, clip, _, layer_index, start) in &moves {
         clip.edit_full(
-            layer_index as i64,
+            *layer_index as i64,
             gstreamer_editing_services::EditMode::Normal,
             gstreamer_editing_services::Edge::None,
-            clock_time(*start).nseconds(),
+            start.nseconds(),
         )
         .map_err(|error| format!("could not move GES clip {clip_id}: {error}"))?;
     }

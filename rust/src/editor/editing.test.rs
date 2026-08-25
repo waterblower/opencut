@@ -270,6 +270,78 @@ fn moves_ges_clip_without_rebuilding_timeline() {
 }
 
 #[test]
+fn moves_adjacent_ges_clips_together_without_transient_overlap() {
+    use gstreamer_editing_services::prelude::*;
+
+    let _gstreamer_test = crate::editor::tests::lock_gstreamer_test();
+    gstreamer_editing_services::init().unwrap();
+    let track_id = ulid(3);
+    let first_clip_id = ulid(10);
+    let second_clip_id = ulid(11);
+    let mut project = TimelineSerialization {
+        tracks: vec![Track {
+            id: track_id,
+            name: "Text 1".to_string(),
+            kind: TrackKind::Text,
+            locked: false,
+            muted: false,
+            visible: true,
+        }],
+        clips: vec![
+            Clip::Text(TextClip {
+                id: first_clip_id,
+                track_id,
+                timeline_start: TimelineTime::ZERO,
+                length: Duration::from_secs(2),
+                properties: TextClipProperties::default(),
+            }),
+            Clip::Text(TextClip {
+                id: second_clip_id,
+                track_id,
+                timeline_start: TimelineTime::from_frames(60),
+                length: Duration::from_secs(2),
+                properties: TextClipProperties::default(),
+            }),
+        ],
+        ..TimelineSerialization::default()
+    };
+    let ges = build_ges_timeline(
+        &project,
+        Path::new(env!("CARGO_MANIFEST_DIR")),
+        export::ExportOptions::from_timeline(&project),
+    )
+    .unwrap();
+    let placements = [
+        (first_clip_id, track_id, TimelineTime::from_frames(60)),
+        (second_clip_id, track_id, TimelineTime::from_frames(120)),
+    ];
+
+    ges_move_clips(&ges, &project, &placements).unwrap();
+    for (clip_id, _, start) in placements {
+        project.clip_mut(clip_id).unwrap().set_timeline_start(start);
+    }
+
+    let starts = ges
+        .layers()
+        .into_iter()
+        .flat_map(|layer| layer.clips())
+        .filter_map(|clip| {
+            let name = clip.name()?;
+            let id = name.strip_prefix("opencut-clip-")?.parse::<Ulid>().ok()?;
+            Some((id, clip.start()))
+        })
+        .collect::<HashMap<_, _>>();
+    assert_eq!(
+        starts[&first_clip_id].nseconds(),
+        project.duration(TimelineTime::from_frames(60)).as_nanos() as u64
+    );
+    assert_eq!(
+        starts[&second_clip_id].nseconds(),
+        project.duration(TimelineTime::from_frames(120)).as_nanos() as u64
+    );
+}
+
+#[test]
 fn detects_timeline_and_ges_data_divergence() {
     let _gstreamer_test = crate::editor::tests::lock_gstreamer_test();
     gstreamer_editing_services::init().unwrap();
