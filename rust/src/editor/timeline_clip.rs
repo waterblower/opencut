@@ -309,27 +309,9 @@ impl<'de> Deserialize<'de> for Clip {
                 .map_err(serde::de::Error::custom);
         }
 
-        let clip = serde_json::from_value::<LegacyClip>(value).map_err(serde::de::Error::custom)?;
-        Ok(if let Some(text) = clip.text_properties {
-            Self::Text(TextClip {
-                id: clip.id,
-                track_id: clip.track_id,
-                timeline_start: clip.timeline_start,
-                length: FrameRate::default().duration(clip.source_out - clip.source_in),
-                properties: text,
-            })
-        } else {
-            Self::Video(VideoClip {
-                id: clip.id,
-                track_id: clip.track_id,
-                asset_id: clip.asset_id,
-                timeline_start: clip.timeline_start,
-                source_in: clip.source_in,
-                source_out: clip.source_out,
-                video_properties: clip.video_properties,
-                audio_properties: clip.audio_properties,
-            })
-        })
+        Err(serde::de::Error::custom(
+            "clip must use the tagged Video, Audio, or Text format",
+        ))
     }
 }
 
@@ -380,23 +362,4 @@ struct FrameLengthTextClip {
     timeline_start: TimelineTime,
     length: TimelineTime,
     text: TextClipProperties,
-}
-
-#[derive(Deserialize)]
-struct LegacyClip {
-    #[serde(deserialize_with = "deserialize_ulid")]
-    id: Ulid,
-    #[serde(deserialize_with = "deserialize_ulid")]
-    track_id: Ulid,
-    #[serde(default = "Ulid::nil", deserialize_with = "deserialize_ulid")]
-    asset_id: Ulid,
-    timeline_start: TimelineTime,
-    source_in: TimelineTime,
-    source_out: TimelineTime,
-    #[serde(default)]
-    video_properties: VideoClipProperties,
-    #[serde(default)]
-    audio_properties: AudioClipProperties,
-    #[serde(default)]
-    text_properties: Option<TextClipProperties>,
 }

@@ -702,8 +702,8 @@ fn clip_properties_have_neutral_defaults() {
 }
 
 #[test]
-fn clips_without_property_objects_deserialize_with_defaults() {
-    let legacy = serde_json::json!({
+fn untagged_media_clip_is_rejected() {
+    let value = serde_json::json!({
         "id": 10,
         "track_id": 1,
         "asset_id": 100,
@@ -711,19 +711,13 @@ fn clips_without_property_objects_deserialize_with_defaults() {
         "source_in": 0,
         "source_out": 30
     });
-    let clip = serde_json::from_value::<Clip>(legacy).unwrap();
 
-    assert_eq!(clip.id(), ulid(10));
-    assert_eq!(clip.track_id(), ulid(1));
-    let clip = clip.media().unwrap();
-    assert_eq!(clip.asset_id, ulid(100));
-    assert_eq!(clip.video_properties, VideoClipProperties::default());
-    assert_eq!(clip.audio_properties, AudioClipProperties::default());
+    assert!(serde_json::from_value::<Clip>(value).is_err());
 }
 
 #[test]
-fn legacy_text_clip_deserializes_as_text_variant() {
-    let legacy = serde_json::json!({
+fn text_properties_clip_is_rejected() {
+    let value = serde_json::json!({
         "id": 10,
         "track_id": 3,
         "asset_id": 0,
@@ -735,13 +729,7 @@ fn legacy_text_clip_deserializes_as_text_variant() {
         }
     });
 
-    let clip = serde_json::from_value::<Clip>(legacy).unwrap();
-    let text = clip.text().unwrap();
-    assert_eq!(
-        text.frame_length(FrameRate::default()),
-        TimelineTime::from_frames(90)
-    );
-    assert_eq!(text.properties.text, "Legacy title");
+    assert!(serde_json::from_value::<Clip>(value).is_err());
 }
 
 #[test]
