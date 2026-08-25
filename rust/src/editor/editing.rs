@@ -998,13 +998,43 @@ pub(super) enum EditAction {
     },
 }
 
+impl EditAction {
+    fn kind(&self) -> &'static str {
+        match self {
+            Self::AddClips { .. } => "AddClips",
+            Self::RemoveClips { .. } => "RemoveClips",
+            Self::MoveClips { .. } => "MoveClips",
+            Self::SetVideoProperties { .. } => "SetVideoProperties",
+            Self::SetTextProperties { .. } => "SetTextProperties",
+            Self::SetTextLength { .. } => "SetTextLength",
+            Self::AddTrack { .. } => "AddTrack",
+            Self::DeleteTrack { .. } => "DeleteTrack",
+            Self::MoveTrack { .. } => "MoveTrack",
+            Self::ToggleTrackVisibility { .. } => "ToggleTrackVisibility",
+            Self::ToggleTrackMute { .. } => "ToggleTrackMute",
+            Self::ToggleTrackLock { .. } => "ToggleTrackLock",
+            Self::SetFrameRate { .. } => "SetFrameRate",
+            Self::SetSavedPlayhead { .. } => "SetSavedPlayhead",
+            Self::SetScroll { .. } => "SetScroll",
+            Self::SetTimelineZoom { .. } => "SetTimelineZoom",
+            Self::SetSnapping { .. } => "SetSnapping",
+            Self::SetTrackMagnet { .. } => "SetTrackMagnet",
+            Self::UpdateAssetPaths { .. } => "UpdateAssetPaths",
+            Self::ReplaceTimeline { .. } => "ReplaceTimeline",
+        }
+    }
+}
+
 pub(super) fn edit_and_rebuild_timeline(
     preview: &mut PreviewState,
     project_root: &Path,
     timeline: &mut TimelineRuntimeState,
     action: EditAction,
 ) -> Result<(), EditError> {
+    let action_type = action.kind();
+    let t = Instant::now();
     let rebuild_timeline = edit_timeline(timeline, project_root, action)?;
+    eprintln!("edit_timeline {action_type} - {:?}", t.elapsed());
     data_parity_check(&timeline, &timeline.ges_timeline)?;
 
     if !rebuild_timeline {
@@ -1381,7 +1411,7 @@ fn ges_change_text_clip(
     {
         return Err("could not update the GES timeline background duration".to_string());
     }
-    if !ges.commit_sync() {
+    if !ges.commit() {
         return Err("GStreamer could not commit the preview text change.".to_string());
     }
     Ok(())
@@ -1450,7 +1480,7 @@ fn ges_remove_clips(
             return Err("could not update the GES timeline background duration".to_string());
         }
     }
-    if !ges.commit_sync() {
+    if !ges.commit() {
         return Err("GStreamer could not commit the removed clips.".to_string());
     }
     Ok(())
@@ -1633,7 +1663,7 @@ fn ges_add_clips(
             .add_clip(&background)
             .map_err(|error| format!("could not add the GES timeline background: {error}"))?;
     }
-    if !ges.commit_sync() {
+    if !ges.commit() {
         return Err("GStreamer could not commit the added clips.".to_string());
     }
     Ok(())
