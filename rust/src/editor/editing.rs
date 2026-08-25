@@ -1305,7 +1305,7 @@ fn ges_move_clips(
         return Err("could not update the GES timeline background duration".to_string());
     }
     let i = Instant::now();
-    if !ges.commit_sync() {
+    if !ges.commit() {
         return Err("GStreamer could not commit the moved clips.".to_string());
     }
     eprintln!("ges_move_clips commit_sync {:?}", i.elapsed());
