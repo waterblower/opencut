@@ -4,9 +4,6 @@ use super::timeline_clip::AudioClip;
 use super::*;
 use std::path::Path;
 
-#[derive(Clone)]
-pub(super) struct PropertiesPanelResizeDrag;
-
 #[allow(dead_code)] // Used by the properties panel v2 implementation once it replaces v1.
 pub(super) enum PropertiesPanelViewable<'a> {
     VideoClip(&'a VideoClip),
@@ -394,49 +391,6 @@ fn video_file(path: &Path) -> gpui::AnyElement {
                 .child(property_field("Path", path.display().to_string())),
         )
         .into_any_element()
-}
-
-fn set_properties_panel_width_from_x(panel: &mut PropertiesPanelState, x: f32, window: &Window) {
-    let viewport_width: f32 = window.viewport_size().width.into();
-    let editor_width = (viewport_width - crate::gpui_inspector::docked_width(window)).max(0.0);
-    let available_max = (editor_width - MEDIA_PANEL_WIDTH - MIN_PREVIEW_WIDTH)
-        .clamp(MIN_PROPERTIES_PANEL_WIDTH, MAX_PROPERTIES_PANEL_WIDTH);
-    panel.width = (editor_width - x).clamp(MIN_PROPERTIES_PANEL_WIDTH, available_max);
-}
-
-impl Editor {
-    pub(super) fn resize_properties_panel_drag(
-        &mut self,
-        event: &DragMoveEvent<PropertiesPanelResizeDrag>,
-        window: &mut Window,
-        cx: &mut Context<Self>,
-    ) {
-        if self.properties.resizing {
-            set_properties_panel_width_from_x(
-                &mut self.properties,
-                event.event.position.x.into(),
-                window,
-            );
-            cx.notify();
-        }
-    }
-
-    pub(super) fn finish_properties_panel_resize(
-        &mut self,
-        event: &MouseUpEvent,
-        window: &mut Window,
-        cx: &mut Context<Self>,
-    ) {
-        if self.properties.resizing && event.button == MouseButton::Left {
-            set_properties_panel_width_from_x(
-                &mut self.properties,
-                event.position.x.into(),
-                window,
-            );
-            self.properties.resizing = false;
-            cx.notify();
-        }
-    }
 }
 
 fn video_clip(clip: &VideoClip) -> gpui::AnyElement {

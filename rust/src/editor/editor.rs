@@ -103,8 +103,6 @@ impl Editor {
             Self::observe_video_transform_inputs(&video_transform_inputs, cx);
 
             PropertiesPanelState {
-                width: DEFAULT_PROPERTIES_PANEL_WIDTH,
-                resizing: false,
                 transform_inputs: video_transform_inputs,
                 transform_input_clip_id: None,
                 text_input_clip_id: None,

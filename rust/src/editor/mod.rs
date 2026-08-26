@@ -22,6 +22,7 @@ mod explorer_filter;
 mod export;
 mod export_dialog;
 pub mod export_gstreamer;
+mod horizontal_split;
 mod media_probe;
 mod model;
 mod preview;
@@ -60,14 +61,16 @@ use explorer::{
 use explorer_filter::ExplorerFilter;
 use export_dialog::ExportDialogState;
 use export_gstreamer::build_ges_timeline;
+use horizontal_split::{
+    HORIZONTAL_SPLIT_DIVIDER_WIDTH, HorizontalSplit, HorizontalSplitConstraints,
+    HorizontalSplitState,
+};
 use media_probe::probe_asset;
 use model::{DEFAULT_IMAGE_CLIP_DURATION, MediaAsset, MediaKind};
 use preview::{PreviewTarget, update_playback};
 use preview_audio::AudioBackend;
 use preview_timeline::TimelinePreviewDrag;
 use project_settings::{load_project_local_settings, save_project_local_settings};
-use properties::PropertiesPanelResizeDrag;
-
 use properties_transform::VideoTransformInputs;
 use timeline::{
     FRAME_RATE_PRESETS, FrameRate, TimelineRuntimeState, TimelineSerialization, TimelineTime,
@@ -89,10 +92,10 @@ use track::{Track, TrackKind};
 use ulid::Ulid;
 use workspace::{GlobalEditorSettings, load_global_editor_settings, save_global_editor_settings};
 
-const MEDIA_PANEL_WIDTH: f32 = 340.0;
+const DEFAULT_MEDIA_PANEL_WIDTH: f32 = 340.0;
 const DEFAULT_PROPERTIES_PANEL_WIDTH: f32 = 420.0;
+const MIN_MEDIA_PANEL_WIDTH: f32 = 220.0;
 const MIN_PROPERTIES_PANEL_WIDTH: f32 = 240.0;
-const MAX_PROPERTIES_PANEL_WIDTH: f32 = 600.0;
 const MIN_PREVIEW_WIDTH: f32 = 320.0;
 const TOPBAR_HEIGHT: f32 = 64.0;
 const TIMELINE_HEIGHT: f32 = 420.0;
@@ -219,8 +222,6 @@ struct PreviewState {
 }
 
 struct PropertiesPanelState {
-    width: f32,
-    resizing: bool,
     transform_inputs: VideoTransformInputs,
     transform_input_clip_id: Option<Ulid>,
     text_input_clip_id: Option<Ulid>,

@@ -234,11 +234,8 @@ impl Editor {
 
         div()
             .id("editor-media-panel")
-            .w(px(MEDIA_PANEL_WIDTH))
+            .w_full()
             .h_full()
-            .flex_shrink_0()
-            .border_r_1()
-            .border_color(rgb(BORDER))
             .bg(rgb(PANEL))
             .child(
                 div()
