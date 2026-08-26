@@ -30,6 +30,7 @@ mod preview_timeline;
 mod preview_video;
 mod project_settings;
 mod properties;
+mod properties_text;
 mod properties_transform;
 mod settings;
 mod timeline;
