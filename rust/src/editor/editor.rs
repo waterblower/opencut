@@ -22,7 +22,8 @@ pub(crate) struct Editor {
 pub(super) enum ContextMenu {
     None,
     File(FileContextMenu),
-    Timeline(TimelineContextMenu),
+    TimelineClip(TimelineClipContextMenu),
+    TextTrack(TextTrackContextMenu),
 }
 
 impl Editor {

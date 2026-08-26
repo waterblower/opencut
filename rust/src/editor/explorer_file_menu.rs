@@ -363,7 +363,9 @@ impl Editor {
         let Some(path) = file_action_path(
             match &self.context_menu {
                 ContextMenu::File(menu) => Some(menu),
-                ContextMenu::None | ContextMenu::Timeline(_) => None,
+                ContextMenu::None | ContextMenu::TimelineClip(_) | ContextMenu::TextTrack(_) => {
+                    None
+                }
             },
             self.explorer.selected_file.as_deref(),
             &self.global_settings.project_root,
@@ -378,7 +380,9 @@ impl Editor {
         let Some(path) = file_action_path(
             match &self.context_menu {
                 ContextMenu::File(menu) => Some(menu),
-                ContextMenu::None | ContextMenu::Timeline(_) => None,
+                ContextMenu::None | ContextMenu::TimelineClip(_) | ContextMenu::TextTrack(_) => {
+                    None
+                }
             },
             self.explorer.selected_file.as_deref(),
             &self.global_settings.project_root,

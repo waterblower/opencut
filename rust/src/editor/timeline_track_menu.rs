@@ -104,13 +104,12 @@ impl Editor {
             .data
             .nearest_time(content_x as f64 / timeline.data.view.pixels_per_second as f64)
             .max(TimelineTime::ZERO);
-        self.context_menu =
-            ContextMenu::Timeline(TimelineContextMenu::TextTrack(TextTrackContextMenu {
-                track_id,
-                position,
-                x: event.position.x.into(),
-                y: event.position.y.into(),
-            }));
+        self.context_menu = ContextMenu::TextTrack(TextTrackContextMenu {
+            track_id,
+            position,
+            x: event.position.x.into(),
+            y: event.position.y.into(),
+        });
         cx.stop_propagation();
         cx.notify();
     }

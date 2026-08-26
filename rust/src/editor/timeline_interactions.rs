@@ -7,11 +7,6 @@ pub(super) enum TimelineTool {
     Blade,
 }
 
-pub(super) enum TimelineContextMenu {
-    Clip(TimelineClipContextMenu),
-    TextTrack(TextTrackContextMenu),
-}
-
 #[derive(Clone)]
 pub(super) struct ClipMoveItem {
     pub(super) clip_id: Ulid,

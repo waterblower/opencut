@@ -130,18 +130,17 @@ impl Editor {
         let Some(_) = self.timeline.as_ref() else {
             return;
         };
-        self.context_menu =
-            ContextMenu::Timeline(TimelineContextMenu::Clip(TimelineClipContextMenu {
-                clip_id,
-                x: event.position.x.into(),
-                y: event.position.y.into(),
-            }));
+        self.context_menu = ContextMenu::TimelineClip(TimelineClipContextMenu {
+            clip_id,
+            x: event.position.x.into(),
+            y: event.position.y.into(),
+        });
         cx.stop_propagation();
         cx.notify();
     }
 
     fn apply_transform_to_track_clips(&mut self) {
-        let ContextMenu::Timeline(TimelineContextMenu::Clip(menu)) =
+        let ContextMenu::TimelineClip(menu) =
             std::mem::replace(&mut self.context_menu, ContextMenu::None)
         else {
             return;

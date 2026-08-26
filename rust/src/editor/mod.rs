@@ -85,9 +85,7 @@ use timeline_clip::{
 };
 use timeline_clip_menu::TimelineClipContextMenu;
 use timeline_document::{load_existing_timeline, project_timeline_files};
-use timeline_interactions::{
-    MarqueeSelection, TimelineContextMenu, TimelineInteractionState, TimelineTool,
-};
+use timeline_interactions::{MarqueeSelection, TimelineInteractionState, TimelineTool};
 use timeline_track_menu::TextTrackContextMenu;
 use timeline_video::create_timeline_video_v2;
 use track::{Track, TrackKind};

@@ -39,10 +39,10 @@ impl Render for Editor {
         let context_menu = match &self.context_menu {
             ContextMenu::None => None,
             ContextMenu::File(menu) => Some(self.file_menu_overlay(menu, editor_viewport, cx)),
-            ContextMenu::Timeline(TimelineContextMenu::Clip(menu)) => {
+            ContextMenu::TimelineClip(menu) => {
                 Some(self.timeline_clip_menu_overlay(menu, editor_viewport, cx))
             }
-            ContextMenu::Timeline(TimelineContextMenu::TextTrack(menu)) => {
+            ContextMenu::TextTrack(menu) => {
                 Some(self.text_track_menu_overlay(menu, editor_viewport, cx))
             }
         };

@@ -225,14 +225,10 @@ impl Editor {
                                     )
                                     .when_some(
                                         match &self.context_menu {
-                                            ContextMenu::Timeline(
-                                                TimelineContextMenu::TextTrack(menu),
-                                            ) => Some(menu.position),
+                                            ContextMenu::TextTrack(menu) => Some(menu.position),
                                             ContextMenu::None
                                             | ContextMenu::File(_)
-                                            | ContextMenu::Timeline(TimelineContextMenu::Clip(_)) => {
-                                                None
-                                            }
+                                            | ContextMenu::TimelineClip(_) => None,
                                         },
                                         |this, position| {
                                             let guide_left = TIMELINE_PADDING
