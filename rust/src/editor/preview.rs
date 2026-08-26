@@ -152,7 +152,6 @@ pub(super) fn update_playback(timeline: &mut TimelineRuntimeState, preview: &mut
     let PreviewTarget::Timeline(video) = &preview.target else {
         return;
     };
-
     let duration = timeline.data.content_duration();
     timeline.playhead = timeline
         .data
