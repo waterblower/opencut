@@ -29,47 +29,36 @@ pub(super) enum PropertiesPanelViewable<'a> {
 }
 
 pub fn current_properties_panel_viewable(editor: &Editor) -> PropertiesPanelViewable<'_> {
-    match &editor.preview.target {
-        PreviewTarget::Timeline(_) => {
-            let Some(timeline) = editor.timeline.as_ref() else {
-                return PropertiesPanelViewable::None;
-            };
-            if timeline.interaction.selected_clip_ids.len() == 1 {
-                let clip_id = *timeline
-                    .interaction
-                    .selected_clip_ids
-                    .iter()
-                    .next()
-                    .expect("one selected clip ID was counted");
-                let Some(clip) = timeline.data.clip(clip_id) else {
-                    return PropertiesPanelViewable::None;
-                };
-                return match clip {
-                    Clip::Video(clip) => PropertiesPanelViewable::VideoClip(clip),
-                    Clip::Audio(clip) => PropertiesPanelViewable::AudioClip(clip),
-                    Clip::Text(clip) => PropertiesPanelViewable::TextClip(clip),
-                };
-            }
-            PropertiesPanelViewable::TimelineFile(&timeline.path)
-        }
-        PreviewTarget::VideoFile(path, _) => PropertiesPanelViewable::VideoFile(path),
-        PreviewTarget::AudioFile(path, _) => PropertiesPanelViewable::AudioFile(path),
-        PreviewTarget::ImageFile(_) => PropertiesPanelViewable::None,
-        PreviewTarget::None => {
-            let Some(path) = editor.explorer.selected_file.as_deref() else {
-                return PropertiesPanelViewable::None;
-            };
-            if explorer::is_video_path(path) {
-                PropertiesPanelViewable::VideoFile(path)
-            } else if explorer::is_audio_path(path) {
-                PropertiesPanelViewable::AudioFile(path)
-            } else if timeline_document::is_timeline_path(path) {
-                PropertiesPanelViewable::TimelineFile(path)
-            } else {
-                PropertiesPanelViewable::None
-            }
-        }
+    if let Some(timeline) = editor.timeline.as_ref()
+        && let Some(clip_id) = timeline.interaction.selected_clip_id
+    {
+        let Some(clip) = timeline.data.clip(clip_id) else {
+            return PropertiesPanelViewable::None;
+        };
+        return match clip {
+            Clip::Video(clip) => PropertiesPanelViewable::VideoClip(clip),
+            Clip::Audio(clip) => PropertiesPanelViewable::AudioClip(clip),
+            Clip::Text(clip) => PropertiesPanelViewable::TextClip(clip),
+        };
     }
+
+    if let Some(path) = editor.explorer.selected_file.as_deref() {
+        if explorer::is_video_path(path) {
+            return PropertiesPanelViewable::VideoFile(path);
+        }
+        if explorer::is_audio_path(path) {
+            return PropertiesPanelViewable::AudioFile(path);
+        }
+        if timeline_document::is_timeline_path(path) {
+            return PropertiesPanelViewable::TimelineFile(path);
+        }
+        return PropertiesPanelViewable::None;
+    }
+
+    let Some(timeline) = editor.timeline.as_ref() else {
+        return PropertiesPanelViewable::None;
+    };
+    PropertiesPanelViewable::TimelineFile(&timeline.path)
 }
 
 #[allow(dead_code)] // Used once properties panel v2 replaces v1.
