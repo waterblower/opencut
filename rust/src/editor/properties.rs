@@ -70,8 +70,8 @@ pub(super) fn properties_panel_v2(data: PropertiesPanelViewable<'_>) -> gpui::An
         PropertiesPanelViewable::TextClip(clip) => text_clip(clip),
         PropertiesPanelViewable::VideoClip(clip) => video_clip(clip),
         PropertiesPanelViewable::AudioClip(clip) => audio_clip(clip),
-        PropertiesPanelViewable::VideoFile(_)
-        | PropertiesPanelViewable::AudioFile(_)
+        PropertiesPanelViewable::VideoFile(file) => video_file(file),
+        PropertiesPanelViewable::AudioFile(_)
         | PropertiesPanelViewable::ImageFile(_)
         | PropertiesPanelViewable::TimelineFile(_) => panic!("not implemented"),
         PropertiesPanelViewable::None => div()
@@ -82,205 +82,205 @@ pub(super) fn properties_panel_v2(data: PropertiesPanelViewable<'_>) -> gpui::An
     }
 }
 
-pub(super) fn properties_panel(editor: &Editor, cx: &mut Context<Editor>) -> gpui::AnyElement {
-    let content = match &editor.preview.target {
-        PreviewTarget::None => div()
-            .p_4()
-            .text_color(rgb(MUTED))
-            .child("No preview available")
-            .into_any_element(),
-        PreviewTarget::Timeline(_) => {
-            let Some(timeline) = editor.timeline.as_ref() else {
-                return div()
-                    .p_4()
-                    .text_color(rgb(MUTED))
-                    .child("No timeline selected")
-                    .into_any_element();
-            };
-            let selected_clip_ids = &timeline.interaction.selected_clip_ids;
-            let selection = match selected_clip_ids.len() {
-                0 => TimelineClipSelection::None,
-                1 => TimelineClipSelection::Single(
-                    *selected_clip_ids
-                        .iter()
-                        .next()
-                        .expect("one selected clip ID was counted"),
-                ),
-                _ => TimelineClipSelection::Multiple(selected_clip_ids),
-            };
-            timeline_properties(&timeline.data, selection, &editor.properties)
-        }
-        file_target @ (PreviewTarget::VideoFile(path, _)
-        | PreviewTarget::AudioFile(path, _)
-        | PreviewTarget::ImageFile(path)) => {
-            let file_asset = editor
-                .timeline
-                .as_ref()
-                .and_then(|timeline| timeline.data.asset_for_path(path));
-            match file_target {
-                PreviewTarget::VideoFile(path, video) => {
-                    video_file_properties(path, file_asset, video)
-                }
-                PreviewTarget::AudioFile(path, audio) => {
-                    audio_file_properties(path, file_asset, audio)
-                }
-                PreviewTarget::ImageFile(path) => image_file_properties(path, file_asset),
-                PreviewTarget::None | PreviewTarget::Timeline(_) => {
-                    unreachable!("non-file target handled separately")
-                }
-            }
-        }
-    };
+// pub(super) fn properties_panel(editor: &Editor, cx: &mut Context<Editor>) -> gpui::AnyElement {
+//     let content = match &editor.preview.target {
+//         PreviewTarget::None => div()
+//             .p_4()
+//             .text_color(rgb(MUTED))
+//             .child("No preview available")
+//             .into_any_element(),
+//         PreviewTarget::Timeline(_) => {
+//             let Some(timeline) = editor.timeline.as_ref() else {
+//                 return div()
+//                     .p_4()
+//                     .text_color(rgb(MUTED))
+//                     .child("No timeline selected")
+//                     .into_any_element();
+//             };
+//             let selected_clip_ids = &timeline.interaction.selected_clip_ids;
+//             let selection = match selected_clip_ids.len() {
+//                 0 => TimelineClipSelection::None,
+//                 1 => TimelineClipSelection::Single(
+//                     *selected_clip_ids
+//                         .iter()
+//                         .next()
+//                         .expect("one selected clip ID was counted"),
+//                 ),
+//                 _ => TimelineClipSelection::Multiple(selected_clip_ids),
+//             };
+//             timeline_properties(&timeline.data, selection, &editor.properties)
+//         }
+//         file_target @ (PreviewTarget::VideoFile(path, _)
+//         | PreviewTarget::AudioFile(path, _)
+//         | PreviewTarget::ImageFile(path)) => {
+//             let file_asset = editor
+//                 .timeline
+//                 .as_ref()
+//                 .and_then(|timeline| timeline.data.asset_for_path(path));
+//             match file_target {
+//                 PreviewTarget::VideoFile(path, video) => {
+//                     video_file_properties(path, file_asset, video)
+//                 }
+//                 PreviewTarget::AudioFile(path, audio) => {
+//                     audio_file_properties(path, file_asset, audio)
+//                 }
+//                 PreviewTarget::ImageFile(path) => image_file_properties(path, file_asset),
+//                 PreviewTarget::None | PreviewTarget::Timeline(_) => {
+//                     unreachable!("non-file target handled separately")
+//                 }
+//             }
+//         }
+//     };
 
-    div()
-        .id("editor-properties-panel")
-        .relative()
-        .w(px(editor.properties.width))
-        .h_full()
-        .flex_shrink_0()
-        .flex()
-        .flex_col()
-        .border_l_1()
-        .border_color(if editor.properties.resizing {
-            rgb(ACCENT)
-        } else {
-            rgb(BORDER)
-        })
-        .group_hover("properties-panel-resize", |style| {
-            style.border_color(rgb(ACCENT))
-        })
-        .bg(rgb(PANEL))
-        .child(
-            div()
-                .id("editor-properties-scroll")
-                .flex_1()
-                .min_h_0()
-                .overflow_y_scroll()
-                .child(content),
-        )
-        .child(
-            div()
-                .id("properties-panel-resize-handle")
-                .absolute()
-                .top_0()
-                .left(px(-3.0))
-                .w(px(6.0))
-                .h_full()
-                .group("properties-panel-resize")
-                .cursor(CursorStyle::ResizeLeftRight)
-                .occlude()
-                .on_mouse_down(
-                    MouseButton::Left,
-                    cx.listener(Editor::begin_properties_panel_resize),
-                )
-                .on_drag(PropertiesPanelResizeDrag, |_, _, _, cx| {
-                    cx.new(|_| PropertiesPanelResizeDragView)
-                }),
-        )
-        .into_any_element()
-}
+//     div()
+//         .id("editor-properties-panel")
+//         .relative()
+//         .w(px(editor.properties.width))
+//         .h_full()
+//         .flex_shrink_0()
+//         .flex()
+//         .flex_col()
+//         .border_l_1()
+//         .border_color(if editor.properties.resizing {
+//             rgb(ACCENT)
+//         } else {
+//             rgb(BORDER)
+//         })
+//         .group_hover("properties-panel-resize", |style| {
+//             style.border_color(rgb(ACCENT))
+//         })
+//         .bg(rgb(PANEL))
+//         .child(
+//             div()
+//                 .id("editor-properties-scroll")
+//                 .flex_1()
+//                 .min_h_0()
+//                 .overflow_y_scroll()
+//                 .child(content),
+//         )
+//         .child(
+//             div()
+//                 .id("properties-panel-resize-handle")
+//                 .absolute()
+//                 .top_0()
+//                 .left(px(-3.0))
+//                 .w(px(6.0))
+//                 .h_full()
+//                 .group("properties-panel-resize")
+//                 .cursor(CursorStyle::ResizeLeftRight)
+//                 .occlude()
+//                 .on_mouse_down(
+//                     MouseButton::Left,
+//                     cx.listener(Editor::begin_properties_panel_resize),
+//                 )
+//                 .on_drag(PropertiesPanelResizeDrag, |_, _, _, cx| {
+//                     cx.new(|_| PropertiesPanelResizeDragView)
+//                 }),
+//         )
+//         .into_any_element()
+// }
 
-enum TimelineClipSelection<'a> {
-    None,
-    Single(Ulid),
-    Multiple(&'a HashSet<Ulid>),
-}
+// enum TimelineClipSelection<'a> {
+//     None,
+//     Single(Ulid),
+//     Multiple(&'a HashSet<Ulid>),
+// }
 
-fn timeline_properties(
-    timeline: &TimelineSerialization,
-    selection: TimelineClipSelection<'_>,
-    panel: &PropertiesPanelState,
-) -> gpui::AnyElement {
-    let selected_clip_id = match selection {
-        TimelineClipSelection::None => None,
-        TimelineClipSelection::Single(clip_id) => Some(clip_id),
-        TimelineClipSelection::Multiple(clip_ids) => {
-            return div()
-                .id("timeline-multi-properties")
-                .flex()
-                .flex_col()
-                .gap_4()
-                .child(properties_title(
-                    format!("{} clips selected", clip_ids.len()),
-                    "Timeline selection",
-                ))
-                .into_any_element();
-        }
-    };
+// fn timeline_properties(
+//     timeline: &TimelineSerialization,
+//     selection: TimelineClipSelection<'_>,
+//     panel: &PropertiesPanelState,
+// ) -> gpui::AnyElement {
+//     let selected_clip_id = match selection {
+//         TimelineClipSelection::None => None,
+//         TimelineClipSelection::Single(clip_id) => Some(clip_id),
+//         TimelineClipSelection::Multiple(clip_ids) => {
+//             return div()
+//                 .id("timeline-multi-properties")
+//                 .flex()
+//                 .flex_col()
+//                 .gap_4()
+//                 .child(properties_title(
+//                     format!("{} clips selected", clip_ids.len()),
+//                     "Timeline selection",
+//                 ))
+//                 .into_any_element();
+//         }
+//     };
 
-    let selected = selected_clip_id.and_then(|id| {
-        let index = timeline.clip_index(id)?;
-        let clip = &timeline.clips[index];
-        let asset = clip.media().and_then(|clip| timeline.asset(clip.asset_id));
-        let track = timeline.track(clip.track_id())?;
-        Some((clip, asset, track))
-    });
-    let editable = selected_clip_id
-        .is_some_and(|clip_id| timeline.clip(clip_id).is_some() && !timeline.clip_locked(clip_id));
+//     let selected = selected_clip_id.and_then(|id| {
+//         let index = timeline.clip_index(id)?;
+//         let clip = &timeline.clips[index];
+//         let asset = clip.media().and_then(|clip| timeline.asset(clip.asset_id));
+//         let track = timeline.track(clip.track_id())?;
+//         Some((clip, asset, track))
+//     });
+//     let editable = selected_clip_id
+//         .is_some_and(|clip_id| timeline.clip(clip_id).is_some() && !timeline.clip_locked(clip_id));
 
-    div()
-        .id("timeline-properties")
-        .when_some(selected, |this, (clip, asset, track)| {
-            let title = asset.map(|asset| asset.name.clone()).unwrap_or_else(|| {
-                clip.text().map_or_else(
-                    || "Missing media".to_string(),
-                    |clip| clip.properties.text.clone(),
-                )
-            });
-            let has_video_transform = track.kind == TrackKind::Video
-                && asset.is_some_and(|asset| asset.kind != MediaKind::Audio);
+//     div()
+//         .id("timeline-properties")
+//         .when_some(selected, |this, (clip, asset, track)| {
+//             let title = asset.map(|asset| asset.name.clone()).unwrap_or_else(|| {
+//                 clip.text().map_or_else(
+//                     || "Missing media".to_string(),
+//                     |clip| clip.properties.text.clone(),
+//                 )
+//             });
+//             let has_video_transform = track.kind == TrackKind::Video
+//                 && asset.is_some_and(|asset| asset.kind != MediaKind::Audio);
 
-            this.flex()
-                .flex_col()
-                .when(has_video_transform, |this| {
-                    this.child(video_transform_panel(panel, editable))
-                })
-                .when(!has_video_transform && clip.media().is_some(), |this| {
-                    this.gap_4()
-                        .child(properties_title(title, "Timeline clip"))
-                        .child(properties_value(
-                            "Timeline start",
-                            format_time(timeline.seconds(clip.timeline_start()), false),
-                        ))
-                        .child(properties_value(
-                            "Source in",
-                            format_time(timeline.source_start_seconds(clip), false),
-                        ))
-                        .child(properties_value(
-                            "Source out",
-                            format_time(
-                                timeline
-                                    .source_position_at(
-                                        clip,
-                                        clip.timeline_end(timeline.settings.frame_rate),
-                                    )
-                                    .as_secs_f64(),
-                                false,
-                            ),
-                        ))
-                        .child(properties_value(
-                            "Clip duration",
-                            format_time(
-                                timeline.seconds(clip.frame_length(timeline.settings.frame_rate)),
-                                false,
-                            ),
-                        ))
-                        .child(properties_value("Track", track.name.clone()))
-                        .when_some(asset, |this, asset| {
-                            this.child(properties_value("Source", asset_description(asset)))
-                        })
-                })
-                .when_some(clip.text(), |this, text_clip| {
-                    this.child(text_clip_panel(panel, editable, text_clip.properties.color))
-                })
-        })
-        .when(selected.is_none(), |this| {
-            this.text_sm()
-                .text_color(rgb(MUTED))
-                .child("Select a timeline clip to view its properties.")
-        })
-        .into_any_element()
-}
+//             this.flex()
+//                 .flex_col()
+//                 .when(has_video_transform, |this| {
+//                     this.child(video_transform_panel(panel, editable))
+//                 })
+//                 .when(!has_video_transform && clip.media().is_some(), |this| {
+//                     this.gap_4()
+//                         .child(properties_title(title, "Timeline clip"))
+//                         .child(properties_value(
+//                             "Timeline start",
+//                             format_time(timeline.seconds(clip.timeline_start()), false),
+//                         ))
+//                         .child(properties_value(
+//                             "Source in",
+//                             format_time(timeline.source_start_seconds(clip), false),
+//                         ))
+//                         .child(properties_value(
+//                             "Source out",
+//                             format_time(
+//                                 timeline
+//                                     .source_position_at(
+//                                         clip,
+//                                         clip.timeline_end(timeline.settings.frame_rate),
+//                                     )
+//                                     .as_secs_f64(),
+//                                 false,
+//                             ),
+//                         ))
+//                         .child(properties_value(
+//                             "Clip duration",
+//                             format_time(
+//                                 timeline.seconds(clip.frame_length(timeline.settings.frame_rate)),
+//                                 false,
+//                             ),
+//                         ))
+//                         .child(properties_value("Track", track.name.clone()))
+//                         .when_some(asset, |this, asset| {
+//                             this.child(properties_value("Source", asset_description(asset)))
+//                         })
+//                 })
+//                 .when_some(clip.text(), |this, text_clip| {
+//                     this.child(text_clip_panel(panel, editable, text_clip.properties.color))
+//                 })
+//         })
+//         .when(selected.is_none(), |this| {
+//             this.text_sm()
+//                 .text_color(rgb(MUTED))
+//                 .child("Select a timeline clip to view its properties.")
+//         })
+//         .into_any_element()
+// }
 
 fn audio_clip(clip: &AudioClip) -> gpui::AnyElement {
     let property_field = |label: &'static str, value: String, unit: &'static str| {
@@ -518,65 +518,150 @@ fn text_clip(clip: &TextClip) -> gpui::AnyElement {
         .into_any_element()
 }
 
-fn video_file_properties(
-    path: &Path,
-    asset: Option<&MediaAsset>,
-    video: &VideoBackend,
-) -> gpui::AnyElement {
-    let duration = video.duration().as_secs_f64();
-    let (width, height) = video.frame_size();
-    let framerate = video.framerate();
+fn video_file(path: &Path) -> gpui::AnyElement {
+    let property_field = |label: &'static str, value: String| {
+        div()
+            .h(px(48.0))
+            .flex()
+            .items_center()
+            .gap_4()
+            .child(
+                div()
+                    .w(px(112.0))
+                    .flex_shrink_0()
+                    .text_sm()
+                    .text_color(rgb(MUTED))
+                    .child(label),
+            )
+            .child(
+                div()
+                    .h(px(48.0))
+                    .min_w_0()
+                    .flex_1()
+                    .flex()
+                    .items_center()
+                    .px_3()
+                    .rounded_md()
+                    .border_1()
+                    .border_color(rgb(BORDER))
+                    .bg(rgb(SURFACE))
+                    .child(
+                        div()
+                            .min_w_0()
+                            .flex_1()
+                            .text_sm()
+                            .text_ellipsis()
+                            .child(value),
+                    ),
+            )
+    };
+    let name = path
+        .file_name()
+        .map(|name| name.to_string_lossy().into_owned())
+        .unwrap_or_else(|| path.display().to_string());
+    let format = path
+        .extension()
+        .map(|extension| extension.to_string_lossy().to_ascii_uppercase())
+        .unwrap_or_else(|| "Unknown".to_string());
+    let directory = path
+        .parent()
+        .filter(|directory| !directory.as_os_str().is_empty())
+        .map(|directory| directory.display().to_string())
+        .unwrap_or_else(|| ".".to_string());
 
-    file_properties(path, "Video")
-        .when_some(asset, |this, asset| {
-            this.child(properties_value("Codec", asset.codec.clone()))
-                .child(properties_value(
-                    "Audio",
-                    if asset.has_audio { "Yes" } else { "No" }.to_string(),
-                ))
-        })
-        .child(properties_value(
-            "Resolution",
-            format!("{width} × {height}"),
-        ))
-        .when_some(framerate, |this, framerate| {
-            this.child(properties_value(
-                "Frame rate",
-                format!("{framerate:.2} fps"),
-            ))
-        })
-        .child(properties_value("Duration", format_time(duration, false)))
+    div()
+        .id("video-file-properties-v2")
+        .flex()
+        .flex_col()
+        .overflow_hidden()
+        .bg(rgb(PANEL))
+        .child(
+            div()
+                .h(px(58.0))
+                .flex_shrink_0()
+                .flex()
+                .items_center()
+                .gap_5()
+                .px_5()
+                .border_b_1()
+                .border_color(rgb(BORDER))
+                .child(properties_tab("Video", true)),
+        )
+        .child(
+            div()
+                .flex()
+                .flex_col()
+                .gap_3()
+                .px_5()
+                .py_5()
+                .child(properties_section_label("FILE"))
+                .child(property_field("Name", name))
+                .child(property_field("Format", format))
+                .child(property_field("Folder", directory))
+                .child(property_field("Path", path.display().to_string())),
+        )
         .into_any_element()
 }
 
-fn audio_file_properties(
-    path: &Path,
-    asset: Option<&MediaAsset>,
-    audio: &AudioBackend,
-) -> gpui::AnyElement {
-    let duration = asset
-        .map(|asset| asset.duration)
-        .unwrap_or_else(|| audio.duration().as_secs_f64());
+// fn video_file_properties(
+//     path: &Path,
+//     asset: Option<&MediaAsset>,
+//     video: &VideoBackend,
+// ) -> gpui::AnyElement {
+//     let duration = video.duration().as_secs_f64();
+//     let (width, height) = video.frame_size();
+//     let framerate = video.framerate();
 
-    file_properties(path, "Audio")
-        .when_some(asset, |this, asset| {
-            this.child(properties_value("Codec", asset.codec.clone()))
-        })
-        .child(properties_value("Duration", format_time(duration, false)))
-        .into_any_element()
-}
+//     file_properties(path, "Video")
+//         .when_some(asset, |this, asset| {
+//             this.child(properties_value("Codec", asset.codec.clone()))
+//                 .child(properties_value(
+//                     "Audio",
+//                     if asset.has_audio { "Yes" } else { "No" }.to_string(),
+//                 ))
+//         })
+//         .child(properties_value(
+//             "Resolution",
+//             format!("{width} × {height}"),
+//         ))
+//         .when_some(framerate, |this, framerate| {
+//             this.child(properties_value(
+//                 "Frame rate",
+//                 format!("{framerate:.2} fps"),
+//             ))
+//         })
+//         .child(properties_value("Duration", format_time(duration, false)))
+//         .into_any_element()
+// }
 
-fn image_file_properties(path: &Path, asset: Option<&MediaAsset>) -> gpui::AnyElement {
-    file_properties(path, "Image")
-        .when_some(asset, |this, asset| {
-            this.child(properties_value("Codec", asset.codec.clone()))
-                .child(properties_value(
-                    "Resolution",
-                    format!("{} × {}", asset.width, asset.height),
-                ))
-        })
-        .into_any_element()
-}
+// fn audio_file_properties(
+//     path: &Path,
+//     asset: Option<&MediaAsset>,
+//     audio: &AudioBackend,
+// ) -> gpui::AnyElement {
+//     let duration = asset
+//         .map(|asset| asset.duration)
+//         .unwrap_or_else(|| audio.duration().as_secs_f64());
+
+//     file_properties(path, "Audio")
+//         .when_some(asset, |this, asset| {
+//             this.child(properties_value("Codec", asset.codec.clone()))
+//         })
+//         .child(properties_value("Duration", format_time(duration, false)))
+//         .into_any_element()
+// }
+
+// fn image_file_properties(path: &Path, asset: Option<&MediaAsset>) -> gpui::AnyElement {
+//     file_properties(path, "Image")
+//         .when_some(asset, |this, asset| {
+//             this.child(properties_value("Codec", asset.codec.clone()))
+//                 .child(properties_value(
+//                     "Resolution",
+//                     format!("{} × {}", asset.width, asset.height),
+//                 ))
+//         })
+//         .into_any_element()
+// }
 
 fn set_properties_panel_width_from_x(panel: &mut PropertiesPanelState, x: f32, window: &Window) {
     let viewport_width: f32 = window.viewport_size().width.into();
@@ -587,16 +672,16 @@ fn set_properties_panel_width_from_x(panel: &mut PropertiesPanelState, x: f32, w
 }
 
 impl Editor {
-    pub(super) fn begin_properties_panel_resize(
-        &mut self,
-        event: &MouseDownEvent,
-        window: &mut Window,
-        cx: &mut Context<Self>,
-    ) {
-        self.properties.resizing = true;
-        set_properties_panel_width_from_x(&mut self.properties, event.position.x.into(), window);
-        cx.notify();
-    }
+    // pub(super) fn begin_properties_panel_resize(
+    //     &mut self,
+    //     event: &MouseDownEvent,
+    //     window: &mut Window,
+    //     cx: &mut Context<Self>,
+    // ) {
+    //     self.properties.resizing = true;
+    //     set_properties_panel_width_from_x(&mut self.properties, event.position.x.into(), window);
+    //     cx.notify();
+    // }
 
     pub(super) fn resize_properties_panel_drag(
         &mut self,
@@ -741,58 +826,58 @@ fn video_clip(clip: &VideoClip) -> gpui::AnyElement {
         .into_any_element()
 }
 
-fn properties_title(title: String, subtitle: &'static str) -> gpui::Div {
-    div()
-        .min_w_0()
-        .flex()
-        .flex_col()
-        .gap_1()
-        .child(
-            div()
-                .text_base()
-                .font_weight(gpui::FontWeight::SEMIBOLD)
-                .text_ellipsis()
-                .child(title),
-        )
-        .child(div().text_xs().text_color(rgb(MUTED)).child(subtitle))
-}
+// fn properties_title(title: String, subtitle: &'static str) -> gpui::Div {
+//     div()
+//         .min_w_0()
+//         .flex()
+//         .flex_col()
+//         .gap_1()
+//         .child(
+//             div()
+//                 .text_base()
+//                 .font_weight(gpui::FontWeight::SEMIBOLD)
+//                 .text_ellipsis()
+//                 .child(title),
+//         )
+//         .child(div().text_xs().text_color(rgb(MUTED)).child(subtitle))
+// }
 
-fn file_properties(path: &Path, kind: &'static str) -> gpui::Div {
-    let title = path
-        .file_name()
-        .map(|name| name.to_string_lossy().into_owned())
-        .unwrap_or_else(|| path.display().to_string());
+// fn file_properties(path: &Path, kind: &'static str) -> gpui::Div {
+//     let title = path
+//         .file_name()
+//         .map(|name| name.to_string_lossy().into_owned())
+//         .unwrap_or_else(|| path.display().to_string());
 
-    div()
-        .flex()
-        .flex_col()
-        .gap_4()
-        .child(properties_title(title, "Timeline file"))
-        .child(properties_value("Type", kind.to_string()))
-        .child(properties_value("Path", path.display().to_string()))
-}
+//     div()
+//         .flex()
+//         .flex_col()
+//         .gap_4()
+//         .child(properties_title(title, "Timeline file"))
+//         .child(properties_value("Type", kind.to_string()))
+//         .child(properties_value("Path", path.display().to_string()))
+// }
 
-fn properties_value(label: &str, value: String) -> gpui::Div {
-    div()
-        .flex()
-        .flex_col()
-        .gap_1()
-        .child(
-            div()
-                .text_xs()
-                .text_color(rgb(MUTED))
-                .child(label.to_string()),
-        )
-        .child(div().text_sm().child(value))
-}
+// fn properties_value(label: &str, value: String) -> gpui::Div {
+//     div()
+//         .flex()
+//         .flex_col()
+//         .gap_1()
+//         .child(
+//             div()
+//                 .text_xs()
+//                 .text_color(rgb(MUTED))
+//                 .child(label.to_string()),
+//         )
+//         .child(div().text_sm().child(value))
+// }
 
-fn asset_description(asset: &MediaAsset) -> String {
-    match asset.kind {
-        MediaKind::Image => format!("{} image · {}×{}", asset.codec, asset.width, asset.height),
-        MediaKind::Audio => format!("{} audio", asset.codec),
-        MediaKind::Video => format!(
-            "{} · {}×{} · {:.2} fps",
-            asset.codec, asset.width, asset.height, asset.framerate
-        ),
-    }
-}
+// fn asset_description(asset: &MediaAsset) -> String {
+//     match asset.kind {
+//         MediaKind::Image => format!("{} image · {}×{}", asset.codec, asset.width, asset.height),
+//         MediaKind::Audio => format!("{} audio", asset.codec),
+//         MediaKind::Video => format!(
+//             "{} · {}×{} · {:.2} fps",
+//             asset.codec, asset.width, asset.height, asset.framerate
+//         ),
+//     }
+// }

@@ -153,6 +153,9 @@ impl Editor {
         event: &MouseDownEvent,
         cx: &mut Context<Self>,
     ) {
+        if !is_directory {
+            self.select_only_clip(None);
+        }
         if let Some(timeline) = self.timeline.as_mut() {
             timeline.interaction.context_menu = None;
         }

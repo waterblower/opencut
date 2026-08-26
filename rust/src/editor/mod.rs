@@ -65,7 +65,7 @@ use preview::{PreviewTarget, update_playback};
 use preview_audio::AudioBackend;
 use preview_timeline::TimelinePreviewDrag;
 use project_settings::{load_project_local_settings, save_project_local_settings};
-use properties::{PropertiesPanelResizeDrag, properties_panel};
+use properties::PropertiesPanelResizeDrag;
 use properties_text::TextClipInputs;
 use properties_transform::VideoTransformInputs;
 use timeline::{
@@ -301,12 +301,13 @@ impl Editor {
             .as_ref()
             .is_some_and(|timeline| timeline.path == relative_path)
         {
-            self.explorer.selected_file = Some(relative_path);
+            self.select_only_clip(None);
             let timeline = self.timeline.as_ref().expect("timeline was checked above");
             let playhead = timeline.playhead;
             if !timeline.data.clips.is_empty() {
                 self.load_timeline_position_with_options(playhead, true);
             }
+            self.explorer.selected_file = Some(relative_path);
             cx.notify();
             return Ok(());
         }
@@ -317,6 +318,8 @@ impl Editor {
             timeline.save(&self.global_settings.project_root);
         }
         self.activate_timeline(relative_path.clone(), timeline, cx)?;
+        self.select_only_clip(None);
+        self.explorer.selected_file = Some(relative_path.clone());
         self.status = Some(format!("Opened {}", relative_path.display()));
         Ok(())
     }

@@ -130,6 +130,7 @@ impl Editor {
         cx: &mut Context<Self>,
     ) {
         self.explorer.context_menu = None;
+        self.explorer.selected_file = None;
         self.select_only_clip(Some(clip_id));
         let Some(timeline) = self.timeline.as_mut() else {
             return;

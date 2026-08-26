@@ -1,6 +1,6 @@
 use crate::editor::{
     editor::EditorEvent,
-    properties::{PropertiesPanelViewable, current_properties_panel_viewable, properties_panel_v2},
+    properties::{current_properties_panel_viewable, properties_panel_v2},
 };
 
 use super::*;
@@ -81,12 +81,8 @@ impl Render for Editor {
         };
 
         let properties_panel_view = {
-            match current_properties_panel_viewable(self) {
-                viewable @ (PropertiesPanelViewable::VideoClip(_)
-                | PropertiesPanelViewable::AudioClip(_)
-                | PropertiesPanelViewable::TextClip(_)) => properties_panel_v2(viewable),
-                _ => properties_panel(self, cx),
-            }
+            let viewable = current_properties_panel_viewable(self);
+            properties_panel_v2(viewable)
         };
 
         div()

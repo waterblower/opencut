@@ -13,9 +13,10 @@ pub(crate) struct Editor {
     pub(super) properties: PropertiesPanelState,
     pub(super) settings_open: bool,
     pub(super) export: ExportState,
-    pub(super) clipboard: Option<ClipClipboard>,
     pub(super) status: Option<String>,
     pub(super) focus_handle: FocusHandle,
+
+    pub(super) clipboard: Option<ClipClipboard>,
 }
 
 #[derive(Debug)]

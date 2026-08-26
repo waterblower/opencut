@@ -420,6 +420,7 @@ impl Editor {
         let is_video = explorer::is_video_path(&relative_path);
         let is_audio = explorer::is_audio_path(&relative_path);
 
+        self.select_only_clip(None);
         self.explorer.selected_file = Some(relative_path.clone());
 
         if is_image || is_video || is_audio {

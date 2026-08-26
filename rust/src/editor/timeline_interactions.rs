@@ -295,6 +295,7 @@ impl Editor {
         else {
             return;
         };
+        self.explorer.selected_file = None;
         match tool {
             TimelineTool::Selection => self.begin_clip_move(clip_id, event, cx),
             TimelineTool::Blade => {
