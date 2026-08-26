@@ -198,7 +198,7 @@ pub fn is_image_path(path: &Path) -> bool {
         .is_some_and(|extension| {
             matches!(
                 extension.to_ascii_lowercase().as_str(),
-                "jpg" | "jpeg" | "png"
+                "jpg" | "jpeg" | "png" | "gif" | "webp" | "bmp" | "ico"
             )
         })
 }

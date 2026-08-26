@@ -58,7 +58,14 @@ gstreamer-audio = { version = "0.25", optional = true }
 gstreamer-editing-services = { version = "0.25", optional = true, features = ["v1_18"] }
 gstreamer-pbutils = { version = "0.25", optional = true }
 gstreamer-video = { version = "0.25", optional = true }
-image = { version = "0.25", default-features = false, features = ["jpeg", "png"] }
+image = { version = "0.25", default-features = false, features = [
+    "bmp",
+    "gif",
+    "ico",
+    "jpeg",
+    "png",
+    "webp",
+] }
 log = "0.4"
 parking_lot = { version = "0.12", optional = true }
 smallvec = { version = "1", optional = true }
