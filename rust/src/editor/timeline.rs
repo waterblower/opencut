@@ -141,12 +141,6 @@ impl TimelineSerialization {
         self.assets.iter().find(|asset| asset.id == id)
     }
 
-    pub fn asset_for_path(&self, path: &Path) -> Option<&MediaAsset> {
-        self.assets
-            .iter()
-            .find(|asset| asset.path.as_path() == path)
-    }
-
     pub fn clip(&self, id: Ulid) -> Option<&Clip> {
         self.clips.iter().find(|clip| clip.id() == id)
     }

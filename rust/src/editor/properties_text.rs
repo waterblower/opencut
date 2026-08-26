@@ -1,6 +1,3 @@
-use super::properties_transform::{
-    disabled_field_overlay, properties_section_label, properties_tab,
-};
 use super::*;
 
 pub(super) struct TextClipInputs {
@@ -135,97 +132,6 @@ impl Editor {
     }
 }
 
-pub(super) fn text_clip_panel(
-    panel: &PropertiesPanelState,
-    editable: bool,
-    color: u32,
-) -> gpui::AnyElement {
-    div()
-        .id("text-clip-properties")
-        .flex()
-        .flex_col()
-        .overflow_hidden()
-        .bg(rgb(PANEL))
-        .child(
-            div()
-                .h(px(58.0))
-                .flex_shrink_0()
-                .flex()
-                .items_center()
-                .gap_5()
-                .px_5()
-                .border_b_1()
-                .border_color(rgb(BORDER))
-                .child(properties_tab("Text", true)),
-        )
-        .child(
-            div()
-                .flex()
-                .flex_col()
-                .gap_3()
-                .px_5()
-                .py_5()
-                .child(properties_section_label("CONTENT"))
-                .child(text_property_field(
-                    panel,
-                    TextProperty::Text,
-                    "Text",
-                    "",
-                    "text-clip-text",
-                    editable,
-                    None,
-                ))
-                .child(text_property_field(
-                    panel,
-                    TextProperty::Length,
-                    "Length",
-                    "s",
-                    "text-clip-length",
-                    editable,
-                    None,
-                ))
-                .child(properties_section_label("STYLE"))
-                .child(text_property_field(
-                    panel,
-                    TextProperty::FontSize,
-                    "Font size",
-                    "px",
-                    "text-clip-font-size",
-                    editable,
-                    None,
-                ))
-                .child(text_property_field(
-                    panel,
-                    TextProperty::Color,
-                    "Color",
-                    "",
-                    "text-clip-color",
-                    editable,
-                    Some(color),
-                ))
-                .child(properties_section_label("POSITION"))
-                .child(text_property_field(
-                    panel,
-                    TextProperty::PositionX,
-                    "Position X",
-                    "",
-                    "text-clip-position-x",
-                    editable,
-                    None,
-                ))
-                .child(text_property_field(
-                    panel,
-                    TextProperty::PositionY,
-                    "Position Y",
-                    "",
-                    "text-clip-position-y",
-                    editable,
-                    None,
-                )),
-        )
-        .into_any_element()
-}
-
 #[derive(Clone, Copy, Eq, PartialEq)]
 enum TextProperty {
     Text,
@@ -313,73 +219,6 @@ impl Editor {
         .expect("setting text properties cannot be rejected");
         timeline.save(&self.global_settings.project_root);
     }
-}
-
-fn text_property_field(
-    panel: &PropertiesPanelState,
-    property: TextProperty,
-    label: &'static str,
-    unit: &'static str,
-    field_id: &'static str,
-    editable: bool,
-    color: Option<u32>,
-) -> gpui::AnyElement {
-    let input = panel.text_inputs.input(property);
-    div()
-        .h(px(48.0))
-        .flex()
-        .items_center()
-        .gap_4()
-        .child(
-            div()
-                .w(px(112.0))
-                .flex_shrink_0()
-                .text_sm()
-                .text_color(rgb(MUTED))
-                .child(label),
-        )
-        .child(
-            div()
-                .id(field_id)
-                .h(px(48.0))
-                .relative()
-                .min_w_0()
-                .flex_1()
-                .flex()
-                .items_center()
-                .justify_between()
-                .gap_2()
-                .px_3()
-                .rounded_md()
-                .border_1()
-                .border_color(rgb(BORDER))
-                .bg(rgb(SURFACE))
-                .cursor(if editable {
-                    CursorStyle::IBeam
-                } else {
-                    CursorStyle::Arrow
-                })
-                .when_some(color, |field, color| {
-                    field.child(
-                        div()
-                            .size(px(18.0))
-                            .flex_shrink_0()
-                            .rounded_sm()
-                            .border_1()
-                            .border_color(rgb(BORDER))
-                            .bg(gpui::rgba(color)),
-                    )
-                })
-                .child(input)
-                .when(!unit.is_empty(), |field| {
-                    field.child(div().text_sm().text_color(rgb(MUTED)).child(unit))
-                })
-                .when(editable, |field| {
-                    field.hover(|style| style.border_color(rgb(0x4a4a52)))
-                })
-                .when(!editable, disabled_field_overlay),
-        )
-        .into_any_element()
 }
 
 fn finite_text_number(text: &str) -> Result<f64, ()> {
