@@ -45,17 +45,6 @@ impl TextClipInputs {
         }
     }
 
-    fn input(&self, property: TextProperty) -> Entity<ExplorerFilter> {
-        match property {
-            TextProperty::Text => self.text.clone(),
-            TextProperty::Length => self.length.clone(),
-            TextProperty::FontSize => self.font_size.clone(),
-            TextProperty::Color => self.color.clone(),
-            TextProperty::PositionX => self.position_x.clone(),
-            TextProperty::PositionY => self.position_y.clone(),
-        }
-    }
-
     fn fields(&self) -> [(TextProperty, Entity<ExplorerFilter>); 6] {
         [
             (TextProperty::Text, self.text.clone()),
@@ -78,56 +67,6 @@ impl Editor {
                 cx.notify();
             })
             .detach();
-        }
-    }
-
-    pub(super) fn sync_text_clip_inputs(&mut self, cx: &mut Context<Self>) {
-        let Some(timeline) = self.timeline.as_ref() else {
-            self.properties.text_input_clip_id = None;
-            return;
-        };
-        let Some(clip_id) = timeline.interaction.selected_clip_id else {
-            self.properties.text_input_clip_id = None;
-            return;
-        };
-        if timeline.interaction.selected_clip_ids.len() != 1
-            || self.properties.text_input_clip_id == Some(clip_id)
-        {
-            return;
-        }
-        let Some(clip) = timeline.data.clip(clip_id).and_then(Clip::text) else {
-            self.properties.text_input_clip_id = None;
-            return;
-        };
-        self.properties.text_input_clip_id = Some(clip_id);
-        let values = [
-            (TextProperty::Text, clip.properties.text.clone()),
-            (
-                TextProperty::Length,
-                format_text_number(clip.length.as_secs_f64()),
-            ),
-            (
-                TextProperty::FontSize,
-                format_text_number(clip.properties.font_size),
-            ),
-            (
-                TextProperty::Color,
-                format!("#{:08X}", clip.properties.color),
-            ),
-            (
-                TextProperty::PositionX,
-                format_text_number(clip.properties.position_x),
-            ),
-            (
-                TextProperty::PositionY,
-                format_text_number(clip.properties.position_y),
-            ),
-        ];
-        for (property, value) in values {
-            let input = self.properties.text_inputs.input(property);
-            if input.read(cx).query() != value {
-                input.update(cx, |input, _| input.set_text_silently(value));
-            }
         }
     }
 }
@@ -263,14 +202,6 @@ fn parse_text_color(text: &str) -> Option<u32> {
         8 => u32::from_str_radix(text, 16).ok(),
         _ => None,
     }
-}
-
-fn format_text_number(value: f64) -> String {
-    let formatted = format!("{value:.4}");
-    formatted
-        .trim_end_matches('0')
-        .trim_end_matches('.')
-        .to_string()
 }
 
 #[cfg(test)]

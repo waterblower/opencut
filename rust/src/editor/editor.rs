@@ -117,7 +117,6 @@ impl Editor {
                 resizing: false,
                 transform_inputs: video_transform_inputs,
                 transform_input_clip_id: None,
-                text_inputs: text_clip_inputs,
                 text_input_clip_id: None,
             }
         };

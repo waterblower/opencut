@@ -1,6 +1,6 @@
 use crate::editor::{
     editor::EditorEvent,
-    properties::{current_properties_panel_viewable, properties_panel_v2},
+    properties::{current_properties_panel_viewable, properties_panel},
 };
 
 use super::*;
@@ -8,7 +8,7 @@ use super::*;
 impl Render for Editor {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         self.sync_video_transform_inputs(cx);
-        self.sync_text_clip_inputs(cx);
+
         let viewport = window.viewport_size();
         let editor_width =
             (f32::from(viewport.width) - crate::gpui_inspector::docked_width(window)).max(0.0);
@@ -80,11 +80,6 @@ impl Render for Editor {
             None
         };
 
-        let properties_panel_view = {
-            let viewable = current_properties_panel_viewable(self);
-            properties_panel_v2(viewable)
-        };
-
         div()
             .id("editor-root")
             .key_context(EDITOR_KEY_CONTEXT)
@@ -136,23 +131,7 @@ impl Render for Editor {
                     .min_h_0()
                     .flex()
                     .flex_col()
-                    .child(
-                        div()
-                            .id("editor-upper-workspace")
-                            .min_w_0()
-                            .flex_1()
-                            .min_h_0()
-                            .flex()
-                            .child(self.explorer_panel(cx))
-                            .child(self.preview_player(
-                                MEDIA_PANEL_WIDTH,
-                                TOPBAR_HEIGHT,
-                                preview_width,
-                                preview_height,
-                                cx,
-                            ))
-                            .child(properties_panel_view),
-                    )
+                    .child(self.upper_workspace(preview_width, preview_height, cx))
                     .child(self.timeline(cx)),
             )
             .when_some(file_menu, |this, menu| this.child(menu))
@@ -168,6 +147,32 @@ impl Render for Editor {
 }
 
 impl Editor {
+    fn upper_workspace(
+        &self,
+        preview_width: f32,
+        preview_height: f32,
+        cx: &mut Context<Self>,
+    ) -> gpui::AnyElement {
+        let properties_panel_view = properties_panel(current_properties_panel_viewable(self));
+
+        div()
+            .id("editor-upper-workspace")
+            .min_w_0()
+            .flex_1()
+            .min_h_0()
+            .flex()
+            .child(self.explorer_panel(cx))
+            .child(self.preview_player(
+                MEDIA_PANEL_WIDTH,
+                TOPBAR_HEIGHT,
+                preview_width,
+                preview_height,
+                cx,
+            ))
+            .child(properties_panel_view)
+            .into_any_element()
+    }
+
     fn topbar(&self, cx: &mut Context<Self>) -> gpui::AnyElement {
         let export_enabled = self
             .timeline

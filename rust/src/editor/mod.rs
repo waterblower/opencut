@@ -222,7 +222,6 @@ struct PropertiesPanelState {
     resizing: bool,
     transform_inputs: VideoTransformInputs,
     transform_input_clip_id: Option<Ulid>,
-    text_inputs: TextClipInputs,
     text_input_clip_id: Option<Ulid>,
 }
 

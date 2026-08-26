@@ -59,7 +59,7 @@ pub fn current_properties_panel_viewable(editor: &Editor) -> PropertiesPanelView
     PropertiesPanelViewable::TimelineFile(timeline)
 }
 
-pub(super) fn properties_panel_v2(data: PropertiesPanelViewable<'_>) -> gpui::AnyElement {
+pub(super) fn properties_panel(data: PropertiesPanelViewable<'_>) -> gpui::AnyElement {
     match data {
         PropertiesPanelViewable::TextClip(clip) => text_clip(clip),
         PropertiesPanelViewable::VideoClip(clip) => video_clip(clip),
