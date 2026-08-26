@@ -61,139 +61,12 @@ pub fn current_properties_panel_viewable(editor: &Editor) -> PropertiesPanelView
     PropertiesPanelViewable::TimelineFile(&timeline.path)
 }
 
-#[allow(dead_code)] // Used once properties panel v2 replaces v1.
 pub(super) fn properties_panel_v2(data: PropertiesPanelViewable<'_>) -> gpui::AnyElement {
     match data {
-        PropertiesPanelViewable::TextClip(clip) => {
-            let property_field =
-                |label: &'static str, value: String, unit: &'static str, color: Option<u32>| {
-                    div()
-                        .h(px(48.0))
-                        .flex()
-                        .items_center()
-                        .gap_4()
-                        .child(
-                            div()
-                                .w(px(112.0))
-                                .flex_shrink_0()
-                                .text_sm()
-                                .text_color(rgb(MUTED))
-                                .child(label),
-                        )
-                        .child(
-                            div()
-                                .h(px(48.0))
-                                .min_w_0()
-                                .flex_1()
-                                .flex()
-                                .items_center()
-                                .gap_2()
-                                .px_3()
-                                .rounded_md()
-                                .border_1()
-                                .border_color(rgb(BORDER))
-                                .bg(rgb(SURFACE))
-                                .when_some(color, |field, color| {
-                                    field.child(
-                                        div()
-                                            .size(px(18.0))
-                                            .flex_shrink_0()
-                                            .rounded_sm()
-                                            .border_1()
-                                            .border_color(rgb(BORDER))
-                                            .bg(gpui::rgba(color)),
-                                    )
-                                })
-                                .child(
-                                    div()
-                                        .min_w_0()
-                                        .flex_1()
-                                        .text_sm()
-                                        .text_ellipsis()
-                                        .child(value),
-                                )
-                                .when(!unit.is_empty(), |field| {
-                                    field.child(div().text_sm().text_color(rgb(MUTED)).child(unit))
-                                }),
-                        )
-                };
-
-            div()
-                .id("text-clip-properties-v2")
-                .flex()
-                .flex_col()
-                .overflow_hidden()
-                .bg(rgb(PANEL))
-                .child(
-                    div()
-                        .h(px(58.0))
-                        .flex_shrink_0()
-                        .flex()
-                        .items_center()
-                        .gap_5()
-                        .px_5()
-                        .border_b_1()
-                        .border_color(rgb(BORDER))
-                        .child(properties_tab("Text", true)),
-                )
-                .child(
-                    div()
-                        .flex()
-                        .flex_col()
-                        .gap_3()
-                        .px_5()
-                        .py_5()
-                        .child(properties_section_label("CONTENT"))
-                        .child(property_field(
-                            "Text",
-                            clip.properties.text.clone(),
-                            "",
-                            None,
-                        ))
-                        .child(property_field(
-                            "Length",
-                            format!("{:.3}", clip.length.as_secs_f64()),
-                            "s",
-                            None,
-                        ))
-                        .child(properties_section_label("STYLE"))
-                        .child(property_field(
-                            "Font",
-                            clip.properties.font.clone(),
-                            "",
-                            None,
-                        ))
-                        .child(property_field(
-                            "Font size",
-                            format!("{}", clip.properties.font_size),
-                            "px",
-                            None,
-                        ))
-                        .child(property_field(
-                            "Color",
-                            format!("#{:08X}", clip.properties.color),
-                            "",
-                            Some(clip.properties.color),
-                        ))
-                        .child(properties_section_label("POSITION"))
-                        .child(property_field(
-                            "Position X",
-                            format!("{}", clip.properties.position_x),
-                            "",
-                            None,
-                        ))
-                        .child(property_field(
-                            "Position Y",
-                            format!("{}", clip.properties.position_y),
-                            "",
-                            None,
-                        )),
-                )
-                .into_any_element()
-        }
-        PropertiesPanelViewable::VideoClip(_)
-        | PropertiesPanelViewable::AudioClip(_)
-        | PropertiesPanelViewable::VideoFile(_)
+        PropertiesPanelViewable::TextClip(clip) => text_clip(clip),
+        PropertiesPanelViewable::VideoClip(clip) => video_clip(clip),
+        PropertiesPanelViewable::AudioClip(clip) => audio_clip(clip),
+        PropertiesPanelViewable::VideoFile(_)
         | PropertiesPanelViewable::AudioFile(_)
         | PropertiesPanelViewable::TimelineFile(_) => panic!("not implemented"),
         PropertiesPanelViewable::None => div()
@@ -404,6 +277,242 @@ fn timeline_properties(
         .into_any_element()
 }
 
+fn audio_clip(clip: &AudioClip) -> gpui::AnyElement {
+    let property_field = |label: &'static str, value: String, unit: &'static str| {
+        div()
+            .h(px(48.0))
+            .flex()
+            .items_center()
+            .gap_4()
+            .child(
+                div()
+                    .w(px(112.0))
+                    .flex_shrink_0()
+                    .text_sm()
+                    .text_color(rgb(MUTED))
+                    .child(label),
+            )
+            .child(
+                div()
+                    .h(px(48.0))
+                    .min_w_0()
+                    .flex_1()
+                    .flex()
+                    .items_center()
+                    .gap_2()
+                    .px_3()
+                    .rounded_md()
+                    .border_1()
+                    .border_color(rgb(BORDER))
+                    .bg(rgb(SURFACE))
+                    .child(
+                        div()
+                            .min_w_0()
+                            .flex_1()
+                            .text_sm()
+                            .text_ellipsis()
+                            .child(value),
+                    )
+                    .when(!unit.is_empty(), |field| {
+                        field.child(div().text_sm().text_color(rgb(MUTED)).child(unit))
+                    }),
+            )
+    };
+    let duration = clip.source_out - clip.source_in;
+
+    div()
+        .id("audio-clip-properties-v2")
+        .flex()
+        .flex_col()
+        .overflow_hidden()
+        .bg(rgb(PANEL))
+        .child(
+            div()
+                .h(px(58.0))
+                .flex_shrink_0()
+                .flex()
+                .items_center()
+                .gap_5()
+                .px_5()
+                .border_b_1()
+                .border_color(rgb(BORDER))
+                .child(properties_tab("Audio", true)),
+        )
+        .child(
+            div()
+                .flex()
+                .flex_col()
+                .gap_3()
+                .px_5()
+                .py_5()
+                .child(properties_section_label("CLIP"))
+                .child(property_field(
+                    "Timeline start",
+                    clip.timeline_start.frames().to_string(),
+                    "frames",
+                ))
+                .child(property_field(
+                    "Source in",
+                    clip.source_in.frames().to_string(),
+                    "frames",
+                ))
+                .child(property_field(
+                    "Source out",
+                    clip.source_out.frames().to_string(),
+                    "frames",
+                ))
+                .child(property_field(
+                    "Duration",
+                    duration.frames().to_string(),
+                    "frames",
+                ))
+                .child(properties_section_label("AUDIO"))
+                .child(property_field(
+                    "Gain",
+                    format!("{:.2}", clip.audio_properties.gain_db),
+                    "dB",
+                ))
+                .child(property_field(
+                    "Muted",
+                    if clip.audio_properties.muted {
+                        "Yes".to_string()
+                    } else {
+                        "No".to_string()
+                    },
+                    "",
+                )),
+        )
+        .into_any_element()
+}
+
+fn text_clip(clip: &TextClip) -> gpui::AnyElement {
+    let property_field =
+        |label: &'static str, value: String, unit: &'static str, color: Option<u32>| {
+            div()
+                .h(px(48.0))
+                .flex()
+                .items_center()
+                .gap_4()
+                .child(
+                    div()
+                        .w(px(112.0))
+                        .flex_shrink_0()
+                        .text_sm()
+                        .text_color(rgb(MUTED))
+                        .child(label),
+                )
+                .child(
+                    div()
+                        .h(px(48.0))
+                        .min_w_0()
+                        .flex_1()
+                        .flex()
+                        .items_center()
+                        .gap_2()
+                        .px_3()
+                        .rounded_md()
+                        .border_1()
+                        .border_color(rgb(BORDER))
+                        .bg(rgb(SURFACE))
+                        .when_some(color, |field, color| {
+                            field.child(
+                                div()
+                                    .size(px(18.0))
+                                    .flex_shrink_0()
+                                    .rounded_sm()
+                                    .border_1()
+                                    .border_color(rgb(BORDER))
+                                    .bg(gpui::rgba(color)),
+                            )
+                        })
+                        .child(
+                            div()
+                                .min_w_0()
+                                .flex_1()
+                                .text_sm()
+                                .text_ellipsis()
+                                .child(value),
+                        )
+                        .when(!unit.is_empty(), |field| {
+                            field.child(div().text_sm().text_color(rgb(MUTED)).child(unit))
+                        }),
+                )
+        };
+
+    div()
+        .id("text-clip-properties-v2")
+        .flex()
+        .flex_col()
+        .overflow_hidden()
+        .bg(rgb(PANEL))
+        .child(
+            div()
+                .h(px(58.0))
+                .flex_shrink_0()
+                .flex()
+                .items_center()
+                .gap_5()
+                .px_5()
+                .border_b_1()
+                .border_color(rgb(BORDER))
+                .child(properties_tab("Text", true)),
+        )
+        .child(
+            div()
+                .flex()
+                .flex_col()
+                .gap_3()
+                .px_5()
+                .py_5()
+                .child(properties_section_label("CONTENT"))
+                .child(property_field(
+                    "Text",
+                    clip.properties.text.clone(),
+                    "",
+                    None,
+                ))
+                .child(property_field(
+                    "Length",
+                    format!("{:.3}", clip.length.as_secs_f64()),
+                    "s",
+                    None,
+                ))
+                .child(properties_section_label("STYLE"))
+                .child(property_field(
+                    "Font",
+                    clip.properties.font.clone(),
+                    "",
+                    None,
+                ))
+                .child(property_field(
+                    "Font size",
+                    format!("{}", clip.properties.font_size),
+                    "px",
+                    None,
+                ))
+                .child(property_field(
+                    "Color",
+                    format!("#{:08X}", clip.properties.color),
+                    "",
+                    Some(clip.properties.color),
+                ))
+                .child(properties_section_label("POSITION"))
+                .child(property_field(
+                    "Position X",
+                    format!("{}", clip.properties.position_x),
+                    "",
+                    None,
+                ))
+                .child(property_field(
+                    "Position Y",
+                    format!("{}", clip.properties.position_y),
+                    "",
+                    None,
+                )),
+        )
+        .into_any_element()
+}
+
 fn video_file_properties(
     path: &Path,
     asset: Option<&MediaAsset>,
@@ -516,6 +625,115 @@ impl Editor {
             cx.notify();
         }
     }
+}
+
+fn video_clip(clip: &VideoClip) -> gpui::AnyElement {
+    let property_field = |label: &'static str, value: String, unit: &'static str| {
+        div()
+            .h(px(48.0))
+            .flex()
+            .items_center()
+            .gap_4()
+            .child(
+                div()
+                    .w(px(112.0))
+                    .flex_shrink_0()
+                    .text_sm()
+                    .text_color(rgb(MUTED))
+                    .child(label),
+            )
+            .child(
+                div()
+                    .h(px(48.0))
+                    .min_w_0()
+                    .flex_1()
+                    .flex()
+                    .items_center()
+                    .gap_2()
+                    .px_3()
+                    .rounded_md()
+                    .border_1()
+                    .border_color(rgb(BORDER))
+                    .bg(rgb(SURFACE))
+                    .child(
+                        div()
+                            .min_w_0()
+                            .flex_1()
+                            .text_sm()
+                            .text_ellipsis()
+                            .child(value),
+                    )
+                    .when(!unit.is_empty(), |field| {
+                        field.child(div().text_sm().text_color(rgb(MUTED)).child(unit))
+                    }),
+            )
+    };
+    let duration = clip.source_out - clip.source_in;
+
+    div()
+        .id("video-clip-properties-v2")
+        .flex()
+        .flex_col()
+        .overflow_hidden()
+        .bg(rgb(PANEL))
+        .child(
+            div()
+                .h(px(58.0))
+                .flex_shrink_0()
+                .flex()
+                .items_center()
+                .gap_5()
+                .px_5()
+                .border_b_1()
+                .border_color(rgb(BORDER))
+                .child(properties_tab("Video", true)),
+        )
+        .child(
+            div()
+                .flex()
+                .flex_col()
+                .gap_3()
+                .px_5()
+                .py_5()
+                .child(properties_section_label("CLIP"))
+                .child(property_field(
+                    "Timeline start",
+                    clip.timeline_start.frames().to_string(),
+                    "frames",
+                ))
+                .child(property_field(
+                    "Source in",
+                    clip.source_in.frames().to_string(),
+                    "frames",
+                ))
+                .child(property_field(
+                    "Source out",
+                    clip.source_out.frames().to_string(),
+                    "frames",
+                ))
+                .child(property_field(
+                    "Duration",
+                    duration.frames().to_string(),
+                    "frames",
+                ))
+                .child(properties_section_label("TRANSFORM"))
+                .child(property_field(
+                    "Position X",
+                    format!("{:.2}", clip.video_properties.position_x),
+                    "px",
+                ))
+                .child(property_field(
+                    "Position Y",
+                    format!("{:.2}", clip.video_properties.position_y),
+                    "px",
+                ))
+                .child(property_field(
+                    "Scale",
+                    format!("{:.2}", clip.video_properties.scale * 100.0),
+                    "%",
+                )),
+        )
+        .into_any_element()
 }
 
 fn properties_title(title: String, subtitle: &'static str) -> gpui::Div {

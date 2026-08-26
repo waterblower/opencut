@@ -82,9 +82,9 @@ impl Render for Editor {
 
         let properties_panel_view = {
             match current_properties_panel_viewable(self) {
-                PropertiesPanelViewable::TextClip(clip) => {
-                    properties_panel_v2(PropertiesPanelViewable::TextClip(clip))
-                }
+                viewable @ (PropertiesPanelViewable::VideoClip(_)
+                | PropertiesPanelViewable::AudioClip(_)
+                | PropertiesPanelViewable::TextClip(_)) => properties_panel_v2(viewable),
                 _ => properties_panel(self, cx),
             }
         };
