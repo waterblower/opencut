@@ -30,7 +30,6 @@ mod preview_timeline;
 mod preview_video;
 mod project_settings;
 mod properties;
-mod properties_text;
 mod properties_transform;
 mod settings;
 mod timeline;
@@ -66,7 +65,7 @@ use preview_audio::AudioBackend;
 use preview_timeline::TimelinePreviewDrag;
 use project_settings::{load_project_local_settings, save_project_local_settings};
 use properties::PropertiesPanelResizeDrag;
-use properties_text::TextClipInputs;
+
 use properties_transform::VideoTransformInputs;
 use timeline::{
     FRAME_RATE_PRESETS, FrameRate, TimelineRuntimeState, TimelineSerialization, TimelineTime,

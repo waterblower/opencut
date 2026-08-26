@@ -109,8 +109,6 @@ impl Editor {
         let properties = {
             let video_transform_inputs = VideoTransformInputs::new(focus_handle.clone(), cx);
             Self::observe_video_transform_inputs(&video_transform_inputs, cx);
-            let text_clip_inputs = TextClipInputs::new(focus_handle.clone(), cx);
-            Self::observe_text_clip_inputs(&text_clip_inputs, cx);
 
             PropertiesPanelState {
                 width: DEFAULT_PROPERTIES_PANEL_WIDTH,
