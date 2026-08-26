@@ -153,13 +153,9 @@ impl Editor {
         event: &MouseDownEvent,
         cx: &mut Context<Self>,
     ) {
-        if !is_directory {
-            self.select_only_clip(None);
-        }
         if let Some(timeline) = self.timeline.as_mut() {
             timeline.interaction.context_menu = None;
         }
-        self.explorer.selected_file = Some(relative_path.clone());
         self.explorer.context_menu = Some(FileContextMenu {
             relative_path,
             is_directory,
