@@ -24,6 +24,7 @@ fn main() {
 }
 
 fn run_app(cx: &mut App) {
+    gpui_component::init(cx);
     gpui_inspector::init(cx);
     editor::bind_keys(cx);
     cx.on_window_closed(|cx, _window_id| {

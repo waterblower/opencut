@@ -1,6 +1,6 @@
 use super::properties_transform::{properties_section_label, properties_tab};
 use super::*;
-use gpui_component::input::InputState;
+use gpui_component::input::{Input, InputState};
 
 #[derive(IntoElement)]
 pub(super) struct TextClipPropertiesView {
@@ -16,12 +16,32 @@ impl TextClipPropertiesView {
 impl RenderOnce for TextClipPropertiesView {
     fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
         let initial_text = self.clip.properties.text.clone();
-        let _text_input = window.use_keyed_state(
+        let text_input = window.use_keyed_state(
             format!("text-clip-{}-text-input", self.clip.id),
             cx,
             move |window, cx| InputState::new(window, cx).default_value(initial_text),
         );
         let clip = self.clip;
+        let text_input_field = div()
+            .h(px(48.0))
+            .flex()
+            .items_center()
+            .gap_4()
+            .child(
+                div()
+                    .w(px(112.0))
+                    .flex_shrink_0()
+                    .text_sm()
+                    .text_color(rgb(MUTED))
+                    .child("Text"),
+            )
+            .child(
+                Input::new(&text_input)
+                    .aria_label("Text")
+                    .h(px(48.0))
+                    .min_w_0()
+                    .flex_1(),
+            );
         let property_field =
             |label: &'static str, value: String, unit: &'static str, color: Option<u32>| {
                 div()
@@ -101,12 +121,7 @@ impl RenderOnce for TextClipPropertiesView {
                     .px_5()
                     .py_5()
                     .child(properties_section_label("CONTENT"))
-                    .child(property_field(
-                        "Text",
-                        clip.properties.text.clone(),
-                        "",
-                        None,
-                    ))
+                    .child(text_input_field)
                     .child(property_field(
                         "Length",
                         format!("{:.3}", clip.length.as_secs_f64()),
