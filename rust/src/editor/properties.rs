@@ -28,8 +28,7 @@ pub(super) enum PropertiesPanelViewable<'a> {
     None,
 }
 
-#[allow(dead_code)] // Used once properties panel v2 replaces v1.
-fn current_properties_panel_viewable(editor: &Editor) -> PropertiesPanelViewable<'_> {
+pub fn current_properties_panel_viewable(editor: &Editor) -> PropertiesPanelViewable<'_> {
     match &editor.preview.target {
         PreviewTarget::Timeline(_) => {
             let Some(timeline) = editor.timeline.as_ref() else {

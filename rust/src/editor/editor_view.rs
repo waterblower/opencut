@@ -1,4 +1,7 @@
-use crate::editor::editor::EditorEvent;
+use crate::editor::{
+    editor::EditorEvent,
+    properties::{PropertiesPanelViewable, current_properties_panel_viewable, properties_panel_v2},
+};
 
 use super::*;
 
@@ -77,6 +80,15 @@ impl Render for Editor {
             None
         };
 
+        let properties_panel_view = {
+            match current_properties_panel_viewable(self) {
+                PropertiesPanelViewable::TextClip(clip) => {
+                    properties_panel_v2(PropertiesPanelViewable::TextClip(clip))
+                }
+                _ => properties_panel(self, cx),
+            }
+        };
+
         div()
             .id("editor-root")
             .key_context(EDITOR_KEY_CONTEXT)
@@ -143,7 +155,7 @@ impl Render for Editor {
                                 preview_height,
                                 cx,
                             ))
-                            .child(properties_panel(self, cx)),
+                            .child(properties_panel_view),
                     )
                     .child(self.timeline(cx)),
             )
