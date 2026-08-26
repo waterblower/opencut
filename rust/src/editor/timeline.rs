@@ -426,7 +426,6 @@ impl TimelineRuntimeState {
                 marquee_selection: None,
                 scrubbing_playhead: false,
                 last_scrub_seek: None,
-                context_menu: None,
             },
             h_scroll: scroll,
             v_scroll: vertical_scroll,

@@ -16,6 +16,13 @@ pub(crate) struct Editor {
     pub(super) focus_handle: FocusHandle,
     pub(super) clipboard: Option<ClipClipboard>,
     pub(super) event_bus: Entity<EventBus>,
+    pub(super) context_menu: ContextMenu,
+}
+
+pub(super) enum ContextMenu {
+    None,
+    File(FileContextMenu),
+    Timeline(TimelineContextMenu),
 }
 
 impl Editor {
@@ -77,7 +84,6 @@ impl Editor {
                 search_pending: false,
                 scroll: ScrollHandle::new(),
                 selected_file: timeline.as_ref().map(|timeline| timeline.path.clone()),
-                context_menu: None,
                 rename_dialog: None,
                 new_timeline_dialog: None,
                 drag_assets: HashMap::new(),
@@ -147,6 +153,7 @@ impl Editor {
             status: None,
             focus_handle,
             event_bus,
+            context_menu: ContextMenu::None,
         };
         if let Some(timeline) = editor.timeline.as_ref()
             && !timeline.data.clips.is_empty()

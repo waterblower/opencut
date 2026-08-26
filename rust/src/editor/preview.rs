@@ -97,7 +97,7 @@ impl Editor {
             .video_mut()
             .expect("loading a timeline position requires an active video preview");
         self.explorer.selected_file = None;
-        self.explorer.context_menu = None;
+        self.context_menu = ContextMenu::None;
         let duration = timeline.data.content_duration();
         let position = position.clamp(TimelineTime::ZERO, duration);
         timeline.playhead = position;

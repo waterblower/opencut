@@ -54,6 +54,7 @@ use clip_placement::{
     ClipPlacementRejection, validate_clip_placement, validate_text_clip_placement,
 };
 use editing::{ClipClipboard, EditAction, edit_and_rebuild_timeline, edit_timeline};
+use editor::ContextMenu;
 pub(crate) use editor::Editor;
 use explorer::{
     ExplorerDropPreview, ExplorerMediaDrag, FileContextMenu, FileTreeEntry, NewTimelineDialogState,
@@ -202,7 +203,6 @@ struct ExplorerState {
     search_pending: bool,
     scroll: ScrollHandle,
     selected_file: Option<PathBuf>,
-    context_menu: Option<FileContextMenu>,
     rename_dialog: Option<RenameDialogState>,
     new_timeline_dialog: Option<NewTimelineDialogState>,
     drag_assets: HashMap<PathBuf, MediaAsset>,
@@ -393,7 +393,7 @@ impl Editor {
             .filter
             .update(cx, |filter, cx| filter.clear(cx));
         self.explorer.selected_file = self.timeline.as_ref().map(|timeline| timeline.path.clone());
-        self.explorer.context_menu = None;
+        self.context_menu = ContextMenu::None;
         self.explorer
             .refresh_file_tree(&self.global_settings.project_root)?;
         if let Some(timeline) = self.timeline.as_ref()

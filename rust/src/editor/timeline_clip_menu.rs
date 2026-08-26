@@ -67,18 +67,14 @@ impl Editor {
             .on_mouse_down(
                 MouseButton::Left,
                 cx.listener(|editor, _, _, cx| {
-                    if let Some(timeline) = editor.timeline.as_mut() {
-                        timeline.interaction.context_menu = None;
-                    }
+                    editor.context_menu = ContextMenu::None;
                     cx.notify();
                 }),
             )
             .on_mouse_down(
                 MouseButton::Right,
                 cx.listener(|editor, _, _, cx| {
-                    if let Some(timeline) = editor.timeline.as_mut() {
-                        timeline.interaction.context_menu = None;
-                    }
+                    editor.context_menu = ContextMenu::None;
                     cx.notify();
                 }),
             )
@@ -129,14 +125,13 @@ impl Editor {
         event: &MouseDownEvent,
         cx: &mut Context<Self>,
     ) {
-        self.explorer.context_menu = None;
         self.explorer.selected_file = None;
         self.select_only_clip(Some(clip_id));
-        let Some(timeline) = self.timeline.as_mut() else {
+        let Some(_) = self.timeline.as_ref() else {
             return;
         };
-        timeline.interaction.context_menu =
-            Some(TimelineContextMenu::Clip(TimelineClipContextMenu {
+        self.context_menu =
+            ContextMenu::Timeline(TimelineContextMenu::Clip(TimelineClipContextMenu {
                 clip_id,
                 x: event.position.x.into(),
                 y: event.position.y.into(),
@@ -146,19 +141,12 @@ impl Editor {
     }
 
     fn apply_transform_to_track_clips(&mut self) {
-        let Some(source_clip_id) = self
-            .timeline
-            .as_mut()
-            .and_then(|timeline| timeline.interaction.context_menu.take())
-            .and_then(|menu| {
-                let TimelineContextMenu::Clip(menu) = menu else {
-                    return None;
-                };
-                Some(menu.clip_id)
-            })
+        let ContextMenu::Timeline(TimelineContextMenu::Clip(menu)) =
+            std::mem::replace(&mut self.context_menu, ContextMenu::None)
         else {
             return;
         };
+        let source_clip_id = menu.clip_id;
         let Some((properties, targets)) = self
             .timeline
             .as_ref()

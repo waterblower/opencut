@@ -90,7 +90,7 @@ impl Editor {
                         let timeline_path = menu.relative_path.clone();
                         this.child(file_menu_item("Settings", "").on_click(cx.listener(
                             move |editor, _, _, cx| {
-                                editor.explorer.context_menu = None;
+                                editor.context_menu = ContextMenu::None;
                                 if let Err(error) = editor.open_timeline(timeline_path.clone(), cx)
                                 {
                                     eprintln!("{error}");
@@ -153,10 +153,7 @@ impl Editor {
         event: &MouseDownEvent,
         cx: &mut Context<Self>,
     ) {
-        if let Some(timeline) = self.timeline.as_mut() {
-            timeline.interaction.context_menu = None;
-        }
-        self.explorer.context_menu = Some(FileContextMenu {
+        self.context_menu = ContextMenu::File(FileContextMenu {
             relative_path,
             is_directory,
             x: event.position.x.into(),
@@ -167,7 +164,7 @@ impl Editor {
     }
 
     pub(crate) fn dismiss_file_context_menu(&mut self) {
-        self.explorer.context_menu = None;
+        self.context_menu = ContextMenu::None;
     }
 
     /// Opens the new-timeline dialog for `relative_directory`, pre-filled with the next
@@ -178,7 +175,7 @@ impl Editor {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        self.explorer.context_menu = None;
+        self.context_menu = ContextMenu::None;
         let default_name = timeline_document::default_timeline_name(
             &self.global_settings.project_root,
             &relative_directory,
@@ -217,15 +214,11 @@ impl Editor {
     }
 
     pub(crate) fn begin_rename(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        let Some(relative_path): Option<PathBuf> = self
-            .explorer
-            .context_menu
-            .as_ref()
-            .map(|menu| menu.relative_path.clone())
-        else {
+        let ContextMenu::File(menu) = &self.context_menu else {
             return;
         };
-        self.explorer.context_menu = None;
+        let relative_path = menu.relative_path.clone();
+        self.context_menu = ContextMenu::None;
         let Some(name) = relative_path
             .file_name()
             .map(|name: &std::ffi::OsStr| name.to_string_lossy().into_owned())
@@ -368,38 +361,40 @@ impl Editor {
 
     fn reveal_selected_file(&mut self, cx: &mut Context<Self>) {
         let Some(path) = file_action_path(
-            self.explorer.context_menu.as_ref(),
+            match &self.context_menu {
+                ContextMenu::File(menu) => Some(menu),
+                ContextMenu::None | ContextMenu::Timeline(_) => None,
+            },
             self.explorer.selected_file.as_deref(),
             &self.global_settings.project_root,
         ) else {
             return;
         };
-        self.explorer.context_menu = None;
+        self.context_menu = ContextMenu::None;
         cx.reveal_path(&path);
     }
 
     fn open_selected_file_in_default_app(&mut self, cx: &mut Context<Self>) {
         let Some(path) = file_action_path(
-            self.explorer.context_menu.as_ref(),
+            match &self.context_menu {
+                ContextMenu::File(menu) => Some(menu),
+                ContextMenu::None | ContextMenu::Timeline(_) => None,
+            },
             self.explorer.selected_file.as_deref(),
             &self.global_settings.project_root,
         ) else {
             return;
         };
-        self.explorer.context_menu = None;
+        self.context_menu = ContextMenu::None;
         cx.open_with_system(&path);
     }
 
     fn trash_selected_file(&mut self, cx: &mut Context<Self>) -> Result<(), String> {
-        let Some(relative_path): Option<PathBuf> = self
-            .explorer
-            .context_menu
-            .as_ref()
-            .map(|menu| menu.relative_path.clone())
-        else {
+        let ContextMenu::File(menu) = &self.context_menu else {
             return Ok(());
         };
-        self.explorer.context_menu = None;
+        let relative_path = menu.relative_path.clone();
+        self.context_menu = ContextMenu::None;
 
         // The project root is the workspace itself, not an entry within it.
         if relative_path.as_os_str().is_empty() {

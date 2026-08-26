@@ -224,15 +224,16 @@ impl Editor {
                                         },
                                     )
                                     .when_some(
-                                        timeline.interaction.context_menu.as_ref().and_then(
-                                            |menu| {
-                                                let TimelineContextMenu::TextTrack(menu) = menu
-                                                else {
-                                                    return None;
-                                                };
-                                                Some(menu.position)
-                                            },
-                                        ),
+                                        match &self.context_menu {
+                                            ContextMenu::Timeline(
+                                                TimelineContextMenu::TextTrack(menu),
+                                            ) => Some(menu.position),
+                                            ContextMenu::None
+                                            | ContextMenu::File(_)
+                                            | ContextMenu::Timeline(TimelineContextMenu::Clip(_)) => {
+                                                None
+                                            }
+                                        },
                                         |this, position| {
                                             let guide_left = TIMELINE_PADDING
                                                 + timeline.data.seconds(position) as f32

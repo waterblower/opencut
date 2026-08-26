@@ -33,18 +33,14 @@ impl Editor {
             .on_mouse_down(
                 MouseButton::Left,
                 cx.listener(|editor, _, _, cx| {
-                    if let Some(timeline) = editor.timeline.as_mut() {
-                        timeline.interaction.context_menu = None;
-                    }
+                    editor.context_menu = ContextMenu::None;
                     cx.notify();
                 }),
             )
             .on_mouse_down(
                 MouseButton::Right,
                 cx.listener(|editor, _, _, cx| {
-                    if let Some(timeline) = editor.timeline.as_mut() {
-                        timeline.interaction.context_menu = None;
-                    }
+                    editor.context_menu = ContextMenu::None;
                     cx.notify();
                 }),
             )
@@ -91,7 +87,6 @@ impl Editor {
         event: &MouseDownEvent,
         cx: &mut Context<Self>,
     ) {
-        self.explorer.context_menu = None;
         let Some(timeline) = self.timeline.as_mut() else {
             return;
         };
@@ -109,8 +104,8 @@ impl Editor {
             .data
             .nearest_time(content_x as f64 / timeline.data.view.pixels_per_second as f64)
             .max(TimelineTime::ZERO);
-        timeline.interaction.context_menu =
-            Some(TimelineContextMenu::TextTrack(TextTrackContextMenu {
+        self.context_menu =
+            ContextMenu::Timeline(TimelineContextMenu::TextTrack(TextTrackContextMenu {
                 track_id,
                 position,
                 x: event.position.x.into(),
@@ -121,10 +116,10 @@ impl Editor {
     }
 
     fn add_text(&mut self, track_id: Ulid, position: TimelineTime, cx: &mut Context<Self>) {
+        self.context_menu = ContextMenu::None;
         let Some(timeline) = self.timeline.as_mut() else {
             return;
         };
-        timeline.interaction.context_menu = None;
         let clip = match text_clip_at(&timeline.data, track_id, position) {
             Ok(clip) => clip,
             Err(error) => {

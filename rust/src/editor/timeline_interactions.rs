@@ -52,7 +52,6 @@ pub(super) struct TimelineInteractionState {
     pub(super) marquee_selection: Option<MarqueeSelection>,
     pub(super) scrubbing_playhead: bool,
     pub(super) last_scrub_seek: Option<Instant>,
-    pub(super) context_menu: Option<TimelineContextMenu>,
 }
 
 impl TimelineRuntimeState {
