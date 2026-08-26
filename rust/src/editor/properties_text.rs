@@ -1,27 +1,61 @@
 use super::properties_transform::{properties_section_label, properties_tab};
 use super::*;
-use gpui_component::input::{Input, InputState};
+use gpui_component::input::{Input, InputEvent, InputState};
 
 #[derive(IntoElement)]
 pub(super) struct TextClipPropertiesView {
     clip: TextClip,
+    event_bus: Entity<EventBus>,
 }
 
 impl TextClipPropertiesView {
-    pub(super) fn new(clip: TextClip) -> Self {
-        Self { clip }
+    pub(super) fn new(clip: TextClip, event_bus: Entity<EventBus>) -> Self {
+        Self { clip, event_bus }
     }
 }
 
 impl RenderOnce for TextClipPropertiesView {
     fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
-        let initial_text = self.clip.properties.text.clone();
-        let text_input = window.use_keyed_state(
-            format!("text-clip-{}-text-input", self.clip.id),
-            cx,
-            move |window, cx| InputState::new(window, cx).default_value(initial_text),
-        );
         let clip = self.clip;
+        let event_bus = self.event_bus;
+
+        let text_input_state = {
+            let clip_id = clip.id;
+            let initial_clip = clip.clone();
+            let initial_text = initial_clip.properties.text.clone();
+            window.use_keyed_state(
+                format!("text-clip-{clip_id}-text-input"),
+                cx,
+                move |window, cx| {
+                    let input =
+                        cx.new(|cx| InputState::new(window, cx).default_value(initial_text));
+                    let subscription =
+                        cx.subscribe(&input, move |_, input, event: &InputEvent, cx| {
+                            if let InputEvent::Change = event {
+                                let new_value = input.read(cx).value();
+                                eprintln!("text input changed: {}", new_value);
+                                let edit_action = EditAction::UpdateClip {
+                                    clip: Clip::Text(TextClip {
+                                        properties: TextClipProperties {
+                                            text: new_value.to_string(),
+                                            ..initial_clip.properties.clone()
+                                        },
+                                        ..initial_clip.clone()
+                                    }),
+                                };
+                                event_bus.update(cx, |_, cx| {
+                                    cx.emit(edit_action);
+                                });
+                            }
+                        });
+                    TextPropertyInputState {
+                        input,
+                        _subscription: subscription,
+                    }
+                },
+            )
+        };
+        let text_input = text_input_state.read(cx).input.clone();
         let text_input_field = div()
             .h(px(48.0))
             .flex()
@@ -38,9 +72,13 @@ impl RenderOnce for TextClipPropertiesView {
             .child(
                 Input::new(&text_input)
                     .aria_label("Text")
+                    .appearance(false)
+                    .border_1()
+                    .focus_bordered(false)
                     .h(px(48.0))
                     .min_w_0()
-                    .flex_1(),
+                    .flex_1()
+                    .bg(rgb(0x000000)),
             );
         let property_field =
             |label: &'static str, value: String, unit: &'static str, color: Option<u32>| {
@@ -163,4 +201,9 @@ impl RenderOnce for TextClipPropertiesView {
             )
             .into_any_element()
     }
+}
+
+struct TextPropertyInputState {
+    input: Entity<InputState>,
+    _subscription: gpui::Subscription,
 }

@@ -14,7 +14,7 @@ mod asset;
 use asset::EditorAssets;
 
 use editor::Editor;
-use gpui::{App, Bounds, WindowBounds, WindowOptions, prelude::*, px, size};
+use gpui::{App, Bounds, WindowBounds, WindowOptions, prelude::*, px, rgb, size};
 use gpui_platform::application;
 
 fn main() {
@@ -25,6 +25,7 @@ fn main() {
 
 fn run_app(cx: &mut App) {
     gpui_component::init(cx);
+    gpui_component::Theme::global_mut(cx).caret = rgb(0xffffff).into();
     gpui_inspector::init(cx);
     editor::bind_keys(cx);
     cx.on_window_closed(|cx, _window_id| {
@@ -36,10 +37,7 @@ fn run_app(cx: &mut App) {
 
     let bounds = Bounds::centered(None, size(px(1440.0), px(900.0)), cx);
     let editor = cx.new(Editor::new);
-    cx.subscribe(&editor, |_entity, event, _app| {
-        eprintln!("editor subscribe {:?}", event);
-    })
-    .detach();
+
     cx.open_window(
         WindowOptions {
             window_bounds: Some(WindowBounds::Windowed(bounds)),

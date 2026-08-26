@@ -60,10 +60,13 @@ pub fn current_properties_panel_viewable(editor: &Editor) -> PropertiesPanelView
     PropertiesPanelViewable::TimelineFile(timeline)
 }
 
-pub(super) fn properties_panel(data: PropertiesPanelViewable<'_>) -> gpui::AnyElement {
+pub(super) fn properties_panel(
+    data: PropertiesPanelViewable<'_>,
+    event_bus: Entity<EventBus>,
+) -> gpui::AnyElement {
     match data {
         PropertiesPanelViewable::TextClip(clip) => {
-            TextClipPropertiesView::new(clip.clone()).into_any_element()
+            TextClipPropertiesView::new(clip.clone(), event_bus).into_any_element()
         }
         PropertiesPanelViewable::VideoClip(clip) => video_clip(clip),
         PropertiesPanelViewable::AudioClip(clip) => audio_clip(clip),

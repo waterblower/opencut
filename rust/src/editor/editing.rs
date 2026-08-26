@@ -928,6 +928,7 @@ fn plural_suffix(count: usize) -> &'static str {
     if count == 1 { "" } else { "s" }
 }
 
+#[derive(Clone, Debug)]
 pub(super) enum EditAction {
     AddClips {
         clips: Vec<Clip>,
@@ -936,6 +937,9 @@ pub(super) enum EditAction {
     RemoveClips {
         clip_ids: HashSet<Ulid>,
         close_track_gaps: bool,
+    },
+    UpdateClip {
+        clip: Clip,
     },
     MoveClips {
         placements: Vec<(Ulid, Ulid, TimelineTime)>,
@@ -947,10 +951,6 @@ pub(super) enum EditAction {
     SetTextProperties {
         clip_id: Ulid,
         properties: TextClipProperties,
-    },
-    SetTextLength {
-        clip_id: Ulid,
-        length: Duration,
     },
     AddTrack {
         track: Track,
@@ -1004,9 +1004,9 @@ impl EditAction {
             Self::AddClips { .. } => "AddClips",
             Self::RemoveClips { .. } => "RemoveClips",
             Self::MoveClips { .. } => "MoveClips",
+            Self::UpdateClip { .. } => "UpdateClip",
             Self::SetVideoProperties { .. } => "SetVideoProperties",
             Self::SetTextProperties { .. } => "SetTextProperties",
-            Self::SetTextLength { .. } => "SetTextLength",
             Self::AddTrack { .. } => "AddTrack",
             Self::DeleteTrack { .. } => "DeleteTrack",
             Self::MoveTrack { .. } => "MoveTrack",
@@ -1143,6 +1143,10 @@ pub(super) fn edit_timeline(
 
             return Ok(false);
         }
+        EditAction::UpdateClip { clip } => {
+            // ges_remove_clips(ges, [clip.id])
+            // ges_add_clips(ges, [clip])
+        }
         EditAction::SetVideoProperties {
             clip_ids,
             properties,
@@ -1168,26 +1172,6 @@ pub(super) fn edit_timeline(
                 )?;
             }
             return Ok(false); // should not rebuild timeline
-        }
-        EditAction::SetTextLength { clip_id, length } => {
-            let Some(Clip::Text(clip)) = timeline.data.clip(clip_id) else {
-                return Err(ClipPlacementRejection::MissingClip.into());
-            };
-            let frame_rate = timeline.data.settings.frame_rate;
-            validate_text_clip_placement(
-                &timeline.data,
-                clip.track_id,
-                frame_rate.frames_from_duration_nearest(length),
-                clip.timeline_start,
-                &HashSet::from([clip_id]),
-            )?;
-            let properties = clip.properties.clone();
-            ges_change_text_clip(&timeline.ges_timeline, clip_id, &properties, length)?;
-            let Some(Clip::Text(clip)) = timeline.data.clip_mut(clip_id) else {
-                return Err(ClipPlacementRejection::MissingClip.into());
-            };
-            clip.length = length;
-            return Ok(false);
         }
         EditAction::AddTrack { track } => timeline.data.tracks.push(track),
         EditAction::DeleteTrack { track_id } => {

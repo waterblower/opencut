@@ -1,7 +1,4 @@
-use crate::editor::{
-    editor::EditorEvent,
-    properties::{current_properties_panel_viewable, properties_panel},
-};
+use crate::editor::properties::{current_properties_panel_viewable, properties_panel};
 
 use super::*;
 
@@ -153,7 +150,10 @@ impl Editor {
         preview_height: f32,
         cx: &mut Context<Self>,
     ) -> gpui::AnyElement {
-        let properties_panel_view = properties_panel(current_properties_panel_viewable(self));
+        let properties_panel_view = properties_panel(
+            current_properties_panel_viewable(self),
+            self.event_bus.clone(),
+        );
 
         div()
             .id("editor-upper-workspace")
@@ -256,7 +256,6 @@ impl Editor {
                         .text_color(rgb(0x17120a))
                         .on_click(cx.listener(|editor, _, _, cx| {
                             editor.open_export_dialog(cx);
-                            cx.emit(EditorEvent::Test);
                             cx.notify();
                         })),
                     ),

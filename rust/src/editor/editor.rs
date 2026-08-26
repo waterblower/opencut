@@ -1,5 +1,4 @@
 use super::*;
-use gpui::EventEmitter;
 
 pub(crate) struct Editor {
     // main UI sections
@@ -15,16 +14,9 @@ pub(crate) struct Editor {
     pub(super) export: ExportState,
     pub(super) status: Option<String>,
     pub(super) focus_handle: FocusHandle,
-
     pub(super) clipboard: Option<ClipClipboard>,
+    pub(super) event_bus: Entity<EventBus>,
 }
-
-#[derive(Debug)]
-pub enum EditorEvent {
-    Test,
-}
-
-impl EventEmitter<EditorEvent> for Editor {}
 
 impl Editor {
     pub(crate) fn new(cx: &mut Context<Self>) -> Self {
@@ -125,6 +117,24 @@ impl Editor {
         };
 
         start_updates(cx);
+        let event_bus = cx.new(|_| EventBus {});
+        cx.subscribe(&event_bus, |editor, _, edit_action, cx| {
+            let project_root = editor.global_settings.project_root.clone();
+            let Some(timeline) = editor.timeline.as_mut() else {
+                return;
+            };
+            timeline.record_editing_history();
+            edit_and_rebuild_timeline(
+                &mut editor.preview,
+                &project_root,
+                timeline,
+                edit_action.clone(),
+            )
+            .expect("event bus edit actions cannot be rejected");
+            timeline.save(&project_root);
+            cx.notify();
+        })
+        .detach();
         let mut editor = Self {
             global_settings,
             explorer,
@@ -138,6 +148,7 @@ impl Editor {
             clipboard: None,
             status: None,
             focus_handle,
+            event_bus,
         };
         if let Some(timeline) = editor.timeline.as_ref()
             && !timeline.data.clips.is_empty()

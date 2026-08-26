@@ -1,8 +1,9 @@
 use crate::video::VideoBackend;
 use gpui::{
-    App, Context, CursorStyle, DragMoveEvent, Entity, FocusHandle, KeyBinding, MouseButton,
-    MouseDownEvent, MouseMoveEvent, MouseUpEvent, ObjectFit, PathPromptOptions, Render,
-    ScrollHandle, ScrollWheelEvent, TouchPhase, Window, actions, div, img, prelude::*, px, rgb,
+    App, Context, CursorStyle, DragMoveEvent, Entity, EventEmitter, FocusHandle, KeyBinding,
+    MouseButton, MouseDownEvent, MouseMoveEvent, MouseUpEvent, ObjectFit, PathPromptOptions,
+    Render, ScrollHandle, ScrollWheelEvent, TouchPhase, Window, actions, div, img, prelude::*, px,
+    rgb,
 };
 use std::{
     collections::{HashMap, HashSet},
@@ -118,7 +119,7 @@ const ACCENT: u32 = 0xf0b75e;
 const ERROR: u32 = 0xff8b8b;
 const CLIP_BLUE: u32 = 0x294d75;
 const EDITOR_KEY_CONTEXT: &str = "Editor";
-const EDITOR_SHORTCUT_CONTEXT: &str = "!ExplorerFilter";
+const EDITOR_SHORTCUT_CONTEXT: &str = "Editor && !ExplorerFilter && !Input";
 
 actions!(
     opencut_editor,
@@ -689,6 +690,10 @@ fn format_time(seconds: f64, padded_minutes: bool) -> String {
         format!("{minutes_text}:{seconds:02}")
     }
 }
+
+pub struct EventBus;
+
+impl EventEmitter<EditAction> for EventBus {}
 
 #[cfg(test)]
 #[path = "mod.test.rs"]
