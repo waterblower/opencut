@@ -25,7 +25,7 @@ pub(super) enum PropertiesPanelViewable<'a> {
     VideoFile(&'a Path),
     AudioFile(&'a Path),
     ImageFile(&'a Path),
-    TimelineFile(&'a Path),
+    TimelineFile(&'a TimelineRuntimeState),
     None,
 }
 
@@ -54,7 +54,12 @@ pub fn current_properties_panel_viewable(editor: &Editor) -> PropertiesPanelView
             return PropertiesPanelViewable::ImageFile(path);
         }
         if timeline_document::is_timeline_path(path) {
-            return PropertiesPanelViewable::TimelineFile(path);
+            let timeline = editor
+                .timeline
+                .as_ref()
+                .filter(|timeline| timeline.path == path)
+                .expect("should have the timeline");
+            return PropertiesPanelViewable::TimelineFile(timeline);
         }
         return PropertiesPanelViewable::None;
     }
@@ -62,7 +67,7 @@ pub fn current_properties_panel_viewable(editor: &Editor) -> PropertiesPanelView
     let Some(timeline) = editor.timeline.as_ref() else {
         return PropertiesPanelViewable::None;
     };
-    PropertiesPanelViewable::TimelineFile(&timeline.path)
+    PropertiesPanelViewable::TimelineFile(timeline)
 }
 
 pub(super) fn properties_panel_v2(data: PropertiesPanelViewable<'_>) -> gpui::AnyElement {
@@ -71,9 +76,10 @@ pub(super) fn properties_panel_v2(data: PropertiesPanelViewable<'_>) -> gpui::An
         PropertiesPanelViewable::VideoClip(clip) => video_clip(clip),
         PropertiesPanelViewable::AudioClip(clip) => audio_clip(clip),
         PropertiesPanelViewable::VideoFile(file) => video_file(file),
-        PropertiesPanelViewable::AudioFile(_)
-        | PropertiesPanelViewable::ImageFile(_)
-        | PropertiesPanelViewable::TimelineFile(_) => panic!("not implemented"),
+        PropertiesPanelViewable::TimelineFile(timeline) => timeline_file(timeline),
+        PropertiesPanelViewable::AudioFile(_) | PropertiesPanelViewable::ImageFile(_) => {
+            panic!("not implemented")
+        }
         PropertiesPanelViewable::None => div()
             .p_4()
             .text_color(rgb(MUTED))
@@ -281,6 +287,127 @@ pub(super) fn properties_panel_v2(data: PropertiesPanelViewable<'_>) -> gpui::An
 //         })
 //         .into_any_element()
 // }
+//
+
+fn timeline_file(timeline: &TimelineRuntimeState) -> gpui::AnyElement {
+    let property_field = |label: &'static str, value: String, unit: &'static str| {
+        div()
+            .h(px(48.0))
+            .flex()
+            .items_center()
+            .gap_4()
+            .child(
+                div()
+                    .w(px(112.0))
+                    .flex_shrink_0()
+                    .text_sm()
+                    .text_color(rgb(MUTED))
+                    .child(label),
+            )
+            .child(
+                div()
+                    .h(px(48.0))
+                    .min_w_0()
+                    .flex_1()
+                    .flex()
+                    .items_center()
+                    .gap_2()
+                    .px_3()
+                    .rounded_md()
+                    .border_1()
+                    .border_color(rgb(BORDER))
+                    .bg(rgb(SURFACE))
+                    .child(
+                        div()
+                            .min_w_0()
+                            .flex_1()
+                            .text_sm()
+                            .text_ellipsis()
+                            .child(value),
+                    )
+                    .when(!unit.is_empty(), |field| {
+                        field.child(div().text_sm().text_color(rgb(MUTED)).child(unit))
+                    }),
+            )
+    };
+    let name = timeline
+        .path
+        .file_name()
+        .map(|name| name.to_string_lossy().into_owned())
+        .unwrap_or_else(|| timeline.path.display().to_string());
+    let duration = timeline
+        .data
+        .settings
+        .frame_rate
+        .seconds(timeline.data.content_duration());
+    let playhead = timeline.data.settings.frame_rate.seconds(timeline.playhead);
+
+    div()
+        .id("timeline-file-properties-v2")
+        .flex()
+        .flex_col()
+        .overflow_hidden()
+        .bg(rgb(PANEL))
+        .child(
+            div()
+                .h(px(58.0))
+                .flex_shrink_0()
+                .flex()
+                .items_center()
+                .gap_5()
+                .px_5()
+                .border_b_1()
+                .border_color(rgb(BORDER))
+                .child(properties_tab("Timeline", true)),
+        )
+        .child(
+            div()
+                .flex()
+                .flex_col()
+                .gap_3()
+                .px_5()
+                .py_5()
+                .child(properties_section_label("FILE"))
+                .child(property_field("Name", name, ""))
+                .child(property_field(
+                    "Path",
+                    timeline.path.display().to_string(),
+                    "",
+                ))
+                .child(properties_section_label("TIMELINE"))
+                .child(property_field("Duration", format_time(duration, false), ""))
+                .child(property_field("Playhead", format_time(playhead, false), ""))
+                .child(property_field(
+                    "Frame rate",
+                    timeline.data.settings.frame_rate.label(),
+                    "",
+                ))
+                .child(property_field(
+                    "Resolution",
+                    format!(
+                        "{} × {}",
+                        timeline.data.settings.width, timeline.data.settings.height
+                    ),
+                    "px",
+                ))
+                .child(property_field(
+                    "Audio rate",
+                    timeline.data.settings.audio_sample_rate.to_string(),
+                    "Hz",
+                ))
+                .child(property_field(
+                    "Tracks",
+                    timeline.data.tracks.len().to_string(),
+                    "",
+                ))
+                .child(property_field(
+                    "Clips",
+                    timeline.data.clips.len().to_string(),
+                    "",
+                )),
+        )
+        .into_any_element()
+}
 
 fn audio_clip(clip: &AudioClip) -> gpui::AnyElement {
     let property_field = |label: &'static str, value: String, unit: &'static str| {
