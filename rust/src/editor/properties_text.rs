@@ -135,6 +135,8 @@ impl RenderOnce for TextClipPropertiesView {
 
         div()
             .id("text-clip-properties-v2")
+            .h_full()
+            .min_h_0()
             .flex()
             .flex_col()
             .overflow_hidden()
@@ -153,6 +155,10 @@ impl RenderOnce for TextClipPropertiesView {
             )
             .child(
                 div()
+                    .id("text-clip-properties-scroll")
+                    .flex_1()
+                    .min_h_0()
+                    .overflow_y_scroll()
                     .flex()
                     .flex_col()
                     .gap_3()
