@@ -1144,8 +1144,50 @@ pub(super) fn edit_timeline(
             return Ok(false);
         }
         EditAction::UpdateClip { clip } => {
-            // ges_remove_clips(ges, [clip.id])
-            // ges_add_clips(ges, [clip])
+            let clip_id = clip.id();
+            let clip_index = timeline
+                .data
+                .clip_index(clip_id)
+                .expect("updated clip must already exist");
+
+            if let (Clip::Text(previous), Clip::Text(updated)) =
+                (&timeline.data.clips[clip_index], &clip)
+                && previous.track_id == updated.track_id
+                && previous.timeline_start == updated.timeline_start
+                && previous.length == updated.length
+            {
+                if previous.properties != updated.properties
+                    && timeline
+                        .data
+                        .track(updated.track_id)
+                        .is_some_and(|track| track.visible)
+                {
+                    ges_change_text_clip(&timeline.ges_timeline, clip_id, &updated.properties)
+                        .expect("updated text clip properties must be applicable to GES");
+                }
+                timeline.data.clips[clip_index] = clip;
+                return Ok(false);
+            }
+
+            let mut updated_timeline = timeline.data.clone();
+            updated_timeline.clips.remove(clip_index);
+            validate_clips_placements(&updated_timeline, std::slice::from_ref(&clip))
+                .expect("updated clip placement must be valid");
+            updated_timeline.clips.insert(clip_index, clip.clone());
+
+            let clip_ids = HashSet::from([clip_id]);
+            ges_remove_clips(&timeline.ges_timeline, &clip_ids)
+                .expect("updated clip must be removable from GES");
+            ges_add_clips(
+                &timeline.ges_timeline,
+                &updated_timeline,
+                project_root,
+                std::slice::from_ref(&clip),
+            )
+            .expect("updated clip must be addable to GES");
+
+            timeline.data = updated_timeline;
+            return Ok(false);
         }
         EditAction::SetVideoProperties {
             clip_ids,
@@ -1164,12 +1206,7 @@ pub(super) fn edit_timeline(
             if let Some(Clip::Text(clip)) = timeline.data.clip_mut(clip_id) {
                 clip.properties = properties;
                 // change the text of a text clip
-                ges_change_text_clip(
-                    &timeline.ges_timeline,
-                    clip_id,
-                    &clip.properties,
-                    clip.length,
-                )?;
+                ges_change_text_clip(&timeline.ges_timeline, clip_id, &clip.properties)?;
             }
             return Ok(false); // should not rebuild timeline
         }
@@ -1404,7 +1441,6 @@ fn ges_change_text_clip(
     ges: &gstreamer_editing_services::Timeline,
     clip_id: Ulid,
     properties: &TextClipProperties,
-    length: Duration,
 ) -> Result<(), String> {
     use gstreamer_editing_services::prelude::*;
 
@@ -1428,34 +1464,6 @@ fn ges_change_text_clip(
     overlay.set_valign(gstreamer_editing_services::TextVAlign::Position);
     overlay.set_xpos(properties.position_x);
     overlay.set_ypos(properties.position_y);
-    if !overlay.set_duration(gstreamer::ClockTime::from_nseconds(
-        length.as_nanos().min(u64::MAX as u128) as u64,
-    )) {
-        return Err(format!(
-            "could not change the duration of GES text clip {clip_id}"
-        ));
-    }
-    let content_duration_ns = ges
-        .layers()
-        .into_iter()
-        .flat_map(|layer| layer.clips())
-        .filter(|clip| clip.name().as_deref() != Some("opencut-black-background"))
-        .map(|clip| {
-            clip.start()
-                .nseconds()
-                .saturating_add(clip.duration().nseconds())
-        })
-        .max()
-        .unwrap_or(0);
-    if let Some(background) = ges
-        .layers()
-        .into_iter()
-        .flat_map(|layer| layer.clips())
-        .find(|clip| clip.name().as_deref() == Some("opencut-black-background"))
-        && !background.set_duration(gstreamer::ClockTime::from_nseconds(content_duration_ns))
-    {
-        return Err("could not update the GES timeline background duration".to_string());
-    }
     if !ges.commit() {
         return Err("GStreamer could not commit the preview text change.".to_string());
     }
