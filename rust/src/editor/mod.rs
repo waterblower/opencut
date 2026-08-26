@@ -14,6 +14,7 @@ use std::{
 
 mod clip_placement;
 mod clip_render_plan;
+mod context_menu;
 mod editing;
 mod editor;
 mod editor_view;
@@ -53,11 +54,11 @@ use crate::playback_view::{DragPhase, PlaybackViewDelegate};
 use clip_placement::{
     ClipPlacementRejection, validate_clip_placement, validate_text_clip_placement,
 };
+use context_menu::{ContextMenu, FileContextMenu};
 use editing::{ClipClipboard, EditAction, edit_and_rebuild_timeline, edit_timeline};
-use editor::ContextMenu;
 pub(crate) use editor::Editor;
 use explorer::{
-    ExplorerDropPreview, ExplorerMediaDrag, FileContextMenu, FileTreeEntry, NewTimelineDialogState,
+    ExplorerDropPreview, ExplorerMediaDrag, FileTreeEntry, NewTimelineDialogState,
     PendingExplorerDrop, RenameDialogState, load_explorer_expansion, visible_tree,
 };
 use explorer_filter::ExplorerFilter;
@@ -83,10 +84,9 @@ use timeline_clip::AudioClip;
 use timeline_clip::{
     AudioClipProperties, Clip, TextClip, TextClipProperties, VideoClip, VideoClipProperties,
 };
-use timeline_clip_menu::TimelineClipContextMenu;
+use timeline_clip_menu::transform_targets;
 use timeline_document::{load_existing_timeline, project_timeline_files};
 use timeline_interactions::{MarqueeSelection, TimelineInteractionState, TimelineTool};
-use timeline_track_menu::TextTrackContextMenu;
 use timeline_video::create_timeline_video_v2;
 use track::{Track, TrackKind};
 use ulid::Ulid;
@@ -391,7 +391,7 @@ impl Editor {
             .filter
             .update(cx, |filter, cx| filter.clear(cx));
         self.explorer.selected_file = self.timeline.as_ref().map(|timeline| timeline.path.clone());
-        self.context_menu = ContextMenu::None;
+        self.dismiss_context_menu();
         self.explorer
             .refresh_file_tree(&self.global_settings.project_root)?;
         if let Some(timeline) = self.timeline.as_ref()

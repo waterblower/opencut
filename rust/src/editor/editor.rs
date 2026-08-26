@@ -19,13 +19,6 @@ pub(crate) struct Editor {
     pub(super) context_menu: ContextMenu,
 }
 
-pub(super) enum ContextMenu {
-    None,
-    File(FileContextMenu),
-    TimelineClip(TimelineClipContextMenu),
-    TextTrack(TextTrackContextMenu),
-}
-
 impl Editor {
     pub(crate) fn new(cx: &mut Context<Self>) -> Self {
         gstreamer_editing_services::init()

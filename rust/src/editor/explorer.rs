@@ -3,11 +3,10 @@ use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::Path;
 
-#[path = "explorer_file_menu.rs"]
-mod explorer_file_menu;
-pub(crate) use explorer_file_menu::FileContextMenu;
 #[path = "explorer_file_entry.rs"]
 mod explorer_file_entry;
+#[path = "explorer_file_menu.rs"]
+mod explorer_file_menu;
 pub(super) use explorer_file_entry::{
     FileTreeEntry, FileTreeEntryKind, is_audio_path, is_image_path, is_video_path, search_tree,
     visible_tree,

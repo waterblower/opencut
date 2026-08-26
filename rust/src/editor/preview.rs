@@ -87,6 +87,8 @@ impl Editor {
         position: TimelineTime,
         accurate: bool,
     ) {
+        self.explorer.selected_file = None;
+        self.dismiss_context_menu();
         let timeline = self
             .timeline
             .as_mut()
@@ -96,8 +98,6 @@ impl Editor {
             .target
             .video_mut()
             .expect("loading a timeline position requires an active video preview");
-        self.explorer.selected_file = None;
-        self.context_menu = ContextMenu::None;
         let duration = timeline.data.content_duration();
         let position = position.clamp(TimelineTime::ZERO, duration);
         timeline.playhead = position;

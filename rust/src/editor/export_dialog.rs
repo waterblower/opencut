@@ -105,7 +105,7 @@ impl Editor {
         }
 
         self.settings_open = false;
-        self.context_menu = ContextMenu::None;
+        self.dismiss_context_menu();
         self.export.dialog = Some(ExportDialogState {
             resolution: (settings.width, settings.height),
             frame_rate: settings.frame_rate,

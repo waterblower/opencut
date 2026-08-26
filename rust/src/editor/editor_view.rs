@@ -36,16 +36,7 @@ impl Render for Editor {
                     cx,
                 ));
         }
-        let context_menu = match &self.context_menu {
-            ContextMenu::None => None,
-            ContextMenu::File(menu) => Some(self.file_menu_overlay(menu, editor_viewport, cx)),
-            ContextMenu::TimelineClip(menu) => {
-                Some(self.timeline_clip_menu_overlay(menu, editor_viewport, cx))
-            }
-            ContextMenu::TextTrack(menu) => {
-                Some(self.text_track_menu_overlay(menu, editor_viewport, cx))
-            }
-        };
+        let context_menu = self.context_menu_overlay(editor_viewport, cx);
         let rename_dialog = self
             .explorer
             .rename_dialog
