@@ -22,7 +22,8 @@ mod explorer_filter;
 mod export;
 mod export_dialog;
 pub mod export_gstreamer;
-mod horizontal_split;
+#[path = "generic-containers/mod.rs"]
+mod generic_containers;
 mod media_probe;
 mod model;
 mod preview;
@@ -61,7 +62,7 @@ use explorer::{
 use explorer_filter::ExplorerFilter;
 use export_dialog::ExportDialogState;
 use export_gstreamer::build_ges_timeline;
-use horizontal_split::{
+use generic_containers::{
     HORIZONTAL_SPLIT_DIVIDER_WIDTH, HorizontalSplit, HorizontalSplitConstraints,
     HorizontalSplitState,
 };

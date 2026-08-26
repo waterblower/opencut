@@ -1,29 +1,29 @@
-use super::*;
+use super::super::*;
 
-pub(super) const HORIZONTAL_SPLIT_DIVIDER_WIDTH: f32 = 1.0;
+pub const HORIZONTAL_SPLIT_DIVIDER_WIDTH: f32 = 1.0;
 
 #[derive(Clone, Copy)]
-pub(super) struct HorizontalSplitConstraints {
+pub struct HorizontalSplitConstraints {
     pub min_left: f32,
     pub min_center: f32,
     pub min_right: f32,
 }
 
 #[derive(Clone, Copy)]
-pub(super) struct HorizontalSplitWidths {
+pub struct HorizontalSplitWidths {
     pub left: f32,
     pub center: f32,
     pub right: f32,
 }
 
-pub(super) struct HorizontalSplitState {
+pub struct HorizontalSplitState {
     left_width: f32,
     right_width: f32,
     drag_offset: f32,
 }
 
 impl HorizontalSplitState {
-    pub(super) fn new(left_width: f32, right_width: f32) -> Self {
+    pub fn new(left_width: f32, right_width: f32) -> Self {
         Self {
             left_width,
             right_width,
@@ -31,7 +31,7 @@ impl HorizontalSplitState {
         }
     }
 
-    pub(super) fn widths(
+    pub fn widths(
         &self,
         total_width: f32,
         constraints: HorizontalSplitConstraints,
@@ -87,7 +87,7 @@ impl HorizontalSplitState {
 }
 
 #[derive(IntoElement)]
-pub(super) struct HorizontalSplit {
+pub struct HorizontalSplit {
     id: &'static str,
     state: Entity<HorizontalSplitState>,
     total_width: f32,
@@ -98,7 +98,7 @@ pub(super) struct HorizontalSplit {
 }
 
 impl HorizontalSplit {
-    pub(super) fn new(
+    pub fn new(
         id: &'static str,
         state: Entity<HorizontalSplitState>,
         total_width: f32,
