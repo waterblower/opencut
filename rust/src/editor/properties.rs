@@ -24,6 +24,7 @@ pub(super) enum PropertiesPanelViewable<'a> {
     TextClip(&'a TextClip),
     VideoFile(&'a Path),
     AudioFile(&'a Path),
+    ImageFile(&'a Path),
     TimelineFile(&'a Path),
     None,
 }
@@ -49,6 +50,9 @@ pub fn current_properties_panel_viewable(editor: &Editor) -> PropertiesPanelView
         if explorer::is_audio_path(path) {
             return PropertiesPanelViewable::AudioFile(path);
         }
+        if explorer::is_image_path(path) {
+            return PropertiesPanelViewable::ImageFile(path);
+        }
         if timeline_document::is_timeline_path(path) {
             return PropertiesPanelViewable::TimelineFile(path);
         }
@@ -68,6 +72,7 @@ pub(super) fn properties_panel_v2(data: PropertiesPanelViewable<'_>) -> gpui::An
         PropertiesPanelViewable::AudioClip(clip) => audio_clip(clip),
         PropertiesPanelViewable::VideoFile(_)
         | PropertiesPanelViewable::AudioFile(_)
+        | PropertiesPanelViewable::ImageFile(_)
         | PropertiesPanelViewable::TimelineFile(_) => panic!("not implemented"),
         PropertiesPanelViewable::None => div()
             .p_4()
