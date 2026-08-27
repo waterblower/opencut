@@ -332,7 +332,6 @@ impl Editor {
         active_timeline: TimelineSerialization,
         cx: &mut Context<Self>,
     ) -> Result<(), String> {
-        self.explorer.drag_assets.clear();
         self.explorer.drop_preview = None;
         self.preview.volume_control_open = false;
         self.preview.is_scrubbing = false;

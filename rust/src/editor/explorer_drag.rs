@@ -139,15 +139,9 @@ fn drop_dragged_timeline_media(
     }
 
     // Probe synchronously if the drag preview did not already cache metadata.
-    let asset = match editor.probe_explorer_drag_asset(relative_path) {
-        Ok(asset) => asset,
-        Err(error) => {
-            editor.status = Some(format!("Could not add {name}: {error}."));
-            eprintln!("Cannot add {name}: {error}.");
-            cx.notify();
-            return;
-        }
-    };
+    let asset = editor
+        .probe_explorer_drag_asset(relative_path)
+        .expect("probe_explorer_drag_asset failed");
     editor.place_explorer_asset(
         relative_path.to_path_buf(),
         preview.track_id,

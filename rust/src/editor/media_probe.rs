@@ -1,5 +1,4 @@
 use super::{
-    explorer::{is_audio_path, is_image_path, is_video_path},
     model::{DEFAULT_IMAGE_CLIP_DURATION, MediaAsset, MediaKind},
     timeline::FrameRate,
 };
@@ -7,18 +6,6 @@ use ffmpeg::{codec, format, media::Type};
 use ffmpeg_next as ffmpeg;
 use std::{fs, path::Path};
 use ulid::Ulid;
-
-pub(super) fn probe_asset(path: &Path, id: Ulid) -> Result<MediaAsset, String> {
-    if is_image_path(path) {
-        probe_image(path, id)
-    } else if is_audio_path(path) {
-        probe_audio(path, id)
-    } else if is_video_path(path) {
-        probe_video(path, id)
-    } else {
-        Err(format!("unsupported media file: {}", path.display()))
-    }
-}
 
 pub(super) fn probe_video(path: &Path, id: Ulid) -> Result<MediaAsset, String> {
     ffmpeg::init().map_err(|error| format!("could not initialize FFmpeg: {error}"))?;

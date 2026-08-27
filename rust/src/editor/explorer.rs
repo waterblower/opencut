@@ -8,7 +8,7 @@ use crate::{
         editor::Editor,
         explorer_drag::ExplorerMediaDrag,
         explorer_filter::ExplorerFilter,
-        media_probe::probe_asset,
+        media_probe::{probe_audio, probe_image, probe_video},
         model::{DEFAULT_IMAGE_CLIP_DURATION, MediaAsset, MediaKind},
         preview::PreviewTarget,
         preview_audio::AudioBackend,
@@ -28,7 +28,7 @@ use gpui::{
 use gpui::{ScrollHandle, prelude::FluentBuilder};
 use serde::{Deserialize, Serialize};
 use std::{
-    collections::{HashMap, HashSet},
+    collections::HashSet,
     fs,
     path::{Path, PathBuf},
     time::{Duration, Instant},
@@ -71,7 +71,6 @@ pub struct ExplorerState {
     pub selected_file: Option<PathBuf>,
     pub rename_dialog: Option<RenameDialogState>,
     pub new_timeline_dialog: Option<NewTimelineDialogState>,
-    pub drag_assets: HashMap<PathBuf, MediaAsset>,
     pub drop_preview: Option<ExplorerDropPreview>,
     pub last_tree_scan: Instant,
 }
@@ -602,23 +601,17 @@ impl Editor {
         &mut self,
         relative_path: &Path,
     ) -> Result<MediaAsset, String> {
-        let Some(timeline) = self.timeline.as_ref() else {
-            return Err("the destination timeline is unavailable".to_string());
-        };
-        if let Some(asset) = explorer_asset_for_path(
-            &timeline.data.assets,
-            &self.explorer.drag_assets,
-            relative_path,
-        ) {
-            return Ok(asset);
-        }
-
         let source_path = self.global_settings.project_root.join(relative_path);
-        let mut asset = probe_asset(&source_path, Ulid::from(0))?;
+        let mut asset = if is_image_path(&source_path) {
+            probe_image(&source_path, Ulid::from(0))
+        } else if is_audio_path(&source_path) {
+            probe_audio(&source_path, Ulid::from(0))
+        } else if is_video_path(&source_path) {
+            probe_video(&source_path, Ulid::from(0))
+        } else {
+            return Err(format!("unsupported media file: {}", source_path.display()));
+        }?;
         asset.path = relative_path.to_path_buf();
-        self.explorer
-            .drag_assets
-            .insert(relative_path.to_path_buf(), asset.clone());
         Ok(asset)
     }
 
@@ -814,18 +807,6 @@ fn explorer_file_badge(entry: &FileTreeEntry) -> gpui::Div {
         .text_xs()
         .text_color(rgb(text))
         .child(extension)
-}
-
-pub fn explorer_asset_for_path(
-    timeline_assets: &[MediaAsset],
-    drag_assets: &HashMap<PathBuf, MediaAsset>,
-    relative_path: &Path,
-) -> Option<MediaAsset> {
-    timeline_assets
-        .iter()
-        .find(|asset| asset.path == relative_path)
-        .or_else(|| drag_assets.get(relative_path))
-        .cloned()
 }
 
 fn save_explorer_expansion(

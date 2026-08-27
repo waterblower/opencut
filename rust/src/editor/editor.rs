@@ -82,7 +82,6 @@ impl Editor {
                 selected_file: timeline.as_ref().map(|timeline| timeline.path.clone()),
                 rename_dialog: None,
                 new_timeline_dialog: None,
-                drag_assets: HashMap::new(),
                 drop_preview: None,
                 last_tree_scan: Instant::now(),
             }
