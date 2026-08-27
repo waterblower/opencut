@@ -1,3 +1,5 @@
+use crate::editor::explorer::{is_audio_path, is_image_path, is_video_path};
+
 use super::{
     model::{DEFAULT_IMAGE_CLIP_DURATION, MediaAsset, MediaKind},
     timeline::FrameRate,
@@ -6,6 +8,19 @@ use ffmpeg::{codec, format, media::Type};
 use ffmpeg_next as ffmpeg;
 use std::{fs, path::Path};
 use ulid::Ulid;
+
+pub(super) fn probe_asset(path: &Path) -> Result<MediaAsset, String> {
+    let asset = if is_image_path(path) {
+        probe_image(path, Ulid::from(0))
+    } else if is_audio_path(path) {
+        probe_audio(path, Ulid::from(0))
+    } else if is_video_path(path) {
+        probe_video(path, Ulid::from(0))
+    } else {
+        return Err(format!("unsupported media file: {}", path.display()));
+    }?;
+    Ok(asset)
+}
 
 pub(super) fn probe_video(path: &Path, id: Ulid) -> Result<MediaAsset, String> {
     ffmpeg::init().map_err(|error| format!("could not initialize FFmpeg: {error}"))?;

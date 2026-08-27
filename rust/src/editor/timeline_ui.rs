@@ -1,4 +1,6 @@
-use crate::editor::explorer_drag::{ExplorerMediaDrag, drop_dragged_explorer_media};
+use crate::editor::explorer_drag::{
+    ExplorerMediaDrag, drop_dragged_explorer_media, update_file_drag,
+};
 
 use super::*;
 
@@ -166,7 +168,7 @@ impl Editor {
                                     .w(px(timeline_width))
                                     .min_h_full()
                                     .on_drag_move::<ExplorerMediaDrag>(
-                                        cx.listener(Self::update_explorer_media_drag),
+                                        cx.listener(update_file_drag),
                                     )
                                     .on_drop(cx.listener(
                                         |editor, drag: &ExplorerMediaDrag, _, cx| {

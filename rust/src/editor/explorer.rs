@@ -1,15 +1,13 @@
 use crate::{
     editor::{
-        ACCENT, BORDER, ExplorerDropPreview, MUTED, OpenInDefaultApp, PANEL, RULER_HEIGHT,
-        RevealInFinder, SURFACE, SURFACE_HOVER, TEXT, TIMELINE_PADDING, TRACK_HEIGHT,
+        ACCENT, BORDER, ExplorerDropPreview, MUTED, OpenInDefaultApp, PANEL, RevealInFinder,
+        SURFACE, SURFACE_HOVER, TEXT,
         clip_placement::{validate_clip_placement, validate_text_clip_placement},
         context_menu::{ContextMenu, FileContextMenu},
         editing::{EditAction, edit_and_rebuild_timeline},
         editor::Editor,
-        explorer_drag::ExplorerMediaDrag,
         explorer_filter::ExplorerFilter,
-        media_probe::{probe_audio, probe_image, probe_video},
-        model::{DEFAULT_IMAGE_CLIP_DURATION, MediaAsset, MediaKind},
+        model::{MediaAsset, MediaKind},
         preview::PreviewTarget,
         preview_audio::AudioBackend,
         project_settings::save_project_local_settings,
@@ -21,9 +19,8 @@ use crate::{
     video::VideoBackend,
 };
 use gpui::{
-    AppContext as _, Context, CursorStyle, DragMoveEvent, Entity, InteractiveElement, IntoElement,
-    MouseButton, MouseDownEvent, ParentElement, StatefulInteractiveElement, Styled, Window, div,
-    px, rgb,
+    AppContext as _, Context, CursorStyle, Entity, InteractiveElement, IntoElement, MouseButton,
+    MouseDownEvent, ParentElement, StatefulInteractiveElement, Styled, Window, div, px, rgb,
 };
 use gpui::{ScrollHandle, prelude::FluentBuilder};
 use serde::{Deserialize, Serialize};
@@ -475,144 +472,6 @@ impl Editor {
                     ),
             )
             .into_any_element()
-    }
-
-    pub(super) fn update_explorer_media_drag(
-        &mut self,
-        event: &DragMoveEvent<ExplorerMediaDrag>,
-        window: &mut Window,
-        cx: &mut Context<Self>,
-    ) {
-        let pointer = event.event.position;
-        let inside_timeline = event.bounds.contains(&pointer);
-        let local_y = f32::from(pointer.y) - f32::from(event.bounds.top());
-        let track_index = ((local_y - RULER_HEIGHT) / TRACK_HEIGHT).floor() as isize;
-        let Some(track_id) = inside_timeline
-            .then_some(track_index)
-            .and_then(|index| usize::try_from(index).ok())
-            .and_then(|index| self.timeline.as_ref()?.data.tracks.get(index))
-            .map(|track| track.id)
-        else {
-            if self.explorer.drop_preview.take().is_some() {
-                if let Some(timeline) = self.timeline.as_mut() {
-                    timeline.interaction.snap_guide = None;
-                }
-                cx.notify();
-            }
-            cx.set_active_drag_cursor_style(CursorStyle::OperationNotAllowed, window);
-            return;
-        };
-
-        let drag = event.drag(cx).clone();
-        let local_x = f32::from(pointer.x) - f32::from(event.bounds.left());
-        let Some(timeline) = self.timeline.as_ref() else {
-            return;
-        };
-        let raw_start = timeline.data.nearest_time(
-            ((local_x - TIMELINE_PADDING) / timeline.data.view.pixels_per_second).max(0.0) as f64,
-        );
-        self.refresh_explorer_drop_preview(&drag, track_id, raw_start);
-        let invalid = self
-            .explorer
-            .drop_preview
-            .as_ref()
-            .is_none_or(|preview| preview.invalid_reason.is_some());
-        cx.set_active_drag_cursor_style(
-            if invalid {
-                CursorStyle::OperationNotAllowed
-            } else {
-                CursorStyle::DragCopy
-            },
-            window,
-        );
-        cx.notify();
-    }
-
-    fn refresh_explorer_drop_preview(
-        &mut self,
-        drag: &ExplorerMediaDrag,
-        track_id: Ulid,
-        raw_start: TimelineTime,
-    ) {
-        let probed_asset = if drag.kind == MediaKind::Srt {
-            None
-        } else {
-            Some(self.probe_explorer_drag_asset(&drag.relative_path))
-        };
-        let Some(timeline) = self.timeline.as_ref() else {
-            return;
-        };
-        let (duration, start, snap_guide, invalid_reason) = match drag.kind {
-            MediaKind::Srt => {
-                let duration = TimelineTime::ONE_FRAME;
-                let (start, snap_guide) =
-                    timeline.snap_clip_start_ignoring(raw_start, duration, &HashSet::new());
-                let invalid_reason = validate_text_clip_placement(
-                    &timeline.data,
-                    track_id,
-                    duration,
-                    start,
-                    &HashSet::new(),
-                )
-                .err()
-                .map(|rejection| rejection.message().to_string());
-                (duration, start, snap_guide, invalid_reason)
-            }
-            MediaKind::Video | MediaKind::Image | MediaKind::Audio => {
-                let asset = probed_asset.expect("non-SRT drags always probe media metadata");
-                let duration = match &asset {
-                    Ok(asset) => timeline.data.ceil_time(asset.duration),
-                    Err(_) => timeline.data.ceil_time(DEFAULT_IMAGE_CLIP_DURATION),
-                };
-                let (start, snap_guide) =
-                    timeline.snap_clip_start_ignoring(raw_start, duration, &HashSet::new());
-                let invalid_reason = match asset {
-                    Ok(asset) => validate_clip_placement(
-                        &timeline.data,
-                        track_id,
-                        asset.kind,
-                        duration,
-                        start,
-                        &HashSet::new(),
-                    )
-                    .err()
-                    .map(|rejection| rejection.message().to_string()),
-                    Err(error) => Some(error),
-                };
-                (duration, start, snap_guide, invalid_reason)
-            }
-        };
-        if let Some(timeline) = self.timeline.as_mut() {
-            timeline.interaction.snap_guide = snap_guide;
-        }
-        self.explorer.drop_preview = Some(ExplorerDropPreview {
-            kind: drag.kind,
-            relative_path: drag.relative_path.clone(),
-            name: drag.name.clone(),
-            track_id,
-            raw_start,
-            start,
-            duration,
-            invalid_reason,
-        });
-    }
-
-    pub(super) fn probe_explorer_drag_asset(
-        &mut self,
-        relative_path: &Path,
-    ) -> Result<MediaAsset, String> {
-        let source_path = self.global_settings.project_root.join(relative_path);
-        let mut asset = if is_image_path(&source_path) {
-            probe_image(&source_path, Ulid::from(0))
-        } else if is_audio_path(&source_path) {
-            probe_audio(&source_path, Ulid::from(0))
-        } else if is_video_path(&source_path) {
-            probe_video(&source_path, Ulid::from(0))
-        } else {
-            return Err(format!("unsupported media file: {}", source_path.display()));
-        }?;
-        asset.path = relative_path.to_path_buf();
-        Ok(asset)
     }
 
     pub(super) fn place_explorer_asset(

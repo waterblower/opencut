@@ -1,11 +1,19 @@
-use std::path::{Path, PathBuf};
+use std::{
+    collections::HashSet,
+    path::{Path, PathBuf},
+};
 
-use gpui::{Context, IntoElement, ParentElement, Render, Styled, Window, div, px, rgb};
+use gpui::{
+    Context, CursorStyle, DragMoveEvent, IntoElement, ParentElement, Render, Styled, Window, div,
+    px, rgb,
+};
 use ulid::Ulid;
 
 use crate::editor::{
-    ACCENT, Clip, EditAction, Editor, MediaKind, TimelineTime, edit_and_rebuild_timeline,
-    editing::validate_clips_placements, srt::srt_to_text_clips,
+    ACCENT, Clip, EditAction, Editor, MediaKind, RULER_HEIGHT, TIMELINE_PADDING, TRACK_HEIGHT,
+    TimelineTime, edit_and_rebuild_timeline, editing::validate_clips_placements,
+    media_probe::probe_asset, model::DEFAULT_IMAGE_CLIP_DURATION, srt::srt_to_text_clips,
+    validate_clip_placement, validate_text_clip_placement,
 };
 
 #[derive(Clone, Debug)]
@@ -56,6 +64,126 @@ impl Render for ExplorerMediaDrag {
                     .child(self.name.clone()),
             )
     }
+}
+
+pub(super) fn update_file_drag(
+    editor: &mut Editor,
+    event: &DragMoveEvent<ExplorerMediaDrag>,
+    window: &mut Window,
+    cx: &mut Context<Editor>,
+) {
+    let pointer = event.event.position;
+    let inside_timeline = event.bounds.contains(&pointer);
+    let local_y = f32::from(pointer.y) - f32::from(event.bounds.top());
+    let track_index = ((local_y - RULER_HEIGHT) / TRACK_HEIGHT).floor() as isize;
+    let Some(track_id) = inside_timeline
+        .then_some(track_index)
+        .and_then(|index| usize::try_from(index).ok())
+        .and_then(|index| editor.timeline.as_ref()?.data.tracks.get(index))
+        .map(|track| track.id)
+    else {
+        if editor.explorer.drop_preview.take().is_some() {
+            if let Some(timeline) = editor.timeline.as_mut() {
+                timeline.interaction.snap_guide = None;
+            }
+            cx.notify();
+        }
+        cx.set_active_drag_cursor_style(CursorStyle::OperationNotAllowed, window);
+        return;
+    };
+
+    let drag = event.drag(cx).clone();
+    let local_x = f32::from(pointer.x) - f32::from(event.bounds.left());
+    let Some(timeline) = editor.timeline.as_ref() else {
+        return;
+    };
+    let raw_start = timeline.data.nearest_time(
+        ((local_x - TIMELINE_PADDING) / timeline.data.view.pixels_per_second).max(0.0) as f64,
+    );
+    refresh_explorer_drop_preview(editor, &drag, track_id, raw_start);
+    let invalid = editor
+        .explorer
+        .drop_preview
+        .as_ref()
+        .is_none_or(|preview| preview.invalid_reason.is_some());
+    cx.set_active_drag_cursor_style(
+        if invalid {
+            CursorStyle::OperationNotAllowed
+        } else {
+            CursorStyle::DragCopy
+        },
+        window,
+    );
+    cx.notify();
+}
+
+fn refresh_explorer_drop_preview(
+    editor: &mut Editor,
+    drag: &ExplorerMediaDrag,
+    track_id: Ulid,
+    raw_start: TimelineTime,
+) {
+    let probed_asset = if drag.kind == MediaKind::Srt {
+        None
+    } else {
+        Some(probe_asset(&drag.relative_path))
+    };
+    let Some(timeline) = editor.timeline.as_ref() else {
+        return;
+    };
+    let (duration, start, snap_guide, invalid_reason) = match drag.kind {
+        MediaKind::Srt => {
+            let duration = TimelineTime::ONE_FRAME;
+            let (start, snap_guide) =
+                timeline.snap_clip_start_ignoring(raw_start, duration, &HashSet::new());
+            let invalid_reason = validate_text_clip_placement(
+                &timeline.data,
+                track_id,
+                duration,
+                start,
+                &HashSet::new(),
+            )
+            .err()
+            .map(|rejection| rejection.message().to_string());
+            (duration, start, snap_guide, invalid_reason)
+        }
+        MediaKind::Video | MediaKind::Image | MediaKind::Audio => {
+            let asset = probed_asset.expect("non-SRT drags always probe media metadata");
+            let duration = match &asset {
+                Ok(asset) => timeline.data.ceil_time(asset.duration),
+                Err(_) => timeline.data.ceil_time(DEFAULT_IMAGE_CLIP_DURATION),
+            };
+            let (start, snap_guide) =
+                timeline.snap_clip_start_ignoring(raw_start, duration, &HashSet::new());
+            let invalid_reason = match asset {
+                Ok(asset) => validate_clip_placement(
+                    &timeline.data,
+                    track_id,
+                    asset.kind,
+                    duration,
+                    start,
+                    &HashSet::new(),
+                )
+                .err()
+                .map(|rejection| rejection.message().to_string()),
+                Err(error) => Some(error),
+            };
+            (duration, start, snap_guide, invalid_reason)
+        }
+    };
+    if let Some(timeline) = editor.timeline.as_mut() {
+        timeline.interaction.snap_guide = snap_guide;
+    }
+    editor.explorer.drop_preview = Some(ExplorerDropPreview {
+        kind: drag.kind,
+        relative_path: drag.relative_path.clone(),
+        name: drag.name.clone(),
+        track_id,
+        raw_start,
+        start,
+        duration,
+        invalid_reason,
+    });
 }
 
 pub(super) fn drop_dragged_explorer_media(
@@ -139,9 +267,8 @@ fn drop_dragged_timeline_media(
     }
 
     // Probe synchronously if the drag preview did not already cache metadata.
-    let asset = editor
-        .probe_explorer_drag_asset(relative_path)
-        .expect("probe_explorer_drag_asset failed");
+    let source_path = editor.global_settings.project_root.join(relative_path);
+    let asset = probe_asset(&source_path).expect("probe_explorer_drag_asset failed");
     editor.place_explorer_asset(
         relative_path.to_path_buf(),
         preview.track_id,
