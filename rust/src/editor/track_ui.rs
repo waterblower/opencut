@@ -268,21 +268,6 @@ impl Editor {
                     .collect::<Vec<_>>()
             })
             .unwrap_or_default();
-        let explorer_drop_preview = self
-            .explorer
-            .drop_preview
-            .as_ref()
-            .filter(|preview| {
-                preview.track_id == track.id
-                    && (preview.kind == MediaKind::Srt || track.kind != TrackKind::Text)
-            })
-            .map(|preview| {
-                explorer_drop_preview(
-                    preview,
-                    timeline.data.settings.frame_rate,
-                    timeline.data.view.pixels_per_second,
-                )
-            });
 
         div()
             .id(("track-row", index))
@@ -311,7 +296,6 @@ impl Editor {
             })
             .children(clips)
             .children(move_previews)
-            .when_some(explorer_drop_preview, |this, preview| this.child(preview))
             .into_any_element()
     }
 

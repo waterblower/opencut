@@ -31,8 +31,6 @@ pub(super) enum MediaKind {
     Image,
     #[serde(alias = "audio")]
     Audio,
-    #[serde(alias = "srt")]
-    Srt,
 }
 
 impl MediaKind {
@@ -41,7 +39,6 @@ impl MediaKind {
             Self::Video => "VIDEO",
             Self::Image => "IMAGE",
             Self::Audio => "AUDIO",
-            Self::Srt => "SRT",
         }
     }
 }

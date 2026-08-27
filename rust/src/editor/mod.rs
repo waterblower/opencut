@@ -332,7 +332,6 @@ impl Editor {
         active_timeline: TimelineSerialization,
         cx: &mut Context<Self>,
     ) -> anyhow::Result<()> {
-        self.explorer.drop_preview = None;
         self.preview.volume_control_open = false;
         self.preview.is_scrubbing = false;
         self.preview.is_adjusting_volume = false;

@@ -1,4 +1,4 @@
-use crate::editor::explorer_drag::AssetBeingDragged;
+use crate::editor::explorer_drag::{AssetBeingDragged, AssetBeingDraggedV1, DraggedSRT};
 
 use super::*;
 use std::{collections::HashSet, fs, path::Path};
@@ -248,20 +248,41 @@ impl Editor {
                 .timeline
                 .as_ref()
                 .is_some_and(|timeline| timeline.path == path);
-        let media_kind = match entry.kind {
-            FileTreeEntryKind::Video => Some(MediaKind::Video),
-            FileTreeEntryKind::Image => Some(MediaKind::Image),
-            FileTreeEntryKind::Audio => Some(MediaKind::Audio),
-            FileTreeEntryKind::Other if is_srt_path(&path) => Some(MediaKind::Srt),
-            FileTreeEntryKind::Directory { .. }
-            | FileTreeEntryKind::Timeline
-            | FileTreeEntryKind::Other => None,
+
+        let the_draggable_asset = {
+            let absolute_path = self.global_settings.project_root.join(&path);
+            match entry.kind {
+                FileTreeEntryKind::Video | FileTreeEntryKind::Image | FileTreeEntryKind::Audio => {
+                    let kind = match entry.kind {
+                        FileTreeEntryKind::Video => MediaKind::Video,
+                        FileTreeEntryKind::Image => MediaKind::Image,
+                        FileTreeEntryKind::Audio => MediaKind::Audio,
+                        _ => unreachable!("the outer match only accepts media files"),
+                    };
+                    Some(AssetBeingDragged::V1(AssetBeingDraggedV1 {
+                        kind,
+                        name: entry.name.clone(),
+                        absolute_path,
+                    }))
+                }
+                FileTreeEntryKind::Other if is_srt_path(&path) => (|| {
+                    let text = match fs::read_to_string(&absolute_path) {
+                        Ok(text) => text,
+                        Err(error) => {
+                            eprintln!("Could not read {}: {error}", absolute_path.display());
+                            return None;
+                        }
+                    };
+                    Some(AssetBeingDragged::Srt(DraggedSRT {
+                        absolute_path,
+                        text,
+                    }))
+                })(),
+                FileTreeEntryKind::Directory { .. }
+                | FileTreeEntryKind::Timeline
+                | FileTreeEntryKind::Other => None,
+            }
         };
-        let the_draggable_asset = media_kind.map(|kind| AssetBeingDragged {
-            absolute_path: self.global_settings.project_root.join(&path),
-            name: entry.name.clone(),
-            kind,
-        });
         let metadata = file_entry_metadata(entry, active_timeline);
 
         div()

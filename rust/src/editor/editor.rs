@@ -82,7 +82,7 @@ impl Editor {
                 selected_file: timeline.as_ref().map(|timeline| timeline.path.clone()),
                 rename_dialog: None,
                 new_timeline_dialog: None,
-                drop_preview: None,
+
                 last_tree_scan: Instant::now(),
             }
         };
@@ -178,8 +178,7 @@ fn start_updates(cx: &mut Context<Editor>) {
                     _ => false,
                 };
                 let pinch_zoomed = editor.apply_timeline_pinch();
-                let ended_explorer_drag =
-                    !cx.has_active_drag() && editor.explorer.drop_preview.take().is_some();
+                let ended_explorer_drag = !cx.has_active_drag();
                 if ended_explorer_drag && let Some(timeline) = editor.timeline.as_mut() {
                     timeline.interaction.snap_guide = None;
                 }

@@ -68,7 +68,6 @@ pub struct ExplorerState {
     pub selected_file: Option<PathBuf>,
     pub rename_dialog: Option<RenameDialogState>,
     pub new_timeline_dialog: Option<NewTimelineDialogState>,
-    pub drop_preview: Option<ExplorerDropPreview>,
     pub last_tree_scan: Instant,
 }
 
