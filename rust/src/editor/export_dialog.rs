@@ -51,7 +51,7 @@ fn validated_export(
     state: &ExportDialogState,
     project_root: &Path,
     cx: &App,
-) -> Result<ValidatedExport, String> {
+) -> anyhow::Result<ValidatedExport> {
     let video_bit_rate = parse_bitrate(state.bitrate.read(cx).query())?;
     let destination = parse_destination(state.destination.read(cx).query(), project_root)?;
 
@@ -141,7 +141,7 @@ impl Editor {
         let duration = timeline.data.content_duration();
         let duration_seconds = timeline.data.seconds(duration);
         let validated = validated_export(state, &self.global_settings.project_root, cx);
-        let validation_error = validated.as_ref().err().cloned();
+        let validation_error = validated.as_ref().err().map(ToString::to_string);
         let video_bit_rate = validated
             .as_ref()
             .map(|validated| validated.options.video_bit_rate)
@@ -672,7 +672,7 @@ impl Editor {
                         Err(error) => {
                             if let Some(state) = editor.export.dialog.as_mut() {
                                 state.status = ExportDialogStatus::Failed {
-                                    message: error.clone(),
+                                    message: error.to_string(),
                                     progress: progress.load(Ordering::Relaxed),
                                 };
                             }
@@ -886,22 +886,22 @@ fn export_dialog_button(
         .child(label)
 }
 
-fn parse_bitrate(value: &str) -> Result<usize, String> {
+fn parse_bitrate(value: &str) -> anyhow::Result<usize> {
     let megabits = value
         .trim()
         .parse::<usize>()
-        .map_err(|_| "Bitrate must be a whole number in Mb/s.".to_string())?;
+        .map_err(|_| anyhow::anyhow!("Bitrate must be a whole number in Mb/s."))?;
     if !(1..=200).contains(&megabits) {
-        return Err("Bitrate must be between 1 and 200 Mb/s.".to_string());
+        anyhow::bail!("Bitrate must be between 1 and 200 Mb/s.");
     }
     megabits
         .checked_mul(1_000_000)
-        .ok_or_else(|| "Bitrate is too large.".to_string())
+        .ok_or_else(|| anyhow::anyhow!("Bitrate is too large."))
 }
 
-fn parse_destination(value: &str, project_root: &Path) -> Result<PathBuf, String> {
+fn parse_destination(value: &str, project_root: &Path) -> anyhow::Result<PathBuf> {
     if value.trim().is_empty() {
-        return Err("Choose an export destination.".to_string());
+        anyhow::bail!("Choose an export destination.");
     }
     let mut path = expand_home(value.trim());
     if path.is_relative() {
@@ -909,10 +909,10 @@ fn parse_destination(value: &str, project_root: &Path) -> Result<PathBuf, String
     }
     path = with_mp4_extension(path);
     let Some(parent) = path.parent() else {
-        return Err("Export destination has no parent folder.".to_string());
+        anyhow::bail!("Export destination has no parent folder.");
     };
     if !parent.is_dir() {
-        return Err(format!(
+        return Err(anyhow::anyhow!(
             "Destination folder does not exist: {}",
             parent.display()
         ));

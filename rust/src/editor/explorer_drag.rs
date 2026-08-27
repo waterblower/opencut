@@ -126,7 +126,11 @@ fn refresh_explorer_drop_preview(
     let probed_asset = if drag.kind == MediaKind::Srt {
         None
     } else {
-        Some(probe_asset(&drag.relative_path))
+        let source_path = editor
+            .global_settings
+            .project_root
+            .join(&drag.relative_path);
+        Some(probe_asset(&source_path))
     };
     let Some(timeline) = editor.timeline.as_ref() else {
         return;
@@ -144,7 +148,7 @@ fn refresh_explorer_drop_preview(
                 &HashSet::new(),
             )
             .err()
-            .map(|rejection| rejection.message().to_string());
+            .map(|rejection| rejection.to_string());
             (duration, start, snap_guide, invalid_reason)
         }
         MediaKind::Video | MediaKind::Image | MediaKind::Audio => {
@@ -165,8 +169,8 @@ fn refresh_explorer_drop_preview(
                     &HashSet::new(),
                 )
                 .err()
-                .map(|rejection| rejection.message().to_string()),
-                Err(error) => Some(error),
+                .map(|rejection| rejection.to_string()),
+                Err(error) => Some(error.to_string()),
             };
             (duration, start, snap_guide, invalid_reason)
         }
@@ -268,7 +272,15 @@ fn drop_dragged_timeline_media(
 
     // Probe synchronously if the drag preview did not already cache metadata.
     let source_path = editor.global_settings.project_root.join(relative_path);
-    let asset = probe_asset(&source_path).expect("probe_explorer_drag_asset failed");
+    let asset = match probe_asset(&source_path) {
+        Ok(asset) => asset,
+        Err(error) => {
+            editor.status = Some(format!("Could not add {name}: {error}."));
+            eprintln!("Cannot add {name}: {error:?}");
+            cx.notify();
+            return;
+        }
+    };
     editor.place_explorer_asset(
         relative_path.to_path_buf(),
         preview.track_id,
@@ -318,13 +330,13 @@ fn drop_dragged_srt(
     let project_root = editor.global_settings.project_root.clone();
     let source_path = project_root.join(relative_path);
     let parsed_clips = srt_to_text_clips(&source_path, frame_rate);
-    let result = (|| {
+    let result: anyhow::Result<usize> = (|| {
         let mut text_clips = match parsed_clips {
             Ok(clips) => clips,
             Err(error) => return Err(error),
         };
         if text_clips.is_empty() {
-            return Err("the SRT file contains no subtitle cues".to_string());
+            anyhow::bail!("the SRT file contains no subtitle cues");
         }
         for clip in &mut text_clips {
             clip.track_id = preview.track_id;
@@ -335,13 +347,10 @@ fn drop_dragged_srt(
         let clips = text_clips.into_iter().map(Clip::Text).collect::<Vec<_>>();
 
         let Some(timeline) = editor.timeline.as_mut() else {
-            return Err("the destination timeline is unavailable".to_string());
+            anyhow::bail!("the destination timeline is unavailable");
         };
         if let Err(error) = validate_clips_placements(&timeline.data, &clips) {
-            return Err(format!(
-                "could not place subtitle clips: {}",
-                error.message()
-            ));
+            return Err(error.context("could not place subtitle clips"));
         }
         timeline.record_editing_history();
         if let Err(error) = edit_and_rebuild_timeline(
@@ -353,7 +362,7 @@ fn drop_dragged_srt(
                 assets: Vec::new(),
             },
         ) {
-            return Err(format!("could not place subtitle clips: {error}"));
+            return Err(error.context("could not place subtitle clips"));
         }
         timeline.interaction.selected_clip_id = clip_ids.first().copied();
         timeline.interaction.selected_clip_ids = clip_ids.iter().copied().collect();
@@ -368,7 +377,7 @@ fn drop_dragged_srt(
         }
         Err(error) => {
             editor.status = Some(format!("Could not import {name}: {error}."));
-            eprintln!("Cannot add {name}: {error}.");
+            eprintln!("Cannot add {name}: {error:?}");
         }
     }
     cx.notify();

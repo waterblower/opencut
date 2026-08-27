@@ -203,7 +203,7 @@ fn start_updates(cx: &mut Context<Editor>) {
                 if should_render {
                     cx.notify();
                 }
-                Ok::<(), String>(())
+                Ok::<(), anyhow::Error>(())
             });
             match result {
                 Ok(Ok(())) => {}

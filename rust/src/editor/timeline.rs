@@ -113,28 +113,29 @@ impl TimelineViewState {
 }
 
 impl TimelineSerialization {
-    pub fn load(path: &Path) -> Result<Self, String> {
+    pub fn load(path: &Path) -> anyhow::Result<Self> {
         let contents = fs::read_to_string(path)
-            .map_err(|error| format!("could not read {}: {error}", path.display()))?;
+            .map_err(|error| anyhow::anyhow!("could not read {}: {error}", path.display()))?;
         let mut timeline = deserialize_timeline(&contents)
-            .map_err(|error| format!("could not parse {}: {error}", path.display()))?;
+            .map_err(|error| anyhow::anyhow!("could not parse {}: {error}", path.display()))?;
         timeline.repair_and_prune_invalid_data();
         Ok(timeline)
     }
 
-    pub fn save(&self, path: &Path) -> Result<(), String> {
+    pub fn save(&self, path: &Path) -> anyhow::Result<()> {
         let directory = path
             .parent()
-            .ok_or_else(|| "timeline path has no parent directory".to_string())?;
-        fs::create_dir_all(directory)
-            .map_err(|error| format!("could not create {}: {error}", directory.display()))?;
+            .ok_or_else(|| anyhow::anyhow!("timeline path has no parent directory"))?;
+        fs::create_dir_all(directory).map_err(|error| {
+            anyhow::anyhow!("could not create {}: {error}", directory.display())
+        })?;
         let json = serde_json::to_string_pretty(self)
-            .map_err(|error| format!("could not serialize timeline: {error}"))?;
+            .map_err(|error| anyhow::anyhow!("could not serialize timeline: {error}"))?;
         let temporary = path.with_extension("json.tmp");
         fs::write(&temporary, format!("{json}\n"))
-            .map_err(|error| format!("could not write {}: {error}", temporary.display()))?;
+            .map_err(|error| anyhow::anyhow!("could not write {}: {error}", temporary.display()))?;
         fs::rename(&temporary, path)
-            .map_err(|error| format!("could not replace {}: {error}", path.display()))
+            .map_err(|error| anyhow::anyhow!("could not replace {}: {error}", path.display()))
     }
 
     pub fn asset(&self, id: Ulid) -> Option<&MediaAsset> {
@@ -157,18 +158,18 @@ impl TimelineSerialization {
         &self,
         placements: &[(Ulid, Ulid, TimelineTime)],
         ignored_clip_ids: &HashSet<Ulid>,
-    ) -> Result<(), ClipPlacementRejection> {
+    ) -> anyhow::Result<()> {
         if placements.is_empty() {
-            return Err(ClipPlacementRejection::NoPlacements);
+            return Err(ClipPlacementRejection::NoPlacements.into());
         }
         for (clip_id, track_id, start) in placements {
             let Some(clip) = self.clip(*clip_id) else {
-                return Err(ClipPlacementRejection::MissingClip);
+                return Err(ClipPlacementRejection::MissingClip.into());
             };
             match clip {
                 Clip::Video(clip) | Clip::Audio(clip) => {
                     let Some(asset) = self.asset(clip.asset_id) else {
-                        return Err(ClipPlacementRejection::MissingAsset);
+                        return Err(ClipPlacementRejection::MissingAsset.into());
                     };
                     validate_clip_placement(
                         self,
@@ -210,7 +211,7 @@ impl TimelineSerialization {
                         )
                 })
             {
-                return Err(ClipPlacementRejection::ProposedClipsOverlap);
+                return Err(ClipPlacementRejection::ProposedClipsOverlap.into());
             }
         }
         Ok(())
@@ -663,7 +664,7 @@ fn finite_nonnegative(value: f32) -> f32 {
     }
 }
 
-fn deserialize_timeline(contents: &str) -> Result<TimelineSerialization, serde_json::Error> {
+fn deserialize_timeline(contents: &str) -> anyhow::Result<TimelineSerialization> {
     let mut value = serde_json::from_str::<serde_json::Value>(contents)?;
     let frame_rate = value
         .pointer("/settings/frame_rate")

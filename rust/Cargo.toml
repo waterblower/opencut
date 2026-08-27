@@ -44,6 +44,7 @@ gstreamer-backend = [
 ]
 
 [dependencies]
+anyhow = "1"
 async-fs = "2.1"
 futures-util = "0.3"
 env_logger = "0.11"

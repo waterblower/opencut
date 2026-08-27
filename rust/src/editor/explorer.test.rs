@@ -35,6 +35,9 @@ fn explorer_drop_rejects_incompatible_tracks() {
         &HashSet::new(),
     )
     .unwrap_err();
+    let audio_rejection = audio_rejection
+        .downcast::<ClipPlacementRejection>()
+        .unwrap();
     assert_eq!(
         audio_rejection.message(),
         "Media is incompatible with the destination track"
@@ -50,6 +53,9 @@ fn explorer_drop_rejects_incompatible_tracks() {
         &HashSet::new(),
     )
     .unwrap_err();
+    let video_rejection = video_rejection
+        .downcast::<ClipPlacementRejection>()
+        .unwrap();
     assert_eq!(
         video_rejection.message(),
         "Media is incompatible with the destination track"
@@ -79,10 +85,13 @@ fn explorer_drop_detects_collisions_but_allows_adjacent_clips() {
             TimelineTime::from_frames(30),
             TimelineTime::from_frames(15),
             &HashSet::new(),
-        ),
-        Err(ClipPlacementRejection::ExistingClipOverlap)
+        )
+        .unwrap_err()
+        .downcast::<ClipPlacementRejection>()
+        .unwrap(),
+        ClipPlacementRejection::ExistingClipOverlap
     );
-    assert_eq!(
+    assert!(
         validate_clip_placement(
             &project,
             ulid(2),
@@ -90,8 +99,8 @@ fn explorer_drop_detects_collisions_but_allows_adjacent_clips() {
             TimelineTime::from_frames(30),
             TimelineTime::ZERO,
             &HashSet::new(),
-        ),
-        Ok(())
+        )
+        .is_ok()
     );
 }
 

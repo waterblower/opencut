@@ -2,7 +2,7 @@ use crate::{
     editor::{
         ACCENT, BORDER, ExplorerDropPreview, MUTED, OpenInDefaultApp, PANEL, RevealInFinder,
         SURFACE, SURFACE_HOVER, TEXT,
-        clip_placement::{validate_clip_placement, validate_text_clip_placement},
+        clip_placement::validate_clip_placement,
         context_menu::{ContextMenu, FileContextMenu},
         editing::{EditAction, edit_and_rebuild_timeline},
         editor::Editor,
@@ -113,7 +113,7 @@ impl Default for ExplorerExpansion {
 }
 
 impl ExplorerState {
-    pub(super) fn refresh_file_tree(&mut self, project_root: &Path) -> Result<(), String> {
+    pub(super) fn refresh_file_tree(&mut self, project_root: &Path) -> anyhow::Result<()> {
         self.last_tree_scan = Instant::now();
         self.file_tree = visible_tree(project_root, &self.expanded_directories)?;
         Ok(())
@@ -123,7 +123,7 @@ impl ExplorerState {
         &mut self,
         project_root: &Path,
         relative_path: PathBuf,
-    ) -> Result<(), String> {
+    ) -> anyhow::Result<()> {
         if !self.expanded_directories.remove(&relative_path) {
             self.expanded_directories.insert(relative_path);
         }
@@ -132,7 +132,7 @@ impl ExplorerState {
 }
 
 impl Editor {
-    pub(super) fn save_explorer_expansion(&self) -> Result<(), String> {
+    pub(super) fn save_explorer_expansion(&self) -> anyhow::Result<()> {
         save_explorer_expansion(
             &self.global_settings.project_root,
             &self.explorer.expanded_directories,
@@ -501,9 +501,8 @@ impl Editor {
             start,
             &HashSet::new(),
         ) {
-            let reason = rejection.message();
             self.status = None;
-            eprintln!("Cannot add {}: {reason}.", asset.name);
+            eprintln!("Cannot add {}: {rejection}.", asset.name);
             return;
         }
 
@@ -612,21 +611,23 @@ fn remap_relative_path(
 }
 
 #[cfg(target_os = "macos")]
-fn move_path_to_trash(path: &std::path::Path) -> Result<(), String> {
+fn move_path_to_trash(path: &std::path::Path) -> anyhow::Result<()> {
     use objc2_foundation::{NSFileManager, NSString, NSURL};
 
     let path = path
         .to_str()
-        .ok_or_else(|| "the path is not valid UTF-8".to_string())?;
+        .ok_or_else(|| anyhow::anyhow!("the path is not valid UTF-8"))?;
     let url = NSURL::fileURLWithPath(&NSString::from_str(path));
     NSFileManager::defaultManager()
         .trashItemAtURL_resultingItemURL_error(&url, None)
-        .map_err(|error| error.to_string())
+        .map_err(|error| anyhow::anyhow!("{error}"))
 }
 
 #[cfg(not(target_os = "macos"))]
-fn move_path_to_trash(_path: &std::path::Path) -> Result<(), String> {
-    Err("moving files to the system Trash is not supported on this platform".to_string())
+fn move_path_to_trash(_path: &std::path::Path) -> anyhow::Result<()> {
+    Err(anyhow::anyhow!(
+        "moving files to the system Trash is not supported on this platform"
+    ))
 }
 
 fn explorer_file_badge(entry: &FileTreeEntry) -> gpui::Div {
@@ -672,22 +673,22 @@ fn save_explorer_expansion(
     project_root: &Path,
     expanded_directories: &HashSet<PathBuf>,
     root_expanded: bool,
-) -> Result<(), String> {
+) -> anyhow::Result<()> {
     let path = file_explorer_settings_path(project_root);
     let Some(directory) = path.parent() else {
-        return Err("file explorer settings path had no parent directory".to_string());
+        anyhow::bail!("file explorer settings path had no parent directory");
     };
     fs::create_dir_all(directory)
-        .map_err(|error| format!("could not create {}: {error}", directory.display()))?;
+        .map_err(|error| anyhow::anyhow!("could not create {}: {error}", directory.display()))?;
     let mut expanded_directories = expanded_directories.iter().cloned().collect::<Vec<_>>();
     expanded_directories.sort();
     let json = serde_json::to_string_pretty(&FileExplorerSettings {
         expanded_directories,
         root_expanded,
     })
-    .map_err(|error| format!("could not serialize file explorer settings: {error}"))?;
+    .map_err(|error| anyhow::anyhow!("could not serialize file explorer settings: {error}"))?;
     fs::write(&path, format!("{json}\n"))
-        .map_err(|error| format!("could not write {}: {error}", path.display()))
+        .map_err(|error| anyhow::anyhow!("could not write {}: {error}", path.display()))
 }
 
 fn file_explorer_settings_path(project_root: &Path) -> PathBuf {

@@ -244,7 +244,7 @@ impl Editor {
         .detach();
     }
 
-    fn set_project_root(&mut self, root: PathBuf, cx: &mut Context<Self>) -> Result<(), String> {
+    fn set_project_root(&mut self, root: PathBuf, cx: &mut Context<Self>) -> anyhow::Result<()> {
         let root = std::fs::canonicalize(&root).unwrap_or(root);
         let project_settings = load_project_local_settings(&root);
         let active_timeline =
@@ -270,7 +270,7 @@ impl Editor {
         &mut self,
         relative_path: PathBuf,
         cx: &mut Context<Self>,
-    ) -> Result<(), String> {
+    ) -> anyhow::Result<()> {
         if self
             .timeline
             .as_ref()
@@ -288,7 +288,7 @@ impl Editor {
         }
         let path = self.global_settings.project_root.join(&relative_path);
         let timeline = TimelineSerialization::load(&path)
-            .map_err(|error| format!("Could not open timeline: {error}"))?;
+            .map_err(|error| anyhow::anyhow!("Could not open timeline: {error}"))?;
         if let Some(timeline) = self.timeline.as_ref() {
             timeline.save(&self.global_settings.project_root);
         }
@@ -307,7 +307,7 @@ impl Editor {
         relative_path: PathBuf,
         timeline: TimelineSerialization,
         cx: &mut Context<Self>,
-    ) -> Result<(), String> {
+    ) -> anyhow::Result<()> {
         if let Some(active_timeline) = self.timeline.as_ref() {
             active_timeline.save(&self.global_settings.project_root);
         }
@@ -331,7 +331,7 @@ impl Editor {
         timeline_path: PathBuf,
         active_timeline: TimelineSerialization,
         cx: &mut Context<Self>,
-    ) -> Result<(), String> {
+    ) -> anyhow::Result<()> {
         self.explorer.drop_preview = None;
         self.preview.volume_control_open = false;
         self.preview.is_scrubbing = false;

@@ -314,12 +314,13 @@ fn text_clips_can_move_without_a_media_asset() {
         ..TimelineSerialization::default()
     };
 
-    assert_eq!(
-        project.validate_clip_move_placements(
-            &[(clip_id, track_id, TimelineTime::from_frames(30))],
-            &HashSet::from([clip_id]),
-        ),
-        Ok(())
+    assert!(
+        project
+            .validate_clip_move_placements(
+                &[(clip_id, track_id, TimelineTime::from_frames(30))],
+                &HashSet::from([clip_id]),
+            )
+            .is_ok()
     );
 }
 

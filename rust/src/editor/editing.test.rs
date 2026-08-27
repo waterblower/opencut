@@ -171,6 +171,7 @@ fn clipboard_paste_rejects_the_complete_selection_on_collision() {
     project.clips = vec![audio_clip(20, 105, 10)];
     let candidates = vec![audio_clip(10, 100, 8), audio_clip(11, 120, 12)];
     let rejection = validate_clips_placements(&project, &candidates).unwrap_err();
+    let rejection = rejection.downcast::<ClipPlacementRejection>().unwrap();
 
     assert_eq!(rejection, ClipPlacementRejection::ExistingClipOverlap);
     assert_eq!(rejection.message(), "Placement overlaps an existing clip");
@@ -461,5 +462,8 @@ fn detects_timeline_and_ges_data_divergence() {
 
     runtime.data.clips[0].set_timeline_start(TimelineTime::ONE_FRAME);
     let error = data_parity_check(&runtime, &ges).unwrap_err();
-    assert!(error.contains("starts at"), "unexpected error: {error}");
+    assert!(
+        error.to_string().contains("starts at"),
+        "unexpected error: {error}"
+    );
 }

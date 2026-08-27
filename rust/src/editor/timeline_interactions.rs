@@ -588,7 +588,12 @@ impl Editor {
                 .data
                 .validate_clip_move_placements(&placements, &timeline.interaction.selected_clip_ids)
                 .err()
-                .map(ClipPlacementRejection::message)
+                .map(|error| {
+                    error
+                        .downcast::<ClipPlacementRejection>()
+                        .expect("clip move validation returns placement rejections")
+                        .message()
+                })
         };
         let moved_from_origin = placements.iter().any(|(clip_id, track_id, start)| {
             items

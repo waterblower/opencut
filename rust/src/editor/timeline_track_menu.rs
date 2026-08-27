@@ -44,21 +44,21 @@ fn text_clip_at(
     timeline: &TimelineSerialization,
     track_id: Ulid,
     position: TimelineTime,
-) -> Result<Clip, &'static str> {
+) -> anyhow::Result<Clip> {
     let Some(track) = timeline.track(track_id) else {
-        return Err("The text track is unavailable.");
+        anyhow::bail!("The text track is unavailable.");
     };
     if track.kind != TrackKind::Text {
-        return Err("Text can only be added to a text track.");
+        anyhow::bail!("Text can only be added to a text track.");
     }
     if track.locked {
-        return Err("Unlock the text track before adding text.");
+        anyhow::bail!("Unlock the text track before adding text.");
     }
     if timeline.clips_on_track(track_id).any(|clip| {
         clip.timeline_start() <= position
             && position < clip.timeline_end(timeline.settings.frame_rate)
     }) {
-        return Err("A text clip already exists at this position.");
+        anyhow::bail!("A text clip already exists at this position.");
     }
 
     let default_duration = timeline.ceil_time(5.0).max(TimelineTime::ONE_FRAME);
@@ -100,7 +100,9 @@ mod tests {
         timeline.clips.push(clip);
 
         assert_eq!(
-            text_clip_at(&timeline, track_id, TimelineTime::ONE_FRAME).unwrap_err(),
+            text_clip_at(&timeline, track_id, TimelineTime::ONE_FRAME)
+                .unwrap_err()
+                .to_string(),
             "A text clip already exists at this position."
         );
         assert!(text_clip_at(&timeline, track_id, clip_end).is_ok());

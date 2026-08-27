@@ -31,7 +31,7 @@ impl Editor {
         cx.notify();
     }
 
-    pub(crate) fn finish_create_timeline(&mut self, cx: &mut Context<Self>) -> Result<(), String> {
+    pub(crate) fn finish_create_timeline(&mut self, cx: &mut Context<Self>) -> anyhow::Result<()> {
         let Some(state) = self.explorer.new_timeline_dialog.as_ref() else {
             return Ok(());
         };
@@ -42,7 +42,7 @@ impl Editor {
             &relative_directory,
             &name,
         )
-        .map_err(|error| format!("Could not create timeline: {error}"))?;
+        .map_err(|error| anyhow::anyhow!("Could not create timeline: {error}"))?;
         self.explorer.new_timeline_dialog = None;
         self.activate_created_timeline(relative_directory, relative_path, timeline, cx)
     }
@@ -77,14 +77,14 @@ impl Editor {
         cx.notify();
     }
 
-    pub(crate) fn finish_rename(&mut self, cx: &mut Context<Self>) -> Result<(), String> {
+    pub(crate) fn finish_rename(&mut self, cx: &mut Context<Self>) -> anyhow::Result<()> {
         let Some(state) = self.explorer.rename_dialog.as_ref() else {
             return Ok(());
         };
         let old_relative = state.relative_path.clone();
         let new_name = state.input.read(cx).query().trim().to_string();
         let Some(new_relative) = renamed_relative_path(&old_relative, &new_name) else {
-            return Err("Enter a single non-empty file or folder name.".to_string());
+            anyhow::bail!("Enter a single non-empty file or folder name.");
         };
         if new_relative == old_relative {
             self.explorer.rename_dialog = None;
@@ -94,13 +94,14 @@ impl Editor {
         let old_path = self.global_settings.project_root.join(&old_relative);
         let new_path = self.global_settings.project_root.join(&new_relative);
         if new_path.exists() {
-            return Err(format!(
+            return Err(anyhow::anyhow!(
                 "Cannot rename: {} already exists.",
                 new_relative.display()
             ));
         }
-        std::fs::rename(&old_path, &new_path)
-            .map_err(|error| format!("Could not rename {}: {error}", old_relative.display()))?;
+        std::fs::rename(&old_path, &new_path).map_err(|error| {
+            anyhow::anyhow!("Could not rename {}: {error}", old_relative.display())
+        })?;
 
         if let Some(timeline) = self.timeline.as_mut() {
             let paths = timeline
@@ -230,7 +231,7 @@ impl Editor {
     pub(in crate::editor) fn trash_selected_file(
         &mut self,
         cx: &mut Context<Self>,
-    ) -> Result<(), String> {
+    ) -> anyhow::Result<()> {
         let ContextMenu::File(menu) = &self.context_menu else {
             return Ok(());
         };
@@ -239,14 +240,14 @@ impl Editor {
 
         // The project root is the workspace itself, not an entry within it.
         if relative_path.as_os_str().is_empty() {
-            return Err("The project folder cannot be moved to Trash here.".to_string());
+            anyhow::bail!("The project folder cannot be moved to Trash here.");
         }
         if self
             .timeline
             .as_ref()
             .is_some_and(|timeline| timeline.path.starts_with(&relative_path))
         {
-            return Err("The active timeline cannot be moved to Trash.".to_string());
+            anyhow::bail!("The active timeline cannot be moved to Trash.");
         }
 
         let path = self.global_settings.project_root.join(&relative_path);
@@ -256,7 +257,9 @@ impl Editor {
             .unwrap_or_else(|| relative_path.display().to_string());
         if let Err(error) = move_path_to_trash(&path) {
             self.status = None;
-            return Err(format!("Could not move {display_name} to Trash: {error}"));
+            return Err(anyhow::anyhow!(
+                "Could not move {display_name} to Trash: {error}"
+            ));
         }
         self.explorer
             .expanded_directories

@@ -26,7 +26,7 @@ pub enum FileTreeEntryKind {
 pub fn visible_tree(
     project_root: &Path,
     expanded_directories: &HashSet<PathBuf>,
-) -> Result<Vec<FileTreeEntry>, String> {
+) -> anyhow::Result<Vec<FileTreeEntry>> {
     let mut entries = Vec::new();
     read_directory(
         project_root,
@@ -40,7 +40,7 @@ pub fn visible_tree(
 
 /// Searches the complete project tree, independently of which folders are expanded.
 /// Matching ancestor directories are included so results retain their hierarchy.
-pub fn search_tree(project_root: &Path, query: &str) -> Result<Vec<FileTreeEntry>, String> {
+pub fn search_tree(project_root: &Path, query: &str) -> anyhow::Result<Vec<FileTreeEntry>> {
     let query = query.trim().to_lowercase();
     if query.is_empty() {
         return Ok(Vec::new());
@@ -55,7 +55,7 @@ fn search_directory(
     depth: usize,
     query: &str,
     is_root: bool,
-) -> Result<Vec<FileTreeEntry>, String> {
+) -> anyhow::Result<Vec<FileTreeEntry>> {
     let directory = project_root.join(relative_directory);
     let children = match directory_children(&directory) {
         Ok(children) => children,
@@ -112,7 +112,7 @@ fn read_directory(
     depth: usize,
     expanded_directories: &HashSet<PathBuf>,
     entries: &mut Vec<FileTreeEntry>,
-) -> Result<(), String> {
+) -> anyhow::Result<()> {
     let directory = project_root.join(relative_directory);
     let children = directory_children(&directory)?;
 
@@ -140,9 +140,9 @@ fn read_directory(
     Ok(())
 }
 
-fn directory_children(directory: &Path) -> Result<Vec<(String, bool, Option<u64>)>, String> {
+fn directory_children(directory: &Path) -> anyhow::Result<Vec<(String, bool, Option<u64>)>> {
     let mut children = fs::read_dir(directory)
-        .map_err(|error| format!("could not read {}: {error}", directory.display()))?
+        .map_err(|error| anyhow::anyhow!("could not read {}: {error}", directory.display()))?
         .filter_map(Result::ok)
         .filter_map(|entry| {
             let file_type = entry.file_type().ok()?;
@@ -485,8 +485,9 @@ impl Editor {
             return;
         }
 
-        let video = VideoBackend::open(&url)
-            .map_err(|error| format!("Could not preview {}: {error}", source_path.display()));
+        let video = VideoBackend::open(&url).map_err(|error| {
+            anyhow::anyhow!("Could not preview {}: {error}", source_path.display())
+        });
 
         let still_requested = matches!(
             self.explorer.selected_file.as_ref(),

@@ -6,62 +6,62 @@ fn validates_one_clip_placement() {
     let mut timeline = TimelineSerialization::with_test_tracks();
 
     assert_eq!(
-        validate_clip_placement(
+        placement_rejection(validate_clip_placement(
             &timeline,
             ulid(2),
             MediaKind::Audio,
             TimelineTime::from_frames(10),
             TimelineTime::from_frames(-1),
             &HashSet::new(),
-        ),
-        Err(ClipPlacementRejection::BeforeTimelineStart)
+        )),
+        ClipPlacementRejection::BeforeTimelineStart
     );
     assert_eq!(
-        validate_clip_placement(
+        placement_rejection(validate_clip_placement(
             &timeline,
             ulid(2),
             MediaKind::Audio,
             TimelineTime::ZERO,
             TimelineTime::ZERO,
             &HashSet::new(),
-        ),
-        Err(ClipPlacementRejection::DurationTooShort)
+        )),
+        ClipPlacementRejection::DurationTooShort
     );
     assert_eq!(
-        validate_clip_placement(
+        placement_rejection(validate_clip_placement(
             &timeline,
             ulid(99),
             MediaKind::Audio,
             TimelineTime::from_frames(10),
             TimelineTime::ZERO,
             &HashSet::new(),
-        ),
-        Err(ClipPlacementRejection::MissingTrack)
+        )),
+        ClipPlacementRejection::MissingTrack
     );
 
     timeline.track_mut(ulid(2)).unwrap().locked = true;
     assert_eq!(
-        validate_clip_placement(
+        placement_rejection(validate_clip_placement(
             &timeline,
             ulid(2),
             MediaKind::Audio,
             TimelineTime::from_frames(10),
             TimelineTime::ZERO,
             &HashSet::new(),
-        ),
-        Err(ClipPlacementRejection::LockedTrack)
+        )),
+        ClipPlacementRejection::LockedTrack
     );
     timeline.track_mut(ulid(2)).unwrap().locked = false;
     assert_eq!(
-        validate_clip_placement(
+        placement_rejection(validate_clip_placement(
             &timeline,
             ulid(2),
             MediaKind::Video,
             TimelineTime::from_frames(10),
             TimelineTime::ZERO,
             &HashSet::new(),
-        ),
-        Err(ClipPlacementRejection::IncompatibleTrack)
+        )),
+        ClipPlacementRejection::IncompatibleTrack
     );
 
     timeline.clips.push(Clip::Audio(AudioClip {
@@ -75,17 +75,17 @@ fn validates_one_clip_placement() {
         audio_properties: AudioClipProperties::default(),
     }));
     assert_eq!(
-        validate_clip_placement(
+        placement_rejection(validate_clip_placement(
             &timeline,
             ulid(2),
             MediaKind::Audio,
             TimelineTime::from_frames(10),
             TimelineTime::from_frames(15),
             &HashSet::new(),
-        ),
-        Err(ClipPlacementRejection::ExistingClipOverlap)
+        )),
+        ClipPlacementRejection::ExistingClipOverlap
     );
-    assert_eq!(
+    assert!(
         validate_clip_placement(
             &timeline,
             ulid(2),
@@ -93,7 +93,14 @@ fn validates_one_clip_placement() {
             TimelineTime::from_frames(10),
             TimelineTime::from_frames(15),
             &HashSet::from([ulid(20)]),
-        ),
-        Ok(())
+        )
+        .is_ok()
     );
+}
+
+fn placement_rejection(result: anyhow::Result<()>) -> ClipPlacementRejection {
+    result
+        .unwrap_err()
+        .downcast::<ClipPlacementRejection>()
+        .unwrap()
 }

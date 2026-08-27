@@ -1,5 +1,6 @@
 use std::{fs, path::Path, time::Duration};
 
+use anyhow::{Context as _, Result, bail};
 use ulid::Ulid;
 
 use crate::editor::{FrameRate, TextClip, TextClipProperties};
@@ -7,13 +8,13 @@ use crate::editor::{FrameRate, TextClip, TextClipProperties};
 pub(in crate::editor) fn srt_to_text_clips(
     path: &Path,
     frame_rate: FrameRate,
-) -> Result<Vec<TextClip>, String> {
-    let contents = fs::read_to_string(path)
-        .map_err(|error| format!("could not read {}: {error}", path.display()))?;
+) -> Result<Vec<TextClip>> {
+    let contents =
+        fs::read_to_string(path).with_context(|| format!("could not read {}", path.display()))?;
     parse_srt_text_clips(&contents, frame_rate)
 }
 
-fn parse_srt_text_clips(contents: &str, frame_rate: FrameRate) -> Result<Vec<TextClip>, String> {
+fn parse_srt_text_clips(contents: &str, frame_rate: FrameRate) -> Result<Vec<TextClip>> {
     let contents = contents
         .trim_start_matches('\u{feff}')
         .replace("\r\n", "\n");
@@ -31,34 +32,30 @@ fn parse_srt_text_clips(contents: &str, frame_rate: FrameRate) -> Result<Vec<Tex
         let first_line = first_line.trim();
         let timing_line = if first_line.parse::<u64>().is_ok() {
             let Some(timing_line) = lines.next() else {
-                return Err(format!("SRT cue {cue_number} has no timestamp line"));
+                bail!("SRT cue {cue_number} has no timestamp line");
             };
             timing_line
         } else {
             first_line
         };
         let Some((start, end)) = timing_line.split_once("-->") else {
-            return Err(format!(
-                "SRT cue {cue_number} has an invalid timestamp line"
-            ));
+            bail!("SRT cue {cue_number} has an invalid timestamp line");
         };
         let Some(start) = parse_srt_timestamp(start) else {
-            return Err(format!(
-                "SRT cue {cue_number} has an invalid start timestamp"
-            ));
+            bail!("SRT cue {cue_number} has an invalid start timestamp");
         };
         let Some(end) = end
             .split_ascii_whitespace()
             .next()
             .and_then(parse_srt_timestamp)
         else {
-            return Err(format!("SRT cue {cue_number} has an invalid end timestamp"));
+            bail!("SRT cue {cue_number} has an invalid end timestamp");
         };
         let Some(length) = end.checked_sub(start) else {
-            return Err(format!("SRT cue {cue_number} ends before it starts"));
+            bail!("SRT cue {cue_number} ends before it starts");
         };
         if length.is_zero() {
-            return Err(format!("SRT cue {cue_number} has zero duration"));
+            bail!("SRT cue {cue_number} has zero duration");
         }
         let text = lines.collect::<Vec<_>>().join("\n").trim().to_string();
         if text.is_empty() {
@@ -133,6 +130,6 @@ mod tests {
             parse_srt_text_clips("1\n00:00:01,000 --> invalid\nHello\n", FrameRate::default())
                 .unwrap_err();
 
-        assert_eq!(error, "SRT cue 1 has an invalid end timestamp");
+        assert_eq!(error.to_string(), "SRT cue 1 has an invalid end timestamp");
     }
 }
