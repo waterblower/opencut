@@ -170,7 +170,7 @@ impl Editor {
                                     )
                                     .on_drop(cx.listener(
                                         |editor, drag: &ExplorerMediaDrag, _, cx| {
-                                            drop_dragged_explorer_media(editor, drag, cx);
+                                            drop_dragged_explorer_media(drag, editor, cx);
                                         },
                                     ))
                                     .child(self.timeline_ruler(duration, cx))
