@@ -83,7 +83,6 @@ impl Editor {
                 rename_dialog: None,
                 new_timeline_dialog: None,
                 drag_assets: HashMap::new(),
-                drag_probe_jobs: HashSet::new(),
                 drop_preview: None,
                 pending_drop: None,
                 last_tree_scan: Instant::now(),

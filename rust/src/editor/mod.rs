@@ -333,7 +333,6 @@ impl Editor {
         cx: &mut Context<Self>,
     ) -> Result<(), String> {
         self.explorer.drag_assets.clear();
-        self.explorer.drag_probe_jobs.clear();
         self.explorer.drop_preview = None;
         self.explorer.pending_drop = None;
         self.preview.volume_control_open = false;

@@ -79,7 +79,6 @@ pub struct ExplorerState {
     pub rename_dialog: Option<RenameDialogState>,
     pub new_timeline_dialog: Option<NewTimelineDialogState>,
     pub drag_assets: HashMap<PathBuf, MediaAsset>,
-    pub drag_probe_jobs: HashSet<PathBuf>,
     pub drop_preview: Option<ExplorerDropPreview>,
     pub pending_drop: Option<PendingExplorerDrop>,
     pub last_tree_scan: Instant,
@@ -539,7 +538,6 @@ impl Editor {
             return;
         };
         if drag.kind != MediaKind::Srt
-            && !self.explorer.drag_probe_jobs.contains(&drag.relative_path)
             && explorer_asset_for_path(
                 &timeline.data.assets,
                 &self.explorer.drag_assets,
@@ -630,7 +628,6 @@ impl Editor {
             &relative_path,
         )
         .is_some()
-            || !self.explorer.drag_probe_jobs.insert(relative_path.clone())
         {
             return;
         }
@@ -648,7 +645,7 @@ impl Editor {
                     if editor.global_settings.project_root != project_root {
                         return;
                     }
-                    editor.explorer.drag_probe_jobs.remove(&relative_path);
+
                     match result {
                         Ok(mut asset) => {
                             asset.path = relative_path.clone();
