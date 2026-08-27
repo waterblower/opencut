@@ -877,7 +877,7 @@ fn ripple_clips_after_deletion(
     }
 }
 
-fn validate_clips_placements(
+pub(super) fn validate_clips_placements(
     timeline: &TimelineSerialization,
     clips: &[Clip],
 ) -> Result<(), ClipPlacementRejection> {

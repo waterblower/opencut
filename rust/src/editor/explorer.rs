@@ -2,7 +2,7 @@ use crate::{
     editor::{
         ACCENT, BORDER, ExplorerDropPreview, ExplorerState, MUTED, OpenInDefaultApp, PANEL,
         RULER_HEIGHT, RevealInFinder, SURFACE, SURFACE_HOVER, TEXT, TIMELINE_PADDING, TRACK_HEIGHT,
-        clip_placement::validate_clip_placement,
+        clip_placement::{validate_clip_placement, validate_text_clip_placement},
         context_menu::{ContextMenu, FileContextMenu},
         editing::{EditAction, edit_and_rebuild_timeline},
         editor::Editor,
@@ -474,9 +474,6 @@ impl Editor {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        if event.drag(cx).kind == MediaKind::Srt {
-            return;
-        }
         let pointer = event.event.position;
         let inside_timeline = event.bounds.contains(&pointer);
         let local_y = f32::from(pointer.y) - f32::from(event.bounds.top());
@@ -522,7 +519,8 @@ impl Editor {
         let Some(timeline) = self.timeline.as_ref() else {
             return;
         };
-        if !self.explorer.drag_probe_jobs.contains(&drag.relative_path)
+        if drag.kind != MediaKind::Srt
+            && !self.explorer.drag_probe_jobs.contains(&drag.relative_path)
             && explorer_asset_for_path(
                 &timeline.data.assets,
                 &self.explorer.drag_assets,
@@ -541,39 +539,57 @@ impl Editor {
         track_id: Ulid,
         raw_start: TimelineTime,
     ) {
-        if drag.kind == MediaKind::Srt {
-            return;
-        }
         let Some(timeline) = self.timeline.as_ref() else {
             return;
         };
-        let asset = explorer_asset_for_path(
-            &timeline.data.assets,
-            &self.explorer.drag_assets,
-            &drag.relative_path,
-        );
-        let analyzing = asset.is_none();
-        let duration = asset
-            .as_ref()
-            .map(|asset| timeline.data.ceil_time(asset.duration))
-            .unwrap_or_else(|| timeline.data.ceil_time(DEFAULT_IMAGE_CLIP_DURATION));
-        let (start, snap_guide) =
-            timeline.snap_clip_start_ignoring(raw_start, duration, &HashSet::new());
-        let kind = asset.as_ref().map_or(drag.kind, |asset| asset.kind);
-        let invalid_reason = validate_clip_placement(
-            &timeline.data,
-            track_id,
-            kind,
-            duration,
-            start,
-            &HashSet::new(),
-        )
-        .err()
-        .map(|rejection| rejection.message().to_string());
+        let (duration, start, snap_guide, analyzing, invalid_reason) = match drag.kind {
+            MediaKind::Srt => {
+                let duration = TimelineTime::ONE_FRAME;
+                let (start, snap_guide) =
+                    timeline.snap_clip_start_ignoring(raw_start, duration, &HashSet::new());
+                let invalid_reason = validate_text_clip_placement(
+                    &timeline.data,
+                    track_id,
+                    duration,
+                    start,
+                    &HashSet::new(),
+                )
+                .err()
+                .map(|rejection| rejection.message().to_string());
+                (duration, start, snap_guide, false, invalid_reason)
+            }
+            MediaKind::Video | MediaKind::Image | MediaKind::Audio => {
+                let asset = explorer_asset_for_path(
+                    &timeline.data.assets,
+                    &self.explorer.drag_assets,
+                    &drag.relative_path,
+                );
+                let analyzing = asset.is_none();
+                let duration = asset
+                    .as_ref()
+                    .map(|asset| timeline.data.ceil_time(asset.duration))
+                    .unwrap_or_else(|| timeline.data.ceil_time(DEFAULT_IMAGE_CLIP_DURATION));
+                let (start, snap_guide) =
+                    timeline.snap_clip_start_ignoring(raw_start, duration, &HashSet::new());
+                let kind = asset.as_ref().map_or(drag.kind, |asset| asset.kind);
+                let invalid_reason = validate_clip_placement(
+                    &timeline.data,
+                    track_id,
+                    kind,
+                    duration,
+                    start,
+                    &HashSet::new(),
+                )
+                .err()
+                .map(|rejection| rejection.message().to_string());
+                (duration, start, snap_guide, analyzing, invalid_reason)
+            }
+        };
         if let Some(timeline) = self.timeline.as_mut() {
             timeline.interaction.snap_guide = snap_guide;
         }
         self.explorer.drop_preview = Some(ExplorerDropPreview {
+            kind: drag.kind,
             relative_path: drag.relative_path.clone(),
             name: drag.name.clone(),
             track_id,

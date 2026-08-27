@@ -276,7 +276,10 @@ impl Editor {
             .explorer
             .drop_preview
             .as_ref()
-            .filter(|preview| preview.track_id == track.id && track.kind != TrackKind::Text)
+            .filter(|preview| {
+                preview.track_id == track.id
+                    && (preview.kind == MediaKind::Srt || track.kind != TrackKind::Text)
+            })
             .map(|preview| {
                 explorer_drop_preview(
                     preview,

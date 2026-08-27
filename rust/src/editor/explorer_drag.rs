@@ -4,11 +4,14 @@ use gpui::{Context, IntoElement, ParentElement, Render, Styled, Window, div, px,
 use ulid::Ulid;
 
 use crate::editor::{
-    ACCENT, Editor, MediaKind, PendingExplorerDrop, TimelineTime, explorer::explorer_asset_for_path,
+    ACCENT, Clip, EditAction, Editor, MediaKind, PendingExplorerDrop, TimelineTime,
+    edit_and_rebuild_timeline, editing::validate_clips_placements,
+    explorer::explorer_asset_for_path, srt::srt_to_text_clips,
 };
 
 #[derive(Clone, Debug)]
 pub(super) struct ExplorerDropPreview {
+    pub(super) kind: MediaKind,
     pub(super) relative_path: PathBuf,
     pub(super) name: String,
     pub(super) track_id: Ulid,
@@ -92,9 +95,10 @@ pub(super) fn drop_dragged_explorer_media(
         }
         ExplorerMediaDrag {
             kind: MediaKind::Srt,
-            ..
+            name,
+            relative_path,
         } => {
-            // Subtitle timeline placement is not supported yet.
+            drop_dragged_srt(name, relative_path, editor, cx);
         }
     }
 }
@@ -171,4 +175,122 @@ fn drop_dragged_timeline_media(
     // Refresh the editor to clear drag UI and show either the placed asset or
     // the pending inspection status.
     cx.notify();
+}
+
+fn drop_dragged_srt(
+    name: &str,
+    relative_path: &Path,
+    editor: &mut Editor,
+    cx: &mut Context<Editor>,
+) {
+    // The drag preview identifies both the text track under the pointer and the
+    // timeline position where the subtitle timestamps should begin.
+    let Some(preview) = editor.explorer.drop_preview.take().filter(|preview| {
+        preview.relative_path == relative_path
+            && editor
+                .timeline
+                .as_ref()
+                .is_some_and(|timeline| timeline.data.track(preview.track_id).is_some())
+    }) else {
+        if let Some(timeline) = editor.timeline.as_mut() {
+            timeline.interaction.snap_guide = None;
+        }
+        return;
+    };
+    if let Some(timeline) = editor.timeline.as_mut() {
+        timeline.interaction.snap_guide = None;
+    }
+    if let Some(reason) = preview.invalid_reason {
+        eprintln!("Cannot add {name}: {reason}.");
+        editor.status = None;
+        cx.notify();
+        return;
+    }
+
+    // Capture the active document identity so an asynchronous read cannot add
+    // clips to another project or timeline if the user switches meanwhile.
+    let Some(timeline) = editor.timeline.as_ref() else {
+        return;
+    };
+    let timeline_path = timeline.path.clone();
+    let frame_rate = timeline.data.settings.frame_rate;
+    let project_root = editor.global_settings.project_root.clone();
+    let source_path = project_root.join(relative_path);
+    let relative_path = relative_path.to_path_buf();
+    let name = name.to_string();
+    editor.status = Some(format!("Importing subtitles from {name}…"));
+    cx.notify();
+
+    cx.spawn(async move |editor, cx| {
+        let parsed_clips = srt_to_text_clips(&source_path, frame_rate).await;
+        editor
+            .update(cx, |editor, cx| {
+                if editor.global_settings.project_root != project_root
+                    || editor
+                        .timeline
+                        .as_ref()
+                        .is_none_or(|timeline| timeline.path != timeline_path)
+                {
+                    return;
+                }
+
+                let result = (|| {
+                    let mut text_clips = match parsed_clips {
+                        Ok(clips) => clips,
+                        Err(error) => return Err(error),
+                    };
+                    if text_clips.is_empty() {
+                        return Err("the SRT file contains no subtitle cues".to_string());
+                    }
+                    for clip in &mut text_clips {
+                        clip.track_id = preview.track_id;
+                        clip.timeline_start += preview.start;
+                    }
+                    let clip_ids = text_clips.iter().map(|clip| clip.id).collect::<Vec<_>>();
+                    let clip_count = text_clips.len();
+                    let clips = text_clips.into_iter().map(Clip::Text).collect::<Vec<_>>();
+
+                    let Some(timeline) = editor.timeline.as_mut() else {
+                        return Err("the destination timeline is unavailable".to_string());
+                    };
+                    if let Err(error) = validate_clips_placements(&timeline.data, &clips) {
+                        return Err(format!(
+                            "could not place subtitle clips: {}",
+                            error.message()
+                        ));
+                    }
+                    timeline.record_editing_history();
+                    if let Err(error) = edit_and_rebuild_timeline(
+                        &mut editor.preview,
+                        &project_root,
+                        timeline,
+                        EditAction::AddClips {
+                            clips,
+                            assets: Vec::new(),
+                        },
+                    ) {
+                        return Err(format!("could not place subtitle clips: {error}"));
+                    }
+                    timeline.interaction.selected_clip_id = clip_ids.first().copied();
+                    timeline.interaction.selected_clip_ids = clip_ids.iter().copied().collect();
+                    timeline.save(&project_root);
+                    editor.explorer.selected_file = Some(relative_path);
+                    Ok(clip_count)
+                })();
+
+                match result {
+                    Ok(clip_count) => {
+                        editor.status =
+                            Some(format!("Added {clip_count} subtitle clips from {name}."));
+                    }
+                    Err(error) => {
+                        editor.status = Some(format!("Could not import {name}: {error}."));
+                        eprintln!("Cannot add {name}: {error}.");
+                    }
+                }
+                cx.notify();
+            })
+            .ok();
+    })
+    .detach();
 }
