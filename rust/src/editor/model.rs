@@ -31,6 +31,19 @@ pub(super) enum MediaKind {
     Image,
     #[serde(alias = "audio")]
     Audio,
+    #[serde(alias = "srt")]
+    Srt,
+}
+
+impl MediaKind {
+    pub(super) fn label(self) -> &'static str {
+        match self {
+            Self::Video => "VIDEO",
+            Self::Image => "IMAGE",
+            Self::Audio => "AUDIO",
+            Self::Srt => "SRT",
+        }
+    }
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]

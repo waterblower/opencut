@@ -1,3 +1,5 @@
+use crate::editor::explorer_drag::ExplorerMediaDrag;
+
 use super::*;
 use std::{collections::HashSet, fs, path::Path};
 use url::Url;
@@ -250,6 +252,7 @@ impl Editor {
             FileTreeEntryKind::Video => Some(MediaKind::Video),
             FileTreeEntryKind::Image => Some(MediaKind::Image),
             FileTreeEntryKind::Audio => Some(MediaKind::Audio),
+            FileTreeEntryKind::Other if is_srt_path(&path) => Some(MediaKind::Srt),
             FileTreeEntryKind::Directory { .. }
             | FileTreeEntryKind::Timeline
             | FileTreeEntryKind::Other => None,
@@ -281,16 +284,10 @@ impl Editor {
             .cursor(CursorStyle::PointingHand)
             .hover(|style| style.bg(rgb(SURFACE_HOVER)))
             .when_some(media_drag, |this, drag| {
-                this.cursor(CursorStyle::OpenHand).on_drag(
-                    drag,
-                    |drag: &ExplorerMediaDrag, _, _, cx| {
-                        let drag = drag.clone();
-                        cx.new(|_| ExplorerDragView {
-                            name: drag.name,
-                            kind: drag.kind,
-                        })
-                    },
-                )
+                this.cursor(CursorStyle::OpenHand)
+                    .on_drag(drag, |drag: &ExplorerMediaDrag, _, _, cx| {
+                        cx.new(|_| drag.clone())
+                    })
             })
             .on_click(cx.listener({
                 let entry = entry.clone();

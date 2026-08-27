@@ -1,11 +1,12 @@
 use crate::{
     editor::{
-        ACCENT, BORDER, ExplorerState, MUTED, OpenInDefaultApp, PANEL, RULER_HEIGHT,
-        RevealInFinder, SURFACE, SURFACE_HOVER, TEXT, TIMELINE_PADDING, TRACK_HEIGHT,
+        ACCENT, BORDER, ExplorerDropPreview, ExplorerState, MUTED, OpenInDefaultApp, PANEL,
+        RULER_HEIGHT, RevealInFinder, SURFACE, SURFACE_HOVER, TEXT, TIMELINE_PADDING, TRACK_HEIGHT,
         clip_placement::validate_clip_placement,
         context_menu::{ContextMenu, FileContextMenu},
         editing::{EditAction, edit_and_rebuild_timeline},
         editor::Editor,
+        explorer_drag::ExplorerMediaDrag,
         explorer_filter::ExplorerFilter,
         media_probe::probe_asset,
         model::{DEFAULT_IMAGE_CLIP_DURATION, MediaAsset, MediaKind},
@@ -22,8 +23,8 @@ use crate::{
 use gpui::prelude::FluentBuilder;
 use gpui::{
     AppContext as _, Context, CursorStyle, DragMoveEvent, Entity, InteractiveElement, IntoElement,
-    MouseButton, MouseDownEvent, ParentElement, Render, StatefulInteractiveElement, Styled, Window,
-    div, px, rgb,
+    MouseButton, MouseDownEvent, ParentElement, StatefulInteractiveElement, Styled, Window, div,
+    px, rgb,
 };
 use serde::{Deserialize, Serialize};
 use std::{
@@ -51,25 +52,6 @@ pub(super) struct RenameDialogState {
 pub(super) struct NewTimelineDialogState {
     relative_directory: PathBuf,
     input: Entity<ExplorerFilter>,
-}
-
-#[derive(Clone, Debug)]
-pub(super) struct ExplorerMediaDrag {
-    pub(super) relative_path: PathBuf,
-    pub(super) name: String,
-    pub(super) kind: MediaKind,
-}
-
-#[derive(Clone, Debug)]
-pub(super) struct ExplorerDropPreview {
-    pub(super) relative_path: PathBuf,
-    pub(super) name: String,
-    pub(super) track_id: Ulid,
-    pub(super) raw_start: TimelineTime,
-    pub(super) start: TimelineTime,
-    pub(super) duration: TimelineTime,
-    pub(super) analyzing: bool,
-    pub(super) invalid_reason: Option<String>,
 }
 
 #[derive(Clone, Debug)]
@@ -124,11 +106,6 @@ impl Default for ExplorerExpansion {
     }
 }
 
-struct ExplorerDragView {
-    name: String,
-    kind: MediaKind,
-}
-
 impl ExplorerState {
     pub(super) fn refresh_file_tree(&mut self, project_root: &Path) -> Result<(), String> {
         self.last_tree_scan = Instant::now();
@@ -155,42 +132,6 @@ impl Editor {
             &self.explorer.expanded_directories,
             self.explorer.root_expanded,
         )
-    }
-}
-
-impl Render for ExplorerDragView {
-    fn render(&mut self, _: &mut Window, _: &mut Context<Self>) -> impl IntoElement {
-        let label = match self.kind {
-            MediaKind::Video => "VIDEO",
-            MediaKind::Image => "IMAGE",
-            MediaKind::Audio => "AUDIO",
-        };
-        div()
-            .max_w(px(280.0))
-            .h_9()
-            .px_3()
-            .flex()
-            .items_center()
-            .gap_2()
-            .rounded_md()
-            .border_1()
-            .border_color(rgb(ACCENT))
-            .bg(rgb(0x1b1b1e))
-            .shadow_lg()
-            .child(
-                div()
-                    .font_family("monospace")
-                    .text_xs()
-                    .text_color(rgb(ACCENT))
-                    .child(label),
-            )
-            .child(
-                div()
-                    .min_w_0()
-                    .text_sm()
-                    .text_ellipsis()
-                    .child(self.name.clone()),
-            )
     }
 }
 
@@ -533,6 +474,9 @@ impl Editor {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        if event.drag(cx).kind == MediaKind::Srt {
+            return;
+        }
         let pointer = event.event.position;
         let inside_timeline = event.bounds.contains(&pointer);
         let local_y = f32::from(pointer.y) - f32::from(event.bounds.top());
@@ -597,6 +541,9 @@ impl Editor {
         track_id: Ulid,
         raw_start: TimelineTime,
     ) {
+        if drag.kind == MediaKind::Srt {
+            return;
+        }
         let Some(timeline) = self.timeline.as_ref() else {
             return;
         };
@@ -639,6 +586,9 @@ impl Editor {
     }
 
     pub(super) fn drop_explorer_media(&mut self, drag: &ExplorerMediaDrag, cx: &mut Context<Self>) {
+        if drag.kind == MediaKind::Srt {
+            return;
+        }
         let Some(preview) = self.explorer.drop_preview.take().filter(|preview| {
             preview.relative_path == drag.relative_path
                 && self

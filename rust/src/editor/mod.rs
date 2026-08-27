@@ -1,4 +1,4 @@
-use crate::video::VideoBackend;
+use crate::{editor::explorer_drag::ExplorerDropPreview, video::VideoBackend};
 use gpui::{
     App, Context, CursorStyle, Entity, EventEmitter, FocusHandle, KeyBinding, MouseButton,
     MouseDownEvent, MouseMoveEvent, MouseUpEvent, ObjectFit, PathPromptOptions, Render,
@@ -10,7 +10,6 @@ use std::{
     sync::Arc,
     time::{Duration, Instant},
 };
-
 mod clip_placement;
 mod clip_render_plan;
 mod context_menu;
@@ -18,6 +17,7 @@ mod editing;
 mod editor;
 mod editor_view;
 mod explorer;
+mod explorer_drag;
 mod explorer_filter;
 mod export;
 mod export_dialog;
@@ -36,6 +36,7 @@ mod properties;
 mod properties_text;
 mod properties_transform;
 mod settings;
+mod srt;
 mod timeline;
 mod timeline_clip;
 mod timeline_clip_menu;
@@ -57,8 +58,8 @@ use context_menu::ContextMenu;
 use editing::{ClipClipboard, EditAction, edit_and_rebuild_timeline, edit_timeline};
 pub(crate) use editor::Editor;
 use explorer::{
-    ExplorerDropPreview, ExplorerMediaDrag, FileTreeEntry, NewTimelineDialogState,
-    PendingExplorerDrop, RenameDialogState, load_explorer_expansion, visible_tree,
+    FileTreeEntry, NewTimelineDialogState, PendingExplorerDrop, RenameDialogState,
+    load_explorer_expansion, visible_tree,
 };
 use explorer_filter::ExplorerFilter;
 use export_dialog::ExportDialogState;

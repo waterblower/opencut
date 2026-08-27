@@ -44,6 +44,7 @@ gstreamer-backend = [
 ]
 
 [dependencies]
+async-fs = "2.1"
 futures-util = "0.3"
 env_logger = "0.11"
 ffmpeg-next = { version = "8.1", optional = true }

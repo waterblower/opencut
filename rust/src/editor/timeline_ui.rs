@@ -1,3 +1,5 @@
+use crate::editor::explorer_drag::ExplorerMediaDrag;
+
 use super::*;
 
 const MAX_RULER_TICKS: usize = 240;
