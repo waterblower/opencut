@@ -1,4 +1,4 @@
-use crate::editor::explorer_drag::ExplorerMediaDrag;
+use crate::editor::explorer_drag::{ExplorerMediaDrag, drop_dragged_explorer_media};
 
 use super::*;
 
@@ -170,7 +170,7 @@ impl Editor {
                                     )
                                     .on_drop(cx.listener(
                                         |editor, drag: &ExplorerMediaDrag, _, cx| {
-                                            editor.drop_explorer_media(drag, cx);
+                                            drop_dragged_explorer_media(editor, drag, cx);
                                         },
                                     ))
                                     .child(self.timeline_ruler(duration, cx))

@@ -56,9 +56,9 @@ pub(super) struct NewTimelineDialogState {
 
 #[derive(Clone, Debug)]
 pub(super) struct PendingExplorerDrop {
-    relative_path: PathBuf,
-    track_id: Ulid,
-    raw_start: TimelineTime,
+    pub relative_path: PathBuf,
+    pub track_id: Ulid,
+    pub raw_start: TimelineTime,
 }
 
 pub(super) struct ExplorerExpansion {
@@ -585,61 +585,7 @@ impl Editor {
         });
     }
 
-    pub(super) fn drop_explorer_media(&mut self, drag: &ExplorerMediaDrag, cx: &mut Context<Self>) {
-        if drag.kind == MediaKind::Srt {
-            return;
-        }
-        let Some(preview) = self.explorer.drop_preview.take().filter(|preview| {
-            preview.relative_path == drag.relative_path
-                && self
-                    .timeline
-                    .as_ref()
-                    .is_some_and(|timeline| timeline.data.track(preview.track_id).is_some())
-        }) else {
-            if let Some(timeline) = self.timeline.as_mut() {
-                timeline.interaction.snap_guide = None;
-            }
-            return;
-        };
-        if let Some(timeline) = self.timeline.as_mut() {
-            timeline.interaction.snap_guide = None;
-        }
-
-        if let Some(reason) = preview.invalid_reason {
-            eprintln!("Cannot add {}: {reason}.", drag.name);
-            self.status = None;
-            cx.notify();
-            return;
-        }
-
-        let Some(timeline) = self.timeline.as_ref() else {
-            return;
-        };
-        if let Some(asset) = explorer_asset_for_path(
-            &timeline.data.assets,
-            &self.explorer.drag_assets,
-            &drag.relative_path,
-        ) {
-            self.place_explorer_asset(
-                drag.relative_path.clone(),
-                preview.track_id,
-                preview.raw_start,
-                asset,
-                cx,
-            );
-        } else {
-            self.explorer.pending_drop = Some(PendingExplorerDrop {
-                relative_path: drag.relative_path.clone(),
-                track_id: preview.track_id,
-                raw_start: preview.raw_start,
-            });
-            self.status = Some(format!("Inspecting {} before placing it…", drag.name));
-            self.request_explorer_drag_probe(drag.relative_path.clone(), cx);
-        }
-        cx.notify();
-    }
-
-    fn request_explorer_drag_probe(&mut self, relative_path: PathBuf, cx: &mut Context<Self>) {
+    pub fn request_explorer_drag_probe(&mut self, relative_path: PathBuf, cx: &mut Context<Self>) {
         let Some(timeline) = self.timeline.as_ref() else {
             return;
         };
@@ -741,7 +687,7 @@ impl Editor {
         .detach();
     }
 
-    fn place_explorer_asset(
+    pub fn place_explorer_asset(
         &mut self,
         relative_path: PathBuf,
         track_id: Ulid,
@@ -935,7 +881,7 @@ fn explorer_file_badge(entry: &FileTreeEntry) -> gpui::Div {
         .child(extension)
 }
 
-fn explorer_asset_for_path(
+pub fn explorer_asset_for_path(
     timeline_assets: &[MediaAsset],
     drag_assets: &HashMap<PathBuf, MediaAsset>,
     relative_path: &Path,
