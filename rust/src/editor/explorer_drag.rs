@@ -3,6 +3,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
+use anyhow::Context as _;
 use gpui::{
     Context, CursorStyle, DragMoveEvent, IntoElement, ParentElement, Render, Styled, Window, div,
     px, rgb,
@@ -19,7 +20,7 @@ use crate::editor::{
 #[derive(Clone, Debug)]
 pub(super) struct ExplorerDropPreview {
     pub(super) kind: MediaKind,
-    pub(super) relative_path: PathBuf,
+    pub(super) absolute_path: PathBuf,
     pub(super) name: String,
     pub(super) track_id: Ulid,
     pub(super) raw_start: TimelineTime,
@@ -32,8 +33,33 @@ pub(super) struct ExplorerDropPreview {
 pub(super) struct AssetBeingDragged {
     pub(super) kind: MediaKind,
     pub(super) name: String,
-    pub(super) relative_path: PathBuf,
+    pub(super) absolute_path: PathBuf,
 }
+
+/*
+type AssetBeingDragged = DraggedVideo | DraggedAudio | DraggedImage | DraggedSrt
+type DraggedVideo = {
+    absolute_path,
+    codec
+    container format,
+    duration,
+    frame rate,
+    resolution,
+}
+type DraggedAudio = {
+absolute_path
+    // and things used in this app
+}
+type DraggedImage = {
+    absolute_path
+    // and things used in this app
+}
+type DraggedSrt = {
+    absolute_path,
+    text,
+}
+
+ */
 
 impl Render for AssetBeingDragged {
     fn render(&mut self, _: &mut Window, _: &mut Context<Self>) -> impl IntoElement {
@@ -126,11 +152,7 @@ fn refresh_explorer_drop_preview(
     let probed_asset = if drag.kind == MediaKind::Srt {
         None
     } else {
-        let source_path = editor
-            .global_settings
-            .project_root
-            .join(&drag.relative_path);
-        Some(probe_asset(&source_path))
+        Some(probe_asset(&drag.absolute_path))
     };
     let Some(timeline) = editor.timeline.as_ref() else {
         return;
@@ -180,7 +202,7 @@ fn refresh_explorer_drop_preview(
     }
     editor.explorer.drop_preview = Some(ExplorerDropPreview {
         kind: drag.kind,
-        relative_path: drag.relative_path.clone(),
+        absolute_path: drag.absolute_path.clone(),
         name: drag.name.clone(),
         track_id,
         raw_start,
@@ -199,50 +221,50 @@ pub(super) fn drop_dragged_explorer_media(
         AssetBeingDragged {
             kind: MediaKind::Video,
             name,
-            relative_path,
+            absolute_path,
         } => {
             // Video metadata determines both its duration and whether it has an
             // audio stream, so use the standard probed-media placement flow.
-            drop_dragged_timeline_media(name, relative_path, editor, cx);
+            drop_dragged_timeline_media(name, absolute_path, editor, cx);
         }
         AssetBeingDragged {
             kind: MediaKind::Image,
             name,
-            relative_path,
+            absolute_path,
         } => {
             // Images use the same placement flow, with their default duration
             // supplied by the media probe and placement logic.
-            drop_dragged_timeline_media(name, relative_path, editor, cx);
+            drop_dragged_timeline_media(name, absolute_path, editor, cx);
         }
         AssetBeingDragged {
             kind: MediaKind::Audio,
             name,
-            relative_path,
+            absolute_path,
         } => {
             // Audio is placed through the standard flow; track validation later
             // ensures that the selected destination accepts audio media.
-            drop_dragged_timeline_media(name, relative_path, editor, cx);
+            drop_dragged_timeline_media(name, absolute_path, editor, cx);
         }
         AssetBeingDragged {
             kind: MediaKind::Srt,
             name,
-            relative_path,
+            absolute_path,
         } => {
-            drop_dragged_srt(name, relative_path, editor, cx);
+            drop_dragged_srt(name, absolute_path, editor, cx);
         }
     }
 }
 
 fn drop_dragged_timeline_media(
     name: &str,
-    relative_path: &Path,
+    absolute_path: &Path,
     editor: &mut Editor,
     cx: &mut Context<Editor>,
 ) {
     // Consume the preview so a completed drop cannot be reused. Only accept it
     // when it still belongs to this drag and its destination track still exists.
     let Some(preview) = editor.explorer.drop_preview.take().filter(|preview| {
-        preview.relative_path == relative_path
+        preview.absolute_path == absolute_path
             && editor
                 .timeline
                 .as_ref()
@@ -271,8 +293,7 @@ fn drop_dragged_timeline_media(
     }
 
     // Probe synchronously if the drag preview did not already cache metadata.
-    let source_path = editor.global_settings.project_root.join(relative_path);
-    let asset = match probe_asset(&source_path) {
+    let asset = match probe_asset(absolute_path) {
         Ok(asset) => asset,
         Err(error) => {
             editor.status = Some(format!("Could not add {name}: {error}."));
@@ -280,6 +301,13 @@ fn drop_dragged_timeline_media(
             cx.notify();
             return;
         }
+    };
+    let Ok(relative_path) = absolute_path.strip_prefix(&editor.global_settings.project_root) else {
+        editor.status = Some(format!(
+            "Could not add {name}: the file is outside the project."
+        ));
+        cx.notify();
+        return;
     };
     editor.place_explorer_asset(
         relative_path.to_path_buf(),
@@ -295,14 +323,14 @@ fn drop_dragged_timeline_media(
 
 fn drop_dragged_srt(
     name: &str,
-    relative_path: &Path,
+    absolute_path: &Path,
     editor: &mut Editor,
     cx: &mut Context<Editor>,
 ) {
     // The drag preview identifies both the text track under the pointer and the
     // timeline position where the subtitle timestamps should begin.
     let Some(preview) = editor.explorer.drop_preview.take().filter(|preview| {
-        preview.relative_path == relative_path
+        preview.absolute_path == absolute_path
             && editor
                 .timeline
                 .as_ref()
@@ -328,8 +356,7 @@ fn drop_dragged_srt(
     };
     let frame_rate = timeline.data.settings.frame_rate;
     let project_root = editor.global_settings.project_root.clone();
-    let source_path = project_root.join(relative_path);
-    let parsed_clips = srt_to_text_clips(&source_path, frame_rate);
+    let parsed_clips = srt_to_text_clips(absolute_path, frame_rate);
     let result: anyhow::Result<usize> = (|| {
         let mut text_clips = match parsed_clips {
             Ok(clips) => clips,
@@ -367,6 +394,9 @@ fn drop_dragged_srt(
         timeline.interaction.selected_clip_id = clip_ids.first().copied();
         timeline.interaction.selected_clip_ids = clip_ids.iter().copied().collect();
         timeline.save(&project_root);
+        let relative_path = absolute_path
+            .strip_prefix(&project_root)
+            .context("the subtitle file is outside the project")?;
         editor.explorer.selected_file = Some(relative_path.to_path_buf());
         Ok(clip_count)
     })();

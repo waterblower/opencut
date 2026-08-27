@@ -257,8 +257,8 @@ impl Editor {
             | FileTreeEntryKind::Timeline
             | FileTreeEntryKind::Other => None,
         };
-        let media_drag = media_kind.map(|kind| AssetBeingDragged {
-            relative_path: path.clone(),
+        let the_draggable_asset = media_kind.map(|kind| AssetBeingDragged {
+            absolute_path: self.global_settings.project_root.join(&path),
             name: entry.name.clone(),
             kind,
         });
@@ -283,9 +283,9 @@ impl Editor {
             }))
             .cursor(CursorStyle::PointingHand)
             .hover(|style| style.bg(rgb(SURFACE_HOVER)))
-            .when_some(media_drag, |this, drag| {
+            .when_some(the_draggable_asset, |this, asset| {
                 this.cursor(CursorStyle::OpenHand)
-                    .on_drag(drag, |drag: &AssetBeingDragged, _, _, cx| {
+                    .on_drag(asset, |drag: &AssetBeingDragged, _, _, cx| {
                         cx.new(|_| drag.clone())
                     })
             })
