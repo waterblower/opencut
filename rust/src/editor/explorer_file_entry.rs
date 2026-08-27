@@ -1,4 +1,4 @@
-use crate::editor::explorer_drag::ExplorerMediaDrag;
+use crate::editor::explorer_drag::AssetBeingDragged;
 
 use super::*;
 use std::{collections::HashSet, fs, path::Path};
@@ -257,7 +257,7 @@ impl Editor {
             | FileTreeEntryKind::Timeline
             | FileTreeEntryKind::Other => None,
         };
-        let media_drag = media_kind.map(|kind| ExplorerMediaDrag {
+        let media_drag = media_kind.map(|kind| AssetBeingDragged {
             relative_path: path.clone(),
             name: entry.name.clone(),
             kind,
@@ -285,7 +285,7 @@ impl Editor {
             .hover(|style| style.bg(rgb(SURFACE_HOVER)))
             .when_some(media_drag, |this, drag| {
                 this.cursor(CursorStyle::OpenHand)
-                    .on_drag(drag, |drag: &ExplorerMediaDrag, _, _, cx| {
+                    .on_drag(drag, |drag: &AssetBeingDragged, _, _, cx| {
                         cx.new(|_| drag.clone())
                     })
             })

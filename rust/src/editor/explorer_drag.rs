@@ -29,13 +29,13 @@ pub(super) struct ExplorerDropPreview {
 }
 
 #[derive(Clone, Debug)]
-pub(super) struct ExplorerMediaDrag {
+pub(super) struct AssetBeingDragged {
     pub(super) kind: MediaKind,
     pub(super) name: String,
     pub(super) relative_path: PathBuf,
 }
 
-impl Render for ExplorerMediaDrag {
+impl Render for AssetBeingDragged {
     fn render(&mut self, _: &mut Window, _: &mut Context<Self>) -> impl IntoElement {
         div()
             .max_w(px(280.0))
@@ -68,7 +68,7 @@ impl Render for ExplorerMediaDrag {
 
 pub(super) fn update_file_drag(
     editor: &mut Editor,
-    event: &DragMoveEvent<ExplorerMediaDrag>,
+    event: &DragMoveEvent<AssetBeingDragged>,
     window: &mut Window,
     cx: &mut Context<Editor>,
 ) {
@@ -119,7 +119,7 @@ pub(super) fn update_file_drag(
 
 fn refresh_explorer_drop_preview(
     editor: &mut Editor,
-    drag: &ExplorerMediaDrag,
+    drag: &AssetBeingDragged,
     track_id: Ulid,
     raw_start: TimelineTime,
 ) {
@@ -191,12 +191,12 @@ fn refresh_explorer_drop_preview(
 }
 
 pub(super) fn drop_dragged_explorer_media(
-    drag: &ExplorerMediaDrag,
+    drag: &AssetBeingDragged,
     editor: &mut Editor,
     cx: &mut Context<Editor>,
 ) {
     match drag {
-        ExplorerMediaDrag {
+        AssetBeingDragged {
             kind: MediaKind::Video,
             name,
             relative_path,
@@ -205,7 +205,7 @@ pub(super) fn drop_dragged_explorer_media(
             // audio stream, so use the standard probed-media placement flow.
             drop_dragged_timeline_media(name, relative_path, editor, cx);
         }
-        ExplorerMediaDrag {
+        AssetBeingDragged {
             kind: MediaKind::Image,
             name,
             relative_path,
@@ -214,7 +214,7 @@ pub(super) fn drop_dragged_explorer_media(
             // supplied by the media probe and placement logic.
             drop_dragged_timeline_media(name, relative_path, editor, cx);
         }
-        ExplorerMediaDrag {
+        AssetBeingDragged {
             kind: MediaKind::Audio,
             name,
             relative_path,
@@ -223,7 +223,7 @@ pub(super) fn drop_dragged_explorer_media(
             // ensures that the selected destination accepts audio media.
             drop_dragged_timeline_media(name, relative_path, editor, cx);
         }
-        ExplorerMediaDrag {
+        AssetBeingDragged {
             kind: MediaKind::Srt,
             name,
             relative_path,
