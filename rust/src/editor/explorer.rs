@@ -1,7 +1,7 @@
 use crate::{
     editor::{
-        ACCENT, BORDER, ExplorerDropPreview, ExplorerState, MUTED, OpenInDefaultApp, PANEL,
-        RULER_HEIGHT, RevealInFinder, SURFACE, SURFACE_HOVER, TEXT, TIMELINE_PADDING, TRACK_HEIGHT,
+        ACCENT, BORDER, ExplorerDropPreview, MUTED, OpenInDefaultApp, PANEL, RULER_HEIGHT,
+        RevealInFinder, SURFACE, SURFACE_HOVER, TEXT, TIMELINE_PADDING, TRACK_HEIGHT,
         clip_placement::{validate_clip_placement, validate_text_clip_placement},
         context_menu::{ContextMenu, FileContextMenu},
         editing::{EditAction, edit_and_rebuild_timeline},
@@ -20,12 +20,12 @@ use crate::{
     },
     video::VideoBackend,
 };
-use gpui::prelude::FluentBuilder;
 use gpui::{
     AppContext as _, Context, CursorStyle, DragMoveEvent, Entity, InteractiveElement, IntoElement,
     MouseButton, MouseDownEvent, ParentElement, StatefulInteractiveElement, Styled, Window, div,
     px, rgb,
 };
+use gpui::{ScrollHandle, prelude::FluentBuilder};
 use serde::{Deserialize, Serialize};
 use std::{
     collections::{HashMap, HashSet},
@@ -64,6 +64,25 @@ pub(super) struct PendingExplorerDrop {
 pub(super) struct ExplorerExpansion {
     pub(super) expanded_directories: HashSet<PathBuf>,
     pub(super) root_expanded: bool,
+}
+
+pub struct ExplorerState {
+    pub file_tree: Vec<FileTreeEntry>,
+    pub expanded_directories: HashSet<PathBuf>,
+    pub root_expanded: bool,
+    pub filter: Entity<ExplorerFilter>,
+    pub search_query: Option<String>,
+    pub search_results: Vec<FileTreeEntry>,
+    pub search_pending: bool,
+    pub scroll: ScrollHandle,
+    pub selected_file: Option<PathBuf>,
+    pub rename_dialog: Option<RenameDialogState>,
+    pub new_timeline_dialog: Option<NewTimelineDialogState>,
+    pub drag_assets: HashMap<PathBuf, MediaAsset>,
+    pub drag_probe_jobs: HashSet<PathBuf>,
+    pub drop_preview: Option<ExplorerDropPreview>,
+    pub pending_drop: Option<PendingExplorerDrop>,
+    pub last_tree_scan: Instant,
 }
 
 pub(super) fn load_explorer_expansion(project_root: &Path) -> ExplorerExpansion {

@@ -1,3 +1,5 @@
+use crate::editor::explorer::ExplorerState;
+
 use super::*;
 
 pub(crate) struct Editor {

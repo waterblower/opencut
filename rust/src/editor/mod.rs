@@ -57,10 +57,7 @@ use clip_placement::{
 use context_menu::ContextMenu;
 use editing::{ClipClipboard, EditAction, edit_and_rebuild_timeline, edit_timeline};
 pub(crate) use editor::Editor;
-use explorer::{
-    FileTreeEntry, NewTimelineDialogState, PendingExplorerDrop, RenameDialogState,
-    load_explorer_expansion, visible_tree,
-};
+use explorer::{PendingExplorerDrop, load_explorer_expansion, visible_tree};
 use explorer_filter::ExplorerFilter;
 use export_dialog::ExportDialogState;
 use export_gstreamer::build_ges_timeline;
@@ -186,25 +183,6 @@ pub(crate) fn bind_keys(cx: &mut App) {
             crate::gpui_inspector::toggle(window, cx)
         });
     });
-}
-
-struct ExplorerState {
-    file_tree: Vec<FileTreeEntry>,
-    expanded_directories: HashSet<PathBuf>,
-    root_expanded: bool,
-    filter: Entity<ExplorerFilter>,
-    search_query: Option<String>,
-    search_results: Vec<FileTreeEntry>,
-    search_pending: bool,
-    scroll: ScrollHandle,
-    selected_file: Option<PathBuf>,
-    rename_dialog: Option<RenameDialogState>,
-    new_timeline_dialog: Option<NewTimelineDialogState>,
-    drag_assets: HashMap<PathBuf, MediaAsset>,
-    drag_probe_jobs: HashSet<PathBuf>,
-    drop_preview: Option<ExplorerDropPreview>,
-    pending_drop: Option<PendingExplorerDrop>,
-    last_tree_scan: Instant,
 }
 
 struct PreviewState {
