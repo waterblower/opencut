@@ -54,13 +54,6 @@ pub(super) struct NewTimelineDialogState {
     input: Entity<ExplorerFilter>,
 }
 
-#[derive(Clone, Debug)]
-pub(super) struct PendingExplorerDrop {
-    pub relative_path: PathBuf,
-    pub track_id: Ulid,
-    pub raw_start: TimelineTime,
-}
-
 pub(super) struct ExplorerExpansion {
     pub(super) expanded_directories: HashSet<PathBuf>,
     pub(super) root_expanded: bool,
@@ -80,7 +73,6 @@ pub struct ExplorerState {
     pub new_timeline_dialog: Option<NewTimelineDialogState>,
     pub drag_assets: HashMap<PathBuf, MediaAsset>,
     pub drop_preview: Option<ExplorerDropPreview>,
-    pub pending_drop: Option<PendingExplorerDrop>,
     pub last_tree_scan: Instant,
 }
 
@@ -534,19 +526,6 @@ impl Editor {
             },
             window,
         );
-        let Some(timeline) = self.timeline.as_ref() else {
-            return;
-        };
-        if drag.kind != MediaKind::Srt
-            && explorer_asset_for_path(
-                &timeline.data.assets,
-                &self.explorer.drag_assets,
-                &drag.relative_path,
-            )
-            .is_none()
-        {
-            self.request_explorer_drag_probe(drag.relative_path.clone(), cx);
-        }
         cx.notify();
     }
 
@@ -556,10 +535,15 @@ impl Editor {
         track_id: Ulid,
         raw_start: TimelineTime,
     ) {
+        let probed_asset = if drag.kind == MediaKind::Srt {
+            None
+        } else {
+            Some(self.probe_explorer_drag_asset(&drag.relative_path))
+        };
         let Some(timeline) = self.timeline.as_ref() else {
             return;
         };
-        let (duration, start, snap_guide, analyzing, invalid_reason) = match drag.kind {
+        let (duration, start, snap_guide, invalid_reason) = match drag.kind {
             MediaKind::Srt => {
                 let duration = TimelineTime::ONE_FRAME;
                 let (start, snap_guide) =
@@ -573,33 +557,30 @@ impl Editor {
                 )
                 .err()
                 .map(|rejection| rejection.message().to_string());
-                (duration, start, snap_guide, false, invalid_reason)
+                (duration, start, snap_guide, invalid_reason)
             }
             MediaKind::Video | MediaKind::Image | MediaKind::Audio => {
-                let asset = explorer_asset_for_path(
-                    &timeline.data.assets,
-                    &self.explorer.drag_assets,
-                    &drag.relative_path,
-                );
-                let analyzing = asset.is_none();
-                let duration = asset
-                    .as_ref()
-                    .map(|asset| timeline.data.ceil_time(asset.duration))
-                    .unwrap_or_else(|| timeline.data.ceil_time(DEFAULT_IMAGE_CLIP_DURATION));
+                let asset = probed_asset.expect("non-SRT drags always probe media metadata");
+                let duration = match &asset {
+                    Ok(asset) => timeline.data.ceil_time(asset.duration),
+                    Err(_) => timeline.data.ceil_time(DEFAULT_IMAGE_CLIP_DURATION),
+                };
                 let (start, snap_guide) =
                     timeline.snap_clip_start_ignoring(raw_start, duration, &HashSet::new());
-                let kind = asset.as_ref().map_or(drag.kind, |asset| asset.kind);
-                let invalid_reason = validate_clip_placement(
-                    &timeline.data,
-                    track_id,
-                    kind,
-                    duration,
-                    start,
-                    &HashSet::new(),
-                )
-                .err()
-                .map(|rejection| rejection.message().to_string());
-                (duration, start, snap_guide, analyzing, invalid_reason)
+                let invalid_reason = match asset {
+                    Ok(asset) => validate_clip_placement(
+                        &timeline.data,
+                        track_id,
+                        asset.kind,
+                        duration,
+                        start,
+                        &HashSet::new(),
+                    )
+                    .err()
+                    .map(|rejection| rejection.message().to_string()),
+                    Err(error) => Some(error),
+                };
+                (duration, start, snap_guide, invalid_reason)
             }
         };
         if let Some(timeline) = self.timeline.as_mut() {
@@ -613,113 +594,35 @@ impl Editor {
             raw_start,
             start,
             duration,
-            analyzing,
             invalid_reason,
         });
     }
 
-    pub fn request_explorer_drag_probe(&mut self, relative_path: PathBuf, cx: &mut Context<Self>) {
+    pub(super) fn probe_explorer_drag_asset(
+        &mut self,
+        relative_path: &Path,
+    ) -> Result<MediaAsset, String> {
         let Some(timeline) = self.timeline.as_ref() else {
-            return;
+            return Err("the destination timeline is unavailable".to_string());
         };
-        if explorer_asset_for_path(
+        if let Some(asset) = explorer_asset_for_path(
             &timeline.data.assets,
             &self.explorer.drag_assets,
-            &relative_path,
-        )
-        .is_some()
-        {
-            return;
+            relative_path,
+        ) {
+            return Ok(asset);
         }
 
-        let project_root = self.global_settings.project_root.clone();
-        let source_path = project_root.join(&relative_path);
-        cx.spawn(async move |editor, cx| {
-            let result = cx
-                .background_executor()
-                .spawn(async move { probe_asset(&source_path, Ulid::from(0)) })
-                .await;
-
-            editor
-                .update(cx, |editor, cx| {
-                    if editor.global_settings.project_root != project_root {
-                        return;
-                    }
-
-                    match result {
-                        Ok(mut asset) => {
-                            asset.path = relative_path.clone();
-                            editor
-                                .explorer
-                                .drag_assets
-                                .insert(relative_path.clone(), asset.clone());
-
-                            if let Some(preview) = editor
-                                .explorer
-                                .drop_preview
-                                .as_ref()
-                                .filter(|preview| preview.relative_path == relative_path)
-                                .cloned()
-                            {
-                                let drag = ExplorerMediaDrag {
-                                    relative_path: relative_path.clone(),
-                                    name: asset.name.clone(),
-                                    kind: asset.kind,
-                                };
-                                editor.refresh_explorer_drop_preview(
-                                    &drag,
-                                    preview.track_id,
-                                    preview.raw_start,
-                                );
-                            }
-
-                            let pending_matches = editor
-                                .explorer
-                                .pending_drop
-                                .as_ref()
-                                .is_some_and(|pending| pending.relative_path == relative_path);
-                            if pending_matches
-                                && let Some(pending) = editor.explorer.pending_drop.take()
-                            {
-                                editor.place_explorer_asset(
-                                    relative_path.clone(),
-                                    pending.track_id,
-                                    pending.raw_start,
-                                    asset,
-                                    cx,
-                                );
-                            }
-                        }
-                        Err(error) => {
-                            if let Some(preview) = editor
-                                .explorer
-                                .drop_preview
-                                .as_mut()
-                                .filter(|preview| preview.relative_path == relative_path)
-                            {
-                                preview.analyzing = false;
-                                preview.invalid_reason = Some(error.clone());
-                            }
-                            if editor
-                                .explorer
-                                .pending_drop
-                                .as_ref()
-                                .is_some_and(|pending| pending.relative_path == relative_path)
-                            {
-                                editor.explorer.pending_drop = None;
-                                editor.status = None;
-                                eprintln!("{error}");
-                            }
-                        }
-                    }
-                    cx.notify();
-                })
-                .ok();
-        })
-        .detach();
+        let source_path = self.global_settings.project_root.join(relative_path);
+        let mut asset = probe_asset(&source_path, Ulid::from(0))?;
+        asset.path = relative_path.to_path_buf();
+        self.explorer
+            .drag_assets
+            .insert(relative_path.to_path_buf(), asset.clone());
+        Ok(asset)
     }
 
-    pub fn place_explorer_asset(
+    pub(super) fn place_explorer_asset(
         &mut self,
         relative_path: PathBuf,
         track_id: Ulid,

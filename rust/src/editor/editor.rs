@@ -84,7 +84,6 @@ impl Editor {
                 new_timeline_dialog: None,
                 drag_assets: HashMap::new(),
                 drop_preview: None,
-                pending_drop: None,
                 last_tree_scan: Instant::now(),
             }
         };

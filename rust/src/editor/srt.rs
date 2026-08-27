@@ -1,15 +1,14 @@
-use std::{path::Path, time::Duration};
+use std::{fs, path::Path, time::Duration};
 
 use ulid::Ulid;
 
 use crate::editor::{FrameRate, TextClip, TextClipProperties};
 
-pub(in crate::editor) async fn srt_to_text_clips(
+pub(in crate::editor) fn srt_to_text_clips(
     path: &Path,
     frame_rate: FrameRate,
 ) -> Result<Vec<TextClip>, String> {
-    let contents = async_fs::read_to_string(path)
-        .await
+    let contents = fs::read_to_string(path)
         .map_err(|error| format!("could not read {}: {error}", path.display()))?;
     parse_srt_text_clips(&contents, frame_rate)
 }

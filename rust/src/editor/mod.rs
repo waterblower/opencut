@@ -57,7 +57,7 @@ use clip_placement::{
 use context_menu::ContextMenu;
 use editing::{ClipClipboard, EditAction, edit_and_rebuild_timeline, edit_timeline};
 pub(crate) use editor::Editor;
-use explorer::{PendingExplorerDrop, load_explorer_expansion, visible_tree};
+use explorer::{load_explorer_expansion, visible_tree};
 use explorer_filter::ExplorerFilter;
 use export_dialog::ExportDialogState;
 use export_gstreamer::build_ges_timeline;
@@ -334,7 +334,6 @@ impl Editor {
     ) -> Result<(), String> {
         self.explorer.drag_assets.clear();
         self.explorer.drop_preview = None;
-        self.explorer.pending_drop = None;
         self.preview.volume_control_open = false;
         self.preview.is_scrubbing = false;
         self.preview.is_adjusting_volume = false;

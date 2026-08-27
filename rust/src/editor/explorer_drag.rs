@@ -4,9 +4,8 @@ use gpui::{Context, IntoElement, ParentElement, Render, Styled, Window, div, px,
 use ulid::Ulid;
 
 use crate::editor::{
-    ACCENT, Clip, EditAction, Editor, MediaKind, PendingExplorerDrop, TimelineTime,
-    edit_and_rebuild_timeline, editing::validate_clips_placements,
-    explorer::explorer_asset_for_path, srt::srt_to_text_clips,
+    ACCENT, Clip, EditAction, Editor, MediaKind, TimelineTime, edit_and_rebuild_timeline,
+    editing::validate_clips_placements, srt::srt_to_text_clips,
 };
 
 #[derive(Clone, Debug)]
@@ -18,7 +17,6 @@ pub(super) struct ExplorerDropPreview {
     pub(super) raw_start: TimelineTime,
     pub(super) start: TimelineTime,
     pub(super) duration: TimelineTime,
-    pub(super) analyzing: bool,
     pub(super) invalid_reason: Option<String>,
 }
 
@@ -140,40 +138,25 @@ fn drop_dragged_timeline_media(
         return;
     }
 
-    // Reborrow the timeline immutably to look up any metadata already known for
-    // the dragged path; keep the guard defensive if this invariant changes.
-    let Some(timeline) = editor.timeline.as_ref() else {
-        return;
+    // Probe synchronously if the drag preview did not already cache metadata.
+    let asset = match editor.probe_explorer_drag_asset(relative_path) {
+        Ok(asset) => asset,
+        Err(error) => {
+            editor.status = Some(format!("Could not add {name}: {error}."));
+            eprintln!("Cannot add {name}: {error}.");
+            cx.notify();
+            return;
+        }
     };
+    editor.place_explorer_asset(
+        relative_path.to_path_buf(),
+        preview.track_id,
+        preview.raw_start,
+        asset,
+        cx,
+    );
 
-    // Place known media immediately using the unsnapped pointer time; the
-    // placement routine applies the current snapping and duration rules.
-    if let Some(asset) = explorer_asset_for_path(
-        &timeline.data.assets,
-        &editor.explorer.drag_assets,
-        relative_path,
-    ) {
-        editor.place_explorer_asset(
-            relative_path.to_path_buf(),
-            preview.track_id,
-            preview.raw_start,
-            asset,
-            cx,
-        );
-    } else {
-        // Unknown media needs metadata inspection first. Preserve the intended
-        // destination so the asynchronous probe can finish the placement.
-        editor.explorer.pending_drop = Some(PendingExplorerDrop {
-            relative_path: relative_path.to_path_buf(),
-            track_id: preview.track_id,
-            raw_start: preview.raw_start,
-        });
-        editor.status = Some(format!("Inspecting {name} before placing it…"));
-        editor.request_explorer_drag_probe(relative_path.to_path_buf(), cx);
-    }
-
-    // Refresh the editor to clear drag UI and show either the placed asset or
-    // the pending inspection status.
+    // Refresh the editor to clear the drag UI and show the placed asset.
     cx.notify();
 }
 
@@ -207,90 +190,65 @@ fn drop_dragged_srt(
         return;
     }
 
-    // Capture the active document identity so an asynchronous read cannot add
-    // clips to another project or timeline if the user switches meanwhile.
     let Some(timeline) = editor.timeline.as_ref() else {
         return;
     };
-    let timeline_path = timeline.path.clone();
     let frame_rate = timeline.data.settings.frame_rate;
     let project_root = editor.global_settings.project_root.clone();
     let source_path = project_root.join(relative_path);
-    let relative_path = relative_path.to_path_buf();
-    let name = name.to_string();
-    editor.status = Some(format!("Importing subtitles from {name}…"));
+    let parsed_clips = srt_to_text_clips(&source_path, frame_rate);
+    let result = (|| {
+        let mut text_clips = match parsed_clips {
+            Ok(clips) => clips,
+            Err(error) => return Err(error),
+        };
+        if text_clips.is_empty() {
+            return Err("the SRT file contains no subtitle cues".to_string());
+        }
+        for clip in &mut text_clips {
+            clip.track_id = preview.track_id;
+            clip.timeline_start += preview.start;
+        }
+        let clip_ids = text_clips.iter().map(|clip| clip.id).collect::<Vec<_>>();
+        let clip_count = text_clips.len();
+        let clips = text_clips.into_iter().map(Clip::Text).collect::<Vec<_>>();
+
+        let Some(timeline) = editor.timeline.as_mut() else {
+            return Err("the destination timeline is unavailable".to_string());
+        };
+        if let Err(error) = validate_clips_placements(&timeline.data, &clips) {
+            return Err(format!(
+                "could not place subtitle clips: {}",
+                error.message()
+            ));
+        }
+        timeline.record_editing_history();
+        if let Err(error) = edit_and_rebuild_timeline(
+            &mut editor.preview,
+            &project_root,
+            timeline,
+            EditAction::AddClips {
+                clips,
+                assets: Vec::new(),
+            },
+        ) {
+            return Err(format!("could not place subtitle clips: {error}"));
+        }
+        timeline.interaction.selected_clip_id = clip_ids.first().copied();
+        timeline.interaction.selected_clip_ids = clip_ids.iter().copied().collect();
+        timeline.save(&project_root);
+        editor.explorer.selected_file = Some(relative_path.to_path_buf());
+        Ok(clip_count)
+    })();
+
+    match result {
+        Ok(clip_count) => {
+            editor.status = Some(format!("Added {clip_count} subtitle clips from {name}."));
+        }
+        Err(error) => {
+            editor.status = Some(format!("Could not import {name}: {error}."));
+            eprintln!("Cannot add {name}: {error}.");
+        }
+    }
     cx.notify();
-
-    cx.spawn(async move |editor, cx| {
-        let parsed_clips = srt_to_text_clips(&source_path, frame_rate).await;
-        editor
-            .update(cx, |editor, cx| {
-                if editor.global_settings.project_root != project_root
-                    || editor
-                        .timeline
-                        .as_ref()
-                        .is_none_or(|timeline| timeline.path != timeline_path)
-                {
-                    return;
-                }
-
-                let result = (|| {
-                    let mut text_clips = match parsed_clips {
-                        Ok(clips) => clips,
-                        Err(error) => return Err(error),
-                    };
-                    if text_clips.is_empty() {
-                        return Err("the SRT file contains no subtitle cues".to_string());
-                    }
-                    for clip in &mut text_clips {
-                        clip.track_id = preview.track_id;
-                        clip.timeline_start += preview.start;
-                    }
-                    let clip_ids = text_clips.iter().map(|clip| clip.id).collect::<Vec<_>>();
-                    let clip_count = text_clips.len();
-                    let clips = text_clips.into_iter().map(Clip::Text).collect::<Vec<_>>();
-
-                    let Some(timeline) = editor.timeline.as_mut() else {
-                        return Err("the destination timeline is unavailable".to_string());
-                    };
-                    if let Err(error) = validate_clips_placements(&timeline.data, &clips) {
-                        return Err(format!(
-                            "could not place subtitle clips: {}",
-                            error.message()
-                        ));
-                    }
-                    timeline.record_editing_history();
-                    if let Err(error) = edit_and_rebuild_timeline(
-                        &mut editor.preview,
-                        &project_root,
-                        timeline,
-                        EditAction::AddClips {
-                            clips,
-                            assets: Vec::new(),
-                        },
-                    ) {
-                        return Err(format!("could not place subtitle clips: {error}"));
-                    }
-                    timeline.interaction.selected_clip_id = clip_ids.first().copied();
-                    timeline.interaction.selected_clip_ids = clip_ids.iter().copied().collect();
-                    timeline.save(&project_root);
-                    editor.explorer.selected_file = Some(relative_path);
-                    Ok(clip_count)
-                })();
-
-                match result {
-                    Ok(clip_count) => {
-                        editor.status =
-                            Some(format!("Added {clip_count} subtitle clips from {name}."));
-                    }
-                    Err(error) => {
-                        editor.status = Some(format!("Could not import {name}: {error}."));
-                        eprintln!("Cannot add {name}: {error}.");
-                    }
-                }
-                cx.notify();
-            })
-            .ok();
-    })
-    .detach();
 }

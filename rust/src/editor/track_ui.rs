@@ -18,11 +18,7 @@ fn explorer_drop_preview(
     let detail = preview
         .invalid_reason
         .as_deref()
-        .unwrap_or(if preview.analyzing {
-            "Inspecting media…"
-        } else {
-            "Drop to add"
-        })
+        .unwrap_or("Drop to add")
         .to_string();
 
     div()
