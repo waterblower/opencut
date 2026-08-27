@@ -1,4 +1,5 @@
 use super::*;
+use crate::editor::timeline_clip::{AudioClipProperties, VideoClip};
 
 fn asset(id: u64, kind: MediaKind) -> MediaAsset {
     MediaAsset {

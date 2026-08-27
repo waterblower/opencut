@@ -1,4 +1,5 @@
 use super::*;
+use crate::editor::timeline_clip::AudioClipProperties;
 use gstreamer_editing_services::prelude::*;
 
 fn audio_asset(id: u64) -> MediaAsset {

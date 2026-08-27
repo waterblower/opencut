@@ -1,15 +1,46 @@
-use super::*;
+use crate::{
+    editor::{
+        ACCENT, BORDER, ExplorerState, MUTED, OpenInDefaultApp, PANEL, RULER_HEIGHT,
+        RevealInFinder, SURFACE, SURFACE_HOVER, TEXT, TIMELINE_PADDING, TRACK_HEIGHT,
+        clip_placement::validate_clip_placement,
+        context_menu::{ContextMenu, FileContextMenu},
+        editing::{EditAction, edit_and_rebuild_timeline},
+        editor::Editor,
+        explorer_filter::ExplorerFilter,
+        media_probe::probe_asset,
+        model::{DEFAULT_IMAGE_CLIP_DURATION, MediaAsset, MediaKind},
+        preview::PreviewTarget,
+        preview_audio::AudioBackend,
+        project_settings::save_project_local_settings,
+        timeline::TimelineTime,
+        timeline_clip::{AudioClipProperties, Clip, VideoClip, VideoClipProperties},
+        timeline_document,
+        track::TrackKind,
+    },
+    video::VideoBackend,
+};
+use gpui::prelude::FluentBuilder;
+use gpui::{
+    AppContext as _, Context, CursorStyle, DragMoveEvent, Entity, InteractiveElement, IntoElement,
+    MouseButton, MouseDownEvent, ParentElement, Render, StatefulInteractiveElement, Styled, Window,
+    div, px, rgb,
+};
 use serde::{Deserialize, Serialize};
-use std::fs;
-use std::path::Path;
+use std::{
+    collections::{HashMap, HashSet},
+    fs,
+    path::{Path, PathBuf},
+    time::{Duration, Instant},
+};
+use ulid::Ulid;
 
 #[path = "explorer_file_entry.rs"]
 mod explorer_file_entry;
 #[path = "explorer_file_menu.rs"]
 mod explorer_file_menu;
 pub(super) use explorer_file_entry::{
-    FileTreeEntry, FileTreeEntryKind, is_audio_path, is_image_path, is_video_path, search_tree,
-    visible_tree,
+    FileTreeEntry, FileTreeEntryKind, is_audio_path, is_image_path, is_srt_path, is_video_path,
+    search_tree, visible_tree,
 };
 
 pub(super) struct RenameDialogState {

@@ -1,3 +1,5 @@
+use super::super::model::DEFAULT_IMAGE_CLIP_DURATION;
+use super::super::timeline_clip::VideoClip;
 use super::super::timeline_clip::{AudioClipProperties, TextClipProperties, VideoClipProperties};
 use super::super::track::{Track, TrackKind};
 use super::*;

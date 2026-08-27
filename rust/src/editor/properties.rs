@@ -1,10 +1,18 @@
-use super::properties_text::TextClipPropertiesView;
-use super::properties_transform::{properties_section_label, properties_tab};
-use super::timeline_clip::AudioClip;
-use super::*;
+use crate::editor::{
+    BORDER, EventBus, MUTED, PANEL, SURFACE,
+    editor::Editor,
+    explorer::{is_audio_path, is_image_path, is_srt_path, is_video_path},
+    format_time,
+    properties_text::TextClipPropertiesView,
+    properties_transform::{properties_section_label, properties_tab},
+    timeline::TimelineRuntimeState,
+    timeline_clip::{AudioClip, Clip, TextClip, VideoClip},
+    timeline_document,
+};
+use gpui::prelude::FluentBuilder;
+use gpui::{Entity, InteractiveElement, IntoElement, ParentElement, Styled, div, px, rgb};
 use std::path::Path;
 
-#[allow(dead_code)] // Used by the properties panel v2 implementation once it replaces v1.
 pub(super) enum PropertiesPanelViewable<'a> {
     VideoClip(&'a VideoClip),
     AudioClip(&'a AudioClip),
@@ -12,6 +20,7 @@ pub(super) enum PropertiesPanelViewable<'a> {
     VideoFile(&'a Path),
     AudioFile(&'a Path),
     ImageFile(&'a Path),
+    SrtFile(&'a Path),
     TimelineFile(&'a TimelineRuntimeState),
     None,
 }
@@ -31,14 +40,17 @@ pub fn current_properties_panel_viewable(editor: &Editor) -> PropertiesPanelView
     }
 
     if let Some(path) = editor.explorer.selected_file.as_deref() {
-        if explorer::is_video_path(path) {
+        if is_video_path(path) {
             return PropertiesPanelViewable::VideoFile(path);
         }
-        if explorer::is_audio_path(path) {
+        if is_audio_path(path) {
             return PropertiesPanelViewable::AudioFile(path);
         }
-        if explorer::is_image_path(path) {
+        if is_image_path(path) {
             return PropertiesPanelViewable::ImageFile(path);
+        }
+        if is_srt_path(path) {
+            return PropertiesPanelViewable::SrtFile(path);
         }
         if timeline_document::is_timeline_path(path) {
             let timeline = editor
@@ -69,7 +81,10 @@ pub(super) fn properties_panel(
         PropertiesPanelViewable::AudioClip(clip) => audio_clip(clip),
         PropertiesPanelViewable::VideoFile(file) => video_file(file),
         PropertiesPanelViewable::TimelineFile(timeline) => timeline_file(timeline),
-        PropertiesPanelViewable::AudioFile(_) | PropertiesPanelViewable::ImageFile(_) => {
+        PropertiesPanelViewable::AudioFile(path)
+        | PropertiesPanelViewable::ImageFile(path)
+        | PropertiesPanelViewable::SrtFile(path) => {
+            let _ = path;
             panic!("not implemented")
         }
         PropertiesPanelViewable::None => div()

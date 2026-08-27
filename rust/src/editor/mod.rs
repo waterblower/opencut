@@ -1,9 +1,8 @@
 use crate::video::VideoBackend;
 use gpui::{
-    App, Context, CursorStyle, DragMoveEvent, Entity, EventEmitter, FocusHandle, KeyBinding,
-    MouseButton, MouseDownEvent, MouseMoveEvent, MouseUpEvent, ObjectFit, PathPromptOptions,
-    Render, ScrollHandle, ScrollWheelEvent, TouchPhase, Window, actions, div, img, prelude::*, px,
-    rgb,
+    App, Context, CursorStyle, Entity, EventEmitter, FocusHandle, KeyBinding, MouseButton,
+    MouseDownEvent, MouseMoveEvent, MouseUpEvent, ObjectFit, PathPromptOptions, Render,
+    ScrollHandle, ScrollWheelEvent, TouchPhase, Window, actions, div, img, prelude::*, px, rgb,
 };
 use std::{
     collections::{HashMap, HashSet},
@@ -54,7 +53,7 @@ use crate::playback_view::{DragPhase, PlaybackViewDelegate};
 use clip_placement::{
     ClipPlacementRejection, validate_clip_placement, validate_text_clip_placement,
 };
-use context_menu::{ContextMenu, FileContextMenu};
+use context_menu::ContextMenu;
 use editing::{ClipClipboard, EditAction, edit_and_rebuild_timeline, edit_timeline};
 pub(crate) use editor::Editor;
 use explorer::{
@@ -68,8 +67,7 @@ use generic_containers::{
     HORIZONTAL_SPLIT_DIVIDER_WIDTH, HorizontalSplit, HorizontalSplitConstraints,
     HorizontalSplitState,
 };
-use media_probe::probe_asset;
-use model::{DEFAULT_IMAGE_CLIP_DURATION, MediaAsset, MediaKind};
+use model::{MediaAsset, MediaKind};
 use preview::{PreviewTarget, update_playback};
 use preview_audio::AudioBackend;
 use preview_timeline::TimelinePreviewDrag;
@@ -81,9 +79,7 @@ use timeline::{
 };
 #[cfg(test)]
 use timeline_clip::AudioClip;
-use timeline_clip::{
-    AudioClipProperties, Clip, TextClip, TextClipProperties, VideoClip, VideoClipProperties,
-};
+use timeline_clip::{Clip, TextClip, TextClipProperties, VideoClipProperties};
 use timeline_clip_menu::transform_targets;
 use timeline_document::{load_existing_timeline, project_timeline_files};
 use timeline_interactions::{MarqueeSelection, TimelineInteractionState, TimelineTool};

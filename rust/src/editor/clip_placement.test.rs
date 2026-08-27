@@ -1,4 +1,5 @@
 use super::*;
+use crate::editor::timeline_clip::AudioClipProperties;
 
 #[test]
 fn validates_one_clip_placement() {
