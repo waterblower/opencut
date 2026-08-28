@@ -115,91 +115,7 @@ impl Editor {
 
         start_updates(cx);
         let event_bus = cx.new(|_| EventBus {});
-        cx.subscribe(&event_bus, |editor, _, event, cx| {
-            match event {
-                AppEvent::Edit(edit_action) => {
-                    let project_root = editor.global_settings.project_root.clone();
-                    let Some(timeline) = editor.timeline.as_mut() else {
-                        return;
-                    };
-                    timeline.record_editing_history();
-                    edit_and_rebuild_timeline(
-                        &mut editor.preview,
-                        &project_root,
-                        timeline,
-                        edit_action.clone(),
-                    )
-                    .expect("event bus edit actions cannot be rejected");
-                    timeline.save(&project_root);
-                }
-                AppEvent::DragMove(event) => {
-                    let timeline = editor.timeline.as_mut();
-                    let on_track: Option<Ulid> = (|| {
-                        let Some(timeline) = timeline.as_deref() else {
-                            return None;
-                        };
-                        let pointer = event.event.position;
-                        if !event.bounds.contains(&pointer) {
-                            return None;
-                        }
-                        let local_y = f32::from(pointer.y) - f32::from(event.bounds.top());
-                        if local_y < RULER_HEIGHT {
-                            return None;
-                        }
-                        let track_index =
-                            ((local_y - RULER_HEIGHT) / TRACK_HEIGHT).floor() as usize;
-
-                        timeline.data.tracks.get(track_index).map(|track| track.id)
-                    })();
-
-                    if let (Some(timeline), Some(track_id)) = (timeline, on_track) {
-                        let local_x =
-                            f32::from(event.event.position.x) - f32::from(event.bounds.left());
-                        let start_time = timeline.data.nearest_time(
-                            ((local_x - TIMELINE_PADDING) / timeline.data.view.pixels_per_second)
-                                .max(0.0) as f64,
-                        );
-                        timeline.preview_drop_asset = Some(PreviewDropAsset {
-                            track_id,
-                            start_time,
-                            asset: event.drag.clone(),
-                        });
-                    }
-                }
-                AppEvent::DragDrop => {
-                    let Some(timeline) = editor.timeline.as_mut() else {
-                        return;
-                    };
-                    let Some(preview) = timeline.preview_drop_asset.take() else {
-                        return;
-                    };
-                    let AssetBeingDragged::V1(asset) = preview.asset else {
-                        return;
-                    };
-                    if !matches!(asset.metadata.kind, MediaKind::Video | MediaKind::Audio) {
-                        return;
-                    }
-                    let relative_path = asset
-                        .absolute_path
-                        .strip_prefix(&editor.global_settings.project_root)
-                        .expect("dragged explorer assets are inside the project root")
-                        .to_path_buf();
-                    if let Err(error) = editor.place_explorer_asset(
-                        relative_path,
-                        preview.track_id,
-                        preview.start_time,
-                        asset.metadata,
-                        cx,
-                    ) {
-                        editor.status = Some(format!("Could not add media: {error}"));
-                        eprintln!("Could not place dragged explorer asset: {error:?}");
-                    }
-                }
-            }
-
-            cx.notify();
-        })
-        .detach();
+        cx.subscribe(&event_bus, handle_app_event).detach();
         let mut editor = Self {
             global_settings,
             explorer,
@@ -231,6 +147,94 @@ impl Editor {
         editor.schedule_project_waveforms(cx);
         editor
     }
+}
+
+fn handle_app_event(
+    editor: &mut Editor,
+    _: Entity<EventBus>,
+    event: &AppEvent,
+    cx: &mut Context<Editor>,
+) {
+    match event {
+        AppEvent::Edit(edit_action) => {
+            let project_root = editor.global_settings.project_root.clone();
+            let Some(timeline) = editor.timeline.as_mut() else {
+                return;
+            };
+            timeline.record_editing_history();
+            edit_and_rebuild_timeline(
+                &mut editor.preview,
+                &project_root,
+                timeline,
+                edit_action.clone(),
+            )
+            .expect("event bus edit actions cannot be rejected");
+            timeline.save(&project_root);
+        }
+        AppEvent::DragMove(event) => {
+            let timeline = editor.timeline.as_mut();
+            let on_track: Option<Ulid> = (|| {
+                let Some(timeline) = timeline.as_deref() else {
+                    return None;
+                };
+                let pointer = event.event.position;
+                if !event.bounds.contains(&pointer) {
+                    return None;
+                }
+                let local_y = f32::from(pointer.y) - f32::from(event.bounds.top());
+                if local_y < RULER_HEIGHT {
+                    return None;
+                }
+                let track_index = ((local_y - RULER_HEIGHT) / TRACK_HEIGHT).floor() as usize;
+
+                timeline.data.tracks.get(track_index).map(|track| track.id)
+            })();
+
+            if let (Some(timeline), Some(track_id)) = (timeline, on_track) {
+                let local_x = f32::from(event.event.position.x) - f32::from(event.bounds.left());
+                let start_time = timeline.data.nearest_time(
+                    ((local_x - TIMELINE_PADDING) / timeline.data.view.pixels_per_second).max(0.0)
+                        as f64,
+                );
+                timeline.preview_drop_asset = Some(PreviewDropAsset {
+                    track_id,
+                    start_time,
+                    asset: event.drag.clone(),
+                });
+            }
+        }
+        AppEvent::DragDrop => {
+            let Some(timeline) = editor.timeline.as_mut() else {
+                return;
+            };
+            let Some(preview) = timeline.preview_drop_asset.take() else {
+                return;
+            };
+            let AssetBeingDragged::V1(asset) = preview.asset else {
+                return;
+            };
+            if !matches!(asset.metadata.kind, MediaKind::Video | MediaKind::Audio) {
+                return;
+            }
+            let relative_path = asset
+                .absolute_path
+                .strip_prefix(&editor.global_settings.project_root)
+                .expect("dragged explorer assets are inside the project root")
+                .to_path_buf();
+            if let Err(error) = editor.place_explorer_asset(
+                relative_path,
+                preview.track_id,
+                preview.start_time,
+                asset.metadata,
+                cx,
+            ) {
+                editor.status = Some(format!("Could not add media: {error}"));
+                eprintln!("Could not place dragged explorer asset: {error:?}");
+            }
+        }
+    }
+
+    cx.notify();
 }
 
 fn start_updates(cx: &mut Context<Editor>) {
