@@ -1,5 +1,8 @@
 use super::*;
-use crate::{asset::IconName, editor::timeline_clip::text_clip_component};
+use crate::{
+    asset::IconName,
+    editor::{srt::parse_srt_text_clips, timeline_clip::text_clip_component},
+};
 use gpui::{Bounds, canvas, fill, point, rgba, size};
 use std::sync::Arc;
 
@@ -539,46 +542,32 @@ fn preview_drop_asset(
 ) -> Option<gpui::AnyElement> {
     return match &preview.asset {
         AssetBeingDragged::Srt(srt) => {
-            let left = TIMELINE_PADDING
-                + timeline.seconds(preview.start_time) as f32 * timeline.view.pixels_per_second;
+            let clips = match parse_srt_text_clips(&srt.text, timeline.settings.frame_rate) {
+                Ok(clips) => clips,
+                Err(_) => return None,
+            };
+            let previews = clips
+                .into_iter()
+                .map(|mut clip| {
+                    clip.track_id = preview.track_id;
+                    clip.timeline_start += preview.start_time;
+                    text_clip_component(
+                        clip,
+                        timeline.settings.frame_rate,
+                        timeline.view.pixels_per_second,
+                        false,
+                        true,
+                    )
+                    .into_any_element()
+                })
+                .collect::<Vec<_>>();
+
             Some(
                 div()
                     .id("explorer-srt-drop-preview")
                     .absolute()
-                    .left(px(left))
-                    .top(px(5.0))
-                    .w(px(160.0))
-                    .h(px(TRACK_HEIGHT - 10.0))
-                    .overflow_hidden()
-                    .rounded_md()
-                    .border_1()
-                    .border_color(rgb(ACCENT))
-                    .bg(gpui::rgba(0xf0b75e38))
-                    .cursor(CursorStyle::DragCopy)
-                    .child(
-                        div()
-                            .absolute()
-                            .inset_0()
-                            .p_2()
-                            .flex()
-                            .flex_col()
-                            .justify_between()
-                            .text_color(rgb(ACCENT))
-                            .child(
-                                div()
-                                    .text_xs()
-                                    .font_weight(gpui::FontWeight::SEMIBOLD)
-                                    .text_ellipsis()
-                                    .child(srt.name()),
-                            )
-                            .child(
-                                div()
-                                    .font_family("monospace")
-                                    .text_xs()
-                                    .text_ellipsis()
-                                    .child("Subtitles"),
-                            ),
-                    )
+                    .inset_0()
+                    .children(previews)
                     .into_any_element(),
             )
         }

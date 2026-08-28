@@ -1,20 +1,11 @@
-use std::{fs, path::Path, time::Duration};
+use std::time::Duration;
 
-use anyhow::{Context as _, Result, bail};
+use anyhow::{Result, bail};
 use ulid::Ulid;
 
 use crate::editor::{FrameRate, TextClip, TextClipProperties};
 
-pub(in crate::editor) fn srt_to_text_clips(
-    path: &Path,
-    frame_rate: FrameRate,
-) -> Result<Vec<TextClip>> {
-    let contents =
-        fs::read_to_string(path).with_context(|| format!("could not read {}", path.display()))?;
-    parse_srt_text_clips(&contents, frame_rate)
-}
-
-fn parse_srt_text_clips(contents: &str, frame_rate: FrameRate) -> Result<Vec<TextClip>> {
+pub fn parse_srt_text_clips(contents: &str, frame_rate: FrameRate) -> Result<Vec<TextClip>> {
     let contents = contents
         .trim_start_matches('\u{feff}')
         .replace("\r\n", "\n");
