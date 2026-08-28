@@ -6,65 +6,6 @@ use std::sync::Arc;
 const CLIP_WAVEFORM_HEIGHT: f32 = 80.0;
 const CLIP_WAVEFORM_VISUAL_GAIN: f32 = 2.0;
 
-fn explorer_drop_preview(
-    preview: &ExplorerDropPreview,
-    frame_rate: FrameRate,
-    pixels_per_second: f32,
-) -> gpui::AnyElement {
-    let left = TIMELINE_PADDING + frame_rate.seconds(preview.start) as f32 * pixels_per_second;
-    let width = (frame_rate.seconds(preview.duration) as f32 * pixels_per_second).max(4.0);
-    let invalid = preview.invalid_reason.is_some();
-    let feedback_color = if invalid { ERROR } else { ACCENT };
-    let detail = preview
-        .invalid_reason
-        .as_deref()
-        .unwrap_or("Drop to add")
-        .to_string();
-
-    div()
-        .id("explorer-media-drop-preview")
-        .absolute()
-        .left(px(left))
-        .top(px(5.0))
-        .w(px(width))
-        .h(px(TRACK_HEIGHT - 10.0))
-        .overflow_hidden()
-        .rounded_md()
-        .border_1()
-        .border_color(rgb(feedback_color))
-        .bg(gpui::rgba(if invalid { 0xff8b8b38 } else { 0xf0b75e38 }))
-        .cursor(if invalid {
-            CursorStyle::OperationNotAllowed
-        } else {
-            CursorStyle::DragCopy
-        })
-        .child(
-            div()
-                .absolute()
-                .inset_0()
-                .p_2()
-                .flex()
-                .flex_col()
-                .justify_between()
-                .text_color(rgb(feedback_color))
-                .child(
-                    div()
-                        .text_xs()
-                        .font_weight(gpui::FontWeight::SEMIBOLD)
-                        .text_ellipsis()
-                        .child(preview.name.clone()),
-                )
-                .child(
-                    div()
-                        .font_family("monospace")
-                        .text_xs()
-                        .text_ellipsis()
-                        .child(detail),
-                ),
-        )
-        .into_any_element()
-}
-
 fn timeline_clip_move_preview(
     timeline: &TimelineSerialization,
     clip_id: Ulid,
@@ -268,6 +209,13 @@ impl Editor {
                     .collect::<Vec<_>>()
             })
             .unwrap_or_default();
+        let drop_preview = (|| {
+            let preview = timeline.preview_drop_asset.as_ref()?;
+            if preview.track_id != track.id {
+                return None;
+            }
+            preview_drop_asset(preview, &timeline.data)
+        })();
 
         div()
             .id(("track-row", index))
@@ -296,6 +244,7 @@ impl Editor {
             })
             .children(clips)
             .children(move_previews)
+            .when_some(drop_preview, |this, preview| this.child(preview))
             .into_any_element()
     }
 
@@ -582,4 +531,61 @@ fn track_kind_label(kind: TrackKind) -> &'static str {
         TrackKind::Audio => "A",
         TrackKind::Text => "T",
     }
+}
+
+fn preview_drop_asset(
+    preview: &PreviewDropAsset,
+    timeline: &TimelineSerialization,
+) -> Option<gpui::AnyElement> {
+    let AssetBeingDragged::V1(asset) = &preview.asset else {
+        return None;
+    };
+    let kind = match asset.kind {
+        MediaKind::Video => "Video",
+        MediaKind::Audio => "Audio",
+        MediaKind::Image => return None,
+    };
+    let left = TIMELINE_PADDING
+        + timeline.seconds(preview.start_time) as f32 * timeline.view.pixels_per_second;
+
+    Some(
+        div()
+            .id("explorer-media-drop-preview")
+            .absolute()
+            .left(px(left))
+            .top(px(5.0))
+            .w(px(160.0))
+            .h(px(TRACK_HEIGHT - 10.0))
+            .overflow_hidden()
+            .rounded_md()
+            .border_1()
+            .border_color(rgb(ACCENT))
+            .bg(gpui::rgba(0xf0b75e38))
+            .cursor(CursorStyle::DragCopy)
+            .child(
+                div()
+                    .absolute()
+                    .inset_0()
+                    .p_2()
+                    .flex()
+                    .flex_col()
+                    .justify_between()
+                    .text_color(rgb(ACCENT))
+                    .child(
+                        div()
+                            .text_xs()
+                            .font_weight(gpui::FontWeight::SEMIBOLD)
+                            .text_ellipsis()
+                            .child(asset.name()),
+                    )
+                    .child(
+                        div()
+                            .font_family("monospace")
+                            .text_xs()
+                            .text_ellipsis()
+                            .child(kind),
+                    ),
+            )
+            .into_any_element(),
+    )
 }

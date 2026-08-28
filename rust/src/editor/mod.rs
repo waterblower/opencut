@@ -1,7 +1,4 @@
-use crate::{
-    editor::explorer_drag::{AssetBeingDragged, ExplorerDropPreview},
-    video::VideoBackend,
-};
+use crate::{editor::explorer_drag::AssetBeingDragged, video::VideoBackend};
 use gpui::{
     App, Bounds, Context, CursorStyle, Entity, EventEmitter, FocusHandle, KeyBinding, MouseButton,
     MouseDownEvent, MouseMoveEvent, MouseUpEvent, ObjectFit, PathPromptOptions, Pixels, Render,

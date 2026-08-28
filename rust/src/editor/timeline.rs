@@ -2,7 +2,7 @@ use super::model::{MediaAsset, MediaKind};
 use super::timeline_clip::Clip;
 use super::track::Track;
 use super::*;
-use gpui::{AnyElement, point};
+use gpui::{point};
 use serde::{Deserialize, Serialize};
 use std::{
     fs,
