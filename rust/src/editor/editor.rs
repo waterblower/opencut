@@ -210,26 +210,67 @@ fn handle_app_event(
             let Some(preview) = timeline.preview_drop_asset.take() else {
                 return;
             };
-            let AssetBeingDragged::V1(asset) = preview.asset else {
-                return;
-            };
-            if !matches!(asset.metadata.kind, MediaKind::Video | MediaKind::Audio) {
-                return;
-            }
-            let relative_path = asset
-                .absolute_path
-                .strip_prefix(&editor.global_settings.project_root)
-                .expect("dragged explorer assets are inside the project root")
-                .to_path_buf();
-            if let Err(error) = editor.place_explorer_asset(
-                relative_path,
-                preview.track_id,
-                preview.start_time,
-                asset.metadata,
-                cx,
-            ) {
-                editor.status = Some(format!("Could not add media: {error}"));
-                eprintln!("Could not place dragged explorer asset: {error:?}");
+            match preview.asset {
+                AssetBeingDragged::Srt(srt) => {
+                    let result = (|| {
+                        let project_root = editor.global_settings.project_root.clone();
+                        let Some(timeline) = editor.timeline.as_mut() else {
+                            return Ok(());
+                        };
+                        let mut text_clips = super::srt::parse_srt_text_clips(
+                            &srt.text,
+                            timeline.data.settings.frame_rate,
+                        )?;
+                        for clip in &mut text_clips {
+                            clip.track_id = preview.track_id;
+                            clip.timeline_start += preview.start_time;
+                        }
+                        let clips = text_clips.into_iter().map(Clip::Text).collect::<Vec<_>>();
+                        editing::validate_clips_placements(&timeline.data, &clips)?;
+
+                        let selected_clip_ids = clips.iter().map(Clip::id).collect::<HashSet<_>>();
+                        let selected_clip_id = clips.first().map(Clip::id);
+                        timeline.record_editing_history();
+                        edit_and_rebuild_timeline(
+                            &mut editor.preview,
+                            &project_root,
+                            timeline,
+                            EditAction::AddClips {
+                                clips,
+                                assets: Vec::new(),
+                            },
+                        )?;
+                        timeline.interaction.selected_clip_ids = selected_clip_ids;
+                        timeline.interaction.selected_clip_id = selected_clip_id;
+                        timeline.save(&project_root);
+                        editor.status = Some("Added subtitles to the timeline.".to_string());
+                        Ok::<(), anyhow::Error>(())
+                    })();
+                    if let Err(error) = result {
+                        editor.status = Some(format!("Could not add subtitles: {error}"));
+                        eprintln!("Could not place dragged subtitles: {error:?}");
+                    }
+                }
+                AssetBeingDragged::V1(asset) => {
+                    if !matches!(asset.metadata.kind, MediaKind::Video | MediaKind::Audio) {
+                        return;
+                    }
+                    let relative_path = asset
+                        .absolute_path
+                        .strip_prefix(&editor.global_settings.project_root)
+                        .expect("dragged explorer assets are inside the project root")
+                        .to_path_buf();
+                    if let Err(error) = editor.place_explorer_asset(
+                        relative_path,
+                        preview.track_id,
+                        preview.start_time,
+                        asset.metadata,
+                        cx,
+                    ) {
+                        editor.status = Some(format!("Could not add media: {error}"));
+                        eprintln!("Could not place dragged explorer asset: {error:?}");
+                    }
+                }
             }
         }
     }
