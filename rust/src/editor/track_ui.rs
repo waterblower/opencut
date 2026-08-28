@@ -540,13 +540,17 @@ fn preview_drop_asset(
     let AssetBeingDragged::V1(asset) = &preview.asset else {
         return None;
     };
-    let kind = match asset.kind {
+    let kind = match asset.metadata.kind {
         MediaKind::Video => "Video",
         MediaKind::Audio => "Audio",
         MediaKind::Image => return None,
     };
     let left = TIMELINE_PADDING
         + timeline.seconds(preview.start_time) as f32 * timeline.view.pixels_per_second;
+    let duration = timeline
+        .nearest_time(asset.metadata.duration)
+        .max(TimelineTime::ONE_FRAME);
+    let width = (timeline.seconds(duration) as f32 * timeline.view.pixels_per_second).max(4.0);
 
     Some(
         div()
@@ -554,7 +558,7 @@ fn preview_drop_asset(
             .absolute()
             .left(px(left))
             .top(px(5.0))
-            .w(px(160.0))
+            .w(px(width))
             .h(px(TRACK_HEIGHT - 10.0))
             .overflow_hidden()
             .rounded_md()

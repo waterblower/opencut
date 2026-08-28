@@ -1,23 +1,14 @@
-use std::{
-    fs::read_to_string,
-    path::{Path, PathBuf},
-};
+use std::{fs::read_to_string, path::PathBuf};
 
 use gpui::{
-    Context, DragMoveEvent, IntoElement, ParentElement, Render, SharedString, Styled, Window, div,
-    px, rgb,
+    Context, IntoElement, ParentElement, Render, SharedString, Styled, Window, div, px, rgb,
 };
 use ulid::Ulid;
 
 use crate::editor::{
-    ACCENT, Editor, MediaKind, RULER_HEIGHT, TRACK_HEIGHT, TimelineRuntimeState, TimelineTime,
-    edit_and_rebuild_timeline,
-    editing::validate_clips_placements,
+    ACCENT, MediaAsset, MediaKind, TimelineTime,
     explorer::{FileTreeEntry, FileTreeEntryKind, is_srt_path},
     media_probe::probe_asset,
-    model::DEFAULT_IMAGE_CLIP_DURATION,
-    srt::srt_to_text_clips,
-    validate_clip_placement, validate_text_clip_placement,
 };
 
 #[derive(Clone, Debug)]
@@ -42,15 +33,13 @@ impl AssetBeingDragged {
     pub fn from_file_entry(entry: &FileTreeEntry) -> Option<Self> {
         let x = match entry.kind {
             FileTreeEntryKind::Video | FileTreeEntryKind::Image | FileTreeEntryKind::Audio => {
+                let metadata = match probe_asset(&entry.absolute_path) {
+                    Ok(metadata) => metadata,
+                    Err(_) => return None,
+                };
                 Some(Self::V1(AssetBeingDraggedV1 {
-                    kind: match entry.kind {
-                        FileTreeEntryKind::Video => MediaKind::Video,
-                        FileTreeEntryKind::Image => MediaKind::Image,
-                        FileTreeEntryKind::Audio => MediaKind::Audio,
-                        _ => unreachable!("the outer match only accepts media files"),
-                    },
-                    name: entry.name.clone(),
                     absolute_path: entry.absolute_path.clone(),
+                    metadata,
                 }))
             }
             FileTreeEntryKind::Directory { .. } | FileTreeEntryKind::Timeline => None,
@@ -70,9 +59,8 @@ impl AssetBeingDragged {
 
 #[derive(Clone, Debug)]
 pub(super) struct AssetBeingDraggedV1 {
-    pub(super) kind: MediaKind,
-    pub(super) name: String,
     pub(super) absolute_path: PathBuf,
+    pub(super) metadata: MediaAsset,
 }
 
 impl AssetBeingDraggedV1 {
@@ -104,7 +92,7 @@ impl DraggedSRT {
 impl Render for AssetBeingDragged {
     fn render(&mut self, _: &mut Window, _: &mut Context<Self>) -> impl IntoElement {
         let kind = match self {
-            Self::V1(asset) => asset.kind.label(),
+            Self::V1(asset) => asset.metadata.kind.label(),
             Self::Srt(_) => "SRT",
         };
         let name = match self {
@@ -133,20 +121,4 @@ impl Render for AssetBeingDragged {
             )
             .child(div().min_w_0().text_sm().text_ellipsis().child(name))
     }
-}
-
-pub(super) fn drop_dragged_explorer_media(
-    drag: &AssetBeingDragged,
-    editor: &mut Editor,
-    cx: &mut Context<Editor>,
-) {
-    todo!("on drop");
-}
-
-fn drop_dragged_srt(
-    name: &str,
-    absolute_path: &Path,
-    editor: &mut Editor,
-    cx: &mut Context<Editor>,
-) {
 }

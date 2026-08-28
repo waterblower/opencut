@@ -166,6 +166,35 @@ impl Editor {
                         });
                     }
                 }
+                AppEvent::DragDrop => {
+                    let Some(timeline) = editor.timeline.as_mut() else {
+                        return;
+                    };
+                    let Some(preview) = timeline.preview_drop_asset.take() else {
+                        return;
+                    };
+                    let AssetBeingDragged::V1(asset) = preview.asset else {
+                        return;
+                    };
+                    if !matches!(asset.metadata.kind, MediaKind::Video | MediaKind::Audio) {
+                        return;
+                    }
+                    let relative_path = asset
+                        .absolute_path
+                        .strip_prefix(&editor.global_settings.project_root)
+                        .expect("dragged explorer assets are inside the project root")
+                        .to_path_buf();
+                    if let Err(error) = editor.place_explorer_asset(
+                        relative_path,
+                        preview.track_id,
+                        preview.start_time,
+                        asset.metadata,
+                        cx,
+                    ) {
+                        editor.status = Some(format!("Could not add media: {error}"));
+                        eprintln!("Could not place dragged explorer asset: {error:?}");
+                    }
+                }
             }
 
             cx.notify();

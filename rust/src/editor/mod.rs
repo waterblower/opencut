@@ -666,6 +666,7 @@ pub(in crate::editor) struct EventBus;
 pub(in crate::editor) enum AppEvent {
     Edit(EditAction),
     DragMove(AssetDragMoveEvent),
+    DragDrop,
 }
 
 #[derive(Clone, Debug)]

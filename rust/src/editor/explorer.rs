@@ -480,11 +480,14 @@ impl Editor {
         raw_start: TimelineTime,
         mut asset: MediaAsset,
         cx: &mut Context<Self>,
-    ) {
+    ) -> anyhow::Result<()> {
         let Some(timeline) = self.timeline.as_ref() else {
-            return;
+            return Ok(());
         };
-        let duration = timeline.data.ceil_time(asset.duration);
+        let duration = timeline
+            .data
+            .nearest_time(asset.duration)
+            .max(TimelineTime::ONE_FRAME);
         let track_kind = timeline
             .data
             .tracks
@@ -492,21 +495,17 @@ impl Editor {
             .find(|track| track.id == track_id)
             .map(|track| track.kind);
         let (start, _) = timeline.snap_clip_start_ignoring(raw_start, duration, &HashSet::new());
-        if let Err(rejection) = validate_clip_placement(
+        validate_clip_placement(
             &timeline.data,
             track_id,
             asset.kind,
             duration,
             start,
             &HashSet::new(),
-        ) {
-            self.status = None;
-            eprintln!("Cannot add {}: {rejection}.", asset.name);
-            return;
-        }
+        )?;
 
         let Some(timeline) = self.timeline.as_mut() else {
-            return;
+            return Ok(());
         };
         timeline.record_editing_history();
         let (asset_id, assets) = if let Some(asset_id) = timeline
@@ -537,7 +536,7 @@ impl Editor {
         let media_clip = match track_kind {
             Some(TrackKind::Video) => Clip::Video(media_clip),
             Some(TrackKind::Audio) => Clip::Audio(media_clip),
-            _ => return,
+            _ => anyhow::bail!("the drop target is not a media track"),
         };
 
         edit_and_rebuild_timeline(
@@ -548,18 +547,18 @@ impl Editor {
                 clips: vec![media_clip],
                 assets,
             },
-        )
-        .unwrap();
+        )?;
 
         self.explorer.selected_file = Some(relative_path);
         self.select_only_clip(Some(clip_id));
         let Some(timeline) = self.timeline.as_ref() else {
-            return;
+            return Ok(());
         };
         timeline.save(&self.global_settings.project_root);
 
         self.schedule_active_timeline_waveforms(cx);
         self.status = Some("Added media at the selected timeline position.".to_string());
+        Ok(())
     }
 }
 

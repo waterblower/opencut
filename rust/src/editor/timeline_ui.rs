@@ -1,4 +1,4 @@
-use crate::editor::explorer_drag::{AssetBeingDragged, drop_dragged_explorer_media};
+use crate::editor::explorer_drag::AssetBeingDragged;
 use gpui::DragMoveEvent;
 
 use super::*;
@@ -110,6 +110,7 @@ impl Editor {
             .map(|(index, track)| self.track_row(index, track, timeline_width, cx))
             .collect::<Vec<_>>();
         let event_bus = self.event_bus.clone();
+        let drag_move_event_bus = event_bus.clone();
         div()
             .id("timeline-tracks-vertical-scroll")
             .flex_1()
@@ -177,14 +178,16 @@ impl Editor {
                                                 event: event.event.clone(),
                                                 bounds: event.bounds,
                                             };
-                                            event_bus.update(cx, |_, cx| {
+                                            drag_move_event_bus.update(cx, |_, cx| {
                                                 cx.emit(AppEvent::DragMove(event));
                                             });
                                         },
                                     ))
                                     .on_drop(cx.listener(
-                                        |editor, drag: &AssetBeingDragged, _, cx| {
-                                            drop_dragged_explorer_media(drag, editor, cx);
+                                        move |_, _drag: &AssetBeingDragged, _, cx| {
+                                            event_bus.update(cx, |_, cx| {
+                                                cx.emit(AppEvent::DragDrop);
+                                            });
                                         },
                                     ))
                                     .child(self.timeline_ruler(duration, cx))

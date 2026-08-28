@@ -2,7 +2,7 @@ use super::model::{MediaAsset, MediaKind};
 use super::timeline_clip::Clip;
 use super::track::Track;
 use super::*;
-use gpui::{point};
+use gpui::point;
 use serde::{Deserialize, Serialize};
 use std::{
     fs,
@@ -365,7 +365,9 @@ impl TimelineSerialization {
                         .source_out
                         .max(clip.source_in + TimelineTime::ONE_FRAME);
                 } else {
-                    let asset_duration = frame_rate.ceil(asset.duration);
+                    let asset_duration = frame_rate
+                        .nearest(asset.duration)
+                        .max(TimelineTime::ONE_FRAME);
                     let maximum_in =
                         (asset_duration - TimelineTime::ONE_FRAME).max(TimelineTime::ZERO);
                     clip.source_in = clip.source_in.clamp(TimelineTime::ZERO, maximum_in);
