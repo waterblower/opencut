@@ -537,59 +537,105 @@ fn preview_drop_asset(
     preview: &PreviewDropAsset,
     timeline: &TimelineSerialization,
 ) -> Option<gpui::AnyElement> {
-    let AssetBeingDragged::V1(asset) = &preview.asset else {
-        return None;
-    };
-    let kind = match asset.metadata.kind {
-        MediaKind::Video => "Video",
-        MediaKind::Audio => "Audio",
-        MediaKind::Image => return None,
-    };
-    let left = TIMELINE_PADDING
-        + timeline.seconds(preview.start_time) as f32 * timeline.view.pixels_per_second;
-    let duration = timeline
-        .nearest_time(asset.metadata.duration)
-        .max(TimelineTime::ONE_FRAME);
-    let width = (timeline.seconds(duration) as f32 * timeline.view.pixels_per_second).max(4.0);
-
-    Some(
-        div()
-            .id("explorer-media-drop-preview")
-            .absolute()
-            .left(px(left))
-            .top(px(5.0))
-            .w(px(width))
-            .h(px(TRACK_HEIGHT - 10.0))
-            .overflow_hidden()
-            .rounded_md()
-            .border_1()
-            .border_color(rgb(ACCENT))
-            .bg(gpui::rgba(0xf0b75e38))
-            .cursor(CursorStyle::DragCopy)
-            .child(
+    return match &preview.asset {
+        AssetBeingDragged::Srt(srt) => {
+            let left = TIMELINE_PADDING
+                + timeline.seconds(preview.start_time) as f32 * timeline.view.pixels_per_second;
+            Some(
                 div()
+                    .id("explorer-srt-drop-preview")
                     .absolute()
-                    .inset_0()
-                    .p_2()
-                    .flex()
-                    .flex_col()
-                    .justify_between()
-                    .text_color(rgb(ACCENT))
+                    .left(px(left))
+                    .top(px(5.0))
+                    .w(px(160.0))
+                    .h(px(TRACK_HEIGHT - 10.0))
+                    .overflow_hidden()
+                    .rounded_md()
+                    .border_1()
+                    .border_color(rgb(ACCENT))
+                    .bg(gpui::rgba(0xf0b75e38))
+                    .cursor(CursorStyle::DragCopy)
                     .child(
                         div()
-                            .text_xs()
-                            .font_weight(gpui::FontWeight::SEMIBOLD)
-                            .text_ellipsis()
-                            .child(asset.name()),
+                            .absolute()
+                            .inset_0()
+                            .p_2()
+                            .flex()
+                            .flex_col()
+                            .justify_between()
+                            .text_color(rgb(ACCENT))
+                            .child(
+                                div()
+                                    .text_xs()
+                                    .font_weight(gpui::FontWeight::SEMIBOLD)
+                                    .text_ellipsis()
+                                    .child(srt.name()),
+                            )
+                            .child(
+                                div()
+                                    .font_family("monospace")
+                                    .text_xs()
+                                    .text_ellipsis()
+                                    .child("Subtitles"),
+                            ),
                     )
+                    .into_any_element(),
+            )
+        }
+        AssetBeingDragged::V1(asset) => {
+            let kind = match asset.metadata.kind {
+                MediaKind::Video => "Video",
+                MediaKind::Audio => "Audio",
+                MediaKind::Image => return None,
+            };
+            let left = TIMELINE_PADDING
+                + timeline.seconds(preview.start_time) as f32 * timeline.view.pixels_per_second;
+            let duration = timeline
+                .nearest_time(asset.metadata.duration)
+                .max(TimelineTime::ONE_FRAME);
+            let width =
+                (timeline.seconds(duration) as f32 * timeline.view.pixels_per_second).max(4.0);
+
+            Some(
+                div()
+                    .id("explorer-media-drop-preview")
+                    .absolute()
+                    .left(px(left))
+                    .top(px(5.0))
+                    .w(px(width))
+                    .h(px(TRACK_HEIGHT - 10.0))
+                    .overflow_hidden()
+                    .rounded_md()
+                    .border_1()
+                    .border_color(rgb(ACCENT))
+                    .bg(gpui::rgba(0xf0b75e38))
+                    .cursor(CursorStyle::DragCopy)
                     .child(
                         div()
-                            .font_family("monospace")
-                            .text_xs()
-                            .text_ellipsis()
-                            .child(kind),
-                    ),
+                            .absolute()
+                            .inset_0()
+                            .p_2()
+                            .flex()
+                            .flex_col()
+                            .justify_between()
+                            .text_color(rgb(ACCENT))
+                            .child(
+                                div()
+                                    .text_xs()
+                                    .font_weight(gpui::FontWeight::SEMIBOLD)
+                                    .text_ellipsis()
+                                    .child(asset.name()),
+                            )
+                            .child(
+                                div()
+                                    .font_family("monospace")
+                                    .text_xs()
+                                    .text_ellipsis()
+                                    .child(kind),
+                            ),
+                    )
+                    .into_any_element(),
             )
-            .into_any_element(),
-    )
+        }
+    };
 }
