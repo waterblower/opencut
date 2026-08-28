@@ -10,8 +10,14 @@ use crate::editor::{
     timeline_document,
 };
 use gpui::prelude::FluentBuilder;
-use gpui::{Entity, InteractiveElement, IntoElement, ParentElement, Styled, div, px, rgb};
-use std::path::Path;
+use gpui::{
+    Entity, InteractiveElement, IntoElement, ParentElement, StatefulInteractiveElement, Styled,
+    div, px, rgb,
+};
+use std::{
+    fs,
+    path::{Path, PathBuf},
+};
 
 pub(super) enum PropertiesPanelViewable<'a> {
     VideoClip(&'a VideoClip),
@@ -20,7 +26,7 @@ pub(super) enum PropertiesPanelViewable<'a> {
     VideoFile(&'a Path),
     AudioFile(&'a Path),
     ImageFile(&'a Path),
-    SrtFile(&'a Path),
+    SrtFile(PathBuf),
     TimelineFile(&'a TimelineRuntimeState),
     None,
 }
@@ -50,7 +56,9 @@ pub fn current_properties_panel_viewable(editor: &Editor) -> PropertiesPanelView
             return PropertiesPanelViewable::ImageFile(path);
         }
         if is_srt_path(path) {
-            return PropertiesPanelViewable::SrtFile(path);
+            return PropertiesPanelViewable::SrtFile(
+                editor.global_settings.project_root.join(path),
+            );
         }
         if timeline_document::is_timeline_path(path) {
             let timeline = editor
@@ -81,12 +89,11 @@ pub(super) fn properties_panel(
         PropertiesPanelViewable::AudioClip(clip) => audio_clip(clip),
         PropertiesPanelViewable::VideoFile(file) => video_file(file),
         PropertiesPanelViewable::TimelineFile(timeline) => timeline_file(timeline),
-        PropertiesPanelViewable::AudioFile(path)
-        | PropertiesPanelViewable::ImageFile(path)
-        | PropertiesPanelViewable::SrtFile(path) => {
+        PropertiesPanelViewable::AudioFile(path) | PropertiesPanelViewable::ImageFile(path) => {
             let _ = path;
             panic!("not implemented")
         }
+        PropertiesPanelViewable::SrtFile(path) => srt_file_view(&path),
         PropertiesPanelViewable::None => div()
             .p_4()
             .text_color(rgb(MUTED))
@@ -513,6 +520,50 @@ fn video_clip(clip: &VideoClip) -> gpui::AnyElement {
                     format!("{:.2}", clip.video_properties.scale * 100.0),
                     "%",
                 )),
+        )
+        .into_any_element()
+}
+
+fn srt_file_view(path: &Path) -> gpui::AnyElement {
+    let content = match fs::read_to_string(path) {
+        Ok(content) => content,
+        Err(error) => format!("Could not read {}: {error}", path.display()),
+    };
+
+    div()
+        .id("srt-file-properties")
+        .h_full()
+        .min_h_0()
+        .flex()
+        .flex_col()
+        .overflow_hidden()
+        .bg(rgb(PANEL))
+        .child(
+            div()
+                .h(px(58.0))
+                .flex_shrink_0()
+                .flex()
+                .items_center()
+                .px_5()
+                .border_b_1()
+                .border_color(rgb(BORDER))
+                .child(properties_tab("Subtitles", true)),
+        )
+        .child(
+            div()
+                .id("srt-file-properties-scroll")
+                .flex_1()
+                .min_h_0()
+                .overflow_y_scroll()
+                .px_5()
+                .py_5()
+                .child(
+                    div()
+                        .w_full()
+                        .font_family("monospace")
+                        .text_sm()
+                        .child(content),
+                ),
         )
         .into_any_element()
 }
