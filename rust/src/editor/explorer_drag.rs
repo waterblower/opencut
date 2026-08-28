@@ -1,5 +1,6 @@
 use std::{
     collections::HashSet,
+    fs::read_to_string,
     path::{Path, PathBuf},
 };
 
@@ -11,10 +12,14 @@ use gpui::{
 use ulid::Ulid;
 
 use crate::editor::{
-    ACCENT, Editor, MediaKind, TimelineTime, edit_and_rebuild_timeline,
-    editing::validate_clips_placements, media_probe::probe_asset,
-    model::DEFAULT_IMAGE_CLIP_DURATION, srt::srt_to_text_clips, validate_clip_placement,
-    validate_text_clip_placement,
+    ACCENT, Editor, MediaKind, RULER_HEIGHT, TRACK_HEIGHT, TimelineRuntimeState, TimelineTime,
+    edit_and_rebuild_timeline,
+    editing::validate_clips_placements,
+    explorer::{FileTreeEntry, FileTreeEntryKind, is_srt_path},
+    media_probe::probe_asset,
+    model::DEFAULT_IMAGE_CLIP_DURATION,
+    srt::srt_to_text_clips,
+    validate_clip_placement, validate_text_clip_placement,
 };
 
 #[derive(Clone, Debug)]
@@ -33,6 +38,36 @@ pub(super) struct ExplorerDropPreview {
 pub(super) enum AssetBeingDragged {
     V1(AssetBeingDraggedV1),
     Srt(DraggedSRT),
+}
+
+impl AssetBeingDragged {
+    pub fn from_file_entry(entry: &FileTreeEntry) -> Option<Self> {
+        let x = match entry.kind {
+            FileTreeEntryKind::Video | FileTreeEntryKind::Image | FileTreeEntryKind::Audio => {
+                Some(Self::V1(AssetBeingDraggedV1 {
+                    kind: match entry.kind {
+                        FileTreeEntryKind::Video => MediaKind::Video,
+                        FileTreeEntryKind::Image => MediaKind::Image,
+                        FileTreeEntryKind::Audio => MediaKind::Audio,
+                        _ => unreachable!("the outer match only accepts media files"),
+                    },
+                    name: entry.name.clone(),
+                    absolute_path: entry.absolute_path.clone(),
+                }))
+            }
+            FileTreeEntryKind::Directory { .. } | FileTreeEntryKind::Timeline => None,
+            FileTreeEntryKind::Other => {
+                if !is_srt_path(&entry.absolute_path) {
+                    return None;
+                }
+                Some(Self::Srt(DraggedSRT {
+                    absolute_path: entry.absolute_path.clone(),
+                    text: read_to_string(&entry.absolute_path).unwrap_or_default(),
+                }))
+            }
+        };
+        return x;
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -103,12 +138,28 @@ impl Render for AssetBeingDragged {
 }
 
 pub(super) fn update_file_drag(
-    editor: &mut Editor,
+    timeline: &mut TimelineRuntimeState,
     event: &DragMoveEvent<AssetBeingDragged>,
     window: &mut Window,
     cx: &mut Context<Editor>,
 ) {
-    todo!("todo");
+    let on_track: Option<Ulid> = (|| {
+        let pointer = event.event.position;
+        if !event.bounds.contains(&pointer) {
+            return None;
+        }
+        let local_y = f32::from(pointer.y) - f32::from(event.bounds.top());
+        if local_y < RULER_HEIGHT {
+            return None;
+        }
+        let track_index = ((local_y - RULER_HEIGHT) / TRACK_HEIGHT).floor() as usize;
+
+        timeline.data.tracks.get(track_index).map(|track| track.id)
+    })();
+    let Some(track_id) = on_track else {
+        return;
+    };
+    timeline
 }
 
 pub(super) fn drop_dragged_explorer_media(

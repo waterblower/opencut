@@ -1,8 +1,12 @@
-use crate::{editor::explorer_drag::ExplorerDropPreview, video::VideoBackend};
+use crate::{
+    editor::explorer_drag::{AssetBeingDragged, ExplorerDropPreview},
+    video::VideoBackend,
+};
 use gpui::{
-    App, Context, CursorStyle, Entity, EventEmitter, FocusHandle, KeyBinding, MouseButton,
-    MouseDownEvent, MouseMoveEvent, MouseUpEvent, ObjectFit, PathPromptOptions, Render,
-    ScrollHandle, ScrollWheelEvent, TouchPhase, Window, actions, div, img, prelude::*, px, rgb,
+    App, Context, CursorStyle, DragMoveEvent, Entity, EventEmitter, FocusHandle, KeyBinding,
+    MouseButton, MouseDownEvent, MouseMoveEvent, MouseUpEvent, ObjectFit, PathPromptOptions,
+    Render, ScrollHandle, ScrollWheelEvent, TouchPhase, Window, actions, div, img, prelude::*, px,
+    rgb,
 };
 use std::{
     collections::{HashMap, HashSet},
@@ -663,7 +667,10 @@ fn format_time(seconds: f64, padded_minutes: bool) -> String {
 }
 
 pub struct EventBus;
-
+pub enum AppEvent<'a> {
+    Edit(EditAction),
+    DragMove(&'a DragMoveEvent<AssetBeingDragged>),
+}
 impl EventEmitter<EditAction> for EventBus {}
 
 #[cfg(test)]

@@ -1,7 +1,7 @@
 use crate::{
     editor::{
-        ACCENT, BORDER, MUTED, OpenInDefaultApp, PANEL, RevealInFinder,
-        SURFACE, SURFACE_HOVER, TEXT,
+        ACCENT, BORDER, MUTED, OpenInDefaultApp, PANEL, RevealInFinder, SURFACE, SURFACE_HOVER,
+        TEXT,
         clip_placement::validate_clip_placement,
         context_menu::{ContextMenu, FileContextMenu},
         editing::{EditAction, edit_and_rebuild_timeline},
@@ -631,7 +631,7 @@ fn move_path_to_trash(_path: &std::path::Path) -> anyhow::Result<()> {
 
 fn explorer_file_badge(entry: &FileTreeEntry) -> gpui::Div {
     let extension = entry
-        .relative_path
+        .absolute_path
         .extension()
         .and_then(|extension| extension.to_str())
         .map(|extension| {

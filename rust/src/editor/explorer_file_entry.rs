@@ -1,4 +1,4 @@
-use crate::editor::explorer_drag::{AssetBeingDragged, AssetBeingDraggedV1, DraggedSRT};
+use crate::editor::explorer_drag::AssetBeingDragged;
 
 use super::*;
 use std::{collections::HashSet, fs, path::Path};
@@ -11,7 +11,11 @@ impl Editor {
         entry: &FileTreeEntry,
         cx: &mut Context<Self>,
     ) -> gpui::Stateful<gpui::Div> {
-        let path = entry.relative_path.clone();
+        let path = entry
+            .absolute_path
+            .strip_prefix(&self.global_settings.project_root)
+            .expect("file-tree entries are inside the project root")
+            .to_path_buf();
 
         let selected = self.explorer.selected_file.as_ref() == Some(&path);
         let active_timeline = matches!(entry.kind, FileTreeEntryKind::Timeline)
@@ -20,40 +24,7 @@ impl Editor {
                 .as_ref()
                 .is_some_and(|timeline| timeline.path == path);
 
-        let the_draggable_asset = {
-            let absolute_path = self.global_settings.project_root.join(&path);
-            match entry.kind {
-                FileTreeEntryKind::Video | FileTreeEntryKind::Image | FileTreeEntryKind::Audio => {
-                    let kind = match entry.kind {
-                        FileTreeEntryKind::Video => MediaKind::Video,
-                        FileTreeEntryKind::Image => MediaKind::Image,
-                        FileTreeEntryKind::Audio => MediaKind::Audio,
-                        _ => unreachable!("the outer match only accepts media files"),
-                    };
-                    Some(AssetBeingDragged::V1(AssetBeingDraggedV1 {
-                        kind,
-                        name: entry.name.clone(),
-                        absolute_path,
-                    }))
-                }
-                FileTreeEntryKind::Other if is_srt_path(&path) => (|| {
-                    let text = match fs::read_to_string(&absolute_path) {
-                        Ok(text) => text,
-                        Err(error) => {
-                            eprintln!("Could not read {}: {error}", absolute_path.display());
-                            return None;
-                        }
-                    };
-                    Some(AssetBeingDragged::Srt(DraggedSRT {
-                        absolute_path,
-                        text,
-                    }))
-                })(),
-                FileTreeEntryKind::Directory { .. }
-                | FileTreeEntryKind::Timeline
-                | FileTreeEntryKind::Other => None,
-            }
-        };
+        let the_draggable_asset = AssetBeingDragged::from_file_entry(entry);
         let metadata = file_entry_metadata(entry, active_timeline);
 
         div()
@@ -83,26 +54,27 @@ impl Editor {
             })
             .on_click(cx.listener({
                 let entry = entry.clone();
+                let path = path.clone();
                 move |editor, _, _, cx| {
                     match entry.kind {
                         FileTreeEntryKind::Directory { .. } => {
                             let project_root = editor.global_settings.project_root.clone();
                             if let Err(error) = editor
                                 .explorer
-                                .toggle_directory(&project_root, entry.relative_path.clone())
+                                .toggle_directory(&project_root, path.clone())
                                 .and_then(|_| editor.save_explorer_expansion())
                             {
                                 eprintln!("{error}");
                             }
                         }
                         FileTreeEntryKind::Timeline => editor
-                            .open_timeline(entry.relative_path.clone(), cx)
+                            .open_timeline(path.clone(), cx)
                             .expect("open_timeline failed"),
                         FileTreeEntryKind::Video
                         | FileTreeEntryKind::Image
                         | FileTreeEntryKind::Audio
                         | FileTreeEntryKind::Other => {
-                            editor.select_file(entry.relative_path.clone(), cx);
+                            editor.select_file(path.clone(), cx);
                         }
                     }
                     cx.notify();
@@ -112,9 +84,10 @@ impl Editor {
                 MouseButton::Right,
                 cx.listener({
                     let entry = entry.clone();
+                    let path = path.clone();
                     move |editor, event: &MouseDownEvent, _, cx| {
                         editor.show_file_context_menu(
-                            entry.relative_path.clone(),
+                            path.clone(),
                             matches!(entry.kind, FileTreeEntryKind::Directory { .. }),
                             event,
                             cx,
@@ -209,7 +182,7 @@ impl Editor {
 
 #[derive(Clone, PartialEq)]
 pub struct FileTreeEntry {
-    pub relative_path: PathBuf,
+    pub absolute_path: PathBuf,
     pub name: String,
     pub depth: usize,
     pub kind: FileTreeEntryKind,
@@ -281,6 +254,7 @@ fn search_directory(
                 .contains(query);
             if directory_matches || !descendants.is_empty() {
                 matches.push(file_tree_entry(
+                    project_root,
                     relative_path,
                     name,
                     depth,
@@ -296,6 +270,7 @@ fn search_directory(
             .contains(query)
         {
             matches.push(file_tree_entry(
+                project_root,
                 relative_path,
                 name,
                 depth,
@@ -323,6 +298,7 @@ fn read_directory(
         let relative_path = relative_directory.join(&name);
         let expanded = is_directory && expanded_directories.contains(&relative_path);
         entries.push(file_tree_entry(
+            project_root,
             relative_path.clone(),
             name,
             depth,
@@ -368,6 +344,7 @@ fn directory_children(directory: &Path) -> anyhow::Result<Vec<(String, bool, Opt
 }
 
 fn file_tree_entry(
+    project_root: &Path,
     relative_path: PathBuf,
     name: String,
     depth: usize,
@@ -389,7 +366,7 @@ fn file_tree_entry(
         FileTreeEntryKind::Other
     };
     FileTreeEntry {
-        relative_path,
+        absolute_path: project_root.join(relative_path),
         name,
         depth,
         kind,

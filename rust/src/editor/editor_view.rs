@@ -103,7 +103,7 @@ impl Render for Editor {
                     .flex()
                     .flex_col()
                     .child(self.upper_workspace(editor_width, preview_height, window, cx))
-                    .child(self.timeline(cx)),
+                    .child(self.timeline_view(cx)),
             )
             .when_some(context_menu, |this, menu| this.child(menu))
             .when_some(rename_dialog, |this, dialog| this.child(dialog))

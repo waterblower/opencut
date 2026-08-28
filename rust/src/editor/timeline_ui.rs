@@ -31,7 +31,7 @@ fn timeline_marquee(selection: &MarqueeSelection) -> gpui::AnyElement {
 }
 
 impl Editor {
-    pub(super) fn timeline(&self, cx: &mut Context<Self>) -> gpui::AnyElement {
+    pub(super) fn timeline_view(&self, cx: &mut Context<Self>) -> gpui::AnyElement {
         let Some(timeline) = self.timeline.as_ref() else {
             return div()
                 .id("editor-timeline-empty")
@@ -167,9 +167,11 @@ impl Editor {
                                     .relative()
                                     .w(px(timeline_width))
                                     .min_h_full()
-                                    .on_drag_move::<AssetBeingDragged>(
-                                        cx.listener(update_file_drag),
-                                    )
+                                    .on_drag_move::<AssetBeingDragged>(cx.listener(
+                                        |editor, event, window, cx| {
+                                            update_file_drag(timeline, event, window, cx)
+                                        },
+                                    ))
                                     .on_drop(cx.listener(
                                         |editor, drag: &AssetBeingDragged, _, cx| {
                                             drop_dragged_explorer_media(drag, editor, cx);
