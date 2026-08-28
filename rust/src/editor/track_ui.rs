@@ -1,73 +1,13 @@
 use super::*;
-use crate::IconName;
+use crate::{
+    asset::IconName,
+    editor::{srt::parse_srt_text_clips, timeline_clip::text_clip_component},
+};
 use gpui::{Bounds, canvas, fill, point, rgba, size};
 use std::sync::Arc;
 
 const CLIP_WAVEFORM_HEIGHT: f32 = 80.0;
 const CLIP_WAVEFORM_VISUAL_GAIN: f32 = 2.0;
-
-fn explorer_drop_preview(
-    preview: &ExplorerDropPreview,
-    frame_rate: FrameRate,
-    pixels_per_second: f32,
-) -> gpui::AnyElement {
-    let left = TIMELINE_PADDING + frame_rate.seconds(preview.start) as f32 * pixels_per_second;
-    let width = (frame_rate.seconds(preview.duration) as f32 * pixels_per_second).max(4.0);
-    let invalid = preview.invalid_reason.is_some();
-    let feedback_color = if invalid { ERROR } else { ACCENT };
-    let detail = preview
-        .invalid_reason
-        .as_deref()
-        .unwrap_or(if preview.analyzing {
-            "Inspecting media…"
-        } else {
-            "Drop to add"
-        })
-        .to_string();
-
-    div()
-        .id("explorer-media-drop-preview")
-        .absolute()
-        .left(px(left))
-        .top(px(5.0))
-        .w(px(width))
-        .h(px(TRACK_HEIGHT - 10.0))
-        .overflow_hidden()
-        .rounded_md()
-        .border_1()
-        .border_color(rgb(feedback_color))
-        .bg(gpui::rgba(if invalid { 0xff8b8b38 } else { 0xf0b75e38 }))
-        .cursor(if invalid {
-            CursorStyle::OperationNotAllowed
-        } else {
-            CursorStyle::DragCopy
-        })
-        .child(
-            div()
-                .absolute()
-                .inset_0()
-                .p_2()
-                .flex()
-                .flex_col()
-                .justify_between()
-                .text_color(rgb(feedback_color))
-                .child(
-                    div()
-                        .text_xs()
-                        .font_weight(gpui::FontWeight::SEMIBOLD)
-                        .text_ellipsis()
-                        .child(preview.name.clone()),
-                )
-                .child(
-                    div()
-                        .font_family("monospace")
-                        .text_xs()
-                        .text_ellipsis()
-                        .child(detail),
-                ),
-        )
-        .into_any_element()
-}
 
 fn timeline_clip_move_preview(
     timeline: &TimelineSerialization,
@@ -250,7 +190,7 @@ impl Editor {
         let clips = timeline
             .data
             .clips_on_track(track.id)
-            .map(|clip| self.timeline_clip(track, clip, cx))
+            .map(|clip| self.timeline_clip(clip, cx))
             .collect::<Vec<_>>();
         let move_previews = timeline
             .interaction
@@ -272,18 +212,13 @@ impl Editor {
                     .collect::<Vec<_>>()
             })
             .unwrap_or_default();
-        let explorer_drop_preview = self
-            .explorer
-            .drop_preview
-            .as_ref()
-            .filter(|preview| preview.track_id == track.id && track.kind != TrackKind::Text)
-            .map(|preview| {
-                explorer_drop_preview(
-                    preview,
-                    timeline.data.settings.frame_rate,
-                    timeline.data.view.pixels_per_second,
-                )
-            });
+        let drop_preview = (|| {
+            let preview = timeline.preview_drop_asset.as_ref()?;
+            if preview.track_id != track.id {
+                return None;
+            }
+            preview_drop_asset(preview, &timeline.data)
+        })();
 
         div()
             .id(("track-row", index))
@@ -312,38 +247,44 @@ impl Editor {
             })
             .children(clips)
             .children(move_previews)
-            .when_some(explorer_drop_preview, |this, preview| this.child(preview))
+            .when_some(drop_preview, |this, preview| this.child(preview))
             .into_any_element()
     }
 
-    fn timeline_clip(
-        &self,
-        track: &Track,
-        clip: &Clip,
-        cx: &mut Context<Self>,
-    ) -> gpui::AnyElement {
-        match track.kind {
-            TrackKind::Video => self.video_clip(clip, cx),
-            TrackKind::Audio => self.audio_clip(clip, cx),
-            TrackKind::Text => self.text_clip(clip, cx),
+    fn timeline_clip(&self, clip: &Clip, cx: &mut Context<Self>) -> gpui::AnyElement {
+        match clip {
+            Clip::Video(_) => self.video_clip(clip, cx),
+            Clip::Audio(_) => self.audio_clip(clip, cx),
+            Clip::Text(clip) => {
+                let timeline = self
+                    .timeline
+                    .as_ref()
+                    .expect("timeline clips require an active timeline");
+                let clip_id = clip.id;
+                let moving = timeline
+                    .interaction
+                    .clip_move_drag
+                    .as_ref()
+                    .is_some_and(|drag| {
+                        drag.changed && drag.items.iter().any(|item| item.clip_id == clip_id)
+                    });
+                text_clip_component(
+                    clip.clone(),
+                    timeline.data.settings.frame_rate,
+                    timeline.data.view.pixels_per_second,
+                    timeline.interaction.selected_clip_ids.contains(&clip_id),
+                    moving,
+                )
+                .on_mouse_down(
+                    MouseButton::Left,
+                    cx.listener(move |editor, event, _, cx| {
+                        editor.handle_clip_mouse_down(clip_id, event, cx);
+                        cx.notify();
+                    }),
+                )
+                .into_any_element()
+            }
         }
-    }
-
-    fn text_clip(&self, clip: &Clip, cx: &mut Context<Self>) -> gpui::AnyElement {
-        let label = clip
-            .text()
-            .map(|clip| clip.properties.text.clone())
-            .unwrap_or_else(|| "Text".to_string());
-        let content = div()
-            .absolute()
-            .inset_0()
-            .p_2()
-            .text_xs()
-            .font_weight(gpui::FontWeight::SEMIBOLD)
-            .text_ellipsis()
-            .child(label);
-
-        self.timeline_clip_frame(clip, 0x7251a3, content.into_any_element(), cx)
     }
 
     fn video_clip(&self, clip: &Clip, cx: &mut Context<Self>) -> gpui::AnyElement {
@@ -593,4 +534,97 @@ fn track_kind_label(kind: TrackKind) -> &'static str {
         TrackKind::Audio => "A",
         TrackKind::Text => "T",
     }
+}
+
+fn preview_drop_asset(
+    preview: &PreviewDropAsset,
+    timeline: &TimelineSerialization,
+) -> Option<gpui::AnyElement> {
+    return match &preview.asset {
+        AssetBeingDragged::Srt(srt) => {
+            let clips = match parse_srt_text_clips(&srt.text, timeline.settings.frame_rate) {
+                Ok(clips) => clips,
+                Err(_) => return None,
+            };
+            let previews = clips
+                .into_iter()
+                .map(|mut clip| {
+                    clip.track_id = preview.track_id;
+                    clip.timeline_start += preview.start_time;
+                    text_clip_component(
+                        clip,
+                        timeline.settings.frame_rate,
+                        timeline.view.pixels_per_second,
+                        false,
+                        true,
+                    )
+                    .into_any_element()
+                })
+                .collect::<Vec<_>>();
+
+            Some(
+                div()
+                    .id("explorer-srt-drop-preview")
+                    .absolute()
+                    .inset_0()
+                    .children(previews)
+                    .into_any_element(),
+            )
+        }
+        AssetBeingDragged::V1(asset) => {
+            let kind = match asset.metadata.kind {
+                MediaKind::Video => "Video",
+                MediaKind::Audio => "Audio",
+                MediaKind::Image => return None,
+            };
+            let left = TIMELINE_PADDING
+                + timeline.seconds(preview.start_time) as f32 * timeline.view.pixels_per_second;
+            let duration = timeline
+                .nearest_time(asset.metadata.duration)
+                .max(TimelineTime::ONE_FRAME);
+            let width =
+                (timeline.seconds(duration) as f32 * timeline.view.pixels_per_second).max(4.0);
+
+            Some(
+                div()
+                    .id("explorer-media-drop-preview")
+                    .absolute()
+                    .left(px(left))
+                    .top(px(5.0))
+                    .w(px(width))
+                    .h(px(TRACK_HEIGHT - 10.0))
+                    .overflow_hidden()
+                    .rounded_md()
+                    .border_1()
+                    .border_color(rgb(ACCENT))
+                    .bg(gpui::rgba(0xf0b75e38))
+                    .cursor(CursorStyle::DragCopy)
+                    .child(
+                        div()
+                            .absolute()
+                            .inset_0()
+                            .p_2()
+                            .flex()
+                            .flex_col()
+                            .justify_between()
+                            .text_color(rgb(ACCENT))
+                            .child(
+                                div()
+                                    .text_xs()
+                                    .font_weight(gpui::FontWeight::SEMIBOLD)
+                                    .text_ellipsis()
+                                    .child(asset.name()),
+                            )
+                            .child(
+                                div()
+                                    .font_family("monospace")
+                                    .text_xs()
+                                    .text_ellipsis()
+                                    .child(kind),
+                            ),
+                    )
+                    .into_any_element(),
+            )
+        }
+    };
 }

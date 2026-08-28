@@ -1,15 +1,15 @@
+use crate::editor::properties::{current_properties_panel_viewable, properties_panel};
+
 use super::*;
 
 impl Render for Editor {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         self.sync_video_transform_inputs(cx);
-        self.sync_text_clip_inputs(cx);
+
         let viewport = window.viewport_size();
         let editor_width =
             (f32::from(viewport.width) - crate::gpui_inspector::docked_width(window)).max(0.0);
         let editor_viewport = gpui::size(px(editor_width), viewport.height);
-        let preview_width =
-            (editor_width - MEDIA_PANEL_WIDTH - self.properties.width).max(MIN_PREVIEW_WIDTH);
         let preview_height =
             (f32::from(viewport.height) - TOPBAR_HEIGHT - TIMELINE_HEIGHT).max(240.0);
 
@@ -36,27 +36,7 @@ impl Render for Editor {
                     cx,
                 ));
         }
-        let file_menu = self
-            .explorer
-            .context_menu
-            .as_ref()
-            .map(|menu| self.file_menu_overlay(menu, editor_viewport, cx));
-        let timeline_menu = self
-            .timeline
-            .as_ref()
-            .and_then(|timeline| timeline.interaction.context_menu.as_ref());
-        let clip_menu = timeline_menu.and_then(|menu| {
-            let TimelineContextMenu::Clip(menu) = menu else {
-                return None;
-            };
-            Some(self.timeline_clip_menu_overlay(menu, editor_viewport, cx))
-        });
-        let text_track_menu = timeline_menu.and_then(|menu| {
-            let TimelineContextMenu::TextTrack(menu) = menu else {
-                return None;
-            };
-            Some(self.text_track_menu_overlay(menu, editor_viewport, cx))
-        });
+        let context_menu = self.context_menu_overlay(editor_viewport, cx);
         let rename_dialog = self
             .explorer
             .rename_dialog
@@ -98,10 +78,6 @@ impl Render for Editor {
             .on_action(cx.listener(Self::action_toggle_inspector))
             .on_action(cx.listener(Self::action_reveal_in_finder))
             .on_action(cx.listener(Self::action_open_in_default_app))
-            .on_drag_move::<PropertiesPanelResizeDrag>(
-                cx.listener(Self::resize_properties_panel_drag),
-            )
-            .capture_any_mouse_up(cx.listener(Self::finish_properties_panel_resize))
             .capture_any_mouse_down(cx.listener(|editor, event: &MouseDownEvent, window, cx| {
                 if event.button == MouseButton::Left {
                     editor.focus_handle.focus(window, cx);
@@ -126,28 +102,10 @@ impl Render for Editor {
                     .min_h_0()
                     .flex()
                     .flex_col()
-                    .child(
-                        div()
-                            .id("editor-upper-workspace")
-                            .min_w_0()
-                            .flex_1()
-                            .min_h_0()
-                            .flex()
-                            .child(self.explorer_panel(cx))
-                            .child(self.preview_player(
-                                MEDIA_PANEL_WIDTH,
-                                TOPBAR_HEIGHT,
-                                preview_width,
-                                preview_height,
-                                cx,
-                            ))
-                            .child(properties_panel(self, cx)),
-                    )
-                    .child(self.timeline(cx)),
+                    .child(self.upper_workspace(editor_width, preview_height, window, cx))
+                    .child(self.timeline_view(cx)),
             )
-            .when_some(file_menu, |this, menu| this.child(menu))
-            .when_some(clip_menu, |this, menu| this.child(menu))
-            .when_some(text_track_menu, |this, menu| this.child(menu))
+            .when_some(context_menu, |this, menu| this.child(menu))
             .when_some(rename_dialog, |this, dialog| this.child(dialog))
             .when_some(new_timeline_dialog, |this, dialog| this.child(dialog))
             .when_some(settings_modal, |this, modal| this.child(modal))
@@ -158,6 +116,44 @@ impl Render for Editor {
 }
 
 impl Editor {
+    fn upper_workspace(
+        &self,
+        width: f32,
+        preview_height: f32,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> gpui::AnyElement {
+        let constraints = HorizontalSplitConstraints {
+            min_left: MIN_MEDIA_PANEL_WIDTH,
+            min_center: MIN_PREVIEW_WIDTH,
+            min_right: MIN_PROPERTIES_PANEL_WIDTH,
+        };
+        let split_state = window.use_keyed_state("editor-upper-workspace-split", cx, |_, _| {
+            HorizontalSplitState::new(DEFAULT_MEDIA_PANEL_WIDTH, DEFAULT_PROPERTIES_PANEL_WIDTH)
+        });
+        let widths = split_state.read(cx).widths(width, constraints);
+        let properties_panel_view = properties_panel(
+            current_properties_panel_viewable(self),
+            self.event_bus.clone(),
+        );
+        HorizontalSplit::new(
+            "editor-upper-workspace",
+            split_state,
+            width,
+            constraints,
+            self.explorer_panel(cx),
+            self.preview_player(
+                widths.left + HORIZONTAL_SPLIT_DIVIDER_WIDTH,
+                TOPBAR_HEIGHT,
+                widths.center,
+                preview_height,
+                cx,
+            ),
+            properties_panel_view,
+        )
+        .into_any_element()
+    }
+
     fn topbar(&self, cx: &mut Context<Self>) -> gpui::AnyElement {
         let export_enabled = self
             .timeline

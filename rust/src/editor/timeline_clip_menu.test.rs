@@ -1,4 +1,5 @@
 use super::*;
+use crate::editor::timeline_clip::{AudioClipProperties, VideoClip};
 
 fn asset(id: u64, kind: MediaKind) -> MediaAsset {
     MediaAsset {
@@ -18,7 +19,7 @@ fn asset(id: u64, kind: MediaKind) -> MediaAsset {
 }
 
 fn clip(id: u64, track_id: u64, asset_id: u64) -> Clip {
-    Clip::Media(MediaClip {
+    let clip = VideoClip {
         id: ulid(id),
         track_id: ulid(track_id),
         asset_id: ulid(asset_id),
@@ -27,7 +28,12 @@ fn clip(id: u64, track_id: u64, asset_id: u64) -> Clip {
         source_out: TimelineTime::ONE_FRAME,
         video_properties: VideoClipProperties::default(),
         audio_properties: AudioClipProperties::default(),
-    })
+    };
+    match track_id {
+        1 => Clip::Video(clip),
+        2 => Clip::Audio(clip),
+        _ => panic!("test media clips require a video or audio track"),
+    }
 }
 
 #[test]

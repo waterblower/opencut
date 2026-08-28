@@ -1,4 +1,5 @@
 [alias]
 editor = "run --features editor --bin opencut-editor"
 loc = "run --quiet --bin loc"
+2win = "run --quiet --bin 2windows"
 player = "run --bin opencut-player"

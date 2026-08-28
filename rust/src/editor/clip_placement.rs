@@ -31,6 +31,14 @@ impl ClipPlacementRejection {
     }
 }
 
+impl std::fmt::Display for ClipPlacementRejection {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str(self.message())
+    }
+}
+
+impl std::error::Error for ClipPlacementRejection {}
+
 pub(super) fn validate_clip_placement(
     timeline: &TimelineSerialization,
     target_track_id: Ulid,
@@ -38,7 +46,7 @@ pub(super) fn validate_clip_placement(
     clip_length: TimelineTime,
     target_timeline_start: TimelineTime,
     ignored_clip_ids: &HashSet<Ulid>,
-) -> Result<(), ClipPlacementRejection> {
+) -> anyhow::Result<()> {
     let expected_track_kind = if media_kind == MediaKind::Audio {
         TrackKind::Audio
     } else {
@@ -60,7 +68,7 @@ pub(super) fn validate_text_clip_placement(
     clip_length: TimelineTime,
     target_timeline_start: TimelineTime,
     ignored_clip_ids: &HashSet<Ulid>,
-) -> Result<(), ClipPlacementRejection> {
+) -> anyhow::Result<()> {
     validate_clip_placement_on_track(
         timeline,
         target_track_id,
@@ -78,21 +86,21 @@ fn validate_clip_placement_on_track(
     clip_length: TimelineTime,
     target_timeline_start: TimelineTime,
     ignored_clip_ids: &HashSet<Ulid>,
-) -> Result<(), ClipPlacementRejection> {
+) -> anyhow::Result<()> {
     if target_timeline_start < TimelineTime::ZERO {
-        return Err(ClipPlacementRejection::BeforeTimelineStart);
+        return Err(ClipPlacementRejection::BeforeTimelineStart.into());
     }
     if clip_length < TimelineTime::ONE_FRAME {
-        return Err(ClipPlacementRejection::DurationTooShort);
+        return Err(ClipPlacementRejection::DurationTooShort.into());
     }
     let Some(track) = timeline.track(target_track_id) else {
-        return Err(ClipPlacementRejection::MissingTrack);
+        return Err(ClipPlacementRejection::MissingTrack.into());
     };
     if track.locked {
-        return Err(ClipPlacementRejection::LockedTrack);
+        return Err(ClipPlacementRejection::LockedTrack.into());
     }
     if track.kind != expected_track_kind {
-        return Err(ClipPlacementRejection::IncompatibleTrack);
+        return Err(ClipPlacementRejection::IncompatibleTrack.into());
     }
     if timeline.clips.iter().any(|clip| {
         !ignored_clip_ids.contains(&clip.id())
@@ -104,7 +112,7 @@ fn validate_clip_placement_on_track(
                 clip.timeline_end(timeline.settings.frame_rate),
             )
     }) {
-        return Err(ClipPlacementRejection::ExistingClipOverlap);
+        return Err(ClipPlacementRejection::ExistingClipOverlap.into());
     }
     Ok(())
 }

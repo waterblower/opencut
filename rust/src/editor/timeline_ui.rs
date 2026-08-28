@@ -1,3 +1,6 @@
+use crate::editor::explorer_drag::AssetBeingDragged;
+use gpui::DragMoveEvent;
+
 use super::*;
 
 const MAX_RULER_TICKS: usize = 240;
@@ -27,7 +30,7 @@ fn timeline_marquee(selection: &MarqueeSelection) -> gpui::AnyElement {
 }
 
 impl Editor {
-    pub(super) fn timeline(&self, cx: &mut Context<Self>) -> gpui::AnyElement {
+    pub(super) fn timeline_view(&self, cx: &mut Context<Self>) -> gpui::AnyElement {
         let Some(timeline) = self.timeline.as_ref() else {
             return div()
                 .id("editor-timeline-empty")
@@ -106,6 +109,8 @@ impl Editor {
             .enumerate()
             .map(|(index, track)| self.track_row(index, track, timeline_width, cx))
             .collect::<Vec<_>>();
+        let event_bus = self.event_bus.clone();
+        let drag_move_event_bus = event_bus.clone();
         div()
             .id("timeline-tracks-vertical-scroll")
             .flex_1()
@@ -163,12 +168,26 @@ impl Editor {
                                     .relative()
                                     .w(px(timeline_width))
                                     .min_h_full()
-                                    .on_drag_move::<ExplorerMediaDrag>(
-                                        cx.listener(Self::update_explorer_media_drag),
-                                    )
+                                    .on_drag_move::<AssetBeingDragged>(cx.listener(
+                                        move |_,
+                                              event: &DragMoveEvent<AssetBeingDragged>,
+                                              _,
+                                              cx| {
+                                            let event = AssetDragMoveEvent {
+                                                drag: event.drag(cx).clone(),
+                                                event: event.event.clone(),
+                                                bounds: event.bounds,
+                                            };
+                                            drag_move_event_bus.update(cx, |_, cx| {
+                                                cx.emit(AppEvent::DragMove(event));
+                                            });
+                                        },
+                                    ))
                                     .on_drop(cx.listener(
-                                        |editor, drag: &ExplorerMediaDrag, _, cx| {
-                                            editor.drop_explorer_media(drag, cx);
+                                        move |_, _drag: &AssetBeingDragged, _, cx| {
+                                            event_bus.update(cx, |_, cx| {
+                                                cx.emit(AppEvent::DragDrop);
+                                            });
                                         },
                                     ))
                                     .child(self.timeline_ruler(duration, cx))
@@ -224,15 +243,12 @@ impl Editor {
                                         },
                                     )
                                     .when_some(
-                                        timeline.interaction.context_menu.as_ref().and_then(
-                                            |menu| {
-                                                let TimelineContextMenu::TextTrack(menu) = menu
-                                                else {
-                                                    return None;
-                                                };
-                                                Some(menu.position)
-                                            },
-                                        ),
+                                        match &self.context_menu {
+                                            ContextMenu::TextTrack(menu) => Some(menu.position),
+                                            ContextMenu::None
+                                            | ContextMenu::File(_)
+                                            | ContextMenu::TimelineClip(_) => None,
+                                        },
                                         |this, position| {
                                             let guide_left = TIMELINE_PADDING
                                                 + timeline.data.seconds(position) as f32

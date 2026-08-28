@@ -1,16 +1,44 @@
-use super::*;
+use crate::{
+    editor::{
+        ACCENT, BORDER, MUTED, OpenInDefaultApp, PANEL, RevealInFinder, SURFACE, SURFACE_HOVER,
+        TEXT,
+        clip_placement::validate_clip_placement,
+        context_menu::{ContextMenu, FileContextMenu},
+        editing::{EditAction, edit_and_rebuild_timeline},
+        editor::Editor,
+        explorer_filter::ExplorerFilter,
+        model::MediaAsset,
+        preview::PreviewTarget,
+        preview_audio::AudioBackend,
+        project_settings::save_project_local_settings,
+        timeline::TimelineTime,
+        timeline_clip::{AudioClipProperties, Clip, VideoClip, VideoClipProperties},
+        timeline_document,
+        track::TrackKind,
+    },
+    video::VideoBackend,
+};
+use gpui::{
+    AppContext as _, Context, CursorStyle, Entity, InteractiveElement, IntoElement, MouseButton,
+    MouseDownEvent, ParentElement, StatefulInteractiveElement, Styled, Window, div, px, rgb,
+};
+use gpui::{ScrollHandle, prelude::FluentBuilder};
 use serde::{Deserialize, Serialize};
-use std::fs;
-use std::path::Path;
+use std::{
+    collections::HashSet,
+    fs,
+    path::{Path, PathBuf},
+    time::{Duration, Instant},
+};
+use ulid::Ulid;
 
-#[path = "explorer_file_menu.rs"]
-mod explorer_file_menu;
-pub(crate) use explorer_file_menu::FileContextMenu;
 #[path = "explorer_file_entry.rs"]
 mod explorer_file_entry;
+#[path = "explorer_file_menu.rs"]
+mod explorer_file_menu;
 pub(super) use explorer_file_entry::{
-    FileTreeEntry, FileTreeEntryKind, is_audio_path, is_image_path, is_video_path, search_tree,
-    visible_tree,
+    FileTreeEntry, FileTreeEntryKind, is_audio_path, is_image_path, is_srt_path, is_video_path,
+    search_tree, visible_tree,
 };
 
 pub(super) struct RenameDialogState {
@@ -23,35 +51,24 @@ pub(super) struct NewTimelineDialogState {
     input: Entity<ExplorerFilter>,
 }
 
-#[derive(Clone, Debug)]
-pub(super) struct ExplorerMediaDrag {
-    pub(super) relative_path: PathBuf,
-    pub(super) name: String,
-    pub(super) kind: MediaKind,
-}
-
-#[derive(Clone, Debug)]
-pub(super) struct ExplorerDropPreview {
-    pub(super) relative_path: PathBuf,
-    pub(super) name: String,
-    pub(super) track_id: Ulid,
-    pub(super) raw_start: TimelineTime,
-    pub(super) start: TimelineTime,
-    pub(super) duration: TimelineTime,
-    pub(super) analyzing: bool,
-    pub(super) invalid_reason: Option<String>,
-}
-
-#[derive(Clone, Debug)]
-pub(super) struct PendingExplorerDrop {
-    relative_path: PathBuf,
-    track_id: Ulid,
-    raw_start: TimelineTime,
-}
-
 pub(super) struct ExplorerExpansion {
     pub(super) expanded_directories: HashSet<PathBuf>,
     pub(super) root_expanded: bool,
+}
+
+pub struct ExplorerState {
+    pub file_tree: Vec<FileTreeEntry>,
+    pub expanded_directories: HashSet<PathBuf>,
+    pub root_expanded: bool,
+    pub filter: Entity<ExplorerFilter>,
+    pub search_query: Option<String>,
+    pub search_results: Vec<FileTreeEntry>,
+    pub search_pending: bool,
+    pub scroll: ScrollHandle,
+    pub selected_file: Option<PathBuf>,
+    pub rename_dialog: Option<RenameDialogState>,
+    pub new_timeline_dialog: Option<NewTimelineDialogState>,
+    pub last_tree_scan: Instant,
 }
 
 pub(super) fn load_explorer_expansion(project_root: &Path) -> ExplorerExpansion {
@@ -94,13 +111,8 @@ impl Default for ExplorerExpansion {
     }
 }
 
-struct ExplorerDragView {
-    name: String,
-    kind: MediaKind,
-}
-
 impl ExplorerState {
-    pub(super) fn refresh_file_tree(&mut self, project_root: &Path) -> Result<(), String> {
+    pub(super) fn refresh_file_tree(&mut self, project_root: &Path) -> anyhow::Result<()> {
         self.last_tree_scan = Instant::now();
         self.file_tree = visible_tree(project_root, &self.expanded_directories)?;
         Ok(())
@@ -110,7 +122,7 @@ impl ExplorerState {
         &mut self,
         project_root: &Path,
         relative_path: PathBuf,
-    ) -> Result<(), String> {
+    ) -> anyhow::Result<()> {
         if !self.expanded_directories.remove(&relative_path) {
             self.expanded_directories.insert(relative_path);
         }
@@ -119,48 +131,12 @@ impl ExplorerState {
 }
 
 impl Editor {
-    pub(super) fn save_explorer_expansion(&self) -> Result<(), String> {
+    pub(super) fn save_explorer_expansion(&self) -> anyhow::Result<()> {
         save_explorer_expansion(
             &self.global_settings.project_root,
             &self.explorer.expanded_directories,
             self.explorer.root_expanded,
         )
-    }
-}
-
-impl Render for ExplorerDragView {
-    fn render(&mut self, _: &mut Window, _: &mut Context<Self>) -> impl IntoElement {
-        let label = match self.kind {
-            MediaKind::Video => "VIDEO",
-            MediaKind::Image => "IMAGE",
-            MediaKind::Audio => "AUDIO",
-        };
-        div()
-            .max_w(px(280.0))
-            .h_9()
-            .px_3()
-            .flex()
-            .items_center()
-            .gap_2()
-            .rounded_md()
-            .border_1()
-            .border_color(rgb(ACCENT))
-            .bg(rgb(0x1b1b1e))
-            .shadow_lg()
-            .child(
-                div()
-                    .font_family("monospace")
-                    .text_xs()
-                    .text_color(rgb(ACCENT))
-                    .child(label),
-            )
-            .child(
-                div()
-                    .min_w_0()
-                    .text_sm()
-                    .text_ellipsis()
-                    .child(self.name.clone()),
-            )
     }
 }
 
@@ -234,11 +210,8 @@ impl Editor {
 
         div()
             .id("editor-media-panel")
-            .w(px(MEDIA_PANEL_WIDTH))
+            .w_full()
             .h_full()
-            .flex_shrink_0()
-            .border_r_1()
-            .border_color(rgb(BORDER))
             .bg(rgb(PANEL))
             .child(
                 div()
@@ -500,299 +473,39 @@ impl Editor {
             .into_any_element()
     }
 
-    pub(super) fn update_explorer_media_drag(
-        &mut self,
-        event: &DragMoveEvent<ExplorerMediaDrag>,
-        window: &mut Window,
-        cx: &mut Context<Self>,
-    ) {
-        let pointer = event.event.position;
-        let inside_timeline = event.bounds.contains(&pointer);
-        let local_y = f32::from(pointer.y) - f32::from(event.bounds.top());
-        let track_index = ((local_y - RULER_HEIGHT) / TRACK_HEIGHT).floor() as isize;
-        let Some(track_id) = inside_timeline
-            .then_some(track_index)
-            .and_then(|index| usize::try_from(index).ok())
-            .and_then(|index| self.timeline.as_ref()?.data.tracks.get(index))
-            .map(|track| track.id)
-        else {
-            if self.explorer.drop_preview.take().is_some() {
-                if let Some(timeline) = self.timeline.as_mut() {
-                    timeline.interaction.snap_guide = None;
-                }
-                cx.notify();
-            }
-            cx.set_active_drag_cursor_style(CursorStyle::OperationNotAllowed, window);
-            return;
-        };
-
-        let drag = event.drag(cx).clone();
-        let local_x = f32::from(pointer.x) - f32::from(event.bounds.left());
-        let Some(timeline) = self.timeline.as_ref() else {
-            return;
-        };
-        let raw_start = timeline.data.nearest_time(
-            ((local_x - TIMELINE_PADDING) / timeline.data.view.pixels_per_second).max(0.0) as f64,
-        );
-        self.refresh_explorer_drop_preview(&drag, track_id, raw_start);
-        let invalid = self
-            .explorer
-            .drop_preview
-            .as_ref()
-            .is_none_or(|preview| preview.invalid_reason.is_some());
-        cx.set_active_drag_cursor_style(
-            if invalid {
-                CursorStyle::OperationNotAllowed
-            } else {
-                CursorStyle::DragCopy
-            },
-            window,
-        );
-        let Some(timeline) = self.timeline.as_ref() else {
-            return;
-        };
-        if !self.explorer.drag_probe_jobs.contains(&drag.relative_path)
-            && explorer_asset_for_path(
-                &timeline.data.assets,
-                &self.explorer.drag_assets,
-                &drag.relative_path,
-            )
-            .is_none()
-        {
-            self.request_explorer_drag_probe(drag.relative_path.clone(), cx);
-        }
-        cx.notify();
-    }
-
-    fn refresh_explorer_drop_preview(
-        &mut self,
-        drag: &ExplorerMediaDrag,
-        track_id: Ulid,
-        raw_start: TimelineTime,
-    ) {
-        let Some(timeline) = self.timeline.as_ref() else {
-            return;
-        };
-        let asset = explorer_asset_for_path(
-            &timeline.data.assets,
-            &self.explorer.drag_assets,
-            &drag.relative_path,
-        );
-        let analyzing = asset.is_none();
-        let duration = asset
-            .as_ref()
-            .map(|asset| timeline.data.ceil_time(asset.duration))
-            .unwrap_or_else(|| timeline.data.ceil_time(DEFAULT_IMAGE_CLIP_DURATION));
-        let (start, snap_guide) =
-            timeline.snap_clip_start_ignoring(raw_start, duration, &HashSet::new());
-        let kind = asset.as_ref().map_or(drag.kind, |asset| asset.kind);
-        let invalid_reason = validate_clip_placement(
-            &timeline.data,
-            track_id,
-            kind,
-            duration,
-            start,
-            &HashSet::new(),
-        )
-        .err()
-        .map(|rejection| rejection.message().to_string());
-        if let Some(timeline) = self.timeline.as_mut() {
-            timeline.interaction.snap_guide = snap_guide;
-        }
-        self.explorer.drop_preview = Some(ExplorerDropPreview {
-            relative_path: drag.relative_path.clone(),
-            name: drag.name.clone(),
-            track_id,
-            raw_start,
-            start,
-            duration,
-            analyzing,
-            invalid_reason,
-        });
-    }
-
-    pub(super) fn drop_explorer_media(&mut self, drag: &ExplorerMediaDrag, cx: &mut Context<Self>) {
-        let Some(preview) = self.explorer.drop_preview.take().filter(|preview| {
-            preview.relative_path == drag.relative_path
-                && self
-                    .timeline
-                    .as_ref()
-                    .is_some_and(|timeline| timeline.data.track(preview.track_id).is_some())
-        }) else {
-            if let Some(timeline) = self.timeline.as_mut() {
-                timeline.interaction.snap_guide = None;
-            }
-            return;
-        };
-        if let Some(timeline) = self.timeline.as_mut() {
-            timeline.interaction.snap_guide = None;
-        }
-
-        if let Some(reason) = preview.invalid_reason {
-            eprintln!("Cannot add {}: {reason}.", drag.name);
-            self.status = None;
-            cx.notify();
-            return;
-        }
-
-        let Some(timeline) = self.timeline.as_ref() else {
-            return;
-        };
-        if let Some(asset) = explorer_asset_for_path(
-            &timeline.data.assets,
-            &self.explorer.drag_assets,
-            &drag.relative_path,
-        ) {
-            self.place_explorer_asset(
-                drag.relative_path.clone(),
-                preview.track_id,
-                preview.raw_start,
-                asset,
-                cx,
-            );
-        } else {
-            self.explorer.pending_drop = Some(PendingExplorerDrop {
-                relative_path: drag.relative_path.clone(),
-                track_id: preview.track_id,
-                raw_start: preview.raw_start,
-            });
-            self.status = Some(format!("Inspecting {} before placing it…", drag.name));
-            self.request_explorer_drag_probe(drag.relative_path.clone(), cx);
-        }
-        cx.notify();
-    }
-
-    fn request_explorer_drag_probe(&mut self, relative_path: PathBuf, cx: &mut Context<Self>) {
-        let Some(timeline) = self.timeline.as_ref() else {
-            return;
-        };
-        if explorer_asset_for_path(
-            &timeline.data.assets,
-            &self.explorer.drag_assets,
-            &relative_path,
-        )
-        .is_some()
-            || !self.explorer.drag_probe_jobs.insert(relative_path.clone())
-        {
-            return;
-        }
-
-        let project_root = self.global_settings.project_root.clone();
-        let source_path = project_root.join(&relative_path);
-        cx.spawn(async move |editor, cx| {
-            let result = cx
-                .background_executor()
-                .spawn(async move { probe_asset(&source_path, Ulid::from(0)) })
-                .await;
-
-            editor
-                .update(cx, |editor, cx| {
-                    if editor.global_settings.project_root != project_root {
-                        return;
-                    }
-                    editor.explorer.drag_probe_jobs.remove(&relative_path);
-                    match result {
-                        Ok(mut asset) => {
-                            asset.path = relative_path.clone();
-                            editor
-                                .explorer
-                                .drag_assets
-                                .insert(relative_path.clone(), asset.clone());
-
-                            if let Some(preview) = editor
-                                .explorer
-                                .drop_preview
-                                .as_ref()
-                                .filter(|preview| preview.relative_path == relative_path)
-                                .cloned()
-                            {
-                                let drag = ExplorerMediaDrag {
-                                    relative_path: relative_path.clone(),
-                                    name: asset.name.clone(),
-                                    kind: asset.kind,
-                                };
-                                editor.refresh_explorer_drop_preview(
-                                    &drag,
-                                    preview.track_id,
-                                    preview.raw_start,
-                                );
-                            }
-
-                            let pending_matches = editor
-                                .explorer
-                                .pending_drop
-                                .as_ref()
-                                .is_some_and(|pending| pending.relative_path == relative_path);
-                            if pending_matches
-                                && let Some(pending) = editor.explorer.pending_drop.take()
-                            {
-                                editor.place_explorer_asset(
-                                    relative_path.clone(),
-                                    pending.track_id,
-                                    pending.raw_start,
-                                    asset,
-                                    cx,
-                                );
-                            }
-                        }
-                        Err(error) => {
-                            if let Some(preview) = editor
-                                .explorer
-                                .drop_preview
-                                .as_mut()
-                                .filter(|preview| preview.relative_path == relative_path)
-                            {
-                                preview.analyzing = false;
-                                preview.invalid_reason = Some(error.clone());
-                            }
-                            if editor
-                                .explorer
-                                .pending_drop
-                                .as_ref()
-                                .is_some_and(|pending| pending.relative_path == relative_path)
-                            {
-                                editor.explorer.pending_drop = None;
-                                editor.status = None;
-                                eprintln!("{error}");
-                            }
-                        }
-                    }
-                    cx.notify();
-                })
-                .ok();
-        })
-        .detach();
-    }
-
-    fn place_explorer_asset(
+    pub(super) fn place_explorer_asset(
         &mut self,
         relative_path: PathBuf,
         track_id: Ulid,
         raw_start: TimelineTime,
         mut asset: MediaAsset,
         cx: &mut Context<Self>,
-    ) {
+    ) -> anyhow::Result<()> {
         let Some(timeline) = self.timeline.as_ref() else {
-            return;
+            return Ok(());
         };
-        let duration = timeline.data.ceil_time(asset.duration);
+        let duration = timeline
+            .data
+            .nearest_time(asset.duration)
+            .max(TimelineTime::ONE_FRAME);
+        let track_kind = timeline
+            .data
+            .tracks
+            .iter()
+            .find(|track| track.id == track_id)
+            .map(|track| track.kind);
         let (start, _) = timeline.snap_clip_start_ignoring(raw_start, duration, &HashSet::new());
-        if let Err(rejection) = validate_clip_placement(
+        validate_clip_placement(
             &timeline.data,
             track_id,
             asset.kind,
             duration,
             start,
             &HashSet::new(),
-        ) {
-            let reason = rejection.message();
-            self.status = None;
-            eprintln!("Cannot add {}: {reason}.", asset.name);
-            return;
-        }
+        )?;
 
         let Some(timeline) = self.timeline.as_mut() else {
-            return;
+            return Ok(());
         };
         timeline.record_editing_history();
         let (asset_id, assets) = if let Some(asset_id) = timeline
@@ -810,7 +523,7 @@ impl Editor {
             (asset_id, vec![asset])
         };
         let clip_id = Ulid::generate();
-        let media_clip = Clip::Media(MediaClip {
+        let media_clip = VideoClip {
             id: clip_id,
             track_id,
             asset_id,
@@ -819,7 +532,12 @@ impl Editor {
             source_out: duration,
             video_properties: VideoClipProperties::default(),
             audio_properties: AudioClipProperties::default(),
-        });
+        };
+        let media_clip = match track_kind {
+            Some(TrackKind::Video) => Clip::Video(media_clip),
+            Some(TrackKind::Audio) => Clip::Audio(media_clip),
+            _ => anyhow::bail!("the drop target is not a media track"),
+        };
 
         edit_and_rebuild_timeline(
             &mut self.preview,
@@ -829,18 +547,18 @@ impl Editor {
                 clips: vec![media_clip],
                 assets,
             },
-        )
-        .unwrap();
+        )?;
 
         self.explorer.selected_file = Some(relative_path);
         self.select_only_clip(Some(clip_id));
         let Some(timeline) = self.timeline.as_ref() else {
-            return;
+            return Ok(());
         };
         timeline.save(&self.global_settings.project_root);
 
         self.schedule_active_timeline_waveforms(cx);
         self.status = Some("Added media at the selected timeline position.".to_string());
+        Ok(())
     }
 }
 
@@ -891,26 +609,28 @@ fn remap_relative_path(
 }
 
 #[cfg(target_os = "macos")]
-fn move_path_to_trash(path: &std::path::Path) -> Result<(), String> {
+fn move_path_to_trash(path: &std::path::Path) -> anyhow::Result<()> {
     use objc2_foundation::{NSFileManager, NSString, NSURL};
 
     let path = path
         .to_str()
-        .ok_or_else(|| "the path is not valid UTF-8".to_string())?;
+        .ok_or_else(|| anyhow::anyhow!("the path is not valid UTF-8"))?;
     let url = NSURL::fileURLWithPath(&NSString::from_str(path));
     NSFileManager::defaultManager()
         .trashItemAtURL_resultingItemURL_error(&url, None)
-        .map_err(|error| error.to_string())
+        .map_err(|error| anyhow::anyhow!("{error}"))
 }
 
 #[cfg(not(target_os = "macos"))]
-fn move_path_to_trash(_path: &std::path::Path) -> Result<(), String> {
-    Err("moving files to the system Trash is not supported on this platform".to_string())
+fn move_path_to_trash(_path: &std::path::Path) -> anyhow::Result<()> {
+    Err(anyhow::anyhow!(
+        "moving files to the system Trash is not supported on this platform"
+    ))
 }
 
 fn explorer_file_badge(entry: &FileTreeEntry) -> gpui::Div {
     let extension = entry
-        .relative_path
+        .absolute_path
         .extension()
         .and_then(|extension| extension.to_str())
         .map(|extension| {
@@ -947,38 +667,26 @@ fn explorer_file_badge(entry: &FileTreeEntry) -> gpui::Div {
         .child(extension)
 }
 
-fn explorer_asset_for_path(
-    timeline_assets: &[MediaAsset],
-    drag_assets: &HashMap<PathBuf, MediaAsset>,
-    relative_path: &Path,
-) -> Option<MediaAsset> {
-    timeline_assets
-        .iter()
-        .find(|asset| asset.path == relative_path)
-        .or_else(|| drag_assets.get(relative_path))
-        .cloned()
-}
-
 fn save_explorer_expansion(
     project_root: &Path,
     expanded_directories: &HashSet<PathBuf>,
     root_expanded: bool,
-) -> Result<(), String> {
+) -> anyhow::Result<()> {
     let path = file_explorer_settings_path(project_root);
     let Some(directory) = path.parent() else {
-        return Err("file explorer settings path had no parent directory".to_string());
+        anyhow::bail!("file explorer settings path had no parent directory");
     };
     fs::create_dir_all(directory)
-        .map_err(|error| format!("could not create {}: {error}", directory.display()))?;
+        .map_err(|error| anyhow::anyhow!("could not create {}: {error}", directory.display()))?;
     let mut expanded_directories = expanded_directories.iter().cloned().collect::<Vec<_>>();
     expanded_directories.sort();
     let json = serde_json::to_string_pretty(&FileExplorerSettings {
         expanded_directories,
         root_expanded,
     })
-    .map_err(|error| format!("could not serialize file explorer settings: {error}"))?;
+    .map_err(|error| anyhow::anyhow!("could not serialize file explorer settings: {error}"))?;
     fs::write(&path, format!("{json}\n"))
-        .map_err(|error| format!("could not write {}: {error}", path.display()))
+        .map_err(|error| anyhow::anyhow!("could not write {}: {error}", path.display()))
 }
 
 fn file_explorer_settings_path(project_root: &Path) -> PathBuf {

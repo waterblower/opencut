@@ -60,7 +60,7 @@ pub(super) fn export_timeline(
     output: &Path,
     options: ExportOptions,
     report_progress: impl FnMut(f32),
-) -> Result<(), String> {
+) -> anyhow::Result<()> {
     super::export_gstreamer::export_timeline(
         timeline,
         project_root,

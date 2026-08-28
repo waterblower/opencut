@@ -1,6 +1,11 @@
 use super::{
+    ACCENT, TIMELINE_PADDING, TRACK_HEIGHT,
     model::deserialize_ulid,
     timeline::{FrameRate, TimelineTime},
+};
+use gpui::{
+    InteractiveElement, IntoElement, ParentElement, StatefulInteractiveElement, Styled, div, px,
+    rgb,
 };
 use serde::{Deserialize, Serialize};
 use std::time::Duration;
@@ -74,12 +79,13 @@ impl Default for TextClipProperties {
 #[derive(Clone, Debug, Serialize)]
 #[serde(tag = "kind", content = "data")]
 pub(super) enum Clip {
-    Media(MediaClip),
+    Video(VideoClip),
+    Audio(AudioClip),
     Text(TextClip),
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
-pub(super) struct MediaClip {
+pub(super) struct MediaClipData {
     #[serde(deserialize_with = "deserialize_ulid")]
     pub id: Ulid,
     #[serde(deserialize_with = "deserialize_ulid")]
@@ -94,6 +100,9 @@ pub(super) struct MediaClip {
     #[serde(default)]
     pub audio_properties: AudioClipProperties,
 }
+
+pub(super) type VideoClip = MediaClipData;
+pub(super) type AudioClip = MediaClipData;
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub(super) struct TextClip {
@@ -115,58 +124,58 @@ impl TextClip {
 impl Clip {
     pub fn id(&self) -> Ulid {
         match self {
-            Self::Media(clip) => clip.id,
+            Self::Video(clip) | Self::Audio(clip) => clip.id,
             Self::Text(clip) => clip.id,
         }
     }
 
     pub fn set_id(&mut self, id: Ulid) {
         match self {
-            Self::Media(clip) => clip.id = id,
+            Self::Video(clip) | Self::Audio(clip) => clip.id = id,
             Self::Text(clip) => clip.id = id,
         }
     }
 
     pub fn track_id(&self) -> Ulid {
         match self {
-            Self::Media(clip) => clip.track_id,
+            Self::Video(clip) | Self::Audio(clip) => clip.track_id,
             Self::Text(clip) => clip.track_id,
         }
     }
 
     pub fn set_track_id(&mut self, track_id: Ulid) {
         match self {
-            Self::Media(clip) => clip.track_id = track_id,
+            Self::Video(clip) | Self::Audio(clip) => clip.track_id = track_id,
             Self::Text(clip) => clip.track_id = track_id,
         }
     }
 
     pub fn timeline_start(&self) -> TimelineTime {
         match self {
-            Self::Media(clip) => clip.timeline_start,
+            Self::Video(clip) | Self::Audio(clip) => clip.timeline_start,
             Self::Text(clip) => clip.timeline_start,
         }
     }
 
     pub fn set_timeline_start(&mut self, timeline_start: TimelineTime) {
         match self {
-            Self::Media(clip) => clip.timeline_start = timeline_start,
+            Self::Video(clip) | Self::Audio(clip) => clip.timeline_start = timeline_start,
             Self::Text(clip) => clip.timeline_start = timeline_start,
         }
     }
 
-    pub fn media(&self) -> Option<&MediaClip> {
-        let Self::Media(clip) = self else {
-            return None;
-        };
-        Some(clip)
+    pub fn media(&self) -> Option<&MediaClipData> {
+        match self {
+            Self::Video(clip) | Self::Audio(clip) => Some(clip),
+            Self::Text(_) => None,
+        }
     }
 
-    pub fn media_mut(&mut self) -> Option<&mut MediaClip> {
-        let Self::Media(clip) = self else {
-            return None;
-        };
-        Some(clip)
+    pub fn media_mut(&mut self) -> Option<&mut MediaClipData> {
+        match self {
+            Self::Video(clip) | Self::Audio(clip) => Some(clip),
+            Self::Text(_) => None,
+        }
     }
 
     pub fn text(&self) -> Option<&TextClip> {
@@ -178,7 +187,9 @@ impl Clip {
 
     pub fn frame_length(&self, frame_rate: FrameRate) -> TimelineTime {
         match self {
-            Self::Media(clip) => (clip.source_out - clip.source_in).max(TimelineTime::ZERO),
+            Self::Video(clip) | Self::Audio(clip) => {
+                (clip.source_out - clip.source_in).max(TimelineTime::ZERO)
+            }
             Self::Text(clip) => clip.frame_length(frame_rate).max(TimelineTime::ZERO),
         }
     }
@@ -211,7 +222,7 @@ impl Clip {
         right.set_id(Ulid::generate());
         right.set_timeline_start(timeline_position);
         match (&mut left, &mut right) {
-            (Self::Media(left), Self::Media(right)) => {
+            (Self::Video(left), Self::Video(right)) | (Self::Audio(left), Self::Audio(right)) => {
                 let source_split = left.source_in + local;
                 left.source_out = source_split;
                 right.source_in = source_split;
@@ -237,8 +248,11 @@ impl<'de> Deserialize<'de> for Clip {
             value.get("data").cloned(),
         ) {
             return match kind {
-                "Media" => serde_json::from_value::<MediaClip>(data)
-                    .map(Self::Media)
+                "Media" | "Video" => serde_json::from_value::<VideoClip>(data)
+                    .map(Self::Video)
+                    .map_err(serde::de::Error::custom),
+                "Audio" => serde_json::from_value::<AudioClip>(data)
+                    .map(Self::Audio)
                     .map_err(serde::de::Error::custom),
                 "Text" => serde_json::from_value::<TextClip>(data)
                     .map(Self::Text)
@@ -295,28 +309,48 @@ impl<'de> Deserialize<'de> for Clip {
                 .map_err(serde::de::Error::custom);
         }
 
-        let clip = serde_json::from_value::<LegacyClip>(value).map_err(serde::de::Error::custom)?;
-        Ok(if let Some(text) = clip.text_properties {
-            Self::Text(TextClip {
-                id: clip.id,
-                track_id: clip.track_id,
-                timeline_start: clip.timeline_start,
-                length: FrameRate::default().duration(clip.source_out - clip.source_in),
-                properties: text,
-            })
-        } else {
-            Self::Media(MediaClip {
-                id: clip.id,
-                track_id: clip.track_id,
-                asset_id: clip.asset_id,
-                timeline_start: clip.timeline_start,
-                source_in: clip.source_in,
-                source_out: clip.source_out,
-                video_properties: clip.video_properties,
-                audio_properties: clip.audio_properties,
-            })
-        })
+        Err(serde::de::Error::custom(
+            "clip must use the tagged Video, Audio, or Text format",
+        ))
     }
+}
+
+pub(super) fn text_clip_component(
+    clip: TextClip,
+    frame_rate: FrameRate,
+    pixels_per_second: f32,
+    selected: bool,
+    moving: bool,
+) -> impl StatefulInteractiveElement + IntoElement {
+    let clip_id = clip.id;
+    let left =
+        TIMELINE_PADDING + frame_rate.seconds(clip.timeline_start) as f32 * pixels_per_second;
+    let width =
+        (frame_rate.seconds(clip.frame_length(frame_rate)) as f32 * pixels_per_second).max(4.0);
+
+    div()
+        .id(gpui::SharedString::from(format!("timeline-clip-{clip_id}")))
+        .absolute()
+        .left(px(left))
+        .top(px(5.0))
+        .w(px(width))
+        .h(px(TRACK_HEIGHT - 10.0))
+        .overflow_hidden()
+        .rounded_md()
+        .border_1()
+        .border_color(rgb(if selected { ACCENT } else { 0x8261b3 }))
+        .bg(rgb(0x7251a3))
+        .opacity(if moving { 0.3 } else { 1.0 })
+        .child(
+            div()
+                .absolute()
+                .inset_0()
+                .p_2()
+                .text_xs()
+                .font_weight(gpui::FontWeight::SEMIBOLD)
+                .text_ellipsis()
+                .child(clip.properties.text),
+        )
 }
 
 #[derive(Deserialize)]
@@ -328,23 +362,4 @@ struct FrameLengthTextClip {
     timeline_start: TimelineTime,
     length: TimelineTime,
     text: TextClipProperties,
-}
-
-#[derive(Deserialize)]
-struct LegacyClip {
-    #[serde(deserialize_with = "deserialize_ulid")]
-    id: Ulid,
-    #[serde(deserialize_with = "deserialize_ulid")]
-    track_id: Ulid,
-    #[serde(default = "Ulid::nil", deserialize_with = "deserialize_ulid")]
-    asset_id: Ulid,
-    timeline_start: TimelineTime,
-    source_in: TimelineTime,
-    source_out: TimelineTime,
-    #[serde(default)]
-    video_properties: VideoClipProperties,
-    #[serde(default)]
-    audio_properties: AudioClipProperties,
-    #[serde(default)]
-    text_properties: Option<TextClipProperties>,
 }

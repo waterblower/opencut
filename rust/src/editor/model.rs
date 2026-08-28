@@ -33,6 +33,16 @@ pub(super) enum MediaKind {
     Audio,
 }
 
+impl MediaKind {
+    pub(super) fn label(self) -> &'static str {
+        match self {
+            Self::Video => "VIDEO",
+            Self::Image => "IMAGE",
+            Self::Audio => "AUDIO",
+        }
+    }
+}
+
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub(super) struct MediaAsset {
     #[serde(deserialize_with = "deserialize_ulid")]

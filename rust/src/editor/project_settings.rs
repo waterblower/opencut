@@ -20,19 +20,19 @@ pub(super) fn load_project_local_settings(project_root: &Path) -> ProjectLocalSe
 pub(super) fn save_project_local_settings(
     project_root: &Path,
     active_timeline: Option<&Path>,
-) -> Result<(), String> {
+) -> anyhow::Result<()> {
     let path = project_local_settings_path(project_root);
     let Some(directory) = path.parent() else {
-        return Err("project-local settings path had no parent directory".to_string());
+        anyhow::bail!("project-local settings path had no parent directory");
     };
     fs::create_dir_all(directory)
-        .map_err(|error| format!("could not create {}: {error}", directory.display()))?;
+        .map_err(|error| anyhow::anyhow!("could not create {}: {error}", directory.display()))?;
     let json = serde_json::to_string_pretty(&ProjectLocalSettings {
         active_timeline: active_timeline.map(Path::to_path_buf),
     })
-    .map_err(|error| format!("could not serialize project-local settings: {error}"))?;
+    .map_err(|error| anyhow::anyhow!("could not serialize project-local settings: {error}"))?;
     fs::write(&path, format!("{json}\n"))
-        .map_err(|error| format!("could not write {}: {error}", path.display()))
+        .map_err(|error| anyhow::anyhow!("could not write {}: {error}", path.display()))
 }
 
 fn project_local_settings_path(project_root: &Path) -> PathBuf {

@@ -1,176 +1,6 @@
 use super::*;
 
-#[derive(Clone)]
-pub(crate) struct FileContextMenu {
-    relative_path: PathBuf,
-    is_directory: bool,
-    x: f32,
-    y: f32,
-}
-
 impl Editor {
-    pub(crate) fn file_menu_overlay(
-        &self,
-        menu: &FileContextMenu,
-        viewport: gpui::Size<gpui::Pixels>,
-        cx: &mut Context<Self>,
-    ) -> gpui::AnyElement {
-        let width = 268.0;
-        let can_create_timeline = menu.is_directory;
-        let can_open_timeline_settings =
-            !menu.is_directory && timeline_document::is_timeline_path(&menu.relative_path);
-        let can_rename = !menu.relative_path.as_os_str().is_empty();
-        let can_trash = can_rename
-            && !self
-                .timeline
-                .as_ref()
-                .is_some_and(|timeline| timeline.path.starts_with(&menu.relative_path));
-        let height = 92.0
-            + if can_create_timeline { 40.0 } else { 0.0 }
-            + if can_open_timeline_settings {
-                40.0
-            } else {
-                0.0
-            }
-            + if can_rename { 40.0 } else { 0.0 }
-            + if can_trash { 40.0 } else { 0.0 };
-        let left = menu
-            .x
-            .clamp(8.0, (f32::from(viewport.width) - width - 8.0).max(8.0));
-        let top = menu
-            .y
-            .clamp(8.0, (f32::from(viewport.height) - height - 8.0).max(8.0));
-
-        div()
-            .id("file-context-menu-overlay")
-            .absolute()
-            .inset_0()
-            .occlude()
-            .on_mouse_down(
-                MouseButton::Left,
-                cx.listener(|editor, _, _, cx| {
-                    editor.dismiss_file_context_menu();
-                    cx.notify();
-                }),
-            )
-            .on_mouse_down(
-                MouseButton::Right,
-                cx.listener(|editor, _, _, cx| {
-                    editor.dismiss_file_context_menu();
-                    cx.notify();
-                }),
-            )
-            .child(
-                div()
-                    .id("file-context-menu")
-                    .absolute()
-                    .left(px(left))
-                    .top(px(top))
-                    .w(px(width))
-                    .p_1()
-                    .flex()
-                    .flex_col()
-                    .rounded_lg()
-                    .border_1()
-                    .border_color(rgb(BORDER))
-                    .bg(rgb(0x1b1b1e))
-                    .shadow_lg()
-                    .occlude()
-                    .when(can_create_timeline, |this| {
-                        let directory = menu.relative_path.clone();
-                        this.child(
-                            file_menu_item("Create New Timeline", "").on_click(cx.listener(
-                                move |editor, _, window, cx| {
-                                    editor.begin_create_timeline(directory.clone(), window, cx);
-                                },
-                            )),
-                        )
-                    })
-                    .when(can_open_timeline_settings, |this| {
-                        let timeline_path = menu.relative_path.clone();
-                        this.child(file_menu_item("Settings", "").on_click(cx.listener(
-                            move |editor, _, _, cx| {
-                                editor.explorer.context_menu = None;
-                                if let Err(error) = editor.open_timeline(timeline_path.clone(), cx)
-                                {
-                                    eprintln!("{error}");
-                                    return;
-                                }
-                                if editor
-                                    .timeline
-                                    .as_ref()
-                                    .is_some_and(|timeline| timeline.path == timeline_path)
-                                {
-                                    editor.settings_open = true;
-                                }
-                                cx.notify();
-                            },
-                        )))
-                    })
-                    .child(
-                        file_menu_item("Reveal in Finder", "⌥⌘R").on_click(cx.listener(
-                            |editor, _, _, cx| {
-                                editor.reveal_selected_file(cx);
-                                cx.notify();
-                            },
-                        )),
-                    )
-                    .child(
-                        file_menu_item("Open in Default App", "⌃⇧↵").on_click(cx.listener(
-                            |editor, _, _, cx| {
-                                editor.open_selected_file_in_default_app(cx);
-                                cx.notify();
-                            },
-                        )),
-                    )
-                    .when(can_rename, |this| {
-                        this.child(file_menu_item("Rename", "").on_click(cx.listener(
-                            |editor, _, window, cx| {
-                                editor.begin_rename(window, cx);
-                            },
-                        )))
-                    })
-                    .when(can_trash, |this| {
-                        this.child(
-                            file_menu_item("Move to Trash", "")
-                                .text_color(rgb(ERROR))
-                                .on_click(cx.listener(|editor, _, _, cx| {
-                                    if let Err(error) = editor.trash_selected_file(cx) {
-                                        eprintln!("{error}");
-                                    }
-                                    cx.notify();
-                                })),
-                        )
-                    }),
-            )
-            .into_any_element()
-    }
-
-    pub(crate) fn show_file_context_menu(
-        &mut self,
-        relative_path: PathBuf,
-        is_directory: bool,
-        event: &MouseDownEvent,
-        cx: &mut Context<Self>,
-    ) {
-        if let Some(timeline) = self.timeline.as_mut() {
-            timeline.interaction.context_menu = None;
-        }
-        self.explorer.selected_file = Some(relative_path.clone());
-        self.explorer.context_menu = Some(FileContextMenu {
-            relative_path,
-            is_directory,
-            x: event.position.x.into(),
-            y: event.position.y.into(),
-        });
-        cx.stop_propagation();
-        cx.notify();
-    }
-
-    pub(crate) fn dismiss_file_context_menu(&mut self) {
-        self.explorer.context_menu = None;
-    }
-
     /// Opens the new-timeline dialog for `relative_directory`, pre-filled with the next
     /// unused default name so the user can accept it without typing.
     pub(crate) fn begin_create_timeline(
@@ -179,7 +9,7 @@ impl Editor {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        self.explorer.context_menu = None;
+        self.dismiss_context_menu();
         let default_name = timeline_document::default_timeline_name(
             &self.global_settings.project_root,
             &relative_directory,
@@ -201,7 +31,7 @@ impl Editor {
         cx.notify();
     }
 
-    pub(crate) fn finish_create_timeline(&mut self, cx: &mut Context<Self>) -> Result<(), String> {
+    pub(crate) fn finish_create_timeline(&mut self, cx: &mut Context<Self>) -> anyhow::Result<()> {
         let Some(state) = self.explorer.new_timeline_dialog.as_ref() else {
             return Ok(());
         };
@@ -212,21 +42,17 @@ impl Editor {
             &relative_directory,
             &name,
         )
-        .map_err(|error| format!("Could not create timeline: {error}"))?;
+        .map_err(|error| anyhow::anyhow!("Could not create timeline: {error}"))?;
         self.explorer.new_timeline_dialog = None;
         self.activate_created_timeline(relative_directory, relative_path, timeline, cx)
     }
 
     pub(crate) fn begin_rename(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        let Some(relative_path): Option<PathBuf> = self
-            .explorer
-            .context_menu
-            .as_ref()
-            .map(|menu| menu.relative_path.clone())
-        else {
+        let ContextMenu::File(menu) = &self.context_menu else {
             return;
         };
-        self.explorer.context_menu = None;
+        let relative_path = menu.relative_path.clone();
+        self.dismiss_context_menu();
         let Some(name) = relative_path
             .file_name()
             .map(|name: &std::ffi::OsStr| name.to_string_lossy().into_owned())
@@ -251,14 +77,14 @@ impl Editor {
         cx.notify();
     }
 
-    pub(crate) fn finish_rename(&mut self, cx: &mut Context<Self>) -> Result<(), String> {
+    pub(crate) fn finish_rename(&mut self, cx: &mut Context<Self>) -> anyhow::Result<()> {
         let Some(state) = self.explorer.rename_dialog.as_ref() else {
             return Ok(());
         };
         let old_relative = state.relative_path.clone();
         let new_name = state.input.read(cx).query().trim().to_string();
         let Some(new_relative) = renamed_relative_path(&old_relative, &new_name) else {
-            return Err("Enter a single non-empty file or folder name.".to_string());
+            anyhow::bail!("Enter a single non-empty file or folder name.");
         };
         if new_relative == old_relative {
             self.explorer.rename_dialog = None;
@@ -268,13 +94,14 @@ impl Editor {
         let old_path = self.global_settings.project_root.join(&old_relative);
         let new_path = self.global_settings.project_root.join(&new_relative);
         if new_path.exists() {
-            return Err(format!(
+            return Err(anyhow::anyhow!(
                 "Cannot rename: {} already exists.",
                 new_relative.display()
             ));
         }
-        std::fs::rename(&old_path, &new_path)
-            .map_err(|error| format!("Could not rename {}: {error}", old_relative.display()))?;
+        std::fs::rename(&old_path, &new_path).map_err(|error| {
+            anyhow::anyhow!("Could not rename {}: {error}", old_relative.display())
+        })?;
 
         if let Some(timeline) = self.timeline.as_mut() {
             let paths = timeline
@@ -367,51 +194,60 @@ impl Editor {
         Ok(())
     }
 
-    fn reveal_selected_file(&mut self, cx: &mut Context<Self>) {
+    pub(in crate::editor) fn reveal_selected_file(&mut self, cx: &mut Context<Self>) {
         let Some(path) = file_action_path(
-            self.explorer.context_menu.as_ref(),
+            match &self.context_menu {
+                ContextMenu::File(menu) => Some(menu),
+                ContextMenu::None | ContextMenu::TimelineClip(_) | ContextMenu::TextTrack(_) => {
+                    None
+                }
+            },
             self.explorer.selected_file.as_deref(),
             &self.global_settings.project_root,
         ) else {
             return;
         };
-        self.explorer.context_menu = None;
+        self.dismiss_context_menu();
         cx.reveal_path(&path);
     }
 
-    fn open_selected_file_in_default_app(&mut self, cx: &mut Context<Self>) {
+    pub(in crate::editor) fn open_selected_file_in_default_app(&mut self, cx: &mut Context<Self>) {
         let Some(path) = file_action_path(
-            self.explorer.context_menu.as_ref(),
+            match &self.context_menu {
+                ContextMenu::File(menu) => Some(menu),
+                ContextMenu::None | ContextMenu::TimelineClip(_) | ContextMenu::TextTrack(_) => {
+                    None
+                }
+            },
             self.explorer.selected_file.as_deref(),
             &self.global_settings.project_root,
         ) else {
             return;
         };
-        self.explorer.context_menu = None;
+        self.dismiss_context_menu();
         cx.open_with_system(&path);
     }
 
-    fn trash_selected_file(&mut self, cx: &mut Context<Self>) -> Result<(), String> {
-        let Some(relative_path): Option<PathBuf> = self
-            .explorer
-            .context_menu
-            .as_ref()
-            .map(|menu| menu.relative_path.clone())
-        else {
+    pub(in crate::editor) fn trash_selected_file(
+        &mut self,
+        cx: &mut Context<Self>,
+    ) -> anyhow::Result<()> {
+        let ContextMenu::File(menu) = &self.context_menu else {
             return Ok(());
         };
-        self.explorer.context_menu = None;
+        let relative_path = menu.relative_path.clone();
+        self.dismiss_context_menu();
 
         // The project root is the workspace itself, not an entry within it.
         if relative_path.as_os_str().is_empty() {
-            return Err("The project folder cannot be moved to Trash here.".to_string());
+            anyhow::bail!("The project folder cannot be moved to Trash here.");
         }
         if self
             .timeline
             .as_ref()
             .is_some_and(|timeline| timeline.path.starts_with(&relative_path))
         {
-            return Err("The active timeline cannot be moved to Trash.".to_string());
+            anyhow::bail!("The active timeline cannot be moved to Trash.");
         }
 
         let path = self.global_settings.project_root.join(&relative_path);
@@ -421,7 +257,9 @@ impl Editor {
             .unwrap_or_else(|| relative_path.display().to_string());
         if let Err(error) = move_path_to_trash(&path) {
             self.status = None;
-            return Err(format!("Could not move {display_name} to Trash: {error}"));
+            return Err(anyhow::anyhow!(
+                "Could not move {display_name} to Trash: {error}"
+            ));
         }
         self.explorer
             .expanded_directories
@@ -457,27 +295,6 @@ impl Editor {
         self.open_selected_file_in_default_app(cx);
         cx.notify();
     }
-}
-
-fn file_menu_item(label: &'static str, shortcut: &'static str) -> gpui::Stateful<gpui::Div> {
-    div()
-        .id(label)
-        .h(px(40.0))
-        .px_3()
-        .flex()
-        .items_center()
-        .justify_between()
-        .rounded_md()
-        .cursor(CursorStyle::PointingHand)
-        .hover(|style| style.bg(rgb(0x34343a)))
-        .child(div().text_sm().child(label))
-        .child(
-            div()
-                .font_family("monospace")
-                .text_sm()
-                .text_color(rgb(MUTED))
-                .child(shortcut),
-        )
 }
 
 fn file_action_path(
