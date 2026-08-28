@@ -1,6 +1,6 @@
 use super::*;
 use crate::editor::{
-    clip_placement::ClipPlacementRejection, timeline::TimelineSerialization,
+    MediaKind, clip_placement::ClipPlacementRejection, timeline::TimelineSerialization,
     timeline_clip::AudioClip, ulid,
 };
 use std::path::Path;

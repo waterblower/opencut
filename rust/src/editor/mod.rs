@@ -3,10 +3,9 @@ use crate::{
     video::VideoBackend,
 };
 use gpui::{
-    App, Context, CursorStyle, DragMoveEvent, Entity, EventEmitter, FocusHandle, KeyBinding,
-    MouseButton, MouseDownEvent, MouseMoveEvent, MouseUpEvent, ObjectFit, PathPromptOptions,
-    Render, ScrollHandle, ScrollWheelEvent, TouchPhase, Window, actions, div, img, prelude::*, px,
-    rgb,
+    App, Bounds, Context, CursorStyle, Entity, EventEmitter, FocusHandle, KeyBinding, MouseButton,
+    MouseDownEvent, MouseMoveEvent, MouseUpEvent, ObjectFit, PathPromptOptions, Pixels, Render,
+    ScrollHandle, ScrollWheelEvent, TouchPhase, Window, actions, div, img, prelude::*, px, rgb,
 };
 use std::{
     collections::{HashMap, HashSet},
@@ -76,8 +75,8 @@ use preview_timeline::TimelinePreviewDrag;
 use project_settings::{load_project_local_settings, save_project_local_settings};
 use properties_transform::VideoTransformInputs;
 use timeline::{
-    FRAME_RATE_PRESETS, FrameRate, TimelineRuntimeState, TimelineSerialization, TimelineTime,
-    timeline_ranges_overlap,
+    FRAME_RATE_PRESETS, FrameRate, PreviewDropAsset, TimelineRuntimeState, TimelineSerialization,
+    TimelineTime, timeline_ranges_overlap,
 };
 #[cfg(test)]
 use timeline_clip::AudioClip;
@@ -666,12 +665,20 @@ fn format_time(seconds: f64, padded_minutes: bool) -> String {
     }
 }
 
-pub struct EventBus;
-pub enum AppEvent<'a> {
+pub(in crate::editor) struct EventBus;
+pub(in crate::editor) enum AppEvent {
     Edit(EditAction),
-    DragMove(&'a DragMoveEvent<AssetBeingDragged>),
+    DragMove(AssetDragMoveEvent),
 }
-impl EventEmitter<EditAction> for EventBus {}
+
+#[derive(Clone, Debug)]
+pub(in crate::editor) struct AssetDragMoveEvent {
+    pub(in crate::editor) drag: AssetBeingDragged,
+    pub(in crate::editor) event: MouseMoveEvent,
+    pub(in crate::editor) bounds: Bounds<Pixels>,
+}
+
+impl EventEmitter<AppEvent> for EventBus {}
 
 #[cfg(test)]
 #[path = "mod.test.rs"]

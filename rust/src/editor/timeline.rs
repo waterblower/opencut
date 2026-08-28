@@ -2,7 +2,7 @@ use super::model::{MediaAsset, MediaKind};
 use super::timeline_clip::Clip;
 use super::track::Track;
 use super::*;
-use gpui::point;
+use gpui::{AnyElement, point};
 use serde::{Deserialize, Serialize};
 use std::{
     fs,
@@ -53,6 +53,13 @@ pub(super) struct TimelineRuntimeState {
     pub(super) interaction: TimelineInteractionState,
     pub(super) undo_stack: Vec<TimelineSerialization>,
     pub(super) redo_stack: Vec<TimelineSerialization>,
+    pub(super) preview_drop_asset: Option<PreviewDropAsset>,
+}
+
+pub struct PreviewDropAsset {
+    pub track_id: Ulid,
+    pub start_time: TimelineTime,
+    pub asset: AssetBeingDragged,
 }
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -432,6 +439,7 @@ impl TimelineRuntimeState {
             v_scroll: vertical_scroll,
             undo_stack: Vec::new(),
             redo_stack: Vec::new(),
+            preview_drop_asset: None,
         }
     }
 

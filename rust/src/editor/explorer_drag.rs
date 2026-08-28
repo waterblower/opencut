@@ -1,13 +1,11 @@
 use std::{
-    collections::HashSet,
     fs::read_to_string,
     path::{Path, PathBuf},
 };
 
-use anyhow::Context as _;
 use gpui::{
-    Context, CursorStyle, DragMoveEvent, IntoElement, ParentElement, Render, SharedString, Styled,
-    Window, div, px, rgb,
+    Context, DragMoveEvent, IntoElement, ParentElement, Render, SharedString, Styled, Window, div,
+    px, rgb,
 };
 use ulid::Ulid;
 
@@ -135,31 +133,6 @@ impl Render for AssetBeingDragged {
             )
             .child(div().min_w_0().text_sm().text_ellipsis().child(name))
     }
-}
-
-pub(super) fn update_file_drag(
-    timeline: &mut TimelineRuntimeState,
-    event: &DragMoveEvent<AssetBeingDragged>,
-    window: &mut Window,
-    cx: &mut Context<Editor>,
-) {
-    let on_track: Option<Ulid> = (|| {
-        let pointer = event.event.position;
-        if !event.bounds.contains(&pointer) {
-            return None;
-        }
-        let local_y = f32::from(pointer.y) - f32::from(event.bounds.top());
-        if local_y < RULER_HEIGHT {
-            return None;
-        }
-        let track_index = ((local_y - RULER_HEIGHT) / TRACK_HEIGHT).floor() as usize;
-
-        timeline.data.tracks.get(track_index).map(|track| track.id)
-    })();
-    let Some(track_id) = on_track else {
-        return;
-    };
-    timeline
 }
 
 pub(super) fn drop_dragged_explorer_media(

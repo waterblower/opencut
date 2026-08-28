@@ -7,7 +7,7 @@ use crate::{
         editing::{EditAction, edit_and_rebuild_timeline},
         editor::Editor,
         explorer_filter::ExplorerFilter,
-        model::{MediaAsset, MediaKind},
+        model::MediaAsset,
         preview::PreviewTarget,
         preview_audio::AudioBackend,
         project_settings::save_project_local_settings,

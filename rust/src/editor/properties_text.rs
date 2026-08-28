@@ -44,7 +44,7 @@ impl RenderOnce for TextClipPropertiesView {
                                     }),
                                 };
                                 event_bus.update(cx, |_, cx| {
-                                    cx.emit(edit_action);
+                                    cx.emit(AppEvent::Edit(edit_action));
                                 });
                             }
                         });

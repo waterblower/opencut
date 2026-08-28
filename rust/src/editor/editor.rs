@@ -115,20 +115,59 @@ impl Editor {
 
         start_updates(cx);
         let event_bus = cx.new(|_| EventBus {});
-        cx.subscribe(&event_bus, |editor, _, edit_action, cx| {
-            let project_root = editor.global_settings.project_root.clone();
-            let Some(timeline) = editor.timeline.as_mut() else {
-                return;
-            };
-            timeline.record_editing_history();
-            edit_and_rebuild_timeline(
-                &mut editor.preview,
-                &project_root,
-                timeline,
-                edit_action.clone(),
-            )
-            .expect("event bus edit actions cannot be rejected");
-            timeline.save(&project_root);
+        cx.subscribe(&event_bus, |editor, _, event, cx| {
+            match event {
+                AppEvent::Edit(edit_action) => {
+                    let project_root = editor.global_settings.project_root.clone();
+                    let Some(timeline) = editor.timeline.as_mut() else {
+                        return;
+                    };
+                    timeline.record_editing_history();
+                    edit_and_rebuild_timeline(
+                        &mut editor.preview,
+                        &project_root,
+                        timeline,
+                        edit_action.clone(),
+                    )
+                    .expect("event bus edit actions cannot be rejected");
+                    timeline.save(&project_root);
+                }
+                AppEvent::DragMove(event) => {
+                    let timeline = editor.timeline.as_mut();
+                    let on_track: Option<Ulid> = (|| {
+                        let Some(timeline) = timeline.as_deref() else {
+                            return None;
+                        };
+                        let pointer = event.event.position;
+                        if !event.bounds.contains(&pointer) {
+                            return None;
+                        }
+                        let local_y = f32::from(pointer.y) - f32::from(event.bounds.top());
+                        if local_y < RULER_HEIGHT {
+                            return None;
+                        }
+                        let track_index =
+                            ((local_y - RULER_HEIGHT) / TRACK_HEIGHT).floor() as usize;
+
+                        timeline.data.tracks.get(track_index).map(|track| track.id)
+                    })();
+
+                    if let (Some(timeline), Some(track_id)) = (timeline, on_track) {
+                        let local_x =
+                            f32::from(event.event.position.x) - f32::from(event.bounds.left());
+                        let start_time = timeline.data.nearest_time(
+                            ((local_x - TIMELINE_PADDING) / timeline.data.view.pixels_per_second)
+                                .max(0.0) as f64,
+                        );
+                        timeline.preview_drop_asset = Some(PreviewDropAsset {
+                            track_id,
+                            start_time,
+                            asset: event.drag.clone(),
+                        });
+                    }
+                }
+            }
+
             cx.notify();
         })
         .detach();
