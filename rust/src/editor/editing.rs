@@ -89,7 +89,7 @@ impl ClipClipboard {
                             .rescale_nearest(relative_start, frame_rate),
                 );
                 match &mut clip {
-                    Clip::Media(clip) => {
+                    Clip::Video(clip) | Clip::Audio(clip) => {
                         clip.source_in = self
                             .source_frame_rate
                             .rescale_nearest(clip.source_in, frame_rate);
@@ -110,7 +110,7 @@ impl ClipClipboard {
         destination_path: &std::path::Path,
         destination: &TimelineSerialization,
         position: TimelineTime,
-    ) -> Result<(Vec<Clip>, Vec<MediaAsset>), ClipPlacementRejection> {
+    ) -> anyhow::Result<(Vec<Clip>, Vec<MediaAsset>)> {
         let mut clips = self.clips_at(position, destination.settings.frame_rate);
         let same_timeline = self.source_timeline == destination_path;
 
@@ -120,7 +120,7 @@ impl ClipClipboard {
                 .iter()
                 .any(|(track_id, _, _)| destination.track(*track_id).is_none())
             {
-                return Err(ClipPlacementRejection::MissingTrack);
+                return Err(ClipPlacementRejection::MissingTrack.into());
             }
         } else {
             let mut track_ids = HashMap::new();
@@ -131,7 +131,7 @@ impl ClipClipboard {
                     .filter(|track| track.kind == *kind)
                     .nth(*ordinal)
                 else {
-                    return Err(ClipPlacementRejection::MissingTrack);
+                    return Err(ClipPlacementRejection::MissingTrack.into());
                 };
                 track_ids.insert(*source_track_id, destination_track.id);
             }
@@ -150,7 +150,7 @@ impl ClipClipboard {
                 .iter()
                 .any(|asset| destination.asset(asset.id).is_none())
             {
-                return Err(ClipPlacementRejection::MissingAsset);
+                return Err(ClipPlacementRejection::MissingAsset.into());
             }
         } else {
             let mut asset_ids = HashMap::new();
@@ -325,7 +325,7 @@ impl Editor {
             match clipboard.prepare_paste(&timeline.path, &timeline.data, playhead) {
                 Ok(paste) => paste,
                 Err(rejection) => {
-                    eprintln!("Cannot paste clips: {}.", rejection.message());
+                    eprintln!("Cannot paste clips: {rejection}.");
                     return;
                 }
             };
@@ -849,6 +849,10 @@ fn ripple_clips_after_deletion(
     deleted_ids: &HashSet<Ulid>,
     frame_rate: FrameRate,
 ) {
+    if deleted_ids.len() != 1 {
+        return;
+    }
+
     let deleted = clips
         .iter()
         .filter(|clip| deleted_ids.contains(&clip.id()))
@@ -877,18 +881,18 @@ fn ripple_clips_after_deletion(
     }
 }
 
-fn validate_clips_placements(
+pub(super) fn validate_clips_placements(
     timeline: &TimelineSerialization,
     clips: &[Clip],
-) -> Result<(), ClipPlacementRejection> {
+) -> anyhow::Result<()> {
     if clips.is_empty() {
-        return Err(ClipPlacementRejection::NoPlacements);
+        return Err(ClipPlacementRejection::NoPlacements.into());
     }
     for clip in clips {
         match clip {
-            Clip::Media(clip) => {
+            Clip::Video(clip) | Clip::Audio(clip) => {
                 let Some(asset) = timeline.asset(clip.asset_id) else {
-                    return Err(ClipPlacementRejection::MissingAsset);
+                    return Err(ClipPlacementRejection::MissingAsset.into());
                 };
                 validate_clip_placement(
                     timeline,
@@ -918,7 +922,7 @@ fn validate_clips_placements(
                     other.timeline_end(timeline.settings.frame_rate),
                 )
         }) {
-            return Err(ClipPlacementRejection::ProposedClipsOverlap);
+            return Err(ClipPlacementRejection::ProposedClipsOverlap.into());
         }
     }
     Ok(())
@@ -928,6 +932,7 @@ fn plural_suffix(count: usize) -> &'static str {
     if count == 1 { "" } else { "s" }
 }
 
+#[derive(Clone, Debug)]
 pub(super) enum EditAction {
     AddClips {
         clips: Vec<Clip>,
@@ -936,6 +941,9 @@ pub(super) enum EditAction {
     RemoveClips {
         clip_ids: HashSet<Ulid>,
         close_track_gaps: bool,
+    },
+    UpdateClip {
+        clip: Clip,
     },
     MoveClips {
         placements: Vec<(Ulid, Ulid, TimelineTime)>,
@@ -947,10 +955,6 @@ pub(super) enum EditAction {
     SetTextProperties {
         clip_id: Ulid,
         properties: TextClipProperties,
-    },
-    SetTextLength {
-        clip_id: Ulid,
-        length: Duration,
     },
     AddTrack {
         track: Track,
@@ -998,15 +1002,45 @@ pub(super) enum EditAction {
     },
 }
 
+impl EditAction {
+    fn kind(&self) -> &'static str {
+        match self {
+            Self::AddClips { .. } => "AddClips",
+            Self::RemoveClips { .. } => "RemoveClips",
+            Self::MoveClips { .. } => "MoveClips",
+            Self::UpdateClip { .. } => "UpdateClip",
+            Self::SetVideoProperties { .. } => "SetVideoProperties",
+            Self::SetTextProperties { .. } => "SetTextProperties",
+            Self::AddTrack { .. } => "AddTrack",
+            Self::DeleteTrack { .. } => "DeleteTrack",
+            Self::MoveTrack { .. } => "MoveTrack",
+            Self::ToggleTrackVisibility { .. } => "ToggleTrackVisibility",
+            Self::ToggleTrackMute { .. } => "ToggleTrackMute",
+            Self::ToggleTrackLock { .. } => "ToggleTrackLock",
+            Self::SetFrameRate { .. } => "SetFrameRate",
+            Self::SetSavedPlayhead { .. } => "SetSavedPlayhead",
+            Self::SetScroll { .. } => "SetScroll",
+            Self::SetTimelineZoom { .. } => "SetTimelineZoom",
+            Self::SetSnapping { .. } => "SetSnapping",
+            Self::SetTrackMagnet { .. } => "SetTrackMagnet",
+            Self::UpdateAssetPaths { .. } => "UpdateAssetPaths",
+            Self::ReplaceTimeline { .. } => "ReplaceTimeline",
+        }
+    }
+}
+
 pub(super) fn edit_and_rebuild_timeline(
     preview: &mut PreviewState,
     project_root: &Path,
     timeline: &mut TimelineRuntimeState,
     action: EditAction,
-) -> Result<(), EditError> {
+) -> anyhow::Result<()> {
+    let action_type = action.kind();
+    let t = Instant::now();
     let rebuild_timeline = edit_timeline(timeline, project_root, action)?;
-
+    eprintln!("edit_timeline {action_type} - {:?}", t.elapsed());
     if !rebuild_timeline {
+        data_parity_check(&timeline, &timeline.ges_timeline)?;
         return Ok(());
     }
     eprintln!("rebuild the timeline is slow");
@@ -1030,11 +1064,12 @@ pub(super) fn edit_and_rebuild_timeline(
         return Ok(());
     }
 
-    let mut video = create_timeline_video_v2(&timeline.ges_timeline).unwrap();
+    let mut video = create_timeline_video(&timeline.ges_timeline).unwrap();
     video.set_volume(volume);
     video.set_muted(volume <= f64::EPSILON);
     let _ = video.seek(timeline.data.duration(timeline.playhead), true);
     preview.target = PreviewTarget::Timeline(video);
+    data_parity_check(&timeline, &timeline.ges_timeline)?;
     Ok(())
 }
 
@@ -1042,7 +1077,7 @@ pub(super) fn edit_timeline(
     timeline: &mut TimelineRuntimeState,
     project_root: &Path,
     action: EditAction,
-) -> Result<bool, EditError> {
+) -> anyhow::Result<bool> {
     match action {
         EditAction::AddClips { clips, assets } => {
             let mut updated_timeline = timeline.data.clone();
@@ -1062,18 +1097,36 @@ pub(super) fn edit_timeline(
             clip_ids,
             close_track_gaps,
         } => {
+            let mut updated_timeline = timeline.data.clone();
             if close_track_gaps {
-                let frame_rate = timeline.data.settings.frame_rate;
-                ripple_clips_after_deletion(&mut timeline.data.clips, &clip_ids, frame_rate);
+                let frame_rate = updated_timeline.settings.frame_rate;
+                ripple_clips_after_deletion(&mut updated_timeline.clips, &clip_ids, frame_rate);
             }
-            timeline
-                .data
+            updated_timeline
                 .clips
                 .retain(|clip| !clip_ids.contains(&clip.id()));
+            let ripple_placements = updated_timeline
+                .clips
+                .iter()
+                .filter(|clip| {
+                    timeline.data.clip(clip.id()).is_some_and(|previous| {
+                        previous.track_id() != clip.track_id()
+                            || previous.timeline_start() != clip.timeline_start()
+                    })
+                })
+                .map(|clip| (clip.id(), clip.track_id(), clip.timeline_start()))
+                .collect::<Vec<_>>();
             ges_remove_clips(&timeline.ges_timeline, &clip_ids)?;
+            ges_move_clips(
+                &timeline.ges_timeline,
+                &updated_timeline,
+                &ripple_placements,
+            )?;
+            timeline.data = updated_timeline;
             return Ok(false);
         }
         EditAction::MoveClips { placements } => {
+            let t = Instant::now();
             let moved_clip_ids = placements
                 .iter()
                 .map(|(clip_id, _, _)| *clip_id)
@@ -1081,12 +1134,64 @@ pub(super) fn edit_timeline(
             timeline
                 .data
                 .validate_clip_move_placements(&placements, &moved_clip_ids)?;
+
+            ges_move_clips(&timeline.ges_timeline, &timeline.data, &placements)?;
+
             for (clip_id, track_id, start) in placements {
                 if let Some(clip) = timeline.data.clip_mut(clip_id) {
                     clip.set_timeline_start(start);
                     clip.set_track_id(track_id);
                 }
             }
+            eprintln!("EditAction::MoveClips {:?}", t.elapsed());
+
+            return Ok(false);
+        }
+        EditAction::UpdateClip { clip } => {
+            let clip_id = clip.id();
+            let clip_index = timeline
+                .data
+                .clip_index(clip_id)
+                .expect("updated clip must already exist");
+
+            if let (Clip::Text(previous), Clip::Text(updated)) =
+                (&timeline.data.clips[clip_index], &clip)
+                && previous.track_id == updated.track_id
+                && previous.timeline_start == updated.timeline_start
+                && previous.length == updated.length
+            {
+                if previous.properties != updated.properties
+                    && timeline
+                        .data
+                        .track(updated.track_id)
+                        .is_some_and(|track| track.visible)
+                {
+                    ges_change_text_clip(&timeline.ges_timeline, clip_id, &updated.properties)
+                        .expect("updated text clip properties must be applicable to GES");
+                }
+                timeline.data.clips[clip_index] = clip;
+                return Ok(false);
+            }
+
+            let mut updated_timeline = timeline.data.clone();
+            updated_timeline.clips.remove(clip_index);
+            validate_clips_placements(&updated_timeline, std::slice::from_ref(&clip))
+                .expect("updated clip placement must be valid");
+            updated_timeline.clips.insert(clip_index, clip.clone());
+
+            let clip_ids = HashSet::from([clip_id]);
+            ges_remove_clips(&timeline.ges_timeline, &clip_ids)
+                .expect("updated clip must be removable from GES");
+            ges_add_clips(
+                &timeline.ges_timeline,
+                &updated_timeline,
+                project_root,
+                std::slice::from_ref(&clip),
+            )
+            .expect("updated clip must be addable to GES");
+
+            timeline.data = updated_timeline;
+            return Ok(false);
         }
         EditAction::SetVideoProperties {
             clip_ids,
@@ -1105,34 +1210,9 @@ pub(super) fn edit_timeline(
             if let Some(Clip::Text(clip)) = timeline.data.clip_mut(clip_id) {
                 clip.properties = properties;
                 // change the text of a text clip
-                ges_change_text_clip(
-                    &timeline.ges_timeline,
-                    clip_id,
-                    &clip.properties,
-                    clip.length,
-                )?;
+                ges_change_text_clip(&timeline.ges_timeline, clip_id, &clip.properties)?;
             }
             return Ok(false); // should not rebuild timeline
-        }
-        EditAction::SetTextLength { clip_id, length } => {
-            let Some(Clip::Text(clip)) = timeline.data.clip(clip_id) else {
-                return Err(ClipPlacementRejection::MissingClip.into());
-            };
-            let frame_rate = timeline.data.settings.frame_rate;
-            validate_text_clip_placement(
-                &timeline.data,
-                clip.track_id,
-                frame_rate.frames_from_duration_nearest(length),
-                clip.timeline_start,
-                &HashSet::from([clip_id]),
-            )?;
-            let properties = clip.properties.clone();
-            ges_change_text_clip(&timeline.ges_timeline, clip_id, &properties, length)?;
-            let Some(Clip::Text(clip)) = timeline.data.clip_mut(clip_id) else {
-                return Err(ClipPlacementRejection::MissingClip.into());
-            };
-            clip.length = length;
-            return Ok(false);
         }
         EditAction::AddTrack { track } => timeline.data.tracks.push(track),
         EditAction::DeleteTrack { track_id } => {
@@ -1202,22 +1282,133 @@ pub(super) fn edit_timeline(
     Ok(true)
 }
 
-#[derive(Debug)]
-pub(super) enum EditError {
-    ClipPlacement(ClipPlacementRejection),
-    Preview(String),
-}
+fn ges_move_clips(
+    ges: &gstreamer_editing_services::Timeline,
+    timeline: &TimelineSerialization,
+    placements: &[(Ulid, Ulid, TimelineTime)],
+) -> anyhow::Result<()> {
+    use gstreamer_editing_services::prelude::*;
 
-impl From<ClipPlacementRejection> for EditError {
-    fn from(error: ClipPlacementRejection) -> Self {
-        Self::ClipPlacement(error)
+    if placements.is_empty() {
+        return Ok(());
     }
-}
 
-impl From<String> for EditError {
-    fn from(error: String) -> Self {
-        Self::Preview(error)
+    let layers = ges.layers();
+    let ordered_tracks = timeline
+        .tracks
+        .iter()
+        .filter(|track| track.kind == TrackKind::Text)
+        .chain(
+            timeline
+                .tracks
+                .iter()
+                .filter(|track| track.kind != TrackKind::Text),
+        )
+        .collect::<Vec<_>>();
+    let clips_by_name = layers
+        .iter()
+        .enumerate()
+        .flat_map(|(layer_index, layer)| {
+            layer
+                .clips()
+                .into_iter()
+                .map(move |clip| (layer_index, clip))
+        })
+        .filter_map(|(layer_index, clip)| Some((clip.name()?.to_string(), (layer_index, clip))))
+        .collect::<HashMap<_, _>>();
+    let clock_time = |time| {
+        let duration = timeline.duration(time);
+        gstreamer::ClockTime::from_nseconds(duration.as_nanos().min(u64::MAX as u128) as u64)
+    };
+
+    let mut moves = Vec::new();
+    for (clip_id, track_id, start) in placements {
+        let layer_index = ordered_tracks
+            .iter()
+            .position(|track| track.id == *track_id)
+            .ok_or_else(|| anyhow::anyhow!("Track {track_id} has no GES layer."))?;
+        if layers.get(layer_index).is_none() {
+            return Err(anyhow::anyhow!("Track {track_id} has no GES layer."));
+        }
+        let clip_name = format!("opencut-clip-{clip_id}");
+        let Some((original_layer_index, clip)) = clips_by_name.get(&clip_name) else {
+            continue;
+        };
+        moves.push((
+            *clip_id,
+            clip.clone(),
+            *original_layer_index,
+            layer_index,
+            clock_time(*start),
+        ));
     }
+
+    if moves.len() > 1 {
+        let parking_gap = clock_time(TimelineTime::ONE_FRAME).nseconds().max(1);
+        let mut parking_start = layers
+            .iter()
+            .flat_map(|layer| layer.clips())
+            .map(|clip| {
+                clip.start()
+                    .nseconds()
+                    .saturating_add(clip.duration().nseconds())
+            })
+            .max()
+            .unwrap_or(0)
+            .saturating_add(parking_gap);
+        for (clip_id, clip, original_layer_index, _, _) in &moves {
+            clip.edit_full(
+                *original_layer_index as i64,
+                gstreamer_editing_services::EditMode::Normal,
+                gstreamer_editing_services::Edge::None,
+                parking_start,
+            )
+            .map_err(|error| anyhow::anyhow!("could not stage GES clip {clip_id}: {error}"))?;
+            parking_start = parking_start
+                .saturating_add(clip.duration().nseconds())
+                .saturating_add(parking_gap);
+        }
+    }
+
+    for (clip_id, clip, _, layer_index, start) in &moves {
+        clip.edit_full(
+            *layer_index as i64,
+            gstreamer_editing_services::EditMode::Normal,
+            gstreamer_editing_services::Edge::None,
+            start.nseconds(),
+        )
+        .map_err(|error| anyhow::anyhow!("could not move GES clip {clip_id}: {error}"))?;
+    }
+
+    let placements_by_clip = placements
+        .iter()
+        .map(|(clip_id, _, start)| (*clip_id, *start))
+        .collect::<HashMap<_, _>>();
+    let content_duration = timeline
+        .clips
+        .iter()
+        .map(|clip| {
+            placements_by_clip
+                .get(&clip.id())
+                .copied()
+                .unwrap_or_else(|| clip.timeline_start())
+                + clip.frame_length(timeline.settings.frame_rate)
+        })
+        .max()
+        .map(clock_time)
+        .unwrap_or(gstreamer::ClockTime::ZERO);
+    if let Some(background) = layers
+        .iter()
+        .flat_map(|layer| layer.clips())
+        .find(|clip| clip.name().as_deref() == Some("opencut-black-background"))
+        && !background.set_duration(content_duration)
+    {
+        anyhow::bail!("could not update the GES timeline background duration");
+    }
+    if !ges.commit() {
+        anyhow::bail!("GStreamer could not commit the moved clips.");
+    }
+    Ok(())
 }
 
 // change the text of a text clip in the ges timeline
@@ -1225,8 +1416,7 @@ fn ges_change_text_clip(
     ges: &gstreamer_editing_services::Timeline,
     clip_id: Ulid,
     properties: &TextClipProperties,
-    length: Duration,
-) -> Result<(), String> {
+) -> anyhow::Result<()> {
     use gstreamer_editing_services::prelude::*;
 
     let clip_name = format!("opencut-clip-{clip_id}");
@@ -1235,10 +1425,10 @@ fn ges_change_text_clip(
         .into_iter()
         .flat_map(|layer| layer.clips())
         .find(|clip| clip.name().as_deref() == Some(clip_name.as_str()))
-        .ok_or_else(|| format!("timeline preview has no text clip for {clip_id}"))?;
+        .ok_or_else(|| anyhow::anyhow!("timeline preview has no text clip for {clip_id}"))?;
     let overlay = clip
         .downcast::<gstreamer_editing_services::TextOverlayClip>()
-        .map_err(|_| format!("timeline preview clip {clip_id} is not a text clip"))?;
+        .map_err(|_| anyhow::anyhow!("timeline preview clip {clip_id} is not a text clip"))?;
     overlay.set_text(Some(&properties.text));
     overlay.set_font_desc(Some(&format!(
         "{} {}px",
@@ -1249,36 +1439,8 @@ fn ges_change_text_clip(
     overlay.set_valign(gstreamer_editing_services::TextVAlign::Position);
     overlay.set_xpos(properties.position_x);
     overlay.set_ypos(properties.position_y);
-    if !overlay.set_duration(gstreamer::ClockTime::from_nseconds(
-        length.as_nanos().min(u64::MAX as u128) as u64,
-    )) {
-        return Err(format!(
-            "could not change the duration of GES text clip {clip_id}"
-        ));
-    }
-    let content_duration_ns = ges
-        .layers()
-        .into_iter()
-        .flat_map(|layer| layer.clips())
-        .filter(|clip| clip.name().as_deref() != Some("opencut-black-background"))
-        .map(|clip| {
-            clip.start()
-                .nseconds()
-                .saturating_add(clip.duration().nseconds())
-        })
-        .max()
-        .unwrap_or(0);
-    if let Some(background) = ges
-        .layers()
-        .into_iter()
-        .flat_map(|layer| layer.clips())
-        .find(|clip| clip.name().as_deref() == Some("opencut-black-background"))
-        && !background.set_duration(gstreamer::ClockTime::from_nseconds(content_duration_ns))
-    {
-        return Err("could not update the GES timeline background duration".to_string());
-    }
-    if !ges.commit_sync() {
-        return Err("GStreamer could not commit the preview text change.".to_string());
+    if !ges.commit() {
+        anyhow::bail!("GStreamer could not commit the preview text change.");
     }
     Ok(())
 }
@@ -1286,7 +1448,7 @@ fn ges_change_text_clip(
 fn ges_remove_clips(
     ges: &gstreamer_editing_services::Timeline,
     clips: &HashSet<Ulid>,
-) -> Result<(), String> {
+) -> anyhow::Result<()> {
     use gstreamer_editing_services::prelude::*;
 
     if clips.is_empty() {
@@ -1318,7 +1480,7 @@ fn ges_remove_clips(
             .unwrap_or_else(|| "<unnamed>".to_string());
         layer
             .remove_clip(&clip)
-            .map_err(|error| format!("could not remove GES clip {name}: {error}"))?;
+            .map_err(|error| anyhow::anyhow!("could not remove GES clip {name}: {error}"))?;
     }
 
     let mut background = None;
@@ -1340,14 +1502,14 @@ fn ges_remove_clips(
         if content_duration_ns == 0 {
             background_layer
                 .remove_clip(&background)
-                .map_err(|error| format!("could not remove the GES background: {error}"))?;
+                .map_err(|error| anyhow::anyhow!("could not remove the GES background: {error}"))?;
         } else if !background.set_duration(gstreamer::ClockTime::from_nseconds(content_duration_ns))
         {
-            return Err("could not update the GES timeline background duration".to_string());
+            anyhow::bail!("could not update the GES timeline background duration");
         }
     }
-    if !ges.commit_sync() {
-        return Err("GStreamer could not commit the removed clips.".to_string());
+    if !ges.commit() {
+        anyhow::bail!("GStreamer could not commit the removed clips.");
     }
     Ok(())
 }
@@ -1357,7 +1519,7 @@ fn ges_add_clips(
     timeline: &TimelineSerialization,
     project_root: &Path,
     clips: &[Clip],
-) -> Result<(), String> {
+) -> anyhow::Result<()> {
     use gstreamer_editing_services::prelude::*;
 
     let layers = ges.layers();
@@ -1383,14 +1545,14 @@ fn ges_add_clips(
     for clip in clips {
         let timeline_track = timeline
             .track(clip.track_id())
-            .ok_or_else(|| format!("Clip {} has no timeline track.", clip.id()))?;
+            .ok_or_else(|| anyhow::anyhow!("Clip {} has no timeline track.", clip.id()))?;
         let layer_index = ordered_tracks
             .iter()
             .position(|track| track.id == timeline_track.id)
-            .ok_or_else(|| format!("Clip {} has no GES layer.", clip.id()))?;
+            .ok_or_else(|| anyhow::anyhow!("Clip {} has no GES layer.", clip.id()))?;
         let layer = layers
             .get(layer_index)
-            .ok_or_else(|| format!("Clip {} has no GES layer.", clip.id()))?;
+            .ok_or_else(|| anyhow::anyhow!("Clip {} has no GES layer.", clip.id()))?;
 
         if timeline_track.kind == TrackKind::Text {
             if !timeline_track.visible {
@@ -1398,9 +1560,9 @@ fn ges_add_clips(
             }
             let text = clip
                 .text()
-                .ok_or_else(|| format!("Media clip {} is on a text track.", clip.id()))?;
+                .ok_or_else(|| anyhow::anyhow!("Media clip {} is on a text track.", clip.id()))?;
             let overlay = gstreamer_editing_services::TextOverlayClip::new()
-                .ok_or_else(|| format!("could not create text clip {}", clip.id()))?;
+                .ok_or_else(|| anyhow::anyhow!("could not create text clip {}", clip.id()))?;
             let font_size = (text.properties.font_size * output_scale).clamp(1.0, 1000.0);
             overlay.set_text(Some(&text.properties.text));
             overlay.set_font_desc(Some(&format!("{} {font_size}px", text.properties.font)));
@@ -1411,17 +1573,25 @@ fn ges_add_clips(
             overlay.set_ypos(text.properties.position_y);
             overlay
                 .set_name(Some(&format!("opencut-clip-{}", clip.id())))
-                .map_err(|error| format!("could not identify clip {}: {error}", clip.id()))?;
+                .map_err(|error| {
+                    anyhow::anyhow!("could not identify clip {}: {error}", clip.id())
+                })?;
             if !overlay.set_start(clock_time(timeline.duration(clip.timeline_start()))) {
-                return Err(format!("could not set text clip {} start", clip.id()));
+                return Err(anyhow::anyhow!(
+                    "could not set text clip {} start",
+                    clip.id()
+                ));
             }
             if !overlay.set_duration(clock_time(
                 timeline.duration(clip.frame_length(timeline.settings.frame_rate)),
             )) {
-                return Err(format!("could not set text clip {} duration", clip.id()));
+                return Err(anyhow::anyhow!(
+                    "could not set text clip {} duration",
+                    clip.id()
+                ));
             }
             layer.add_clip(&overlay).map_err(|error| {
-                format!(
+                anyhow::anyhow!(
                     "could not add text clip {} to the GES timeline: {error}",
                     clip.id()
                 )
@@ -1431,10 +1601,10 @@ fn ges_add_clips(
 
         let media = clip
             .media()
-            .ok_or_else(|| format!("Text clip {} is on a media track.", clip.id()))?;
+            .ok_or_else(|| anyhow::anyhow!("Text clip {} is on a media track.", clip.id()))?;
         let asset = timeline
             .asset(media.asset_id)
-            .ok_or_else(|| format!("Clip {} has no source media.", clip.id()))?;
+            .ok_or_else(|| anyhow::anyhow!("Clip {} has no source media.", clip.id()))?;
         let mut track_types = gstreamer_editing_services::TrackType::empty();
         if timeline_track.kind == TrackKind::Video
             && timeline_track.visible
@@ -1459,10 +1629,13 @@ fn ges_add_clips(
             uri_asset.clone()
         } else {
             let source = project_root.join(&asset.path);
-            let uri = url::Url::from_file_path(&source)
-                .map_err(|_| format!("could not convert {} to a file URL", source.display()))?;
+            let uri = url::Url::from_file_path(&source).map_err(|_| {
+                anyhow::anyhow!("could not convert {} to a file URL", source.display())
+            })?;
             let uri_asset = gstreamer_editing_services::UriClipAsset::request_sync(uri.as_str())
-                .map_err(|error| format!("could not inspect {}: {error}", source.display()))?;
+                .map_err(|error| {
+                    anyhow::anyhow!("could not inspect {}: {error}", source.display())
+                })?;
             uri_assets.insert(asset.id, uri_asset.clone());
             uri_asset
         };
@@ -1479,11 +1652,11 @@ fn ges_add_clips(
         let ges_clip = layer
             .add_asset(&uri_asset, start, inpoint, duration, track_types)
             .map_err(|error| {
-                format!("could not add {} to the GES timeline: {error}", asset.name)
+                anyhow::anyhow!("could not add {} to the GES timeline: {error}", asset.name)
             })?;
         ges_clip
             .set_name(Some(&format!("opencut-clip-{}", clip.id())))
-            .map_err(|error| format!("could not identify clip {}: {error}", clip.id()))?;
+            .map_err(|error| anyhow::anyhow!("could not identify clip {}: {error}", clip.id()))?;
         if track_types.contains(gstreamer_editing_services::TrackType::VIDEO) {
             super::export_gstreamer::apply_video_transform(
                 &ges_clip,
@@ -1510,28 +1683,239 @@ fn ges_add_clips(
         .find(|clip| clip.name().as_deref() == Some("opencut-black-background"))
     {
         if !background.set_duration(content_duration) {
-            return Err("could not update the GES timeline background duration".to_string());
+            anyhow::bail!("could not update the GES timeline background duration");
         }
     } else if !content_duration.is_zero() {
         let background_layer = ges.append_layer();
         let background = gstreamer_editing_services::TestClip::new()
-            .ok_or_else(|| "could not create the GES timeline background".to_string())?;
+            .ok_or_else(|| anyhow::anyhow!("could not create the GES timeline background"))?;
         background.set_supported_formats(gstreamer_editing_services::TrackType::VIDEO);
         background.set_vpattern(gstreamer_editing_services::VideoTestPattern::Black);
         background.set_mute(true);
         background
             .set_name(Some("opencut-black-background"))
-            .map_err(|error| format!("could not identify the GES background: {error}"))?;
+            .map_err(|error| anyhow::anyhow!("could not identify the GES background: {error}"))?;
         if !background.set_duration(content_duration) {
-            return Err("could not set the GES timeline background duration".to_string());
+            anyhow::bail!("could not set the GES timeline background duration");
         }
-        background_layer
-            .add_clip(&background)
-            .map_err(|error| format!("could not add the GES timeline background: {error}"))?;
+        background_layer.add_clip(&background).map_err(|error| {
+            anyhow::anyhow!("could not add the GES timeline background: {error}")
+        })?;
     }
-    if !ges.commit_sync() {
-        return Err("GStreamer could not commit the added clips.".to_string());
+    if !ges.commit() {
+        anyhow::bail!("GStreamer could not commit the added clips.");
     }
+    Ok(())
+}
+
+#[allow(dead_code)] // Diagnostic utility for checking asynchronous GES commits.
+pub(super) fn data_parity_check(
+    timeline_runtime: &TimelineRuntimeState,
+    ges_timeline: &gstreamer_editing_services::Timeline,
+) -> anyhow::Result<()> {
+    use gstreamer_editing_services::prelude::*;
+
+    let timeline = &timeline_runtime.data;
+    let layers = ges_timeline.layers();
+    let ordered_tracks = timeline
+        .tracks
+        .iter()
+        .filter(|track| track.kind == TrackKind::Text)
+        .chain(
+            timeline
+                .tracks
+                .iter()
+                .filter(|track| track.kind != TrackKind::Text),
+        )
+        .collect::<Vec<_>>();
+    let mut ges_clips = HashMap::new();
+    let mut backgrounds = Vec::new();
+    for (layer_index, layer) in layers.iter().enumerate() {
+        for clip in layer.clips() {
+            let Some(name) = clip.name() else {
+                return Err(anyhow::anyhow!(
+                    "GES layer {layer_index} contains an unnamed clip"
+                ));
+            };
+            if name.as_str() == "opencut-black-background" {
+                backgrounds.push(clip);
+                continue;
+            }
+            let Some(id) = name.strip_prefix("opencut-clip-") else {
+                return Err(anyhow::anyhow!(
+                    "GES layer {layer_index} contains unexpected clip `{name}`"
+                ));
+            };
+            let id = id
+                .parse::<Ulid>()
+                .map_err(|error| anyhow::anyhow!("GES clip `{name}` has an invalid ID: {error}"))?;
+            if ges_clips.insert(id, (layer_index, clip)).is_some() {
+                return Err(anyhow::anyhow!("GES contains duplicate clip {id}"));
+            }
+        }
+    }
+
+    let clock_time = |duration: Duration| {
+        gstreamer::ClockTime::from_nseconds(duration.as_nanos().min(u64::MAX as u128) as u64)
+    };
+    let frame_rate = timeline.settings.frame_rate;
+    let clock_time_frame = |time: gstreamer::ClockTime| {
+        frame_rate.frames_from_duration_nearest(Duration::from_nanos(time.nseconds()))
+    };
+    for clip in &timeline.clips {
+        let clip_id = clip.id();
+        let track = timeline
+            .track(clip.track_id())
+            .ok_or_else(|| anyhow::anyhow!("Timeline clip {clip_id} has no track"))?;
+        let expected_layer = ordered_tracks
+            .iter()
+            .position(|candidate| candidate.id == track.id)
+            .ok_or_else(|| {
+                anyhow::anyhow!("Timeline track {} has no GES layer mapping", track.id)
+            })?;
+        if layers.get(expected_layer).is_none() {
+            return Err(anyhow::anyhow!(
+                "Timeline track {} expects missing GES layer {expected_layer}",
+                track.id
+            ));
+        }
+
+        let (expected_rendered, expected_formats, expected_inpoint) = match clip {
+            Clip::Text(_) => (
+                track.kind == TrackKind::Text && track.visible,
+                None,
+                gstreamer::ClockTime::ZERO,
+            ),
+            Clip::Video(media) | Clip::Audio(media) => {
+                let asset = timeline
+                    .asset(media.asset_id)
+                    .ok_or_else(|| anyhow::anyhow!("Timeline clip {clip_id} has no media asset"))?;
+                let mut formats = gstreamer_editing_services::TrackType::empty();
+                if track.kind == TrackKind::Video
+                    && track.visible
+                    && matches!(asset.kind, MediaKind::Video | MediaKind::Image)
+                {
+                    formats |= gstreamer_editing_services::TrackType::VIDEO;
+                }
+                if asset.has_audio
+                    && !super::clip_render_plan::resolve_audio_clip_render_plan(
+                        track.muted,
+                        media.audio_properties,
+                    )
+                    .muted
+                {
+                    formats |= gstreamer_editing_services::TrackType::AUDIO;
+                }
+                let inpoint = if asset.kind == MediaKind::Image {
+                    gstreamer::ClockTime::ZERO
+                } else if formats.contains(gstreamer_editing_services::TrackType::VIDEO) {
+                    clock_time(Duration::from_secs_f64(timeline.source_start_seconds(clip)))
+                } else {
+                    clock_time(timeline.audio_duration(media.source_in))
+                };
+                (!formats.is_empty(), Some(formats), inpoint)
+            }
+        };
+
+        let rendered = ges_clips.remove(&clip_id);
+        if !expected_rendered {
+            if rendered.is_some() {
+                return Err(anyhow::anyhow!(
+                    "Timeline clip {clip_id} should not be rendered, but GES contains it"
+                ));
+            }
+            continue;
+        }
+        let Some((actual_layer, rendered)) = rendered else {
+            return Err(anyhow::anyhow!("GES is missing timeline clip {clip_id}"));
+        };
+        if actual_layer != expected_layer {
+            return Err(anyhow::anyhow!(
+                "Clip {clip_id} is on GES layer {actual_layer}, expected {expected_layer}"
+            ));
+        }
+        let expected_start = clock_time(timeline.duration(clip.timeline_start()));
+        if clock_time_frame(rendered.start()) != clip.timeline_start() {
+            return Err(anyhow::anyhow!(
+                "Clip {clip_id} starts at {} ns (frame {}) in GES, expected {} ns (frame {})",
+                rendered.start().nseconds(),
+                clock_time_frame(rendered.start()).frames(),
+                expected_start.nseconds(),
+                clip.timeline_start().frames()
+            ));
+        }
+        let expected_duration_frames = clip.frame_length(frame_rate);
+        let expected_duration = clock_time(timeline.duration(expected_duration_frames));
+        if clock_time_frame(rendered.duration()) != expected_duration_frames {
+            return Err(anyhow::anyhow!(
+                "Clip {clip_id} lasts {} ns ({} frames) in GES, expected {} ns ({} frames)",
+                rendered.duration().nseconds(),
+                clock_time_frame(rendered.duration()).frames(),
+                expected_duration.nseconds(),
+                expected_duration_frames.frames()
+            ));
+        }
+        if clock_time_frame(rendered.inpoint()) != clock_time_frame(expected_inpoint) {
+            return Err(anyhow::anyhow!(
+                "Clip {clip_id} has in-point {} ns (frame {}) in GES, expected {} ns (frame {})",
+                rendered.inpoint().nseconds(),
+                clock_time_frame(rendered.inpoint()).frames(),
+                expected_inpoint.nseconds(),
+                clock_time_frame(expected_inpoint).frames()
+            ));
+        }
+        if matches!(clip, Clip::Text(_))
+            && !rendered.is::<gstreamer_editing_services::TextOverlayClip>()
+        {
+            return Err(anyhow::anyhow!("Clip {clip_id} is not a GES text overlay"));
+        }
+        if let Some(expected_formats) = expected_formats
+            && rendered.supported_formats() != expected_formats
+        {
+            return Err(anyhow::anyhow!(
+                "Clip {clip_id} has GES formats {:?}, expected {:?}",
+                rendered.supported_formats(),
+                expected_formats
+            ));
+        }
+    }
+
+    if let Some((clip_id, _)) = ges_clips.into_iter().next() {
+        return Err(anyhow::anyhow!("GES contains unexpected clip {clip_id}"));
+    }
+    let expected_background_duration = clock_time(timeline.duration(timeline.content_duration()));
+    match backgrounds.as_slice() {
+        [] if expected_background_duration.is_zero() => {}
+        [] => return Err(anyhow::anyhow!("GES is missing the black background clip")),
+        [_] if expected_background_duration.is_zero() => {
+            anyhow::bail!("GES contains a black background for an empty timeline");
+        }
+        [background] if background.start() != gstreamer::ClockTime::ZERO => {
+            return Err(anyhow::anyhow!(
+                "GES background starts at {} ns, expected 0 ns",
+                background.start().nseconds()
+            ));
+        }
+        [background]
+            if clock_time_frame(background.duration())
+                != clock_time_frame(expected_background_duration) =>
+        {
+            return Err(anyhow::anyhow!(
+                "GES background lasts {} ns ({} frames), expected {} ns ({} frames)",
+                background.duration().nseconds(),
+                clock_time_frame(background.duration()).frames(),
+                expected_background_duration.nseconds(),
+                clock_time_frame(expected_background_duration).frames()
+            ));
+        }
+        [_] => {}
+        _ => {
+            return Err(anyhow::anyhow!(
+                "GES contains multiple black background clips"
+            ));
+        }
+    }
+
     Ok(())
 }
 

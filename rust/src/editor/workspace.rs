@@ -23,14 +23,15 @@ fn settings_path() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("data/editor-settings.json")
 }
 
-pub(super) fn save_global_editor_settings(settings: &GlobalEditorSettings) -> Result<(), String> {
+pub(super) fn save_global_editor_settings(settings: &GlobalEditorSettings) -> anyhow::Result<()> {
     let path = settings_path();
     if let Some(directory) = path.parent() {
-        fs::create_dir_all(directory)
-            .map_err(|error| format!("could not create {}: {error}", directory.display()))?;
+        fs::create_dir_all(directory).map_err(|error| {
+            anyhow::anyhow!("could not create {}: {error}", directory.display())
+        })?;
     }
     let json = serde_json::to_string_pretty(settings)
-        .map_err(|error| format!("could not serialize workspace settings: {error}"))?;
+        .map_err(|error| anyhow::anyhow!("could not serialize workspace settings: {error}"))?;
     fs::write(&path, format!("{json}\n"))
-        .map_err(|error| format!("could not write {}: {error}", path.display()))
+        .map_err(|error| anyhow::anyhow!("could not write {}: {error}", path.display()))
 }

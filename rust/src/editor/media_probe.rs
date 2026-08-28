@@ -1,45 +1,48 @@
+use crate::editor::explorer::{is_audio_path, is_image_path, is_video_path};
+
 use super::{
-    explorer::{is_audio_path, is_image_path, is_video_path},
     model::{DEFAULT_IMAGE_CLIP_DURATION, MediaAsset, MediaKind},
     timeline::FrameRate,
 };
+use anyhow::{Context as _, Result, bail};
 use ffmpeg::{codec, format, media::Type};
 use ffmpeg_next as ffmpeg;
 use std::{fs, path::Path};
 use ulid::Ulid;
 
-pub(super) fn probe_asset(path: &Path, id: Ulid) -> Result<MediaAsset, String> {
-    if is_image_path(path) {
-        probe_image(path, id)
+pub(super) fn probe_asset(path: &Path) -> Result<MediaAsset> {
+    let asset = if is_image_path(path) {
+        probe_image(path, Ulid::from(0))
     } else if is_audio_path(path) {
-        probe_audio(path, id)
+        probe_audio(path, Ulid::from(0))
     } else if is_video_path(path) {
-        probe_video(path, id)
+        probe_video(path, Ulid::from(0))
     } else {
-        Err(format!("unsupported media file: {}", path.display()))
-    }
+        bail!("unsupported media file: {}", path.display());
+    }?;
+    Ok(asset)
 }
 
-pub(super) fn probe_video(path: &Path, id: Ulid) -> Result<MediaAsset, String> {
-    ffmpeg::init().map_err(|error| format!("could not initialize FFmpeg: {error}"))?;
-    let input = format::input(path)
-        .map_err(|error| format!("could not inspect {}: {error}", path.display()))?;
+pub(super) fn probe_video(path: &Path, id: Ulid) -> Result<MediaAsset> {
+    ffmpeg::init().context("could not initialize FFmpeg")?;
+    let input =
+        format::input(path).with_context(|| format!("could not inspect {}", path.display()))?;
     let stream = input
         .streams()
         .best(Type::Video)
-        .ok_or_else(|| format!("{} has no video stream", path.display()))?;
+        .with_context(|| format!("{} has no video stream", path.display()))?;
     let context = codec::context::Context::from_parameters(stream.parameters())
-        .map_err(|error| format!("could not inspect video parameters: {error}"))?;
+        .context("could not inspect video parameters")?;
     let decoder = context
         .decoder()
         .video()
-        .map_err(|error| format!("could not inspect video decoder: {error}"))?;
+        .context("could not inspect video decoder")?;
     let source_frame_rate = frame_rate_from_ffmpeg(stream.avg_frame_rate()).unwrap_or_default();
     let framerate = source_frame_rate.frames_per_second();
     let duration = media_duration(&input, &stream);
     validate_duration(path, duration)?;
     if duration < 1.0 / 30.0 {
-        return Err(format!("{} is shorter than one frame", path.display()));
+        bail!("{} is shorter than one frame", path.display());
     }
 
     Ok(MediaAsset {
@@ -58,9 +61,9 @@ pub(super) fn probe_video(path: &Path, id: Ulid) -> Result<MediaAsset, String> {
     })
 }
 
-pub(super) fn probe_image(path: &Path, id: Ulid) -> Result<MediaAsset, String> {
+pub(super) fn probe_image(path: &Path, id: Ulid) -> Result<MediaAsset> {
     let (width, height) = image::image_dimensions(path)
-        .map_err(|error| format!("could not inspect {}: {error}", path.display()))?;
+        .with_context(|| format!("could not inspect {}", path.display()))?;
     let codec = path
         .extension()
         .and_then(|extension| extension.to_str())
@@ -83,14 +86,14 @@ pub(super) fn probe_image(path: &Path, id: Ulid) -> Result<MediaAsset, String> {
     })
 }
 
-pub(super) fn probe_audio(path: &Path, id: Ulid) -> Result<MediaAsset, String> {
-    ffmpeg::init().map_err(|error| format!("could not initialize FFmpeg: {error}"))?;
-    let input = format::input(path)
-        .map_err(|error| format!("could not inspect {}: {error}", path.display()))?;
+pub(super) fn probe_audio(path: &Path, id: Ulid) -> Result<MediaAsset> {
+    ffmpeg::init().context("could not initialize FFmpeg")?;
+    let input =
+        format::input(path).with_context(|| format!("could not inspect {}", path.display()))?;
     let stream = input
         .streams()
         .best(Type::Audio)
-        .ok_or_else(|| format!("{} has no audio stream", path.display()))?;
+        .with_context(|| format!("{} has no audio stream", path.display()))?;
     let duration = media_duration(&input, &stream);
     validate_duration(path, duration)?;
 
@@ -120,15 +123,11 @@ fn media_duration(input: &format::context::Input, stream: &format::stream::Strea
     }
 }
 
-fn validate_duration(path: &Path, duration: f64) -> Result<(), String> {
-    if duration.is_finite() && duration > 0.0 {
-        Ok(())
-    } else {
-        Err(format!(
-            "could not determine duration of {}",
-            path.display()
-        ))
+fn validate_duration(path: &Path, duration: f64) -> Result<()> {
+    if !duration.is_finite() || duration <= 0.0 {
+        bail!("could not determine duration of {}", path.display());
     }
+    Ok(())
 }
 
 fn canonical_path(path: &Path) -> std::path::PathBuf {

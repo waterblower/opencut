@@ -1,7 +1,7 @@
-use crate::{editor::export_gstreamer::build_ges_timeline, video::VideoBackend};
+use crate::{editor::explorer_drag::AssetBeingDragged, video::VideoBackend};
 use gpui::{
-    App, Context, CursorStyle, DragMoveEvent, Entity, FocusHandle, KeyBinding, MouseButton,
-    MouseDownEvent, MouseMoveEvent, MouseUpEvent, ObjectFit, PathPromptOptions, Render,
+    App, Bounds, Context, CursorStyle, Entity, EventEmitter, FocusHandle, KeyBinding, MouseButton,
+    MouseDownEvent, MouseMoveEvent, MouseUpEvent, ObjectFit, PathPromptOptions, Pixels, Render,
     ScrollHandle, ScrollWheelEvent, TouchPhase, Window, actions, div, img, prelude::*, px, rgb,
 };
 use std::{
@@ -10,17 +10,20 @@ use std::{
     sync::Arc,
     time::{Duration, Instant},
 };
-
 mod clip_placement;
 mod clip_render_plan;
+mod context_menu;
 mod editing;
+mod editor;
 mod editor_view;
 mod explorer;
+mod explorer_drag;
 mod explorer_filter;
 mod export;
 mod export_dialog;
-mod export_gstreamer;
-mod lifecycle;
+pub mod export_gstreamer;
+#[path = "generic-containers/mod.rs"]
+mod generic_containers;
 mod media_probe;
 mod model;
 mod preview;
@@ -33,6 +36,7 @@ mod properties;
 mod properties_text;
 mod properties_transform;
 mod settings;
+mod srt;
 mod timeline;
 mod timeline_clip;
 mod timeline_clip_menu;
@@ -50,44 +54,42 @@ use crate::playback_view::{DragPhase, PlaybackViewDelegate};
 use clip_placement::{
     ClipPlacementRejection, validate_clip_placement, validate_text_clip_placement,
 };
+use context_menu::ContextMenu;
 use editing::{ClipClipboard, EditAction, edit_and_rebuild_timeline, edit_timeline};
-use explorer::{
-    ExplorerDropPreview, ExplorerMediaDrag, FileContextMenu, FileTreeEntry, NewTimelineDialogState,
-    PendingExplorerDrop, RenameDialogState, load_explorer_expansion, visible_tree,
-};
+pub(crate) use editor::Editor;
+use explorer::{load_explorer_expansion, visible_tree};
 use explorer_filter::ExplorerFilter;
 use export_dialog::ExportDialogState;
-use media_probe::probe_asset;
-use model::{DEFAULT_IMAGE_CLIP_DURATION, MediaAsset, MediaKind};
+use export_gstreamer::build_ges_timeline;
+use generic_containers::{
+    HORIZONTAL_SPLIT_DIVIDER_WIDTH, HorizontalSplit, HorizontalSplitConstraints,
+    HorizontalSplitState,
+};
+use model::{MediaAsset, MediaKind};
 use preview::{PreviewTarget, update_playback};
 use preview_audio::AudioBackend;
 use preview_timeline::TimelinePreviewDrag;
 use project_settings::{load_project_local_settings, save_project_local_settings};
-use properties::{PropertiesPanelResizeDrag, properties_panel};
-use properties_text::TextClipInputs;
 use properties_transform::VideoTransformInputs;
 use timeline::{
-    FRAME_RATE_PRESETS, FrameRate, TimelineRuntimeState, TimelineSerialization, TimelineTime,
-    timeline_ranges_overlap,
+    FRAME_RATE_PRESETS, FrameRate, PreviewDropAsset, TimelineRuntimeState, TimelineSerialization,
+    TimelineTime, timeline_ranges_overlap,
 };
-use timeline_clip::{
-    AudioClipProperties, Clip, MediaClip, TextClip, TextClipProperties, VideoClipProperties,
-};
-use timeline_clip_menu::TimelineClipContextMenu;
+#[cfg(test)]
+use timeline_clip::AudioClip;
+use timeline_clip::{Clip, TextClip, TextClipProperties, VideoClipProperties};
+use timeline_clip_menu::transform_targets;
 use timeline_document::{load_existing_timeline, project_timeline_files};
-use timeline_interactions::{
-    MarqueeSelection, TimelineContextMenu, TimelineInteractionState, TimelineTool,
-};
-use timeline_track_menu::TextTrackContextMenu;
-use timeline_video::create_timeline_video_v2;
+use timeline_interactions::{MarqueeSelection, TimelineInteractionState, TimelineTool};
+use timeline_video::create_timeline_video;
 use track::{Track, TrackKind};
 use ulid::Ulid;
 use workspace::{GlobalEditorSettings, load_global_editor_settings, save_global_editor_settings};
 
-const MEDIA_PANEL_WIDTH: f32 = 340.0;
+const DEFAULT_MEDIA_PANEL_WIDTH: f32 = 340.0;
 const DEFAULT_PROPERTIES_PANEL_WIDTH: f32 = 420.0;
+const MIN_MEDIA_PANEL_WIDTH: f32 = 220.0;
 const MIN_PROPERTIES_PANEL_WIDTH: f32 = 240.0;
-const MAX_PROPERTIES_PANEL_WIDTH: f32 = 600.0;
 const MIN_PREVIEW_WIDTH: f32 = 320.0;
 const TOPBAR_HEIGHT: f32 = 64.0;
 const TIMELINE_HEIGHT: f32 = 420.0;
@@ -114,7 +116,7 @@ const ACCENT: u32 = 0xf0b75e;
 const ERROR: u32 = 0xff8b8b;
 const CLIP_BLUE: u32 = 0x294d75;
 const EDITOR_KEY_CONTEXT: &str = "Editor";
-const EDITOR_SHORTCUT_CONTEXT: &str = "!ExplorerFilter";
+const EDITOR_SHORTCUT_CONTEXT: &str = "Editor && !ExplorerFilter && !Input";
 
 actions!(
     opencut_editor,
@@ -183,26 +185,6 @@ pub(crate) fn bind_keys(cx: &mut App) {
     });
 }
 
-struct ExplorerState {
-    file_tree: Vec<FileTreeEntry>,
-    expanded_directories: HashSet<PathBuf>,
-    root_expanded: bool,
-    filter: Entity<ExplorerFilter>,
-    search_query: Option<String>,
-    search_results: Vec<FileTreeEntry>,
-    search_pending: bool,
-    scroll: ScrollHandle,
-    selected_file: Option<PathBuf>,
-    context_menu: Option<FileContextMenu>,
-    rename_dialog: Option<RenameDialogState>,
-    new_timeline_dialog: Option<NewTimelineDialogState>,
-    drag_assets: HashMap<PathBuf, MediaAsset>,
-    drag_probe_jobs: HashSet<PathBuf>,
-    drop_preview: Option<ExplorerDropPreview>,
-    pending_drop: Option<PendingExplorerDrop>,
-    last_tree_scan: Instant,
-}
-
 struct PreviewState {
     target: PreviewTarget,
     fullscreen: bool,
@@ -214,32 +196,14 @@ struct PreviewState {
 }
 
 struct PropertiesPanelState {
-    width: f32,
-    resizing: bool,
     transform_inputs: VideoTransformInputs,
     transform_input_clip_id: Option<Ulid>,
-    text_inputs: TextClipInputs,
     text_input_clip_id: Option<Ulid>,
 }
 
 struct ExportState {
     dialog: Option<ExportDialogState>,
     running: bool,
-}
-
-pub(crate) struct Editor {
-    global_settings: GlobalEditorSettings,
-    explorer: ExplorerState,
-    preview: PreviewState,
-    waveform_jobs: HashSet<PathBuf>,
-    waveform_cache: HashMap<PathBuf, Arc<waveform::WaveformData>>,
-    properties: PropertiesPanelState,
-    settings_open: bool,
-    export: ExportState,
-    timeline: Option<TimelineRuntimeState>,
-    clipboard: Option<ClipClipboard>,
-    status: Option<String>,
-    focus_handle: FocusHandle,
 }
 
 impl Editor {
@@ -280,7 +244,7 @@ impl Editor {
         .detach();
     }
 
-    fn set_project_root(&mut self, root: PathBuf, cx: &mut Context<Self>) -> Result<(), String> {
+    fn set_project_root(&mut self, root: PathBuf, cx: &mut Context<Self>) -> anyhow::Result<()> {
         let root = std::fs::canonicalize(&root).unwrap_or(root);
         let project_settings = load_project_local_settings(&root);
         let active_timeline =
@@ -306,28 +270,31 @@ impl Editor {
         &mut self,
         relative_path: PathBuf,
         cx: &mut Context<Self>,
-    ) -> Result<(), String> {
+    ) -> anyhow::Result<()> {
         if self
             .timeline
             .as_ref()
             .is_some_and(|timeline| timeline.path == relative_path)
         {
-            self.explorer.selected_file = Some(relative_path);
+            self.select_only_clip(None);
             let timeline = self.timeline.as_ref().expect("timeline was checked above");
             let playhead = timeline.playhead;
             if !timeline.data.clips.is_empty() {
                 self.load_timeline_position_with_options(playhead, true);
             }
+            self.explorer.selected_file = Some(relative_path);
             cx.notify();
             return Ok(());
         }
         let path = self.global_settings.project_root.join(&relative_path);
         let timeline = TimelineSerialization::load(&path)
-            .map_err(|error| format!("Could not open timeline: {error}"))?;
+            .map_err(|error| anyhow::anyhow!("Could not open timeline: {error}"))?;
         if let Some(timeline) = self.timeline.as_ref() {
             timeline.save(&self.global_settings.project_root);
         }
         self.activate_timeline(relative_path.clone(), timeline, cx)?;
+        self.select_only_clip(None);
+        self.explorer.selected_file = Some(relative_path.clone());
         self.status = Some(format!("Opened {}", relative_path.display()));
         Ok(())
     }
@@ -340,7 +307,7 @@ impl Editor {
         relative_path: PathBuf,
         timeline: TimelineSerialization,
         cx: &mut Context<Self>,
-    ) -> Result<(), String> {
+    ) -> anyhow::Result<()> {
         if let Some(active_timeline) = self.timeline.as_ref() {
             active_timeline.save(&self.global_settings.project_root);
         }
@@ -364,11 +331,7 @@ impl Editor {
         timeline_path: PathBuf,
         active_timeline: TimelineSerialization,
         cx: &mut Context<Self>,
-    ) -> Result<(), String> {
-        self.explorer.drag_assets.clear();
-        self.explorer.drag_probe_jobs.clear();
-        self.explorer.drop_preview = None;
-        self.explorer.pending_drop = None;
+    ) -> anyhow::Result<()> {
         self.preview.volume_control_open = false;
         self.preview.is_scrubbing = false;
         self.preview.is_adjusting_volume = false;
@@ -399,14 +362,14 @@ impl Editor {
             .filter
             .update(cx, |filter, cx| filter.clear(cx));
         self.explorer.selected_file = self.timeline.as_ref().map(|timeline| timeline.path.clone());
-        self.explorer.context_menu = None;
+        self.dismiss_context_menu();
         self.explorer
             .refresh_file_tree(&self.global_settings.project_root)?;
         if let Some(timeline) = self.timeline.as_ref()
             && !timeline.data.clips.is_empty()
         {
             let playhead = timeline.playhead;
-            let video = create_timeline_video_v2(&timeline.ges_timeline)?;
+            let video = create_timeline_video(&timeline.ges_timeline)?;
             self.preview.target = PreviewTarget::Timeline(video);
             self.load_timeline_position_with_options(playhead, true);
         } else {
@@ -699,9 +662,25 @@ fn format_time(seconds: f64, padded_minutes: bool) -> String {
     }
 }
 
+pub(in crate::editor) struct EventBus;
+pub(in crate::editor) enum AppEvent {
+    Edit(EditAction),
+    DragMove(AssetDragMoveEvent),
+    DragDrop,
+}
+
+#[derive(Clone, Debug)]
+pub(in crate::editor) struct AssetDragMoveEvent {
+    pub(in crate::editor) drag: AssetBeingDragged,
+    pub(in crate::editor) event: MouseMoveEvent,
+    pub(in crate::editor) bounds: Bounds<Pixels>,
+}
+
+impl EventEmitter<AppEvent> for EventBus {}
+
 #[cfg(test)]
 #[path = "mod.test.rs"]
 mod tests;
 
 #[cfg(test)]
-use tests::{lock_gstreamer_test, ulid};
+use tests::ulid;

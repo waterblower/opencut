@@ -105,116 +105,6 @@ impl Editor {
     }
 }
 
-pub(super) fn video_transform_panel(
-    panel: &PropertiesPanelState,
-    editable: bool,
-) -> gpui::AnyElement {
-    div()
-        .id("video-transform-properties")
-        .flex()
-        .flex_col()
-        .overflow_hidden()
-        .bg(rgb(PANEL))
-        .child(
-            div()
-                .h(px(58.0))
-                .flex_shrink_0()
-                .flex()
-                .items_center()
-                .gap_5()
-                .px_5()
-                .border_b_1()
-                .border_color(rgb(BORDER))
-                .child(properties_tab("Transform", true)),
-        )
-        .child(
-            div()
-                .flex()
-                .flex_col()
-                .gap_3()
-                .px_5()
-                .py_5()
-                .child(properties_section_label("POSITION & SCALE"))
-                .child(video_transform_field(
-                    panel,
-                    VideoTransformProperty::PositionX,
-                    "Position X",
-                    "px",
-                    "transform-position-x",
-                    editable,
-                ))
-                .child(video_transform_field(
-                    panel,
-                    VideoTransformProperty::PositionY,
-                    "Position Y",
-                    "px",
-                    "transform-position-y",
-                    editable,
-                ))
-                .child(video_transform_field(
-                    panel,
-                    VideoTransformProperty::Scale,
-                    "Scale",
-                    "%",
-                    "transform-scale",
-                    editable,
-                )),
-        )
-        .into_any_element()
-}
-
-fn video_transform_field(
-    panel: &PropertiesPanelState,
-    property: VideoTransformProperty,
-    label: &'static str,
-    unit: &'static str,
-    field_id: &'static str,
-    editable: bool,
-) -> gpui::AnyElement {
-    let input = panel.transform_inputs.input(property);
-    div()
-        .h(px(48.0))
-        .flex()
-        .items_center()
-        .gap_4()
-        .child(
-            div()
-                .w(px(112.0))
-                .flex_shrink_0()
-                .text_sm()
-                .text_color(rgb(MUTED))
-                .child(label),
-        )
-        .child(
-            div()
-                .id(field_id)
-                .h(px(48.0))
-                .relative()
-                .min_w_0()
-                .flex_1()
-                .flex()
-                .items_center()
-                .justify_between()
-                .px_3()
-                .rounded_md()
-                .border_1()
-                .border_color(rgb(BORDER))
-                .bg(rgb(SURFACE))
-                .cursor(if editable {
-                    CursorStyle::IBeam
-                } else {
-                    CursorStyle::Arrow
-                })
-                .child(input)
-                .child(div().text_sm().text_color(rgb(MUTED)).child(unit))
-                .when(editable, |field| {
-                    field.hover(|style| style.border_color(rgb(0x4a4a52)))
-                })
-                .when(!editable, disabled_field_overlay),
-        )
-        .into_any_element()
-}
-
 impl Editor {
     fn set_video_transform_from_text(&mut self, property: VideoTransformProperty, text: &str) {
         let Some(clip_id) = self.properties.transform_input_clip_id else {
@@ -278,12 +168,6 @@ fn format_transform_value(value: f64) -> String {
         .trim_end_matches('0')
         .trim_end_matches('.')
         .to_string()
-}
-
-pub(super) fn disabled_field_overlay(
-    field: gpui::Stateful<gpui::Div>,
-) -> gpui::Stateful<gpui::Div> {
-    field.child(div().absolute().inset_0().occlude())
 }
 
 pub(super) fn properties_tab(label: &'static str, active: bool) -> gpui::Div {

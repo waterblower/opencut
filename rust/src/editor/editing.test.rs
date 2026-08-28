@@ -1,4 +1,6 @@
 use super::*;
+use crate::editor::timeline_clip::AudioClipProperties;
+use gstreamer_editing_services::prelude::*;
 
 fn audio_asset(id: u64) -> MediaAsset {
     MediaAsset {
@@ -18,7 +20,7 @@ fn audio_asset(id: u64) -> MediaAsset {
 }
 
 fn audio_clip(id: u64, start: i64, duration: i64) -> Clip {
-    Clip::Media(MediaClip {
+    Clip::Audio(AudioClip {
         id: ulid(id),
         track_id: ulid(2),
         asset_id: ulid(100),
@@ -169,13 +171,14 @@ fn clipboard_paste_rejects_the_complete_selection_on_collision() {
     project.clips = vec![audio_clip(20, 105, 10)];
     let candidates = vec![audio_clip(10, 100, 8), audio_clip(11, 120, 12)];
     let rejection = validate_clips_placements(&project, &candidates).unwrap_err();
+    let rejection = rejection.downcast::<ClipPlacementRejection>().unwrap();
 
     assert_eq!(rejection, ClipPlacementRejection::ExistingClipOverlap);
     assert_eq!(rejection.message(), "Placement overlaps an existing clip");
 }
 
 #[test]
-fn track_magnet_closes_deleted_durations_independently_per_track() {
+fn track_magnet_does_not_ripple_multiple_deleted_clips() {
     let mut clips = vec![
         audio_clip(1, 10, 10),
         audio_clip(2, 30, 5),
@@ -193,7 +196,7 @@ fn track_magnet_closes_deleted_durations_independently_per_track() {
         FrameRate::default(),
     );
 
-    assert_eq!(clips[2].timeline_start(), TimelineTime::from_frames(35));
+    assert_eq!(clips[2].timeline_start(), TimelineTime::from_frames(50));
     assert_eq!(clips[3].timeline_start(), TimelineTime::from_frames(50));
 }
 
@@ -208,4 +211,259 @@ fn select_all_excludes_clips_on_locked_tracks() {
     project.track_mut(ulid(2)).unwrap().locked = true;
 
     assert_eq!(unlocked_clip_ids(&project), HashSet::from([ulid(11)]));
+}
+
+#[test]
+fn moves_ges_clip_without_rebuilding_timeline() {
+    use gstreamer_editing_services::prelude::*;
+
+    let _gstreamer_test = crate::editor::tests::lock_gstreamer_test();
+    gstreamer_editing_services::init().unwrap();
+    let track_id = ulid(3);
+    let clip_id = ulid(10);
+    let mut project = TimelineSerialization {
+        tracks: vec![Track {
+            id: track_id,
+            name: "Text 1".to_string(),
+            kind: TrackKind::Text,
+            locked: false,
+            muted: false,
+            visible: true,
+        }],
+        clips: vec![Clip::Text(TextClip {
+            id: clip_id,
+            track_id,
+            timeline_start: TimelineTime::ZERO,
+            length: Duration::from_secs(2),
+            properties: TextClipProperties::default(),
+        })],
+        ..TimelineSerialization::default()
+    };
+    let ges = build_ges_timeline(
+        &project,
+        Path::new(env!("CARGO_MANIFEST_DIR")),
+        export::ExportOptions::from_timeline(&project),
+    )
+    .unwrap();
+    let start = TimelineTime::from_frames(45);
+
+    ges_move_clips(&ges, &project, &[(clip_id, track_id, start)]).unwrap();
+    project.clips[0].set_timeline_start(start);
+
+    let clip = ges
+        .layers()
+        .into_iter()
+        .flat_map(|layer| layer.clips())
+        .find(|clip| clip.name().as_deref() == Some(format!("opencut-clip-{clip_id}").as_str()))
+        .unwrap();
+    let expected_start = project.duration(start);
+    assert_eq!(clip.start().nseconds(), expected_start.as_nanos() as u64);
+
+    let background = ges
+        .layers()
+        .into_iter()
+        .flat_map(|layer| layer.clips())
+        .find(|clip| clip.name().as_deref() == Some("opencut-black-background"))
+        .unwrap();
+    assert_eq!(
+        background.duration().nseconds(),
+        project.duration(project.content_duration()).as_nanos() as u64
+    );
+}
+
+#[test]
+fn moves_adjacent_ges_clips_together_without_transient_overlap() {
+    use gstreamer_editing_services::prelude::*;
+
+    let _gstreamer_test = crate::editor::tests::lock_gstreamer_test();
+    gstreamer_editing_services::init().unwrap();
+    let track_id = ulid(3);
+    let first_clip_id = ulid(10);
+    let second_clip_id = ulid(11);
+    let mut project = TimelineSerialization {
+        tracks: vec![Track {
+            id: track_id,
+            name: "Text 1".to_string(),
+            kind: TrackKind::Text,
+            locked: false,
+            muted: false,
+            visible: true,
+        }],
+        clips: vec![
+            Clip::Text(TextClip {
+                id: first_clip_id,
+                track_id,
+                timeline_start: TimelineTime::ZERO,
+                length: Duration::from_secs(2),
+                properties: TextClipProperties::default(),
+            }),
+            Clip::Text(TextClip {
+                id: second_clip_id,
+                track_id,
+                timeline_start: TimelineTime::from_frames(60),
+                length: Duration::from_secs(2),
+                properties: TextClipProperties::default(),
+            }),
+        ],
+        ..TimelineSerialization::default()
+    };
+    let ges = build_ges_timeline(
+        &project,
+        Path::new(env!("CARGO_MANIFEST_DIR")),
+        export::ExportOptions::from_timeline(&project),
+    )
+    .unwrap();
+    let placements = [
+        (first_clip_id, track_id, TimelineTime::from_frames(60)),
+        (second_clip_id, track_id, TimelineTime::from_frames(120)),
+    ];
+
+    ges_move_clips(&ges, &project, &placements).unwrap();
+    for (clip_id, _, start) in placements {
+        project.clip_mut(clip_id).unwrap().set_timeline_start(start);
+    }
+
+    let starts = ges
+        .layers()
+        .into_iter()
+        .flat_map(|layer| layer.clips())
+        .filter_map(|clip| {
+            let name = clip.name()?;
+            let id = name.strip_prefix("opencut-clip-")?.parse::<Ulid>().ok()?;
+            Some((id, clip.start()))
+        })
+        .collect::<HashMap<_, _>>();
+    assert_eq!(
+        starts[&first_clip_id].nseconds(),
+        project.duration(TimelineTime::from_frames(60)).as_nanos() as u64
+    );
+    assert_eq!(
+        starts[&second_clip_id].nseconds(),
+        project.duration(TimelineTime::from_frames(120)).as_nanos() as u64
+    );
+}
+
+#[test]
+fn removes_ges_clip_and_ripples_surviving_clips() {
+    use gstreamer_editing_services::prelude::*;
+
+    let _gstreamer_test = crate::editor::tests::lock_gstreamer_test();
+    gstreamer_editing_services::init().unwrap();
+    let track_id = ulid(3);
+    let removed_clip_id = ulid(10);
+    let surviving_clip_id = ulid(11);
+    let project = TimelineSerialization {
+        tracks: vec![Track {
+            id: track_id,
+            name: "Text 1".to_string(),
+            kind: TrackKind::Text,
+            locked: false,
+            muted: false,
+            visible: true,
+        }],
+        clips: vec![
+            Clip::Text(TextClip {
+                id: removed_clip_id,
+                track_id,
+                timeline_start: TimelineTime::ZERO,
+                length: Duration::from_secs(2),
+                properties: TextClipProperties::default(),
+            }),
+            Clip::Text(TextClip {
+                id: surviving_clip_id,
+                track_id,
+                timeline_start: TimelineTime::from_frames(60),
+                length: Duration::from_secs(2),
+                properties: TextClipProperties::default(),
+            }),
+        ],
+        ..TimelineSerialization::default()
+    };
+    let ges = build_ges_timeline(
+        &project,
+        Path::new(env!("CARGO_MANIFEST_DIR")),
+        export::ExportOptions::from_timeline(&project),
+    )
+    .unwrap();
+    let mut runtime = TimelineRuntimeState::new("test.timeline.json".into(), project, ges.clone());
+
+    edit_timeline(
+        &mut runtime,
+        Path::new(env!("CARGO_MANIFEST_DIR")),
+        EditAction::RemoveClips {
+            clip_ids: HashSet::from([removed_clip_id]),
+            close_track_gaps: true,
+        },
+    )
+    .unwrap();
+
+    assert!(runtime.data.clip(removed_clip_id).is_none());
+    assert_eq!(
+        runtime
+            .data
+            .clip(surviving_clip_id)
+            .unwrap()
+            .timeline_start(),
+        TimelineTime::ZERO
+    );
+    let surviving_clip = ges
+        .layers()
+        .into_iter()
+        .flat_map(|layer| layer.clips())
+        .find(|clip| {
+            clip.name().as_deref() == Some(format!("opencut-clip-{surviving_clip_id}").as_str())
+        })
+        .unwrap();
+    assert_eq!(surviving_clip.start(), gstreamer::ClockTime::ZERO);
+    data_parity_check(&runtime, &ges).unwrap();
+}
+
+#[test]
+fn detects_timeline_and_ges_data_divergence() {
+    let _gstreamer_test = crate::editor::tests::lock_gstreamer_test();
+    gstreamer_editing_services::init().unwrap();
+    let track_id = ulid(3);
+    let clip_id = ulid(10);
+    let project = TimelineSerialization {
+        tracks: vec![Track {
+            id: track_id,
+            name: "Text 1".to_string(),
+            kind: TrackKind::Text,
+            locked: false,
+            muted: false,
+            visible: true,
+        }],
+        clips: vec![Clip::Text(TextClip {
+            id: clip_id,
+            track_id,
+            timeline_start: TimelineTime::ZERO,
+            length: Duration::from_secs(2),
+            properties: TextClipProperties::default(),
+        })],
+        ..TimelineSerialization::default()
+    };
+    let ges = build_ges_timeline(
+        &project,
+        Path::new(env!("CARGO_MANIFEST_DIR")),
+        export::ExportOptions::from_timeline(&project),
+    )
+    .unwrap();
+    let mut runtime = TimelineRuntimeState::new("test.timeline.json".into(), project, ges.clone());
+
+    let rendered = ges
+        .layers()
+        .into_iter()
+        .flat_map(|layer| layer.clips())
+        .find(|clip| clip.name().as_deref() == Some(format!("opencut-clip-{clip_id}").as_str()))
+        .unwrap();
+    assert!(rendered.set_duration(gstreamer::ClockTime::from_mseconds(1_985)));
+    assert!(ges.commit_sync());
+    data_parity_check(&runtime, &ges).unwrap();
+
+    runtime.data.clips[0].set_timeline_start(TimelineTime::ONE_FRAME);
+    let error = data_parity_check(&runtime, &ges).unwrap_err();
+    assert!(
+        error.to_string().contains("starts at"),
+        "unexpected error: {error}"
+    );
 }

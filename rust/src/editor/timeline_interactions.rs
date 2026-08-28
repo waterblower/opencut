@@ -7,11 +7,6 @@ pub(super) enum TimelineTool {
     Blade,
 }
 
-pub(super) enum TimelineContextMenu {
-    Clip(TimelineClipContextMenu),
-    TextTrack(TextTrackContextMenu),
-}
-
 #[derive(Clone)]
 pub(super) struct ClipMoveItem {
     pub(super) clip_id: Ulid,
@@ -52,7 +47,6 @@ pub(super) struct TimelineInteractionState {
     pub(super) marquee_selection: Option<MarqueeSelection>,
     pub(super) scrubbing_playhead: bool,
     pub(super) last_scrub_seek: Option<Instant>,
-    pub(super) context_menu: Option<TimelineContextMenu>,
 }
 
 impl TimelineRuntimeState {
@@ -295,6 +289,7 @@ impl Editor {
         else {
             return;
         };
+        self.explorer.selected_file = None;
         match tool {
             TimelineTool::Selection => self.begin_clip_move(clip_id, event, cx),
             TimelineTool::Blade => {
@@ -593,7 +588,12 @@ impl Editor {
                 .data
                 .validate_clip_move_placements(&placements, &timeline.interaction.selected_clip_ids)
                 .err()
-                .map(ClipPlacementRejection::message)
+                .map(|error| {
+                    error
+                        .downcast::<ClipPlacementRejection>()
+                        .expect("clip move validation returns placement rejections")
+                        .message()
+                })
         };
         let moved_from_origin = placements.iter().any(|(clip_id, track_id, start)| {
             items

@@ -1,6 +1,8 @@
+use super::super::model::DEFAULT_IMAGE_CLIP_DURATION;
+use super::super::timeline_clip::VideoClip;
+use super::super::timeline_clip::{AudioClipProperties, TextClipProperties, VideoClipProperties};
+use super::super::track::{Track, TrackKind};
 use super::*;
-use crate::editor::timeline_clip::{AudioClipProperties, TextClipProperties, VideoClipProperties};
-use crate::editor::track::{Track, TrackKind};
 
 #[test]
 fn lowercase_media_and_track_kinds_deserialize() {
@@ -147,7 +149,7 @@ impl TimelineSerialization {
 }
 
 fn video_clip(id: u64, start: i64, duration: i64) -> Clip {
-    Clip::Media(MediaClip {
+    Clip::Video(VideoClip {
         id: ulid(id),
         track_id: ulid(1),
         asset_id: ulid(100),
@@ -312,12 +314,13 @@ fn text_clips_can_move_without_a_media_asset() {
         ..TimelineSerialization::default()
     };
 
-    assert_eq!(
-        project.validate_clip_move_placements(
-            &[(clip_id, track_id, TimelineTime::from_frames(30))],
-            &HashSet::from([clip_id]),
-        ),
-        Ok(())
+    assert!(
+        project
+            .validate_clip_move_placements(
+                &[(clip_id, track_id, TimelineTime::from_frames(30))],
+                &HashSet::from([clip_id]),
+            )
+            .is_ok()
     );
 }
 
@@ -674,7 +677,7 @@ fn timeline_serialization_stores_integer_frames_and_rational_rate() {
     assert_eq!(json["settings"]["frame_rate"]["numerator"], 30);
     assert_eq!(json["settings"]["frame_rate"]["denominator"], 1);
     assert_eq!(json["assets"][0]["id"], ulid(100).to_string());
-    assert_eq!(json["clips"][0]["kind"], "Media");
+    assert_eq!(json["clips"][0]["kind"], "Video");
     assert_eq!(json["clips"][0]["data"]["id"], ulid(10).to_string());
     assert_eq!(json["clips"][0]["data"]["track_id"], ulid(1).to_string());
     assert_eq!(json["clips"][0]["data"]["asset_id"], ulid(100).to_string());
@@ -702,8 +705,8 @@ fn clip_properties_have_neutral_defaults() {
 }
 
 #[test]
-fn clips_without_property_objects_deserialize_with_defaults() {
-    let legacy = serde_json::json!({
+fn untagged_media_clip_is_rejected() {
+    let value = serde_json::json!({
         "id": 10,
         "track_id": 1,
         "asset_id": 100,
@@ -711,19 +714,13 @@ fn clips_without_property_objects_deserialize_with_defaults() {
         "source_in": 0,
         "source_out": 30
     });
-    let clip = serde_json::from_value::<Clip>(legacy).unwrap();
 
-    assert_eq!(clip.id(), ulid(10));
-    assert_eq!(clip.track_id(), ulid(1));
-    let clip = clip.media().unwrap();
-    assert_eq!(clip.asset_id, ulid(100));
-    assert_eq!(clip.video_properties, VideoClipProperties::default());
-    assert_eq!(clip.audio_properties, AudioClipProperties::default());
+    assert!(serde_json::from_value::<Clip>(value).is_err());
 }
 
 #[test]
-fn legacy_text_clip_deserializes_as_text_variant() {
-    let legacy = serde_json::json!({
+fn text_properties_clip_is_rejected() {
+    let value = serde_json::json!({
         "id": 10,
         "track_id": 3,
         "asset_id": 0,
@@ -735,13 +732,7 @@ fn legacy_text_clip_deserializes_as_text_variant() {
         }
     });
 
-    let clip = serde_json::from_value::<Clip>(legacy).unwrap();
-    let text = clip.text().unwrap();
-    assert_eq!(
-        text.frame_length(FrameRate::default()),
-        TimelineTime::from_frames(90)
-    );
-    assert_eq!(text.properties.text, "Legacy title");
+    assert!(serde_json::from_value::<Clip>(value).is_err());
 }
 
 #[test]
