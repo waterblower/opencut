@@ -81,7 +81,7 @@ use timeline_clip::{Clip, TextClip, TextClipProperties, VideoClipProperties};
 use timeline_clip_menu::transform_targets;
 use timeline_document::{load_existing_timeline, project_timeline_files};
 use timeline_interactions::{MarqueeSelection, TimelineInteractionState, TimelineTool};
-use timeline_video::create_timeline_video_v2;
+use timeline_video::create_timeline_video;
 use track::{Track, TrackKind};
 use ulid::Ulid;
 use workspace::{GlobalEditorSettings, load_global_editor_settings, save_global_editor_settings};
@@ -369,7 +369,7 @@ impl Editor {
             && !timeline.data.clips.is_empty()
         {
             let playhead = timeline.playhead;
-            let video = create_timeline_video_v2(&timeline.ges_timeline)?;
+            let video = create_timeline_video(&timeline.ges_timeline)?;
             self.preview.target = PreviewTarget::Timeline(video);
             self.load_timeline_position_with_options(playhead, true);
         } else {

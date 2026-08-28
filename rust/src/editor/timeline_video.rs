@@ -11,7 +11,7 @@ use gstreamer_editing_services as ges;
 
 use ulid::Ulid;
 
-pub(super) fn create_timeline_video_v2(timeline: &ges::Timeline) -> anyhow::Result<VideoBackend> {
+pub(super) fn create_timeline_video(timeline: &ges::Timeline) -> anyhow::Result<VideoBackend> {
     initialize_gstreamer()?;
     let (audio_sink, volume_control) = preview_audio_sink()?;
     let (pipeline, sink) = create_timeline_pipeline_v2(timeline, &audio_sink)?;

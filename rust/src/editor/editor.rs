@@ -135,7 +135,7 @@ impl Editor {
         if let Some(timeline) = editor.timeline.as_ref()
             && !timeline.data.clips.is_empty()
         {
-            match create_timeline_video_v2(&timeline.ges_timeline) {
+            match create_timeline_video(&timeline.ges_timeline) {
                 Ok(video) => {
                     let playhead = timeline.playhead;
                     editor.preview.target = PreviewTarget::Timeline(video);
