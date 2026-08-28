@@ -1,6 +1,6 @@
 use crate::{
     editor::{
-        ACCENT, BORDER, ExplorerDropPreview, MUTED, OpenInDefaultApp, PANEL, RevealInFinder,
+        ACCENT, BORDER, MUTED, OpenInDefaultApp, PANEL, RevealInFinder,
         SURFACE, SURFACE_HOVER, TEXT,
         clip_placement::validate_clip_placement,
         context_menu::{ContextMenu, FileContextMenu},

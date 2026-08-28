@@ -4,6 +4,209 @@ use super::*;
 use std::{collections::HashSet, fs, path::Path};
 use url::Url;
 
+impl Editor {
+    pub(super) fn explorer_file_entry(
+        &self,
+        index: usize,
+        entry: &FileTreeEntry,
+        cx: &mut Context<Self>,
+    ) -> gpui::Stateful<gpui::Div> {
+        let path = entry.relative_path.clone();
+
+        let selected = self.explorer.selected_file.as_ref() == Some(&path);
+        let active_timeline = matches!(entry.kind, FileTreeEntryKind::Timeline)
+            && self
+                .timeline
+                .as_ref()
+                .is_some_and(|timeline| timeline.path == path);
+
+        let the_draggable_asset = {
+            let absolute_path = self.global_settings.project_root.join(&path);
+            match entry.kind {
+                FileTreeEntryKind::Video | FileTreeEntryKind::Image | FileTreeEntryKind::Audio => {
+                    let kind = match entry.kind {
+                        FileTreeEntryKind::Video => MediaKind::Video,
+                        FileTreeEntryKind::Image => MediaKind::Image,
+                        FileTreeEntryKind::Audio => MediaKind::Audio,
+                        _ => unreachable!("the outer match only accepts media files"),
+                    };
+                    Some(AssetBeingDragged::V1(AssetBeingDraggedV1 {
+                        kind,
+                        name: entry.name.clone(),
+                        absolute_path,
+                    }))
+                }
+                FileTreeEntryKind::Other if is_srt_path(&path) => (|| {
+                    let text = match fs::read_to_string(&absolute_path) {
+                        Ok(text) => text,
+                        Err(error) => {
+                            eprintln!("Could not read {}: {error}", absolute_path.display());
+                            return None;
+                        }
+                    };
+                    Some(AssetBeingDragged::Srt(DraggedSRT {
+                        absolute_path,
+                        text,
+                    }))
+                })(),
+                FileTreeEntryKind::Directory { .. }
+                | FileTreeEntryKind::Timeline
+                | FileTreeEntryKind::Other => None,
+            }
+        };
+        let metadata = file_entry_metadata(entry, active_timeline);
+
+        div()
+            .id(("project-file", index))
+            .relative()
+            .h(px(38.0))
+            .flex_shrink_0()
+            .flex()
+            .items_center()
+            .gap_2()
+            .pr_2()
+            .pl(px(10.0 + (entry.depth + 1) as f32 * 16.0))
+            .bg(rgb(if active_timeline {
+                0x211a0f
+            } else if selected {
+                0x1e1b13
+            } else {
+                PANEL
+            }))
+            .cursor(CursorStyle::PointingHand)
+            .hover(|style| style.bg(rgb(SURFACE_HOVER)))
+            .when_some(the_draggable_asset, |this, asset| {
+                this.cursor(CursorStyle::OpenHand)
+                    .on_drag(asset, |drag: &AssetBeingDragged, _, _, cx| {
+                        cx.new(|_| drag.clone())
+                    })
+            })
+            .on_click(cx.listener({
+                let entry = entry.clone();
+                move |editor, _, _, cx| {
+                    match entry.kind {
+                        FileTreeEntryKind::Directory { .. } => {
+                            let project_root = editor.global_settings.project_root.clone();
+                            if let Err(error) = editor
+                                .explorer
+                                .toggle_directory(&project_root, entry.relative_path.clone())
+                                .and_then(|_| editor.save_explorer_expansion())
+                            {
+                                eprintln!("{error}");
+                            }
+                        }
+                        FileTreeEntryKind::Timeline => editor
+                            .open_timeline(entry.relative_path.clone(), cx)
+                            .expect("open_timeline failed"),
+                        FileTreeEntryKind::Video
+                        | FileTreeEntryKind::Image
+                        | FileTreeEntryKind::Audio
+                        | FileTreeEntryKind::Other => {
+                            editor.select_file(entry.relative_path.clone(), cx);
+                        }
+                    }
+                    cx.notify();
+                }
+            }))
+            .on_mouse_down(
+                MouseButton::Right,
+                cx.listener({
+                    let entry = entry.clone();
+                    move |editor, event: &MouseDownEvent, _, cx| {
+                        editor.show_file_context_menu(
+                            entry.relative_path.clone(),
+                            matches!(entry.kind, FileTreeEntryKind::Directory { .. }),
+                            event,
+                            cx,
+                        );
+                    }
+                }),
+            )
+            .when(selected, |this| {
+                this.child(
+                    div()
+                        .absolute()
+                        .left_0()
+                        .top_0()
+                        .bottom_0()
+                        .w(px(2.0))
+                        .bg(rgb(ACCENT)),
+                )
+            })
+            .child(
+                div()
+                    .w(px(
+                        if matches!(entry.kind, FileTreeEntryKind::Directory { .. }) {
+                            14.0
+                        } else {
+                            38.0
+                        },
+                    ))
+                    .h(px(20.0))
+                    .flex_shrink_0()
+                    .flex()
+                    .items_center()
+                    .justify_center()
+                    .when_some(
+                        match entry.kind {
+                            FileTreeEntryKind::Directory { expanded } => Some(expanded),
+                            _ => None,
+                        },
+                        |this, expanded| {
+                            this.text_color(rgb(MUTED))
+                                .child(if expanded { "▾" } else { "▸" })
+                        },
+                    )
+                    .when(
+                        !matches!(entry.kind, FileTreeEntryKind::Directory { .. }),
+                        |this| this.child(explorer_file_badge(entry)),
+                    ),
+            )
+            .child(
+                div()
+                    .min_w_0()
+                    .flex_1()
+                    .text_sm()
+                    .font_family("monospace")
+                    .when(active_timeline, |this| {
+                        this.font_weight(gpui::FontWeight::SEMIBOLD)
+                    })
+                    .text_ellipsis()
+                    .text_color(rgb(if entry.kind != FileTreeEntryKind::Other {
+                        TEXT
+                    } else {
+                        MUTED
+                    }))
+                    .child(entry.name.clone()),
+            )
+            .when_some(metadata, |this, metadata| {
+                this.child(
+                    div()
+                        .flex_shrink_0()
+                        .font_family("monospace")
+                        .text_xs()
+                        .text_ellipsis()
+                        .when(active_timeline, |this| {
+                            this.h(px(20.0))
+                                .px_2()
+                                .flex()
+                                .items_center()
+                                .rounded_sm()
+                                .border_1()
+                                .border_color(rgb(0x8a652d))
+                                .bg(rgb(0x2a241b))
+                                .font_weight(gpui::FontWeight::SEMIBOLD)
+                                .text_color(rgb(ACCENT))
+                        })
+                        .when(!active_timeline, |this| {
+                            this.max_w(px(58.0)).text_color(rgb(0x55555e))
+                        })
+                        .child(metadata),
+                )
+            })
+    }
+}
+
 #[derive(Clone, PartialEq)]
 pub struct FileTreeEntry {
     pub relative_path: PathBuf,
@@ -234,207 +437,6 @@ pub fn is_srt_path(path: &Path) -> bool {
 }
 
 impl Editor {
-    pub(super) fn explorer_file_entry(
-        &self,
-        index: usize,
-        entry: &FileTreeEntry,
-        cx: &mut Context<Self>,
-    ) -> gpui::Stateful<gpui::Div> {
-        let path = entry.relative_path.clone();
-
-        let selected = self.explorer.selected_file.as_ref() == Some(&path);
-        let active_timeline = matches!(entry.kind, FileTreeEntryKind::Timeline)
-            && self
-                .timeline
-                .as_ref()
-                .is_some_and(|timeline| timeline.path == path);
-
-        let the_draggable_asset = {
-            let absolute_path = self.global_settings.project_root.join(&path);
-            match entry.kind {
-                FileTreeEntryKind::Video | FileTreeEntryKind::Image | FileTreeEntryKind::Audio => {
-                    let kind = match entry.kind {
-                        FileTreeEntryKind::Video => MediaKind::Video,
-                        FileTreeEntryKind::Image => MediaKind::Image,
-                        FileTreeEntryKind::Audio => MediaKind::Audio,
-                        _ => unreachable!("the outer match only accepts media files"),
-                    };
-                    Some(AssetBeingDragged::V1(AssetBeingDraggedV1 {
-                        kind,
-                        name: entry.name.clone(),
-                        absolute_path,
-                    }))
-                }
-                FileTreeEntryKind::Other if is_srt_path(&path) => (|| {
-                    let text = match fs::read_to_string(&absolute_path) {
-                        Ok(text) => text,
-                        Err(error) => {
-                            eprintln!("Could not read {}: {error}", absolute_path.display());
-                            return None;
-                        }
-                    };
-                    Some(AssetBeingDragged::Srt(DraggedSRT {
-                        absolute_path,
-                        text,
-                    }))
-                })(),
-                FileTreeEntryKind::Directory { .. }
-                | FileTreeEntryKind::Timeline
-                | FileTreeEntryKind::Other => None,
-            }
-        };
-        let metadata = file_entry_metadata(entry, active_timeline);
-
-        div()
-            .id(("project-file", index))
-            .relative()
-            .h(px(38.0))
-            .flex_shrink_0()
-            .flex()
-            .items_center()
-            .gap_2()
-            .pr_2()
-            .pl(px(10.0 + (entry.depth + 1) as f32 * 16.0))
-            .bg(rgb(if active_timeline {
-                0x211a0f
-            } else if selected {
-                0x1e1b13
-            } else {
-                PANEL
-            }))
-            .cursor(CursorStyle::PointingHand)
-            .hover(|style| style.bg(rgb(SURFACE_HOVER)))
-            .when_some(the_draggable_asset, |this, asset| {
-                this.cursor(CursorStyle::OpenHand)
-                    .on_drag(asset, |drag: &AssetBeingDragged, _, _, cx| {
-                        cx.new(|_| drag.clone())
-                    })
-            })
-            .on_click(cx.listener({
-                let entry = entry.clone();
-                move |editor, _, _, cx| {
-                    match entry.kind {
-                        FileTreeEntryKind::Directory { .. } => {
-                            let project_root = editor.global_settings.project_root.clone();
-                            if let Err(error) = editor
-                                .explorer
-                                .toggle_directory(&project_root, entry.relative_path.clone())
-                                .and_then(|_| editor.save_explorer_expansion())
-                            {
-                                eprintln!("{error}");
-                            }
-                        }
-                        FileTreeEntryKind::Timeline => editor
-                            .open_timeline(entry.relative_path.clone(), cx)
-                            .expect("open_timeline failed"),
-                        FileTreeEntryKind::Video
-                        | FileTreeEntryKind::Image
-                        | FileTreeEntryKind::Audio
-                        | FileTreeEntryKind::Other => {
-                            editor.select_file(entry.relative_path.clone(), cx);
-                        }
-                    }
-                    cx.notify();
-                }
-            }))
-            .on_mouse_down(
-                MouseButton::Right,
-                cx.listener({
-                    let entry = entry.clone();
-                    move |editor, event: &MouseDownEvent, _, cx| {
-                        editor.show_file_context_menu(
-                            entry.relative_path.clone(),
-                            matches!(entry.kind, FileTreeEntryKind::Directory { .. }),
-                            event,
-                            cx,
-                        );
-                    }
-                }),
-            )
-            .when(selected, |this| {
-                this.child(
-                    div()
-                        .absolute()
-                        .left_0()
-                        .top_0()
-                        .bottom_0()
-                        .w(px(2.0))
-                        .bg(rgb(ACCENT)),
-                )
-            })
-            .child(
-                div()
-                    .w(px(
-                        if matches!(entry.kind, FileTreeEntryKind::Directory { .. }) {
-                            14.0
-                        } else {
-                            38.0
-                        },
-                    ))
-                    .h(px(20.0))
-                    .flex_shrink_0()
-                    .flex()
-                    .items_center()
-                    .justify_center()
-                    .when_some(
-                        match entry.kind {
-                            FileTreeEntryKind::Directory { expanded } => Some(expanded),
-                            _ => None,
-                        },
-                        |this, expanded| {
-                            this.text_color(rgb(MUTED))
-                                .child(if expanded { "▾" } else { "▸" })
-                        },
-                    )
-                    .when(
-                        !matches!(entry.kind, FileTreeEntryKind::Directory { .. }),
-                        |this| this.child(explorer_file_badge(entry)),
-                    ),
-            )
-            .child(
-                div()
-                    .min_w_0()
-                    .flex_1()
-                    .text_sm()
-                    .font_family("monospace")
-                    .when(active_timeline, |this| {
-                        this.font_weight(gpui::FontWeight::SEMIBOLD)
-                    })
-                    .text_ellipsis()
-                    .text_color(rgb(if entry.kind != FileTreeEntryKind::Other {
-                        TEXT
-                    } else {
-                        MUTED
-                    }))
-                    .child(entry.name.clone()),
-            )
-            .when_some(metadata, |this, metadata| {
-                this.child(
-                    div()
-                        .flex_shrink_0()
-                        .font_family("monospace")
-                        .text_xs()
-                        .text_ellipsis()
-                        .when(active_timeline, |this| {
-                            this.h(px(20.0))
-                                .px_2()
-                                .flex()
-                                .items_center()
-                                .rounded_sm()
-                                .border_1()
-                                .border_color(rgb(0x8a652d))
-                                .bg(rgb(0x2a241b))
-                                .font_weight(gpui::FontWeight::SEMIBOLD)
-                                .text_color(rgb(ACCENT))
-                        })
-                        .when(!active_timeline, |this| {
-                            this.max_w(px(58.0)).text_color(rgb(0x55555e))
-                        })
-                        .child(metadata),
-                )
-            })
-    }
-
     pub(super) fn select_file(&mut self, relative_path: PathBuf, cx: &mut Context<Self>) {
         let is_image = is_image_path(&relative_path);
         let is_video = is_video_path(&relative_path);
