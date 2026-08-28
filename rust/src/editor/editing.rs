@@ -849,6 +849,10 @@ fn ripple_clips_after_deletion(
     deleted_ids: &HashSet<Ulid>,
     frame_rate: FrameRate,
 ) {
+    if deleted_ids.len() != 1 {
+        return;
+    }
+
     let deleted = clips
         .iter()
         .filter(|clip| deleted_ids.contains(&clip.id()))

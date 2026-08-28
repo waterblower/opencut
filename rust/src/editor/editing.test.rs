@@ -178,7 +178,7 @@ fn clipboard_paste_rejects_the_complete_selection_on_collision() {
 }
 
 #[test]
-fn track_magnet_closes_deleted_durations_independently_per_track() {
+fn track_magnet_does_not_ripple_multiple_deleted_clips() {
     let mut clips = vec![
         audio_clip(1, 10, 10),
         audio_clip(2, 30, 5),
@@ -196,7 +196,7 @@ fn track_magnet_closes_deleted_durations_independently_per_track() {
         FrameRate::default(),
     );
 
-    assert_eq!(clips[2].timeline_start(), TimelineTime::from_frames(35));
+    assert_eq!(clips[2].timeline_start(), TimelineTime::from_frames(50));
     assert_eq!(clips[3].timeline_start(), TimelineTime::from_frames(50));
 }
 
