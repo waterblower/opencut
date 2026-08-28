@@ -7,6 +7,517 @@ use crate::playback_view::{CONTROL_HEIGHT, format_duration};
 use crate::video::video;
 use gpui::relative;
 
+pub fn preview_timeline(
+    editor: &Editor,
+    origin_x: f32,
+    origin_y: f32,
+    width: f32,
+    height: f32,
+    cx: &mut Context<Editor>,
+) -> gpui::AnyElement {
+    let Some(timeline) = editor.timeline.as_ref() else {
+        return div().size_full().bg(rgb(0x000000)).into_any_element();
+    };
+    let surface_height = (height - CONTROL_HEIGHT).max(1.0);
+    let project_width = timeline.data.settings.width.max(1) as f64;
+    let project_height = timeline.data.settings.height.max(1) as f64;
+    let project_scale =
+        (f64::from(width.max(1.0)) / project_width).min(f64::from(surface_height) / project_height);
+    let output_width = project_width * project_scale;
+    let output_height = project_height * project_scale;
+    let output_left = (f64::from(width) - output_width) * 0.5;
+    let output_top = (f64::from(surface_height) - output_height) * 0.5;
+    let canvas = TimelinePreviewCanvas {
+        left: output_left,
+        top: output_top,
+        width: output_width,
+        height: output_height,
+        project_scale: project_scale.max(f64::EPSILON),
+    };
+    let selected_rect = timeline.interaction.selected_clip_id.and_then(|clip_id| {
+        let clip = timeline.data.clip(clip_id)?;
+        let media = clip.media()?;
+        if clip.timeline_start() > timeline.playhead
+            || timeline.playhead >= clip.timeline_end(timeline.data.settings.frame_rate)
+        {
+            return None;
+        }
+        timeline_preview_clip_rect(&timeline.data, clip, media.video_properties, canvas)
+    });
+    let (snap_x, snap_y) = editor
+        .preview
+        .timeline_drag
+        .as_ref()
+        .map_or((None, None), |drag| (drag.snap_x, drag.snap_y));
+    let usable_width = (width - TIMELINE_HORIZONTAL_PADDING * 2.0).max(1.0);
+    let timeline_left = origin_x + TIMELINE_HORIZONTAL_PADDING;
+    let volume_track_bottom = origin_y + height - TIMELINE_VOLUME_TRACK_BOTTOM_OFFSET;
+    let has_media = !timeline.data.clips.is_empty();
+
+    let duration = timeline.data.duration(timeline.data.content_duration());
+    let position = editor
+        .preview
+        .target
+        .video()
+        .map_or(Duration::ZERO, |v| v.position());
+    let progress = if duration.is_zero() {
+        0.0
+    } else {
+        (position.as_secs_f64() / duration.as_secs_f64()).clamp(0.0, 1.0) as f32
+    };
+    let volume = editor
+        .preview
+        .target
+        .video()
+        .map_or(0.0, |video| video.volume().clamp(0.0, 1.0));
+    let muted = volume <= f64::EPSILON;
+    let displayed_volume = if muted { 0.0 } else { volume } as f32;
+    let volume_percent = (displayed_volume * 100.0).round() as u32;
+    let volume_fill_height = displayed_volume * TIMELINE_VOLUME_TRACK_HEIGHT;
+    let volume_thumb_bottom = displayed_volume * (TIMELINE_VOLUME_TRACK_HEIGHT - 20.0);
+
+    div()
+        .id("editor-timeline-preview")
+        .relative()
+        .w(px(width))
+        .h(px(height))
+        .flex_shrink_0()
+        .flex()
+        .flex_col()
+        .overflow_hidden()
+        .bg(rgb(0x000000))
+        .on_mouse_down(
+            MouseButton::Left,
+            cx.listener(Editor::dismiss_timeline_preview_volume),
+        )
+        .on_mouse_move(cx.listener(
+            move |editor, event: &MouseMoveEvent, window, cx| {
+                editor.update_timeline_preview_drag(
+                    event,
+                    timeline_left,
+                    usable_width,
+                    volume_track_bottom,
+                    window,
+                    cx,
+                );
+            },
+        ))
+        .on_mouse_up(
+            MouseButton::Left,
+            cx.listener(
+                move |editor, event: &MouseUpEvent, window, cx| {
+                    editor.finish_timeline_preview_drag(
+                        event,
+                        timeline_left,
+                        usable_width,
+                        volume_track_bottom,
+                        window,
+                        cx,
+                    );
+                },
+            ),
+        )
+        .on_mouse_up_out(
+            MouseButton::Left,
+            cx.listener(
+                move |editor, event: &MouseUpEvent, window, cx| {
+                    editor.finish_timeline_preview_drag(
+                        event,
+                        timeline_left,
+                        usable_width,
+                        volume_track_bottom,
+                        window,
+                        cx,
+                    );
+                },
+            ),
+        )
+        .child(
+            div()
+                .id("editor-timeline-preview-surface")
+                .relative()
+                .h(px(surface_height))
+                .w_full()
+                .flex_shrink_0()
+                .flex()
+                .items_center()
+                .justify_center()
+                .overflow_hidden()
+                .bg(rgb(0x000000))
+                .when(has_media, |this| {
+                    this.cursor(CursorStyle::OpenHand).on_mouse_down(
+                        MouseButton::Left,
+                        cx.listener(move |editor, event, _, cx| {
+                            editor.begin_timeline_preview_clip_drag(
+                                event,
+                                origin_x,
+                                origin_y,
+                                canvas,
+                                cx,
+                            );
+                        }),
+                    )
+                })
+                .child(if let Some(video_handle) = editor.preview.target.video() {
+                    video(video_handle)
+                        .id("editor-timeline-video")
+                        .size(px(width), px(surface_height))
+                        .into_any_element()
+                } else {
+                    div()
+                        .size_full()
+                        .flex()
+                        .items_center()
+                        .justify_center()
+                        .text_color(rgb(MUTED))
+                        .child("Choose a video from the project folder to begin")
+                        .into_any_element()
+                })
+                .when_some(snap_x, |this, guide| {
+                    this.child(
+                        div()
+                            .absolute()
+                            .left(px((guide - 0.5) as f32))
+                            .top(px(canvas.top as f32))
+                            .w(px(1.0))
+                            .h(px(canvas.height as f32))
+                            .bg(rgb(ACCENT)),
+                    )
+                })
+                .when_some(snap_y, |this, guide| {
+                    this.child(
+                        div()
+                            .absolute()
+                            .left(px(canvas.left as f32))
+                            .top(px((guide - 0.5) as f32))
+                            .w(px(canvas.width as f32))
+                            .h(px(1.0))
+                            .bg(rgb(ACCENT)),
+                    )
+                })
+                .when_some(selected_rect, |this, rect| {
+                    this.child(
+                        div()
+                            .id("editor-timeline-preview-selection")
+                            .absolute()
+                            .left(px(rect.left as f32))
+                            .top(px(rect.top as f32))
+                            .w(px(rect.width.max(1.0) as f32))
+                            .h(px(rect.height.max(1.0) as f32))
+                            .border_1()
+                            .border_color(rgb(ACCENT)),
+                    )
+                }),
+        )
+        .child(
+            div()
+                .relative()
+                .h(px(CONTROL_HEIGHT))
+                .flex_shrink_0()
+                .flex()
+                .flex_col()
+                .justify_center()
+                .gap_3()
+                .px(px(TIMELINE_HORIZONTAL_PADDING))
+                .border_t_1()
+                .border_b_1()
+                .border_color(rgb(0x19191c))
+                .bg(rgb(0x0b0b0d))
+                .when(has_media, |this| {
+                    this.child(
+                        div()
+                            .id("editor-timeline-preview-scrubber")
+                            .relative()
+                            .h_4()
+                            .flex()
+                            .items_center()
+                            .cursor(CursorStyle::PointingHand)
+                            .child(
+                                div()
+                                    .w_full()
+                                    .h(px(3.0))
+                                    .rounded_full()
+                                    .bg(rgb(0x4a4a4f))
+                                    .child(
+                                        div()
+                                            .w(relative(progress))
+                                            .h_full()
+                                            .flex()
+                                            .items_center()
+                                            .justify_end()
+                                            .rounded_full()
+                                            .bg(rgb(ACCENT))
+                                            .child(
+                                                div()
+                                                    .size(px(if editor.preview.is_scrubbing {
+                                                        16.0
+                                                    } else {
+                                                        12.0
+                                                    }))
+                                                    .flex_shrink_0()
+                                                    .rounded_full()
+                                                    .bg(rgb(ACCENT)),
+                                            ),
+                                    ),
+                            )
+                            .on_mouse_down(
+                                MouseButton::Left,
+                                cx.listener(
+                                    move |editor, event: &MouseDownEvent, window, cx| {
+                                        editor.begin_timeline_preview_scrub(
+                                            event,
+                                            timeline_left,
+                                            usable_width,
+                                            window,
+                                            cx,
+                                        );
+                                    },
+                                ),
+                            ),
+                    )
+                })
+                .child(
+                    div()
+                        .h_12()
+                        .flex()
+                        .items_center()
+                        .justify_between()
+                        .child(
+                            div()
+                                .flex()
+                                .items_center()
+                                .gap_3()
+                                .child(
+                                    div()
+                                        .id("editor-timeline-play-pause")
+                                        .w_9()
+                                        .h_9()
+                                        .flex()
+                                        .items_center()
+                                        .justify_center()
+                                        .cursor(CursorStyle::PointingHand)
+                                        .rounded_full()
+                                        .hover(|style| style.bg(rgb(SURFACE_HOVER)))
+                                        .text_lg()
+                                        .text_color(if has_media {
+                                            rgb(TEXT)
+                                        } else {
+                                            rgb(MUTED)
+                                        })
+                                        .child(if editor.preview.target.video().map_or(false, |v| !v.paused()) { "Ⅱ" } else { "▶" })
+                                        .on_click(
+                                            cx.listener(Editor::toggle_timeline_preview_playback),
+                                        ),
+                                )
+                                .child(
+                                    div()
+                                        .text_sm()
+                                        .font_family("monospace")
+                                        .child(format!(
+                                            "{} / {}",
+                                            format_duration(position),
+                                            format_duration(duration)
+                                        )),
+                                ),
+                        )
+                        .child(
+                            div()
+                                .flex()
+                                .items_center()
+                                .gap_2()
+                                .child(
+                                    div()
+                                        .id("editor-timeline-volume-control")
+                                        .relative()
+                                        .w(px(72.0))
+                                        .h_12()
+                                        .flex_shrink_0()
+                                        .when(editor.preview.volume_control_open && has_media, |this| {
+                                            this.child(
+                                                div()
+                                                    .absolute()
+                                                    .left_0()
+                                                    .bottom(px(58.0))
+                                                    .w(px(72.0))
+                                                    .h(px(232.0))
+                                                    .flex()
+                                                    .flex_col()
+                                                    .items_center()
+                                                    .rounded(px(22.0))
+                                                    .border_1()
+                                                    .border_color(rgb(0x35353b))
+                                                    .bg(rgb(0x1a1a1d))
+                                                    .shadow_lg()
+                                                    .occlude()
+                                                    .on_mouse_down(
+                                                        MouseButton::Left,
+                                                        cx.listener(Editor::stop_timeline_preview_event_propagation),
+                                                    )
+                                                    .on_mouse_move(cx.listener(
+                                                        move |editor,
+                                                              event: &MouseMoveEvent,
+                                                              window,
+                                                              cx| {
+                                                            editor.update_timeline_preview_volume(
+                                                                event,
+                                                                volume_track_bottom,
+                                                                window,
+                                                                cx,
+                                                            );
+                                                        },
+                                                    ))
+                                                    .on_mouse_up(
+                                                        MouseButton::Left,
+                                                        cx.listener(
+                                                            move |editor,
+                                                                  event: &MouseUpEvent,
+                                                                  window,
+                                                                  cx| {
+                                                                editor.finish_timeline_preview_volume(
+                                                                    event,
+                                                                    volume_track_bottom,
+                                                                    window,
+                                                                    cx,
+                                                                );
+                                                            },
+                                                        ),
+                                                    )
+                                                    .child(
+                                                        div()
+                                                            .absolute()
+                                                            .top(px(18.0))
+                                                            .font_family("monospace")
+                                                            .text_lg()
+                                                            .text_color(rgb(MUTED))
+                                                            .child(volume_percent.to_string()),
+                                                    )
+                                                    .child(
+                                                        div()
+                                                            .id("editor-timeline-volume-track")
+                                                            .absolute()
+                                                            .top(px(64.0))
+                                                            .w_6()
+                                                            .h(px(
+                                                                TIMELINE_VOLUME_TRACK_HEIGHT,
+                                                            ))
+                                                            .flex()
+                                                            .justify_center()
+                                                            .cursor(CursorStyle::PointingHand)
+                                                            .child(
+                                                                div()
+                                                                    .w(px(5.0))
+                                                                    .h_full()
+                                                                    .rounded_full()
+                                                                    .bg(rgb(0x55555b)),
+                                                            )
+                                                            .child(
+                                                                div()
+                                                                    .absolute()
+                                                                    .bottom_0()
+                                                                    .w(px(5.0))
+                                                                    .h(px(volume_fill_height))
+                                                                    .rounded_full()
+                                                                    .bg(rgb(0xdedee2)),
+                                                            )
+                                                            .child(
+                                                                div()
+                                                                    .absolute()
+                                                                    .left(px(2.0))
+                                                                    .bottom(px(
+                                                                        volume_thumb_bottom,
+                                                                    ))
+                                                                    .size(px(20.0))
+                                                                    .rounded_full()
+                                                                    .bg(rgb(0xffffff)),
+                                                            )
+                                                            .on_mouse_down(
+                                                                MouseButton::Left,
+                                                                cx.listener(
+                                                                    move |editor,
+                                                                          event: &MouseDownEvent,
+                                                                          window,
+                                                                          cx| {
+                                                                        editor.begin_timeline_preview_volume(
+                                                                            event,
+                                                                            volume_track_bottom,
+                                                                            window,
+                                                                            cx,
+                                                                        );
+                                                                    },
+                                                                ),
+                                                            ),
+                                                    ),
+                                            )
+                                        })
+                                        .child(
+                                            div()
+                                                .id("editor-timeline-volume-toggle")
+                                                .absolute()
+                                                .left(px(12.0))
+                                                .bottom_0()
+                                                .size(px(48.0))
+                                                .flex()
+                                                .items_center()
+                                                .justify_center()
+                                                .cursor(CursorStyle::PointingHand)
+                                                .rounded_xl()
+                                                .border_1()
+                                                .border_color(rgb(BORDER))
+                                                .bg(rgb(0x1a1a1d))
+                                                .hover(|style| {
+                                                    style.bg(rgb(SURFACE_HOVER))
+                                                })
+                                                .on_mouse_down(
+                                                    MouseButton::Left,
+                                                    cx.listener(Editor::stop_timeline_preview_event_propagation),
+                                                )
+                                                .child(
+                                                    div()
+                                                        .h(px(28.0))
+                                                        .flex()
+                                                        .items_end()
+                                                        .gap_1()
+                                                        .children(
+                                                            [10.0_f32, 18.0, 28.0]
+                                                                .into_iter()
+                                                                .map(|height| {
+                                                                    div()
+                                                                        .w(px(5.0))
+                                                                        .h(px(height))
+                                                                        .rounded_full()
+                                                                        .bg(if muted {
+                                                                            rgb(MUTED)
+                                                                        } else {
+                                                                            rgb(TEXT)
+                                                                        })
+                                                                }),
+                                                        ),
+                                                )
+                                                .on_click(
+                                                    cx.listener(Editor::toggle_timeline_preview_volume),
+                                                ),
+                                        ),
+                                )
+                                .child(
+                                    div()
+                                        .id("editor-timeline-fullscreen")
+                                        .cursor(CursorStyle::PointingHand)
+                                        .rounded_md()
+                                        .hover(|style| style.bg(rgb(SURFACE_HOVER)))
+                                        .px_3()
+                                        .py_2()
+                                        .text_lg()
+                                        .child("⛶")
+                                        .on_click(
+                                            cx.listener(Editor::playback_toggle_fullscreen),
+                                        ),
+                                ),
+                        ),
+                ),
+        )
+        .into_any_element()
+}
+
 const TIMELINE_HORIZONTAL_PADDING: f32 = 22.0;
 const TIMELINE_VOLUME_TRACK_HEIGHT: f32 = 144.0;
 const TIMELINE_VOLUME_TRACK_BOTTOM_OFFSET: f32 = 102.0;
@@ -476,517 +987,6 @@ impl Editor {
             self.preview.volume_control_open = !self.preview.volume_control_open;
             cx.notify();
         }
-    }
-
-    pub(super) fn preview_timeline(
-        &self,
-        origin_x: f32,
-        origin_y: f32,
-        width: f32,
-        height: f32,
-        cx: &mut Context<Self>,
-    ) -> gpui::AnyElement {
-        let Some(timeline) = self.timeline.as_ref() else {
-            return div().size_full().bg(rgb(0x000000)).into_any_element();
-        };
-        let surface_height = (height - CONTROL_HEIGHT).max(1.0);
-        let project_width = timeline.data.settings.width.max(1) as f64;
-        let project_height = timeline.data.settings.height.max(1) as f64;
-        let project_scale = (f64::from(width.max(1.0)) / project_width)
-            .min(f64::from(surface_height) / project_height);
-        let output_width = project_width * project_scale;
-        let output_height = project_height * project_scale;
-        let output_left = (f64::from(width) - output_width) * 0.5;
-        let output_top = (f64::from(surface_height) - output_height) * 0.5;
-        let canvas = TimelinePreviewCanvas {
-            left: output_left,
-            top: output_top,
-            width: output_width,
-            height: output_height,
-            project_scale: project_scale.max(f64::EPSILON),
-        };
-        let selected_rect = timeline.interaction.selected_clip_id.and_then(|clip_id| {
-            let clip = timeline.data.clip(clip_id)?;
-            let media = clip.media()?;
-            if clip.timeline_start() > timeline.playhead
-                || timeline.playhead >= clip.timeline_end(timeline.data.settings.frame_rate)
-            {
-                return None;
-            }
-            timeline_preview_clip_rect(&timeline.data, clip, media.video_properties, canvas)
-        });
-        let (snap_x, snap_y) = self
-            .preview
-            .timeline_drag
-            .as_ref()
-            .map_or((None, None), |drag| (drag.snap_x, drag.snap_y));
-        let usable_width = (width - TIMELINE_HORIZONTAL_PADDING * 2.0).max(1.0);
-        let timeline_left = origin_x + TIMELINE_HORIZONTAL_PADDING;
-        let volume_track_bottom = origin_y + height - TIMELINE_VOLUME_TRACK_BOTTOM_OFFSET;
-        let has_media = !timeline.data.clips.is_empty();
-
-        let duration = timeline.data.duration(timeline.data.content_duration());
-        let position = self
-            .preview
-            .target
-            .video()
-            .map_or(Duration::ZERO, |v| v.position());
-        let progress = if duration.is_zero() {
-            0.0
-        } else {
-            (position.as_secs_f64() / duration.as_secs_f64()).clamp(0.0, 1.0) as f32
-        };
-        let volume = self
-            .preview
-            .target
-            .video()
-            .map_or(0.0, |video| video.volume().clamp(0.0, 1.0));
-        let muted = volume <= f64::EPSILON;
-        let displayed_volume = if muted { 0.0 } else { volume } as f32;
-        let volume_percent = (displayed_volume * 100.0).round() as u32;
-        let volume_fill_height = displayed_volume * TIMELINE_VOLUME_TRACK_HEIGHT;
-        let volume_thumb_bottom = displayed_volume * (TIMELINE_VOLUME_TRACK_HEIGHT - 20.0);
-
-        div()
-            .id("editor-timeline-preview")
-            .relative()
-            .w(px(width))
-            .h(px(height))
-            .flex_shrink_0()
-            .flex()
-            .flex_col()
-            .overflow_hidden()
-            .bg(rgb(0x000000))
-            .on_mouse_down(
-                MouseButton::Left,
-                cx.listener(Self::dismiss_timeline_preview_volume),
-            )
-            .on_mouse_move(cx.listener(
-                move |editor, event: &MouseMoveEvent, window, cx| {
-                    editor.update_timeline_preview_drag(
-                        event,
-                        timeline_left,
-                        usable_width,
-                        volume_track_bottom,
-                        window,
-                        cx,
-                    );
-                },
-            ))
-            .on_mouse_up(
-                MouseButton::Left,
-                cx.listener(
-                    move |editor, event: &MouseUpEvent, window, cx| {
-                        editor.finish_timeline_preview_drag(
-                            event,
-                            timeline_left,
-                            usable_width,
-                            volume_track_bottom,
-                            window,
-                            cx,
-                        );
-                    },
-                ),
-            )
-            .on_mouse_up_out(
-                MouseButton::Left,
-                cx.listener(
-                    move |editor, event: &MouseUpEvent, window, cx| {
-                        editor.finish_timeline_preview_drag(
-                            event,
-                            timeline_left,
-                            usable_width,
-                            volume_track_bottom,
-                            window,
-                            cx,
-                        );
-                    },
-                ),
-            )
-            .child(
-                div()
-                    .id("editor-timeline-preview-surface")
-                    .relative()
-                    .h(px(surface_height))
-                    .w_full()
-                    .flex_shrink_0()
-                    .flex()
-                    .items_center()
-                    .justify_center()
-                    .overflow_hidden()
-                    .bg(rgb(0x000000))
-                    .when(has_media, |this| {
-                        this.cursor(CursorStyle::OpenHand).on_mouse_down(
-                            MouseButton::Left,
-                            cx.listener(move |editor, event, _, cx| {
-                                editor.begin_timeline_preview_clip_drag(
-                                    event,
-                                    origin_x,
-                                    origin_y,
-                                    canvas,
-                                    cx,
-                                );
-                            }),
-                        )
-                    })
-                    .child(if let Some(video_handle) = self.preview.target.video() {
-                        video(video_handle)
-                            .id("editor-timeline-video")
-                            .size(px(width), px(surface_height))
-                            .into_any_element()
-                    } else {
-                        div()
-                            .size_full()
-                            .flex()
-                            .items_center()
-                            .justify_center()
-                            .text_color(rgb(MUTED))
-                            .child("Choose a video from the project folder to begin")
-                            .into_any_element()
-                    })
-                    .when_some(snap_x, |this, guide| {
-                        this.child(
-                            div()
-                                .absolute()
-                                .left(px((guide - 0.5) as f32))
-                                .top(px(canvas.top as f32))
-                                .w(px(1.0))
-                                .h(px(canvas.height as f32))
-                                .bg(rgb(ACCENT)),
-                        )
-                    })
-                    .when_some(snap_y, |this, guide| {
-                        this.child(
-                            div()
-                                .absolute()
-                                .left(px(canvas.left as f32))
-                                .top(px((guide - 0.5) as f32))
-                                .w(px(canvas.width as f32))
-                                .h(px(1.0))
-                                .bg(rgb(ACCENT)),
-                        )
-                    })
-                    .when_some(selected_rect, |this, rect| {
-                        this.child(
-                            div()
-                                .id("editor-timeline-preview-selection")
-                                .absolute()
-                                .left(px(rect.left as f32))
-                                .top(px(rect.top as f32))
-                                .w(px(rect.width.max(1.0) as f32))
-                                .h(px(rect.height.max(1.0) as f32))
-                                .border_1()
-                                .border_color(rgb(ACCENT)),
-                        )
-                    }),
-            )
-            .child(
-                div()
-                    .relative()
-                    .h(px(CONTROL_HEIGHT))
-                    .flex_shrink_0()
-                    .flex()
-                    .flex_col()
-                    .justify_center()
-                    .gap_3()
-                    .px(px(TIMELINE_HORIZONTAL_PADDING))
-                    .border_t_1()
-                    .border_b_1()
-                    .border_color(rgb(0x19191c))
-                    .bg(rgb(0x0b0b0d))
-                    .when(has_media, |this| {
-                        this.child(
-                            div()
-                                .id("editor-timeline-preview-scrubber")
-                                .relative()
-                                .h_4()
-                                .flex()
-                                .items_center()
-                                .cursor(CursorStyle::PointingHand)
-                                .child(
-                                    div()
-                                        .w_full()
-                                        .h(px(3.0))
-                                        .rounded_full()
-                                        .bg(rgb(0x4a4a4f))
-                                        .child(
-                                            div()
-                                                .w(relative(progress))
-                                                .h_full()
-                                                .flex()
-                                                .items_center()
-                                                .justify_end()
-                                                .rounded_full()
-                                                .bg(rgb(ACCENT))
-                                                .child(
-                                                    div()
-                                                        .size(px(if self.preview.is_scrubbing {
-                                                            16.0
-                                                        } else {
-                                                            12.0
-                                                        }))
-                                                        .flex_shrink_0()
-                                                        .rounded_full()
-                                                        .bg(rgb(ACCENT)),
-                                                ),
-                                        ),
-                                )
-                                .on_mouse_down(
-                                    MouseButton::Left,
-                                    cx.listener(
-                                        move |editor, event: &MouseDownEvent, window, cx| {
-                                            editor.begin_timeline_preview_scrub(
-                                                event,
-                                                timeline_left,
-                                                usable_width,
-                                                window,
-                                                cx,
-                                            );
-                                        },
-                                    ),
-                                ),
-                        )
-                    })
-                    .child(
-                        div()
-                            .h_12()
-                            .flex()
-                            .items_center()
-                            .justify_between()
-                            .child(
-                                div()
-                                    .flex()
-                                    .items_center()
-                                    .gap_3()
-                                    .child(
-                                        div()
-                                            .id("editor-timeline-play-pause")
-                                            .w_9()
-                                            .h_9()
-                                            .flex()
-                                            .items_center()
-                                            .justify_center()
-                                            .cursor(CursorStyle::PointingHand)
-                                            .rounded_full()
-                                            .hover(|style| style.bg(rgb(SURFACE_HOVER)))
-                                            .text_lg()
-                                            .text_color(if has_media {
-                                                rgb(TEXT)
-                                            } else {
-                                                rgb(MUTED)
-                                            })
-                                            .child(if self.preview.target.video().map_or(false, |v| !v.paused()) { "Ⅱ" } else { "▶" })
-                                            .on_click(
-                                                cx.listener(Self::toggle_timeline_preview_playback),
-                                            ),
-                                    )
-                                    .child(
-                                        div()
-                                            .text_sm()
-                                            .font_family("monospace")
-                                            .child(format!(
-                                                "{} / {}",
-                                                format_duration(position),
-                                                format_duration(duration)
-                                            )),
-                                    ),
-                            )
-                            .child(
-                                div()
-                                    .flex()
-                                    .items_center()
-                                    .gap_2()
-                                    .child(
-                                        div()
-                                            .id("editor-timeline-volume-control")
-                                            .relative()
-                                            .w(px(72.0))
-                                            .h_12()
-                                            .flex_shrink_0()
-                                            .when(self.preview.volume_control_open && has_media, |this| {
-                                                this.child(
-                                                    div()
-                                                        .absolute()
-                                                        .left_0()
-                                                        .bottom(px(58.0))
-                                                        .w(px(72.0))
-                                                        .h(px(232.0))
-                                                        .flex()
-                                                        .flex_col()
-                                                        .items_center()
-                                                        .rounded(px(22.0))
-                                                        .border_1()
-                                                        .border_color(rgb(0x35353b))
-                                                        .bg(rgb(0x1a1a1d))
-                                                        .shadow_lg()
-                                                        .occlude()
-                                                        .on_mouse_down(
-                                                            MouseButton::Left,
-                                                            cx.listener(Self::stop_timeline_preview_event_propagation),
-                                                        )
-                                                        .on_mouse_move(cx.listener(
-                                                            move |editor,
-                                                                  event: &MouseMoveEvent,
-                                                                  window,
-                                                                  cx| {
-                                                                editor.update_timeline_preview_volume(
-                                                                    event,
-                                                                    volume_track_bottom,
-                                                                    window,
-                                                                    cx,
-                                                                );
-                                                            },
-                                                        ))
-                                                        .on_mouse_up(
-                                                            MouseButton::Left,
-                                                            cx.listener(
-                                                                move |editor,
-                                                                      event: &MouseUpEvent,
-                                                                      window,
-                                                                      cx| {
-                                                                    editor.finish_timeline_preview_volume(
-                                                                        event,
-                                                                        volume_track_bottom,
-                                                                        window,
-                                                                        cx,
-                                                                    );
-                                                                },
-                                                            ),
-                                                        )
-                                                        .child(
-                                                            div()
-                                                                .absolute()
-                                                                .top(px(18.0))
-                                                                .font_family("monospace")
-                                                                .text_lg()
-                                                                .text_color(rgb(MUTED))
-                                                                .child(volume_percent.to_string()),
-                                                        )
-                                                        .child(
-                                                            div()
-                                                                .id("editor-timeline-volume-track")
-                                                                .absolute()
-                                                                .top(px(64.0))
-                                                                .w_6()
-                                                                .h(px(
-                                                                    TIMELINE_VOLUME_TRACK_HEIGHT,
-                                                                ))
-                                                                .flex()
-                                                                .justify_center()
-                                                                .cursor(CursorStyle::PointingHand)
-                                                                .child(
-                                                                    div()
-                                                                        .w(px(5.0))
-                                                                        .h_full()
-                                                                        .rounded_full()
-                                                                        .bg(rgb(0x55555b)),
-                                                                )
-                                                                .child(
-                                                                    div()
-                                                                        .absolute()
-                                                                        .bottom_0()
-                                                                        .w(px(5.0))
-                                                                        .h(px(volume_fill_height))
-                                                                        .rounded_full()
-                                                                        .bg(rgb(0xdedee2)),
-                                                                )
-                                                                .child(
-                                                                    div()
-                                                                        .absolute()
-                                                                        .left(px(2.0))
-                                                                        .bottom(px(
-                                                                            volume_thumb_bottom,
-                                                                        ))
-                                                                        .size(px(20.0))
-                                                                        .rounded_full()
-                                                                        .bg(rgb(0xffffff)),
-                                                                )
-                                                                .on_mouse_down(
-                                                                    MouseButton::Left,
-                                                                    cx.listener(
-                                                                        move |editor,
-                                                                              event: &MouseDownEvent,
-                                                                              window,
-                                                                              cx| {
-                                                                            editor.begin_timeline_preview_volume(
-                                                                                event,
-                                                                                volume_track_bottom,
-                                                                                window,
-                                                                                cx,
-                                                                            );
-                                                                        },
-                                                                    ),
-                                                                ),
-                                                        ),
-                                                )
-                                            })
-                                            .child(
-                                                div()
-                                                    .id("editor-timeline-volume-toggle")
-                                                    .absolute()
-                                                    .left(px(12.0))
-                                                    .bottom_0()
-                                                    .size(px(48.0))
-                                                    .flex()
-                                                    .items_center()
-                                                    .justify_center()
-                                                    .cursor(CursorStyle::PointingHand)
-                                                    .rounded_xl()
-                                                    .border_1()
-                                                    .border_color(rgb(BORDER))
-                                                    .bg(rgb(0x1a1a1d))
-                                                    .hover(|style| {
-                                                        style.bg(rgb(SURFACE_HOVER))
-                                                    })
-                                                    .on_mouse_down(
-                                                        MouseButton::Left,
-                                                        cx.listener(Self::stop_timeline_preview_event_propagation),
-                                                    )
-                                                    .child(
-                                                        div()
-                                                            .h(px(28.0))
-                                                            .flex()
-                                                            .items_end()
-                                                            .gap_1()
-                                                            .children(
-                                                                [10.0_f32, 18.0, 28.0]
-                                                                    .into_iter()
-                                                                    .map(|height| {
-                                                                        div()
-                                                                            .w(px(5.0))
-                                                                            .h(px(height))
-                                                                            .rounded_full()
-                                                                            .bg(if muted {
-                                                                                rgb(MUTED)
-                                                                            } else {
-                                                                                rgb(TEXT)
-                                                                            })
-                                                                    }),
-                                                            ),
-                                                    )
-                                                    .on_click(
-                                                        cx.listener(Self::toggle_timeline_preview_volume),
-                                                    ),
-                                            ),
-                                    )
-                                    .child(
-                                        div()
-                                            .id("editor-timeline-fullscreen")
-                                            .cursor(CursorStyle::PointingHand)
-                                            .rounded_md()
-                                            .hover(|style| style.bg(rgb(SURFACE_HOVER)))
-                                            .px_3()
-                                            .py_2()
-                                            .text_lg()
-                                            .child("⛶")
-                                            .on_click(
-                                                cx.listener(Self::playback_toggle_fullscreen),
-                                            ),
-                                    ),
-                            ),
-                    ),
-            )
-            .into_any_element()
     }
 }
 
