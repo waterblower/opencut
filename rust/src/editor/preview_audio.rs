@@ -463,7 +463,7 @@ impl Editor {
         cx.notify();
     }
 
-    fn set_audio_preview_volume(&mut self, volume: f64, cx: &mut Context<Self>) {
+    fn set_audio_preview_volume(&self, volume: f64, cx: &mut Context<Self>) {
         let Some(audio) = self.preview.target.audio() else {
             return;
         };

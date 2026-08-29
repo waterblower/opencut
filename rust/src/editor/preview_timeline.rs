@@ -7,7 +7,7 @@ use crate::playback_view::{CONTROL_HEIGHT, format_duration};
 use crate::video::video;
 use gpui::relative;
 
-pub fn preview_timeline(
+pub fn preview_timeline_view(
     editor: &Editor,
     origin_x: f32,
     origin_y: f32,

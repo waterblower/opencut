@@ -556,7 +556,7 @@ impl Editor {
         .into_any_element()
     }
 
-    fn choose_export_destination(&mut self, cx: &mut Context<Self>) {
+    fn choose_export_destination(&self, cx: &mut Context<Self>) {
         let Some(state) = self.export.dialog.as_ref() else {
             return;
         };
