@@ -207,7 +207,7 @@ struct ExportState {
 }
 
 impl Editor {
-    fn open_project_folder(&mut self, cx: &mut Context<Self>) {
+    fn open_project_folder(&self, cx: &mut Context<Self>) {
         let selection = cx.prompt_for_paths(PathPromptOptions {
             files: false,
             directories: true,

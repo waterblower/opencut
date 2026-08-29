@@ -1,4 +1,4 @@
-use crate::editor::preview_timeline;
+use preview_timeline::preview_timeline_view;
 
 use super::*;
 use preview_image::preview_image_file;
@@ -57,7 +57,9 @@ impl Editor {
                 .text_color(rgb(MUTED))
                 .child("No preview available")
                 .into_any_element(),
-            PreviewTarget::Timeline(_) => preview_timeline(origin_x, origin_y, width, height, cx),
+            PreviewTarget::Timeline(_) => {
+                preview_timeline_view(self, origin_x, origin_y, width, height, cx)
+            }
             PreviewTarget::VideoFile(_, _) => {
                 self.preview_video_file(origin_x, origin_y, width, height, cx)
             }
