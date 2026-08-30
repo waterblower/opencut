@@ -11,6 +11,22 @@ pub(super) enum PreviewTarget {
     ImageFile(PathBuf),
 }
 
+pub fn load_timeline_position_with_options(
+    preview: &mut PreviewState,
+    timeline: &mut TimelineRuntimeState,
+    position: TimelineTime,
+) {
+    let duration = timeline.data.content_duration();
+    let position = position.clamp(TimelineTime::ZERO, duration);
+    timeline.playhead = position;
+    preview.timeline_drag = None;
+
+    let video = preview.target.video_mut();
+    if let Some(video) = video {
+        let _ = video.seek(timeline.data.duration(position), true);
+    }
+}
+
 impl PreviewTarget {
     pub(super) fn is_timeline(&self) -> bool {
         matches!(self, Self::Timeline(_))
@@ -82,32 +98,6 @@ impl Editor {
         cx.notify();
     }
 
-    /// Deprecated because this couples playhead seeking to rebuilding the entire
-    /// GES preview pipeline instead of synchronizing timeline edits in place.
-    pub(super) fn load_timeline_position_with_options(
-        &mut self,
-        position: TimelineTime,
-        accurate: bool,
-    ) {
-        self.explorer.selected_file = None;
-        self.dismiss_context_menu();
-        let timeline = self
-            .timeline
-            .as_mut()
-            .expect("loading a timeline position requires an active timeline");
-        let video = self
-            .preview
-            .target
-            .video_mut()
-            .expect("loading a timeline position requires an active video preview");
-        let duration = timeline.data.content_duration();
-        let position = position.clamp(TimelineTime::ZERO, duration);
-        timeline.playhead = position;
-        self.preview.timeline_drag = None;
-
-        let _ = video.seek(timeline.data.duration(position), accurate);
-    }
-
     pub(super) fn toggle_playback(&mut self) {
         match &self.preview.target {
             PreviewTarget::None | PreviewTarget::ImageFile(_) => return,
@@ -144,7 +134,7 @@ impl Editor {
                     return;
                 };
                 video.set_paused(!is_paused);
-                self.load_timeline_position_with_options(start, true);
+                load_timeline_position_with_options(&mut self.preview, timeline, start);
             }
         }
     }
@@ -171,13 +161,13 @@ impl Editor {
     fn seek_preview_to_fraction(&mut self, fraction: f32) {
         let fraction = fraction.clamp(0.0, 1.0);
         if self.preview.target.is_timeline() {
-            let Some(timeline) = self.timeline.as_ref() else {
+            let Some(timeline) = self.timeline.as_mut() else {
                 return;
             };
             let duration = timeline.data.content_duration().frames();
             let position =
                 TimelineTime::from_frames((duration as f64 * fraction as f64).round() as i64);
-            self.load_timeline_position_with_options(position, true);
+            load_timeline_position_with_options(&mut self.preview, timeline, position);
             return;
         }
         if let PreviewTarget::VideoFile(_, video) = &mut self.preview.target {
@@ -231,9 +221,6 @@ impl PlaybackViewDelegate for Editor {
                 self.preview.last_scrub_seek = None;
                 self.preview.is_scrubbing = false;
                 self.seek_preview_to_fraction(fraction);
-                if self.preview.target.is_timeline() {
-                    self.save_timeline_playhead();
-                }
             }
             _ => return,
         }

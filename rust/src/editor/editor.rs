@@ -132,14 +132,14 @@ impl Editor {
             event_bus,
             context_menu: ContextMenu::None,
         };
-        if let Some(timeline) = editor.timeline.as_ref()
+        if let Some(timeline) = editor.timeline.as_mut()
             && !timeline.data.clips.is_empty()
         {
             match create_timeline_video(&timeline.ges_timeline) {
                 Ok(video) => {
                     let playhead = timeline.playhead;
                     editor.preview.target = PreviewTarget::Timeline(video);
-                    editor.load_timeline_position_with_options(playhead, true);
+                    load_timeline_position_with_options(&mut editor.preview, timeline, playhead);
                 }
                 Err(error) => eprintln!("{error}"),
             }

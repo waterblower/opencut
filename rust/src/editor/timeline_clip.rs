@@ -76,7 +76,8 @@ impl Default for TextClipProperties {
     }
 }
 
-#[derive(Clone, Debug, Serialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
+// https://serde.rs/enum-representations.html#adjacently-tagged
 #[serde(tag = "kind", content = "data")]
 pub(super) enum Clip {
     Video(VideoClip),
@@ -237,84 +238,6 @@ impl Clip {
     }
 }
 
-impl<'de> Deserialize<'de> for Clip {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        let value = serde_json::Value::deserialize(deserializer)?;
-        if let (Some(kind), Some(data)) = (
-            value.get("kind").and_then(serde_json::Value::as_str),
-            value.get("data").cloned(),
-        ) {
-            return match kind {
-                "Media" | "Video" => serde_json::from_value::<VideoClip>(data)
-                    .map(Self::Video)
-                    .map_err(serde::de::Error::custom),
-                "Audio" => serde_json::from_value::<AudioClip>(data)
-                    .map(Self::Audio)
-                    .map_err(serde::de::Error::custom),
-                "Text" => serde_json::from_value::<TextClip>(data)
-                    .map(Self::Text)
-                    .map_err(serde::de::Error::custom),
-                _ => Err(serde::de::Error::custom(format!(
-                    "unknown clip kind `{kind}`"
-                ))),
-            };
-        }
-        if value.get("text").is_some() {
-            if value
-                .get("length")
-                .is_some_and(serde_json::Value::is_number)
-            {
-                let clip = serde_json::from_value::<FrameLengthTextClip>(value)
-                    .map_err(serde::de::Error::custom)?;
-                return Ok(Self::Text(TextClip {
-                    id: clip.id,
-                    track_id: clip.track_id,
-                    timeline_start: clip.timeline_start,
-                    length: FrameRate::default().duration(clip.length),
-                    properties: clip.text,
-                }));
-            }
-            let mut value = value;
-            let object = value
-                .as_object_mut()
-                .ok_or_else(|| serde::de::Error::custom("clip must be a JSON object"))?;
-            let properties = object
-                .remove("text")
-                .ok_or_else(|| serde::de::Error::custom("text clip properties are missing"))?;
-            object.insert("properties".to_string(), properties);
-            return serde_json::from_value::<TextClip>(value)
-                .map(Self::Text)
-                .map_err(serde::de::Error::custom);
-        }
-        if value.get("properties").is_some() {
-            let mut value = value;
-            if value
-                .get("length")
-                .is_some_and(serde_json::Value::is_number)
-            {
-                let frames = value
-                    .get("length")
-                    .and_then(serde_json::Value::as_i64)
-                    .ok_or_else(|| serde::de::Error::custom("text clip length is invalid"))?;
-                value["length"] = serde_json::to_value(
-                    FrameRate::default().duration(TimelineTime::from_frames(frames)),
-                )
-                .map_err(serde::de::Error::custom)?;
-            }
-            return serde_json::from_value::<TextClip>(value)
-                .map(Self::Text)
-                .map_err(serde::de::Error::custom);
-        }
-
-        Err(serde::de::Error::custom(
-            "clip must use the tagged Video, Audio, or Text format",
-        ))
-    }
-}
-
 pub(super) fn text_clip_component(
     clip: TextClip,
     frame_rate: FrameRate,
@@ -351,15 +274,4 @@ pub(super) fn text_clip_component(
                 .text_ellipsis()
                 .child(clip.properties.text),
         )
-}
-
-#[derive(Deserialize)]
-struct FrameLengthTextClip {
-    #[serde(deserialize_with = "deserialize_ulid")]
-    id: Ulid,
-    #[serde(deserialize_with = "deserialize_ulid")]
-    track_id: Ulid,
-    timeline_start: TimelineTime,
-    length: TimelineTime,
-    text: TextClipProperties,
 }

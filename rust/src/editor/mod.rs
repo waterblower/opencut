@@ -1,4 +1,7 @@
-use crate::{editor::explorer_drag::AssetBeingDragged, video::VideoBackend};
+use crate::{
+    editor::{explorer_drag::AssetBeingDragged, preview::load_timeline_position_with_options},
+    video::VideoBackend,
+};
 use gpui::{
     App, Bounds, Context, CursorStyle, Entity, EventEmitter, FocusHandle, KeyBinding, MouseButton,
     MouseDownEvent, MouseMoveEvent, MouseUpEvent, ObjectFit, PathPromptOptions, Pixels, Render,
@@ -277,18 +280,17 @@ impl Editor {
             .is_some_and(|timeline| timeline.path == relative_path)
         {
             self.select_only_clip(None);
-            let timeline = self.timeline.as_ref().expect("timeline was checked above");
+            let timeline = self.timeline.as_mut().expect("timeline was checked above");
             let playhead = timeline.playhead;
             if !timeline.data.clips.is_empty() {
-                self.load_timeline_position_with_options(playhead, true);
+                load_timeline_position_with_options(&mut self.preview, timeline, playhead);
             }
             self.explorer.selected_file = Some(relative_path);
             cx.notify();
             return Ok(());
         }
         let path = self.global_settings.project_root.join(&relative_path);
-        let timeline = TimelineSerialization::load(&path)
-            .map_err(|error| anyhow::anyhow!("Could not open timeline: {error}"))?;
+        let timeline = TimelineSerialization::load(&path)?;
         if let Some(timeline) = self.timeline.as_ref() {
             timeline.save(&self.global_settings.project_root);
         }
@@ -365,13 +367,13 @@ impl Editor {
         self.dismiss_context_menu();
         self.explorer
             .refresh_file_tree(&self.global_settings.project_root)?;
-        if let Some(timeline) = self.timeline.as_ref()
+        if let Some(timeline) = self.timeline.as_mut()
             && !timeline.data.clips.is_empty()
         {
             let playhead = timeline.playhead;
             let video = create_timeline_video(&timeline.ges_timeline)?;
             self.preview.target = PreviewTarget::Timeline(video);
-            self.load_timeline_position_with_options(playhead, true);
+            load_timeline_position_with_options(&mut self.preview, timeline, playhead);
         } else {
             self.preview.target = PreviewTarget::None;
         }

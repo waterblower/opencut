@@ -445,6 +445,11 @@ impl TimelineRuntimeState {
         }
     }
 
+    pub(super) fn save_timeline_playhead(self: &mut TimelineRuntimeState, project_root: &Path) {
+        self.capture_playhead(project_root);
+        self.save(project_root);
+    }
+
     pub(super) fn capture_playhead(&mut self, project_root: &Path) {
         edit_timeline(
             self,

@@ -163,7 +163,7 @@ impl VideoBackend {
 
     /// The negotiated frame rate, or `None` for variable-frame-rate sources where
     /// GStreamer reports `0/1`.
-    pub(crate) fn framerate(&self) -> Option<f64> {
+    pub fn framerate(&self) -> Option<f64> {
         let caps = self.cap().ok()?;
         let info = match gst_video::VideoInfo::from_caps(&caps) {
             Ok(info) => info,

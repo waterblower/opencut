@@ -637,10 +637,8 @@ impl Editor {
                 },
             )
             .expect("clip move placements were validated during the drag");
-            let playhead = timeline.playhead;
-            timeline.save(&self.global_settings.project_root);
 
-            self.load_timeline_position_with_options(playhead, true);
+            timeline.save(&self.global_settings.project_root);
         }
         cx.notify();
     }
@@ -735,7 +733,7 @@ impl Editor {
         }
         let position = timeline.timeline_position_from_x(event.position.x.into());
         timeline.interaction.last_scrub_seek = Some(Instant::now());
-        self.load_timeline_position_with_options(position, false);
+        load_timeline_position_with_options(&mut self.preview, timeline, position);
     }
 
     pub(super) fn update_playhead_scrub(
@@ -763,7 +761,7 @@ impl Editor {
             .is_none_or(|last_seek| now.duration_since(last_seek) >= SCRUB_SEEK_INTERVAL);
         if should_seek {
             timeline.interaction.last_scrub_seek = Some(now);
-            self.load_timeline_position_with_options(position, false);
+            load_timeline_position_with_options(&mut self.preview, timeline, position);
         }
         cx.notify();
     }
@@ -783,13 +781,13 @@ impl Editor {
         timeline.interaction.scrubbing_playhead = false;
         timeline.interaction.last_scrub_seek = None;
         let position = timeline.timeline_position_from_x(event.position.x.into());
-        self.load_timeline_position_with_options(position, true);
-        self.save_timeline_playhead();
+        load_timeline_position_with_options(&mut self.preview, timeline, position);
+        timeline.save_timeline_playhead(&self.global_settings.project_root);
         cx.notify();
     }
 
     pub(super) fn step_playhead(&mut self, frames: i64) {
-        let Some(timeline) = self.timeline.as_ref() else {
+        let Some(timeline) = self.timeline.as_mut() else {
             return;
         };
         if timeline.data.clips.is_empty() {
@@ -798,8 +796,8 @@ impl Editor {
         let target = (timeline.playhead + TimelineTime::from_frames(frames))
             .clamp(TimelineTime::ZERO, timeline.data.content_duration());
         if target != timeline.playhead || !self.preview.target.is_timeline() {
-            self.load_timeline_position_with_options(target, true);
-            self.save_timeline_playhead();
+            load_timeline_position_with_options(&mut self.preview, timeline, target);
+            timeline.save_timeline_playhead(&self.global_settings.project_root);
         }
     }
 }

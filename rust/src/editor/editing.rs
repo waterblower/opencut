@@ -356,7 +356,6 @@ impl Editor {
         self.status = Some(format!("Pasted {count} clip{}.", plural_suffix(count)));
         timeline.save(&self.global_settings.project_root);
 
-        self.load_timeline_position_with_options(playhead, true);
         self.schedule_active_timeline_waveforms(cx);
     }
 
@@ -379,12 +378,8 @@ impl Editor {
         self.properties.transform_input_clip_id = None;
         self.properties.text_input_clip_id = None;
 
-        let clips_empty = timeline.data.clips.is_empty();
-        let playhead = timeline.playhead;
-        if clips_empty {
+        if timeline.data.clips.is_empty() {
             timeline.playhead = TimelineTime::ZERO;
-        } else {
-            self.load_timeline_position_with_options(playhead, true);
         }
         let Some(timeline) = self.timeline.as_ref() else {
             return;
@@ -546,7 +541,6 @@ impl Editor {
         let Some(timeline) = self.timeline.as_mut() else {
             return;
         };
-        let playhead = timeline.playhead;
         timeline.record_editing_history();
         edit_and_rebuild_timeline(
             &mut self.preview,
@@ -556,15 +550,12 @@ impl Editor {
         )
         .expect("toggling track visibility cannot be rejected");
         timeline.save(&self.global_settings.project_root);
-
-        self.load_timeline_position_with_options(playhead, true);
     }
 
     pub(super) fn toggle_track_mute(&mut self, track_id: Ulid) {
         let Some(timeline) = self.timeline.as_mut() else {
             return;
         };
-        let playhead = timeline.playhead;
         timeline.record_editing_history();
         edit_and_rebuild_timeline(
             &mut self.preview,
@@ -574,8 +565,6 @@ impl Editor {
         )
         .expect("toggling track mute cannot be rejected");
         timeline.save(&self.global_settings.project_root);
-
-        self.load_timeline_position_with_options(playhead, true);
     }
 
     pub(super) fn move_track(&mut self, track_id: Ulid, direction: i8) {
@@ -600,7 +589,7 @@ impl Editor {
         let Some(target) = target else {
             return;
         };
-        let playhead = timeline.playhead;
+
         timeline.record_editing_history();
         edit_and_rebuild_timeline(
             &mut self.preview,
@@ -610,8 +599,6 @@ impl Editor {
         )
         .expect("moving a track cannot be rejected");
         timeline.save(&self.global_settings.project_root);
-
-        self.load_timeline_position_with_options(playhead, true);
     }
 
     pub(super) fn delete_track(&mut self, track_id: Ulid) {
@@ -629,7 +616,6 @@ impl Editor {
         if timeline.data.tracks[index].locked {
             return;
         }
-        let playhead = timeline.playhead;
         timeline.record_editing_history();
         edit_and_rebuild_timeline(
             &mut self.preview,
@@ -661,8 +647,6 @@ impl Editor {
                 .map(Clip::id);
         }
         timeline.save(&self.global_settings.project_root);
-
-        self.load_timeline_position_with_options(playhead, true);
     }
 
     pub(super) fn select_only_clip(&mut self, clip_id: Option<Ulid>) {
@@ -784,24 +768,14 @@ impl Editor {
                     .find(|clip| timeline.interaction.selected_clip_ids.contains(&clip.id()))
                     .map(Clip::id)
             });
-        let has_clips = !timeline.data.clips.is_empty();
-        let playhead = timeline.playhead;
         self.properties.transform_input_clip_id = None;
         self.properties.text_input_clip_id = None;
-        if has_clips {
-            self.load_timeline_position_with_options(playhead, true);
+        if !timeline.data.clips.is_empty() {
+            load_timeline_position_with_options(&mut self.preview, timeline, timeline.playhead);
         }
         let Some(timeline) = self.timeline.as_ref() else {
             return;
         };
-        timeline.save(&self.global_settings.project_root);
-    }
-
-    pub(super) fn save_timeline_playhead(&mut self) {
-        let Some(timeline) = self.timeline.as_mut() else {
-            return;
-        };
-        timeline.capture_playhead(&self.global_settings.project_root);
         timeline.save(&self.global_settings.project_root);
     }
 
