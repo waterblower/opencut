@@ -82,8 +82,8 @@ impl Render for Player {
         let video_height = (viewport_height - HEADER_HEIGHT - CONTROL_HEIGHT).max(140.0);
 
         let has_video = self.video.is_some();
-        let is_paused = self.video.as_ref().is_none_or(VideoBackend::paused);
-        let is_muted = self.video.as_ref().is_some_and(VideoBackend::muted);
+        let is_paused = self.video.as_ref().is_none_or(|video| video.paused());
+        let is_muted = self.video.as_ref().is_some_and(|video| video.muted());
         let volume = self
             .video
             .as_ref()
@@ -92,11 +92,11 @@ impl Render for Player {
         let duration = self
             .video
             .as_ref()
-            .map_or(Duration::ZERO, VideoBackend::duration);
+            .map_or(Duration::ZERO, |video| video.duration());
         let position = self
             .video
             .as_ref()
-            .map_or(Duration::ZERO, VideoBackend::position);
+            .map_or(Duration::ZERO, |video| video.position());
 
         let display_title = self.display_title();
 
