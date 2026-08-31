@@ -385,7 +385,8 @@ fn removes_ges_clip_and_ripples_surviving_clips() {
         export::ExportOptions::from_timeline(&project),
     )
     .unwrap();
-    let mut runtime = TimelineRuntimeState::new("test.timeline.json".into(), project, ges.clone());
+    let mut runtime =
+        TimelineRuntimeState::new("test.timeline.json".into(), project, ges.clone()).unwrap();
 
     edit_timeline(
         &mut runtime,
@@ -448,7 +449,8 @@ fn detects_timeline_and_ges_data_divergence() {
         export::ExportOptions::from_timeline(&project),
     )
     .unwrap();
-    let mut runtime = TimelineRuntimeState::new("test.timeline.json".into(), project, ges.clone());
+    let mut runtime =
+        TimelineRuntimeState::new("test.timeline.json".into(), project, ges.clone()).unwrap();
 
     let rendered = ges
         .layers()

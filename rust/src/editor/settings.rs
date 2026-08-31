@@ -143,7 +143,7 @@ impl Editor {
         }
         let playhead = previous.rescale_nearest(timeline.playhead, frame_rate);
 
-        if let Some(video) = self.preview.target.video() {
+        if let Some(video) = self.active_video() {
             video.set_paused(true);
         }
         let Some(timeline) = self.timeline.as_mut() else {

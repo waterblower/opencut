@@ -423,6 +423,9 @@ impl Editor {
         self.explorer.selected_file = Some(relative_path.clone());
 
         if is_image || is_video || is_audio {
+            if let Some(video) = self.active_video() {
+                video.set_paused(true);
+            }
             self.preview.target = match (is_video, is_audio) {
                 (true, _) | (_, true) => PreviewTarget::None,
                 _ => PreviewTarget::ImageFile(relative_path.clone()),
@@ -485,7 +488,7 @@ impl Editor {
             return;
         }
 
-        let video = VideoBackend::open(&url).map_err(|error| {
+        let video = FileVideoBackend::open(&url).map_err(|error| {
             anyhow::anyhow!("Could not preview {}: {error}", source_path.display())
         });
 

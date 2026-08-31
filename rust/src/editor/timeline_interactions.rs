@@ -472,7 +472,7 @@ impl Editor {
         {
             return;
         }
-        if let Some(video) = self.preview.target.video() {
+        if let Some(video) = self.active_video() {
             video.set_paused(true);
         }
         let timeline = self.timeline.as_mut().expect("timeline was checked above");
@@ -724,13 +724,13 @@ impl Editor {
     }
 
     pub(super) fn begin_playhead_scrub(&mut self, event: &MouseDownEvent) {
+        if let Some(video) = self.active_video() {
+            video.set_paused(true);
+        }
         let Some(timeline) = self.timeline.as_mut() else {
             return;
         };
         timeline.interaction.scrubbing_playhead = true;
-        if let Some(video) = self.preview.target.video() {
-            video.set_paused(true);
-        }
         let position = timeline.timeline_position_from_x(event.position.x.into());
         timeline.interaction.last_scrub_seek = Some(Instant::now());
         load_timeline_position_with_options(&mut self.preview, timeline, position);

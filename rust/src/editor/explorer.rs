@@ -16,7 +16,7 @@ use crate::{
         timeline_document,
         track::TrackKind,
     },
-    video::VideoBackend,
+    video::FileVideoBackend,
 };
 use gpui::{
     AppContext as _, Context, CursorStyle, Entity, InteractiveElement, IntoElement, MouseButton,

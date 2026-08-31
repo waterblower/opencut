@@ -46,7 +46,7 @@ pub(super) struct TimelineViewState {
 pub(super) struct TimelineRuntimeState {
     pub(super) path: PathBuf,
     pub(super) data: TimelineSerialization,
-    pub(super) ges_timeline: gstreamer_editing_services::Timeline,
+    pub(super) video_backend: TimelineVideoBackend,
     pub(super) playhead: TimelineTime,
     pub(super) h_scroll: ScrollHandle,
     pub(super) v_scroll: ScrollHandle,
@@ -406,7 +406,7 @@ impl TimelineRuntimeState {
         path: PathBuf,
         data: TimelineSerialization,
         ges_timeline: gstreamer_editing_services::Timeline,
-    ) -> Self {
+    ) -> anyhow::Result<Self> {
         let playhead = data
             .view
             .saved_playhead_frame
@@ -419,10 +419,11 @@ impl TimelineRuntimeState {
         let magnet_enabled = data.view.track_magnet_enabled;
         let selected_clip_id = data.clips.first().map(Clip::id);
         let selected_clip_ids = selected_clip_id.into_iter().collect();
-        Self {
+
+        Ok(Self {
             path,
             data,
-            ges_timeline,
+            video_backend: TimelineVideoBackend::new(ges_timeline)?,
             playhead,
             interaction: TimelineInteractionState {
                 active_tool: TimelineTool::Selection,
@@ -442,7 +443,7 @@ impl TimelineRuntimeState {
             undo_stack: Vec::new(),
             redo_stack: Vec::new(),
             preview_drop_asset: None,
-        }
+        })
     }
 
     pub(super) fn save_timeline_playhead(self: &mut TimelineRuntimeState, project_root: &Path) {

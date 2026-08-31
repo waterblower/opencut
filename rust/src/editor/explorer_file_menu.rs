@@ -156,7 +156,7 @@ impl Editor {
                     *path = new_path;
                 }
             }
-            PreviewTarget::None | PreviewTarget::Timeline(_) => {}
+            PreviewTarget::None | PreviewTarget::Timeline => {}
         }
 
         let renamed_active_timeline = self

@@ -3,6 +3,7 @@ use super::{
     timeline::TimelineSerialization,
 };
 use crate::video::VideoBackend;
+use anyhow::Result;
 use ges::prelude::*;
 use gstreamer as gst;
 use gstreamer_app as gst_app;
@@ -11,16 +12,35 @@ use gstreamer_editing_services as ges;
 
 use ulid::Ulid;
 
-pub(super) fn create_timeline_video(timeline: &ges::Timeline) -> anyhow::Result<VideoBackend> {
-    initialize_gstreamer()?;
-    let (audio_sink, volume_control) = preview_audio_sink()?;
-    let (pipeline, sink) = create_timeline_pipeline_v2(timeline, &audio_sink)?;
-    VideoBackend::from_pipeline(pipeline, sink, volume_control)
-        .map_err(|error| anyhow::anyhow!("could not initialize timeline video: {error}"))
+pub struct TimelineVideoBackend {
+    ges_timeline: ges::Timeline,
+    playback: VideoBackend,
+}
+
+impl TimelineVideoBackend {
+    pub fn new(ges_timeline: ges::Timeline) -> Result<TimelineVideoBackend> {
+        let playback = create_timeline_playback(&ges_timeline)?;
+        Ok(Self {
+            ges_timeline,
+            playback,
+        })
+    }
+
+    pub fn ges_timeline(&self) -> &ges::Timeline {
+        &self.ges_timeline
+    }
+
+    pub fn playback(&self) -> &VideoBackend {
+        &self.playback
+    }
+
+    pub fn playback_mut(&mut self) -> &mut VideoBackend {
+        &mut self.playback
+    }
 }
 
 pub(super) fn update_timeline_video_position(
-    video: &mut VideoBackend,
+    video: &mut TimelineVideoBackend,
     timeline_data: &TimelineSerialization,
     clip_id: Ulid,
     refresh_frame: bool,
@@ -34,13 +54,7 @@ pub(super) fn update_timeline_video_position(
     let asset = timeline_data
         .asset(clip.asset_id)
         .ok_or_else(|| anyhow::anyhow!("Clip {clip_id} has no source media."))?;
-    let pipeline = video
-        .pipeline()
-        .downcast::<ges::Pipeline>()
-        .map_err(|_| anyhow::anyhow!("timeline preview pipeline had an unexpected type"))?;
-    let timeline = pipeline
-        .timeline()
-        .ok_or_else(|| anyhow::anyhow!("timeline preview pipeline has no timeline"))?;
+    let timeline = &video.ges_timeline;
     let clip_name = format!("opencut-clip-{clip_id}");
     let rendered_clip = timeline
         .layers()
@@ -84,9 +98,9 @@ pub(super) fn update_timeline_video_position(
     if !timeline.commit_sync() {
         anyhow::bail!("GStreamer could not commit the preview position.");
     }
-    video
-        .seek(video.position(), true)
-        .map_err(anyhow::Error::msg)
+    let playback = &mut video.playback;
+    let position = playback.position();
+    playback.seek(position, true).map_err(anyhow::Error::msg)
 }
 
 pub fn create_timeline_pipeline_v2(
@@ -115,6 +129,14 @@ pub fn create_timeline_pipeline_v2(
         .map_err(|error| anyhow::anyhow!("could not enable GStreamer preview mode: {error}"))?;
 
     Ok((pipeline.upcast(), sink))
+}
+
+fn create_timeline_playback(timeline: &ges::Timeline) -> anyhow::Result<VideoBackend> {
+    initialize_gstreamer()?;
+    let (audio_sink, volume_control) = preview_audio_sink()?;
+    let (pipeline, sink) = create_timeline_pipeline_v2(timeline, &audio_sink)?;
+    VideoBackend::from_pipeline(pipeline, sink, volume_control)
+        .map_err(|error| anyhow::anyhow!("could not initialize timeline video: {error}"))
 }
 
 fn initialize_gstreamer() -> anyhow::Result<()> {
