@@ -41,7 +41,7 @@ fn measures_seek_to_half_of_a_video() {
     let source = Path::new(env!("CARGO_MANIFEST_DIR")).join("data/tests/long video.mp4");
     let uri = Url::from_file_path(&source)
         .unwrap_or_else(|_| panic!("could not convert {} to a file URL", source.display()));
-    let mut video = VideoBackend::open(&uri).expect("could not open test video");
+    let mut video = FileVideoBackend::open(&uri).expect("could not open test video");
     video.set_paused(true);
     video
         .pipeline()
@@ -59,5 +59,5 @@ fn measures_seek_to_half_of_a_video() {
         .expect("could not seek test video to its midpoint");
     let elapsed = started_at.elapsed();
 
-    eprintln!("VideoBackend::seek to 50% ({target:?} of {duration:?}) took {elapsed:?}");
+    eprintln!("FileVideoBackend::seek to 50% ({target:?} of {duration:?}) took {elapsed:?}");
 }
