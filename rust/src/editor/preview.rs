@@ -25,7 +25,7 @@ pub fn load_timeline_position_with_options(
     let _ = timeline
         .video_backend
         .playback_mut()
-        .seek(timeline.data.duration(position), true);
+        .seek(timeline.data.duration(position));
 }
 
 impl PreviewTarget {
@@ -158,7 +158,7 @@ impl Editor {
         }
         if let PreviewTarget::VideoFile(_, video) = &mut self.preview.target {
             let target = video.duration().mul_f64(fraction as f64);
-            let _ = video.seek(target, true);
+            let _ = video.seek(target);
         }
     }
 }

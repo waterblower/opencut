@@ -162,21 +162,28 @@ impl VideoBackend {
         }
     }
 
-    pub(crate) fn seek(&mut self, position: Duration, accurate: bool) -> Result<(), String> {
+    pub(crate) fn seek(&mut self, position: Duration) -> Result<(), String> {
         let mut flags = gst::SeekFlags::FLUSH;
-        if accurate {
-            flags |= gst::SeekFlags::ACCURATE;
-        } else {
-            flags |= gst::SeekFlags::KEY_UNIT | gst::SeekFlags::SNAP_AFTER;
-        }
+        flags |= gst::SeekFlags::ACCURATE;
+
+        let stop = self.duration();
+        let final_frame_start = self
+            .framerate()
+            .map(|frame_rate| {
+                let frame_duration = Duration::from_secs_f64(1.0 / frame_rate);
+                stop.saturating_sub(frame_duration)
+            })
+            .unwrap_or_else(|| stop.saturating_sub(Duration::from_nanos(1)));
+        let position = position.min(final_frame_start);
+
         self.pipeline
             .seek(
                 1.0,
                 flags,
                 gst::SeekType::Set,
                 gst::ClockTime::from_nseconds(position.as_nanos() as u64),
-                gst::SeekType::None,
-                gst::ClockTime::NONE,
+                gst::SeekType::Set,
+                gst::ClockTime::from_nseconds(stop.as_nanos() as u64),
             )
             .map_err(|error| format!("could not seek video: {error}"))?;
         self.cached_position = position;

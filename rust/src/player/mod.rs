@@ -236,7 +236,7 @@ impl Player {
         .min(duration);
 
         self.pending_seek_started = Some(Instant::now());
-        let _ = video.seek(target, true);
+        let _ = video.seek(target);
     }
 
     fn seek_to_fraction(&mut self, fraction: f64) {
@@ -244,7 +244,7 @@ impl Player {
             return;
         };
         let target = video.duration().mul_f64(fraction.clamp(0.0, 1.0));
-        let _ = video.seek(target, true);
+        let _ = video.seek(target);
     }
 
     fn set_history_width_from_x(&mut self, x: f32, window: &Window) {

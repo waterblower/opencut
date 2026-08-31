@@ -1036,7 +1036,7 @@ pub(super) fn edit_and_rebuild_timeline(
     let video = timeline.video_backend.playback_mut();
     video.set_volume(volume);
     video.set_muted(volume <= f64::EPSILON);
-    let _ = video.seek(timeline.data.duration(timeline.playhead), true);
+    let _ = video.seek(timeline.data.duration(timeline.playhead));
     preview.target = PreviewTarget::Timeline;
     data_parity_check(timeline, timeline.video_backend.ges_timeline())?;
     Ok(())

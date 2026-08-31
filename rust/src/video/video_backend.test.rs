@@ -55,7 +55,7 @@ fn measures_seek_to_half_of_a_video() {
 
     let started_at = Instant::now();
     video
-        .seek(target, false)
+        .seek(target)
         .expect("could not seek test video to its midpoint");
     let elapsed = started_at.elapsed();
 
