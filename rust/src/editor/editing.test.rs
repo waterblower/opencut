@@ -420,6 +420,65 @@ fn removes_ges_clip_and_ripples_surviving_clips() {
 }
 
 #[test]
+fn splits_ges_clip_with_one_edit_action() {
+    let _gstreamer_test = crate::editor::tests::lock_gstreamer_test();
+    gstreamer_editing_services::init().unwrap();
+    let track_id = ulid(3);
+    let original_clip_id = ulid(10);
+    let original_clip = Clip::Text(TextClip {
+        id: original_clip_id,
+        track_id,
+        timeline_start: TimelineTime::ZERO,
+        length: Duration::from_secs(4),
+        properties: TextClipProperties::default(),
+    });
+    let project = TimelineSerialization {
+        tracks: vec![Track {
+            id: track_id,
+            name: "Text 1".to_string(),
+            kind: TrackKind::Text,
+            locked: false,
+            muted: false,
+            visible: true,
+        }],
+        clips: vec![original_clip.clone()],
+        ..TimelineSerialization::default()
+    };
+    let ges = build_ges_timeline(
+        &project,
+        Path::new(env!("CARGO_MANIFEST_DIR")),
+        export::ExportOptions::from_timeline(&project),
+    )
+    .unwrap();
+    let mut runtime =
+        TimelineRuntimeState::new("test.timeline.json".into(), project, ges.clone()).unwrap();
+    let split_position = TimelineTime::from_frames(60);
+    let (left, right) = original_clip
+        .split_at(split_position, runtime.data.settings.frame_rate)
+        .unwrap();
+    let right_clip_id = right.id();
+
+    edit_timeline(
+        &mut runtime,
+        Path::new(env!("CARGO_MANIFEST_DIR")),
+        EditAction::SplitClips {
+            removed_clips: HashSet::from([original_clip_id]),
+            added_clips: vec![left, right],
+        },
+    )
+    .unwrap();
+
+    assert!(runtime.data.clip(original_clip_id).is_some());
+    assert!(runtime.data.clip(right_clip_id).is_some());
+    assert_eq!(runtime.data.clips.len(), 2);
+    assert_eq!(
+        runtime.data.content_duration(),
+        TimelineTime::from_frames(120)
+    );
+    data_parity_check(&runtime, &ges).unwrap();
+}
+
+#[test]
 fn detects_timeline_and_ges_data_divergence() {
     let _gstreamer_test = crate::editor::tests::lock_gstreamer_test();
     gstreamer_editing_services::init().unwrap();

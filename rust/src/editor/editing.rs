@@ -1,4 +1,5 @@
 use super::*;
+use gstreamer_editing_services::prelude::TimelineExt as _;
 use std::path::Path;
 
 #[derive(Clone)]
@@ -232,19 +233,9 @@ impl TimelineRuntimeState {
             preview,
             project_root,
             self,
-            EditAction::RemoveClips {
-                clip_ids: removed_clip_ids,
-                close_track_gaps: false,
-            },
-        )
-        .expect("removing clips cannot be rejected");
-        edit_and_rebuild_timeline(
-            preview,
-            project_root,
-            self,
-            EditAction::AddClips {
-                clips: split_clips,
-                assets: Vec::new(),
+            EditAction::SplitClips {
+                removed_clips: removed_clip_ids,
+                added_clips: split_clips,
             },
         )
         .expect("split clip placements were validated before recording history");
@@ -916,6 +907,10 @@ pub(super) enum EditAction {
         clip_ids: HashSet<Ulid>,
         close_track_gaps: bool,
     },
+    SplitClips {
+        removed_clips: HashSet<Ulid>,
+        added_clips: Vec<Clip>,
+    },
     UpdateClip {
         clip: Clip,
     },
@@ -981,6 +976,7 @@ impl EditAction {
         match self {
             Self::AddClips { .. } => "AddClips",
             Self::RemoveClips { .. } => "RemoveClips",
+            Self::SplitClips { .. } => "SplitClips",
             Self::MoveClips { .. } => "MoveClips",
             Self::UpdateClip { .. } => "UpdateClip",
             Self::SetVideoProperties { .. } => "SetVideoProperties",
@@ -1057,12 +1053,11 @@ pub(super) fn edit_timeline(
             updated_timeline.assets.extend(assets);
             validate_clips_placements(&updated_timeline, &clips)?;
             updated_timeline.clips.extend(clips.iter().cloned());
-            ges_add_clips(
-                timeline.video_backend.ges_timeline(),
-                &updated_timeline,
-                project_root,
-                &clips,
-            )?;
+            let ges = timeline.video_backend.ges_timeline();
+            ges_add_clips(ges, &updated_timeline, project_root, &clips)?;
+            if !ges.commit() {
+                anyhow::bail!("GStreamer could not commit the added clips.");
+            }
             timeline.data = updated_timeline;
             return Ok(false);
         }
@@ -1089,12 +1084,32 @@ pub(super) fn edit_timeline(
                 })
                 .map(|clip| (clip.id(), clip.track_id(), clip.timeline_start()))
                 .collect::<Vec<_>>();
-            ges_remove_clips(timeline.video_backend.ges_timeline(), &clip_ids)?;
-            ges_move_clips(
-                timeline.video_backend.ges_timeline(),
-                &updated_timeline,
-                &ripple_placements,
-            )?;
+            let ges = timeline.video_backend.ges_timeline();
+            ges_remove_clips(ges, &clip_ids)?;
+            ges_move_clips(ges, &updated_timeline, &ripple_placements)?;
+            if !ges.commit_sync() {
+                anyhow::bail!("GStreamer could not commit the removed clips.");
+            }
+            timeline.data = updated_timeline;
+            return Ok(false);
+        }
+        EditAction::SplitClips {
+            removed_clips,
+            added_clips,
+        } => {
+            let mut updated_timeline = timeline.data.clone();
+            updated_timeline
+                .clips
+                .retain(|clip| !removed_clips.contains(&clip.id()));
+            validate_clips_placements(&updated_timeline, &added_clips)?;
+            updated_timeline.clips.extend(added_clips.iter().cloned());
+
+            let ges = timeline.video_backend.ges_timeline();
+            ges_remove_clips(ges, &removed_clips)?;
+            ges_add_clips(ges, &updated_timeline, project_root, &added_clips)?;
+            if !ges.commit_sync() {
+                anyhow::bail!("GStreamer could not commit the split clips.");
+            }
             timeline.data = updated_timeline;
             return Ok(false);
         }
@@ -1108,11 +1123,11 @@ pub(super) fn edit_timeline(
                 .data
                 .validate_clip_move_placements(&placements, &moved_clip_ids)?;
 
-            ges_move_clips(
-                timeline.video_backend.ges_timeline(),
-                &timeline.data,
-                &placements,
-            )?;
+            let ges = timeline.video_backend.ges_timeline();
+            ges_move_clips(ges, &timeline.data, &placements)?;
+            if !ges.commit() {
+                anyhow::bail!("GStreamer could not commit the moved clips.");
+            }
 
             for (clip_id, track_id, start) in placements {
                 if let Some(clip) = timeline.data.clip_mut(clip_id) {
@@ -1161,15 +1176,18 @@ pub(super) fn edit_timeline(
             updated_timeline.clips.insert(clip_index, clip.clone());
 
             let clip_ids = HashSet::from([clip_id]);
-            ges_remove_clips(timeline.video_backend.ges_timeline(), &clip_ids)
-                .expect("updated clip must be removable from GES");
+            let ges = timeline.video_backend.ges_timeline();
+            ges_remove_clips(ges, &clip_ids).expect("updated clip must be removable from GES");
             ges_add_clips(
-                timeline.video_backend.ges_timeline(),
+                ges,
                 &updated_timeline,
                 project_root,
                 std::slice::from_ref(&clip),
             )
             .expect("updated clip must be addable to GES");
+            if !ges.commit_sync() {
+                anyhow::bail!("GStreamer could not commit the updated clip.");
+            }
 
             timeline.data = updated_timeline;
             return Ok(false);
@@ -1390,9 +1408,6 @@ fn ges_move_clips(
     {
         anyhow::bail!("could not update the GES timeline background duration");
     }
-    if !ges.commit() {
-        anyhow::bail!("GStreamer could not commit the moved clips.");
-    }
     Ok(())
 }
 
@@ -1492,9 +1507,6 @@ fn ges_remove_clips(
         {
             anyhow::bail!("could not update the GES timeline background duration");
         }
-    }
-    if !ges.commit() {
-        anyhow::bail!("GStreamer could not commit the removed clips.");
     }
     Ok(())
 }
@@ -1686,9 +1698,6 @@ fn ges_add_clips(
         background_layer.add_clip(&background).map_err(|error| {
             anyhow::anyhow!("could not add the GES timeline background: {error}")
         })?;
-    }
-    if !ges.commit() {
-        anyhow::bail!("GStreamer could not commit the added clips.");
     }
     Ok(())
 }
