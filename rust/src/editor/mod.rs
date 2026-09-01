@@ -371,7 +371,8 @@ impl Editor {
                 self.timeline.as_ref().map(|timeline| timeline.path.clone());
             self.dismiss_context_menu();
             self.explorer
-                .refresh_file_tree(&self.global_settings.project_root)?;
+                .refresh_file_tree(&self.global_settings.project_root)
+                .context("refresh_file_tree failed")?;
             if let Some(timeline) = self.timeline.as_mut()
                 && !timeline.data.clips.is_empty()
             {
