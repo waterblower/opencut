@@ -774,7 +774,10 @@ fn timeline_load_migrates_frame_length_using_its_own_frame_rate() {
                 "id": "01M0P9DJ506ZPJ4R4V7CH565X7",
                 "track_id": "01M0MCDDQWBN2HXFPJXY4BMQES",
                 "timeline_start": 9090,
-                "length": 300,
+                "length": {
+                    "secs": 300,
+                    "nanos": 0,
+                },
                 "properties": { "text": "Text", "future_field": true },
                 "future_clip_field": true
             },
@@ -783,12 +786,13 @@ fn timeline_load_migrates_frame_length_using_its_own_frame_rate() {
         "future_timeline_field": true
     });
 
-    let timeline = deserialize_timeline(&json.to_string()).unwrap();
-
+    let timeline = deserialize_timeline(&json.to_string())
+        .inspect_err(|e| eprintln!("{e:#}"))
+        .unwrap();
     assert_eq!(
         timeline.clips[0].text().unwrap().length,
-        Duration::from_secs(5)
-    );
+        Duration::from_mins(5)
+    )
 }
 
 #[test]

@@ -1,7 +1,7 @@
 use crate::editor::{Clip, FrameRate, TimelineTime, TrackKind};
 
 use super::timeline::TimelineSerialization;
-use anyhow::Result;
+use anyhow::{Context as _, Result};
 use std::{
     fs,
     path::{Path, PathBuf},
@@ -161,12 +161,14 @@ fn timeline_file_names(directory: &Path) -> anyhow::Result<Vec<String>> {
 }
 
 pub fn deserialize_timeline(contents: &str) -> Result<TimelineSerialization> {
-    let mut value = serde_json::from_str::<serde_json::Value>(contents)?;
+    let mut value = serde_json::from_str::<serde_json::Value>(contents)
+        .context("could not parse timeline JSON")?;
     let frame_rate = value
         .pointer("/settings/frame_rate")
         .cloned()
         .map(serde_json::from_value::<FrameRate>)
-        .transpose()?
+        .transpose()
+        .context("could not deserialize timeline frame rate")?
         .unwrap_or_default();
     if let Some(clips) = value
         .get_mut("clips")
@@ -184,11 +186,13 @@ pub fn deserialize_timeline(contents: &str) -> Result<TimelineSerialization> {
             };
             clip.insert(
                 "length".to_string(),
-                serde_json::to_value(frame_rate.duration(TimelineTime::from_frames(frames)))?,
+                serde_json::to_value(frame_rate.duration(TimelineTime::from_frames(frames)))
+                    .context("could not serialize migrated text clip duration")?,
             );
         }
     }
-    let mut timeline = serde_json::from_value::<TimelineSerialization>(value)?;
+    let mut timeline = serde_json::from_value::<TimelineSerialization>(value)
+        .context("could not deserialize timeline data")?;
     for clip in &mut timeline.clips {
         let track_kind = timeline
             .tracks
