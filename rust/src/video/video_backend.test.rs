@@ -10,9 +10,14 @@ fn from_pipeline_accepts_an_empty_pipeline_without_caps() {
     pipeline
         .add(&sink)
         .expect("could not add test sink to pipeline");
+    let started_at = Instant::now();
     let video = VideoBackend::from_pipeline(pipeline, sink, test_volume_control())
         .expect("an empty pipeline should create a video backend");
 
+    assert!(
+        started_at.elapsed() < Duration::from_secs(1),
+        "an empty pipeline should not wait for preroll"
+    );
     assert_eq!(video.frame_size(), (1, 1));
     let element = crate::video::video(&video);
 
@@ -38,6 +43,11 @@ fn from_pipeline_reads_negotiated_frame_size() {
 
     let video = VideoBackend::from_pipeline(pipeline, sink, test_volume_control())
         .expect("could not create video backend");
+    video
+        .pipeline
+        .state(gst::ClockTime::from_seconds(5))
+        .0
+        .expect("test video pipeline did not finish preparing");
 
     assert_eq!(video.frame_size(), (320, 180));
 }

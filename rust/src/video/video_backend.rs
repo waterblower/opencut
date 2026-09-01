@@ -39,7 +39,9 @@ impl VideoBackend {
         sink: gst_app::AppSink,
         volume_control: gst_audio::StreamVolume,
     ) -> Result<Self> {
-        gst::init().context("could not initialize GStreamer")?;
+        gst::init().with_context(|| {
+            format!("could not initialize GStreamer at {}:{}", file!(), line!())
+        })?;
         let current_frame = Arc::new(Mutex::new(None));
         sink.set_callbacks(
             gst_app::AppSinkCallbacks::builder()
@@ -63,11 +65,32 @@ impl VideoBackend {
         );
         pipeline
             .set_state(gst::State::Paused)
-            .context("could not prepare video")?;
-        let state = pipeline.state(gst::ClockTime::from_seconds(5));
-        if let Err(error) = state.0 {
-            let _ = pipeline.set_state(gst::State::Null);
-            return Err(Error::new(error).context("video did not finish preparing"));
+            .with_context(|| format!("could not prepare video at {}:{}", file!(), line!()))?;
+        match pipeline.state(gst::ClockTime::ZERO).0 {
+            Ok(gst::StateChangeSuccess::Success) => {}
+            Ok(gst::StateChangeSuccess::Async) => {
+                // Empty and still-preparing pipelines may remain pending without failing.
+                eprintln!("VideoBackend: pipeline state changed to Async");
+            }
+            Ok(gst::StateChangeSuccess::NoPreroll) => {
+                // Live pipelines do not preroll in the paused state.
+                eprintln!("VideoBackend: pipeline state changed to NoPreroll");
+            }
+            Err(error) => {
+                let preparation_error = Error::new(error).context(format!(
+                    "video did not finish preparing at {}:{}",
+                    file!(),
+                    line!()
+                ));
+                if let Err(error) = pipeline.set_state(gst::State::Null) {
+                    return Err(preparation_error.context(format!(
+                        "could not set pipeline to null state after preparation failed at {}:{}: {error}",
+                        file!(),
+                        line!()
+                    )));
+                }
+                return Err(preparation_error);
+            }
         }
         let caps = sink
             .static_pad("sink")
@@ -79,9 +102,11 @@ impl VideoBackend {
                     Ok(info) => info,
                     Err(error) => {
                         let _ = pipeline.set_state(gst::State::Null);
-                        return Err(
-                            Error::new(error).context("video caps did not describe raw video")
-                        );
+                        return Err(Error::new(error).context(format!(
+                            "video caps did not describe raw video at {}:{}",
+                            file!(),
+                            line!()
+                        )));
                     }
                 };
                 (info.width(), info.height())
