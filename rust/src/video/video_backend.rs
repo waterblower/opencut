@@ -1,7 +1,7 @@
 use std::ops::{Deref, DerefMut};
 use std::sync::Arc;
 
-use anyhow::{Context as _, Error, Result, anyhow, bail};
+use anyhow::{Context as _, Error, Result, anyhow};
 use gst::prelude::*;
 
 use gst_audio::prelude::StreamVolumeExt as _;
@@ -64,28 +64,30 @@ impl VideoBackend {
         pipeline
             .set_state(gst::State::Paused)
             .context("could not prepare video")?;
-        if let Err(error) = pipeline.state(gst::ClockTime::from_seconds(5)).0 {
+        let state = pipeline.state(gst::ClockTime::from_seconds(5));
+        if let Err(error) = state.0 {
             let _ = pipeline.set_state(gst::State::Null);
             return Err(Error::new(error).context("video did not finish preparing"));
         }
-        let Some(caps) = sink
+        let caps = sink
             .static_pad("sink")
             .expect("AppSink must have a static sink pad")
-            .current_caps()
-        else {
-            if let Err(err) = pipeline.set_state(gst::State::Null) {
-                return Err(Error::new(err).context("could not set pipeline to null state"));
+            .current_caps();
+        let frame_size = match caps {
+            Some(caps) => {
+                let info = match gst_video::VideoInfo::from_caps(&caps) {
+                    Ok(info) => info,
+                    Err(error) => {
+                        let _ = pipeline.set_state(gst::State::Null);
+                        return Err(
+                            Error::new(error).context("video caps did not describe raw video")
+                        );
+                    }
+                };
+                (info.width(), info.height())
             }
-            bail!("video caps were not negotiated at {}:{}", file!(), line!());
+            None => (1, 1),
         };
-        let info = match gst_video::VideoInfo::from_caps(&caps) {
-            Ok(info) => info,
-            Err(error) => {
-                let _ = pipeline.set_state(gst::State::Null);
-                return Err(Error::new(error).context("video caps did not describe raw video"));
-            }
-        };
-        let frame_size = (info.width(), info.height());
 
         // GStreamer negotiates `framerate=0/1` for variable-frame-rate sources such as
         // screen recordings. That is a valid "unknown rate" marker, not a broken file, so
@@ -115,7 +117,11 @@ impl VideoBackend {
     }
 
     pub(crate) fn frame_size(&self) -> (u32, u32) {
-        return self._frame_size;
+        self.cap()
+            .ok()
+            .and_then(|caps| gst_video::VideoInfo::from_caps(&caps).ok())
+            .map(|info| (info.width(), info.height()))
+            .unwrap_or(self._frame_size)
     }
 
     /// The negotiated frame rate, or `None` for variable-frame-rate sources where

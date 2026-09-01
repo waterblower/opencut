@@ -338,7 +338,8 @@ impl Editor {
         active_timeline: TimelineSerialization,
         cx: &mut Context<Self>,
     ) -> Result<()> {
-        (|| -> Result<()> {
+        let t = Instant::now();
+        let res = (|| -> Result<()> {
             self.preview.volume_control_open = false;
             self.preview.is_scrubbing = false;
             self.preview.is_adjusting_volume = false;
@@ -384,8 +385,9 @@ impl Editor {
             }
             self.schedule_active_timeline_waveforms(cx);
             Ok(())
-        })()
-        .context("activate_timeline failed")
+        })();
+        eprintln!("activate_timeline: {}", t.elapsed().as_millis());
+        res.context("activate_timeline failed")
     }
 
     fn schedule_project_waveforms(&mut self, cx: &mut Context<Self>) {
