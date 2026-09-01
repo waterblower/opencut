@@ -30,6 +30,7 @@ pub(super) const FRAME_RATE_PRESETS: [(FrameRate, &str); 8] = [
 pub(super) struct TimelineSerialization {
     pub settings: TimelineSettings,
     pub assets: Vec<MediaAsset>,
+    #[serde(alias = "layers")]
     pub tracks: Vec<Track>,
     pub clips: Vec<Clip>,
     pub view: TimelineViewState,
