@@ -18,9 +18,23 @@ use asset::EditorAssets;
 use editor::Editor;
 use gpui::{App, Bounds, WindowBounds, WindowOptions, prelude::*, px, rgb, size};
 use gpui_platform::application;
+use std::io::Write as _;
 
 fn main() {
-    env_logger::init();
+    env_logger::Builder::from_env(
+        env_logger::Env::default().default_filter_or("opencut_editor=debug"),
+    )
+    .format(|buffer, record| {
+        writeln!(
+            buffer,
+            "{}\n\t\t[{}:{}]",
+            record.args(),
+            record.file().unwrap_or("<unknown>"),
+            record.line().unwrap_or(0)
+        )
+    })
+    .init();
+
     macos_pinch::install();
     application().with_assets(EditorAssets).run(run_app);
 }

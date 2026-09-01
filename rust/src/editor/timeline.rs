@@ -430,8 +430,7 @@ impl TimelineRuntimeState {
         Ok(Self {
             path,
             data,
-            video_backend: TimelineVideoBackend::new(ges_timeline)
-                .context("TimelineVideoBackend::new failed")?,
+            video_backend: TimelineVideoBackend::new(ges_timeline)?,
             playhead,
             interaction: TimelineInteractionState {
                 active_tool: TimelineTool::Selection,

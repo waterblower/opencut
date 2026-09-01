@@ -463,7 +463,7 @@ impl Editor {
                             .child(rename_dialog_button("Create", true).on_click(cx.listener(
                                 |editor, _, _, cx| {
                                     if let Err(error) = editor.finish_create_timeline(cx) {
-                                        eprintln!("{error}");
+                                        eprintln!("{error:?}");
                                     }
                                     cx.notify();
                                 },

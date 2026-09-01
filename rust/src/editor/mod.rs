@@ -338,7 +338,8 @@ impl Editor {
         active_timeline: TimelineSerialization,
         cx: &mut Context<Self>,
     ) -> Result<()> {
-        (|| -> Result<()> {
+        let t = Instant::now();
+        let res = (|| -> Result<()> {
             self.preview.volume_control_open = false;
             self.preview.is_scrubbing = false;
             self.preview.is_adjusting_volume = false;
@@ -371,7 +372,8 @@ impl Editor {
                 self.timeline.as_ref().map(|timeline| timeline.path.clone());
             self.dismiss_context_menu();
             self.explorer
-                .refresh_file_tree(&self.global_settings.project_root)?;
+                .refresh_file_tree(&self.global_settings.project_root)
+                .context("refresh_file_tree failed")?;
             if let Some(timeline) = self.timeline.as_mut()
                 && !timeline.data.clips.is_empty()
             {
@@ -383,8 +385,9 @@ impl Editor {
             }
             self.schedule_active_timeline_waveforms(cx);
             Ok(())
-        })()
-        .context("activate_timeline failed")
+        })();
+        log::debug!("activate_timeline: {}", t.elapsed().as_millis());
+        res.context("activate_timeline failed")
     }
 
     fn schedule_project_waveforms(&mut self, cx: &mut Context<Self>) {
