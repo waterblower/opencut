@@ -5,29 +5,32 @@ use preview_image::preview_image_file;
 
 pub(super) enum PreviewTarget {
     None,
-    Timeline(VideoBackend),
-    VideoFile(PathBuf, VideoBackend),
+    Timeline,
+    VideoFile(PathBuf, FileVideoBackend),
     AudioFile(PathBuf, AudioBackend),
     ImageFile(PathBuf),
 }
 
+pub fn load_timeline_position_with_options(
+    preview: &mut PreviewState,
+    timeline: &mut TimelineRuntimeState,
+    position: TimelineTime,
+) {
+    preview.target = PreviewTarget::Timeline;
+    let duration = timeline.data.content_duration();
+    let position = position.clamp(TimelineTime::ZERO, duration);
+    timeline.playhead = position;
+    preview.timeline_drag = None;
+
+    let _ = timeline
+        .video_backend
+        .playback_mut()
+        .seek(timeline.data.duration(position));
+}
+
 impl PreviewTarget {
     pub(super) fn is_timeline(&self) -> bool {
-        matches!(self, Self::Timeline(_))
-    }
-
-    pub(super) fn video(&self) -> Option<&VideoBackend> {
-        match self {
-            Self::Timeline(video) | Self::VideoFile(_, video) => Some(video),
-            _ => None,
-        }
-    }
-
-    pub(super) fn video_mut(&mut self) -> Option<&mut VideoBackend> {
-        match self {
-            Self::Timeline(video) | Self::VideoFile(_, video) => Some(video),
-            _ => None,
-        }
+        matches!(self, Self::Timeline)
     }
 
     pub(super) fn audio(&self) -> Option<&AudioBackend> {
@@ -57,7 +60,7 @@ impl Editor {
                 .text_color(rgb(MUTED))
                 .child("No preview available")
                 .into_any_element(),
-            PreviewTarget::Timeline(_) => {
+            PreviewTarget::Timeline => {
                 preview_timeline_view(self, origin_x, origin_y, width, height, cx)
             }
             PreviewTarget::VideoFile(_, _) => {
@@ -82,32 +85,6 @@ impl Editor {
         cx.notify();
     }
 
-    /// Deprecated because this couples playhead seeking to rebuilding the entire
-    /// GES preview pipeline instead of synchronizing timeline edits in place.
-    pub(super) fn load_timeline_position_with_options(
-        &mut self,
-        position: TimelineTime,
-        accurate: bool,
-    ) {
-        self.explorer.selected_file = None;
-        self.dismiss_context_menu();
-        let timeline = self
-            .timeline
-            .as_mut()
-            .expect("loading a timeline position requires an active timeline");
-        let video = self
-            .preview
-            .target
-            .video_mut()
-            .expect("loading a timeline position requires an active video preview");
-        let duration = timeline.data.content_duration();
-        let position = position.clamp(TimelineTime::ZERO, duration);
-        timeline.playhead = position;
-        self.preview.timeline_drag = None;
-
-        let _ = video.seek(timeline.data.duration(position), accurate);
-    }
-
     pub(super) fn toggle_playback(&mut self) {
         match &self.preview.target {
             PreviewTarget::None | PreviewTarget::ImageFile(_) => return,
@@ -125,11 +102,12 @@ impl Editor {
 
                 return;
             }
-            PreviewTarget::Timeline(video) => {
-                let is_paused = video.paused();
+            PreviewTarget::Timeline => {
                 let Some(timeline) = self.timeline.as_mut() else {
                     return;
                 };
+                let video = timeline.video_backend.playback();
+                let is_paused = video.paused();
                 if timeline.data.clips.is_empty() {
                     return;
                 }
@@ -140,20 +118,18 @@ impl Editor {
                 } else {
                     timeline.playhead
                 };
-                let PreviewTarget::Timeline(video) = &self.preview.target else {
-                    return;
-                };
                 video.set_paused(!is_paused);
-                self.load_timeline_position_with_options(start, true);
+                load_timeline_position_with_options(&mut self.preview, timeline, start);
             }
         }
     }
 }
 
 pub(super) fn update_playback(timeline: &mut TimelineRuntimeState, preview: &mut PreviewState) {
-    let PreviewTarget::Timeline(video) = &preview.target else {
+    if !preview.target.is_timeline() {
         return;
-    };
+    }
+    let video = timeline.video_backend.playback();
     let duration = timeline.data.content_duration();
     timeline.playhead = timeline
         .data
@@ -171,18 +147,18 @@ impl Editor {
     fn seek_preview_to_fraction(&mut self, fraction: f32) {
         let fraction = fraction.clamp(0.0, 1.0);
         if self.preview.target.is_timeline() {
-            let Some(timeline) = self.timeline.as_ref() else {
+            let Some(timeline) = self.timeline.as_mut() else {
                 return;
             };
             let duration = timeline.data.content_duration().frames();
             let position =
                 TimelineTime::from_frames((duration as f64 * fraction as f64).round() as i64);
-            self.load_timeline_position_with_options(position, true);
+            load_timeline_position_with_options(&mut self.preview, timeline, position);
             return;
         }
         if let PreviewTarget::VideoFile(_, video) = &mut self.preview.target {
             let target = video.duration().mul_f64(fraction as f64);
-            let _ = video.seek(target, true);
+            let _ = video.seek(target);
         }
     }
 }
@@ -209,7 +185,7 @@ impl PlaybackViewDelegate for Editor {
 
         match phase {
             DragPhase::Start => {
-                if let Some(video) = self.preview.target.video() {
+                if let Some(video) = self.active_video() {
                     video.set_paused(true);
                 }
                 self.preview.is_scrubbing = true;
@@ -231,9 +207,6 @@ impl PlaybackViewDelegate for Editor {
                 self.preview.last_scrub_seek = None;
                 self.preview.is_scrubbing = false;
                 self.seek_preview_to_fraction(fraction);
-                if self.preview.target.is_timeline() {
-                    self.save_timeline_playhead();
-                }
             }
             _ => return,
         }
@@ -255,23 +228,16 @@ impl PlaybackViewDelegate for Editor {
             DragPhase::End => self.preview.is_adjusting_volume = false,
             DragPhase::Update => {}
         }
-        match &self.preview.target {
-            PreviewTarget::Timeline(video) => {
-                video.set_volume(volume.clamp(0.0, 1.0));
-                video.set_muted(volume.clamp(0.0, 1.0) <= f64::EPSILON);
-            }
-            PreviewTarget::VideoFile(_, video) => {
-                video.set_volume(volume.clamp(0.0, 1.0));
-                video.set_muted(volume.clamp(0.0, 1.0) <= f64::EPSILON);
-            }
-            _ => {}
+        if let Some(video) = self.active_video() {
+            video.set_volume(volume.clamp(0.0, 1.0));
+            video.set_muted(volume.clamp(0.0, 1.0) <= f64::EPSILON);
         }
         cx.notify();
     }
 
     fn playback_toggle_volume(&mut self, _: &mut Window, cx: &mut Context<Self>) {
         let has_playable_target = match &self.preview.target {
-            PreviewTarget::Timeline(_) => self
+            PreviewTarget::Timeline => self
                 .timeline
                 .as_ref()
                 .is_some_and(|timeline| !timeline.data.clips.is_empty()),
@@ -290,6 +256,18 @@ impl PlaybackViewDelegate for Editor {
         if self.preview.volume_control_open {
             self.preview.volume_control_open = false;
             cx.notify();
+        }
+    }
+}
+
+impl Editor {
+    pub fn active_video(&self) -> Option<&VideoBackend> {
+        match &self.preview.target {
+            PreviewTarget::Timeline => Some(self.timeline.as_ref()?.video_backend.playback()),
+            PreviewTarget::VideoFile(_, video) => Some(video),
+            PreviewTarget::None | PreviewTarget::AudioFile(_, _) | PreviewTarget::ImageFile(_) => {
+                None
+            }
         }
     }
 }

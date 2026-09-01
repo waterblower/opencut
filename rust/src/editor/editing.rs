@@ -1,4 +1,5 @@
 use super::*;
+use gstreamer_editing_services::prelude::TimelineExt as _;
 use std::path::Path;
 
 #[derive(Clone)]
@@ -232,19 +233,9 @@ impl TimelineRuntimeState {
             preview,
             project_root,
             self,
-            EditAction::RemoveClips {
-                clip_ids: removed_clip_ids,
-                close_track_gaps: false,
-            },
-        )
-        .expect("removing clips cannot be rejected");
-        edit_and_rebuild_timeline(
-            preview,
-            project_root,
-            self,
-            EditAction::AddClips {
-                clips: split_clips,
-                assets: Vec::new(),
+            EditAction::SplitClips {
+                removed_clips: removed_clip_ids,
+                added_clips: split_clips,
             },
         )
         .expect("split clip placements were validated before recording history");
@@ -356,7 +347,6 @@ impl Editor {
         self.status = Some(format!("Pasted {count} clip{}.", plural_suffix(count)));
         timeline.save(&self.global_settings.project_root);
 
-        self.load_timeline_position_with_options(playhead, true);
         self.schedule_active_timeline_waveforms(cx);
     }
 
@@ -379,12 +369,8 @@ impl Editor {
         self.properties.transform_input_clip_id = None;
         self.properties.text_input_clip_id = None;
 
-        let clips_empty = timeline.data.clips.is_empty();
-        let playhead = timeline.playhead;
-        if clips_empty {
+        if timeline.data.clips.is_empty() {
             timeline.playhead = TimelineTime::ZERO;
-        } else {
-            self.load_timeline_position_with_options(playhead, true);
         }
         let Some(timeline) = self.timeline.as_ref() else {
             return;
@@ -546,7 +532,6 @@ impl Editor {
         let Some(timeline) = self.timeline.as_mut() else {
             return;
         };
-        let playhead = timeline.playhead;
         timeline.record_editing_history();
         edit_and_rebuild_timeline(
             &mut self.preview,
@@ -556,15 +541,12 @@ impl Editor {
         )
         .expect("toggling track visibility cannot be rejected");
         timeline.save(&self.global_settings.project_root);
-
-        self.load_timeline_position_with_options(playhead, true);
     }
 
     pub(super) fn toggle_track_mute(&mut self, track_id: Ulid) {
         let Some(timeline) = self.timeline.as_mut() else {
             return;
         };
-        let playhead = timeline.playhead;
         timeline.record_editing_history();
         edit_and_rebuild_timeline(
             &mut self.preview,
@@ -574,8 +556,6 @@ impl Editor {
         )
         .expect("toggling track mute cannot be rejected");
         timeline.save(&self.global_settings.project_root);
-
-        self.load_timeline_position_with_options(playhead, true);
     }
 
     pub(super) fn move_track(&mut self, track_id: Ulid, direction: i8) {
@@ -600,7 +580,7 @@ impl Editor {
         let Some(target) = target else {
             return;
         };
-        let playhead = timeline.playhead;
+
         timeline.record_editing_history();
         edit_and_rebuild_timeline(
             &mut self.preview,
@@ -610,8 +590,6 @@ impl Editor {
         )
         .expect("moving a track cannot be rejected");
         timeline.save(&self.global_settings.project_root);
-
-        self.load_timeline_position_with_options(playhead, true);
     }
 
     pub(super) fn delete_track(&mut self, track_id: Ulid) {
@@ -629,7 +607,6 @@ impl Editor {
         if timeline.data.tracks[index].locked {
             return;
         }
-        let playhead = timeline.playhead;
         timeline.record_editing_history();
         edit_and_rebuild_timeline(
             &mut self.preview,
@@ -661,8 +638,6 @@ impl Editor {
                 .map(Clip::id);
         }
         timeline.save(&self.global_settings.project_root);
-
-        self.load_timeline_position_with_options(playhead, true);
     }
 
     pub(super) fn select_only_clip(&mut self, clip_id: Option<Ulid>) {
@@ -784,24 +759,14 @@ impl Editor {
                     .find(|clip| timeline.interaction.selected_clip_ids.contains(&clip.id()))
                     .map(Clip::id)
             });
-        let has_clips = !timeline.data.clips.is_empty();
-        let playhead = timeline.playhead;
         self.properties.transform_input_clip_id = None;
         self.properties.text_input_clip_id = None;
-        if has_clips {
-            self.load_timeline_position_with_options(playhead, true);
+        if !timeline.data.clips.is_empty() {
+            load_timeline_position_with_options(&mut self.preview, timeline, timeline.playhead);
         }
         let Some(timeline) = self.timeline.as_ref() else {
             return;
         };
-        timeline.save(&self.global_settings.project_root);
-    }
-
-    pub(super) fn save_timeline_playhead(&mut self) {
-        let Some(timeline) = self.timeline.as_mut() else {
-            return;
-        };
-        timeline.capture_playhead(&self.global_settings.project_root);
         timeline.save(&self.global_settings.project_root);
     }
 
@@ -942,6 +907,10 @@ pub(super) enum EditAction {
         clip_ids: HashSet<Ulid>,
         close_track_gaps: bool,
     },
+    SplitClips {
+        removed_clips: HashSet<Ulid>,
+        added_clips: Vec<Clip>,
+    },
     UpdateClip {
         clip: Clip,
     },
@@ -1007,6 +976,7 @@ impl EditAction {
         match self {
             Self::AddClips { .. } => "AddClips",
             Self::RemoveClips { .. } => "RemoveClips",
+            Self::SplitClips { .. } => "SplitClips",
             Self::MoveClips { .. } => "MoveClips",
             Self::UpdateClip { .. } => "UpdateClip",
             Self::SetVideoProperties { .. } => "SetVideoProperties",
@@ -1040,23 +1010,22 @@ pub(super) fn edit_and_rebuild_timeline(
     let rebuild_timeline = edit_timeline(timeline, project_root, action)?;
     eprintln!("edit_timeline {action_type} - {:?}", t.elapsed());
     if !rebuild_timeline {
-        data_parity_check(&timeline, &timeline.ges_timeline)?;
+        data_parity_check(timeline, timeline.video_backend.ges_timeline())?;
         return Ok(());
     }
     eprintln!("rebuild the timeline is slow");
-    let volume = match &preview.target {
-        PreviewTarget::Timeline(video) => video.volume(),
-        _ => 1.0,
-    };
-    if let Some(video) = preview.target.video() {
-        video.set_paused(true);
-    }
+    let volume = timeline.video_backend.playback().volume();
+
+    timeline.video_backend.playback().set_paused(true);
+
     preview.target = PreviewTarget::None;
-    timeline.ges_timeline = build_ges_timeline(
+    let ges_timeline = build_ges_timeline(
         &timeline.data,
         project_root,
         export::ExportOptions::from_timeline(&timeline.data),
     )?;
+
+    timeline.video_backend = TimelineVideoBackend::new(ges_timeline)?;
     timeline.playhead = timeline
         .playhead
         .clamp(TimelineTime::ZERO, timeline.data.content_duration());
@@ -1064,12 +1033,12 @@ pub(super) fn edit_and_rebuild_timeline(
         return Ok(());
     }
 
-    let mut video = create_timeline_video(&timeline.ges_timeline).unwrap();
+    let video = timeline.video_backend.playback_mut();
     video.set_volume(volume);
     video.set_muted(volume <= f64::EPSILON);
-    let _ = video.seek(timeline.data.duration(timeline.playhead), true);
-    preview.target = PreviewTarget::Timeline(video);
-    data_parity_check(&timeline, &timeline.ges_timeline)?;
+    let _ = video.seek(timeline.data.duration(timeline.playhead));
+    preview.target = PreviewTarget::Timeline;
+    data_parity_check(timeline, timeline.video_backend.ges_timeline())?;
     Ok(())
 }
 
@@ -1084,12 +1053,11 @@ pub(super) fn edit_timeline(
             updated_timeline.assets.extend(assets);
             validate_clips_placements(&updated_timeline, &clips)?;
             updated_timeline.clips.extend(clips.iter().cloned());
-            ges_add_clips(
-                &timeline.ges_timeline,
-                &updated_timeline,
-                project_root,
-                &clips,
-            )?;
+            let ges = timeline.video_backend.ges_timeline();
+            ges_add_clips(ges, &updated_timeline, project_root, &clips)?;
+            if !ges.commit() {
+                anyhow::bail!("GStreamer could not commit the added clips.");
+            }
             timeline.data = updated_timeline;
             return Ok(false);
         }
@@ -1116,12 +1084,32 @@ pub(super) fn edit_timeline(
                 })
                 .map(|clip| (clip.id(), clip.track_id(), clip.timeline_start()))
                 .collect::<Vec<_>>();
-            ges_remove_clips(&timeline.ges_timeline, &clip_ids)?;
-            ges_move_clips(
-                &timeline.ges_timeline,
-                &updated_timeline,
-                &ripple_placements,
-            )?;
+            let ges = timeline.video_backend.ges_timeline();
+            ges_remove_clips(ges, &clip_ids)?;
+            ges_move_clips(ges, &updated_timeline, &ripple_placements)?;
+            if !ges.commit_sync() {
+                anyhow::bail!("GStreamer could not commit the removed clips.");
+            }
+            timeline.data = updated_timeline;
+            return Ok(false);
+        }
+        EditAction::SplitClips {
+            removed_clips,
+            added_clips,
+        } => {
+            let mut updated_timeline = timeline.data.clone();
+            updated_timeline
+                .clips
+                .retain(|clip| !removed_clips.contains(&clip.id()));
+            validate_clips_placements(&updated_timeline, &added_clips)?;
+            updated_timeline.clips.extend(added_clips.iter().cloned());
+
+            let ges = timeline.video_backend.ges_timeline();
+            ges_remove_clips(ges, &removed_clips)?;
+            ges_add_clips(ges, &updated_timeline, project_root, &added_clips)?;
+            if !ges.commit_sync() {
+                anyhow::bail!("GStreamer could not commit the split clips.");
+            }
             timeline.data = updated_timeline;
             return Ok(false);
         }
@@ -1135,7 +1123,11 @@ pub(super) fn edit_timeline(
                 .data
                 .validate_clip_move_placements(&placements, &moved_clip_ids)?;
 
-            ges_move_clips(&timeline.ges_timeline, &timeline.data, &placements)?;
+            let ges = timeline.video_backend.ges_timeline();
+            ges_move_clips(ges, &timeline.data, &placements)?;
+            if !ges.commit() {
+                anyhow::bail!("GStreamer could not commit the moved clips.");
+            }
 
             for (clip_id, track_id, start) in placements {
                 if let Some(clip) = timeline.data.clip_mut(clip_id) {
@@ -1166,8 +1158,12 @@ pub(super) fn edit_timeline(
                         .track(updated.track_id)
                         .is_some_and(|track| track.visible)
                 {
-                    ges_change_text_clip(&timeline.ges_timeline, clip_id, &updated.properties)
-                        .expect("updated text clip properties must be applicable to GES");
+                    ges_change_text_clip(
+                        timeline.video_backend.ges_timeline(),
+                        clip_id,
+                        &updated.properties,
+                    )
+                    .expect("updated text clip properties must be applicable to GES");
                 }
                 timeline.data.clips[clip_index] = clip;
                 return Ok(false);
@@ -1180,15 +1176,18 @@ pub(super) fn edit_timeline(
             updated_timeline.clips.insert(clip_index, clip.clone());
 
             let clip_ids = HashSet::from([clip_id]);
-            ges_remove_clips(&timeline.ges_timeline, &clip_ids)
-                .expect("updated clip must be removable from GES");
+            let ges = timeline.video_backend.ges_timeline();
+            ges_remove_clips(ges, &clip_ids).expect("updated clip must be removable from GES");
             ges_add_clips(
-                &timeline.ges_timeline,
+                ges,
                 &updated_timeline,
                 project_root,
                 std::slice::from_ref(&clip),
             )
             .expect("updated clip must be addable to GES");
+            if !ges.commit_sync() {
+                anyhow::bail!("GStreamer could not commit the updated clip.");
+            }
 
             timeline.data = updated_timeline;
             return Ok(false);
@@ -1210,7 +1209,11 @@ pub(super) fn edit_timeline(
             if let Some(Clip::Text(clip)) = timeline.data.clip_mut(clip_id) {
                 clip.properties = properties;
                 // change the text of a text clip
-                ges_change_text_clip(&timeline.ges_timeline, clip_id, &clip.properties)?;
+                ges_change_text_clip(
+                    timeline.video_backend.ges_timeline(),
+                    clip_id,
+                    &clip.properties,
+                )?;
             }
             return Ok(false); // should not rebuild timeline
         }
@@ -1405,9 +1408,6 @@ fn ges_move_clips(
     {
         anyhow::bail!("could not update the GES timeline background duration");
     }
-    if !ges.commit() {
-        anyhow::bail!("GStreamer could not commit the moved clips.");
-    }
     Ok(())
 }
 
@@ -1507,9 +1507,6 @@ fn ges_remove_clips(
         {
             anyhow::bail!("could not update the GES timeline background duration");
         }
-    }
-    if !ges.commit() {
-        anyhow::bail!("GStreamer could not commit the removed clips.");
     }
     Ok(())
 }
@@ -1701,9 +1698,6 @@ fn ges_add_clips(
         background_layer.add_clip(&background).map_err(|error| {
             anyhow::anyhow!("could not add the GES timeline background: {error}")
         })?;
-    }
-    if !ges.commit() {
-        anyhow::bail!("GStreamer could not commit the added clips.");
     }
     Ok(())
 }

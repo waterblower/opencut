@@ -458,7 +458,7 @@ impl Editor {
                     .child(
                         timeline_icon_button(
                             "timeline-play",
-                            if self.preview.target.video().map_or(false, |v| !v.paused()) {
+                            if self.active_video().is_some_and(|video| !video.paused()) {
                                 "Ⅱ"
                             } else {
                                 "▶"

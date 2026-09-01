@@ -1,5 +1,7 @@
+use std::ops::{Deref, DerefMut};
 use std::sync::Arc;
 
+use anyhow::{Context as _, Error, Result, anyhow, bail};
 use gst::prelude::*;
 
 use gst_audio::prelude::StreamVolumeExt as _;
@@ -32,71 +34,12 @@ impl Drop for VideoBackend {
 }
 
 impl VideoBackend {
-    // pub fn from_file(path: Path) -> Result<Self, String> {}
-    pub(crate) fn open(uri: &Url) -> Result<Self, String> {
-        gst::init().map_err(|error| format!("could not initialize GStreamer: {error}"))?;
-        let caps = gst_video::VideoCapsBuilder::new()
-            .format(gst_video::VideoFormat::Nv12)
-            .pixel_aspect_ratio(gst::Fraction::new(1, 1))
-            .build();
-        let converter = gst::ElementFactory::make("videoconvert")
-            .build()
-            .map_err(|error| format!("could not create video converter: {error}"))?;
-        let sink = gst_app::AppSink::builder()
-            .name("opencut_player_video")
-            .drop(true)
-            .max_buffers(3)
-            .enable_last_sample(false)
-            .caps(&caps)
-            .build();
-        let video_sink = gst::Bin::new();
-        video_sink
-            .add(&converter)
-            .map_err(|error| format!("could not add video converter: {error}"))?;
-        video_sink
-            .add(&sink)
-            .map_err(|error| format!("could not add video sink: {error}"))?;
-        converter
-            .link(&sink)
-            .map_err(|error| format!("could not link video sink: {error}"))?;
-        let converter_sink_pad = converter
-            .static_pad("sink")
-            .ok_or_else(|| "video converter has no sink pad".to_string())?;
-        let ghost_pad = gst::GhostPad::builder_with_target(&converter_sink_pad)
-            .map_err(|error| format!("could not create video sink pad: {error}"))?
-            .name("sink")
-            .build();
-        ghost_pad
-            .set_active(true)
-            .map_err(|error| format!("could not activate video sink pad: {error}"))?;
-        video_sink
-            .add_pad(&ghost_pad)
-            .map_err(|error| format!("could not expose video sink pad: {error}"))?;
-        let playbin = gst::ElementFactory::make("playbin")
-            .property("uri", uri.as_str())
-            .property("video-sink", &video_sink)
-            .build()
-            .map_err(|error| format!("could not create video pipeline: {error}"))?;
-        let pipeline = playbin
-            .downcast::<gst::Pipeline>()
-            .map_err(|_| "video pipeline had an unexpected type".to_string())?;
-
-        let volume_control = pipeline
-            .clone()
-            .upcast::<gst::Element>()
-            .dynamic_cast::<gst_audio::StreamVolume>()
-            .map_err(|_| "video pipeline does not support stream volume".to_string())?;
-        let video = Self::from_pipeline(pipeline, sink, volume_control)?;
-        video.set_paused(false);
-        Ok(video)
-    }
-
     pub(crate) fn from_pipeline(
         pipeline: gst::Pipeline,
         sink: gst_app::AppSink,
         volume_control: gst_audio::StreamVolume,
-    ) -> Result<Self, String> {
-        gst::init().map_err(|error| format!("could not initialize GStreamer: {error}"))?;
+    ) -> Result<Self> {
+        gst::init().context("could not initialize GStreamer")?;
         let current_frame = Arc::new(Mutex::new(None));
         sink.set_callbacks(
             gst_app::AppSinkCallbacks::builder()
@@ -120,10 +63,10 @@ impl VideoBackend {
         );
         pipeline
             .set_state(gst::State::Paused)
-            .map_err(|error| format!("could not prepare video: {error}"))?;
+            .context("could not prepare video")?;
         if let Err(error) = pipeline.state(gst::ClockTime::from_seconds(5)).0 {
             let _ = pipeline.set_state(gst::State::Null);
-            return Err(format!("video did not finish preparing: {error}"));
+            return Err(Error::new(error).context("video did not finish preparing"));
         }
         let Some(caps) = sink
             .static_pad("sink")
@@ -131,30 +74,42 @@ impl VideoBackend {
             .current_caps()
         else {
             let _ = pipeline.set_state(gst::State::Null);
-            return Err("video caps were not negotiated".to_string());
+            bail!("video caps were not negotiated");
         };
         let info = match gst_video::VideoInfo::from_caps(&caps) {
             Ok(info) => info,
             Err(error) => {
                 let _ = pipeline.set_state(gst::State::Null);
-                return Err(format!("video caps did not describe raw video: {error}"));
+                return Err(Error::new(error).context("video caps did not describe raw video"));
             }
         };
-        let _frame_size = (info.width(), info.height());
+        let frame_size = (info.width(), info.height());
 
         // GStreamer negotiates `framerate=0/1` for variable-frame-rate sources such as
         // screen recordings. That is a valid "unknown rate" marker, not a broken file, so
         // it must not fail the load — the container's nominal rate is still available from
         // the probed asset when a caller needs one.
 
-        Ok(VideoBackend {
+        Ok(Self {
             current_frame,
             pipeline,
             sink,
             volume_control,
             cached_position: Duration::ZERO,
-            _frame_size,
+            _frame_size: frame_size,
         })
+    }
+
+    fn cap(&self) -> Result<gst::Caps, String> {
+        let pad = self
+            .sink
+            .static_pad("sink")
+            .expect("AppSink must have a static sink pad");
+
+        let Some(caps) = pad.current_caps() else {
+            return Err("video caps were not negotiated".to_string());
+        };
+        Ok(caps)
     }
 
     pub(crate) fn frame_size(&self) -> (u32, u32) {
@@ -163,7 +118,7 @@ impl VideoBackend {
 
     /// The negotiated frame rate, or `None` for variable-frame-rate sources where
     /// GStreamer reports `0/1`.
-    pub(crate) fn framerate(&self) -> Option<f64> {
+    pub fn framerate(&self) -> Option<f64> {
         let caps = self.cap().ok()?;
         let info = match gst_video::VideoInfo::from_caps(&caps) {
             Ok(info) => info,
@@ -208,21 +163,28 @@ impl VideoBackend {
         }
     }
 
-    pub(crate) fn seek(&mut self, position: Duration, accurate: bool) -> Result<(), String> {
+    pub(crate) fn seek(&mut self, position: Duration) -> Result<(), String> {
         let mut flags = gst::SeekFlags::FLUSH;
-        if accurate {
-            flags |= gst::SeekFlags::ACCURATE;
-        } else {
-            flags |= gst::SeekFlags::KEY_UNIT | gst::SeekFlags::SNAP_AFTER;
-        }
+        flags |= gst::SeekFlags::ACCURATE;
+
+        let stop = self.duration();
+        let final_frame_start = self
+            .framerate()
+            .map(|frame_rate| {
+                let frame_duration = Duration::from_secs_f64(1.0 / frame_rate);
+                stop.saturating_sub(frame_duration)
+            })
+            .unwrap_or_else(|| stop.saturating_sub(Duration::from_nanos(1)));
+        let position = position.min(final_frame_start);
+
         self.pipeline
             .seek(
                 1.0,
                 flags,
                 gst::SeekType::Set,
                 gst::ClockTime::from_nseconds(position.as_nanos() as u64),
-                gst::SeekType::None,
-                gst::ClockTime::NONE,
+                gst::SeekType::Set,
+                gst::ClockTime::from_nseconds(stop.as_nanos() as u64),
             )
             .map_err(|error| format!("could not seek video: {error}"))?;
         self.cached_position = position;
@@ -258,20 +220,80 @@ impl VideoBackend {
     pub fn get_current_frame(&self) -> Option<gst::Sample> {
         self.current_frame.lock().clone()
     }
+}
 
-    //////////////////////
-    // Private  Methods //
-    //////////////////////
-    fn cap(&self) -> Result<gst::Caps, String> {
-        let pad = self
-            .sink
+#[derive(Debug)]
+pub(crate) struct FileVideoBackend {
+    playback: VideoBackend,
+}
+
+impl FileVideoBackend {
+    pub(crate) fn open(uri: &Url) -> Result<Self> {
+        gst::init().context("could not initialize GStreamer")?;
+        let caps = gst_video::VideoCapsBuilder::new()
+            .format(gst_video::VideoFormat::Nv12)
+            .pixel_aspect_ratio(gst::Fraction::new(1, 1))
+            .build();
+        let converter = gst::ElementFactory::make("videoconvert")
+            .build()
+            .context("could not create video converter")?;
+        let sink = gst_app::AppSink::builder()
+            .name("opencut_player_video")
+            .drop(true)
+            .max_buffers(3)
+            .enable_last_sample(false)
+            .caps(&caps)
+            .build();
+        let video_sink = gst::Bin::new();
+        video_sink
+            .add(&converter)
+            .context("could not add video converter")?;
+        video_sink.add(&sink).context("could not add video sink")?;
+        converter.link(&sink).context("could not link video sink")?;
+        let converter_sink_pad = converter
             .static_pad("sink")
-            .expect("AppSink must have a static sink pad");
+            .ok_or_else(|| anyhow!("video converter has no sink pad"))?;
+        let ghost_pad = gst::GhostPad::builder_with_target(&converter_sink_pad)
+            .context("could not create video sink pad")?
+            .name("sink")
+            .build();
+        ghost_pad
+            .set_active(true)
+            .context("could not activate video sink pad")?;
+        video_sink
+            .add_pad(&ghost_pad)
+            .context("could not expose video sink pad")?;
+        let playbin = gst::ElementFactory::make("playbin")
+            .property("uri", uri.as_str())
+            .property("video-sink", &video_sink)
+            .build()
+            .context("could not create video pipeline")?;
+        let pipeline = playbin
+            .downcast::<gst::Pipeline>()
+            .map_err(|_| anyhow!("video pipeline had an unexpected type"))?;
 
-        let Some(caps) = pad.current_caps() else {
-            return Err("video caps were not negotiated".to_string());
-        };
-        return Ok(caps);
+        let volume_control = pipeline
+            .clone()
+            .upcast::<gst::Element>()
+            .dynamic_cast::<gst_audio::StreamVolume>()
+            .map_err(|_| anyhow!("video pipeline does not support stream volume"))?;
+        let video = VideoBackend::from_pipeline(pipeline, sink, volume_control)?;
+        video.set_paused(false);
+        Ok(Self { playback: video })
+    }
+}
+
+impl Deref for FileVideoBackend {
+    type Target = VideoBackend;
+
+    fn deref(&self) -> &Self::Target {
+        &self.playback
+    }
+}
+
+impl DerefMut for FileVideoBackend {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.playback
     }
 }
 

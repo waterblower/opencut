@@ -55,21 +55,13 @@ pub fn preview_timeline_view(
     let has_media = !timeline.data.clips.is_empty();
 
     let duration = timeline.data.duration(timeline.data.content_duration());
-    let position = editor
-        .preview
-        .target
-        .video()
-        .map_or(Duration::ZERO, |v| v.position());
+    let position = timeline.video_backend.playback().position();
     let progress = if duration.is_zero() {
         0.0
     } else {
         (position.as_secs_f64() / duration.as_secs_f64()).clamp(0.0, 1.0) as f32
     };
-    let volume = editor
-        .preview
-        .target
-        .video()
-        .map_or(0.0, |video| video.volume().clamp(0.0, 1.0));
+    let volume = timeline.video_backend.playback().volume().clamp(0.0, 1.0);
     let muted = volume <= f64::EPSILON;
     let displayed_volume = if muted { 0.0 } else { volume } as f32;
     let volume_percent = (displayed_volume * 100.0).round() as u32;
@@ -158,21 +150,12 @@ pub fn preview_timeline_view(
                         }),
                     )
                 })
-                .child(if let Some(video_handle) = editor.preview.target.video() {
-                    video(video_handle)
+                .child(
+                    video(timeline.video_backend.playback())
                         .id("editor-timeline-video")
                         .size(px(width), px(surface_height))
-                        .into_any_element()
-                } else {
-                    div()
-                        .size_full()
-                        .flex()
-                        .items_center()
-                        .justify_center()
-                        .text_color(rgb(MUTED))
-                        .child("Choose a video from the project folder to begin")
-                        .into_any_element()
-                })
+                        .into_any_element(),
+                )
                 .when_some(snap_x, |this, guide| {
                     this.child(
                         div()
@@ -304,7 +287,7 @@ pub fn preview_timeline_view(
                                         } else {
                                             rgb(MUTED)
                                         })
-                                        .child(if editor.preview.target.video().map_or(false, |v| !v.paused()) { "Ⅱ" } else { "▶" })
+                                        .child(if !timeline.video_backend.playback().paused() { "Ⅱ" } else { "▶" })
                                         .on_click(
                                             cx.listener(Editor::toggle_timeline_preview_playback),
                                         ),
@@ -781,10 +764,12 @@ impl Editor {
             now.duration_since(last_update) >= TIMELINE_TRANSFORM_UPDATE_INTERVAL
         }) {
             drag.last_pipeline_update = Some(now);
-            if let Some(video) = self.preview.target.video_mut()
-                && let Err(error) =
-                    update_timeline_video_position(video, &timeline.data, drag.clip_id, false)
-            {
+            if let Err(error) = update_timeline_video_position(
+                &mut timeline.video_backend,
+                &timeline.data,
+                drag.clip_id,
+                false,
+            ) {
                 eprintln!("{error}");
             }
         }
@@ -799,11 +784,13 @@ impl Editor {
             return false;
         };
         if drag.changed {
-            if let Some(video) = self.preview.target.video_mut() {
-                let Some(timeline) = self.timeline.as_ref() else {
-                    return true;
-                };
-                match update_timeline_video_position(video, &timeline.data, drag.clip_id, true) {
+            if let Some(timeline) = self.timeline.as_mut() {
+                match update_timeline_video_position(
+                    &mut timeline.video_backend,
+                    &timeline.data,
+                    drag.clip_id,
+                    true,
+                ) {
                     Ok(()) => {}
                     Err(error) => eprintln!("{error}"),
                 }

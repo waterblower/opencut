@@ -1,4 +1,8 @@
-use crate::{editor::explorer_drag::AssetBeingDragged, video::VideoBackend};
+use crate::{
+    editor::{explorer_drag::AssetBeingDragged, preview::load_timeline_position_with_options},
+    video::{FileVideoBackend, VideoBackend},
+};
+use anyhow::{Context as _, Result};
 use gpui::{
     App, Bounds, Context, CursorStyle, Entity, EventEmitter, FocusHandle, KeyBinding, MouseButton,
     MouseDownEvent, MouseMoveEvent, MouseUpEvent, ObjectFit, PathPromptOptions, Pixels, Render,
@@ -81,7 +85,7 @@ use timeline_clip::{Clip, TextClip, TextClipProperties, VideoClipProperties};
 use timeline_clip_menu::transform_targets;
 use timeline_document::{load_existing_timeline, project_timeline_files};
 use timeline_interactions::{MarqueeSelection, TimelineInteractionState, TimelineTool};
-use timeline_video::create_timeline_video;
+use timeline_video::TimelineVideoBackend;
 use track::{Track, TrackKind};
 use ulid::Ulid;
 use workspace::{GlobalEditorSettings, load_global_editor_settings, save_global_editor_settings};
@@ -270,33 +274,35 @@ impl Editor {
         &mut self,
         relative_path: PathBuf,
         cx: &mut Context<Self>,
-    ) -> anyhow::Result<()> {
-        if self
-            .timeline
-            .as_ref()
-            .is_some_and(|timeline| timeline.path == relative_path)
-        {
-            self.select_only_clip(None);
-            let timeline = self.timeline.as_ref().expect("timeline was checked above");
-            let playhead = timeline.playhead;
-            if !timeline.data.clips.is_empty() {
-                self.load_timeline_position_with_options(playhead, true);
+    ) -> Result<()> {
+        (|| -> Result<()> {
+            if self
+                .timeline
+                .as_ref()
+                .is_some_and(|timeline| timeline.path == relative_path)
+            {
+                self.select_only_clip(None);
+                let timeline = self.timeline.as_mut().expect("timeline was checked above");
+                let playhead = timeline.playhead;
+                if !timeline.data.clips.is_empty() {
+                    load_timeline_position_with_options(&mut self.preview, timeline, playhead);
+                }
+                self.explorer.selected_file = Some(relative_path);
+                cx.notify();
+                return Ok(());
             }
-            self.explorer.selected_file = Some(relative_path);
-            cx.notify();
-            return Ok(());
-        }
-        let path = self.global_settings.project_root.join(&relative_path);
-        let timeline = TimelineSerialization::load(&path)
-            .map_err(|error| anyhow::anyhow!("Could not open timeline: {error}"))?;
-        if let Some(timeline) = self.timeline.as_ref() {
-            timeline.save(&self.global_settings.project_root);
-        }
-        self.activate_timeline(relative_path.clone(), timeline, cx)?;
-        self.select_only_clip(None);
-        self.explorer.selected_file = Some(relative_path.clone());
-        self.status = Some(format!("Opened {}", relative_path.display()));
-        Ok(())
+            let path = self.global_settings.project_root.join(&relative_path);
+            let timeline = TimelineSerialization::load(&path)?;
+            if let Some(timeline) = self.timeline.as_ref() {
+                timeline.save(&self.global_settings.project_root);
+            }
+            self.activate_timeline(relative_path.clone(), timeline, cx)?;
+            self.select_only_clip(None);
+            self.explorer.selected_file = Some(relative_path.clone());
+            self.status = Some(format!("Opened {}", relative_path.display()));
+            Ok(())
+        })()
+        .context("open_timeline failed")
     }
 
     /// Saves the current timeline, switches to a freshly created one, and reveals it in
@@ -331,52 +337,54 @@ impl Editor {
         timeline_path: PathBuf,
         active_timeline: TimelineSerialization,
         cx: &mut Context<Self>,
-    ) -> anyhow::Result<()> {
-        self.preview.volume_control_open = false;
-        self.preview.is_scrubbing = false;
-        self.preview.is_adjusting_volume = false;
-        self.preview.last_scrub_seek = None;
-        self.preview.timeline_drag = None;
-        self.properties.transform_input_clip_id = None;
-        self.properties.text_input_clip_id = None;
-        let ges_timeline = build_ges_timeline(
-            &active_timeline,
-            &self.global_settings.project_root,
-            export::ExportOptions::from_timeline(&active_timeline),
-        )?;
-        self.timeline = Some(TimelineRuntimeState::new(
-            timeline_path,
-            active_timeline,
-            ges_timeline,
-        ));
-        save_project_local_settings(
-            &self.global_settings.project_root,
-            self.timeline
-                .as_ref()
-                .map(|timeline| timeline.path.as_path()),
-        )?;
-        self.explorer.search_query = None;
-        self.explorer.search_results.clear();
-        self.explorer.search_pending = false;
-        self.explorer
-            .filter
-            .update(cx, |filter, cx| filter.clear(cx));
-        self.explorer.selected_file = self.timeline.as_ref().map(|timeline| timeline.path.clone());
-        self.dismiss_context_menu();
-        self.explorer
-            .refresh_file_tree(&self.global_settings.project_root)?;
-        if let Some(timeline) = self.timeline.as_ref()
-            && !timeline.data.clips.is_empty()
-        {
-            let playhead = timeline.playhead;
-            let video = create_timeline_video(&timeline.ges_timeline)?;
-            self.preview.target = PreviewTarget::Timeline(video);
-            self.load_timeline_position_with_options(playhead, true);
-        } else {
-            self.preview.target = PreviewTarget::None;
-        }
-        self.schedule_active_timeline_waveforms(cx);
-        Ok(())
+    ) -> Result<()> {
+        (|| -> Result<()> {
+            self.preview.volume_control_open = false;
+            self.preview.is_scrubbing = false;
+            self.preview.is_adjusting_volume = false;
+            self.preview.last_scrub_seek = None;
+            self.preview.timeline_drag = None;
+            self.properties.transform_input_clip_id = None;
+            self.properties.text_input_clip_id = None;
+            let ges_timeline = build_ges_timeline(
+                &active_timeline,
+                &self.global_settings.project_root,
+                export::ExportOptions::from_timeline(&active_timeline),
+            )?;
+            self.timeline = Some(
+                TimelineRuntimeState::new(timeline_path, active_timeline, ges_timeline)
+                    .context("TimelineRuntimeState::new failed")?,
+            );
+            save_project_local_settings(
+                &self.global_settings.project_root,
+                self.timeline
+                    .as_ref()
+                    .map(|timeline| timeline.path.as_path()),
+            )?;
+            self.explorer.search_query = None;
+            self.explorer.search_results.clear();
+            self.explorer.search_pending = false;
+            self.explorer
+                .filter
+                .update(cx, |filter, cx| filter.clear(cx));
+            self.explorer.selected_file =
+                self.timeline.as_ref().map(|timeline| timeline.path.clone());
+            self.dismiss_context_menu();
+            self.explorer
+                .refresh_file_tree(&self.global_settings.project_root)?;
+            if let Some(timeline) = self.timeline.as_mut()
+                && !timeline.data.clips.is_empty()
+            {
+                let playhead = timeline.playhead;
+                self.preview.target = PreviewTarget::Timeline;
+                load_timeline_position_with_options(&mut self.preview, timeline, playhead);
+            } else {
+                self.preview.target = PreviewTarget::None;
+            }
+            self.schedule_active_timeline_waveforms(cx);
+            Ok(())
+        })()
+        .context("activate_timeline failed")
     }
 
     fn schedule_project_waveforms(&mut self, cx: &mut Context<Self>) {

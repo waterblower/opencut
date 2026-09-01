@@ -1,4 +1,7 @@
+use crate::editor::{Clip, FrameRate, TimelineTime, TrackKind};
+
 use super::timeline::TimelineSerialization;
+use anyhow::{Context as _, Result};
 use std::{
     fs,
     path::{Path, PathBuf},
@@ -155,6 +158,57 @@ fn timeline_file_names(directory: &Path) -> anyhow::Result<Vec<String>> {
                 .flatten()
         })
         .collect())
+}
+
+pub fn deserialize_timeline(contents: &str) -> Result<TimelineSerialization> {
+    let mut value = serde_json::from_str::<serde_json::Value>(contents)
+        .context("could not parse timeline JSON")?;
+    let frame_rate = value
+        .pointer("/settings/frame_rate")
+        .cloned()
+        .map(serde_json::from_value::<FrameRate>)
+        .transpose()
+        .context("could not deserialize timeline frame rate")?
+        .unwrap_or_default();
+    if let Some(clips) = value
+        .get_mut("clips")
+        .and_then(serde_json::Value::as_array_mut)
+    {
+        for clip in clips {
+            let Some(clip) = clip.as_object_mut() else {
+                continue;
+            };
+            if !clip.contains_key("text") && !clip.contains_key("properties") {
+                continue;
+            }
+            let Some(frames) = clip.get("length").and_then(serde_json::Value::as_i64) else {
+                continue;
+            };
+            clip.insert(
+                "length".to_string(),
+                serde_json::to_value(frame_rate.duration(TimelineTime::from_frames(frames)))
+                    .context("could not serialize migrated text clip duration")?,
+            );
+        }
+    }
+    let mut timeline = serde_json::from_value::<TimelineSerialization>(value)
+        .context("could not deserialize timeline data")?;
+    for clip in &mut timeline.clips {
+        let track_kind = timeline
+            .tracks
+            .iter()
+            .find(|track| track.id == clip.track_id())
+            .map(|track| track.kind);
+        let replacement = match (track_kind, &*clip) {
+            (Some(TrackKind::Audio), Clip::Video(data)) => Some(Clip::Audio(data.clone())),
+            (Some(TrackKind::Video), Clip::Audio(data)) => Some(Clip::Video(data.clone())),
+            _ => None,
+        };
+        if let Some(replacement) = replacement {
+            *clip = replacement;
+        }
+    }
+    Ok(timeline)
 }
 
 #[cfg(test)]
