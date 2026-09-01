@@ -63,22 +63,19 @@ impl VideoBackend {
                 })
                 .build(),
         );
-        pipeline
-            .set_state(gst::State::Paused)
-            .with_context(|| format!("could not prepare video at {}:{}", file!(), line!()))?;
-        match pipeline.state(gst::ClockTime::ZERO).0 {
+        match pipeline.set_state(gst::State::Paused) {
             Ok(gst::StateChangeSuccess::Success) => {}
             Ok(gst::StateChangeSuccess::Async) => {
                 // Empty and still-preparing pipelines may remain pending without failing.
-                eprintln!("VideoBackend: pipeline state changed to Async");
+                log::debug!("video pipeline is preparing asynchronously");
             }
             Ok(gst::StateChangeSuccess::NoPreroll) => {
                 // Live pipelines do not preroll in the paused state.
-                eprintln!("VideoBackend: pipeline state changed to NoPreroll");
+                log::debug!("live video pipeline does not preroll");
             }
             Err(error) => {
                 let preparation_error = Error::new(error).context(format!(
-                    "video did not finish preparing at {}:{}",
+                    "could not prepare video at {}:{}",
                     file!(),
                     line!()
                 ));
