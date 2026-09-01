@@ -386,7 +386,7 @@ impl Editor {
             self.schedule_active_timeline_waveforms(cx);
             Ok(())
         })();
-        eprintln!("activate_timeline: {}", t.elapsed().as_millis());
+        log::debug!("activate_timeline: {}", t.elapsed().as_millis());
         res.context("activate_timeline failed")
     }
 
