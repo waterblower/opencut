@@ -132,12 +132,14 @@ pub fn create_timeline_pipeline_v2(
     Ok((pipeline.upcast(), sink))
 }
 
-fn create_timeline_playback(timeline: &ges::Timeline) -> anyhow::Result<VideoBackend> {
-    initialize_gstreamer()?;
-    let (audio_sink, volume_control) = preview_audio_sink()?;
-    let (pipeline, sink) = create_timeline_pipeline_v2(timeline, &audio_sink)?;
-    VideoBackend::from_pipeline(pipeline, sink, volume_control)
-        .map_err(|error| anyhow::anyhow!("could not initialize timeline video: {error}"))
+fn create_timeline_playback(timeline: &ges::Timeline) -> Result<VideoBackend> {
+    (|| -> Result<VideoBackend> {
+        initialize_gstreamer()?;
+        let (audio_sink, volume_control) = preview_audio_sink()?;
+        let (pipeline, sink) = create_timeline_pipeline_v2(timeline, &audio_sink)?;
+        VideoBackend::from_pipeline(pipeline, sink, volume_control)
+    })()
+    .context("create_timeline_playback failed")
 }
 
 fn initialize_gstreamer() -> anyhow::Result<()> {

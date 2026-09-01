@@ -1,6 +1,7 @@
 use std::ops::{Deref, DerefMut};
 use std::sync::Arc;
 
+use anyhow::{Context as _, Error, Result, bail};
 use gst::prelude::*;
 
 use gst_audio::prelude::StreamVolumeExt as _;
@@ -37,8 +38,8 @@ impl VideoBackend {
         pipeline: gst::Pipeline,
         sink: gst_app::AppSink,
         volume_control: gst_audio::StreamVolume,
-    ) -> Result<Self, String> {
-        gst::init().map_err(|error| format!("could not initialize GStreamer: {error}"))?;
+    ) -> Result<Self> {
+        gst::init().context("could not initialize GStreamer")?;
         let current_frame = Arc::new(Mutex::new(None));
         sink.set_callbacks(
             gst_app::AppSinkCallbacks::builder()
@@ -62,10 +63,10 @@ impl VideoBackend {
         );
         pipeline
             .set_state(gst::State::Paused)
-            .map_err(|error| format!("could not prepare video: {error}"))?;
+            .context("could not prepare video")?;
         if let Err(error) = pipeline.state(gst::ClockTime::from_seconds(5)).0 {
             let _ = pipeline.set_state(gst::State::Null);
-            return Err(format!("video did not finish preparing: {error}"));
+            return Err(Error::new(error).context("video did not finish preparing"));
         }
         let Some(caps) = sink
             .static_pad("sink")
@@ -73,13 +74,13 @@ impl VideoBackend {
             .current_caps()
         else {
             let _ = pipeline.set_state(gst::State::Null);
-            return Err("video caps were not negotiated".to_string());
+            bail!("video caps were not negotiated");
         };
         let info = match gst_video::VideoInfo::from_caps(&caps) {
             Ok(info) => info,
             Err(error) => {
                 let _ = pipeline.set_state(gst::State::Null);
-                return Err(format!("video caps did not describe raw video: {error}"));
+                return Err(Error::new(error).context("video caps did not describe raw video"));
             }
         };
         let frame_size = (info.width(), info.height());
