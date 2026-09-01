@@ -1,7 +1,7 @@
 use std::ops::{Deref, DerefMut};
 use std::sync::Arc;
 
-use anyhow::{Context as _, Error, Result, anyhow, bail};
+use anyhow::{Context as _, Error, Result, anyhow};
 use gst::prelude::*;
 
 use gst_audio::prelude::StreamVolumeExt as _;
@@ -39,7 +39,9 @@ impl VideoBackend {
         sink: gst_app::AppSink,
         volume_control: gst_audio::StreamVolume,
     ) -> Result<Self> {
-        gst::init().context("could not initialize GStreamer")?;
+        gst::init().with_context(|| {
+            format!("could not initialize GStreamer at {}:{}", file!(), line!())
+        })?;
         let current_frame = Arc::new(Mutex::new(None));
         sink.set_callbacks(
             gst_app::AppSinkCallbacks::builder()
@@ -61,29 +63,53 @@ impl VideoBackend {
                 })
                 .build(),
         );
-        pipeline
-            .set_state(gst::State::Paused)
-            .context("could not prepare video")?;
-        if let Err(error) = pipeline.state(gst::ClockTime::from_seconds(5)).0 {
-            let _ = pipeline.set_state(gst::State::Null);
-            return Err(Error::new(error).context("video did not finish preparing"));
+        match pipeline.set_state(gst::State::Paused) {
+            Ok(gst::StateChangeSuccess::Success) => {}
+            Ok(gst::StateChangeSuccess::Async) => {
+                // Empty and still-preparing pipelines may remain pending without failing.
+                log::debug!("video pipeline is preparing asynchronously");
+            }
+            Ok(gst::StateChangeSuccess::NoPreroll) => {
+                // Live pipelines do not preroll in the paused state.
+                log::debug!("live video pipeline does not preroll");
+            }
+            Err(error) => {
+                let preparation_error = Error::new(error).context(format!(
+                    "could not prepare video at {}:{}",
+                    file!(),
+                    line!()
+                ));
+                if let Err(error) = pipeline.set_state(gst::State::Null) {
+                    return Err(preparation_error.context(format!(
+                        "could not set pipeline to null state after preparation failed at {}:{}: {error}",
+                        file!(),
+                        line!()
+                    )));
+                }
+                return Err(preparation_error);
+            }
         }
-        let Some(caps) = sink
+        let caps = sink
             .static_pad("sink")
             .expect("AppSink must have a static sink pad")
-            .current_caps()
-        else {
-            let _ = pipeline.set_state(gst::State::Null);
-            bail!("video caps were not negotiated");
-        };
-        let info = match gst_video::VideoInfo::from_caps(&caps) {
-            Ok(info) => info,
-            Err(error) => {
-                let _ = pipeline.set_state(gst::State::Null);
-                return Err(Error::new(error).context("video caps did not describe raw video"));
+            .current_caps();
+        let frame_size = match caps {
+            Some(caps) => {
+                let info = match gst_video::VideoInfo::from_caps(&caps) {
+                    Ok(info) => info,
+                    Err(error) => {
+                        let _ = pipeline.set_state(gst::State::Null);
+                        return Err(Error::new(error).context(format!(
+                            "video caps did not describe raw video at {}:{}",
+                            file!(),
+                            line!()
+                        )));
+                    }
+                };
+                (info.width(), info.height())
             }
+            None => (1, 1),
         };
-        let frame_size = (info.width(), info.height());
 
         // GStreamer negotiates `framerate=0/1` for variable-frame-rate sources such as
         // screen recordings. That is a valid "unknown rate" marker, not a broken file, so
@@ -113,7 +139,11 @@ impl VideoBackend {
     }
 
     pub(crate) fn frame_size(&self) -> (u32, u32) {
-        return self._frame_size;
+        self.cap()
+            .ok()
+            .and_then(|caps| gst_video::VideoInfo::from_caps(&caps).ok())
+            .map(|info| (info.width(), info.height()))
+            .unwrap_or(self._frame_size)
     }
 
     /// The negotiated frame rate, or `None` for variable-frame-rate sources where
