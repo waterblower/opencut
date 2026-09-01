@@ -1,6 +1,7 @@
 use crate::editor::explorer_drag::AssetBeingDragged;
 
 use super::*;
+use anyhow::Context as _;
 use std::{collections::HashSet, fs, path::Path};
 use url::Url;
 
@@ -491,9 +492,8 @@ impl Editor {
             return;
         }
 
-        let video = FileVideoBackend::open(&url).map_err(|error| {
-            anyhow::anyhow!("Could not preview {}: {error}", source_path.display())
-        });
+        let video = FileVideoBackend::open(&url)
+            .with_context(|| format!("Could not preview {}", source_path.display()));
 
         let still_requested = matches!(
             self.explorer.selected_file.as_ref(),

@@ -1,7 +1,7 @@
 use std::ops::{Deref, DerefMut};
 use std::sync::Arc;
 
-use anyhow::{Context as _, Error, Result, bail};
+use anyhow::{Context as _, Error, Result, anyhow, bail};
 use gst::prelude::*;
 
 use gst_audio::prelude::StreamVolumeExt as _;
@@ -228,15 +228,15 @@ pub(crate) struct FileVideoBackend {
 }
 
 impl FileVideoBackend {
-    pub(crate) fn open(uri: &Url) -> Result<Self, String> {
-        gst::init().map_err(|error| format!("could not initialize GStreamer: {error}"))?;
+    pub(crate) fn open(uri: &Url) -> Result<Self> {
+        gst::init().context("could not initialize GStreamer")?;
         let caps = gst_video::VideoCapsBuilder::new()
             .format(gst_video::VideoFormat::Nv12)
             .pixel_aspect_ratio(gst::Fraction::new(1, 1))
             .build();
         let converter = gst::ElementFactory::make("videoconvert")
             .build()
-            .map_err(|error| format!("could not create video converter: {error}"))?;
+            .context("could not create video converter")?;
         let sink = gst_app::AppSink::builder()
             .name("opencut_player_video")
             .drop(true)
@@ -247,40 +247,36 @@ impl FileVideoBackend {
         let video_sink = gst::Bin::new();
         video_sink
             .add(&converter)
-            .map_err(|error| format!("could not add video converter: {error}"))?;
-        video_sink
-            .add(&sink)
-            .map_err(|error| format!("could not add video sink: {error}"))?;
-        converter
-            .link(&sink)
-            .map_err(|error| format!("could not link video sink: {error}"))?;
+            .context("could not add video converter")?;
+        video_sink.add(&sink).context("could not add video sink")?;
+        converter.link(&sink).context("could not link video sink")?;
         let converter_sink_pad = converter
             .static_pad("sink")
-            .ok_or_else(|| "video converter has no sink pad".to_string())?;
+            .ok_or_else(|| anyhow!("video converter has no sink pad"))?;
         let ghost_pad = gst::GhostPad::builder_with_target(&converter_sink_pad)
-            .map_err(|error| format!("could not create video sink pad: {error}"))?
+            .context("could not create video sink pad")?
             .name("sink")
             .build();
         ghost_pad
             .set_active(true)
-            .map_err(|error| format!("could not activate video sink pad: {error}"))?;
+            .context("could not activate video sink pad")?;
         video_sink
             .add_pad(&ghost_pad)
-            .map_err(|error| format!("could not expose video sink pad: {error}"))?;
+            .context("could not expose video sink pad")?;
         let playbin = gst::ElementFactory::make("playbin")
             .property("uri", uri.as_str())
             .property("video-sink", &video_sink)
             .build()
-            .map_err(|error| format!("could not create video pipeline: {error}"))?;
+            .context("could not create video pipeline")?;
         let pipeline = playbin
             .downcast::<gst::Pipeline>()
-            .map_err(|_| "video pipeline had an unexpected type".to_string())?;
+            .map_err(|_| anyhow!("video pipeline had an unexpected type"))?;
 
         let volume_control = pipeline
             .clone()
             .upcast::<gst::Element>()
             .dynamic_cast::<gst_audio::StreamVolume>()
-            .map_err(|_| "video pipeline does not support stream volume".to_string())?;
+            .map_err(|_| anyhow!("video pipeline does not support stream volume"))?;
         let video = VideoBackend::from_pipeline(pipeline, sink, volume_control)?;
         video.set_paused(false);
         Ok(Self { playback: video })
