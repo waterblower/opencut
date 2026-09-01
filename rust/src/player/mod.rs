@@ -9,7 +9,7 @@ use std::{path::PathBuf, time::Duration, time::Instant};
 use url::Url;
 
 use crate::playback_view::{DragPhase, PlaybackViewDelegate};
-use crate::video::VideoBackend;
+use crate::video::FileVideoBackend;
 
 mod history;
 mod inspector;
@@ -62,7 +62,7 @@ pub(crate) fn bind_keys(cx: &mut App) {
 }
 
 pub(crate) struct Player {
-    video: Option<VideoBackend>,
+    video: Option<FileVideoBackend>,
     history: HistoryData,
     current_media_path: Option<PathBuf>,
     title: String,
@@ -182,7 +182,7 @@ impl Player {
             return;
         };
 
-        match VideoBackend::open(&url) {
+        match FileVideoBackend::open(&url) {
             Ok(video) => {
                 self.video = Some(video);
                 self.history.record(&path, title.clone());
@@ -236,7 +236,7 @@ impl Player {
         .min(duration);
 
         self.pending_seek_started = Some(Instant::now());
-        let _ = video.seek(target, true);
+        let _ = video.seek(target);
     }
 
     fn seek_to_fraction(&mut self, fraction: f64) {
@@ -244,7 +244,7 @@ impl Player {
             return;
         };
         let target = video.duration().mul_f64(fraction.clamp(0.0, 1.0));
-        let _ = video.seek(target, true);
+        let _ = video.seek(target);
     }
 
     fn set_history_width_from_x(&mut self, x: f32, window: &Window) {

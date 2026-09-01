@@ -22,7 +22,7 @@ impl Editor {
             .justify_center()
             .overflow_hidden()
             .bg(rgb(0x000000))
-            .child(if let Some(video_handle) = self.preview.target.video() {
+            .child(if let Some(video_handle) = self.active_video() {
                 video(video_handle)
                     .id("editor-video-file-preview")
                     .size(px(width), px(surface_height))
@@ -39,19 +39,15 @@ impl Editor {
             })
             .into_any_element();
         let (position, duration, paused) = self
-            .preview
-            .target
-            .video()
+            .active_video()
             .map_or((Duration::ZERO, Duration::ZERO, true), |video| {
                 (video.position(), video.duration(), video.paused())
             });
 
-        let has_media = self.preview.target.video().is_some();
+        let has_media = self.active_video().is_some();
 
         let volume = self
-            .preview
-            .target
-            .video()
+            .active_video()
             .map_or(0.0, |video| video.volume().clamp(0.0, 1.0));
 
         playback_view(

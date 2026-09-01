@@ -48,11 +48,7 @@ impl Editor {
                     export::ExportOptions::from_timeline(&timeline_data),
                 )
                 .unwrap();
-                Some(TimelineRuntimeState::new(
-                    timeline_path,
-                    timeline_data,
-                    ges_timeline,
-                ))
+                Some(TimelineRuntimeState::new(timeline_path, timeline_data, ges_timeline).unwrap())
             })()
         };
         // load timeline end
@@ -132,17 +128,12 @@ impl Editor {
             event_bus,
             context_menu: ContextMenu::None,
         };
-        if let Some(timeline) = editor.timeline.as_ref()
+        if let Some(timeline) = editor.timeline.as_mut()
             && !timeline.data.clips.is_empty()
         {
-            match create_timeline_video(&timeline.ges_timeline) {
-                Ok(video) => {
-                    let playhead = timeline.playhead;
-                    editor.preview.target = PreviewTarget::Timeline(video);
-                    editor.load_timeline_position_with_options(playhead, true);
-                }
-                Err(error) => eprintln!("{error}"),
-            }
+            let playhead = timeline.playhead;
+            editor.preview.target = PreviewTarget::Timeline;
+            load_timeline_position_with_options(&mut editor.preview, timeline, playhead);
         }
         editor.schedule_project_waveforms(cx);
         editor
@@ -284,9 +275,11 @@ fn start_updates(cx: &mut Context<Editor>) {
             cx.background_executor().timer(IDLE_UPDATE_INTERVAL).await;
             let result = editor.update(cx, |editor, cx| {
                 let preview_playing = match &editor.preview.target {
-                    PreviewTarget::Timeline(video) | PreviewTarget::VideoFile(_, video) => {
-                        !video.paused()
-                    }
+                    PreviewTarget::Timeline => editor
+                        .timeline
+                        .as_ref()
+                        .is_some_and(|timeline| !timeline.video_backend.playback().paused()),
+                    PreviewTarget::VideoFile(_, video) => !video.paused(),
                     PreviewTarget::AudioFile(_, audio) => audio.playing(),
                     _ => false,
                 };

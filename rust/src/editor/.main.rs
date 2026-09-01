@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 #[path = "mod.rs"]
 mod editor;
 #[path = "../gpui_inspector.rs"]

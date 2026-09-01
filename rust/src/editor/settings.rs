@@ -143,7 +143,7 @@ impl Editor {
         }
         let playhead = previous.rescale_nearest(timeline.playhead, frame_rate);
 
-        if let Some(video) = self.preview.target.video() {
+        if let Some(video) = self.active_video() {
             video.set_paused(true);
         }
         let Some(timeline) = self.timeline.as_mut() else {
@@ -160,9 +160,9 @@ impl Editor {
         timeline.playhead = playhead.clamp(TimelineTime::ZERO, timeline.data.content_duration());
         let playhead = timeline.playhead;
         let has_clips = !timeline.data.clips.is_empty();
-        self.save_timeline_playhead();
+        timeline.save_timeline_playhead(&self.global_settings.project_root);
         if has_clips {
-            self.load_timeline_position_with_options(playhead, true);
+            load_timeline_position_with_options(&mut self.preview, timeline, playhead);
         }
         self.status = Some(format!(
             "Timeline frame rate changed to {}.",

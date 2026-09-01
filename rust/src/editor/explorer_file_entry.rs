@@ -1,6 +1,7 @@
 use crate::editor::explorer_drag::AssetBeingDragged;
 
 use super::*;
+use anyhow::Context as _;
 use std::{collections::HashSet, fs, path::Path};
 use url::Url;
 
@@ -67,9 +68,12 @@ impl Editor {
                                 eprintln!("{error}");
                             }
                         }
-                        FileTreeEntryKind::Timeline => editor
-                            .open_timeline(path.clone(), cx)
-                            .expect("open_timeline failed"),
+                        FileTreeEntryKind::Timeline => {
+                            let err = editor.open_timeline(path.clone(), cx);
+                            if let Err(error) = err {
+                                eprintln!("{error:?}");
+                            }
+                        }
                         FileTreeEntryKind::Video
                         | FileTreeEntryKind::Image
                         | FileTreeEntryKind::Audio
@@ -423,6 +427,9 @@ impl Editor {
         self.explorer.selected_file = Some(relative_path.clone());
 
         if is_image || is_video || is_audio {
+            if let Some(video) = self.active_video() {
+                video.set_paused(true);
+            }
             self.preview.target = match (is_video, is_audio) {
                 (true, _) | (_, true) => PreviewTarget::None,
                 _ => PreviewTarget::ImageFile(relative_path.clone()),
@@ -485,9 +492,8 @@ impl Editor {
             return;
         }
 
-        let video = VideoBackend::open(&url).map_err(|error| {
-            anyhow::anyhow!("Could not preview {}: {error}", source_path.display())
-        });
+        let video = FileVideoBackend::open(&url)
+            .with_context(|| format!("Could not preview {}", source_path.display()));
 
         let still_requested = matches!(
             self.explorer.selected_file.as_ref(),
