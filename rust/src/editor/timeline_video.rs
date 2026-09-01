@@ -3,7 +3,7 @@ use super::{
     timeline::TimelineSerialization,
 };
 use crate::video::VideoBackend;
-use anyhow::Result;
+use anyhow::{Context as _, Result};
 use ges::prelude::*;
 use gstreamer as gst;
 use gstreamer_app as gst_app;
@@ -19,7 +19,8 @@ pub struct TimelineVideoBackend {
 
 impl TimelineVideoBackend {
     pub fn new(ges_timeline: ges::Timeline) -> Result<TimelineVideoBackend> {
-        let playback = create_timeline_playback(&ges_timeline)?;
+        let playback =
+            create_timeline_playback(&ges_timeline).context("create_timeline_playback failed")?;
         Ok(Self {
             ges_timeline,
             playback,

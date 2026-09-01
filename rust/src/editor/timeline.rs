@@ -4,6 +4,7 @@ use super::model::{MediaAsset, MediaKind};
 use super::timeline_clip::Clip;
 use super::track::Track;
 use super::*;
+use anyhow::{Result, anyhow};
 use gpui::point;
 use serde::{Deserialize, Serialize};
 use std::{
@@ -122,13 +123,16 @@ impl TimelineViewState {
 }
 
 impl TimelineSerialization {
-    pub fn load(path: &Path) -> anyhow::Result<Self> {
-        let contents = fs::read_to_string(path)
-            .map_err(|error| anyhow::anyhow!("could not read {}: {error}", path.display()))?;
-        let mut timeline = deserialize_timeline(&contents)
-            .map_err(|error| anyhow::anyhow!("could not parse {}: {error}", path.display()))?;
-        timeline.repair_and_prune_invalid_data();
-        Ok(timeline)
+    pub fn load(path: &Path) -> Result<Self> {
+        (|| -> Result<Self> {
+            let contents = fs::read_to_string(path)
+                .map_err(|error| anyhow!("could not read {}: {error}", path.display()))?;
+            let mut timeline = deserialize_timeline(&contents)
+                .map_err(|error| anyhow!("could not parse {}: {error}", path.display()))?;
+            timeline.repair_and_prune_invalid_data();
+            Ok(timeline)
+        })()
+        .context("TimelineSerialization::load failed")
     }
 
     pub fn save(&self, path: &Path) -> anyhow::Result<()> {
@@ -425,7 +429,8 @@ impl TimelineRuntimeState {
         Ok(Self {
             path,
             data,
-            video_backend: TimelineVideoBackend::new(ges_timeline)?,
+            video_backend: TimelineVideoBackend::new(ges_timeline)
+                .context("TimelineVideoBackend::new failed")?,
             playhead,
             interaction: TimelineInteractionState {
                 active_tool: TimelineTool::Selection,
