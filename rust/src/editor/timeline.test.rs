@@ -736,20 +736,26 @@ fn text_properties_clip_is_rejected() {
 }
 
 #[test]
-fn frame_length_text_clip_deserializes_as_duration() {
-    let legacy = serde_json::json!({
-        "id": "01M0P9DJ506ZPJ4R4V7CH565X7",
-        "track_id": "01M0MCDDQWBN2HXFPJXY4BMQES",
-        "timeline_start": 12,
-        "length": 90,
-        "text": {
-            "text": "Frame title",
-            "future_text_field": true
+fn tagged_text_clip_deserializes_duration() {
+    let value = serde_json::json!({
+        "kind": "Text",
+        "data": {
+            "id": "01M0P9DJ506ZPJ4R4V7CH565X7",
+            "track_id": "01M0MCDDQWBN2HXFPJXY4BMQES",
+            "timeline_start": 12,
+            "length": {
+                "secs": 3,
+                "nanos": 0
+            },
+            "properties": {
+                "text": "Frame title",
+                "future_text_field": true
+            },
+            "future_clip_field": { "value": 1 }
         },
-        "future_clip_field": { "value": 1 }
     });
 
-    let clip = serde_json::from_value::<Clip>(legacy).unwrap();
+    let clip = serde_json::from_value::<Clip>(value).unwrap();
     assert_eq!(clip.text().unwrap().length, Duration::from_secs(3));
 }
 
@@ -763,11 +769,15 @@ fn timeline_load_migrates_frame_length_using_its_own_frame_rate() {
             "audio_sample_rate": 48000
         },
         "clips": [{
-            "id": "01M0P9DJ506ZPJ4R4V7CH565X7",
-            "track_id": "01M0MCDDQWBN2HXFPJXY4BMQES",
-            "timeline_start": 9090,
-            "length": 300,
-            "text": { "text": "Text", "future_field": true },
+            "kind": "Text",
+            "data": {
+                "id": "01M0P9DJ506ZPJ4R4V7CH565X7",
+                "track_id": "01M0MCDDQWBN2HXFPJXY4BMQES",
+                "timeline_start": 9090,
+                "length": 300,
+                "properties": { "text": "Text", "future_field": true },
+                "future_clip_field": true
+            },
             "future_clip_field": true
         }],
         "future_timeline_field": true
