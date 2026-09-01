@@ -1,3 +1,5 @@
+use crate::editor::timeline_document::deserialize_timeline;
+
 use super::model::{MediaAsset, MediaKind};
 use super::timeline_clip::Clip;
 use super::track::Track;
@@ -678,53 +680,6 @@ fn finite_nonnegative(value: f32) -> f32 {
     } else {
         0.0
     }
-}
-
-fn deserialize_timeline(contents: &str) -> anyhow::Result<TimelineSerialization> {
-    let mut value = serde_json::from_str::<serde_json::Value>(contents)?;
-    let frame_rate = value
-        .pointer("/settings/frame_rate")
-        .cloned()
-        .map(serde_json::from_value::<FrameRate>)
-        .transpose()?
-        .unwrap_or_default();
-    if let Some(clips) = value
-        .get_mut("clips")
-        .and_then(serde_json::Value::as_array_mut)
-    {
-        for clip in clips {
-            let Some(clip) = clip.as_object_mut() else {
-                continue;
-            };
-            if !clip.contains_key("text") && !clip.contains_key("properties") {
-                continue;
-            }
-            let Some(frames) = clip.get("length").and_then(serde_json::Value::as_i64) else {
-                continue;
-            };
-            clip.insert(
-                "length".to_string(),
-                serde_json::to_value(frame_rate.duration(TimelineTime::from_frames(frames)))?,
-            );
-        }
-    }
-    let mut timeline = serde_json::from_value::<TimelineSerialization>(value)?;
-    for clip in &mut timeline.clips {
-        let track_kind = timeline
-            .tracks
-            .iter()
-            .find(|track| track.id == clip.track_id())
-            .map(|track| track.kind);
-        let replacement = match (track_kind, &*clip) {
-            (Some(TrackKind::Audio), Clip::Video(data)) => Some(Clip::Audio(data.clone())),
-            (Some(TrackKind::Video), Clip::Audio(data)) => Some(Clip::Video(data.clone())),
-            _ => None,
-        };
-        if let Some(replacement) = replacement {
-            *clip = replacement;
-        }
-    }
-    Ok(timeline)
 }
 
 #[cfg(test)]

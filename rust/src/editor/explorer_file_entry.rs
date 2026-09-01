@@ -67,9 +67,12 @@ impl Editor {
                                 eprintln!("{error}");
                             }
                         }
-                        FileTreeEntryKind::Timeline => editor
-                            .open_timeline(path.clone(), cx)
-                            .expect("open_timeline failed"),
+                        FileTreeEntryKind::Timeline => {
+                            let err = editor.open_timeline(path.clone(), cx);
+                            if let Err(error) = err {
+                                eprintln!("{error:?}");
+                            }
+                        }
                         FileTreeEntryKind::Video
                         | FileTreeEntryKind::Image
                         | FileTreeEntryKind::Audio

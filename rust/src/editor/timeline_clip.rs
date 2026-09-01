@@ -80,6 +80,7 @@ impl Default for TextClipProperties {
 // https://serde.rs/enum-representations.html#adjacently-tagged
 #[serde(tag = "kind", content = "data")]
 pub(super) enum Clip {
+    #[serde(alias = "Media")]
     Video(VideoClip),
     Audio(AudioClip),
     Text(TextClip),
@@ -89,7 +90,7 @@ pub(super) enum Clip {
 pub(super) struct MediaClipData {
     #[serde(deserialize_with = "deserialize_ulid")]
     pub id: Ulid,
-    #[serde(deserialize_with = "deserialize_ulid")]
+    #[serde(alias = "layer_id", deserialize_with = "deserialize_ulid")]
     pub track_id: Ulid,
     #[serde(default = "Ulid::nil", deserialize_with = "deserialize_ulid")]
     pub asset_id: Ulid,
