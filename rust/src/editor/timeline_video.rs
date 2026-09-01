@@ -20,7 +20,7 @@ pub struct TimelineVideoBackend {
 impl TimelineVideoBackend {
     pub fn new(ges_timeline: ges::Timeline) -> Result<TimelineVideoBackend> {
         let playback =
-            create_timeline_playback(&ges_timeline).context("create_timeline_playback failed")?;
+            create_timeline_playback(&ges_timeline).context("TimelineVideoBackend::new failed")?;
         Ok(Self {
             ges_timeline,
             playback,

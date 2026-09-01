@@ -73,8 +73,10 @@ impl VideoBackend {
             .expect("AppSink must have a static sink pad")
             .current_caps()
         else {
-            let _ = pipeline.set_state(gst::State::Null);
-            bail!("video caps were not negotiated");
+            if let Err(err) = pipeline.set_state(gst::State::Null) {
+                return Err(Error::new(err).context("could not set pipeline to null state"));
+            }
+            bail!("video caps were not negotiated at {}:{}", file!(), line!());
         };
         let info = match gst_video::VideoInfo::from_caps(&caps) {
             Ok(info) => info,
