@@ -1,4 +1,4 @@
-use crate::editor::explorer_drag::AssetBeingDragged;
+use crate::editor::{AppEvent, explorer_drag::AssetBeingDragged};
 
 use super::*;
 use anyhow::Context as _;
@@ -27,6 +27,7 @@ impl Editor {
 
         let metadata = file_entry_metadata(entry, active_timeline);
 
+        let event_bus = self.event_bus.clone();
         div()
             .id(("project-file", index))
             .relative()
@@ -47,9 +48,12 @@ impl Editor {
             .cursor(CursorStyle::PointingHand)
             .hover(|style| style.bg(rgb(SURFACE_HOVER)))
             .cursor(CursorStyle::OpenHand)
-            .on_drag(entry.clone(), |entry, _, _, cx| {
+            .on_drag(entry.clone(), move |entry, _, _, app_cx| {
                 let asset = AssetBeingDragged::from_file_entry(entry);
-                cx.new(|_| asset)
+                event_bus.update(app_cx, |_, cx| {
+                    cx.emit(AppEvent::DragStarted(asset.clone()));
+                });
+                app_cx.new(|_| asset)
             })
             .on_click(cx.listener({
                 let entry = entry.clone();

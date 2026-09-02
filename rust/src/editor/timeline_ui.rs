@@ -1,4 +1,4 @@
-use crate::editor::explorer_drag::AssetBeingDragged;
+use crate::editor::explorer::FileTreeEntry;
 use gpui::DragMoveEvent;
 
 use super::*;
@@ -168,13 +168,9 @@ impl Editor {
                                     .relative()
                                     .w(px(timeline_width))
                                     .min_h_full()
-                                    .on_drag_move::<AssetBeingDragged>(cx.listener(
-                                        move |_,
-                                              event: &DragMoveEvent<AssetBeingDragged>,
-                                              _,
-                                              cx| {
+                                    .on_drag_move::<FileTreeEntry>(cx.listener(
+                                        move |_, event: &DragMoveEvent<FileTreeEntry>, _, cx| {
                                             let event = AssetDragMoveEvent {
-                                                drag: event.drag(cx).clone(),
                                                 event: event.event.clone(),
                                                 bounds: event.bounds,
                                             };
@@ -183,13 +179,11 @@ impl Editor {
                                             });
                                         },
                                     ))
-                                    .on_drop(cx.listener(
-                                        move |_, _drag: &AssetBeingDragged, _, cx| {
-                                            event_bus.update(cx, |_, cx| {
-                                                cx.emit(AppEvent::DragDrop);
-                                            });
-                                        },
-                                    ))
+                                    .on_drop(cx.listener(move |_, _drag: &FileTreeEntry, _, cx| {
+                                        event_bus.update(cx, |_, cx| {
+                                            cx.emit(AppEvent::DragDrop);
+                                        });
+                                    }))
                                     .child(self.timeline_ruler(duration, cx))
                                     .children(track_rows)
                                     .child(self.timeline_playhead(cx))

@@ -19,6 +19,7 @@ pub(crate) struct Editor {
     pub(super) clipboard: Option<ClipClipboard>,
     pub(super) event_bus: Entity<EventBus>,
     pub(super) context_menu: ContextMenu,
+    pub active_asset_drag: AssetBeingDragged,
 }
 
 impl Editor {
@@ -127,6 +128,7 @@ impl Editor {
             focus_handle,
             event_bus,
             context_menu: ContextMenu::None,
+            active_asset_drag: AssetBeingDragged::None,
         };
         if let Some(timeline) = editor.timeline.as_mut()
             && !timeline.data.clips.is_empty()
@@ -162,6 +164,9 @@ fn handle_app_event(
             .expect("event bus edit actions cannot be rejected");
             timeline.save(&project_root);
         }
+        AppEvent::DragStarted(asset) => {
+            editor.active_asset_drag = asset.clone();
+        }
         AppEvent::DragMove(event) => {
             let timeline = editor.timeline.as_mut();
             let on_track: Option<Ulid> = (|| {
@@ -190,7 +195,7 @@ fn handle_app_event(
                 timeline.preview_drop_asset = Some(PreviewDropAsset {
                     track_id,
                     start_time,
-                    asset: event.drag.clone(),
+                    asset: editor.active_asset_drag.clone(),
                 });
             }
         }
@@ -201,8 +206,9 @@ fn handle_app_event(
             let Some(preview) = timeline.preview_drop_asset.take() else {
                 return;
             };
+            editor.active_asset_drag = AssetBeingDragged::None;
+
             match preview.asset {
-                AssetBeingDragged::None => return,
                 AssetBeingDragged::Srt(srt) => {
                     let result = (|| {
                         let project_root = editor.global_settings.project_root.clone();
@@ -263,6 +269,7 @@ fn handle_app_event(
                         eprintln!("Could not place dragged explorer asset: {error:?}");
                     }
                 }
+                AssetBeingDragged::None => return,
             }
         }
     }

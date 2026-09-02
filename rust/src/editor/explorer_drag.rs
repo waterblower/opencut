@@ -24,7 +24,7 @@ pub(super) struct ExplorerDropPreview {
 }
 
 #[derive(Clone, Debug)]
-pub(super) enum AssetBeingDragged {
+pub enum AssetBeingDragged {
     V1(AssetBeingDraggedV1),
     Srt(DraggedSRT),
     None,
@@ -59,7 +59,7 @@ impl AssetBeingDragged {
 }
 
 #[derive(Clone, Debug)]
-pub(super) struct AssetBeingDraggedV1 {
+pub struct AssetBeingDraggedV1 {
     pub(super) absolute_path: PathBuf,
     pub(super) metadata: MediaAsset,
 }
