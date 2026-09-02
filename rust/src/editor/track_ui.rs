@@ -541,6 +541,7 @@ fn preview_drop_asset(
     timeline: &TimelineSerialization,
 ) -> Option<gpui::AnyElement> {
     return match &preview.asset {
+        AssetBeingDragged::None => None,
         AssetBeingDragged::Srt(srt) => {
             let clips = match parse_srt_text_clips(&srt.text, timeline.settings.frame_rate) {
                 Ok(clips) => clips,

@@ -202,6 +202,7 @@ fn handle_app_event(
                 return;
             };
             match preview.asset {
+                AssetBeingDragged::None => return,
                 AssetBeingDragged::Srt(srt) => {
                     let result = (|| {
                         let project_root = editor.global_settings.project_root.clone();

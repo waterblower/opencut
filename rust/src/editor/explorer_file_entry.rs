@@ -25,7 +25,6 @@ impl Editor {
                 .as_ref()
                 .is_some_and(|timeline| timeline.path == path);
 
-        let the_draggable_asset = AssetBeingDragged::from_file_entry(entry);
         let metadata = file_entry_metadata(entry, active_timeline);
 
         div()
@@ -47,11 +46,10 @@ impl Editor {
             }))
             .cursor(CursorStyle::PointingHand)
             .hover(|style| style.bg(rgb(SURFACE_HOVER)))
-            .when_some(the_draggable_asset, |this, asset| {
-                this.cursor(CursorStyle::OpenHand)
-                    .on_drag(asset, |drag: &AssetBeingDragged, _, _, cx| {
-                        cx.new(|_| drag.clone())
-                    })
+            .cursor(CursorStyle::OpenHand)
+            .on_drag(entry.clone(), |entry, _, _, cx| {
+                let asset = AssetBeingDragged::from_file_entry(entry);
+                cx.new(|_| asset)
             })
             .on_click(cx.listener({
                 let entry = entry.clone();

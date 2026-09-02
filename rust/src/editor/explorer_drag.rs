@@ -27,30 +27,31 @@ pub(super) struct ExplorerDropPreview {
 pub(super) enum AssetBeingDragged {
     V1(AssetBeingDraggedV1),
     Srt(DraggedSRT),
+    None,
 }
 
 impl AssetBeingDragged {
-    pub fn from_file_entry(entry: &FileTreeEntry) -> Option<Self> {
+    pub fn from_file_entry(entry: &FileTreeEntry) -> Self {
         let x = match entry.kind {
             FileTreeEntryKind::Video | FileTreeEntryKind::Image | FileTreeEntryKind::Audio => {
                 let metadata = match probe_asset(&entry.absolute_path) {
                     Ok(metadata) => metadata,
-                    Err(_) => return None,
+                    Err(_) => return Self::None,
                 };
-                Some(Self::V1(AssetBeingDraggedV1 {
+                Self::V1(AssetBeingDraggedV1 {
                     absolute_path: entry.absolute_path.clone(),
                     metadata,
-                }))
+                })
             }
-            FileTreeEntryKind::Directory { .. } | FileTreeEntryKind::Timeline => None,
+            FileTreeEntryKind::Directory { .. } | FileTreeEntryKind::Timeline => Self::None,
             FileTreeEntryKind::Other => {
                 if !is_srt_path(&entry.absolute_path) {
-                    return None;
+                    return Self::None;
                 }
-                Some(Self::Srt(DraggedSRT {
+                Self::Srt(DraggedSRT {
                     absolute_path: entry.absolute_path.clone(),
                     text: read_to_string(&entry.absolute_path).unwrap_or_default(),
-                }))
+                })
             }
         };
         return x;
@@ -91,13 +92,10 @@ impl DraggedSRT {
 
 impl Render for AssetBeingDragged {
     fn render(&mut self, _: &mut Window, _: &mut Context<Self>) -> impl IntoElement {
-        let kind = match self {
-            Self::V1(asset) => asset.metadata.kind.label(),
-            Self::Srt(_) => "SRT",
-        };
-        let name = match self {
-            Self::V1(asset) => asset.name(),
-            Self::Srt(asset) => asset.name(),
+        let (kind, name) = match self {
+            Self::V1(asset) => (asset.metadata.kind.label(), asset.name()),
+            Self::Srt(asset) => ("SRT", asset.name()),
+            Self::None => return gpui::Empty.into_any_element(),
         };
 
         div()
@@ -120,5 +118,6 @@ impl Render for AssetBeingDragged {
                     .child(kind),
             )
             .child(div().min_w_0().text_sm().text_ellipsis().child(name))
+            .into_any_element()
     }
 }
