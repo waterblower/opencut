@@ -201,7 +201,7 @@ impl TimelineRuntimeState {
             .clips
             .iter()
             .filter(|clip| {
-                let local = self.playhead - clip.timeline_start();
+                let local = self.playhead() - clip.timeline_start();
                 let crosses_playhead = local >= TimelineTime::ONE_FRAME
                     && local
                         <= clip.frame_length(self.data.settings.frame_rate)
@@ -222,7 +222,7 @@ impl TimelineRuntimeState {
             .into_iter()
             .flat_map(|clip| {
                 let (left, right) = clip
-                    .split_at(self.playhead, self.data.settings.frame_rate)
+                    .split_at(self.playhead(), self.data.settings.frame_rate)
                     .expect("clips at the playhead must be splittable");
                 [left, right]
             })
@@ -311,7 +311,7 @@ impl Editor {
         let Some(timeline) = self.timeline.as_ref() else {
             return;
         };
-        let playhead = timeline.playhead;
+        let playhead = timeline.playhead();
         let (mut clips, assets) =
             match clipboard.prepare_paste(&timeline.path, &timeline.data, playhead) {
                 Ok(paste) => paste,
@@ -369,9 +369,6 @@ impl Editor {
         self.properties.transform_input_clip_id = None;
         self.properties.text_input_clip_id = None;
 
-        if timeline.data.clips.is_empty() {
-            timeline.playhead = TimelineTime::ZERO;
-        }
         let Some(timeline) = self.timeline.as_ref() else {
             return;
         };
@@ -734,9 +731,6 @@ impl Editor {
             return;
         };
 
-        timeline.playhead = timeline
-            .playhead
-            .clamp(TimelineTime::ZERO, timeline.data.content_duration());
         let available_clip_ids = timeline
             .data
             .clips
@@ -762,7 +756,7 @@ impl Editor {
         self.properties.transform_input_clip_id = None;
         self.properties.text_input_clip_id = None;
         if !timeline.data.clips.is_empty() {
-            load_timeline_position_with_options(&mut self.preview, timeline, timeline.playhead);
+            load_timeline_position_with_options(&mut self.preview, timeline, timeline.playhead());
         }
         let Some(timeline) = self.timeline.as_ref() else {
             return;
@@ -1025,10 +1019,8 @@ pub(super) fn edit_and_rebuild_timeline(
         export::ExportOptions::from_timeline(&timeline.data),
     )?;
 
+    let previous_playhead = timeline.playhead();
     timeline.video_backend = TimelineVideoBackend::new(ges_timeline)?;
-    timeline.playhead = timeline
-        .playhead
-        .clamp(TimelineTime::ZERO, timeline.data.content_duration());
     if timeline.data.clips.is_empty() {
         return Ok(());
     }
@@ -1036,7 +1028,7 @@ pub(super) fn edit_and_rebuild_timeline(
     let video = timeline.video_backend.playback_mut();
     video.set_volume(volume);
     video.set_muted(volume <= f64::EPSILON);
-    let _ = video.seek(timeline.data.duration(timeline.playhead));
+    let _ = video.seek(timeline.data.duration(previous_playhead));
     preview.target = PreviewTarget::Timeline;
     data_parity_check(timeline, timeline.video_backend.ges_timeline())?;
     Ok(())

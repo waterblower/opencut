@@ -131,7 +131,7 @@ impl Editor {
         if let Some(timeline) = editor.timeline.as_mut()
             && !timeline.data.clips.is_empty()
         {
-            let playhead = timeline.playhead;
+            let playhead = timeline.playhead();
             editor.preview.target = PreviewTarget::Timeline;
             load_timeline_position_with_options(&mut editor.preview, timeline, playhead);
         }
