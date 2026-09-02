@@ -184,6 +184,19 @@ impl Editor {
                                             cx.emit(AppEvent::DragDrop);
                                         });
                                     }))
+                                    .on_mouse_up_out(
+                                        MouseButton::Left,
+                                        cx.listener(|editor, _, _, cx| {
+                                            if !cx.has_active_drag() {
+                                                return;
+                                            }
+                                            editor.active_asset_drag = AssetBeingDragged::None;
+                                            if let Some(timeline) = editor.timeline.as_mut() {
+                                                timeline.preview_drop_asset = None;
+                                            }
+                                            cx.notify();
+                                        }),
+                                    )
                                     .child(self.timeline_ruler(duration, cx))
                                     .children(track_rows)
                                     .child(self.timeline_playhead(cx))

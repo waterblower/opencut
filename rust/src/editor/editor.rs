@@ -200,13 +200,13 @@ fn handle_app_event(
             }
         }
         AppEvent::DragDrop => {
+            editor.active_asset_drag = AssetBeingDragged::None;
             let Some(timeline) = editor.timeline.as_mut() else {
                 return;
             };
             let Some(preview) = timeline.preview_drop_asset.take() else {
                 return;
             };
-            editor.active_asset_drag = AssetBeingDragged::None;
 
             match preview.asset {
                 AssetBeingDragged::Srt(srt) => {
