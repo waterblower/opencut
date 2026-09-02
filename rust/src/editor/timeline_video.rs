@@ -159,6 +159,5 @@ fn preview_audio_sink() -> anyhow::Result<(gst::Element, gst_audio::StreamVolume
         .ok_or_else(|| anyhow::anyhow!("timeline preview volume control was not created"))?
         .dynamic_cast::<gst_audio::StreamVolume>()
         .map_err(|_| anyhow::anyhow!("timeline preview volume control has an unexpected type"))?;
-    gst_audio::prelude::StreamVolumeExt::set_mute(&control, true);
     Ok((sink.upcast(), control))
 }

@@ -223,6 +223,9 @@ impl VideoBackend {
 
     #[allow(dead_code)] // Used by the player binary, but not the editor binary.
     pub(crate) fn volume(&self) -> f64 {
+        if self.muted() {
+            return 0.0;
+        }
         self.volume_control
             .volume(gst_audio::StreamVolumeFormat::Linear)
     }
