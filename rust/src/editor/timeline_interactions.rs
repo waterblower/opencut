@@ -139,7 +139,7 @@ impl TimelineRuntimeState {
             .ceil(SNAP_DISTANCE_PX as f64 / self.data.view.pixels_per_second as f64)
             .frames()
             .max(1) as u64;
-        let mut candidates = vec![TimelineTime::ZERO, self.playhead];
+        let mut candidates = vec![TimelineTime::ZERO, self.playhead()];
         for clip in &self.data.clips {
             if !ignored_clip_ids.contains(&clip.id()) {
                 candidates.push(clip.timeline_start());
@@ -180,7 +180,7 @@ impl TimelineRuntimeState {
         );
         if pixels_per_second != previous_pixels_per_second {
             let mut scroll_offset = self.h_scroll.offset();
-            let playhead_seconds = self.data.seconds(self.playhead);
+            let playhead_seconds = self.data.seconds(self.playhead());
             scroll_offset.x = px(zoom_scroll_offset(
                 f32::from(scroll_offset.x),
                 playhead_seconds,
@@ -297,8 +297,6 @@ impl Editor {
                 let Some(timeline) = self.timeline.as_mut() else {
                     return;
                 };
-                let position = timeline.timeline_position_from_x(event.position.x.into());
-                timeline.playhead = position;
                 timeline.blade_at_playhead(&mut self.preview, &self.global_settings.project_root);
             }
         }
@@ -752,7 +750,6 @@ impl Editor {
             return;
         }
         let position = timeline.timeline_position_from_x(event.position.x.into());
-        timeline.playhead = position;
 
         let now = Instant::now();
         let should_seek = timeline
@@ -793,9 +790,9 @@ impl Editor {
         if timeline.data.clips.is_empty() {
             return;
         }
-        let target = (timeline.playhead + TimelineTime::from_frames(frames))
+        let target = (timeline.playhead() + TimelineTime::from_frames(frames))
             .clamp(TimelineTime::ZERO, timeline.data.content_duration());
-        if target != timeline.playhead || !self.preview.target.is_timeline() {
+        if target != timeline.playhead() || !self.preview.target.is_timeline() {
             load_timeline_position_with_options(&mut self.preview, timeline, target);
             timeline.save_timeline_playhead(&self.global_settings.project_root);
         }

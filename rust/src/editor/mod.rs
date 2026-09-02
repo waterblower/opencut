@@ -23,6 +23,7 @@ mod editor_view;
 mod explorer;
 mod explorer_drag;
 mod explorer_filter;
+mod explorer_view;
 mod export;
 mod export_dialog;
 pub mod export_gstreamer;
@@ -70,7 +71,7 @@ use generic_containers::{
     HorizontalSplitState,
 };
 use model::{MediaAsset, MediaKind};
-use preview::{PreviewTarget, update_playback};
+use preview::PreviewTarget;
 use preview_audio::AudioBackend;
 use preview_timeline::TimelinePreviewDrag;
 use project_settings::{load_project_local_settings, save_project_local_settings};
@@ -283,7 +284,7 @@ impl Editor {
             {
                 self.select_only_clip(None);
                 let timeline = self.timeline.as_mut().expect("timeline was checked above");
-                let playhead = timeline.playhead;
+                let playhead = timeline.playhead();
                 if !timeline.data.clips.is_empty() {
                     load_timeline_position_with_options(&mut self.preview, timeline, playhead);
                 }
@@ -377,7 +378,7 @@ impl Editor {
             if let Some(timeline) = self.timeline.as_mut()
                 && !timeline.data.clips.is_empty()
             {
-                let playhead = timeline.playhead;
+                let playhead = timeline.playhead();
                 self.preview.target = PreviewTarget::Timeline;
                 load_timeline_position_with_options(&mut self.preview, timeline, playhead);
             } else {

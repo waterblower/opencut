@@ -278,7 +278,7 @@ impl Editor {
             .as_ref()
             .expect("timeline view requires timeline state");
         let left = TIMELINE_PADDING
-            + timeline.data.seconds(timeline.playhead) as f32
+            + timeline.data.seconds(timeline.playhead()) as f32
                 * timeline.data.view.pixels_per_second;
 
         div()
@@ -476,7 +476,7 @@ impl Editor {
                             .text_sm()
                             .child(format!(
                                 "{} / {}",
-                                format_time(timeline.data.seconds(timeline.playhead), false),
+                                format_time(timeline.data.seconds(timeline.playhead()), false),
                                 format_time(
                                     timeline.data.seconds(timeline.data.content_duration()),
                                     false
