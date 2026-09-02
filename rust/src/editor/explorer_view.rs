@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::{path::PathBuf, time::Instant};
 
 use gpui::{
     Context, CursorStyle, InteractiveElement, IntoElement, MouseButton, MouseDownEvent,
@@ -9,6 +9,7 @@ use crate::editor::{Editor, MUTED, PANEL, SURFACE_HOVER};
 
 impl Editor {
     pub(super) fn explorer_panel(&self, cx: &mut Context<Self>) -> gpui::AnyElement {
+        let t = Instant::now();
         let project_name = self
             .global_settings
             .project_root
@@ -18,11 +19,7 @@ impl Editor {
         let filter_query = self.explorer.filter.read(cx).query().to_string();
         let filter = filter_query.trim().to_lowercase();
         let show_root_contents = self.explorer.root_expanded || !filter.is_empty();
-        let visible_entries = if filter.is_empty() {
-            &self.explorer.file_tree
-        } else {
-            &self.explorer.search_results
-        };
+
         let root_context_path = PathBuf::new();
         let root_row = div()
             .id("project-root")
@@ -64,14 +61,29 @@ impl Editor {
                     .text_ellipsis()
                     .child(project_name),
             );
-        let entries = visible_entries
-            .iter()
-            .enumerate()
-            .filter(|_| show_root_contents)
-            .map(|(index, entry)| self.explorer_file_entry(index, entry, cx))
-            .collect::<Vec<_>>();
 
-        div()
+        eprintln!("1 time: {}", t.elapsed().as_millis());
+        let entries = {
+            let visible_entries = if filter.is_empty() {
+                &self.explorer.file_tree
+            } else {
+                &self.explorer.search_results
+            };
+            eprintln!(
+                "1.5 time: {} | {}",
+                t.elapsed().as_millis(),
+                visible_entries.len()
+            );
+            visible_entries
+                .iter()
+                .enumerate()
+                .filter(|_| show_root_contents)
+                .map(|(index, entry)| self.explorer_file_entry(index, entry, cx))
+                .collect::<Vec<_>>()
+        };
+        eprintln!("2 time: {}", t.elapsed().as_millis());
+
+        let d = div()
             .id("editor-media-panel")
             .w_full()
             .h_full()
@@ -109,6 +121,8 @@ impl Editor {
                             .children(entries),
                     ),
             )
-            .into_any_element()
+            .into_any_element();
+        log::debug!("time: {}", t.elapsed().as_millis());
+        return d;
     }
 }
