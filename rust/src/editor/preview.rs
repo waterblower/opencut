@@ -124,14 +124,6 @@ impl Editor {
     }
 }
 
-pub(super) fn update_playback(timeline: &mut TimelineRuntimeState) {
-    let video = timeline.video_backend.playback();
-    let duration = timeline.data.content_duration();
-    if timeline.playhead() >= duration {
-        video.set_paused(true);
-    }
-}
-
 impl Editor {
     fn seek_preview_to_fraction(&mut self, fraction: f32) {
         let fraction = fraction.clamp(0.0, 1.0);

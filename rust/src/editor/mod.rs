@@ -70,7 +70,7 @@ use generic_containers::{
     HorizontalSplitState,
 };
 use model::{MediaAsset, MediaKind};
-use preview::{PreviewTarget, update_playback};
+use preview::PreviewTarget;
 use preview_audio::AudioBackend;
 use preview_timeline::TimelinePreviewDrag;
 use project_settings::{load_project_local_settings, save_project_local_settings};

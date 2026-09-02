@@ -290,9 +290,6 @@ fn start_updates(cx: &mut Context<Editor>) {
                         .explorer
                         .refresh_file_tree(&editor.global_settings.project_root)?;
                 }
-                if let Some(timeline) = editor.timeline.as_mut() {
-                    update_playback(timeline);
-                }
                 if should_render {
                     cx.notify();
                 }
