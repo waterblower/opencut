@@ -11,7 +11,7 @@ use std::path::Path;
 const WAVEFORM_FINE_SAMPLES_PER_PEAK: u32 = 64;
 const WAVEFORM_LEVEL_REDUCTION: usize = 4;
 const MAX_WAVEFORM_LEVELS: usize = 32;
-const MAX_RENDER_COLUMNS: usize = 2 * 4096;
+const MAX_RENDER_COLUMNS: usize = 30 * 4096;
 
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub(super) struct WaveformPeak {
