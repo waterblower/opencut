@@ -6,7 +6,7 @@ use std::{collections::HashSet, fs, path::Path};
 use url::Url;
 
 impl Editor {
-    pub(super) fn explorer_file_entry(
+    pub fn explorer_file_entry(
         &self,
         index: usize,
         entry: &FileTreeEntry,

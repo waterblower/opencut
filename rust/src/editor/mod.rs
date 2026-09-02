@@ -23,6 +23,7 @@ mod editor_view;
 mod explorer;
 mod explorer_drag;
 mod explorer_filter;
+mod explorer_view;
 mod export;
 mod export_dialog;
 pub mod export_gstreamer;
