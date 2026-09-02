@@ -1,4 +1,4 @@
-use std::{path::PathBuf, time::Instant};
+use std::path::PathBuf;
 
 use gpui::{
     Context, CursorStyle, InteractiveElement, IntoElement, MouseButton, MouseDownEvent,
@@ -9,7 +9,6 @@ use crate::editor::{Editor, MUTED, PANEL, SURFACE_HOVER};
 
 impl Editor {
     pub(super) fn explorer_panel(&self, cx: &mut Context<Self>) -> gpui::AnyElement {
-        let t = Instant::now();
         let project_name = self
             .global_settings
             .project_root
@@ -62,18 +61,13 @@ impl Editor {
                     .child(project_name),
             );
 
-        eprintln!("1 time: {}", t.elapsed().as_millis());
         let entries = {
             let visible_entries = if filter.is_empty() {
                 &self.explorer.file_tree
             } else {
                 &self.explorer.search_results
             };
-            eprintln!(
-                "1.5 time: {} | {}",
-                t.elapsed().as_millis(),
-                visible_entries.len()
-            );
+
             visible_entries
                 .iter()
                 .enumerate()
@@ -81,7 +75,6 @@ impl Editor {
                 .map(|(index, entry)| self.explorer_file_entry(index, entry, cx))
                 .collect::<Vec<_>>()
         };
-        eprintln!("2 time: {}", t.elapsed().as_millis());
 
         let d = div()
             .id("editor-media-panel")
@@ -122,7 +115,6 @@ impl Editor {
                     ),
             )
             .into_any_element();
-        log::debug!("time: {}", t.elapsed().as_millis());
         return d;
     }
 }
