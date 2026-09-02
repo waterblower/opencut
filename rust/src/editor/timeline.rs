@@ -60,6 +60,7 @@ pub(super) struct TimelineRuntimeState {
     pub(super) preview_drop_asset: Option<PreviewDropAsset>,
 }
 
+#[derive(Debug)]
 pub struct PreviewDropAsset {
     pub track_id: Ulid,
     pub start_time: TimelineTime,

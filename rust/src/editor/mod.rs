@@ -677,13 +677,13 @@ fn format_time(seconds: f64, padded_minutes: bool) -> String {
 pub(in crate::editor) struct EventBus;
 pub(in crate::editor) enum AppEvent {
     Edit(EditAction),
+    DragStarted(AssetBeingDragged),
     DragMove(AssetDragMoveEvent),
     DragDrop,
 }
 
 #[derive(Clone, Debug)]
 pub(in crate::editor) struct AssetDragMoveEvent {
-    pub(in crate::editor) drag: AssetBeingDragged,
     pub(in crate::editor) event: MouseMoveEvent,
     pub(in crate::editor) bounds: Bounds<Pixels>,
 }
