@@ -125,10 +125,7 @@ impl Editor {
     }
 }
 
-pub(super) fn update_playback(timeline: &mut TimelineRuntimeState, preview: &mut PreviewState) {
-    if !preview.target.is_timeline() {
-        return;
-    }
+pub(super) fn update_playback(timeline: &mut TimelineRuntimeState) {
     let video = timeline.video_backend.playback();
     let duration = timeline.data.content_duration();
     timeline.playhead = timeline

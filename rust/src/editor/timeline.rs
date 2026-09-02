@@ -51,7 +51,7 @@ pub(super) struct TimelineRuntimeState {
     pub(super) path: PathBuf,
     pub(super) data: TimelineSerialization,
     pub(super) video_backend: TimelineVideoBackend,
-    pub(super) playhead: TimelineTime,
+    // pub(super) playhead: TimelineTime,
     pub(super) h_scroll: ScrollHandle,
     pub(super) v_scroll: ScrollHandle,
     pub(super) interaction: TimelineInteractionState,
@@ -431,7 +431,7 @@ impl TimelineRuntimeState {
             path,
             data,
             video_backend: TimelineVideoBackend::new(ges_timeline)?,
-            playhead,
+            // playhead,
             interaction: TimelineInteractionState {
                 active_tool: TimelineTool::Selection,
                 snapping_enabled,
@@ -451,6 +451,13 @@ impl TimelineRuntimeState {
             redo_stack: Vec::new(),
             preview_drop_asset: None,
         })
+    }
+
+    pub fn playhead(&self) -> TimelineTime {
+        self.data
+            .settings
+            .frame_rate
+            .frames_from_duration_nearest(self.video_backend.playback().position())
     }
 
     pub(super) fn save_timeline_playhead(self: &mut TimelineRuntimeState, project_root: &Path) {

@@ -274,15 +274,6 @@ fn start_updates(cx: &mut Context<Editor>) {
         loop {
             cx.background_executor().timer(IDLE_UPDATE_INTERVAL).await;
             let result = editor.update(cx, |editor, cx| {
-                let preview_playing = match &editor.preview.target {
-                    PreviewTarget::Timeline => editor
-                        .timeline
-                        .as_ref()
-                        .is_some_and(|timeline| !timeline.video_backend.playback().paused()),
-                    PreviewTarget::VideoFile(_, video) => !video.paused(),
-                    PreviewTarget::AudioFile(_, audio) => audio.playing(),
-                    _ => false,
-                };
                 let pinch_zoomed = editor.apply_timeline_pinch();
                 let ended_explorer_drag = !cx.has_active_drag();
                 if ended_explorer_drag && let Some(timeline) = editor.timeline.as_mut() {
@@ -291,11 +282,8 @@ fn start_updates(cx: &mut Context<Editor>) {
                 let refresh_tree =
                     editor.explorer.last_tree_scan.elapsed() >= Duration::from_secs(1);
 
-                let should_render = preview_playing
-                    || editor.export.running
-                    || refresh_tree
-                    || pinch_zoomed
-                    || ended_explorer_drag;
+                let should_render =
+                    editor.export.running || refresh_tree || pinch_zoomed || ended_explorer_drag;
 
                 if refresh_tree {
                     editor
@@ -303,7 +291,7 @@ fn start_updates(cx: &mut Context<Editor>) {
                         .refresh_file_tree(&editor.global_settings.project_root)?;
                 }
                 if let Some(timeline) = editor.timeline.as_mut() {
-                    update_playback(timeline, &mut editor.preview);
+                    update_playback(timeline);
                 }
                 if should_render {
                     cx.notify();
@@ -314,7 +302,7 @@ fn start_updates(cx: &mut Context<Editor>) {
                 Ok(Ok(())) => {}
                 Ok(Err(error)) => eprintln!("{error}"),
                 Err(error) => {
-                    eprintln!("Editor update loop failed: {error}");
+                    log::debug!("Editor update loop failed: {error}");
                     panic!("Editor update loop failed");
                 }
             }

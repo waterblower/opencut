@@ -1008,7 +1008,7 @@ pub(super) fn edit_and_rebuild_timeline(
     let action_type = action.kind();
     let t = Instant::now();
     let rebuild_timeline = edit_timeline(timeline, project_root, action)?;
-    eprintln!("edit_timeline {action_type} - {:?}", t.elapsed());
+    log::debug!("edit_timeline {action_type} - {:?}", t.elapsed());
     if !rebuild_timeline {
         data_parity_check(timeline, timeline.video_backend.ges_timeline())?;
         return Ok(());
@@ -1107,7 +1107,7 @@ pub(super) fn edit_timeline(
             let ges = timeline.video_backend.ges_timeline();
             ges_remove_clips(ges, &removed_clips)?;
             ges_add_clips(ges, &updated_timeline, project_root, &added_clips)?;
-            if !ges.commit_sync() {
+            if !ges.commit() {
                 anyhow::bail!("GStreamer could not commit the split clips.");
             }
             timeline.data = updated_timeline;
