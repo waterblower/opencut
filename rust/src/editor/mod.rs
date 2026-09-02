@@ -238,10 +238,12 @@ impl Editor {
                     cx.notify();
                     result
                 }) {
-                    Ok(Ok(())) => {}
-                    Ok(Err(error)) => eprintln!("{error}"),
+                    Ok(Ok(())) => {
+                        eprintln!("editor.set_project_root done")
+                    }
+                    Ok(Err(error)) => eprintln!("{error:?}"),
                     Err(error) => {
-                        eprintln!("Could not update the editor project folder: {error}");
+                        eprintln!("Could not update the editor project folder: {error:?}");
                     }
                 }
             }
@@ -251,22 +253,27 @@ impl Editor {
 
     fn set_project_root(&mut self, root: PathBuf, cx: &mut Context<Self>) -> anyhow::Result<()> {
         let root = std::fs::canonicalize(&root).unwrap_or(root);
+        self.global_settings.project_root = root.clone();
         let project_settings = load_project_local_settings(&root);
-        let active_timeline =
-            load_existing_timeline(&root, project_settings.active_timeline.as_deref())?
-                .expect("the selected project has no timeline");
+        {
+            let active_timeline =
+                load_existing_timeline(&root, project_settings.active_timeline.as_deref())
+                    .context("Editor::set_project_root failed")?;
+            if let Some(active_timeline) = active_timeline {
+                self.activate_timeline(active_timeline.0, active_timeline.1, cx)?;
+            }
+        }
         if let Some(timeline) = self.timeline.as_ref() {
             timeline.save(&self.global_settings.project_root);
         }
 
-        self.global_settings.project_root = root;
         self.waveform_jobs.clear();
         self.waveform_cache.clear();
         self.clipboard = None;
         let explorer_expansion = load_explorer_expansion(&self.global_settings.project_root);
         self.explorer.expanded_directories = explorer_expansion.expanded_directories;
         self.explorer.root_expanded = explorer_expansion.root_expanded;
-        self.activate_timeline(active_timeline.0, active_timeline.1, cx)?;
+
         self.schedule_project_waveforms(cx);
         save_global_editor_settings(&self.global_settings)
     }

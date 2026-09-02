@@ -101,7 +101,7 @@ pub(super) fn update_timeline_video_position(
     }
     let playback = &mut video.playback;
     let position = playback.position();
-    playback.seek(position).map_err(anyhow::Error::msg)
+    playback.seek(position)
 }
 
 pub fn create_timeline_pipeline_v2(
