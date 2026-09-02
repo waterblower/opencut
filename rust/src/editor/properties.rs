@@ -153,7 +153,11 @@ fn timeline_file(timeline: &TimelineRuntimeState) -> gpui::AnyElement {
         .settings
         .frame_rate
         .seconds(timeline.data.content_duration());
-    let playhead = timeline.data.settings.frame_rate.seconds(timeline.playhead);
+    let playhead = timeline
+        .data
+        .settings
+        .frame_rate
+        .seconds(timeline.playhead());
 
     div()
         .id("timeline-file-properties-v2")

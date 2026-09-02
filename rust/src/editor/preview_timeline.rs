@@ -37,8 +37,8 @@ pub fn preview_timeline_view(
     let selected_rect = timeline.interaction.selected_clip_id.and_then(|clip_id| {
         let clip = timeline.data.clip(clip_id)?;
         let media = clip.media()?;
-        if clip.timeline_start() > timeline.playhead
-            || timeline.playhead >= clip.timeline_end(timeline.data.settings.frame_rate)
+        if clip.timeline_start() > timeline.playhead()
+            || timeline.playhead() >= clip.timeline_end(timeline.data.settings.frame_rate)
         {
             return None;
         }
@@ -595,8 +595,8 @@ impl Editor {
         let clip_id = timeline.data.tracks.iter().rev().find_map(|track| {
             timeline.data.clips_on_track(track.id).find_map(|clip| {
                 let media = clip.media()?;
-                if clip.timeline_start() > timeline.playhead
-                    || timeline.playhead >= clip.timeline_end(timeline.data.settings.frame_rate)
+                if clip.timeline_start() > timeline.playhead()
+                    || timeline.playhead() >= clip.timeline_end(timeline.data.settings.frame_rate)
                 {
                     return None;
                 }

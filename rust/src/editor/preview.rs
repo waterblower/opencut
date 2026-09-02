@@ -19,7 +19,6 @@ pub fn load_timeline_position_with_options(
     preview.target = PreviewTarget::Timeline;
     let duration = timeline.data.content_duration();
     let position = position.clamp(TimelineTime::ZERO, duration);
-    timeline.playhead = position;
     preview.timeline_drag = None;
 
     let _ = timeline
@@ -113,33 +112,15 @@ impl Editor {
                 }
 
                 let duration = timeline.data.content_duration();
-                let start = if timeline.playhead >= duration {
+                let start = if timeline.playhead() >= duration {
                     TimelineTime::ZERO
                 } else {
-                    timeline.playhead
+                    timeline.playhead()
                 };
                 video.set_paused(!is_paused);
                 load_timeline_position_with_options(&mut self.preview, timeline, start);
             }
         }
-    }
-}
-
-pub(super) fn update_playback(timeline: &mut TimelineRuntimeState, preview: &mut PreviewState) {
-    if !preview.target.is_timeline() {
-        return;
-    }
-    let video = timeline.video_backend.playback();
-    let duration = timeline.data.content_duration();
-    timeline.playhead = timeline
-        .data
-        .settings
-        .frame_rate
-        .frames_from_duration_nearest(video.position());
-
-    if timeline.playhead >= duration {
-        video.set_paused(true);
-        timeline.playhead = duration;
     }
 }
 

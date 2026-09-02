@@ -51,7 +51,7 @@ pub(super) struct TimelineRuntimeState {
     pub(super) path: PathBuf,
     pub(super) data: TimelineSerialization,
     pub(super) video_backend: TimelineVideoBackend,
-    pub(super) playhead: TimelineTime,
+    // pub(super) playhead: TimelineTime,
     pub(super) h_scroll: ScrollHandle,
     pub(super) v_scroll: ScrollHandle,
     pub(super) interaction: TimelineInteractionState,
@@ -414,10 +414,6 @@ impl TimelineRuntimeState {
         data: TimelineSerialization,
         ges_timeline: gstreamer_editing_services::Timeline,
     ) -> anyhow::Result<Self> {
-        let playhead = data
-            .view
-            .saved_playhead_frame
-            .clamp(TimelineTime::ZERO, data.content_duration());
         let scroll = ScrollHandle::new();
         scroll.set_offset(point(px(-data.view.horizontal_scroll), px(0.0)));
         let vertical_scroll = ScrollHandle::new();
@@ -431,7 +427,6 @@ impl TimelineRuntimeState {
             path,
             data,
             video_backend: TimelineVideoBackend::new(ges_timeline)?,
-            playhead,
             interaction: TimelineInteractionState {
                 active_tool: TimelineTool::Selection,
                 snapping_enabled,
@@ -453,6 +448,13 @@ impl TimelineRuntimeState {
         })
     }
 
+    pub fn playhead(&self) -> TimelineTime {
+        self.data
+            .settings
+            .frame_rate
+            .frames_from_duration_nearest(self.video_backend.playback().position())
+    }
+
     pub(super) fn save_timeline_playhead(self: &mut TimelineRuntimeState, project_root: &Path) {
         self.capture_playhead(project_root);
         self.save(project_root);
@@ -463,7 +465,7 @@ impl TimelineRuntimeState {
             self,
             project_root,
             EditAction::SetSavedPlayhead {
-                playhead: self.playhead,
+                playhead: self.playhead(),
             },
         )
         .expect("saving the playhead cannot be rejected");

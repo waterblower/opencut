@@ -141,7 +141,6 @@ impl Editor {
         if previous == frame_rate {
             return;
         }
-        let playhead = previous.rescale_nearest(timeline.playhead, frame_rate);
 
         if let Some(video) = self.active_video() {
             video.set_paused(true);
@@ -157,8 +156,7 @@ impl Editor {
             EditAction::SetFrameRate { frame_rate },
         )
         .expect("changing the frame rate cannot be rejected");
-        timeline.playhead = playhead.clamp(TimelineTime::ZERO, timeline.data.content_duration());
-        let playhead = timeline.playhead;
+        let playhead = timeline.playhead();
         let has_clips = !timeline.data.clips.is_empty();
         timeline.save_timeline_playhead(&self.global_settings.project_root);
         if has_clips {
