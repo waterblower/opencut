@@ -107,7 +107,7 @@ pub(super) fn generate_waveform_gstreamer(source: &Path) -> Result<WaveformData>
         )
     })?;
     let pipeline = gst::parse::launch(&format!(
-        "uridecodebin uri=\"{}\" caps=audio/x-raw ! queue ! audioconvert ! audio/x-raw,format=F32LE,layout=interleaved,channels=1 ! appsink name=waveform_sink sync=false",
+        "uridecodebin uri=\"{}\" caps=audio/x-raw expose-all-streams=false ! audioconvert ! audio/x-raw,format=F32LE,layout=interleaved,channels=1 ! appsink name=waveform_sink sync=false",
         uri.as_str()
     ))
     .with_context(|| {
@@ -197,11 +197,7 @@ pub(super) fn generate_waveform_gstreamer(source: &Path) -> Result<WaveformData>
                         line!()
                     ));
                 }
-                let samples = bytes
-                    .chunks_exact(size_of::<f32>())
-                    .map(|bytes| f32::from_le_bytes(bytes.try_into().expect("chunk size is four")))
-                    .collect::<Vec<_>>();
-                builder.push_samples(&samples);
+                builder.push_f32le_bytes(bytes);
                 continue;
             }
 
@@ -395,6 +391,52 @@ impl WaveformBuilder {
         }
     }
 
+    fn push_f32le_bytes(&mut self, mut bytes: &[u8]) {
+        if cfg!(target_endian = "little") {
+            // GStreamer audio buffers are normally aligned for their negotiated sample type.
+            // Every bit pattern is valid for f32, so an exactly aligned buffer can be consumed
+            // directly without allocating or converting each sample.
+            let (prefix, samples, suffix) = unsafe { bytes.align_to::<f32>() };
+            if prefix.is_empty() && suffix.is_empty() {
+                self.push_samples(samples);
+                return;
+            }
+        }
+
+        let bytes_per_sample = size_of::<f32>();
+        self.total_samples = self
+            .total_samples
+            .saturating_add((bytes.len() / bytes_per_sample) as u64);
+        let samples_per_peak = self.samples_per_peak as usize;
+
+        if self.samples_in_peak > 0 {
+            let remaining = samples_per_peak - self.samples_in_peak as usize;
+            let split = remaining.min(bytes.len() / bytes_per_sample) * bytes_per_sample;
+            include_f32le_bytes(&mut self.current, &bytes[..split]);
+            self.samples_in_peak += (split / bytes_per_sample) as u32;
+            bytes = &bytes[split..];
+            if self.samples_in_peak == self.samples_per_peak {
+                self.peaks.push(self.current);
+                self.current = empty_peak();
+                self.samples_in_peak = 0;
+            }
+        }
+
+        let bytes_per_peak = samples_per_peak * bytes_per_sample;
+        let mut chunks = bytes.chunks_exact(bytes_per_peak);
+        for chunk in &mut chunks {
+            let mut peak = empty_peak();
+            include_f32le_bytes(&mut peak, chunk);
+            self.peaks.push(peak);
+        }
+
+        let remainder = chunks.remainder();
+        if !remainder.is_empty() {
+            include_f32le_bytes(&mut self.current, remainder);
+            self.samples_in_peak = (remainder.len() / bytes_per_sample) as u32;
+        }
+    }
+
     fn finish(mut self) -> Vec<WaveformPeak> {
         if self.samples_in_peak > 0 {
             self.peaks.push(self.current);
@@ -405,6 +447,19 @@ impl WaveformBuilder {
 
 fn include_samples(peak: &mut WaveformPeak, samples: &[f32]) {
     for &sample in samples {
+        let sample = if sample.is_finite() {
+            sample.clamp(-1.0, 1.0)
+        } else {
+            0.0
+        };
+        peak.min = peak.min.min(sample);
+        peak.max = peak.max.max(sample);
+    }
+}
+
+fn include_f32le_bytes(peak: &mut WaveformPeak, bytes: &[u8]) {
+    for bytes in bytes.chunks_exact(size_of::<f32>()) {
+        let sample = f32::from_le_bytes(bytes.try_into().expect("chunk size is four"));
         let sample = if sample.is_finite() {
             sample.clamp(-1.0, 1.0)
         } else {

@@ -2,7 +2,7 @@ use super::*;
 
 #[test]
 fn generates_waveform() {
-    let source = Path::new(env!("CARGO_MANIFEST_DIR")).join("data/tests/long video.mp4");
+    let source = Path::new(env!("CARGO_MANIFEST_DIR")).join("data/tests/super long.mp4");
     let waveform = generate_waveform(&source).unwrap();
 
     assert!(waveform.sample_rate > 0);
@@ -14,7 +14,7 @@ fn generates_waveform() {
 
 #[test]
 fn generates_waveform_gstreamer() {
-    let source = Path::new(env!("CARGO_MANIFEST_DIR")).join("data/tests/long video.mp4");
+    let source = Path::new(env!("CARGO_MANIFEST_DIR")).join("data/tests/super long.mp4");
     let waveform = generate_waveform_gstreamer(&source).unwrap();
 
     assert!(waveform.sample_rate > 0);
