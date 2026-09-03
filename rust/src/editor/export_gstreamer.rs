@@ -223,7 +223,10 @@ pub(super) fn build_ges_timeline(
                     anyhow::anyhow!("could not convert {} to a file URL", source.display())
                 })?;
                 let uri_asset = ges::UriClipAsset::request_sync(uri.as_str()).map_err(|error| {
-                    anyhow::anyhow!("could not inspect {}: {error}", source.display())
+                    anyhow::anyhow!(
+                        "build_ges_timeline failed: could not inspect {}: {error}",
+                        source.display()
+                    )
                 })?;
                 assets.insert(asset.id, uri_asset.clone());
                 uri_asset

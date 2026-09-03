@@ -66,22 +66,25 @@ fn collect_timeline_files(
 pub(super) fn load_existing_timeline(
     project_root: &Path,
     preferred: Option<&Path>,
-) -> anyhow::Result<Option<(PathBuf, TimelineSerialization)>> {
-    let timelines = timeline_files(project_root)?;
-    let Some(relative_path) = preferred
-        .filter(|path| {
-            path.components()
-                .all(|component| matches!(component, std::path::Component::Normal(_)))
-                && is_timeline_path(path)
-                && project_root.join(path).is_file()
-        })
-        .map(Path::to_path_buf)
-        .or_else(|| timelines.first().cloned())
-    else {
-        return Ok(None);
-    };
-    let path = project_root.join(&relative_path);
-    Ok(Some((relative_path, TimelineSerialization::load(&path)?)))
+) -> Result<Option<(PathBuf, TimelineSerialization)>> {
+    let res = (|| -> Result<Option<(PathBuf, TimelineSerialization)>> {
+        let timelines = timeline_files(project_root)?;
+        let Some(relative_path) = preferred
+            .filter(|path| {
+                path.components()
+                    .all(|component| matches!(component, std::path::Component::Normal(_)))
+                    && is_timeline_path(path)
+                    && project_root.join(path).is_file()
+            })
+            .map(Path::to_path_buf)
+            .or_else(|| timelines.first().cloned())
+        else {
+            return Ok(None);
+        };
+        let path = project_root.join(&relative_path);
+        Ok(Some((relative_path, TimelineSerialization::load(&path)?)))
+    })();
+    res.context("load_existing_timeline failed")
 }
 
 /// Turns a user-entered name into a timeline filename, appending the extension the

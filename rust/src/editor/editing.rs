@@ -1001,9 +1001,9 @@ pub(super) fn edit_and_rebuild_timeline(
 ) -> anyhow::Result<()> {
     let action_type = action.kind();
     let t = Instant::now();
-    let rebuild_timeline = edit_timeline(timeline, project_root, action)?;
+    let should_rebuild_timeline = edit_timeline(timeline, project_root, action)?;
     log::debug!("edit_timeline {action_type} - {:?}", t.elapsed());
-    if !rebuild_timeline {
+    if false == should_rebuild_timeline {
         data_parity_check(timeline, timeline.video_backend.ges_timeline())?;
         return Ok(());
     }
@@ -1028,7 +1028,7 @@ pub(super) fn edit_and_rebuild_timeline(
     let video = timeline.video_backend.playback_mut();
     video.set_volume(volume);
     video.set_muted(volume <= f64::EPSILON);
-    let _ = video.seek(timeline.data.duration(previous_playhead));
+    video.seek(timeline.data.duration(previous_playhead))?;
     preview.target = PreviewTarget::Timeline;
     data_parity_check(timeline, timeline.video_backend.ges_timeline())?;
     Ok(())
@@ -1271,7 +1271,9 @@ pub(super) fn edit_timeline(
                 }
             }
         }
-        EditAction::ReplaceTimeline { timeline: data } => timeline.data = data,
+        EditAction::ReplaceTimeline { timeline: data } => {
+            timeline.data = data;
+        }
     }
 
     Ok(true)

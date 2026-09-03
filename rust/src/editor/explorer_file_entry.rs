@@ -12,6 +12,11 @@ impl Editor {
         entry: &FileTreeEntry,
         cx: &mut Context<Self>,
     ) -> gpui::Stateful<gpui::Div> {
+        // eprintln!(
+        //     "path\n{}\n{}",
+        //     entry.absolute_path.display(),
+        //     self.global_settings.project_root.display()
+        // );
         let path = entry
             .absolute_path
             .strip_prefix(&self.global_settings.project_root)

@@ -193,7 +193,7 @@ impl VideoBackend {
         }
     }
 
-    pub(crate) fn seek(&mut self, position: Duration) -> Result<(), String> {
+    pub(crate) fn seek(&mut self, position: Duration) -> Result<()> {
         let mut flags = gst::SeekFlags::FLUSH;
         flags |= gst::SeekFlags::ACCURATE;
 
@@ -216,7 +216,7 @@ impl VideoBackend {
                 gst::SeekType::Set,
                 gst::ClockTime::from_nseconds(stop.as_nanos() as u64),
             )
-            .map_err(|error| format!("could not seek video: {error}"))?;
+            .with_context(|| format!("could not seek video at {}:{}", file!(), line!()))?;
         self.cached_position = position;
         Ok(())
     }
