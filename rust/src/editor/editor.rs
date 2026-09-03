@@ -305,10 +305,9 @@ fn start_updates(cx: &mut Context<Editor>) {
             });
             match result {
                 Ok(Ok(())) => {}
-                Ok(Err(error)) => eprintln!("{error}"),
+                Ok(Err(error)) => eprintln!("{error:?}"),
                 Err(error) => {
-                    log::debug!("Editor update loop failed: {error}");
-                    panic!("Editor update loop failed");
+                    log::debug!("Editor update loop failed: {error:?}");
                 }
             }
         }
