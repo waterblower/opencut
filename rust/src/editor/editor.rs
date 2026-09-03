@@ -23,7 +23,7 @@ pub(crate) struct Editor {
 }
 
 impl Editor {
-    pub(crate) fn new(cx: &mut Context<Self>) -> Self {
+    pub(crate) fn new(cx: &mut Context<Self>) -> Result<Self> {
         gstreamer_editing_services::init()
             .expect("could not initialize GStreamer Editing Services");
 
@@ -38,19 +38,34 @@ impl Editor {
                 &global_settings.project_root,
                 project_settings.active_timeline.as_deref(),
             )
-            .unwrap();
-            (|| {
+            .with_context(|| {
+                format!(
+                    "could not load the active timeline at {}:{}",
+                    file!(),
+                    line!()
+                )
+            })?;
+            (|| -> Result<Option<TimelineRuntimeState>> {
                 let Some((timeline_path, timeline_data)) = active_timeline else {
-                    return None;
+                    return Ok(None);
                 };
                 let ges_timeline = build_ges_timeline(
                     &timeline_data,
                     &global_settings.project_root,
                     export::ExportOptions::from_timeline(&timeline_data),
                 )
-                .unwrap();
-                Some(TimelineRuntimeState::new(timeline_path, timeline_data, ges_timeline).unwrap())
-            })()
+                .with_context(|| format!("build_ges_timeline failed at {}:{}", file!(), line!()))?;
+                let timeline =
+                    TimelineRuntimeState::new(timeline_path, timeline_data, ges_timeline)
+                        .with_context(|| {
+                            format!(
+                                "could not initialize the active timeline at {}:{}",
+                                file!(),
+                                line!()
+                            )
+                        })?;
+                Ok(Some(timeline))
+            })()?
         };
         // load timeline end
 
@@ -138,7 +153,7 @@ impl Editor {
             load_timeline_position_with_options(&mut editor.preview, timeline, playhead);
         }
         editor.schedule_project_waveforms(cx);
-        editor
+        Ok(editor)
     }
 }
 

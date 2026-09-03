@@ -52,7 +52,15 @@ fn run_app(cx: &mut App) {
     .detach();
 
     let bounds = Bounds::centered(None, size(px(1440.0), px(900.0)), cx);
-    let editor = cx.new(Editor::new);
+    let editor = cx.new(|cx| {
+        let editor = Editor::new(cx);
+        match editor {
+            Ok(editor) => editor,
+            Err(e) => {
+                panic!("{:?}", e);
+            }
+        }
+    });
 
     cx.open_window(
         WindowOptions {
