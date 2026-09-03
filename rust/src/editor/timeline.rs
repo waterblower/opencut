@@ -49,15 +49,15 @@ pub(super) struct TimelineViewState {
 
 pub(super) struct TimelineRuntimeState {
     pub(super) path: PathBuf,
-    pub(super) data: TimelineSerialization,
     pub(super) video_backend: TimelineVideoBackend,
-    // pub(super) playhead: TimelineTime,
     pub(super) h_scroll: ScrollHandle,
     pub(super) v_scroll: ScrollHandle,
     pub(super) interaction: TimelineInteractionState,
     pub(super) undo_stack: Vec<TimelineSerialization>,
     pub(super) redo_stack: Vec<TimelineSerialization>,
     pub(super) preview_drop_asset: Option<PreviewDropAsset>,
+    // serialized data
+    pub(super) data: TimelineSerialization,
 }
 
 #[derive(Debug)]

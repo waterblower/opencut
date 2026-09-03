@@ -108,7 +108,7 @@ fn timeline_file(timeline: &TimelineRuntimeState) -> gpui::AnyElement {
             .h(px(48.0))
             .flex()
             .items_center()
-            .gap_4()
+            .gap_2()
             .child(
                 div()
                     .w(px(112.0))
@@ -124,7 +124,7 @@ fn timeline_file(timeline: &TimelineRuntimeState) -> gpui::AnyElement {
                     .flex_1()
                     .flex()
                     .items_center()
-                    .gap_2()
+                    .gap_1()
                     .px_3()
                     .rounded_md()
                     .border_1()
@@ -161,6 +161,8 @@ fn timeline_file(timeline: &TimelineRuntimeState) -> gpui::AnyElement {
 
     div()
         .id("timeline-file-properties-v2")
+        .h_full()
+        .min_h_0()
         .flex()
         .flex_col()
         .overflow_hidden()
@@ -179,19 +181,21 @@ fn timeline_file(timeline: &TimelineRuntimeState) -> gpui::AnyElement {
         )
         .child(
             div()
+                .id("timeline-file-properties-scroll")
+                .flex_1()
+                .min_h_0()
+                .overflow_y_scroll()
                 .flex()
                 .flex_col()
                 .gap_3()
                 .px_5()
-                .py_5()
-                .child(properties_section_label("FILE"))
+                .py_2()
                 .child(property_field("Name", name, ""))
                 .child(property_field(
                     "Path",
                     timeline.path.display().to_string(),
                     "",
                 ))
-                .child(properties_section_label("TIMELINE"))
                 .child(property_field("Duration", format_time(duration, false), ""))
                 .child(property_field("Playhead", format_time(playhead, false), ""))
                 .child(property_field(

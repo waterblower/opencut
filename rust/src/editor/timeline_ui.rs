@@ -587,7 +587,7 @@ impl Editor {
                             .font_family("monospace")
                             .text_xs()
                             .text_color(rgb(MUTED))
-                            .child(format!("{:.0}px/s", timeline.data.view.pixels_per_second)),
+                            .child(format!("{:.1}px/s", timeline.data.view.pixels_per_second)),
                     )
                     .child(
                         div()
