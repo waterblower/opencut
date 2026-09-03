@@ -419,15 +419,32 @@ fn timeline_clip_waveform(
     source_end: f64,
 ) -> gpui::AnyElement {
     canvas(
-        move |bounds, _, _| {
-            let width = f32::from(bounds.size.width).ceil().max(1.0) as usize;
-            waveform.columns(source_start, source_end, width)
+        move |bounds, window, _| {
+            let visible_bounds = bounds.intersect(&window.content_mask().bounds);
+            if visible_bounds.is_empty() {
+                return (visible_bounds, Vec::new());
+            }
+
+            let width = f32::from(bounds.size.width).max(1.0);
+            let visible_start =
+                (f32::from(visible_bounds.left() - bounds.left()) / width).clamp(0.0, 1.0);
+            let visible_end =
+                (f32::from(visible_bounds.right() - bounds.left()) / width).clamp(0.0, 1.0);
+            let source_duration = source_end - source_start;
+            let visible_source_start = source_start + source_duration * f64::from(visible_start);
+            let visible_source_end = source_start + source_duration * f64::from(visible_end);
+            let visible_width = f32::from(visible_bounds.size.width).ceil().max(1.0) as usize;
+
+            (
+                visible_bounds,
+                waveform.columns(visible_source_start, visible_source_end, visible_width),
+            )
         },
-        move |bounds: Bounds<gpui::Pixels>, columns, window, _| {
+        move |bounds: Bounds<gpui::Pixels>, (visible_bounds, columns), window, _| {
             if columns.is_empty() {
                 return;
             }
-            let width = f32::from(bounds.size.width);
+            let width = f32::from(visible_bounds.size.width);
             let height = f32::from(bounds.size.height);
             let column_width = width / columns.len() as f32;
             let center = height / 2.0;
@@ -441,7 +458,7 @@ fn timeline_clip_waveform(
                 window.paint_quad(fill(
                     Bounds::new(
                         point(
-                            bounds.left() + px(index as f32 * column_width),
+                            visible_bounds.left() + px(index as f32 * column_width),
                             bounds.top() + px(top),
                         ),
                         size(px(column_width.max(1.0)), px(bar_height)),

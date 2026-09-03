@@ -1,3 +1,4 @@
+use anyhow::{Result, anyhow};
 use ffmpeg::{
     channel_layout::ChannelLayout,
     codec, format, frame,
@@ -6,7 +7,7 @@ use ffmpeg::{
     util::format::{Sample, sample::Type as SampleType},
 };
 use ffmpeg_next as ffmpeg;
-use std::path::Path;
+use std::{path::Path, time::Instant};
 
 const WAVEFORM_FINE_SAMPLES_PER_PEAK: u32 = 64;
 const WAVEFORM_LEVEL_REDUCTION: usize = 4;
@@ -84,18 +85,19 @@ impl WaveformData {
     }
 }
 
-pub(super) fn generate_waveform(source: &Path) -> anyhow::Result<WaveformData> {
-    ffmpeg::init().map_err(|error| anyhow::anyhow!("could not initialize FFmpeg: {error}"))?;
+pub(super) fn generate_waveform(source: &Path) -> Result<WaveformData> {
+    let t = Instant::now();
+    ffmpeg::init().map_err(|error| anyhow!("could not initialize FFmpeg: {error}"))?;
     let mut input = format::input(source)
-        .map_err(|error| anyhow::anyhow!("could not open {}: {error}", source.display()))?;
+        .map_err(|error| anyhow!("could not open {}: {error}", source.display()))?;
     let stream = input
         .streams()
         .best(Type::Audio)
-        .ok_or_else(|| anyhow::anyhow!("{} has no audio stream", source.display()))?;
+        .ok_or_else(|| anyhow!("{} has no audio stream", source.display()))?;
     let stream_index = stream.index();
     let mut decoder = codec::context::Context::from_parameters(stream.parameters())
         .and_then(|context| context.decoder().audio())
-        .map_err(|error| anyhow::anyhow!("could not create audio decoder: {error}"))?;
+        .map_err(|error| anyhow!("could not create audio decoder: {error}"))?;
     let input_layout = if decoder.channel_layout().is_empty() {
         ChannelLayout::default(i32::from(decoder.channels()))
     } else {
@@ -110,7 +112,7 @@ pub(super) fn generate_waveform(source: &Path) -> anyhow::Result<WaveformData> {
         ChannelLayout::MONO,
         sample_rate,
     )
-    .map_err(|error| anyhow::anyhow!("could not create waveform resampler: {error}"))?;
+    .map_err(|error| anyhow!("could not create waveform resampler: {error}"))?;
     let mut builder = WaveformBuilder::new(WAVEFORM_FINE_SAMPLES_PER_PEAK);
 
     for (packet_stream, packet) in input.packets() {
@@ -119,7 +121,7 @@ pub(super) fn generate_waveform(source: &Path) -> anyhow::Result<WaveformData> {
         }
         decoder
             .send_packet(&packet)
-            .map_err(|error| anyhow::anyhow!("could not decode waveform packet: {error}"))?;
+            .map_err(|error| anyhow!("could not decode waveform packet: {error}"))?;
         receive_waveform_samples(&mut decoder, &mut resampler, &mut builder)?;
     }
     let _ = decoder.send_eof();
@@ -127,11 +129,12 @@ pub(super) fn generate_waveform(source: &Path) -> anyhow::Result<WaveformData> {
     let total_samples = builder.total_samples;
     let finest = builder.finish();
     if finest.is_empty() || total_samples == 0 {
-        return Err(anyhow::anyhow!(
+        return Err(anyhow!(
             "could not decode audio samples from {}",
             source.display()
         ));
     }
+    eprintln!("time {}", t.elapsed().as_secs());
 
     Ok(WaveformData {
         sample_rate,
