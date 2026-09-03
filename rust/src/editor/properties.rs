@@ -1,5 +1,5 @@
 use crate::editor::{
-    BORDER, EventBus, FrameRate, MUTED, PANEL, SURFACE,
+    BORDER, EventBus, MUTED, PANEL, SURFACE,
     editor::Editor,
     explorer::{is_audio_path, is_image_path, is_srt_path, is_video_path},
     format_time,
@@ -17,7 +17,6 @@ use gpui::{
 use std::{
     fs,
     path::{Path, PathBuf},
-    time::Duration,
 };
 
 pub(super) enum PropertiesPanelViewable<'a> {

@@ -1,4 +1,4 @@
-use anyhow::{Result, anyhow};
+use anyhow::{Context as _, Result, anyhow};
 use ffmpeg::{
     channel_layout::ChannelLayout,
     codec, format, frame,
@@ -7,7 +7,12 @@ use ffmpeg::{
     util::format::{Sample, sample::Type as SampleType},
 };
 use ffmpeg_next as ffmpeg;
+use gst::prelude::*;
+use gstreamer as gst;
+use gstreamer_app as gst_app;
+use gstreamer_audio as gst_audio;
 use std::{path::Path, time::Instant};
+use url::Url;
 
 const WAVEFORM_FINE_SAMPLES_PER_PEAK: u32 = 64;
 const WAVEFORM_LEVEL_REDUCTION: usize = 4;
@@ -82,6 +87,187 @@ impl WaveformData {
             columns.push(peak);
         }
         columns
+    }
+}
+
+pub(super) fn generate_waveform_gstreamer(source: &Path) -> Result<WaveformData> {
+    gst::init().with_context(|| {
+        format!(
+            "could not initialize GStreamer for waveform generation at {}:{}",
+            file!(),
+            line!()
+        )
+    })?;
+    let uri = Url::from_file_path(source).map_err(|_| {
+        anyhow!(
+            "could not convert {} to a file URL at {}:{}",
+            source.display(),
+            file!(),
+            line!()
+        )
+    })?;
+    let pipeline = gst::parse::launch(&format!(
+        "uridecodebin uri=\"{}\" caps=audio/x-raw ! queue ! audioconvert ! audio/x-raw,format=F32LE,layout=interleaved,channels=1 ! appsink name=waveform_sink sync=false",
+        uri.as_str()
+    ))
+    .with_context(|| {
+        format!(
+            "could not create the waveform pipeline at {}:{}",
+            file!(),
+            line!()
+        )
+    })?
+    .downcast::<gst::Pipeline>()
+    .map_err(|_| {
+        anyhow!(
+            "waveform pipeline had an unexpected type at {}:{}",
+            file!(),
+            line!()
+        )
+    })?;
+    let sink = pipeline
+        .by_name("waveform_sink")
+        .ok_or_else(|| {
+            anyhow!(
+                "waveform pipeline did not create its sink at {}:{}",
+                file!(),
+                line!()
+            )
+        })?
+        .downcast::<gst_app::AppSink>()
+        .map_err(|_| {
+            anyhow!(
+                "waveform sink had an unexpected type at {}:{}",
+                file!(),
+                line!()
+            )
+        })?;
+    let bus = pipeline.bus().ok_or_else(|| {
+        anyhow!(
+            "waveform pipeline did not create a message bus at {}:{}",
+            file!(),
+            line!()
+        )
+    })?;
+    let result = (|| -> Result<WaveformData> {
+        pipeline.set_state(gst::State::Playing).with_context(|| {
+            format!(
+                "could not start waveform decoding at {}:{}",
+                file!(),
+                line!()
+            )
+        })?;
+        let mut sample_rate = None;
+        let mut builder = WaveformBuilder::new(WAVEFORM_FINE_SAMPLES_PER_PEAK);
+        loop {
+            if let Some(sample) = sink.try_pull_sample(gst::ClockTime::from_mseconds(100)) {
+                let caps = sample.caps().ok_or_else(|| {
+                    anyhow!("waveform sample had no caps at {}:{}", file!(), line!())
+                })?;
+                let info = gst_audio::AudioInfo::from_caps(caps).with_context(|| {
+                    format!(
+                        "waveform sample had invalid audio caps at {}:{}",
+                        file!(),
+                        line!()
+                    )
+                })?;
+                if let Some(sample_rate) = sample_rate {
+                    if sample_rate != info.rate() {
+                        return Err(anyhow!(
+                            "waveform sample rate changed from {sample_rate} to {} at {}:{}",
+                            info.rate(),
+                            file!(),
+                            line!()
+                        ));
+                    }
+                } else {
+                    sample_rate = Some(info.rate());
+                }
+                let buffer = sample.buffer().ok_or_else(|| {
+                    anyhow!("waveform sample had no buffer at {}:{}", file!(), line!())
+                })?;
+                let map = buffer.map_readable().with_context(|| {
+                    format!("could not map waveform samples at {}:{}", file!(), line!())
+                })?;
+                let bytes = map.as_slice();
+                if !bytes.len().is_multiple_of(size_of::<f32>()) {
+                    return Err(anyhow!(
+                        "waveform sample buffer had an invalid size at {}:{}",
+                        file!(),
+                        line!()
+                    ));
+                }
+                let samples = bytes
+                    .chunks_exact(size_of::<f32>())
+                    .map(|bytes| f32::from_le_bytes(bytes.try_into().expect("chunk size is four")))
+                    .collect::<Vec<_>>();
+                builder.push_samples(&samples);
+                continue;
+            }
+
+            let Some(message) = bus.pop_filtered(&[gst::MessageType::Error, gst::MessageType::Eos])
+            else {
+                if sink.is_eos() {
+                    break;
+                }
+                continue;
+            };
+            match message.view() {
+                gst::MessageView::Eos(..) => break,
+                gst::MessageView::Error(error) => {
+                    return Err(anyhow!(
+                        "GStreamer waveform decoding failed: {}{} at {}:{}",
+                        error.error(),
+                        error
+                            .debug()
+                            .map(|debug| format!(" ({debug})"))
+                            .unwrap_or_default(),
+                        file!(),
+                        line!()
+                    ));
+                }
+                _ => unreachable!("bus messages were filtered to error and EOS"),
+            }
+        }
+
+        let sample_rate = sample_rate.ok_or_else(|| {
+            anyhow!(
+                "{} has no decodable audio stream at {}:{}",
+                source.display(),
+                file!(),
+                line!()
+            )
+        })?;
+        let total_samples = builder.total_samples;
+        let finest = builder.finish();
+        if finest.is_empty() || total_samples == 0 {
+            return Err(anyhow!(
+                "could not decode audio samples from {} at {}:{}",
+                source.display(),
+                file!(),
+                line!()
+            ));
+        }
+        Ok(WaveformData {
+            sample_rate,
+            total_samples,
+            levels: build_waveform_levels(finest),
+        })
+    })();
+
+    let stop_result = pipeline.set_state(gst::State::Null).with_context(|| {
+        format!(
+            "could not stop waveform decoding at {}:{}",
+            file!(),
+            line!()
+        )
+    });
+    match result {
+        Ok(waveform) => {
+            stop_result?;
+            Ok(waveform)
+        }
+        Err(error) => Err(error),
     }
 }
 
