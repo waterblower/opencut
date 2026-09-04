@@ -92,12 +92,12 @@ use ulid::Ulid;
 use workspace::{GlobalEditorSettings, load_global_editor_settings, save_global_editor_settings};
 
 const DEFAULT_MEDIA_PANEL_WIDTH: f32 = 340.0;
-const DEFAULT_PROPERTIES_PANEL_WIDTH: f32 = 420.0;
+const DEFAULT_PROPERTIES_PANEL_WIDTH: f32 = 280.0;
 const MIN_MEDIA_PANEL_WIDTH: f32 = 220.0;
 const MIN_PROPERTIES_PANEL_WIDTH: f32 = 240.0;
 const MIN_PREVIEW_WIDTH: f32 = 320.0;
 const TOPBAR_HEIGHT: f32 = 64.0;
-const TIMELINE_HEIGHT: f32 = 420.0;
+const TIMELINE_HEIGHT: f32 = 280.0;
 const TIMELINE_HEADER_HEIGHT: f32 = 46.0;
 const TIMELINE_PADDING: f32 = 20.0;
 const TRACK_HEADER_WIDTH: f32 = 190.0;
