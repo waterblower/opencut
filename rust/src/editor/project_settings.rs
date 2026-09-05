@@ -1,3 +1,4 @@
+use anyhow::Context as _;
 use serde::{Deserialize, Serialize};
 use std::{
     fs,
@@ -6,36 +7,72 @@ use std::{
 
 use crate::editor::generic_containers::HorizontalSplitState;
 
-#[derive(Default, Deserialize, Serialize)]
+#[derive(Deserialize, Serialize)]
 #[serde(default)]
-pub(super) struct ProjectLocalSettings {
-    pub(super) active_timeline: Option<PathBuf>,
+pub struct ProjectLocalSettings {
+    pub active_timeline: Option<PathBuf>,
     pub upper_space_split_state: HorizontalSplitState,
 }
 
-pub(super) fn load_project_local_settings(project_root: &Path) -> ProjectLocalSettings {
+impl Default for ProjectLocalSettings {
+    fn default() -> Self {
+        Self {
+            active_timeline: None,
+            upper_space_split_state: HorizontalSplitState::new(
+                super::DEFAULT_MEDIA_PANEL_WIDTH,
+                super::DEFAULT_PROPERTIES_PANEL_WIDTH,
+            ),
+        }
+    }
+}
+
+pub fn load_project_local_settings(project_root: &Path) -> ProjectLocalSettings {
     let Ok(contents) = fs::read_to_string(project_local_settings_path(project_root)) else {
         return ProjectLocalSettings::default();
     };
     serde_json::from_str(&contents).unwrap_or_default()
 }
 
-pub(super) fn save_project_local_settings(
+pub fn save_project_local_settings(
     project_root: &Path,
     active_timeline: Option<&Path>,
+    upper_space_split_state: &HorizontalSplitState,
 ) -> anyhow::Result<()> {
     let path = project_local_settings_path(project_root);
     let Some(directory) = path.parent() else {
-        anyhow::bail!("project-local settings path had no parent directory");
+        anyhow::bail!(
+            "project-local settings path had no parent directory at {}:{}",
+            file!(),
+            line!()
+        );
     };
-    fs::create_dir_all(directory)
-        .map_err(|error| anyhow::anyhow!("could not create {}: {error}", directory.display()))?;
+    fs::create_dir_all(directory).with_context(|| {
+        format!(
+            "could not create {} at {}:{}",
+            directory.display(),
+            file!(),
+            line!()
+        )
+    })?;
     let json = serde_json::to_string_pretty(&ProjectLocalSettings {
         active_timeline: active_timeline.map(Path::to_path_buf),
+        upper_space_split_state: upper_space_split_state.clone(),
     })
-    .map_err(|error| anyhow::anyhow!("could not serialize project-local settings: {error}"))?;
-    fs::write(&path, format!("{json}\n"))
-        .map_err(|error| anyhow::anyhow!("could not write {}: {error}", path.display()))
+    .with_context(|| {
+        format!(
+            "could not serialize project-local settings at {}:{}",
+            file!(),
+            line!()
+        )
+    })?;
+    fs::write(&path, format!("{json}\n")).with_context(|| {
+        format!(
+            "could not write {} at {}:{}",
+            path.display(),
+            file!(),
+            line!()
+        )
+    })
 }
 
 fn project_local_settings_path(project_root: &Path) -> PathBuf {
@@ -43,21 +80,5 @@ fn project_local_settings_path(project_root: &Path) -> PathBuf {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn active_timeline_round_trips_in_project_local_settings() {
-        let project_root = std::env::temp_dir().join(format!(
-            "opencut-project-settings-{}",
-            ulid::Ulid::generate()
-        ));
-        let active_timeline = Path::new("edits/intro.timeline.json");
-
-        save_project_local_settings(&project_root, Some(active_timeline)).unwrap();
-        let settings = load_project_local_settings(&project_root);
-
-        assert_eq!(settings.active_timeline.as_deref(), Some(active_timeline));
-        fs::remove_dir_all(project_root).unwrap();
-    }
-}
+#[path = "tests/project_settings.test.rs"]
+mod tests;
