@@ -26,6 +26,7 @@ impl Default for ProjectLocalSettings {
     }
 }
 
+// This function does IO, avoid it during render pass / render tree construction
 pub fn load_project_local_settings(project_root: &Path) -> ProjectLocalSettings {
     let Ok(contents) = fs::read_to_string(project_local_settings_path(project_root)) else {
         return ProjectLocalSettings::default();
