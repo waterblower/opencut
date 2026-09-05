@@ -35,8 +35,7 @@ pub fn load_project_local_settings(project_root: &Path) -> ProjectLocalSettings 
 
 pub fn save_project_local_settings(
     project_root: &Path,
-    active_timeline: Option<&Path>,
-    upper_space_split_state: &HorizontalSplitState,
+    settings: &ProjectLocalSettings,
 ) -> anyhow::Result<()> {
     let path = project_local_settings_path(project_root);
     let Some(directory) = path.parent() else {
@@ -54,11 +53,7 @@ pub fn save_project_local_settings(
             line!()
         )
     })?;
-    let json = serde_json::to_string_pretty(&ProjectLocalSettings {
-        active_timeline: active_timeline.map(Path::to_path_buf),
-        upper_space_split_state: upper_space_split_state.clone(),
-    })
-    .with_context(|| {
+    let json = serde_json::to_string_pretty(settings).with_context(|| {
         format!(
             "could not serialize project-local settings at {}:{}",
             file!(),
