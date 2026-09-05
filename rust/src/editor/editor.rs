@@ -1,4 +1,4 @@
-use crate::editor::explorer::ExplorerState;
+use crate::editor::{explorer::ExplorerState, project_settings::ProjectLocalSettings};
 
 use super::*;
 
@@ -34,6 +34,7 @@ impl Editor {
         //
         let timeline = {
             let project_settings = load_project_local_settings(&global_settings.project_root);
+
             let active_timeline = load_existing_timeline(
                 &global_settings.project_root,
                 project_settings.active_timeline.as_deref(),
@@ -164,6 +165,17 @@ fn handle_app_event(
     cx: &mut Context<Editor>,
 ) {
     match event {
+        AppEvent::HorizontalSplitResized(state) => {
+            if let Err(error) = save_project_local_settings(
+                &editor.global_settings.project_root,
+                &ProjectLocalSettings {
+                    active_timeline: editor.timeline.as_ref().map(|t| t.path.clone()),
+                    upper_space_split_state: state.clone(),
+                },
+            ) {
+                log::error!("Could not save project layout: {error:?}");
+            }
+        }
         AppEvent::Edit(edit_action) => {
             let project_root = editor.global_settings.project_root.clone();
             let Some(timeline) = editor.timeline.as_mut() else {
