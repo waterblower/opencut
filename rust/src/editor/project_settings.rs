@@ -4,10 +4,13 @@ use std::{
     path::{Path, PathBuf},
 };
 
+use crate::editor::generic_containers::HorizontalSplitState;
+
 #[derive(Default, Deserialize, Serialize)]
 #[serde(default)]
 pub(super) struct ProjectLocalSettings {
     pub(super) active_timeline: Option<PathBuf>,
+    pub upper_space_split_state: HorizontalSplitState,
 }
 
 pub(super) fn load_project_local_settings(project_root: &Path) -> ProjectLocalSettings {

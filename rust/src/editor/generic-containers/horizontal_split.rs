@@ -1,3 +1,5 @@
+use serde::{Deserialize, Serialize};
+
 use super::super::*;
 
 pub const HORIZONTAL_SPLIT_DIVIDER_WIDTH: f32 = 1.0;
@@ -16,9 +18,12 @@ pub struct HorizontalSplitWidths {
     pub right: f32,
 }
 
+#[derive(Serialize, Deserialize)]
 pub struct HorizontalSplitState {
     left_width: f32,
     right_width: f32,
+    // it only matters during an active drag
+    #[serde(skip)]
     drag_offset: f32,
 }
 
