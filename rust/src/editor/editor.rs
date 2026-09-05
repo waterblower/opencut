@@ -1,4 +1,4 @@
-use crate::editor::explorer::ExplorerState;
+use crate::editor::{explorer::ExplorerState, project_settings::ProjectLocalSettings};
 
 use super::*;
 
@@ -17,9 +17,11 @@ pub(crate) struct Editor {
     pub(super) status: Option<String>,
     pub(super) focus_handle: FocusHandle,
     pub(super) clipboard: Option<ClipClipboard>,
-    pub(super) event_bus: Entity<EventBus>,
     pub(super) context_menu: ContextMenu,
     pub active_asset_drag: AssetBeingDragged,
+    // entities
+    pub(super) event_bus: Entity<EventBus>,
+    pub(super) upper_split_state: Entity<HorizontalSplitState>,
 }
 
 impl Editor {
@@ -34,6 +36,7 @@ impl Editor {
         //
         let timeline = {
             let project_settings = load_project_local_settings(&global_settings.project_root);
+
             let active_timeline = load_existing_timeline(
                 &global_settings.project_root,
                 project_settings.active_timeline.as_deref(),
@@ -128,7 +131,13 @@ impl Editor {
         start_updates(cx);
         let event_bus = cx.new(|_| EventBus {});
         cx.subscribe(&event_bus, handle_app_event).detach();
+
+        let project_local_settings = load_project_local_settings(&global_settings.project_root);
         let mut editor = Self {
+            // Entities
+            event_bus,
+            upper_split_state: cx.new(|_| project_local_settings.upper_space_split_state),
+            //
             global_settings,
             explorer,
             preview,
@@ -141,7 +150,6 @@ impl Editor {
             clipboard: None,
             status: None,
             focus_handle,
-            event_bus,
             context_menu: ContextMenu::None,
             active_asset_drag: AssetBeingDragged::None,
         };
@@ -164,6 +172,17 @@ fn handle_app_event(
     cx: &mut Context<Editor>,
 ) {
     match event {
+        AppEvent::HorizontalSplitResized(state) => {
+            if let Err(error) = save_project_local_settings(
+                &editor.global_settings.project_root,
+                &ProjectLocalSettings {
+                    active_timeline: editor.timeline.as_ref().map(|t| t.path.clone()),
+                    upper_space_split_state: state.clone(),
+                },
+            ) {
+                log::error!("Could not save project layout: {error:?}");
+            }
+        }
         AppEvent::Edit(edit_action) => {
             let project_root = editor.global_settings.project_root.clone();
             let Some(timeline) = editor.timeline.as_mut() else {

@@ -1,5 +1,12 @@
 # Repository guidelines
 
+- Never pass functions or closures as arguments to simple functions. Pass the
+  required values or references directly. If a callback is truly needed for a
+  simple function, ask the user first.
+- Do not introduce external state or extra stored state that increases the number
+  of possible state combinations when a pure function or message passing can
+  solve the problem. Prefer carrying the required data in messages over adding
+  state to a broader owner solely so event handlers can access it.
 - Do not extract a separate function when it has only one caller and its body is
   a single expression or statement. Inline that logic at the call site.
 - Prefer `let ... else` with an early return when required optional state is

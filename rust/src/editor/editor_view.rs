@@ -102,7 +102,7 @@ impl Render for Editor {
                     .min_h_0()
                     .flex()
                     .flex_col()
-                    .child(self.upper_workspace(editor_width, preview_height, window, cx))
+                    .child(self.upper_workspace(editor_width, preview_height, cx))
                     .child(self.timeline_view(cx)),
             )
             .when_some(context_menu, |this, menu| this.child(menu))
@@ -120,7 +120,6 @@ impl Editor {
         &self,
         width: f32,
         preview_height: f32,
-        window: &mut Window,
         cx: &mut Context<Self>,
     ) -> gpui::AnyElement {
         let constraints = HorizontalSplitConstraints {
@@ -128,17 +127,15 @@ impl Editor {
             min_center: MIN_PREVIEW_WIDTH,
             min_right: MIN_PROPERTIES_PANEL_WIDTH,
         };
-        let split_state = window.use_keyed_state("editor-upper-workspace-split", cx, |_, _| {
-            HorizontalSplitState::new(DEFAULT_MEDIA_PANEL_WIDTH, DEFAULT_PROPERTIES_PANEL_WIDTH)
-        });
-        let widths = split_state.read(cx).widths(width, constraints);
+        let widths = self.upper_split_state.read(cx).widths(width, constraints);
         let properties_panel_view = properties_panel(
             current_properties_panel_viewable(self),
             self.event_bus.clone(),
         );
         HorizontalSplit::new(
             "editor-upper-workspace",
-            split_state,
+            self.upper_split_state.clone(),
+            self.event_bus.clone(),
             width,
             constraints,
             self.explorer_panel(cx),
