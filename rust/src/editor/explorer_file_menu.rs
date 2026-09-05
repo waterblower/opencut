@@ -171,12 +171,6 @@ impl Editor {
         if let Some(timeline) = self.timeline.as_ref() {
             timeline.save(&self.global_settings.project_root);
         }
-        save_project_local_settings(
-            &self.global_settings.project_root,
-            self.timeline
-                .as_ref()
-                .map(|timeline| timeline.path.as_path()),
-        )?;
 
         self.explorer.rename_dialog = None;
         self.explorer.search_query = None;
