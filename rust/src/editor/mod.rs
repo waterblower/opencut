@@ -364,12 +364,9 @@ impl Editor {
                 TimelineRuntimeState::new(timeline_path, active_timeline, ges_timeline)
                     .context("TimelineRuntimeState::new failed")?,
             );
-            save_project_local_settings(
-                &self.global_settings.project_root,
-                self.timeline
-                    .as_ref()
-                    .map(|timeline| timeline.path.as_path()),
-            )?;
+            let mut settings = load_project_local_settings(&self.global_settings.project_root);
+            settings.active_timeline = self.timeline.as_ref().map(|timeline| timeline.path.clone());
+            save_project_local_settings(&self.global_settings.project_root, &settings)?;
             self.explorer.search_query = None;
             self.explorer.search_results.clear();
             self.explorer.search_pending = false;
@@ -683,6 +680,7 @@ fn format_time(seconds: f64, padded_minutes: bool) -> String {
 
 pub(in crate::editor) struct EventBus;
 pub(in crate::editor) enum AppEvent {
+    HorizontalSplitResized(HorizontalSplitState),
     Edit(EditAction),
     DragStarted(AssetBeingDragged),
     DragMove(AssetDragMoveEvent),

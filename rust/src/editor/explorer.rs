@@ -10,7 +10,6 @@ use crate::{
         model::MediaAsset,
         preview::PreviewTarget,
         preview_audio::AudioBackend,
-        project_settings::save_project_local_settings,
         timeline::TimelineTime,
         timeline_clip::{AudioClipProperties, Clip, VideoClip, VideoClipProperties},
         timeline_document,

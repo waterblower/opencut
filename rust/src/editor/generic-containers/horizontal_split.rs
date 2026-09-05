@@ -1,3 +1,5 @@
+use serde::{Deserialize, Serialize};
+
 use super::super::*;
 
 pub const HORIZONTAL_SPLIT_DIVIDER_WIDTH: f32 = 1.0;
@@ -16,9 +18,12 @@ pub struct HorizontalSplitWidths {
     pub right: f32,
 }
 
+#[derive(Clone, Serialize, Deserialize)]
 pub struct HorizontalSplitState {
     left_width: f32,
     right_width: f32,
+    // it only matters during an active drag
+    #[serde(skip)]
     drag_offset: f32,
 }
 
@@ -90,6 +95,7 @@ impl HorizontalSplitState {
 pub struct HorizontalSplit {
     id: &'static str,
     state: Entity<HorizontalSplitState>,
+    event_bus: Entity<EventBus>,
     total_width: f32,
     constraints: HorizontalSplitConstraints,
     left: gpui::AnyElement,
@@ -101,6 +107,7 @@ impl HorizontalSplit {
     pub fn new(
         id: &'static str,
         state: Entity<HorizontalSplitState>,
+        event_bus: Entity<EventBus>,
         total_width: f32,
         constraints: HorizontalSplitConstraints,
         left: impl IntoElement,
@@ -110,6 +117,7 @@ impl HorizontalSplit {
         Self {
             id,
             state,
+            event_bus,
             total_width,
             constraints,
             left: left.into_any_element(),
@@ -157,6 +165,7 @@ impl RenderOnce for HorizontalSplit {
         let state = self.state.clone();
         let constraints = self.constraints;
         let total_width = self.total_width;
+        let finish_state = self.state.clone();
 
         div()
             .id(self.id)
@@ -165,6 +174,13 @@ impl RenderOnce for HorizontalSplit {
             .min_w_0()
             .min_h_0()
             .flex()
+            .capture_any_mouse_up(move |event, _, cx| {
+                if event.button == MouseButton::Left {
+                    let state = finish_state.read(cx).clone();
+                    self.event_bus
+                        .update(cx, |_, cx| cx.emit(AppEvent::HorizontalSplitResized(state)));
+                }
+            })
             .on_drag_move::<HorizontalSplitDrag>(move |event, _, cx| {
                 let divider = event.drag(cx).divider;
                 let pointer_x: f32 = (event.event.position.x - event.bounds.left()).into();
@@ -223,6 +239,19 @@ mod tests {
         min_center: 320.0,
         min_right: 240.0,
     };
+
+    #[test]
+    fn serialization_does_not_restore_an_active_drag() {
+        let mut state = HorizontalSplitState::new(410.0, 320.0);
+        state.begin_drag(12.0);
+        let json = serde_json::to_value(&state).unwrap();
+        assert_eq!(
+            json,
+            serde_json::json!({"left_width": 410.0, "right_width": 320.0})
+        );
+        let restored: HorizontalSplitState = serde_json::from_value(json).unwrap();
+        assert_eq!(restored.drag_offset, 0.0);
+    }
 
     #[test]
     fn both_dividers_resize_their_outer_pane() {
