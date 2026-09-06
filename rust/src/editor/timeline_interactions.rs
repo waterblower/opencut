@@ -645,18 +645,14 @@ impl Editor {
         let Some(timeline) = self.timeline.as_mut() else {
             return;
         };
-        timeline.interaction.snapping_enabled = !timeline.interaction.snapping_enabled;
-        timeline.interaction.snap_guide = None;
+        let enabled = !timeline.interaction.snapping_enabled;
         edit_and_rebuild_timeline(
             &mut self.preview,
             &self.global_settings.project_root,
             timeline,
-            EditAction::SetSnapping {
-                enabled: timeline.interaction.snapping_enabled,
-            },
+            EditAction::SetSnapping { enabled },
         )
         .expect("changing snapping cannot be rejected");
-        timeline.save(&self.global_settings.project_root);
     }
 
     pub(super) fn finish_timeline_scroll(

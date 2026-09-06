@@ -1257,7 +1257,12 @@ pub(super) fn edit_timeline(
         EditAction::SetTimelineZoom { pixels_per_second } => {
             timeline.data.view.pixels_per_second = pixels_per_second;
         }
-        EditAction::SetSnapping { enabled } => timeline.data.view.snapping_enabled = enabled,
+        EditAction::SetSnapping { enabled } => {
+            timeline.interaction.snap_guide = None;
+            timeline.interaction.snapping_enabled = enabled;
+            timeline.data.view.snapping_enabled = enabled;
+            return Ok(false);
+        }
         EditAction::SetTrackMagnet { enabled } => {
             timeline.data.view.track_magnet_enabled = enabled;
         }
