@@ -776,17 +776,15 @@ impl Editor {
         let Some(timeline) = self.timeline.as_mut() else {
             return;
         };
-        timeline.interaction.magnet_enabled = !timeline.interaction.magnet_enabled;
         edit_and_rebuild_timeline(
             &mut self.preview,
             &self.global_settings.project_root,
             timeline,
             EditAction::SetTrackMagnet {
-                enabled: timeline.interaction.magnet_enabled,
+                enabled: !timeline.interaction.magnet_enabled,
             },
         )
         .expect("changing the track magnet preference cannot be rejected");
-        timeline.save(&self.global_settings.project_root);
     }
 }
 
@@ -1264,7 +1262,9 @@ pub(super) fn edit_timeline(
             return Ok(false);
         }
         EditAction::SetTrackMagnet { enabled } => {
+            timeline.interaction.magnet_enabled = enabled;
             timeline.data.view.track_magnet_enabled = enabled;
+            return Ok(false);
         }
         EditAction::UpdateAssetPaths { paths } => {
             for (asset_id, path) in paths {
