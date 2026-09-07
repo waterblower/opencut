@@ -223,7 +223,7 @@ impl Render for Player {
                 content = content.child(
                     gpui::canvas(
                         |_, _, _| (),
-                        move |bounds, _, window, _| {
+                        move |bounds, _, window, cx| {
                             let width = surface.get_width() as f32;
                             let height = surface.get_height() as f32;
                             let scale = (f32::from(bounds.size.width) / width)
@@ -234,6 +234,9 @@ impl Render for Player {
                                 bounds.origin.y + (bounds.size.height - fitted.height) / 2.0,
                             );
                             window.paint_surface(Bounds::new(origin, fitted), surface);
+                            // Count the actual video canvas paint callback, not
+                            // decoded frames or calls to Player::render.
+                            log_video_paint_fps(window, cx);
                         },
                     )
                     .w_full()
@@ -262,6 +265,31 @@ impl Render for Player {
         }
         content
     }
+}
+
+// Store measurement history on the canvas itself. Updating it does not notify
+// the view or request extra repaints, which would distort the measurement.
+#[cfg(target_os = "macos")]
+fn log_video_paint_fps(window: &mut Window, cx: &mut App) {
+    let now = Instant::now();
+    let stats = window.use_state(cx, |_, _| (now, 0_u64));
+    stats.update(cx, |(started, paints), _| {
+        *paints += 1;
+        let elapsed = now.duration_since(*started).as_secs_f64();
+        if elapsed < 1.0 {
+            return;
+        }
+        // Repainting the same video frame counts as another paint. This measures
+        // GPUI paint submissions, not GPU completion or physical display refresh.
+        eprintln!(
+            "GPUI video paint: {:.1} FPS ({} paints in {:.3}s; includes repeated frames)",
+            *paints as f64 / elapsed,
+            *paints,
+            elapsed,
+        );
+        *started = now;
+        *paints = 0;
+    });
 }
 
 // Everything in Audio stays on the decoder thread, including the CPAL stream.
