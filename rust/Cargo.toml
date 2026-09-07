@@ -20,6 +20,11 @@ path = "src/examples/mp3.rs"
 required-features = ["mp3"]
 
 [[bin]]
+name = "mp4"
+path = "src/examples/mp4.rs"
+required-features = ["mp4"]
+
+[[bin]]
 name = "2windows"
 path = "src/examples/2windows.rs"
 required-features = ["2windows"]
@@ -32,6 +37,7 @@ required-features = ["editor"]
 [features]
 default = ["editor"]
 mp3 = ["dep:anyhow", "dep:ffmpeg-next", "dep:cpal"]
+mp4 = ["mp3", "ui", "dep:image", "dep:smallvec"]
 2windows = ["ui"]
 ui = ["dep:gpui", "dep:gpui_platform", "dep:env_logger"]
 player = ["gstreamer-backend", "dep:serde", "dep:serde_json"]
