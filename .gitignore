@@ -21,3 +21,4 @@ doc.md
 /zig/zig-pkg
 /rust/target
 data/
+rust/vendor/ffmpeg-9.0.1/

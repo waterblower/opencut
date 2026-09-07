@@ -2,4 +2,8 @@
 editor = "run --features editor --bin opencut-editor"
 loc = "run --quiet --bin loc"
 2win = "run --quiet --bin 2windows"
-player = "run --bin opencut-player"
+player = "run --no-default-features --features gstreamer-backend --bin opencut-player"
+
+
+[env]
+FFMPEG_DIR = { value = "vendor/ffmpeg-9.0.1", relative = true }
