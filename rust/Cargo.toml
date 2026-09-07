@@ -8,7 +8,7 @@ default-run = "opencut-editor"
 [[bin]]
 name = "opencut-player"
 path = "src/player/main.rs"
-required-features = ["gstreamer-backend"]
+required-features = ["player"]
 
 [[bin]]
 name = "loc"
@@ -22,6 +22,7 @@ required-features = ["mp3"]
 [[bin]]
 name = "2windows"
 path = "src/examples/2windows.rs"
+required-features = ["2windows"]
 
 [[bin]]
 name = "opencut-editor"
@@ -29,15 +30,32 @@ path = "src/editor/.main.rs"
 required-features = ["editor"]
 
 [features]
-mp3 = ["dep:ffmpeg-next", "dep:cpal"]
 default = ["editor"]
+mp3 = ["dep:anyhow", "dep:ffmpeg-next", "dep:cpal"]
+2windows = ["ui"]
+ui = ["dep:gpui", "dep:gpui_platform", "dep:env_logger"]
+player = ["gstreamer-backend", "dep:serde", "dep:serde_json"]
 editor = [
     "gstreamer-backend",
+    "gpui/inspector",
+    "dep:gpui-component",
+    "dep:serde",
+    "dep:serde_json",
+    "dep:unicode-segmentation",
+    "dep:ulid",
+    "dep:block2",
+    "dep:objc2-app-kit",
+    "dep:objc2-foundation",
     "dep:ffmpeg-next",
     "dep:gstreamer-editing-services",
     "dep:gstreamer-pbutils",
 ]
 gstreamer-backend = [
+    "ui",
+    "dep:anyhow",
+    "dep:image",
+    "dep:log",
+    "dep:url",
     "dep:core-foundation",
     "dep:core-video",
     "dep:gstreamer",
@@ -50,26 +68,23 @@ gstreamer-backend = [
 ]
 
 [dependencies]
-anyhow = "1"
+anyhow = { version = "1", optional = true }
 cpal = { version = "0.17.1", optional = true }
-async-fs = "2.1"
-futures-util = "0.3"
-env_logger = "0.11"
+env_logger = { version = "0.11", optional = true }
 ffmpeg-next = { version = "8.1", optional = true }
 gpui = {
   path = "vendor/zed/crates/gpui",
-  features = ["inspector"],
+  optional = true,
 }
-gpui_platform = { path = "vendor/zed/crates/gpui_platform", features = ["font-kit"] }
-gpui-component = { git = "https://github.com/longbridge/gpui-component", rev = "7d0aaf55" }
-gpui-component-assets = { git = "https://github.com/longbridge/gpui-component", rev = "7d0aaf55" }
+gpui_platform = { path = "vendor/zed/crates/gpui_platform", features = ["font-kit"], optional = true }
+gpui-component = { git = "https://github.com/longbridge/gpui-component", rev = "7d0aaf55", optional = true }
 gstreamer = { version = "0.25", optional = true }
 gstreamer-app = { version = "0.25", optional = true }
 gstreamer-audio = { version = "0.25", optional = true }
 gstreamer-editing-services = { version = "0.25", optional = true, features = ["v1_18"] }
 gstreamer-pbutils = { version = "0.25", optional = true }
 gstreamer-video = { version = "0.25", optional = true }
-image = { version = "0.25", default-features = false, features = [
+image = { version = "0.25", optional = true, default-features = false, features = [
     "bmp",
     "gif",
     "ico",
@@ -78,26 +93,26 @@ image = { version = "0.25", default-features = false, features = [
     "webp",
 ] }
 
-log = "0.4"
+log = { version = "0.4", optional = true }
 parking_lot = { version = "0.12", optional = true }
 smallvec = { version = "1", optional = true }
-serde = { version = "1", features = ["derive"] }
-serde_json = "1"
-url = "2"
-unicode-segmentation = "1"
-ulid = { version = "3", features = ["serde"] }
+serde = { version = "1", optional = true, features = ["derive"] }
+serde_json = { version = "1", optional = true }
+url = { version = "2", optional = true }
+unicode-segmentation = { version = "1", optional = true }
+ulid = { version = "3", optional = true, features = ["serde"] }
 yuv = { version = "0.8", optional = true }
 
 [target.'cfg(target_os = "macos")'.dependencies]
-block2 = "0.6"
+block2 = { version = "0.6", optional = true }
 core-foundation = { version = "0.10", optional = true }
 core-video = { version = "0.5.2", optional = true }
-objc2-app-kit = { version = "0.3", default-features = false, features = [
+objc2-app-kit = { version = "0.3", optional = true, default-features = false, features = [
     "NSEvent",
     "block2",
     "objc2-core-foundation",
 ] }
-objc2-foundation = { version = "0.3", default-features = false, features = [
+objc2-foundation = { version = "0.3", optional = true, default-features = false, features = [
     "NSError",
     "NSFileManager",
     "NSString",

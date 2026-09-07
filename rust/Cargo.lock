@@ -5267,17 +5267,14 @@ name = "opencut-player"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "async-fs",
  "block2 0.6.2",
  "core-foundation 0.10.0",
  "core-video",
  "cpal",
  "env_logger",
  "ffmpeg-next",
- "futures-util",
  "gpui",
  "gpui-component",
- "gpui-component-assets",
  "gpui_platform",
  "gstreamer",
  "gstreamer-app",

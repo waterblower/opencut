@@ -1,13 +1,11 @@
 [alias]
 mp3 = "run --no-default-features --features mp3 --bin mp3"
-editor = "run --features editor --bin opencut-editor"
-loc = "run --quiet --bin loc"
-2win = "run --quiet --bin 2windows"
-player = "run --no-default-features --features gstreamer-backend --bin opencut-player"
+editor = "run --no-default-features --features editor --bin opencut-editor"
+loc = "run --quiet --no-default-features --bin loc"
+2win = "run --quiet --no-default-features --features 2windows --bin 2windows"
+player = "run --no-default-features --features player --bin opencut-player"
 
 
 [env]
-DYLD_FALLBACK_LIBRARY_PATH = "/opt/homebrew/lib"
-
-# ffmpeg-next 8.x requires FFmpeg 8; override this environment variable on other hosts.
-FFMPEG_DIR = "/opt/homebrew/opt/ffmpeg@8"
+FFMPEG_DIR = { value = "vendor/ffmpeg-8.1.2", relative = true }
+PATH={ value = "vendor/ffmpeg-8.1.2/bin", relative = true }
