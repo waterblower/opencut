@@ -13,18 +13,33 @@ use anyhow::{Context as _, Result, bail};
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use ffmpeg_next as ffmpeg;
 use gpui::{
-    App, Bounds, Context, IntoElement, ObjectFit, Render, RenderImage, Window, WindowBounds,
-    WindowOptions, div, img, prelude::*, px, rgb, size,
+    App, Bounds, Context, IntoElement, Render, Window, WindowBounds, WindowOptions, div,
+    prelude::*, px, rgb, size,
 };
 use std::{
     path::{Path, PathBuf},
     process::ExitCode,
-    sync::{
-        Arc,
-        mpsc::{Receiver, SyncSender, TryRecvError, TrySendError, sync_channel},
-    },
+    sync::mpsc::{Receiver, SyncSender, TryRecvError, TrySendError, sync_channel},
     time::{Duration, Instant},
 };
+
+#[cfg(target_os = "macos")]
+use core_video::pixel_buffer::CVPixelBuffer;
+#[cfg(not(target_os = "macos"))]
+use gpui::{ObjectFit, RenderImage, img};
+#[cfg(not(target_os = "macos"))]
+use std::sync::Arc;
+
+// Keep YUV on macOS: Metal converts it to RGB when drawing the video surface.
+// Other platforms retain the portable GPUI image path.
+#[cfg(target_os = "macos")]
+type DecodedImage = ffmpeg::frame::Video;
+#[cfg(not(target_os = "macos"))]
+type DecodedImage = Arc<RenderImage>;
+#[cfg(target_os = "macos")]
+type DisplayImage = CVPixelBuffer;
+#[cfg(not(target_os = "macos"))]
+type DisplayImage = Arc<RenderImage>;
 
 macro_rules! at {
     ($($arg:tt)*) => { format!("{} at {}:{}", format_args!($($arg)*), file!(), line!()) };
@@ -126,7 +141,7 @@ fn run() -> Result<()> {
 
 struct Picture {
     at: Instant,
-    image: Arc<RenderImage>,
+    image: DecodedImage,
 }
 
 enum Message {
@@ -138,13 +153,13 @@ enum Message {
 struct Player {
     messages: Receiver<Message>,
     pending: Option<Picture>,
-    image: Option<Arc<RenderImage>>,
+    image: Option<DisplayImage>,
     status: String,
     finished: bool,
 }
 
 impl Render for Player {
-    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+    fn render(&mut self, window: &mut Window, _cx: &mut Context<Self>) -> impl IntoElement {
         loop {
             if self.pending.is_none() {
                 match self.messages.try_recv() {
@@ -180,10 +195,19 @@ impl Render for Player {
             let Some(picture) = self.pending.take() else {
                 break;
             };
-            // Adapted from video/video_element.rs: GPUI expects BGRA images.
-            // Release old GPU images instead of accumulating every movie frame.
+            #[cfg(target_os = "macos")]
+            match video_surface(&picture.image) {
+                Ok(surface) => self.image = Some(surface),
+                Err(error) => {
+                    self.status = format!("{error:#}");
+                    eprintln!("{}", self.status);
+                    self.finished = true;
+                    break;
+                }
+            }
+            #[cfg(not(target_os = "macos"))]
             if let Some(old) = self.image.replace(picture.image) {
-                cx.drop_image(old, Some(window));
+                _cx.drop_image(old, Some(window));
             }
             self.status.clear();
             // If rendering fell behind, consume past-due frames to catch up.
@@ -193,13 +217,40 @@ impl Render for Player {
         }
         let mut content = div().size_full().bg(rgb(0)).flex().flex_col();
         if let Some(image) = &self.image {
-            content = content.child(
-                img(image.clone())
+            #[cfg(target_os = "macos")]
+            {
+                let surface = image.clone();
+                content = content.child(
+                    gpui::canvas(
+                        |_, _, _| (),
+                        move |bounds, _, window, _| {
+                            let width = surface.get_width() as f32;
+                            let height = surface.get_height() as f32;
+                            let scale = (f32::from(bounds.size.width) / width)
+                                .min(f32::from(bounds.size.height) / height);
+                            let fitted = size(px(width * scale), px(height * scale));
+                            let origin = gpui::point(
+                                bounds.origin.x + (bounds.size.width - fitted.width) / 2.0,
+                                bounds.origin.y + (bounds.size.height - fitted.height) / 2.0,
+                            );
+                            window.paint_surface(Bounds::new(origin, fitted), surface);
+                        },
+                    )
                     .w_full()
                     .flex_1()
-                    .min_h_0()
-                    .object_fit(ObjectFit::Contain),
-            );
+                    .min_h_0(),
+                );
+            }
+            #[cfg(not(target_os = "macos"))]
+            {
+                content = content.child(
+                    img(image.clone())
+                        .w_full()
+                        .flex_1()
+                        .min_h_0()
+                        .object_fit(ObjectFit::Contain),
+                );
+            }
         }
         if !self.status.is_empty() {
             content = content.child(
@@ -244,21 +295,24 @@ fn decode(path: &Path, pictures: &SyncSender<Message>) -> Result<()> {
     } else {
         1.0 / 30.0
     };
-    let mut decoder = ffmpeg::codec::context::Context::from_parameters(track.parameters())
-        .context(at!("Reading video parameters"))?
+    let mut context = ffmpeg::codec::context::Context::from_parameters(track.parameters())
+        .context(at!("Reading video parameters"))?;
+    // Ask the codec to distribute frame decoding across its available workers.
+    // This must be configured BEFORE opening the decoder.
+    context.set_threading(ffmpeg::codec::threading::Config::kind(
+        ffmpeg::codec::threading::Type::Frame,
+    ));
+    let mut decoder = context
         .decoder()
         .video()
         .context(at!("Opening video decoder"))?;
-    let mut scaler = ffmpeg::software::scaling::Context::get(
-        decoder.format(),
-        decoder.width(),
-        decoder.height(),
-        ffmpeg::format::Pixel::BGRA,
-        decoder.width(),
-        decoder.height(),
-        ffmpeg::software::scaling::Flags::BILINEAR,
-    )
-    .context(at!("Creating video color converter"))?;
+    // Use FFmpeg 8's frame-based scaler so color range/matrix metadata is
+    // applied before choosing a conversion path (including optimized YUV paths).
+    // SAFETY: allocation has no preconditions; ownership moves into VideoConverter.
+    let mut scaler = VideoConverter(unsafe { ffmpeg::ffi::sws_alloc_context() });
+    if scaler.0.is_null() {
+        bail!("{}", at!("Allocating video converter"));
+    }
     // Small startup lead allows queues to fill before pictures and sound begin.
     let clock = Instant::now() + Duration::from_millis(250);
     let mut audio = (|| {
@@ -408,7 +462,7 @@ fn decode(path: &Path, pictures: &SyncSender<Message>) -> Result<()> {
 
 fn receive_video(
     decoder: &mut ffmpeg::decoder::Video,
-    scaler: &mut ffmpeg::software::scaling::Context,
+    scaler: &mut VideoConverter,
     pictures: &SyncSender<Message>,
     clock: Instant,
     time_base: f64,
@@ -433,25 +487,26 @@ fn receive_video(
             None => *next_time,
         };
         *next_time = seconds + frame_duration;
-        let mut bgra = ffmpeg::frame::Video::empty();
-        scaler
-            .run(&decoded, &mut bgra)
-            .context(at!("Converting video to BGRA"))?;
-        // Like pack_nv12 in the existing video element, copy row by row: FFmpeg
-        // may pad each row, while the GPUI image needs tightly packed pixels.
-        let row_bytes = bgra.width() as usize * 4;
-        let mut bytes = Vec::with_capacity(row_bytes * bgra.height() as usize);
-        for row in 0..bgra.height() as usize {
-            let start = row * bgra.stride(0);
-            bytes.extend_from_slice(&bgra.data(0)[start..start + row_bytes]);
-        }
-        let Some(image) = image::RgbaImage::from_raw(bgra.width(), bgra.height(), bytes) else {
-            bail!("{}", at!("Invalid video image dimensions"));
+        let converted = scaler.convert(&decoded)?;
+        #[cfg(target_os = "macos")]
+        let image = converted;
+        #[cfg(not(target_os = "macos"))]
+        let image = {
+            let row_bytes = converted.width() as usize * 4;
+            let mut bytes = Vec::with_capacity(row_bytes * converted.height() as usize);
+            for row in 0..converted.height() as usize {
+                let start = row * converted.stride(0);
+                bytes.extend_from_slice(&converted.data(0)[start..start + row_bytes]);
+            }
+            let Some(image) =
+                image::RgbaImage::from_raw(converted.width(), converted.height(), bytes)
+            else {
+                bail!("{}", at!("Invalid video image dimensions"));
+            };
+            Arc::new(RenderImage::new(smallvec::smallvec![image::Frame::new(
+                image
+            )]))
         };
-        // Despite image::RgbaImage's name, RenderImage requires BGRA byte order.
-        let image = Arc::new(RenderImage::new(smallvec::smallvec![image::Frame::new(
-            image
-        )]));
         pictures
             .send(Message::Picture(Picture {
                 at: clock + Duration::from_secs_f64(seconds),
@@ -459,6 +514,136 @@ fn receive_video(
             }))
             .context(at!("Video window closed"))?;
     }
+}
+
+// Own the C context so every exit path releases FFmpeg's conversion resources.
+struct VideoConverter(*mut ffmpeg::ffi::SwsContext);
+
+impl Drop for VideoConverter {
+    fn drop(&mut self) {
+        // SAFETY: this wrapper exclusively owns the pointer, including null.
+        unsafe {
+            ffmpeg::ffi::sws_free_context(&mut self.0);
+        }
+    }
+}
+
+impl VideoConverter {
+    fn convert(&mut self, decoded: &ffmpeg::frame::Video) -> Result<ffmpeg::frame::Video> {
+        let mut converted = ffmpeg::frame::Video::empty();
+        converted.set_width(decoded.width());
+        converted.set_height(decoded.height());
+        converted.set_color_primaries(decoded.color_primaries());
+        converted.set_color_transfer_characteristic(decoded.color_transfer_characteristic());
+        #[cfg(target_os = "macos")]
+        {
+            converted.set_format(ffmpeg::format::Pixel::NV12);
+            // GPUI's surface shader currently uses full-range BT.601 YUV.
+            converted.set_color_space(ffmpeg::color::Space::SMPTE170M);
+            converted.set_color_range(ffmpeg::color::Range::JPEG);
+        }
+        #[cfg(not(target_os = "macos"))]
+        {
+            converted.set_format(ffmpeg::format::Pixel::BGRA);
+            converted.set_color_space(ffmpeg::color::Space::RGB);
+            converted.set_color_range(ffmpeg::color::Range::JPEG);
+        }
+        // SAFETY: both frames and the context remain alive for the call; output
+        // is exclusively borrowed. FFmpeg allocates/refcounts its output planes.
+        let result = unsafe {
+            ffmpeg::ffi::sws_scale_frame(self.0, converted.as_mut_ptr(), decoded.as_ptr())
+        };
+        if result < 0 {
+            bail!(
+                "{}",
+                at!("Converting video pixels: {}", ffmpeg::Error::from(result))
+            );
+        }
+        Ok(converted)
+    }
+}
+
+// Adapted from video/video_element.rs, but allocated only when a new picture
+// is displayed, not on every UI repaint. IOSurface lets Metal sample these YUV
+// planes directly without the generic image atlas or a 4K BGRA upload.
+#[cfg(target_os = "macos")]
+fn video_surface(frame: &ffmpeg::frame::Video) -> Result<CVPixelBuffer> {
+    use core_foundation::{
+        base::TCFType,
+        boolean::CFBoolean,
+        dictionary::{CFDictionary, CFMutableDictionary},
+        string::CFString,
+    };
+    use core_video::{
+        pixel_buffer::{CVPixelBufferKeys, kCVPixelFormatType_420YpCbCr8BiPlanarFullRange},
+        r#return::kCVReturnSuccess,
+    };
+    let width = frame.width() as usize;
+    let height = frame.height() as usize;
+    let mut attributes = CFMutableDictionary::<CFString, core_foundation::base::CFType>::new();
+    attributes.add(
+        &CVPixelBufferKeys::MetalCompatibility.into(),
+        &CFBoolean::true_value().as_CFType(),
+    );
+    let iosurface = CFDictionary::<CFString, core_foundation::base::CFType>::from_CFType_pairs(&[]);
+    attributes.add(
+        &CVPixelBufferKeys::IOSurfaceProperties.into(),
+        &iosurface.as_CFType(),
+    );
+    let surface = match CVPixelBuffer::new(
+        kCVPixelFormatType_420YpCbCr8BiPlanarFullRange,
+        width,
+        height,
+        Some(&attributes.to_immutable()),
+    ) {
+        Ok(surface) => surface,
+        Err(error) => bail!("{}", at!("Allocating video surface: {error}")),
+    };
+    if frame.format() != ffmpeg::format::Pixel::NV12 || surface.get_plane_count() != 2 {
+        bail!("{}", at!("Expected a two-plane NV12 video surface"));
+    }
+    if surface.lock_base_address(0) != kCVReturnSuccess {
+        bail!("{}", at!("Locking video surface"));
+    }
+    // Copy only visible row bytes. Both FFmpeg and CoreVideo can pad their
+    // strides differently; the UV plane rounds up for odd image dimensions.
+    let result = (|| {
+        for (plane, rows, bytes) in [
+            (0, height, width),
+            (1, height.div_ceil(2), width.div_ceil(2) * 2),
+        ] {
+            let stride = surface.get_bytes_per_row_of_plane(plane);
+            // SAFETY: the two-plane buffer is locked for CPU access above.
+            let destination = unsafe { surface.get_base_address_of_plane(plane) as *mut u8 };
+            if destination.is_null() || stride < bytes || surface.get_height_of_plane(plane) < rows
+            {
+                bail!("{}", at!("Invalid video surface plane"));
+            }
+            for row in 0..rows {
+                let start = row * frame.stride(plane);
+                let Some(source) = frame.data(plane).get(start..start + bytes) else {
+                    bail!("{}", at!("Invalid decoded video plane"));
+                };
+                // SAFETY: surface is locked and exclusively owned here; its
+                // checked stride/height cover the destination, and source is a
+                // checked slice in a distinct FFmpeg-owned allocation.
+                unsafe {
+                    std::ptr::copy_nonoverlapping(
+                        source.as_ptr(),
+                        destination.add(row * stride),
+                        bytes,
+                    );
+                }
+            }
+        }
+        Ok(())
+    })();
+    let unlocked = surface.unlock_base_address(0);
+    result?;
+    if unlocked != kCVReturnSuccess {
+        bail!("{}", at!("Unlocking video surface: {unlocked}"));
+    }
+    Ok(surface)
 }
 
 // Audio helpers below are copied from mp3.rs. They convert decoded audio to
@@ -681,10 +866,32 @@ mod tests {
                 .context(at!("Receiving test picture"))?
             {
                 Message::Picture(picture) => {
-                    let bytes = picture.image.as_bytes(0).context(at!("Missing test image pixels"))?;
-                    assert_eq!(bytes.len(), 66 * 34 * 4);
-                    // RenderImage bytes are B, G, R, A: the red channel is third.
-                    assert!(bytes[0] < 10 && bytes[1] < 10 && bytes[2] > 240);
+                    #[cfg(target_os = "macos")]
+                    {
+                        assert_eq!((picture.image.width(), picture.image.height()), (66, 34));
+                        assert_eq!(picture.image.format(), ffmpeg::format::Pixel::NV12);
+                        // Full-range BT.601 red is approximately Y=76,U=85,V=255.
+                        assert!((70..85).contains(&picture.image.data(0)[0]));
+                        assert!((75..95).contains(&picture.image.data(1)[0]));
+                        assert!(
+                            picture.image.data(1)[1] > 240,
+                            "YUV: {}, {}, {}",
+                            picture.image.data(0)[0],
+                            picture.image.data(1)[0],
+                            picture.image.data(1)[1]
+                        );
+                        let surface = video_surface(&picture.image)?;
+                        assert_eq!((surface.get_width(), surface.get_height()), (66, 34));
+                    }
+                    #[cfg(not(target_os = "macos"))]
+                    {
+                        let bytes = picture
+                            .image
+                            .as_bytes(0)
+                            .context(at!("Missing test image pixels"))?;
+                        assert_eq!(bytes.len(), 66 * 34 * 4);
+                        assert!(bytes[0] < 10 && bytes[1] < 10 && bytes[2] > 240);
+                    }
                     times.push(picture.at);
                 }
                 Message::Finished => break,
@@ -697,6 +904,49 @@ mod tests {
         for pair in times.windows(2) {
             assert_eq!(pair[1].duration_since(pair[0]), Duration::from_millis(40));
         }
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+mod performance {
+    use super::*;
+
+    // Run explicitly with OPENCUT_VIDEO_BENCHMARK=/path/to/a/silent/video.mp4
+    // cargo test --no-default-features --features mp4 --bin mp4 throughput -- --ignored --nocapture
+    #[test]
+    #[ignore = "requires a local silent video fixture"]
+    fn throughput() -> Result<()> {
+        let path = std::env::var_os("OPENCUT_VIDEO_BENCHMARK")
+            .context(at!("Set OPENCUT_VIDEO_BENCHMARK to a silent video file"))?;
+        ffmpeg::init().context(at!("Initializing benchmark decoder"))?;
+        let (tx, rx) = sync_channel(8);
+        let started = Instant::now();
+        let worker = std::thread::spawn(move || decode(Path::new(&path), &tx));
+        let mut count = 0;
+        let mut last_frame = started;
+        loop {
+            match rx
+                .recv_timeout(Duration::from_secs(30))
+                .context(at!("Receiving benchmark video"))?
+            {
+                Message::Picture(picture) => {
+                    #[cfg(target_os = "macos")]
+                    let _surface = video_surface(&picture.image)?;
+                    count += 1;
+                    last_frame = Instant::now();
+                }
+                Message::Finished => break,
+                Message::Error(error) => bail!("{}", at!("Benchmark decoder: {error}")),
+            }
+        }
+        worker.join().expect("benchmark worker panicked")?;
+        assert!(count > 0);
+        println!(
+            "Decoded and prepared {count} frames in {:.3}s ({:.1} frames/s); excludes GPU presentation",
+            last_frame.duration_since(started).as_secs_f64(),
+            count as f64 / last_frame.duration_since(started).as_secs_f64()
+        );
         Ok(())
     }
 }
