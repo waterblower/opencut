@@ -9,6 +9,14 @@ use std::{
     time::{Duration, Instant},
 };
 
+/// Formats a message with the source location required by the repository guidelines.
+macro_rules! at {
+    ($($arg:tt)*) => { format!("{} at {}:{}", format_args!($($arg)*), file!(), line!()) };
+}
+
+const OUTPUT: ffmpeg::format::Sample =
+    ffmpeg::format::Sample::F32(ffmpeg::format::sample::Type::Packed);
+
 fn main() -> ExitCode {
     match run() {
         Ok(()) => ExitCode::SUCCESS,
@@ -22,7 +30,7 @@ fn main() -> ExitCode {
 fn run() -> Result<()> {
     let mut args = std::env::args_os().skip(1);
     let Some(path) = args.next() else {
-        bail!("Usage: cargo mp3 -- <file.mp3> at {}:{}", file!(), line!());
+        bail!("{}", at!("Usage: cargo mp3 -- <file.mp3>"));
     };
     if path == "--help" || path == "-h" {
         println!(
@@ -31,148 +39,95 @@ fn run() -> Result<()> {
         return Ok(());
     }
     if args.next().is_some() {
-        bail!("Expected one file at {}:{}", file!(), line!());
+        bail!("{}", at!("Expected one file"));
     }
     let path = Path::new(&path);
-    if !path.is_file() {
-        bail!(
-            "Not a local file: {} at {}:{}",
-            path.display(),
-            file!(),
-            line!()
-        );
-    }
-    ffmpeg::init().context(format!("Initializing FFmpeg at {}:{}", file!(), line!()))?;
-    let mut input = ffmpeg::format::input(path).context(format!(
-        "Opening {} at {}:{}",
-        path.display(),
-        file!(),
-        line!()
-    ))?;
+
+    ffmpeg::init().context(at!("Initializing FFmpeg"))?;
+    let mut input = ffmpeg::format::input(path).context(at!("Opening {}", path.display()))?;
     let Some(audio) = input.streams().best(ffmpeg::media::Type::Audio) else {
-        bail!("No audio stream at {}:{}", file!(), line!());
+        bail!("{}", at!("No audio stream in {}", path.display()));
     };
     let index = audio.index();
     let mut decoder = ffmpeg::codec::context::Context::from_parameters(audio.parameters())
-        .context(format!(
-            "Reading codec parameters at {}:{}",
-            file!(),
-            line!()
-        ))?
+        .context(at!("Reading codec parameters"))?
         .decoder()
         .audio()
-        .context(format!("Opening audio decoder at {}:{}", file!(), line!()))?;
+        .context(at!("Opening audio decoder"))?;
+
     let Some(device) = cpal::default_host().default_output_device() else {
-        bail!("No default audio output device at {}:{}", file!(), line!());
+        bail!("{}", at!("No default audio output device"));
     };
-    let supported = device.default_output_config().context(format!(
-        "Reading audio configuration at {}:{}",
-        file!(),
-        line!()
-    ))?;
-    let config = supported.config();
-    let (samples_tx, samples_rx) =
-        sync_channel(config.sample_rate as usize * config.channels as usize / 2);
+    let config = f32_config(&device)?;
+    let (channels, rate) = (config.channels, config.sample_rate);
+    let mut resampler = ffmpeg::software::resampling::Context::get(
+        decoder.format(),
+        layout(decoder.channels(), decoder.channel_layout()),
+        decoder.rate(),
+        OUTPUT,
+        ffmpeg::ChannelLayout::default(i32::from(channels)),
+        rate,
+    )
+    .context(at!("Creating resampler"))?;
+
+    // Roughly half a second of buffering, handed over in decoded blocks.
+    let (samples_tx, samples_rx) = sync_channel::<Vec<f32>>(64);
     let (events_tx, events_rx) = sync_channel(4);
-    let stream = match supported.sample_format() {
-        cpal::SampleFormat::F32 => output::<f32>(&device, &config, samples_rx, events_tx),
-        cpal::SampleFormat::F64 => output::<f64>(&device, &config, samples_rx, events_tx),
-        cpal::SampleFormat::I8 => output::<i8>(&device, &config, samples_rx, events_tx),
-        cpal::SampleFormat::I16 => output::<i16>(&device, &config, samples_rx, events_tx),
-        cpal::SampleFormat::I24 => output::<cpal::I24>(&device, &config, samples_rx, events_tx),
-        cpal::SampleFormat::I32 => output::<i32>(&device, &config, samples_rx, events_tx),
-        cpal::SampleFormat::I64 => output::<i64>(&device, &config, samples_rx, events_tx),
-        cpal::SampleFormat::U8 => output::<u8>(&device, &config, samples_rx, events_tx),
-        cpal::SampleFormat::U16 => output::<u16>(&device, &config, samples_rx, events_tx),
-        cpal::SampleFormat::U32 => output::<u32>(&device, &config, samples_rx, events_tx),
-        cpal::SampleFormat::U64 => output::<u64>(&device, &config, samples_rx, events_tx),
-        format => bail!(
-            "Unsupported output format {format} at {}:{}",
-            file!(),
-            line!()
-        ),
-    }?;
-    stream
-        .play()
-        .context(format!("Starting audio at {}:{}", file!(), line!()))?;
+    let stream = output(&device, &config, samples_rx, events_tx)?;
+    stream.play().context(at!("Starting audio"))?;
     println!("Playing {} (Ctrl-C to stop)", path.display());
-    let mut resampler = None;
+
     loop {
         let mut packet = ffmpeg::Packet::empty();
         match packet.read(&mut input) {
-            Ok(()) => {
-                if packet.stream() != index {
-                    continue;
-                }
-                decoder.send_packet(&packet).context(format!(
-                    "Sending audio packet at {}:{}",
-                    file!(),
-                    line!()
-                ))?;
-            }
+            Ok(()) if packet.stream() != index => continue,
+            Ok(()) => decoder
+                .send_packet(&packet)
+                .context(at!("Sending audio packet"))?,
             Err(ffmpeg::Error::Eof) => {
-                decoder.send_eof().context(format!(
-                    "Draining decoder at {}:{}",
-                    file!(),
-                    line!()
-                ))?;
+                decoder.send_eof().context(at!("Draining decoder"))?;
                 receive(
                     &mut decoder,
                     &mut resampler,
-                    &config,
+                    channels,
+                    rate,
                     &samples_tx,
                     &events_rx,
                 )?;
                 break;
             }
             Err(error) => {
-                return Err(anyhow::Error::new(error).context(format!(
-                    "Reading packet at {}:{}",
-                    file!(),
-                    line!()
-                )));
+                return Err(anyhow::Error::new(error).context(at!("Reading packet")));
             }
         }
         receive(
             &mut decoder,
             &mut resampler,
-            &config,
+            channels,
+            rate,
             &samples_tx,
             &events_rx,
         )?;
     }
-    if let Some(mut resampler) = resampler {
-        loop {
-            let mut frame = ffmpeg::frame::Audio::new(
-                ffmpeg::format::Sample::F32(ffmpeg::format::sample::Type::Packed),
-                4096,
-                ffmpeg::ChannelLayout::default(i32::from(config.channels)),
-            );
-            let delay = resampler.flush(&mut frame).context(format!(
-                "Draining resampler at {}:{}",
-                file!(),
-                line!()
-            ))?;
-            enqueue(&frame, &samples_tx, &events_rx)?;
-            if delay.is_none() {
-                break;
-            }
+    loop {
+        let mut frame = frame(4096, channels);
+        let delay = resampler
+            .flush(&mut frame)
+            .context(at!("Draining resampler"))?;
+        enqueue(&frame, &samples_tx, &events_rx)?;
+        if delay.is_none() {
+            break;
         }
-    } else {
-        bail!("No audio frames decoded at {}:{}", file!(), line!());
     }
+
     drop(samples_tx);
     match events_rx
         .recv_timeout(Duration::from_secs(10))
-        .context(format!(
-            "Waiting for audio completion at {}:{}",
-            file!(),
-            line!()
-        ))? {
+        .context(at!("Waiting for audio completion"))?
+    {
         Event::Finished(delay) => std::thread::sleep(delay),
-        Event::Error(error) => bail!("Audio output failed: {error} at {}:{}", file!(), line!()),
+        Event::Error(error) => bail!("{}", at!("Audio output failed: {error}")),
     }
-    drop(stream);
     Ok(())
 }
 
@@ -181,71 +136,70 @@ enum Event {
     Finished(Duration),
 }
 
-fn output<T: cpal::SizedSample + cpal::FromSample<f32>>(
+fn output(
     device: &cpal::Device,
     config: &cpal::StreamConfig,
-    samples: Receiver<f32>,
+    samples: Receiver<Vec<f32>>,
     events: SyncSender<Event>,
 ) -> Result<cpal::Stream> {
     let errors = events.clone();
     let channels = usize::from(config.channels);
     let rate = config.sample_rate;
     let mut finished = false;
-    // Preserve channel alignment if the producer runs dry halfway through a frame.
-    let mut pending = vec![0.0_f32; channels];
-    let mut filled = 0;
+    let mut pending: Vec<f32> = Vec::new();
+    let mut cursor = 0;
     device
         .build_output_stream(
             config,
-            move |buffer: &mut [T], info: &cpal::OutputCallbackInfo| {
-                let buffer_duration =
-                    Duration::from_secs_f64(buffer.len() as f64 / channels as f64 / rate as f64);
-                for output_frame in buffer.chunks_mut(channels) {
-                    while filled < channels {
+            move |buffer: &mut [f32], info: &cpal::OutputCallbackInfo| {
+                let mut written = 0;
+                while written < buffer.len() {
+                    if cursor == pending.len() {
                         match samples.try_recv() {
-                            Ok(value) => {
-                                pending[filled] = value;
-                                filled += 1;
+                            Ok(block) => {
+                                pending = block;
+                                cursor = 0;
                             }
                             Err(TryRecvError::Empty) => break,
                             Err(TryRecvError::Disconnected) => {
                                 if !finished {
+                                    finished = true;
                                     let timestamp = info.timestamp();
-                                    let delay = timestamp
+                                    let latency = timestamp
                                         .playback
                                         .duration_since(&timestamp.callback)
                                         .unwrap_or_default();
-                                    let _ =
-                                        events.try_send(Event::Finished(delay + buffer_duration));
-                                    finished = true;
+                                    let buffered = Duration::from_secs_f64(
+                                        buffer.len() as f64 / channels as f64 / rate as f64,
+                                    );
+                                    let _ = events.try_send(Event::Finished(latency + buffered));
                                 }
                                 break;
                             }
                         }
                     }
-                    if filled == channels {
-                        for (sample, value) in output_frame.iter_mut().zip(&pending) {
-                            *sample = T::from_sample(*value);
-                        }
-                        filled = 0;
-                    } else {
-                        output_frame.fill(T::from_sample(0.0));
-                    }
+                    let count = (buffer.len() - written).min(pending.len() - cursor);
+                    buffer[written..written + count]
+                        .copy_from_slice(&pending[cursor..cursor + count]);
+                    written += count;
+                    cursor += count;
                 }
+                buffer[written..].fill(0.0);
             },
             move |error| {
                 let _ = errors.try_send(Event::Error(error));
             },
             None,
         )
-        .context(format!("Creating audio stream at {}:{}", file!(), line!()))
+        .context(at!("Creating audio stream"))
 }
 
 fn receive(
     decoder: &mut ffmpeg::decoder::Audio,
-    resampler: &mut Option<ffmpeg::software::resampling::Context>,
-    config: &cpal::StreamConfig,
-    samples: &SyncSender<f32>,
+    resampler: &mut ffmpeg::software::resampling::Context,
+    channels: u16,
+    rate: u32,
+    samples: &SyncSender<Vec<f32>>,
     events: &Receiver<Event>,
 ) -> Result<()> {
     loop {
@@ -254,94 +208,88 @@ fn receive(
             Ok(()) => {}
             Err(ffmpeg::Error::Eof) => return Ok(()),
             Err(ffmpeg::Error::Other { errno }) if errno == ffmpeg::error::EAGAIN => return Ok(()),
-            Err(error) => {
-                return Err(anyhow::Error::new(error).context(format!(
-                    "Decoding audio at {}:{}",
-                    file!(),
-                    line!()
-                )));
-            }
+            Err(error) => return Err(anyhow::Error::new(error).context(at!("Decoding audio"))),
         }
-        if decoded.channel_layout().is_empty() {
-            decoded.set_channel_layout(ffmpeg::ChannelLayout::default(i32::from(
-                decoder.channels(),
-            )));
-        }
-        if resampler.is_none() {
-            *resampler = Some(
-                ffmpeg::software::resampling::Context::get(
-                    decoded.format(),
-                    decoded.channel_layout(),
-                    decoded.rate(),
-                    ffmpeg::format::Sample::F32(ffmpeg::format::sample::Type::Packed),
-                    ffmpeg::ChannelLayout::default(i32::from(config.channels)),
-                    config.sample_rate,
-                )
-                .context(format!(
-                    "Creating resampler at {}:{}",
-                    file!(),
-                    line!()
-                ))?,
-            );
-        }
-        let Some(resampler) = resampler else {
-            unreachable!()
-        };
+        let decoded_layout = layout(decoder.channels(), decoded.channel_layout());
+        decoded.set_channel_layout(decoded_layout);
         // Reserve enough output for upsampling plus the filter's delayed samples.
-        let capacity = (decoded.samples() as u64 * u64::from(config.sample_rate))
+        let capacity = (decoded.samples() as u64 * u64::from(rate))
             .div_ceil(u64::from(decoded.rate())) as usize
             + 256;
-        let mut converted = ffmpeg::frame::Audio::new(
-            ffmpeg::format::Sample::F32(ffmpeg::format::sample::Type::Packed),
-            capacity,
-            ffmpeg::ChannelLayout::default(i32::from(config.channels)),
-        );
-        resampler.run(&decoded, &mut converted).context(format!(
-            "Resampling audio at {}:{}",
-            file!(),
-            line!()
-        ))?;
+        let mut converted = frame(capacity, channels);
+        resampler
+            .run(&decoded, &mut converted)
+            .context(at!("Resampling audio"))?;
         enqueue(&converted, samples, events)?;
     }
 }
 
 fn enqueue(
     frame: &ffmpeg::frame::Audio,
-    samples: &SyncSender<f32>,
+    samples: &SyncSender<Vec<f32>>,
     events: &Receiver<Event>,
 ) -> Result<()> {
-    if frame.samples() == 0 {
+    // `frame.data(0)` includes FFmpeg's alignment padding, so trim to the real samples.
+    let bytes = frame.samples() * usize::from(frame.channels()) * size_of::<f32>();
+    if bytes == 0 {
         return Ok(());
     }
-    let bytes = frame.samples() * usize::from(frame.channels()) * size_of::<f32>();
-    for chunk in frame.data(0)[..bytes].chunks_exact(4) {
-        let sample = f32::from_ne_bytes([chunk[0], chunk[1], chunk[2], chunk[3]]);
-        let mut blocked_since = None;
-        loop {
-            if let Ok(Event::Error(error)) = events.try_recv() {
-                bail!("Audio output failed: {error} at {}:{}", file!(), line!());
-            }
-            match samples.try_send(sample) {
-                Ok(()) => break,
-                Err(TrySendError::Full(_)) => {
-                    let started = blocked_since.get_or_insert(Instant::now());
-                    if started.elapsed() >= Duration::from_secs(2) {
-                        bail!(
-                            "Audio device stopped consuming samples at {}:{}",
-                            file!(),
-                            line!()
-                        );
-                    }
-                    // Only the decoder waits; the audio callback always uses try_recv.
-                    std::thread::sleep(Duration::from_millis(1));
+    let mut block: Vec<f32> = frame.data(0)[..bytes]
+        .chunks_exact(size_of::<f32>())
+        .map(|chunk| f32::from_ne_bytes([chunk[0], chunk[1], chunk[2], chunk[3]]))
+        .collect();
+    let deadline = Instant::now() + Duration::from_secs(2);
+    loop {
+        if let Ok(Event::Error(error)) = events.try_recv() {
+            bail!("{}", at!("Audio output failed: {error}"));
+        }
+        match samples.try_send(block) {
+            Ok(()) => return Ok(()),
+            Err(TrySendError::Disconnected(_)) => bail!("{}", at!("Audio stream disconnected")),
+            Err(TrySendError::Full(returned)) => {
+                if Instant::now() >= deadline {
+                    bail!("{}", at!("Audio device stopped consuming samples"));
                 }
-                Err(TrySendError::Disconnected(_)) => {
-                    bail!("Audio stream disconnected at {}:{}", file!(), line!());
-                }
+                block = returned;
+                // Only the decoder waits; the audio callback always uses try_recv.
+                std::thread::sleep(Duration::from_millis(1));
             }
         }
     }
-    Ok(())
+}
+
+/// Picks an f32 output configuration, since every sample is decoded as f32.
+fn f32_config(device: &cpal::Device) -> Result<cpal::StreamConfig> {
+    let default = device
+        .default_output_config()
+        .context(at!("Reading audio configuration"))?;
+    if default.sample_format() == cpal::SampleFormat::F32 {
+        return Ok(default.config());
+    }
+    let mut supported = device
+        .supported_output_configs()
+        .context(at!("Listing audio configurations"))?;
+    let Some(range) = supported.find(|range| range.sample_format() == cpal::SampleFormat::F32)
+    else {
+        bail!("{}", at!("No f32 audio output configuration"));
+    };
+    Ok(range.with_max_sample_rate().config())
+}
+
+fn frame(samples: usize, channels: u16) -> ffmpeg::frame::Audio {
+    ffmpeg::frame::Audio::new(
+        OUTPUT,
+        samples,
+        ffmpeg::ChannelLayout::default(i32::from(channels)),
+    )
+}
+
+fn layout(channels: u16, declared: ffmpeg::ChannelLayout) -> ffmpeg::ChannelLayout {
+    if declared.is_empty() {
+        ffmpeg::ChannelLayout::default(i32::from(channels))
+    } else {
+        declared
+    }
 }
 
 #[cfg(test)]
@@ -350,33 +298,25 @@ mod tests {
 
     #[test]
     fn queues_interleaved_samples_without_ffmpeg_padding() {
-        let mut frame = ffmpeg::frame::Audio::new(
-            ffmpeg::format::Sample::F32(ffmpeg::format::sample::Type::Packed),
-            3,
-            ffmpeg::ChannelLayout::STEREO,
-        );
-        frame
+        let mut audio = ffmpeg::frame::Audio::new(OUTPUT, 3, ffmpeg::ChannelLayout::STEREO);
+        audio
             .plane_mut::<(f32, f32)>(0)
             .copy_from_slice(&[(0.1, -0.1), (0.2, -0.2), (0.3, -0.3)]);
-        let (tx, rx) = sync_channel(6);
+        let (tx, rx) = sync_channel(1);
         let (_event_tx, events) = sync_channel(1);
-        enqueue(&frame, &tx, &events).unwrap();
+        enqueue(&audio, &tx, &events).unwrap();
         assert_eq!(
-            rx.try_iter().collect::<Vec<_>>(),
+            rx.try_recv().unwrap(),
             vec![0.1, -0.1, 0.2, -0.2, 0.3, -0.3]
         );
     }
 
     #[test]
     fn disconnected_output_stops_decoding() {
-        let frame = ffmpeg::frame::Audio::new(
-            ffmpeg::format::Sample::F32(ffmpeg::format::sample::Type::Packed),
-            1,
-            ffmpeg::ChannelLayout::MONO,
-        );
+        let audio = ffmpeg::frame::Audio::new(OUTPUT, 1, ffmpeg::ChannelLayout::MONO);
         let (tx, rx) = sync_channel(1);
         drop(rx);
         let (_event_tx, events) = sync_channel(1);
-        assert!(enqueue(&frame, &tx, &events).is_err());
+        assert!(enqueue(&audio, &tx, &events).is_err());
     }
 }
