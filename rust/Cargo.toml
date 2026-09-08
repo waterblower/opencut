@@ -30,11 +30,6 @@ path = "src/examples/mp4-v2.rs"
 required-features = ["mp4"]
 
 [[bin]]
-name = "video2"
-path = "src/examples/video2.rs"
-required-features = ["ffmpeg-video", "ui"]
-
-[[bin]]
 name = "2windows"
 path = "src/examples/2windows.rs"
 required-features = ["2windows"]
@@ -53,7 +48,17 @@ mp3 = ["dep:anyhow", "dep:ffmpeg-next", "dep:cpal"]
 mp4 = ["mp3", "ui", "dep:image", "dep:smallvec", "dep:core-foundation", "dep:core-video"]
 2windows = ["ui"]
 ui = ["dep:gpui", "dep:gpui_platform", "dep:env_logger"]
-player = ["gstreamer-backend", "dep:serde", "dep:serde_json"]
+player = [
+    "ffmpeg-video",
+    "ui",
+    "dep:serde",
+    "dep:serde_json",
+    # The history thumbnail generator still uses GStreamer, not playback.
+    "dep:url",
+    "dep:gstreamer",
+    "dep:gstreamer-app",
+    "dep:gstreamer-video",
+]
 editor = [
     "gstreamer-backend",
     "gpui/inspector",

@@ -1,6 +1,6 @@
 use super::*;
 use crate::playback_view::{PlaybackViewProps, playback_view};
-use crate::video::video;
+use opencut_player::video2::video;
 
 impl Render for Player {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
@@ -19,10 +19,16 @@ impl Render for Player {
                 })
             .max(1.0);
             let playback_area = if let Some(video_handle) = self.video.as_mut() {
-                video(video_handle)
-                    .id("fullscreen-video")
-                    .size(px(fullscreen_content_width), px(viewport_height))
-                    .into_any_element()
+                match video(video_handle) {
+                    Ok(element) => element
+                        .id("fullscreen-video")
+                        .size(px(fullscreen_content_width), px(viewport_height))
+                        .into_any_element(),
+                    Err(error) => div()
+                        .text_color(rgb(ERROR))
+                        .child(format!("{error:#}"))
+                        .into_any_element(),
+                }
             } else {
                 div().size_full().bg(rgb(0x000000)).into_any_element()
             };
@@ -54,7 +60,13 @@ impl Render for Player {
                         .when(self.video.is_some(), |this| {
                             this.cursor(CursorStyle::PointingHand).on_click(cx.listener(
                                 |this, _, _, cx| {
-                                    this.toggle_playback();
+                                    if let Err(error) = this.toggle_playback() {
+                                        log::error!(
+                                            "Toggling playback at {}:{}: {error:#}",
+                                            file!(),
+                                            line!()
+                                        );
+                                    }
                                     cx.notify();
                                 },
                             ))
@@ -101,10 +113,16 @@ impl Render for Player {
         let display_title = self.display_title();
 
         let video_content = if let Some(video_handle) = self.video.as_mut() {
-            video(video_handle)
-                .id("main-video")
-                .size(px(content_width), px(video_height))
-                .into_any_element()
+            match video(video_handle) {
+                Ok(element) => element
+                    .id("main-video")
+                    .size(px(content_width), px(video_height))
+                    .into_any_element(),
+                Err(error) => div()
+                    .text_color(rgb(ERROR))
+                    .child(format!("{error:#}"))
+                    .into_any_element(),
+            }
         } else {
             div()
                 .size_full()
@@ -227,7 +245,9 @@ impl Render for Player {
                         .child(if is_muted { "Muted" } else { "Enabled" })
                         .child(div().size_2().rounded_full().bg(rgb(ACCENT)))
                         .on_click(cx.listener(|this, _, _, cx| {
-                            this.toggle_mute();
+                            if let Err(error) = this.toggle_mute() {
+                                log::error!("Toggling mute at {}:{}: {error:#}", file!(), line!());
+                            }
                             cx.notify();
                         })),
                 )

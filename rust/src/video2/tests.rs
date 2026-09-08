@@ -146,6 +146,61 @@ fn async_seek_yields_until_acknowledged_and_canceled_wait_can_be_superseded() ->
 }
 
 #[test]
+fn seek_completion_does_not_borrow_backend_and_publishes_paused_preview() -> Result<()> {
+    let fixture = Fixture::new("0")?;
+    let mut backend = VideoBackend::open_sync(&fixture.0)?;
+    for target in [320, 200, 80] {
+        let completion = backend.seek(Duration::from_millis(target));
+        // These accesses must remain possible while the seek future is alive:
+        // GPUI renders snapshots and handles controls before completion.
+        assert!(backend.paused());
+        let _snapshot = backend.get_current_frame()?;
+        backend.set_muted(true)?;
+        block_on(completion)?;
+        assert_eq!(
+            backend.get_current_frame()?.timestamp,
+            Duration::from_millis(target)
+        );
+        assert!(backend.paused());
+    }
+    // Releasing a playing scrub changes the resume intent during the seek.
+    let completion = backend.seek(Duration::from_millis(200));
+    backend.set_paused(false)?;
+    block_on(completion)?;
+    assert!(!backend.paused());
+    Ok(())
+}
+
+#[test]
+fn repeated_paused_seek_reuses_the_completed_frame() -> Result<()> {
+    let fixture = Fixture::new("0")?;
+    let mut backend = VideoBackend::open_sync(&fixture.0)?;
+    backend.seek_sync(Duration::from_millis(205))?;
+    let frame = backend.get_current_frame()?;
+    let generation = lock(&backend.shared).generation;
+    backend.seek_sync(Duration::from_millis(205))?;
+    assert!(Arc::ptr_eq(&frame, &backend.get_current_frame()?));
+    assert_eq!(lock(&backend.shared).generation, generation);
+    assert_eq!(backend.position(), Duration::from_millis(205));
+    Ok(())
+}
+
+#[test]
+#[ignore = "set VIDEO2_BENCH_PATH to a local video to measure synchronous seeks"]
+fn synchronous_seek_latency() -> Result<()> {
+    let path = std::env::var_os("VIDEO2_BENCH_PATH").context(format!(
+        "Set VIDEO2_BENCH_PATH at {}:{}",
+        file!(),
+        line!()
+    ))?;
+    let mut backend = VideoBackend::open_sync(Path::new(&path))?;
+    for fraction in [0.25, 0.25, 0.1, 0.1, 0.75, 0.75, 0.4, 0.41, 0.42] {
+        backend.seek_sync(backend.duration().mul_f64(fraction))?;
+    }
+    Ok(())
+}
+
+#[test]
 fn drop_interrupts_a_full_paused_video_queue() -> Result<()> {
     let fixture = Fixture::new("0")?;
     let backend = VideoBackend::open_sync(&fixture.0)?;

@@ -102,15 +102,35 @@ impl VideoBackend {
     /// Completes after the target frame is published and internal audio is reset.
     /// Preserves play/pause state. Dropping the future does not cancel an already
     /// submitted seek; a later seek supersedes it.
-    pub async fn seek(&mut self, position: Duration) -> Result<()> {
-        let reply = self.request_seek(position)?;
-        seek_result(&self.shared, reply.recv().await)
+    /// Submits immediately and returns an owned completion future, so rendering
+    /// and controls remain accessible while the caller awaits the new frame.
+    pub fn seek(
+        &mut self,
+        position: Duration,
+    ) -> impl Future<Output = Result<()>> + Send + 'static {
+        let reply = self.request_seek(position);
+        let shared = Arc::clone(&self.shared);
+        async move {
+            let reply = reply?;
+            seek_result(&shared, reply.recv().await)
+        }
     }
 
     /// Blocking counterpart of [`Self::seek`].
     pub fn seek_sync(&mut self, position: Duration) -> Result<()> {
-        let reply = self.request_seek(position)?;
-        seek_result(&self.shared, reply.recv_blocking())
+        let started = Instant::now();
+        eprintln!("seek_sync start: target={:.3}s", position.as_secs_f64());
+        let result = (|| {
+            let reply = self.request_seek(position)?;
+            seek_result(&self.shared, reply.recv_blocking())
+        })();
+        eprintln!(
+            "seek_sync finished: target={:.3}s elapsed={:.2}ms success={}",
+            position.as_secs_f64(),
+            started.elapsed().as_secs_f64() * 1000.0,
+            result.is_ok(),
+        );
+        result
     }
 
     /// Effective gain: zero while muted.
@@ -212,16 +232,25 @@ impl VideoBackend {
         let (reply, completion) = async_channel::bounded(1);
         let mut state = lock(&self.shared);
         state.check()?;
-        state.generation = state.generation.checked_add(1).context(format!(
-            "Seek generation exhausted at {}:{}",
-            file!(),
-            line!()
-        ))?;
         let position = if state.duration.is_zero() {
             position
         } else {
             position.min(state.duration)
         };
+        // A completed paused seek already has the correct frame and audio
+        // position. Mouse release often repeats the exact mouse-down target.
+        if matches!(state.clock, Clock::Paused(current) if current == position)
+            && matches!(state.status, Status::Active)
+            && state.frame.is_some()
+        {
+            let _ = reply.try_send(Ok(()));
+            return Ok(completion);
+        }
+        state.generation = state.generation.checked_add(1).context(format!(
+            "Seek generation exhausted at {}:{}",
+            file!(),
+            line!()
+        ))?;
         let resume = !state.clock.paused();
         state.clock = Clock::Seeking {
             position: state.clock.position(Instant::now()),

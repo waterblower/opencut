@@ -2,7 +2,7 @@ use std::{
     path::Path,
     sync::{Arc, Mutex, mpsc},
     thread,
-    time::Duration,
+    time::{Duration, Instant},
 };
 
 use anyhow::{Context as _, Result, bail};
@@ -55,21 +55,31 @@ pub fn run(
         }
         if let Some(request) = control.request.take() {
             generation = request.generation;
+            let started = Instant::now();
             media.seek(request.position)?;
+            let demux_elapsed = started.elapsed();
             let duration = lock(shared).duration;
-            let Some((frame, position)) =
-                locate(&mut media, request.position, duration, &mut control)?
+            let Some(Located {
+                frame,
+                following,
+                position,
+                draining,
+            }) = locate(&mut media, request.position, duration, &mut control)?
             else {
                 continue;
             };
-            // Decode again from the result so packets consumed by search do not
-            // remove lookahead frames from subsequent playback.
-            media.seek(position)?;
+            let video_elapsed = started.elapsed();
             if let Some(audio) = &media.audio
                 && !audio.seek(position, generation, &mut control)?
             {
                 continue;
             }
+            eprintln!(
+                "seek stages: demux={:.2}ms decode={:.2}ms audio={:.2}ms",
+                demux_elapsed.as_secs_f64() * 1000.0,
+                (video_elapsed - demux_elapsed).as_secs_f64() * 1000.0,
+                (started.elapsed() - video_elapsed).as_secs_f64() * 1000.0,
+            );
             displayed = Some(frame.timestamp);
             send(
                 pictures,
@@ -80,6 +90,28 @@ pub fn run(
                 },
                 &mut control,
             )?;
+            if let Some(frame) = following {
+                send(pictures, Message::Frame { generation, frame }, &mut control)?;
+            }
+            // Continue from the decoder's existing position, including frames
+            // buffered by B-frame reordering. Never decode the same GOP twice.
+            receive_video(&mut media, pictures, &mut control, generation, displayed)?;
+            if control.interrupted() {
+                continue;
+            }
+            if draining {
+                if media.audio.is_none() {
+                    send(
+                        pictures,
+                        Message::End {
+                            generation,
+                            position: media.video_end,
+                        },
+                        &mut control,
+                    )?;
+                }
+                media.eof = true;
+            }
         }
         if media.eof {
             if let Some(audio) = &media.audio {
@@ -375,12 +407,19 @@ fn receive_frame(
     })))
 }
 
+struct Located {
+    frame: Arc<VideoFrame>,
+    following: Option<Arc<VideoFrame>>,
+    position: Duration,
+    draining: bool,
+}
+
 fn locate(
     media: &mut Decoder,
     target: Duration,
     duration: Duration,
     control: &mut Control<'_>,
-) -> Result<Option<(Arc<VideoFrame>, Duration)>> {
+) -> Result<Option<Located>> {
     let mut best: Option<Arc<VideoFrame>> = None;
     let mut draining = false;
     loop {
@@ -397,9 +436,17 @@ fn locate(
                 best = Some(frame);
                 continue;
             }
-            let selected = best.unwrap_or(frame);
+            let (selected, following) = match best {
+                Some(selected) => (selected, Some(frame)),
+                None => (frame, None),
+            };
             let position = target.max(selected.timestamp);
-            return Ok(Some((selected, position)));
+            return Ok(Some(Located {
+                frame: selected,
+                following,
+                position,
+                draining,
+            }));
         }
         if draining {
             let Some(frame) = best else {
@@ -414,7 +461,12 @@ fn locate(
             } else {
                 target.max(frame.timestamp)
             };
-            return Ok(Some((frame, position)));
+            return Ok(Some(Located {
+                frame,
+                following: None,
+                position,
+                draining,
+            }));
         }
         let mut packet = ffmpeg::Packet::empty();
         match packet.read(&mut media.input) {
