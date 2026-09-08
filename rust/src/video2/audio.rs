@@ -173,7 +173,7 @@ impl Audio {
 
     fn receive(&mut self, generation: u64, control: &mut Control<'_, AudioRequest>) -> Result<()> {
         loop {
-            if control.interrupted() {
+            if control.interrupted() || control.superseded(generation) {
                 return Ok(());
             }
             let mut decoded = ffmpeg::frame::Audio::empty();
@@ -259,9 +259,23 @@ impl Audio {
         }
         let start = skip * usize::from(self.channels) * size_of::<f32>();
         let end = frame.samples() * usize::from(self.channels) * size_of::<f32>();
-        let mut samples = Vec::with_capacity((end - start) / size_of::<f32>());
-        for bytes in frame.data(0)[start..end].chunks_exact(size_of::<f32>()) {
-            samples.push(f32::from_ne_bytes([bytes[0], bytes[1], bytes[2], bytes[3]]));
+        let source = frame.data(0).get(start..end).context(format!(
+            "Truncated resampled audio at {}:{}",
+            file!(),
+            line!()
+        ))?;
+        let count = source.len() / size_of::<f32>();
+        let mut samples = Vec::<f32>::with_capacity(count);
+        // SAFETY: the resampler produces native packed f32. The checked byte
+        // slice initializes exactly count elements of the separate allocation;
+        // every f32 bit pattern is valid. No source alignment is required.
+        unsafe {
+            std::ptr::copy_nonoverlapping(
+                source.as_ptr(),
+                samples.as_mut_ptr().cast::<u8>(),
+                source.len(),
+            );
+            samples.set_len(count);
         }
         let mut block = Block {
             generation,
@@ -269,7 +283,7 @@ impl Audio {
             samples,
         };
         loop {
-            if control.interrupted() {
+            if control.interrupted() || control.superseded(generation) {
                 return Ok(());
             }
             self.check()?;
@@ -346,6 +360,13 @@ fn run(
             }
         }
         audio.check()?;
+        if control.superseded(generation) {
+            // The video request has advanced the generation, but its audio
+            // target has not arrived yet. Do not decode obsolete audio while
+            // the device discards it: that competes with seek computation.
+            thread::sleep(Duration::from_millis(1));
+            continue;
+        }
         if ended {
             thread::sleep(Duration::from_millis(2));
             continue;

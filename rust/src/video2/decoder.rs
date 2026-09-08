@@ -34,6 +34,10 @@ impl<'a, T> Control<'a, T> {
         let state = lock(self.shared);
         self.request.is_some() || matches!(state.status, Status::Stopped | Status::Failed(_))
     }
+
+    pub fn superseded(&self, generation: u64) -> bool {
+        lock(self.shared).generation != generation
+    }
 }
 
 pub fn run(
@@ -81,7 +85,9 @@ pub fn run(
                 continue;
             }
             let started = Instant::now();
-            media.seek(request.position)?;
+            if !media.can_continue(request.position) {
+                media.seek(request.position)?;
+            }
             let demux_elapsed = started.elapsed();
             let duration = lock(shared).duration;
             let Some(Located {
@@ -190,6 +196,7 @@ pub fn run(
                     file!(),
                     line!()
                 ))?;
+                media.eof = true;
                 receive_video(&mut media, pictures, &mut control, generation, displayed)?;
                 if control.interrupted() {
                     continue;
@@ -351,6 +358,36 @@ impl Decoder {
         })
     }
 
+    fn can_continue(&self, target: Duration) -> bool {
+        let Some(previous) = &self.previous else {
+            return false;
+        };
+        if self.eof || target < previous.timestamp {
+            return false;
+        }
+        let Some(stream) = self.input.stream(self.track.index) else {
+            return false;
+        };
+        let timestamp = ((target.as_secs_f64() + self.track.origin) / self.track.time_base) as i64;
+        // SAFETY: the input owns this stream; the returned index entry is read
+        // immediately and never retained across a demux operation.
+        let entry = unsafe {
+            ffmpeg::ffi::avformat_index_get_entry_from_timestamp(
+                stream.as_ptr().cast_mut(),
+                timestamp,
+                ffmpeg::ffi::AVSEEK_FLAG_BACKWARD,
+            )
+        };
+        if entry.is_null() {
+            return false;
+        }
+        let key_time =
+            unsafe { (*entry).timestamp } as f64 * self.track.time_base - self.track.origin;
+        // Continue only when the existing decoder is closer than a new keyframe
+        // seek. This avoids re-decoding the GOP during forward scrubbing.
+        seconds(key_time) <= previous.timestamp
+    }
+
     fn seek(&mut self, position: Duration) -> Result<()> {
         let absolute =
             (position.as_secs_f64() + self.track.origin) * ffmpeg::ffi::AV_TIME_BASE as f64;
@@ -501,7 +538,7 @@ fn locate(
     duration: Duration,
     control: &mut Control<'_>,
 ) -> Result<Option<Located>> {
-    let mut best: Option<Arc<VideoFrame>> = None;
+    let mut best = media.previous.clone();
     let mut draining = false;
     loop {
         if control.interrupted() {
@@ -561,6 +598,7 @@ fn locate(
                     file!(),
                     line!()
                 ))?;
+                media.eof = true;
                 draining = true;
             }
             Err(error) => {
@@ -600,6 +638,18 @@ fn send(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn obsolete_audio_is_detected_before_its_seek_command_arrives() {
+        let shared = Arc::new(Mutex::new(State::new()));
+        let (_sender, receiver) = mpsc::channel::<()>();
+        let mut control = Control::new(&shared, &receiver);
+        assert!(!control.superseded(0));
+        lock(&shared).generation = 1;
+        assert!(!control.interrupted());
+        assert!(control.superseded(0));
+        assert!(!control.superseded(1));
+    }
 
     #[test]
     fn cache_uses_exact_half_open_intervals_and_evicts_to_its_budget() {

@@ -2,6 +2,33 @@ use super::*;
 use ffmpeg_next as ffmpeg;
 
 #[test]
+#[ignore = "long-running raw-seek workload for CPU profiling; needs an audio device"]
+fn raw_seek_profile() -> Result<()> {
+    let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("data/tests/long video.mp4");
+    let mut backend = VideoBackend::open_sync(&path)?;
+    backend.set_muted(true)?;
+    eprintln!("seek profiling PID={}", std::process::id());
+    let mut elapsed = Vec::new();
+    for index in 0..100 {
+        let target = Duration::from_secs_f64(if index % 2 == 0 {
+            116.690645
+        } else {
+            135.963488
+        });
+        let from = backend.position();
+        let started = Instant::now();
+        backend.seek_sync(target)?;
+        elapsed.push(SeekTiming {
+            elapsed: started.elapsed(),
+            from,
+            target,
+        });
+    }
+    report("raw alternating long-GOP seeks", &mut elapsed);
+    Ok(())
+}
+
+#[test]
 #[ignore = "benchmarks the large local fixture and requires a default audio device"]
 fn long_video_random_forward_backward_seeks() -> Result<()> {
     let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("data/tests/long video.mp4");
@@ -27,9 +54,14 @@ fn long_video_random_forward_backward_seeks() -> Result<()> {
     }
     let mut elapsed = Vec::new();
     for (target, (timestamp, checksum)) in targets.iter().zip(expected) {
+        let from = backend.position();
         let start = Instant::now();
         backend.seek_sync(*target)?;
-        elapsed.push(start.elapsed());
+        elapsed.push(SeekTiming {
+            elapsed: start.elapsed(),
+            from,
+            target: *target,
+        });
         let frame = backend.get_current_frame()?;
         assert_eq!(frame.timestamp, timestamp);
         assert_eq!(pixels_checksum(&frame.image), checksum);
@@ -37,11 +69,19 @@ fn long_video_random_forward_backward_seeks() -> Result<()> {
         assert!(backend.paused());
     }
     report("random full-file", &mut elapsed);
+    let mut overall = elapsed.clone();
 
     // Warm a neighborhood through a real seek, then sample distinct fractional
     // timestamps in both directions. This is not the exact-target no-op path.
     let anchor = Duration::from_secs_f64(502.8);
+    let from = backend.position();
+    let start = Instant::now();
     backend.seek_sync(anchor)?;
+    overall.push(SeekTiming {
+        elapsed: start.elapsed(),
+        from,
+        target: anchor,
+    });
     targets.clear();
     for _ in 0..48 {
         random = random.wrapping_mul(6364136223846793005).wrapping_add(1);
@@ -54,30 +94,99 @@ fn long_video_random_forward_backward_seeks() -> Result<()> {
     }
     elapsed.clear();
     for (target, (timestamp, checksum)) in targets.iter().zip(expected) {
+        let from = backend.position();
         let start = Instant::now();
         backend.seek_sync(*target)?;
-        elapsed.push(start.elapsed());
+        elapsed.push(SeekTiming {
+            elapsed: start.elapsed(),
+            from,
+            target: *target,
+        });
         let frame = backend.get_current_frame()?;
         assert_eq!(frame.timestamp, timestamp);
         assert_eq!(pixels_checksum(&frame.image), checksum);
         assert_eq!(backend.position(), *target);
     }
     report("random cached neighborhood", &mut elapsed);
+    overall.extend(elapsed);
+
+    // Cross cache boundaries while scrubbing through several GOPs. Forward
+    // misses can continue the live decoder; backward misses must really seek.
+    targets = (0..32)
+        .map(|index| Duration::from_secs_f64(5.125 + f64::from(index) * 0.613))
+        .collect();
+    targets.extend(targets.clone().into_iter().rev().skip(1));
+    expected = Vec::new();
+    for target in &targets {
+        expected.push(reference(&path, *target)?);
+    }
+    elapsed = Vec::new();
+    for (target, (timestamp, checksum)) in targets.iter().zip(expected) {
+        let from = backend.position();
+        let start = Instant::now();
+        backend.seek_sync(*target)?;
+        elapsed.push(SeekTiming {
+            elapsed: start.elapsed(),
+            from,
+            target: *target,
+        });
+        let frame = backend.get_current_frame()?;
+        assert_eq!(frame.timestamp, timestamp, "sweep target={target:?}");
+        assert_eq!(pixels_checksum(&frame.image), checksum);
+        assert_eq!(backend.position(), *target);
+        assert!(backend.paused());
+    }
+    report("forward/backward scrub", &mut elapsed);
+    let mut forward: Vec<_> = elapsed
+        .iter()
+        .copied()
+        .filter(|time| time.target > time.from)
+        .collect();
+    let mut backward: Vec<_> = elapsed
+        .iter()
+        .copied()
+        .filter(|time| time.target < time.from)
+        .collect();
+    report("forward scrub", &mut forward);
+    report("backward scrub (including initial jump)", &mut backward);
+    overall.extend(elapsed);
+    report("overall (including cache warmup)", &mut overall);
     // Timing is reported, not asserted: OS scheduling and concurrent workloads
     // make wall-clock thresholds unsuitable as deterministic correctness tests.
     Ok(())
 }
 
-fn report(label: &str, times: &mut [Duration]) {
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+struct SeekTiming {
+    // Sort primarily by elapsed time, keeping the corresponding seek attached.
+    elapsed: Duration,
+    from: Duration,
+    target: Duration,
+}
+
+fn report(label: &str, times: &mut [SeekTiming]) {
     times.sort_unstable();
+    let worst = times.last().expect("benchmark contains seeks");
     let budget = Duration::from_micros(8300);
     eprintln!(
-        "{label}: n={} p50={:.2}ms p95={:.2}ms max={:.2}ms <=8.3ms={}/{}",
+        "{label}: n={} worst={:.2}ms from={:.6}s target={:.6}s direction={} p50={:.2}ms p95={:.2}ms <=8.3ms={}/{}",
         times.len(),
-        times[times.len() / 2].as_secs_f64() * 1000.0,
-        times[(times.len() * 95).div_ceil(100) - 1].as_secs_f64() * 1000.0,
-        times[times.len() - 1].as_secs_f64() * 1000.0,
-        times.iter().filter(|time| **time <= budget).count(),
+        worst.elapsed.as_secs_f64() * 1000.0,
+        worst.from.as_secs_f64(),
+        worst.target.as_secs_f64(),
+        if worst.target < worst.from {
+            "backward"
+        } else if worst.target > worst.from {
+            "forward"
+        } else {
+            "unchanged"
+        },
+        times[times.len() / 2].elapsed.as_secs_f64() * 1000.0,
+        times[(times.len() * 95).div_ceil(100) - 1]
+            .elapsed
+            .as_secs_f64()
+            * 1000.0,
+        times.iter().filter(|time| time.elapsed <= budget).count(),
         times.len(),
     );
 }
