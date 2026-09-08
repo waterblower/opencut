@@ -25,6 +25,11 @@ path = "src/examples/mp4.rs"
 required-features = ["mp4"]
 
 [[bin]]
+name = "mp4-v2"
+path = "src/examples/mp4-v2.rs"
+required-features = ["mp4"]
+
+[[bin]]
 name = "2windows"
 path = "src/examples/2windows.rs"
 required-features = ["2windows"]

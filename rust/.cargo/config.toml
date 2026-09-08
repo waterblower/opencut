@@ -1,6 +1,7 @@
 [alias]
 mp3 = "run --no-default-features --features mp3 --bin mp3"
 mp4 = "run --no-default-features --features mp4 --bin mp4"
+mp4-v2 = "run --no-default-features --features mp4 --bin mp4-v2"
 editor = "run --no-default-features --features editor --bin opencut-editor"
 loc = "run --quiet --no-default-features --bin loc"
 2win = "run --quiet --no-default-features --features 2windows --bin 2windows"
