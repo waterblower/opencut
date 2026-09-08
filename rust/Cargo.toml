@@ -41,7 +41,7 @@ required-features = ["editor"]
 
 [features]
 default = ["editor"]
-ffmpeg-backend = ["dep:anyhow", "dep:async-channel", "dep:ffmpeg-next", "dep:cpal"]
+ffmpeg-backend = ["dep:anyhow", "dep:async-channel", "dep:ffmpeg-next", "dep:cpal", "dep:core-foundation", "dep:core-video"]
 ffmpeg-video = ["ffmpeg-backend", "dep:gpui", "dep:image", "dep:smallvec", "dep:log", "dep:core-foundation", "dep:core-video"]
 ffmpeg-video-tests = ["ffmpeg-video", "gpui/test-support"]
 mp3 = ["dep:anyhow", "dep:ffmpeg-next", "dep:cpal"]

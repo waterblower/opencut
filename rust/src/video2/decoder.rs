@@ -9,6 +9,7 @@ use std::{
 use anyhow::{Context as _, Result, bail};
 use ffmpeg_next as ffmpeg;
 
+use super::decompression::Decompression;
 use super::{Message, SeekRequest, State, Status, VideoFrame, audio::AudioWorker, lock, seconds};
 
 /// Every potentially full media queue also services transport and shutdown.
@@ -89,6 +90,10 @@ pub fn run(
                 media.seek(request.position)?;
             }
             let demux_elapsed = started.elapsed();
+            media.video.seek_target(Some(
+                ((request.position.as_secs_f64() + media.track.origin) / media.track.time_base)
+                    as i64,
+            ));
             let duration = lock(shared).duration;
             let Some(Located {
                 frame,
@@ -99,6 +104,7 @@ pub fn run(
             else {
                 continue;
             };
+            media.video.seek_target(None);
             let video_elapsed = started.elapsed();
             if let Some(audio) = &media.audio
                 && !audio.seek(position, generation, &mut control)?
@@ -240,7 +246,7 @@ struct Track {
 
 struct Decoder {
     input: ffmpeg::format::context::Input,
-    video: ffmpeg::decoder::Video,
+    video: Decompression,
     audio: Option<AudioWorker>,
     track: Track,
     next_time: f64,
@@ -319,18 +325,11 @@ impl Decoder {
             };
             duration = duration.max(seconds(start - origin + audio.duration() as f64 * base));
         }
-        let mut context =
-            ffmpeg::codec::context::Context::from_parameters(stream.parameters()).context(
-                format!("Reading video parameters at {}:{}", file!(), line!()),
-            )?;
-        context.set_threading(ffmpeg::codec::threading::Config::kind(
-            ffmpeg::codec::threading::Type::Frame,
-        ));
-        let video = context.decoder().video().context(format!(
-            "Opening video decoder at {}:{}",
-            file!(),
-            line!()
-        ))?;
+        let video = Decompression::open(
+            stream.parameters(),
+            stream.time_base(),
+            input.format().name(),
+        )?;
         let audio = if input.streams().best(ffmpeg::media::Type::Audio).is_some() {
             Some(AudioWorker::open(path, origin, shared)?)
         } else {
@@ -408,7 +407,7 @@ impl Decoder {
                 line!()
             ))?;
         }
-        self.video.flush();
+        self.video.flush()?;
         self.previous = None;
         self.next_time = 0.0;
         self.video_end = Duration::ZERO;
@@ -441,19 +440,9 @@ fn receive_video(
 }
 
 fn receive_frame(media: &mut Decoder) -> Result<Option<Arc<VideoFrame>>> {
-    let mut image = ffmpeg::frame::Video::empty();
-    match media.video.receive_frame(&mut image) {
-        Ok(()) => {}
-        Err(ffmpeg::Error::Eof) => return Ok(None),
-        Err(ffmpeg::Error::Other { errno }) if errno == ffmpeg::error::EAGAIN => return Ok(None),
-        Err(error) => {
-            return Err(anyhow::Error::new(error).context(format!(
-                "Decoding video frame at {}:{}",
-                file!(),
-                line!()
-            )));
-        }
-    }
+    let Some((image, contiguous)) = media.video.receive()? else {
+        return Ok(None);
+    };
     let time = match image.timestamp() {
         Some(timestamp) => (timestamp as f64 * media.track.time_base - media.track.origin).max(0.0),
         None => media.next_time,
@@ -469,7 +458,9 @@ fn receive_frame(media: &mut Decoder) -> Result<Option<Arc<VideoFrame>>> {
         timestamp: seconds(time),
         image,
     });
-    if let Some(previous) = media.previous.replace(Arc::clone(&frame)) {
+    if let Some(previous) = media.previous.replace(Arc::clone(&frame))
+        && contiguous
+    {
         media.cache.insert(previous, frame.timestamp);
     }
     Ok(Some(frame))
@@ -554,6 +545,13 @@ fn locate(
                 None => (frame, None),
             };
             let position = target.max(selected.timestamp);
+            // Preroll may suppress output for dependencies, but the selected
+            // frame and first later frame prove this exact covering interval.
+            if let Some(following) = &following {
+                media
+                    .cache
+                    .insert(Arc::clone(&selected), following.timestamp);
+            }
             return Ok(Some(Located {
                 frame: selected,
                 following,

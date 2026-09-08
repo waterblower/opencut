@@ -2,7 +2,9 @@
 //!
 //! Opening starts paused with a frame ready. `seek` awaits completion without
 //! blocking its executor; `seek_sync` waits for the same operation on its thread.
-//! Frames retain FFmpeg's software pixel format, strides, and color metadata.
+//! Frames expose software-readable planes, strides, and color metadata. On macOS,
+//! supported 8-bit AVC/HEVC in MP4/MOV uses bounded asynchronous VideoToolbox batches
+//! and retained, read-only NV12 planes; other streams use FFmpeg software decoding.
 //! Independent video/audio decoding keeps device backpressure out of the video
 //! path. A presentation worker publishes snapshots against their shared clock.
 //! Enable the `ffmpeg-backend` Cargo feature to use this module.
@@ -20,6 +22,7 @@ use ffmpeg_next::frame::Video;
 
 mod audio;
 mod decoder;
+mod decompression;
 
 #[cfg(feature = "ffmpeg-video")]
 mod video_element;
