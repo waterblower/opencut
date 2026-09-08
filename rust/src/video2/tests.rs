@@ -186,6 +186,34 @@ fn repeated_paused_seek_reuses_the_completed_frame() -> Result<()> {
 }
 
 #[test]
+fn cached_backward_seek_resumes_with_no_missing_lookahead() -> Result<()> {
+    let fixture = Fixture::new("0")?;
+    let mut backend = VideoBackend::open_sync(&fixture.0)?;
+    backend.seek_sync(Duration::from_millis(320))?;
+    backend.seek_sync(Duration::from_millis(125))?;
+    assert_eq!(
+        backend.get_current_frame()?.timestamp,
+        Duration::from_millis(120)
+    );
+    let mut times = vec![Duration::from_millis(120)];
+    backend.set_paused(false)?;
+    let deadline = Instant::now() + Duration::from_secs(2);
+    while !backend.ended() && Instant::now() < deadline {
+        let timestamp = backend.get_current_frame()?.timestamp;
+        if times.last() != Some(&timestamp) {
+            times.push(timestamp);
+        }
+        thread::sleep(Duration::from_millis(1));
+    }
+    assert!(backend.ended());
+    assert_eq!(
+        times,
+        [120, 160, 200, 240, 280, 320, 360].map(Duration::from_millis)
+    );
+    Ok(())
+}
+
+#[test]
 #[ignore = "set VIDEO2_BENCH_PATH to a local video to measure synchronous seeks"]
 fn synchronous_seek_latency() -> Result<()> {
     let path = std::env::var_os("VIDEO2_BENCH_PATH").context(format!(

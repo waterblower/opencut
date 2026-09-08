@@ -530,3 +530,7 @@ fn present(
 
 #[cfg(test)]
 mod tests;
+
+#[cfg(test)]
+#[path = "seek.test.rs"]
+mod seek_tests;

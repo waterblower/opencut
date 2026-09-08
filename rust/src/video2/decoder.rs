@@ -1,4 +1,5 @@
 use std::{
+    collections::VecDeque,
     path::Path,
     sync::{Arc, Mutex, mpsc},
     thread,
@@ -45,6 +46,7 @@ pub fn run(
     let mut control = Control::new(shared, commands);
     let mut generation = 0;
     let mut displayed = None;
+    let mut restart = None;
     loop {
         control.interrupted();
         {
@@ -55,6 +57,29 @@ pub fn run(
         }
         if let Some(request) = control.request.take() {
             generation = request.generation;
+            restart = None;
+            if let Some(frame) = media.cache.get(request.position) {
+                let position = request.position;
+                if let Some(audio) = &media.audio
+                    && !audio.seek(position, generation, &mut control)?
+                {
+                    continue;
+                }
+                displayed = Some(frame.timestamp);
+                // The requested pixels and audio reset are complete. A paused
+                // preview needs no decoder replay; defer it until playback resumes.
+                restart = Some(position);
+                send(
+                    pictures,
+                    Message::Seeked {
+                        request,
+                        frame,
+                        position,
+                    },
+                    &mut control,
+                )?;
+                continue;
+            }
             let started = Instant::now();
             media.seek(request.position)?;
             let demux_elapsed = started.elapsed();
@@ -112,6 +137,14 @@ pub fn run(
                 }
                 media.eof = true;
             }
+        }
+        if let Some(position) = restart {
+            if lock(shared).clock.paused() {
+                thread::sleep(Duration::from_millis(1));
+                continue;
+            }
+            media.seek(position)?;
+            restart = None;
         }
         if media.eof {
             if let Some(audio) = &media.audio {
@@ -206,6 +239,8 @@ struct Decoder {
     next_time: f64,
     video_end: Duration,
     eof: bool,
+    cache: FrameCache,
+    previous: Option<Arc<VideoFrame>>,
 }
 
 impl Decoder {
@@ -311,6 +346,8 @@ impl Decoder {
             next_time: 0.0,
             video_end: Duration::ZERO,
             eof: false,
+            cache: FrameCache::default(),
+            previous: None,
         })
     }
 
@@ -335,6 +372,7 @@ impl Decoder {
             ))?;
         }
         self.video.flush();
+        self.previous = None;
         self.next_time = 0.0;
         self.video_end = Duration::ZERO;
         self.eof = false;
@@ -353,13 +391,7 @@ fn receive_video(
         if control.interrupted() {
             return Ok(());
         }
-        let Some(frame) = receive_frame(
-            &mut media.video,
-            &media.track,
-            &mut media.next_time,
-            &mut media.video_end,
-        )?
-        else {
+        let Some(frame) = receive_frame(media)? else {
             return Ok(());
         };
         if let Some(displayed) = displayed
@@ -371,14 +403,9 @@ fn receive_video(
     }
 }
 
-fn receive_frame(
-    decoder: &mut ffmpeg::decoder::Video,
-    track: &Track,
-    next_time: &mut f64,
-    end: &mut Duration,
-) -> Result<Option<Arc<VideoFrame>>> {
+fn receive_frame(media: &mut Decoder) -> Result<Option<Arc<VideoFrame>>> {
     let mut image = ffmpeg::frame::Video::empty();
-    match decoder.receive_frame(&mut image) {
+    match media.video.receive_frame(&mut image) {
         Ok(()) => {}
         Err(ffmpeg::Error::Eof) => return Ok(None),
         Err(ffmpeg::Error::Other { errno }) if errno == ffmpeg::error::EAGAIN => return Ok(None),
@@ -391,20 +418,24 @@ fn receive_frame(
         }
     }
     let time = match image.timestamp() {
-        Some(timestamp) => (timestamp as f64 * track.time_base - track.origin).max(0.0),
-        None => *next_time,
+        Some(timestamp) => (timestamp as f64 * media.track.time_base - media.track.origin).max(0.0),
+        None => media.next_time,
     };
     let duration = if image.packet().duration > 0 {
-        image.packet().duration as f64 * track.time_base
+        image.packet().duration as f64 * media.track.time_base
     } else {
-        track.frame_duration
+        media.track.frame_duration
     };
-    *next_time = time + duration;
-    *end = (*end).max(seconds(*next_time));
-    Ok(Some(Arc::new(VideoFrame {
+    media.next_time = time + duration;
+    media.video_end = media.video_end.max(seconds(media.next_time));
+    let frame = Arc::new(VideoFrame {
         timestamp: seconds(time),
         image,
-    })))
+    });
+    if let Some(previous) = media.previous.replace(Arc::clone(&frame)) {
+        media.cache.insert(previous, frame.timestamp);
+    }
+    Ok(Some(frame))
 }
 
 struct Located {
@@ -412,6 +443,56 @@ struct Located {
     following: Option<Arc<VideoFrame>>,
     position: Duration,
     draining: bool,
+}
+
+// Own at most 128 MiB of visible plane storage, not an unbounded decoded video.
+// Spans are proven by consecutive presentation timestamps, never guessed from FPS.
+const CACHE_BYTES: usize = 128 * 1024 * 1024;
+
+#[derive(Default)]
+struct FrameCache {
+    spans: VecDeque<(Arc<VideoFrame>, Duration, usize)>,
+    bytes: usize,
+}
+
+impl FrameCache {
+    fn get(&self, position: Duration) -> Option<Arc<VideoFrame>> {
+        for (frame, end, _) in self.spans.iter().rev() {
+            if frame.timestamp <= position && position < *end {
+                return Some(Arc::clone(frame));
+            }
+        }
+        None
+    }
+
+    fn insert(&mut self, frame: Arc<VideoFrame>, end: Duration) {
+        if end <= frame.timestamp {
+            return;
+        }
+        let bytes = (0..frame.image.planes()).fold(0usize, |total, plane| {
+            total.saturating_add(frame.image.data(plane).len())
+        });
+        if bytes > CACHE_BYTES {
+            return;
+        }
+        // A repeated decode replaces its span rather than retaining duplicates.
+        if let Some(index) = self
+            .spans
+            .iter()
+            .position(|(cached, _, _)| cached.timestamp == frame.timestamp)
+        {
+            let (_, _, removed) = self.spans.remove(index).expect("located cached frame");
+            self.bytes -= removed;
+        }
+        while self.bytes + bytes > CACHE_BYTES {
+            let Some((_, _, removed)) = self.spans.pop_front() else {
+                break;
+            };
+            self.bytes -= removed;
+        }
+        self.bytes += bytes;
+        self.spans.push_back((frame, end, bytes));
+    }
 }
 
 fn locate(
@@ -426,12 +507,7 @@ fn locate(
         if control.interrupted() {
             return Ok(None);
         }
-        if let Some(frame) = receive_frame(
-            &mut media.video,
-            &media.track,
-            &mut media.next_time,
-            &mut media.video_end,
-        )? {
+        if let Some(frame) = receive_frame(media)? {
             if frame.timestamp <= target {
                 best = Some(frame);
                 continue;
@@ -518,5 +594,34 @@ fn send(
                 bail!("Video presenter disconnected at {}:{}", file!(), line!())
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn cache_uses_exact_half_open_intervals_and_evicts_to_its_budget() {
+        let mut cache = FrameCache::default();
+        for index in 0..48 {
+            let frame = Arc::new(VideoFrame {
+                timestamp: Duration::from_millis(index * 40),
+                image: ffmpeg::frame::Video::new(ffmpeg::format::Pixel::YUV420P, 2048, 1024),
+            });
+            cache.insert(frame, Duration::from_millis(index * 40 + 40));
+            assert!(cache.bytes <= CACHE_BYTES);
+        }
+        assert!(cache.get(Duration::ZERO).is_none());
+        let target = Duration::from_millis(47 * 40);
+        let frame = cache.get(target).expect("newest span retained");
+        assert_eq!(frame.timestamp, target);
+        assert!(cache.get(target + Duration::from_millis(39)).is_some());
+        assert!(cache.get(target + Duration::from_millis(40)).is_none());
+        let bytes = cache.bytes;
+        cache.insert(frame, target + Duration::from_millis(40));
+        assert_eq!(cache.bytes, bytes);
+        // No inferred coverage across a discontinuity between decoded segments.
+        assert!(cache.get(Duration::from_secs(100)).is_none());
     }
 }
