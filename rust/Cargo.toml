@@ -30,6 +30,11 @@ path = "src/examples/mp4-v2.rs"
 required-features = ["mp4"]
 
 [[bin]]
+name = "video2"
+path = "src/examples/video2.rs"
+required-features = ["ffmpeg-video", "ui"]
+
+[[bin]]
 name = "2windows"
 path = "src/examples/2windows.rs"
 required-features = ["2windows"]
@@ -41,6 +46,9 @@ required-features = ["editor"]
 
 [features]
 default = ["editor"]
+ffmpeg-backend = ["dep:anyhow", "dep:async-channel", "dep:ffmpeg-next", "dep:cpal"]
+ffmpeg-video = ["ffmpeg-backend", "dep:gpui", "dep:image", "dep:smallvec", "dep:log", "dep:core-foundation", "dep:core-video"]
+ffmpeg-video-tests = ["ffmpeg-video", "gpui/test-support"]
 mp3 = ["dep:anyhow", "dep:ffmpeg-next", "dep:cpal"]
 mp4 = ["mp3", "ui", "dep:image", "dep:smallvec", "dep:core-foundation", "dep:core-video"]
 2windows = ["ui"]
@@ -80,6 +88,7 @@ gstreamer-backend = [
 
 [dependencies]
 anyhow = { version = "1", optional = true }
+async-channel = { version = "2.5", optional = true }
 cpal = { version = "0.17.1", optional = true }
 env_logger = { version = "0.11", optional = true }
 ffmpeg-next = { version = "8.1", optional = true }
