@@ -1,24 +1,14 @@
 [alias]
-mp3 = "run --no-default-features --features mp3 --bin mp3"
-mp4 = "run --no-default-features --features mp4 --bin mp4"
-mp4-v2 = "run --no-default-features --features mp4 --bin mp4-v2"
-editor = "run --no-default-features --features editor --bin opencut-editor"
+mp3 = "run --quiet --manifest-path scripts/platform-launcher/Cargo.toml -- run --no-default-features --features mp3 --bin mp3"
+mp4 = "run --quiet --manifest-path scripts/platform-launcher/Cargo.toml -- run --no-default-features --features mp4 --bin mp4"
+mp4-v2 = "run --quiet --manifest-path scripts/platform-launcher/Cargo.toml -- run --no-default-features --features mp4 --bin mp4-v2"
+editor = "run --quiet --manifest-path scripts/platform-launcher/Cargo.toml -- run --no-default-features --features editor --bin opencut-editor"
 loc = "run --quiet --no-default-features --bin loc"
-2win = "run --quiet --no-default-features --features 2windows --bin 2windows"
-player = "run --no-default-features --features player --bin opencut-player"
+2win = "run --quiet --manifest-path scripts/platform-launcher/Cargo.toml -- run --quiet --no-default-features --features 2windows --bin 2windows"
+player = "run --quiet --manifest-path scripts/platform-launcher/Cargo.toml -- run --no-default-features --features player --bin opencut-player"
+build-editor = "run --quiet --manifest-path scripts/platform-launcher/Cargo.toml -- build --no-default-features --features editor --bin opencut-editor"
+build-player = "run --quiet --manifest-path scripts/platform-launcher/Cargo.toml -- build --no-default-features --features player --bin opencut-player"
 
 
-[env]
-FFMPEG_DIR = { value = "vendor/ffmpeg-8.1.2", relative = true }
-PKG_CONFIG = { value = "vendor/gstreamer/bin/pkg-config.exe", relative = true, force = true }
-PKG_CONFIG_PATH = { value = "vendor/gstreamer/lib/pkgconfig", relative = true, force = true }
-GST_PLUGIN_PATH_1_0 = { value = "", force = true }
-# Hardware H.264 decoding corrupts frames on this Intel Iris Xe setup.
-GST_PLUGIN_FEATURE_RANK = "avdec_h264:MAX,d3d11h264dec:NONE,d3d12h264dec:NONE,qsvh264dec:NONE"
-GST_PLUGIN_SYSTEM_PATH_1_0 = { value = "vendor/gstreamer/lib/gstreamer-1.0", relative = true, force = true }
-GST_PLUGIN_SCANNER_1_0 = { value = "vendor/gstreamer/libexec/gstreamer-1.0/gst-plugin-scanner.exe", relative = true, force = true }
-GST_REGISTRY_1_0 = { value = "vendor/gstreamer/registry.bin", relative = true, force = true }
-GIO_EXTRA_MODULES = { value = "vendor/gstreamer/lib/gio/modules", relative = true, force = true }
-
-[target.x86_64-pc-windows-msvc]
-runner = ["powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "scripts/run-windows.ps1"]
+[build]
+target-dir = "target"

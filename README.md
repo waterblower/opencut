@@ -21,7 +21,7 @@ Devlog: https://www.youtube.com/playlist?list=PLRz1nfZl0jMU
 On macOS, install the build tools with Homebrew:
 
 ```sh
-brew install pkg-config python@3.13 ffmpeg
+brew install pkg-config python@3.13 ffmpeg@8
 ```
 
 Run the commands below from the Rust package:
@@ -64,6 +64,37 @@ The optional upstream Python plugin expects a separate Python 3.9 framework and
 PyGObject; this setup does not configure Python bindings.
 
 ## Player
+
+Build and run commands select the host platform automatically:
+
+```sh
+cargo build-player
+cargo build-editor
+cargo player
+cargo editor
+```
+
+Run these from `rust`. Extra Cargo flags such as `--release` are forwarded;
+application arguments follow `--`. A dependency-free Rust launcher selects
+`scripts/cargo-windows.ps1` or `scripts/cargo-macos.sh`. Each script sets native
+library paths for both compilation and execution without changing the system
+environment. The shared Cargo configuration contains no platform-specific paths.
+
+Windows uses the MSVC SDK in `rust/vendor/gstreamer` and FFmpeg in
+`rust/vendor/ffmpeg-8.1.2`. It defaults to software H.264 decoding to avoid
+corruption observed with Intel Iris Xe hardware decoding. macOS uses the vendored
+GStreamer framework and Homebrew `ffmpeg@8`; set `FFMPEG_DIR` to override the
+FFmpeg location on either platform.
+
+For other Cargo operations, invoke the platform script directly from `rust`:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/cargo-windows.ps1 check --no-default-features --features editor --bin opencut-editor
+```
+
+```sh
+bash scripts/cargo-macos.sh check --no-default-features --features editor --bin opencut-editor
+```
 
 ```sh
 cargo player
