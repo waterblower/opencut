@@ -77,7 +77,7 @@ impl Decompression {
     pub fn seek_target(&mut self, target: Option<i64>) {
         #[cfg(target_os = "macos")]
         if let Self::Hardware(decoder) = self {
-            decoder.seek = target;
+            decoder.seek_target(target);
         }
         #[cfg(not(target_os = "macos"))]
         let _ = target;

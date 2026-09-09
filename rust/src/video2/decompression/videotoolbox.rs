@@ -22,7 +22,7 @@ use core_video::pixel_buffer::{CVPixelBuffer, CVPixelBufferKeys, CVPixelBufferRe
 use ffmpeg_next as ffmpeg;
 
 pub struct Decoder {
-    pub seek: Option<i64>,
+    seek: Option<i64>,
     session: CFType,
     format: CFType,
     // The callback address must stay stable even when Decoder moves.
@@ -36,6 +36,10 @@ pub struct Decoder {
     ended: bool,
     reset: bool,
     skip_rasl: bool,
+    // Emit (and let the caller cache) every picture inside the second before
+    // the seek target, so small backward scrub steps become cache hits.
+    window: i64,
+    popped: Option<i64>,
 }
 
 impl Decoder {
@@ -155,6 +159,8 @@ impl Decoder {
             ended: false,
             reset: true,
             skip_rasl: true,
+            window: i64::MIN,
+            popped: None,
         };
         // Seeking needs maximum throughput, not a real-time/low-power hint.
         // This optional property is not implemented by every hardware decoder.
@@ -263,10 +269,28 @@ impl Decoder {
         let Some((_, (surface, duration))) = self.ready.pop_first() else {
             return Ok(None);
         };
+        // While seeking, every picture at or after the window start is emitted,
+        // so two consecutively popped window pictures form a proven span.
+        let contiguous = match self.seek {
+            None => true,
+            Some(_) => self.popped.is_some_and(|previous| previous >= self.window),
+        };
+        self.popped = Some(pts);
         Ok(Some((
             surface.frame(pts, duration, &self.parameters)?,
-            self.seek.is_none(),
+            contiguous,
         )))
+    }
+
+    pub fn seek_target(&mut self, target: Option<i64>) {
+        self.seek = target;
+        self.popped = None;
+        self.window = match target {
+            Some(target) => target.saturating_sub(
+                i64::from(self.base.denominator()) / i64::from(self.base.numerator()),
+            ),
+            None => i64::MIN,
+        };
     }
 
     pub fn send_eof(&mut self) -> Result<()> {
@@ -285,6 +309,8 @@ impl Decoder {
         self.reset = true;
         self.skip_rasl = true;
         self.seek = None;
+        self.window = i64::MIN;
+        self.popped = None;
         Ok(())
     }
 
@@ -394,7 +420,18 @@ impl Decoder {
         for index in 0..self.pending.len() {
             let packet = self.pending[index].clone();
             let emit = match (self.seek, packet.pts()) {
-                (Some(target), Some(pts)) if pts <= target => Some(pts) == selected,
+                (Some(target), Some(pts)) if pts <= target => {
+                    if pts >= self.window {
+                        true
+                    } else if Some(pts) != selected && nonreference(&packet, &self.parameters)? {
+                        // No later picture can reference a non-reference
+                        // preroll frame that is never displayed or cached;
+                        // skip its decode entirely.
+                        continue;
+                    } else {
+                        Some(pts) == selected
+                    }
+                }
                 _ => true,
             };
             self.submit(&packet, emit)?;
@@ -475,7 +512,7 @@ impl Drop for Decoder {
 
 const BATCH: usize = 16;
 const SEEK_BATCH: usize = 64;
-const MAX_REORDERED: usize = 64;
+const MAX_REORDERED: usize = 128;
 const MAX_PACKET_BYTES: usize = 4 * 1024 * 1024;
 const MAX_PENDING_BYTES: usize = 8 * 1024 * 1024;
 const READ_ONLY: u64 = 1;
@@ -615,6 +652,65 @@ fn check(status: i32, operation: &str) -> Result<()> {
         bail!("{operation}: OSStatus {status} at {}:{}", file!(), line!());
     }
     Ok(())
+}
+
+/// True when no other picture can reference this one, matching FFmpeg's
+/// `AVDISCARD_NONREF` semantics: HEVC sub-layer non-reference (`*_N`) VCL NAL
+/// types and H.264 slices with `nal_ref_idc == 0`.
+fn nonreference(packet: &ffmpeg::Packet, parameters: &ffmpeg::codec::Parameters) -> Result<bool> {
+    let bytes =
+        packet
+            .data()
+            .context(format!("Empty hardware packet at {}:{}", file!(), line!()))?;
+    // SAFETY: parameters is borrowed for this call; extradata is only read.
+    let params = unsafe { &*parameters.as_ptr() };
+    match parameters.id() {
+        ffmpeg::codec::Id::HEVC => {
+            if params.extradata_size < 23 {
+                bail!("Truncated HEVC configuration at {}:{}", file!(), line!());
+            }
+            let length = unsafe { *params.extradata.add(21) & 3 } as usize + 1;
+            Ok(matches!(
+                hevc_picture_type(bytes, length)?,
+                Some(kind) if kind < 16 && kind % 2 == 0
+            ))
+        }
+        ffmpeg::codec::Id::H264 => {
+            if params.extradata_size < 5 {
+                bail!("Truncated AVC configuration at {}:{}", file!(), line!());
+            }
+            let length = unsafe { *params.extradata.add(4) & 3 } as usize + 1;
+            avc_nonreference(bytes, length)
+        }
+        _ => Ok(false),
+    }
+}
+
+fn avc_nonreference(mut bytes: &[u8], length: usize) -> Result<bool> {
+    while !bytes.is_empty() {
+        let prefix = bytes.get(..length).context(format!(
+            "Truncated AVC NAL length at {}:{}",
+            file!(),
+            line!()
+        ))?;
+        let mut size = 0usize;
+        for byte in prefix {
+            size = (size << 8) | usize::from(*byte);
+        }
+        bytes = &bytes[length..];
+        let nal =
+            bytes
+                .get(..size)
+                .context(format!("Truncated AVC NAL at {}:{}", file!(), line!()))?;
+        let Some(&header) = nal.first() else {
+            bail!("Invalid AVC NAL header at {}:{}", file!(), line!());
+        };
+        if matches!(header & 31, 1..=5) {
+            return Ok(header >> 5 == 0);
+        }
+        bytes = &bytes[size..];
+    }
+    Ok(false)
 }
 
 fn hevc_picture_type(mut bytes: &[u8], length: usize) -> Result<Option<u8>> {
