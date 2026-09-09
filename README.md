@@ -18,17 +18,50 @@ Devlog: https://www.youtube.com/playlist?list=PLRz1nfZl0jMU
   plugins
 - FFmpeg development libraries
 
-On macOS with Homebrew:
+On macOS, install the build tools with Homebrew:
 
 ```sh
-brew install gstreamer ffmpeg
+brew install pkg-config python@3.13 ffmpeg
 ```
 
 Run the commands below from the Rust package:
 
 ```sh
 cd rust
+python3 scripts/setup_gstreamer.py
 ```
+
+The setup script downloads the official GStreamer **1.28.6** universal macOS
+runtime and development packages, verifies pinned SHA-256 checksums, and extracts
+them into `rust/vendor/gstreamer/GStreamer.framework`. It retains both ARM64 and
+Intel libraries, plugins, GStreamer Editing Services, headers, and licenses.
+It also builds FAAC **2.1** and its GStreamer plugin for both architectures,
+using checksum-pinned sources and the upstream FAAC 2 compatibility patch.
+Python 3.11 or newer and Xcode command line tools are required. Downloads total
+about 871 MB; allow several GB for extraction. No system installer is run.
+
+`cargo editor` uses this local framework for GStreamer compilation and plugin
+loading, including its GLib dependencies. Missing vendor files cause a setup
+error instead of falling back to system GStreamer. Other native dependencies,
+including the existing FFmpeg configuration, continue to use their existing setup.
+The downloaded packages and extracted framework are ignored by Git.
+
+The setup script relocates native library references to the absolute checkout
+path and locally signs the modified binaries. After moving the checkout, rerun
+`python3 scripts/setup_gstreamer.py`; verified downloads are reused. This is a
+local development setup, not macOS application bundle packaging.
+
+The editor exports AAC audio at 192 kbps using `atenc` (Apple AudioToolbox) on
+macOS and `avenc_aac` (GStreamer libav) on other platforms. The selected encoder
+must be installed; export reports an error if it is unavailable.
+
+Setup also includes FAAC as an additional available encoder, linked against
+the vendored GStreamer libraries. To add or rebuild just FAAC, run
+`python3 scripts/setup_gstreamer.py --faac-only`. No Homebrew GStreamer or FAAC
+libraries are needed at runtime.
+
+The optional upstream Python plugin expects a separate Python 3.9 framework and
+PyGObject; this setup does not configure Python bindings.
 
 ## Player
 

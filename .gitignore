@@ -22,3 +22,4 @@ doc.md
 /rust/target
 data/
 rust/vendor/ffmpeg*
+/rust/vendor/gstreamer/

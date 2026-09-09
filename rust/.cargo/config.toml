@@ -11,3 +11,9 @@ player = "run --no-default-features --features player --bin opencut-player"
 [env]
 FFMPEG_DIR = { value = "vendor/ffmpeg-8.1.2", relative = true }
 PATH={ value = "vendor/ffmpeg-8.1.2/bin", relative = true }
+PKG_CONFIG = { value = "scripts/gstreamer-pkg-config", relative = true, force = true }
+GST_PLUGIN_PATH_1_0 = { value = "", force = true }
+GST_PLUGIN_SYSTEM_PATH_1_0 = { value = "vendor/gstreamer/GStreamer.framework/Versions/1.0/lib/gstreamer-1.0", relative = true, force = true }
+GST_PLUGIN_SCANNER_1_0 = { value = "vendor/gstreamer/GStreamer.framework/Versions/1.0/libexec/gstreamer-1.0/gst-plugin-scanner", relative = true, force = true }
+GST_REGISTRY_1_0 = { value = "vendor/gstreamer/registry.bin", relative = true, force = true }
+GIO_EXTRA_MODULES = { value = "vendor/gstreamer/GStreamer.framework/Versions/1.0/lib/gio/modules", relative = true, force = true }

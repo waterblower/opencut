@@ -163,9 +163,69 @@ fn applies_the_requested_bitrate_to_x264() {
     let encoder = gst::ElementFactory::make("x264enc").build().unwrap();
     pipeline.add(&encoder).unwrap();
     assert_eq!(encoder.property::<u32>("bitrate"), 12_345);
-    let audio_encoder = gst::ElementFactory::make("faac").build().unwrap();
+}
+
+#[test]
+fn configures_aac_encoders_for_export() {
+    let _gstreamer_test = lock_gstreamer_test();
+    ges::init().unwrap();
+    let pipeline = ges::Pipeline::new();
+    configure_export_elements(&pipeline, 12_345_000);
+    let audio_encoder = gst::ElementFactory::make("avenc_aac").build().unwrap();
     pipeline.add(&audio_encoder).unwrap();
     assert_eq!(audio_encoder.property::<i32>("bitrate"), AUDIO_BIT_RATE);
+
+    #[cfg(target_os = "macos")]
+    {
+        let audio_encoder = gst::ElementFactory::make("atenc").build().unwrap();
+        pipeline.add(&audio_encoder).unwrap();
+        assert_eq!(
+            audio_encoder.property::<u32>("bitrate"),
+            AUDIO_BIT_RATE as u32
+        );
+    }
+}
+
+#[test]
+fn selects_platform_aac_encoder_without_changing_audio_rank() {
+    let _gstreamer_test = lock_gstreamer_test();
+    ges::init().unwrap();
+    let expected = if cfg!(target_os = "macos") {
+        "atenc"
+    } else {
+        "avenc_aac"
+    };
+    let audio_factory = gst::ElementFactory::find(expected).unwrap();
+    let original_rank = audio_factory.rank();
+    {
+        let _selection = EncoderSelection::for_export(ExportEncoder::Software).unwrap();
+        assert_eq!(audio_factory.rank(), original_rank);
+        let timeline = TimelineSerialization::with_test_tracks();
+        let profile = encoding_profile(ExportOptions::from_timeline(&timeline));
+        let encodebin = gst::ElementFactory::make("encodebin")
+            .property("profile", &profile)
+            .build()
+            .unwrap()
+            .downcast::<gst::Bin>()
+            .unwrap();
+        encodebin.set_state(gst::State::Ready).unwrap();
+        let mut audio_encoders = Vec::new();
+        for element in encodebin.iterate_recurse() {
+            let element = element.unwrap();
+            let Some(factory) = element.factory() else {
+                continue;
+            };
+            if matches!(
+                factory.name().as_str(),
+                "atenc" | "avenc_aac" | "faac" | "voaacenc"
+            ) {
+                audio_encoders.push(factory.name().to_string());
+            }
+        }
+        encodebin.set_state(gst::State::Null).unwrap();
+        assert_eq!(audio_encoders, vec![expected]);
+    }
+    assert_eq!(audio_factory.rank(), original_rank);
 }
 
 #[cfg(target_os = "macos")]
