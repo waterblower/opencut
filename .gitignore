@@ -21,3 +21,5 @@ doc.md
 /zig/zig-pkg
 /rust/target
 data/
+rust/vendor/ffmpeg*
+/rust/vendor/gstreamer/

@@ -409,6 +409,7 @@ fn encoding_profile(options: ExportOptions) -> gst_pbutils::EncodingContainerPro
         .build();
     let audio = gst_pbutils::EncodingAudioProfile::builder(&audio_caps)
         .name("OpenCut AAC")
+        .preset_name(AUDIO_ENCODER_FACTORY)
         .presence(1)
         .build();
     gst_pbutils::EncodingContainerProfile::builder(&container_caps)
@@ -437,7 +438,11 @@ fn configure_export_elements(pipeline: &ges::Pipeline, video_bit_rate: usize) {
                 // when GES switches or trims timeline sources.
                 element.set_property("allow-frame-reordering", false);
             }
-            "faac" => element.set_property("bitrate", AUDIO_BIT_RATE),
+            "atenc" => {
+                element.set_property("bitrate", AUDIO_BIT_RATE as u32);
+                element.set_property_from_str("rate-control", "cbr");
+            }
+            "avenc_aac" => element.set_property("bitrate", AUDIO_BIT_RATE),
             _ => {}
         }
 
@@ -452,12 +457,18 @@ fn configure_export_elements(pipeline: &ges::Pipeline, video_bit_rate: usize) {
 
         if matches!(
             factory_name.as_str(),
-            "x264enc" | "vtenc_h264" | "vtenc_h264_hw"
+            "x264enc" | "vtenc_h264" | "vtenc_h264_hw" | "atenc" | "avenc_aac"
         ) {
             log::info!("GStreamer export is using {factory_name}");
         }
     });
 }
+
+const AUDIO_ENCODER_FACTORY: &str = if cfg!(target_os = "macos") {
+    "atenc"
+} else {
+    "avenc_aac"
+};
 
 struct EncoderSelection {
     previous_ranks: Vec<(gst::ElementFactory, gst::Rank)>,
@@ -465,37 +476,33 @@ struct EncoderSelection {
 
 impl EncoderSelection {
     fn for_export(video_encoder: ExportEncoder) -> anyhow::Result<Self> {
-        let selected_video =
-            gst::ElementFactory::find(video_encoder.factory_name()).ok_or_else(|| {
-                anyhow::anyhow!(
-                    "GStreamer H.264 encoder `{}` is unavailable.",
-                    video_encoder.factory_name()
-                )
-            })?;
-        let faac = gst::ElementFactory::find("faac").ok_or_else(|| {
-            anyhow::anyhow!(
-                "GStreamer AAC encoder `faac` is unavailable; install the bad plugin set."
-            )
-        })?;
-        let mut previous_ranks = vec![
-            (selected_video.clone(), selected_video.rank()),
-            (faac.clone(), faac.rank()),
-        ];
-        selected_video.set_rank(gst::Rank::PRIMARY + 100);
-        faac.set_rank(gst::Rank::PRIMARY + 100);
-        if let Some(atenc) = gst::ElementFactory::find("atenc") {
-            previous_ranks.push((atenc.clone(), atenc.rank()));
-            atenc.set_rank(gst::Rank::NONE);
+        let Some(selected_video) = gst::ElementFactory::find(video_encoder.factory_name()) else {
+            anyhow::bail!(
+                "GStreamer H.264 encoder `{}` is unavailable. [{}:{}]",
+                video_encoder.factory_name(),
+                file!(),
+                line!()
+            );
+        };
+        if gst::ElementFactory::find(AUDIO_ENCODER_FACTORY).is_none() {
+            anyhow::bail!(
+                "GStreamer AAC encoder `{AUDIO_ENCODER_FACTORY}` is unavailable. [{}:{}]",
+                file!(),
+                line!()
+            );
         }
+        let mut previous_ranks = vec![(selected_video.clone(), selected_video.rank())];
+        selected_video.set_rank(gst::Rank::PRIMARY + 100);
 
         for name in ["x264enc", "vtenc_h264", "vtenc_h264_hw"] {
             if name == video_encoder.factory_name() {
                 continue;
             }
-            if let Some(other_encoder) = gst::ElementFactory::find(name) {
-                previous_ranks.push((other_encoder.clone(), other_encoder.rank()));
-                other_encoder.set_rank(gst::Rank::NONE);
-            }
+            let Some(other_encoder) = gst::ElementFactory::find(name) else {
+                continue;
+            };
+            previous_ranks.push((other_encoder.clone(), other_encoder.rank()));
+            other_encoder.set_rank(gst::Rank::NONE);
         }
         Ok(Self { previous_ranks })
     }
