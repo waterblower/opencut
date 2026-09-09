@@ -1,5 +1,14 @@
 [alias]
-editor = "run --features editor --bin opencut-editor"
-loc = "run --quiet --bin loc"
-2win = "run --quiet --bin 2windows"
-player = "run --bin opencut-player"
+mp3 = "run --quiet --manifest-path scripts/platform-launcher/Cargo.toml -- run --no-default-features --features mp3 --bin mp3"
+mp4 = "run --quiet --manifest-path scripts/platform-launcher/Cargo.toml -- run --no-default-features --features mp4 --bin mp4"
+mp4-v2 = "run --quiet --manifest-path scripts/platform-launcher/Cargo.toml -- run --no-default-features --features mp4 --bin mp4-v2"
+editor = "run --quiet --manifest-path scripts/platform-launcher/Cargo.toml -- run --no-default-features --features editor --bin opencut-editor"
+loc = "run --quiet --no-default-features --bin loc"
+2win = "run --quiet --manifest-path scripts/platform-launcher/Cargo.toml -- run --quiet --no-default-features --features 2windows --bin 2windows"
+player = "run --quiet --manifest-path scripts/platform-launcher/Cargo.toml -- run --no-default-features --features player --bin opencut-player"
+build-editor = "run --quiet --manifest-path scripts/platform-launcher/Cargo.toml -- build --no-default-features --features editor --bin opencut-editor"
+build-player = "run --quiet --manifest-path scripts/platform-launcher/Cargo.toml -- build --no-default-features --features player --bin opencut-player"
+
+
+[build]
+target-dir = "target"
