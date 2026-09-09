@@ -1,5 +1,4 @@
 use super::*;
-use gst::prelude::*;
 use gst_video::VideoFrameExt as _;
 use gstreamer as gst;
 use gstreamer_app as gst_app;
@@ -13,7 +12,6 @@ use std::{
     path::{Path, PathBuf},
     time::{SystemTime, UNIX_EPOCH},
 };
-use url::Url;
 
 const MAX_HISTORY_ITEMS: usize = 50;
 
@@ -394,7 +392,7 @@ impl Player {
                             })),
                     )
                     .on_click(cx.listener(move |this, _, _, cx| {
-                        this.open_path(path.clone(), cx);
+                        this.open_path(path.clone());
                         cx.notify();
                     }))
             })

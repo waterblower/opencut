@@ -1,13 +1,15 @@
-use anyhow::Result;
 use gpui::{
     App, Context, CursorStyle, FocusHandle, KeyBinding, MouseButton, MouseDownEvent,
     MouseMoveEvent, MouseUpEvent, ObjectFit, PathPromptOptions, Render, Window, actions, div, img,
     prelude::*, px, rgb,
 };
+use gst::prelude::*;
+use gstreamer as gst;
 use std::{path::PathBuf, time::Duration, time::Instant};
+use url::Url;
 
 use crate::playback_view::{DragPhase, PlaybackViewDelegate};
-use opencut_player::video2::VideoBackend;
+use crate::video::FileVideoBackend;
 
 mod history;
 mod inspector;
@@ -60,8 +62,7 @@ pub(crate) fn bind_keys(cx: &mut App) {
 }
 
 pub(crate) struct Player {
-    video: Option<VideoBackend>,
-    open_task: Option<gpui::Task<()>>,
+    video: Option<FileVideoBackend>,
     history: HistoryData,
     current_media_path: Option<PathBuf>,
     title: String,
@@ -73,6 +74,7 @@ pub(crate) struct Player {
     is_scrubbing: bool,
     is_adjusting_volume: bool,
     resume_after_scrub: bool,
+    pending_seek_started: Option<Instant>,
     last_scrub_seek: Option<Instant>,
     inspector_open: bool,
     render_fps: f32,
@@ -91,7 +93,6 @@ impl Player {
 
         Self {
             video: None,
-            open_task: None,
             history,
             current_media_path,
             title: "".to_owned(),
@@ -103,6 +104,7 @@ impl Player {
             is_scrubbing: false,
             is_adjusting_volume: false,
             resume_after_scrub: false,
+            pending_seek_started: None,
             last_scrub_seek: None,
             inspector_open: false,
             render_fps: 0.0,
@@ -139,7 +141,7 @@ impl Player {
                     match result {
                         Ok(Ok(Some(paths))) => {
                             if let Some(path) = paths.into_iter().next() {
-                                player.open_path(path, cx);
+                                player.open_path(path);
                             }
                         }
                         Ok(Ok(None)) => {}
@@ -157,7 +159,7 @@ impl Player {
         .detach();
     }
 
-    fn open_path(&mut self, path: PathBuf, cx: &mut Context<Self>) {
+    fn open_path(&mut self, path: PathBuf) {
         let is_supported_video = path
             .extension()
             .and_then(|extension| extension.to_str())
@@ -170,33 +172,31 @@ impl Player {
             return;
         }
 
-        // Replacing this task cancels a stale open before it can replace newer media.
-        self.open_task = Some(cx.spawn(async move |player, cx| {
-            let opened = VideoBackend::open(&path).await;
-            let _ = player.update(cx, |player, cx| {
-                let title = path
-                    .file_name()
-                    .map(|name| name.to_string_lossy().into_owned())
-                    .unwrap_or_else(|| path.display().to_string());
-                match opened {
-                    Ok(video) => {
-                        player.video = Some(video);
-                        player.history.record(&path, title.clone());
-                        player.current_media_path = Some(path);
-                        player.title = title;
-                        player.volume_open = false;
-                        player.is_scrubbing = false;
-                        player.is_adjusting_volume = false;
-                        player.resume_after_scrub = false;
-                        player.last_scrub_seek = None;
-                    }
-                    Err(error) => {
-                        log::error!("Opening video at {}:{}: {error:#}", file!(), line!())
-                    }
-                }
-                cx.notify();
-            });
-        }));
+        let path = std::fs::canonicalize(&path).unwrap_or(path);
+        let title = path
+            .file_name()
+            .map(|name| name.to_string_lossy().into_owned())
+            .unwrap_or_else(|| path.display().to_string());
+        let Ok(url) = Url::from_file_path(&path) else {
+            eprintln!("Could not read {}", path.display());
+            return;
+        };
+
+        match FileVideoBackend::open(&url) {
+            Ok(video) => {
+                self.video = Some(video);
+                self.history.record(&path, title.clone());
+                self.current_media_path = Some(path);
+                self.title = title;
+                self.volume_open = false;
+                self.is_scrubbing = false;
+                self.is_adjusting_volume = false;
+                self.resume_after_scrub = false;
+                self.pending_seek_started = None;
+                self.last_scrub_seek = None;
+            }
+            Err(error) => eprintln!("{error}"),
+        }
     }
 
     fn display_title(&self) -> String {
@@ -210,42 +210,41 @@ impl Player {
             .unwrap_or_else(|| self.title.clone())
     }
 
-    fn seek_by_frame(&mut self, direction: i8) -> Result<()> {
+    fn seek_by_frame(&mut self, direction: i8) {
         let Some(video) = self.video.as_mut() else {
-            return Ok(());
+            return;
         };
 
-        // The reported rate is an average: stepping is approximate for VFR media.
+        // Frame stepping is meaningless without a fixed rate, so skip it for
+        // variable-frame-rate sources.
         let Some(frames_per_second) = video.framerate() else {
-            return Ok(());
+            return;
         };
 
         let duration = video.duration();
         if duration.is_zero() {
-            return Ok(());
+            return;
         }
 
-        let position = video.get_current_frame()?.timestamp;
+        let position = video.position();
         let frame_duration = Duration::from_secs_f64(1.0 / frames_per_second);
-        // Seek inside the adjacent frame, avoiding rounding at timestamp edges
-        // (for example, successive 1/30-second intervals round differently).
         let target = if direction.is_negative() {
             position.saturating_sub(frame_duration)
         } else {
             position.saturating_add(frame_duration)
         }
-        .saturating_add(frame_duration / 2)
         .min(duration);
 
-        video.seek_sync(target)
+        self.pending_seek_started = Some(Instant::now());
+        let _ = video.seek(target);
     }
 
-    fn seek_to_fraction(&mut self, fraction: f64) -> Result<()> {
+    fn seek_to_fraction(&mut self, fraction: f64) {
         let Some(video) = self.video.as_mut() else {
-            return Ok(());
+            return;
         };
         let target = video.duration().mul_f64(fraction.clamp(0.0, 1.0));
-        video.seek_sync(target)
+        let _ = video.seek(target);
     }
 
     fn set_history_width_from_x(&mut self, x: f32, window: &Window) {
@@ -297,22 +296,17 @@ impl Player {
         }
     }
 
-    fn toggle_playback(&mut self) -> Result<()> {
-        let Some(video) = &mut self.video else {
-            return Ok(());
+    fn toggle_playback(&self) {
+        let Some(video) = &self.video else {
+            return;
         };
-        if video.ended() {
-            video.seek_sync(Duration::ZERO)?;
-            return video.set_paused(false);
-        }
-        video.set_paused(!video.paused())
+        video.set_paused(!video.paused());
     }
 
-    fn toggle_mute(&mut self) -> Result<()> {
-        let Some(video) = &mut self.video else {
-            return Ok(());
-        };
-        video.set_muted(!video.muted())
+    fn toggle_mute(&self) {
+        if let Some(video) = &self.video {
+            video.set_muted(!video.muted());
+        }
     }
 
     fn dismiss_settings(&mut self, _: &MouseDownEvent, _: &mut Window, cx: &mut Context<Self>) {
@@ -329,30 +323,22 @@ impl Player {
         _: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        if let Err(error) = self.toggle_playback() {
-            log::error!("Toggling playback at {}:{}: {error:#}", file!(), line!());
-        }
+        self.toggle_playback();
         cx.notify();
     }
 
     fn action_seek_backward(&mut self, _: &SeekBackward, _: &mut Window, cx: &mut Context<Self>) {
-        if let Err(error) = self.seek_by_frame(-1) {
-            log::error!("Stepping backward at {}:{}: {error:#}", file!(), line!());
-        }
+        self.seek_by_frame(-1);
         cx.notify();
     }
 
     fn action_seek_forward(&mut self, _: &SeekForward, _: &mut Window, cx: &mut Context<Self>) {
-        if let Err(error) = self.seek_by_frame(1) {
-            log::error!("Stepping forward at {}:{}: {error:#}", file!(), line!());
-        }
+        self.seek_by_frame(1);
         cx.notify();
     }
 
     fn action_toggle_mute(&mut self, _: &ToggleMute, _: &mut Window, cx: &mut Context<Self>) {
-        if let Err(error) = self.toggle_mute() {
-            log::error!("Toggling mute at {}:{}: {error:#}", file!(), line!());
-        }
+        self.toggle_mute();
         cx.notify();
     }
 
@@ -397,9 +383,7 @@ impl Player {
 
 impl PlaybackViewDelegate for Player {
     fn playback_toggle(&mut self, _: &mut Window, cx: &mut Context<Self>) {
-        if let Err(error) = self.toggle_playback() {
-            log::error!("Toggling playback at {}:{}: {error:#}", file!(), line!());
-        }
+        self.toggle_playback();
         cx.notify();
     }
 
@@ -410,46 +394,48 @@ impl PlaybackViewDelegate for Player {
         _: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        let result = (|| -> Result<()> {
-            match phase {
-                DragPhase::Start => {
-                    self.resume_after_scrub =
-                        self.video.as_ref().is_some_and(|video| !video.paused());
-                    if let Some(video) = &mut self.video {
-                        video.set_paused(true)?;
-                    }
-                    self.is_scrubbing = true;
-                    self.last_scrub_seek = Some(Instant::now());
-                    // A press may be the complete click, so show its exact target immediately.
-                    // Drag updates below are throttled to limit the cost of accurate seeks.
-                    self.seek_to_fraction(fraction as f64)?;
+        match phase {
+            DragPhase::Start => {
+                self.resume_after_scrub = self.video.as_ref().is_some_and(|video| !video.paused());
+                if let Some(video) = &self.video {
+                    video.set_paused(true);
                 }
-                DragPhase::Update if self.is_scrubbing => {
-                    let now = Instant::now();
-                    let should_seek = self.last_scrub_seek.is_none_or(|last_seek| {
-                        now.duration_since(last_seek) >= Duration::from_millis(50)
-                    });
-                    if should_seek {
-                        self.last_scrub_seek = Some(now);
-                        self.seek_to_fraction(fraction as f64)?;
-                    }
-                }
-                DragPhase::End if self.is_scrubbing => {
-                    self.last_scrub_seek = None;
-                    self.is_scrubbing = false;
-                    let seek = self.seek_to_fraction(fraction as f64);
-                    let resume = std::mem::take(&mut self.resume_after_scrub);
-                    if resume && let Some(video) = &mut self.video {
-                        video.set_paused(false)?;
-                    }
-                    seek?;
-                }
-                _ => return Ok(()),
+                self.is_scrubbing = true;
+                self.pending_seek_started = None;
+                self.last_scrub_seek = Some(Instant::now());
+                // A press may be the complete click, so show its exact target immediately.
+                // Drag updates below are throttled to limit the cost of accurate seeks.
+                self.seek_to_fraction(fraction as f64);
             }
-            Ok(())
-        })();
-        if let Err(error) = result {
-            log::error!("Scrubbing video at {}:{}: {error:#}", file!(), line!());
+            DragPhase::Update if self.is_scrubbing => {
+                let now = Instant::now();
+                let should_seek = self.last_scrub_seek.is_none_or(|last_seek| {
+                    now.duration_since(last_seek) >= Duration::from_millis(50)
+                });
+                if should_seek {
+                    self.last_scrub_seek = Some(now);
+                    self.seek_to_fraction(fraction as f64);
+                }
+            }
+            DragPhase::End if self.is_scrubbing => {
+                self.pending_seek_started = Some(Instant::now());
+                self.last_scrub_seek = None;
+                self.is_scrubbing = false;
+                self.seek_to_fraction(fraction as f64);
+                if self.resume_after_scrub
+                    && let Some(video) = &self.video
+                {
+                    video.set_paused(false);
+                }
+                self.resume_after_scrub = false;
+            }
+            _ => return,
+        }
+        if let Some(video) = &self.video {
+            eprintln!(
+                "video state after {phase:?} seek: {:?}",
+                video.current_state()
+            );
         }
         cx.notify();
     }
@@ -468,14 +454,9 @@ impl PlaybackViewDelegate for Player {
             DragPhase::End => self.is_adjusting_volume = false,
             DragPhase::Update => {}
         }
-        if let Some(video) = &mut self.video {
-            let result = (|| -> Result<()> {
-                video.set_volume(volume)?;
-                video.set_muted(volume <= f64::EPSILON)
-            })();
-            if let Err(error) = result {
-                log::error!("Setting volume at {}:{}: {error:#}", file!(), line!());
-            }
+        if let Some(video) = &self.video {
+            video.set_volume(volume);
+            video.set_muted(volume <= f64::EPSILON);
         }
         cx.notify();
     }

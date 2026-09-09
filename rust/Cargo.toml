@@ -49,15 +49,9 @@ mp4 = ["mp3", "ui", "dep:image", "dep:smallvec", "dep:core-foundation", "dep:cor
 2windows = ["ui"]
 ui = ["dep:gpui", "dep:gpui_platform", "dep:env_logger"]
 player = [
-    "ffmpeg-video",
-    "ui",
+    "gstreamer-backend",
     "dep:serde",
     "dep:serde_json",
-    # The history thumbnail generator still uses GStreamer, not playback.
-    "dep:url",
-    "dep:gstreamer",
-    "dep:gstreamer-app",
-    "dep:gstreamer-video",
 ]
 editor = [
     "gstreamer-backend",
