@@ -8,7 +8,14 @@ fn main() -> ExitCode {
         eprintln!("Missing scripts directory at {}:{}", file!(), line!());
         return ExitCode::FAILURE;
     };
-    let mut command = if cfg!(target_os = "windows") {
+    let mut arguments = std::env::args_os().skip(1).peekable();
+    let cli = matches!(arguments.peek(), Some(argument) if argument == "--cli");
+    let mut command = if cli {
+        arguments.next();
+        let mut command = Command::new("bash");
+        command.arg(scripts.join("cargo-cli.sh"));
+        command
+    } else if cfg!(target_os = "windows") {
         let mut command = Command::new("powershell.exe");
         command.args(["-NoProfile", "-ExecutionPolicy", "Bypass", "-File"]);
         command.arg(scripts.join("cargo-windows.ps1"));
@@ -25,7 +32,7 @@ fn main() -> ExitCode {
         );
         return ExitCode::FAILURE;
     };
-    command.args(std::env::args_os().skip(1));
+    command.args(arguments);
     match command.status() {
         Ok(status) => ExitCode::from(status.code().unwrap_or(1) as u8),
         Err(error) => {
