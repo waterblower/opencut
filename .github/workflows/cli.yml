@@ -1,0 +1,31 @@
+name: Standalone CLI
+on:
+  push:
+    paths: ['rust/**', '.github/workflows/cli.yml']
+  pull_request:
+    paths: ['rust/**', '.github/workflows/cli.yml']
+jobs:
+  macos:
+    # Provision this runner with rust/vendor/ffmpeg-8.1.2 and its dependencies.
+    # FFmpeg is not built or installed by this workflow.
+    runs-on: [self-hosted, macOS, ARM64]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          clean: false
+      - uses: dtolnay/rust-toolchain@stable
+      - run: test -f rust/vendor/ffmpeg-8.1.2/lib/pkgconfig/libavcodec.pc
+      - name: Test shared format without media backends
+        run: cargo test --manifest-path rust/Cargo.toml --locked --no-default-features --features timeline-schema --lib --test timeline
+      - name: Test CLI without GUI dependencies
+        run: |
+          bash rust/scripts/cargo-cli.sh test --locked --no-default-features --features cli --test cli --test timeline
+          bash rust/scripts/cargo-cli.sh test --locked --no-default-features --features cli --test cli -- --ignored
+          bash rust/scripts/cargo-cli.sh tree --no-default-features --features cli -e normal > rust/target/cli-dependencies.txt
+          if rg 'gpui|gstreamer' rust/target/cli-dependencies.txt; then exit 1; fi
+      - run: bash rust/scripts/package-cli.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: opencut-macos
+          path: rust/target/opencut-release.*.tar.gz

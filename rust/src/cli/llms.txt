@@ -1,0 +1,78 @@
+OpenCut: render the same timeline JSON used by the GUI editor.
+
+The CLI uses FFmpeg; the GUI uses GStreamer. The shared timeline module owns only
+format types and serialization rules. The applications own I/O and rendering.
+
+Commands: probe, new, assemble, validate, inspect, schema, docs, still, render.
+All accept --json. Results: stdout. Progress: stderr, at most once per five seconds
+plus completion. --progress none suppresses it. There is no edit command.
+
+Workflow:
+  opencut probe media.mp4 --json
+  opencut new episode.timeline.json --fps 30000/1001 --json
+  opencut schema --json
+  opencut --project-root /project validate scenes/episode.timeline.json --json
+  opencut --project-root /project inspect scenes/episode.timeline.json --json
+  opencut --project-root /project still scenes/episode.timeline.json --at 50% -o preview.png
+  opencut --project-root /project render scenes/episode.timeline.json -o output.mp4 --dry-run --json
+  opencut --project-root /project render scenes/episode.timeline.json -o output.mp4 --progress json --json
+
+Timeline/output arguments resolve from the working directory. Relative asset paths
+resolve from --project-root, defaulting to the working directory, NOT the timeline
+directory. Absolute asset paths work unchanged. Keep referenced original media.
+
+Use opencut schema for the authoritative contract. Canonical root fields:
+settings, assets, tracks, clips, view. No root version or transitions.
+Settings: width,height,frame_rate:{numerator,denominator},audio_sample_rate.
+Assets: id (ULID),kind (Video/Image/Audio),path,name,duration,width,height,framerate,
+frame_rate_numerator,frame_rate_denominator,codec,has_audio.
+Tracks: id,name,kind (Video/Audio/Text),locked,muted,visible.
+Clips: {kind:Video|Audio|Text,data:{...}}.
+Media data: id,track_id,asset_id,timeline_start,source_in,source_out,
+video_properties:{position_x,position_y,scale},audio_properties:{gain_db,muted}.
+Images are Video clips with Image assets; their source range specifies duration.
+Text data: id,track_id,timeline_start,length:{secs,nanos},
+properties:{text,font,font_size,color,position_x,position_y}.
+
+Positions and media source bounds are integer frames at the timeline rate.
+Ranges are end-exclusive. Video position is a pixel offset from center; scale 1
+fits inside the project frame. Text position is normalized. Color is packed ARGB.
+Earlier video tracks appear above later ones; text tracks appear above video.
+Hidden video may still contribute audio. Muting controls audio; locking does not
+affect export. View state is serialized but does not affect CLI rendering.
+
+Legacy CLI documents using version/type/transitions are rejected with
+legacy_cli_format. Do not emit the old CLI format. SRT import and automatic
+silence/camera decisions are not implemented.
+Use assemble for explicit agent-supplied cuts and camera choices.
+
+Time arguments: 12.5,12.5s,375f,00:00:12.500. Rounded to the nearest frame.
+Only still --at accepts percentages; 100% means final frame.
+H.264/HEVC: MP4/MOV. ProRes: MOV. Audio: AAC stereo. Black background.
+Render --bitrate (alias --video-bitrate) accepts bits/s with k/M suffixes.
+Absent --bitrate, use duration-weighted contributing visible source video bitrate;
+fallback to preset. ProRes remains profile-controlled.
+New refuses existing files. Render/still require --overwrite to replace outputs.
+Outputs cannot overwrite source assets. Render embeds the input document in
+opencut.timeline metadata unless --no-metadata is supplied.
+
+Exit codes: 0 success,2 usage,3 validation,4 media,5 rendering,6 I/O.
+JSON errors: {error:{code,pointer,message,file,line}}. Validate returns findings.
+
+Podcast authoring (no model calls inside OpenCut):
+  opencut schema --kind recipe --json
+  opencut --project-root /project assemble recipe.json --dry-run --json
+  opencut --project-root /project assemble recipe.json -o episode.timeline.json --json
+Recipe: settings, time_base:{numerator,denominator} (seconds/tick), sources:
+[{name,path,source_offset}], master_audio (source name), gain_db (optional, default 0),
+retained:[{start,end}], cameras:[{source,start,end}]. All times are integer ticks.
+Master audio defines episode time and requires zero offset and an audio stream.
+source_time = episode_time + source_offset. Paths resolve from --project-root.
+Ranges are half-open, ordered, nonnegative, nonoverlapping, nonempty. Cameras must
+cover all retained frames. Cuts ripple video and master audio together; camera
+switches split only video. Camera audio is muted. Each source may have at most one
+video and one audio stream. No captions or drift correction in recipes yet.
+Offsets/boundaries independently round once to project frames, ties away from zero.
+Report: total frames, frame_rate, interval map, clip source/output ranges, rounding.
+Dry-run does not write or require -o. Existing output needs --overwrite; recipes and
+source media cannot be overwritten. Reassembly does not merge manual GUI edits.

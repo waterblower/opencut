@@ -1,0 +1,25 @@
+{
+  "settings": {
+    "width": 1920,
+    "height": 1080,
+    "frame_rate": { "numerator": 30000, "denominator": 1001 },
+    "audio_sample_rate": 48000
+  },
+  "time_base": { "numerator": 1, "denominator": 1000 },
+  "sources": [
+    { "name": "master", "path": "media/master.wav", "source_offset": 0 },
+    { "name": "host", "path": "media/host.mp4", "source_offset": 2000 },
+    { "name": "guest", "path": "media/guest.mp4", "source_offset": -1000 }
+  ],
+  "master_audio": "master",
+  "gain_db": 0,
+  "retained": [
+    { "start": 10000, "end": 30000 },
+    { "start": 35000, "end": 60000 }
+  ],
+  "cameras": [
+    { "source": "host", "start": 10000, "end": 20000 },
+    { "source": "guest", "start": 20000, "end": 45000 },
+    { "source": "host", "start": 45000, "end": 60000 }
+  ]
+}

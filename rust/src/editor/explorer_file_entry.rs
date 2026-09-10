@@ -552,5 +552,5 @@ fn format_file_size(bytes: u64) -> String {
 }
 
 #[cfg(test)]
-#[path = "explorer_file_entry.test.rs"]
+#[path = "tests/explorer_file_entry.test.rs"]
 mod tests;

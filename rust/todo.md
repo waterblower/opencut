@@ -18,7 +18,7 @@
   3. Synchronize the input with undo/redo model changes without emitting another
      edit from [properties_text.rs](/Users/mac/Documents/GitHub/OpenCut/rust/src/editor/properties_text.rs:26);
      check restoration through [editing.rs](/Users/mac/Documents/GitHub/OpenCut/rust/src/editor/editing.rs:689).
-  4. Add regression coverage alongside [editing.test.rs](/Users/mac/Documents/GitHub/OpenCut/rust/src/editor/editing.test.rs:217)
+  4. Add regression coverage alongside [editing.test.rs](/Users/mac/Documents/GitHub/OpenCut/rust/src/editor/tests/editing.test.rs:217)
      and verify the text input flow: move or trim before typing, undo/redo, and
      a case where restoring the old placement would overlap another clip.
 
@@ -64,7 +64,7 @@
      insertion in [editing.rs](/Users/mac/Documents/GitHub/OpenCut/rust/src/editor/editing.rs:1510),
      and text updates in [editing.rs](/Users/mac/Documents/GitHub/OpenCut/rust/src/editor/editing.rs:1411).
   3. Extend the overlay regression test in
-     [export_gstreamer.test.rs](/Users/mac/Documents/GitHub/OpenCut/rust/src/editor/export_gstreamer.test.rs:295)
+     [export_gstreamer.test.rs](/Users/mac/Documents/GitHub/OpenCut/rust/src/editor/tests/export_gstreamer.test.rs:295)
      with a non-Sans font. Verify preview after rebuild and exported output,
      including export at a different resolution.
 
@@ -85,6 +85,6 @@
      using [timeline.rs](/Users/mac/Documents/GitHub/OpenCut/rust/src/editor/timeline.rs:459)
      and checking the switch flow in [mod.rs](/Users/mac/Documents/GitHub/OpenCut/rust/src/editor/mod.rs:281).
   4. Extend view-state coverage in
-     [timeline.test.rs](/Users/mac/Documents/GitHub/OpenCut/rust/src/editor/timeline.test.rs:36)
+     [timeline.test.rs](/Users/mac/Documents/GitHub/OpenCut/rust/src/editor/tests/timeline.test.rs:36)
      and verify startup/switch restoration at a nonzero frame, fractional frame
      rates, empty timelines, and a saved position beyond shortened content.

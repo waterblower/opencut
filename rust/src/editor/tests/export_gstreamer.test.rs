@@ -1,4 +1,5 @@
-//! Integration-style tests for the GStreamer exporter.
+use crate::editor::tests::TimelineTestExt;
+// Integration-style tests for the GStreamer exporter.
 
 use super::*;
 
@@ -352,7 +353,7 @@ fn creates_gstreamer_timeline_from_real_media() {
 }
 
 #[test]
-fn adds_text_clips_as_ges_overlays() {
+fn adds_text_clips_as_independent_ges_titles() {
     let _gstreamer_test = lock_gstreamer_test();
     ges::init().unwrap();
     let project_root = Path::new(env!("CARGO_MANIFEST_DIR"));
@@ -396,22 +397,82 @@ fn adds_text_clips_as_ges_overlays() {
             clip.name().as_deref() == Some(format!("opencut-clip-{text_clip_id}").as_str())
         })
         .unwrap()
-        .downcast::<ges::TextOverlayClip>()
+        .downcast::<ges::TitleClip>()
         .unwrap();
 
     assert_eq!(overlay.layer().unwrap().priority(), 0);
-    assert_eq!(overlay.text().as_deref(), Some("GES text"));
-    assert_eq!(overlay.font_desc().as_deref(), Some("Sans 72px"));
-    assert_eq!(overlay.color(), 0x12_34_56_78);
-    assert_eq!(overlay.halignment(), ges::TextHAlign::Position);
-    assert_eq!(overlay.valignment(), ges::TextVAlign::Position);
-    assert_eq!(overlay.xpos(), 0.25);
-    assert_eq!(overlay.ypos(), 0.75);
+    assert_eq!(
+        overlay
+            .child_property("text")
+            .unwrap()
+            .get::<String>()
+            .ok()
+            .as_deref(),
+        Some("GES text")
+    );
+    assert_eq!(
+        overlay
+            .child_property("font-desc")
+            .unwrap()
+            .get::<String>()
+            .ok()
+            .as_deref(),
+        Some("Sans 72px")
+    );
+    assert_eq!(
+        overlay
+            .child_property("color")
+            .unwrap()
+            .get::<u32>()
+            .unwrap(),
+        0x12_34_56_78
+    );
+    assert_eq!(
+        overlay
+            .child_property("halignment")
+            .unwrap()
+            .transform::<i32>()
+            .unwrap()
+            .get::<i32>()
+            .unwrap(),
+        4
+    );
+    assert_eq!(
+        overlay
+            .child_property("valignment")
+            .unwrap()
+            .transform::<i32>()
+            .unwrap()
+            .get::<i32>()
+            .unwrap(),
+        3
+    );
+    assert_eq!(
+        overlay
+            .child_property("xpos")
+            .unwrap()
+            .get::<f64>()
+            .unwrap(),
+        0.25
+    );
+    assert_eq!(
+        overlay
+            .child_property("ypos")
+            .unwrap()
+            .get::<f64>()
+            .unwrap(),
+        0.75
+    );
     assert_eq!(
         overlay.start(),
-        clock_time(project.duration(TimelineTime::from_frames(12)))
+        gst::ClockTime::from_nseconds(
+            clock_time(project.duration(TimelineTime::from_frames(12))).nseconds() - 1
+        )
     );
-    assert_eq!(overlay.duration(), clock_time(Duration::from_secs(2)));
+    assert_eq!(
+        overlay.duration(),
+        gst::ClockTime::from_nseconds(2_000_000_001)
+    );
 }
 
 #[test]

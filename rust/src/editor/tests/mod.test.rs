@@ -1,3 +1,6 @@
+pub trait TimelineTestExt: Sized {
+    fn with_test_tracks() -> Self;
+}
 use super::*;
 
 pub(super) fn lock_gstreamer_test() -> std::sync::MutexGuard<'static, ()> {

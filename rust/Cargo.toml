@@ -6,6 +6,11 @@ publish = false
 default-run = "opencut-editor"
 
 [[bin]]
+name = "opencut"
+path = "src/cli/main.rs"
+required-features = ["cli"]
+
+[[bin]]
 name = "opencut-player"
 path = "src/player/main.rs"
 required-features = ["player"]
@@ -41,6 +46,10 @@ required-features = ["editor"]
 
 [features]
 default = ["editor"]
+timeline = ["dep:serde", "dep:serde_json", "dep:serde_path_to_error", "dep:ulid"]
+timeline-schema = ["timeline", "dep:schemars"]
+cli = ["timeline-schema", "dep:clap", "dep:ffmpeg-next", "dep:image", "dep:cosmic-text", "dep:resvg"]
+gpl = ["cli"]
 ffmpeg-backend = ["dep:anyhow", "dep:async-channel", "dep:ffmpeg-next", "dep:cpal", "dep:core-foundation", "dep:core-video"]
 ffmpeg-video = ["ffmpeg-backend", "dep:gpui", "dep:image", "dep:smallvec", "dep:log", "dep:core-foundation", "dep:core-video"]
 ffmpeg-video-tests = ["ffmpeg-video", "gpui/test-support"]
@@ -54,6 +63,7 @@ player = [
     "dep:serde_json",
 ]
 editor = [
+    "timeline",
     "gstreamer-backend",
     "gpui/inspector",
     "dep:gpui-component",
@@ -86,6 +96,11 @@ gstreamer-backend = [
 ]
 
 [dependencies]
+serde_path_to_error = { version = "=0.1.20", optional = true }
+clap = { version = "=4.5.49", optional = true, features = ["derive"] }
+schemars = { version = "=1.2.2", optional = true, features = ["derive"] }
+cosmic-text = { version = "=0.14.2", optional = true }
+resvg = { version = "=0.45.1", optional = true }
 anyhow = { version = "1", optional = true }
 async-channel = { version = "2.5", optional = true }
 cpal = { version = "0.17.1", optional = true }

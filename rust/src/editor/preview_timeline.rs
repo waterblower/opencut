@@ -978,5 +978,5 @@ impl Editor {
 }
 
 #[cfg(test)]
-#[path = "preview_timeline.test.rs"]
+#[path = "tests/preview_timeline.test.rs"]
 mod tests;

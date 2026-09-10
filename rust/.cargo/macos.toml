@@ -1,0 +1,6 @@
+[env]
+FFMPEG_DIR = { value = "vendor/ffmpeg-8.1.2", relative = true }
+PKG_CONFIG = { value = "scripts/gstreamer-pkg-config", relative = true, force = true }
+
+[target.'cfg(target_os = "macos")']
+runner = ["bash", "scripts/cargo-macos.sh", "--exec"]

@@ -21,14 +21,14 @@ Devlog: https://www.youtube.com/playlist?list=PLRz1nfZl0jMU
 On macOS, install the build tools with Homebrew:
 
 ```sh
-brew install pkg-config python@3.13 ffmpeg@8
+brew install pkg-config
 ```
 
 Run the commands below from the Rust package:
 
 ```sh
 cd rust
-python3 scripts/setup_gstreamer.py
+bash scripts/setup-gstreamer.sh
 ```
 
 The setup script downloads the official GStreamer **1.28.6** universal macOS
@@ -37,18 +37,20 @@ them into `rust/vendor/gstreamer/GStreamer.framework`. It retains both ARM64 and
 Intel libraries, plugins, GStreamer Editing Services, headers, and licenses.
 It also builds FAAC **2.1** and its GStreamer plugin for both architectures,
 using checksum-pinned sources and the upstream FAAC 2 compatibility patch.
-Python 3.11 or newer and Xcode command line tools are required. Downloads total
+macOS Bash and Xcode command line tools are required. Downloads total
 about 871 MB; allow several GB for extraction. No system installer is run.
 
-`cargo editor` uses this local framework for GStreamer compilation and plugin
+`cargo editor-mac` uses this local framework for GStreamer compilation and plugin
 loading, including its GLib dependencies. Missing vendor files cause a setup
 error instead of falling back to system GStreamer. Other native dependencies,
 including the existing FFmpeg configuration, continue to use their existing setup.
 The downloaded packages and extracted framework are ignored by Git.
+To download and verify the pinned archives without extracting or compiling,
+run `bash scripts/setup-gstreamer.sh --verify-only`.
 
 The setup script relocates native library references to the absolute checkout
 path and locally signs the modified binaries. After moving the checkout, rerun
-`python3 scripts/setup_gstreamer.py`; verified downloads are reused. This is a
+`bash scripts/setup-gstreamer.sh`; verified downloads are reused. This is a
 local development setup, not macOS application bundle packaging.
 
 The editor exports AAC audio at 192 kbps using `atenc` (Apple AudioToolbox) on
@@ -57,7 +59,7 @@ must be installed; export reports an error if it is unavailable.
 
 Setup also includes FAAC as an additional available encoder, linked against
 the vendored GStreamer libraries. To add or rebuild just FAAC, run
-`python3 scripts/setup_gstreamer.py --faac-only`. No Homebrew GStreamer or FAAC
+`bash scripts/setup-gstreamer.sh --faac-only`. No Homebrew GStreamer or FAAC
 libraries are needed at runtime.
 
 The optional upstream Python plugin expects a separate Python 3.9 framework and
@@ -65,39 +67,42 @@ PyGObject; this setup does not configure Python bindings.
 
 ## Player
 
-Build and run commands select the host platform automatically:
+Build, run, and test commands select a platform explicitly. On macOS:
 
 ```sh
-cargo build-player
-cargo build-editor
-cargo player
-cargo editor
+cargo build-player-mac
+cargo build-editor-mac
+cargo player-mac
+cargo editor-mac
+cargo test-mac
 ```
 
 Run these from `rust`. Extra Cargo flags such as `--release` are forwarded;
-application arguments follow `--`. A dependency-free Rust launcher selects
-`scripts/cargo-windows.ps1` or `scripts/cargo-macos.sh`. Each script sets native
-library paths for both compilation and execution without changing the system
-environment. The shared Cargo configuration contains no platform-specific paths.
+application arguments follow `--`. On Windows, use the corresponding `-win`
+commands, such as `cargo editor-win` and `cargo test-win`. These are native host
+commands, not cross-compilation commands. Cargo aliases load `.cargo/macos.toml`
+or `.cargo/windows.toml` for build-time environment settings. Small shell runners
+set runtime library and plugin paths for applications and tests. No Rust launcher
+is compiled, and the commands do not change the parent shell's environment.
 
 Windows uses the MSVC SDK in `rust/vendor/gstreamer` and FFmpeg in
 `rust/vendor/ffmpeg-8.1.2`. It defaults to software H.264 decoding to avoid
 corruption observed with Intel Iris Xe hardware decoding. macOS uses the vendored
-GStreamer framework and Homebrew `ffmpeg@8`; set `FFMPEG_DIR` to override the
+GStreamer framework and vendored FFmpeg; set `FFMPEG_DIR` to override the
 FFmpeg location on either platform.
 
-For other Cargo operations, invoke the platform script directly from `rust`:
+For other Cargo operations, select the platform configuration from `rust`:
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File scripts/cargo-windows.ps1 check --no-default-features --features editor --bin opencut-editor
+cargo check --config .cargo/windows.toml --no-default-features --features editor --bin opencut-editor
 ```
 
 ```sh
-bash scripts/cargo-macos.sh check --no-default-features --features editor --bin opencut-editor
+cargo check --config .cargo/macos.toml --no-default-features --features editor --bin opencut-editor
 ```
 
 ```sh
-cargo player
+cargo player-mac # Windows: cargo player-win
 ```
 
 The player supports local MP4 playback, scrubbing, frame stepping, volume and
@@ -117,7 +122,7 @@ inspector.
 ## Editor
 
 ```sh
-cargo editor
+cargo editor-mac # Windows: cargo editor-win
 ```
 
 Current editor capabilities:
@@ -206,10 +211,13 @@ the project folder.
 ## Development
 
 ```sh
-cargo test --features editor
-cargo check --all-targets --all-features
-cargo clippy --all-features
+cargo test-mac # Windows: cargo test-win
+cargo check --config .cargo/macos.toml --all-targets --all-features
+cargo clippy --config .cargo/macos.toml --all-features
 cargo loc
 ```
 
 `cargo loc` reports the Rust source line count for this project.
+Use `.cargo/windows.toml` for check and clippy on Windows. Plain `cargo test`
+does not load a platform configuration; use `test-mac` or `test-win` when testing
+the editor and its native media dependencies.
