@@ -8,7 +8,7 @@ for argument in "$@"; do
             script_dir="$(cd -- "$(dirname -- "$0")" && pwd)"
             framework="$script_dir/../vendor/gstreamer/GStreamer.framework/Versions/1.0"
             if [[ ! -f "$framework/lib/pkgconfig/gstreamer-1.0.pc" ]]; then
-                echo "$0:$LINENO: Vendored GStreamer is missing. Run: python3 $script_dir/setup_gstreamer.py" >&2
+                echo "$0:$LINENO: Vendored GStreamer is missing. Run: bash $script_dir/setup-gstreamer.sh" >&2
                 exit 1
             fi
             # Disable all system metadata search paths for the GStreamer stack.

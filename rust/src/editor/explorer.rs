@@ -589,5 +589,5 @@ fn root_expanded_by_default() -> bool {
 }
 
 #[cfg(test)]
-#[path = "explorer.test.rs"]
+#[path = "tests/explorer.test.rs"]
 mod tests;

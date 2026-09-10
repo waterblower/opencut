@@ -2,8 +2,8 @@ use super::{
     clip_render_plan::{resolve_audio_clip_render_plan, resolve_visual_clip_render_plan},
     export::{ExportEncoder, ExportOptions},
     model::{MediaAsset, MediaKind},
-    timeline::TimelineSerialization,
-    timeline_clip::{Clip, VideoClipProperties},
+    timeline::{FrameRate, TimelineSerialization, TimelineTime},
+    timeline_clip::{Clip, TextClipProperties, VideoClipProperties},
     track::{Track, TrackKind},
 };
 use ges::prelude::*;
@@ -16,15 +16,6 @@ use url::Url;
 
 const AUDIO_BIT_RATE: i32 = 192_000;
 static EXPORT_ENCODER_LOCK: Mutex<()> = Mutex::new(());
-
-impl ExportEncoder {
-    fn factory_name(self) -> &'static str {
-        match self {
-            Self::Hardware => "vtenc_h264_hw",
-            Self::Software => "x264enc",
-        }
-    }
-}
 
 pub(super) fn export_timeline(
     timeline: &TimelineSerialization,
@@ -68,44 +59,62 @@ pub(super) fn export_timeline(
     Ok(())
 }
 
-fn export_timeline_with_encoder(
-    timeline_data: &TimelineSerialization,
-    project_root: &Path,
-    temporary_output: &Path,
-    options: ExportOptions,
-    encoder: ExportEncoder,
-    report_progress: &mut impl FnMut(f32),
+/// Resolve frame boundaries for both initial construction and incremental edits.
+pub fn clip_clock_range(
+    rate: FrameRate,
+    clip: &Clip,
+    timeline_start: TimelineTime,
+) -> (gst::ClockTime, gst::ClockTime) {
+    let mut start = frame_clock_time(rate, timeline_start).nseconds();
+    if matches!(clip, Clip::Text(_)) {
+        // GES title sources can emit a gap when starting exactly on a sample.
+        start = start.saturating_sub(1);
+    }
+    let end = frame_clock_time(rate, timeline_start + clip.frame_length(rate)).nseconds();
+    (
+        gst::ClockTime::from_nseconds(start),
+        gst::ClockTime::from_nseconds(end.saturating_sub(start)),
+    )
+}
+
+/// Text occupies its own transparent canvas, independently of media transforms.
+pub fn configure_text_clip(
+    clip: &ges::TitleClip,
+    properties: &TextClipProperties,
+    output_scale: f64,
 ) -> anyhow::Result<()> {
-    let timeline = build_ges_timeline(timeline_data, project_root, options)?;
-    let profile = encoding_profile(options);
-    let _encoder_selection = EncoderSelection::for_export(encoder)?;
-    let pipeline = ges::Pipeline::new();
-    configure_export_elements(&pipeline, options.video_bit_rate);
-    pipeline
-        .set_timeline(&timeline)
-        .map_err(|error| anyhow::anyhow!("could not attach the export timeline: {error}"))?;
-
-    let output_uri = Url::from_file_path(temporary_output).map_err(|_| {
-        anyhow::anyhow!(
-            "could not convert {} to a file URL",
-            temporary_output.display()
-        )
-    })?;
-    pipeline
-        .set_render_settings(output_uri.as_str(), &profile)
-        .map_err(|error| anyhow::anyhow!("could not configure GStreamer export: {error}"))?;
-    pipeline
-        .set_mode(ges::PipelineFlags::RENDER)
-        .map_err(|error| anyhow::anyhow!("could not enable GStreamer render mode: {error}"))?;
-
-    log::info!("Starting GStreamer export with {}", encoder.factory_name());
-    let result = render_pipeline(
-        &pipeline,
-        timeline_data.duration(timeline_data.content_duration()),
-        report_progress,
-    );
-    let _ = pipeline.set_state(gst::State::Null);
-    result
+    let font_size = (properties.font_size * output_scale).clamp(1.0, 1000.0);
+    let Some((text_overlay, _)) = clip.lookup_child("font-desc") else {
+        return Err(anyhow::anyhow!(
+            "text renderer has no font property at {}:{}",
+            file!(),
+            line!()
+        ));
+    };
+    // Font size is already in output pixels, so disable GStreamer's screen-size scaling.
+    text_overlay.set_property("auto-resize", false);
+    for (name, value) in [
+        ("text", properties.text.to_value()),
+        (
+            "font-desc",
+            format!("{} {font_size}px", properties.font).to_value(),
+        ),
+        ("color", properties.color.to_value()),
+        ("foreground-color", 0_u32.to_value()),
+        ("halignment", ges::TextHAlign::Position.to_value()),
+        ("valignment", ges::TextVAlign::Position.to_value()),
+        ("xpos", properties.position_x.to_value()),
+        ("ypos", properties.position_y.to_value()),
+    ] {
+        if let Err(error) = clip.set_child_property(name, value) {
+            return Err(anyhow::anyhow!(
+                "could not set text {name}: {error} at {}:{}",
+                file!(),
+                line!()
+            ));
+        }
+    }
+    Ok(())
 }
 
 pub(super) fn build_ges_timeline(
@@ -161,33 +170,38 @@ pub(super) fn build_ges_timeline(
                 let text = clip.text().ok_or_else(|| {
                     anyhow::anyhow!("Media clip {} is on a text track.", clip.id())
                 })?;
-                let overlay = ges::TextOverlayClip::new()
-                    .ok_or_else(|| anyhow::anyhow!("could not create text clip {}", clip.id()))?;
-                let font_size = (text.properties.font_size * output_scale).clamp(1.0, 1000.0);
-                overlay.set_text(Some(&text.properties.text));
-                overlay.set_font_desc(Some(&format!("Sans {font_size}px")));
-                overlay.set_color(text.properties.color);
-                overlay.set_halign(ges::TextHAlign::Position);
-                overlay.set_valign(ges::TextVAlign::Position);
-                overlay.set_xpos(text.properties.position_x);
-                overlay.set_ypos(text.properties.position_y);
+                let overlay = ges::TitleClip::new().ok_or_else(|| {
+                    anyhow::anyhow!(
+                        "could not create text clip {} at {}:{}",
+                        clip.id(),
+                        file!(),
+                        line!()
+                    )
+                })?;
                 overlay
                     .set_name(Some(&format!("opencut-clip-{}", clip.id())))
                     .map_err(|error| {
                         anyhow::anyhow!("could not identify clip {}: {error}", clip.id())
                     })?;
-                if !overlay.set_start(clock_time(timeline_data.duration(clip.timeline_start()))) {
+                let (start, duration) = clip_clock_range(
+                    timeline_data.settings.frame_rate,
+                    clip,
+                    clip.timeline_start(),
+                );
+                if !overlay.set_start(start) {
                     return Err(anyhow::anyhow!(
-                        "could not set text clip {} start",
-                        clip.id()
+                        "could not set text clip {} start at {}:{}",
+                        clip.id(),
+                        file!(),
+                        line!()
                     ));
                 }
-                if !overlay.set_duration(clock_time(
-                    timeline_data.duration(clip.frame_length(timeline_data.settings.frame_rate)),
-                )) {
+                if !overlay.set_duration(duration) {
                     return Err(anyhow::anyhow!(
-                        "could not set text clip {} duration",
-                        clip.id()
+                        "could not set text clip {} duration at {}:{}",
+                        clip.id(),
+                        file!(),
+                        line!()
                     ));
                 }
                 layer.add_clip(&overlay).map_err(|error| {
@@ -196,6 +210,7 @@ pub(super) fn build_ges_timeline(
                         clip.id()
                     )
                 })?;
+                configure_text_clip(&overlay, &text.properties, output_scale)?;
             }
             continue;
         }
@@ -232,11 +247,12 @@ pub(super) fn build_ges_timeline(
                 uri_asset
             };
 
-            let start = clock_time(timeline_data.duration(clip.timeline_start()));
-            let inpoint = source_in(timeline_data, clip, asset.kind, track_types);
-            let duration = clock_time(
-                timeline_data.duration(clip.frame_length(timeline_data.settings.frame_rate)),
+            let (start, duration) = clip_clock_range(
+                timeline_data.settings.frame_rate,
+                clip,
+                clip.timeline_start(),
             );
+            let inpoint = source_in(timeline_data, clip, asset.kind, track_types);
             let ges_clip = layer
                 .add_asset(&uri_asset, start, inpoint, duration, track_types)
                 .map_err(|error| {
@@ -287,8 +303,15 @@ pub(super) fn build_ges_timeline(
             .map_err(|error| {
                 anyhow::anyhow!("could not identify the timeline background: {error}")
             })?;
-        if !background.set_duration(clock_time(content_duration)) {
-            anyhow::bail!("could not set the timeline background duration");
+        if !background.set_duration(frame_clock_time(
+            timeline_data.settings.frame_rate,
+            timeline_data.content_duration(),
+        )) {
+            anyhow::bail!(
+                "could not set the timeline background duration at {}:{}",
+                file!(),
+                line!()
+            );
         }
         background_layer
             .add_clip(&background)
@@ -327,6 +350,55 @@ pub(super) fn apply_video_transform(
             .map_err(|error| anyhow::anyhow!("could not apply video {name}: {error}"))?;
     }
     Ok(())
+}
+
+impl ExportEncoder {
+    fn factory_name(self) -> &'static str {
+        match self {
+            Self::Hardware => "vtenc_h264_hw",
+            Self::Software => "x264enc",
+        }
+    }
+}
+
+fn export_timeline_with_encoder(
+    timeline_data: &TimelineSerialization,
+    project_root: &Path,
+    temporary_output: &Path,
+    options: ExportOptions,
+    encoder: ExportEncoder,
+    report_progress: &mut impl FnMut(f32),
+) -> anyhow::Result<()> {
+    let timeline = build_ges_timeline(timeline_data, project_root, options)?;
+    let profile = encoding_profile(options);
+    let _encoder_selection = EncoderSelection::for_export(encoder)?;
+    let pipeline = ges::Pipeline::new();
+    configure_export_elements(&pipeline, options.video_bit_rate);
+    pipeline
+        .set_timeline(&timeline)
+        .map_err(|error| anyhow::anyhow!("could not attach the export timeline: {error}"))?;
+
+    let output_uri = Url::from_file_path(temporary_output).map_err(|_| {
+        anyhow::anyhow!(
+            "could not convert {} to a file URL",
+            temporary_output.display()
+        )
+    })?;
+    pipeline
+        .set_render_settings(output_uri.as_str(), &profile)
+        .map_err(|error| anyhow::anyhow!("could not configure GStreamer export: {error}"))?;
+    pipeline
+        .set_mode(ges::PipelineFlags::RENDER)
+        .map_err(|error| anyhow::anyhow!("could not enable GStreamer render mode: {error}"))?;
+
+    log::info!("Starting GStreamer export with {}", encoder.factory_name());
+    let result = render_pipeline(
+        &pipeline,
+        timeline_data.duration(timeline_data.content_duration()),
+        report_progress,
+    );
+    let _ = pipeline.set_state(gst::State::Null);
+    result
 }
 
 fn rounded_i32(value: f64) -> i32 {
@@ -553,6 +625,14 @@ fn render_pipeline(
     }
 }
 
+// GStreamer timestamps output frames with integer division. Rounding a start up
+// by one nanosecond would place the clip after its intended first output frame.
+fn frame_clock_time(rate: FrameRate, time: TimelineTime) -> gst::ClockTime {
+    let numerator = time.frames().max(0) as u128 * rate.denominator.max(1) as u128 * 1_000_000_000;
+    let nanos = numerator / rate.numerator.max(1) as u128;
+    gst::ClockTime::from_nseconds(nanos.min(u64::MAX as u128 - 1) as u64)
+}
+
 fn clock_time(duration: Duration) -> gst::ClockTime {
     gst::ClockTime::from_nseconds(duration.as_nanos().min(u64::MAX as u128) as u64)
 }
@@ -590,5 +670,9 @@ impl Drop for TemporaryOutput {
 }
 
 #[cfg(test)]
-#[path = "export_gstreamer.test.rs"]
+#[path = "tests/export_gstreamer.test.rs"]
 mod integration_tests;
+
+#[cfg(all(test, feature = "cli"))]
+#[path = "tests/shared_timeline.test.rs"]
+mod shared_timeline_tests;

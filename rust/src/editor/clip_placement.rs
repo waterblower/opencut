@@ -118,5 +118,5 @@ fn validate_clip_placement_on_track(
 }
 
 #[cfg(test)]
-#[path = "clip_placement.test.rs"]
+#[path = "tests/clip_placement.test.rs"]
 mod tests;

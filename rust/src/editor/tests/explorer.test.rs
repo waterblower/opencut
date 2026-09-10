@@ -1,4 +1,5 @@
 use super::*;
+use crate::editor::tests::TimelineTestExt;
 use crate::editor::{
     MediaKind, clip_placement::ClipPlacementRejection, timeline::TimelineSerialization,
     timeline_clip::AudioClip, ulid,

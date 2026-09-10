@@ -1,4 +1,5 @@
 use super::*;
+use crate::editor::tests::TimelineTestExt;
 use crate::editor::timeline_clip::AudioClipProperties;
 
 #[test]

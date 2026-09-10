@@ -88,10 +88,18 @@ impl Editor {
             .timeline
             .as_ref()
             .expect("timeline view requires timeline state");
-        let duration = timeline
-            .data
-            .seconds(timeline.data.content_duration())
-            .max(12.0);
+        let mut displayed_end = timeline.data.content_duration();
+        if let Some(drag) = &timeline.interaction.clip_move_drag {
+            for (clip_id, _, start) in &drag.placements {
+                let Some(clip) = timeline.data.clip(*clip_id) else {
+                    continue;
+                };
+                displayed_end = displayed_end
+                    .max(*start + clip.frame_length(timeline.data.settings.frame_rate));
+            }
+        }
+        // Keep empty drop space beyond both the content and the moving selection.
+        let duration = timeline.data.seconds(displayed_end) + 12.0;
         let timeline_width = (duration as f32 * timeline.data.view.pixels_per_second
             + TIMELINE_PADDING * 2.0)
             .max(900.0);

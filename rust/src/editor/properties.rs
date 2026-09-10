@@ -5,7 +5,7 @@ use crate::editor::{
     format_time,
     properties_text::TextClipPropertiesView,
     properties_transform::{properties_section_label, properties_tab},
-    timeline::TimelineRuntimeState,
+    timeline::{FrameRateLabel, TimelineRuntimeState},
     timeline_clip::{AudioClip, Clip, TextClip, VideoClip},
     timeline_document,
 };

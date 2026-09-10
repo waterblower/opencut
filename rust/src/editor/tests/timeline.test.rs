@@ -3,6 +3,9 @@ use super::super::timeline_clip::VideoClip;
 use super::super::timeline_clip::{AudioClipProperties, TextClipProperties, VideoClipProperties};
 use super::super::track::{Track, TrackKind};
 use super::*;
+use crate::editor::tests::TimelineTestExt;
+use crate::editor::timeline_document::deserialize_timeline;
+use opencut_player::timeline::TimelineSettings;
 
 #[test]
 fn lowercase_media_and_track_kinds_deserialize() {
@@ -122,8 +125,8 @@ fn timeline_view_zoom_round_trips_through_timeline_json() {
 }
 
 #[cfg(test)]
-impl TimelineSerialization {
-    pub fn with_test_tracks() -> Self {
+impl TimelineTestExt for TimelineSerialization {
+    fn with_test_tracks() -> Self {
         Self {
             tracks: vec![
                 Track {

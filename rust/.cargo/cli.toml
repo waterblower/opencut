@@ -1,0 +1,6 @@
+[env]
+FFMPEG_DIR = { value = "vendor/ffmpeg-8.1.2", relative = true }
+PKG_CONFIG_PATH = { value = "vendor/ffmpeg-8.1.2/lib/pkgconfig", relative = true }
+
+[target.'cfg(unix)']
+runner = ["bash", "scripts/cargo-cli.sh", "--exec"]
