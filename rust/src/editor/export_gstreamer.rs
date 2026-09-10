@@ -670,9 +670,9 @@ impl Drop for TemporaryOutput {
 }
 
 #[cfg(test)]
-#[path = "export_gstreamer.test.rs"]
+#[path = "tests/export_gstreamer.test.rs"]
 mod integration_tests;
 
 #[cfg(all(test, feature = "cli"))]
-#[path = "shared_timeline.test.rs"]
+#[path = "tests/shared_timeline.test.rs"]
 mod shared_timeline_tests;

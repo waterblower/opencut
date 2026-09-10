@@ -1949,5 +1949,5 @@ pub(super) fn data_parity_check(
 }
 
 #[cfg(test)]
-#[path = "editing.test.rs"]
+#[path = "tests/editing.test.rs"]
 mod tests;

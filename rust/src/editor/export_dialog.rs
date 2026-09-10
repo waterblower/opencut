@@ -1004,5 +1004,5 @@ fn format_export_duration(duration: Duration) -> String {
 }
 
 #[cfg(test)]
-#[path = "export_dialog.test.rs"]
+#[path = "tests/export_dialog.test.rs"]
 mod tests;

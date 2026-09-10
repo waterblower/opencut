@@ -515,5 +515,5 @@ fn seconds_to_sample(seconds: f64, sample_rate: u32, total_samples: u64) -> u64 
 }
 
 #[cfg(test)]
-#[path = "waveform.test.rs"]
+#[path = "tests/waveform.test.rs"]
 mod tests;

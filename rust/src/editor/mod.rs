@@ -696,7 +696,7 @@ pub(in crate::editor) struct AssetDragMoveEvent {
 impl EventEmitter<AppEvent> for EventBus {}
 
 #[cfg(test)]
-#[path = "mod.test.rs"]
+#[path = "tests/mod.test.rs"]
 mod tests;
 
 #[cfg(test)]

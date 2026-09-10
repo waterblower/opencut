@@ -27,7 +27,7 @@ fn shared_timeline_round_trip_and_backend_rendering() {
         .save(root.join("media/title.png"))
         .unwrap();
     let mut timeline = timeline_document::deserialize_timeline(include_str!(
-        "../../tests/fixtures/shared.timeline.json"
+        "../../../tests/fixtures/shared.timeline.json"
     ))
     .unwrap();
     timeline.assets[1].path = "media/camera.mov".into();

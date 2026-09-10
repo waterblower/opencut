@@ -78,5 +78,5 @@ fn finite_or(value: f64, fallback: f64) -> f64 {
 }
 
 #[cfg(test)]
-#[path = "clip_render_plan.test.rs"]
+#[path = "tests/clip_render_plan.test.rs"]
 mod tests;

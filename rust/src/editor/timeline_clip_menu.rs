@@ -78,5 +78,5 @@ impl Editor {
 }
 
 #[cfg(test)]
-#[path = "timeline_clip_menu.test.rs"]
+#[path = "tests/timeline_clip_menu.test.rs"]
 mod tests;

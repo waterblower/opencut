@@ -797,5 +797,5 @@ impl Editor {
 }
 
 #[cfg(test)]
-#[path = "timeline_interactions.test.rs"]
+#[path = "tests/timeline_interactions.test.rs"]
 mod tests;
