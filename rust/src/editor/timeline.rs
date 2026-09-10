@@ -143,15 +143,21 @@ impl TimelineEditorExt for TimelineSerialization {
                 return Err(ClipPlacementRejection::MissingClip.into());
             };
             match clip {
-                Clip::Video(clip) | Clip::Audio(clip) => {
-                    let Some(asset) = self.asset(clip.asset_id) else {
+                Clip::Video(media) | Clip::Audio(media) => {
+                    let Some(asset) = self.asset(media.asset_id) else {
                         return Err(ClipPlacementRejection::MissingAsset.into());
+                    };
+                    // An audio clip may use the audio stream of a video asset.
+                    let media_kind = if matches!(clip, Clip::Audio(_)) {
+                        MediaKind::Audio
+                    } else {
+                        asset.kind
                     };
                     validate_clip_placement(
                         self,
                         *track_id,
-                        asset.kind,
-                        clip.source_out - clip.source_in,
+                        media_kind,
+                        media.source_out - media.source_in,
                         *start,
                         ignored_clip_ids,
                     )?;

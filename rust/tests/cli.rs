@@ -24,6 +24,26 @@ use std::{
 use ulid::Ulid;
 
 #[test]
+#[cfg(target_os = "macos")]
+fn chinese_titles_use_distinct_system_font_glyphs() {
+    let mut raster = opencut_player::cli::engine::raster::TextRaster::default();
+    let mut properties = TextClipProperties {
+        text: "景".into(),
+        font: "Heiti SC".into(),
+        font_size: 48.0,
+        ..TextClipProperties::default()
+    };
+    let first = raster.raster(&properties, 128, 96).unwrap();
+    properties.text = "镜".into();
+    let second = raster.raster(&properties, 128, 96).unwrap();
+    assert!(first.pixels().any(|pixel| pixel[3] > 0));
+    assert_ne!(
+        first, second,
+        "Chinese characters must not render as identical missing-glyph boxes"
+    );
+}
+
+#[test]
 fn schema_and_new_use_the_gui_document_contract() {
     let dir = Temp::new();
     let file = dir.0.join("new.timeline.json");

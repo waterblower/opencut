@@ -1372,6 +1372,10 @@ fn ges_move_clips(
                     .nseconds()
                     .saturating_add(clip.duration().nseconds())
             })
+            // Keep staged clips clear of every destination as well as current clips.
+            .chain(moves.iter().map(|(_, _, _, _, start, duration)| {
+                start.nseconds().saturating_add(duration.nseconds())
+            }))
             .max()
             .unwrap_or(0)
             .saturating_add(parking_gap);

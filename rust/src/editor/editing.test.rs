@@ -34,6 +34,43 @@ fn audio_clip(id: u64, start: i64, duration: i64) -> Clip {
 }
 
 #[test]
+fn audio_clips_from_video_assets_cannot_move_to_video_tracks() {
+    let mut project = TimelineSerialization::with_test_tracks();
+    let mut asset = audio_asset(100);
+    asset.kind = MediaKind::Video;
+    project.assets.push(asset);
+    project.clips = vec![audio_clip(10, 0, 30), audio_clip(11, 30, 30)];
+    let selected = HashSet::from([ulid(10), ulid(11)]);
+
+    for placements in [
+        vec![(ulid(10), ulid(1), TimelineTime::from_frames(120))],
+        vec![
+            (ulid(10), ulid(2), TimelineTime::from_frames(120)),
+            (ulid(11), ulid(1), TimelineTime::from_frames(150)),
+        ],
+    ] {
+        let error = project
+            .validate_clip_move_placements(&placements, &selected)
+            .unwrap_err();
+        assert_eq!(
+            error.downcast::<ClipPlacementRejection>().unwrap(),
+            ClipPlacementRejection::IncompatibleTrack,
+        );
+    }
+    assert!(
+        project
+            .validate_clip_move_placements(
+                &[
+                    (ulid(10), ulid(2), TimelineTime::from_frames(120)),
+                    (ulid(11), ulid(2), TimelineTime::from_frames(150)),
+                ],
+                &selected,
+            )
+            .is_ok()
+    );
+}
+
+#[test]
 fn clipboard_preserves_relative_timing_tracks_and_primary_selection() {
     let mut project = TimelineSerialization::with_test_tracks();
     project.assets.push(audio_asset(100));
@@ -345,6 +382,85 @@ fn moves_adjacent_ges_clips_together_without_transient_overlap() {
             project.duration(TimelineTime::from_frames(120)).as_nanos() as u64
         ) <= 1
     );
+}
+
+#[test]
+fn moves_adjacent_ges_clips_beyond_timeline_end_without_parking_overlap() {
+    use gstreamer_editing_services::prelude::*;
+
+    let _gstreamer_test = crate::editor::tests::lock_gstreamer_test();
+    gstreamer_editing_services::init().unwrap();
+    let track_id = ulid(2);
+    let first_clip_id = ulid(10);
+    let second_clip_id = ulid(11);
+    let project = TimelineSerialization {
+        tracks: vec![Track {
+            id: track_id,
+            name: "Audio 1".to_string(),
+            kind: TrackKind::Audio,
+            locked: false,
+            muted: false,
+            visible: true,
+        }],
+        assets: vec![audio_asset(100)],
+        clips: vec![audio_clip(10, 0, 90), audio_clip(11, 90, 60)],
+        ..TimelineSerialization::default()
+    };
+    // Synthetic sources exercise GES overlap validation without a media fixture.
+    let ges = gstreamer_editing_services::Timeline::new_audio_video();
+    let layer = ges.append_layer();
+    for data in &project.clips {
+        let clip = gstreamer_editing_services::TestClip::new().unwrap();
+        clip.set_supported_formats(gstreamer_editing_services::TrackType::AUDIO);
+        clip.set_name(Some(&format!("opencut-clip-{}", data.id())))
+            .unwrap();
+        let (start, duration) = super::super::export_gstreamer::clip_clock_range(
+            project.settings.frame_rate,
+            data,
+            data.timeline_start(),
+        );
+        assert!(clip.set_start(start));
+        assert!(clip.set_duration(duration));
+        layer.add_clip(&clip).unwrap();
+    }
+    let placements = [
+        (first_clip_id, track_id, TimelineTime::from_frames(240)),
+        (second_clip_id, track_id, TimelineTime::from_frames(330)),
+    ];
+
+    let mut runtime =
+        TimelineRuntimeState::new("test.timeline.json".into(), project, ges.clone()).unwrap();
+    assert_eq!(runtime.data.content_duration(), TimelineTime::from_frames(150));
+    edit_timeline(
+        &mut runtime,
+        Path::new(env!("CARGO_MANIFEST_DIR")),
+        EditAction::MoveClips {
+            placements: placements.to_vec(),
+        },
+    )
+    .unwrap();
+    let project = &runtime.data;
+    assert_eq!(project.content_duration(), TimelineTime::from_frames(390));
+    assert_eq!(ges.duration(), gstreamer::ClockTime::from_seconds(13));
+
+    let starts = ges
+        .layers()
+        .into_iter()
+        .flat_map(|layer| layer.clips())
+        .filter_map(|clip| {
+            let name = clip.name()?;
+            let id = name.strip_prefix("opencut-clip-")?.parse::<Ulid>().ok()?;
+            Some((id, clip.start()))
+        })
+        .collect::<HashMap<_, _>>();
+    for (clip_id, _, start) in placements {
+        let (expected_start, _) = super::super::export_gstreamer::clip_clock_range(
+            project.settings.frame_rate,
+            project.clip(clip_id).unwrap(),
+            start,
+        );
+        assert_eq!(starts[&clip_id], expected_start);
+    }
 }
 
 #[test]

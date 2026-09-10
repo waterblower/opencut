@@ -477,7 +477,7 @@ impl Editor {
         timeline.interaction.snap_guide = None;
         timeline.interaction.clip_move_drag = Some(ClipMoveDrag {
             anchor_clip_id: clip_id,
-            start_x: event.position.x.into(),
+            start_x: f32::from(event.position.x) - f32::from(timeline.h_scroll.offset().x),
             original_anchor_start: anchor.timeline_start(),
             original_anchor_track_index,
             placements: items
@@ -518,7 +518,8 @@ impl Editor {
         let original_anchor_track_index = drag.original_anchor_track_index;
         let items = drag.items.clone();
         let raw_delta = timeline.data.settings.frame_rate.delta(
-            (f32::from(event.position.x) - start_x) as f64
+            (f32::from(event.position.x) - f32::from(timeline.h_scroll.offset().x) - start_x)
+                as f64
                 / timeline.data.view.pixels_per_second as f64,
         );
         let earliest_start = items
