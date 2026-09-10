@@ -1079,8 +1079,13 @@ pub(super) fn edit_timeline(
             let ges = timeline.video_backend.ges_timeline();
             ges_remove_clips(ges, &clip_ids)?;
             ges_move_clips(ges, &updated_timeline, &ripple_placements)?;
-            if !ges.commit_sync() {
-                anyhow::bail!("GStreamer could not commit the removed clips.");
+            // Apply edits asynchronously while the preview pipeline is paused.
+            if !ges.commit() {
+                anyhow::bail!(
+                    "GStreamer could not commit the removed clips at {}:{}",
+                    file!(),
+                    line!()
+                );
             }
             timeline.data = updated_timeline;
             return Ok(false);
@@ -1177,8 +1182,12 @@ pub(super) fn edit_timeline(
                 std::slice::from_ref(&clip),
             )
             .expect("updated clip must be addable to GES");
-            if !ges.commit_sync() {
-                anyhow::bail!("GStreamer could not commit the updated clip.");
+            if !ges.commit() {
+                anyhow::bail!(
+                    "GStreamer could not commit the updated clip at {}:{}",
+                    file!(),
+                    line!()
+                );
             }
 
             timeline.data = updated_timeline;

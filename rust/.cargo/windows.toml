@@ -1,0 +1,7 @@
+[env]
+FFMPEG_DIR = { value = "vendor/ffmpeg-8.1.2", relative = true }
+PKG_CONFIG = { value = "vendor/gstreamer/bin/pkg-config.exe", relative = true, force = true }
+PKG_CONFIG_PATH = { value = "vendor/gstreamer/lib/pkgconfig", relative = true, force = true }
+
+[target.'cfg(target_os = "windows")']
+runner = ["powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "scripts/cargo-windows.ps1", "--exec"]

@@ -15,5 +15,10 @@ if (-not $env:GST_PLUGIN_FEATURE_RANK) {
     $env:GST_PLUGIN_FEATURE_RANK = 'avdec_h264:MAX,d3d11h264dec:NONE,d3d12h264dec:NONE,qsvh264dec:NONE'
 }
 Set-Location -LiteralPath $rustRoot
+if ($args.Count -gt 0 -and $args[0] -eq '--exec') {
+    $executable, $programArguments = $args[1..($args.Count - 1)]
+    & $executable @programArguments
+    exit $LASTEXITCODE
+}
 & cargo @args
 exit $LASTEXITCODE

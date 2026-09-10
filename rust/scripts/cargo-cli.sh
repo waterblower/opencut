@@ -11,4 +11,8 @@ export DYLD_FALLBACK_LIBRARY_PATH="$cli_ffmpeg/lib${DYLD_FALLBACK_LIBRARY_PATH:+
 export LD_LIBRARY_PATH="$cli_ffmpeg/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
 unset FFMPEG_DIR
 cd -- "$cli_root"
+if [[ "${1:-}" == --exec ]]; then
+    shift
+    exec "$@"
+fi
 exec cargo "$@"

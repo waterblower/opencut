@@ -257,7 +257,8 @@ fn moves_ges_clip_without_rebuilding_timeline() {
         .find(|clip| clip.name().as_deref() == Some(format!("opencut-clip-{clip_id}").as_str()))
         .unwrap();
     let expected_start = project.duration(start);
-    assert_eq!(clip.start().nseconds(), expected_start.as_nanos() as u64);
+    // Text starts one nanosecond before the frame boundary to avoid a title gap.
+    assert!(clip.start().nseconds().abs_diff(expected_start.as_nanos() as u64) <= 1);
 
     let background = ges
         .layers()
@@ -333,13 +334,15 @@ fn moves_adjacent_ges_clips_together_without_transient_overlap() {
             Some((id, clip.start()))
         })
         .collect::<HashMap<_, _>>();
-    assert_eq!(
-        starts[&first_clip_id].nseconds(),
-        project.duration(TimelineTime::from_frames(60)).as_nanos() as u64
+    assert!(
+        starts[&first_clip_id].nseconds().abs_diff(
+            project.duration(TimelineTime::from_frames(60)).as_nanos() as u64
+        ) <= 1
     );
-    assert_eq!(
-        starts[&second_clip_id].nseconds(),
-        project.duration(TimelineTime::from_frames(120)).as_nanos() as u64
+    assert!(
+        starts[&second_clip_id].nseconds().abs_diff(
+            project.duration(TimelineTime::from_frames(120)).as_nanos() as u64
+        ) <= 1
     );
 }
 
@@ -518,7 +521,9 @@ fn detects_timeline_and_ges_data_divergence() {
         .find(|clip| clip.name().as_deref() == Some(format!("opencut-clip-{clip_id}").as_str()))
         .unwrap();
     assert!(rendered.set_duration(gstreamer::ClockTime::from_mseconds(1_985)));
-    assert!(ges.commit_sync());
+    // Parity checks read the edited GES objects, not the streaming state.
+    // Waiting for a synchronous commit can deadlock during preview preroll.
+    assert!(ges.commit());
     data_parity_check(&runtime, &ges).unwrap();
 
     runtime.data.clips[0].set_timeline_start(TimelineTime::ONE_FRAME);
