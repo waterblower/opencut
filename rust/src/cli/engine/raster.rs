@@ -13,6 +13,7 @@ pub struct TextRaster {
 impl Default for TextRaster {
     fn default() -> Self {
         let mut db = cosmic_text::fontdb::Database::new();
+        db.load_system_fonts();
         db.load_font_data(
             include_bytes!(
                 "../../../vendor/zed/assets/fonts/ibm-plex-sans/IBMPlexSans-Regular.ttf"

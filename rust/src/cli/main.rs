@@ -73,6 +73,14 @@ fn print_error(error: &opencut_player::cli::error::Error, json: bool) {
 
 fn run(command: Command, json_mode: bool, base: &Path) -> Result<Value> {
     match command {
+        Command::Assemble {
+            recipe,
+            output,
+            dry_run,
+            overwrite,
+        } => {
+            opencut_player::cli::assemble::run(&recipe, base, output.as_deref(), dry_run, overwrite)
+        }
         Command::Probe { media_file } => Ok(cli_try!(
             serde_json::to_value(probe::probe(&media_file)?),
             "serialization_error",
@@ -123,8 +131,12 @@ fn run(command: Command, json_mode: bool, base: &Path) -> Result<Value> {
                 Ok(json!(timeline))
             }
         }
-        Command::Schema { .. } => Ok(cli_try!(
-            serde_json::to_value(schemars::schema_for!(Document)),
+        Command::Schema { kind, .. } => Ok(cli_try!(
+            serde_json::to_value(if kind == "recipe" {
+                schemars::schema_for!(opencut_player::cli::assemble::Recipe)
+            } else {
+                schemars::schema_for!(Document)
+            }),
             "serialization_error",
             "",
             6

@@ -19,6 +19,16 @@ pub struct Args {
 
 #[derive(Subcommand)]
 pub enum Command {
+    /// Assemble explicit podcast cuts and camera choices into an editor timeline.
+    Assemble {
+        recipe: PathBuf,
+        #[arg(short, long, required_unless_present = "dry_run")]
+        output: Option<PathBuf>,
+        #[arg(long)]
+        dry_run: bool,
+        #[arg(long)]
+        overwrite: bool,
+    },
     /// Inspect a media file's streams, duration, and keyframe spacing.
     Probe { media_file: PathBuf },
     /// Create a shared editor timeline with video and audio tracks.
@@ -35,8 +45,10 @@ pub enum Command {
     Validate { timeline: PathBuf },
     /// Summarize duration, clips, tracks, gaps, and asset usage.
     Inspect { timeline: PathBuf },
-    /// Print the authoritative timeline JSON Schema.
+    /// Print the authoritative timeline or assembly recipe JSON Schema.
     Schema {
+        #[arg(long, default_value = "timeline", value_parser = ["timeline", "recipe"])]
+        kind: String,
         #[arg(long, default_value = "json-schema", value_parser = ["json-schema"])]
         format: String,
     },

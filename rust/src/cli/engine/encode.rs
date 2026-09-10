@@ -212,7 +212,27 @@ impl Encoder {
                 },
             );
         }
-        let video = cli_try!(video.open_with(options), "encoder_unavailable", "", 5);
+        let video = match video.open_with(options) {
+            Ok(video) => video,
+            Err(error) => {
+                return Err(cli_error!(
+                    "encoder_unavailable",
+                    "",
+                    5,
+                    "could not open {} for {}x{} at {}/{} fps: {error}. {}",
+                    codec.name(),
+                    width,
+                    height,
+                    fps.numerator,
+                    fps.denominator,
+                    if codec.name().ends_with("_videotoolbox") {
+                        "VideoToolbox requires access to macOS media services; check execution permissions."
+                    } else {
+                        "Check encoder availability and output settings."
+                    }
+                ));
+            }
+        };
         {
             let mut stream = cli_try!(output.add_stream(codec), "encode_failure", "", 5);
             stream.set_time_base(video_base);

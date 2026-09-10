@@ -243,7 +243,11 @@ pub fn render(
         let mut next_progress = clock + Duration::from_secs(5);
         for frame in 0..total {
             let image = composer.frame(doc, base, options.start + frame)?;
-            let image = imageops::resize(&image, width, height, imageops::FilterType::Triangle);
+            let image = if image.dimensions() == (width, height) {
+                image
+            } else {
+                imageops::resize(&image, width, height, imageops::FilterType::Triangle)
+            };
             encoder.video(image, frame)?;
             let audio_end =
                 (fps.samples(options.start + frame + 1, rate) - audio_start).min(audio_total);

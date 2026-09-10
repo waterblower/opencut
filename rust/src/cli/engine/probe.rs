@@ -17,6 +17,8 @@ pub struct Probe {
 #[derive(Debug, Serialize)]
 pub struct Stream {
     pub index: usize,
+    /// Stream duration in seconds, when supplied by the container.
+    pub duration: Option<f64>,
     pub kind: String,
     pub codec: String,
     pub codec_tag: String,
@@ -56,6 +58,7 @@ pub fn probe(path: &Path) -> Result<Probe> {
             keyframe_interval_s: None,
             streams: vec![Stream {
                 index: 0,
+                duration: None,
                 kind: "video".into(),
                 codec: path
                     .extension()
@@ -91,6 +94,11 @@ pub fn probe(path: &Path) -> Result<Probe> {
         };
         let mut item = Stream {
             index: stream.index(),
+            duration: if stream.duration() > 0 {
+                Some(stream.duration() as f64 * f64::from(stream.time_base()))
+            } else {
+                None
+            },
             kind: "other".into(),
             codec: params.id().name().into(),
             codec_tag,

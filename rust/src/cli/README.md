@@ -65,13 +65,62 @@ The authoritative schema is generated from the actual shared Rust types by
 - View state survives serialization and is ignored by the CLI renderer.
 
 `new` creates a document with visible video and audio tracks. All input timelines
-are read without rewriting them. Document assembly and subtitle-import interfaces
-are deferred; existing GUI import/edit operations remain available.
+are read without rewriting them. Use `assemble` to build a podcast from supplied
+decisions. Subtitle import is not yet available in the CLI; existing GUI import/edit
+operations remain available.
 
 **Legacy CLI timelines and the `edit` command have been removed.** Documents using
 the old `type` clip tags, root `version`, or `transitions` are rejected with
 `legacy_cli_format`. CLI-only effects, opacity, background color, and transitions
 are not part of this shared format. There is no legacy conversion layer.
+
+## Podcast assembly
+
+An external agent invokes OpenCut; OpenCut does not call models or transcription
+services. `assemble` compiles supplied decisions into the same editable document
+used by the GUI. See the [example recipe](../../tests/fixtures/podcast.recipe.json)
+and generate its authoritative schema with `schema --kind recipe`.
+
+```sh
+cargo cli schema --kind recipe --json
+cargo cli --project-root /project assemble recipe.json --dry-run --json
+cargo cli --project-root /project assemble recipe.json -o episode.timeline.json --json
+cargo cli --project-root /project render episode.timeline.json --range 10s..15s -o review.mp4
+```
+
+The recipe supplies output `settings`, a `time_base` in seconds per tick, named
+`sources`, `master_audio`, optional `gain_db` (default 0), `retained` intervals,
+and `cameras`. All start/end/offset values are signed integer ticks in that common
+time base. For example, `{ "numerator": 1, "denominator": 1000 }` means milliseconds.
+Source paths resolve against `--project-root`, independently of the recipe location.
+The example references recordings you must supply; it is not a bundled media set.
+
+The master source must contain audio and have zero `source_offset`. It defines the
+uncut episode clock. Other sources obey `source_time = episode_time + source_offset`:
+a +2000 ms offset maps episode time 10 seconds to camera time 12 seconds. Offsets
+and boundaries round independently once to the nearest project frame (ties away
+from zero); the report lists every adjustment. Source offsets therefore preserve
+clip lengths on the same frame grid. Sample-accurate cuts and drift correction
+are not supported by this assembly interface.
+
+Retained intervals and camera selections must each be chronological, nonoverlapping,
+nonnegative, and nonempty. Ranges are end-exclusive. Camera choices refer to uncut
+episode time and must cover every retained frame. Removed intervals disappear from
+both video and audio. Camera switches never split the master audio; camera clips
+are explicitly muted. Missing source coverage is an error. Files with more than
+one audio or video stream are rejected because the shared format cannot yet select
+a stream. Coverage checks use the selected stream's duration when available,
+falling back to the recording duration when the container does not report stream
+duration. Unknown recipe fields (including captions) are rejected.
+
+`--dry-run` probes and validates without writing a timeline, and does not require
+`-o`. Its report includes total frames, the project frame rate, episode-to-output
+intervals, per-clip source/output bounds, and rounding adjustments. Every reported
+time is in project frames except the explicitly named original `ticks` fields.
+Normal assembly returns the same report and writes atomically. Existing output
+requires `--overwrite`; neither source media nor the input recipe can be replaced.
+Reassembly does not merge manual GUI edits: use a new output file for revisions.
+Captions, extraction commands, audio analysis, and cut fades are later milestones.
 
 ## Rendering and output
 
@@ -112,7 +161,7 @@ pointers, and Rust file/line locations. `validate` returns all findings.
 # Shared format alone, without either media backend:
 cargo test --manifest-path rust/Cargo.toml --no-default-features --features timeline-schema --lib --test timeline
 # CLI and FFmpeg integration:
-bash rust/scripts/cargo-cli.sh test --no-default-features --features cli --test cli --test timeline
+bash rust/scripts/cargo-cli.sh test --no-default-features --features cli --test cli --test assemble --test timeline
 # Optional VideoToolbox encoder tests:
 bash rust/scripts/cargo-cli.sh test --no-default-features --features cli --test cli -- --ignored
 # Local macOS package:
