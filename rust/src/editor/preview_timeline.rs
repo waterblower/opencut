@@ -1,7 +1,7 @@
 use super::*;
 use super::{
     clip_render_plan::{RenderRect, resolve_visual_clip_render_plan},
-    timeline_video::update_timeline_video_position,
+    timeline_video::{refresh_timeline_video_frame, try_refresh_timeline_video_frame},
 };
 use crate::playback_view::{CONTROL_HEIGHT, format_duration};
 use crate::video::video;
@@ -764,12 +764,9 @@ impl Editor {
             now.duration_since(last_update) >= TIMELINE_TRANSFORM_UPDATE_INTERVAL
         }) {
             drag.last_pipeline_update = Some(now);
-            if let Err(error) = update_timeline_video_position(
-                &mut timeline.video_backend,
-                &timeline.data,
-                drag.clip_id,
-                false,
-            ) {
+            if let Err(error) =
+                try_refresh_timeline_video_frame(timeline.video_backend.playback_mut())
+            {
                 eprintln!("{error}");
             }
         }
@@ -785,12 +782,7 @@ impl Editor {
         };
         if drag.changed {
             if let Some(timeline) = self.timeline.as_mut() {
-                match update_timeline_video_position(
-                    &mut timeline.video_backend,
-                    &timeline.data,
-                    drag.clip_id,
-                    true,
-                ) {
+                match refresh_timeline_video_frame(timeline.video_backend.playback_mut()) {
                     Ok(()) => {}
                     Err(error) => eprintln!("{error}"),
                 }

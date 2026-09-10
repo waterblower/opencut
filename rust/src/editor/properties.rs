@@ -11,8 +11,8 @@ use crate::editor::{
 };
 use gpui::prelude::FluentBuilder;
 use gpui::{
-    Entity, InteractiveElement, IntoElement, ParentElement, StatefulInteractiveElement, Styled,
-    div, px, rgb,
+    Entity, InteractiveElement, IntoElement, ObjectFit, ParentElement, StatefulInteractiveElement,
+    Styled, StyledImage, div, img, px, rgb,
 };
 use std::{
     fs,
@@ -25,7 +25,7 @@ pub(super) enum PropertiesPanelViewable<'a> {
     TextClip(&'a TextClip),
     VideoFile(&'a Path),
     AudioFile(&'a Path),
-    ImageFile(&'a Path),
+    ImageFile(PathBuf),
     SrtFile(PathBuf),
     TimelineFile(&'a TimelineRuntimeState),
     None,
@@ -53,7 +53,9 @@ pub fn current_properties_panel_viewable(editor: &Editor) -> PropertiesPanelView
             return PropertiesPanelViewable::AudioFile(path);
         }
         if is_image_path(path) {
-            return PropertiesPanelViewable::ImageFile(path);
+            return PropertiesPanelViewable::ImageFile(
+                editor.global_settings.project_root.join(path),
+            );
         }
         if is_srt_path(path) {
             return PropertiesPanelViewable::SrtFile(
@@ -89,7 +91,8 @@ pub(super) fn properties_panel(
         PropertiesPanelViewable::AudioClip(clip) => audio_clip(clip),
         PropertiesPanelViewable::VideoFile(file) => video_file(file),
         PropertiesPanelViewable::TimelineFile(timeline) => timeline_file(timeline),
-        PropertiesPanelViewable::AudioFile(path) | PropertiesPanelViewable::ImageFile(path) => {
+        PropertiesPanelViewable::ImageFile(path) => image_file(path),
+        PropertiesPanelViewable::AudioFile(path) => {
             let _ = path;
             panic!("not implemented")
         }
@@ -100,6 +103,58 @@ pub(super) fn properties_panel(
             .child("No properties available")
             .into_any_element(),
     }
+}
+
+fn image_file(path: PathBuf) -> gpui::AnyElement {
+    let name = path
+        .file_name()
+        .unwrap_or(path.as_os_str())
+        .to_string_lossy()
+        .into_owned();
+
+    div()
+        .id("image-file-properties")
+        .h_full()
+        .min_h_0()
+        .flex()
+        .flex_col()
+        .overflow_hidden()
+        .bg(rgb(PANEL))
+        .child(
+            div()
+                .h(px(58.0))
+                .flex_shrink_0()
+                .flex()
+                .items_center()
+                .px_5()
+                .border_b_1()
+                .border_color(rgb(BORDER))
+                .child(properties_tab("Image", true)),
+        )
+        .child(
+            div()
+                .px_5()
+                .py_3()
+                .flex_shrink_0()
+                .text_sm()
+                .text_ellipsis()
+                .child(name),
+        )
+        .child(
+            div()
+                .relative()
+                .flex_1()
+                .min_h_0()
+                .overflow_hidden()
+                .bg(rgb(SURFACE))
+                .child(
+                    img(path)
+                        .absolute()
+                        .size_full()
+                        .object_fit(ObjectFit::Contain),
+                ),
+        )
+        .into_any_element()
 }
 
 fn timeline_file(timeline: &TimelineRuntimeState) -> gpui::AnyElement {

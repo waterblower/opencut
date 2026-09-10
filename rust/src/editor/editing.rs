@@ -1197,11 +1197,18 @@ pub(super) fn edit_timeline(
             clip_ids,
             properties,
         } => {
+            ges_change_video_clip(
+                timeline.video_backend.ges_timeline(),
+                &timeline.data,
+                &clip_ids,
+                properties,
+            )?;
             for clip_id in clip_ids {
                 if let Some(clip) = timeline.data.clip_mut(clip_id).and_then(Clip::media_mut) {
                     clip.video_properties = properties;
                 }
             }
+            return Ok(false);
         }
         EditAction::SetTextProperties {
             clip_id,
@@ -1438,7 +1445,55 @@ fn ges_move_clips(
     Ok(())
 }
 
-// change the text of a text clip in the ges timeline
+fn ges_change_video_clip(
+    ges: &gstreamer_editing_services::Timeline,
+    timeline: &TimelineSerialization,
+    clip_ids: &[Ulid],
+    properties: VideoClipProperties,
+) -> anyhow::Result<()> {
+    use gstreamer_editing_services::prelude::*;
+
+    let options = export::ExportOptions::from_timeline(timeline);
+    for clip_id in clip_ids {
+        let Some(Clip::Video(clip)) = timeline.clip(*clip_id) else {
+            continue;
+        };
+        let Some(asset) = timeline.asset(clip.asset_id) else {
+            anyhow::bail!(
+                "clip {clip_id} has no source media at {}:{}",
+                file!(),
+                line!()
+            );
+        };
+        let name = format!("opencut-clip-{clip_id}");
+        let Some(rendered) = ges
+            .layers()
+            .into_iter()
+            .flat_map(|layer| layer.clips())
+            .find(|clip| clip.name().as_deref() == Some(name.as_str()))
+        else {
+            anyhow::bail!("missing GES clip {clip_id} at {}:{}", file!(), line!());
+        };
+        if let Err(error) = super::export_gstreamer::apply_video_transform(
+            &rendered, timeline, asset, options, properties,
+        ) {
+            return Err(error.context(format!(
+                "could not transform clip {clip_id} at {}:{}",
+                file!(),
+                line!(),
+            )));
+        }
+    }
+    if !ges.commit() {
+        anyhow::bail!(
+            "could not commit video transforms at {}:{}",
+            file!(),
+            line!()
+        );
+    }
+    Ok(())
+}
+
 fn ges_change_text_clip(
     ges: &gstreamer_editing_services::Timeline,
     clip_id: Ulid,
