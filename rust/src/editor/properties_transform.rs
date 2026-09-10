@@ -158,6 +158,11 @@ impl Editor {
         )
         .expect("setting video properties cannot be rejected");
 
+        if let Err(error) = super::timeline_video::refresh_timeline_video_frame(
+            timeline.video_backend.playback_mut(),
+        ) {
+            log::error!("{error:#}");
+        }
         timeline.save(&self.global_settings.project_root);
     }
 }

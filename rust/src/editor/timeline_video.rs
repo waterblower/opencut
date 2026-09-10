@@ -1,7 +1,3 @@
-use super::{
-    clip_render_plan::resolve_visual_clip_render_plan, export::ExportOptions,
-    timeline::TimelineSerialization,
-};
 use crate::video::VideoBackend;
 use anyhow::{Context as _, Result};
 use ges::prelude::*;
@@ -9,8 +5,6 @@ use gstreamer as gst;
 use gstreamer_app as gst_app;
 use gstreamer_audio as gst_audio;
 use gstreamer_editing_services as ges;
-
-use ulid::Ulid;
 
 pub struct TimelineVideoBackend {
     ges_timeline: ges::Timeline,
@@ -40,68 +34,33 @@ impl TimelineVideoBackend {
     }
 }
 
-pub(super) fn update_timeline_video_position(
-    video: &mut TimelineVideoBackend,
-    timeline_data: &TimelineSerialization,
-    clip_id: Ulid,
-    refresh_frame: bool,
-) -> anyhow::Result<()> {
-    let clip = timeline_data
-        .clip(clip_id)
-        .ok_or_else(|| anyhow::anyhow!("Clip {clip_id} is unavailable."))?;
-    let clip = clip
-        .media()
-        .ok_or_else(|| anyhow::anyhow!("Clip {clip_id} is not a media clip."))?;
-    let asset = timeline_data
-        .asset(clip.asset_id)
-        .ok_or_else(|| anyhow::anyhow!("Clip {clip_id} has no source media."))?;
-    let timeline = &video.ges_timeline;
-    let clip_name = format!("opencut-clip-{clip_id}");
-    let rendered_clip = timeline
-        .layers()
-        .into_iter()
-        .flat_map(|layer| layer.clips())
-        .find(|rendered_clip| rendered_clip.name().as_deref() == Some(clip_name.as_str()))
-        .ok_or_else(|| anyhow::anyhow!("timeline preview has no rendered clip for {clip_id}"))?;
-    let options = ExportOptions::from_timeline(timeline_data);
-    let plan = resolve_visual_clip_render_plan(
-        clip.video_properties,
-        asset.width,
-        asset.height,
-        timeline_data.settings.width,
-        timeline_data.settings.height,
-        options.width.max(2) as f64,
-        options.height.max(2) as f64,
-    );
-    for (name, value) in [
-        (
-            "posx",
-            plan.visible
-                .left
-                .round()
-                .clamp(i32::MIN as f64, i32::MAX as f64) as i32,
-        ),
-        (
-            "posy",
-            plan.visible
-                .top
-                .round()
-                .clamp(i32::MIN as f64, i32::MAX as f64) as i32,
-        ),
-    ] {
-        rendered_clip
-            .set_child_property(name, value)
-            .map_err(|error| anyhow::anyhow!("could not update preview video {name}: {error}"))?;
-    }
-    if !refresh_frame {
-        return Ok(());
-    }
-    if !timeline.commit_sync() {
-        anyhow::bail!("GStreamer could not commit the preview position.");
-    }
-    let playback = &mut video.playback;
+pub fn refresh_timeline_video_frame(playback: &mut VideoBackend) -> anyhow::Result<()> {
     let position = playback.position();
-    playback.seek(position)
+    playback.seek(position).with_context(|| {
+        format!(
+            "could not refresh timeline preview at {}:{}",
+            file!(),
+            line!()
+        )
+    })
+}
+
+pub fn try_refresh_timeline_video_frame(playback: &mut VideoBackend) -> anyhow::Result<()> {
+    // A flushing seek cancels pending preroll. Let that frame reach the sink
+    // before requesting another one, even when mouse events arrive faster.
+    let (result, _, _) = playback.pipeline().state(gst::ClockTime::ZERO);
+    match result {
+        Ok(gst::StateChangeSuccess::Async) => return Ok(()),
+        Err(error) => {
+            anyhow::bail!(
+                "preview pipeline could not finish rendering: {error} at {}:{}",
+                file!(),
+                line!(),
+            );
+        }
+        _ => {}
+    }
+    refresh_timeline_video_frame(playback)
 }
 
 pub fn create_timeline_pipeline_v2(
@@ -161,3 +120,7 @@ fn preview_audio_sink() -> anyhow::Result<(gst::Element, gst_audio::StreamVolume
         .map_err(|_| anyhow::anyhow!("timeline preview volume control has an unexpected type"))?;
     Ok((sink.upcast(), control))
 }
+
+#[cfg(test)]
+#[path = "tests/timeline_video.test.rs"]
+mod tests;
