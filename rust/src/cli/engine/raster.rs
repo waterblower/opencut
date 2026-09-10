@@ -1,6 +1,5 @@
 use crate::{
-    cli_error, cli_try,
-    core::{document::TextProperties, error::Result},
+    cli::error::Result, cli_error, cli_try, timeline::TextClipProperties as TextProperties,
 };
 use cosmic_text::{Attrs, Buffer, Family, FontSystem, Metrics, Shaping, SwashCache, SwashContent};
 use image::{Pixel, Rgba, RgbaImage};
@@ -15,8 +14,10 @@ impl Default for TextRaster {
     fn default() -> Self {
         let mut db = cosmic_text::fontdb::Database::new();
         db.load_font_data(
-            include_bytes!("../../vendor/zed/assets/fonts/ibm-plex-sans/IBMPlexSans-Regular.ttf")
-                .to_vec(),
+            include_bytes!(
+                "../../../vendor/zed/assets/fonts/ibm-plex-sans/IBMPlexSans-Regular.ttf"
+            )
+            .to_vec(),
         );
         db.set_sans_serif_family("IBM Plex Sans");
         Self {
@@ -49,15 +50,20 @@ impl TextRaster {
         );
         buffer.shape_until_scroll(&mut self.fonts, false);
         let mut image = RgbaImage::new(width, height);
-        let base = properties.color.to_be_bytes();
+        let [alpha, red, green, blue] = properties.color.to_be_bytes();
+        let base = [red, green, blue, alpha];
         let mut max_width = 0.0_f32;
         let mut max_height = 0.0_f32;
         for run in buffer.layout_runs() {
             max_width = max_width.max(run.line_w);
             max_height = max_height.max(run.line_top + run.line_height);
         }
-        let left = ((width as f32 - max_width) / 2.0).round() as i32;
-        let top = ((height as f32 - max_height) / 2.0).round() as i32;
+        let left = (width as f32 * properties.position_x as f32 - max_width * 0.5)
+            .clamp(0.0, (width as f32 - max_width).max(0.0))
+            .round() as i32;
+        let top = (height as f32 * properties.position_y as f32 - max_height * 0.5)
+            .clamp(0.0, (height as f32 - max_height).max(0.0))
+            .round() as i32;
         for run in buffer.layout_runs() {
             for glyph in run.glyphs {
                 let physical = glyph.physical((0.0, 0.0), 1.0);

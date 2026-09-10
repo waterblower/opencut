@@ -1,17 +1,17 @@
 mod args;
-mod edit;
 
 use args::{Args, Command};
 use clap::Parser;
+use opencut_player::timeline::{TimelineSettings as Settings, Track, TrackKind};
 use opencut_player::{
-    cli_error, cli_try,
-    core::{
-        document::{self, Document, Settings, Track, TrackKind},
+    cli::engine::{probe, render},
+    cli::{
+        document::{self, Document},
         error::Result,
         time::parse_rate,
         validate,
     },
-    engine::{probe, render},
+    cli_error, cli_try,
 };
 use serde_json::{Value, json};
 use std::{
@@ -38,7 +38,7 @@ fn main() -> ExitCode {
             return ExitCode::from(2);
         }
     };
-    match run(args.command, args.json) {
+    match run(args.command, args.json, &args.project_root) {
         Ok(value) => {
             let text = if args.json {
                 serde_json::to_string(&value)
@@ -63,7 +63,7 @@ fn main() -> ExitCode {
     }
 }
 
-fn print_error(error: &opencut_player::core::error::Error, json: bool) {
+fn print_error(error: &opencut_player::cli::error::Error, json: bool) {
     if json {
         let _ = writeln!(io::stdout().lock(), "{}", json!({"error": error}));
     } else {
@@ -71,7 +71,7 @@ fn print_error(error: &opencut_player::core::error::Error, json: bool) {
     }
 }
 
-fn run(command: Command, json_mode: bool) -> Result<Value> {
+fn run(command: Command, json_mode: bool, base: &Path) -> Result<Value> {
     match command {
         Command::Probe { media_file } => Ok(cli_try!(
             serde_json::to_value(probe::probe(&media_file)?),
@@ -86,7 +86,6 @@ fn run(command: Command, json_mode: bool) -> Result<Value> {
             fps,
         } => {
             let doc = Document {
-                version: 1,
                 settings: Settings {
                     width,
                     height,
@@ -95,19 +94,23 @@ fn run(command: Command, json_mode: bool) -> Result<Value> {
                 },
                 assets: vec![],
                 clips: vec![],
-                transitions: vec![],
+                view: Default::default(),
                 tracks: vec![
                     Track {
-                        id: Ulid::generate().to_string(),
+                        id: Ulid::generate(),
                         kind: TrackKind::Video,
                         name: "Video".into(),
                         muted: false,
+                        visible: true,
+                        locked: false,
                     },
                     Track {
-                        id: Ulid::generate().to_string(),
+                        id: Ulid::generate(),
                         kind: TrackKind::Audio,
                         name: "Audio".into(),
                         muted: false,
+                        visible: true,
+                        locked: false,
                     },
                 ],
             };
@@ -127,10 +130,8 @@ fn run(command: Command, json_mode: bool) -> Result<Value> {
             6
         )),
         Command::Docs => Ok(json!(include_str!("llms.txt"))),
-        Command::Edit { timeline, command } => edit::edit(&timeline, command),
         Command::Validate { timeline } => {
             let (_, doc) = document::load(&timeline)?;
-            let base = timeline.parent().unwrap_or(Path::new("."));
             let (media, media_findings) = probe::inspect_assets(&doc, base);
             let mut findings = validate::validate(&doc, Some(&media));
             findings.extend(media_findings);
@@ -173,8 +174,7 @@ fn run(command: Command, json_mode: bool) -> Result<Value> {
             let frame = doc
                 .settings
                 .frame_rate
-                .parse_time(&at, Some(doc.duration()))?;
-            let base = timeline.parent().unwrap_or(Path::new("."));
+                .parse_time(&at, Some(doc.content_duration().frames()))?;
             render::still(&doc, base, frame, &output, scale, overwrite)?;
             Ok(json!({"path": output, "frame": frame}))
         }
@@ -204,7 +204,7 @@ fn run(command: Command, json_mode: bool) -> Result<Value> {
                         doc.settings.frame_rate.parse_time(end, None)?,
                     )
                 }
-                None => (0, doc.duration()),
+                None => (0, doc.content_duration().frames()),
             };
             let options = render::Options {
                 start,
@@ -223,7 +223,6 @@ fn run(command: Command, json_mode: bool) -> Result<Value> {
                     Some(raw.to_string())
                 },
             };
-            let base = timeline.parent().unwrap_or(Path::new("."));
             let plan = render::plan(&doc, base, &output, &options)?;
             if dry_run {
                 return Ok(plan);

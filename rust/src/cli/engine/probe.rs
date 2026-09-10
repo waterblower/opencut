@@ -1,6 +1,6 @@
 use crate::{
+    cli::{document::Document, error::Result, validate::MediaInfo},
     cli_error, cli_try,
-    core::{document::Document, error::Result, validate::MediaInfo},
 };
 use ffmpeg_next as ffmpeg;
 use serde::Serialize;
@@ -49,7 +49,7 @@ pub fn is_image(path: &Path) -> bool {
 
 pub fn probe(path: &Path) -> Result<Probe> {
     if is_image(path) {
-        let image = crate::engine::raster::load_image(path)?;
+        let image = crate::cli::engine::raster::load_image(path)?;
         return Ok(Probe {
             container: "image".into(),
             duration: 0.0,
@@ -198,7 +198,7 @@ pub fn probe(path: &Path) -> Result<Probe> {
     })
 }
 
-pub fn assets(doc: &Document, base: &Path) -> Result<HashMap<String, MediaInfo>> {
+pub fn assets(doc: &Document, base: &Path) -> Result<HashMap<ulid::Ulid, MediaInfo>> {
     let (infos, findings) = inspect_assets(doc, base);
     if let Some(finding) = findings.into_iter().next() {
         return Err(finding.error);
@@ -210,8 +210,8 @@ pub fn inspect_assets(
     doc: &Document,
     base: &Path,
 ) -> (
-    HashMap<String, MediaInfo>,
-    Vec<crate::core::validate::Finding>,
+    HashMap<ulid::Ulid, MediaInfo>,
+    Vec<crate::cli::validate::Finding>,
 ) {
     let mut infos = HashMap::new();
     let mut findings = Vec::new();
@@ -222,7 +222,7 @@ pub fn inspect_assets(
             Err(mut e) => {
                 e.pointer = format!("/assets/{i}/path");
                 e.message = format!("{}: {}", path.display(), e.message);
-                findings.push(crate::core::validate::Finding {
+                findings.push(crate::cli::validate::Finding {
                     error: e,
                     fix_hint: None,
                 });
@@ -230,7 +230,7 @@ pub fn inspect_assets(
             }
         };
         infos.insert(
-            asset.id.clone(),
+            asset.id,
             MediaInfo {
                 duration: p.duration,
                 video: p.streams.iter().any(|s| s.kind == "video"),

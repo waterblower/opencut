@@ -1,27 +1,7 @@
-use crate::{cli_error, cli_try, core::error::Result};
-use schemars::JsonSchema;
-use serde::{Deserialize, Serialize};
-
-#[derive(Clone, Copy, Debug, Serialize, Deserialize, JsonSchema)]
-pub struct FrameRate {
-    pub numerator: u32,
-    pub denominator: u32,
-}
-
-impl Default for FrameRate {
-    fn default() -> Self {
-        Self {
-            numerator: 30,
-            denominator: 1,
-        }
-    }
-}
+pub use crate::timeline::FrameRate;
+use crate::{cli::error::Result, cli_error, cli_try};
 
 impl FrameRate {
-    pub fn seconds(self, frames: i64) -> f64 {
-        frames as f64 * self.denominator as f64 / self.numerator as f64
-    }
-
     pub fn samples(self, frames: i64, rate: u32) -> i64 {
         let n = frames as i128 * self.denominator as i128 * rate as i128;
         ((n + self.numerator as i128 / 2) / self.numerator.max(1) as i128)

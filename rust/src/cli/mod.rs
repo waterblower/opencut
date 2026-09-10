@@ -1,0 +1,6 @@
+//! Headless application services. The shared document contract lives in `timeline`.
+pub mod document;
+pub mod engine;
+pub mod error;
+pub mod time;
+pub mod validate;

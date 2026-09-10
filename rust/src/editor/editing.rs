@@ -1347,12 +1347,18 @@ fn ges_move_clips(
         let Some((original_layer_index, clip)) = clips_by_name.get(&clip_name) else {
             continue;
         };
+        let Some(data) = timeline.clip(*clip_id) else {
+            anyhow::bail!("missing timeline clip {clip_id} at {}:{}", file!(), line!());
+        };
+        let (start, duration) =
+            super::export_gstreamer::clip_clock_range(timeline.settings.frame_rate, data, *start);
         moves.push((
             *clip_id,
             clip.clone(),
             *original_layer_index,
             layer_index,
-            clock_time(*start),
+            start,
+            duration,
         ));
     }
 
@@ -1369,7 +1375,7 @@ fn ges_move_clips(
             .max()
             .unwrap_or(0)
             .saturating_add(parking_gap);
-        for (clip_id, clip, original_layer_index, _, _) in &moves {
+        for (clip_id, clip, original_layer_index, _, _, _) in &moves {
             clip.edit_full(
                 *original_layer_index as i64,
                 gstreamer_editing_services::EditMode::Normal,
@@ -1383,7 +1389,7 @@ fn ges_move_clips(
         }
     }
 
-    for (clip_id, clip, _, layer_index, start) in &moves {
+    for (clip_id, clip, _, layer_index, start, duration) in &moves {
         clip.edit_full(
             *layer_index as i64,
             gstreamer_editing_services::EditMode::Normal,
@@ -1391,6 +1397,13 @@ fn ges_move_clips(
             start.nseconds(),
         )
         .map_err(|error| anyhow::anyhow!("could not move GES clip {clip_id}: {error}"))?;
+        if !clip.set_duration(*duration) {
+            anyhow::bail!(
+                "could not set moved clip {clip_id} duration at {}:{}",
+                file!(),
+                line!()
+            );
+        }
     }
 
     let placements_by_clip = placements
@@ -1437,18 +1450,15 @@ fn ges_change_text_clip(
         .find(|clip| clip.name().as_deref() == Some(clip_name.as_str()))
         .ok_or_else(|| anyhow::anyhow!("timeline preview has no text clip for {clip_id}"))?;
     let overlay = clip
-        .downcast::<gstreamer_editing_services::TextOverlayClip>()
-        .map_err(|_| anyhow::anyhow!("timeline preview clip {clip_id} is not a text clip"))?;
-    overlay.set_text(Some(&properties.text));
-    overlay.set_font_desc(Some(&format!(
-        "{} {}px",
-        properties.font, properties.font_size
-    )));
-    overlay.set_color(properties.color);
-    overlay.set_halign(gstreamer_editing_services::TextHAlign::Position);
-    overlay.set_valign(gstreamer_editing_services::TextVAlign::Position);
-    overlay.set_xpos(properties.position_x);
-    overlay.set_ypos(properties.position_y);
+        .downcast::<gstreamer_editing_services::TitleClip>()
+        .map_err(|_| {
+            anyhow::anyhow!(
+                "timeline preview clip {clip_id} is not a text clip at {}:{}",
+                file!(),
+                line!()
+            )
+        })?;
+    super::export_gstreamer::configure_text_clip(&overlay, properties, 1.0)?;
     if !ges.commit() {
         anyhow::bail!("GStreamer could not commit the preview text change.");
     }
@@ -1568,33 +1578,38 @@ fn ges_add_clips(
             let text = clip
                 .text()
                 .ok_or_else(|| anyhow::anyhow!("Media clip {} is on a text track.", clip.id()))?;
-            let overlay = gstreamer_editing_services::TextOverlayClip::new()
-                .ok_or_else(|| anyhow::anyhow!("could not create text clip {}", clip.id()))?;
-            let font_size = (text.properties.font_size * output_scale).clamp(1.0, 1000.0);
-            overlay.set_text(Some(&text.properties.text));
-            overlay.set_font_desc(Some(&format!("{} {font_size}px", text.properties.font)));
-            overlay.set_color(text.properties.color);
-            overlay.set_halign(gstreamer_editing_services::TextHAlign::Position);
-            overlay.set_valign(gstreamer_editing_services::TextVAlign::Position);
-            overlay.set_xpos(text.properties.position_x);
-            overlay.set_ypos(text.properties.position_y);
+            let overlay = gstreamer_editing_services::TitleClip::new().ok_or_else(|| {
+                anyhow::anyhow!(
+                    "could not create text clip {} at {}:{}",
+                    clip.id(),
+                    file!(),
+                    line!()
+                )
+            })?;
             overlay
                 .set_name(Some(&format!("opencut-clip-{}", clip.id())))
                 .map_err(|error| {
                     anyhow::anyhow!("could not identify clip {}: {error}", clip.id())
                 })?;
-            if !overlay.set_start(clock_time(timeline.duration(clip.timeline_start()))) {
+            let (start, duration) = super::export_gstreamer::clip_clock_range(
+                timeline.settings.frame_rate,
+                clip,
+                clip.timeline_start(),
+            );
+            if !overlay.set_start(start) {
                 return Err(anyhow::anyhow!(
-                    "could not set text clip {} start",
-                    clip.id()
+                    "could not set text clip {} start at {}:{}",
+                    clip.id(),
+                    file!(),
+                    line!()
                 ));
             }
-            if !overlay.set_duration(clock_time(
-                timeline.duration(clip.frame_length(timeline.settings.frame_rate)),
-            )) {
+            if !overlay.set_duration(duration) {
                 return Err(anyhow::anyhow!(
-                    "could not set text clip {} duration",
-                    clip.id()
+                    "could not set text clip {} duration at {}:{}",
+                    clip.id(),
+                    file!(),
+                    line!()
                 ));
             }
             layer.add_clip(&overlay).map_err(|error| {
@@ -1603,6 +1618,7 @@ fn ges_add_clips(
                     clip.id()
                 )
             })?;
+            super::export_gstreamer::configure_text_clip(&overlay, &text.properties, output_scale)?;
             continue;
         }
 
@@ -1646,7 +1662,11 @@ fn ges_add_clips(
             uri_assets.insert(asset.id, uri_asset.clone());
             uri_asset
         };
-        let start = clock_time(timeline.duration(clip.timeline_start()));
+        let (start, duration) = super::export_gstreamer::clip_clock_range(
+            timeline.settings.frame_rate,
+            clip,
+            clip.timeline_start(),
+        );
         let inpoint = if asset.kind == MediaKind::Image {
             gstreamer::ClockTime::ZERO
         } else if track_types.contains(gstreamer_editing_services::TrackType::VIDEO) {
@@ -1654,8 +1674,6 @@ fn ges_add_clips(
         } else {
             clock_time(timeline.audio_duration(media.source_in))
         };
-        let duration =
-            clock_time(timeline.duration(clip.frame_length(timeline.settings.frame_rate)));
         let ges_clip = layer
             .add_asset(&uri_asset, start, inpoint, duration, track_types)
             .map_err(|error| {
@@ -1868,10 +1886,13 @@ pub(super) fn data_parity_check(
                 clock_time_frame(expected_inpoint).frames()
             ));
         }
-        if matches!(clip, Clip::Text(_))
-            && !rendered.is::<gstreamer_editing_services::TextOverlayClip>()
+        if matches!(clip, Clip::Text(_)) && !rendered.is::<gstreamer_editing_services::TitleClip>()
         {
-            return Err(anyhow::anyhow!("Clip {clip_id} is not a GES text overlay"));
+            return Err(anyhow::anyhow!(
+                "Clip {clip_id} is not a GES title at {}:{}",
+                file!(),
+                line!()
+            ));
         }
         if let Some(expected_formats) = expected_formats
             && rendered.supported_formats() != expected_formats

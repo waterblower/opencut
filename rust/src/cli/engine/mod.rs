@@ -1,7 +1,6 @@
 pub mod audio;
 pub mod compose;
 pub mod decode;
-pub mod effects;
 pub mod encode;
 pub mod probe;
 pub mod raster;

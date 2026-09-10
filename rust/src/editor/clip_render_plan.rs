@@ -1,26 +1,26 @@
 use super::timeline_clip::{AudioClipProperties, VideoClipProperties};
 
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub(super) struct RenderRect {
-    pub(super) left: f64,
-    pub(super) top: f64,
-    pub(super) width: f64,
-    pub(super) height: f64,
+pub struct RenderRect {
+    pub left: f64,
+    pub top: f64,
+    pub width: f64,
+    pub height: f64,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub(super) struct VisualClipRenderPlan {
-    pub(super) visible: RenderRect,
+pub struct VisualClipRenderPlan {
+    pub visible: RenderRect,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub(super) struct AudioClipRenderPlan {
-    pub(super) gain_linear: f64,
-    pub(super) muted: bool,
+pub struct AudioClipRenderPlan {
+    pub gain_linear: f64,
+    pub muted: bool,
 }
 
 #[allow(clippy::too_many_arguments)]
-pub(super) fn resolve_visual_clip_render_plan(
+pub fn resolve_visual_clip_render_plan(
     properties: VideoClipProperties,
     source_width: u32,
     source_height: u32,
@@ -55,7 +55,7 @@ pub(super) fn resolve_visual_clip_render_plan(
     VisualClipRenderPlan { visible }
 }
 
-pub(super) fn resolve_audio_clip_render_plan(
+pub fn resolve_audio_clip_render_plan(
     track_muted: bool,
     properties: AudioClipProperties,
 ) -> AudioClipRenderPlan {

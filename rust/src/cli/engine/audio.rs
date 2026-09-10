@@ -1,116 +1,73 @@
 use super::decode::{again, origin};
 use crate::{
+    cli::{error::Result, validate::MediaInfo},
     cli_error, cli_try,
-    core::{
-        document::{Clip, Document},
-        error::Result,
-        validate::MediaInfo,
-    },
+    timeline::TimelineSerialization,
 };
 use ffmpeg_next as ffmpeg;
 use std::{
     collections::{HashMap, VecDeque},
     path::Path,
 };
+use ulid::Ulid;
 
 #[derive(Default)]
 pub struct Mixer {
-    readers: HashMap<String, AudioReader>,
+    readers: HashMap<Ulid, AudioReader>,
 }
 
 impl Mixer {
     pub fn block(
         &mut self,
-        doc: &Document,
+        doc: &TimelineSerialization,
         base: &Path,
-        media: &HashMap<String, MediaInfo>,
+        media: &HashMap<Ulid, MediaInfo>,
         start: i64,
         count: usize,
     ) -> Result<Vec<[f32; 2]>> {
         let fps = doc.settings.frame_rate;
-        let rate = doc.settings.sample_rate;
+        let rate = doc.settings.audio_sample_rate;
         let mut mixed = vec![[0.0_f32; 2]; count];
         let mut active = Vec::new();
         for clip in &doc.clips {
-            let Clip::Media {
-                common,
-                asset_id,
-                source_in,
-                audio_properties,
-                ..
-            } = clip
-            else {
+            let Some(data) = clip.media() else {
                 continue;
             };
-            let Some(track) = doc.tracks.iter().find(|t| t.id == common.track_id) else {
+            let Some(track) = doc.track(data.track_id) else {
                 continue;
             };
-            if track.muted || audio_properties.muted || !media[asset_id].audio {
+            let Some(asset) = doc.asset(data.asset_id) else {
+                continue;
+            };
+            let Some(info) = media.get(&data.asset_id) else {
+                continue;
+            };
+            let gain = 10.0_f64.powf(data.audio_properties.gain_db.clamp(-96.0, 24.0) / 20.0);
+            if track.muted || data.audio_properties.muted || !asset.has_audio || !info.audio {
                 continue;
             }
-            let mut clip_start = fps.samples(common.timeline_start, rate);
-            let mut clip_end = fps.samples(clip.end(fps), rate);
-            let mut incoming = None;
-            let mut outgoing = None;
-            for transition in &doc.transitions {
-                if transition.from_clip != common.id && transition.to_clip != common.id {
-                    continue;
-                }
-                let cut = doc
-                    .clip(&transition.to_clip)
-                    .unwrap()
-                    .common()
-                    .timeline_start;
-                let begin = fps.samples(cut - transition.duration / 2, rate);
-                let end = fps.samples(cut + transition.duration - transition.duration / 2, rate);
-                if transition.to_clip == common.id {
-                    clip_start = begin;
-                    incoming = Some((begin, end));
-                } else {
-                    clip_end = end;
-                    outgoing = Some((begin, end));
-                }
-            }
+            let clip_start = fps.samples(data.timeline_start.frames(), rate);
+            let clip_end = fps.samples(clip.timeline_end(fps).frames(), rate);
             let from = start.max(clip_start);
             let end = (start + count as i64).min(clip_end);
             if from >= end {
                 continue;
             }
-            active.push(common.id.clone());
-            if !self.readers.contains_key(&common.id) {
-                self.readers.insert(
-                    common.id.clone(),
-                    AudioReader::open(&doc.asset_path(asset_id, base)?, rate)?,
-                );
+            active.push(data.id);
+            if !self.readers.contains_key(&data.id) {
+                self.readers
+                    .insert(data.id, AudioReader::open(&base.join(&asset.path), rate)?);
             }
-            let source =
-                fps.samples(*source_in, rate) + from - fps.samples(common.timeline_start, rate);
+            let source = fps.samples(data.source_in.frames(), rate) + from - clip_start;
             let samples = self
                 .readers
-                .get_mut(&common.id)
+                .get_mut(&data.id)
                 .unwrap()
                 .read(source, (end - from) as usize)?;
-            let gain = 10_f64.powf(audio_properties.gain_db / 20.0) as f32;
-            for (i, sample) in samples.iter().enumerate() {
-                let time = from + i as i64;
-                let mut envelope = 1.0_f64;
-                if let Some((begin, end)) = incoming
-                    && time < end
-                {
-                    envelope *= (((time - begin) as f64 / (end - begin) as f64)
-                        * std::f64::consts::FRAC_PI_2)
-                        .sin();
-                }
-                if let Some((begin, end)) = outgoing
-                    && time >= begin
-                {
-                    envelope *= (((time - begin) as f64 / (end - begin) as f64)
-                        * std::f64::consts::FRAC_PI_2)
-                        .cos();
-                }
-                let index = (time - start) as usize;
+            for (index, sample) in samples.iter().enumerate() {
+                let output_index = (from - start) as usize + index;
                 for channel in 0..2 {
-                    mixed[index][channel] += sample[channel] * gain * envelope as f32;
+                    mixed[output_index][channel] += sample[channel] * gain as f32;
                 }
             }
         }
@@ -123,7 +80,6 @@ impl Mixer {
         Ok(mixed)
     }
 }
-
 struct AudioReader {
     input: ffmpeg::format::context::Input,
     decoder: ffmpeg::decoder::Audio,

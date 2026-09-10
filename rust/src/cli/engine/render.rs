@@ -4,13 +4,14 @@ use super::{
     encode::{self, EncoderWorker},
     probe,
 };
+use crate::timeline::{Clip, TimelineTime, TrackKind};
 use crate::{
-    cli_error, cli_try,
-    core::{
-        document::{Clip, Document, TrackKind},
+    cli::{
+        document::Document,
         error::Result,
         validate::{MediaInfo, require_valid},
     },
+    cli_error, cli_try,
 };
 use image::{DynamicImage, ImageFormat, imageops};
 use serde_json::{Value, json};
@@ -40,25 +41,25 @@ pub fn summary(doc: &Document) -> Value {
     let mut tracks = Vec::new();
     let mut assets = Vec::new();
     for clip in &doc.clips {
-        clips.push(json!({"id": clip.common().id, "track_id": clip.common().track_id, "start_frame": clip.common().timeline_start, "end_frame": clip.end(fps), "start_s": fps.seconds(clip.common().timeline_start), "duration_s": fps.seconds(clip.length(fps)), "asset_id": clip.asset_id()}));
+        clips.push(json!({"id": clip.id(), "track_id": clip.track_id(), "start_frame": clip.timeline_start().frames(), "end_frame": clip.timeline_end(fps).frames(), "start_s": fps.seconds(clip.timeline_start()), "duration_s": fps.seconds(clip.frame_length(fps)), "asset_id": clip.media().map(|data| data.asset_id)}));
     }
     for track in &doc.tracks {
         let mut members: Vec<_> = doc
             .clips
             .iter()
-            .filter(|c| c.common().track_id == track.id)
+            .filter(|c| c.track_id() == track.id)
             .collect();
-        members.sort_by_key(|c| c.common().timeline_start);
+        members.sort_by_key(|c| c.timeline_start().frames());
         let mut gaps = Vec::new();
         let mut end = 0;
         for clip in members {
-            if clip.common().timeline_start > end {
-                gaps.push(json!({"start_frame": end, "end_frame": clip.common().timeline_start}));
+            if clip.timeline_start().frames() > end {
+                gaps.push(json!({"start_frame": end, "end_frame": clip.timeline_start().frames()}));
             }
-            end = clip.end(fps);
+            end = clip.timeline_end(fps).frames();
         }
-        if end < doc.duration() {
-            gaps.push(json!({"start_frame": end, "end_frame": doc.duration()}));
+        if end < doc.content_duration().frames() {
+            gaps.push(json!({"start_frame": end, "end_frame": doc.content_duration().frames()}));
         }
         tracks.push(json!({"id": track.id, "kind": track.kind, "name": track.name, "muted": track.muted, "gaps": gaps}));
     }
@@ -66,19 +67,22 @@ pub fn summary(doc: &Document) -> Value {
         let used: Vec<_> = doc
             .clips
             .iter()
-            .filter(|c| c.asset_id() == Some(&asset.id))
-            .map(|c| c.common().id.as_str())
+            .filter(|c| c.media().is_some_and(|data| data.asset_id == asset.id))
+            .map(|c| c.id())
             .collect();
         assets.push(json!({"id": asset.id, "path": asset.path, "clips": used}));
     }
-    json!({"frames": doc.duration(), "duration_s": fps.seconds(doc.duration()), "settings": doc.settings, "tracks": tracks, "clips": clips, "assets": assets})
+    json!({"frames": doc.content_duration().frames(), "duration_s": fps.seconds(doc.content_duration()), "settings": doc.settings, "tracks": tracks, "clips": clips, "assets": assets})
 }
 
 pub fn plan(doc: &Document, base: &Path, output: &Path, options: &Options) -> Result<Value> {
     require_valid(doc, None)?;
     let media = probe::assets(doc, base)?;
     require_valid(doc, Some(&media))?;
-    if options.start < 0 || options.end <= options.start || options.end > doc.duration() {
+    if options.start < 0
+        || options.end <= options.start
+        || options.end > doc.content_duration().frames()
+    {
         return Err(cli_error!(
             "invalid_range",
             "",
@@ -122,7 +126,10 @@ pub fn plan(doc: &Document, base: &Path, output: &Path, options: &Options) -> Re
     }
     encode::video_codec(&options.video_codec)?;
     let frames = options.end - options.start;
-    let duration = doc.settings.frame_rate.seconds(frames);
+    let duration = doc
+        .settings
+        .frame_rate
+        .seconds(TimelineTime::from_frames(frames));
     let (video_bitrate, bitrate_source) = resolve_bitrate(doc, &media, options)?;
     let estimated_bitrate = if options.video_codec == "prores" {
         let base = match options.preset.as_str() {
@@ -139,8 +146,8 @@ pub fn plan(doc: &Document, base: &Path, output: &Path, options: &Options) -> Re
     };
     let mut active = 0;
     for clip in &doc.clips {
-        if clip.common().timeline_start < options.end
-            && clip.end(doc.settings.frame_rate) > options.start
+        if clip.timeline_start().frames() < options.end
+            && clip.timeline_end(doc.settings.frame_rate).frames() > options.start
         {
             active += 1;
         }
@@ -161,7 +168,7 @@ pub fn still(
     require_valid(doc, None)?;
     let media = probe::assets(doc, base)?;
     require_valid(doc, Some(&media))?;
-    if frame < 0 || frame >= doc.duration() {
+    if frame < 0 || frame >= doc.content_duration().frames() {
         return Err(cli_error!(
             "invalid_time",
             "",
@@ -213,7 +220,7 @@ pub fn render(
     let temp = temporary(output, options.overwrite)?;
     let result = (|| {
         let fps = doc.settings.frame_rate;
-        let rate = doc.settings.sample_rate;
+        let rate = doc.settings.audio_sample_rate;
         let mut encoder = EncoderWorker::open(
             temp.clone(),
             (width, height),
@@ -292,7 +299,7 @@ pub fn parse_bitrate(value: &str) -> Result<u64> {
 
 pub fn resolve_bitrate(
     doc: &Document,
-    media: &HashMap<String, MediaInfo>,
+    media: &HashMap<Ulid, MediaInfo>,
     options: &Options,
 ) -> Result<(u64, &'static str)> {
     if let Some(bitrate) = options.bitrate {
@@ -309,25 +316,23 @@ pub fn resolve_bitrate(
     let mut weighted = 0_u128;
     let mut frames = 0_u128;
     for clip in &doc.clips {
-        let Clip::Media {
-            common, asset_id, ..
-        } = clip
-        else {
+        let Clip::Video(data) = clip else {
             continue;
         };
-        if !doc
-            .tracks
-            .iter()
-            .any(|track| track.id == common.track_id && track.kind == TrackKind::Video)
-        {
+        if !doc.tracks.iter().any(|track| {
+            track.id == data.track_id && track.kind == TrackKind::Video && track.visible
+        }) {
             continue;
         }
-        let length = clip.end(doc.settings.frame_rate).min(options.end)
-            - common.timeline_start.max(options.start);
+        let length = clip
+            .timeline_end(doc.settings.frame_rate)
+            .frames()
+            .min(options.end)
+            - data.timeline_start.frames().max(options.start);
         if length <= 0 {
             continue;
         }
-        let Some(info) = media.get(asset_id) else {
+        let Some(info) = media.get(&data.asset_id) else {
             continue;
         };
         let Some(bitrate) = info.video_bitrate else {

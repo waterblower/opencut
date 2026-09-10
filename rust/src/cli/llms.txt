@@ -1,56 +1,59 @@
-OpenCut v1: a standalone headless video editor
+OpenCut: render the same timeline JSON used by the GUI editor.
 
-Build: cargo build --no-default-features --features cli --bin opencut
-Run opencut --help or opencut <command> --help for exact flags.
-Use --json on any command. stdout contains results; stderr contains progress.
-Render progress updates at most once every five seconds, plus a final completion
-update after the file is saved. Use --progress none for silent rendering.
+The CLI uses FFmpeg; the GUI uses GStreamer. The shared timeline module owns only
+format types and serialization rules. The applications own I/O and rendering.
+
+Commands: probe, new, validate, inspect, schema, docs, still, render.
+All accept --json. Results: stdout. Progress: stderr, at most once per five seconds
+plus completion. --progress none suppresses it. There is no edit command.
 
 Workflow:
-  opencut new project.timeline.json --fps 30000/1001 --json
   opencut probe media.mp4 --json
-  opencut edit project.timeline.json add-clip --track TRACK_ID --asset media.mp4 --at 0 --in 1s --out 3s --json
-  opencut validate project.timeline.json --json
-  opencut inspect project.timeline.json --json
-  opencut still project.timeline.json --at 50% -o preview.png
-  opencut render project.timeline.json -o output.mp4 --dry-run --json
-  opencut render project.timeline.json -o output.mp4 --progress json --json
-  opencut schema
+  opencut new episode.timeline.json --fps 30000/1001 --json
+  opencut schema --json
+  opencut --project-root /project validate scenes/episode.timeline.json --json
+  opencut --project-root /project inspect scenes/episode.timeline.json --json
+  opencut --project-root /project still scenes/episode.timeline.json --at 50% -o preview.png
+  opencut --project-root /project render scenes/episode.timeline.json -o output.mp4 --dry-run --json
+  opencut --project-root /project render scenes/episode.timeline.json -o output.mp4 --progress json --json
 
-Document API: opencut schema emits the authoritative JSON Schema.
-Required root fields: version:1, settings, assets, tracks, clips.
-Assets: {id,path}; relative paths resolve from the document directory.
-Tracks: {id,kind:"video"|"audio"|"text",name,muted}. Later tracks render on top.
-Clips: type:"media"|"image"|"text", id, track_id, timeline_start.
-Media: asset_id, source_in, source_out. Image: asset_id,length. Text: length,properties.
-Frame positions and lengths are integers at settings.frame_rate {numerator,denominator}.
-Text length additionally accepts {secs,nanos}. All intervals are end-exclusive.
-CLI times: 12.5, 12.5s, 375f, 00:00:12.500; rounded to nearest frame.
-Only still --at accepts percentages, with 100% selecting the last frame.
-Positions are normalized center anchors, 0..1. Scale 1 fits inside the frame.
-Text color is packed RRGGBBAA; background and dip color are #RRGGBB[AA].
-Effects apply in order: gaussian_blur(radius pixels), color_adjust(brightness -1..1,
-contrast/saturation 0..10), crop(normalized x,y,width,height), flip(horizontal,vertical).
-Opacity is a clip property. All effects are static.
-Transitions: id,type,from_clip,to_clip,duration; types crossfade,dip_to_color,wipe,slide.
-Wipe/slide direction: left,right,up,down. Dip requires color.
-Transitions center on adjacent cuts, need source handles, preserve total duration,
-and cannot have overlapping windows. Incoming audio uses sin, outgoing cos.
-Audio is mixed to stereo, clipped to [-1,1], without a limiter. Compositing uses
-8-bit sRGB RGBA; output is BT.709. HDR and keyframe animation are unsupported.
+Timeline/output arguments resolve from the working directory. Relative asset paths
+resolve from --project-root, defaulting to the working directory, NOT the timeline
+directory. Absolute asset paths work unchanged. Keep referenced original media.
 
-Edit commands: add-track,add-clip,add-text,move-clip,trim-clip,split-clip,remove-clip,set.
-IDs are strings, generated as ULIDs; references never use array indexes.
-Split --at is an absolute timeline time. Edits return affected entities with IDs.
-Set accepts dotted static property paths and JSON values; identities/timing use
-dedicated commands. Unknown fields survive edits; invalid edits do not write.
-Image add-clip defaults to 5s; --out sets image duration and --in must be zero.
-New refuses existing files. Render/still require --overwrite for existing outputs.
-Render embeds the input document in metadata unless --no-metadata is given.
-Render --bitrate (alias --video-bitrate) accepts bits/s, e.g. 1500000, 1500k, 1.5M.
-Absent --bitrate, use the source video bitrate, duration-weighted across contributing
-video clips in the selected range. Fall back to the preset only without known source
-bitrates. Dry-run reports video_bitrate and bitrate_source. ProRes is profile-controlled.
-Exit codes: 0 success, 2 usage, 3 validation, 4 media, 5 rendering, 6 I/O.
-JSON errors: {error:{code,pointer,message,file,line}}. Validation returns findings.
-This format is independent of the GUI editor format.
+Use opencut schema for the authoritative contract. Canonical root fields:
+settings, assets, tracks, clips, view. No root version or transitions.
+Settings: width,height,frame_rate:{numerator,denominator},audio_sample_rate.
+Assets: id (ULID),kind (Video/Image/Audio),path,name,duration,width,height,framerate,
+frame_rate_numerator,frame_rate_denominator,codec,has_audio.
+Tracks: id,name,kind (Video/Audio/Text),locked,muted,visible.
+Clips: {kind:Video|Audio|Text,data:{...}}.
+Media data: id,track_id,asset_id,timeline_start,source_in,source_out,
+video_properties:{position_x,position_y,scale},audio_properties:{gain_db,muted}.
+Images are Video clips with Image assets; their source range specifies duration.
+Text data: id,track_id,timeline_start,length:{secs,nanos},
+properties:{text,font,font_size,color,position_x,position_y}.
+
+Positions and media source bounds are integer frames at the timeline rate.
+Ranges are end-exclusive. Video position is a pixel offset from center; scale 1
+fits inside the project frame. Text position is normalized. Color is packed RRGGBBAA.
+Earlier video tracks appear above later ones; text tracks appear above video.
+Hidden video may still contribute audio. Muting controls audio; locking does not
+affect export. View state is serialized but does not affect CLI rendering.
+
+Legacy CLI documents using version/type/transitions are rejected with
+legacy_cli_format. Do not emit the old CLI format. Assembly commands, SRT import,
+automatic silence removal, and camera selection are not implemented in this CLI.
+
+Time arguments: 12.5,12.5s,375f,00:00:12.500. Rounded to the nearest frame.
+Only still --at accepts percentages; 100% means final frame.
+H.264/HEVC: MP4/MOV. ProRes: MOV. Audio: AAC stereo. Black background.
+Render --bitrate (alias --video-bitrate) accepts bits/s with k/M suffixes.
+Absent --bitrate, use duration-weighted contributing visible source video bitrate;
+fallback to preset. ProRes remains profile-controlled.
+New refuses existing files. Render/still require --overwrite to replace outputs.
+Outputs cannot overwrite source assets. Render embeds the input document in
+opencut.timeline metadata unless --no-metadata is supplied.
+
+Exit codes: 0 success,2 usage,3 validation,4 media,5 rendering,6 I/O.
+JSON errors: {error:{code,pointer,message,file,line}}. Validate returns findings.

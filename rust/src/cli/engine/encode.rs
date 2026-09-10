@@ -1,7 +1,7 @@
 use super::decode::again;
 use crate::{
+    cli::{error::Result, time::FrameRate},
     cli_error, cli_try,
-    core::{error::Result, time::FrameRate},
 };
 use ffmpeg_next as ffmpeg;
 use image::RgbaImage;

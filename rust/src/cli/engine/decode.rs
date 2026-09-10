@@ -1,4 +1,4 @@
-use crate::{cli_error, cli_try, core::error::Result};
+use crate::{cli::error::Result, cli_error, cli_try};
 use ffmpeg_next as ffmpeg;
 use image::RgbaImage;
 use std::{

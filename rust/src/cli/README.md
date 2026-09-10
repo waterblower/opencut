@@ -1,114 +1,135 @@
 # OpenCut CLI
 
-A standalone, headless video editor driven by a versioned JSON timeline. This
-application has its own format and does not migrate or modify GUI editor files.
+A headless application that reads the same timeline JSON as the OpenCut editor.
+The CLI renders with FFmpeg; the editor edits and renders with GStreamer.
+The shared [timeline module](../timeline/mod.rs) defines the format and serialization
+rules, without file I/O or backend state. CLI-specific services and the FFmpeg
+engine live beneath this application module.
 
 ## Build and run
 
-From the Rust directory, `cargo cli` builds and runs the CLI with the vendored
-FFmpeg environment. Arguments are forwarded directly:
+From the Rust directory, `cargo cli` runs with the vendored FFmpeg environment:
 
 ```sh
-cd rust
 cargo cli --help
 cargo cli probe media.mp4 --json
+cargo cli new episode.timeline.json --fps 30000/1001 --json
+cargo cli schema --json
+cargo cli --project-root /path/to/project validate scenes/episode.timeline.json --json
+cargo cli --project-root /path/to/project inspect scenes/episode.timeline.json --json
+cargo cli --project-root /path/to/project still scenes/episode.timeline.json --at 50% -o preview.png
+cargo cli --project-root /path/to/project render scenes/episode.timeline.json -o output.mp4 --dry-run --json
+cargo cli --project-root /path/to/project render scenes/episode.timeline.json -o output.mp4 --progress json --json
 ```
 
-From the repository root, using the existing development FFmpeg installation:
+Timeline and output arguments resolve from the working directory. `--project-root`
+controls the base of relative **asset paths**, matching the editor. It defaults to
+the working directory, not the timeline's parent directory. Absolute asset paths
+are unchanged. A timeline saved in a nested project folder uses the same project
+root as a timeline at the top level.
+
+From the repository root:
 
 ```sh
 bash rust/scripts/cargo-cli.sh build --no-default-features --features cli --bin opencut
-rust/target/debug/opencut --help
-rust/target/debug/opencut docs
-rust/target/debug/opencut schema
 ```
 
-The wrapper links the existing `rust/vendor/ffmpeg-8.1.2` installation and sets
-only libav discovery and library paths, with no GStreamer environment setup.
-Always disable default Cargo features when building the CLI alone.
+The wrapper links the existing `rust/vendor/ffmpeg-8.1.2` libraries. It never builds
+FFmpeg or invokes Python. Disable default features to build the CLI without GPUI
+or GStreamer dependencies.
 
-The [agent guide](llms.txt) describes the command and document contracts. All
-commands accept `--json`; render progress is written only to stderr.
-Progress is throttled to one update per five seconds, plus a final update
-after the output is saved. `--progress none` suppresses progress entirely. Errors
-include stable codes, JSON pointers, and Rust source locations. `validate`
-returns a findings array. Read-modify-write edits preserve unknown fields and
-commit only after validation, using a temporary file in the target directory.
+## Shared timeline contract
 
-CLI time inputs round to the nearest timeline frame using integer rational
-arithmetic. Render ranges are end-exclusive. `still --at 100%` means the final
-frame. Text durations accept integer frames or `{secs,nanos}`. `add-clip --asset`
-resolves its argument from the working directory and stores a document-relative
-path when the asset is beneath the document directory, otherwise an absolute path.
+The authoritative schema is generated from the actual shared Rust types by
+`opencut schema`. See the [complete example](../../tests/fixtures/shared.timeline.json).
 
-## Rendering contracts
+- Root fields are `settings`, `assets`, `tracks`, `clips`, and `view`. There is no
+  CLI-specific `version` field. Existing GUI defaults and deserialization aliases
+  remain supported; canonical serialization uses the GUI field names and tags.
+- Settings include width, height, rational `frame_rate`, and `audio_sample_rate`.
+- Assets include ULID, path, media kind, display name, duration, dimensions,
+  frame-rate metadata, codec, and `has_audio`.
+- Tracks use `Video`, `Audio`, or `Text`, with `locked`, `muted`, and `visible`.
+- Clips use `{"kind":"Video"|"Audio"|"Text","data":{...}}`. Media data includes
+  IDs, `timeline_start`, `source_in`, `source_out`, and video/audio properties.
+  Images are video clips referencing an asset whose kind is `Image`.
+- Media source bounds and timeline positions are integer frames at the timeline
+  rate. Text length uses `{ "secs": ..., "nanos": ... }`. Ranges are end-exclusive.
+- Video position is a **pixel offset from the centered placement** in project
+  dimensions. Scale 1 fits the source inside the frame. Text positions specify a
+  normalized center, clamped to the canvas; text color is big-endian ARGB.
+- Earlier video tracks appear above later video tracks. Text tracks appear above
+  video tracks, also respecting earlier-track priority.
+- Visibility controls visual output; hiding a video track does not mute its audio.
+  Track and clip muting control audio. Locking affects editing, not export.
+- View state survives serialization and is ignored by the CLI renderer.
 
-- H.264/HEVC use macOS VideoToolbox; `gpl` selects libx264 for H.264. ProRes uses
-  the native FFmpeg encoder and requires MOV. H.264/HEVC accept MP4 or MOV. AAC
-  stereo is always included, including silence for timelines without audio.
-  HEVC uses the `hvc1` sample entry and out-of-band parameter sets for Apple
-  playback compatibility. `probe` reports `codec_tag` as well as the codec name.
-- When `--bitrate` is omitted, video encoding targets the input video's bitrate.
-  With multiple input videos, it uses their duration-weighted average within the
-  render range; audio-only tracks and unused assets are excluded. `--bitrate`
-  (alias `--video-bitrate`) overrides this in bits/s, with decimal `k` and `M`
-  suffixes (for example `1500000`, `1500k`, or `1.5M`). Preset-derived bitrate is
-  used only when no contributing source reports a video bitrate (including
-  image/text-only timelines). Dry-run reports `video_bitrate` and `bitrate_source`.
-  These are average bitrate targets, not exact file-size limits. ProRes remains
-  profile-controlled and does not honor a target bitrate like H.264/HEVC.
-- Draft/standard/high select encoder settings and fallback bitrate targets. Scaled video
-  dimensions must be even; unsupported encoders produce a capability error.
-- Compositing is deterministic 8-bit RGBA in track order. Coordinates are
-  normalized center anchors; scale is relative to fitting inside the frame.
-  RGB is treated as sRGB, with BT.709 matrix/range and color tags on video output.
-  HDR and wide-gamut color management are outside v1.
-- Text uses the embedded IBM Plex Sans font (SIL OFL). Sans, sans-serif, and Inter
-  resolve to that fallback; unavailable named fonts also fall back. No system
-  font discovery is used, keeping output repeatable across machines.
-- Crop uses normalized source coordinates and then refits the cropped image.
-  Blur radius is in source pixels. Alpha is preserved through composition.
-- Transitions center on adjacent cuts; odd lengths allocate the extra frame
-  after the cut. Media clips require source handles, while still/text content
-  extends across the window. Transition windows may not overlap. Audio uses
-  equal-power sine/cosine curves for every visual transition type.
-- Audio is resampled to the configured rate and mixed with per-clip gain/muting
-  and track muting. Sum overflow is hard-clipped to [-1,1]; no limiter is applied.
-  AAC is lossy and may contain codec padding; presentation timestamps determine
-  the intended duration. Frame selection uses nearest PTS, with earlier frames
-  winning ties. Stills use exactly the same compositor as video encoding.
-- Render outputs are staged next to the destination and committed after success.
-  Existing outputs require `--overwrite`; source media cannot be output targets.
-  Provenance is stored under the `opencut.timeline` metadata key by default.
+`new` creates a document with visible video and audio tracks. All input timelines
+are read without rewriting them. Document assembly and subtitle-import interfaces
+are deferred; existing GUI import/edit operations remain available.
 
-## Test and package
+**Legacy CLI timelines and the `edit` command have been removed.** Documents using
+the old `type` clip tags, root `version`, or `transitions` are rejected with
+`legacy_cli_format`. CLI-only effects, opacity, background color, and transitions
+are not part of this shared format. There is no legacy conversion layer.
+
+## Rendering and output
+
+H.264/HEVC use macOS VideoToolbox; `gpl` selects libx264 for H.264. ProRes uses
+FFmpeg's native encoder and requires MOV. H.264/HEVC accept MP4 or MOV. AAC stereo
+is included, including silence for timelines without audio. HEVC uses `hvc1` with
+out-of-band parameter sets for Apple playback compatibility.
+
+Without `--bitrate`, video bitrate is the duration-weighted source bitrate of
+visible video clips contributing to the selected range. Unused assets and audio
+tracks are excluded. Preset-derived bitrate is the fallback. `--bitrate` accepts
+bits/s and decimal `k`/`M` suffixes. ProRes is profile-controlled.
+
+The FFmpeg compositor uses deterministic 8-bit RGBA, an opaque black background,
+and BT.709 output. Text uses embedded IBM Plex Sans with fallback for unavailable
+font names. Backend font rasterization and encoded bytes may differ; clip timing,
+source selection, layering, transforms, and audio inclusion use the shared
+contract. HDR, wide-gamut management, and animated effects are outside this format.
+Audio gain is clamped to the editor's -96..24 dB range, and summed samples are
+hard-clipped to [-1,1].
+
+`new` and render outputs refuse existing destinations unless supported overwrite
+flags are supplied. Source media cannot be output targets. Render outputs are
+staged next to the destination and committed only on success. The input timeline
+is embedded under `opencut.timeline` unless `--no-metadata` is supplied.
+
+CLI times accept seconds, `s`, frames with `f`, and `HH:MM:SS`. They round to the
+nearest timeline frame using rational arithmetic. Only `still --at` accepts
+percentages; `100%` selects the final frame.
+
+All commands accept `--json`. Results go to stdout; progress goes to stderr at
+most once every five seconds, plus final completion. Errors include codes, JSON
+pointers, and Rust file/line locations. `validate` returns all findings.
+
+## Verification and packaging
 
 ```sh
-bash rust/scripts/cargo-cli.sh test --no-default-features --features cli --test cli
-```
-
-Tests generate tiny source media, images, and SVGs in isolated temporary
-directories. They exercise exact time parsing, edits, validation, decoding,
-compositing, transitions, audio, native encoding, metadata, and command outputs.
-The separately marked VideoToolbox test requires an unrestricted macOS session:
-run the same test command with `-- --ignored` to verify H.264/HEVC and fractional
-frame rates. A sandbox can deny VideoToolbox sessions even when encoders exist.
-
-For a local macOS release using the same vendored libraries:
-
-```sh
+# Shared format alone, without either media backend:
+cargo test --manifest-path rust/Cargo.toml --no-default-features --features timeline-schema --lib --test timeline
+# CLI and FFmpeg integration:
+bash rust/scripts/cargo-cli.sh test --no-default-features --features cli --test cli --test timeline
+# Optional VideoToolbox encoder tests:
+bash rust/scripts/cargo-cli.sh test --no-default-features --features cli --test cli -- --ignored
+# Local macOS package:
 bash rust/scripts/package-cli.sh
 ```
 
-FFmpeg is never built by the application build, and Python is not used. Both
-development and release binaries link the vendored FFmpeg dynamically and need
-that installation and its transitive libraries at runtime. `OPENCUT_GPL=1`
-selects the Cargo `gpl` feature for libx264; it does not build any codecs.
-The vendored FFmpeg may contain GPL components regardless of that feature.
+From the Rust directory, the cross-backend GUI round-trip test is:
 
-The package includes the binary, usage documentation, FFmpeg license texts, and
-the font's SIL OFL notice. It is a local unsigned artifact for this installation,
-not a relocatable standalone distribution. The script checks the 100 MB binary
-size ceiling (target: 40 MB). CI requires a provisioned macOS runner with the
-vendored libraries and their dependencies. Signing and publishing are separate
-release operations.
+```sh
+cargo test-mac --no-default-features --features editor,cli --bin opencut-editor shared_timeline
+```
+
+This generates synthetic media, saves and edits a GUI timeline, renders it through
+both backends, and checks cut boundaries, transforms, caption placement/timing,
+and audio gain/muting. Its GStreamer export uses software AAC for headless testing.
+
+The package is a local unsigned artifact linked against the existing vendored
+FFmpeg installation and its transitive libraries, not a relocatable distribution.
+`OPENCUT_GPL=1` selects libx264; it does not build codecs. FFmpeg licensing still
+depends on the vendored build. Signing and publishing remain separate operations.

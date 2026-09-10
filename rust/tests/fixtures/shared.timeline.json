@@ -1,0 +1,21 @@
+{
+  "settings": {"frame_rate": {"numerator": 30000, "denominator": 1001}, "width": 160, "height": 90, "audio_sample_rate": 48000},
+  "assets": [
+    {"id":"00000000000000000000000001","kind":"Video","path":"media/camera.mov","name":"Camera","duration":4.0,"width":160,"height":90,"framerate":24.0,"frame_rate_numerator":24,"frame_rate_denominator":1,"codec":"prores","has_audio":true},
+    {"id":"00000000000000000000000002","kind":"Audio","path":"media/master.wav","name":"Master audio","duration":4.0,"width":0,"height":0,"framerate":0.0,"frame_rate_numerator":0,"frame_rate_denominator":0,"codec":"pcm_s16le","has_audio":true},
+    {"id":"00000000000000000000000003","kind":"Image","path":"media/title.png","name":"Title","duration":5.0,"width":80,"height":45,"framerate":0.0,"frame_rate_numerator":0,"frame_rate_denominator":0,"codec":"png","has_audio":false}
+  ],
+  "tracks": [
+    {"id":"00000000000000000000000004","kind":"Video","name":"Overlay","locked":true,"muted":false,"visible":true},
+    {"id":"00000000000000000000000005","kind":"Video","name":"Camera","locked":false,"muted":false,"visible":true},
+    {"id":"00000000000000000000000006","kind":"Audio","name":"Master","locked":false,"muted":false,"visible":false},
+    {"id":"00000000000000000000000007","kind":"Text","name":"Subtitles","locked":false,"muted":false,"visible":true}
+  ],
+  "clips": [
+    {"kind":"Video","data":{"id":"00000000000000000000000008","track_id":"00000000000000000000000005","asset_id":"00000000000000000000000001","timeline_start":0,"source_in":15,"source_out":75,"video_properties":{"position_x":0.0,"position_y":0.0,"scale":1.0},"audio_properties":{"gain_db":0.0,"muted":true}}},
+    {"kind":"Video","data":{"id":"00000000000000000000000009","track_id":"00000000000000000000000004","asset_id":"00000000000000000000000003","timeline_start":10,"source_in":0,"source_out":20,"video_properties":{"position_x":20.0,"position_y":-10.0,"scale":0.5},"audio_properties":{"gain_db":0.0,"muted":false}}},
+    {"kind":"Audio","data":{"id":"0000000000000000000000000A","track_id":"00000000000000000000000006","asset_id":"00000000000000000000000002","timeline_start":0,"source_in":15,"source_out":75,"video_properties":{"position_x":0.0,"position_y":0.0,"scale":1.0},"audio_properties":{"gain_db":-6.0,"muted":false}}},
+    {"kind":"Text","data":{"id":"0000000000000000000000000B","track_id":"00000000000000000000000007","timeline_start":15,"length":{"secs":1,"nanos":0},"properties":{"text":"Hello podcast","font":"Sans","font_size":14.0,"color":4294967295,"position_x":0.5,"position_y":0.8}}}
+  ],
+  "view":{"saved_playhead_frame":20,"horizontal_scroll":14.0,"vertical_scroll":7.0,"pixels_per_second":80.0,"snapping_enabled":false,"track_magnet_enabled":true}
+}

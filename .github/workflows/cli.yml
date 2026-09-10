@@ -16,9 +16,11 @@ jobs:
           clean: false
       - uses: dtolnay/rust-toolchain@stable
       - run: test -f rust/vendor/ffmpeg-8.1.2/lib/pkgconfig/libavcodec.pc
+      - name: Test shared format without media backends
+        run: cargo test --manifest-path rust/Cargo.toml --locked --no-default-features --features timeline-schema --lib --test timeline
       - name: Test CLI without GUI dependencies
         run: |
-          bash rust/scripts/cargo-cli.sh test --locked --no-default-features --features cli --test cli
+          bash rust/scripts/cargo-cli.sh test --locked --no-default-features --features cli --test cli --test timeline
           bash rust/scripts/cargo-cli.sh test --locked --no-default-features --features cli --test cli -- --ignored
           bash rust/scripts/cargo-cli.sh tree --no-default-features --features cli -e normal > rust/target/cli-dependencies.txt
           if rg 'gpui|gstreamer' rust/target/cli-dependencies.txt; then exit 1; fi

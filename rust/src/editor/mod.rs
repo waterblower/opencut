@@ -77,12 +77,12 @@ use preview_timeline::TimelinePreviewDrag;
 use project_settings::{load_project_local_settings, save_project_local_settings};
 use properties_transform::VideoTransformInputs;
 use timeline::{
-    FRAME_RATE_PRESETS, FrameRate, PreviewDropAsset, TimelineRuntimeState, TimelineSerialization,
-    TimelineTime, timeline_ranges_overlap,
+    FRAME_RATE_PRESETS, FrameRate, FrameRateLabel, PreviewDropAsset, TimelineEditorExt,
+    TimelineRuntimeState, TimelineSerialization, TimelineTime, timeline_ranges_overlap,
 };
 #[cfg(test)]
 use timeline_clip::AudioClip;
-use timeline_clip::{Clip, TextClip, TextClipProperties, VideoClipProperties};
+use timeline_clip::{Clip, ClipEditingExt, TextClip, TextClipProperties, VideoClipProperties};
 use timeline_clip_menu::transform_targets;
 use timeline_document::{load_existing_timeline, project_timeline_files};
 use timeline_interactions::{MarqueeSelection, TimelineInteractionState, TimelineTool};

@@ -49,7 +49,7 @@ impl std::error::Error for Error {}
 #[macro_export]
 macro_rules! cli_error {
     ($code:expr, $pointer:expr, $exit:expr, $($arg:tt)*) => {
-        $crate::core::error::Error::new($code, $pointer, format!($($arg)*), $exit, file!(), line!())
+        $crate::cli::error::Error::new($code, $pointer, format!($($arg)*), $exit, file!(), line!())
     };
 }
 
@@ -61,4 +61,17 @@ macro_rules! cli_try {
             Err(error) => return Err($crate::cli_error!($code, $pointer, $exit, "{error}")),
         }
     };
+}
+
+impl From<crate::timeline::ParseError> for Error {
+    fn from(error: crate::timeline::ParseError) -> Self {
+        Self {
+            code: error.code.into(),
+            pointer: error.pointer,
+            message: error.message,
+            file: error.file,
+            line: error.line,
+            exit: 3,
+        }
+    }
 }
