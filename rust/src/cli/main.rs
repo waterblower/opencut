@@ -235,16 +235,14 @@ fn run(command: Command, json_mode: bool, base: &Path) -> Result<Value> {
                     Some(raw.to_string())
                 },
             };
-            let prepared = render::prepare(&doc, base, &output, &options)?;
             if dry_run {
-                return Ok(prepared.summary);
+                let media = probe::assets(&doc, base)?;
+                return render::plan(&doc, base, &output, &options, &media);
             }
-            let plan = prepared.summary.clone();
             let (sender, receiver) = std::sync::mpsc::sync_channel(8);
             let base = base.to_path_buf();
-            let worker = std::thread::spawn(move || {
-                render::render_prepared(&doc, &base, &output, &options, prepared, sender)
-            });
+            let worker =
+                std::thread::spawn(move || render::render(&doc, &base, &output, &options, sender));
             for update in receiver {
                 if progress == "json" {
                     eprintln!("{}", update);
@@ -261,17 +259,14 @@ fn run(command: Command, json_mode: bool, base: &Path) -> Result<Value> {
                 eprintln!();
             }
             match worker.join() {
-                Ok(result) => result?,
-                Err(_) => {
-                    return Err(cli_error!(
-                        "render_failure",
-                        "",
-                        5,
-                        "render worker panicked"
-                    ));
-                }
+                Ok(result) => result,
+                Err(_) => Err(cli_error!(
+                    "render_failure",
+                    "",
+                    5,
+                    "render worker panicked"
+                )),
             }
-            Ok(plan)
         }
     }
 }
