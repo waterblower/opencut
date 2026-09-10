@@ -235,14 +235,16 @@ fn run(command: Command, json_mode: bool, base: &Path) -> Result<Value> {
                     Some(raw.to_string())
                 },
             };
-            let plan = render::plan(&doc, base, &output, &options)?;
+            let prepared = render::prepare(&doc, base, &output, &options)?;
             if dry_run {
-                return Ok(plan);
+                return Ok(prepared.summary);
             }
+            let plan = prepared.summary.clone();
             let (sender, receiver) = std::sync::mpsc::sync_channel(8);
             let base = base.to_path_buf();
-            let worker =
-                std::thread::spawn(move || render::render(&doc, &base, &output, &options, sender));
+            let worker = std::thread::spawn(move || {
+                render::render_prepared(&doc, &base, &output, &options, prepared, sender)
+            });
             for update in receiver {
                 if progress == "json" {
                     eprintln!("{}", update);

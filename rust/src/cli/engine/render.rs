@@ -9,6 +9,7 @@ use crate::{
     cli::{
         document::Document,
         error::Result,
+        output as output_file,
         validate::{MediaInfo, require_valid},
     },
     cli_error, cli_try,
@@ -17,8 +18,8 @@ use image::{DynamicImage, ImageFormat, imageops};
 use serde_json::{Value, json};
 use std::{
     collections::HashMap,
-    fs::{self, OpenOptions},
-    path::{Path, PathBuf},
+    fs,
+    path::Path,
     sync::mpsc::SyncSender,
     time::{Duration, Instant},
 };
@@ -33,6 +34,13 @@ pub struct Options {
     pub bitrate: Option<u64>,
     pub overwrite: bool,
     pub metadata: Option<String>,
+}
+
+pub struct PreparedRender {
+    pub summary: Value,
+    media: HashMap<Ulid, MediaInfo>,
+    dimensions: (u32, u32),
+    bitrate: u64,
 }
 
 pub fn summary(doc: &Document) -> Value {
@@ -75,7 +83,12 @@ pub fn summary(doc: &Document) -> Value {
     json!({"frames": doc.content_duration().frames(), "duration_s": fps.seconds(doc.content_duration()), "settings": doc.settings, "tracks": tracks, "clips": clips, "assets": assets})
 }
 
-pub fn plan(doc: &Document, base: &Path, output: &Path, options: &Options) -> Result<Value> {
+pub fn prepare(
+    doc: &Document,
+    base: &Path,
+    output: &Path,
+    options: &Options,
+) -> Result<PreparedRender> {
     require_valid(doc, None)?;
     let media = probe::assets(doc, base)?;
     require_valid(doc, Some(&media))?;
@@ -115,15 +128,7 @@ pub fn plan(doc: &Document, base: &Path, output: &Path, options: &Options) -> Re
         ));
     }
     protect_assets(doc, base, output)?;
-    if output.exists() && !options.overwrite {
-        return Err(cli_error!(
-            "output_exists",
-            "",
-            6,
-            "use --overwrite to replace {}",
-            output.display()
-        ));
-    }
+    check_output(output, options.overwrite)?;
     encode::video_codec(&options.video_codec)?;
     let frames = options.end - options.start;
     let duration = doc
@@ -152,9 +157,12 @@ pub fn plan(doc: &Document, base: &Path, output: &Path, options: &Options) -> Re
             active += 1;
         }
     }
-    Ok(
-        json!({"path": output, "frames": frames, "duration_s": duration, "width": width, "height": height, "active_clip_count": active, "estimated_output_bytes": ((estimated_bitrate + 192000.0) * duration / 8.0) as u64, "video_codec": options.video_codec, "video_bitrate": video_bitrate, "bitrate_source": bitrate_source, "audio_codec": "aac"}),
-    )
+    Ok(PreparedRender {
+        summary: json!({"path": output, "frames": frames, "duration_s": duration, "width": width, "height": height, "active_clip_count": active, "estimated_output_bytes": ((estimated_bitrate + 192000.0) * duration / 8.0) as u64, "video_codec": options.video_codec, "video_bitrate": video_bitrate, "bitrate_source": bitrate_source, "audio_codec": "aac"}),
+        media,
+        dimensions: (width, height),
+        bitrate: video_bitrate,
+    })
 }
 
 pub fn still(
@@ -187,7 +195,9 @@ pub fn still(
         ));
     }
     protect_assets(doc, base, output)?;
-    let temp = temporary(output, overwrite)?;
+    check_output(output, overwrite)?;
+    let (temp, file) = output_file::temporary(output, output.extension().unwrap_or_default())?;
+    drop(file);
     let result = (|| {
         let mut composer = Composer::default();
         let image = composer.frame(doc, base, frame)?;
@@ -198,12 +208,9 @@ pub fn still(
             DynamicImage::ImageRgba8(image)
         };
         cli_try!(image.save_with_format(&temp, format), "io_error", "", 6);
-        commit(&temp, output, overwrite)
+        output_file::commit(&temp, output, overwrite)
     })();
-    if temp.exists() {
-        cli_try!(fs::remove_file(&temp), "io_error", "", 6);
-    }
-    result
+    output_file::cleanup(&temp, result)
 }
 
 pub fn render(
@@ -213,11 +220,28 @@ pub fn render(
     options: &Options,
     progress: SyncSender<Value>,
 ) -> Result<()> {
-    plan(doc, base, output, options)?;
-    let media = probe::assets(doc, base)?;
-    let (width, height) = dimensions(doc.settings.width, doc.settings.height, options.scale)?;
-    let (bitrate, _) = resolve_bitrate(doc, &media, options)?;
-    let temp = temporary(output, options.overwrite)?;
+    let prepared = prepare(doc, base, output, options)?;
+    render_prepared(doc, base, output, options, prepared, progress)
+}
+
+pub fn render_prepared(
+    doc: &Document,
+    base: &Path,
+    output: &Path,
+    options: &Options,
+    prepared: PreparedRender,
+    progress: SyncSender<Value>,
+) -> Result<()> {
+    let PreparedRender {
+        media,
+        dimensions: (width, height),
+        bitrate,
+        ..
+    } = prepared;
+    protect_assets(doc, base, output)?;
+    check_output(output, options.overwrite)?;
+    let (temp, file) = output_file::temporary(output, output.extension().unwrap_or_default())?;
+    drop(file);
     let result = (|| {
         let fps = doc.settings.frame_rate;
         let rate = doc.settings.audio_sample_rate;
@@ -266,7 +290,7 @@ pub fn render(
             }
         }
         encoder.finish()?;
-        commit(&temp, output, options.overwrite)?;
+        output_file::commit(&temp, output, options.overwrite)?;
         let speed = total as f64 / clock.elapsed().as_secs_f64().max(0.000001);
         cli_try!(
             progress.send(json!({"frame": total, "total": total, "fps": speed, "eta_s": 0.0})),
@@ -276,10 +300,7 @@ pub fn render(
         );
         Ok(())
     })();
-    if temp.exists() {
-        cli_try!(fs::remove_file(&temp), "io_error", "", 6);
-    }
-    result
+    output_file::cleanup(&temp, result)
 }
 
 pub fn parse_bitrate(value: &str) -> Result<u64> {
@@ -398,7 +419,7 @@ fn protect_assets(doc: &Document, base: &Path, output: &Path) -> Result<()> {
     Ok(())
 }
 
-fn temporary(output: &Path, overwrite: bool) -> Result<PathBuf> {
+fn check_output(output: &Path, overwrite: bool) -> Result<()> {
     if output.exists() && !overwrite {
         return Err(cli_error!(
             "output_exists",
@@ -407,26 +428,6 @@ fn temporary(output: &Path, overwrite: bool) -> Result<PathBuf> {
             "use --overwrite to replace {}",
             output.display()
         ));
-    }
-    let parent = output.parent().unwrap_or(Path::new("."));
-    let extension = output.extension().unwrap_or_default().to_string_lossy();
-    let temp = parent.join(format!(".opencut-{}.{}", Ulid::generate(), extension));
-    cli_try!(
-        OpenOptions::new().write(true).create_new(true).open(&temp),
-        "io_error",
-        "",
-        6
-    );
-    Ok(temp)
-}
-
-fn commit(temp: &Path, output: &Path, overwrite: bool) -> Result<()> {
-    let file = cli_try!(OpenOptions::new().read(true).open(temp), "io_error", "", 6);
-    cli_try!(file.sync_all(), "io_error", "", 6);
-    if overwrite {
-        cli_try!(fs::rename(temp, output), "io_error", "", 6);
-    } else {
-        cli_try!(fs::hard_link(temp, output), "io_error", "", 6);
     }
     Ok(())
 }

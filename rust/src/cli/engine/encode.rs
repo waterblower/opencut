@@ -80,31 +80,11 @@ impl EncoderWorker {
     }
 
     pub fn video(&mut self, image: RgbaImage, frame: i64) -> Result<()> {
-        if self
-            .sender
-            .as_ref()
-            .unwrap()
-            .send(EncodeMessage::Video(image, frame))
-            .is_err()
-        {
-            self.join()?;
-            return Err(cli_error!("encode_failure", "", 5, "encoder closed"));
-        }
-        Ok(())
+        self.send(EncodeMessage::Video(image, frame))
     }
 
     pub fn audio(&mut self, samples: Vec<[f32; 2]>, start: i64) -> Result<()> {
-        if self
-            .sender
-            .as_ref()
-            .unwrap()
-            .send(EncodeMessage::Audio(samples, start))
-            .is_err()
-        {
-            self.join()?;
-            return Err(cli_error!("encode_failure", "", 5, "encoder closed"));
-        }
-        Ok(())
+        self.send(EncodeMessage::Audio(samples, start))
     }
 
     pub fn finish(mut self) -> Result<()> {
@@ -445,6 +425,14 @@ enum EncodeMessage {
 }
 
 impl EncoderWorker {
+    fn send(&mut self, message: EncodeMessage) -> Result<()> {
+        if self.sender.as_ref().unwrap().send(message).is_err() {
+            self.join()?;
+            return Err(cli_error!("encode_failure", "", 5, "encoder closed"));
+        }
+        Ok(())
+    }
+
     fn join(&mut self) -> Result<()> {
         self.sender.take();
         let Some(worker) = self.worker.take() else {
