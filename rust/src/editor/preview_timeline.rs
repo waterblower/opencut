@@ -92,6 +92,49 @@ pub fn preview_timeline_view(
         }
     }
 
+    let mut resize_handles = Vec::new();
+    if let Some(rect) = selected_rect
+        && let Some(clip_id) = timeline.interaction.selected_clip_id
+        && !timeline.data.clip_locked(clip_id)
+    {
+        for (horizontal, vertical) in [(-1.0, -1.0), (1.0, -1.0), (-1.0, 1.0), (1.0, 1.0)] {
+            let x = rect.left + (horizontal + 1.0) * rect.width * 0.5;
+            let y = rect.top + (vertical + 1.0) * rect.height * 0.5;
+            resize_handles.push(
+                div()
+                    .absolute()
+                    .left(px(x as f32 - 6.0))
+                    .top(px(y as f32 - 6.0))
+                    .size(px(12.0))
+                    .bg(rgb(ACCENT))
+                    .border_1()
+                    .border_color(rgb(0x101012))
+                    .cursor(if horizontal == vertical {
+                        CursorStyle::ResizeUpLeftDownRight
+                    } else {
+                        CursorStyle::ResizeUpRightDownLeft
+                    })
+                    .on_mouse_down(
+                        MouseButton::Left,
+                        cx.listener(move |editor, event, _, cx| {
+                            editor.begin_timeline_preview_clip_drag(
+                                event,
+                                origin_x,
+                                origin_y,
+                                canvas,
+                                PreviewDragMode::Resize {
+                                    rect,
+                                    horizontal,
+                                    vertical,
+                                },
+                                cx,
+                            );
+                        }),
+                    ),
+            );
+        }
+    }
+
     let duration = timeline.data.duration(timeline.data.content_duration());
     let position = timeline.video_backend.playback().position();
     let progress = if duration.is_zero() {
@@ -184,6 +227,7 @@ pub fn preview_timeline_view(
                                 origin_x,
                                 origin_y,
                                 canvas,
+                                PreviewDragMode::Move,
                                 cx,
                             );
                         }),
@@ -230,7 +274,8 @@ pub fn preview_timeline_view(
                             .border_color(rgb(ACCENT)),
                     )
                 })
-                .children(clip_cursor_regions),
+                .children(clip_cursor_regions)
+                .children(resize_handles),
         )
         .child(
             div()
@@ -559,13 +604,47 @@ pub(super) struct TimelinePreviewDrag {
     clip_id: Ulid,
     pointer_x: f32,
     pointer_y: f32,
-    position_x: f64,
-    position_y: f64,
+    properties: VideoClipProperties,
+    mode: PreviewDragMode,
     canvas: TimelinePreviewCanvas,
     snap_x: Option<f64>,
     snap_y: Option<f64>,
     last_pipeline_update: Option<Instant>,
     changed: bool,
+}
+
+#[derive(Clone, Copy)]
+enum PreviewDragMode {
+    Move,
+    Resize {
+        rect: RenderRect,
+        horizontal: f64,
+        vertical: f64,
+    },
+}
+
+fn resized_preview_properties(
+    original: VideoClipProperties,
+    rect: RenderRect,
+    corner: (f64, f64),
+    delta: (f64, f64),
+    project_scale: f64,
+) -> VideoClipProperties {
+    let diagonal_squared = rect.width * rect.width + rect.height * rect.height;
+    if diagonal_squared <= f64::EPSILON || original.scale <= f64::EPSILON {
+        return original;
+    }
+    let factor = 1.0
+        + (delta.0 * corner.0 * rect.width + delta.1 * corner.1 * rect.height) / diagonal_squared;
+    let scale = (original.scale * factor).clamp(0.01, 100.0);
+    let factor = scale / original.scale;
+    VideoClipProperties {
+        position_x: original.position_x
+            + corner.0 * rect.width * (factor - 1.0) * 0.5 / project_scale,
+        position_y: original.position_y
+            + corner.1 * rect.height * (factor - 1.0) * 0.5 / project_scale,
+        scale,
+    }
 }
 
 fn nearest_canvas_snap(clip_anchors: [f64; 3], canvas_guides: [f64; 3]) -> Option<(f64, f64)> {
@@ -624,6 +703,7 @@ impl Editor {
         surface_left: f32,
         surface_top: f32,
         canvas: TimelinePreviewCanvas,
+        mode: PreviewDragMode,
         cx: &mut Context<Self>,
     ) {
         self.preview.volume_control_open = false;
@@ -632,27 +712,32 @@ impl Editor {
         let Some(timeline) = self.timeline.as_ref() else {
             return;
         };
-        let clip_id = timeline.data.tracks.iter().rev().find_map(|track| {
-            timeline.data.clips_on_track(track.id).find_map(|clip| {
-                let media = clip.media()?;
-                if clip.timeline_start() > timeline.playhead()
-                    || timeline.playhead() >= clip.timeline_end(timeline.data.settings.frame_rate)
-                {
-                    return None;
-                }
-                let rect = timeline_preview_clip_rect(
-                    &timeline.data,
-                    clip,
-                    media.video_properties,
-                    canvas,
-                )?;
-                (f64::from(pointer_x) >= rect.left
-                    && f64::from(pointer_x) <= rect.left + rect.width
-                    && f64::from(pointer_y) >= rect.top
-                    && f64::from(pointer_y) <= rect.top + rect.height)
-                    .then_some(clip.id())
+        let clip_id = if matches!(mode, PreviewDragMode::Resize { .. }) {
+            timeline.interaction.selected_clip_id
+        } else {
+            timeline.data.tracks.iter().rev().find_map(|track| {
+                timeline.data.clips_on_track(track.id).find_map(|clip| {
+                    let media = clip.media()?;
+                    if clip.timeline_start() > timeline.playhead()
+                        || timeline.playhead()
+                            >= clip.timeline_end(timeline.data.settings.frame_rate)
+                    {
+                        return None;
+                    }
+                    let rect = timeline_preview_clip_rect(
+                        &timeline.data,
+                        clip,
+                        media.video_properties,
+                        canvas,
+                    )?;
+                    (f64::from(pointer_x) >= rect.left
+                        && f64::from(pointer_x) <= rect.left + rect.width
+                        && f64::from(pointer_y) >= rect.top
+                        && f64::from(pointer_y) <= rect.top + rect.height)
+                        .then_some(clip.id())
+                })
             })
-        });
+        };
         self.select_only_clip(clip_id);
         let Some(clip_id) = clip_id else {
             self.preview.timeline_drag = None;
@@ -679,8 +764,8 @@ impl Editor {
             clip_id,
             pointer_x: f32::from(event.position.x),
             pointer_y: f32::from(event.position.y),
-            position_x: clip.video_properties.position_x,
-            position_y: clip.video_properties.position_y,
+            properties: clip.video_properties,
+            mode,
             canvas,
             snap_x: None,
             snap_y: None,
@@ -704,10 +789,10 @@ impl Editor {
             self.preview.timeline_drag = Some(drag);
             return true;
         }
-        let position_x = drag.position_x
-            + f64::from(f32::from(event.position.x) - drag.pointer_x) / drag.canvas.project_scale;
-        let position_y = drag.position_y
-            + f64::from(f32::from(event.position.y) - drag.pointer_y) / drag.canvas.project_scale;
+        let delta = (
+            f64::from(f32::from(event.position.x) - drag.pointer_x),
+            f64::from(f32::from(event.position.y) - drag.pointer_y),
+        );
         let Some(timeline) = self.timeline.as_ref() else {
             return true;
         };
@@ -718,15 +803,31 @@ impl Editor {
             return true;
         };
         let current_properties = current_clip.video_properties;
-        let mut properties = current_properties;
-        properties.position_x = position_x;
-        properties.position_y = position_y;
-        let snap_rect = self
-            .timeline
-            .as_ref()
-            .expect("timeline preview drag requires an active timeline")
-            .interaction
-            .snapping_enabled
+        let mut properties = match drag.mode {
+            PreviewDragMode::Move => VideoClipProperties {
+                position_x: drag.properties.position_x + delta.0 / drag.canvas.project_scale,
+                position_y: drag.properties.position_y + delta.1 / drag.canvas.project_scale,
+                ..drag.properties
+            },
+            PreviewDragMode::Resize {
+                rect,
+                horizontal,
+                vertical,
+            } => resized_preview_properties(
+                drag.properties,
+                rect,
+                (horizontal, vertical),
+                delta,
+                drag.canvas.project_scale,
+            ),
+        };
+        let snap_rect = (matches!(drag.mode, PreviewDragMode::Move)
+            && self
+                .timeline
+                .as_ref()
+                .expect("timeline preview drag requires an active timeline")
+                .interaction
+                .snapping_enabled)
             .then(|| {
                 timeline_preview_clip_rect(
                     &timeline.data,
@@ -775,6 +876,7 @@ impl Editor {
         }
         if (current_properties.position_x - properties.position_x).abs() <= f64::EPSILON
             && (current_properties.position_y - properties.position_y).abs() <= f64::EPSILON
+            && (current_properties.scale - properties.scale).abs() <= f64::EPSILON
         {
             self.preview.timeline_drag = Some(drag);
 
