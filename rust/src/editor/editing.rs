@@ -1484,13 +1484,8 @@ fn ges_change_video_clip(
             )));
         }
     }
-    if !ges.commit() {
-        anyhow::bail!(
-            "could not commit video transforms at {}:{}",
-            file!(),
-            line!()
-        );
-    }
+    // Child transform properties apply directly; a timeline commit is only
+    // needed for structural edits and can restart preroll during dragging.
     Ok(())
 }
 
