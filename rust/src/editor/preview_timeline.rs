@@ -53,6 +53,44 @@ pub fn preview_timeline_view(
     let timeline_left = origin_x + TIMELINE_HORIZONTAL_PADDING;
     let volume_track_bottom = origin_y + height - TIMELINE_VOLUME_TRACK_BOTTOM_OFFSET;
     let has_media = !timeline.data.clips.is_empty();
+    let mut clip_cursor_regions = Vec::new();
+    for track in &timeline.data.tracks {
+        for clip in timeline.data.clips_on_track(track.id) {
+            if clip.timeline_start() > timeline.playhead()
+                || timeline.playhead() >= clip.timeline_end(timeline.data.settings.frame_rate)
+            {
+                continue;
+            }
+            let Some(media) = clip.media() else {
+                continue;
+            };
+            let Some(rect) =
+                timeline_preview_clip_rect(&timeline.data, clip, media.video_properties, canvas)
+            else {
+                continue;
+            };
+            let left = rect.left.max(canvas.left);
+            let top = rect.top.max(canvas.top);
+            let right = (rect.left + rect.width).min(canvas.left + canvas.width);
+            let bottom = (rect.top + rect.height).min(canvas.top + canvas.height);
+            if right <= left || bottom <= top {
+                continue;
+            }
+            clip_cursor_regions.push(
+                div()
+                    .absolute()
+                    .left(px(left as f32))
+                    .top(px(top as f32))
+                    .w(px((right - left) as f32))
+                    .h(px((bottom - top) as f32))
+                    .cursor(if track.locked {
+                        CursorStyle::Arrow
+                    } else {
+                        CursorStyle::OpenHand
+                    }),
+            );
+        }
+    }
 
     let duration = timeline.data.duration(timeline.data.content_duration());
     let position = timeline.video_backend.playback().position();
@@ -136,8 +174,9 @@ pub fn preview_timeline_view(
                 .justify_center()
                 .overflow_hidden()
                 .bg(rgb(0x000000))
+                .cursor(CursorStyle::Arrow)
                 .when(has_media, |this| {
-                    this.cursor(CursorStyle::OpenHand).on_mouse_down(
+                    this.on_mouse_down(
                         MouseButton::Left,
                         cx.listener(move |editor, event, _, cx| {
                             editor.begin_timeline_preview_clip_drag(
@@ -190,7 +229,8 @@ pub fn preview_timeline_view(
                             .border_1()
                             .border_color(rgb(ACCENT)),
                     )
-                }),
+                })
+                .children(clip_cursor_regions),
         )
         .child(
             div()
