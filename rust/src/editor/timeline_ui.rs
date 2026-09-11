@@ -124,6 +124,7 @@ impl Editor {
             .flex_1()
             .min_h_0()
             .overflow_y_scroll()
+            .restrict_scroll_to_axis()
             .track_scroll(&timeline.v_scroll)
             .on_mouse_down(
                 MouseButton::Left,
@@ -164,6 +165,7 @@ impl Editor {
                             .flex_1()
                             .h_full()
                             .overflow_x_scroll()
+                            .restrict_scroll_to_axis()
                             .track_scroll(&timeline.h_scroll)
                             .cursor(match timeline.interaction.active_tool {
                                 TimelineTool::Blade => CursorStyle::Crosshair,
