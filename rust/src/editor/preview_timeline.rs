@@ -53,6 +53,87 @@ pub fn preview_timeline_view(
     let timeline_left = origin_x + TIMELINE_HORIZONTAL_PADDING;
     let volume_track_bottom = origin_y + height - TIMELINE_VOLUME_TRACK_BOTTOM_OFFSET;
     let has_media = !timeline.data.clips.is_empty();
+    let mut clip_cursor_regions = Vec::new();
+    for track in &timeline.data.tracks {
+        for clip in timeline.data.clips_on_track(track.id) {
+            if clip.timeline_start() > timeline.playhead()
+                || timeline.playhead() >= clip.timeline_end(timeline.data.settings.frame_rate)
+            {
+                continue;
+            }
+            let Some(media) = clip.media() else {
+                continue;
+            };
+            let Some(rect) =
+                timeline_preview_clip_rect(&timeline.data, clip, media.video_properties, canvas)
+            else {
+                continue;
+            };
+            let left = rect.left.max(canvas.left);
+            let top = rect.top.max(canvas.top);
+            let right = (rect.left + rect.width).min(canvas.left + canvas.width);
+            let bottom = (rect.top + rect.height).min(canvas.top + canvas.height);
+            if right <= left || bottom <= top {
+                continue;
+            }
+            clip_cursor_regions.push(
+                div()
+                    .absolute()
+                    .left(px(left as f32))
+                    .top(px(top as f32))
+                    .w(px((right - left) as f32))
+                    .h(px((bottom - top) as f32))
+                    .cursor(if track.locked {
+                        CursorStyle::Arrow
+                    } else {
+                        CursorStyle::OpenHand
+                    }),
+            );
+        }
+    }
+
+    let mut resize_handles = Vec::new();
+    if let Some(rect) = selected_rect
+        && let Some(clip_id) = timeline.interaction.selected_clip_id
+        && !timeline.data.clip_locked(clip_id)
+    {
+        for (horizontal, vertical) in [(-1.0, -1.0), (1.0, -1.0), (-1.0, 1.0), (1.0, 1.0)] {
+            let x = rect.left + (horizontal + 1.0) * rect.width * 0.5;
+            let y = rect.top + (vertical + 1.0) * rect.height * 0.5;
+            resize_handles.push(
+                div()
+                    .absolute()
+                    .left(px(x as f32 - 6.0))
+                    .top(px(y as f32 - 6.0))
+                    .size(px(12.0))
+                    .bg(rgb(ACCENT))
+                    .border_1()
+                    .border_color(rgb(0x101012))
+                    .cursor(if horizontal == vertical {
+                        CursorStyle::ResizeUpLeftDownRight
+                    } else {
+                        CursorStyle::ResizeUpRightDownLeft
+                    })
+                    .on_mouse_down(
+                        MouseButton::Left,
+                        cx.listener(move |editor, event, _, cx| {
+                            editor.begin_timeline_preview_clip_drag(
+                                event,
+                                origin_x,
+                                origin_y,
+                                canvas,
+                                PreviewDragMode::Resize {
+                                    rect,
+                                    horizontal,
+                                    vertical,
+                                },
+                                cx,
+                            );
+                        }),
+                    ),
+            );
+        }
+    }
 
     let duration = timeline.data.duration(timeline.data.content_duration());
     let position = timeline.video_backend.playback().position();
@@ -136,8 +217,9 @@ pub fn preview_timeline_view(
                 .justify_center()
                 .overflow_hidden()
                 .bg(rgb(0x000000))
+                .cursor(CursorStyle::Arrow)
                 .when(has_media, |this| {
-                    this.cursor(CursorStyle::OpenHand).on_mouse_down(
+                    this.on_mouse_down(
                         MouseButton::Left,
                         cx.listener(move |editor, event, _, cx| {
                             editor.begin_timeline_preview_clip_drag(
@@ -145,6 +227,7 @@ pub fn preview_timeline_view(
                                 origin_x,
                                 origin_y,
                                 canvas,
+                                PreviewDragMode::Move,
                                 cx,
                             );
                         }),
@@ -190,7 +273,9 @@ pub fn preview_timeline_view(
                             .border_1()
                             .border_color(rgb(ACCENT)),
                     )
-                }),
+                })
+                .children(clip_cursor_regions)
+                .children(resize_handles),
         )
         .child(
             div()
@@ -504,6 +589,7 @@ pub fn preview_timeline_view(
 const TIMELINE_HORIZONTAL_PADDING: f32 = 22.0;
 const TIMELINE_VOLUME_TRACK_HEIGHT: f32 = 144.0;
 const TIMELINE_VOLUME_TRACK_BOTTOM_OFFSET: f32 = 102.0;
+const PREVIEW_SNAP_DISTANCE_PX: f64 = 4.0;
 const TIMELINE_TRANSFORM_UPDATE_INTERVAL: Duration = Duration::from_millis(16);
 
 #[derive(Clone, Copy, Debug)]
@@ -519,8 +605,8 @@ pub(super) struct TimelinePreviewDrag {
     clip_id: Ulid,
     pointer_x: f32,
     pointer_y: f32,
-    position_x: f64,
-    position_y: f64,
+    properties: VideoClipProperties,
+    mode: PreviewDragMode,
     canvas: TimelinePreviewCanvas,
     snap_x: Option<f64>,
     snap_y: Option<f64>,
@@ -528,12 +614,109 @@ pub(super) struct TimelinePreviewDrag {
     changed: bool,
 }
 
-fn nearest_canvas_snap(clip_anchors: [f64; 3], canvas_guides: [f64; 3]) -> Option<(f64, f64)> {
+#[derive(Clone, Copy)]
+enum PreviewDragMode {
+    Move,
+    Resize {
+        rect: RenderRect,
+        horizontal: f64,
+        vertical: f64,
+    },
+}
+
+fn resized_preview_properties(
+    original: VideoClipProperties,
+    rect: RenderRect,
+    corner: (f64, f64),
+    delta: (f64, f64),
+    project_scale: f64,
+) -> VideoClipProperties {
+    let diagonal_squared = rect.width * rect.width + rect.height * rect.height;
+    if diagonal_squared <= f64::EPSILON || original.scale <= f64::EPSILON {
+        return original;
+    }
+    let factor = 1.0
+        + (delta.0 * corner.0 * rect.width + delta.1 * corner.1 * rect.height) / diagonal_squared;
+    let scale = (original.scale * factor).clamp(0.01, 100.0);
+    let factor = scale / original.scale;
+    VideoClipProperties {
+        position_x: original.position_x
+            + corner.0 * rect.width * (factor - 1.0) * 0.5 / project_scale,
+        position_y: original.position_y
+            + corner.1 * rect.height * (factor - 1.0) * 0.5 / project_scale,
+        scale,
+    }
+}
+
+fn snap_preview_resize(
+    properties: VideoClipProperties,
+    rect: RenderRect,
+    corner: (f64, f64),
+    project_scale: f64,
+    horizontal_guides: &[f64],
+    vertical_guides: &[f64],
+) -> (VideoClipProperties, Option<f64>, Option<f64>) {
+    let fixed_x = rect.left + (1.0 - corner.0) * rect.width * 0.5;
+    let fixed_y = rect.top + (1.0 - corner.1) * rect.height * 0.5;
+    let mut best_factor: Option<f64> = None;
+    for (fixed, span, guides) in [
+        (fixed_x, corner.0 * rect.width, horizontal_guides),
+        (fixed_y, corner.1 * rect.height, vertical_guides),
+    ] {
+        if span.abs() <= f64::EPSILON {
+            continue;
+        }
+        // The opposite edge is stationary; only the moving edge and center
+        // can constrain the scale without moving the anchored corner.
+        for fraction in [1.0, 0.5] {
+            let anchor = fixed + span * fraction;
+            for &guide in guides {
+                if (guide - anchor).abs() > PREVIEW_SNAP_DISTANCE_PX {
+                    continue;
+                }
+                let factor = (guide - fixed) / (span * fraction);
+                if !(0.01..=100.0).contains(&(properties.scale * factor)) {
+                    continue;
+                }
+                if best_factor.is_none_or(|best| (factor - 1.0).abs() < (best - 1.0).abs()) {
+                    best_factor = Some(factor);
+                }
+            }
+        }
+    }
+    let Some(factor) = best_factor else {
+        return (properties, None, None);
+    };
+    let snapped = VideoClipProperties {
+        position_x: properties.position_x
+            + corner.0 * rect.width * (factor - 1.0) * 0.5 / project_scale,
+        position_y: properties.position_y
+            + corner.1 * rect.height * (factor - 1.0) * 0.5 / project_scale,
+        scale: properties.scale * factor,
+    };
+    let mut snap_x = None;
+    let mut snap_y = None;
+    for fraction in [1.0, 0.5] {
+        for &guide in horizontal_guides {
+            if (fixed_x + corner.0 * rect.width * factor * fraction - guide).abs() < 0.000001 {
+                snap_x = Some(guide);
+            }
+        }
+        for &guide in vertical_guides {
+            if (fixed_y + corner.1 * rect.height * factor * fraction - guide).abs() < 0.000001 {
+                snap_y = Some(guide);
+            }
+        }
+    }
+    (snapped, snap_x, snap_y)
+}
+
+fn nearest_canvas_snap(clip_anchors: [f64; 3], canvas_guides: &[f64]) -> Option<(f64, f64)> {
     let mut nearest = None;
     for clip_anchor in clip_anchors {
-        for canvas_guide in canvas_guides {
+        for &canvas_guide in canvas_guides {
             let delta = canvas_guide - clip_anchor;
-            if delta.abs() <= f64::from(SNAP_DISTANCE_PX)
+            if delta.abs() <= PREVIEW_SNAP_DISTANCE_PX
                 && nearest
                     .is_none_or(|(nearest_delta, _): (f64, f64)| delta.abs() < nearest_delta.abs())
             {
@@ -584,6 +767,7 @@ impl Editor {
         surface_left: f32,
         surface_top: f32,
         canvas: TimelinePreviewCanvas,
+        mode: PreviewDragMode,
         cx: &mut Context<Self>,
     ) {
         self.preview.volume_control_open = false;
@@ -592,27 +776,32 @@ impl Editor {
         let Some(timeline) = self.timeline.as_ref() else {
             return;
         };
-        let clip_id = timeline.data.tracks.iter().rev().find_map(|track| {
-            timeline.data.clips_on_track(track.id).find_map(|clip| {
-                let media = clip.media()?;
-                if clip.timeline_start() > timeline.playhead()
-                    || timeline.playhead() >= clip.timeline_end(timeline.data.settings.frame_rate)
-                {
-                    return None;
-                }
-                let rect = timeline_preview_clip_rect(
-                    &timeline.data,
-                    clip,
-                    media.video_properties,
-                    canvas,
-                )?;
-                (f64::from(pointer_x) >= rect.left
-                    && f64::from(pointer_x) <= rect.left + rect.width
-                    && f64::from(pointer_y) >= rect.top
-                    && f64::from(pointer_y) <= rect.top + rect.height)
-                    .then_some(clip.id())
+        let clip_id = if matches!(mode, PreviewDragMode::Resize { .. }) {
+            timeline.interaction.selected_clip_id
+        } else {
+            timeline.data.tracks.iter().rev().find_map(|track| {
+                timeline.data.clips_on_track(track.id).find_map(|clip| {
+                    let media = clip.media()?;
+                    if clip.timeline_start() > timeline.playhead()
+                        || timeline.playhead()
+                            >= clip.timeline_end(timeline.data.settings.frame_rate)
+                    {
+                        return None;
+                    }
+                    let rect = timeline_preview_clip_rect(
+                        &timeline.data,
+                        clip,
+                        media.video_properties,
+                        canvas,
+                    )?;
+                    (f64::from(pointer_x) >= rect.left
+                        && f64::from(pointer_x) <= rect.left + rect.width
+                        && f64::from(pointer_y) >= rect.top
+                        && f64::from(pointer_y) <= rect.top + rect.height)
+                        .then_some(clip.id())
+                })
             })
-        });
+        };
         self.select_only_clip(clip_id);
         let Some(clip_id) = clip_id else {
             self.preview.timeline_drag = None;
@@ -639,8 +828,8 @@ impl Editor {
             clip_id,
             pointer_x: f32::from(event.position.x),
             pointer_y: f32::from(event.position.y),
-            position_x: clip.video_properties.position_x,
-            position_y: clip.video_properties.position_y,
+            properties: clip.video_properties,
+            mode,
             canvas,
             snap_x: None,
             snap_y: None,
@@ -664,10 +853,10 @@ impl Editor {
             self.preview.timeline_drag = Some(drag);
             return true;
         }
-        let position_x = drag.position_x
-            + f64::from(f32::from(event.position.x) - drag.pointer_x) / drag.canvas.project_scale;
-        let position_y = drag.position_y
-            + f64::from(f32::from(event.position.y) - drag.pointer_y) / drag.canvas.project_scale;
+        let delta = (
+            f64::from(f32::from(event.position.x) - drag.pointer_x),
+            f64::from(f32::from(event.position.y) - drag.pointer_y),
+        );
         let Some(timeline) = self.timeline.as_ref() else {
             return true;
         };
@@ -678,63 +867,117 @@ impl Editor {
             return true;
         };
         let current_properties = current_clip.video_properties;
-        let mut properties = current_properties;
-        properties.position_x = position_x;
-        properties.position_y = position_y;
-        let snap_rect = self
-            .timeline
-            .as_ref()
-            .expect("timeline preview drag requires an active timeline")
-            .interaction
-            .snapping_enabled
-            .then(|| {
-                timeline_preview_clip_rect(
+        let mut properties = match drag.mode {
+            PreviewDragMode::Move => VideoClipProperties {
+                position_x: drag.properties.position_x + delta.0 / drag.canvas.project_scale,
+                position_y: drag.properties.position_y + delta.1 / drag.canvas.project_scale,
+                ..drag.properties
+            },
+            PreviewDragMode::Resize {
+                rect,
+                horizontal,
+                vertical,
+            } => resized_preview_properties(
+                drag.properties,
+                rect,
+                (horizontal, vertical),
+                delta,
+                drag.canvas.project_scale,
+            ),
+        };
+        drag.snap_x = None;
+        drag.snap_y = None;
+        if timeline.interaction.snapping_enabled {
+            let mut horizontal_guides = vec![
+                drag.canvas.left,
+                drag.canvas.left + drag.canvas.width * 0.5,
+                drag.canvas.left + drag.canvas.width,
+            ];
+            let mut vertical_guides = vec![
+                drag.canvas.top,
+                drag.canvas.top + drag.canvas.height * 0.5,
+                drag.canvas.top + drag.canvas.height,
+            ];
+            for clip in &timeline.data.clips {
+                if clip.id() == drag.clip_id
+                    || clip.timeline_start() > timeline.playhead()
+                    || timeline.playhead() >= clip.timeline_end(timeline.data.settings.frame_rate)
+                {
+                    continue;
+                }
+                let Some(media) = clip.media() else {
+                    continue;
+                };
+                let Some(other) = timeline_preview_clip_rect(
                     &timeline.data,
-                    &timeline.data.clips[index],
-                    properties,
+                    clip,
+                    media.video_properties,
                     drag.canvas,
-                )
-            })
-            .flatten();
-        if let Some(rect) = snap_rect {
-            let horizontal_snap = nearest_canvas_snap(
-                [
-                    rect.left + rect.width * 0.5,
-                    rect.left,
-                    rect.left + rect.width,
-                ],
-                [
-                    drag.canvas.left + drag.canvas.width * 0.5,
-                    drag.canvas.left,
-                    drag.canvas.left + drag.canvas.width,
-                ],
-            );
-            let vertical_snap = nearest_canvas_snap(
-                [
-                    rect.top + rect.height * 0.5,
-                    rect.top,
-                    rect.top + rect.height,
-                ],
-                [
-                    drag.canvas.top + drag.canvas.height * 0.5,
-                    drag.canvas.top,
-                    drag.canvas.top + drag.canvas.height,
-                ],
-            );
-            drag.snap_x = horizontal_snap.map(|(_, guide)| guide);
-            drag.snap_y = vertical_snap.map(|(_, guide)| guide);
-            if let Some((delta, _)) = horizontal_snap {
-                properties.position_x += delta / drag.canvas.project_scale;
+                ) else {
+                    continue;
+                };
+                horizontal_guides.extend([
+                    other.left,
+                    other.left + other.width * 0.5,
+                    other.left + other.width,
+                ]);
+                vertical_guides.extend([
+                    other.top,
+                    other.top + other.height * 0.5,
+                    other.top + other.height,
+                ]);
             }
-            if let Some((delta, _)) = vertical_snap {
-                properties.position_y += delta / drag.canvas.project_scale;
+            if let Some(rect) = timeline_preview_clip_rect(
+                &timeline.data,
+                &timeline.data.clips[index],
+                properties,
+                drag.canvas,
+            ) {
+                match drag.mode {
+                    PreviewDragMode::Move => {
+                        if let Some((delta, guide)) = nearest_canvas_snap(
+                            [
+                                rect.left + rect.width * 0.5,
+                                rect.left,
+                                rect.left + rect.width,
+                            ],
+                            &horizontal_guides,
+                        ) {
+                            properties.position_x += delta / drag.canvas.project_scale;
+                            drag.snap_x = Some(guide);
+                        }
+                        if let Some((delta, guide)) = nearest_canvas_snap(
+                            [
+                                rect.top + rect.height * 0.5,
+                                rect.top,
+                                rect.top + rect.height,
+                            ],
+                            &vertical_guides,
+                        ) {
+                            properties.position_y += delta / drag.canvas.project_scale;
+                            drag.snap_y = Some(guide);
+                        }
+                    }
+                    PreviewDragMode::Resize {
+                        horizontal,
+                        vertical,
+                        ..
+                    } => {
+                        (properties, drag.snap_x, drag.snap_y) = snap_preview_resize(
+                            properties,
+                            rect,
+                            (horizontal, vertical),
+                            drag.canvas.project_scale,
+                            &horizontal_guides,
+                            &vertical_guides,
+                        );
+                    }
+                }
             }
-        } else {
-            drag.snap_x = None;
-            drag.snap_y = None;
         }
         if (current_properties.position_x - properties.position_x).abs() <= f64::EPSILON
             && (current_properties.position_y - properties.position_y).abs() <= f64::EPSILON
+            && (current_properties.scale - properties.scale).abs() <= f64::EPSILON
         {
             self.preview.timeline_drag = Some(drag);
 

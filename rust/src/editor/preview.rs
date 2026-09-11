@@ -105,20 +105,19 @@ impl Editor {
                 let Some(timeline) = self.timeline.as_mut() else {
                     return;
                 };
-                let video = timeline.video_backend.playback();
-                let is_paused = video.paused();
+                let is_paused = timeline.video_backend.playback().paused();
                 if timeline.data.clips.is_empty() {
                     return;
                 }
 
-                let duration = timeline.data.content_duration();
-                let start = if timeline.playhead() >= duration {
-                    TimelineTime::ZERO
-                } else {
-                    timeline.playhead()
-                };
-                video.set_paused(!is_paused);
-                load_timeline_position_with_options(&mut self.preview, timeline, start);
+                if is_paused && timeline.playhead() >= timeline.data.content_duration() {
+                    load_timeline_position_with_options(
+                        &mut self.preview,
+                        timeline,
+                        TimelineTime::ZERO,
+                    );
+                }
+                timeline.video_backend.playback().set_paused(!is_paused);
             }
         }
     }

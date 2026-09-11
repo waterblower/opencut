@@ -660,8 +660,9 @@ impl Editor {
         &mut self,
         event: &ScrollWheelEvent,
         _: &mut Window,
-        _: &mut Context<Self>,
+        cx: &mut Context<Self>,
     ) {
+        cx.notify();
         if event.delta.precise() {
             let delta = event.delta.pixel_delta(px(16.0));
             let horizontal = f32::from(delta.x);
