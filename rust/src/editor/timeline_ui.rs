@@ -119,7 +119,7 @@ impl Editor {
             .collect::<Vec<_>>();
         let event_bus = self.event_bus.clone();
         let drag_move_event_bus = event_bus.clone();
-        div()
+        let tracks = div()
             .id("timeline-tracks-vertical-scroll")
             .flex_1()
             .min_h_0()
@@ -205,7 +205,7 @@ impl Editor {
                                             cx.notify();
                                         }),
                                     )
-                                    .child(self.timeline_ruler(duration, cx))
+                                    .child(div().h(px(RULER_HEIGHT)).flex_shrink_0())
                                     .children(track_rows)
                                     .child(self.timeline_playhead(cx))
                                     .when_some(timeline.interaction.snap_guide, |this, guide| {
@@ -281,6 +281,53 @@ impl Editor {
                                             )
                                         },
                                     ),
+                            ),
+                    ),
+            )
+            .into_any_element();
+        div()
+            .relative()
+            .flex_1()
+            .min_h_0()
+            .flex()
+            .flex_col()
+            .overflow_hidden()
+            .child(tracks)
+            .child(
+                div()
+                    .absolute()
+                    .top_0()
+                    .left_0()
+                    .w_full()
+                    .h(px(RULER_HEIGHT))
+                    .flex()
+                    .occlude()
+                    .bg(rgb(0x0a0a0c))
+                    .child(
+                        div()
+                            .w(px(TRACK_HEADER_WIDTH))
+                            .h_full()
+                            .flex_shrink_0()
+                            .border_r_1()
+                            .border_b_1()
+                            .border_color(rgb(BORDER)),
+                    )
+                    .child(
+                        div()
+                            .relative()
+                            .flex_1()
+                            .min_w_0()
+                            .h_full()
+                            .overflow_hidden()
+                            .child(
+                                div()
+                                    .absolute()
+                                    .left(timeline.h_scroll.offset().x)
+                                    .top_0()
+                                    .w(px(timeline_width))
+                                    .h_full()
+                                    .child(self.timeline_ruler(duration, cx))
+                                    .child(self.timeline_playhead(cx)),
                             ),
                     ),
             )
