@@ -53,7 +53,7 @@ pub struct Options {
 }
 
 /// Returns the provider's JSON object, or a JSON string containing SRT/VTT text.
-/// HTTP is asynchronous; FFmpeg decoding runs on the blocking task pool.
+/// HTTP is asynchronous; FFmpeg decoding blocks the caller's background thread.
 pub async fn transcribe(path: &Path, api_key: &str, options: &Options) -> Result<Value> {
     if api_key.trim().is_empty() {
         return Err(Error::new(
@@ -73,11 +73,7 @@ pub async fn transcribe(path: &Path, api_key: &str, options: &Options) -> Result
         Ok(value) => value,
         Err(error) => return Err(Error::new("transcription_request", error, file!(), line!())),
     };
-    let path = path.to_path_buf();
-    let wav = match tokio::task::spawn_blocking(move || transcription_wav(&path)).await {
-        Ok(value) => value,
-        Err(error) => return Err(Error::new("decode_failure", error, file!(), line!())),
-    }?;
+    let wav = transcription_wav(path)?;
     request(
         &client,
         "https://api.minimaxi.com/v1/speech_to_text",
