@@ -1,5 +1,6 @@
 use crate::editor::{explorer::ExplorerState, project_settings::ProjectLocalSettings};
 
+use super::srt::srt_text_clips;
 use super::*;
 
 pub(crate) struct Editor {
@@ -243,10 +244,8 @@ fn handle_app_event(
                         let Some(timeline) = editor.timeline.as_mut() else {
                             return Ok(());
                         };
-                        let mut text_clips = super::srt::srt_text_clips(
-                            &srt.srt,
-                            timeline.data.settings.frame_rate,
-                        )?;
+                        let mut text_clips =
+                            srt_text_clips(&srt.srt, timeline.data.settings.frame_rate);
                         for clip in &mut text_clips {
                             clip.track_id = preview.track_id;
                             clip.timeline_start += preview.start_time;

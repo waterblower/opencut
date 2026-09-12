@@ -71,7 +71,11 @@ fn run_app(cx: &mut App) {
                     .await?;
                 log::info!("Writing SRT for {}", source_path.display());
                 let Some(stem) = source_path.file_stem() else {
-                    anyhow::bail!("transcription source has no filename at {}:{}", file!(), line!());
+                    anyhow::bail!(
+                        "transcription source has no filename at {}:{}",
+                        file!(),
+                        line!()
+                    );
                 };
                 let stem = stem.to_string_lossy();
                 let path = project_root.join(format!("{stem}.srt"));

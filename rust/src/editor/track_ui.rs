@@ -560,10 +560,7 @@ fn preview_drop_asset(
     return match &preview.asset {
         AssetBeingDragged::None => None,
         AssetBeingDragged::Srt(srt) => {
-            let clips = match srt_text_clips(&srt.srt, timeline.settings.frame_rate) {
-                Ok(clips) => clips,
-                Err(_) => return None,
-            };
+            let clips = srt_text_clips(&srt.srt, timeline.settings.frame_rate);
             let previews = clips
                 .into_iter()
                 .map(|mut clip| {

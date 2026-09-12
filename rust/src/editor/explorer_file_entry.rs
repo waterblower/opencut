@@ -57,7 +57,10 @@ impl Editor {
                 let asset = match AssetBeingDragged::from_file_entry(entry) {
                     Ok(asset) => asset,
                     Err(error) => {
-                        log::error!("could not drag {}: {error:?}", entry.absolute_path.display());
+                        log::error!(
+                            "could not drag {}: {error:?}",
+                            entry.absolute_path.display()
+                        );
                         return app_cx.new(|_| AssetBeingDragged::None);
                     }
                 };

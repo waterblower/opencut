@@ -41,7 +41,7 @@ impl SRT {
             let start = Duration::from_millis(timestamp_ms(start)?);
             let end = Duration::from_millis(timestamp_ms(end)?);
             let text = lines.collect::<Vec<_>>().join("\n");
-            if end < start || text.trim().is_empty() {
+            if end <= start || text.trim().is_empty() {
                 anyhow::bail!(
                     "invalid_srt: invalid cue duration or empty text at {}:{}",
                     file!(),
@@ -186,6 +186,7 @@ mod tests {
             "1\n00:00:00,000\ntext",
             "1\n00:60:00,000 --> 01:00:01,000\ntext",
             "1\n00:00:02,000 --> 00:00:01,000\ntext",
+            "1\n00:00:01,000 --> 00:00:01,000\ntext",
             "1\n00:00:00,000 --> 00:00:01,000\n",
         ] {
             assert!(SRT::from_string(input).is_err(), "{input}");

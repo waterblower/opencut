@@ -1,6 +1,6 @@
 use std::path::Path;
 
-use anyhow::{Result, bail};
+use anyhow::Result;
 use opencut_player::transcribe::SRT;
 use ulid::Ulid;
 
@@ -18,23 +18,10 @@ pub fn write_srt(path: &Path, srt: &SRT) -> Result<()> {
     Ok(())
 }
 
-pub fn parse_srt_text_clips(contents: &str, frame_rate: FrameRate) -> Result<Vec<TextClip>> {
-    let srt = SRT::from_string(contents)?;
-    srt_text_clips(&srt, frame_rate)
-}
-
-pub fn srt_text_clips(srt: &SRT, frame_rate: FrameRate) -> Result<Vec<TextClip>> {
+pub fn srt_text_clips(srt: &SRT, frame_rate: FrameRate) -> Vec<TextClip> {
     let mut clips = Vec::with_capacity(srt.subtitles.len());
-    for (index, subtitle) in srt.subtitles.iter().enumerate() {
+    for subtitle in &srt.subtitles {
         let length = subtitle.end - subtitle.start;
-        if length.is_zero() {
-            bail!(
-                "SRT cue {} has zero duration at {}:{}",
-                index + 1,
-                file!(),
-                line!()
-            );
-        }
         clips.push(TextClip {
             id: Ulid::generate(),
             track_id: Ulid::nil(),
@@ -46,7 +33,7 @@ pub fn srt_text_clips(srt: &SRT, frame_rate: FrameRate) -> Result<Vec<TextClip>>
             },
         });
     }
-    Ok(clips)
+    clips
 }
 
 #[cfg(test)]

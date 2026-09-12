@@ -3,8 +3,8 @@ use std::{fs::read_to_string, path::PathBuf};
 use gpui::{
     Context, IntoElement, ParentElement, Render, SharedString, Styled, Window, div, px, rgb,
 };
-use ulid::Ulid;
 use opencut_player::transcribe::SRT;
+use ulid::Ulid;
 
 use crate::editor::{
     ACCENT, MediaAsset, MediaKind, TimelineTime,
