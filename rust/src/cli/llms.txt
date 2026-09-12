@@ -3,7 +3,7 @@ OpenCut: render the same timeline JSON used by the GUI editor.
 The CLI uses FFmpeg; the GUI uses GStreamer. The shared timeline module owns only
 format types and serialization rules. The applications own I/O and rendering.
 
-Commands: probe, new, assemble, validate, inspect, schema, docs, still, render.
+Commands: probe, new, assemble, transcribe, validate, inspect, schema, docs, still, render.
 All accept --json. Results: stdout. Progress: stderr, at most once per five seconds
 plus completion. --progress none suppresses it. There is no edit command.
 
@@ -56,7 +56,7 @@ New refuses existing files. Render/still require --overwrite to replace outputs.
 Outputs cannot overwrite source assets. Render embeds the input document in
 opencut.timeline metadata unless --no-metadata is supplied.
 
-Exit codes: 0 success,2 usage,3 validation,4 media,5 rendering,6 I/O.
+Exit codes: 0 success,2 usage,3 validation,4 media,5 rendering/transcription,6 I/O.
 JSON errors: {error:{code,pointer,message,file,line}}. Validate returns findings.
 
 Podcast authoring (no model calls inside OpenCut):
@@ -76,3 +76,21 @@ Offsets/boundaries independently round once to project frames, ties away from ze
 Report: total frames, frame_rate, interval map, clip source/output ranges, rounding.
 Dry-run does not write or require -o. Existing output needs --overwrite; recipes and
 source media cannot be overwritten. Reassembly does not merge manual GUI edits.
+
+Transcription (uploads audio to MiniMax; requires MINIMAX_API_KEY):
+  opencut transcribe recording.mp4 --json
+  opencut transcribe recording.wav --format srt -o subtitles.srt
+  opencut transcribe recording.wav --format srt --timestamp-level word --post-merge -o subtitles.srt
+  opencut transcribe recording.mp4 --format verbose_json --timestamp-level word --language zh
+Audio/video input: best audio stream, normalized to mono 16 kHz WAV via vendored
+FFmpeg. Requires known positive duration, at most 500 seconds including timestamp
+gaps; no truncation or chunking. Upload is under 50 MB. Paths use working directory.
+Formats: json, verbose_json (default, speakers/timestamps), srt, vtt.
+Timestamp levels: sentence (default), word; ignored for plain json.
+Language: optional BCP-47 header hint; omitted means mixed-language recognition.
+Model: asr-1.0, stream=false. No automatic retries or subtitle insertion.
+Without -o: result on stdout; --json wraps subtitle text as a JSON string.
+With -o: atomically write selected format, return {path,format}; --overwrite is
+required to replace output. Input cannot be output. SRT can be imported in editor.
+Rust: async opencut_player::transcribe::transcribe(path, api_key, &options), using Tokio.
+Shared module: rust/src/transcribe; enable the transcribe feature independently of CLI or editor.

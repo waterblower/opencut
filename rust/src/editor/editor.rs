@@ -8,7 +8,7 @@ pub(crate) struct Editor {
     pub(super) preview: PreviewState,
     pub(super) timeline: Option<TimelineRuntimeState>,
     // other
-    pub(super) global_settings: GlobalEditorSettings,
+    pub(super) project_root: PathBuf,
     pub(super) waveform_jobs: HashSet<PathBuf>,
     pub(super) waveform_cache: HashMap<PathBuf, Arc<waveform::WaveformData>>,
     pub(super) properties: PropertiesPanelState,
@@ -25,36 +25,29 @@ pub(crate) struct Editor {
 }
 
 impl Editor {
-    pub(crate) fn new(cx: &mut Context<Self>) -> Result<Self> {
+    pub(crate) fn new(
+        project_root: PathBuf,
+        event_bus: Entity<EventBus>,
+        cx: &mut Context<Self>,
+    ) -> Result<Self> {
         gstreamer_editing_services::init()
             .expect("could not initialize GStreamer Editing Services");
-
-        let global_settings = load_global_editor_settings();
 
         //
         // Load the active timeline
         //
         let timeline = {
-            let project_settings = load_project_local_settings(&global_settings.project_root);
+            let project_settings = load_project_local_settings(&project_root);
 
-            let active_timeline = load_existing_timeline(
-                &global_settings.project_root,
-                project_settings.active_timeline.as_deref(),
-            )
-            .with_context(|| {
-                format!(
-                    "could not load the active timeline at {}:{}",
-                    file!(),
-                    line!()
-                )
-            })?;
             (|| -> Result<Option<TimelineRuntimeState>> {
-                let Some((timeline_path, timeline_data)) = active_timeline else {
+                let Some(timeline_path) = project_settings.active_timeline else {
                     return Ok(None);
                 };
+                let timeline_data =
+                    TimelineSerialization::load(&project_root.join(&timeline_path))?;
                 let ges_timeline = build_ges_timeline(
                     &timeline_data,
-                    &global_settings.project_root,
+                    &project_root,
                     export::ExportOptions::from_timeline(&timeline_data),
                 )
                 .with_context(|| format!("build_ges_timeline failed at {}:{}", file!(), line!()))?;
@@ -81,10 +74,9 @@ impl Editor {
             })
             .detach();
 
-            let explorer_expansion = load_explorer_expansion(&global_settings.project_root);
+            let explorer_expansion = load_explorer_expansion(&project_root);
             let expanded_directories = explorer_expansion.expanded_directories;
-            let file_tree = visible_tree(&global_settings.project_root, &expanded_directories)
-                .unwrap_or_default();
+            let file_tree = visible_tree(&project_root, &expanded_directories).unwrap_or_default();
             ExplorerState {
                 file_tree,
                 expanded_directories,
@@ -129,16 +121,15 @@ impl Editor {
         };
 
         start_updates(cx);
-        let event_bus = cx.new(|_| EventBus {});
         cx.subscribe(&event_bus, handle_app_event).detach();
 
-        let project_local_settings = load_project_local_settings(&global_settings.project_root);
+        let project_local_settings = load_project_local_settings(&project_root);
         let mut editor = Self {
             // Entities
             event_bus,
             upper_split_state: cx.new(|_| project_local_settings.upper_space_split_state),
             //
-            global_settings,
+            project_root,
             explorer,
             preview,
             waveform_jobs: HashSet::new(),
@@ -172,9 +163,10 @@ fn handle_app_event(
     cx: &mut Context<Editor>,
 ) {
     match event {
+        AppEvent::SwitchProject { .. } => {}
         AppEvent::HorizontalSplitResized(state) => {
             if let Err(error) = save_project_local_settings(
-                &editor.global_settings.project_root,
+                &editor.project_root,
                 &ProjectLocalSettings {
                     active_timeline: editor.timeline.as_ref().map(|t| t.path.clone()),
                     upper_space_split_state: state.clone(),
@@ -184,7 +176,7 @@ fn handle_app_event(
             }
         }
         AppEvent::Edit(edit_action) => {
-            let project_root = editor.global_settings.project_root.clone();
+            let project_root = editor.project_root.clone();
             let Some(timeline) = editor.timeline.as_mut() else {
                 return;
             };
@@ -245,7 +237,7 @@ fn handle_app_event(
             match preview.asset {
                 AssetBeingDragged::Srt(srt) => {
                     let result = (|| {
-                        let project_root = editor.global_settings.project_root.clone();
+                        let project_root = editor.project_root.clone();
                         let Some(timeline) = editor.timeline.as_mut() else {
                             return Ok(());
                         };
@@ -289,7 +281,7 @@ fn handle_app_event(
                     }
                     let relative_path = asset
                         .absolute_path
-                        .strip_prefix(&editor.global_settings.project_root)
+                        .strip_prefix(&editor.project_root)
                         .expect("dragged explorer assets are inside the project root")
                         .to_path_buf();
                     if let Err(error) = editor.place_explorer_asset(
@@ -330,7 +322,7 @@ fn start_updates(cx: &mut Context<Editor>) {
                 if refresh_tree {
                     editor
                         .explorer
-                        .refresh_file_tree(&editor.global_settings.project_root)?;
+                        .refresh_file_tree(&editor.project_root)?;
                 }
                 if should_render {
                     cx.notify();
@@ -340,8 +332,8 @@ fn start_updates(cx: &mut Context<Editor>) {
             match result {
                 Ok(Ok(())) => {}
                 Ok(Err(error)) => eprintln!("{error:?}"),
-                Err(error) => {
-                    log::debug!("Editor update loop failed: {error:?}");
+                Err(_) => {
+                    break;
                 }
             }
         }

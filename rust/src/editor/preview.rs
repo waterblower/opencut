@@ -69,7 +69,7 @@ impl Editor {
                 self.preview_audio_file(path, origin_x, width, height, cx)
             }
             PreviewTarget::ImageFile(path) => {
-                preview_image_file(self.global_settings.project_root.join(path), width, height)
+                preview_image_file(self.project_root.join(path), width, height)
             }
         }
     }

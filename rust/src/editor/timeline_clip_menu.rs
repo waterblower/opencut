@@ -58,7 +58,7 @@ impl Editor {
             .collect();
         edit_and_rebuild_timeline(
             &mut self.preview,
-            &self.global_settings.project_root,
+            &self.project_root,
             timeline,
             EditAction::SetVideoProperties {
                 clip_ids,
@@ -68,7 +68,7 @@ impl Editor {
         .expect("setting video properties cannot be rejected");
         self.properties.transform_input_clip_id = None;
 
-        timeline.save(&self.global_settings.project_root);
+        timeline.save(&self.project_root);
 
         self.status = Some(format!(
             "Applied transforms to {changed} other clip{}.",
