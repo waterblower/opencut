@@ -67,14 +67,13 @@ fn run_app(cx: &mut App) {
             let project_root = project_root.clone();
             let source_path = source_path.clone();
             let task = gpui_tokio::Tokio::spawn(cx, async move {
-                let srt = editor::transcription::start_transcription(
-                    project_root.clone(),
-                    source_path.clone(),
-                    api_key,
-                )
-                .await?;
+                let srt = editor::transcription::start_transcription(source_path.clone(), api_key)
+                    .await?;
                 log::info!("Writing SRT for {}", source_path.display());
-                let stem = source_path.file_stem()?.to_string_lossy();
+                let Some(stem) = source_path.file_stem() else {
+                    anyhow::bail!("transcription source has no filename at {}:{}", file!(), line!());
+                };
+                let stem = stem.to_string_lossy();
                 let path = project_root.join(format!("{stem}.srt"));
                 editor::write_srt(&path, &srt)?;
                 Ok(path)
