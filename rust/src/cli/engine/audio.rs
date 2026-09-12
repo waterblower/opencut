@@ -1,5 +1,5 @@
 use crate::transcribe::audio::AudioReader;
-pub use crate::transcribe::audio::transcription_wav;
+pub use crate::transcribe::audio::extract_audio_as_wav;
 use crate::{
     cli::{error::Result, validate::MediaInfo},
     timeline::TimelineSerialization,
