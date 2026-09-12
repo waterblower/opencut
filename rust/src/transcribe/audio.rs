@@ -106,6 +106,15 @@ pub fn extract_audio_as_wav(path: &Path) -> Result<Vec<u8>> {
             wav.extend_from_slice(&((mono * i16::MAX as f32).round() as i16).to_le_bytes());
         }
     }
+    write_wav_header(wav)
+}
+
+/// Complete a mono 16 kHz PCM WAV buffer with 44 reserved header bytes.
+pub fn write_wav_header(mut wav: Vec<u8>) -> Result<Vec<u8>> {
+    const RATE: u32 = 16_000;
+    if wav.len() < 44 || wav.len() - 44 > (u32::MAX - 36) as usize || (wav.len() - 44) % 2 != 0 {
+        anyhow::bail!("invalid PCM WAV buffer at {}:{}", file!(), line!());
+    }
     let size = (wav.len() - 44) as u32;
     if size == 0 {
         return Err(anyhow::anyhow!(
