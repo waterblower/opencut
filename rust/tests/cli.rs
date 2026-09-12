@@ -81,8 +81,13 @@ fn schema_and_new_use_the_gui_document_contract() {
     assert_eq!(removed.status.code(), Some(2));
     fs::write(&file, r#"{"version":1,"clips":[]}"#).unwrap();
     let legacy = cli(&["inspect", file.to_str().unwrap(), "--json"]);
-    assert_eq!(legacy.status.code(), Some(3));
-    assert_eq!(decode(&legacy)["error"]["code"], "legacy_cli_format");
+    assert_eq!(legacy.status.code(), Some(1));
+    assert!(
+        decode(&legacy)["error"]["message"]
+            .as_str()
+            .unwrap()
+            .contains("legacy_cli_format")
+    );
 }
 
 #[test]
@@ -260,15 +265,22 @@ fn validation_reports_all_missing_assets_and_schema_locations() {
         dir.0.to_str().unwrap(),
         "--json",
     ]);
-    assert_eq!(result.status.code(), Some(4));
+    assert_eq!(result.status.code(), Some(1));
     let report = decode(&result);
     assert_eq!(report["findings"].as_array().unwrap().len(), 2);
-    assert_eq!(report["findings"][0]["pointer"], "/assets/0/path");
+    assert!(
+        report["findings"][0]["message"]
+            .as_str()
+            .unwrap()
+            .contains("/assets/0/path")
+    );
     let mut raw = serde_json::to_value(&doc).unwrap();
     raw["settings"]["width"] = json!("wrong");
-    assert_eq!(
-        document::parse(&raw).unwrap_err().pointer,
-        "/settings/width"
+    assert!(
+        document::parse(&raw)
+            .unwrap_err()
+            .to_string()
+            .contains("/settings/width")
     );
 }
 
@@ -739,4 +751,19 @@ impl Drop for Temp {
     fn drop(&mut self) {
         let _ = fs::remove_dir_all(&self.0);
     }
+}
+
+#[test]
+fn generates_agent_docs_from_cli_definitions() {
+    let output = Command::new(env!("CARGO_BIN_EXE_opencut")).args(["doc"]).output().unwrap();
+    assert!(output.status.success());
+    let text = String::from_utf8(output.stdout).unwrap();
+    assert!(text.contains("## Recommended workflow"));
+    assert!(!text.contains("$schema"));
+    assert!(!text.contains("--llm"));
+    assert!(text.contains("--post-merge"));
+    assert!(text.contains("--project-root"));
+    let json_output = Command::new(env!("CARGO_BIN_EXE_opencut")).args(["docs", "--json"]).output().unwrap();
+    assert!(json_output.status.success());
+    assert_eq!(serde_json::from_slice::<Value>(&json_output.stdout).unwrap().as_str().unwrap(), text.strip_suffix('\n').unwrap());
 }
