@@ -36,18 +36,9 @@ impl Format {
     }
 }
 
-#[derive(Clone, Copy, Debug, Default)]
-#[cfg_attr(feature = "cli", derive(clap::ValueEnum))]
-pub enum TimestampLevel {
-    #[default]
-    Sentence,
-    Word,
-}
-
 #[derive(Debug, Default)]
 pub struct Options {
     pub format: Format,
-    pub timestamp_level: TimestampLevel,
     /// Optional BCP-47 language hint; None enables mixed-language recognition.
     pub language: Option<String>,
 }
@@ -128,13 +119,7 @@ async fn request(
     let form = multipart::Form::new()
         .text("model", "asr-1.0")
         .text("response_format", options.format.as_str())
-        .text(
-            "timestamp_level",
-            match options.timestamp_level {
-                TimestampLevel::Sentence => "sentence",
-                TimestampLevel::Word => "word",
-            },
-        )
+        .text("timestamp_level", "word")
         .text("stream", "false")
         .part("file", file);
     let mut request = client

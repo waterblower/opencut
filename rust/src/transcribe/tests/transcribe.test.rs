@@ -11,14 +11,13 @@ async fn sends_documented_multipart_fields_and_preserves_provider_json() {
     let expected = json!({"text":"你好 hello", "duration":1.25, "n_speakers":1,
         "segments":[{"id":0,"start":0.1,"end":1.2,"speaker":"S1","text":"你好 hello"}],
         "trace_id":"trace", "future_field":true});
-    for (format, level, language) in [
-        (Format::Json, TimestampLevel::Sentence, None),
-        (Format::VerboseJson, TimestampLevel::Word, Some("zh".into())),
+    for (format, language) in [
+        (Format::Json, None),
+        (Format::VerboseJson, Some("zh".into())),
     ] {
         let (url, server) = server(200, expected.to_string().into_bytes(), Duration::ZERO);
         let options = Options {
             format,
-            timestamp_level: level,
             language,
         };
         let response = request(
@@ -45,14 +44,7 @@ async fn sends_documented_multipart_fields_and_preserves_provider_json() {
             ("model", "asr-1.0"),
             ("response_format", format.as_str()),
             ("stream", "false"),
-            (
-                "timestamp_level",
-                if options.language.is_some() {
-                    "word"
-                } else {
-                    "sentence"
-                },
-            ),
+            ("timestamp_level", "word"),
         ] {
             assert!(
                 body.contains(&format!("name=\"{name}\"\r\n\r\n{value}\r\n")),

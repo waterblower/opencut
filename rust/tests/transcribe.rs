@@ -183,7 +183,7 @@ fn cli_validates_flags_credentials_and_output_before_contacting_minimax() {
         .unwrap();
     assert!(output.status.success());
     let help = String::from_utf8(output.stdout).unwrap();
-    assert!(help.contains("verbose_json") && help.contains("--timestamp-level"));
+    assert!(help.contains("verbose_json") && !help.contains("--timestamp-level"));
     // JSON document output remains compatible with the synchronous caller.
     let path = temp.0.join("document.json");
     let value = json!({"text":"hello"});

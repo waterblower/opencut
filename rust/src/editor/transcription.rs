@@ -22,8 +22,9 @@ pub async fn start_transcription(source: PathBuf, api_key: String) -> Result<Str
     let Some(srt) = response.as_str() else {
         anyhow::bail!("expected SRT response at {}:{}", file!(), line!());
     };
-    super::srt::parse_srt_text_clips(srt, FrameRate::new(30, 1))?;
-    Ok(srt.to_owned())
+    let srt = transcribe::subtitles::merge_srt_sections(srt)?;
+    super::srt::parse_srt_text_clips(&srt, FrameRate::new(30, 1))?;
+    Ok(srt)
 }
 
 #[cfg(test)]

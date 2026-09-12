@@ -90,7 +90,6 @@ async fn run(
         Command::Transcribe {
             media_file,
             format,
-            timestamp_level,
             post_merge,
             language,
             output,
@@ -120,7 +119,6 @@ async fn run(
                 api_key,
                 &transcribe::Options {
                     format,
-                    timestamp_level,
                     language,
                 },
             )
