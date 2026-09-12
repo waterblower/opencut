@@ -246,3 +246,15 @@ The package is a local unsigned artifact linked against the existing vendored
 FFmpeg installation and its transitive libraries, not a relocatable distribution.
 `OPENCUT_GPL=1` selects libx264; it does not build codecs. FFmpeg licensing still
 depends on the vendored build. Signing and publishing remain separate operations.
+
+Generate an agent-friendly Markdown usage guide with `opencut doc`.
+It includes workflows, examples, and command options generated from the CLI
+definitions. Full schemas are available separately via `opencut schema` and
+`opencut schema --kind recipe`. The `docs` alias is also supported;
+`--json` returns the guide as a JSON string.
+
+```sh
+opencut doc > llms.txt
+```
+
+Release packaging generates this file from the built executable.

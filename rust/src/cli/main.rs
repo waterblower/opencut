@@ -1,4 +1,5 @@
 mod args;
+mod docs;
 
 use args::{Args, Command};
 use clap::Parser;
@@ -221,7 +222,7 @@ async fn run(
             "",
             6
         )),
-        Command::Docs => Ok(json!(include_str!("llms.txt"))),
+        Command::Doc => Ok(json!(docs::generate()?)),
         Command::Validate { timeline } => {
             let (_, doc) = document::load(&timeline)?;
             let (media, media_findings) = probe::inspect_assets(&doc, base);

@@ -19,7 +19,7 @@ pub struct Args {
 
 #[derive(Subcommand)]
 pub enum Command {
-    /// Transcribe up to 500 seconds of audio/video with MiniMax (MINIMAX_API_KEY).
+    /// Transcribe audio/video with MiniMax (MINIMAX_API_KEY).
     Transcribe {
         media_file: PathBuf,
         #[arg(long, value_enum, default_value = "verbose_json")]
@@ -68,8 +68,9 @@ pub enum Command {
         #[arg(long, default_value = "json-schema", value_parser = ["json-schema"])]
         format: String,
     },
-    /// Print the compact agent usage guide.
-    Docs,
+    /// Print an agent-friendly Markdown guide to using the CLI.
+    #[command(alias = "docs")]
+    Doc,
     /// Render one composited frame as PNG or JPEG.
     Still {
         timeline: PathBuf,
