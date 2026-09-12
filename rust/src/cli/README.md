@@ -157,7 +157,7 @@ files require `--overwrite`, and the input cannot be used as the output.
 
 HTTP uses async reqwest on Tokio, with a 30-second connection timeout and a
 10-minute request timeout. There are no automatic retries. FFmpeg decoding and
-the existing atomic file writer run on Tokio's blocking pool. Errors use exit 5
+the existing atomic file writer run on Tokio's blocking pool. Errors use exit 1
 for HTTP/service/response failures, 4 for unusable media, 2 for missing credentials
 or invalid arguments, and 6 for output I/O. Provider HTTP errors include the
 status and request ID when available; keys are not included in diagnostics.
@@ -217,8 +217,7 @@ nearest timeline frame using rational arithmetic. Only `still --at` accepts
 percentages; `100%` selects the final frame.
 
 All commands accept `--json`. Results go to stdout; progress goes to stderr at
-most once every five seconds, plus final completion. Errors include codes, JSON
-pointers, and Rust file/line locations. `validate` returns all findings.
+most once every five seconds, plus final completion. Runtime failures use anyhow and exit code 1; Clap usage errors use exit code 2. JSON failures have the shape `{"error":{"message":"..."}}`. Diagnostic labels, paths, and source locations are included in the message. `validate` returns all findings.
 
 ## Verification and packaging
 

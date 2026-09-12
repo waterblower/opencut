@@ -57,7 +57,7 @@ Outputs cannot overwrite source assets. Render embeds the input document in
 opencut.timeline metadata unless --no-metadata is supplied.
 
 Exit codes: 0 success,2 usage,3 validation,4 media,5 rendering/transcription,6 I/O.
-JSON errors: {error:{code,pointer,message,file,line}}. Validate returns findings.
+JSON errors: {error:{message}}. Runtime failures exit 1; Clap usage errors exit 2. Validate returns findings with message and fix_hint.
 
 Podcast authoring (no model calls inside OpenCut):
   opencut schema --kind recipe --json

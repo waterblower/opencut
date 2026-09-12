@@ -69,8 +69,16 @@ fn validation_reports_reference_and_overlap_errors_without_mutation() {
     doc.clips[1].set_track_id(ulid::Ulid::from(101_u128));
     let before = serde_json::to_value(&doc).unwrap();
     let findings = validate::validate(&doc, None);
-    assert!(findings.iter().any(|f| f.error.code == "unknown_track"));
-    assert!(findings.iter().any(|f| f.error.code == "overlap"));
+    assert!(
+        findings
+            .iter()
+            .any(|f| f.error.to_string().contains("unknown_track"))
+    );
+    assert!(
+        findings
+            .iter()
+            .any(|f| f.error.to_string().contains("overlap"))
+    );
     assert_eq!(serde_json::to_value(&doc).unwrap(), before);
 }
 

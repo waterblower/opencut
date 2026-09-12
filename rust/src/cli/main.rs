@@ -34,7 +34,7 @@ async fn main() -> ExitCode {
                 let _ = error.print();
                 return ExitCode::SUCCESS;
             }
-            let error = cli_error!("usage_error", "", 2, "{error}");
+            let error = cli_error!("usage_error", "", 2, "{error:#}");
             print_error(&error, json_mode);
             return ExitCode::from(2);
         }
@@ -67,16 +67,16 @@ async fn main() -> ExitCode {
         }
         Err(error) => {
             print_error(&error, args.json);
-            ExitCode::from(error.exit)
+            ExitCode::FAILURE
         }
     }
 }
 
 fn print_error(error: &opencut_player::cli::error::Error, json: bool) {
     if json {
-        let _ = writeln!(io::stdout().lock(), "{}", json!({"error": error}));
+        let _ = writeln!(io::stdout().lock(), "{}", json!({"error": {"message": format!("{error:#}")}}));
     } else {
-        let _ = writeln!(io::stderr().lock(), "{error}");
+        let _ = writeln!(io::stderr().lock(), "{error:#}");
     }
 }
 
@@ -228,11 +228,7 @@ async fn run(
             let mut findings = validate::validate(&doc, Some(&media));
             findings.extend(media_findings);
             if !findings.is_empty() {
-                let exit = if findings.iter().any(|f| f.error.exit == 4) {
-                    4
-                } else {
-                    3
-                };
+                let exit = 1;
                 let value = json!({"valid": false, "findings": findings});
                 let text = if json_mode {
                     value.to_string()

@@ -81,8 +81,13 @@ fn schema_and_new_use_the_gui_document_contract() {
     assert_eq!(removed.status.code(), Some(2));
     fs::write(&file, r#"{"version":1,"clips":[]}"#).unwrap();
     let legacy = cli(&["inspect", file.to_str().unwrap(), "--json"]);
-    assert_eq!(legacy.status.code(), Some(3));
-    assert_eq!(decode(&legacy)["error"]["code"], "legacy_cli_format");
+    assert_eq!(legacy.status.code(), Some(1));
+    assert!(
+        decode(&legacy)["error"]["message"]
+            .as_str()
+            .unwrap()
+            .contains("legacy_cli_format")
+    );
 }
 
 #[test]
@@ -260,15 +265,22 @@ fn validation_reports_all_missing_assets_and_schema_locations() {
         dir.0.to_str().unwrap(),
         "--json",
     ]);
-    assert_eq!(result.status.code(), Some(4));
+    assert_eq!(result.status.code(), Some(1));
     let report = decode(&result);
     assert_eq!(report["findings"].as_array().unwrap().len(), 2);
-    assert_eq!(report["findings"][0]["pointer"], "/assets/0/path");
+    assert!(
+        report["findings"][0]["message"]
+            .as_str()
+            .unwrap()
+            .contains("/assets/0/path")
+    );
     let mut raw = serde_json::to_value(&doc).unwrap();
     raw["settings"]["width"] = json!("wrong");
-    assert_eq!(
-        document::parse(&raw).unwrap_err().pointer,
-        "/settings/width"
+    assert!(
+        document::parse(&raw)
+            .unwrap_err()
+            .to_string()
+            .contains("/settings/width")
     );
 }
 
