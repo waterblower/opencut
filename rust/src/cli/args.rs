@@ -19,6 +19,24 @@ pub struct Args {
 
 #[derive(Subcommand)]
 pub enum Command {
+    /// Transcribe up to 500 seconds of audio/video with MiniMax (MINIMAX_API_KEY).
+    Transcribe {
+        media_file: PathBuf,
+        #[arg(long, value_enum, default_value = "verbose_json")]
+        format: opencut_player::cli::transcribe::Format,
+        #[arg(long, value_enum, default_value = "sentence")]
+        timestamp_level: opencut_player::cli::transcribe::TimestampLevel,
+        /// Merge SRT cues separated by less than 100 ms (requires --format srt).
+        #[arg(long)]
+        post_merge: bool,
+        /// BCP-47 hint; omitted by default for mixed-language recognition.
+        #[arg(long)]
+        language: Option<String>,
+        #[arg(short, long)]
+        output: Option<PathBuf>,
+        #[arg(long)]
+        overwrite: bool,
+    },
     /// Assemble explicit podcast cuts and camera choices into an editor timeline.
     Assemble {
         recipe: PathBuf,

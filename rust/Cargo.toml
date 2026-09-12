@@ -48,7 +48,7 @@ required-features = ["editor"]
 default = ["editor"]
 timeline = ["dep:serde", "dep:serde_json", "dep:serde_path_to_error", "dep:ulid"]
 timeline-schema = ["timeline", "dep:schemars"]
-cli = ["timeline-schema", "dep:clap", "dep:ffmpeg-next", "dep:image", "dep:cosmic-text", "dep:resvg"]
+cli = ["timeline-schema", "dep:clap", "dep:ffmpeg-next", "dep:image", "dep:cosmic-text", "dep:resvg", "dep:reqwest", "dep:tokio"]
 gpl = ["cli"]
 ffmpeg-backend = ["dep:anyhow", "dep:async-channel", "dep:ffmpeg-next", "dep:cpal", "dep:core-foundation", "dep:core-video"]
 ffmpeg-video = ["ffmpeg-backend", "dep:gpui", "dep:image", "dep:smallvec", "dep:log", "dep:core-foundation", "dep:core-video"]
@@ -96,6 +96,8 @@ gstreamer-backend = [
 ]
 
 [dependencies]
+tokio = { version = "1", optional = true, features = ["rt-multi-thread", "macros", "fs", "time"] }
+reqwest = { version = "=0.12.24", optional = true, default-features = false, features = ["multipart", "rustls-tls"] }
 serde_path_to_error = { version = "=0.1.20", optional = true }
 clap = { version = "=4.5.49", optional = true, features = ["derive"] }
 schemars = { version = "=1.2.2", optional = true, features = ["derive"] }

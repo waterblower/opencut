@@ -80,6 +80,94 @@ impl Mixer {
         Ok(mixed)
     }
 }
+/// Decode at most 500 seconds into a mono 16 kHz PCM WAV for speech recognition.
+/// Timestamps remain relative to the source container, including gaps before speech.
+pub fn transcription_wav(path: &Path) -> Result<Vec<u8>> {
+    const RATE: u32 = 16_000;
+    const MAX_SAMPLES: usize = 500 * RATE as usize;
+    super::probe::init()?;
+    let mut reader = AudioReader::open(path, RATE)?;
+    let stream = reader.input.stream(reader.stream).unwrap();
+    let duration = if stream.duration() > 0 {
+        let start = if stream.start_time() == ffmpeg::ffi::AV_NOPTS_VALUE {
+            0.0
+        } else {
+            (stream.start_time() as f64 * reader.time_base - reader.origin).max(0.0)
+        };
+        start + stream.duration() as f64 * reader.time_base
+    } else {
+        reader.input.duration() as f64 / ffmpeg::ffi::AV_TIME_BASE as f64
+    };
+    if !duration.is_finite() || duration <= 0.0 {
+        return Err(cli_error!(
+            "invalid_duration",
+            "",
+            4,
+            "audio duration must be known and positive"
+        ));
+    }
+    if duration > 500.0 {
+        return Err(cli_error!(
+            "audio_too_long",
+            "",
+            4,
+            "transcription accepts at most 500 seconds"
+        ));
+    }
+    let mut wav = vec![0_u8; 44];
+    let mut decoded_samples = 0;
+    while !reader.drained {
+        // ffmpeg-next's delay() rounds to whole seconds before testing for zero.
+        // Query in output samples so short resampler delays do not become gaps.
+        let delay =
+            unsafe { ffmpeg::ffi::swr_get_delay(reader.resampler.as_mut_ptr(), RATE as i64) };
+        reader.advance(delay)?;
+        decoded_samples += reader.queue.len();
+        let end = reader.queue_start as i128 + reader.queue.len() as i128;
+        if end > MAX_SAMPLES as i128 || decoded_samples > MAX_SAMPLES {
+            return Err(cli_error!(
+                "audio_too_long",
+                "",
+                4,
+                "decoded audio exceeds 500 seconds"
+            ));
+        }
+        for (index, sample) in reader.queue.drain(..).enumerate() {
+            let position = reader.queue_start as i128 + index as i128;
+            let written = (wav.len() - 44) / 2;
+            if position < written as i128 {
+                continue;
+            }
+            // Silence preserves source-relative positions across timestamp gaps.
+            wav.resize(44 + position as usize * 2, 0);
+            let mono = ((sample[0] + sample[1]) * 0.5).clamp(-1.0, 1.0);
+            wav.extend_from_slice(&((mono * i16::MAX as f32).round() as i16).to_le_bytes());
+        }
+    }
+    let size = (wav.len() - 44) as u32;
+    if size == 0 {
+        return Err(cli_error!(
+            "missing_audio",
+            "",
+            4,
+            "no audio samples decoded"
+        ));
+    }
+    wav[0..4].copy_from_slice(b"RIFF");
+    wav[4..8].copy_from_slice(&(size + 36).to_le_bytes());
+    wav[8..16].copy_from_slice(b"WAVEfmt ");
+    wav[16..20].copy_from_slice(&16_u32.to_le_bytes());
+    wav[20..22].copy_from_slice(&1_u16.to_le_bytes());
+    wav[22..24].copy_from_slice(&1_u16.to_le_bytes());
+    wav[24..28].copy_from_slice(&RATE.to_le_bytes());
+    wav[28..32].copy_from_slice(&(RATE * 2).to_le_bytes());
+    wav[32..34].copy_from_slice(&2_u16.to_le_bytes());
+    wav[34..36].copy_from_slice(&16_u16.to_le_bytes());
+    wav[36..40].copy_from_slice(b"data");
+    wav[40..44].copy_from_slice(&size.to_le_bytes());
+    Ok(wav)
+}
+
 struct AudioReader {
     input: ffmpeg::format::context::Input,
     decoder: ffmpeg::decoder::Audio,
@@ -162,22 +250,22 @@ impl AudioReader {
                 if self.queue_start > target || self.drained {
                     break;
                 }
-                self.advance()?;
+                let delay = match self.resampler.delay() {
+                    Some(delay) => delay.output,
+                    None => 0,
+                };
+                self.advance(delay)?;
             }
         }
         Ok(result)
     }
 
-    fn advance(&mut self) -> Result<()> {
+    fn advance(&mut self, delay: i64) -> Result<()> {
         loop {
             let mut decoded = ffmpeg::frame::Audio::empty();
             match self.decoder.receive_frame(&mut decoded) {
                 Ok(()) => {
                     let pts = decoded.timestamp();
-                    let delay = match self.resampler.delay() {
-                        Some(delay) => delay.output,
-                        None => 0,
-                    };
                     let timestamp = match pts {
                         Some(pts) => Some(
                             ((pts as f64 * self.time_base - self.origin) * self.rate as f64).round()

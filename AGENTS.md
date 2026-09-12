@@ -3,6 +3,8 @@
 - Do not build FFmpeg ourselves, including through `ffbuild/`. Link against the
   existing vendored libraries in `rust/vendor/ffmpeg-8.1.2/`.
 - Never include Python in the build process.
+- Read environment variables only in `main()` or application initialization code.
+  Pass the required values explicitly to business logic functions.
 - Never pass functions or closures as arguments to simple functions. Pass the
   required values or references directly. If a callback is truly needed for a
   simple function, ask the user first.

@@ -20,7 +20,7 @@ jobs:
         run: cargo test --manifest-path rust/Cargo.toml --locked --no-default-features --features timeline-schema --lib --test timeline
       - name: Test CLI without GUI dependencies
         run: |
-          bash rust/scripts/cargo-cli.sh test --locked --no-default-features --features cli --test cli --test timeline
+          bash rust/scripts/cargo-cli.sh test --locked --no-default-features --features cli --lib --test cli --test assemble --test timeline --test transcribe
           bash rust/scripts/cargo-cli.sh test --locked --no-default-features --features cli --test cli -- --ignored
           bash rust/scripts/cargo-cli.sh tree --no-default-features --features cli -e normal > rust/target/cli-dependencies.txt
           if rg 'gpui|gstreamer' rust/target/cli-dependencies.txt; then exit 1; fi
