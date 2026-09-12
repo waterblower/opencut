@@ -63,9 +63,11 @@ async fn extracts_whole_audio_and_transcription_rejects_overlong_input() {
     let temp = Temp::new();
     let silent_video = temp.0.join("no-audio.mov");
     write_video(&silent_video, false);
-    assert_eq!(
-        extract_audio_as_wav(&silent_video).unwrap_err().code,
-        "missing_audio"
+    assert!(
+        extract_audio_as_wav(&silent_video)
+            .unwrap_err()
+            .to_string()
+            .contains("missing_audio")
     );
     let long = temp.0.join("too-long.wav");
     write_wav(&long, 8_000, 500 * 8_000);
@@ -85,14 +87,14 @@ async fn extracts_whole_audio_and_transcription_rejects_overlong_input() {
     )
     .await
     .unwrap_err();
-    assert_eq!(error.code, "audio_too_long");
+    assert!(error.to_string().contains("audio_too_long"));
     assert!(error.to_string().contains("500.000063 seconds"));
     assert!(error.to_string().contains("at most 500 seconds"));
-    assert_eq!(
+    assert!(
         extract_audio_as_wav(&temp.0.join("missing.wav"))
             .unwrap_err()
-            .code,
-        "unreadable_media"
+            .to_string()
+            .contains("unreadable_media")
     );
 }
 

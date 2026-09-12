@@ -1,9 +1,6 @@
 //! MiniMax ASR for local media. Credentials belong to the caller, not library state.
-pub mod error;
-use self::{
-    audio::extract_audio_as_wav,
-    error::{Error, Result},
-};
+use self::audio::extract_audio_as_wav;
+use anyhow::Result;
 use reqwest::{
     Client,
     header::{AUTHORIZATION, HeaderValue},
@@ -47,22 +44,24 @@ pub struct Options {
 /// HTTP is asynchronous; FFmpeg decoding blocks the caller's background thread.
 pub async fn transcribe(path: &Path, api_key: &str, options: &Options) -> Result<Value> {
     if api_key.trim().is_empty() {
-        return Err(Error::new(
-            "missing_api_key",
+        return Err(anyhow::anyhow!(
+            "missing_api_key: {} at {}:{}",
             "an API key is required for transcription",
             file!(),
-            line!(),
+            line!()
         ));
     }
     if let Some(duration) = audio::audio_duration(path)?
         && duration > Duration::from_secs(500)
     {
         let duration = duration.as_secs_f64();
-        return Err(Error::new(
-            "audio_too_long",
-            format!("audio duration is {duration:.6} seconds; transcription accepts at most 500 seconds"),
+        return Err(anyhow::anyhow!(
+            "audio_too_long: {} at {}:{}",
+            format!(
+                "audio duration is {duration:.6} seconds; transcription accepts at most 500 seconds"
+            ),
             file!(),
-            line!(),
+            line!()
         ));
     }
     let wav = extract_audio_as_wav(path)?;
@@ -70,11 +69,13 @@ pub async fn transcribe(path: &Path, api_key: &str, options: &Options) -> Result
     let audio_bytes = wav.len() - 44;
     if audio_bytes > 500 * 16_000 * 2 {
         let duration = audio_bytes as f64 / (16_000.0 * 2.0);
-        return Err(Error::new(
-            "audio_too_long",
-            format!("audio duration is {duration:.6} seconds; transcription accepts at most 500 seconds"),
+        return Err(anyhow::anyhow!(
+            "audio_too_long: {} at {}:{}",
+            format!(
+                "audio duration is {duration:.6} seconds; transcription accepts at most 500 seconds"
+            ),
             file!(),
-            line!(),
+            line!()
         ));
     }
     let client = match Client::builder()
@@ -85,7 +86,14 @@ pub async fn transcribe(path: &Path, api_key: &str, options: &Options) -> Result
         .build()
     {
         Ok(value) => value,
-        Err(error) => return Err(Error::new("transcription_request", error, file!(), line!())),
+        Err(error) => {
+            return Err(anyhow::anyhow!(
+                "transcription_request: {} at {}:{}",
+                error,
+                file!(),
+                line!()
+            ));
+        }
     };
     request(
         &client,
@@ -106,7 +114,14 @@ async fn request(
 ) -> Result<Value> {
     let mut authorization = match HeaderValue::from_str(&format!("Bearer {api_key}")) {
         Ok(value) => value,
-        Err(error) => return Err(Error::new("invalid_api_key", error, file!(), line!())),
+        Err(error) => {
+            return Err(anyhow::anyhow!(
+                "invalid_api_key: {} at {}:{}",
+                error,
+                file!(),
+                line!()
+            ));
+        }
     };
     authorization.set_sensitive(true);
     let file = match multipart::Part::bytes(wav)
@@ -114,7 +129,14 @@ async fn request(
         .mime_str("audio/wav")
     {
         Ok(value) => value,
-        Err(error) => return Err(Error::new("transcription_request", error, file!(), line!())),
+        Err(error) => {
+            return Err(anyhow::anyhow!(
+                "transcription_request: {} at {}:{}",
+                error,
+                file!(),
+                line!()
+            ));
+        }
     };
     let form = multipart::Form::new()
         .text("model", "asr-1.0")
@@ -131,27 +153,48 @@ async fn request(
             "language",
             match HeaderValue::from_str(language) {
                 Ok(value) => value,
-                Err(error) => return Err(Error::new("invalid_language", error, file!(), line!())),
+                Err(error) => {
+                    return Err(anyhow::anyhow!(
+                        "invalid_language: {} at {}:{}",
+                        error,
+                        file!(),
+                        line!()
+                    ));
+                }
             },
         );
     }
     let response = match request.send().await {
         Ok(value) => value,
-        Err(error) => return Err(Error::new("transcription_request", error, file!(), line!())),
+        Err(error) => {
+            return Err(anyhow::anyhow!(
+                "transcription_request: {} at {}:{}",
+                error,
+                file!(),
+                line!()
+            ));
+        }
     };
     let status = response.status();
     let bytes = match response.bytes().await {
         Ok(value) => value,
-        Err(error) => return Err(Error::new("transcription_request", error, file!(), line!())),
+        Err(error) => {
+            return Err(anyhow::anyhow!(
+                "transcription_request: {} at {}:{}",
+                error,
+                file!(),
+                line!()
+            ));
+        }
     };
     let body = match std::str::from_utf8(&bytes) {
         Ok(value) => value,
         Err(error) => {
-            return Err(Error::new(
-                "invalid_transcription_response",
+            return Err(anyhow::anyhow!(
+                "invalid_transcription_response: {} at {}:{}",
                 error,
                 file!(),
-                line!(),
+                line!()
             ));
         }
     };
@@ -165,15 +208,15 @@ async fn request(
             .get("request_id")
             .and_then(Value::as_str)
             .unwrap_or("unavailable");
-        return Err(Error::new(
-            "transcription_api",
+        return Err(anyhow::anyhow!(
+            "transcription_api: {} at {}:{}",
             format!(
                 "HTTP {status}: {} (request_id: {})",
                 message.replace(api_key, "[redacted]"),
                 request_id.replace(api_key, "[redacted]")
             ),
             file!(),
-            line!(),
+            line!()
         ));
     }
     if matches!(options.format, Format::Srt | Format::Vtt) {
@@ -182,11 +225,11 @@ async fn request(
     let value: Value = match serde_json::from_str(body) {
         Ok(value) => value,
         Err(error) => {
-            return Err(Error::new(
-                "invalid_transcription_response",
+            return Err(anyhow::anyhow!(
+                "invalid_transcription_response: {} at {}:{}",
                 error,
                 file!(),
-                line!(),
+                line!()
             ));
         }
     };
@@ -196,20 +239,20 @@ async fn request(
             .and_then(Value::as_f64)
             .is_some_and(|n| n.is_finite() && n >= 0.0)
     {
-        return Err(Error::new(
-            "invalid_transcription_response",
+        return Err(anyhow::anyhow!(
+            "invalid_transcription_response: {} at {}:{}",
             "expected transcript text and duration",
             file!(),
-            line!(),
+            line!()
         ));
     }
     if matches!(options.format, Format::VerboseJson) {
         let Some(segments) = value.get("segments").and_then(Value::as_array) else {
-            return Err(Error::new(
-                "invalid_transcription_response",
+            return Err(anyhow::anyhow!(
+                "invalid_transcription_response: {} at {}:{}",
                 "expected timestamped segments",
                 file!(),
-                line!(),
+                line!()
             ));
         };
         if value.get("n_speakers").and_then(Value::as_u64).is_none()
@@ -227,11 +270,11 @@ async fn request(
                     || !segment.get("text").is_some_and(Value::is_string)
             })
         {
-            return Err(Error::new(
-                "invalid_transcription_response",
+            return Err(anyhow::anyhow!(
+                "invalid_transcription_response: {} at {}:{}",
                 "invalid speaker or segment fields",
                 file!(),
-                line!(),
+                line!()
             ));
         }
     }

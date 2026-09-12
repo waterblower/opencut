@@ -1,4 +1,4 @@
-use super::error::{Error, Result};
+use anyhow::Result;
 
 /// Merge adjacent SRT cues separated by less than 100 ms, including overlaps.
 /// Concatenate text verbatim and renumber cues; output uses LF line endings.
@@ -12,34 +12,41 @@ pub fn merge_srt_sections(srt: &str) -> Result<String> {
         let mut lines = block.lines();
         match lines.next().unwrap_or("").parse::<u64>() {
             Ok(value) => value,
-            Err(error) => return Err(Error::new("invalid_srt", error, file!(), line!())),
+            Err(error) => {
+                return Err(anyhow::anyhow!(
+                    "invalid_srt: {} at {}:{}",
+                    error,
+                    file!(),
+                    line!()
+                ));
+            }
         };
         let Some((start, end)) = lines.next().unwrap_or("").split_once(" --> ") else {
-            return Err(Error::new(
-                "invalid_srt",
+            return Err(anyhow::anyhow!(
+                "invalid_srt: {} at {}:{}",
                 "expected SRT time range",
                 file!(),
-                line!(),
+                line!()
             ));
         };
         let start_ms = timestamp_ms(start)?;
         let end_ms = timestamp_ms(end)?;
         let text = lines.collect::<Vec<_>>().join("\n");
         if end_ms < start_ms || text.is_empty() {
-            return Err(Error::new(
-                "invalid_srt",
+            return Err(anyhow::anyhow!(
+                "invalid_srt: {} at {}:{}",
                 "invalid cue duration or empty text",
                 file!(),
-                line!(),
+                line!()
             ));
         }
         if let Some(previous) = cues.last_mut() {
             if start_ms < previous.0 {
-                return Err(Error::new(
-                    "invalid_srt",
+                return Err(anyhow::anyhow!(
+                    "invalid_srt: {} at {}:{}",
                     "cues must be ordered by start time",
                     file!(),
-                    line!(),
+                    line!()
                 ));
             }
             if start_ms.saturating_sub(previous.1) < 100 {
@@ -71,38 +78,45 @@ fn timestamp_ms(timestamp: &str) -> Result<u64> {
             .iter()
             .all(|part| part.bytes().all(|byte| byte.is_ascii_digit()))
     {
-        return Err(Error::new(
-            "invalid_srt",
+        return Err(anyhow::anyhow!(
+            "invalid_srt: {} at {}:{}",
             format!("invalid timestamp: {timestamp}"),
             file!(),
-            line!(),
+            line!()
         ));
     }
     let mut values = [0_u64; 4];
     for (value, part) in values.iter_mut().zip(parts) {
         *value = match part.parse::<u64>() {
             Ok(value) => value,
-            Err(error) => return Err(Error::new("invalid_srt", error, file!(), line!())),
+            Err(error) => {
+                return Err(anyhow::anyhow!(
+                    "invalid_srt: {} at {}:{}",
+                    error,
+                    file!(),
+                    line!()
+                ));
+            }
         };
     }
     let [hours, minutes, seconds, millis] = values;
     if minutes >= 60 || seconds >= 60 {
-        return Err(Error::new(
-            "invalid_srt",
+        return Err(anyhow::anyhow!(
+            "invalid_srt: {} at {}:{}",
             format!("invalid timestamp: {timestamp}"),
             file!(),
-            line!(),
+            line!()
         ));
     }
     let Some(total) = hours
         .checked_mul(3_600_000)
         .and_then(|total| total.checked_add(minutes * 60_000 + seconds * 1000 + millis))
     else {
-        return Err(Error::new(
-            "invalid_srt",
+        return Err(anyhow::anyhow!(
+            "invalid_srt: {} at {}:{}",
             format!("timestamp overflow: {timestamp}"),
             file!(),
-            line!(),
+            line!()
         ));
     };
     Ok(total)

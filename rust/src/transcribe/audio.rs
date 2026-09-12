@@ -1,4 +1,4 @@
-use super::error::{Error, Result};
+use anyhow::Result;
 use ffmpeg_next as ffmpeg;
 use std::{collections::VecDeque, path::Path, time::Duration};
 
@@ -6,18 +6,30 @@ use std::{collections::VecDeque, path::Path, time::Duration};
 /// Unknown duration is left to the caller's decoded-audio validation.
 pub fn audio_duration(path: &Path) -> Result<Option<Duration>> {
     if let Err(error) = ffmpeg::init() {
-        return Err(Error::new("ffmpeg_init", error, file!(), line!()));
+        return Err(anyhow::anyhow!(
+            "ffmpeg_init: {} at {}:{}",
+            error,
+            file!(),
+            line!()
+        ));
     }
     let input = match ffmpeg::format::input(path) {
         Ok(input) => input,
-        Err(error) => return Err(Error::new("unreadable_media", error, file!(), line!())),
+        Err(error) => {
+            return Err(anyhow::anyhow!(
+                "unreadable_media: {} at {}:{}",
+                error,
+                file!(),
+                line!()
+            ));
+        }
     };
     let Some(stream) = input.streams().best(ffmpeg::media::Type::Audio) else {
-        return Err(Error::new(
-            "missing_audio",
+        return Err(anyhow::anyhow!(
+            "missing_audio: {} at {}:{}",
             "file contains no audio stream",
             file!(),
-            line!(),
+            line!()
         ));
     };
     if stream.duration() <= 0 {
@@ -41,7 +53,12 @@ pub fn audio_duration(path: &Path) -> Result<Option<Duration>> {
     }
     match Duration::try_from_secs_f64(duration) {
         Ok(duration) => Ok(Some(duration)),
-        Err(error) => Err(Error::new("invalid_duration", error, file!(), line!())),
+        Err(error) => Err(anyhow::anyhow!(
+            "invalid_duration: {} at {}:{}",
+            error,
+            file!(),
+            line!()
+        )),
     }
 }
 
@@ -51,7 +68,14 @@ pub fn extract_audio_as_wav(path: &Path) -> Result<Vec<u8>> {
     const RATE: u32 = 16_000;
     match ffmpeg::init() {
         Ok(value) => value,
-        Err(error) => return Err(Error::new("ffmpeg_init", error, file!(), line!())),
+        Err(error) => {
+            return Err(anyhow::anyhow!(
+                "ffmpeg_init: {} at {}:{}",
+                error,
+                file!(),
+                line!()
+            ));
+        }
     };
     let mut reader = AudioReader::open(path, RATE)?;
     let mut wav = vec![0_u8; 44];
@@ -63,11 +87,11 @@ pub fn extract_audio_as_wav(path: &Path) -> Result<Vec<u8>> {
         reader.advance(delay)?;
         let end = reader.queue_start as i128 + reader.queue.len() as i128;
         if end > i128::from((u32::MAX - 36) / 2) {
-            return Err(Error::new(
-                "audio_too_large",
+            return Err(anyhow::anyhow!(
+                "audio_too_large: {} at {}:{}",
                 "decoded audio exceeds the PCM WAV size limit",
                 file!(),
-                line!(),
+                line!()
             ));
         }
         for (index, sample) in reader.queue.drain(..).enumerate() {
@@ -84,11 +108,11 @@ pub fn extract_audio_as_wav(path: &Path) -> Result<Vec<u8>> {
     }
     let size = (wav.len() - 44) as u32;
     if size == 0 {
-        return Err(Error::new(
-            "missing_audio",
+        return Err(anyhow::anyhow!(
+            "missing_audio: {} at {}:{}",
             "no audio samples decoded",
             file!(),
-            line!(),
+            line!()
         ));
     }
     wav[0..4].copy_from_slice(b"RIFF");
@@ -125,23 +149,44 @@ impl AudioReader {
     pub fn open(path: &Path, rate: u32) -> Result<Self> {
         let input = match ffmpeg::format::input(path) {
             Ok(value) => value,
-            Err(error) => return Err(Error::new("unreadable_media", error, file!(), line!())),
+            Err(error) => {
+                return Err(anyhow::anyhow!(
+                    "unreadable_media: {} at {}:{}",
+                    error,
+                    file!(),
+                    line!()
+                ));
+            }
         };
         let Some(stream) = input.streams().best(ffmpeg::media::Type::Audio) else {
-            return Err(Error::new(
-                "missing_audio",
+            return Err(anyhow::anyhow!(
+                "missing_audio: {} at {}:{}",
                 "no audio stream",
                 file!(),
-                line!(),
+                line!()
             ));
         };
         let context = match ffmpeg::codec::context::Context::from_parameters(stream.parameters()) {
             Ok(value) => value,
-            Err(error) => return Err(Error::new("decode_failure", error, file!(), line!())),
+            Err(error) => {
+                return Err(anyhow::anyhow!(
+                    "decode_failure: {} at {}:{}",
+                    error,
+                    file!(),
+                    line!()
+                ));
+            }
         };
         let mut decoder = match context.decoder().audio() {
             Ok(value) => value,
-            Err(error) => return Err(Error::new("decode_failure", error, file!(), line!())),
+            Err(error) => {
+                return Err(anyhow::anyhow!(
+                    "decode_failure: {} at {}:{}",
+                    error,
+                    file!(),
+                    line!()
+                ));
+            }
         };
         if decoder.channel_layout().is_empty() {
             decoder.set_channel_layout(ffmpeg::ChannelLayout::default(decoder.channels() as i32));
@@ -155,7 +200,14 @@ impl AudioReader {
             rate,
         ) {
             Ok(value) => value,
-            Err(error) => return Err(Error::new("resample_failure", error, file!(), line!())),
+            Err(error) => {
+                return Err(anyhow::anyhow!(
+                    "resample_failure: {} at {}:{}",
+                    error,
+                    file!(),
+                    line!()
+                ));
+            }
         };
         Ok(Self {
             stream: stream.index(),
@@ -186,7 +238,14 @@ impl AudioReader {
                 * ffmpeg::ffi::AV_TIME_BASE as f64) as i64;
             match self.input.seek(seek, ..seek) {
                 Ok(value) => value,
-                Err(error) => return Err(Error::new("seek_failure", error, file!(), line!())),
+                Err(error) => {
+                    return Err(anyhow::anyhow!(
+                        "seek_failure: {} at {}:{}",
+                        error,
+                        file!(),
+                        line!()
+                    ));
+                }
             };
             self.decoder.flush();
         }
@@ -236,11 +295,11 @@ impl AudioReader {
                         (Some(sample), _) => sample,
                         (None, Some(timestamp)) => timestamp,
                         (None, None) => {
-                            return Err(Error::new(
-                                "missing_pts",
+                            return Err(anyhow::anyhow!(
+                                "missing_pts: {} at {}:{}",
                                 "audio frame has no presentation timestamp",
                                 file!(),
-                                line!(),
+                                line!()
                             ));
                         }
                     };
@@ -255,7 +314,12 @@ impl AudioReader {
                     match self.resampler.run(&decoded, &mut converted) {
                         Ok(value) => value,
                         Err(error) => {
-                            return Err(Error::new("resample_failure", error, file!(), line!()));
+                            return Err(anyhow::anyhow!(
+                                "resample_failure: {} at {}:{}",
+                                error,
+                                file!(),
+                                line!()
+                            ));
                         }
                     };
                     self.append(&converted, start);
@@ -270,7 +334,12 @@ impl AudioReader {
                     let delay = match self.resampler.flush(&mut converted) {
                         Ok(value) => value,
                         Err(error) => {
-                            return Err(Error::new("resample_failure", error, file!(), line!()));
+                            return Err(anyhow::anyhow!(
+                                "resample_failure: {} at {}:{}",
+                                error,
+                                file!(),
+                                line!()
+                            ));
                         }
                     };
                     self.append(&converted, self.next_sample.unwrap_or(0));
@@ -279,7 +348,12 @@ impl AudioReader {
                 }
                 Err(ffmpeg::Error::Other { errno }) if errno == ffmpeg::error::EAGAIN => {}
                 Err(error) => {
-                    return Err(Error::new("decode_failure", error, file!(), line!()));
+                    return Err(anyhow::anyhow!(
+                        "decode_failure: {} at {}:{}",
+                        error,
+                        file!(),
+                        line!()
+                    ));
                 }
             }
             if self.eof {
@@ -293,7 +367,12 @@ impl AudioReader {
                         match self.decoder.send_packet(&packet) {
                             Ok(value) => value,
                             Err(error) => {
-                                return Err(Error::new("decode_failure", error, file!(), line!()));
+                                return Err(anyhow::anyhow!(
+                                    "decode_failure: {} at {}:{}",
+                                    error,
+                                    file!(),
+                                    line!()
+                                ));
                             }
                         };
                     }
@@ -302,13 +381,23 @@ impl AudioReader {
                     match self.decoder.send_eof() {
                         Ok(value) => value,
                         Err(error) => {
-                            return Err(Error::new("decode_failure", error, file!(), line!()));
+                            return Err(anyhow::anyhow!(
+                                "decode_failure: {} at {}:{}",
+                                error,
+                                file!(),
+                                line!()
+                            ));
                         }
                     };
                     self.eof = true;
                 }
                 Err(error) => {
-                    return Err(Error::new("decode_failure", error, file!(), line!()));
+                    return Err(anyhow::anyhow!(
+                        "decode_failure: {} at {}:{}",
+                        error,
+                        file!(),
+                        line!()
+                    ));
                 }
             }
         }

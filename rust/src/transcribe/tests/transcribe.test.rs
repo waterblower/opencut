@@ -16,10 +16,7 @@ async fn sends_documented_multipart_fields_and_preserves_provider_json() {
         (Format::VerboseJson, Some("zh".into())),
     ] {
         let (url, server) = server(200, expected.to_string().into_bytes(), Duration::ZERO);
-        let options = Options {
-            format,
-            language,
-        };
+        let options = Options { format, language };
         let response = request(
             &client(),
             &url,
@@ -95,11 +92,15 @@ async fn reports_http_errors_with_status_and_request_id_without_credentials() {
         let error = request(&client(), &url, "test-key", vec![], &Options::default())
             .await
             .unwrap_err();
-        assert_eq!(error.code, "transcription_api");
-        assert!(error.message.contains(&status.to_string()));
-        assert!(error.message.contains("request-123"));
-        assert!(!error.message.contains("test-key"));
-        assert!(!error.file.is_empty() && error.line > 0);
+        assert!(
+            error
+                .to_string()
+                .starts_with(&format!("{}:", "transcription_api"))
+        );
+        assert!(error.to_string().contains(&status.to_string()));
+        assert!(error.to_string().contains("request-123"));
+        assert!(!error.to_string().contains("test-key"));
+        assert!(error.to_string().contains("src/transcribe/mod.rs:"));
         server.join().unwrap();
     }
 }
@@ -115,7 +116,7 @@ async fn rejects_malformed_success_and_handles_non_json_http_failure() {
     ] {
         let (url, server) = server(status, body, Duration::ZERO);
         let error = request(&client(), &url, "test-key", vec![], &Options::default()).await.unwrap_err();
-        assert_eq!(error.code, code);
+        assert!(error.to_string().starts_with(&format!("{}:", code)));
         server.join().unwrap();
     }
 }
@@ -131,7 +132,11 @@ async fn timeout_is_reported_without_retry() {
     let error = request(&client, &url, "test-key", vec![], &Options::default())
         .await
         .unwrap_err();
-    assert_eq!(error.code, "transcription_request");
+    assert!(
+        error
+            .to_string()
+            .starts_with(&format!("{}:", "transcription_request"))
+    );
     server.join().unwrap();
 }
 
@@ -141,7 +146,11 @@ async fn missing_key_is_rejected_before_opening_media() {
         let error = transcribe(Path::new("does-not-exist.wav"), key, &Options::default())
             .await
             .unwrap_err();
-        assert_eq!(error.code, "missing_api_key");
+        assert!(
+            error
+                .to_string()
+                .starts_with(&format!("{}:", "missing_api_key"))
+        );
     }
 }
 
