@@ -46,6 +46,17 @@ impl fmt::Display for Error {
 
 impl std::error::Error for Error {}
 
+impl From<crate::transcribe::error::Error> for Error {
+    fn from(error: crate::transcribe::error::Error) -> Self {
+        let exit = match error.code {
+            "missing_api_key" | "invalid_api_key" | "invalid_language" | "invalid_srt" => 2,
+            "unreadable_media" | "missing_audio" | "invalid_duration" | "audio_too_long" => 4,
+            _ => 5,
+        };
+        Self::new(error.code, "", error.message, exit, error.file, error.line)
+    }
+}
+
 #[macro_export]
 macro_rules! cli_error {
     ($code:expr, $pointer:expr, $exit:expr, $($arg:tt)*) => {

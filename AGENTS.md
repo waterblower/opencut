@@ -3,6 +3,9 @@
 - Do not build FFmpeg ourselves, including through `ffbuild/`. Link against the
   existing vendored libraries in `rust/vendor/ffmpeg-8.1.2/`.
 - Never include Python in the build process.
+- Do not define custom macros. Prefer ordinary functions and explicit control
+  flow so the code is easy to read. Standard and dependency-provided macros
+  (such as `format!`, `file!`, `line!`, and derives) are allowed.
 - Read environment variables only in `main()` or application initialization code.
   Pass the required values explicitly to business logic functions.
 - Never pass functions or closures as arguments to simple functions. Pass the

@@ -164,13 +164,15 @@ for HTTP/service/response failures, 4 for unusable media, 2 for missing credenti
 or invalid arguments, and 6 for output I/O. Provider HTTP errors include the
 status and request ID when available; keys are not included in diagnostics.
 
-The Rust API is `cli::transcribe::transcribe(path, api_key, &options).await`:
+The shared [transcription module](../transcribe/mod.rs) provides
+`opencut_player::transcribe::transcribe(path, api_key, &options).await` without CLI or GUI
+dependencies. The CLI retains a re-export for existing callers.
 
 ```rust,no_run
-use opencut_player::cli::transcribe::{self, Format, Options, TimestampLevel};
+use opencut_player::transcribe::{self as transcribe, Format, Options, TimestampLevel};
 use std::path::Path;
 
-async fn example(api_key: &str) -> opencut_player::cli::error::Result<()> {
+async fn example(api_key: &str) -> opencut_player::transcribe::error::Result<()> {
     let result = transcribe::transcribe(Path::new("recording.mp4"), api_key, &Options {
         format: Format::VerboseJson,
         timestamp_level: TimestampLevel::Word,

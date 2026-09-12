@@ -104,7 +104,6 @@ async fn reports_http_errors_with_status_and_request_id_without_credentials() {
             .await
             .unwrap_err();
         assert_eq!(error.code, "transcription_api");
-        assert_eq!(error.exit, 5);
         assert!(error.message.contains(&status.to_string()));
         assert!(error.message.contains("request-123"));
         assert!(!error.message.contains("test-key"));
@@ -151,7 +150,6 @@ async fn missing_key_is_rejected_before_opening_media() {
             .await
             .unwrap_err();
         assert_eq!(error.code, "missing_api_key");
-        assert_eq!(error.exit, 2);
     }
 }
 

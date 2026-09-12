@@ -92,4 +92,5 @@ Model: asr-1.0, stream=false. No automatic retries or subtitle insertion.
 Without -o: result on stdout; --json wraps subtitle text as a JSON string.
 With -o: atomically write selected format, return {path,format}; --overwrite is
 required to replace output. Input cannot be output. SRT can be imported in editor.
-Rust: async cli::transcribe::transcribe(path, api_key, &options), using Tokio.
+Rust: async opencut_player::transcribe::transcribe(path, api_key, &options), using Tokio.
+Shared module: rust/src/transcribe; enable the transcribe feature independently of CLI or editor.
