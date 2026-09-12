@@ -23,7 +23,7 @@ impl Editor {
         let clip_id = clip.id();
         edit_and_rebuild_timeline(
             &mut self.preview,
-            &self.global_settings.project_root,
+            &self.project_root,
             timeline,
             EditAction::AddClips {
                 clips: vec![clip],
@@ -34,7 +34,7 @@ impl Editor {
         timeline.interaction.selected_clip_id = Some(clip_id);
         timeline.interaction.selected_clip_ids.clear();
         timeline.interaction.selected_clip_ids.insert(clip_id);
-        timeline.save(&self.global_settings.project_root);
+        timeline.save(&self.project_root);
         self.status = Some("Added text clip.".to_string());
         cx.notify();
     }

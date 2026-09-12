@@ -9,7 +9,7 @@ use opencut_player::{
         document::{self, Document},
         error::Result,
         time::parse_rate,
-        validate,
+        transcribe, validate,
     },
     cli_error, cli_try,
 };
@@ -21,7 +21,8 @@ use std::{
 };
 use ulid::Ulid;
 
-fn main() -> ExitCode {
+#[tokio::main]
+async fn main() -> ExitCode {
     let json_mode = std::env::args().any(|a| a == "--json");
     let args = match Args::try_parse() {
         Ok(args) => args,
@@ -38,7 +39,15 @@ fn main() -> ExitCode {
             return ExitCode::from(2);
         }
     };
-    match run(args.command, args.json, &args.project_root) {
+    let api_key = std::env::var("MINIMAX_API_KEY").ok();
+    match run(
+        args.command,
+        args.json,
+        &args.project_root,
+        api_key.as_deref(),
+    )
+    .await
+    {
         Ok(value) => {
             let text = if args.json {
                 serde_json::to_string(&value)
@@ -71,8 +80,79 @@ fn print_error(error: &opencut_player::cli::error::Error, json: bool) {
     }
 }
 
-fn run(command: Command, json_mode: bool, base: &Path) -> Result<Value> {
+async fn run(
+    command: Command,
+    json_mode: bool,
+    base: &Path,
+    api_key: Option<&str>,
+) -> Result<Value> {
     match command {
+        Command::Transcribe {
+            media_file,
+            format,
+            timestamp_level,
+            post_merge,
+            language,
+            output,
+            overwrite,
+        } => {
+            if post_merge && !matches!(format, transcribe::Format::Srt) {
+                return Err(cli_error!(
+                    "usage_error",
+                    "",
+                    2,
+                    "--post-merge requires --format srt"
+                ));
+            }
+            if let Some(output) = &output {
+                transcribe::check_output(&media_file, output, overwrite).await?;
+            }
+            let Some(api_key) = api_key else {
+                return Err(cli_error!(
+                    "missing_api_key",
+                    "",
+                    2,
+                    "set MINIMAX_API_KEY before transcribing"
+                ));
+            };
+            let mut result = transcribe::transcribe(
+                &media_file,
+                api_key,
+                &transcribe::Options {
+                    format,
+                    timestamp_level,
+                    language,
+                },
+            )
+            .await?;
+            if post_merge {
+                let Some(srt) = result.as_str() else {
+                    return Err(cli_error!(
+                        "invalid_transcription_response",
+                        "",
+                        5,
+                        "expected SRT text"
+                    ));
+                };
+                result = Value::String(opencut_player::cli::subtitles::merge_srt_sections(srt)?);
+            }
+            let Some(output) = output else {
+                return Ok(result);
+            };
+            transcribe::check_output(&media_file, &output, overwrite).await?;
+            let bytes = if let Some(text) = result.as_str() {
+                text.as_bytes().to_vec()
+            } else {
+                cli_try!(
+                    serde_json::to_vec_pretty(&result),
+                    "serialization_error",
+                    "",
+                    6
+                )
+            };
+            document::write_atomic_bytes(&output, bytes, overwrite).await?;
+            Ok(json!({"path": output, "format": format.as_str()}))
+        }
         Command::Assemble {
             recipe,
             output,

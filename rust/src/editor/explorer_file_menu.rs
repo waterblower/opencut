@@ -11,7 +11,7 @@ impl Editor {
     ) {
         self.dismiss_context_menu();
         let default_name = timeline_document::default_timeline_name(
-            &self.global_settings.project_root,
+            &self.project_root,
             &relative_directory,
         );
         let input = cx.new(|cx| {
@@ -38,7 +38,7 @@ impl Editor {
         let relative_directory = state.relative_directory.clone();
         let name = state.input.read(cx).query().trim().to_string();
         let (relative_path, timeline) = timeline_document::create(
-            &self.global_settings.project_root,
+            &self.project_root,
             &relative_directory,
             &name,
         )
@@ -91,8 +91,8 @@ impl Editor {
             return Ok(());
         }
 
-        let old_path = self.global_settings.project_root.join(&old_relative);
-        let new_path = self.global_settings.project_root.join(&new_relative);
+        let old_path = self.project_root.join(&old_relative);
+        let new_path = self.project_root.join(&new_relative);
         if new_path.exists() {
             return Err(anyhow::anyhow!(
                 "Cannot rename: {} already exists.",
@@ -115,7 +115,7 @@ impl Editor {
                 .collect();
             edit_and_rebuild_timeline(
                 &mut self.preview,
-                &self.global_settings.project_root,
+                &self.project_root,
                 timeline,
                 EditAction::UpdateAssetPaths { paths },
             )
@@ -169,7 +169,7 @@ impl Editor {
             timeline.path = renamed_active_timeline;
         }
         if let Some(timeline) = self.timeline.as_ref() {
-            timeline.save(&self.global_settings.project_root);
+            timeline.save(&self.project_root);
         }
 
         self.explorer.rename_dialog = None;
@@ -177,7 +177,7 @@ impl Editor {
         self.explorer.search_results.clear();
         self.explorer.search_pending = false;
         self.explorer
-            .refresh_file_tree(&self.global_settings.project_root)?;
+            .refresh_file_tree(&self.project_root)?;
         self.save_explorer_expansion()?;
         self.schedule_explorer_search(cx);
         self.status = Some(format!(
@@ -197,7 +197,7 @@ impl Editor {
                 }
             },
             self.explorer.selected_file.as_deref(),
-            &self.global_settings.project_root,
+            &self.project_root,
         ) else {
             return;
         };
@@ -214,7 +214,7 @@ impl Editor {
                 }
             },
             self.explorer.selected_file.as_deref(),
-            &self.global_settings.project_root,
+            &self.project_root,
         ) else {
             return;
         };
@@ -244,7 +244,7 @@ impl Editor {
             anyhow::bail!("The active timeline cannot be moved to Trash.");
         }
 
-        let path = self.global_settings.project_root.join(&relative_path);
+        let path = self.project_root.join(&relative_path);
         let display_name = path
             .file_name()
             .map(|name| name.to_string_lossy().into_owned())
@@ -263,7 +263,7 @@ impl Editor {
         self.explorer.search_results.clear();
         self.explorer.search_pending = false;
         self.explorer
-            .refresh_file_tree(&self.global_settings.project_root)?;
+            .refresh_file_tree(&self.project_root)?;
         self.save_explorer_expansion()?;
         self.schedule_explorer_search(cx);
         self.status = Some(format!("Moved {display_name} to Trash."));

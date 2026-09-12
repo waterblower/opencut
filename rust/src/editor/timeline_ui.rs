@@ -632,7 +632,7 @@ impl Editor {
                             let Some(timeline) = editor.timeline.as_mut() else {
                                 return;
                             };
-                            timeline.zoom(0.8, &editor.global_settings.project_root);
+                            timeline.zoom(0.8, &editor.project_root);
                             editor.save_timeline_scroll();
                             cx.notify();
                         },
@@ -660,7 +660,7 @@ impl Editor {
                             let Some(timeline) = editor.timeline.as_mut() else {
                                 return;
                             };
-                            timeline.zoom(1.25, &editor.global_settings.project_root);
+                            timeline.zoom(1.25, &editor.project_root);
                             editor.save_timeline_scroll();
                             cx.notify();
                         },
