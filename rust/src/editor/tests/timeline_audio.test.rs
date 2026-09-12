@@ -13,7 +13,7 @@ fn renders_trimmed_audio_with_gaps_gain_and_no_output_files() {
     }
     std::fs::write(
         root.join("source.wav"),
-        opencut_player::transcribe::audio::finish_wav(input).unwrap(),
+        opencut_player::transcribe::audio::write_wav_header(input).unwrap(),
     )
     .unwrap();
     let mut timeline = TimelineSerialization::with_test_tracks();
