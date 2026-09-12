@@ -15,9 +15,7 @@ mod video;
 mod asset;
 use asset::EditorAssets;
 
-use editor::workspace::{
-    GlobalEditorSettings, load_global_editor_settings, save_global_editor_settings,
-};
+use editor::global_settings::GlobalEditorSettings;
 use editor::{AppEvent, Editor, EventBus};
 use gpui::{
     App, Bounds, Entity, WindowBounds, WindowHandle, WindowOptions, prelude::*, px, rgb, size,
@@ -46,7 +44,9 @@ fn main() {
 }
 
 fn run_app(cx: &mut App) {
+    gpui_tokio::init(cx);
     gpui_component::init(cx);
+
     gpui_component::Theme::global_mut(cx).caret = rgb(0xffffff).into();
     gpui_inspector::init(cx);
     editor::bind_keys(cx);
@@ -54,44 +54,92 @@ fn run_app(cx: &mut App) {
     let mut close_subscription = Some(cx.on_window_closed(quit_after_last_window));
     let event_bus = cx.new(|_| EventBus {});
     let mut window = open_editor_window(
-        load_global_editor_settings().project_root,
+        GlobalEditorSettings::load().project_root,
         event_bus.clone(),
         cx,
     );
-    cx.subscribe(&event_bus, move |event_bus, event, cx| {
-        let AppEvent::SwitchProject { project_path } = event else {
-            return;
-        };
-        let root = match std::fs::canonicalize(project_path) {
-            Ok(root) => root,
-            Err(error) => panic!(
-                "could not open {}: {error} at {}:{}",
-                project_path.display(),
-                file!(),
-                line!()
-            ),
-        };
-        let ready = window
-            .update(cx, |editor, _, cx| editor.prepare_project_switch(cx))
-            .unwrap_or(false);
-        if !ready {
-            return;
-        }
-        drop(close_subscription.take());
-        if let Err(error) = window.update(cx, |_, window, _| window.remove_window()) {
-            panic!("could not close editor: {error} at {}:{}", file!(), line!());
-        }
-        window = open_editor_window(root.clone(), event_bus, cx);
-        close_subscription = Some(cx.on_window_closed(quit_after_last_window));
-        if let Err(error) =
-            save_global_editor_settings(&GlobalEditorSettings { project_root: root })
-        {
-            panic!(
-                "could not save project settings: {error} at {}:{}",
-                file!(),
-                line!()
+    cx.subscribe(&event_bus, move |event_bus, event, cx| match event {
+        AppEvent::Transcribe { project_path } => {
+            let api_key = GlobalEditorSettings::load().minimax_api_key;
+            let prepared = window.update(cx, |editor, _, cx| {
+                editor.dismiss_context_menu();
+                cx.notify();
+
+                let snapshot = match editor.timeline.as_ref() {
+                    Some(timeline) if timeline.path == *project_path => Some(timeline.data.clone()),
+                    _ => None,
+                };
+                (editor.project_root.clone(), snapshot)
+            });
+            let (project_root, timeline_snapshot) = match prepared {
+                Ok(request) => request,
+                Err(error) => {
+                    log::error!(
+                        "could not prepare transcription: {error:?} at {}:{}",
+                        file!(),
+                        line!()
+                    );
+                    return;
+                }
+            };
+            let task = gpui_tokio::Tokio::spawn(
+                cx,
+                editor::transcription::start_transcription(
+                    project_root,
+                    project_path.clone(),
+                    timeline_snapshot,
+                    api_key,
+                ),
             );
+            cx.spawn(async move |_| {
+                let result = match task.await {
+                    Ok(result) => result,
+                    Err(error) => Err(anyhow::anyhow!(
+                        "transcription task failed: {error} at {}:{}",
+                        file!(),
+                        line!()
+                    )),
+                };
+                match result {
+                    Ok(path) => log::info!("SRT saved: {}", path.display()),
+                    Err(error) => log::error!("SRT generation failed: {error:?}"),
+                }
+            })
+            .detach();
         }
+        AppEvent::SwitchProject { project_path } => {
+            let root = match std::fs::canonicalize(project_path) {
+                Ok(root) => root,
+                Err(error) => panic!(
+                    "could not open {}: {error} at {}:{}",
+                    project_path.display(),
+                    file!(),
+                    line!()
+                ),
+            };
+            let ready = window
+                .update(cx, |editor, _, cx| editor.prepare_project_switch(cx))
+                .unwrap_or(false);
+            if !ready {
+                return;
+            }
+            drop(close_subscription.take());
+            if let Err(error) = window.update(cx, |_, window, _| window.remove_window()) {
+                panic!("could not close editor: {error} at {}:{}", file!(), line!());
+            }
+            window = open_editor_window(root.clone(), event_bus, cx);
+            close_subscription = Some(cx.on_window_closed(quit_after_last_window));
+            let mut settings = GlobalEditorSettings::load();
+            settings.project_root = root;
+            if let Err(error) = settings.save() {
+                panic!(
+                    "could not save project settings: {error} at {}:{}",
+                    file!(),
+                    line!()
+                );
+            }
+        }
+        _ => {}
     })
     .detach();
 }
