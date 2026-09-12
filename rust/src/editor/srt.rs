@@ -1,9 +1,22 @@
 use std::time::Duration;
+use std::path::Path;
 
 use anyhow::{Result, bail};
 use ulid::Ulid;
 
 use crate::editor::{FrameRate, TextClip, TextClipProperties};
+
+pub fn write_srt(path: &Path, srt: &str) -> Result<()> {
+    if !path.is_absolute() {
+        anyhow::bail!(
+            "SRT output path must be absolute at {}:{}",
+            file!(),
+            line!()
+        );
+    }
+    std::fs::write(path, srt)?;
+    Ok(())
+}
 
 pub fn parse_srt_text_clips(contents: &str, frame_rate: FrameRate) -> Result<Vec<TextClip>> {
     let contents = contents
