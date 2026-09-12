@@ -4,7 +4,7 @@ use opencut_player::{
     cli::{
         document,
         engine::{
-            audio::transcription_wav,
+            audio::extract_audio_as_wav,
             encode::{Encoder, VideoEncoding},
         },
         transcribe,
@@ -20,12 +20,28 @@ use std::{
 use ulid::Ulid;
 
 #[test]
+fn extraction_uses_the_callers_duration_limit() {
+    let temp = Temp::new();
+    let input = temp.0.join("custom-limit.wav");
+    write_wav(&input, 16_000, 2 * 16_000);
+    assert_eq!(
+        extract_audio_as_wav(&input, 1).unwrap_err().code,
+        "audio_too_long"
+    );
+    assert_eq!(
+        extract_audio_as_wav(&input, 2).unwrap().len(),
+        44 + 2 * 16_000 * 2
+    );
+    assert!(extract_audio_as_wav(&input, 3).is_ok());
+}
+
+#[test]
 fn normalizes_stereo_audio_to_mono_16khz_and_drains_resampler() {
     let temp = Temp::new();
     for rate in [8_000, 44_100, 48_000] {
         let input = temp.0.join(format!("{rate}.wav"));
         write_wav(&input, rate, rate);
-        let wav = transcription_wav(&input).unwrap();
+        let wav = extract_audio_as_wav(&input, 500).unwrap();
         assert_eq!(&wav[..4], b"RIFF");
         assert_eq!(&wav[8..16], b"WAVEfmt ");
         assert_eq!(u16::from_le_bytes(wav[22..24].try_into().unwrap()), 1);
@@ -42,7 +58,7 @@ fn extracts_video_audio_preserving_initial_offset_and_gaps() {
     let temp = Temp::new();
     let input = temp.0.join("recording.mov");
     write_video(&input, true);
-    let wav = transcription_wav(&input).unwrap();
+    let wav = extract_audio_as_wav(&input, 500).unwrap();
     let samples: Vec<_> = wav[44..]
         .chunks_exact(2)
         .map(|b| i16::from_le_bytes([b[0], b[1]]))
@@ -64,19 +80,22 @@ fn rejects_missing_audio_and_overlong_input_without_truncation() {
     let silent_video = temp.0.join("no-audio.mov");
     write_video(&silent_video, false);
     assert_eq!(
-        transcription_wav(&silent_video).unwrap_err().code,
+        extract_audio_as_wav(&silent_video, 500).unwrap_err().code,
         "missing_audio"
     );
     let long = temp.0.join("too-long.wav");
     write_wav(&long, 8_000, 500 * 8_000);
     assert_eq!(
-        transcription_wav(&long).unwrap().len(),
+        extract_audio_as_wav(&long, 500).unwrap().len(),
         44 + 500 * 16_000 * 2
     );
     write_wav(&long, 16_000, 500 * 16_000 + 1);
-    assert_eq!(transcription_wav(&long).unwrap_err().code, "audio_too_long");
     assert_eq!(
-        transcription_wav(&temp.0.join("missing.wav"))
+        extract_audio_as_wav(&long, 500).unwrap_err().code,
+        "audio_too_long"
+    );
+    assert_eq!(
+        extract_audio_as_wav(&temp.0.join("missing.wav"), 500)
             .unwrap_err()
             .code,
         "unreadable_media"
