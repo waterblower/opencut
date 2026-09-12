@@ -10,6 +10,7 @@
 //! Enable the `ffmpeg-backend` Cargo feature to use this module.
 //! Enable `ffmpeg-video` for GPUI's `video(&backend)?.id(...).size(...)` element.
 
+use anyhow::{Context as _, Error, Result, anyhow, bail};
 use std::{
     path::Path,
     sync::{Arc, Mutex, MutexGuard, mpsc},
@@ -17,7 +18,6 @@ use std::{
     time::{Duration, Instant},
 };
 
-use anyhow::{Context as _, Result, bail};
 use ffmpeg_next::frame::Video;
 
 mod audio;
@@ -266,7 +266,7 @@ impl VideoBackend {
             reply,
         };
         if self.commands.send(request).is_err() {
-            let error = anyhow::anyhow!("Video decoder disconnected at {}:{}", file!(), line!());
+            let error = anyhow!("Video decoder disconnected at {}:{}", file!(), line!());
             state.fail(&error);
             return Err(error);
         }
@@ -338,7 +338,7 @@ impl State {
         Ok(())
     }
 
-    fn fail(&mut self, error: &anyhow::Error) {
+    fn fail(&mut self, error: &Error) {
         if matches!(self.status, Status::Failed(_) | Status::Stopped) {
             return;
         }
@@ -416,7 +416,7 @@ fn seek_result(
             // Preserve the decoder's actual failure rather than hiding it behind
             // a disconnected completion channel.
             lock(shared).check()?;
-            Err(anyhow::Error::new(error).context(format!(
+            Err(Error::new(error).context(format!(
                 "Waiting for video seek at {}:{}",
                 file!(),
                 line!()
@@ -492,7 +492,7 @@ fn present(
                     state.clock.set_paused(!resume, Instant::now());
                     let _ = request.reply.try_send(Ok(()));
                 } else {
-                    let _ = request.reply.try_send(Err(anyhow::anyhow!(
+                    let _ = request.reply.try_send(Err(anyhow!(
                         "Seek superseded at {}:{}",
                         file!(),
                         line!()

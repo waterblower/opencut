@@ -4,7 +4,7 @@ use std::time::Duration;
 #[test]
 fn parses_cues_at_the_requested_frame_rate() {
     let srt = SRT::from_string("1\n00:00:01,000 --> 00:00:02,500\nHello\nworld\n").unwrap();
-    let clips = srt_text_clips(&srt, FrameRate::new(24, 1)).unwrap();
+    let clips = srt_text_clips(&srt, FrameRate::new(24, 1));
 
     assert_eq!(clips.len(), 1);
     assert_eq!(clips[0].timeline_start.frames(), 24);

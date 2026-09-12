@@ -170,7 +170,9 @@ dependencies. The CLI retains a re-export for existing callers.
 use opencut_player::transcribe::{self as transcribe, Format, Options};
 use std::path::Path;
 
-async fn example(api_key: &str) -> anyhow::Result<()> {
+use anyhow::Result;
+
+async fn example(api_key: &str) -> Result<()> {
     let result = transcribe::transcribe(Path::new("recording.mp4"), api_key, &Options {
         format: Format::Srt,
         language: Some("zh".into()),

@@ -50,7 +50,8 @@ impl Editor {
             !menu.is_directory && timeline_document::is_timeline_path(&menu.relative_path);
         let can_transcribe = !menu.is_directory
             && (explorer::is_video_path(&menu.relative_path)
-                || explorer::is_audio_path(&menu.relative_path));
+                || explorer::is_audio_path(&menu.relative_path)
+                || timeline_document::is_timeline_path(&menu.relative_path));
         let can_rename = !menu.relative_path.as_os_str().is_empty();
         let can_trash = can_rename
             && !self

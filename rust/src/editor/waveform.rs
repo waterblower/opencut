@@ -329,13 +329,13 @@ fn receive_waveform_samples(
     decoder: &mut ffmpeg::decoder::Audio,
     resampler: &mut ResamplingContext,
     builder: &mut WaveformBuilder,
-) -> anyhow::Result<()> {
+) -> Result<()> {
     let mut decoded = frame::Audio::empty();
     while decoder.receive_frame(&mut decoded).is_ok() {
         let mut converted = frame::Audio::empty();
         resampler
             .run(&decoded, &mut converted)
-            .map_err(|error| anyhow::anyhow!("could not resample waveform audio: {error}"))?;
+            .map_err(|error| anyhow!("could not resample waveform audio: {error}"))?;
         builder.push_samples(converted.plane::<f32>(0));
     }
     Ok(())
