@@ -53,14 +53,10 @@ pub fn current_properties_panel_viewable(editor: &Editor) -> PropertiesPanelView
             return PropertiesPanelViewable::AudioFile(path);
         }
         if is_image_path(path) {
-            return PropertiesPanelViewable::ImageFile(
-                editor.project_root.join(path),
-            );
+            return PropertiesPanelViewable::ImageFile(editor.project_root.join(path));
         }
         if is_srt_path(path) {
-            return PropertiesPanelViewable::SrtFile(
-                editor.project_root.join(path),
-            );
+            return PropertiesPanelViewable::SrtFile(editor.project_root.join(path));
         }
         if timeline_document::is_timeline_path(path) {
             let timeline = editor

@@ -10,10 +10,8 @@ impl Editor {
         cx: &mut Context<Self>,
     ) {
         self.dismiss_context_menu();
-        let default_name = timeline_document::default_timeline_name(
-            &self.project_root,
-            &relative_directory,
-        );
+        let default_name =
+            timeline_document::default_timeline_name(&self.project_root, &relative_directory);
         let input = cx.new(|cx| {
             ExplorerFilter::new_field(
                 "new-timeline-name",
@@ -37,12 +35,9 @@ impl Editor {
         };
         let relative_directory = state.relative_directory.clone();
         let name = state.input.read(cx).query().trim().to_string();
-        let (relative_path, timeline) = timeline_document::create(
-            &self.project_root,
-            &relative_directory,
-            &name,
-        )
-        .map_err(|error| anyhow::anyhow!("Could not create timeline: {error}"))?;
+        let (relative_path, timeline) =
+            timeline_document::create(&self.project_root, &relative_directory, &name)
+                .map_err(|error| anyhow::anyhow!("Could not create timeline: {error}"))?;
         self.explorer.new_timeline_dialog = None;
         self.activate_created_timeline(relative_directory, relative_path, timeline, cx)
     }
@@ -176,8 +171,7 @@ impl Editor {
         self.explorer.search_query = None;
         self.explorer.search_results.clear();
         self.explorer.search_pending = false;
-        self.explorer
-            .refresh_file_tree(&self.project_root)?;
+        self.explorer.refresh_file_tree(&self.project_root)?;
         self.save_explorer_expansion()?;
         self.schedule_explorer_search(cx);
         self.status = Some(format!(
@@ -262,8 +256,7 @@ impl Editor {
         self.explorer.search_query = None;
         self.explorer.search_results.clear();
         self.explorer.search_pending = false;
-        self.explorer
-            .refresh_file_tree(&self.project_root)?;
+        self.explorer.refresh_file_tree(&self.project_root)?;
         self.save_explorer_expansion()?;
         self.schedule_explorer_search(cx);
         self.status = Some(format!("Moved {display_name} to Trash."));
