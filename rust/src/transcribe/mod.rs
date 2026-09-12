@@ -1,7 +1,7 @@
 //! MiniMax ASR for local media. Credentials belong to the caller, not library state.
 pub mod error;
 use self::{
-    audio::transcription_wav,
+    audio::extract_audio_as_wav,
     error::{Error, Result},
 };
 use reqwest::{
@@ -73,7 +73,7 @@ pub async fn transcribe(path: &Path, api_key: &str, options: &Options) -> Result
         Ok(value) => value,
         Err(error) => return Err(Error::new("transcription_request", error, file!(), line!())),
     };
-    let wav = transcription_wav(path)?;
+    let wav = extract_audio_as_wav(path, 500)?;
     request(
         &client,
         "https://api.minimaxi.com/v1/speech_to_text",
