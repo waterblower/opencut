@@ -2,11 +2,11 @@ use super::error::{Error, Result};
 use ffmpeg_next as ffmpeg;
 use std::{collections::VecDeque, path::Path};
 
-/// Decode at most 500 seconds into a mono 16 kHz PCM WAV for speech recognition.
+/// Decode up to `max_duration_secs` into a mono 16 kHz PCM WAV.
 /// Timestamps remain relative to the source container, including gaps before speech.
-pub fn transcription_wav(path: &Path) -> Result<Vec<u8>> {
+pub fn extract_audio_as_wav(path: &Path, max_duration_secs: u32) -> Result<Vec<u8>> {
     const RATE: u32 = 16_000;
-    const MAX_SAMPLES: usize = 500 * RATE as usize;
+    let max_samples = u64::from(max_duration_secs) * u64::from(RATE);
     match ffmpeg::init() {
         Ok(value) => value,
         Err(error) => return Err(Error::new("ffmpeg_init", error, file!(), line!())),
@@ -31,10 +31,10 @@ pub fn transcription_wav(path: &Path) -> Result<Vec<u8>> {
             line!(),
         ));
     }
-    if duration > 500.0 {
+    if duration > f64::from(max_duration_secs) {
         return Err(Error::new(
             "audio_too_long",
-            "transcription accepts at most 500 seconds",
+            format!("audio extraction accepts at most {max_duration_secs} seconds"),
             file!(),
             line!(),
         ));
@@ -49,10 +49,10 @@ pub fn transcription_wav(path: &Path) -> Result<Vec<u8>> {
         reader.advance(delay)?;
         decoded_samples += reader.queue.len();
         let end = reader.queue_start as i128 + reader.queue.len() as i128;
-        if end > MAX_SAMPLES as i128 || decoded_samples > MAX_SAMPLES {
+        if end > i128::from(max_samples) || decoded_samples as u64 > max_samples {
             return Err(Error::new(
                 "audio_too_long",
-                "decoded audio exceeds 500 seconds",
+                format!("decoded audio exceeds {max_duration_secs} seconds"),
                 file!(),
                 line!(),
             ));
