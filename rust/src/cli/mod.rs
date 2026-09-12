@@ -3,5 +3,7 @@ pub mod assemble;
 pub mod document;
 pub mod engine;
 pub mod error;
+pub mod subtitles;
 pub mod time;
+pub mod transcribe;
 pub mod validate;

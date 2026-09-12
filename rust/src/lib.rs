@@ -6,3 +6,6 @@ pub mod timeline;
 
 #[cfg(feature = "cli")]
 pub mod cli;
+
+#[cfg(feature = "transcribe")]
+pub mod transcribe;

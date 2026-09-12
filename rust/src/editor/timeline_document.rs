@@ -15,21 +15,6 @@ pub(super) fn is_timeline_path(path: &Path) -> bool {
         .is_some_and(|name| name.ends_with(TIMELINE_SUFFIX))
 }
 
-pub(super) fn timeline_files(project_root: &Path) -> anyhow::Result<Vec<PathBuf>> {
-    let mut paths = fs::read_dir(project_root)
-        .map_err(|error| anyhow::anyhow!("could not read {}: {error}", project_root.display()))?
-        .filter_map(Result::ok)
-        .filter_map(|entry| {
-            let path = entry.path();
-            (path.is_file() && is_timeline_path(&path))
-                .then(|| path.strip_prefix(project_root).ok().map(Path::to_path_buf))
-                .flatten()
-        })
-        .collect::<Vec<_>>();
-    paths.sort_by_key(|path| path.to_string_lossy().to_lowercase());
-    Ok(paths)
-}
-
 pub(super) fn project_timeline_files(project_root: &Path) -> anyhow::Result<Vec<PathBuf>> {
     let mut paths = Vec::new();
     collect_timeline_files(project_root, project_root, &mut paths)?;
@@ -61,30 +46,6 @@ fn collect_timeline_files(
         }
     }
     Ok(())
-}
-
-pub(super) fn load_existing_timeline(
-    project_root: &Path,
-    preferred: Option<&Path>,
-) -> Result<Option<(PathBuf, TimelineSerialization)>> {
-    let res = (|| -> Result<Option<(PathBuf, TimelineSerialization)>> {
-        let timelines = timeline_files(project_root)?;
-        let Some(relative_path) = preferred
-            .filter(|path| {
-                path.components()
-                    .all(|component| matches!(component, std::path::Component::Normal(_)))
-                    && is_timeline_path(path)
-                    && project_root.join(path).is_file()
-            })
-            .map(Path::to_path_buf)
-            .or_else(|| timelines.first().cloned())
-        else {
-            return Ok(None);
-        };
-        let path = project_root.join(&relative_path);
-        Ok(Some((relative_path, TimelineSerialization::load(&path)?)))
-    })();
-    res.context("load_existing_timeline failed")
 }
 
 /// Turns a user-entered name into a timeline filename, appending the extension the
@@ -168,3 +129,7 @@ pub fn deserialize_timeline(contents: &str) -> Result<TimelineSerialization> {
         .with_context(|| format!("could not parse timeline JSON at {}:{}", file!(), line!()))?;
     Ok(opencut_player::timeline::parse(&value)?)
 }
+
+#[cfg(test)]
+#[path = "tests/timeline_document.test.rs"]
+mod tests;

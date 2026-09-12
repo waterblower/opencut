@@ -54,12 +54,12 @@ pub fn current_properties_panel_viewable(editor: &Editor) -> PropertiesPanelView
         }
         if is_image_path(path) {
             return PropertiesPanelViewable::ImageFile(
-                editor.global_settings.project_root.join(path),
+                editor.project_root.join(path),
             );
         }
         if is_srt_path(path) {
             return PropertiesPanelViewable::SrtFile(
-                editor.global_settings.project_root.join(path),
+                editor.project_root.join(path),
             );
         }
         if timeline_document::is_timeline_path(path) {

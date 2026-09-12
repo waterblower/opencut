@@ -76,8 +76,8 @@ are not part of this shared format. There is no legacy conversion layer.
 
 ## Podcast assembly
 
-An external agent invokes OpenCut; OpenCut does not call models or transcription
-services. `assemble` compiles supplied decisions into the same editable document
+An external agent supplies editing decisions. `assemble` does not call models or
+transcription services; it compiles those decisions into the same editable document
 used by the GUI. See the [example recipe](../../tests/fixtures/podcast.recipe.json)
 and generate its authoritative schema with `schema --kind recipe`.
 
@@ -122,6 +122,72 @@ requires `--overwrite`; neither source media nor the input recipe can be replace
 Reassembly does not merge manual GUI edits: use a new output file for revisions.
 Captions, extraction commands, audio analysis, and cut fades are later milestones.
 
+## Transcription
+
+`transcribe` uploads audio to the [MiniMax speech-to-text API](https://platform.minimax.cn/docs/api-reference/speech-to-text).
+Set `MINIMAX_API_KEY` in the environment before running it:
+
+```sh
+cargo cli transcribe recording.mp4 --json
+cargo cli transcribe recording.wav --format srt -o subtitles.srt
+cargo cli transcribe recording.mp4 --format verbose_json --timestamp-level word --language zh
+```
+
+Local audio and video inputs are decoded with the vendored FFmpeg libraries. The
+best audio stream is normalized to mono 16 kHz PCM WAV in memory before upload.
+Source-relative timing is preserved, including silence before speech and timestamp
+gaps. The audio must have a known positive duration and fit within 500 seconds;
+overlong audio is rejected, never truncated or split. The normalized WAV is at
+most about 16 MB, below MiniMax's 50 MB upload limit. Video-only files are rejected.
+Input and output paths resolve from the working directory, not `--project-root`.
+
+`--format` accepts `json`, `verbose_json` (default), `srt`, or `vtt`.
+With `--format srt`, add `--post-merge` to merge consecutive cues whose gap is
+less than 100 ms before printing or saving. Combine with `--timestamp-level word`
+to group character/word cues. Text is concatenated and cues are renumbered.
+Verbose JSON includes speaker labels, timestamps, and the provider trace ID.
+`--timestamp-level sentence|word` defaults to sentence and is ignored by MiniMax
+for plain `json`. Optional `--language` supplies a BCP-47 hint such as `zh`, `yue`,
+or `en`; omitting it enables mixed-language recognition. Requests use `asr-1.0`
+with `stream=false`; streaming and automatic subtitle insertion are not included.
+SRT output can be imported using the editor's existing SRT support.
+
+Without `-o`, the result goes to stdout. Global `--json` prints a JSON object for
+JSON formats and a JSON string for subtitle formats. With `-o`, the selected
+format is written atomically and stdout reports its path and format. Existing
+files require `--overwrite`, and the input cannot be used as the output.
+
+HTTP uses async reqwest on Tokio, with a 30-second connection timeout and a
+10-minute request timeout. There are no automatic retries. FFmpeg decoding and
+the existing atomic file writer run on Tokio's blocking pool. Errors use exit 5
+for HTTP/service/response failures, 4 for unusable media, 2 for missing credentials
+or invalid arguments, and 6 for output I/O. Provider HTTP errors include the
+status and request ID when available; keys are not included in diagnostics.
+
+The shared [transcription module](../transcribe/mod.rs) provides
+`opencut_player::transcribe::transcribe(path, api_key, &options).await` without CLI or GUI
+dependencies. The CLI retains a re-export for existing callers.
+
+```rust,no_run
+use opencut_player::transcribe::{self as transcribe, Format, Options, TimestampLevel};
+use std::path::Path;
+
+async fn example(api_key: &str) -> opencut_player::transcribe::error::Result<()> {
+    let result = transcribe::transcribe(Path::new("recording.mp4"), api_key, &Options {
+        format: Format::VerboseJson,
+        timestamp_level: TimestampLevel::Word,
+        language: Some("zh".into()),
+    }).await?;
+    // The result is the provider JSON object, or a JSON string for SRT/VTT.
+    println!("{result}");
+    Ok(())
+}
+```
+
+The library accepts credentials explicitly and requires a Tokio runtime. It does
+not read environment variables. Automated tests use local mock HTTP responses;
+they require no API key and do not make paid MiniMax requests.
+
 ## Rendering and output
 
 H.264/HEVC use macOS VideoToolbox; `gpl` selects libx264 for H.264. ProRes uses
@@ -161,7 +227,7 @@ pointers, and Rust file/line locations. `validate` returns all findings.
 # Shared format alone, without either media backend:
 cargo test --manifest-path rust/Cargo.toml --no-default-features --features timeline-schema --lib --test timeline
 # CLI and FFmpeg integration:
-bash rust/scripts/cargo-cli.sh test --no-default-features --features cli --test cli --test assemble --test timeline
+bash rust/scripts/cargo-cli.sh test --no-default-features --features cli --lib --test cli --test assemble --test timeline --test transcribe
 # Optional VideoToolbox encoder tests:
 bash rust/scripts/cargo-cli.sh test --no-default-features --features cli --test cli -- --ignored
 # Local macOS package:

@@ -149,7 +149,7 @@ impl Editor {
         timeline.record_editing_history();
         edit_and_rebuild_timeline(
             &mut self.preview,
-            &self.global_settings.project_root,
+            &self.project_root,
             timeline,
             EditAction::SetVideoProperties {
                 clip_ids: vec![clip_id],
@@ -163,7 +163,7 @@ impl Editor {
         ) {
             log::error!("{error:#}");
         }
-        timeline.save(&self.global_settings.project_root);
+        timeline.save(&self.project_root);
     }
 }
 

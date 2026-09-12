@@ -338,14 +338,14 @@ impl Editor {
 
         edit_and_rebuild_timeline(
             &mut self.preview,
-            &self.global_settings.project_root,
+            &self.project_root,
             timeline,
             EditAction::AddClips { clips, assets },
         )
         .expect("clipboard placements were validated before recording history");
 
         self.status = Some(format!("Pasted {count} clip{}.", plural_suffix(count)));
-        timeline.save(&self.global_settings.project_root);
+        timeline.save(&self.project_root);
 
         self.schedule_active_timeline_waveforms(cx);
     }
@@ -356,7 +356,7 @@ impl Editor {
         };
         edit_and_rebuild_timeline(
             &mut self.preview,
-            &self.global_settings.project_root,
+            &self.project_root,
             timeline,
             EditAction::RemoveClips {
                 clip_ids: clip_ids.clone(),
@@ -372,7 +372,7 @@ impl Editor {
         let Some(timeline) = self.timeline.as_ref() else {
             return;
         };
-        timeline.save(&self.global_settings.project_root);
+        timeline.save(&self.project_root);
     }
 
     pub(super) fn duplicate_selected(&mut self) {
@@ -458,7 +458,7 @@ impl Editor {
             .map(Clip::id);
         edit_and_rebuild_timeline(
             &mut self.preview,
-            &self.global_settings.project_root,
+            &self.project_root,
             timeline,
             EditAction::AddClips {
                 clips: duplicates,
@@ -466,7 +466,7 @@ impl Editor {
             },
         )
         .expect("duplicate placements were validated before recording history");
-        timeline.save(&self.global_settings.project_root);
+        timeline.save(&self.project_root);
     }
 
     pub(super) fn add_track(&mut self, kind: TrackKind) {
@@ -493,7 +493,7 @@ impl Editor {
         timeline.record_editing_history();
         edit_and_rebuild_timeline(
             &mut self.preview,
-            &self.global_settings.project_root,
+            &self.project_root,
             timeline,
             EditAction::AddTrack {
                 track: Track {
@@ -507,7 +507,7 @@ impl Editor {
             },
         )
         .expect("adding a track cannot be rejected");
-        timeline.save(&self.global_settings.project_root);
+        timeline.save(&self.project_root);
     }
 
     pub(super) fn toggle_track_lock(&mut self, track_id: Ulid) {
@@ -517,12 +517,12 @@ impl Editor {
         timeline.record_editing_history();
         edit_and_rebuild_timeline(
             &mut self.preview,
-            &self.global_settings.project_root,
+            &self.project_root,
             timeline,
             EditAction::ToggleTrackLock { track_id },
         )
         .expect("toggling a track lock cannot be rejected");
-        timeline.save(&self.global_settings.project_root);
+        timeline.save(&self.project_root);
     }
 
     pub(super) fn toggle_track_visibility(&mut self, track_id: Ulid) {
@@ -532,12 +532,12 @@ impl Editor {
         timeline.record_editing_history();
         edit_and_rebuild_timeline(
             &mut self.preview,
-            &self.global_settings.project_root,
+            &self.project_root,
             timeline,
             EditAction::ToggleTrackVisibility { track_id },
         )
         .expect("toggling track visibility cannot be rejected");
-        timeline.save(&self.global_settings.project_root);
+        timeline.save(&self.project_root);
     }
 
     pub(super) fn toggle_track_mute(&mut self, track_id: Ulid) {
@@ -547,12 +547,12 @@ impl Editor {
         timeline.record_editing_history();
         edit_and_rebuild_timeline(
             &mut self.preview,
-            &self.global_settings.project_root,
+            &self.project_root,
             timeline,
             EditAction::ToggleTrackMute { track_id },
         )
         .expect("toggling track mute cannot be rejected");
-        timeline.save(&self.global_settings.project_root);
+        timeline.save(&self.project_root);
     }
 
     pub(super) fn move_track(&mut self, track_id: Ulid, direction: i8) {
@@ -581,12 +581,12 @@ impl Editor {
         timeline.record_editing_history();
         edit_and_rebuild_timeline(
             &mut self.preview,
-            &self.global_settings.project_root,
+            &self.project_root,
             timeline,
             EditAction::MoveTrack { index, target },
         )
         .expect("moving a track cannot be rejected");
-        timeline.save(&self.global_settings.project_root);
+        timeline.save(&self.project_root);
     }
 
     pub(super) fn delete_track(&mut self, track_id: Ulid) {
@@ -607,7 +607,7 @@ impl Editor {
         timeline.record_editing_history();
         edit_and_rebuild_timeline(
             &mut self.preview,
-            &self.global_settings.project_root,
+            &self.project_root,
             timeline,
             EditAction::DeleteTrack { track_id },
         )
@@ -634,7 +634,7 @@ impl Editor {
                 .find(|clip| timeline.interaction.selected_clip_ids.contains(&clip.id()))
                 .map(Clip::id);
         }
-        timeline.save(&self.global_settings.project_root);
+        timeline.save(&self.project_root);
     }
 
     pub(super) fn select_only_clip(&mut self, clip_id: Option<Ulid>) {
@@ -697,7 +697,7 @@ impl Editor {
         let current = timeline.data.clone();
         edit_and_rebuild_timeline(
             &mut self.preview,
-            &self.global_settings.project_root,
+            &self.project_root,
             timeline,
             EditAction::ReplaceTimeline { timeline: snapshot },
         )
@@ -717,7 +717,7 @@ impl Editor {
         let current = timeline.data.clone();
         edit_and_rebuild_timeline(
             &mut self.preview,
-            &self.global_settings.project_root,
+            &self.project_root,
             timeline,
             EditAction::ReplaceTimeline { timeline: snapshot },
         )
@@ -761,15 +761,15 @@ impl Editor {
         let Some(timeline) = self.timeline.as_ref() else {
             return;
         };
-        timeline.save(&self.global_settings.project_root);
+        timeline.save(&self.project_root);
     }
 
     pub(super) fn save_timeline_scroll(&mut self) {
         let Some(timeline) = self.timeline.as_mut() else {
             return;
         };
-        timeline.capture_scroll(&self.global_settings.project_root);
-        timeline.save(&self.global_settings.project_root);
+        timeline.capture_scroll(&self.project_root);
+        timeline.save(&self.project_root);
     }
 
     pub(super) fn toggle_track_magnet(&mut self) {
@@ -778,7 +778,7 @@ impl Editor {
         };
         edit_and_rebuild_timeline(
             &mut self.preview,
-            &self.global_settings.project_root,
+            &self.project_root,
             timeline,
             EditAction::SetTrackMagnet {
                 enabled: !timeline.interaction.magnet_enabled,
@@ -890,7 +890,7 @@ fn plural_suffix(count: usize) -> &'static str {
 }
 
 #[derive(Clone, Debug)]
-pub(super) enum EditAction {
+pub enum EditAction {
     AddClips {
         clips: Vec<Clip>,
         assets: Vec<MediaAsset>,

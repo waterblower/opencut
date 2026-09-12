@@ -14,8 +14,8 @@ fn opening_an_empty_root_does_not_create_a_timeline() {
     let root = temporary_project_root();
     fs::create_dir_all(&root).unwrap();
 
-    assert!(load_existing_timeline(&root, None).unwrap().is_none());
-    assert!(timeline_files(&root).unwrap().is_empty());
+    assert!(load_existing_timeline(&root.join("missing.timeline.json")).is_err());
+    assert!(project_timeline_files(&root).unwrap().is_empty());
     fs::remove_dir_all(root).unwrap();
 }
 
@@ -30,7 +30,7 @@ fn creates_and_discovers_multiple_root_timeline_files() {
     assert_eq!(first_path, Path::new("timeline-1.timeline.json"));
     assert_eq!(second_path, Path::new("timeline-2.timeline.json"));
     assert_eq!(
-        timeline_files(&root).unwrap(),
+        project_timeline_files(&root).unwrap(),
         vec![first_path, second_path]
     );
     fs::remove_dir_all(root).unwrap();
@@ -45,16 +45,11 @@ fn creates_named_timelines_inside_a_subdirectory() {
 
     assert_eq!(opening, Path::new("scenes/Opening Scene.timeline.json"));
     assert!(root.join(&opening).is_file());
-    // Only root timelines are offered as the startup document.
-    assert!(timeline_files(&root).unwrap().is_empty());
     assert_eq!(
         project_timeline_files(&root).unwrap(),
         vec![opening.clone()]
     );
-    let (loaded_path, _) = load_existing_timeline(&root, Some(&opening))
-        .unwrap()
-        .unwrap();
-    assert_eq!(loaded_path, opening);
+    load_existing_timeline(&root.join(&opening)).unwrap();
 
     fs::remove_dir_all(root).unwrap();
 }
@@ -123,10 +118,10 @@ fn preferred_timeline_is_loaded() {
     second.settings.width = 1280;
     second.save(&root.join(&second_path)).unwrap();
 
-    let (loaded_path, loaded) = load_existing_timeline(&root, Some(&second_path))
-        .unwrap()
-        .unwrap();
-    assert_eq!(loaded_path, second_path);
+    fs::write(root.join("._episode.timeline.json"), b"not JSON").unwrap();
+    let loaded = load_existing_timeline(&root.join(&second_path)).unwrap();
+    assert!(load_existing_timeline(&root.join("missing.timeline.json")).is_err());
+    assert!(load_existing_timeline(&second_path).is_err());
     assert_eq!(loaded.settings.width, 1280);
     fs::remove_dir_all(root).unwrap();
 }

@@ -53,7 +53,7 @@ mod timeline_video;
 mod track;
 mod track_ui;
 mod waveform;
-mod workspace;
+pub mod workspace;
 
 use crate::playback_view::{DragPhase, PlaybackViewDelegate};
 use clip_placement::{
@@ -84,12 +84,11 @@ use timeline::{
 use timeline_clip::AudioClip;
 use timeline_clip::{Clip, ClipEditingExt, TextClip, TextClipProperties, VideoClipProperties};
 use timeline_clip_menu::transform_targets;
-use timeline_document::{load_existing_timeline, project_timeline_files};
+use timeline_document::project_timeline_files;
 use timeline_interactions::{MarqueeSelection, TimelineInteractionState, TimelineTool};
 use timeline_video::TimelineVideoBackend;
 use track::{Track, TrackKind};
 use ulid::Ulid;
-use workspace::{GlobalEditorSettings, load_global_editor_settings, save_global_editor_settings};
 
 const DEFAULT_MEDIA_PANEL_WIDTH: f32 = 340.0;
 const DEFAULT_PROPERTIES_PANEL_WIDTH: f32 = 280.0;
@@ -212,7 +211,12 @@ struct ExportState {
 }
 
 impl Editor {
-    fn open_project_folder(&self, cx: &mut Context<Self>) {
+    fn open_project_folder(&mut self, cx: &mut Context<Self>) {
+        if self.export.running {
+            self.status = Some("Wait for the export to finish before switching projects.".into());
+            cx.notify();
+            return;
+        }
         let selection = cx.prompt_for_paths(PathPromptOptions {
             files: false,
             directories: true,
@@ -220,62 +224,46 @@ impl Editor {
             prompt: Some("Open project folder".into()),
         });
         cx.spawn(async move |editor, cx| {
-            let root = match selection.await {
-                Ok(Ok(Some(paths))) => paths.into_iter().next(),
+            let paths = match selection.await {
+                Ok(Ok(Some(paths))) => paths,
                 Ok(Ok(None)) => return,
-                Ok(Err(error)) => {
-                    eprintln!("Could not open project folder: {error}");
-                    return;
-                }
-                Err(error) => {
-                    eprintln!("Folder dialog failed: {error}");
+                result => {
+                    log::error!(
+                        "Folder dialog failed: {result:?} at {}:{}",
+                        file!(),
+                        line!()
+                    );
                     return;
                 }
             };
-            if let Some(root) = root {
-                match editor.update(cx, |editor, cx| {
-                    let result = editor.set_project_root(root, cx);
+            let Some(project_path) = paths.into_iter().next() else {
+                return;
+            };
+            let _ = editor.update(cx, |editor, cx| {
+                if editor.export.running {
+                    editor.status =
+                        Some("Wait for the export to finish before switching projects.".into());
                     cx.notify();
-                    result
-                }) {
-                    Ok(Ok(())) => {
-                        eprintln!("editor.set_project_root done")
-                    }
-                    Ok(Err(error)) => eprintln!("{error:?}"),
-                    Err(error) => {
-                        eprintln!("Could not update the editor project folder: {error:?}");
-                    }
+                    return;
                 }
-            }
+                editor.event_bus.update(cx, |_, cx| {
+                    cx.emit(AppEvent::SwitchProject { project_path })
+                });
+            });
         })
         .detach();
     }
 
-    fn set_project_root(&mut self, root: PathBuf, cx: &mut Context<Self>) -> anyhow::Result<()> {
-        let root = std::fs::canonicalize(&root).unwrap_or(root);
-        self.global_settings.project_root = root.clone();
-        let project_settings = load_project_local_settings(&root);
-        {
-            let active_timeline =
-                load_existing_timeline(&root, project_settings.active_timeline.as_deref())
-                    .context("Editor::set_project_root failed")?;
-            if let Some(active_timeline) = active_timeline {
-                self.activate_timeline(active_timeline.0, active_timeline.1, cx)?;
-            }
+    pub fn prepare_project_switch(&mut self, cx: &mut Context<Self>) -> bool {
+        if self.export.running {
+            self.status = Some("Wait for the export to finish before switching projects.".into());
+            cx.notify();
+            return false;
         }
         if let Some(timeline) = self.timeline.as_ref() {
-            timeline.save(&self.global_settings.project_root);
+            timeline.save(&self.project_root);
         }
-
-        self.waveform_jobs.clear();
-        self.waveform_cache.clear();
-        self.clipboard = None;
-        let explorer_expansion = load_explorer_expansion(&self.global_settings.project_root);
-        self.explorer.expanded_directories = explorer_expansion.expanded_directories;
-        self.explorer.root_expanded = explorer_expansion.root_expanded;
-
-        self.schedule_project_waveforms(cx);
-        save_global_editor_settings(&self.global_settings)
+        true
     }
 
     pub(super) fn open_timeline(
@@ -299,10 +287,10 @@ impl Editor {
                 cx.notify();
                 return Ok(());
             }
-            let path = self.global_settings.project_root.join(&relative_path);
+            let path = self.project_root.join(&relative_path);
             let timeline = TimelineSerialization::load(&path)?;
             if let Some(timeline) = self.timeline.as_ref() {
-                timeline.save(&self.global_settings.project_root);
+                timeline.save(&self.project_root);
             }
             self.activate_timeline(relative_path.clone(), timeline, cx)?;
             self.select_only_clip(None);
@@ -323,7 +311,7 @@ impl Editor {
         cx: &mut Context<Self>,
     ) -> anyhow::Result<()> {
         if let Some(active_timeline) = self.timeline.as_ref() {
-            active_timeline.save(&self.global_settings.project_root);
+            active_timeline.save(&self.project_root);
         }
 
         // Expand the target folder so the new timeline is visible in the tree.
@@ -333,8 +321,7 @@ impl Editor {
                 .insert(relative_directory);
         }
         self.activate_timeline(relative_path.clone(), timeline, cx)?;
-        self.explorer
-            .refresh_file_tree(&self.global_settings.project_root)?;
+        self.explorer.refresh_file_tree(&self.project_root)?;
         self.save_explorer_expansion()?;
         self.status = Some(format!("Created {}", relative_path.display()));
         Ok(())
@@ -357,16 +344,16 @@ impl Editor {
             self.properties.text_input_clip_id = None;
             let ges_timeline = build_ges_timeline(
                 &active_timeline,
-                &self.global_settings.project_root,
+                &self.project_root,
                 export::ExportOptions::from_timeline(&active_timeline),
             )?;
             self.timeline = Some(
                 TimelineRuntimeState::new(timeline_path, active_timeline, ges_timeline)
                     .context("TimelineRuntimeState::new failed")?,
             );
-            let mut settings = load_project_local_settings(&self.global_settings.project_root);
+            let mut settings = load_project_local_settings(&self.project_root);
             settings.active_timeline = self.timeline.as_ref().map(|timeline| timeline.path.clone());
-            save_project_local_settings(&self.global_settings.project_root, &settings)?;
+            save_project_local_settings(&self.project_root, &settings)?;
             self.explorer.search_query = None;
             self.explorer.search_results.clear();
             self.explorer.search_pending = false;
@@ -377,7 +364,7 @@ impl Editor {
                 self.timeline.as_ref().map(|timeline| timeline.path.clone());
             self.dismiss_context_menu();
             self.explorer
-                .refresh_file_tree(&self.global_settings.project_root)
+                .refresh_file_tree(&self.project_root)
                 .context("refresh_file_tree failed")?;
             if let Some(timeline) = self.timeline.as_mut()
                 && !timeline.data.clips.is_empty()
@@ -397,7 +384,7 @@ impl Editor {
 
     fn schedule_project_waveforms(&mut self, cx: &mut Context<Self>) {
         let mut paths = HashSet::new();
-        let timeline_paths = match project_timeline_files(&self.global_settings.project_root) {
+        let timeline_paths = match project_timeline_files(&self.project_root) {
             Ok(paths) => paths,
             Err(error) => {
                 eprintln!("Could not scan project timelines for waveforms: {error}");
@@ -405,15 +392,14 @@ impl Editor {
             }
         };
         for timeline_path in timeline_paths {
-            let timeline = match TimelineSerialization::load(
-                &self.global_settings.project_root.join(&timeline_path),
-            ) {
-                Ok(timeline) => timeline,
-                Err(error) => {
-                    eprintln!("Could not scan timeline for waveforms: {error}");
-                    continue;
-                }
-            };
+            let timeline =
+                match TimelineSerialization::load(&self.project_root.join(&timeline_path)) {
+                    Ok(timeline) => timeline,
+                    Err(error) => {
+                        eprintln!("Could not scan timeline for waveforms: {error}");
+                        continue;
+                    }
+                };
             let referenced_assets = timeline
                 .clips
                 .iter()
@@ -466,9 +452,12 @@ impl Editor {
         }
         paths.sort();
         self.waveform_jobs.extend(paths.iter().cloned());
-        let project_root = self.global_settings.project_root.clone();
+        let project_root = self.project_root.clone();
         cx.spawn(async move |editor, cx| {
             for relative_path in paths {
+                if editor.update(cx, |_, _| ()).is_err() {
+                    break;
+                }
                 let source = project_root.join(&relative_path);
                 let result = cx
                     .background_executor()
@@ -476,7 +465,7 @@ impl Editor {
                     .await;
                 let current_project = editor
                     .update(cx, |editor, cx| {
-                        if editor.global_settings.project_root != project_root {
+                        if editor.project_root != project_root {
                             return false;
                         }
                         editor.waveform_jobs.remove(&relative_path);
@@ -544,7 +533,7 @@ impl Editor {
         let Some(timeline) = self.timeline.as_mut() else {
             return;
         };
-        timeline.blade_at_playhead(&mut self.preview, &self.global_settings.project_root);
+        timeline.blade_at_playhead(&mut self.preview, &self.project_root);
         cx.notify();
     }
 
@@ -678,8 +667,9 @@ fn format_time(seconds: f64, padded_minutes: bool) -> String {
     }
 }
 
-pub(in crate::editor) struct EventBus;
-pub(in crate::editor) enum AppEvent {
+pub struct EventBus;
+pub enum AppEvent {
+    SwitchProject { project_path: PathBuf },
     HorizontalSplitResized(HorizontalSplitState),
     Edit(EditAction),
     DragStarted(AssetBeingDragged),
@@ -688,7 +678,7 @@ pub(in crate::editor) enum AppEvent {
 }
 
 #[derive(Clone, Debug)]
-pub(in crate::editor) struct AssetDragMoveEvent {
+pub struct AssetDragMoveEvent {
     pub(in crate::editor) event: MouseMoveEvent,
     pub(in crate::editor) bounds: Bounds<Pixels>,
 }

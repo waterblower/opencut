@@ -151,14 +151,14 @@ impl Editor {
         timeline.record_editing_history();
         edit_and_rebuild_timeline(
             &mut self.preview,
-            &self.global_settings.project_root,
+            &self.project_root,
             timeline,
             EditAction::SetFrameRate { frame_rate },
         )
         .expect("changing the frame rate cannot be rejected");
         let playhead = timeline.playhead();
         let has_clips = !timeline.data.clips.is_empty();
-        timeline.save_timeline_playhead(&self.global_settings.project_root);
+        timeline.save_timeline_playhead(&self.project_root);
         if has_clips {
             load_timeline_position_with_options(&mut self.preview, timeline, playhead);
         }

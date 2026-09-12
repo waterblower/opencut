@@ -297,7 +297,7 @@ impl Editor {
                 let Some(timeline) = self.timeline.as_mut() else {
                     return;
                 };
-                timeline.blade_at_playhead(&mut self.preview, &self.global_settings.project_root);
+                timeline.blade_at_playhead(&mut self.preview, &self.project_root);
             }
         }
     }
@@ -629,7 +629,7 @@ impl Editor {
             timeline.record_editing_history();
             edit_and_rebuild_timeline(
                 &mut self.preview,
-                &self.global_settings.project_root,
+                &self.project_root,
                 timeline,
                 EditAction::MoveClips {
                     placements: drag.placements,
@@ -637,7 +637,7 @@ impl Editor {
             )
             .expect("clip move placements were validated during the drag");
 
-            timeline.save(&self.global_settings.project_root);
+            timeline.save(&self.project_root);
         }
         cx.notify();
     }
@@ -649,7 +649,7 @@ impl Editor {
         let enabled = !timeline.interaction.snapping_enabled;
         edit_and_rebuild_timeline(
             &mut self.preview,
-            &self.global_settings.project_root,
+            &self.project_root,
             timeline,
             EditAction::SetSnapping { enabled },
         )
@@ -702,7 +702,7 @@ impl Editor {
         };
         let previous_zoom = timeline.data.view.pixels_per_second;
         let factor = (gesture.magnification as f32).exp().clamp(0.5, 2.0);
-        timeline.zoom(factor, &self.global_settings.project_root);
+        timeline.zoom(factor, &self.project_root);
         let current_zoom = timeline.data.view.pixels_per_second;
         log::debug!(
             target: "opencut::timeline",
@@ -777,7 +777,7 @@ impl Editor {
         timeline.interaction.last_scrub_seek = None;
         let position = timeline.timeline_position_from_x(event.position.x.into());
         load_timeline_position_with_options(&mut self.preview, timeline, position);
-        timeline.save_timeline_playhead(&self.global_settings.project_root);
+        timeline.save_timeline_playhead(&self.project_root);
         cx.notify();
     }
 
@@ -792,7 +792,7 @@ impl Editor {
             .clamp(TimelineTime::ZERO, timeline.data.content_duration());
         if target != timeline.playhead() || !self.preview.target.is_timeline() {
             load_timeline_position_with_options(&mut self.preview, timeline, target);
-            timeline.save_timeline_playhead(&self.global_settings.project_root);
+            timeline.save_timeline_playhead(&self.project_root);
         }
     }
 }

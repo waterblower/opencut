@@ -132,7 +132,7 @@ impl ExplorerState {
 impl Editor {
     pub(super) fn save_explorer_expansion(&self) -> anyhow::Result<()> {
         save_explorer_expansion(
-            &self.global_settings.project_root,
+            &self.project_root,
             &self.explorer.expanded_directories,
             self.explorer.root_expanded,
         )
@@ -156,7 +156,7 @@ impl Editor {
         self.explorer.search_results.clear();
         self.explorer.search_pending = true;
 
-        let project_root = self.global_settings.project_root.clone();
+        let project_root = self.project_root.clone();
         cx.spawn(async move |editor, cx| {
             cx.background_executor()
                 .timer(Duration::from_millis(120))
@@ -164,7 +164,7 @@ impl Editor {
 
             let still_requested = editor
                 .update(cx, |editor, _| {
-                    editor.global_settings.project_root == project_root
+                    editor.project_root == project_root
                         && editor.explorer.search_query.as_deref() == Some(query.as_str())
                 })
                 .unwrap_or(false);
@@ -181,7 +181,7 @@ impl Editor {
 
             editor
                 .update(cx, |editor, cx| {
-                    if editor.global_settings.project_root != project_root
+                    if editor.project_root != project_root
                         || editor.explorer.search_query.as_deref() != Some(query.as_str())
                     {
                         return;
@@ -286,7 +286,7 @@ impl Editor {
             .expect("new timeline dialog rendered without state");
         let input = state.input.clone();
         let location = if state.relative_directory.as_os_str().is_empty() {
-            self.global_settings
+            self
                 .project_root
                 .file_name()
                 .map(|name| name.to_string_lossy().into_owned())
@@ -432,7 +432,7 @@ impl Editor {
 
         edit_and_rebuild_timeline(
             &mut self.preview,
-            &self.global_settings.project_root,
+            &self.project_root,
             timeline,
             EditAction::AddClips {
                 clips: vec![media_clip],
@@ -445,7 +445,7 @@ impl Editor {
         let Some(timeline) = self.timeline.as_ref() else {
             return Ok(());
         };
-        timeline.save(&self.global_settings.project_root);
+        timeline.save(&self.project_root);
 
         self.schedule_active_timeline_waveforms(cx);
         self.status = Some("Added media at the selected timeline position.".to_string());

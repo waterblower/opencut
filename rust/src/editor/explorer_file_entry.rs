@@ -15,11 +15,11 @@ impl Editor {
         // eprintln!(
         //     "path\n{}\n{}",
         //     entry.absolute_path.display(),
-        //     self.global_settings.project_root.display()
+        //     self.project_root.display()
         // );
         let path = entry
             .absolute_path
-            .strip_prefix(&self.global_settings.project_root)
+            .strip_prefix(&self.project_root)
             .expect("file-tree entries are inside the project root")
             .to_path_buf();
 
@@ -66,7 +66,7 @@ impl Editor {
                 move |editor, _, _, cx| {
                     match entry.kind {
                         FileTreeEntryKind::Directory { .. } => {
-                            let project_root = editor.global_settings.project_root.clone();
+                            let project_root = editor.project_root.clone();
                             if let Err(error) = editor
                                 .explorer
                                 .toggle_directory(&project_root, path.clone())
@@ -453,7 +453,7 @@ impl Editor {
             return;
         }
 
-        let project_root = self.global_settings.project_root.clone();
+        let project_root = self.project_root.clone();
         let source_path = project_root.join(&relative_path);
         let Ok(url) = Url::from_file_path(&source_path) else {
             eprintln!("Could not open {}", source_path.display());
@@ -475,7 +475,7 @@ impl Editor {
                                 editor.explorer.selected_file.as_ref(),
                                 Some(path) if path == &relative_path
                             ) && matches!(&editor.preview.target, PreviewTarget::None);
-                        if editor.global_settings.project_root != project_root || !still_requested {
+                        if editor.project_root != project_root || !still_requested {
                             return;
                         }
 
@@ -506,7 +506,7 @@ impl Editor {
             self.explorer.selected_file.as_ref(),
             Some(path) if path == &relative_path
         ) && matches!(&self.preview.target, PreviewTarget::None);
-        if self.global_settings.project_root != project_root || !still_requested {
+        if self.project_root != project_root || !still_requested {
             return;
         }
 
