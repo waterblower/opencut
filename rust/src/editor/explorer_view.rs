@@ -10,11 +10,10 @@ use crate::editor::{Editor, MUTED, PANEL, SURFACE_HOVER};
 impl Editor {
     pub(super) fn explorer_panel(&self, cx: &mut Context<Self>) -> gpui::AnyElement {
         let project_name = self
-            .global_settings
             .project_root
             .file_name()
             .map(|name| name.to_string_lossy().into_owned())
-            .unwrap_or_else(|| self.global_settings.project_root.display().to_string());
+            .unwrap_or_else(|| self.project_root.display().to_string());
         let filter_query = self.explorer.filter.read(cx).query().to_string();
         let filter = filter_query.trim().to_lowercase();
         let show_root_contents = self.explorer.root_expanded || !filter.is_empty();

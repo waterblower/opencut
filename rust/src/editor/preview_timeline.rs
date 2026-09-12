@@ -993,7 +993,7 @@ impl Editor {
         }
         edit_and_rebuild_timeline(
             &mut self.preview,
-            &self.global_settings.project_root,
+            &self.project_root,
             timeline,
             EditAction::SetVideoProperties {
                 clip_ids: vec![drag.clip_id],
@@ -1033,7 +1033,7 @@ impl Editor {
             let Some(timeline) = self.timeline.as_ref() else {
                 return true;
             };
-            timeline.save(&self.global_settings.project_root);
+            timeline.save(&self.project_root);
         }
         cx.notify();
         true
