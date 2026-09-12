@@ -1,58 +1,71 @@
 use super::error::{Error, Result};
 use ffmpeg_next as ffmpeg;
-use std::{collections::VecDeque, path::Path};
+use std::{collections::VecDeque, path::Path, time::Duration};
 
-/// Decode up to `max_duration_secs` into a mono 16 kHz PCM WAV.
+/// Probe the audio's source-relative end time without decoding its samples.
+/// Unknown duration is left to the caller's decoded-audio validation.
+pub fn audio_duration(path: &Path) -> Result<Option<Duration>> {
+    if let Err(error) = ffmpeg::init() {
+        return Err(Error::new("ffmpeg_init", error, file!(), line!()));
+    }
+    let input = match ffmpeg::format::input(path) {
+        Ok(input) => input,
+        Err(error) => return Err(Error::new("unreadable_media", error, file!(), line!())),
+    };
+    let Some(stream) = input.streams().best(ffmpeg::media::Type::Audio) else {
+        return Err(Error::new(
+            "missing_audio",
+            "file contains no audio stream",
+            file!(),
+            line!(),
+        ));
+    };
+    if stream.duration() <= 0 {
+        return Ok(None);
+    }
+    let time_base = f64::from(stream.time_base());
+    let container_start = unsafe { (*input.as_ptr()).start_time };
+    let origin = if container_start == ffmpeg::ffi::AV_NOPTS_VALUE {
+        0.0
+    } else {
+        container_start as f64 / ffmpeg::ffi::AV_TIME_BASE as f64
+    };
+    let start = if stream.start_time() == ffmpeg::ffi::AV_NOPTS_VALUE {
+        0.0
+    } else {
+        (stream.start_time() as f64 * time_base - origin).max(0.0)
+    };
+    let duration = start + stream.duration() as f64 * time_base;
+    if !duration.is_finite() || duration <= 0.0 {
+        return Ok(None);
+    }
+    match Duration::try_from_secs_f64(duration) {
+        Ok(duration) => Ok(Some(duration)),
+        Err(error) => Err(Error::new("invalid_duration", error, file!(), line!())),
+    }
+}
+
+/// Decode the whole audio stream into a mono 16 kHz PCM WAV.
 /// Timestamps remain relative to the source container, including gaps before speech.
-pub fn extract_audio_as_wav(path: &Path, max_duration_secs: u32) -> Result<Vec<u8>> {
+pub fn extract_audio_as_wav(path: &Path) -> Result<Vec<u8>> {
     const RATE: u32 = 16_000;
-    let max_samples = u64::from(max_duration_secs) * u64::from(RATE);
     match ffmpeg::init() {
         Ok(value) => value,
         Err(error) => return Err(Error::new("ffmpeg_init", error, file!(), line!())),
     };
     let mut reader = AudioReader::open(path, RATE)?;
-    let stream = reader.input.stream(reader.stream).unwrap();
-    let duration = if stream.duration() > 0 {
-        let start = if stream.start_time() == ffmpeg::ffi::AV_NOPTS_VALUE {
-            0.0
-        } else {
-            (stream.start_time() as f64 * reader.time_base - reader.origin).max(0.0)
-        };
-        start + stream.duration() as f64 * reader.time_base
-    } else {
-        reader.input.duration() as f64 / ffmpeg::ffi::AV_TIME_BASE as f64
-    };
-    if !duration.is_finite() || duration <= 0.0 {
-        return Err(Error::new(
-            "invalid_duration",
-            "audio duration must be known and positive",
-            file!(),
-            line!(),
-        ));
-    }
-    if duration > f64::from(max_duration_secs) {
-        return Err(Error::new(
-            "audio_too_long",
-            format!("audio extraction accepts at most {max_duration_secs} seconds"),
-            file!(),
-            line!(),
-        ));
-    }
     let mut wav = vec![0_u8; 44];
-    let mut decoded_samples = 0;
     while !reader.drained {
         // ffmpeg-next's delay() rounds to whole seconds before testing for zero.
         // Query in output samples so short resampler delays do not become gaps.
         let delay =
             unsafe { ffmpeg::ffi::swr_get_delay(reader.resampler.as_mut_ptr(), RATE as i64) };
         reader.advance(delay)?;
-        decoded_samples += reader.queue.len();
         let end = reader.queue_start as i128 + reader.queue.len() as i128;
-        if end > i128::from(max_samples) || decoded_samples as u64 > max_samples {
+        if end > i128::from((u32::MAX - 36) / 2) {
             return Err(Error::new(
-                "audio_too_long",
-                format!("decoded audio exceeds {max_duration_secs} seconds"),
+                "audio_too_large",
+                "decoded audio exceeds the PCM WAV size limit",
                 file!(),
                 line!(),
             ));

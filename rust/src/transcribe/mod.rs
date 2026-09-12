@@ -63,6 +63,29 @@ pub async fn transcribe(path: &Path, api_key: &str, options: &Options) -> Result
             line!(),
         ));
     }
+    if let Some(duration) = audio::audio_duration(path)?
+        && duration > Duration::from_secs(500)
+    {
+        let duration = duration.as_secs_f64();
+        return Err(Error::new(
+            "audio_too_long",
+            format!("audio duration is {duration:.6} seconds; transcription accepts at most 500 seconds"),
+            file!(),
+            line!(),
+        ));
+    }
+    let wav = extract_audio_as_wav(path)?;
+    // Extraction produces a 44-byte header followed by mono 16 kHz, 16-bit PCM.
+    let audio_bytes = wav.len() - 44;
+    if audio_bytes > 500 * 16_000 * 2 {
+        let duration = audio_bytes as f64 / (16_000.0 * 2.0);
+        return Err(Error::new(
+            "audio_too_long",
+            format!("audio duration is {duration:.6} seconds; transcription accepts at most 500 seconds"),
+            file!(),
+            line!(),
+        ));
+    }
     let client = match Client::builder()
         .connect_timeout(Duration::from_secs(30))
         .timeout(Duration::from_secs(600))
@@ -73,7 +96,6 @@ pub async fn transcribe(path: &Path, api_key: &str, options: &Options) -> Result
         Ok(value) => value,
         Err(error) => return Err(Error::new("transcription_request", error, file!(), line!())),
     };
-    let wav = extract_audio_as_wav(path, 500)?;
     request(
         &client,
         "https://api.minimaxi.com/v1/speech_to_text",
