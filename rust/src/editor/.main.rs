@@ -59,16 +59,26 @@ fn run_app(cx: &mut App) {
         cx,
     );
     cx.subscribe(&event_bus, move |event_bus, event, cx| match event {
-        AppEvent::Transcribe { source_path } => {
+        AppEvent::Transcribe {
+            source_path,
+            project_root,
+        } => {
             let api_key = GlobalEditorSettings::load().minimax_api_key;
-            let task = gpui_tokio::Tokio::spawn(
-                cx,
-                editor::transcription::start_transcription(
-                    project_root,
+            let project_root = project_root.clone();
+            let source_path = source_path.clone();
+            let task = gpui_tokio::Tokio::spawn(cx, async move {
+                let srt = editor::transcription::start_transcription(
+                    project_root.clone(),
                     source_path.clone(),
                     api_key,
-                ),
-            );
+                )
+                .await?;
+                log::info!("Writing SRT for {}", source_path.display());
+                let stem = source_path.file_stem()?.to_string_lossy();
+                let path = project_root.join(format!("{stem}.srt"));
+                editor::write_srt(&path, &srt)?;
+                Ok(path)
+            });
             cx.spawn(async move |_| {
                 let result = match task.await {
                     Ok(result) => result,
