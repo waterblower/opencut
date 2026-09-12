@@ -14,8 +14,8 @@ Audio must be at most 500 seconds. Files without audio are rejected.
 Timeline transcription is not currently supported.
 
 Call `transcribe(path, api_key, &Options).await` from a Tokio runtime. Credentials
-are supplied by application initialization. The result is a JSON object for JSON
-formats or a JSON string for SRT and VTT. FFmpeg decoding runs synchronously on
+are supplied by application initialization. The result is a parsed `SRT`; this
+function always requests SRT. Use `transcribe_response` for raw JSON/VTT formats. FFmpeg decoding runs synchronously on
 the caller's background thread; HTTP uses async reqwest. File publication remains
 the caller's job.
 
@@ -23,7 +23,7 @@ the caller's job.
 100 ms. `audio::extract_audio_as_wav(path)` exposes full-file synchronous normalization, and
 `audio::AudioReader` is shared with timeline audio mixing.
 
-Errors carry a code, message, file, and line. Applications decide how to display
+Errors use anyhow with a reason and source location. Applications decide how to display
 them or map them to exit codes. Clap derives are enabled only with the CLI feature.
 
 Link against the existing vendored FFmpeg libraries; do not build FFmpeg.

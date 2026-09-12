@@ -30,14 +30,16 @@ async fn rejects_missing_key_media_and_timeline_sources() {
 fn writes_utf8_subtitles_to_the_exact_absolute_path_and_overwrites() {
     let directory = test_directory();
     let text = "1\n00:00:00,100 --> 00:00:01,000\n你好 hello\n";
+    let mut srt = SRT::from_string(text).unwrap();
     let path = directory.path.join("chosen-name.srt");
-    write_srt(&path, text).unwrap();
-    assert_eq!(fs::read_to_string(&path).unwrap(), text);
-    write_srt(&path, "replacement").unwrap();
-    assert_eq!(fs::read_to_string(&path).unwrap(), "replacement");
+    write_srt(&path, &srt).unwrap();
+    assert_eq!(fs::read_to_string(&path).unwrap(), srt.to_string());
+    srt.subtitles[0].text = "replacement".into();
+    write_srt(&path, &srt).unwrap();
+    assert_eq!(fs::read_to_string(&path).unwrap(), srt.to_string());
     assert_eq!(fs::read_dir(&directory.path).unwrap().count(), 1);
-    assert!(write_srt(Path::new("relative.srt"), text).is_err());
-    assert!(write_srt(&directory.path.join("missing/output.srt"), text).is_err());
+    assert!(write_srt(Path::new("relative.srt"), &srt).is_err());
+    assert!(write_srt(&directory.path.join("missing/output.srt"), &srt).is_err());
 }
 
 struct TestDirectory {

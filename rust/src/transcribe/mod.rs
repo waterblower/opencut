@@ -10,6 +10,7 @@ use serde_json::Value;
 use std::{path::Path, time::Duration};
 pub mod audio;
 pub mod subtitles;
+pub use subtitles::{SRT, Subtitle};
 
 #[derive(Clone, Copy, Debug, Default)]
 #[cfg_attr(feature = "cli", derive(clap::ValueEnum))]
@@ -40,9 +41,22 @@ pub struct Options {
     pub language: Option<String>,
 }
 
+/// Transcribe into parsed SRT subtitles. The response format is always SRT.
+pub async fn transcribe(path: &Path, api_key: &str, options: &Options) -> Result<SRT> {
+    let options = Options {
+        format: Format::Srt,
+        language: options.language.clone(),
+    };
+    let response = transcribe_response(path, api_key, &options).await?;
+    let Some(text) = response.as_str() else {
+        anyhow::bail!("expected SRT response at {}:{}", file!(), line!());
+    };
+    SRT::from_string(text)
+}
+
 /// Returns the provider's JSON object, or a JSON string containing SRT/VTT text.
 /// HTTP is asynchronous; FFmpeg decoding blocks the caller's background thread.
-pub async fn transcribe(path: &Path, api_key: &str, options: &Options) -> Result<Value> {
+pub async fn transcribe_response(path: &Path, api_key: &str, options: &Options) -> Result<Value> {
     if api_key.trim().is_empty() {
         return Err(anyhow::anyhow!(
             "missing_api_key: {} at {}:{}",

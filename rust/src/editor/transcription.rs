@@ -1,9 +1,9 @@
 use super::*;
-use opencut_player::transcribe::{self, Format, Options};
+use opencut_player::transcribe::{self, Format, Options, SRT};
 
-/// Return SRT text without publishing it. The caller owns the output destination.
+/// Return merged SRT subtitles. The caller owns serialization and publication.
 /// Run on a Tokio executor; audio preparation runs directly on the caller's thread.
-pub async fn start_transcription(source: PathBuf, api_key: String) -> Result<String> {
+pub async fn start_transcription(source: PathBuf, api_key: String) -> Result<SRT> {
     if !source.is_absolute() {
         anyhow::bail!("transcription source must be an absolute file path");
     }
@@ -18,13 +18,8 @@ pub async fn start_transcription(source: PathBuf, api_key: String) -> Result<Str
         ..Options::default()
     };
     log::info!("Transcribing audio with MiniMax: {}", source.display());
-    let response = transcribe::transcribe(&source, &api_key, &options).await?;
-    let Some(srt) = response.as_str() else {
-        anyhow::bail!("expected SRT response at {}:{}", file!(), line!());
-    };
-    let srt = transcribe::subtitles::merge_srt_sections(srt)?;
-    super::srt::parse_srt_text_clips(&srt, FrameRate::new(30, 1))?;
-    Ok(srt)
+    let srt = transcribe::transcribe(&source, &api_key, &options).await?;
+    transcribe::subtitles::merge_srt_sections(&srt)
 }
 
 #[cfg(test)]

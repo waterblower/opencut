@@ -172,10 +172,10 @@ use std::path::Path;
 
 async fn example(api_key: &str) -> anyhow::Result<()> {
     let result = transcribe::transcribe(Path::new("recording.mp4"), api_key, &Options {
-        format: Format::VerboseJson,
+        format: Format::Srt,
         language: Some("zh".into()),
     }).await?;
-    // The result is the provider JSON object, or a JSON string for SRT/VTT.
+    // The result is a parsed SRT; Display serializes it to subtitle text.
     println!("{result}");
     Ok(())
 }

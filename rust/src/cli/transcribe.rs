@@ -1,4 +1,4 @@
-pub use crate::transcribe::{Format, Options, transcribe};
+pub use crate::transcribe::{Format, Options, transcribe_response};
 use crate::{cli::error::Result, cli_error, cli_try};
 use std::path::Path;
 use tokio::fs;
