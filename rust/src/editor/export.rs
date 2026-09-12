@@ -1,5 +1,5 @@
-use anyhow::{Result};
 use super::timeline::{FrameRate, TimelineSerialization};
+use anyhow::Result;
 use std::path::Path;
 
 pub(super) const DEFAULT_VIDEO_BIT_RATE: usize = 8_000_000;

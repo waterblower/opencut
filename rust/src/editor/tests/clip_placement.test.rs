@@ -1,7 +1,7 @@
-use anyhow::{Result};
 use super::*;
 use crate::editor::tests::TimelineTestExt;
 use crate::editor::timeline_clip::AudioClipProperties;
+use anyhow::Result;
 
 #[test]
 fn validates_one_clip_placement() {

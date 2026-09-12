@@ -1,5 +1,5 @@
-use anyhow::{Result};
 use super::*;
+use anyhow::Result;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(super) enum ClipPlacementRejection {

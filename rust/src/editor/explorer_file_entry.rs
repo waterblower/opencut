@@ -1,5 +1,5 @@
-use anyhow::{Context as _, Result, anyhow};
 use crate::editor::{AppEvent, explorer_drag::AssetBeingDragged};
+use anyhow::{Context as _, Result, anyhow};
 
 use super::*;
 use std::{collections::HashSet, fs, path::Path};

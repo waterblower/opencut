@@ -1,5 +1,5 @@
-use anyhow::{Error};
 use crate::editor::{explorer::ExplorerState, project_settings::ProjectLocalSettings};
+use anyhow::Error;
 
 use super::srt::srt_text_clips;
 use super::*;

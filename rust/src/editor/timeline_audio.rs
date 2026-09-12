@@ -1,5 +1,5 @@
-use anyhow::{anyhow, bail};
 use super::*;
+use anyhow::{anyhow, bail};
 use ges::prelude::*;
 use gstreamer as gst;
 use gstreamer_app as gst_app;
@@ -7,14 +7,15 @@ use gstreamer_editing_services as ges;
 use std::path::Path;
 use std::time::{Duration, Instant};
 
+use opencut_player::transcribe::MAX_TRANSCRIPTION_DURATION;
+
 /// Render the saved timeline's audio into a normalized WAV in memory.
 pub fn render_audio_wav(timeline: &TimelineSerialization, project_root: &Path) -> Result<Vec<u8>> {
     let duration = timeline.duration(timeline.content_duration());
-    if duration.is_zero() || duration > Duration::from_secs(500) {
+    if duration.is_zero() || duration > MAX_TRANSCRIPTION_DURATION {
         bail!(
-            "timeline duration must be positive and at most 500 seconds (got {duration:?}) at {}:{}",
-            file!(),
-            line!()
+            "timeline duration must be positive and at most {} seconds (got {duration:?})",
+            MAX_TRANSCRIPTION_DURATION.as_secs(),
         );
     }
     let has_audio = timeline.tracks.iter().any(|track| {
@@ -85,12 +86,12 @@ fn collect_audio_wav(
         if let Some(sample) = sink.try_pull_sample(gst::ClockTime::from_mseconds(100)) {
             received_audio = true;
             last_sample = Instant::now();
-            let buffer = sample.buffer().ok_or_else(|| {
-                anyhow!("missing audio buffer at {}:{}", file!(), line!())
-            })?;
-            let pts = buffer.pts().ok_or_else(|| {
-                anyhow!("missing audio timestamp at {}:{}", file!(), line!())
-            })?;
+            let buffer = sample
+                .buffer()
+                .ok_or_else(|| anyhow!("missing audio buffer at {}:{}", file!(), line!()))?;
+            let pts = buffer
+                .pts()
+                .ok_or_else(|| anyhow!("missing audio timestamp at {}:{}", file!(), line!()))?;
             let start = ((pts.nseconds() as u128 * 16_000 + 500_000_000) / 1_000_000_000) as usize;
             let data = buffer.map_readable()?;
             if data.len() % 2 != 0 {

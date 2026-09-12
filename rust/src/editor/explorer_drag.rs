@@ -1,4 +1,4 @@
-use anyhow::{Result};
+use anyhow::Result;
 use std::{fs::read_to_string, path::PathBuf};
 
 use gpui::{

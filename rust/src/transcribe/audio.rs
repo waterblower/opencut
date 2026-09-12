@@ -6,12 +6,7 @@ use std::{collections::VecDeque, path::Path, time::Duration};
 /// Unknown duration is left to the caller's decoded-audio validation.
 pub fn audio_duration(path: &Path) -> Result<Option<Duration>> {
     if let Err(error) = ffmpeg::init() {
-        return Err(anyhow!(
-            "ffmpeg_init: {} at {}:{}",
-            error,
-            file!(),
-            line!()
-        ));
+        return Err(anyhow!("ffmpeg_init: {} at {}:{}", error, file!(), line!()));
     }
     let input = match ffmpeg::format::input(path) {
         Ok(input) => input,
@@ -69,12 +64,7 @@ pub fn extract_audio_as_wav(path: &Path) -> Result<Vec<u8>> {
     match ffmpeg::init() {
         Ok(value) => value,
         Err(error) => {
-            return Err(anyhow!(
-                "ffmpeg_init: {} at {}:{}",
-                error,
-                file!(),
-                line!()
-            ));
+            return Err(anyhow!("ffmpeg_init: {} at {}:{}", error, file!(), line!()));
         }
     };
     let mut reader = AudioReader::open(path, RATE)?;

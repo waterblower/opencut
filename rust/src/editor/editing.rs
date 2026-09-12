@@ -1,5 +1,5 @@
-use anyhow::{Result, anyhow, bail};
 use super::*;
+use anyhow::{Result, anyhow, bail};
 use gstreamer_editing_services::prelude::TimelineExt as _;
 use std::path::Path;
 
@@ -1644,9 +1644,7 @@ fn ges_add_clips(
             })?;
             overlay
                 .set_name(Some(&format!("opencut-clip-{}", clip.id())))
-                .map_err(|error| {
-                    anyhow!("could not identify clip {}: {error}", clip.id())
-                })?;
+                .map_err(|error| anyhow!("could not identify clip {}: {error}", clip.id()))?;
             let (start, duration) = super::export_gstreamer::clip_clock_range(
                 timeline.settings.frame_rate,
                 clip,
@@ -1708,13 +1706,10 @@ fn ges_add_clips(
             uri_asset.clone()
         } else {
             let source = project_root.join(&asset.path);
-            let uri = url::Url::from_file_path(&source).map_err(|_| {
-                anyhow!("could not convert {} to a file URL", source.display())
-            })?;
+            let uri = url::Url::from_file_path(&source)
+                .map_err(|_| anyhow!("could not convert {} to a file URL", source.display()))?;
             let uri_asset = gstreamer_editing_services::UriClipAsset::request_sync(uri.as_str())
-                .map_err(|error| {
-                    anyhow!("could not inspect {}: {error}", source.display())
-                })?;
+                .map_err(|error| anyhow!("could not inspect {}: {error}", source.display()))?;
             uri_assets.insert(asset.id, uri_asset.clone());
             uri_asset
         };
@@ -1779,9 +1774,9 @@ fn ges_add_clips(
         if !background.set_duration(content_duration) {
             bail!("could not set the GES timeline background duration");
         }
-        background_layer.add_clip(&background).map_err(|error| {
-            anyhow!("could not add the GES timeline background: {error}")
-        })?;
+        background_layer
+            .add_clip(&background)
+            .map_err(|error| anyhow!("could not add the GES timeline background: {error}"))?;
     }
     Ok(())
 }
@@ -1811,9 +1806,7 @@ pub(super) fn data_parity_check(
     for (layer_index, layer) in layers.iter().enumerate() {
         for clip in layer.clips() {
             let Some(name) = clip.name() else {
-                return Err(anyhow!(
-                    "GES layer {layer_index} contains an unnamed clip"
-                ));
+                return Err(anyhow!("GES layer {layer_index} contains an unnamed clip"));
             };
             if name.as_str() == "opencut-black-background" {
                 backgrounds.push(clip);
@@ -1848,9 +1841,7 @@ pub(super) fn data_parity_check(
         let expected_layer = ordered_tracks
             .iter()
             .position(|candidate| candidate.id == track.id)
-            .ok_or_else(|| {
-                anyhow!("Timeline track {} has no GES layer mapping", track.id)
-            })?;
+            .ok_or_else(|| anyhow!("Timeline track {} has no GES layer mapping", track.id))?;
         if layers.get(expected_layer).is_none() {
             return Err(anyhow!(
                 "Timeline track {} expects missing GES layer {expected_layer}",
@@ -1991,9 +1982,7 @@ pub(super) fn data_parity_check(
         }
         [_] => {}
         _ => {
-            return Err(anyhow!(
-                "GES contains multiple black background clips"
-            ));
+            return Err(anyhow!("GES contains multiple black background clips"));
         }
     }
 

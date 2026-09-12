@@ -68,8 +68,12 @@ fn run_app(cx: &mut App) {
             let project_root = project_root.clone();
             let source_path = source_path.clone();
             let task = gpui_tokio::Tokio::spawn(cx, async move {
-                let srt = editor::transcription::start_transcription(source_path.clone(), project_root.clone(), api_key)
-                    .await?;
+                let srt = editor::transcription::start_transcription(
+                    source_path.clone(),
+                    project_root.clone(),
+                    api_key,
+                )
+                .await?;
                 log::info!("Writing SRT for {}", source_path.display());
                 let Some(stem) = source_path.file_stem() else {
                     bail!(

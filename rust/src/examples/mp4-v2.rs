@@ -979,9 +979,7 @@ fn locate(
                     }
                     Err(ffmpeg::Error::Other { errno }) if errno == ffmpeg::error::EAGAIN => break,
                     Err(error) => {
-                        return Err(
-                            Error::new(error).context(at!("Decoding while seeking"))
-                        );
+                        return Err(Error::new(error).context(at!("Decoding while seeking")));
                     }
                 }
                 // receive_frame hands back presentation order, so the last

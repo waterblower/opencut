@@ -1,6 +1,6 @@
 //! MiniMax ASR for local media. Credentials belong to the caller, not library state.
-use anyhow::{Result, anyhow, bail};
 use self::audio::extract_audio_as_wav;
+use anyhow::{Result, anyhow, bail};
 use reqwest::{
     Client,
     header::{AUTHORIZATION, HeaderValue},
@@ -11,6 +11,8 @@ use std::{path::Path, time::Duration};
 pub mod audio;
 pub mod subtitles;
 pub use subtitles::{SRT, Subtitle};
+
+pub const MAX_TRANSCRIPTION_DURATION: Duration = Duration::from_secs(500);
 
 #[derive(Clone, Copy, Debug, Default)]
 #[cfg_attr(feature = "cli", derive(clap::ValueEnum))]
@@ -66,13 +68,14 @@ pub async fn transcribe_response(path: &Path, api_key: &str, options: &Options) 
         ));
     }
     if let Some(duration) = audio::audio_duration(path)?
-        && duration > Duration::from_secs(500)
+        && duration > MAX_TRANSCRIPTION_DURATION
     {
         let duration = duration.as_secs_f64();
         return Err(anyhow!(
             "audio_too_long: {} at {}:{}",
             format!(
-                "audio duration is {duration:.6} seconds; transcription accepts at most 500 seconds"
+                "audio duration is {duration:.6} seconds; transcription accepts at most {} seconds",
+                MAX_TRANSCRIPTION_DURATION.as_secs()
             ),
             file!(),
             line!()
@@ -117,12 +120,13 @@ async fn transcribe_wav_response(wav: Vec<u8>, api_key: &str, options: &Options)
     }
     // Extraction produces a 44-byte header followed by mono 16 kHz, 16-bit PCM.
     let audio_bytes = wav.len() - 44;
-    if audio_bytes > 500 * 16_000 * 2 {
+    if audio_bytes as u128 > MAX_TRANSCRIPTION_DURATION.as_nanos() * 16_000 * 2 / 1_000_000_000 {
         let duration = audio_bytes as f64 / (16_000.0 * 2.0);
         return Err(anyhow!(
             "audio_too_long: {} at {}:{}",
             format!(
-                "audio duration is {duration:.6} seconds; transcription accepts at most 500 seconds"
+                "audio duration is {duration:.6} seconds; transcription accepts at most {} seconds",
+                MAX_TRANSCRIPTION_DURATION.as_secs()
             ),
             file!(),
             line!()

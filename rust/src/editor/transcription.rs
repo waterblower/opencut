@@ -1,5 +1,5 @@
-use anyhow::{bail};
 use super::*;
+use anyhow::bail;
 use opencut_player::transcribe::{self, Format, Options, SRT};
 
 /// Return merged SRT subtitles. The caller owns serialization and publication.

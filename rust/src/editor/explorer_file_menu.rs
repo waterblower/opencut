@@ -1,5 +1,5 @@
-use anyhow::{Result, anyhow, bail};
 use super::*;
+use anyhow::{Result, anyhow, bail};
 
 impl Editor {
     /// Opens the new-timeline dialog for `relative_directory`, pre-filled with the next
@@ -95,9 +95,8 @@ impl Editor {
                 new_relative.display()
             ));
         }
-        std::fs::rename(&old_path, &new_path).map_err(|error| {
-            anyhow!("Could not rename {}: {error}", old_relative.display())
-        })?;
+        std::fs::rename(&old_path, &new_path)
+            .map_err(|error| anyhow!("Could not rename {}: {error}", old_relative.display()))?;
 
         if let Some(timeline) = self.timeline.as_mut() {
             let paths = timeline
@@ -217,10 +216,7 @@ impl Editor {
         cx.open_with_system(&path);
     }
 
-    pub(in crate::editor) fn trash_selected_file(
-        &mut self,
-        cx: &mut Context<Self>,
-    ) -> Result<()> {
+    pub(in crate::editor) fn trash_selected_file(&mut self, cx: &mut Context<Self>) -> Result<()> {
         let ContextMenu::File(menu) = &self.context_menu else {
             return Ok(());
         };
@@ -246,9 +242,7 @@ impl Editor {
             .unwrap_or_else(|| relative_path.display().to_string());
         if let Err(error) = move_path_to_trash(&path) {
             self.status = None;
-            return Err(anyhow!(
-                "Could not move {display_name} to Trash: {error}"
-            ));
+            return Err(anyhow!("Could not move {display_name} to Trash: {error}"));
         }
         self.explorer
             .expanded_directories

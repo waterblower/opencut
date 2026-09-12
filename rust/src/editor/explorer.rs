@@ -1,4 +1,3 @@
-use anyhow::{Result, anyhow, bail};
 use crate::{
     editor::{
         ACCENT, BORDER, MUTED, OpenInDefaultApp, PANEL, RevealInFinder, SURFACE, SURFACE_HOVER,
@@ -18,6 +17,7 @@ use crate::{
     },
     video::FileVideoBackend,
 };
+use anyhow::{Result, anyhow, bail};
 use gpui::{
     AppContext as _, Context, CursorStyle, Entity, InteractiveElement, IntoElement, MouseButton,
     MouseDownEvent, ParentElement, StatefulInteractiveElement, Styled, Window, div, px, rgb,
@@ -118,11 +118,7 @@ impl ExplorerState {
         Ok(())
     }
 
-    fn toggle_directory(
-        &mut self,
-        project_root: &Path,
-        relative_path: PathBuf,
-    ) -> Result<()> {
+    fn toggle_directory(&mut self, project_root: &Path, relative_path: PathBuf) -> Result<()> {
         if !self.expanded_directories.remove(&relative_path) {
             self.expanded_directories.insert(relative_path);
         }

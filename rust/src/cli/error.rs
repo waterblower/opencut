@@ -1,4 +1,4 @@
-use anyhow::{Error as AnyhowError};
+use anyhow::Error as AnyhowError;
 use serde::Serialize;
 use std::fmt;
 

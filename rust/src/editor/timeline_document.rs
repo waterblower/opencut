@@ -1,5 +1,5 @@
-use anyhow::{Context as _, Result, anyhow};
 use crate::editor::TimelineEditorExt;
+use anyhow::{Context as _, Result, anyhow};
 
 use super::timeline::TimelineSerialization;
 use std::{
@@ -91,20 +91,14 @@ pub(super) fn create(
 ) -> Result<(PathBuf, TimelineSerialization)> {
     let directory = project_root.join(relative_directory);
     if !directory.is_dir() {
-        return Err(anyhow!(
-            "{} is not a directory",
-            directory.display()
-        ));
+        return Err(anyhow!("{} is not a directory", directory.display()));
     }
     let file_name = timeline_file_name(name)
         .ok_or_else(|| anyhow!("Enter a single non-empty timeline name."))?;
     let relative_path = relative_directory.join(&file_name);
     let path = project_root.join(&relative_path);
     if path.exists() {
-        return Err(anyhow!(
-            "{} already exists.",
-            relative_path.display()
-        ));
+        return Err(anyhow!("{} already exists.", relative_path.display()));
     }
     let timeline = TimelineSerialization::default();
     timeline.save(&path)?;

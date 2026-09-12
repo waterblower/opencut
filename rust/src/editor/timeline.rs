@@ -1,5 +1,5 @@
-use anyhow::{Result, anyhow};
 use super::*;
+use anyhow::{Result, anyhow};
 use gpui::point;
 pub use opencut_player::timeline::{
     FrameRate, TimelineSerialization, TimelineTime, TimelineViewState,

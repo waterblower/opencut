@@ -1,5 +1,5 @@
-use anyhow::{Result, bail};
 use super::*;
+use anyhow::{Result, bail};
 
 impl Editor {
     pub(super) fn add_text(

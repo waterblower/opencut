@@ -1,4 +1,3 @@
-use anyhow::{Result, anyhow, bail};
 use super::{
     clip_render_plan::{resolve_audio_clip_render_plan, resolve_visual_clip_render_plan},
     export::{ExportEncoder, ExportOptions},
@@ -7,6 +6,7 @@ use super::{
     timeline_clip::{Clip, TextClipProperties, VideoClipProperties},
     track::{Track, TrackKind},
 };
+use anyhow::{Result, anyhow, bail};
 use ges::prelude::*;
 use gstreamer as gst;
 use gstreamer_editing_services as ges;
@@ -28,9 +28,8 @@ pub(super) fn export_timeline(
     if timeline.clips.is_empty() {
         bail!("Add at least one clip before exporting.");
     }
-    ges::init().map_err(|error| {
-        anyhow!("could not initialize GStreamer Editing Services: {error}")
-    })?;
+    ges::init()
+        .map_err(|error| anyhow!("could not initialize GStreamer Editing Services: {error}"))?;
     report_progress(0.0);
 
     let temporary_output = TemporaryOutput::new(temporary_output_path(output))?;
@@ -178,9 +177,9 @@ pub fn build_ges_timeline(
                 .collect::<Vec<_>>();
             clips.sort_by_key(|clip| clip.timeline_start());
             for clip in clips {
-                let text = clip.text().ok_or_else(|| {
-                    anyhow!("Media clip {} is on a text track.", clip.id())
-                })?;
+                let text = clip
+                    .text()
+                    .ok_or_else(|| anyhow!("Media clip {} is on a text track.", clip.id()))?;
                 let overlay = ges::TitleClip::new().ok_or_else(|| {
                     anyhow!(
                         "could not create text clip {} at {}:{}",
@@ -191,9 +190,7 @@ pub fn build_ges_timeline(
                 })?;
                 overlay
                     .set_name(Some(&format!("opencut-clip-{}", clip.id())))
-                    .map_err(|error| {
-                        anyhow!("could not identify clip {}: {error}", clip.id())
-                    })?;
+                    .map_err(|error| anyhow!("could not identify clip {}: {error}", clip.id()))?;
                 let (start, duration) = clip_clock_range(
                     timeline_data.settings.frame_rate,
                     clip,
@@ -248,9 +245,8 @@ pub fn build_ges_timeline(
                 asset.clone()
             } else {
                 let source = project_root.join(&asset.path);
-                let uri = Url::from_file_path(&source).map_err(|_| {
-                    anyhow!("could not convert {} to a file URL", source.display())
-                })?;
+                let uri = Url::from_file_path(&source)
+                    .map_err(|_| anyhow!("could not convert {} to a file URL", source.display()))?;
                 let uri_asset = ges::UriClipAsset::request_sync(uri.as_str()).map_err(|error| {
                     anyhow!(
                         "build_ges_timeline failed: could not inspect {}: {error}",
@@ -277,9 +273,7 @@ pub fn build_ges_timeline(
                 })?;
             ges_clip
                 .set_name(Some(&format!("opencut-clip-{}", clip.id())))
-                .map_err(|error| {
-                    anyhow!("could not identify clip {}: {error}", clip.id())
-                })?;
+                .map_err(|error| anyhow!("could not identify clip {}: {error}", clip.id()))?;
             if track_types.contains(ges::TrackType::VIDEO) {
                 apply_video_transform(
                     &ges_clip,
@@ -314,9 +308,7 @@ pub fn build_ges_timeline(
         background.set_mute(true);
         background
             .set_name(Some("opencut-black-background"))
-            .map_err(|error| {
-                anyhow!("could not identify the timeline background: {error}")
-            })?;
+            .map_err(|error| anyhow!("could not identify the timeline background: {error}"))?;
         if !background.set_duration(frame_clock_time(
             timeline_data.settings.frame_rate,
             timeline_data.content_duration(),

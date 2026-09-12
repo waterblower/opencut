@@ -1,5 +1,5 @@
-use anyhow::{Context as _, Result, anyhow, bail};
 use crate::video::VideoBackend;
+use anyhow::{Context as _, Result, anyhow, bail};
 use ges::prelude::*;
 use gstreamer as gst;
 use gstreamer_app as gst_app;
@@ -102,9 +102,7 @@ fn create_timeline_playback(timeline: &ges::Timeline) -> Result<VideoBackend> {
 }
 
 fn initialize_gstreamer() -> Result<()> {
-    ges::init().map_err(|error| {
-        anyhow!("could not initialize GStreamer Editing Services: {error}")
-    })
+    ges::init().map_err(|error| anyhow!("could not initialize GStreamer Editing Services: {error}"))
 }
 
 fn preview_audio_sink() -> Result<(gst::Element, gst_audio::StreamVolume)> {

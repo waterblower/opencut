@@ -127,12 +127,7 @@ fn timestamp_ms(timestamp: &str) -> Result<u64> {
         *value = match part.parse::<u64>() {
             Ok(value) => value,
             Err(error) => {
-                return Err(anyhow!(
-                    "invalid_srt: {} at {}:{}",
-                    error,
-                    file!(),
-                    line!()
-                ));
+                return Err(anyhow!("invalid_srt: {} at {}:{}", error, file!(), line!()));
             }
         };
     }
