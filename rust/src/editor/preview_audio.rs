@@ -1,3 +1,4 @@
+use anyhow::{Result, anyhow};
 use super::*;
 use gst::prelude::*;
 use gstreamer as gst;
@@ -13,19 +14,19 @@ pub(super) struct AudioBackend {
 }
 
 impl AudioBackend {
-    pub(super) fn new(url: &Url) -> anyhow::Result<Self> {
-        gst::init().map_err(|error| anyhow::anyhow!("could not initialize GStreamer: {error}"))?;
+    pub(super) fn new(url: &Url) -> Result<Self> {
+        gst::init().map_err(|error| anyhow!("could not initialize GStreamer: {error}"))?;
         let video_sink = gst::ElementFactory::make("fakesink")
             .build()
-            .map_err(|error| anyhow::anyhow!("could not create audio preview sink: {error}"))?;
+            .map_err(|error| anyhow!("could not create audio preview sink: {error}"))?;
         let pipeline = gst::ElementFactory::make("playbin")
             .property("uri", url.as_str())
             .property("video-sink", &video_sink)
             .build()
-            .map_err(|error| anyhow::anyhow!("could not create audio preview: {error}"))?;
+            .map_err(|error| anyhow!("could not create audio preview: {error}"))?;
         pipeline
             .set_state(gst::State::Paused)
-            .map_err(|error| anyhow::anyhow!("could not prepare audio preview: {error}"))?;
+            .map_err(|error| anyhow!("could not prepare audio preview: {error}"))?;
         let _ = pipeline.state(gst::ClockTime::from_seconds(2));
         Ok(Self { pipeline })
     }

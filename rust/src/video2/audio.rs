@@ -1,3 +1,4 @@
+use anyhow::{Context as _, Error, Result, bail};
 use std::{
     path::Path,
     sync::{Arc, Mutex, mpsc},
@@ -5,7 +6,6 @@ use std::{
     time::{Duration, Instant},
 };
 
-use anyhow::{Context as _, Result, bail};
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use ffmpeg_next as ffmpeg;
 
@@ -184,7 +184,7 @@ impl Audio {
                     return Ok(());
                 }
                 Err(error) => {
-                    return Err(anyhow::Error::new(error).context(format!(
+                    return Err(Error::new(error).context(format!(
                         "Decoding audio frame at {}:{}",
                         file!(),
                         line!()
@@ -392,7 +392,7 @@ fn run(
                 ended = true;
             }
             Err(error) => {
-                return Err(anyhow::Error::new(error).context(format!(
+                return Err(Error::new(error).context(format!(
                     "Reading audio packet at {}:{}",
                     file!(),
                     line!()

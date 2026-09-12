@@ -1,3 +1,4 @@
+use anyhow::{Result};
 use super::timeline::{FrameRate, TimelineSerialization};
 use std::path::Path;
 
@@ -60,7 +61,7 @@ pub(super) fn export_timeline(
     output: &Path,
     options: ExportOptions,
     report_progress: impl FnMut(f32),
-) -> anyhow::Result<()> {
+) -> Result<()> {
     super::export_gstreamer::export_timeline(
         timeline,
         project_root,

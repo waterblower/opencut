@@ -1,4 +1,4 @@
-use anyhow::anyhow;
+use anyhow::{anyhow, bail};
 use super::*;
 use ges::prelude::*;
 use gstreamer as gst;
@@ -11,7 +11,7 @@ use std::time::{Duration, Instant};
 pub fn render_audio_wav(timeline: &TimelineSerialization, project_root: &Path) -> Result<Vec<u8>> {
     let duration = timeline.duration(timeline.content_duration());
     if duration.is_zero() || duration > Duration::from_secs(500) {
-        anyhow::bail!(
+        bail!(
             "timeline duration must be positive and at most 500 seconds (got {duration:?}) at {}:{}",
             file!(),
             line!()
@@ -34,7 +34,7 @@ pub fn render_audio_wav(timeline: &TimelineSerialization, project_root: &Path) -
         })
     });
     if !has_audio {
-        anyhow::bail!(
+        bail!(
             "timeline contains no enabled audio clips at {}:{}",
             file!(),
             line!()
@@ -94,7 +94,7 @@ fn collect_audio_wav(
             let start = ((pts.nseconds() as u128 * 16_000 + 500_000_000) / 1_000_000_000) as usize;
             let data = buffer.map_readable()?;
             if data.len() % 2 != 0 {
-                anyhow::bail!("unaligned audio buffer at {}:{}", file!(), line!());
+                bail!("unaligned audio buffer at {}:{}", file!(), line!());
             }
             if start < samples {
                 let count = data.len().min((samples - start) * 2);
@@ -103,7 +103,7 @@ fn collect_audio_wav(
         }
         while let Some(message) = bus.pop() {
             if let gst::MessageView::Error(error) = message.view() {
-                anyhow::bail!(
+                bail!(
                     "timeline audio rendering failed: {:?} ({:?}) at {}:{}",
                     error.error(),
                     error.debug(),
@@ -116,7 +116,7 @@ fn collect_audio_wav(
             break;
         }
         if last_sample.elapsed() > Duration::from_secs(60) {
-            anyhow::bail!(
+            bail!(
                 "timeline audio rendering stalled at {}:{}",
                 file!(),
                 line!()
@@ -124,7 +124,7 @@ fn collect_audio_wav(
         }
     }
     if !received_audio {
-        anyhow::bail!("timeline produced no audio at {}:{}", file!(), line!());
+        bail!("timeline produced no audio at {}:{}", file!(), line!());
     }
     opencut_player::transcribe::audio::write_wav_header(wav)
 }

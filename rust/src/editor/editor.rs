@@ -1,3 +1,4 @@
+use anyhow::{Error};
 use crate::editor::{explorer::ExplorerState, project_settings::ProjectLocalSettings};
 
 use super::srt::srt_text_clips;
@@ -270,7 +271,7 @@ fn handle_app_event(
                         timeline.interaction.selected_clip_id = selected_clip_id;
                         timeline.save(&project_root);
                         editor.status = Some("Added subtitles to the timeline.".to_string());
-                        Ok::<(), anyhow::Error>(())
+                        Ok::<(), Error>(())
                     })();
                     if let Err(error) = result {
                         editor.status = Some(format!("Could not add subtitles: {error}"));
@@ -327,7 +328,7 @@ fn start_updates(cx: &mut Context<Editor>) {
                 if should_render {
                     cx.notify();
                 }
-                Ok::<(), anyhow::Error>(())
+                Ok::<(), Error>(())
             });
             match result {
                 Ok(Ok(())) => {}

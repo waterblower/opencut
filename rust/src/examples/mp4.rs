@@ -9,7 +9,7 @@
 //! shared wall clock, not a production audio-device clock with drift correction.
 //! Seeking, subtitles, rotation metadata, and playback controls are omitted.
 
-use anyhow::{Context as _, Result, bail};
+use anyhow::{Context as _, Error, Result, bail};
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use ffmpeg_next as ffmpeg;
 use gpui::{
@@ -383,7 +383,7 @@ fn decode(path: &Path, pictures: &SyncSender<Message>) -> Result<()> {
             clock + Duration::from_secs_f64(offset),
         )?;
         stream.play().context(at!("Starting audio"))?;
-        Ok::<_, anyhow::Error>(Some(Audio {
+        Ok::<_, Error>(Some(Audio {
             index,
             decoder,
             resampler,
@@ -401,7 +401,7 @@ fn decode(path: &Path, pictures: &SyncSender<Message>) -> Result<()> {
             Ok(()) => {}
             Err(ffmpeg::Error::Eof) => break,
             Err(error) => {
-                return Err(anyhow::Error::new(error).context(at!("Reading media packet")));
+                return Err(Error::new(error).context(at!("Reading media packet")));
             }
         }
         if packet.stream() == index {
@@ -505,7 +505,7 @@ fn receive_video(
             Err(ffmpeg::Error::Eof) => return Ok(()),
             Err(ffmpeg::Error::Other { errno }) if errno == ffmpeg::error::EAGAIN => return Ok(()),
             Err(error) => {
-                return Err(anyhow::Error::new(error).context(at!("Decoding video frame")));
+                return Err(Error::new(error).context(at!("Decoding video frame")));
             }
         }
         // PTS says WHEN a picture belongs on screen, independently of how fast
@@ -766,7 +766,7 @@ fn receive(
             Ok(()) => {}
             Err(ffmpeg::Error::Eof) => return Ok(()),
             Err(ffmpeg::Error::Other { errno }) if errno == ffmpeg::error::EAGAIN => return Ok(()),
-            Err(error) => return Err(anyhow::Error::new(error).context(at!("Decoding audio"))),
+            Err(error) => return Err(Error::new(error).context(at!("Decoding audio"))),
         }
         let decoded_layout = layout(decoder.channels(), decoded.channel_layout());
         decoded.set_channel_layout(decoded_layout);

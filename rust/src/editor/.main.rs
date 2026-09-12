@@ -13,6 +13,7 @@ mod playback_view;
 mod video;
 
 mod asset;
+use anyhow::{anyhow, bail};
 use asset::EditorAssets;
 
 use editor::global_settings::GlobalEditorSettings;
@@ -71,7 +72,7 @@ fn run_app(cx: &mut App) {
                     .await?;
                 log::info!("Writing SRT for {}", source_path.display());
                 let Some(stem) = source_path.file_stem() else {
-                    anyhow::bail!(
+                    bail!(
                         "transcription source has no filename at {}:{}",
                         file!(),
                         line!()
@@ -85,7 +86,7 @@ fn run_app(cx: &mut App) {
             cx.spawn(async move |_| {
                 let result = match task.await {
                     Ok(result) => result,
-                    Err(error) => Err(anyhow::anyhow!(
+                    Err(error) => Err(anyhow!(
                         "transcription task failed: {error} at {}:{}",
                         file!(),
                         line!()

@@ -1,3 +1,4 @@
+use anyhow::{Result};
 use super::*;
 use crate::editor::tests::TimelineTestExt;
 use crate::editor::timeline_clip::AudioClipProperties;
@@ -99,7 +100,7 @@ fn validates_one_clip_placement() {
     );
 }
 
-fn placement_rejection(result: anyhow::Result<()>) -> ClipPlacementRejection {
+fn placement_rejection(result: Result<()>) -> ClipPlacementRejection {
     result
         .unwrap_err()
         .downcast::<ClipPlacementRejection>()

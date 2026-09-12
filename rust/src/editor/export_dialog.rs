@@ -1,3 +1,4 @@
+use anyhow::{Result, anyhow, bail};
 use super::export::{DEFAULT_VIDEO_BIT_RATE, ExportEncoder, ExportOptions, export_timeline};
 use super::*;
 use std::{
@@ -51,7 +52,7 @@ fn validated_export(
     state: &ExportDialogState,
     project_root: &Path,
     cx: &App,
-) -> anyhow::Result<ValidatedExport> {
+) -> Result<ValidatedExport> {
     let video_bit_rate = parse_bitrate(state.bitrate.read(cx).query())?;
     let destination = parse_destination(state.destination.read(cx).query(), project_root)?;
 
@@ -886,22 +887,22 @@ fn export_dialog_button(
         .child(label)
 }
 
-fn parse_bitrate(value: &str) -> anyhow::Result<usize> {
+fn parse_bitrate(value: &str) -> Result<usize> {
     let megabits = value
         .trim()
         .parse::<usize>()
-        .map_err(|_| anyhow::anyhow!("Bitrate must be a whole number in Mb/s."))?;
+        .map_err(|_| anyhow!("Bitrate must be a whole number in Mb/s."))?;
     if !(1..=200).contains(&megabits) {
-        anyhow::bail!("Bitrate must be between 1 and 200 Mb/s.");
+        bail!("Bitrate must be between 1 and 200 Mb/s.");
     }
     megabits
         .checked_mul(1_000_000)
-        .ok_or_else(|| anyhow::anyhow!("Bitrate is too large."))
+        .ok_or_else(|| anyhow!("Bitrate is too large."))
 }
 
-fn parse_destination(value: &str, project_root: &Path) -> anyhow::Result<PathBuf> {
+fn parse_destination(value: &str, project_root: &Path) -> Result<PathBuf> {
     if value.trim().is_empty() {
-        anyhow::bail!("Choose an export destination.");
+        bail!("Choose an export destination.");
     }
     let mut path = expand_home(value.trim());
     if path.is_relative() {
@@ -909,10 +910,10 @@ fn parse_destination(value: &str, project_root: &Path) -> anyhow::Result<PathBuf
     }
     path = with_mp4_extension(path);
     let Some(parent) = path.parent() else {
-        anyhow::bail!("Export destination has no parent folder.");
+        bail!("Export destination has no parent folder.");
     };
     if !parent.is_dir() {
-        return Err(anyhow::anyhow!(
+        return Err(anyhow!(
             "Destination folder does not exist: {}",
             parent.display()
         ));

@@ -1,6 +1,6 @@
 //! MiniMax ASR for local media. Credentials belong to the caller, not library state.
+use anyhow::{Result, anyhow, bail};
 use self::audio::extract_audio_as_wav;
-use anyhow::Result;
 use reqwest::{
     Client,
     header::{AUTHORIZATION, HeaderValue},
@@ -49,7 +49,7 @@ pub async fn transcribe(path: &Path, api_key: &str, options: &Options) -> Result
     };
     let response = transcribe_response(path, api_key, &options).await?;
     let Some(text) = response.as_str() else {
-        anyhow::bail!("expected SRT response at {}:{}", file!(), line!());
+        bail!("expected SRT response at {}:{}", file!(), line!());
     };
     SRT::from_string(text)
 }
@@ -58,7 +58,7 @@ pub async fn transcribe(path: &Path, api_key: &str, options: &Options) -> Result
 /// HTTP is asynchronous; FFmpeg decoding blocks the caller's background thread.
 pub async fn transcribe_response(path: &Path, api_key: &str, options: &Options) -> Result<Value> {
     if api_key.trim().is_empty() {
-        return Err(anyhow::anyhow!(
+        return Err(anyhow!(
             "missing_api_key: {} at {}:{}",
             "an API key is required for transcription",
             file!(),
@@ -69,7 +69,7 @@ pub async fn transcribe_response(path: &Path, api_key: &str, options: &Options) 
         && duration > Duration::from_secs(500)
     {
         let duration = duration.as_secs_f64();
-        return Err(anyhow::anyhow!(
+        return Err(anyhow!(
             "audio_too_long: {} at {}:{}",
             format!(
                 "audio duration is {duration:.6} seconds; transcription accepts at most 500 seconds"
@@ -90,26 +90,26 @@ pub async fn transcribe_wav(wav: Vec<u8>, api_key: &str, options: &Options) -> R
     };
     let response = transcribe_wav_response(wav, api_key, &options).await?;
     let Some(text) = response.as_str() else {
-        anyhow::bail!("expected SRT response at {}:{}", file!(), line!());
+        bail!("expected SRT response at {}:{}", file!(), line!());
     };
     SRT::from_string(text)
 }
 
 async fn transcribe_wav_response(wav: Vec<u8>, api_key: &str, options: &Options) -> Result<Value> {
     if api_key.trim().is_empty() {
-        anyhow::bail!(
+        bail!(
             "missing_api_key: an API key is required at {}:{}",
             file!(),
             line!()
         );
     }
     if wav.len() <= 44 || wav.len() % 2 != 0 {
-        anyhow::bail!("invalid WAV data at {}:{}", file!(), line!());
+        bail!("invalid WAV data at {}:{}", file!(), line!());
     }
     let header = wav[..44].to_vec();
     let wav = audio::write_wav_header(wav)?;
     if header != wav[..44] {
-        anyhow::bail!(
+        bail!(
             "expected mono 16 kHz 16-bit PCM WAV at {}:{}",
             file!(),
             line!()
@@ -119,7 +119,7 @@ async fn transcribe_wav_response(wav: Vec<u8>, api_key: &str, options: &Options)
     let audio_bytes = wav.len() - 44;
     if audio_bytes > 500 * 16_000 * 2 {
         let duration = audio_bytes as f64 / (16_000.0 * 2.0);
-        return Err(anyhow::anyhow!(
+        return Err(anyhow!(
             "audio_too_long: {} at {}:{}",
             format!(
                 "audio duration is {duration:.6} seconds; transcription accepts at most 500 seconds"
@@ -137,7 +137,7 @@ async fn transcribe_wav_response(wav: Vec<u8>, api_key: &str, options: &Options)
     {
         Ok(value) => value,
         Err(error) => {
-            return Err(anyhow::anyhow!(
+            return Err(anyhow!(
                 "transcription_request: {} at {}:{}",
                 error,
                 file!(),
@@ -165,7 +165,7 @@ async fn request(
     let mut authorization = match HeaderValue::from_str(&format!("Bearer {api_key}")) {
         Ok(value) => value,
         Err(error) => {
-            return Err(anyhow::anyhow!(
+            return Err(anyhow!(
                 "invalid_api_key: {} at {}:{}",
                 error,
                 file!(),
@@ -180,7 +180,7 @@ async fn request(
     {
         Ok(value) => value,
         Err(error) => {
-            return Err(anyhow::anyhow!(
+            return Err(anyhow!(
                 "transcription_request: {} at {}:{}",
                 error,
                 file!(),
@@ -204,7 +204,7 @@ async fn request(
             match HeaderValue::from_str(language) {
                 Ok(value) => value,
                 Err(error) => {
-                    return Err(anyhow::anyhow!(
+                    return Err(anyhow!(
                         "invalid_language: {} at {}:{}",
                         error,
                         file!(),
@@ -217,7 +217,7 @@ async fn request(
     let response = match request.send().await {
         Ok(value) => value,
         Err(error) => {
-            return Err(anyhow::anyhow!(
+            return Err(anyhow!(
                 "transcription_request: {} at {}:{}",
                 error,
                 file!(),
@@ -229,7 +229,7 @@ async fn request(
     let bytes = match response.bytes().await {
         Ok(value) => value,
         Err(error) => {
-            return Err(anyhow::anyhow!(
+            return Err(anyhow!(
                 "transcription_request: {} at {}:{}",
                 error,
                 file!(),
@@ -240,7 +240,7 @@ async fn request(
     let body = match std::str::from_utf8(&bytes) {
         Ok(value) => value,
         Err(error) => {
-            return Err(anyhow::anyhow!(
+            return Err(anyhow!(
                 "invalid_transcription_response: {} at {}:{}",
                 error,
                 file!(),
@@ -258,7 +258,7 @@ async fn request(
             .get("request_id")
             .and_then(Value::as_str)
             .unwrap_or("unavailable");
-        return Err(anyhow::anyhow!(
+        return Err(anyhow!(
             "transcription_api: {} at {}:{}",
             format!(
                 "HTTP {status}: {} (request_id: {})",
@@ -275,7 +275,7 @@ async fn request(
     let value: Value = match serde_json::from_str(body) {
         Ok(value) => value,
         Err(error) => {
-            return Err(anyhow::anyhow!(
+            return Err(anyhow!(
                 "invalid_transcription_response: {} at {}:{}",
                 error,
                 file!(),
@@ -289,7 +289,7 @@ async fn request(
             .and_then(Value::as_f64)
             .is_some_and(|n| n.is_finite() && n >= 0.0)
     {
-        return Err(anyhow::anyhow!(
+        return Err(anyhow!(
             "invalid_transcription_response: {} at {}:{}",
             "expected transcript text and duration",
             file!(),
@@ -298,7 +298,7 @@ async fn request(
     }
     if matches!(options.format, Format::VerboseJson) {
         let Some(segments) = value.get("segments").and_then(Value::as_array) else {
-            return Err(anyhow::anyhow!(
+            return Err(anyhow!(
                 "invalid_transcription_response: {} at {}:{}",
                 "expected timestamped segments",
                 file!(),
@@ -320,7 +320,7 @@ async fn request(
                     || !segment.get("text").is_some_and(Value::is_string)
             })
         {
-            return Err(anyhow::anyhow!(
+            return Err(anyhow!(
                 "invalid_transcription_response: {} at {}:{}",
                 "invalid speaker or segment fields",
                 file!(),

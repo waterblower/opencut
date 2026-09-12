@@ -1,3 +1,4 @@
+use anyhow::{Result, anyhow, bail};
 use super::{
     clip_render_plan::{resolve_audio_clip_render_plan, resolve_visual_clip_render_plan},
     export::{ExportEncoder, ExportOptions},
@@ -23,12 +24,12 @@ pub(super) fn export_timeline(
     output: &Path,
     options: ExportOptions,
     mut report_progress: impl FnMut(f32),
-) -> anyhow::Result<()> {
+) -> Result<()> {
     if timeline.clips.is_empty() {
-        anyhow::bail!("Add at least one clip before exporting.");
+        bail!("Add at least one clip before exporting.");
     }
     ges::init().map_err(|error| {
-        anyhow::anyhow!("could not initialize GStreamer Editing Services: {error}")
+        anyhow!("could not initialize GStreamer Editing Services: {error}")
     })?;
     report_progress(0.0);
 
@@ -47,10 +48,10 @@ pub(super) fn export_timeline(
 
     if output.is_file() {
         fs::remove_file(output)
-            .map_err(|error| anyhow::anyhow!("could not replace {}: {error}", output.display()))?;
+            .map_err(|error| anyhow!("could not replace {}: {error}", output.display()))?;
     }
     fs::rename(&temporary_output.path, output).map_err(|error| {
-        anyhow::anyhow!(
+        anyhow!(
             "could not move completed export to {}: {error}",
             output.display()
         )
@@ -82,10 +83,10 @@ pub fn configure_text_clip(
     clip: &ges::TitleClip,
     properties: &TextClipProperties,
     output_scale: f64,
-) -> anyhow::Result<()> {
+) -> Result<()> {
     let font_size = (properties.font_size * output_scale).clamp(1.0, 1000.0);
     let Some((text_overlay, _)) = clip.lookup_child("font-desc") else {
-        return Err(anyhow::anyhow!(
+        return Err(anyhow!(
             "text renderer has no font property at {}:{}",
             file!(),
             line!()
@@ -107,7 +108,7 @@ pub fn configure_text_clip(
         ("ypos", properties.position_y.to_value()),
     ] {
         if let Err(error) = clip.set_child_property(name, value) {
-            return Err(anyhow::anyhow!(
+            return Err(anyhow!(
                 "could not set text {name}: {error} at {}:{}",
                 file!(),
                 line!()
@@ -122,7 +123,7 @@ pub fn build_ges_timeline(
     project_root: &Path,
     options: ExportOptions,
     audio_only: bool,
-) -> anyhow::Result<ges::Timeline> {
+) -> Result<ges::Timeline> {
     let timeline = if audio_only {
         let timeline = ges::Timeline::new();
         timeline.add_track(&ges::AudioTrack::new())?;
@@ -178,10 +179,10 @@ pub fn build_ges_timeline(
             clips.sort_by_key(|clip| clip.timeline_start());
             for clip in clips {
                 let text = clip.text().ok_or_else(|| {
-                    anyhow::anyhow!("Media clip {} is on a text track.", clip.id())
+                    anyhow!("Media clip {} is on a text track.", clip.id())
                 })?;
                 let overlay = ges::TitleClip::new().ok_or_else(|| {
-                    anyhow::anyhow!(
+                    anyhow!(
                         "could not create text clip {} at {}:{}",
                         clip.id(),
                         file!(),
@@ -191,7 +192,7 @@ pub fn build_ges_timeline(
                 overlay
                     .set_name(Some(&format!("opencut-clip-{}", clip.id())))
                     .map_err(|error| {
-                        anyhow::anyhow!("could not identify clip {}: {error}", clip.id())
+                        anyhow!("could not identify clip {}: {error}", clip.id())
                     })?;
                 let (start, duration) = clip_clock_range(
                     timeline_data.settings.frame_rate,
@@ -199,7 +200,7 @@ pub fn build_ges_timeline(
                     clip.timeline_start(),
                 );
                 if !overlay.set_start(start) {
-                    return Err(anyhow::anyhow!(
+                    return Err(anyhow!(
                         "could not set text clip {} start at {}:{}",
                         clip.id(),
                         file!(),
@@ -207,7 +208,7 @@ pub fn build_ges_timeline(
                     ));
                 }
                 if !overlay.set_duration(duration) {
-                    return Err(anyhow::anyhow!(
+                    return Err(anyhow!(
                         "could not set text clip {} duration at {}:{}",
                         clip.id(),
                         file!(),
@@ -215,7 +216,7 @@ pub fn build_ges_timeline(
                     ));
                 }
                 layer.add_clip(&overlay).map_err(|error| {
-                    anyhow::anyhow!(
+                    anyhow!(
                         "could not add text clip {} to the timeline: {error}",
                         clip.id()
                     )
@@ -231,10 +232,10 @@ pub fn build_ges_timeline(
         for clip in clips {
             let media = clip
                 .media()
-                .ok_or_else(|| anyhow::anyhow!("Text clip {} is on a media track.", clip.id()))?;
+                .ok_or_else(|| anyhow!("Text clip {} is on a media track.", clip.id()))?;
             let asset = timeline_data
                 .asset(media.asset_id)
-                .ok_or_else(|| anyhow::anyhow!("Clip {} has no source media.", clip.id()))?;
+                .ok_or_else(|| anyhow!("Clip {} has no source media.", clip.id()))?;
             let mut track_types =
                 exported_track_types(timeline_track, clip, asset.kind, asset.has_audio);
             if audio_only {
@@ -248,10 +249,10 @@ pub fn build_ges_timeline(
             } else {
                 let source = project_root.join(&asset.path);
                 let uri = Url::from_file_path(&source).map_err(|_| {
-                    anyhow::anyhow!("could not convert {} to a file URL", source.display())
+                    anyhow!("could not convert {} to a file URL", source.display())
                 })?;
                 let uri_asset = ges::UriClipAsset::request_sync(uri.as_str()).map_err(|error| {
-                    anyhow::anyhow!(
+                    anyhow!(
                         "build_ges_timeline failed: could not inspect {}: {error}",
                         source.display()
                     )
@@ -269,7 +270,7 @@ pub fn build_ges_timeline(
             let ges_clip = layer
                 .add_asset(&uri_asset, start, inpoint, duration, track_types)
                 .map_err(|error| {
-                    anyhow::anyhow!(
+                    anyhow!(
                         "could not add {} to the export timeline: {error}",
                         asset.name
                     )
@@ -277,7 +278,7 @@ pub fn build_ges_timeline(
             ges_clip
                 .set_name(Some(&format!("opencut-clip-{}", clip.id())))
                 .map_err(|error| {
-                    anyhow::anyhow!("could not identify clip {}: {error}", clip.id())
+                    anyhow!("could not identify clip {}: {error}", clip.id())
                 })?;
             if track_types.contains(ges::TrackType::VIDEO) {
                 apply_video_transform(
@@ -307,20 +308,20 @@ pub fn build_ges_timeline(
         // timeline duration and supplies black frames without covering media.
         let background_layer = timeline.append_layer();
         let background = ges::TestClip::new()
-            .ok_or_else(|| anyhow::anyhow!("could not create the timeline background"))?;
+            .ok_or_else(|| anyhow!("could not create the timeline background"))?;
         background.set_supported_formats(ges::TrackType::VIDEO);
         background.set_vpattern(ges::VideoTestPattern::Black);
         background.set_mute(true);
         background
             .set_name(Some("opencut-black-background"))
             .map_err(|error| {
-                anyhow::anyhow!("could not identify the timeline background: {error}")
+                anyhow!("could not identify the timeline background: {error}")
             })?;
         if !background.set_duration(frame_clock_time(
             timeline_data.settings.frame_rate,
             timeline_data.content_duration(),
         )) {
-            anyhow::bail!(
+            bail!(
                 "could not set the timeline background duration at {}:{}",
                 file!(),
                 line!()
@@ -328,10 +329,10 @@ pub fn build_ges_timeline(
         }
         background_layer
             .add_clip(&background)
-            .map_err(|error| anyhow::anyhow!("could not add the timeline background: {error}"))?;
+            .map_err(|error| anyhow!("could not add the timeline background: {error}"))?;
     }
     if !timeline.commit_sync() {
-        anyhow::bail!("GStreamer could not commit the export timeline.");
+        bail!("GStreamer could not commit the export timeline.");
     }
     Ok(timeline)
 }
@@ -342,7 +343,7 @@ pub(super) fn apply_video_transform(
     asset: &MediaAsset,
     options: ExportOptions,
     properties: VideoClipProperties,
-) -> anyhow::Result<()> {
+) -> Result<()> {
     let plan = resolve_visual_clip_render_plan(
         properties,
         asset.width,
@@ -360,7 +361,7 @@ pub(super) fn apply_video_transform(
         ("height", rounded_i32(plan.visible.height).max(1)),
     ] {
         clip.set_child_property(name, value)
-            .map_err(|error| anyhow::anyhow!("could not apply video {name}: {error}"))?;
+            .map_err(|error| anyhow!("could not apply video {name}: {error}"))?;
     }
     Ok(())
 }
@@ -381,7 +382,7 @@ fn export_timeline_with_encoder(
     options: ExportOptions,
     encoder: ExportEncoder,
     report_progress: &mut impl FnMut(f32),
-) -> anyhow::Result<()> {
+) -> Result<()> {
     let timeline = build_ges_timeline(timeline_data, project_root, options, false)?;
     let profile = encoding_profile(options);
     let _encoder_selection = EncoderSelection::for_export(encoder)?;
@@ -389,20 +390,20 @@ fn export_timeline_with_encoder(
     configure_export_elements(&pipeline, options.video_bit_rate);
     pipeline
         .set_timeline(&timeline)
-        .map_err(|error| anyhow::anyhow!("could not attach the export timeline: {error}"))?;
+        .map_err(|error| anyhow!("could not attach the export timeline: {error}"))?;
 
     let output_uri = Url::from_file_path(temporary_output).map_err(|_| {
-        anyhow::anyhow!(
+        anyhow!(
             "could not convert {} to a file URL",
             temporary_output.display()
         )
     })?;
     pipeline
         .set_render_settings(output_uri.as_str(), &profile)
-        .map_err(|error| anyhow::anyhow!("could not configure GStreamer export: {error}"))?;
+        .map_err(|error| anyhow!("could not configure GStreamer export: {error}"))?;
     pipeline
         .set_mode(ges::PipelineFlags::RENDER)
-        .map_err(|error| anyhow::anyhow!("could not enable GStreamer render mode: {error}"))?;
+        .map_err(|error| anyhow!("could not enable GStreamer render mode: {error}"))?;
 
     log::info!("Starting GStreamer export with {}", encoder.factory_name());
     let result = render_pipeline(
@@ -560,9 +561,9 @@ struct EncoderSelection {
 }
 
 impl EncoderSelection {
-    fn for_export(video_encoder: ExportEncoder) -> anyhow::Result<Self> {
+    fn for_export(video_encoder: ExportEncoder) -> Result<Self> {
         let Some(selected_video) = gst::ElementFactory::find(video_encoder.factory_name()) else {
-            anyhow::bail!(
+            bail!(
                 "GStreamer H.264 encoder `{}` is unavailable. [{}:{}]",
                 video_encoder.factory_name(),
                 file!(),
@@ -570,7 +571,7 @@ impl EncoderSelection {
             );
         };
         if gst::ElementFactory::find(AUDIO_ENCODER_FACTORY).is_none() {
-            anyhow::bail!(
+            bail!(
                 "GStreamer AAC encoder `{AUDIO_ENCODER_FACTORY}` is unavailable. [{}:{}]",
                 file!(),
                 line!()
@@ -605,20 +606,20 @@ fn render_pipeline(
     pipeline: &ges::Pipeline,
     duration: Duration,
     report_progress: &mut impl FnMut(f32),
-) -> anyhow::Result<()> {
+) -> Result<()> {
     pipeline
         .set_state(gst::State::Playing)
-        .map_err(|error| anyhow::anyhow!("could not start GStreamer export: {error}"))?;
+        .map_err(|error| anyhow!("could not start GStreamer export: {error}"))?;
     let bus = pipeline
         .bus()
-        .ok_or_else(|| anyhow::anyhow!("GStreamer export pipeline has no message bus."))?;
+        .ok_or_else(|| anyhow!("GStreamer export pipeline has no message bus."))?;
     let total = duration.as_secs_f64().max(f64::EPSILON);
     loop {
         if let Some(message) = bus.timed_pop(gst::ClockTime::from_mseconds(100)) {
             match message.view() {
                 gst::MessageView::Eos(..) => return Ok(()),
                 gst::MessageView::Error(error) => {
-                    return Err(anyhow::anyhow!(
+                    return Err(anyhow!(
                         "GStreamer export failed: {}{}",
                         error.error(),
                         error
@@ -663,10 +664,10 @@ struct TemporaryOutput {
 }
 
 impl TemporaryOutput {
-    fn new(path: std::path::PathBuf) -> anyhow::Result<Self> {
+    fn new(path: std::path::PathBuf) -> Result<Self> {
         if path.is_file() {
             fs::remove_file(&path).map_err(|error| {
-                anyhow::anyhow!(
+                anyhow!(
                     "could not replace temporary export {}: {error}",
                     path.display()
                 )

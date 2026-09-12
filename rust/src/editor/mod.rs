@@ -1,8 +1,8 @@
+use anyhow::{Context as _, Result};
 use crate::{
     editor::{explorer_drag::AssetBeingDragged, preview::load_timeline_position_with_options},
     video::{FileVideoBackend, VideoBackend},
 };
-use anyhow::{Context as _, Result};
 use gpui::{
     App, Bounds, Context, CursorStyle, Entity, EventEmitter, FocusHandle, KeyBinding, MouseButton,
     MouseDownEvent, MouseMoveEvent, MouseUpEvent, ObjectFit, PathPromptOptions, Pixels, Render,
@@ -315,7 +315,7 @@ impl Editor {
         relative_path: PathBuf,
         timeline: TimelineSerialization,
         cx: &mut Context<Self>,
-    ) -> anyhow::Result<()> {
+    ) -> Result<()> {
         if let Some(active_timeline) = self.timeline.as_ref() {
             active_timeline.save(&self.project_root);
         }

@@ -1,7 +1,7 @@
+use anyhow::{Context as _, Result, anyhow};
 use crate::editor::TimelineEditorExt;
 
 use super::timeline::TimelineSerialization;
-use anyhow::{Context as _, Result};
 use std::{
     fs,
     path::{Path, PathBuf},
@@ -15,7 +15,7 @@ pub(super) fn is_timeline_path(path: &Path) -> bool {
         .is_some_and(|name| name.ends_with(TIMELINE_SUFFIX))
 }
 
-pub(super) fn project_timeline_files(project_root: &Path) -> anyhow::Result<Vec<PathBuf>> {
+pub(super) fn project_timeline_files(project_root: &Path) -> Result<Vec<PathBuf>> {
     let mut paths = Vec::new();
     collect_timeline_files(project_root, project_root, &mut paths)?;
     paths.sort_by_key(|path| path.to_string_lossy().to_lowercase());
@@ -26,9 +26,9 @@ fn collect_timeline_files(
     project_root: &Path,
     directory: &Path,
     paths: &mut Vec<PathBuf>,
-) -> anyhow::Result<()> {
+) -> Result<()> {
     for entry in fs::read_dir(directory)
-        .map_err(|error| anyhow::anyhow!("could not read {}: {error}", directory.display()))?
+        .map_err(|error| anyhow!("could not read {}: {error}", directory.display()))?
         .filter_map(Result::ok)
     {
         let path = entry.path();
@@ -88,20 +88,20 @@ pub(super) fn create(
     project_root: &Path,
     relative_directory: &Path,
     name: &str,
-) -> anyhow::Result<(PathBuf, TimelineSerialization)> {
+) -> Result<(PathBuf, TimelineSerialization)> {
     let directory = project_root.join(relative_directory);
     if !directory.is_dir() {
-        return Err(anyhow::anyhow!(
+        return Err(anyhow!(
             "{} is not a directory",
             directory.display()
         ));
     }
     let file_name = timeline_file_name(name)
-        .ok_or_else(|| anyhow::anyhow!("Enter a single non-empty timeline name."))?;
+        .ok_or_else(|| anyhow!("Enter a single non-empty timeline name."))?;
     let relative_path = relative_directory.join(&file_name);
     let path = project_root.join(&relative_path);
     if path.exists() {
-        return Err(anyhow::anyhow!(
+        return Err(anyhow!(
             "{} already exists.",
             relative_path.display()
         ));
@@ -111,9 +111,9 @@ pub(super) fn create(
     Ok((relative_path, timeline))
 }
 
-fn timeline_file_names(directory: &Path) -> anyhow::Result<Vec<String>> {
+fn timeline_file_names(directory: &Path) -> Result<Vec<String>> {
     Ok(fs::read_dir(directory)
-        .map_err(|error| anyhow::anyhow!("could not read {}: {error}", directory.display()))?
+        .map_err(|error| anyhow!("could not read {}: {error}", directory.display()))?
         .filter_map(Result::ok)
         .filter_map(|entry| {
             let path = entry.path();

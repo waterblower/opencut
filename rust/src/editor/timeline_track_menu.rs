@@ -1,3 +1,4 @@
+use anyhow::{Result, bail};
 use super::*;
 
 impl Editor {
@@ -44,21 +45,21 @@ fn text_clip_at(
     timeline: &TimelineSerialization,
     track_id: Ulid,
     position: TimelineTime,
-) -> anyhow::Result<Clip> {
+) -> Result<Clip> {
     let Some(track) = timeline.track(track_id) else {
-        anyhow::bail!("The text track is unavailable.");
+        bail!("The text track is unavailable.");
     };
     if track.kind != TrackKind::Text {
-        anyhow::bail!("Text can only be added to a text track.");
+        bail!("Text can only be added to a text track.");
     }
     if track.locked {
-        anyhow::bail!("Unlock the text track before adding text.");
+        bail!("Unlock the text track before adding text.");
     }
     if timeline.clips_on_track(track_id).any(|clip| {
         clip.timeline_start() <= position
             && position < clip.timeline_end(timeline.settings.frame_rate)
     }) {
-        anyhow::bail!("A text clip already exists at this position.");
+        bail!("A text clip already exists at this position.");
     }
 
     let default_duration = timeline.ceil_time(5.0).max(TimelineTime::ONE_FRAME);

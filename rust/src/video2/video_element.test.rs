@@ -1,3 +1,4 @@
+use anyhow::{anyhow};
 use super::*;
 use ffmpeg_next as ffmpeg;
 use std::{
@@ -42,7 +43,7 @@ fn constructor_defaults_builders_and_backend_errors() -> Result<()> {
     let element = element.id("video").size(px(400.0), px(300.0));
     assert_eq!(element.id, Some("video".into()));
     assert_eq!((element.width, element.height), (px(400.0), px(300.0)));
-    super::super::lock(&backend.shared).fail(&anyhow::anyhow!(
+    super::super::lock(&backend.shared).fail(&anyhow!(
         "Injected failure at {}:{}",
         file!(),
         line!()

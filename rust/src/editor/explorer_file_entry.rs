@@ -1,7 +1,7 @@
+use anyhow::{Context as _, Result, anyhow};
 use crate::editor::{AppEvent, explorer_drag::AssetBeingDragged};
 
 use super::*;
-use anyhow::Context as _;
 use std::{collections::HashSet, fs, path::Path};
 use url::Url;
 
@@ -222,7 +222,7 @@ pub enum FileTreeEntryKind {
 pub fn visible_tree(
     project_root: &Path,
     expanded_directories: &HashSet<PathBuf>,
-) -> anyhow::Result<Vec<FileTreeEntry>> {
+) -> Result<Vec<FileTreeEntry>> {
     let mut entries = Vec::new();
     read_directory(
         project_root,
@@ -236,7 +236,7 @@ pub fn visible_tree(
 
 /// Searches the complete project tree, independently of which folders are expanded.
 /// Matching ancestor directories are included so results retain their hierarchy.
-pub fn search_tree(project_root: &Path, query: &str) -> anyhow::Result<Vec<FileTreeEntry>> {
+pub fn search_tree(project_root: &Path, query: &str) -> Result<Vec<FileTreeEntry>> {
     let query = query.trim().to_lowercase();
     if query.is_empty() {
         return Ok(Vec::new());
@@ -251,7 +251,7 @@ fn search_directory(
     depth: usize,
     query: &str,
     is_root: bool,
-) -> anyhow::Result<Vec<FileTreeEntry>> {
+) -> Result<Vec<FileTreeEntry>> {
     let directory = project_root.join(relative_directory);
     let children = match directory_children(&directory) {
         Ok(children) => children,
@@ -310,7 +310,7 @@ fn read_directory(
     depth: usize,
     expanded_directories: &HashSet<PathBuf>,
     entries: &mut Vec<FileTreeEntry>,
-) -> anyhow::Result<()> {
+) -> Result<()> {
     let directory = project_root.join(relative_directory);
     let children = directory_children(&directory)?;
 
@@ -339,9 +339,9 @@ fn read_directory(
     Ok(())
 }
 
-fn directory_children(directory: &Path) -> anyhow::Result<Vec<(String, bool, Option<u64>)>> {
+fn directory_children(directory: &Path) -> Result<Vec<(String, bool, Option<u64>)>> {
     let mut children = fs::read_dir(directory)
-        .map_err(|error| anyhow::anyhow!("could not read {}: {error}", directory.display()))?
+        .map_err(|error| anyhow!("could not read {}: {error}", directory.display()))?
         .filter_map(Result::ok)
         .filter_map(|entry| {
             let file_type = entry.file_type().ok()?;

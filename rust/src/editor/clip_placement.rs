@@ -1,3 +1,4 @@
+use anyhow::{Result};
 use super::*;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -46,7 +47,7 @@ pub(super) fn validate_clip_placement(
     clip_length: TimelineTime,
     target_timeline_start: TimelineTime,
     ignored_clip_ids: &HashSet<Ulid>,
-) -> anyhow::Result<()> {
+) -> Result<()> {
     let expected_track_kind = if media_kind == MediaKind::Audio {
         TrackKind::Audio
     } else {
@@ -68,7 +69,7 @@ pub(super) fn validate_text_clip_placement(
     clip_length: TimelineTime,
     target_timeline_start: TimelineTime,
     ignored_clip_ids: &HashSet<Ulid>,
-) -> anyhow::Result<()> {
+) -> Result<()> {
     validate_clip_placement_on_track(
         timeline,
         target_track_id,
@@ -86,7 +87,7 @@ fn validate_clip_placement_on_track(
     clip_length: TimelineTime,
     target_timeline_start: TimelineTime,
     ignored_clip_ids: &HashSet<Ulid>,
-) -> anyhow::Result<()> {
+) -> Result<()> {
     if target_timeline_start < TimelineTime::ZERO {
         return Err(ClipPlacementRejection::BeforeTimelineStart.into());
     }

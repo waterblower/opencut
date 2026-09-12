@@ -1,4 +1,4 @@
-use anyhow::Result;
+use anyhow::{Result, anyhow, bail};
 use std::{fmt, time::Duration};
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
@@ -25,14 +25,14 @@ impl SRT {
             }
             let mut lines = block.lines();
             if let Err(error) = lines.next().unwrap_or("").parse::<u64>() {
-                anyhow::bail!(
+                bail!(
                     "invalid_srt: invalid cue number: {error} at {}:{}",
                     file!(),
                     line!()
                 );
             }
             let Some((start, end)) = lines.next().unwrap_or("").split_once(" --> ") else {
-                anyhow::bail!(
+                bail!(
                     "invalid_srt: expected SRT time range at {}:{}",
                     file!(),
                     line!()
@@ -42,7 +42,7 @@ impl SRT {
             let end = Duration::from_millis(timestamp_ms(end)?);
             let text = lines.collect::<Vec<_>>().join("\n");
             if end <= start || text.trim().is_empty() {
-                anyhow::bail!(
+                bail!(
                     "invalid_srt: invalid cue duration or empty text at {}:{}",
                     file!(),
                     line!()
@@ -87,7 +87,7 @@ pub fn merge_srt_sections(srt: &SRT) -> Result<SRT> {
     for subtitle in &srt.subtitles {
         if let Some(previous) = merged.subtitles.last_mut() {
             if subtitle.start < previous.start {
-                anyhow::bail!(
+                bail!(
                     "invalid_srt: cues must be ordered by start time at {}:{}",
                     file!(),
                     line!()
@@ -115,7 +115,7 @@ fn timestamp_ms(timestamp: &str) -> Result<u64> {
             .iter()
             .all(|part| part.bytes().all(|byte| byte.is_ascii_digit()))
     {
-        return Err(anyhow::anyhow!(
+        return Err(anyhow!(
             "invalid_srt: {} at {}:{}",
             format!("invalid timestamp: {timestamp}"),
             file!(),
@@ -127,7 +127,7 @@ fn timestamp_ms(timestamp: &str) -> Result<u64> {
         *value = match part.parse::<u64>() {
             Ok(value) => value,
             Err(error) => {
-                return Err(anyhow::anyhow!(
+                return Err(anyhow!(
                     "invalid_srt: {} at {}:{}",
                     error,
                     file!(),
@@ -138,7 +138,7 @@ fn timestamp_ms(timestamp: &str) -> Result<u64> {
     }
     let [hours, minutes, seconds, millis] = values;
     if minutes >= 60 || seconds >= 60 {
-        return Err(anyhow::anyhow!(
+        return Err(anyhow!(
             "invalid_srt: {} at {}:{}",
             format!("invalid timestamp: {timestamp}"),
             file!(),
@@ -149,7 +149,7 @@ fn timestamp_ms(timestamp: &str) -> Result<u64> {
         .checked_mul(3_600_000)
         .and_then(|total| total.checked_add(minutes * 60_000 + seconds * 1000 + millis))
     else {
-        return Err(anyhow::anyhow!(
+        return Err(anyhow!(
             "invalid_srt: {} at {}:{}",
             format!("timestamp overflow: {timestamp}"),
             file!(),

@@ -1,3 +1,4 @@
+use anyhow::{bail};
 use super::*;
 use opencut_player::transcribe::{self, Format, Options, SRT};
 
@@ -9,10 +10,10 @@ pub async fn start_transcription(
     api_key: String,
 ) -> Result<SRT> {
     if !source.is_absolute() {
-        anyhow::bail!("transcription source must be an absolute file path");
+        bail!("transcription source must be an absolute file path");
     }
     if api_key.trim().is_empty() {
-        anyhow::bail!("Set your MiniMax API key in Settings before generating SRT");
+        bail!("Set your MiniMax API key in Settings before generating SRT");
     }
     let options = Options {
         format: Format::Srt,
