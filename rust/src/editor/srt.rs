@@ -20,8 +20,12 @@ pub fn write_srt(path: &Path, srt: &SRT) -> Result<()> {
 
 pub fn parse_srt_text_clips(contents: &str, frame_rate: FrameRate) -> Result<Vec<TextClip>> {
     let srt = SRT::from_string(contents)?;
+    srt_text_clips(&srt, frame_rate)
+}
+
+pub fn srt_text_clips(srt: &SRT, frame_rate: FrameRate) -> Result<Vec<TextClip>> {
     let mut clips = Vec::with_capacity(srt.subtitles.len());
-    for (index, subtitle) in srt.subtitles.into_iter().enumerate() {
+    for (index, subtitle) in srt.subtitles.iter().enumerate() {
         let length = subtitle.end - subtitle.start;
         if length.is_zero() {
             bail!(

@@ -4,6 +4,7 @@ use gpui::{
     Context, IntoElement, ParentElement, Render, SharedString, Styled, Window, div, px, rgb,
 };
 use ulid::Ulid;
+use opencut_player::transcribe::SRT;
 
 use crate::editor::{
     ACCENT, MediaAsset, MediaKind, TimelineTime,
@@ -31,13 +32,10 @@ pub enum AssetBeingDragged {
 }
 
 impl AssetBeingDragged {
-    pub fn from_file_entry(entry: &FileTreeEntry) -> Self {
+    pub fn from_file_entry(entry: &FileTreeEntry) -> anyhow::Result<Self> {
         let x = match entry.kind {
             FileTreeEntryKind::Video | FileTreeEntryKind::Image | FileTreeEntryKind::Audio => {
-                let metadata = match probe_asset(&entry.absolute_path) {
-                    Ok(metadata) => metadata,
-                    Err(_) => return Self::None,
-                };
+                let metadata = probe_asset(&entry.absolute_path)?;
                 Self::V1(AssetBeingDraggedV1 {
                     absolute_path: entry.absolute_path.clone(),
                     metadata,
@@ -46,15 +44,17 @@ impl AssetBeingDragged {
             FileTreeEntryKind::Directory { .. } | FileTreeEntryKind::Timeline => Self::None,
             FileTreeEntryKind::Other => {
                 if !is_srt_path(&entry.absolute_path) {
-                    return Self::None;
+                    return Ok(Self::None);
                 }
+                let text = read_to_string(&entry.absolute_path)?;
+                let srt = SRT::from_string(&text)?;
                 Self::Srt(DraggedSRT {
                     absolute_path: entry.absolute_path.clone(),
-                    text: read_to_string(&entry.absolute_path).unwrap_or_default(),
+                    srt,
                 })
             }
         };
-        return x;
+        Ok(x)
     }
 }
 
@@ -77,7 +77,7 @@ impl AssetBeingDraggedV1 {
 #[derive(Clone, Debug)]
 pub struct DraggedSRT {
     pub absolute_path: PathBuf,
-    pub text: String,
+    pub srt: SRT,
 }
 
 impl DraggedSRT {

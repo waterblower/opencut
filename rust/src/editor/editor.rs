@@ -243,8 +243,8 @@ fn handle_app_event(
                         let Some(timeline) = editor.timeline.as_mut() else {
                             return Ok(());
                         };
-                        let mut text_clips = super::srt::parse_srt_text_clips(
-                            &srt.text,
+                        let mut text_clips = super::srt::srt_text_clips(
+                            &srt.srt,
                             timeline.data.settings.frame_rate,
                         )?;
                         for clip in &mut text_clips {
