@@ -90,7 +90,6 @@ async fn run(
         Command::Transcribe {
             media_file,
             format,
-            timestamp_level,
             post_merge,
             language,
             output,
@@ -115,14 +114,10 @@ async fn run(
                     "set MINIMAX_API_KEY before transcribing"
                 ));
             };
-            let mut result = transcribe::transcribe(
+            let mut result = transcribe::transcribe_response(
                 &media_file,
                 api_key,
-                &transcribe::Options {
-                    format,
-                    timestamp_level,
-                    language,
-                },
+                &transcribe::Options { format, language },
             )
             .await?;
             if post_merge {
@@ -134,7 +129,12 @@ async fn run(
                         "expected SRT text"
                     ));
                 };
-                result = Value::String(opencut_player::cli::subtitles::merge_srt_sections(srt)?);
+                result = Value::String(
+                    opencut_player::cli::subtitles::merge_srt_sections(
+                        &opencut_player::transcribe::SRT::from_string(srt)?,
+                    )?
+                    .to_string(),
+                );
             }
             let Some(output) = output else {
                 return Ok(result);

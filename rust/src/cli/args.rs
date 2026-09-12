@@ -24,8 +24,6 @@ pub enum Command {
         media_file: PathBuf,
         #[arg(long, value_enum, default_value = "verbose_json")]
         format: opencut_player::cli::transcribe::Format,
-        #[arg(long, value_enum, default_value = "sentence")]
-        timestamp_level: opencut_player::cli::transcribe::TimestampLevel,
         /// Merge SRT cues separated by less than 100 ms (requires --format srt).
         #[arg(long)]
         post_merge: bool,

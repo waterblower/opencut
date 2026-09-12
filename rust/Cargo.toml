@@ -49,7 +49,7 @@ default = ["editor"]
 timeline = ["dep:serde", "dep:serde_json", "dep:serde_path_to_error", "dep:ulid"]
 timeline-schema = ["timeline", "dep:schemars"]
 cli = ["timeline-schema", "dep:clap", "dep:ffmpeg-next", "dep:image", "dep:cosmic-text", "dep:resvg", "transcribe"]
-transcribe = ["dep:ffmpeg-next", "dep:reqwest", "dep:serde_json", "dep:tokio"]
+transcribe = ["dep:anyhow", "dep:ffmpeg-next", "dep:reqwest", "dep:serde_json"]
 gpl = ["cli"]
 ffmpeg-backend = ["dep:anyhow", "dep:async-channel", "dep:ffmpeg-next", "dep:cpal", "dep:core-foundation", "dep:core-video"]
 ffmpeg-video = ["ffmpeg-backend", "dep:gpui", "dep:image", "dep:smallvec", "dep:log", "dep:core-foundation", "dep:core-video"]
@@ -64,7 +64,10 @@ player = [
     "dep:serde_json",
 ]
 editor = [
+    "dep:tokio",
+    "dep:gpui_tokio",
     "timeline",
+    "transcribe",
     "gstreamer-backend",
     "gpui/inspector",
     "dep:gpui-component",
@@ -114,6 +117,7 @@ gpui = {
   optional = true,
 }
 gpui_platform = { path = "vendor/zed/crates/gpui_platform", features = ["font-kit"], optional = true }
+gpui_tokio = { path = "vendor/zed/crates/gpui_tokio", optional = true }
 gpui-component = { git = "https://github.com/longbridge/gpui-component", rev = "7d0aaf55", optional = true }
 gstreamer = { version = "0.25", optional = true }
 gstreamer-app = { version = "0.25", optional = true }

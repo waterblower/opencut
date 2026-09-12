@@ -3069,6 +3069,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "gpui_tokio"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "gpui",
+ "gpui_util",
+ "tokio",
+]
+
+[[package]]
 name = "gpui_util"
 version = "0.1.0"
 dependencies = [
@@ -5405,6 +5415,7 @@ dependencies = [
  "gpui",
  "gpui-component",
  "gpui_platform",
+ "gpui_tokio",
  "gstreamer",
  "gstreamer-app",
  "gstreamer-audio",

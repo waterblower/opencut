@@ -130,7 +130,7 @@ Set `MINIMAX_API_KEY` in the environment before running it:
 ```sh
 cargo cli transcribe recording.mp4 --json
 cargo cli transcribe recording.wav --format srt -o subtitles.srt
-cargo cli transcribe recording.mp4 --format verbose_json --timestamp-level word --language zh
+cargo cli transcribe recording.mp4 --format verbose_json --language zh
 ```
 
 Local audio and video inputs are decoded with the vendored FFmpeg libraries. The
@@ -143,11 +143,9 @@ Input and output paths resolve from the working directory, not `--project-root`.
 
 `--format` accepts `json`, `verbose_json` (default), `srt`, or `vtt`.
 With `--format srt`, add `--post-merge` to merge consecutive cues whose gap is
-less than 100 ms before printing or saving. Combine with `--timestamp-level word`
-to group character/word cues. Text is concatenated and cues are renumbered.
+less than 100 ms before printing or saving. This groups character/word cues. Text is concatenated and cues are renumbered.
 Verbose JSON includes speaker labels, timestamps, and the provider trace ID.
-`--timestamp-level sentence|word` defaults to sentence and is ignored by MiniMax
-for plain `json`. Optional `--language` supplies a BCP-47 hint such as `zh`, `yue`,
+All requests use word-level timestamps (ignored by MiniMax for plain `json`). Optional `--language` supplies a BCP-47 hint such as `zh`, `yue`,
 or `en`; omitting it enables mixed-language recognition. Requests use `asr-1.0`
 with `stream=false`; streaming and automatic subtitle insertion are not included.
 SRT output can be imported using the editor's existing SRT support.
@@ -169,16 +167,15 @@ The shared [transcription module](../transcribe/mod.rs) provides
 dependencies. The CLI retains a re-export for existing callers.
 
 ```rust,no_run
-use opencut_player::transcribe::{self as transcribe, Format, Options, TimestampLevel};
+use opencut_player::transcribe::{self as transcribe, Format, Options};
 use std::path::Path;
 
-async fn example(api_key: &str) -> opencut_player::transcribe::error::Result<()> {
+async fn example(api_key: &str) -> anyhow::Result<()> {
     let result = transcribe::transcribe(Path::new("recording.mp4"), api_key, &Options {
-        format: Format::VerboseJson,
-        timestamp_level: TimestampLevel::Word,
+        format: Format::Srt,
         language: Some("zh".into()),
     }).await?;
-    // The result is the provider JSON object, or a JSON string for SRT/VTT.
+    // The result is a parsed SRT; Display serializes it to subtitle text.
     println!("{result}");
     Ok(())
 }

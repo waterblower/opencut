@@ -286,8 +286,7 @@ impl Editor {
             .expect("new timeline dialog rendered without state");
         let input = state.input.clone();
         let location = if state.relative_directory.as_os_str().is_empty() {
-            self
-                .project_root
+            self.project_root
                 .file_name()
                 .map(|name| name.to_string_lossy().into_owned())
                 .unwrap_or_else(|| "project root".to_string())

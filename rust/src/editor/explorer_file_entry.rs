@@ -54,7 +54,16 @@ impl Editor {
             .hover(|style| style.bg(rgb(SURFACE_HOVER)))
             .cursor(CursorStyle::OpenHand)
             .on_drag(entry.clone(), move |entry, _, _, app_cx| {
-                let asset = AssetBeingDragged::from_file_entry(entry);
+                let asset = match AssetBeingDragged::from_file_entry(entry) {
+                    Ok(asset) => asset,
+                    Err(error) => {
+                        log::error!(
+                            "could not drag {}: {error:?}",
+                            entry.absolute_path.display()
+                        );
+                        return app_cx.new(|_| AssetBeingDragged::None);
+                    }
+                };
                 event_bus.update(app_cx, |_, cx| {
                     cx.emit(AppEvent::DragStarted(asset.clone()));
                 });

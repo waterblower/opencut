@@ -17,8 +17,8 @@ pub(super) const FRAME_RATE_PRESETS: [(FrameRate, &str); 8] = [
     (FrameRate::new(60, 1), "60 fps"),
 ];
 
-pub(super) struct TimelineRuntimeState {
-    pub(super) path: PathBuf,
+pub struct TimelineRuntimeState {
+    pub path: PathBuf,
     pub(super) video_backend: TimelineVideoBackend,
     pub(super) h_scroll: ScrollHandle,
     pub(super) v_scroll: ScrollHandle,
@@ -27,7 +27,7 @@ pub(super) struct TimelineRuntimeState {
     pub(super) redo_stack: Vec<TimelineSerialization>,
     pub(super) preview_drop_asset: Option<PreviewDropAsset>,
     // serialized data
-    pub(super) data: TimelineSerialization,
+    pub data: TimelineSerialization,
 }
 
 #[derive(Debug)]

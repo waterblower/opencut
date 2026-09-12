@@ -1,7 +1,7 @@
 use super::*;
 use crate::{
     asset::IconName,
-    editor::{srt::parse_srt_text_clips, timeline_clip::text_clip_component},
+    editor::{srt::srt_text_clips, timeline_clip::text_clip_component},
 };
 use gpui::{Bounds, canvas, fill, point, rgba, size};
 use std::sync::Arc;
@@ -560,10 +560,7 @@ fn preview_drop_asset(
     return match &preview.asset {
         AssetBeingDragged::None => None,
         AssetBeingDragged::Srt(srt) => {
-            let clips = match parse_srt_text_clips(&srt.text, timeline.settings.frame_rate) {
-                Ok(clips) => clips,
-                Err(_) => return None,
-            };
+            let clips = srt_text_clips(&srt.srt, timeline.settings.frame_rate);
             let previews = clips
                 .into_iter()
                 .map(|mut clip| {
