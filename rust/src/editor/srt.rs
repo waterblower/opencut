@@ -1,6 +1,6 @@
+use anyhow::{Result, bail};
 use std::path::Path;
 
-use anyhow::Result;
 use opencut_player::transcribe::SRT;
 use ulid::Ulid;
 
@@ -8,7 +8,7 @@ use crate::editor::{FrameRate, TextClip, TextClipProperties};
 
 pub fn write_srt(path: &Path, srt: &SRT) -> Result<()> {
     if !path.is_absolute() {
-        anyhow::bail!(
+        bail!(
             "SRT output path must be absolute at {}:{}",
             file!(),
             line!()

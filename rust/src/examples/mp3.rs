@@ -22,7 +22,7 @@
 //! Two execution paths work together: the main thread decodes ahead, while
 //! CPAL repeatedly calls our callback to request the next buffer of sound.
 //! Channels carry owned sample blocks forward and completion/errors backward.
-use anyhow::{Context, Result, bail};
+use anyhow::{Context, Error, Result, bail};
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use ffmpeg_next as ffmpeg;
 use std::sync::mpsc::{Receiver, SyncSender, TryRecvError, TrySendError, sync_channel};
@@ -152,7 +152,7 @@ fn run() -> Result<()> {
                 break;
             }
             Err(error) => {
-                return Err(anyhow::Error::new(error).context(at!("Reading packet")));
+                return Err(Error::new(error).context(at!("Reading packet")));
             }
         }
         // Take every frame currently available before sending the next packet.
@@ -305,7 +305,7 @@ fn receive(
             // EAGAIN means "send more input before asking for more output".
             // This is normal flow control, not a damaged-file error.
             Err(ffmpeg::Error::Other { errno }) if errno == ffmpeg::error::EAGAIN => return Ok(()),
-            Err(error) => return Err(anyhow::Error::new(error).context(at!("Decoding audio"))),
+            Err(error) => return Err(Error::new(error).context(at!("Decoding audio"))),
         }
         // Some files omit speaker positions. Supply a conventional layout
         // based on channel count so the resampler has a usable description.

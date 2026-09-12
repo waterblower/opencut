@@ -1,4 +1,4 @@
-use anyhow::{Context as _, Result};
+use anyhow::{Context as _, Error, Result};
 use ffmpeg_next as ffmpeg;
 
 #[cfg(target_os = "macos")]
@@ -94,7 +94,7 @@ impl Decompression {
                     Err(ffmpeg::Error::Other { errno }) if errno == ffmpeg::error::EAGAIN => {
                         Ok(None)
                     }
-                    Err(error) => Err(anyhow::Error::new(error).context(format!(
+                    Err(error) => Err(Error::new(error).context(format!(
                         "Decoding software video at {}:{}",
                         file!(),
                         line!()

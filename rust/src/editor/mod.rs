@@ -46,6 +46,7 @@ mod settings;
 mod srt;
 pub use srt::write_srt;
 mod timeline;
+pub mod timeline_audio;
 mod timeline_clip;
 mod timeline_clip_menu;
 mod timeline_document;
@@ -314,7 +315,7 @@ impl Editor {
         relative_path: PathBuf,
         timeline: TimelineSerialization,
         cx: &mut Context<Self>,
-    ) -> anyhow::Result<()> {
+    ) -> Result<()> {
         if let Some(active_timeline) = self.timeline.as_ref() {
             active_timeline.save(&self.project_root);
         }
@@ -351,6 +352,7 @@ impl Editor {
                 &active_timeline,
                 &self.project_root,
                 export::ExportOptions::from_timeline(&active_timeline),
+                false,
             )?;
             self.timeline = Some(
                 TimelineRuntimeState::new(timeline_path, active_timeline, ges_timeline)

@@ -32,3 +32,14 @@ From the repository root, run module tests with:
 ```sh
 bash rust/scripts/cargo-cli.sh test --locked --no-default-features --features transcribe --lib
 ```
+
+The editor also supports Generate SRT for saved timeline files. It resolves media
+against the event's project root and renders only audio through GES into an
+in-memory mono 16 kHz PCM WAV. Track/clip mute, gain, trims, overlaps, and timeline
+silence are preserved. Empty timelines, timelines without enabled audio, and
+timelines longer than 500 seconds are rejected before rendering.
+
+Call `transcribe_wav(wav, api_key, &Options).await` to transcribe normalized WAV
+bytes directly. It validates the WAV format and duration before uploading and
+returns parsed SRT. The editor merges cues and writes only the final SRT to the
+project root; it creates no intermediate audio files.

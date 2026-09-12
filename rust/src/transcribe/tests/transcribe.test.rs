@@ -204,3 +204,51 @@ fn server(status: u16, body: Vec<u8>, delay: Duration) -> (String, JoinHandle<Ve
     });
     (url, handle)
 }
+
+#[tokio::test]
+async fn memory_audio_rejects_invalid_and_overlong_wav_before_upload() {
+    let options = Options::default();
+    assert!(transcribe_wav(vec![], "test-key", &options).await.is_err());
+    let mut wav = audio::write_wav_header(vec![0; 44 + 320]).unwrap();
+    wav[24] = 0;
+    assert!(
+        transcribe_wav(wav, "test-key", &options)
+            .await
+            .unwrap_err()
+            .to_string()
+            .contains("PCM WAV")
+    );
+    let wav = audio::write_wav_header(vec![0; 44 + 500 * 32_000 + 2]).unwrap();
+    assert!(
+        transcribe_wav(wav, "test-key", &options)
+            .await
+            .unwrap_err()
+            .to_string()
+            .contains("audio_too_long")
+    );
+}
+
+#[tokio::test]
+async fn uploads_memory_wav_and_parses_mergeable_srt() {
+    let body =
+        "1\n00:00:00,000 --> 00:00:00,100\nhello \n\n2\n00:00:00,100 --> 00:00:00,200\nworld\n";
+    let (url, server) = server(200, body.as_bytes().to_vec(), Duration::ZERO);
+    let wav = audio::write_wav_header(vec![0; 44 + 6400]).unwrap();
+    let response = request(
+        &client(),
+        &url,
+        "test-key",
+        wav.clone(),
+        &Options {
+            format: Format::Srt,
+            language: None,
+        },
+    )
+    .await
+    .unwrap();
+    let srt = SRT::from_string(response.as_str().unwrap()).unwrap();
+    let merged = subtitles::merge_srt_sections(&srt).unwrap();
+    assert_eq!(merged.subtitles[0].text, "hello world");
+    let received = server.join().unwrap();
+    assert!(received.windows(wav.len()).any(|part| part == wav));
+}
