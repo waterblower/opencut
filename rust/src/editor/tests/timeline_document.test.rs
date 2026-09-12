@@ -14,7 +14,7 @@ fn opening_an_empty_root_does_not_create_a_timeline() {
     let root = temporary_project_root();
     fs::create_dir_all(&root).unwrap();
 
-    assert!(load_existing_timeline(&root.join("missing.timeline.json")).is_err());
+    assert!(TimelineSerialization::load(&root.join("missing.timeline.json")).is_err());
     assert!(project_timeline_files(&root).unwrap().is_empty());
     fs::remove_dir_all(root).unwrap();
 }
@@ -49,7 +49,7 @@ fn creates_named_timelines_inside_a_subdirectory() {
         project_timeline_files(&root).unwrap(),
         vec![opening.clone()]
     );
-    load_existing_timeline(&root.join(&opening)).unwrap();
+    TimelineSerialization::load(&root.join(&opening)).unwrap();
 
     fs::remove_dir_all(root).unwrap();
 }
@@ -119,9 +119,9 @@ fn preferred_timeline_is_loaded() {
     second.save(&root.join(&second_path)).unwrap();
 
     fs::write(root.join("._episode.timeline.json"), b"not JSON").unwrap();
-    let loaded = load_existing_timeline(&root.join(&second_path)).unwrap();
-    assert!(load_existing_timeline(&root.join("missing.timeline.json")).is_err());
-    assert!(load_existing_timeline(&second_path).is_err());
+    let loaded = TimelineSerialization::load(&root.join(&second_path)).unwrap();
+    assert!(TimelineSerialization::load(&root.join("missing.timeline.json")).is_err());
+    assert!(TimelineSerialization::load(&second_path).is_err());
     assert_eq!(loaded.settings.width, 1280);
     fs::remove_dir_all(root).unwrap();
 }
