@@ -59,35 +59,13 @@ fn run_app(cx: &mut App) {
         cx,
     );
     cx.subscribe(&event_bus, move |event_bus, event, cx| match event {
-        AppEvent::Transcribe { project_path } => {
+        AppEvent::Transcribe { source_path } => {
             let api_key = GlobalEditorSettings::load().minimax_api_key;
-            let prepared = window.update(cx, |editor, _, cx| {
-                editor.dismiss_context_menu();
-                cx.notify();
-
-                let snapshot = match editor.timeline.as_ref() {
-                    Some(timeline) if timeline.path == *project_path => Some(timeline.data.clone()),
-                    _ => None,
-                };
-                (editor.project_root.clone(), snapshot)
-            });
-            let (project_root, timeline_snapshot) = match prepared {
-                Ok(request) => request,
-                Err(error) => {
-                    log::error!(
-                        "could not prepare transcription: {error:?} at {}:{}",
-                        file!(),
-                        line!()
-                    );
-                    return;
-                }
-            };
             let task = gpui_tokio::Tokio::spawn(
                 cx,
                 editor::transcription::start_transcription(
                     project_root,
-                    project_path.clone(),
-                    timeline_snapshot,
+                    source_path.clone(),
                     api_key,
                 ),
             );
