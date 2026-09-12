@@ -117,12 +117,19 @@ pub fn configure_text_clip(
     Ok(())
 }
 
-pub(super) fn build_ges_timeline(
+pub fn build_ges_timeline(
     timeline_data: &TimelineSerialization,
     project_root: &Path,
     options: ExportOptions,
+    audio_only: bool,
 ) -> anyhow::Result<ges::Timeline> {
-    let timeline = ges::Timeline::new_audio_video();
+    let timeline = if audio_only {
+        let timeline = ges::Timeline::new();
+        timeline.add_track(&ges::AudioTrack::new())?;
+        timeline
+    } else {
+        ges::Timeline::new_audio_video()
+    };
     let video_caps = gst::Caps::builder("video/x-raw")
         .field("width", options.width.max(2) as i32)
         .field("height", options.height.max(2) as i32)
@@ -155,6 +162,9 @@ pub(super) fn build_ges_timeline(
         )
     {
         let layer = timeline.append_layer();
+        if audio_only && timeline_track.kind == TrackKind::Text {
+            continue;
+        }
         if timeline_track.kind == TrackKind::Text {
             if !timeline_track.visible {
                 continue;
@@ -225,8 +235,11 @@ pub(super) fn build_ges_timeline(
             let asset = timeline_data
                 .asset(media.asset_id)
                 .ok_or_else(|| anyhow::anyhow!("Clip {} has no source media.", clip.id()))?;
-            let track_types =
+            let mut track_types =
                 exported_track_types(timeline_track, clip, asset.kind, asset.has_audio);
+            if audio_only {
+                track_types &= ges::TrackType::AUDIO;
+            }
             if track_types.is_empty() {
                 continue;
             }
@@ -289,7 +302,7 @@ pub(super) fn build_ges_timeline(
         }
     }
     let content_duration = timeline_data.duration(timeline_data.content_duration());
-    if !content_duration.is_zero() {
+    if !audio_only && !content_duration.is_zero() {
         // Appended layers have lower visual precedence, so this preserves the
         // timeline duration and supplies black frames without covering media.
         let background_layer = timeline.append_layer();
@@ -369,7 +382,7 @@ fn export_timeline_with_encoder(
     encoder: ExportEncoder,
     report_progress: &mut impl FnMut(f32),
 ) -> anyhow::Result<()> {
-    let timeline = build_ges_timeline(timeline_data, project_root, options)?;
+    let timeline = build_ges_timeline(timeline_data, project_root, options, false)?;
     let profile = encoding_profile(options);
     let _encoder_selection = EncoderSelection::for_export(encoder)?;
     let pipeline = ges::Pipeline::new();

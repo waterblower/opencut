@@ -79,6 +79,42 @@ pub async fn transcribe_response(path: &Path, api_key: &str, options: &Options) 
         ));
     }
     let wav = extract_audio_as_wav(path)?;
+    transcribe_wav_response(wav, api_key, options).await
+}
+
+/// Transcribe normalized mono 16 kHz PCM WAV bytes without filesystem access.
+pub async fn transcribe_wav(wav: Vec<u8>, api_key: &str, options: &Options) -> Result<SRT> {
+    let options = Options {
+        format: Format::Srt,
+        language: options.language.clone(),
+    };
+    let response = transcribe_wav_response(wav, api_key, &options).await?;
+    let Some(text) = response.as_str() else {
+        anyhow::bail!("expected SRT response at {}:{}", file!(), line!());
+    };
+    SRT::from_string(text)
+}
+
+async fn transcribe_wav_response(wav: Vec<u8>, api_key: &str, options: &Options) -> Result<Value> {
+    if api_key.trim().is_empty() {
+        anyhow::bail!(
+            "missing_api_key: an API key is required at {}:{}",
+            file!(),
+            line!()
+        );
+    }
+    if wav.len() <= 44 || wav.len() % 2 != 0 {
+        anyhow::bail!("invalid WAV data at {}:{}", file!(), line!());
+    }
+    let header = wav[..44].to_vec();
+    let wav = audio::write_wav_header(wav)?;
+    if header != wav[..44] {
+        anyhow::bail!(
+            "expected mono 16 kHz 16-bit PCM WAV at {}:{}",
+            file!(),
+            line!()
+        );
+    }
     // Extraction produces a 44-byte header followed by mono 16 kHz, 16-bit PCM.
     let audio_bytes = wav.len() - 44;
     if audio_bytes > 500 * 16_000 * 2 {
