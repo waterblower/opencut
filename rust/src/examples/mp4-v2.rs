@@ -22,7 +22,7 @@
 //!
 //! Subtitles, rotation metadata, and scrubbing are still omitted.
 
-use anyhow::{Context as _, Result, bail};
+use anyhow::{Context as _, Error, Result, bail};
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use ffmpeg_next as ffmpeg;
 use gpui::{
@@ -749,7 +749,7 @@ fn decode(
         };
         let stream = output(&device, &config, receiver, reporter, timeline.clone())?;
         stream.play().context(at!("Starting audio"))?;
-        Ok::<_, anyhow::Error>(Some(Audio {
+        Ok::<_, Error>(Some(Audio {
             index,
             decoder,
             resampler,
@@ -796,7 +796,7 @@ fn decode(
                 Ok(()) => {}
                 Err(ffmpeg::Error::Eof) => break,
                 Err(error) => {
-                    return Err(anyhow::Error::new(error).context(at!("Reading media packet")));
+                    return Err(Error::new(error).context(at!("Reading media packet")));
                 }
             }
             if packet.stream() == track.index {
@@ -895,7 +895,7 @@ fn receive_video(
             Err(ffmpeg::Error::Eof) => return Ok(()),
             Err(ffmpeg::Error::Other { errno }) if errno == ffmpeg::error::EAGAIN => return Ok(()),
             Err(error) => {
-                return Err(anyhow::Error::new(error).context(at!("Decoding video frame")));
+                return Err(Error::new(error).context(at!("Decoding video frame")));
             }
         }
         let time = track.seconds(decoded.timestamp(), *next_time);
@@ -960,7 +960,7 @@ fn locate(
                     break;
                 }
                 Err(error) => {
-                    return Err(anyhow::Error::new(error).context(at!("Reading while seeking")));
+                    return Err(Error::new(error).context(at!("Reading while seeking")));
                 }
             }
             if packet.stream() != track.index {
@@ -979,9 +979,7 @@ fn locate(
                     }
                     Err(ffmpeg::Error::Other { errno }) if errno == ffmpeg::error::EAGAIN => break,
                     Err(error) => {
-                        return Err(
-                            anyhow::Error::new(error).context(at!("Decoding while seeking"))
-                        );
+                        return Err(Error::new(error).context(at!("Decoding while seeking")));
                     }
                 }
                 // receive_frame hands back presentation order, so the last
@@ -1263,7 +1261,7 @@ fn receive(
             Ok(()) => {}
             Err(ffmpeg::Error::Eof) => return Ok(()),
             Err(ffmpeg::Error::Other { errno }) if errno == ffmpeg::error::EAGAIN => return Ok(()),
-            Err(error) => return Err(anyhow::Error::new(error).context(at!("Decoding audio"))),
+            Err(error) => return Err(Error::new(error).context(at!("Decoding audio"))),
         }
         let decoded_layout = layout(decoder.channels(), decoded.channel_layout());
         decoded.set_channel_layout(decoded_layout);

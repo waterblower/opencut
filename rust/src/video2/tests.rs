@@ -1,4 +1,5 @@
 use super::*;
+use anyhow::anyhow;
 use std::{
     future::Future,
     path::PathBuf,
@@ -290,7 +291,7 @@ fn playback_after_seek_keeps_the_lookahead_frame() -> Result<()> {
 fn terminal_errors_are_reported_without_an_update_call() -> Result<()> {
     let fixture = Fixture::new("0")?;
     let mut backend = VideoBackend::open_sync(&fixture.0)?;
-    lock(&backend.shared).fail(&anyhow::anyhow!(
+    lock(&backend.shared).fail(&anyhow!(
         "Injected decoder failure at {}:{}",
         file!(),
         line!()

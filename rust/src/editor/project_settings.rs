@@ -1,4 +1,4 @@
-use anyhow::Context as _;
+use anyhow::{Context as _, Result, bail};
 use serde::{Deserialize, Serialize};
 use std::{
     fs,
@@ -37,10 +37,10 @@ pub fn load_project_local_settings(project_root: &Path) -> ProjectLocalSettings 
 pub fn save_project_local_settings(
     project_root: &Path,
     settings: &ProjectLocalSettings,
-) -> anyhow::Result<()> {
+) -> Result<()> {
     let path = project_local_settings_path(project_root);
     let Some(directory) = path.parent() else {
-        anyhow::bail!(
+        bail!(
             "project-local settings path had no parent directory at {}:{}",
             file!(),
             line!()

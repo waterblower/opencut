@@ -1,3 +1,4 @@
+use anyhow::Error as AnyhowError;
 use serde::Serialize;
 use std::fmt;
 
@@ -46,8 +47,8 @@ impl fmt::Display for Error {
 
 impl std::error::Error for Error {}
 
-impl From<anyhow::Error> for Error {
-    fn from(error: anyhow::Error) -> Self {
+impl From<AnyhowError> for Error {
+    fn from(error: AnyhowError) -> Self {
         Self::new(
             "transcription_error",
             "",

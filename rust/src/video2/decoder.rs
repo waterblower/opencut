@@ -1,3 +1,4 @@
+use anyhow::{Context as _, Error, Result, bail};
 use std::{
     collections::VecDeque,
     path::Path,
@@ -6,7 +7,6 @@ use std::{
     time::{Duration, Instant},
 };
 
-use anyhow::{Context as _, Result, bail};
 use ffmpeg_next as ffmpeg;
 
 use super::decompression::Decompression;
@@ -227,7 +227,7 @@ pub fn run(
                 media.eof = true;
             }
             Err(error) => {
-                return Err(anyhow::Error::new(error).context(format!(
+                return Err(Error::new(error).context(format!(
                     "Reading media packet at {}:{}",
                     file!(),
                     line!()
@@ -600,7 +600,7 @@ fn locate(
                 draining = true;
             }
             Err(error) => {
-                return Err(anyhow::Error::new(error).context(format!(
+                return Err(Error::new(error).context(format!(
                     "Reading media while seeking at {}:{}",
                     file!(),
                     line!()

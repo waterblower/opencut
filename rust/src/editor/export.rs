@@ -1,4 +1,5 @@
 use super::timeline::{FrameRate, TimelineSerialization};
+use anyhow::Result;
 use std::path::Path;
 
 pub(super) const DEFAULT_VIDEO_BIT_RATE: usize = 8_000_000;
@@ -60,7 +61,7 @@ pub(super) fn export_timeline(
     output: &Path,
     options: ExportOptions,
     report_progress: impl FnMut(f32),
-) -> anyhow::Result<()> {
+) -> Result<()> {
     super::export_gstreamer::export_timeline(
         timeline,
         project_root,

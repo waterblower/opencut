@@ -1,3 +1,4 @@
+use anyhow::Result;
 use std::{fs::read_to_string, path::PathBuf};
 
 use gpui::{
@@ -32,7 +33,7 @@ pub enum AssetBeingDragged {
 }
 
 impl AssetBeingDragged {
-    pub fn from_file_entry(entry: &FileTreeEntry) -> anyhow::Result<Self> {
+    pub fn from_file_entry(entry: &FileTreeEntry) -> Result<Self> {
         let x = match entry.kind {
             FileTreeEntryKind::Video | FileTreeEntryKind::Image | FileTreeEntryKind::Audio => {
                 let metadata = probe_asset(&entry.absolute_path)?;

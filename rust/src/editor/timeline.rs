@@ -47,12 +47,12 @@ pub fn timeline_ranges_overlap(
 }
 pub trait TimelineEditorExt: Sized {
     fn load(path: &Path) -> Result<Self>;
-    fn save(&self, path: &Path) -> anyhow::Result<()>;
+    fn save(&self, path: &Path) -> Result<()>;
     fn validate_clip_move_placements(
         &self,
         placements: &[(Ulid, Ulid, TimelineTime)],
         ignored_clip_ids: &HashSet<Ulid>,
-    ) -> anyhow::Result<()>;
+    ) -> Result<()>;
     fn set_frame_rate(&mut self, frame_rate: FrameRate);
     fn repair_and_prune_invalid_data(&mut self);
 }
@@ -84,7 +84,7 @@ impl TimelineEditorExt for TimelineSerialization {
         timeline.repair_and_prune_invalid_data();
         Ok(timeline)
     }
-    fn save(&self, path: &Path) -> anyhow::Result<()> {
+    fn save(&self, path: &Path) -> Result<()> {
         let Some(directory) = path.parent() else {
             return Err(anyhow!(
                 "timeline path has no parent directory at {}:{}",
@@ -134,7 +134,7 @@ impl TimelineEditorExt for TimelineSerialization {
         &self,
         placements: &[(Ulid, Ulid, TimelineTime)],
         ignored_clip_ids: &HashSet<Ulid>,
-    ) -> anyhow::Result<()> {
+    ) -> Result<()> {
         if placements.is_empty() {
             return Err(ClipPlacementRejection::NoPlacements.into());
         }
@@ -310,7 +310,7 @@ impl TimelineRuntimeState {
         path: PathBuf,
         data: TimelineSerialization,
         ges_timeline: gstreamer_editing_services::Timeline,
-    ) -> anyhow::Result<Self> {
+    ) -> Result<Self> {
         let scroll = ScrollHandle::new();
         scroll.set_offset(point(px(-data.view.horizontal_scroll), px(0.0)));
         let vertical_scroll = ScrollHandle::new();

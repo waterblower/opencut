@@ -1,3 +1,4 @@
+use anyhow::{Result, bail};
 use serde::{Deserialize, Serialize};
 use std::{fs, path::PathBuf};
 
@@ -13,7 +14,7 @@ impl GlobalEditorSettings {
         load_settings(&settings_path(), &PathBuf::from(env!("CARGO_MANIFEST_DIR")))
     }
 
-    pub fn save(&self) -> anyhow::Result<()> {
+    pub fn save(&self) -> Result<()> {
         save_settings(&settings_path(), self)
     }
 }
@@ -34,10 +35,10 @@ fn load_settings(path: &std::path::Path, default_root: &std::path::Path) -> Glob
     }
 }
 
-fn save_settings(path: &std::path::Path, settings: &GlobalEditorSettings) -> anyhow::Result<()> {
+fn save_settings(path: &std::path::Path, settings: &GlobalEditorSettings) -> Result<()> {
     if let Some(directory) = path.parent() {
         if let Err(error) = fs::create_dir_all(directory) {
-            anyhow::bail!(
+            bail!(
                 "could not create {}: {error} at {}:{}",
                 directory.display(),
                 file!(),
@@ -47,14 +48,14 @@ fn save_settings(path: &std::path::Path, settings: &GlobalEditorSettings) -> any
     }
     let json = match serde_json::to_string_pretty(settings) {
         Ok(json) => json,
-        Err(error) => anyhow::bail!(
+        Err(error) => bail!(
             "could not serialize global settings: {error} at {}:{}",
             file!(),
             line!()
         ),
     };
     if let Err(error) = fs::write(&path, format!("{json}\n")) {
-        anyhow::bail!(
+        bail!(
             "could not write {}: {error} at {}:{}",
             path.display(),
             file!(),

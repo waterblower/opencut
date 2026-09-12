@@ -62,6 +62,9 @@
   functions instead of logging it there. Log the error only at the highest-level
   application, event, or task boundary.
 - Always use debug formatting (`{error:?}`) when logging errors.
+- Import anyhow helpers explicitly and use unqualified names such as `anyhow!`,
+  `bail!`, `Result`, and `Error`. Use an import alias when a name conflicts with
+  another type. Do not change vendored dependency code to enforce this rule.
 - When refactoring or adding error-handling code, always include `file!()` and
   `line!()` information in every newly added error context.
 - Functions and methods should accept only the data they use. Prefer passing the
