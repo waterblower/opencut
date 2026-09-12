@@ -51,6 +51,7 @@ impl Editor {
                     &timeline_data,
                     &project_root,
                     export::ExportOptions::from_timeline(&timeline_data),
+                    false,
                 )
                 .with_context(|| format!("build_ges_timeline failed at {}:{}", file!(), line!()))?;
                 let timeline =

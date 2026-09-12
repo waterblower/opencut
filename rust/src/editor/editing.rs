@@ -1015,6 +1015,7 @@ pub(super) fn edit_and_rebuild_timeline(
         &timeline.data,
         project_root,
         export::ExportOptions::from_timeline(&timeline.data),
+        false,
     )?;
 
     let previous_playhead = timeline.playhead();
