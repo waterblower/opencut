@@ -113,16 +113,18 @@ fn recipe_rejects_bad_decisions_and_reports_locations() {
         *value_recipe.pointer_mut(pointer).unwrap() = value;
         let recipe: Recipe = serde_json::from_value(value_recipe).unwrap();
         let error = assemble::compile(&recipe, &metadata()).unwrap_err();
-        assert_eq!(error.code, code, "{pointer}: {error}");
-        assert!(!error.pointer.is_empty());
-        assert!(error.line > 0 && !error.file.is_empty());
+        assert!(error.to_string().contains(code), "{pointer}: {error}");
+        assert!(error.to_string().contains("(/"), "{error}");
+        assert!(error.to_string().contains(" at "));
     }
     let recipe: Recipe = serde_json::from_value(recipe()).unwrap();
     let mut media = metadata();
     media[1].streams.push(stream("video"));
-    assert_eq!(
-        assemble::compile(&recipe, &media).unwrap_err().code,
-        "unsupported_streams"
+    assert!(
+        assemble::compile(&recipe, &media)
+            .unwrap_err()
+            .to_string()
+            .contains("unsupported_streams")
     );
     let mut value = serde_json::to_value(recipe).unwrap();
     value["captions"] = json!([]);
@@ -152,9 +154,11 @@ fn fractional_quantization_reports_adjustments_and_checks_overflow() {
     value["time_base"] = json!({"numerator":u32::MAX,"denominator":1});
     value["sources"][1]["source_offset"] = json!(i64::MAX);
     let recipe: Recipe = serde_json::from_value(value).unwrap();
-    assert_eq!(
-        assemble::compile(&recipe, &metadata()).unwrap_err().code,
-        "time_overflow"
+    assert!(
+        assemble::compile(&recipe, &metadata())
+            .unwrap_err()
+            .to_string()
+            .contains("time_overflow")
     );
 }
 
@@ -167,15 +171,19 @@ fn single_camera_and_stream_duration_coverage() {
     assert_eq!(doc.clips.len(), 4);
     let mut media = metadata();
     media[1].streams[0].duration = Some(4.5);
-    assert_eq!(
-        assemble::compile(&recipe, &media).unwrap_err().code,
-        "source_out_of_bounds"
+    assert!(
+        assemble::compile(&recipe, &media)
+            .unwrap_err()
+            .to_string()
+            .contains("source_out_of_bounds")
     );
     let mut media = metadata();
     media[0].streams[0].duration = Some(3.5);
-    assert_eq!(
-        assemble::compile(&recipe, &media).unwrap_err().code,
-        "source_out_of_bounds"
+    assert!(
+        assemble::compile(&recipe, &media)
+            .unwrap_err()
+            .to_string()
+            .contains("source_out_of_bounds")
     );
 }
 
@@ -282,7 +290,12 @@ fn cli_assembles_previews_and_renders_without_overwriting_inputs() {
                 "--json",
             ],
         );
-        assert_eq!(decode(&result)["error"]["code"], "output_is_source");
+        assert!(
+            decode(&result)["error"]["message"]
+                .as_str()
+                .unwrap()
+                .contains("output_is_source")
+        );
     }
     value["cameras"] = json!([]);
     fs::write(&input, serde_json::to_vec(&value).unwrap()).unwrap();

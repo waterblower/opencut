@@ -12,7 +12,8 @@ cp "$CARGO_TARGET_DIR/release/opencut" "$cli_stage/opencut"
 cli_size="$(stat -f %z "$cli_stage/opencut")"
 [[ "$cli_size" -le 100000000 ]] || { echo "Binary exceeds 100 MB: $cli_size" >&2; exit 1; }
 otool -L "$cli_stage/opencut"
-cp "$cli_root/src/cli/README.md" "$cli_root/src/cli/llms.txt" "$cli_stage/"
+cp "$cli_root/src/cli/README.md" "$cli_stage/"
+"$cli_stage/opencut" doc > "$cli_stage/llms.txt"
 cp "$cli_root/vendor/zed/assets/fonts/ibm-plex-sans/license.txt" "$cli_stage/font-license.txt"
 cp "$cli_prefix/LICENSE.md" "$cli_prefix/COPYING.GPLv2" "$cli_prefix/COPYING.GPLv3" "$cli_prefix/COPYING.LGPLv2.1" "$cli_prefix/COPYING.LGPLv3" "$cli_stage/"
 tar -czf "$cli_stage.tar.gz" -C "$cli_stage" .

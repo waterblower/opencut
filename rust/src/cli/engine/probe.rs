@@ -227,11 +227,9 @@ pub fn inspect_assets(
         let path = base.join(&asset.path);
         let p = match probe(&path) {
             Ok(p) => p,
-            Err(mut e) => {
-                e.pointer = format!("/assets/{i}/path");
-                e.message = format!("{}: {}", path.display(), e.message);
+            Err(e) => {
                 findings.push(crate::cli::validate::Finding {
-                    error: e,
+                    error: e.context(format!("/assets/{i}/path ({}), at {}:{}", path.display(), file!(), line!())),
                     fix_hint: None,
                 });
                 continue;

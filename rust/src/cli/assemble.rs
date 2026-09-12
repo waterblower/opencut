@@ -76,9 +76,8 @@ pub fn run(
     for (i, source) in recipe.sources.iter().enumerate() {
         let info = match probe::probe(&base.join(&source.path)) {
             Ok(info) => info,
-            Err(mut error) => {
-                error.pointer = format!("/sources/{i}/path");
-                return Err(error);
+            Err(error) => {
+                return Err(error.context(format!("/sources/{i}/path at {}:{}", file!(), line!())));
             }
         };
         media.push(info);

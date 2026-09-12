@@ -7,12 +7,20 @@ use serde::Serialize;
 use std::collections::{HashMap, HashSet};
 use ulid::Ulid;
 
-#[derive(Debug, Serialize)]
+#[derive(Debug)]
 pub struct Finding {
-    #[serde(flatten)]
     pub error: Error,
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub fix_hint: Option<String>,
+}
+
+impl Serialize for Finding {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error> {
+        use serde::ser::SerializeStruct;
+        let mut state = serializer.serialize_struct("Finding", 2)?;
+        state.serialize_field("message", &format!("{:#}", self.error))?;
+        state.serialize_field("fix_hint", &self.fix_hint)?;
+        state.end()
+    }
 }
 
 #[derive(Clone, Debug)]
