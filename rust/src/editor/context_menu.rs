@@ -48,6 +48,9 @@ impl Editor {
         let can_create_timeline = menu.is_directory;
         let can_open_timeline_settings =
             !menu.is_directory && timeline_document::is_timeline_path(&menu.relative_path);
+        let can_transcribe = !menu.is_directory
+            && (explorer::is_video_path(&menu.relative_path)
+                || explorer::is_audio_path(&menu.relative_path));
         let can_rename = !menu.relative_path.as_os_str().is_empty();
         let can_trash = can_rename
             && !self
@@ -55,6 +58,7 @@ impl Editor {
                 .as_ref()
                 .is_some_and(|timeline| timeline.path.starts_with(&menu.relative_path));
         let height = 92.0
+            + if can_transcribe { 40.0 } else { 0.0 }
             + if can_create_timeline { 40.0 } else { 0.0 }
             + if can_open_timeline_settings {
                 40.0
@@ -114,6 +118,23 @@ impl Editor {
                                 },
                             )),
                         )
+                    })
+                    .when(can_transcribe, |this| {
+                        let source_path = self.project_root.join(&menu.relative_path);
+                        let project_root = self.project_root.clone();
+                        let event_bus = self.event_bus.clone();
+                        this.child(file_menu_item("Generate SRT", "").on_click(cx.listener(
+                            move |editor, _, _, cx| {
+                                editor.dismiss_context_menu();
+                                cx.notify();
+                                event_bus.update(cx, |_, cx| {
+                                    cx.emit(AppEvent::Transcribe {
+                                        source_path: source_path.clone(),
+                                        project_root: project_root.clone(),
+                                    });
+                                });
+                            },
+                        )))
                     })
                     .when(can_open_timeline_settings, |this| {
                         let timeline_path = menu.relative_path.clone();
@@ -192,7 +213,7 @@ impl Editor {
         cx.notify();
     }
 
-    pub(super) fn dismiss_context_menu(&mut self) {
+    pub fn dismiss_context_menu(&mut self) {
         self.context_menu = ContextMenu::None;
     }
 
