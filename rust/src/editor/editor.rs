@@ -6,15 +6,15 @@ pub(crate) struct Editor {
     // main UI sections
     pub(super) explorer: ExplorerState,
     pub(super) preview: PreviewState,
-    pub(super) timeline: Option<TimelineRuntimeState>,
+    pub timeline: Option<TimelineRuntimeState>,
     // other
-    pub(super) project_root: PathBuf,
+    pub project_root: PathBuf,
     pub(super) waveform_jobs: HashSet<PathBuf>,
     pub(super) waveform_cache: HashMap<PathBuf, Arc<waveform::WaveformData>>,
     pub(super) properties: PropertiesPanelState,
     pub(super) settings_open: bool,
     pub(super) export: ExportState,
-    pub(super) status: Option<String>,
+    pub status: Option<String>,
     pub(super) focus_handle: FocusHandle,
     pub(super) clipboard: Option<ClipClipboard>,
     pub(super) context_menu: ContextMenu,
@@ -22,6 +22,7 @@ pub(crate) struct Editor {
     // entities
     pub(super) event_bus: Entity<EventBus>,
     pub(super) upper_split_state: Entity<HorizontalSplitState>,
+    pub global_settings_input: Option<Entity<gpui_component::input::InputState>>,
 }
 
 impl Editor {
@@ -136,6 +137,7 @@ impl Editor {
             waveform_cache: HashMap::new(),
             properties,
             settings_open: false,
+            global_settings_input: None,
             export,
             timeline,
             clipboard: None,
@@ -163,7 +165,7 @@ fn handle_app_event(
     cx: &mut Context<Editor>,
 ) {
     match event {
-        AppEvent::SwitchProject { .. } => {}
+        AppEvent::SwitchProject { .. } | AppEvent::Transcribe { .. } => {}
         AppEvent::HorizontalSplitResized(state) => {
             if let Err(error) = save_project_local_settings(
                 &editor.project_root,
@@ -320,9 +322,7 @@ fn start_updates(cx: &mut Context<Editor>) {
                     editor.export.running || refresh_tree || pinch_zoomed || ended_explorer_drag;
 
                 if refresh_tree {
-                    editor
-                        .explorer
-                        .refresh_file_tree(&editor.project_root)?;
+                    editor.explorer.refresh_file_tree(&editor.project_root)?;
                 }
                 if should_render {
                     cx.notify();
