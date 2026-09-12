@@ -80,13 +80,13 @@ source media cannot be overwritten. Reassembly does not merge manual GUI edits.
 Transcription (uploads audio to MiniMax; requires MINIMAX_API_KEY):
   opencut transcribe recording.mp4 --json
   opencut transcribe recording.wav --format srt -o subtitles.srt
-  opencut transcribe recording.wav --format srt --timestamp-level word --post-merge -o subtitles.srt
-  opencut transcribe recording.mp4 --format verbose_json --timestamp-level word --language zh
+  opencut transcribe recording.wav --format srt --post-merge -o subtitles.srt
+  opencut transcribe recording.mp4 --format verbose_json --language zh
 Audio/video input: best audio stream, normalized to mono 16 kHz WAV via vendored
 FFmpeg. Requires known positive duration, at most 500 seconds including timestamp
 gaps; no truncation or chunking. Upload is under 50 MB. Paths use working directory.
 Formats: json, verbose_json (default, speakers/timestamps), srt, vtt.
-Timestamp levels: sentence (default), word; ignored for plain json.
+All requests use word-level timestamps; ignored for plain json.
 Language: optional BCP-47 header hint; omitted means mixed-language recognition.
 Model: asr-1.0, stream=false. No automatic retries or subtitle insertion.
 Without -o: result on stdout; --json wraps subtitle text as a JSON string.

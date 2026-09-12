@@ -955,7 +955,10 @@ fn locate(
             let mut packet = ffmpeg::Packet::empty();
             match packet.read(input) {
                 Ok(()) => {}
-                Err(ffmpeg::Error::Eof) => { eprintln!("PROBE read EOF"); break },
+                Err(ffmpeg::Error::Eof) => {
+                    eprintln!("PROBE read EOF");
+                    break;
+                }
                 Err(error) => {
                     return Err(anyhow::Error::new(error).context(at!("Reading while seeking")));
                 }
@@ -970,7 +973,10 @@ fn locate(
                 let mut decoded = ffmpeg::frame::Video::empty();
                 match decoder.receive_frame(&mut decoded) {
                     Ok(()) => {}
-                    Err(ffmpeg::Error::Eof) => { eprintln!("PROBE decoder EOF"); break 'packets },
+                    Err(ffmpeg::Error::Eof) => {
+                        eprintln!("PROBE decoder EOF");
+                        break 'packets;
+                    }
                     Err(ffmpeg::Error::Other { errno }) if errno == ffmpeg::error::EAGAIN => break,
                     Err(error) => {
                         return Err(
@@ -981,14 +987,21 @@ fn locate(
                 // receive_frame hands back presentation order, so the last
                 // frame kept is the one immediately before the target. A frame
                 // without a PTS cannot be placed, so it ends the scan.
-                eprintln!("PROBE frame pts={:?} secs={}", decoded.timestamp(), track.seconds(decoded.timestamp(), f64::INFINITY));
+                eprintln!(
+                    "PROBE frame pts={:?} secs={}",
+                    decoded.timestamp(),
+                    track.seconds(decoded.timestamp(), f64::INFINITY)
+                );
                 if track.seconds(decoded.timestamp(), f64::INFINITY) >= before - EPSILON {
                     break 'packets;
                 }
                 best = Some(decoded);
             }
         }
-        eprintln!("PROBE lead={lead} start={start} best={:?}", best.as_ref().map(|f| f.timestamp()));
+        eprintln!(
+            "PROBE lead={lead} start={start} best={:?}",
+            best.as_ref().map(|f| f.timestamp())
+        );
         if best.is_some() {
             return Ok(best);
         }

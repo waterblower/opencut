@@ -112,6 +112,9 @@ impl Render for Editor {
             .when(self.export.dialog.is_some(), |this| {
                 this.child(self.export_dialog(cx))
             })
+            .when(self.global_settings_input.is_some(), |this| {
+                this.child(self.global_settings_dialog(cx))
+            })
     }
 }
 
@@ -216,6 +219,11 @@ impl Editor {
                     .flex()
                     .items_center()
                     .gap_2()
+                    .child(toolbar_button("Settings", true).on_click(
+                        cx.listener(|editor, _, window, cx| {
+                            editor.open_global_settings(window, cx)
+                        }),
+                    ))
                     .child(toolbar_button("Open Folder", true).on_click(cx.listener(
                         |editor, _, _, cx| {
                             editor.open_project_folder(cx);

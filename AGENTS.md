@@ -61,6 +61,7 @@
 - When a function call returns an error, propagate it through intermediate
   functions instead of logging it there. Log the error only at the highest-level
   application, event, or task boundary.
+- Always use debug formatting (`{error:?}`) when logging errors.
 - When refactoring or adding error-handling code, always include `file!()` and
   `line!()` information in every newly added error context.
 - Functions and methods should accept only the data they use. Prefer passing the

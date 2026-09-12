@@ -29,6 +29,8 @@ mod export_dialog;
 pub mod export_gstreamer;
 #[path = "generic-containers/mod.rs"]
 mod generic_containers;
+pub mod global_settings;
+mod global_settings_dialog;
 mod media_probe;
 mod model;
 mod preview;
@@ -42,6 +44,7 @@ mod properties_text;
 mod properties_transform;
 mod settings;
 mod srt;
+pub use srt::write_srt;
 mod timeline;
 mod timeline_clip;
 mod timeline_clip_menu;
@@ -52,8 +55,8 @@ mod timeline_ui;
 mod timeline_video;
 mod track;
 mod track_ui;
+pub mod transcription;
 mod waveform;
-pub mod workspace;
 
 use crate::playback_view::{DragPhase, PlaybackViewDelegate};
 use clip_placement::{
@@ -213,7 +216,7 @@ struct ExportState {
 impl Editor {
     fn open_project_folder(&mut self, cx: &mut Context<Self>) {
         if self.export.running {
-            self.status = Some("Wait for the export to finish before switching projects.".into());
+            self.status = Some("Wait for export to finish before switching projects.".into());
             cx.notify();
             return;
         }
@@ -242,7 +245,7 @@ impl Editor {
             let _ = editor.update(cx, |editor, cx| {
                 if editor.export.running {
                     editor.status =
-                        Some("Wait for the export to finish before switching projects.".into());
+                        Some("Wait for export to finish before switching projects.".into());
                     cx.notify();
                     return;
                 }
@@ -256,7 +259,9 @@ impl Editor {
 
     pub fn prepare_project_switch(&mut self, cx: &mut Context<Self>) -> bool {
         if self.export.running {
-            self.status = Some("Wait for the export to finish before switching projects.".into());
+            self.status = Some(
+                "Wait for export or SRT generation to finish before switching projects.".into(),
+            );
             cx.notify();
             return false;
         }
@@ -669,7 +674,14 @@ fn format_time(seconds: f64, padded_minutes: bool) -> String {
 
 pub struct EventBus;
 pub enum AppEvent {
-    SwitchProject { project_path: PathBuf },
+    SwitchProject {
+        project_path: PathBuf,
+    },
+    /// Transcribe the audio or video file at this absolute path.
+    Transcribe {
+        source_path: PathBuf,
+        project_root: PathBuf,
+    },
     HorizontalSplitResized(HorizontalSplitState),
     Edit(EditAction),
     DragStarted(AssetBeingDragged),
