@@ -58,6 +58,8 @@ pub fn preview_timeline_view(
     let timeline_left = origin_x + TIMELINE_HORIZONTAL_PADDING;
     let volume_track_bottom = origin_y + height - TIMELINE_VOLUME_TRACK_BOTTOM_OFFSET;
     let has_media = !timeline.data.clips.is_empty();
+    let selected_clip_id = timeline.interaction.selected_clip_id;
+    let show_hover = editor.preview.timeline_drag.is_none() && !editor.preview.volume_control_open;
     let mut resize_handles = Vec::new();
     if let Some(rect) = selected_rect
         && let Some(clip_id) = timeline.interaction.selected_clip_id
@@ -184,6 +186,7 @@ pub fn preview_timeline_view(
                 .overflow_hidden()
                 .bg(rgb(0x000000))
                 .cursor(CursorStyle::Arrow)
+                .on_hover(cx.listener(|_, _, _, cx| cx.notify()))
                 .when(has_media, |this| {
                     this.on_mouse_down(
                         MouseButton::Left,
@@ -204,6 +207,42 @@ pub fn preview_timeline_view(
                         .id("editor-timeline-video")
                         .size(px(width), px(surface_height))
                         .into_any_element(),
+                )
+                .child(
+                    gpui::canvas(
+                        move |bounds, window, _| {
+                            if !show_hover {
+                                return None;
+                            }
+                            let pointer = window.mouse_position() - bounds.origin;
+                            let clip_id = hit_preview_clip(
+                                &clip_rects,
+                                &canvas,
+                                f64::from(f32::from(pointer.x)),
+                                f64::from(f32::from(pointer.y)),
+                            )?;
+                            // Keep the selected outline gold, even when hovered.
+                            if Some(clip_id) == selected_clip_id {
+                                return None;
+                            }
+                            for &(id, rect) in &clip_rects {
+                                if id == clip_id {
+                                    return Some(Bounds::new(
+                                        bounds.origin + point(px(rect.origin.x as f32), px(rect.origin.y as f32)),
+                                        size(px(rect.size.width as f32), px(rect.size.height as f32)),
+                                    ));
+                                }
+                            }
+                            None
+                        },
+                        |_, rect, window, _| {
+                            if let Some(rect) = rect {
+                                window.paint_quad(gpui::outline(rect, rgb(0x75bfff), gpui::BorderStyle::Solid));
+                            }
+                        },
+                    )
+                    .absolute()
+                    .size_full(),
                 )
                 .when_some(snap_x, |this, guide| {
                     this.child(
@@ -1127,6 +1166,7 @@ impl Editor {
         cx: &mut Context<Self>,
     ) {
         if !event.dragging() {
+            cx.notify();
             return;
         }
         if self.update_timeline_preview_clip_drag(event, cx) {
