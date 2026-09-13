@@ -85,13 +85,10 @@ pub(super) fn properties_panel(
         }
         PropertiesPanelViewable::VideoClip(clip) => video_clip(clip),
         PropertiesPanelViewable::AudioClip(clip) => audio_clip(clip),
-        PropertiesPanelViewable::VideoFile(file) => video_file(file),
+        PropertiesPanelViewable::VideoFile(file) => media_file(file, "Video"),
         PropertiesPanelViewable::TimelineFile(timeline) => timeline_file(timeline),
         PropertiesPanelViewable::ImageFile(path) => image_file(path),
-        PropertiesPanelViewable::AudioFile(path) => {
-            let _ = path;
-            panic!("not implemented")
-        }
+        PropertiesPanelViewable::AudioFile(path) => media_file(path, "Audio"),
         PropertiesPanelViewable::SrtFile(path) => srt_file_view(&path),
         PropertiesPanelViewable::None => div()
             .p_4()
@@ -389,7 +386,7 @@ fn audio_clip(clip: &AudioClip) -> gpui::AnyElement {
         .into_any_element()
 }
 
-fn video_file(path: &Path) -> gpui::AnyElement {
+fn media_file(path: &Path, tab: &'static str) -> gpui::AnyElement {
     let property_field = |label: &'static str, value: String| {
         div()
             .h(px(48.0))
@@ -441,7 +438,7 @@ fn video_file(path: &Path) -> gpui::AnyElement {
         .unwrap_or_else(|| ".".to_string());
 
     div()
-        .id("video-file-properties-v2")
+        .id("media-file-properties")
         .flex()
         .flex_col()
         .overflow_hidden()
@@ -456,7 +453,7 @@ fn video_file(path: &Path) -> gpui::AnyElement {
                 .px_5()
                 .border_b_1()
                 .border_color(rgb(BORDER))
-                .child(properties_tab("Video", true)),
+                .child(properties_tab(tab, true)),
         )
         .child(
             div()
