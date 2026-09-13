@@ -38,7 +38,7 @@ pub fn preview_timeline_view(
         &timeline.data,
         timeline.video_backend.ges_timeline(),
         timeline.playhead(),
-        canvas,
+        &canvas,
     );
     let selected_rect = (|| {
         let selected = timeline.interaction.selected_clip_id?;
@@ -112,7 +112,7 @@ pub fn preview_timeline_view(
                                 event,
                                 origin_x,
                                 origin_y,
-                                canvas,
+                                &canvas,
                                 PreviewDragMode::Resize {
                                     rect,
                                     horizontal,
@@ -217,7 +217,7 @@ pub fn preview_timeline_view(
                                 event,
                                 origin_x,
                                 origin_y,
-                                canvas,
+                                &canvas,
                                 PreviewDragMode::Move,
                                 cx,
                             );
@@ -721,7 +721,7 @@ fn timeline_preview_clip_rects(
     timeline: &TimelineSerialization,
     ges: &gstreamer_editing_services::Timeline,
     position: TimelineTime,
-    canvas: TimelinePreviewCanvas,
+    canvas: &TimelinePreviewCanvas,
 ) -> Vec<(Ulid, Bounds<f64>)> {
     let mut rects = Vec::new();
     // GES assigns lower (frontmost) priorities to text tracks first, then media.
@@ -761,7 +761,7 @@ fn timeline_preview_clip_rects(
 fn timeline_preview_text_rect(
     ges: &gstreamer_editing_services::Timeline,
     clip_id: Ulid,
-    canvas: TimelinePreviewCanvas,
+    canvas: &TimelinePreviewCanvas,
 ) -> Option<Bounds<f64>> {
     use gstreamer_editing_services::prelude::*;
 
@@ -779,7 +779,7 @@ fn timeline_preview_text_rect(
 
 fn rendered_text_rect(
     overlay: &gstreamer::glib::Object,
-    canvas: TimelinePreviewCanvas,
+    canvas: &TimelinePreviewCanvas,
 ) -> Option<Bounds<f64>> {
     use gstreamer::prelude::*;
 
@@ -819,7 +819,7 @@ fn clipped_preview_rect(rect: Bounds<f64>, canvas: Bounds<f64>) -> Option<Bounds
 
 fn hit_preview_clip(
     rects: &[(Ulid, Bounds<f64>)],
-    canvas: TimelinePreviewCanvas,
+    canvas: &TimelinePreviewCanvas,
     x: f64,
     y: f64,
 ) -> Option<Ulid> {
@@ -839,7 +839,7 @@ fn timeline_preview_clip_rect(
     timeline: &TimelineSerialization,
     clip: &Clip,
     properties: VideoClipProperties,
-    canvas: TimelinePreviewCanvas,
+    canvas: &TimelinePreviewCanvas,
 ) -> Option<Bounds<f64>> {
     let clip = clip.media()?;
     let track = timeline.track(clip.track_id)?;
@@ -869,7 +869,7 @@ impl Editor {
         event: &MouseDownEvent,
         surface_left: f32,
         surface_top: f32,
-        canvas: TimelinePreviewCanvas,
+        canvas: &TimelinePreviewCanvas,
         mode: PreviewDragMode,
         cx: &mut Context<Self>,
     ) {
@@ -922,7 +922,7 @@ impl Editor {
             pointer_y: f32::from(event.position.y),
             properties: clip.video_properties,
             mode,
-            canvas,
+            canvas: *canvas,
             snap_x: None,
             snap_y: None,
 
@@ -1004,7 +1004,7 @@ impl Editor {
                     &timeline.data,
                     clip,
                     media.video_properties,
-                    drag.canvas,
+                    &drag.canvas,
                 ) else {
                     continue;
                 };
@@ -1023,7 +1023,7 @@ impl Editor {
                 &timeline.data,
                 &timeline.data.clips[index],
                 properties,
-                drag.canvas,
+                &drag.canvas,
             ) {
                 match drag.mode {
                     PreviewDragMode::Move => {

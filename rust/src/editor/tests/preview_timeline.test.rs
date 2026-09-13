@@ -147,17 +147,17 @@ fn hit_testing_uses_frontmost_rectangle_and_excludes_letterboxing() {
         (front, Bounds::new(point(120.0, 60.0), size(80.0, 30.0))),
         (back, Bounds::new(point(0.0, 0.0), size(600.0, 400.0))),
     ];
-    assert_eq!(hit_preview_clip(&rects, canvas, 140.0, 70.0), Some(front));
-    assert_eq!(hit_preview_clip(&rects, canvas, 200.0, 90.0), Some(front));
-    assert_eq!(hit_preview_clip(&rects, canvas, 500.0, 250.0), Some(back));
-    assert_eq!(hit_preview_clip(&rects, canvas, 300.0, 150.0), Some(back));
-    assert_eq!(hit_preview_clip(&rects, canvas, 30.0, 70.0), None);
-    assert_eq!(hit_preview_clip(&rects, canvas, 140.0, 20.0), None);
-    assert_eq!(hit_preview_clip(&[], canvas, 140.0, 70.0), None);
+    assert_eq!(hit_preview_clip(&rects, &canvas, 140.0, 70.0), Some(front));
+    assert_eq!(hit_preview_clip(&rects, &canvas, 200.0, 90.0), Some(front));
+    assert_eq!(hit_preview_clip(&rects, &canvas, 500.0, 250.0), Some(back));
+    assert_eq!(hit_preview_clip(&rects, &canvas, 300.0, 150.0), Some(back));
+    assert_eq!(hit_preview_clip(&rects, &canvas, 30.0, 70.0), None);
+    assert_eq!(hit_preview_clip(&rects, &canvas, 140.0, 20.0), None);
+    assert_eq!(hit_preview_clip(&[], &canvas, 140.0, 70.0), None);
     assert_eq!(
         hit_preview_clip(
             &[(front, Bounds::new(point(500.0, 60.0), size(20.0, 30.0)))],
-            canvas,
+            &canvas,
             500.0,
             70.0,
         ),
@@ -182,10 +182,10 @@ fn rendered_text_bounds_follow_real_pixels_and_preview_scaling() {
             bounds: Bounds::new(point(70.0, 20.0), size(320.0, 180.0)),
             project_scale: 0.5,
         };
-        assert!(rendered_text_rect(overlay.upcast_ref(), canvas).is_none());
+        assert!(rendered_text_rect(overlay.upcast_ref(), &canvas).is_none());
         pipeline.set_state(gst::State::Paused).unwrap();
         let ready = pipeline.state(gst::ClockTime::from_seconds(5));
-        let rect = rendered_text_rect(overlay.upcast_ref(), canvas);
+        let rect = rendered_text_rect(overlay.upcast_ref(), &canvas);
         let x = overlay.property::<i32>("text-x");
         let y = overlay.property::<i32>("text-y");
         let width = overlay.property::<u32>("text-width");
@@ -245,7 +245,7 @@ fn ges_text_rectangles_respect_visibility_time_and_locked_selection() {
         bounds: Bounds::new(point(20.0, 10.0), size(320.0, 180.0)),
         project_scale: 0.5,
     };
-    assert!(timeline_preview_clip_rects(&data, &timeline, TimelineTime::ZERO, canvas).is_empty());
+    assert!(timeline_preview_clip_rects(&data, &timeline, TimelineTime::ZERO, &canvas).is_empty());
     let pipeline = ges::Pipeline::new();
     pipeline.preview_set_video_sink(Some(
         &gst::ElementFactory::make("fakesink").build().unwrap(),
@@ -257,17 +257,17 @@ fn ges_text_rectangles_respect_visibility_time_and_locked_selection() {
     pipeline.set_mode(ges::PipelineFlags::FULL_PREVIEW).unwrap();
     pipeline.set_state(gst::State::Paused).unwrap();
     let ready = pipeline.state(gst::ClockTime::from_seconds(5));
-    let rects = timeline_preview_clip_rects(&data, &timeline, TimelineTime::ZERO, canvas);
+    let rects = timeline_preview_clip_rects(&data, &timeline, TimelineTime::ZERO, &canvas);
     let end = data.clips[0].timeline_end(data.settings.frame_rate);
-    let ended = timeline_preview_clip_rects(&data, &timeline, end, canvas);
+    let ended = timeline_preview_clip_rects(&data, &timeline, end, &canvas);
     data.tracks.last_mut().unwrap().visible = false;
-    let hidden = timeline_preview_clip_rects(&data, &timeline, TimelineTime::ZERO, canvas);
+    let hidden = timeline_preview_clip_rects(&data, &timeline, TimelineTime::ZERO, &canvas);
     data.tracks.last_mut().unwrap().visible = true;
     let Clip::Text(text) = &mut data.clips[0] else {
         unreachable!()
     };
     text.properties.text.clear();
-    let empty = timeline_preview_clip_rects(&data, &timeline, TimelineTime::ZERO, canvas);
+    let empty = timeline_preview_clip_rects(&data, &timeline, TimelineTime::ZERO, &canvas);
     pipeline.set_state(gst::State::Null).unwrap();
     ready.0.unwrap();
     assert_eq!(ready.1, gst::State::Paused);
@@ -276,7 +276,7 @@ fn ges_text_rectangles_respect_visibility_time_and_locked_selection() {
     assert_eq!(
         hit_preview_clip(
             &rects,
-            canvas,
+            &canvas,
             rect.origin.x + rect.size.width / 2.0,
             rect.origin.y + rect.size.height / 2.0
         ),
