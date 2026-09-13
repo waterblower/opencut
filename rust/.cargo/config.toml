@@ -2,8 +2,8 @@
 cli = "run --config .cargo/cli.toml --quiet --no-default-features --features cli --bin opencut --"
 editor-mac = "run --config .cargo/macos.toml --no-default-features --features editor --bin opencut-editor"
 editor-win = "run --config .cargo/windows.toml --no-default-features --features editor --bin opencut-editor"
-test-mac = "test --config .cargo/macos.toml"
-test-win = "test --config .cargo/windows.toml"
+test-mac = ["test", "--config", ".cargo/macos.toml", "--config", "env.RUST_TEST_THREADS=\"1\""]
+test-win = ["test", "--config", ".cargo/windows.toml", "--config", "env.RUST_TEST_THREADS=\"1\""]
 player-mac = "run --config .cargo/macos.toml --no-default-features --features player --bin opencut-player"
 player-win = "run --config .cargo/windows.toml --no-default-features --features player --bin opencut-player"
 build-editor-mac = "build --config .cargo/macos.toml --no-default-features --features editor --bin opencut-editor"

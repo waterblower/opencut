@@ -755,7 +755,10 @@ impl Drop for Temp {
 
 #[test]
 fn generates_agent_docs_from_cli_definitions() {
-    let output = Command::new(env!("CARGO_BIN_EXE_opencut")).args(["doc"]).output().unwrap();
+    let output = Command::new(env!("CARGO_BIN_EXE_opencut"))
+        .args(["doc"])
+        .output()
+        .unwrap();
     assert!(output.status.success());
     let text = String::from_utf8(output.stdout).unwrap();
     assert!(text.contains("## Recommended workflow"));
@@ -763,7 +766,16 @@ fn generates_agent_docs_from_cli_definitions() {
     assert!(!text.contains("--llm"));
     assert!(text.contains("--post-merge"));
     assert!(text.contains("--project-root"));
-    let json_output = Command::new(env!("CARGO_BIN_EXE_opencut")).args(["docs", "--json"]).output().unwrap();
+    let json_output = Command::new(env!("CARGO_BIN_EXE_opencut"))
+        .args(["docs", "--json"])
+        .output()
+        .unwrap();
     assert!(json_output.status.success());
-    assert_eq!(serde_json::from_slice::<Value>(&json_output.stdout).unwrap().as_str().unwrap(), text.strip_suffix('\n').unwrap());
+    assert_eq!(
+        serde_json::from_slice::<Value>(&json_output.stdout)
+            .unwrap()
+            .as_str()
+            .unwrap(),
+        text.strip_suffix('\n').unwrap()
+    );
 }

@@ -255,7 +255,6 @@ fn select_all_excludes_clips_on_locked_tracks() {
 fn moves_ges_clip_without_rebuilding_timeline() {
     use gstreamer_editing_services::prelude::*;
 
-    let _gstreamer_test = crate::editor::tests::lock_gstreamer_test();
     gstreamer_editing_services::init().unwrap();
     let track_id = ulid(3);
     let clip_id = ulid(10);
@@ -320,7 +319,6 @@ fn moves_ges_clip_without_rebuilding_timeline() {
 fn moves_adjacent_ges_clips_together_without_transient_overlap() {
     use gstreamer_editing_services::prelude::*;
 
-    let _gstreamer_test = crate::editor::tests::lock_gstreamer_test();
     gstreamer_editing_services::init().unwrap();
     let track_id = ulid(3);
     let first_clip_id = ulid(10);
@@ -397,7 +395,6 @@ fn moves_adjacent_ges_clips_together_without_transient_overlap() {
 fn moves_adjacent_ges_clips_beyond_timeline_end_without_parking_overlap() {
     use gstreamer_editing_services::prelude::*;
 
-    let _gstreamer_test = crate::editor::tests::lock_gstreamer_test();
     gstreamer_editing_services::init().unwrap();
     let track_id = ulid(2);
     let first_clip_id = ulid(10);
@@ -479,7 +476,6 @@ fn moves_adjacent_ges_clips_beyond_timeline_end_without_parking_overlap() {
 fn removes_ges_clip_and_ripples_surviving_clips() {
     use gstreamer_editing_services::prelude::*;
 
-    let _gstreamer_test = crate::editor::tests::lock_gstreamer_test();
     gstreamer_editing_services::init().unwrap();
     let track_id = ulid(3);
     let removed_clip_id = ulid(10);
@@ -554,7 +550,6 @@ fn removes_ges_clip_and_ripples_surviving_clips() {
 
 #[test]
 fn splits_ges_clip_with_one_edit_action() {
-    let _gstreamer_test = crate::editor::tests::lock_gstreamer_test();
     gstreamer_editing_services::init().unwrap();
     let track_id = ulid(3);
     let original_clip_id = ulid(10);
@@ -614,7 +609,6 @@ fn splits_ges_clip_with_one_edit_action() {
 
 #[test]
 fn detects_timeline_and_ges_data_divergence() {
-    let _gstreamer_test = crate::editor::tests::lock_gstreamer_test();
     gstreamer_editing_services::init().unwrap();
     let track_id = ulid(3);
     let clip_id = ulid(10);
@@ -668,7 +662,6 @@ fn detects_timeline_and_ges_data_divergence() {
 
 #[test]
 fn updates_video_transform_without_rebuilding_ges_clip() {
-    let _gstreamer_test = crate::editor::tests::lock_gstreamer_test();
     gstreamer_editing_services::init().unwrap();
     let mut project = TimelineSerialization::with_test_tracks();
     project.settings.width = 1920;

@@ -170,7 +170,6 @@ fn rendered_text_bounds_follow_real_pixels_and_preview_scaling() {
     use super::{TimelinePreviewCanvas, rendered_text_rect};
     use gst::prelude::*;
     use gstreamer as gst;
-    let _guard = crate::editor::tests::lock_gstreamer_test();
     gst::init().unwrap();
     for text in ["Title", "Two\nlines", "你好 世界", ""] {
         let pipeline = gst::parse::launch(
@@ -208,11 +207,10 @@ fn rendered_text_bounds_follow_real_pixels_and_preview_scaling() {
 #[test]
 fn ges_text_rectangles_respect_visibility_time_and_locked_selection() {
     use super::*;
-    use crate::editor::tests::{TimelineTestExt, lock_gstreamer_test, ulid};
+    use crate::editor::tests::{TimelineTestExt, ulid};
     use ges::prelude::*;
     use gstreamer as gst;
     use gstreamer_editing_services as ges;
-    let _guard = lock_gstreamer_test();
     ges::init().unwrap();
     let mut data = TimelineSerialization::with_test_tracks();
     data.settings.width = 640;
