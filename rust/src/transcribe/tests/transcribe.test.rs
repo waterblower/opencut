@@ -1,4 +1,33 @@
 use super::*;
+
+#[test]
+fn detects_western_writing_scripts() {
+    for word in [
+        "hello",
+        "café",
+        "cafe\u{301}",
+        "Ελληνικά",
+        "Привет",
+        "don't",
+        "well-known",
+        " hello123! ",
+    ] {
+        assert!(is_western_language(word), "{word:?}");
+    }
+    for word in [
+        "",
+        " ",
+        "123",
+        "!?",
+        "\u{301}",
+        "你好",
+        "你好hello",
+        "日本語",
+        "مرحبا",
+    ] {
+        assert!(!is_western_language(word), "{word:?}");
+    }
+}
 use serde_json::json;
 use std::{
     io::{Read, Write},

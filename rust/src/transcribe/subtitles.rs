@@ -1,3 +1,4 @@
+use super::is_western_language;
 use anyhow::{Result, anyhow, bail};
 use std::{fmt, time::Duration};
 
@@ -81,7 +82,8 @@ impl fmt::Display for SRT {
 }
 
 /// Merge adjacent SRT cues separated by less than 100 ms, including overlaps.
-/// Concatenate text verbatim and renumber cues; output uses LF line endings.
+/// Insert a space before Western text unless whitespace already separates it.
+/// Renumber cues; output uses LF line endings.
 pub fn merge_srt_sections(srt: &SRT) -> Result<SRT> {
     let mut merged = SRT::default();
     for subtitle in &srt.subtitles {
@@ -95,6 +97,13 @@ pub fn merge_srt_sections(srt: &SRT) -> Result<SRT> {
             }
             if subtitle.start.saturating_sub(previous.end) < Duration::from_millis(100) {
                 previous.end = previous.end.max(subtitle.end);
+                if !previous.text.is_empty()
+                    && is_western_language(&subtitle.text)
+                    && !previous.text.ends_with(char::is_whitespace)
+                    && !subtitle.text.starts_with(char::is_whitespace)
+                {
+                    previous.text.push(' ');
+                }
                 previous.text.push_str(&subtitle.text);
                 continue;
             }
@@ -157,6 +166,39 @@ fn timestamp_ms(timestamp: &str) -> Result<u64> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn separates_western_words_without_duplicating_whitespace() {
+        for (left, right, expected) in [
+            ("Hello", "world", "Hello world"),
+            ("Très", "bien", "Très bien"),
+            ("Привет", "мир", "Привет мир"),
+            ("Hello ", "world", "Hello world"),
+            ("Hello", " world", "Hello world"),
+            ("Hello\n", "world", "Hello\nworld"),
+            ("你", "好", "你好"),
+            ("你好", "hello", "你好 hello"),
+            ("Hello", ",", "Hello,"),
+        ] {
+            let srt = SRT {
+                subtitles: vec![
+                    Subtitle {
+                        text: left.into(),
+                        start: Duration::ZERO,
+                        end: Duration::from_secs(1),
+                    },
+                    Subtitle {
+                        text: right.into(),
+                        start: Duration::from_secs(1),
+                        end: Duration::from_secs(2),
+                    },
+                ],
+            };
+            let merged = merge_srt_sections(&srt).unwrap();
+            assert_eq!(merged.subtitles.len(), 1);
+            assert_eq!(merged.subtitles[0].text, expected);
+        }
+    }
 
     #[test]
     fn parses_and_serializes_multiline_unicode_subtitles() {
