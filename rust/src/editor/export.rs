@@ -35,7 +35,7 @@ impl ExportEncoder {
 }
 
 #[derive(Clone, Copy, Debug)]
-pub(super) struct ExportOptions {
+pub struct ExportOptions {
     pub width: u32,
     pub height: u32,
     pub frame_rate: FrameRate,

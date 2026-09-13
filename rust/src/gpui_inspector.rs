@@ -182,6 +182,29 @@ fn render_inspector(
                 .gap_3()
                 .p_3()
                 .child(render_fps_section(render_fps))
+                .child(
+                    div()
+                        .id("gpui-inspector-dump-debug-state")
+                        .h_8()
+                        .px_3()
+                        .flex()
+                        .items_center()
+                        .rounded_md()
+                        .border_1()
+                        .border_color(rgb(BORDER))
+                        .bg(rgb(SURFACE))
+                        .hover(|style| style.bg(rgb(SURFACE_HOVER)))
+                        .cursor(CursorStyle::Arrow)
+                        .text_sm()
+                        .child("Dump debug state (copy)")
+                        .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
+                        .on_click(|_, window, cx| {
+                            let Some(Some(editor)) = window.root::<crate::editor::Editor>() else {
+                                return;
+                            };
+                            editor.update(cx, |editor, cx| editor.copy_debug_state(cx));
+                        }),
+                )
                 .when_some(selected, |this, id| this.child(render_element_id(&id)))
                 .when(states.is_empty(), |this| {
                     this.child(

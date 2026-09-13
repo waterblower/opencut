@@ -1,10 +1,9 @@
 use super::*;
-use crate::editor::tests::{TimelineTestExt, lock_gstreamer_test};
+use crate::editor::tests::TimelineTestExt;
 use crate::editor::timeline_clip::{AudioClipProperties, VideoClip};
 
 #[test]
 fn renders_trimmed_audio_with_gaps_gain_and_no_output_files() {
-    let _lock = lock_gstreamer_test();
     let root = std::env::temp_dir().join(format!("opencut-audio-{}", Ulid::generate()));
     std::fs::create_dir(&root).unwrap();
     let mut input = vec![0; 44];
@@ -139,7 +138,6 @@ fn renders_trimmed_audio_with_gaps_gain_and_no_output_files() {
 
 #[test]
 fn renders_video_audio_without_video_tracks() {
-    let _lock = lock_gstreamer_test();
     let root = Path::new(env!("CARGO_MANIFEST_DIR"));
     let relative = PathBuf::from("data/tests/mini测试/地铁-出站-mini-480.mp4");
     let mut asset = media_probe::probe_asset(&root.join(&relative)).unwrap();

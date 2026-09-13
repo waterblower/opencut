@@ -130,6 +130,8 @@ pub fn build_ges_timeline(
     } else {
         ges::Timeline::new_audio_video()
     };
+    #[cfg(target_os = "macos")]
+    timeline.connect_deep_element_added(|_, _, element| configure_timeline_decoder(element));
     let video_caps = gst::Caps::builder("video/x-raw")
         .field("width", options.width.max(2) as i32)
         .field("height", options.height.max(2) as i32)
@@ -149,6 +151,8 @@ pub fn build_ges_timeline(
         track.set_mixing(true);
     }
 
+    let output_scale = (options.width.max(2) as f64 / timeline_data.settings.width.max(2) as f64)
+        .min(options.height.max(2) as f64 / timeline_data.settings.height.max(2) as f64);
     let mut assets: HashMap<Ulid, ges::UriClipAsset> = HashMap::new();
     for timeline_track in timeline_data
         .tracks
@@ -162,64 +166,7 @@ pub fn build_ges_timeline(
         )
     {
         let layer = timeline.append_layer();
-        if audio_only && timeline_track.kind == TrackKind::Text {
-            continue;
-        }
-        if timeline_track.kind == TrackKind::Text {
-            if !timeline_track.visible {
-                continue;
-            }
-            let output_scale = (options.width.max(2) as f64
-                / timeline_data.settings.width.max(2) as f64)
-                .min(options.height.max(2) as f64 / timeline_data.settings.height.max(2) as f64);
-            let mut clips = timeline_data
-                .clips_on_track(timeline_track.id)
-                .collect::<Vec<_>>();
-            clips.sort_by_key(|clip| clip.timeline_start());
-            for clip in clips {
-                let text = clip
-                    .text()
-                    .ok_or_else(|| anyhow!("Media clip {} is on a text track.", clip.id()))?;
-                let overlay = ges::TitleClip::new().ok_or_else(|| {
-                    anyhow!(
-                        "could not create text clip {} at {}:{}",
-                        clip.id(),
-                        file!(),
-                        line!()
-                    )
-                })?;
-                overlay
-                    .set_name(Some(&format!("opencut-clip-{}", clip.id())))
-                    .map_err(|error| anyhow!("could not identify clip {}: {error}", clip.id()))?;
-                let (start, duration) = clip_clock_range(
-                    timeline_data.settings.frame_rate,
-                    clip,
-                    clip.timeline_start(),
-                );
-                if !overlay.set_start(start) {
-                    return Err(anyhow!(
-                        "could not set text clip {} start at {}:{}",
-                        clip.id(),
-                        file!(),
-                        line!()
-                    ));
-                }
-                if !overlay.set_duration(duration) {
-                    return Err(anyhow!(
-                        "could not set text clip {} duration at {}:{}",
-                        clip.id(),
-                        file!(),
-                        line!()
-                    ));
-                }
-                layer.add_clip(&overlay).map_err(|error| {
-                    anyhow!(
-                        "could not add text clip {} to the timeline: {error}",
-                        clip.id()
-                    )
-                })?;
-                configure_text_clip(&overlay, &text.properties, output_scale)?;
-            }
+        if timeline_track.kind == TrackKind::Text && (audio_only || !timeline_track.visible) {
             continue;
         }
         let mut clips = timeline_data
@@ -227,6 +174,15 @@ pub fn build_ges_timeline(
             .collect::<Vec<_>>();
         clips.sort_by_key(|clip| clip.timeline_start());
         for clip in clips {
+            if timeline_track.kind == TrackKind::Text {
+                add_text_clip(
+                    &layer,
+                    timeline_data.settings.frame_rate,
+                    clip,
+                    output_scale,
+                )?;
+                continue;
+            }
             let media = clip
                 .media()
                 .ok_or_else(|| anyhow!("Text clip {} is on a media track.", clip.id()))?;
@@ -347,10 +303,10 @@ pub(super) fn apply_video_transform(
     );
 
     for (name, value) in [
-        ("posx", rounded_i32(plan.visible.left)),
-        ("posy", rounded_i32(plan.visible.top)),
-        ("width", rounded_i32(plan.visible.width).max(1)),
-        ("height", rounded_i32(plan.visible.height).max(1)),
+        ("posx", rounded_i32(plan.visible.origin.x)),
+        ("posy", rounded_i32(plan.visible.origin.y)),
+        ("width", rounded_i32(plan.visible.size.width).max(1)),
+        ("height", rounded_i32(plan.visible.size.height).max(1)),
     ] {
         clip.set_child_property(name, value)
             .map_err(|error| anyhow!("could not apply video {name}: {error}"))?;
@@ -405,6 +361,95 @@ fn export_timeline_with_encoder(
     );
     let _ = pipeline.set_state(gst::State::Null);
     result
+}
+
+#[cfg(target_os = "macos")]
+fn configure_timeline_decoder(element: &gst::Element) {
+    // Work around black HEVC frames at GES composition boundaries on VideoToolbox.
+    // Keep decoder selection local to this timeline.
+    if !element
+        .factory()
+        .is_some_and(|factory| factory.name() == "uridecodebin")
+    {
+        return;
+    }
+    element.connect("autoplug-select", false, |values| {
+        let caps = values[2].get::<gst::Caps>().expect("autoplug-select caps");
+        let factory = values[3]
+            .get::<gst::ElementFactory>()
+            .expect("autoplug-select factory");
+        let skip = caps
+            .structure(0)
+            .is_some_and(|structure| structure.name() == "video/x-h265")
+            && matches!(factory.name().as_str(), "vtdec" | "vtdec_hw")
+            && gst::ElementFactory::find("avdec_h265").is_some();
+        let class = gst::glib::EnumClass::with_type(
+            gst::glib::Type::from_name("GstAutoplugSelectResult")
+                .expect("autoplug-select result type"),
+        )
+        .expect("autoplug-select result enum");
+        class.to_value_by_nick(if skip { "skip" } else { "try" })
+    });
+}
+
+fn add_text_clip(
+    layer: &ges::Layer,
+    rate: FrameRate,
+    clip: &Clip,
+    output_scale: f64,
+) -> Result<()> {
+    let text = clip.text().ok_or_else(|| {
+        anyhow!(
+            "Media clip {} is on a text track at {}:{}",
+            clip.id(),
+            file!(),
+            line!()
+        )
+    })?;
+    let overlay = ges::TitleClip::new().ok_or_else(|| {
+        anyhow!(
+            "could not create text clip {} at {}:{}",
+            clip.id(),
+            file!(),
+            line!()
+        )
+    })?;
+    overlay
+        .set_name(Some(&format!("opencut-clip-{}", clip.id())))
+        .map_err(|error| {
+            anyhow!(
+                "could not identify clip {}: {error} at {}:{}",
+                clip.id(),
+                file!(),
+                line!()
+            )
+        })?;
+    let (start, duration) = clip_clock_range(rate, clip, clip.timeline_start());
+    if !overlay.set_start(start) {
+        return Err(anyhow!(
+            "could not set text clip {} start at {}:{}",
+            clip.id(),
+            file!(),
+            line!()
+        ));
+    }
+    if !overlay.set_duration(duration) {
+        return Err(anyhow!(
+            "could not set text clip {} duration at {}:{}",
+            clip.id(),
+            file!(),
+            line!()
+        ));
+    }
+    layer.add_clip(&overlay).map_err(|error| {
+        anyhow!(
+            "could not add text clip {} to the timeline: {error} at {}:{}",
+            clip.id(),
+            file!(),
+            line!()
+        )
+    })?;
+    configure_text_clip(&overlay, &text.properties, output_scale)
 }
 
 fn rounded_i32(value: f64) -> i32 {

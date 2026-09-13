@@ -75,7 +75,11 @@ async fn main() -> ExitCode {
 
 fn print_error(error: &opencut_player::cli::error::Error, json: bool) {
     if json {
-        let _ = writeln!(io::stdout().lock(), "{}", json!({"error": {"message": format!("{error:#}")}}));
+        let _ = writeln!(
+            io::stdout().lock(),
+            "{}",
+            json!({"error": {"message": format!("{error:#}")}})
+        );
     } else {
         let _ = writeln!(io::stderr().lock(), "{error:#}");
     }

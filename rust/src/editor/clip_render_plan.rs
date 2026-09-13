@@ -1,16 +1,9 @@
 use super::timeline_clip::{AudioClipProperties, VideoClipProperties};
-
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub struct RenderRect {
-    pub left: f64,
-    pub top: f64,
-    pub width: f64,
-    pub height: f64,
-}
+use gpui::{Bounds, point, size};
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct VisualClipRenderPlan {
-    pub visible: RenderRect,
+    pub visible: Bounds<f64>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -45,12 +38,10 @@ pub fn resolve_visual_clip_render_plan(
     let full_height = source_height as f64 * source_scale;
     let center_x = target_width * 0.5 + properties.position_x * project_scale;
     let center_y = target_height * 0.5 + properties.position_y * project_scale;
-    let visible = RenderRect {
-        left: center_x - full_width * 0.5,
-        top: center_y - full_height * 0.5,
-        width: full_width,
-        height: full_height,
-    };
+    let visible = Bounds::new(
+        point(center_x - full_width * 0.5, center_y - full_height * 0.5),
+        size(full_width, full_height),
+    );
 
     VisualClipRenderPlan { visible }
 }

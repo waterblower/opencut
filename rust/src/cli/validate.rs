@@ -14,7 +14,10 @@ pub struct Finding {
 }
 
 impl Serialize for Finding {
-    fn serialize<S: serde::Serializer>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error> {
+    fn serialize<S: serde::Serializer>(
+        &self,
+        serializer: S,
+    ) -> std::result::Result<S::Ok, S::Error> {
         use serde::ser::SerializeStruct;
         let mut state = serializer.serialize_struct("Finding", 2)?;
         state.serialize_field("message", &format!("{:#}", self.error))?;

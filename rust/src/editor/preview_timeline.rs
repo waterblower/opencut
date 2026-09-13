@@ -1,11 +1,11 @@
 use super::*;
 use super::{
-    clip_render_plan::{RenderRect, resolve_visual_clip_render_plan},
+    clip_render_plan::resolve_visual_clip_render_plan,
     timeline_video::{refresh_timeline_video_frame, try_refresh_timeline_video_frame},
 };
 use crate::playback_view::{CONTROL_HEIGHT, format_duration};
 use crate::video::video;
-use gpui::relative;
+use gpui::{point, relative, size};
 
 pub fn preview_timeline_view(
     editor: &Editor,
@@ -28,22 +28,27 @@ pub fn preview_timeline_view(
     let output_left = (f64::from(width) - output_width) * 0.5;
     let output_top = (f64::from(surface_height) - output_height) * 0.5;
     let canvas = TimelinePreviewCanvas {
-        left: output_left,
-        top: output_top,
-        width: output_width,
-        height: output_height,
+        bounds: Bounds::new(
+            point(output_left, output_top),
+            size(output_width, output_height),
+        ),
         project_scale: project_scale.max(f64::EPSILON),
     };
-    let selected_rect = timeline.interaction.selected_clip_id.and_then(|clip_id| {
-        let clip = timeline.data.clip(clip_id)?;
-        let media = clip.media()?;
-        if clip.timeline_start() > timeline.playhead()
-            || timeline.playhead() >= clip.timeline_end(timeline.data.settings.frame_rate)
-        {
-            return None;
+    let clip_rects = timeline_preview_clip_rects(
+        &timeline.data,
+        timeline.video_backend.ges_timeline(),
+        timeline.playhead(),
+        &canvas,
+    );
+    let selected_rect = (|| {
+        let selected = timeline.interaction.selected_clip_id?;
+        for &(clip_id, rect) in &clip_rects {
+            if clip_id == selected {
+                return Some(rect);
+            }
         }
-        timeline_preview_clip_rect(&timeline.data, clip, media.video_properties, canvas)
-    });
+        None
+    })();
     let (snap_x, snap_y) = editor
         .preview
         .timeline_drag
@@ -53,53 +58,20 @@ pub fn preview_timeline_view(
     let timeline_left = origin_x + TIMELINE_HORIZONTAL_PADDING;
     let volume_track_bottom = origin_y + height - TIMELINE_VOLUME_TRACK_BOTTOM_OFFSET;
     let has_media = !timeline.data.clips.is_empty();
-    let mut clip_cursor_regions = Vec::new();
-    for track in &timeline.data.tracks {
-        for clip in timeline.data.clips_on_track(track.id) {
-            if clip.timeline_start() > timeline.playhead()
-                || timeline.playhead() >= clip.timeline_end(timeline.data.settings.frame_rate)
-            {
-                continue;
-            }
-            let Some(media) = clip.media() else {
-                continue;
-            };
-            let Some(rect) =
-                timeline_preview_clip_rect(&timeline.data, clip, media.video_properties, canvas)
-            else {
-                continue;
-            };
-            let left = rect.left.max(canvas.left);
-            let top = rect.top.max(canvas.top);
-            let right = (rect.left + rect.width).min(canvas.left + canvas.width);
-            let bottom = (rect.top + rect.height).min(canvas.top + canvas.height);
-            if right <= left || bottom <= top {
-                continue;
-            }
-            clip_cursor_regions.push(
-                div()
-                    .absolute()
-                    .left(px(left as f32))
-                    .top(px(top as f32))
-                    .w(px((right - left) as f32))
-                    .h(px((bottom - top) as f32))
-                    .cursor(if track.locked {
-                        CursorStyle::Arrow
-                    } else {
-                        CursorStyle::OpenHand
-                    }),
-            );
-        }
-    }
-
+    let selected_clip_id = timeline.interaction.selected_clip_id;
+    let show_hover = editor.preview.timeline_drag.is_none() && !editor.preview.volume_control_open;
     let mut resize_handles = Vec::new();
     if let Some(rect) = selected_rect
         && let Some(clip_id) = timeline.interaction.selected_clip_id
+        && timeline
+            .data
+            .clip(clip_id)
+            .is_some_and(|clip| clip.media().is_some())
         && !timeline.data.clip_locked(clip_id)
     {
         for (horizontal, vertical) in [(-1.0, -1.0), (1.0, -1.0), (-1.0, 1.0), (1.0, 1.0)] {
-            let x = rect.left + (horizontal + 1.0) * rect.width * 0.5;
-            let y = rect.top + (vertical + 1.0) * rect.height * 0.5;
+            let x = rect.origin.x + (horizontal + 1.0) * rect.size.width * 0.5;
+            let y = rect.origin.y + (vertical + 1.0) * rect.size.height * 0.5;
             resize_handles.push(
                 div()
                     .absolute()
@@ -109,11 +81,7 @@ pub fn preview_timeline_view(
                     .bg(rgb(ACCENT))
                     .border_1()
                     .border_color(rgb(0x101012))
-                    .cursor(if horizontal == vertical {
-                        CursorStyle::ResizeUpLeftDownRight
-                    } else {
-                        CursorStyle::ResizeUpRightDownLeft
-                    })
+                    .cursor(CursorStyle::Arrow)
                     .on_mouse_down(
                         MouseButton::Left,
                         cx.listener(move |editor, event, _, cx| {
@@ -121,7 +89,7 @@ pub fn preview_timeline_view(
                                 event,
                                 origin_x,
                                 origin_y,
-                                canvas,
+                                &canvas,
                                 PreviewDragMode::Resize {
                                     rect,
                                     horizontal,
@@ -218,6 +186,7 @@ pub fn preview_timeline_view(
                 .overflow_hidden()
                 .bg(rgb(0x000000))
                 .cursor(CursorStyle::Arrow)
+                .on_hover(cx.listener(|_, _, _, cx| cx.notify()))
                 .when(has_media, |this| {
                     this.on_mouse_down(
                         MouseButton::Left,
@@ -226,7 +195,7 @@ pub fn preview_timeline_view(
                                 event,
                                 origin_x,
                                 origin_y,
-                                canvas,
+                                &canvas,
                                 PreviewDragMode::Move,
                                 cx,
                             );
@@ -239,14 +208,50 @@ pub fn preview_timeline_view(
                         .size(px(width), px(surface_height))
                         .into_any_element(),
                 )
+                .child(
+                    gpui::canvas(
+                        move |bounds, window, _| {
+                            if !show_hover {
+                                return None;
+                            }
+                            let pointer = window.mouse_position() - bounds.origin;
+                            let clip_id = hit_preview_clip(
+                                &clip_rects,
+                                &canvas,
+                                f64::from(f32::from(pointer.x)),
+                                f64::from(f32::from(pointer.y)),
+                            )?;
+                            // Keep the selected outline gold, even when hovered.
+                            if Some(clip_id) == selected_clip_id {
+                                return None;
+                            }
+                            for &(id, rect) in &clip_rects {
+                                if id == clip_id {
+                                    return Some(Bounds::new(
+                                        bounds.origin + point(px(rect.origin.x as f32), px(rect.origin.y as f32)),
+                                        size(px(rect.size.width as f32), px(rect.size.height as f32)),
+                                    ));
+                                }
+                            }
+                            None
+                        },
+                        |_, rect, window, _| {
+                            if let Some(rect) = rect {
+                                window.paint_quad(gpui::outline(rect, rgb(0x75bfff), gpui::BorderStyle::Solid));
+                            }
+                        },
+                    )
+                    .absolute()
+                    .size_full(),
+                )
                 .when_some(snap_x, |this, guide| {
                     this.child(
                         div()
                             .absolute()
                             .left(px((guide - 0.5) as f32))
-                            .top(px(canvas.top as f32))
+                            .top(px(canvas.bounds.origin.y as f32))
                             .w(px(1.0))
-                            .h(px(canvas.height as f32))
+                            .h(px(canvas.bounds.size.height as f32))
                             .bg(rgb(ACCENT)),
                     )
                 })
@@ -254,9 +259,9 @@ pub fn preview_timeline_view(
                     this.child(
                         div()
                             .absolute()
-                            .left(px(canvas.left as f32))
+                            .left(px(canvas.bounds.origin.x as f32))
                             .top(px((guide - 0.5) as f32))
-                            .w(px(canvas.width as f32))
+                            .w(px(canvas.bounds.size.width as f32))
                             .h(px(1.0))
                             .bg(rgb(ACCENT)),
                     )
@@ -266,15 +271,14 @@ pub fn preview_timeline_view(
                         div()
                             .id("editor-timeline-preview-selection")
                             .absolute()
-                            .left(px(rect.left as f32))
-                            .top(px(rect.top as f32))
-                            .w(px(rect.width.max(1.0) as f32))
-                            .h(px(rect.height.max(1.0) as f32))
+                            .left(px(rect.origin.x as f32))
+                            .top(px(rect.origin.y as f32))
+                            .w(px(rect.size.width.max(1.0) as f32))
+                            .h(px(rect.size.height.max(1.0) as f32))
                             .border_1()
                             .border_color(rgb(ACCENT)),
                     )
                 })
-                .children(clip_cursor_regions)
                 .children(resize_handles),
         )
         .child(
@@ -299,7 +303,7 @@ pub fn preview_timeline_view(
                             .h_4()
                             .flex()
                             .items_center()
-                            .cursor(CursorStyle::PointingHand)
+                            .cursor(CursorStyle::Arrow)
                             .child(
                                 div()
                                     .w_full()
@@ -363,7 +367,7 @@ pub fn preview_timeline_view(
                                         .flex()
                                         .items_center()
                                         .justify_center()
-                                        .cursor(CursorStyle::PointingHand)
+                                        .cursor(CursorStyle::Arrow)
                                         .rounded_full()
                                         .hover(|style| style.bg(rgb(SURFACE_HOVER)))
                                         .text_lg()
@@ -470,7 +474,7 @@ pub fn preview_timeline_view(
                                                             ))
                                                             .flex()
                                                             .justify_center()
-                                                            .cursor(CursorStyle::PointingHand)
+                                                            .cursor(CursorStyle::Arrow)
                                                             .child(
                                                                 div()
                                                                     .w(px(5.0))
@@ -527,7 +531,7 @@ pub fn preview_timeline_view(
                                                 .flex()
                                                 .items_center()
                                                 .justify_center()
-                                                .cursor(CursorStyle::PointingHand)
+                                                .cursor(CursorStyle::Arrow)
                                                 .rounded_xl()
                                                 .border_1()
                                                 .border_color(rgb(BORDER))
@@ -569,7 +573,7 @@ pub fn preview_timeline_view(
                                 .child(
                                     div()
                                         .id("editor-timeline-fullscreen")
-                                        .cursor(CursorStyle::PointingHand)
+                                        .cursor(CursorStyle::Arrow)
                                         .rounded_md()
                                         .hover(|style| style.bg(rgb(SURFACE_HOVER)))
                                         .px_3()
@@ -594,10 +598,7 @@ const TIMELINE_TRANSFORM_UPDATE_INTERVAL: Duration = Duration::from_millis(16);
 
 #[derive(Clone, Copy, Debug)]
 struct TimelinePreviewCanvas {
-    left: f64,
-    top: f64,
-    width: f64,
-    height: f64,
+    bounds: Bounds<f64>,
     project_scale: f64,
 }
 
@@ -618,7 +619,7 @@ pub(super) struct TimelinePreviewDrag {
 enum PreviewDragMode {
     Move,
     Resize {
-        rect: RenderRect,
+        rect: Bounds<f64>,
         horizontal: f64,
         vertical: f64,
     },
@@ -626,42 +627,43 @@ enum PreviewDragMode {
 
 fn resized_preview_properties(
     original: VideoClipProperties,
-    rect: RenderRect,
+    rect: Bounds<f64>,
     corner: (f64, f64),
     delta: (f64, f64),
     project_scale: f64,
 ) -> VideoClipProperties {
-    let diagonal_squared = rect.width * rect.width + rect.height * rect.height;
+    let diagonal_squared = rect.size.width * rect.size.width + rect.size.height * rect.size.height;
     if diagonal_squared <= f64::EPSILON || original.scale <= f64::EPSILON {
         return original;
     }
     let factor = 1.0
-        + (delta.0 * corner.0 * rect.width + delta.1 * corner.1 * rect.height) / diagonal_squared;
+        + (delta.0 * corner.0 * rect.size.width + delta.1 * corner.1 * rect.size.height)
+            / diagonal_squared;
     let scale = (original.scale * factor).clamp(0.01, 100.0);
     let factor = scale / original.scale;
     VideoClipProperties {
         position_x: original.position_x
-            + corner.0 * rect.width * (factor - 1.0) * 0.5 / project_scale,
+            + corner.0 * rect.size.width * (factor - 1.0) * 0.5 / project_scale,
         position_y: original.position_y
-            + corner.1 * rect.height * (factor - 1.0) * 0.5 / project_scale,
+            + corner.1 * rect.size.height * (factor - 1.0) * 0.5 / project_scale,
         scale,
     }
 }
 
 fn snap_preview_resize(
     properties: VideoClipProperties,
-    rect: RenderRect,
+    rect: Bounds<f64>,
     corner: (f64, f64),
     project_scale: f64,
     horizontal_guides: &[f64],
     vertical_guides: &[f64],
 ) -> (VideoClipProperties, Option<f64>, Option<f64>) {
-    let fixed_x = rect.left + (1.0 - corner.0) * rect.width * 0.5;
-    let fixed_y = rect.top + (1.0 - corner.1) * rect.height * 0.5;
+    let fixed_x = rect.origin.x + (1.0 - corner.0) * rect.size.width * 0.5;
+    let fixed_y = rect.origin.y + (1.0 - corner.1) * rect.size.height * 0.5;
     let mut best_factor: Option<f64> = None;
     for (fixed, span, guides) in [
-        (fixed_x, corner.0 * rect.width, horizontal_guides),
-        (fixed_y, corner.1 * rect.height, vertical_guides),
+        (fixed_x, corner.0 * rect.size.width, horizontal_guides),
+        (fixed_y, corner.1 * rect.size.height, vertical_guides),
     ] {
         if span.abs() <= f64::EPSILON {
             continue;
@@ -689,21 +691,22 @@ fn snap_preview_resize(
     };
     let snapped = VideoClipProperties {
         position_x: properties.position_x
-            + corner.0 * rect.width * (factor - 1.0) * 0.5 / project_scale,
+            + corner.0 * rect.size.width * (factor - 1.0) * 0.5 / project_scale,
         position_y: properties.position_y
-            + corner.1 * rect.height * (factor - 1.0) * 0.5 / project_scale,
+            + corner.1 * rect.size.height * (factor - 1.0) * 0.5 / project_scale,
         scale: properties.scale * factor,
     };
     let mut snap_x = None;
     let mut snap_y = None;
     for fraction in [1.0, 0.5] {
         for &guide in horizontal_guides {
-            if (fixed_x + corner.0 * rect.width * factor * fraction - guide).abs() < 0.000001 {
+            if (fixed_x + corner.0 * rect.size.width * factor * fraction - guide).abs() < 0.000001 {
                 snap_x = Some(guide);
             }
         }
         for &guide in vertical_guides {
-            if (fixed_y + corner.1 * rect.height * factor * fraction - guide).abs() < 0.000001 {
+            if (fixed_y + corner.1 * rect.size.height * factor * fraction - guide).abs() < 0.000001
+            {
                 snap_y = Some(guide);
             }
         }
@@ -727,12 +730,130 @@ fn nearest_canvas_snap(clip_anchors: [f64; 3], canvas_guides: &[f64]) -> Option<
     nearest
 }
 
+fn timeline_preview_clip_rects(
+    timeline: &TimelineSerialization,
+    ges: &gstreamer_editing_services::Timeline,
+    position: TimelineTime,
+    canvas: &TimelinePreviewCanvas,
+) -> Vec<(Ulid, Bounds<f64>)> {
+    let mut rects = Vec::new();
+    // GES assigns lower (frontmost) priorities to text tracks first, then media.
+    for kind in [TrackKind::Text, TrackKind::Video] {
+        for track in &timeline.tracks {
+            if track.kind != kind || !track.visible {
+                continue;
+            }
+            for clip in timeline.clips_on_track(track.id) {
+                if position < clip.timeline_start()
+                    || position >= clip.timeline_end(timeline.settings.frame_rate)
+                {
+                    continue;
+                }
+                let rect = match clip {
+                    Clip::Video(media) | Clip::Audio(media) => {
+                        timeline_preview_clip_rect(timeline, clip, media.video_properties, canvas)
+                    }
+                    Clip::Text(text) => {
+                        if text.properties.text.trim().is_empty()
+                            || text.properties.color >> 24 == 0
+                        {
+                            continue;
+                        }
+                        timeline_preview_text_rect(ges, text.id, canvas)
+                    }
+                };
+                if let Some(rect) = rect {
+                    rects.push((clip.id(), rect));
+                }
+            }
+        }
+    }
+    rects
+}
+
+fn timeline_preview_text_rect(
+    ges: &gstreamer_editing_services::Timeline,
+    clip_id: Ulid,
+    canvas: &TimelinePreviewCanvas,
+) -> Option<Bounds<f64>> {
+    use gstreamer_editing_services::prelude::*;
+
+    let name = format!("opencut-clip-{clip_id}");
+    for layer in ges.layers() {
+        for clip in layer.clips() {
+            if clip.name().as_deref() == Some(name.as_str()) {
+                let (overlay, _) = clip.lookup_child("font-desc")?;
+                return rendered_text_rect(&overlay, canvas);
+            }
+        }
+    }
+    None
+}
+
+fn rendered_text_rect(
+    overlay: &gstreamer::glib::Object,
+    canvas: &TimelinePreviewCanvas,
+) -> Option<Bounds<f64>> {
+    use gstreamer::prelude::*;
+
+    // Read the actual Pango rendering, including multiline layout and font fallback.
+    // Properties have placeholder defaults before the renderer negotiates a frame.
+    let element = overlay.downcast_ref::<gstreamer::Element>()?;
+    element.static_pad("video_sink")?.current_caps()?;
+    for name in ["text-x", "text-y", "text-width", "text-height"] {
+        overlay.find_property(name)?;
+    }
+    let width = overlay.property::<u32>("text-width");
+    let height = overlay.property::<u32>("text-height");
+    if width == 0 || height == 0 {
+        return None;
+    }
+    Some(Bounds::new(
+        point(
+            canvas.bounds.origin.x
+                + f64::from(overlay.property::<i32>("text-x")) * canvas.project_scale,
+            canvas.bounds.origin.y
+                + f64::from(overlay.property::<i32>("text-y")) * canvas.project_scale,
+        ),
+        size(
+            f64::from(width) * canvas.project_scale,
+            f64::from(height) * canvas.project_scale,
+        ),
+    ))
+}
+
+fn clipped_preview_rect(rect: Bounds<f64>, canvas: Bounds<f64>) -> Option<Bounds<f64>> {
+    let clipped = rect.intersect(&canvas);
+    if clipped.size.width <= 0.0 || clipped.size.height <= 0.0 {
+        return None;
+    }
+    Some(clipped)
+}
+
+fn hit_preview_clip(
+    rects: &[(Ulid, Bounds<f64>)],
+    canvas: &TimelinePreviewCanvas,
+    x: f64,
+    y: f64,
+) -> Option<Ulid> {
+    for &(clip_id, rect) in rects {
+        let Some(rect) = clipped_preview_rect(rect, canvas.bounds) else {
+            continue;
+        };
+        // Preserve inclusive right/bottom edges; Bounds::contains excludes them.
+        if x >= rect.origin.x && x <= rect.right() && y >= rect.origin.y && y <= rect.bottom() {
+            return Some(clip_id);
+        }
+    }
+    None
+}
+
 fn timeline_preview_clip_rect(
     timeline: &TimelineSerialization,
     clip: &Clip,
     properties: VideoClipProperties,
-    canvas: TimelinePreviewCanvas,
-) -> Option<RenderRect> {
+    canvas: &TimelinePreviewCanvas,
+) -> Option<Bounds<f64>> {
     let clip = clip.media()?;
     let track = timeline.track(clip.track_id)?;
     if track.kind != TrackKind::Video || !track.visible {
@@ -748,16 +869,11 @@ fn timeline_preview_clip_rect(
         asset.height,
         timeline.settings.width,
         timeline.settings.height,
-        canvas.width,
-        canvas.height,
+        canvas.bounds.size.width,
+        canvas.bounds.size.height,
     )
     .visible;
-    Some(RenderRect {
-        left: canvas.left + visible.left,
-        top: canvas.top + visible.top,
-        width: visible.width,
-        height: visible.height,
-    })
+    Some(visible + canvas.bounds.origin)
 }
 
 impl Editor {
@@ -766,7 +882,7 @@ impl Editor {
         event: &MouseDownEvent,
         surface_left: f32,
         surface_top: f32,
-        canvas: TimelinePreviewCanvas,
+        canvas: &TimelinePreviewCanvas,
         mode: PreviewDragMode,
         cx: &mut Context<Self>,
     ) {
@@ -779,28 +895,13 @@ impl Editor {
         let clip_id = if matches!(mode, PreviewDragMode::Resize { .. }) {
             timeline.interaction.selected_clip_id
         } else {
-            timeline.data.tracks.iter().rev().find_map(|track| {
-                timeline.data.clips_on_track(track.id).find_map(|clip| {
-                    let media = clip.media()?;
-                    if clip.timeline_start() > timeline.playhead()
-                        || timeline.playhead()
-                            >= clip.timeline_end(timeline.data.settings.frame_rate)
-                    {
-                        return None;
-                    }
-                    let rect = timeline_preview_clip_rect(
-                        &timeline.data,
-                        clip,
-                        media.video_properties,
-                        canvas,
-                    )?;
-                    (f64::from(pointer_x) >= rect.left
-                        && f64::from(pointer_x) <= rect.left + rect.width
-                        && f64::from(pointer_y) >= rect.top
-                        && f64::from(pointer_y) <= rect.top + rect.height)
-                        .then_some(clip.id())
-                })
-            })
+            let rects = timeline_preview_clip_rects(
+                &timeline.data,
+                timeline.video_backend.ges_timeline(),
+                timeline.playhead(),
+                canvas,
+            );
+            hit_preview_clip(&rects, canvas, f64::from(pointer_x), f64::from(pointer_y))
         };
         self.select_only_clip(clip_id);
         let Some(clip_id) = clip_id else {
@@ -822,6 +923,10 @@ impl Editor {
             return;
         };
         let Some(clip) = clip.media() else {
+            // Text selection is supported before text movement is implemented.
+            self.preview.timeline_drag = None;
+            cx.notify();
+            cx.stop_propagation();
             return;
         };
         self.preview.timeline_drag = Some(TimelinePreviewDrag {
@@ -830,7 +935,7 @@ impl Editor {
             pointer_y: f32::from(event.position.y),
             properties: clip.video_properties,
             mode,
-            canvas,
+            canvas: *canvas,
             snap_x: None,
             snap_y: None,
 
@@ -889,14 +994,14 @@ impl Editor {
         drag.snap_y = None;
         if timeline.interaction.snapping_enabled {
             let mut horizontal_guides = vec![
-                drag.canvas.left,
-                drag.canvas.left + drag.canvas.width * 0.5,
-                drag.canvas.left + drag.canvas.width,
+                drag.canvas.bounds.origin.x,
+                drag.canvas.bounds.origin.x + drag.canvas.bounds.size.width * 0.5,
+                drag.canvas.bounds.origin.x + drag.canvas.bounds.size.width,
             ];
             let mut vertical_guides = vec![
-                drag.canvas.top,
-                drag.canvas.top + drag.canvas.height * 0.5,
-                drag.canvas.top + drag.canvas.height,
+                drag.canvas.bounds.origin.y,
+                drag.canvas.bounds.origin.y + drag.canvas.bounds.size.height * 0.5,
+                drag.canvas.bounds.origin.y + drag.canvas.bounds.size.height,
             ];
             for clip in &timeline.data.clips {
                 if clip.id() == drag.clip_id
@@ -912,34 +1017,34 @@ impl Editor {
                     &timeline.data,
                     clip,
                     media.video_properties,
-                    drag.canvas,
+                    &drag.canvas,
                 ) else {
                     continue;
                 };
                 horizontal_guides.extend([
-                    other.left,
-                    other.left + other.width * 0.5,
-                    other.left + other.width,
+                    other.origin.x,
+                    other.origin.x + other.size.width * 0.5,
+                    other.origin.x + other.size.width,
                 ]);
                 vertical_guides.extend([
-                    other.top,
-                    other.top + other.height * 0.5,
-                    other.top + other.height,
+                    other.origin.y,
+                    other.origin.y + other.size.height * 0.5,
+                    other.origin.y + other.size.height,
                 ]);
             }
             if let Some(rect) = timeline_preview_clip_rect(
                 &timeline.data,
                 &timeline.data.clips[index],
                 properties,
-                drag.canvas,
+                &drag.canvas,
             ) {
                 match drag.mode {
                     PreviewDragMode::Move => {
                         if let Some((delta, guide)) = nearest_canvas_snap(
                             [
-                                rect.left + rect.width * 0.5,
-                                rect.left,
-                                rect.left + rect.width,
+                                rect.origin.x + rect.size.width * 0.5,
+                                rect.origin.x,
+                                rect.right(),
                             ],
                             &horizontal_guides,
                         ) {
@@ -948,9 +1053,9 @@ impl Editor {
                         }
                         if let Some((delta, guide)) = nearest_canvas_snap(
                             [
-                                rect.top + rect.height * 0.5,
-                                rect.top,
-                                rect.top + rect.height,
+                                rect.origin.y + rect.size.height * 0.5,
+                                rect.origin.y,
+                                rect.bottom(),
                             ],
                             &vertical_guides,
                         ) {
@@ -1061,6 +1166,7 @@ impl Editor {
         cx: &mut Context<Self>,
     ) {
         if !event.dragging() {
+            cx.notify();
             return;
         }
         if self.update_timeline_preview_clip_drag(event, cx) {

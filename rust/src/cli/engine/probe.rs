@@ -229,7 +229,12 @@ pub fn inspect_assets(
             Ok(p) => p,
             Err(e) => {
                 findings.push(crate::cli::validate::Finding {
-                    error: e.context(format!("/assets/{i}/path ({}), at {}:{}", path.display(), file!(), line!())),
+                    error: e.context(format!(
+                        "/assets/{i}/path ({}), at {}:{}",
+                        path.display(),
+                        file!(),
+                        line!()
+                    )),
                     fix_hint: None,
                 });
                 continue;

@@ -1,4 +1,4 @@
-use super::super::{FrameRate, TimelineEditorExt, TimelineTime, tests, timeline_document};
+use super::super::{FrameRate, TimelineEditorExt, TimelineTime, timeline_document};
 use super::*;
 use gst_pbutils::prelude::*;
 use image::{Rgba, RgbaImage};
@@ -16,7 +16,6 @@ use std::fs;
 
 #[test]
 fn shared_timeline_round_trip_and_backend_rendering() {
-    let _lock = tests::lock_gstreamer_test();
     ges::init().unwrap();
     let root = std::env::temp_dir().join(format!("opencut-shared-{}", Ulid::generate()));
     fs::create_dir_all(root.join("media")).unwrap();
@@ -182,7 +181,6 @@ fn shared_timeline_round_trip_and_backend_rendering() {
 
 #[test]
 fn shared_timeline_podcast_assembly_exports_in_both_backends() {
-    let _lock = tests::lock_gstreamer_test();
     ges::init().unwrap();
     let root = std::env::temp_dir().join(format!("opencut-podcast-{}", Ulid::generate()));
     fs::create_dir(&root).unwrap();

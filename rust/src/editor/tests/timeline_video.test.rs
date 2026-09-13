@@ -3,7 +3,6 @@ use std::time::{Duration, Instant};
 
 #[test]
 fn repeated_drag_refreshes_allow_slow_frames_to_finish() {
-    let _gstreamer_test = crate::editor::tests::lock_gstreamer_test();
     ges::init().unwrap();
     let pipeline = gst::parse::launch(
         "videotestsrc name=source pattern=black num-buffers=300 ! video/x-raw,format=RGBA,width=16,height=16,framerate=30/1 ! identity sleep-time=50000 ! appsink name=sink",
@@ -44,7 +43,6 @@ fn repeated_drag_refreshes_allow_slow_frames_to_finish() {
 
 #[test]
 fn playback_resumes_after_repeated_resize_refreshes() {
-    let _gstreamer_test = crate::editor::tests::lock_gstreamer_test();
     ges::init().unwrap();
     let timeline = ges::Timeline::new_audio_video();
     let clip = ges::TestClip::new().unwrap();
@@ -85,5 +83,86 @@ fn playback_resumes_after_repeated_resize_refreshes() {
         }
         playback.set_paused(true);
         pipeline.state(gst::ClockTime::from_seconds(5)).0.unwrap();
+    }
+}
+
+#[cfg(target_os = "macos")]
+#[test]
+fn hevc_with_title_boundaries_uses_software_decoding() {
+    use crate::editor::{
+        export::ExportOptions,
+        export_gstreamer::build_ges_timeline,
+        media_probe::probe_video,
+        timeline::{TimelineSerialization, TimelineTime},
+    };
+    ges::init().unwrap();
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data/tests");
+    let asset_id = ulid::Ulid::generate();
+    let mut asset = probe_video(&root.join("4K.MOV"), asset_id).unwrap();
+    asset.path = "4K.MOV".into();
+    let mut data: TimelineSerialization = serde_json::from_value(serde_json::json!({
+        "settings": {"frame_rate":{"numerator":24000,"denominator":1001},"width":320,"height":180,"audio_sample_rate":48000},
+        "assets": [asset],
+        "tracks": [
+            {"id":"01M0PNQ7A7CTYF1YA8J2T5PQW5","name":"Video","kind":"Video","locked":false,"muted":false,"visible":true},
+            {"id":"01M10SFVCR94J5XPK9WSXSA3X0","name":"Text","kind":"Text","locked":false,"muted":false,"visible":true},
+            {"id":"01M2CXTP09K0KD0VBMEB9T2J4Z","name":"Text 2","kind":"Text","locked":false,"muted":false,"visible":true}
+        ],
+        "clips": []
+    })).unwrap();
+    data.clips.push(
+        serde_json::from_value(serde_json::json!({"kind":"Video","data":{
+            "id":"01M1BDHHMW2HQMDWQWJGVYKW8H","track_id":data.tracks[0].id,"asset_id":asset_id,
+            "timeline_start":0,"source_in":0,"source_out":56,
+            "video_properties":{"position_x":0.0,"position_y":0.0,"scale":1.0},
+            "audio_properties":{"gain_db":0.0,"muted":false}
+        }}))
+        .unwrap(),
+    );
+    for (index, start, nanos) in [(1, 4, 1_500_000_000_u64), (2, 30, 140_000_000)] {
+        data.clips.push(serde_json::from_value(serde_json::json!({"kind":"Text","data":{
+            "id":ulid::Ulid::generate(),"track_id":data.tracks[index].id,"timeline_start":start,
+            "length":{"secs":nanos/1_000_000_000,"nanos":nanos%1_000_000_000},
+            "properties":{"text":"Title","font":"Sans","font_size":20.0,"color":4294967295_u32,"position_x":0.5,"position_y":0.5}
+        }})).unwrap());
+    }
+    let timeline =
+        build_ges_timeline(&data, &root, ExportOptions::from_timeline(&data), false).unwrap();
+    let mut backend = TimelineVideoBackend::new(timeline).unwrap();
+    let playback = backend.playback_mut();
+    playback
+        .pipeline()
+        .state(gst::ClockTime::from_seconds(10))
+        .0
+        .unwrap();
+    let mut software_decoder = false;
+    let mut elements = playback.pipeline().iterate_recurse();
+    while let Ok(Some(element)) = elements.next() {
+        if let Some(factory) = element.factory() {
+            software_decoder |= factory.name() == "avdec_h265";
+            assert!(!matches!(factory.name().as_str(), "vtdec" | "vtdec_hw"));
+        }
+    }
+    assert!(
+        software_decoder,
+        "HEVC title timeline must use the software decoder"
+    );
+    for frame in [26, 27, 28, 29, 30, 31, 30, 29, 28, 27] {
+        playback
+            .seek(data.duration(TimelineTime::from_frames(frame)))
+            .unwrap();
+        std::thread::sleep(Duration::from_millis(200));
+        playback
+            .pipeline()
+            .state(gst::ClockTime::from_seconds(10))
+            .0
+            .unwrap();
+        let sample = playback.get_current_frame().unwrap();
+        let pixels = sample.buffer().unwrap().map_readable().unwrap();
+        let visible = pixels.as_slice()[..320 * 180]
+            .iter()
+            .filter(|&&value| value > 32)
+            .count();
+        assert!(visible > 320 * 180 / 10, "video missing at frame {frame}");
     }
 }
