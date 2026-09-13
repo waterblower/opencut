@@ -5436,6 +5436,7 @@ dependencies = [
  "smallvec",
  "tokio",
  "ulid",
+ "unicode-script",
  "unicode-segmentation",
  "url",
  "yuv",
