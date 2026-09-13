@@ -308,6 +308,7 @@ fn creates_gstreamer_timeline_from_real_media() {
         &project,
         project_root,
         ExportOptions::from_timeline(&project),
+        false,
     )
     .unwrap();
     let layers = timeline.layers();
@@ -387,6 +388,7 @@ fn adds_text_clips_as_independent_ges_titles() {
         &project,
         project_root,
         ExportOptions::from_timeline(&project),
+        false,
     )
     .unwrap();
     let layers = timeline.layers();
@@ -518,6 +520,7 @@ fn hidden_and_muted_tracks_keep_their_duration_as_black_video() {
         &project,
         project_root,
         ExportOptions::from_timeline(&project),
+        false,
     )
     .unwrap();
     let expected_duration = clock_time(project.duration(project.content_duration()));

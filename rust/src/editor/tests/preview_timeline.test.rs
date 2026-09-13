@@ -157,3 +157,170 @@ fn preview_does_not_snap_five_pixels_away() {
         (properties, None, None)
     );
 }
+
+#[test]
+fn hit_testing_uses_frontmost_rectangle_and_excludes_letterboxing() {
+    use super::{RenderRect, TimelinePreviewCanvas, hit_preview_clip};
+    let canvas = TimelinePreviewCanvas {
+        left: 100.0,
+        top: 50.0,
+        width: 400.0,
+        height: 200.0,
+        project_scale: 0.5,
+    };
+    let front = super::Ulid::from(1_u128);
+    let back = super::Ulid::from(2_u128);
+    let rects = [
+        (
+            front,
+            RenderRect {
+                left: 120.0,
+                top: 60.0,
+                width: 80.0,
+                height: 30.0,
+            },
+        ),
+        (
+            back,
+            RenderRect {
+                left: 0.0,
+                top: 0.0,
+                width: 600.0,
+                height: 400.0,
+            },
+        ),
+    ];
+    assert_eq!(hit_preview_clip(&rects, canvas, 140.0, 70.0), Some(front));
+    assert_eq!(hit_preview_clip(&rects, canvas, 300.0, 150.0), Some(back));
+    assert_eq!(hit_preview_clip(&rects, canvas, 30.0, 70.0), None);
+    assert_eq!(hit_preview_clip(&rects, canvas, 140.0, 20.0), None);
+    assert_eq!(hit_preview_clip(&[], canvas, 140.0, 70.0), None);
+}
+
+#[test]
+fn rendered_text_bounds_follow_real_pixels_and_preview_scaling() {
+    use super::{TimelinePreviewCanvas, rendered_text_rect};
+    use gst::prelude::*;
+    use gstreamer as gst;
+    let _guard = crate::editor::tests::lock_gstreamer_test();
+    gst::init().unwrap();
+    for text in ["Title", "Two\nlines", "你好 世界", ""] {
+        let pipeline = gst::parse::launch(
+            "videotestsrc pattern=black num-buffers=1 ! video/x-raw,width=640,height=360 ! textoverlay name=title auto-resize=false font-desc=\"Sans 32px\" ! fakesink",
+        ).unwrap().downcast::<gst::Pipeline>().unwrap();
+        let overlay = pipeline.by_name("title").unwrap();
+        overlay.set_property("text", text);
+        let canvas = TimelinePreviewCanvas {
+            left: 70.0,
+            top: 20.0,
+            width: 320.0,
+            height: 180.0,
+            project_scale: 0.5,
+        };
+        assert!(rendered_text_rect(overlay.upcast_ref(), canvas).is_none());
+        pipeline.set_state(gst::State::Paused).unwrap();
+        let ready = pipeline.state(gst::ClockTime::from_seconds(5));
+        let rect = rendered_text_rect(overlay.upcast_ref(), canvas);
+        let x = overlay.property::<i32>("text-x");
+        let y = overlay.property::<i32>("text-y");
+        let width = overlay.property::<u32>("text-width");
+        let height = overlay.property::<u32>("text-height");
+        pipeline.set_state(gst::State::Null).unwrap();
+        ready.0.unwrap();
+        assert_eq!(ready.1, gst::State::Paused);
+        if text.is_empty() {
+            continue;
+        }
+        let rect = rect.expect("rendered text has bounds");
+        assert_eq!(rect.left, 70.0 + f64::from(x) * 0.5);
+        assert_eq!(rect.top, 20.0 + f64::from(y) * 0.5);
+        assert_eq!(rect.width, f64::from(width) * 0.5);
+        assert_eq!(rect.height, f64::from(height) * 0.5);
+        assert!(rect.width > 0.0 && rect.height > 0.0);
+    }
+}
+
+#[test]
+fn ges_text_rectangles_respect_visibility_time_and_locked_selection() {
+    use super::*;
+    use crate::editor::tests::{TimelineTestExt, lock_gstreamer_test, ulid};
+    use ges::prelude::*;
+    use gstreamer as gst;
+    use gstreamer_editing_services as ges;
+    let _guard = lock_gstreamer_test();
+    ges::init().unwrap();
+    let mut data = TimelineSerialization::with_test_tracks();
+    data.settings.width = 640;
+    data.settings.height = 360;
+    let id = ulid(920);
+    data.tracks.push(Track {
+        id,
+        name: "Text".into(),
+        kind: TrackKind::Text,
+        locked: true,
+        muted: false,
+        visible: true,
+    });
+    let clip_id = ulid(921);
+    data.clips.push(Clip::Text(TextClip {
+        id: clip_id,
+        track_id: id,
+        timeline_start: TimelineTime::ZERO,
+        length: Duration::from_secs(2),
+        properties: TextClipProperties::default(),
+    }));
+    let timeline = export_gstreamer::build_ges_timeline(
+        &data,
+        std::path::Path::new("."),
+        export::ExportOptions::from_timeline(&data),
+        false,
+    )
+    .unwrap();
+    let canvas = TimelinePreviewCanvas {
+        left: 20.0,
+        top: 10.0,
+        width: 320.0,
+        height: 180.0,
+        project_scale: 0.5,
+    };
+    assert!(timeline_preview_clip_rects(&data, &timeline, TimelineTime::ZERO, canvas).is_empty());
+    let pipeline = ges::Pipeline::new();
+    pipeline.preview_set_video_sink(Some(
+        &gst::ElementFactory::make("fakesink").build().unwrap(),
+    ));
+    pipeline.preview_set_audio_sink(Some(
+        &gst::ElementFactory::make("fakesink").build().unwrap(),
+    ));
+    pipeline.set_timeline(&timeline).unwrap();
+    pipeline.set_mode(ges::PipelineFlags::FULL_PREVIEW).unwrap();
+    pipeline.set_state(gst::State::Paused).unwrap();
+    let ready = pipeline.state(gst::ClockTime::from_seconds(5));
+    let rects = timeline_preview_clip_rects(&data, &timeline, TimelineTime::ZERO, canvas);
+    let end = data.clips[0].timeline_end(data.settings.frame_rate);
+    let ended = timeline_preview_clip_rects(&data, &timeline, end, canvas);
+    data.tracks.last_mut().unwrap().visible = false;
+    let hidden = timeline_preview_clip_rects(&data, &timeline, TimelineTime::ZERO, canvas);
+    data.tracks.last_mut().unwrap().visible = true;
+    let Clip::Text(text) = &mut data.clips[0] else {
+        unreachable!()
+    };
+    text.properties.text.clear();
+    let empty = timeline_preview_clip_rects(&data, &timeline, TimelineTime::ZERO, canvas);
+    pipeline.set_state(gst::State::Null).unwrap();
+    ready.0.unwrap();
+    assert_eq!(ready.1, gst::State::Paused);
+    assert_eq!(rects.len(), 1);
+    let rect = rects[0].1;
+    assert_eq!(
+        hit_preview_clip(
+            &rects,
+            canvas,
+            rect.left + rect.width / 2.0,
+            rect.top + rect.height / 2.0
+        ),
+        Some(clip_id)
+    );
+    assert!(ended.is_empty());
+    assert!(hidden.is_empty());
+    assert!(empty.is_empty());
+}

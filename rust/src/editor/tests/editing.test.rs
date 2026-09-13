@@ -281,6 +281,7 @@ fn moves_ges_clip_without_rebuilding_timeline() {
         &project,
         Path::new(env!("CARGO_MANIFEST_DIR")),
         export::ExportOptions::from_timeline(&project),
+        false,
     )
     .unwrap();
     let start = TimelineTime::from_frames(45);
@@ -355,6 +356,7 @@ fn moves_adjacent_ges_clips_together_without_transient_overlap() {
         &project,
         Path::new(env!("CARGO_MANIFEST_DIR")),
         export::ExportOptions::from_timeline(&project),
+        false,
     )
     .unwrap();
     let placements = [
@@ -513,6 +515,7 @@ fn removes_ges_clip_and_ripples_surviving_clips() {
         &project,
         Path::new(env!("CARGO_MANIFEST_DIR")),
         export::ExportOptions::from_timeline(&project),
+        false,
     )
     .unwrap();
     let mut runtime =
@@ -578,6 +581,7 @@ fn splits_ges_clip_with_one_edit_action() {
         &project,
         Path::new(env!("CARGO_MANIFEST_DIR")),
         export::ExportOptions::from_timeline(&project),
+        false,
     )
     .unwrap();
     let mut runtime =
@@ -636,6 +640,7 @@ fn detects_timeline_and_ges_data_divergence() {
         &project,
         Path::new(env!("CARGO_MANIFEST_DIR")),
         export::ExportOptions::from_timeline(&project),
+        false,
     )
     .unwrap();
     let mut runtime =
