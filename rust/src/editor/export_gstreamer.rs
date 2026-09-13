@@ -347,10 +347,10 @@ pub(super) fn apply_video_transform(
     );
 
     for (name, value) in [
-        ("posx", rounded_i32(plan.visible.left)),
-        ("posy", rounded_i32(plan.visible.top)),
-        ("width", rounded_i32(plan.visible.width).max(1)),
-        ("height", rounded_i32(plan.visible.height).max(1)),
+        ("posx", rounded_i32(plan.visible.origin.x)),
+        ("posy", rounded_i32(plan.visible.origin.y)),
+        ("width", rounded_i32(plan.visible.size.width).max(1)),
+        ("height", rounded_i32(plan.visible.size.height).max(1)),
     ] {
         clip.set_child_property(name, value)
             .map_err(|error| anyhow!("could not apply video {name}: {error}"))?;

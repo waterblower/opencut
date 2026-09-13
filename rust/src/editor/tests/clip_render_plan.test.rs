@@ -16,10 +16,10 @@ fn resolves_visual_geometry_in_target_pixels() {
         1080.0,
     );
 
-    assert_eq!(plan.visible.left, 600.0);
-    assert_eq!(plan.visible.top, 210.0);
-    assert_eq!(plan.visible.width, 960.0);
-    assert_eq!(plan.visible.height, 540.0);
+    assert_eq!(plan.visible.origin.x, 600.0);
+    assert_eq!(plan.visible.origin.y, 210.0);
+    assert_eq!(plan.visible.size.width, 960.0);
+    assert_eq!(plan.visible.size.height, 540.0);
 }
 
 #[test]
