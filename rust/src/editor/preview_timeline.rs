@@ -58,27 +58,6 @@ pub fn preview_timeline_view(
     let timeline_left = origin_x + TIMELINE_HORIZONTAL_PADDING;
     let volume_track_bottom = origin_y + height - TIMELINE_VOLUME_TRACK_BOTTOM_OFFSET;
     let has_media = !timeline.data.clips.is_empty();
-    let mut clip_cursor_regions = Vec::new();
-    // Rectangles are front-to-back; paint cursor regions back-to-front.
-    for &(clip_id, rect) in clip_rects.iter().rev() {
-        let Some(rect) = clipped_preview_rect(rect, canvas.bounds) else {
-            continue;
-        };
-        clip_cursor_regions.push(
-            div()
-                .absolute()
-                .left(px(rect.origin.x as f32))
-                .top(px(rect.origin.y as f32))
-                .w(px(rect.size.width as f32))
-                .h(px(rect.size.height as f32))
-                .cursor(if timeline.data.clip_locked(clip_id) {
-                    CursorStyle::Arrow
-                } else {
-                    CursorStyle::OpenHand
-                }),
-        );
-    }
-
     let mut resize_handles = Vec::new();
     if let Some(rect) = selected_rect
         && let Some(clip_id) = timeline.interaction.selected_clip_id
@@ -100,11 +79,7 @@ pub fn preview_timeline_view(
                     .bg(rgb(ACCENT))
                     .border_1()
                     .border_color(rgb(0x101012))
-                    .cursor(if horizontal == vertical {
-                        CursorStyle::ResizeUpLeftDownRight
-                    } else {
-                        CursorStyle::ResizeUpRightDownLeft
-                    })
+                    .cursor(CursorStyle::Arrow)
                     .on_mouse_down(
                         MouseButton::Left,
                         cx.listener(move |editor, event, _, cx| {
@@ -265,7 +240,6 @@ pub fn preview_timeline_view(
                             .border_color(rgb(ACCENT)),
                     )
                 })
-                .children(clip_cursor_regions)
                 .children(resize_handles),
         )
         .child(
@@ -290,7 +264,7 @@ pub fn preview_timeline_view(
                             .h_4()
                             .flex()
                             .items_center()
-                            .cursor(CursorStyle::PointingHand)
+                            .cursor(CursorStyle::Arrow)
                             .child(
                                 div()
                                     .w_full()
@@ -354,7 +328,7 @@ pub fn preview_timeline_view(
                                         .flex()
                                         .items_center()
                                         .justify_center()
-                                        .cursor(CursorStyle::PointingHand)
+                                        .cursor(CursorStyle::Arrow)
                                         .rounded_full()
                                         .hover(|style| style.bg(rgb(SURFACE_HOVER)))
                                         .text_lg()
@@ -461,7 +435,7 @@ pub fn preview_timeline_view(
                                                             ))
                                                             .flex()
                                                             .justify_center()
-                                                            .cursor(CursorStyle::PointingHand)
+                                                            .cursor(CursorStyle::Arrow)
                                                             .child(
                                                                 div()
                                                                     .w(px(5.0))
@@ -518,7 +492,7 @@ pub fn preview_timeline_view(
                                                 .flex()
                                                 .items_center()
                                                 .justify_center()
-                                                .cursor(CursorStyle::PointingHand)
+                                                .cursor(CursorStyle::Arrow)
                                                 .rounded_xl()
                                                 .border_1()
                                                 .border_color(rgb(BORDER))
@@ -560,7 +534,7 @@ pub fn preview_timeline_view(
                                 .child(
                                     div()
                                         .id("editor-timeline-fullscreen")
-                                        .cursor(CursorStyle::PointingHand)
+                                        .cursor(CursorStyle::Arrow)
                                         .rounded_md()
                                         .hover(|style| style.bg(rgb(SURFACE_HOVER)))
                                         .px_3()
