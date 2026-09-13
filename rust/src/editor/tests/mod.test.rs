@@ -3,11 +3,6 @@ pub trait TimelineTestExt: Sized {
 }
 use super::*;
 
-pub(super) fn lock_gstreamer_test() -> std::sync::MutexGuard<'static, ()> {
-    static LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
-    LOCK.lock().unwrap_or_else(|error| error.into_inner())
-}
-
 pub(super) fn ulid(value: u64) -> Ulid {
     Ulid::from(u128::from(value))
 }

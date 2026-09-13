@@ -17,6 +17,7 @@ use std::{
 mod clip_placement;
 mod clip_render_plan;
 mod context_menu;
+mod debug_state;
 mod editing;
 mod editor;
 mod editor_view;
