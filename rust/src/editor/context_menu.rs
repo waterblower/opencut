@@ -313,7 +313,7 @@ impl Editor {
                                     .on_click(cx.listener(|editor, _, _, cx| {
                                         if let Err(error) = editor.apply_transform_to_track_clips()
                                         {
-                                            log::error!("Could not save timeline: {error:?}");
+                                            log::error!("{error:?}");
                                         }
                                         cx.notify();
                                     }))
@@ -419,7 +419,7 @@ impl Editor {
                             .hover(|style| style.bg(rgb(0x34343a)))
                             .on_click(cx.listener(move |editor, _, _, cx| {
                                 if let Err(error) = editor.add_text(track_id, position, cx) {
-                                    log::error!("Could not save timeline: {error:?}");
+                                    log::error!("{error:?}");
                                     cx.notify();
                                 }
                             }))
