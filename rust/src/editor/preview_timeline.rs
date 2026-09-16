@@ -1130,15 +1130,10 @@ impl Editor {
             return Ok(false);
         };
         if drag.changed {
-            if let Some(timeline) = self.timeline.as_mut() {
-                match refresh_timeline_video_frame(timeline.video_backend.playback_mut()) {
-                    Ok(()) => {}
-                    Err(error) => eprintln!("{error}"),
-                }
-            }
-            let Some(timeline) = self.timeline.as_ref() else {
+            let Some(timeline) = self.timeline.as_mut() else {
                 return Ok(true);
             };
+            refresh_timeline_video_frame(timeline.video_backend.playback_mut())?;
             timeline
                 .data
                 .save(&self.project_root.join(&timeline.path))?;
