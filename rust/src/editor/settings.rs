@@ -1,4 +1,5 @@
 use super::*;
+use anyhow::Result;
 
 impl Editor {
     pub(super) fn settings_modal(
@@ -32,7 +33,9 @@ impl Editor {
                         0x45454d
                     })))
                     .on_click(cx.listener(move |editor, _, _, cx| {
-                        editor.set_timeline_frame_rate(frame_rate);
+                        if let Err(error) = editor.set_timeline_frame_rate(frame_rate) {
+                            log::error!("{error:?}");
+                        }
                         cx.notify();
                     }))
             })
@@ -132,21 +135,21 @@ impl Editor {
             .into_any_element()
     }
 
-    fn set_timeline_frame_rate(&mut self, frame_rate: FrameRate) {
+    fn set_timeline_frame_rate(&mut self, frame_rate: FrameRate) -> Result<()> {
         self.settings_open = false;
         let Some(timeline) = self.timeline.as_ref() else {
-            return;
+            return Ok(());
         };
         let previous = timeline.data.settings.frame_rate;
         if previous == frame_rate {
-            return;
+            return Ok(());
         }
 
         if let Some(video) = self.active_video() {
             video.set_paused(true);
         }
         let Some(timeline) = self.timeline.as_mut() else {
-            return;
+            return Ok(());
         };
         timeline.record_editing_history();
         edit_and_rebuild_timeline(
@@ -158,7 +161,7 @@ impl Editor {
         .expect("changing the frame rate cannot be rejected");
         let playhead = timeline.playhead();
         let has_clips = !timeline.data.clips.is_empty();
-        timeline.save_timeline_playhead(&self.project_root);
+        timeline.save_timeline_playhead(&self.project_root)?;
         if has_clips {
             load_timeline_position_with_options(&mut self.preview, timeline, playhead);
         }
@@ -166,5 +169,6 @@ impl Editor {
             "Timeline frame rate changed to {}.",
             frame_rate.label()
         ));
+        Ok(())
     }
 }
