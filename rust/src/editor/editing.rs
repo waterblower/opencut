@@ -773,14 +773,6 @@ impl Editor {
         timeline.data.save(&self.project_root.join(&timeline.path))
     }
 
-    pub(super) fn save_timeline_scroll(&mut self) -> Result<()> {
-        let Some(timeline) = self.timeline.as_mut() else {
-            return Ok(());
-        };
-        timeline.capture_scroll(&self.project_root);
-        timeline.data.save(&self.project_root.join(&timeline.path))
-    }
-
     pub(super) fn toggle_track_magnet(&mut self) {
         let Some(timeline) = self.timeline.as_mut() else {
             return;
