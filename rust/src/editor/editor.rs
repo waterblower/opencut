@@ -194,7 +194,7 @@ fn handle_app_event(
             )
             .expect("event bus edit actions cannot be rejected");
             if let Err(error) = timeline.data.save(&project_root.join(&timeline.path)) {
-                log::error!("Could not save timeline: {error:?}");
+                log::error!("{error:?}");
             }
         }
         AppEvent::DragStarted(asset) => {
