@@ -550,7 +550,9 @@ impl Editor {
                     .child(
                         timeline_icon_button("add-video-track", "+V").on_click(cx.listener(
                             |editor, _, _, cx| {
-                                editor.add_track(TrackKind::Video);
+                                if let Err(error) = editor.add_track(TrackKind::Video) {
+                                    log::error!("{error:?}");
+                                }
                                 cx.notify();
                             },
                         )),
@@ -558,7 +560,9 @@ impl Editor {
                     .child(
                         timeline_icon_button("add-audio-track", "+A").on_click(cx.listener(
                             |editor, _, _, cx| {
-                                editor.add_track(TrackKind::Audio);
+                                if let Err(error) = editor.add_track(TrackKind::Audio) {
+                                    log::error!("{error:?}");
+                                }
                                 cx.notify();
                             },
                         )),
@@ -566,7 +570,9 @@ impl Editor {
                     .child(
                         timeline_icon_button("add-text-track", "+T").on_click(cx.listener(
                             |editor, _, _, cx| {
-                                editor.add_track(TrackKind::Text);
+                                if let Err(error) = editor.add_track(TrackKind::Text) {
+                                    log::error!("{error:?}");
+                                }
                                 cx.notify();
                             },
                         )),
@@ -633,7 +639,10 @@ impl Editor {
                                 return;
                             };
                             timeline.zoom(0.8, &editor.project_root);
-                            editor.save_timeline_scroll();
+                            if let Err(error) = timeline.save_timeline_scroll(&editor.project_root)
+                            {
+                                log::error!("{error:?}");
+                            }
                             cx.notify();
                         },
                     )))
@@ -661,7 +670,10 @@ impl Editor {
                                 return;
                             };
                             timeline.zoom(1.25, &editor.project_root);
-                            editor.save_timeline_scroll();
+                            if let Err(error) = timeline.save_timeline_scroll(&editor.project_root)
+                            {
+                                log::error!("{error:?}");
+                            }
                             cx.notify();
                         },
                     ))),
