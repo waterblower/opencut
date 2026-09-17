@@ -84,6 +84,7 @@ impl TimelineEditorExt for TimelineSerialization {
         timeline.repair_and_prune_invalid_data();
         Ok(timeline)
     }
+
     fn save(&self, path: &Path) -> Result<()> {
         let Some(directory) = path.parent() else {
             return Err(anyhow!(
@@ -352,29 +353,21 @@ impl TimelineRuntimeState {
             .frames_from_duration_nearest(self.video_backend.playback().position())
     }
 
-    pub(super) fn save_timeline_playhead(self: &mut TimelineRuntimeState, project_root: &Path) {
-        self.capture_playhead(project_root);
-        self.save(project_root);
-    }
-
-    pub(super) fn capture_playhead(&mut self, project_root: &Path) {
+    pub(super) fn save_timeline_playhead(
+        self: &mut TimelineRuntimeState,
+        project_root: &Path,
+    ) -> Result<()> {
         edit_timeline(
             self,
             project_root,
             EditAction::SetSavedPlayhead {
                 playhead: self.playhead(),
             },
-        )
-        .expect("saving the playhead cannot be rejected");
+        )?;
+        self.data.save(&project_root.join(&self.path))
     }
 
-    pub(super) fn save(&self, project_root: &Path) {
-        if let Err(error) = self.data.save(&project_root.join(&self.path)) {
-            eprintln!("Could not autosave timeline: {error}");
-        }
-    }
-
-    pub(super) fn capture_scroll(&mut self, project_root: &Path) {
+    pub fn save_timeline_scroll(&mut self, project_root: &Path) -> Result<()> {
         edit_timeline(
             self,
             project_root,
@@ -382,8 +375,8 @@ impl TimelineRuntimeState {
                 horizontal: -f32::from(self.h_scroll.offset().x),
                 vertical: -f32::from(self.v_scroll.offset().y),
             },
-        )
-        .expect("saving timeline scroll cannot be rejected");
+        )?;
+        self.data.save(&project_root.join(&self.path))
     }
 
     pub(super) fn record_editing_history(&mut self) {

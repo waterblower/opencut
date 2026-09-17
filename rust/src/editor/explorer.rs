@@ -10,7 +10,7 @@ use crate::{
         model::MediaAsset,
         preview::PreviewTarget,
         preview_audio::AudioBackend,
-        timeline::TimelineTime,
+        timeline::{TimelineEditorExt, TimelineTime},
         timeline_clip::{AudioClipProperties, Clip, VideoClip, VideoClipProperties},
         timeline_document,
         track::TrackKind,
@@ -441,7 +441,9 @@ impl Editor {
         let Some(timeline) = self.timeline.as_ref() else {
             return Ok(());
         };
-        timeline.save(&self.project_root);
+        timeline
+            .data
+            .save(&self.project_root.join(&timeline.path))?;
 
         self.schedule_active_timeline_waveforms(cx);
         self.status = Some("Added media at the selected timeline position.".to_string());

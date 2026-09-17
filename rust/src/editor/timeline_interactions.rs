@@ -1,4 +1,5 @@
 use super::*;
+use anyhow::Result;
 use std::path::Path;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -297,7 +298,11 @@ impl Editor {
                 let Some(timeline) = self.timeline.as_mut() else {
                     return;
                 };
-                timeline.blade_at_playhead(&mut self.preview, &self.project_root);
+                if let Err(error) =
+                    timeline.blade_at_playhead(&mut self.preview, &self.project_root)
+                {
+                    log::error!("{error:?}");
+                }
             }
         }
     }
@@ -637,7 +642,9 @@ impl Editor {
             )
             .expect("clip move placements were validated during the drag");
 
-            timeline.save(&self.project_root);
+            if let Err(error) = timeline.data.save(&self.project_root.join(&timeline.path)) {
+                log::error!("{error:?}");
+            }
         }
         cx.notify();
     }
@@ -678,14 +685,24 @@ impl Editor {
                 event.touch_phase,
             );
         }
-        if !event.delta.precise() || matches!(event.touch_phase, TouchPhase::Ended) {
-            self.save_timeline_scroll();
+        let Some(timeline) = self.timeline.as_mut() else {
+            return;
+        };
+        // Save each mouse-wheel step, or once a trackpad scroll gesture ends.
+        let should_save_scroll =
+            !event.delta.precise() || matches!(event.touch_phase, TouchPhase::Ended);
+        if !should_save_scroll {
+            return;
+        }
+
+        if let Err(error) = timeline.save_timeline_scroll(&self.project_root) {
+            log::error!("{error:?}");
         }
     }
 
-    pub(super) fn apply_timeline_pinch(&mut self) -> bool {
+    pub(super) fn apply_timeline_pinch(&mut self) -> Result<bool> {
         let Some(gesture) = crate::macos_pinch::take() else {
-            return false;
+            return Ok(false);
         };
         if !(0.0..=TIMELINE_HEIGHT as f64).contains(&gesture.location_y) {
             log::debug!(
@@ -694,11 +711,11 @@ impl Editor {
                 gesture.magnification,
                 gesture.location_y,
             );
-            return false;
+            return Ok(false);
         }
 
         let Some(timeline) = self.timeline.as_mut() else {
-            return false;
+            return Ok(false);
         };
         let previous_zoom = timeline.data.view.pixels_per_second;
         let factor = (gesture.magnification as f32).exp().clamp(0.5, 2.0);
@@ -714,9 +731,9 @@ impl Editor {
         );
         let changed = current_zoom != previous_zoom;
         if gesture.ended {
-            self.save_timeline_scroll();
+            timeline.save_timeline_scroll(&self.project_root)?;
         }
-        changed
+        Ok(changed)
     }
 
     pub(super) fn begin_playhead_scrub(&mut self, event: &MouseDownEvent) {
@@ -777,23 +794,26 @@ impl Editor {
         timeline.interaction.last_scrub_seek = None;
         let position = timeline.timeline_position_from_x(event.position.x.into());
         load_timeline_position_with_options(&mut self.preview, timeline, position);
-        timeline.save_timeline_playhead(&self.project_root);
+        if let Err(error) = timeline.save_timeline_playhead(&self.project_root) {
+            log::error!("{error:?}");
+        }
         cx.notify();
     }
 
-    pub(super) fn step_playhead(&mut self, frames: i64) {
+    pub(super) fn step_playhead(&mut self, frames: i64) -> Result<()> {
         let Some(timeline) = self.timeline.as_mut() else {
-            return;
+            return Ok(());
         };
         if timeline.data.clips.is_empty() {
-            return;
+            return Ok(());
         }
         let target = (timeline.playhead() + TimelineTime::from_frames(frames))
             .clamp(TimelineTime::ZERO, timeline.data.content_duration());
         if target != timeline.playhead() || !self.preview.target.is_timeline() {
             load_timeline_position_with_options(&mut self.preview, timeline, target);
-            timeline.save_timeline_playhead(&self.project_root);
+            timeline.save_timeline_playhead(&self.project_root)?;
         }
+        Ok(())
     }
 }
 

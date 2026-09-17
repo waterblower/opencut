@@ -1,4 +1,5 @@
 use super::*;
+use anyhow::Result;
 
 #[derive(Clone, Copy)]
 enum VideoTransformProperty {
@@ -59,7 +60,9 @@ impl Editor {
             let observed_input = input.clone();
             cx.observe(&input, move |editor, _, cx| {
                 let value = observed_input.read(cx).query().to_string();
-                editor.set_video_transform_from_text(property, &value);
+                if let Err(error) = editor.set_video_transform_from_text(property, &value) {
+                    log::error!("Could not update video transform: {error:?}");
+                }
                 cx.notify();
             })
             .detach();
@@ -106,21 +109,25 @@ impl Editor {
 }
 
 impl Editor {
-    fn set_video_transform_from_text(&mut self, property: VideoTransformProperty, text: &str) {
+    fn set_video_transform_from_text(
+        &mut self,
+        property: VideoTransformProperty,
+        text: &str,
+    ) -> Result<()> {
         let Some(clip_id) = self.properties.transform_input_clip_id else {
-            return;
+            return Ok(());
         };
         let Some(timeline) = self.timeline.as_ref() else {
-            return;
+            return Ok(());
         };
         if timeline.data.clip_locked(clip_id) {
-            return;
+            return Ok(());
         }
         let Ok(mut value) = text.trim().parse::<f64>() else {
-            return;
+            return Ok(());
         };
         if !value.is_finite() {
-            return;
+            return Ok(());
         }
         if !matches!(
             property,
@@ -129,10 +136,10 @@ impl Editor {
             value /= 100.0;
         }
         let Some(index) = timeline.data.clip_index(clip_id) else {
-            return;
+            return Ok(());
         };
         let Some(clip) = timeline.data.clips[index].media() else {
-            return;
+            return Ok(());
         };
         let mut properties = clip.video_properties;
         match property {
@@ -141,10 +148,10 @@ impl Editor {
             VideoTransformProperty::Scale => properties.scale = value.clamp(0.0, 100.0),
         }
         if properties == clip.video_properties {
-            return;
+            return Ok(());
         }
         let Some(timeline) = self.timeline.as_mut() else {
-            return;
+            return Ok(());
         };
         timeline.record_editing_history();
         edit_and_rebuild_timeline(
@@ -158,12 +165,11 @@ impl Editor {
         )
         .expect("setting video properties cannot be rejected");
 
-        if let Err(error) = super::timeline_video::refresh_timeline_video_frame(
-            timeline.video_backend.playback_mut(),
-        ) {
-            log::error!("{error:#}");
-        }
-        timeline.save(&self.project_root);
+        super::timeline_video::refresh_timeline_video_frame(timeline.video_backend.playback_mut())?;
+        timeline
+            .data
+            .save(&self.project_root.join(&timeline.path))?;
+        Ok(())
     }
 }
 
