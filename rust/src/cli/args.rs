@@ -19,6 +19,11 @@ pub struct Args {
 
 #[derive(Subcommand)]
 pub enum Command {
+    /// Render a five-second, 30 fps GPUI demo (macOS): white text on black.
+    Render {
+        #[arg(short, long, default_value = "output.mp4")]
+        output: PathBuf,
+    },
     /// Transcribe audio/video with MiniMax (MINIMAX_API_KEY).
     Transcribe {
         media_file: PathBuf,
