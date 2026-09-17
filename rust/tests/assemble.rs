@@ -6,7 +6,6 @@ use opencut_player::{
         document,
         engine::{
             audio::Mixer,
-            decode::VideoWorker,
             encode::{Encoder, VideoEncoding},
             probe::{self, Probe, Stream},
         },
@@ -188,7 +187,7 @@ fn single_camera_and_stream_duration_coverage() {
 }
 
 #[test]
-fn cli_assembles_previews_and_renders_without_overwriting_inputs() {
+fn cli_assembles_without_overwriting_inputs() {
     let dir = Temp::new();
     probe::init().unwrap();
     let source = dir.0.join("camera.mov");
@@ -315,32 +314,6 @@ fn cli_assembles_previews_and_renders_without_overwriting_inputs() {
         .success()
     );
     assert_eq!(fs::read(&output).unwrap(), original);
-    let rendered = cli(
-        &dir,
-        &[
-            "render",
-            "nested/episode.json",
-            "-o",
-            "episode.mov",
-            "--video-codec",
-            "prores",
-            "--progress",
-            "none",
-            "--json",
-        ],
-    );
-    assert!(
-        rendered.status.success(),
-        "{}",
-        String::from_utf8_lossy(&rendered.stdout)
-    );
-    assert_eq!(decode(&rendered)["frames"], 60);
-    let worker = VideoWorker::new(dir.0.join("episode.mov"));
-    for (output_frame, source_frame) in [(0, 60), (14, 74), (15, 15), (29, 29), (30, 60), (59, 89)]
-    {
-        let frame = worker.at(output_frame as f64 / 30.0).unwrap();
-        assert!((frame.get_pixel(32, 24)[0] as i32 - (source_frame + 40)).abs() <= 5);
-    }
     let schema = cli(&dir, &["schema", "--kind", "recipe", "--json"]);
     assert!(schema.status.success());
     assert_eq!(

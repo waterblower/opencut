@@ -85,7 +85,7 @@ pub fn run(
         };
         media.push(info);
     }
-    let (doc, report) = compile(&recipe, &media)?;
+    let (mut doc, report) = compile(&recipe, &media)?;
     if let Some(output) = output {
         if output.exists() {
             let target =
@@ -131,6 +131,19 @@ pub fn run(
                 line!()
             ));
         };
+        let timeline_dir = document::asset_base(output)?;
+        for asset in &mut doc.assets {
+            let source = std::path::absolute(base.join(&asset.path)).context(format!(
+                "could not resolve source path {} at {}:{}",
+                asset.path.display(),
+                file!(),
+                line!()
+            ))?;
+            asset.path = match source.strip_prefix(&timeline_dir) {
+                Ok(relative) => relative.to_path_buf(),
+                Err(_) => source,
+            };
+        }
         let value = serde_json::to_value(&doc).context(format!(
             "serialization_error at {}:{}",
             file!(),

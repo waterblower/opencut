@@ -5,17 +5,16 @@ use image::{Rgba, RgbaImage};
 use opencut_player::cli::{
     document,
     engine::{
-        compose::Composer,
         decode::VideoWorker,
         encode::{Encoder, VideoEncoding},
-        probe, render,
+        probe,
     },
     validate,
 };
 use std::fs;
 
 #[test]
-fn shared_timeline_round_trip_and_backend_rendering() {
+fn shared_timeline_round_trip_and_editor_rendering() {
     ges::init().unwrap();
     let root = std::env::temp_dir().join(format!("opencut-shared-{}", Ulid::generate()));
     fs::create_dir_all(root.join("media")).unwrap();
@@ -52,29 +51,11 @@ fn shared_timeline_round_trip_and_backend_rendering() {
         Some(&probe::assets(&document.assets, &root).unwrap()),
     )
     .unwrap();
-    let ffmpeg_output = root.join("ffmpeg.mov");
-    let (sender, _receiver) = std::sync::mpsc::sync_channel(8);
-    render::render(
-        &document,
-        &root,
-        &ffmpeg_output,
-        &render::Options {
-            start: 0,
-            end: document.content_duration().frames(),
-            scale: 1.0,
-            preset: "standard".into(),
-            video_codec: "prores".into(),
-            bitrate: None,
-            overwrite: false,
-            metadata: Some(raw.to_string()),
-        },
-        sender,
-    )
-    .unwrap();
     let gstreamer_output = root.join("gstreamer.mp4");
     export_test_timeline(&edited, &root, &gstreamer_output);
     let expected = edited.seconds(edited.content_duration());
-    for output in [&ffmpeg_output, &gstreamer_output] {
+    {
+        let output = &gstreamer_output;
         let info = probe::probe(output).unwrap();
         assert!(
             (info.duration - expected).abs() < 0.08,
@@ -83,7 +64,8 @@ fn shared_timeline_round_trip_and_backend_rendering() {
         );
         assert!(info.streams.iter().any(|s| s.kind == "audio"));
     }
-    for output in [&ffmpeg_output, &gstreamer_output] {
+    {
+        let output = &gstreamer_output;
         let mut audio_document = document.clone();
         audio_document.assets = vec![document.assets[1].clone()];
         audio_document.assets[0].path = output.clone();
@@ -112,79 +94,11 @@ fn shared_timeline_round_trip_and_backend_rendering() {
             output.display()
         );
     }
-    let gst_frames = VideoWorker::new(gstreamer_output.clone());
-    let ffmpeg_frames = VideoWorker::new(ffmpeg_output.clone());
-    let mut mismatches = Vec::new();
-    for frame in [0, 10, 11, 12, 14, 15, 25, 40, 44, 45, 59] {
-        let time = edited.seconds(TimelineTime::from_frames(frame));
-        let gst = gst_frames.at(time).unwrap();
-        let ffmpeg = ffmpeg_frames.at(time).unwrap();
-        let preview = Composer::default().frame(&document, &root, frame).unwrap();
-        let mut centers = Vec::new();
-        for (backend, image) in [("gstreamer", &gst), ("ffmpeg", &ffmpeg)] {
-            let mut bounds = (image.width(), image.height(), 0_u32, 0_u32);
-            let mut found = false;
-            for (x, y, pixel) in image.enumerate_pixels() {
-                if pixel[0] > 180 && pixel[1] > 180 && pixel[2] > 180 {
-                    found = true;
-                    bounds = (
-                        bounds.0.min(x),
-                        bounds.1.min(y),
-                        bounds.2.max(x),
-                        bounds.3.max(y),
-                    );
-                }
-            }
-            if found != (15..45).contains(&frame) {
-                mismatches.push(format!("{backend} caption at frame {frame}: {found}"));
-                image
-                    .save(root.join(format!("{backend}-{frame}.png")))
-                    .unwrap();
-            }
-            if found {
-                centers.push((
-                    (bounds.0 + bounds.2) as i32 / 2,
-                    (bounds.1 + bounds.3) as i32 / 2,
-                ));
-            }
-        }
-        if centers.len() == 2 {
-            assert!(
-                (centers[0].0 - centers[1].0).abs() <= 5
-                    && (centers[0].1 - centers[1].1).abs() <= 5,
-                "caption placement: {centers:?} in {}",
-                root.display()
-            );
-        }
-        for (x, y) in [(10, 10), (110, 30)] {
-            for channel in 0..3 {
-                if (gst.get_pixel(x, y)[channel] as i32 - ffmpeg.get_pixel(x, y)[channel] as i32)
-                    .abs()
-                    >= 25
-                {
-                    mismatches.push(format!(
-                        "frame {frame} ({x},{y}): gst {:?}, ffmpeg {:?}",
-                        gst.get_pixel(x, y),
-                        ffmpeg.get_pixel(x, y)
-                    ));
-                }
-                assert!(
-                    (preview.get_pixel(x, y)[channel] as i32
-                        - ffmpeg.get_pixel(x, y)[channel] as i32)
-                        .abs()
-                        < 10
-                );
-            }
-        }
-    }
-    assert!(mismatches.is_empty(), "{}: {mismatches:?}", root.display());
-    drop(gst_frames);
-    drop(ffmpeg_frames);
     fs::remove_dir_all(root).unwrap();
 }
 
 #[test]
-fn shared_timeline_podcast_assembly_exports_in_both_backends() {
+fn shared_timeline_podcast_assembly_exports_in_editor() {
     ges::init().unwrap();
     let root = std::env::temp_dir().join(format!("opencut-podcast-{}", Ulid::generate()));
     fs::create_dir(&root).unwrap();
@@ -211,28 +125,10 @@ fn shared_timeline_podcast_assembly_exports_in_both_backends() {
     edited.tracks[0].name = "Podcast cameras".into();
     edited.save(&path).unwrap();
     let (_, document) = document::load(&path).unwrap();
-    let ffmpeg_output = root.join("ffmpeg.mov");
-    let (sender, _receiver) = std::sync::mpsc::sync_channel(8);
-    render::render(
-        &document,
-        &root,
-        &ffmpeg_output,
-        &render::Options {
-            start: 0,
-            end: 36,
-            scale: 1.0,
-            preset: "standard".into(),
-            video_codec: "prores".into(),
-            bitrate: None,
-            overwrite: false,
-            metadata: None,
-        },
-        sender,
-    )
-    .unwrap();
     let gst_output = root.join("gstreamer.mp4");
     export_test_timeline(&edited, &root, &gst_output);
-    for output in [&ffmpeg_output, &gst_output] {
+    {
+        let output = &gst_output;
         let info = probe::probe(output).unwrap();
         assert!((info.duration - 1.5).abs() < 0.08);
         let worker = VideoWorker::new(output.clone());
@@ -324,7 +220,7 @@ fn export_test_timeline(
     // Exercise the production GES timeline builder and encoding profile with a
     // software AAC encoder; atenc requires macOS services unavailable headlessly.
     let options = ExportOptions::from_timeline(timeline);
-    let ges_timeline = build_ges_timeline(timeline, root, options).unwrap();
+    let ges_timeline = build_ges_timeline(timeline, root, options, false).unwrap();
     let _encoder_selection = EncoderSelection::for_export(options.encoder).unwrap();
     let pipeline = ges::Pipeline::new();
     let production_profile = encoding_profile(options);

@@ -6,7 +6,7 @@ use args::{Args, Command};
 use clap::Parser;
 use opencut_player::timeline::{TimelineSettings as Settings, Track, TrackKind};
 use opencut_player::{
-    cli::engine::{probe, render},
+    cli::engine::probe,
     cli::{
         document::{self, Document},
         time::parse_rate,
@@ -90,6 +90,13 @@ async fn run(
     base: &Path,
     api_key: Option<&str>,
 ) -> Result<Value> {
+    let project_root = std::path::absolute(base).context(format!(
+        "could not resolve project root {} at {}:{}",
+        base.display(),
+        file!(),
+        line!()
+    ))?;
+    let base = project_root.as_path();
     match command {
         Command::Transcribe {
             media_file,
@@ -168,7 +175,7 @@ async fn run(
             {
                 let (_, doc) = document::load(&file)?;
                 validate::require_valid(&doc, None)?;
-                return Ok(render::summary(&doc));
+                return Ok(document::summary(&doc));
             }
             match serde_json::to_value(probe::probe(&file)?) {
                 Ok(value) => Ok(value),
@@ -236,7 +243,8 @@ async fn run(
         Command::Doc => Ok(json!(docs::generate()?)),
         Command::Validate { timeline } => {
             let (_, doc) = document::load(&timeline)?;
-            let media = probe::assets(&doc.assets, base)?;
+            let base = document::asset_base(&timeline)?;
+            let media = probe::assets(&doc.assets, &base)?;
             let findings = validate::validate(&doc, Some(&media));
             if !findings.is_empty() {
                 let exit = 1;
@@ -258,103 +266,6 @@ async fn run(
                 std::process::exit(exit);
             }
             Ok(json!({"valid": true, "findings": []}))
-        }
-        Command::Still {
-            timeline,
-            at,
-            output,
-            scale,
-            overwrite,
-        } => {
-            let (_, doc) = document::load(&timeline)?;
-            validate::require_valid(&doc, None)?;
-            let frame = doc
-                .settings
-                .frame_rate
-                .parse_time(&at, Some(doc.content_duration().frames()))?;
-            render::still(&doc, base, frame, &output, scale, overwrite)?;
-            Ok(json!({"path": output, "frame": frame}))
-        }
-        Command::Render {
-            timeline,
-            output,
-            range,
-            scale,
-            preset,
-            video_codec,
-            bitrate,
-            audio_codec: _,
-            progress,
-            overwrite,
-            dry_run,
-            no_metadata,
-        } => {
-            let (raw, doc) = document::load(&timeline)?;
-            validate::require_valid(&doc, None)?;
-            let (start, end) = match range {
-                Some(value) => {
-                    let Some((start, end)) = value.split_once("..") else {
-                        return Err(anyhow!(
-                            "invalid_range: expected start..end at {}:{}",
-                            file!(),
-                            line!()
-                        ));
-                    };
-                    (
-                        doc.settings.frame_rate.parse_time(start, None)?,
-                        doc.settings.frame_rate.parse_time(end, None)?,
-                    )
-                }
-                None => (0, doc.content_duration().frames()),
-            };
-            let options = render::Options {
-                start,
-                end,
-                scale,
-                preset,
-                video_codec,
-                bitrate: match bitrate {
-                    Some(value) => Some(render::parse_bitrate(&value)?),
-                    None => None,
-                },
-                overwrite,
-                metadata: if no_metadata {
-                    None
-                } else {
-                    Some(raw.to_string())
-                },
-            };
-            if dry_run {
-                let media = probe::assets(&doc.assets, base)?;
-                return render::plan(&doc, base, &output, &options, &media);
-            }
-            let (sender, receiver) = std::sync::mpsc::sync_channel(8);
-            let base = base.to_path_buf();
-            let worker =
-                std::thread::spawn(move || render::render(&doc, &base, &output, &options, sender));
-            for update in receiver {
-                if progress == "json" {
-                    eprintln!("{}", update);
-                } else if progress == "bar" {
-                    eprint!(
-                        "\rframe {}/{}  {:.1} fps",
-                        update["frame"],
-                        update["total"],
-                        update["fps"].as_f64().unwrap_or(0.0)
-                    );
-                }
-            }
-            if progress == "bar" {
-                eprintln!();
-            }
-            match worker.join() {
-                Ok(result) => result,
-                Err(_) => Err(anyhow!(
-                    "render_failure: render worker panicked at {}:{}",
-                    file!(),
-                    line!()
-                )),
-            }
         }
     }
 }

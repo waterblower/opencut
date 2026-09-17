@@ -1,5 +1,5 @@
 use crate::{cli::validate::MediaInfo, timeline::MediaAsset};
-use anyhow::{Context as _, Result, anyhow};
+use anyhow::{Context as _, Result, anyhow, bail};
 use ffmpeg_next as ffmpeg;
 use serde::Serialize;
 use std::{collections::HashMap, path::Path};
@@ -48,6 +48,14 @@ pub fn is_image(path: &Path) -> bool {
 }
 
 pub fn probe(path: &Path) -> Result<Probe> {
+    if !path.is_absolute() {
+        bail!(
+            "invalid_path: media path must be absolute: {} at {}:{}",
+            path.display(),
+            file!(),
+            line!()
+        );
+    }
     if is_image(path) {
         let image = crate::cli::engine::raster::load_image(path)?;
         return Ok(Probe {

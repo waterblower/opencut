@@ -5,10 +5,9 @@ use opencut_player::{
         document,
         engine::{
             audio::Mixer,
-            compose::Composer,
             decode::VideoWorker,
             encode::{Encoder, VideoEncoding},
-            probe, render,
+            probe,
         },
         time::parse_rate,
         validate,
@@ -24,23 +23,20 @@ use std::{
 use ulid::Ulid;
 
 #[test]
-#[cfg(target_os = "macos")]
-fn chinese_titles_use_distinct_system_font_glyphs() {
-    let mut raster = opencut_player::cli::engine::raster::TextRaster::default();
-    let mut properties = TextClipProperties {
-        text: "景".into(),
-        font: "Heiti SC".into(),
-        font_size: 48.0,
-        ..TextClipProperties::default()
-    };
-    let first = raster.raster(&properties, 128, 96).unwrap();
-    properties.text = "镜".into();
-    let second = raster.raster(&properties, 128, 96).unwrap();
-    assert!(first.pixels().any(|pixel| pixel[3] > 0));
-    assert_ne!(
-        first, second,
-        "Chinese characters must not render as identical missing-glyph boxes"
-    );
+fn rendering_commands_are_removed() {
+    let help = cli(&["--help"]);
+    let help = String::from_utf8(help.stdout).unwrap();
+    for command in ["still", "render"] {
+        assert!(!help.contains(&format!("  {command} ")));
+        let output = cli(&[command, "--json"]);
+        assert_eq!(output.status.code(), Some(2));
+        assert!(
+            decode(&output)["error"]["message"]
+                .as_str()
+                .unwrap()
+                .contains("usage_error")
+        );
+    }
 }
 
 #[test]
@@ -98,7 +94,7 @@ fn probe_summarizes_timelines_without_opening_referenced_media() {
         .push(asset(100, "missing.mp4", MediaKind::Video, false));
     doc.clips
         .push(Clip::Video(media_clip(200, 1, 100, 15, 0, 30)));
-    let expected = render::summary(&doc);
+    let expected = document::summary(&doc);
     for name in ["project.timeline.json", "project.json", "uppercase.JSON"] {
         let file = dir.0.join(name);
         document::write_atomic(&file, &serde_json::to_value(&doc).unwrap(), false).unwrap();
@@ -116,6 +112,16 @@ fn probe_summarizes_timelines_without_opening_referenced_media() {
     let help = String::from_utf8_lossy(&help.stdout);
     assert!(help.contains("probe"));
     assert!(!help.contains("  inspect"));
+}
+
+#[test]
+fn probe_rejects_relative_paths_before_opening_media() {
+    for path in ["", "video.mp4", "./audio.wav", "../image.png", "image.svg"] {
+        let error = probe::probe(Path::new(path)).unwrap_err();
+        let message = format!("{error:?}");
+        assert!(message.contains("media path must be absolute"), "{message}");
+        assert!(message.contains("probe.rs:"), "{message}");
+    }
 }
 
 #[test]
@@ -162,10 +168,13 @@ fn probe_reports_invalid_timeline_and_missing_file_errors() {
 }
 
 #[test]
-fn project_root_is_independent_of_timeline_directory() {
+fn timeline_assets_resolve_from_timeline_directory() {
     let dir = Temp::new();
     fs::create_dir(dir.0.join("scenes")).unwrap();
     RgbaImage::from_pixel(64, 48, Rgba([220, 20, 10, 255]))
+        .save(dir.0.join("scenes/image.png"))
+        .unwrap();
+    RgbaImage::from_pixel(64, 48, Rgba([0, 0, 255, 255]))
         .save(dir.0.join("image.png"))
         .unwrap();
     let mut doc = empty();
@@ -175,33 +184,19 @@ fn project_root_is_independent_of_timeline_directory() {
         .push(Clip::Video(media_clip(200, 1, 100, 0, 0, 30)));
     let file = dir.0.join("scenes/intro.timeline.json");
     document::write_atomic(&file, &serde_json::to_value(&doc).unwrap(), false).unwrap();
-    let frame = dir.0.join("still.png");
-    let result = cli(&[
-        "--project-root",
-        dir.0.to_str().unwrap(),
-        "still",
-        file.to_str().unwrap(),
-        "--at",
-        "50%",
-        "-o",
-        frame.to_str().unwrap(),
-        "--json",
-    ]);
-    assert!(
-        result.status.success(),
-        "{}",
-        String::from_utf8_lossy(&result.stdout)
-    );
-    assert_eq!(
-        image::open(&frame).unwrap().to_rgba8().get_pixel(32, 24).0,
-        [220, 20, 10, 255]
-    );
     let result = Command::new(env!("CARGO_BIN_EXE_opencut"))
         .current_dir(&dir.0)
         .args(["validate", "scenes/intro.timeline.json", "--json"])
         .output()
         .unwrap();
     assert!(result.status.success());
+    doc.assets[0].path = "../image.png".into();
+    document::write_atomic(&file, &serde_json::to_value(&doc).unwrap(), true).unwrap();
+    assert!(
+        cli(&["validate", file.to_str().unwrap(), "--json"])
+            .status
+            .success()
+    );
     doc.assets[0].path = dir.0.join("image.png");
     document::write_atomic(&file, &serde_json::to_value(&doc).unwrap(), true).unwrap();
     assert!(
@@ -209,69 +204,6 @@ fn project_root_is_independent_of_timeline_directory() {
             .status
             .success()
     );
-}
-
-#[test]
-fn compositor_matches_gui_layer_visibility_and_pixel_offsets() {
-    let dir = Temp::new();
-    for (name, color) in [
-        ("red.png", [255, 0, 0, 255]),
-        ("blue.png", [0, 0, 255, 255]),
-    ] {
-        RgbaImage::from_pixel(64, 48, Rgba(color))
-            .save(dir.0.join(name))
-            .unwrap();
-    }
-    let mut doc = empty();
-    doc.tracks.insert(0, track(4, TrackKind::Video));
-    doc.assets = vec![
-        asset(100, "red.png", MediaKind::Image, false),
-        asset(101, "blue.png", MediaKind::Image, false),
-    ];
-    let mut overlay = media_clip(200, 4, 100, 0, 0, 30);
-    overlay.video_properties = VideoClipProperties {
-        position_x: 16.0,
-        position_y: 0.0,
-        scale: 0.5,
-    };
-    doc.clips = vec![
-        Clip::Video(overlay),
-        Clip::Video(media_clip(201, 1, 101, 0, 0, 60)),
-    ];
-    doc.tracks[0].locked = true;
-    let frame = Composer::default().frame(&doc, &dir.0, 0).unwrap();
-    assert_eq!(frame.get_pixel(10, 24).0, [0, 0, 255, 255]);
-    assert_eq!(frame.get_pixel(48, 24).0, [255, 0, 0, 255]);
-    doc.tracks[0].visible = false;
-    let hidden = Composer::default().frame(&doc, &dir.0, 0).unwrap();
-    assert_eq!(hidden.get_pixel(48, 24).0, [0, 0, 255, 255]);
-    doc.clips.push(Clip::Text(TextClip {
-        id: Ulid::from(202_u128),
-        track_id: Ulid::from(3_u128),
-        timeline_start: TimelineTime::from_frames(10),
-        length: std::time::Duration::from_millis(500),
-        properties: TextClipProperties {
-            text: "Hi".into(),
-            font_size: 14.0,
-            color: 0xffff0000,
-            ..Default::default()
-        },
-    }));
-    assert_eq!(Composer::default().frame(&doc, &dir.0, 0).unwrap(), hidden);
-    let caption = Composer::default().frame(&doc, &dir.0, 10).unwrap();
-    assert_ne!(caption, hidden);
-    assert!(
-        caption
-            .pixels()
-            .any(|pixel| pixel[0] > 200 && pixel[1] < 30 && pixel[2] < 50)
-    );
-    assert_eq!(Composer::default().frame(&doc, &dir.0, 25).unwrap(), hidden);
-    doc.tracks
-        .iter_mut()
-        .find(|t| t.kind == TrackKind::Text)
-        .unwrap()
-        .visible = false;
-    assert_eq!(Composer::default().frame(&doc, &dir.0, 10).unwrap(), hidden);
 }
 
 #[test]
@@ -364,65 +296,6 @@ fn validation_stops_at_first_missing_asset_and_reports_schema_locations() {
 }
 
 #[test]
-fn source_bitrate_respects_range_hidden_and_audio_tracks() {
-    let mut doc = empty();
-    doc.assets = vec![
-        asset(100, "one.mov", MediaKind::Video, true),
-        asset(101, "two.mov", MediaKind::Video, true),
-    ];
-    doc.clips = vec![
-        Clip::Video(media_clip(200, 1, 100, 0, 0, 30)),
-        Clip::Video(media_clip(201, 1, 101, 30, 0, 60)),
-        Clip::Audio(media_clip(202, 2, 100, 0, 0, 90)),
-    ];
-    let mut media = std::collections::HashMap::new();
-    for (id, bitrate) in [(100_u128, 1_000_000), (101, 4_000_000)] {
-        media.insert(
-            Ulid::from(id),
-            validate::MediaInfo {
-                duration: 4.0,
-                video: true,
-                audio: true,
-                image: false,
-                video_bitrate: Some(bitrate),
-            },
-        );
-    }
-    let mut options = render::Options {
-        start: 0,
-        end: 90,
-        scale: 1.0,
-        preset: "standard".into(),
-        video_codec: "prores".into(),
-        bitrate: None,
-        overwrite: false,
-        metadata: None,
-    };
-    assert_eq!(
-        render::resolve_bitrate(&doc, &media, &options).unwrap(),
-        (3_000_000, "source")
-    );
-    options.end = 30;
-    assert_eq!(
-        render::resolve_bitrate(&doc, &media, &options).unwrap(),
-        (1_000_000, "source")
-    );
-    doc.tracks[0].visible = false;
-    assert_eq!(
-        render::resolve_bitrate(&doc, &media, &options).unwrap().1,
-        "preset"
-    );
-    options.bitrate = Some(render::parse_bitrate("2.5M").unwrap());
-    assert_eq!(
-        render::resolve_bitrate(&doc, &media, &options).unwrap(),
-        (2_500_000, "explicit")
-    );
-    for input in ["0", "-1", "NaN", "inf", "oops"] {
-        assert!(render::parse_bitrate(input).is_err());
-    }
-}
-
-#[test]
 fn exact_time_and_invalid_inputs() {
     let fps = parse_rate("30000/1001").unwrap();
     assert_eq!(fps.parse_time("1001s", None).unwrap(), 30000);
@@ -445,7 +318,7 @@ fn exact_time_and_invalid_inputs() {
 }
 
 #[test]
-fn native_video_seek_audio_mix_and_full_render() {
+fn native_video_seek_and_audio_mix() {
     let dir = Temp::new();
     let source = dir.0.join("source.mov");
     probe::init().unwrap();
@@ -497,7 +370,6 @@ fn native_video_seek_audio_mix_and_full_render() {
     let mut clip = media_clip(200, 1, 100, 15, 15, 45);
     clip.audio_properties.gain_db = -6.020599913;
     doc.clips.push(Clip::Video(clip));
-    let raw = serde_json::to_value(&doc).unwrap();
     let media = probe::assets(&doc.assets, &dir.0).unwrap();
     validate::require_valid(&doc, Some(&media)).unwrap();
     let mut mixer = Mixer::default();
@@ -512,64 +384,10 @@ fn native_video_seek_audio_mix_and_full_render() {
     let rms =
         (samples.iter().map(|s| (s[0] * s[0]) as f64).sum::<f64>() / samples.len() as f64).sqrt();
     assert!((rms - 0.07071).abs() < 0.01, "RMS {rms}");
-    let path = dir.0.join("timeline.json");
-    document::write_atomic(&path, &raw, false).unwrap();
-    let out = dir.0.join("output.mov");
-    let render_started = std::time::Instant::now();
-    let result = cli(&[
-        "--project-root",
-        dir.0.to_str().unwrap(),
-        "render",
-        path.to_str().unwrap(),
-        "-o",
-        out.to_str().unwrap(),
-        "--video-codec",
-        "prores",
-        "--progress",
-        "json",
-        "--json",
-    ]);
-    assert!(
-        result.status.success(),
-        "stdout={} stderr={}",
-        String::from_utf8_lossy(&result.stdout),
-        String::from_utf8_lossy(&result.stderr)
-    );
-    assert_eq!(decode(&result)["frames"], 45);
-    assert_eq!(decode(&result)["bitrate_source"], "source");
-    assert_eq!(
-        decode(&result)["video_bitrate"],
-        media[&Ulid::from(100_u128)].video_bitrate.unwrap()
-    );
-    let elapsed = render_started.elapsed();
-    let progress = String::from_utf8_lossy(&result.stderr);
-    let updates: Vec<Value> = progress
-        .lines()
-        .map(|line| serde_json::from_str(line).unwrap())
-        .collect();
-    assert!(!updates.is_empty());
-    assert!(
-        updates.len() as u64 <= elapsed.as_secs() / 5 + 1,
-        "progress must be throttled, not emitted per frame"
-    );
-    assert_eq!(updates.last().unwrap()["frame"], 45);
-    assert_eq!(updates.last().unwrap()["total"], 45);
-    assert_eq!(updates.last().unwrap()["eta_s"], 0.0);
-    let rendered = probe::probe(&out).unwrap();
-    assert!(
-        (rendered.duration - 1.5).abs() < 0.04,
-        "{}",
-        rendered.duration
-    );
-    let input = ffmpeg_next::format::input(&out).unwrap();
-    assert_eq!(
-        input.metadata().get("opencut.timeline"),
-        Some(raw.to_string().as_str())
-    );
 }
 
 #[test]
-fn variable_pts_and_mixed_frame_rate_selection() {
+fn variable_pts_frame_selection() {
     let dir = Temp::new();
     let source = dir.0.join("variable.mov");
     let mut encoder = Encoder::open(
@@ -608,14 +426,6 @@ fn variable_pts_and_mixed_frame_rate_selection() {
             "time {time}"
         );
     }
-    let mut doc = empty();
-    doc.settings.frame_rate = FrameRate::new(24, 1);
-    doc.assets
-        .push(asset(100, "variable.mov", MediaKind::Video, false));
-    doc.clips
-        .push(Clip::Video(media_clip(200, 1, 100, 0, 0, 7)));
-    let image = Composer::default().frame(&doc, &dir.0, 4).unwrap();
-    assert!((image.get_pixel(32, 24)[0] as i32 - 140).abs() <= 4);
 }
 
 #[test]
@@ -623,47 +433,27 @@ fn variable_pts_and_mixed_frame_rate_selection() {
 #[ignore = "requires macOS VideoToolbox encoder services"]
 fn platform_video_encoders_and_fractional_frame_rate() {
     let dir = Temp::new();
-    let timeline = dir.0.join("codecs.json");
-    let mut doc = empty();
-    doc.settings.frame_rate = FrameRate::new(30000, 1001);
-    doc.clips.push(Clip::Text(TextClip {
-        id: Ulid::from(200_u128),
-        track_id: Ulid::from(3_u128),
-        timeline_start: TimelineTime::ZERO,
-        length: doc
-            .settings
-            .frame_rate
-            .duration(TimelineTime::from_frames(5)),
-        properties: TextClipProperties {
-            text: "Hi".into(),
-            font_size: 14.0,
-            ..Default::default()
-        },
-    }));
-    let raw = serde_json::to_value(&doc).unwrap();
-    document::write_atomic(&timeline, &raw, false).unwrap();
+    probe::init().unwrap();
     for (codec, container) in [("h264", "mp4"), ("hevc", "mp4"), ("hevc", "mov")] {
         let output = dir.0.join(format!("{codec}.{container}"));
-        let result = cli(&[
-            "render",
-            timeline.to_str().unwrap(),
-            "-o",
-            output.to_str().unwrap(),
-            "--video-codec",
-            codec,
-            "--bitrate",
-            "500k",
-            "--progress",
-            "none",
-            "--json",
-        ]);
-        assert!(
-            result.status.success(),
-            "{codec}: {}",
-            String::from_utf8_lossy(&result.stdout)
-        );
-        assert_eq!(decode(&result)["video_bitrate"], 500000);
-        assert_eq!(decode(&result)["bitrate_source"], "explicit");
+        let mut encoder = Encoder::open(
+            &output,
+            (64, 48),
+            FrameRate::new(30000, 1001),
+            48000,
+            &VideoEncoding {
+                codec: codec.into(),
+                preset: "standard".into(),
+                bitrate: 500000,
+            },
+            None,
+        )
+        .unwrap();
+        let image = RgbaImage::from_pixel(64, 48, Rgba([220, 20, 10, 255]));
+        for frame in 0..5 {
+            encoder.video(&image, frame).unwrap();
+        }
+        encoder.finish().unwrap();
         let info = probe::probe(&output).unwrap();
         assert_eq!(info.streams[0].codec, codec);
         assert_eq!(info.streams[0].fps, Some([30000, 1001]));
