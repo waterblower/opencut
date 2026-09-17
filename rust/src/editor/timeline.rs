@@ -368,11 +368,6 @@ impl TimelineRuntimeState {
     }
 
     pub fn save_timeline_scroll(&mut self, project_root: &Path) -> Result<()> {
-        self.capture_scroll(project_root);
-        self.data.save(&project_root.join(&self.path))
-    }
-
-    pub(super) fn capture_scroll(&mut self, project_root: &Path) {
         edit_timeline(
             self,
             project_root,
@@ -380,8 +375,8 @@ impl TimelineRuntimeState {
                 horizontal: -f32::from(self.h_scroll.offset().x),
                 vertical: -f32::from(self.v_scroll.offset().y),
             },
-        )
-        .expect("saving timeline scroll cannot be rejected");
+        )?;
+        self.data.save(&project_root.join(&self.path))
     }
 
     pub(super) fn record_editing_history(&mut self) {
