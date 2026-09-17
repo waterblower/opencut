@@ -1,6 +1,5 @@
-use crate::{
-    cli::error::Result, cli_error, cli_try, timeline::TextClipProperties as TextProperties,
-};
+use crate::timeline::TextClipProperties as TextProperties;
+use anyhow::{Context as _, Result, anyhow};
 use cosmic_text::{Attrs, Buffer, Family, FontSystem, Metrics, Shaping, SwashCache, SwashContent};
 use image::{Pixel, Rgba, RgbaImage};
 use std::path::Path;
@@ -117,28 +116,26 @@ pub fn load_image(path: &Path) -> Result<RgbaImage> {
             resources_dir: path.parent().map(Path::to_path_buf),
             ..Default::default()
         };
-        let bytes = cli_try!(std::fs::read(path), "unreadable_media", "", 4);
-        let tree = cli_try!(
-            resvg::usvg::Tree::from_data(&bytes, &options),
-            "unreadable_media",
-            "",
-            4
-        );
+        let bytes =
+            std::fs::read(path).context(format!("unreadable_media at {}:{}", file!(), line!()))?;
+        let tree = resvg::usvg::Tree::from_data(&bytes, &options).context(format!(
+            "unreadable_media at {}:{}",
+            file!(),
+            line!()
+        ))?;
         let size = tree.size().to_int_size();
         if size.width() > 16384 || size.height() > 16384 {
-            return Err(cli_error!(
-                "image_too_large",
-                "",
-                4,
-                "SVG dimensions exceed 16384"
+            return Err(anyhow!(
+                "image_too_large: SVG dimensions exceed 16384 at {}:{}",
+                file!(),
+                line!()
             ));
         }
         let Some(mut pixmap) = resvg::tiny_skia::Pixmap::new(size.width(), size.height()) else {
-            return Err(cli_error!(
-                "raster_failure",
-                "",
-                5,
-                "cannot allocate SVG raster"
+            return Err(anyhow!(
+                "raster_failure: cannot allocate SVG raster at {}:{}",
+                file!(),
+                line!()
             ));
         };
         resvg::render(
@@ -158,5 +155,7 @@ pub fn load_image(path: &Path) -> Result<RgbaImage> {
         }
         return Ok(RgbaImage::from_raw(size.width(), size.height(), bytes).unwrap());
     }
-    Ok(cli_try!(image::open(path), "unreadable_media", "", 4).to_rgba8())
+    Ok(image::open(path)
+        .context(format!("unreadable_media at {}:{}", file!(), line!()))?
+        .to_rgba8())
 }

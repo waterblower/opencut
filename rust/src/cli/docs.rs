@@ -38,7 +38,7 @@ opencut --project-root /project render episode.timeline.json -o output.mp4 --pro
 - Relative asset paths resolve from `--project-root`, which defaults to the working directory, not the timeline's directory.
 - Keep original media available; the timeline references it.
 - Use `--json` for machine-readable stdout. Progress goes to stderr; `render --progress none` disables it.
-- Treat any nonzero exit code as failure. JSON errors contain `error.message`; validation reports findings.
+- Treat any nonzero exit code as failure. JSON errors contain `error.message`. Validation stops at the first media probe failure; independent document rule violations are reported as findings.
 - `new` refuses existing files. Use `--overwrite` explicitly when replacing supported outputs. Outputs cannot replace source media.
 
 ## Authoring and previewing

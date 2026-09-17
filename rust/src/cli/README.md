@@ -226,7 +226,7 @@ nearest timeline frame using rational arithmetic. Only `still --at` accepts
 percentages; `100%` selects the final frame.
 
 All commands accept `--json`. Results go to stdout; progress goes to stderr at
-most once every five seconds, plus final completion. Runtime failures use anyhow and exit code 1; Clap usage errors use exit code 2. JSON failures have the shape `{"error":{"message":"..."}}`. Diagnostic labels, paths, and source locations are included in the message. `validate` returns all findings.
+most once every five seconds, plus final completion. Runtime failures use anyhow and exit code 1; Clap usage errors use exit code 2. JSON failures have the shape `{"error":{"message":"..."}}`. Diagnostic labels, paths, and source locations are included in the message. `validate` stops at the first media probe failure and reports that error with the asset path. Independent document rule violations are returned as findings.
 
 ## Verification and packaging
 

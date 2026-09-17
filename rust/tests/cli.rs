@@ -283,7 +283,7 @@ fn audio_resampling_gaps_mutes_and_hidden_video() {
         .push(asset(100, "tone.wav", MediaKind::Audio, true));
     doc.clips
         .push(Clip::Audio(media_clip(200, 2, 100, 15, 0, 30)));
-    let infos = probe::assets(&doc, &dir.0).unwrap();
+    let infos = probe::assets(&doc.assets, &dir.0).unwrap();
     let gap = Mixer::default()
         .block(&doc, &dir.0, &infos, 0, 1024)
         .unwrap();
@@ -320,7 +320,7 @@ fn audio_resampling_gaps_mutes_and_hidden_video() {
 }
 
 #[test]
-fn validation_reports_all_missing_assets_and_schema_locations() {
+fn validation_stops_at_first_missing_asset_and_reports_schema_locations() {
     let dir = Temp::new();
     let mut doc = empty();
     doc.assets = vec![
@@ -338,13 +338,21 @@ fn validation_reports_all_missing_assets_and_schema_locations() {
     ]);
     assert_eq!(result.status.code(), Some(1));
     let report = decode(&result);
-    assert_eq!(report["findings"].as_array().unwrap().len(), 2);
-    assert!(
-        report["findings"][0]["message"]
-            .as_str()
-            .unwrap()
-            .contains("/assets/0/path")
-    );
+    let message = report["error"]["message"].as_str().unwrap();
+    assert!(message.contains("/assets/0/path"));
+    assert!(message.contains("missing-a.mp4"));
+    assert!(!message.contains("missing-b.wav"));
+    assert!(report.get("findings").is_none());
+
+    let valid_image = dir.0.join("image.png");
+    RgbaImage::from_pixel(64, 48, Rgba([0, 0, 0, 255]))
+        .save(&valid_image)
+        .unwrap();
+    doc.assets[0] = asset(100, "image.png", MediaKind::Image, false);
+    let error = probe::assets(&doc.assets, &dir.0).unwrap_err();
+    let message = format!("{error:?}");
+    assert!(message.contains("/assets/1/path"));
+    assert!(message.contains("missing-b.wav"));
     let mut raw = serde_json::to_value(&doc).unwrap();
     raw["settings"]["width"] = json!("wrong");
     assert!(
@@ -490,7 +498,7 @@ fn native_video_seek_audio_mix_and_full_render() {
     clip.audio_properties.gain_db = -6.020599913;
     doc.clips.push(Clip::Video(clip));
     let raw = serde_json::to_value(&doc).unwrap();
-    let media = probe::assets(&doc, &dir.0).unwrap();
+    let media = probe::assets(&doc.assets, &dir.0).unwrap();
     validate::require_valid(&doc, Some(&media)).unwrap();
     let mut mixer = Mixer::default();
     assert!(

@@ -1,3 +1,4 @@
+use anyhow::{Context as _, Error, Result, anyhow};
 mod args;
 mod docs;
 
@@ -8,11 +9,9 @@ use opencut_player::{
     cli::engine::{probe, render},
     cli::{
         document::{self, Document},
-        error::{Result, anyhow},
         time::parse_rate,
         transcribe, validate,
     },
-    cli_error, cli_try,
 };
 use serde_json::{Value, json};
 use std::{
@@ -35,7 +34,7 @@ async fn main() -> ExitCode {
                 let _ = error.print();
                 return ExitCode::SUCCESS;
             }
-            let error = cli_error!("usage_error", "", 2, "{error:#}");
+            let error = anyhow!("usage_error: {error:?} at {}:{}", file!(), line!());
             print_error(&error, json_mode);
             return ExitCode::from(2);
         }
@@ -73,15 +72,15 @@ async fn main() -> ExitCode {
     }
 }
 
-fn print_error(error: &opencut_player::cli::error::Error, json: bool) {
+fn print_error(error: &Error, json: bool) {
     if json {
         let _ = writeln!(
             io::stdout().lock(),
             "{}",
-            json!({"error": {"message": format!("{error:#}")}})
+            json!({"error": {"message": format!("{error:?}")}})
         );
     } else {
-        let _ = writeln!(io::stderr().lock(), "{error:#}");
+        let _ = writeln!(io::stderr().lock(), "{error:?}");
     }
 }
 
@@ -101,22 +100,20 @@ async fn run(
             overwrite,
         } => {
             if post_merge && !matches!(format, transcribe::Format::Srt) {
-                return Err(cli_error!(
-                    "usage_error",
-                    "",
-                    2,
-                    "--post-merge requires --format srt"
+                return Err(anyhow!(
+                    "usage_error: --post-merge requires --format srt at {}:{}",
+                    file!(),
+                    line!()
                 ));
             }
             if let Some(output) = &output {
                 transcribe::check_output(&media_file, output, overwrite).await?;
             }
             let Some(api_key) = api_key else {
-                return Err(cli_error!(
-                    "missing_api_key",
-                    "",
-                    2,
-                    "set MINIMAX_API_KEY before transcribing"
+                return Err(anyhow!(
+                    "missing_api_key: set MINIMAX_API_KEY before transcribing at {}:{}",
+                    file!(),
+                    line!()
                 ));
             };
             let mut result = transcribe::transcribe_response(
@@ -127,11 +124,10 @@ async fn run(
             .await?;
             if post_merge {
                 let Some(srt) = result.as_str() else {
-                    return Err(cli_error!(
-                        "invalid_transcription_response",
-                        "",
-                        5,
-                        "expected SRT text"
+                    return Err(anyhow!(
+                        "invalid_transcription_response: expected SRT text at {}:{}",
+                        file!(),
+                        line!()
                     ));
                 };
                 result = Value::String(
@@ -148,12 +144,11 @@ async fn run(
             let bytes = if let Some(text) = result.as_str() {
                 text.as_bytes().to_vec()
             } else {
-                cli_try!(
-                    serde_json::to_vec_pretty(&result),
-                    "serialization_error",
-                    "",
-                    6
-                )
+                serde_json::to_vec_pretty(&result).context(format!(
+                    "serialization_error at {}:{}",
+                    file!(),
+                    line!()
+                ))?
             };
             document::write_atomic_bytes(&output, bytes, overwrite).await?;
             Ok(json!({"path": output, "format": format.as_str()}))
@@ -220,7 +215,11 @@ async fn run(
                 ],
             };
             validate::require_valid(&doc, None)?;
-            let raw = cli_try!(serde_json::to_value(&doc), "serialization_error", "", 6);
+            let raw = serde_json::to_value(&doc).context(format!(
+                "serialization_error at {}:{}",
+                file!(),
+                line!()
+            ))?;
             document::write_atomic(&timeline, &raw, false)?;
             if json_mode {
                 Ok(json!({"path": timeline, "document": raw}))
@@ -228,36 +227,34 @@ async fn run(
                 Ok(json!(timeline))
             }
         }
-        Command::Schema { kind, .. } => Ok(cli_try!(
-            serde_json::to_value(if kind == "recipe" {
-                schemars::schema_for!(opencut_player::cli::assemble::Recipe)
-            } else {
-                schemars::schema_for!(Document)
-            }),
-            "serialization_error",
-            "",
-            6
-        )),
+        Command::Schema { kind, .. } => Ok(serde_json::to_value(if kind == "recipe" {
+            schemars::schema_for!(opencut_player::cli::assemble::Recipe)
+        } else {
+            schemars::schema_for!(Document)
+        })
+        .context(format!("serialization_error at {}:{}", file!(), line!()))?),
         Command::Doc => Ok(json!(docs::generate()?)),
         Command::Validate { timeline } => {
             let (_, doc) = document::load(&timeline)?;
-            let (media, media_findings) = probe::inspect_assets(&doc, base);
-            let mut findings = validate::validate(&doc, Some(&media));
-            findings.extend(media_findings);
+            let media = probe::assets(&doc.assets, base)?;
+            let findings = validate::validate(&doc, Some(&media));
             if !findings.is_empty() {
                 let exit = 1;
                 let value = json!({"valid": false, "findings": findings});
                 let text = if json_mode {
                     value.to_string()
                 } else {
-                    cli_try!(
-                        serde_json::to_string_pretty(&value),
-                        "serialization_error",
-                        "",
-                        6
-                    )
+                    serde_json::to_string_pretty(&value).context(format!(
+                        "serialization_error at {}:{}",
+                        file!(),
+                        line!()
+                    ))?
                 };
-                cli_try!(writeln!(io::stdout().lock(), "{text}"), "io_error", "", 6);
+                writeln!(io::stdout().lock(), "{text}").context(format!(
+                    "io_error at {}:{}",
+                    file!(),
+                    line!()
+                ))?;
                 std::process::exit(exit);
             }
             Ok(json!({"valid": true, "findings": []}))
@@ -297,7 +294,11 @@ async fn run(
             let (start, end) = match range {
                 Some(value) => {
                     let Some((start, end)) = value.split_once("..") else {
-                        return Err(cli_error!("invalid_range", "", 2, "expected start..end"));
+                        return Err(anyhow!(
+                            "invalid_range: expected start..end at {}:{}",
+                            file!(),
+                            line!()
+                        ));
                     };
                     (
                         doc.settings.frame_rate.parse_time(start, None)?,
@@ -324,7 +325,7 @@ async fn run(
                 },
             };
             if dry_run {
-                let media = probe::assets(&doc, base)?;
+                let media = probe::assets(&doc.assets, base)?;
                 return render::plan(&doc, base, &output, &options, &media);
             }
             let (sender, receiver) = std::sync::mpsc::sync_channel(8);
@@ -348,11 +349,10 @@ async fn run(
             }
             match worker.join() {
                 Ok(result) => result,
-                Err(_) => Err(cli_error!(
-                    "render_failure",
-                    "",
-                    5,
-                    "render worker panicked"
+                Err(_) => Err(anyhow!(
+                    "render_failure: render worker panicked at {}:{}",
+                    file!(),
+                    line!()
                 )),
             }
         }

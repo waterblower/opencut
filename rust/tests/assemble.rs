@@ -253,7 +253,7 @@ fn cli_assembles_previews_and_renders_without_overwriting_inputs() {
     );
     let original = fs::read(&output).unwrap();
     let (_, doc) = document::load(&output).unwrap();
-    let media = probe::assets(&doc, &dir.0).unwrap();
+    let media = probe::assets(&doc.assets, &dir.0).unwrap();
     let mut mixer = Mixer::default();
     for at in [12000, 32000, 56000, 80000] {
         let samples = mixer.block(&doc, &dir.0, &media, at, 1024).unwrap();

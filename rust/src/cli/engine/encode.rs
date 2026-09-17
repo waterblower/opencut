@@ -1,8 +1,6 @@
 use super::decode::again;
-use crate::{
-    cli::{error::Result, time::FrameRate},
-    cli_error, cli_try,
-};
+use crate::cli::time::FrameRate;
+use anyhow::{Context as _, Result, anyhow};
 use ffmpeg_next as ffmpeg;
 use image::RgbaImage;
 use std::{
@@ -37,12 +35,11 @@ impl EncoderWorker {
         let worker = std::thread::spawn(move || {
             let mut encoder =
                 Encoder::open(&path, dimensions, fps, rate, &video, metadata.as_deref())?;
-            cli_try!(
-                ready.send(encoder.audio_frame_size()),
-                "render_cancelled",
-                "",
-                5
-            );
+            ready.send(encoder.audio_frame_size()).context(format!(
+                "render_cancelled at {}:{}",
+                file!(),
+                line!()
+            ))?;
             for message in receiver {
                 match message {
                     EncodeMessage::Video(image, frame) => encoder.video(&image, frame)?,
@@ -50,11 +47,10 @@ impl EncoderWorker {
                     EncodeMessage::Finish => return encoder.finish(),
                 }
             }
-            Err(cli_error!(
-                "render_cancelled",
-                "",
-                5,
-                "encoder input closed before completion"
+            Err(anyhow!(
+                "render_cancelled: encoder input closed before completion at {}:{}",
+                file!(),
+                line!()
             ))
         });
         let mut result = Self {
@@ -69,11 +65,10 @@ impl EncoderWorker {
             }
             Err(_) => {
                 result.join()?;
-                Err(cli_error!(
-                    "encode_failure",
-                    "",
-                    5,
-                    "encoder did not initialize"
+                Err(anyhow!(
+                    "encode_failure: encoder did not initialize at {}:{}",
+                    file!(),
+                    line!()
                 ))
             }
         }
@@ -126,19 +121,19 @@ impl Encoder {
         let codec_name = settings.codec.as_str();
         let preset = settings.preset.as_str();
         let codec = video_codec(codec_name)?;
-        let mut output = cli_try!(ffmpeg::format::output(path), "encode_failure", "", 5);
+        let mut output = ffmpeg::format::output(path).context(format!(
+            "encode_failure at {}:{}",
+            file!(),
+            line!()
+        ))?;
         let global = output
             .format()
             .flags()
             .contains(ffmpeg::format::Flags::GLOBAL_HEADER);
-        let mut video = cli_try!(
-            ffmpeg::codec::context::Context::new_with_codec(codec)
-                .encoder()
-                .video(),
-            "encode_failure",
-            "",
-            5
-        );
+        let mut video = ffmpeg::codec::context::Context::new_with_codec(codec)
+            .encoder()
+            .video()
+            .context(format!("encode_failure at {}:{}", file!(), line!()))?;
         video.set_width(width);
         video.set_height(height);
         let pixel = if codec_name == "prores" {
@@ -150,7 +145,11 @@ impl Encoder {
         let video_base = ffmpeg::Rational(fps.denominator as i32, fps.numerator as i32);
         video.set_time_base(video_base);
         video.set_frame_rate(Some((fps.numerator as i32, fps.denominator as i32)));
-        let bitrate = cli_try!(usize::try_from(settings.bitrate), "invalid_bitrate", "", 2);
+        let bitrate = usize::try_from(settings.bitrate).context(format!(
+            "invalid_bitrate at {}:{}",
+            file!(),
+            line!()
+        ))?;
         video.set_bit_rate(bitrate);
         video.set_max_b_frames(0);
         video.set_gop((fps.numerator as f64 / fps.denominator as f64 * 2.0).round() as u32);
@@ -195,11 +194,8 @@ impl Encoder {
         let video = match video.open_with(options) {
             Ok(video) => video,
             Err(error) => {
-                return Err(cli_error!(
-                    "encoder_unavailable",
-                    "",
-                    5,
-                    "could not open {} for {}x{} at {}/{} fps: {error}. {}",
+                return Err(anyhow!(
+                    "encoder_unavailable: could not open {} for {}x{} at {}/{} fps: {error}. {} at {}:{}",
                     codec.name(),
                     width,
                     height,
@@ -209,12 +205,18 @@ impl Encoder {
                         "VideoToolbox requires access to macOS media services; check execution permissions."
                     } else {
                         "Check encoder availability and output settings."
-                    }
+                    },
+                    file!(),
+                    line!()
                 ));
             }
         };
         {
-            let mut stream = cli_try!(output.add_stream(codec), "encode_failure", "", 5);
+            let mut stream = output.add_stream(codec).context(format!(
+                "encode_failure at {}:{}",
+                file!(),
+                line!()
+            ))?;
             stream.set_time_base(video_base);
             stream.set_parameters(&video);
             if codec_name == "hevc" {
@@ -227,21 +229,16 @@ impl Encoder {
             }
         }
         let Some(aac) = ffmpeg::encoder::find(ffmpeg::codec::Id::AAC) else {
-            return Err(cli_error!(
-                "encoder_unavailable",
-                "",
-                5,
-                "AAC encoder is not compiled in"
+            return Err(anyhow!(
+                "encoder_unavailable: AAC encoder is not compiled in at {}:{}",
+                file!(),
+                line!()
             ));
         };
-        let mut audio = cli_try!(
-            ffmpeg::codec::context::Context::new_with_codec(aac)
-                .encoder()
-                .audio(),
-            "encode_failure",
-            "",
-            5
-        );
+        let mut audio = ffmpeg::codec::context::Context::new_with_codec(aac)
+            .encoder()
+            .audio()
+            .context(format!("encode_failure at {}:{}", file!(), line!()))?;
         audio.set_rate(rate as i32);
         audio.set_channel_layout(ffmpeg::ChannelLayout::STEREO);
         audio.set_format(ffmpeg::format::Sample::F32(
@@ -252,10 +249,17 @@ impl Encoder {
         if global {
             audio.set_flags(ffmpeg::codec::Flags::GLOBAL_HEADER);
         }
-        let audio = cli_try!(audio.open_as(aac), "encode_failure", "", 5);
+        let audio =
+            audio
+                .open_as(aac)
+                .context(format!("encode_failure at {}:{}", file!(), line!()))?;
         let audio_base = ffmpeg::Rational(1, rate as i32);
         {
-            let mut stream = cli_try!(output.add_stream(aac), "encode_failure", "", 5);
+            let mut stream = output.add_stream(aac).context(format!(
+                "encode_failure at {}:{}",
+                file!(),
+                line!()
+            ))?;
             stream.set_time_base(audio_base);
             stream.set_parameters(&audio);
         }
@@ -266,26 +270,21 @@ impl Encoder {
         }
         let mut mux_options = ffmpeg::Dictionary::new();
         mux_options.set("movflags", "+use_metadata_tags");
-        cli_try!(
-            output.write_header_with(mux_options),
-            "encode_failure",
-            "",
-            5
-        );
-        let scaler = cli_try!(
-            ffmpeg::software::scaling::Context::get(
-                ffmpeg::format::Pixel::RGBA,
-                width,
-                height,
-                pixel,
-                width,
-                height,
-                ffmpeg::software::scaling::Flags::BILINEAR
-            ),
-            "encode_failure",
-            "",
-            5
-        );
+        output.write_header_with(mux_options).context(format!(
+            "encode_failure at {}:{}",
+            file!(),
+            line!()
+        ))?;
+        let scaler = ffmpeg::software::scaling::Context::get(
+            ffmpeg::format::Pixel::RGBA,
+            width,
+            height,
+            pixel,
+            width,
+            height,
+            ffmpeg::software::scaling::Flags::BILINEAR,
+        )
+        .context(format!("encode_failure at {}:{}", file!(), line!()))?;
         unsafe {
             let coefficients = ffmpeg::ffi::sws_getCoefficients(ffmpeg::ffi::SWS_CS_ITU709);
             let result = ffmpeg::ffi::sws_setColorspaceDetails(
@@ -299,11 +298,10 @@ impl Encoder {
                 1 << 16,
             );
             if result < 0 {
-                return Err(cli_error!(
-                    "encode_failure",
-                    "",
-                    5,
-                    "cannot configure BT.709 conversion"
+                return Err(anyhow!(
+                    "encode_failure: cannot configure BT.709 conversion at {}:{}",
+                    file!(),
+                    line!()
                 ));
             }
         }
@@ -332,18 +330,21 @@ impl Encoder {
                 .copy_from_slice(&image.as_raw()[y * row..(y + 1) * row]);
         }
         let mut converted = ffmpeg::frame::Video::empty();
-        cli_try!(
-            self.scaler.run(&rgba, &mut converted),
-            "encode_failure",
-            "",
-            5
-        );
+        self.scaler.run(&rgba, &mut converted).context(format!(
+            "encode_failure at {}:{}",
+            file!(),
+            line!()
+        ))?;
         converted.set_pts(Some(frame));
         converted.set_color_space(ffmpeg::color::Space::BT709);
         converted.set_color_range(ffmpeg::color::Range::MPEG);
         converted.set_color_primaries(ffmpeg::color::Primaries::BT709);
         converted.set_color_transfer_characteristic(ffmpeg::color::TransferCharacteristic::BT709);
-        cli_try!(self.video.send_frame(&converted), "encode_failure", "", 5);
+        self.video.send_frame(&converted).context(format!(
+            "encode_failure at {}:{}",
+            file!(),
+            line!()
+        ))?;
         self.drain_video()
     }
 
@@ -360,16 +361,28 @@ impl Encoder {
                 frame.plane_mut::<f32>(channel)[i] = sample[channel];
             }
         }
-        cli_try!(self.audio.send_frame(&frame), "encode_failure", "", 5);
+        self.audio.send_frame(&frame).context(format!(
+            "encode_failure at {}:{}",
+            file!(),
+            line!()
+        ))?;
         self.drain_audio()
     }
 
     pub fn finish(mut self) -> Result<()> {
-        cli_try!(self.video.send_eof(), "encode_failure", "", 5);
+        self.video
+            .send_eof()
+            .context(format!("encode_failure at {}:{}", file!(), line!()))?;
         self.drain_video()?;
-        cli_try!(self.audio.send_eof(), "encode_failure", "", 5);
+        self.audio
+            .send_eof()
+            .context(format!("encode_failure at {}:{}", file!(), line!()))?;
         self.drain_audio()?;
-        cli_try!(self.output.write_trailer(), "encode_failure", "", 5);
+        self.output.write_trailer().context(format!(
+            "encode_failure at {}:{}",
+            file!(),
+            line!()
+        ))?;
         Ok(())
     }
 }
@@ -389,20 +402,18 @@ pub fn video_codec(name: &str) -> Result<ffmpeg::Codec> {
         "hevc" => "hevc_videotoolbox",
         "prores" => "prores_ks",
         _ => {
-            return Err(cli_error!(
-                "encoder_unavailable",
-                "",
-                5,
-                "unsupported codec {name}"
+            return Err(anyhow!(
+                "encoder_unavailable: unsupported codec {name} at {}:{}",
+                file!(),
+                line!()
             ));
         }
     };
     let Some(codec) = ffmpeg::encoder::find_by_name(encoder) else {
-        return Err(cli_error!(
-            "encoder_unavailable",
-            "",
-            5,
-            "encoder {encoder} is not compiled in; use ProRes or an appropriate build"
+        return Err(anyhow!(
+            "encoder_unavailable: encoder {encoder} is not compiled in; use ProRes or an appropriate build at {}:{}",
+            file!(),
+            line!()
         ));
     };
     Ok(codec)
@@ -428,7 +439,11 @@ impl EncoderWorker {
     fn send(&mut self, message: EncodeMessage) -> Result<()> {
         if self.sender.as_ref().unwrap().send(message).is_err() {
             self.join()?;
-            return Err(cli_error!("encode_failure", "", 5, "encoder closed"));
+            return Err(anyhow!(
+                "encode_failure: encoder closed at {}:{}",
+                file!(),
+                line!()
+            ));
         }
         Ok(())
     }
@@ -436,20 +451,18 @@ impl EncoderWorker {
     fn join(&mut self) -> Result<()> {
         self.sender.take();
         let Some(worker) = self.worker.take() else {
-            return Err(cli_error!(
-                "encode_failure",
-                "",
-                5,
-                "encoder already joined"
+            return Err(anyhow!(
+                "encode_failure: encoder already joined at {}:{}",
+                file!(),
+                line!()
             ));
         };
         match worker.join() {
             Ok(result) => result,
-            Err(_) => Err(cli_error!(
-                "encode_failure",
-                "",
-                5,
-                "encoder worker panicked"
+            Err(_) => Err(anyhow!(
+                "encode_failure: encoder worker panicked at {}:{}",
+                file!(),
+                line!()
             )),
         }
     }
@@ -466,16 +479,21 @@ impl Encoder {
                         packet.set_duration(1);
                     }
                     packet.rescale_ts(self.video_base, self.output.stream(0).unwrap().time_base());
-                    cli_try!(
-                        packet.write_interleaved(&mut self.output),
-                        "encode_failure",
-                        "",
-                        5
-                    );
+                    packet.write_interleaved(&mut self.output).context(format!(
+                        "encode_failure at {}:{}",
+                        file!(),
+                        line!()
+                    ))?;
                 }
                 Err(ffmpeg::Error::Eof) => return Ok(()),
                 Err(error) if again(error) => return Ok(()),
-                Err(error) => return Err(cli_error!("encode_failure", "", 5, "{error}")),
+                Err(error) => {
+                    return Err(anyhow!(
+                        "encode_failure: {error} at {}:{}",
+                        file!(),
+                        line!()
+                    ));
+                }
             }
         }
     }
@@ -487,16 +505,21 @@ impl Encoder {
                 Ok(()) => {
                     packet.set_stream(1);
                     packet.rescale_ts(self.audio_base, self.output.stream(1).unwrap().time_base());
-                    cli_try!(
-                        packet.write_interleaved(&mut self.output),
-                        "encode_failure",
-                        "",
-                        5
-                    );
+                    packet.write_interleaved(&mut self.output).context(format!(
+                        "encode_failure at {}:{}",
+                        file!(),
+                        line!()
+                    ))?;
                 }
                 Err(ffmpeg::Error::Eof) => return Ok(()),
                 Err(error) if again(error) => return Ok(()),
-                Err(error) => return Err(cli_error!("encode_failure", "", 5, "{error}")),
+                Err(error) => {
+                    return Err(anyhow!(
+                        "encode_failure: {error} at {}:{}",
+                        file!(),
+                        line!()
+                    ));
+                }
             }
         }
     }

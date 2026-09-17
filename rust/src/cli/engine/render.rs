@@ -4,15 +4,12 @@ use super::{
     encode::{self, EncoderWorker},
     probe,
 };
-use crate::timeline::{Clip, TimelineTime, TrackKind};
-use crate::{
-    cli::{
-        document::Document,
-        error::Result,
-        validate::{MediaInfo, require_valid},
-    },
-    cli_error, cli_try,
+use crate::cli::{
+    document::Document,
+    validate::{MediaInfo, require_valid},
 };
+use crate::timeline::{Clip, TimelineTime, TrackKind};
+use anyhow::{Context as _, Result, anyhow};
 use image::{DynamicImage, ImageFormat, imageops};
 use serde_json::{Value, json};
 use std::{
@@ -88,20 +85,18 @@ pub fn plan(
         || options.end <= options.start
         || options.end > doc.content_duration().frames()
     {
-        return Err(cli_error!(
-            "invalid_range",
-            "",
-            3,
-            "render range must be nonempty and within timeline"
+        return Err(anyhow!(
+            "invalid_range: render range must be nonempty and within timeline at {}:{}",
+            file!(),
+            line!()
         ));
     }
     let (width, height) = dimensions(doc.settings.width, doc.settings.height, options.scale)?;
     if width % 2 != 0 || height % 2 != 0 {
-        return Err(cli_error!(
-            "invalid_dimensions",
-            "",
-            3,
-            "video encoding requires even output width and height"
+        return Err(anyhow!(
+            "invalid_dimensions: video encoding requires even output width and height at {}:{}",
+            file!(),
+            line!()
         ));
     }
     let ext = output
@@ -112,11 +107,10 @@ pub fn plan(
     if (options.video_codec == "prores" && ext != "mov")
         || (options.video_codec != "prores" && ext != "mov" && ext != "mp4")
     {
-        return Err(cli_error!(
-            "invalid_container",
-            "",
-            2,
-            "ProRes requires .mov; H.264/HEVC require .mov or .mp4"
+        return Err(anyhow!(
+            "invalid_container: ProRes requires .mov; H.264/HEVC require .mov or .mp4 at {}:{}",
+            file!(),
+            line!()
         ));
     }
     protect_assets(doc, base, output)?;
@@ -163,24 +157,26 @@ pub fn still(
     overwrite: bool,
 ) -> Result<()> {
     require_valid(doc, None)?;
-    let media = probe::assets(doc, base)?;
+    let media = probe::assets(&doc.assets, base)?;
     require_valid(doc, Some(&media))?;
     if frame < 0 || frame >= doc.content_duration().frames() {
-        return Err(cli_error!(
-            "invalid_time",
-            "",
-            3,
-            "still frame must be within the timeline"
+        return Err(anyhow!(
+            "invalid_time: still frame must be within the timeline at {}:{}",
+            file!(),
+            line!()
         ));
     }
     let (width, height) = dimensions(doc.settings.width, doc.settings.height, scale)?;
-    let format = cli_try!(ImageFormat::from_path(output), "invalid_container", "", 2);
+    let format = ImageFormat::from_path(output).context(format!(
+        "invalid_container at {}:{}",
+        file!(),
+        line!()
+    ))?;
     if !matches!(format, ImageFormat::Png | ImageFormat::Jpeg) {
-        return Err(cli_error!(
-            "invalid_container",
-            "",
-            2,
-            "stills require PNG or JPEG"
+        return Err(anyhow!(
+            "invalid_container: stills require PNG or JPEG at {}:{}",
+            file!(),
+            line!()
         ));
     }
     protect_assets(doc, base, output)?;
@@ -194,11 +190,15 @@ pub fn still(
         } else {
             DynamicImage::ImageRgba8(image)
         };
-        cli_try!(image.save_with_format(&temp, format), "io_error", "", 6);
+        image.save_with_format(&temp, format).context(format!(
+            "io_error at {}:{}",
+            file!(),
+            line!()
+        ))?;
         commit(&temp, output, overwrite)
     })();
     if temp.exists() {
-        cli_try!(fs::remove_file(&temp), "io_error", "", 6);
+        fs::remove_file(&temp).context(format!("io_error at {}:{}", file!(), line!()))?;
     }
     result
 }
@@ -211,7 +211,7 @@ pub fn render(
     progress: SyncSender<Value>,
 ) -> Result<Value> {
     require_valid(doc, None)?;
-    let media = probe::assets(doc, base)?;
+    let media = probe::assets(&doc.assets, base)?;
     let plan = plan(doc, base, output, options, &media)?;
     let (width, height) = dimensions(doc.settings.width, doc.settings.height, options.scale)?;
     let (bitrate, _) = resolve_bitrate(doc, &media, options)?;
@@ -259,23 +259,20 @@ pub fn render(
             if now >= next_progress && frame + 1 < total {
                 let speed =
                     (frame + 1) as f64 / now.duration_since(clock).as_secs_f64().max(0.000001);
-                cli_try!(progress.send(json!({"frame": frame + 1, "total": total, "fps": speed, "eta_s": (total - frame - 1) as f64 / speed})), "render_cancelled", "", 5);
+                progress.send(json!({"frame": frame + 1, "total": total, "fps": speed, "eta_s": (total - frame - 1) as f64 / speed})).context(format!("render_cancelled at {}:{}", file!(), line!()))?;
                 next_progress = now + Duration::from_secs(5);
             }
         }
         encoder.finish()?;
         commit(&temp, output, options.overwrite)?;
         let speed = total as f64 / clock.elapsed().as_secs_f64().max(0.000001);
-        cli_try!(
-            progress.send(json!({"frame": total, "total": total, "fps": speed, "eta_s": 0.0})),
-            "render_cancelled",
-            "",
-            5
-        );
+        progress
+            .send(json!({"frame": total, "total": total, "fps": speed, "eta_s": 0.0}))
+            .context(format!("render_cancelled at {}:{}", file!(), line!()))?;
         Ok(plan)
     })();
     if temp.exists() {
-        cli_try!(fs::remove_file(&temp), "io_error", "", 6);
+        fs::remove_file(&temp).context(format!("io_error at {}:{}", file!(), line!()))?;
     }
     result
 }
@@ -286,14 +283,16 @@ pub fn parse_bitrate(value: &str) -> Result<u64> {
         Some(b'm' | b'M') => (&value[..value.len() - 1], 1_000_000.0),
         _ => (value, 1.0),
     };
-    let number: f64 = cli_try!(number.parse(), "invalid_bitrate", "", 2);
+    let number: f64 =
+        number
+            .parse()
+            .context(format!("invalid_bitrate at {}:{}", file!(), line!()))?;
     let bitrate = number * multiplier;
     if !bitrate.is_finite() || bitrate < 1.0 || bitrate >= i64::MAX as f64 {
-        return Err(cli_error!(
-            "invalid_bitrate",
-            "",
-            2,
-            "bitrate must be a positive, representable number of bits per second"
+        return Err(anyhow!(
+            "invalid_bitrate: bitrate must be a positive, representable number of bits per second at {}:{}",
+            file!(),
+            line!()
         ));
     }
     Ok(bitrate.round() as u64)
@@ -306,11 +305,10 @@ pub fn resolve_bitrate(
 ) -> Result<(u64, &'static str)> {
     if let Some(bitrate) = options.bitrate {
         if bitrate == 0 || bitrate > i64::MAX as u64 {
-            return Err(cli_error!(
-                "invalid_bitrate",
-                "",
-                2,
-                "bitrate must be positive and fit a signed 64-bit integer"
+            return Err(anyhow!(
+                "invalid_bitrate: bitrate must be positive and fit a signed 64-bit integer at {}:{}",
+                file!(),
+                line!()
             ));
         }
         return Ok((bitrate, "explicit"));
@@ -358,21 +356,19 @@ pub fn resolve_bitrate(
 
 fn dimensions(width: u32, height: u32, scale: f64) -> Result<(u32, u32)> {
     if !scale.is_finite() || scale <= 0.0 {
-        return Err(cli_error!(
-            "invalid_scale",
-            "",
-            2,
-            "scale must be finite and positive"
+        return Err(anyhow!(
+            "invalid_scale: scale must be finite and positive at {}:{}",
+            file!(),
+            line!()
         ));
     }
     let width = (width as f64 * scale).round();
     let height = (height as f64 * scale).round();
     if !(1.0..=16384.0).contains(&width) || !(1.0..=16384.0).contains(&height) {
-        return Err(cli_error!(
-            "invalid_dimensions",
-            "",
-            3,
-            "scaled dimensions must be 1..16384"
+        return Err(anyhow!(
+            "invalid_dimensions: scaled dimensions must be 1..16384 at {}:{}",
+            file!(),
+            line!()
         ));
     }
     Ok((width as u32, height as u32))
@@ -384,11 +380,10 @@ fn protect_assets(doc: &Document, base: &Path, output: &Path) -> Result<()> {
             if let Ok(source) = fs::canonicalize(base.join(&asset.path))
                 && source == target
             {
-                return Err(cli_error!(
-                    "output_is_source",
-                    "",
-                    6,
-                    "output would overwrite source media"
+                return Err(anyhow!(
+                    "output_is_source: output would overwrite source media at {}:{}",
+                    file!(),
+                    line!()
                 ));
             }
         }
@@ -401,34 +396,37 @@ fn temporary(output: &Path, overwrite: bool) -> Result<PathBuf> {
     let parent = output.parent().unwrap_or(Path::new("."));
     let extension = output.extension().unwrap_or_default().to_string_lossy();
     let temp = parent.join(format!(".opencut-{}.{}", Ulid::generate(), extension));
-    cli_try!(
-        OpenOptions::new().write(true).create_new(true).open(&temp),
-        "io_error",
-        "",
-        6
-    );
+    OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(&temp)
+        .context(format!("io_error at {}:{}", file!(), line!()))?;
     Ok(temp)
 }
 
 fn commit(temp: &Path, output: &Path, overwrite: bool) -> Result<()> {
-    let file = cli_try!(OpenOptions::new().write(true).open(temp), "io_error", "", 6);
-    cli_try!(file.sync_all(), "io_error", "", 6);
+    let file = OpenOptions::new().write(true).open(temp).context(format!(
+        "io_error at {}:{}",
+        file!(),
+        line!()
+    ))?;
+    file.sync_all()
+        .context(format!("io_error at {}:{}", file!(), line!()))?;
     if overwrite {
-        cli_try!(fs::rename(temp, output), "io_error", "", 6);
+        fs::rename(temp, output).context(format!("io_error at {}:{}", file!(), line!()))?;
     } else {
-        cli_try!(fs::hard_link(temp, output), "io_error", "", 6);
+        fs::hard_link(temp, output).context(format!("io_error at {}:{}", file!(), line!()))?;
     }
     Ok(())
 }
 
 fn check_output(output: &Path, overwrite: bool) -> Result<()> {
     if output.exists() && !overwrite {
-        return Err(cli_error!(
-            "output_exists",
-            "",
-            6,
-            "use --overwrite to replace {}",
-            output.display()
+        return Err(anyhow!(
+            "output_exists: use --overwrite to replace {} at {}:{}",
+            output.display(),
+            file!(),
+            line!()
         ));
     }
     Ok(())

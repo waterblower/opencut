@@ -47,7 +47,11 @@ fn shared_timeline_round_trip_and_backend_rendering() {
     edited.save(&path).unwrap();
     let (raw, document) = document::load(&path).unwrap();
     assert_eq!(serde_json::to_value(&edited).unwrap(), raw);
-    validate::require_valid(&document, Some(&probe::assets(&document, &root).unwrap())).unwrap();
+    validate::require_valid(
+        &document,
+        Some(&probe::assets(&document.assets, &root).unwrap()),
+    )
+    .unwrap();
     let ffmpeg_output = root.join("ffmpeg.mov");
     let (sender, _receiver) = std::sync::mpsc::sync_channel(8);
     render::render(
@@ -92,7 +96,7 @@ fn shared_timeline_round_trip_and_backend_rendering() {
         data.source_out = document.content_duration();
         data.audio_properties.gain_db = 0.0;
         audio_document.clips = vec![audio_clip];
-        let media = probe::assets(&audio_document, &root).unwrap();
+        let media = probe::assets(&audio_document.assets, &root).unwrap();
         let samples = opencut_player::cli::engine::audio::Mixer::default()
             .block(&audio_document, &root, &media, 12000, 4096)
             .unwrap();
@@ -252,7 +256,7 @@ fn shared_timeline_podcast_assembly_exports_in_both_backends() {
         data.source_out = TimelineTime::from_frames(36);
         data.audio_properties.gain_db = 0.0;
         audio.assets[0].path = output.clone();
-        let metadata = probe::assets(&audio, &root).unwrap();
+        let metadata = probe::assets(&audio.assets, &root).unwrap();
         let mut mixer = opencut_player::cli::engine::audio::Mixer::default();
         for at in [2000, 14000, 26000, 50000] {
             let samples = mixer.block(&audio, &root, &metadata, at, 2048).unwrap();

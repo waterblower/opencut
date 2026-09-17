@@ -2,11 +2,8 @@ use super::{
     decode::VideoWorker,
     raster::{self, TextRaster},
 };
-use crate::{
-    cli::error::Result,
-    cli_error,
-    timeline::{Clip, MediaKind, TimelineSerialization, TimelineTime, TrackKind},
-};
+use crate::timeline::{Clip, MediaKind, TimelineSerialization, TimelineTime, TrackKind};
+use anyhow::{Result, anyhow};
 use image::{Rgba, RgbaImage, imageops};
 use std::{collections::HashMap, path::Path};
 use ulid::Ulid;
@@ -83,20 +80,18 @@ impl Composer {
             return Ok(self.rasters[&text.id].clone());
         }
         let Some(data) = clip.media() else {
-            return Err(cli_error!(
-                "invalid_clip",
-                "/clips",
-                3,
-                "visual track requires media or text"
+            return Err(anyhow!(
+                "invalid_clip: visual track requires media or text (/clips) at {}:{}",
+                file!(),
+                line!()
             ));
         };
         let Some(asset) = doc.asset(data.asset_id) else {
-            return Err(cli_error!(
-                "unknown_asset",
-                "/clips",
-                3,
-                "clip references missing asset {}",
-                data.asset_id
+            return Err(anyhow!(
+                "unknown_asset: clip references missing asset {} (/clips) at {}:{}",
+                data.asset_id,
+                file!(),
+                line!()
             ));
         };
         let path = base.join(&asset.path);
@@ -122,11 +117,10 @@ impl Composer {
             return Ok(layer);
         }
         if width * height > 268_435_456.0 {
-            return Err(cli_error!(
-                "raster_too_large",
-                "",
-                5,
-                "transformed clip exceeds pixel allocation limit"
+            return Err(anyhow!(
+                "raster_too_large: transformed clip exceeds pixel allocation limit at {}:{}",
+                file!(),
+                line!()
             ));
         }
         let left = settings.width as f64 * 0.5 + properties.position_x - width * 0.5;

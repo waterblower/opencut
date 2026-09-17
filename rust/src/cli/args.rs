@@ -57,7 +57,7 @@ pub enum Command {
         #[arg(long, default_value = "30")]
         fps: String,
     },
-    /// Check document semantics and referenced media; report all findings.
+    /// Check document semantics and referenced media; stop if a media file cannot be probed.
     Validate { timeline: PathBuf },
     /// Print the authoritative timeline or assembly recipe JSON Schema.
     Schema {
