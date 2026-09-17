@@ -23,10 +23,10 @@ use std::{
 use ulid::Ulid;
 
 #[test]
-fn rendering_commands_are_removed() {
+fn still_command_is_removed() {
     let help = cli(&["--help"]);
     let help = String::from_utf8(help.stdout).unwrap();
-    for command in ["still", "render"] {
+    for command in ["still"] {
         assert!(!help.contains(&format!("  {command} ")));
         let output = cli(&[command, "--json"]);
         assert_eq!(output.status.code(), Some(2));
@@ -36,6 +36,73 @@ fn rendering_commands_are_removed() {
                 .unwrap()
                 .contains("usage_error")
         );
+    }
+}
+
+#[test]
+#[cfg(target_os = "macos")]
+fn render_refuses_existing_output() {
+    let dir = Temp::new();
+    let output = dir.0.join("existing.mp4");
+    fs::write(&output, b"keep me").unwrap();
+    let result = cli(&["render", "-o", output.to_str().unwrap(), "--json"]);
+    assert_eq!(result.status.code(), Some(1));
+    assert!(
+        decode(&result)["error"]["message"]
+            .as_str()
+            .unwrap()
+            .contains("already exists")
+    );
+    assert_eq!(fs::read(output).unwrap(), b"keep me");
+}
+
+#[test]
+#[cfg(target_os = "macos")]
+#[ignore = "requires a macOS graphical session, Metal, and VideoToolbox"]
+fn render_gpui_demo() {
+    let dir = Temp::new();
+    let output = dir.0.join("hello.mp4");
+    let result = cli(&["render", "-o", output.to_str().unwrap(), "--json"]);
+    assert!(
+        result.status.success(),
+        "{}",
+        String::from_utf8_lossy(&result.stderr)
+    );
+    assert_eq!(decode(&result)["frames"], 150);
+    probe::init().unwrap();
+    let mut input = ffmpeg_next::format::input(&output).unwrap();
+    let stream = input
+        .streams()
+        .best(ffmpeg_next::media::Type::Video)
+        .unwrap();
+    assert_eq!(stream.avg_frame_rate(), ffmpeg_next::Rational(30, 1));
+    assert_eq!(stream.frames(), 150);
+    assert!((stream.duration() as f64 * f64::from(stream.time_base()) - 5.0).abs() < 0.001);
+    let index = stream.index();
+    assert_eq!(
+        input
+            .packets()
+            .filter(|(stream, _)| stream.index() == index)
+            .count(),
+        150
+    );
+    let worker = VideoWorker::new(output);
+    for time in [0.0, 149.0 / 30.0] {
+        let image = worker.at(time).unwrap();
+        assert!(
+            image.get_pixel(0, 0).0[..3]
+                .iter()
+                .all(|&channel| channel < 8)
+        );
+        let white_pixels = image
+            .pixels()
+            .filter(|pixel| pixel.0[..3].iter().all(|&channel| channel > 220))
+            .count();
+        assert!(
+            white_pixels > 100,
+            "text should produce visible white pixels"
+        );
+        assert!(white_pixels < (image.width() * image.height() / 10) as usize);
     }
 }
 
