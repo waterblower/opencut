@@ -16,7 +16,7 @@ cargo cli probe media.mp4 --json
 cargo cli new episode.timeline.json --fps 30000/1001 --json
 cargo cli schema --json
 cargo cli --project-root /path/to/project validate scenes/episode.timeline.json --json
-cargo cli --project-root /path/to/project inspect scenes/episode.timeline.json --json
+cargo cli --project-root /path/to/project probe scenes/episode.timeline.json --json
 cargo cli --project-root /path/to/project still scenes/episode.timeline.json --at 50% -o preview.png
 cargo cli --project-root /path/to/project render scenes/episode.timeline.json -o output.mp4 --dry-run --json
 cargo cli --project-root /path/to/project render scenes/episode.timeline.json -o output.mp4 --progress json --json
@@ -37,6 +37,15 @@ bash rust/scripts/cargo-cli.sh build --no-default-features --features cli --bin 
 The wrapper links the existing `rust/vendor/ffmpeg-8.1.2` libraries. It never builds
 FFmpeg or invokes Python. Disable default features to build the CLI without GPUI
 or GStreamer dependencies.
+
+## Probe media and timelines
+
+`probe <file>` accepts video, audio, image, and timeline files. Files with a `.json`
+extension (case-insensitive, including `.timeline.json`) are loaded as timelines
+and summarized with duration, settings, clips, tracks, gaps, and asset usage.
+Other files report media streams, codecs, duration, dimensions, and keyframe spacing
+where applicable. Timeline probing does not open referenced media; use `validate`
+to check those files. The separate `inspect` command has been removed.
 
 ## Shared timeline contract
 

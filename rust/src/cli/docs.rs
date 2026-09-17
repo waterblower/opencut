@@ -15,10 +15,10 @@ Use OpenCut to inspect media, author timeline JSON, preview frames, render video
 
 ## Recommended workflow
 
-1. Probe source media before choosing cuts.
+1. Use `probe <file>` for video, audio, images, or timeline JSON. Probe source media before choosing cuts.
 2. Create a timeline with `new`, or compile explicit cut and camera decisions with `assemble`.
 3. Use `schema` when authoring JSON; do not guess document fields.
-4. Validate referenced media and inspect the timeline.
+4. Validate referenced media and probe the timeline.
 5. Render a still to check composition, then run a dry run before the final render.
 
 ```sh
@@ -26,7 +26,7 @@ opencut probe recording.mp4 --json
 opencut new episode.timeline.json --fps 30 --json
 opencut schema --json
 opencut --project-root /project validate episode.timeline.json --json
-opencut --project-root /project inspect episode.timeline.json --json
+opencut --project-root /project probe episode.timeline.json --json
 opencut --project-root /project still episode.timeline.json --at 50% -o preview.png
 opencut --project-root /project render episode.timeline.json -o output.mp4 --dry-run --json
 opencut --project-root /project render episode.timeline.json -o output.mp4 --progress json --json

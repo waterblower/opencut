@@ -8,7 +8,7 @@ use opencut_player::{
     cli::engine::{probe, render},
     cli::{
         document::{self, Document},
-        error::Result,
+        error::{Result, anyhow},
         time::parse_rate,
         transcribe, validate,
     },
@@ -166,12 +166,24 @@ async fn run(
         } => {
             opencut_player::cli::assemble::run(&recipe, base, output.as_deref(), dry_run, overwrite)
         }
-        Command::Probe { media_file } => Ok(cli_try!(
-            serde_json::to_value(probe::probe(&media_file)?),
-            "serialization_error",
-            "",
-            6
-        )),
+        Command::Probe { file } => {
+            if file
+                .extension()
+                .is_some_and(|extension| extension.eq_ignore_ascii_case("json"))
+            {
+                let (_, doc) = document::load(&file)?;
+                validate::require_valid(&doc, None)?;
+                return Ok(render::summary(&doc));
+            }
+            match serde_json::to_value(probe::probe(&file)?) {
+                Ok(value) => Ok(value),
+                Err(error) => Err(anyhow!(
+                    "serialization_error: {error:?} at {}:{}",
+                    file!(),
+                    line!()
+                )),
+            }
+        }
         Command::New {
             timeline,
             width,
@@ -249,11 +261,6 @@ async fn run(
                 std::process::exit(exit);
             }
             Ok(json!({"valid": true, "findings": []}))
-        }
-        Command::Inspect { timeline } => {
-            let (_, doc) = document::load(&timeline)?;
-            validate::require_valid(&doc, None)?;
-            Ok(render::summary(&doc))
         }
         Command::Still {
             timeline,

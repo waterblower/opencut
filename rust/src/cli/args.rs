@@ -45,8 +45,8 @@ pub enum Command {
         #[arg(long)]
         overwrite: bool,
     },
-    /// Inspect a media file's streams, duration, and keyframe spacing.
-    Probe { media_file: PathBuf },
+    /// Summarize a video, audio, image, or timeline JSON file.
+    Probe { file: PathBuf },
     /// Create a shared editor timeline with video and audio tracks.
     New {
         timeline: PathBuf,
@@ -59,8 +59,6 @@ pub enum Command {
     },
     /// Check document semantics and referenced media; report all findings.
     Validate { timeline: PathBuf },
-    /// Summarize duration, clips, tracks, gaps, and asset usage.
-    Inspect { timeline: PathBuf },
     /// Print the authoritative timeline or assembly recipe JSON Schema.
     Schema {
         #[arg(long, default_value = "timeline", value_parser = ["timeline", "recipe"])]

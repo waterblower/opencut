@@ -80,7 +80,7 @@ fn schema_and_new_use_the_gui_document_contract() {
     let removed = cli(&["edit", file.to_str().unwrap(), "--json"]);
     assert_eq!(removed.status.code(), Some(2));
     fs::write(&file, r#"{"version":1,"clips":[]}"#).unwrap();
-    let legacy = cli(&["inspect", file.to_str().unwrap(), "--json"]);
+    let legacy = cli(&["probe", file.to_str().unwrap(), "--json"]);
     assert_eq!(legacy.status.code(), Some(1));
     assert!(
         decode(&legacy)["error"]["message"]
@@ -88,6 +88,77 @@ fn schema_and_new_use_the_gui_document_contract() {
             .unwrap()
             .contains("legacy_cli_format")
     );
+}
+
+#[test]
+fn probe_summarizes_timelines_without_opening_referenced_media() {
+    let dir = Temp::new();
+    let mut doc = empty();
+    doc.assets
+        .push(asset(100, "missing.mp4", MediaKind::Video, false));
+    doc.clips
+        .push(Clip::Video(media_clip(200, 1, 100, 15, 0, 30)));
+    let expected = render::summary(&doc);
+    for name in ["project.timeline.json", "project.json", "uppercase.JSON"] {
+        let file = dir.0.join(name);
+        document::write_atomic(&file, &serde_json::to_value(&doc).unwrap(), false).unwrap();
+        let output = cli(&["probe", file.to_str().unwrap(), "--json"]);
+        assert!(
+            output.status.success(),
+            "{}",
+            String::from_utf8_lossy(&output.stdout)
+        );
+        assert_eq!(decode(&output), expected);
+    }
+    let removed = cli(&["inspect", "project.timeline.json", "--json"]);
+    assert_eq!(removed.status.code(), Some(2));
+    let help = cli(&["--help"]);
+    let help = String::from_utf8_lossy(&help.stdout);
+    assert!(help.contains("probe"));
+    assert!(!help.contains("  inspect"));
+}
+
+#[test]
+fn probe_reports_audio_and_image_metadata() {
+    let dir = Temp::new();
+    let audio = dir.0.join("tone.wav");
+    write_tone(&audio, 44100, 1);
+    let output = cli(&["probe", audio.to_str().unwrap(), "--json"]);
+    assert!(output.status.success());
+    let value = decode(&output);
+    assert_eq!(value["streams"][0]["kind"], "audio");
+    assert_eq!(value["streams"][0]["sample_rate"], 44100);
+    let image = dir.0.join("image.png");
+    RgbaImage::from_pixel(64, 48, Rgba([220, 20, 10, 255]))
+        .save(&image)
+        .unwrap();
+    let output = cli(&["probe", image.to_str().unwrap(), "--json"]);
+    assert!(output.status.success());
+    let value = decode(&output);
+    assert_eq!(value["container"], "image");
+    assert_eq!(value["streams"][0]["width"], 64);
+    assert_eq!(value["streams"][0]["height"], 48);
+}
+
+#[test]
+fn probe_reports_invalid_timeline_and_missing_file_errors() {
+    let dir = Temp::new();
+    let file = dir.0.join("invalid.timeline.json");
+    fs::write(&file, "{").unwrap();
+    let output = cli(&["probe", file.to_str().unwrap(), "--json"]);
+    assert!(!output.status.success());
+    assert!(
+        decode(&output)["error"]["message"]
+            .as_str()
+            .unwrap()
+            .contains("invalid_json")
+    );
+    for name in ["missing.json", "missing.mp4"] {
+        let file = dir.0.join(name);
+        let output = cli(&["probe", file.to_str().unwrap(), "--json"]);
+        assert!(!output.status.success());
+        assert!(decode(&output)["error"]["message"].is_string());
+    }
 }
 
 #[test]
@@ -400,6 +471,12 @@ fn native_video_seek_audio_mix_and_full_render() {
         }
     }
     encoder.finish().unwrap();
+    let output = cli(&["probe", source.to_str().unwrap(), "--json"]);
+    assert!(output.status.success());
+    let info = decode(&output);
+    assert!(info["streams"].as_array().unwrap().iter().any(|stream| {
+        stream["kind"] == "video" && stream["width"] == 64 && stream["height"] == 48
+    }));
     let worker = VideoWorker::new(source.clone());
     for f in [0, 29, 30, 59, 15, 16, 0] {
         let frame = worker.at(f as f64 / 30.0).unwrap();
