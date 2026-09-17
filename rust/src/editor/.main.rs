@@ -114,7 +114,19 @@ fn run_app(cx: &mut App) {
                 ),
             };
             let ready = window
-                .update(cx, |editor, _, cx| editor.prepare_project_switch(cx))
+                .update(cx, |editor, _, cx| {
+                    match editor.prepare_project_switch(cx) {
+                        Ok(ready) => ready,
+                        Err(error) => {
+                            editor.status = Some(format!("{error}"));
+                            log::error!(
+                                "Could not save timeline before switching projects: {error:?}"
+                            );
+                            cx.notify();
+                            false
+                        }
+                    }
+                })
                 .unwrap_or(false);
             if !ready {
                 return;

@@ -1,4 +1,5 @@
 use super::*;
+use anyhow::Result;
 
 pub(super) fn transform_targets(
     timeline: &TimelineSerialization,
@@ -32,9 +33,11 @@ pub(super) fn transform_targets(
 }
 
 impl Editor {
-    pub(super) fn apply_transform_to_track_clips(&mut self) {
-        let ContextMenu::TimelineClip(menu) = self.take_context_menu() else {
-            return;
+    pub(super) fn apply_transform_to_track_clips(&mut self) -> Result<()> {
+        let ContextMenu::TimelineClip(menu) =
+            std::mem::replace(&mut self.context_menu, ContextMenu::None)
+        else {
+            return Ok(());
         };
         let source_clip_id = menu.clip_id;
         let Some((properties, targets)) = self
@@ -42,14 +45,14 @@ impl Editor {
             .as_ref()
             .and_then(|timeline| transform_targets(&timeline.data, source_clip_id))
         else {
-            return;
+            return Ok(());
         };
         if targets.is_empty() {
-            return;
+            return Ok(());
         }
         let changed = targets.len();
         let Some(timeline) = self.timeline.as_mut() else {
-            return;
+            return Ok(());
         };
         timeline.record_editing_history();
         let clip_ids = targets
@@ -68,12 +71,15 @@ impl Editor {
         .expect("setting video properties cannot be rejected");
         self.properties.transform_input_clip_id = None;
 
-        timeline.save(&self.project_root);
+        timeline
+            .data
+            .save(&self.project_root.join(&timeline.path))?;
 
         self.status = Some(format!(
             "Applied transforms to {changed} other clip{}.",
             if changed == 1 { "" } else { "s" }
         ));
+        Ok(())
     }
 }
 

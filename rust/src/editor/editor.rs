@@ -193,7 +193,9 @@ fn handle_app_event(
                 edit_action.clone(),
             )
             .expect("event bus edit actions cannot be rejected");
-            timeline.save(&project_root);
+            if let Err(error) = timeline.data.save(&project_root.join(&timeline.path)) {
+                log::error!("{error:?}");
+            }
         }
         AppEvent::DragStarted(asset) => {
             editor.active_asset_drag = asset.clone();
@@ -269,7 +271,7 @@ fn handle_app_event(
                         )?;
                         timeline.interaction.selected_clip_ids = selected_clip_ids;
                         timeline.interaction.selected_clip_id = selected_clip_id;
-                        timeline.save(&project_root);
+                        timeline.data.save(&project_root.join(&timeline.path))?;
                         editor.status = Some("Added subtitles to the timeline.".to_string());
                         Ok::<(), Error>(())
                     })();
@@ -311,7 +313,7 @@ fn start_updates(cx: &mut Context<Editor>) {
         loop {
             cx.background_executor().timer(IDLE_UPDATE_INTERVAL).await;
             let result = editor.update(cx, |editor, cx| {
-                let pinch_zoomed = editor.apply_timeline_pinch();
+                let pinch_zoomed = editor.apply_timeline_pinch()?;
                 let ended_explorer_drag = !cx.has_active_drag();
                 if ended_explorer_drag && let Some(timeline) = editor.timeline.as_mut() {
                     timeline.interaction.snap_guide = None;

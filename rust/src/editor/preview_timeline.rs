@@ -5,6 +5,7 @@ use super::{
 };
 use crate::playback_view::{CONTROL_HEIGHT, format_duration};
 use crate::video::video;
+use anyhow::Result;
 use gpui::{point, relative, size};
 
 pub fn preview_timeline_view(
@@ -1124,24 +1125,21 @@ impl Editor {
         true
     }
 
-    fn finish_timeline_preview_clip_drag(&mut self, cx: &mut Context<Self>) -> bool {
+    fn finish_timeline_preview_clip_drag(&mut self, cx: &mut Context<Self>) -> Result<bool> {
         let Some(drag) = self.preview.timeline_drag.take() else {
-            return false;
+            return Ok(false);
         };
         if drag.changed {
-            if let Some(timeline) = self.timeline.as_mut() {
-                match refresh_timeline_video_frame(timeline.video_backend.playback_mut()) {
-                    Ok(()) => {}
-                    Err(error) => eprintln!("{error}"),
-                }
-            }
-            let Some(timeline) = self.timeline.as_ref() else {
-                return true;
+            let Some(timeline) = self.timeline.as_mut() else {
+                return Ok(true);
             };
-            timeline.save(&self.project_root);
+            refresh_timeline_video_frame(timeline.video_backend.playback_mut())?;
+            timeline
+                .data
+                .save(&self.project_root.join(&timeline.path))?;
         }
         cx.notify();
-        true
+        Ok(true)
     }
 
     fn dismiss_timeline_preview_volume(
@@ -1196,8 +1194,14 @@ impl Editor {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        if self.finish_timeline_preview_clip_drag(cx) {
-            return;
+        match self.finish_timeline_preview_clip_drag(cx) {
+            Ok(true) => return,
+            Ok(false) => {}
+            Err(error) => {
+                log::error!("{error:?}");
+                cx.notify();
+                return;
+            }
         }
         self.playback_seek(
             ((f32::from(event.position.x) - timeline_left) / usable_width).clamp(0.0, 1.0),

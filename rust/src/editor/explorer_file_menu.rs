@@ -164,7 +164,9 @@ impl Editor {
             timeline.path = renamed_active_timeline;
         }
         if let Some(timeline) = self.timeline.as_ref() {
-            timeline.save(&self.project_root);
+            timeline
+                .data
+                .save(&self.project_root.join(&timeline.path))?;
         }
 
         self.explorer.rename_dialog = None;

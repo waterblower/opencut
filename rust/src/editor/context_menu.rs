@@ -217,10 +217,6 @@ impl Editor {
     pub fn dismiss_context_menu(&mut self) {
         self.context_menu = ContextMenu::None;
     }
-
-    pub(super) fn take_context_menu(&mut self) -> ContextMenu {
-        std::mem::replace(&mut self.context_menu, ContextMenu::None)
-    }
 }
 
 fn file_menu_item(label: &'static str, shortcut: &'static str) -> gpui::Stateful<gpui::Div> {
@@ -315,7 +311,10 @@ impl Editor {
                             .when(enabled, |this| {
                                 this.hover(|style| style.bg(rgb(0x34343a)))
                                     .on_click(cx.listener(|editor, _, _, cx| {
-                                        editor.apply_transform_to_track_clips();
+                                        if let Err(error) = editor.apply_transform_to_track_clips()
+                                        {
+                                            log::error!("{error:?}");
+                                        }
                                         cx.notify();
                                     }))
                             })
@@ -419,7 +418,10 @@ impl Editor {
                             .text_color(rgb(TEXT))
                             .hover(|style| style.bg(rgb(0x34343a)))
                             .on_click(cx.listener(move |editor, _, _, cx| {
-                                editor.add_text(track_id, position, cx);
+                                if let Err(error) = editor.add_text(track_id, position, cx) {
+                                    log::error!("{error:?}");
+                                    cx.notify();
+                                }
                             }))
                             .child(div().text_sm().child("Add text")),
                     ),

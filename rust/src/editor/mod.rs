@@ -259,18 +259,20 @@ impl Editor {
         .detach();
     }
 
-    pub fn prepare_project_switch(&mut self, cx: &mut Context<Self>) -> bool {
+    pub fn prepare_project_switch(&mut self, cx: &mut Context<Self>) -> Result<bool> {
         if self.export.running {
             self.status = Some(
                 "Wait for export or SRT generation to finish before switching projects.".into(),
             );
             cx.notify();
-            return false;
+            return Ok(false);
         }
         if let Some(timeline) = self.timeline.as_ref() {
-            timeline.save(&self.project_root);
+            timeline
+                .data
+                .save(&self.project_root.join(&timeline.path))?;
         }
-        true
+        Ok(true)
     }
 
     pub(super) fn open_timeline(
@@ -297,7 +299,9 @@ impl Editor {
             let path = self.project_root.join(&relative_path);
             let timeline = TimelineSerialization::load(&path)?;
             if let Some(timeline) = self.timeline.as_ref() {
-                timeline.save(&self.project_root);
+                timeline
+                    .data
+                    .save(&self.project_root.join(&timeline.path))?;
             }
             self.activate_timeline(relative_path.clone(), timeline, cx)?;
             self.select_only_clip(None);
@@ -318,7 +322,9 @@ impl Editor {
         cx: &mut Context<Self>,
     ) -> Result<()> {
         if let Some(active_timeline) = self.timeline.as_ref() {
-            active_timeline.save(&self.project_root);
+            active_timeline
+                .data
+                .save(&self.project_root.join(&active_timeline.path))?;
         }
 
         // Expand the target folder so the new timeline is visible in the tree.
@@ -513,7 +519,9 @@ impl Editor {
         _: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        self.step_playhead(-1);
+        if let Err(error) = self.step_playhead(-1) {
+            log::error!("{error:?}");
+        }
         cx.notify();
     }
 
@@ -523,7 +531,9 @@ impl Editor {
         _: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        self.step_playhead(1);
+        if let Err(error) = self.step_playhead(1) {
+            log::error!("{error:?}");
+        }
         cx.notify();
     }
 
@@ -533,7 +543,9 @@ impl Editor {
         _: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        self.delete_selected();
+        if let Err(error) = self.delete_selected() {
+            log::error!("{error:?}");
+        }
         cx.notify();
     }
 
@@ -541,17 +553,23 @@ impl Editor {
         let Some(timeline) = self.timeline.as_mut() else {
             return;
         };
-        timeline.blade_at_playhead(&mut self.preview, &self.project_root);
+        if let Err(error) = timeline.blade_at_playhead(&mut self.preview, &self.project_root) {
+            log::error!("{error:?}");
+        }
         cx.notify();
     }
 
     fn action_undo(&mut self, _: &Undo, _: &mut Window, cx: &mut Context<Self>) {
-        self.undo();
+        if let Err(error) = self.undo() {
+            log::error!("{error:?}");
+        }
         cx.notify();
     }
 
     fn action_redo(&mut self, _: &Redo, _: &mut Window, cx: &mut Context<Self>) {
-        self.redo();
+        if let Err(error) = self.redo() {
+            log::error!("{error:?}");
+        }
         cx.notify();
     }
 
@@ -561,7 +579,9 @@ impl Editor {
         _: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        self.duplicate_selected();
+        if let Err(error) = self.duplicate_selected() {
+            log::error!("{error:?}");
+        }
         cx.notify();
     }
 
@@ -581,12 +601,16 @@ impl Editor {
         _: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        self.cut_selected_clips();
+        if let Err(error) = self.cut_selected_clips() {
+            log::error!("{error:?}");
+        }
         cx.notify();
     }
 
     fn action_paste_clips(&mut self, _: &PasteClips, _: &mut Window, cx: &mut Context<Self>) {
-        self.paste_clips(cx);
+        if let Err(error) = self.paste_clips(cx) {
+            log::error!("{error:?}");
+        }
         cx.notify();
     }
 

@@ -120,14 +120,18 @@ impl Editor {
                     .child(
                         track_icon_button(("track-lock", index), IconName::Lock, track.locked)
                             .on_click(cx.listener(move |editor, _, _, cx| {
-                                editor.toggle_track_lock(track_id);
+                                if let Err(error) = editor.toggle_track_lock(track_id) {
+                                    log::error!("{error:?}");
+                                }
                                 cx.notify();
                             })),
                     )
                     .child(
                         track_icon_button(("track-visible", index), IconName::Eye, track.visible)
                             .on_click(cx.listener(move |editor, _, _, cx| {
-                                editor.toggle_track_visibility(track_id);
+                                if let Err(error) = editor.toggle_track_visibility(track_id) {
+                                    log::error!("{error:?}");
+                                }
                                 cx.notify();
                             })),
                     )
@@ -144,7 +148,9 @@ impl Editor {
                             )
                             .on_click(cx.listener(
                                 move |editor, _, _, cx| {
-                                    editor.toggle_track_mute(track_id);
+                                    if let Err(error) = editor.toggle_track_mute(track_id) {
+                                        log::error!("{error:?}");
+                                    }
                                     cx.notify();
                                 },
                             )),
@@ -152,14 +158,18 @@ impl Editor {
                     })
                     .child(track_button(("track-up", index), "↑").on_click(cx.listener(
                         move |editor, _, _, cx| {
-                            editor.move_track(track_id, -1);
+                            if let Err(error) = editor.move_track(track_id, -1) {
+                                log::error!("{error:?}");
+                            }
                             cx.notify();
                         },
                     )))
                     .child(
                         track_button(("track-down", index), "↓").on_click(cx.listener(
                             move |editor, _, _, cx| {
-                                editor.move_track(track_id, 1);
+                                if let Err(error) = editor.move_track(track_id, 1) {
+                                    log::error!("{error:?}");
+                                }
                                 cx.notify();
                             },
                         )),
@@ -167,7 +177,9 @@ impl Editor {
                     .child(
                         track_icon_button(("track-delete", index), IconName::Trash, false)
                             .on_click(cx.listener(move |editor, _, _, cx| {
-                                editor.delete_track(track_id);
+                                if let Err(error) = editor.delete_track(track_id) {
+                                    log::error!("{error:?}");
+                                }
                                 cx.notify();
                             })),
                     ),

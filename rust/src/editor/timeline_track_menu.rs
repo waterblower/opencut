@@ -7,17 +7,17 @@ impl Editor {
         track_id: Ulid,
         position: TimelineTime,
         cx: &mut Context<Self>,
-    ) {
+    ) -> Result<()> {
         self.dismiss_context_menu();
         let Some(timeline) = self.timeline.as_mut() else {
-            return;
+            return Ok(());
         };
         let clip = match text_clip_at(&timeline.data, track_id, position) {
             Ok(clip) => clip,
             Err(error) => {
                 self.status = Some(error.to_string());
                 cx.notify();
-                return;
+                return Ok(());
             }
         };
         timeline.record_editing_history();
@@ -35,9 +35,12 @@ impl Editor {
         timeline.interaction.selected_clip_id = Some(clip_id);
         timeline.interaction.selected_clip_ids.clear();
         timeline.interaction.selected_clip_ids.insert(clip_id);
-        timeline.save(&self.project_root);
+        timeline
+            .data
+            .save(&self.project_root.join(&timeline.path))?;
         self.status = Some("Added text clip.".to_string());
         cx.notify();
+        Ok(())
     }
 }
 
