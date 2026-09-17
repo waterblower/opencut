@@ -57,6 +57,8 @@ test platform's fixed 2× scale. This initial demo uses GPUI's test-support head
 context with the real Metal renderer, without creating a native window. It requires
 macOS Metal and VideoToolbox services.
 It refuses existing output files and does not yet accept timelines.
+The result includes `elapsed_seconds`, measured from CLI argument parsing through
+rendering, encoding, and cleanup; Cargo build time is excluded.
 
 ## Transcription
 
