@@ -6,7 +6,7 @@ use super::{
     timeline_clip::{Clip, TextClipProperties, VideoClipProperties},
     track::{Track, TrackKind},
 };
-use anyhow::{Result, anyhow, bail};
+use anyhow::{Context, Result, anyhow, bail};
 use ges::prelude::*;
 use gstreamer as gst;
 use gstreamer_editing_services as ges;
@@ -25,6 +25,9 @@ pub(super) fn export_timeline(
     options: ExportOptions,
     mut report_progress: impl FnMut(f32),
 ) -> Result<()> {
+    if output.exists() {
+        bail!("export output already exists: {}", output.display());
+    }
     if timeline.clips.is_empty() {
         bail!("Add at least one clip before exporting.");
     }
@@ -45,16 +48,10 @@ pub(super) fn export_timeline(
         &mut report_progress,
     )?;
 
-    if output.is_file() {
-        fs::remove_file(output)
-            .map_err(|error| anyhow!("could not replace {}: {error}", output.display()))?;
-    }
-    fs::rename(&temporary_output.path, output).map_err(|error| {
-        anyhow!(
-            "could not move completed export to {}: {error}",
-            output.display()
-        )
-    })?;
+    // Creating a link fails if the destination appeared while exporting.
+    // TemporaryOutput removes the temporary name after publication.
+    fs::hard_link(&temporary_output.path, output)
+        .with_context(|| format!("could not publish completed export to {}", output.display()))?;
     report_progress(1.0);
     Ok(())
 }
