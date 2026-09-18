@@ -1,30 +1,37 @@
 pub use crate::transcribe::{Format, Options, transcribe_response};
-use crate::{cli::error::Result, cli_error, cli_try};
+use anyhow::{Context as _, Result, anyhow};
 use std::path::Path;
 use tokio::fs;
 
 /// Check before the request and again before writing so output cannot replace input.
 pub async fn check_output(input: &Path, output: &Path, overwrite: bool) -> Result<()> {
-    if !cli_try!(fs::try_exists(output).await, "io_error", "", 6) {
+    if !fs::try_exists(output)
+        .await
+        .context(format!("io_error at {}:{}", file!(), line!()))?
+    {
         return Ok(());
     }
-    let source = cli_try!(fs::canonicalize(input).await, "io_error", "", 6);
-    let target = cli_try!(fs::canonicalize(output).await, "io_error", "", 6);
+    let source =
+        fs::canonicalize(input)
+            .await
+            .context(format!("io_error at {}:{}", file!(), line!()))?;
+    let target =
+        fs::canonicalize(output)
+            .await
+            .context(format!("io_error at {}:{}", file!(), line!()))?;
     if source == target {
-        return Err(cli_error!(
-            "output_is_source",
-            "",
-            6,
-            "output would overwrite input media"
+        return Err(anyhow!(
+            "output_is_source: output would overwrite input media at {}:{}",
+            file!(),
+            line!()
         ));
     }
     if !overwrite {
-        return Err(cli_error!(
-            "output_exists",
-            "",
-            6,
-            "use --overwrite to replace {}",
-            output.display()
+        return Err(anyhow!(
+            "output_exists: use --overwrite to replace {} at {}:{}",
+            output.display(),
+            file!(),
+            line!()
         ));
     }
     Ok(())

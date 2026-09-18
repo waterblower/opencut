@@ -237,9 +237,9 @@ fn write_video(path: &Path, audio: bool) {
         None,
     )
     .unwrap();
-    for frame in 0..30 {
+    for _ in 0..30 {
         encoder
-            .video(&RgbaImage::from_pixel(64, 48, Rgba([0, 0, 0, 255])), frame)
+            .encode_new_frame(&RgbaImage::from_pixel(64, 48, Rgba([0, 0, 0, 255])))
             .unwrap();
     }
     if audio {

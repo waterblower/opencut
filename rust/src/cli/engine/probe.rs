@@ -1,7 +1,5 @@
-use crate::{
-    cli::{document::Document, error::Result, validate::MediaInfo},
-    cli_error, cli_try,
-};
+use crate::{cli::validate::MediaInfo, timeline::MediaAsset};
+use anyhow::{Context as _, Result, anyhow, bail};
 use ffmpeg_next as ffmpeg;
 use serde::Serialize;
 use std::{collections::HashMap, path::Path};
@@ -32,7 +30,7 @@ pub struct Stream {
 }
 
 pub fn init() -> Result<()> {
-    cli_try!(ffmpeg::init(), "ffmpeg_init", "", 5);
+    ffmpeg::init().context(format!("ffmpeg_init at {}:{}", file!(), line!()))?;
     ffmpeg::log::set_level(ffmpeg::log::Level::Quiet);
     Ok(())
 }
@@ -50,6 +48,14 @@ pub fn is_image(path: &Path) -> bool {
 }
 
 pub fn probe(path: &Path) -> Result<Probe> {
+    if !path.is_absolute() {
+        bail!(
+            "invalid_path: media path must be absolute: {} at {}:{}",
+            path.display(),
+            file!(),
+            line!()
+        );
+    }
     if is_image(path) {
         let image = crate::cli::engine::raster::load_image(path)?;
         return Ok(Probe {
@@ -77,7 +83,11 @@ pub fn probe(path: &Path) -> Result<Probe> {
         });
     }
     init()?;
-    let mut input = cli_try!(ffmpeg::format::input(path), "unreadable_media", "", 4);
+    let mut input = ffmpeg::format::input(path).context(format!(
+        "unreadable_media at {}:{}",
+        file!(),
+        line!()
+    ))?;
     let mut streams = Vec::new();
     let mut duration = (input.duration() as f64 / ffmpeg::ffi::AV_TIME_BASE as f64).max(0.0);
     let mut video_index = None;
@@ -117,15 +127,15 @@ pub fn probe(path: &Path) -> Result<Probe> {
         if stream.duration() > 0 {
             duration = duration.max(stream.duration() as f64 * f64::from(stream.time_base()));
         }
-        let context = cli_try!(
-            ffmpeg::codec::context::Context::from_parameters(params.clone()),
-            "unreadable_media",
-            "",
-            4
-        );
+        let context = ffmpeg::codec::context::Context::from_parameters(params.clone())
+            .context(format!("unreadable_media at {}:{}", file!(), line!()))?;
         match params.medium() {
             ffmpeg::media::Type::Video => {
-                let decoder = cli_try!(context.decoder().video(), "unreadable_media", "", 4);
+                let decoder = context.decoder().video().context(format!(
+                    "unreadable_media at {}:{}",
+                    file!(),
+                    line!()
+                ))?;
                 item.kind = "video".into();
                 item.width = decoder.width();
                 item.height = decoder.height();
@@ -155,7 +165,11 @@ pub fn probe(path: &Path) -> Result<Probe> {
                 }
             }
             ffmpeg::media::Type::Audio => {
-                let decoder = cli_try!(context.decoder().audio(), "unreadable_media", "", 4);
+                let decoder = context.decoder().audio().context(format!(
+                    "unreadable_media at {}:{}",
+                    file!(),
+                    line!()
+                ))?;
                 item.kind = "audio".into();
                 item.sample_rate = decoder.rate();
                 item.channels = decoder.channels();
@@ -190,12 +204,11 @@ pub fn probe(path: &Path) -> Result<Probe> {
         None
     };
     if streams.is_empty() {
-        return Err(cli_error!(
-            "unreadable_media",
-            "",
-            4,
-            "no streams in {}",
-            path.display()
+        return Err(anyhow!(
+            "unreadable_media: no streams in {} at {}:{}",
+            path.display(),
+            file!(),
+            line!()
         ));
     }
     Ok(Probe {
@@ -206,38 +219,19 @@ pub fn probe(path: &Path) -> Result<Probe> {
     })
 }
 
-pub fn assets(doc: &Document, base: &Path) -> Result<HashMap<ulid::Ulid, MediaInfo>> {
-    let (infos, findings) = inspect_assets(doc, base);
-    if let Some(finding) = findings.into_iter().next() {
-        return Err(finding.error);
-    }
-    Ok(infos)
-}
-
-pub fn inspect_assets(
-    doc: &Document,
-    base: &Path,
-) -> (
-    HashMap<ulid::Ulid, MediaInfo>,
-    Vec<crate::cli::validate::Finding>,
-) {
+pub fn assets(assets: &[MediaAsset], base: &Path) -> Result<HashMap<ulid::Ulid, MediaInfo>> {
     let mut infos = HashMap::new();
-    let mut findings = Vec::new();
-    for (i, asset) in doc.assets.iter().enumerate() {
+    for (i, asset) in assets.iter().enumerate() {
         let path = base.join(&asset.path);
         let p = match probe(&path) {
             Ok(p) => p,
-            Err(e) => {
-                findings.push(crate::cli::validate::Finding {
-                    error: e.context(format!(
-                        "/assets/{i}/path ({}), at {}:{}",
-                        path.display(),
-                        file!(),
-                        line!()
-                    )),
-                    fix_hint: None,
-                });
-                continue;
+            Err(error) => {
+                return Err(error.context(format!(
+                    "/assets/{i}/path ({}), at {}:{}",
+                    path.display(),
+                    file!(),
+                    line!()
+                )));
             }
         };
         infos.insert(
@@ -255,5 +249,5 @@ pub fn inspect_assets(
             },
         );
     }
-    (infos, findings)
+    Ok(infos)
 }

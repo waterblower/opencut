@@ -1,5 +1,5 @@
 pub use crate::timeline::FrameRate;
-use crate::{cli::error::Result, cli_error, cli_try};
+use anyhow::{Context as _, Result, anyhow};
 
 impl FrameRate {
     pub fn samples(self, frames: i64, rate: u32) -> i64 {
@@ -10,36 +10,40 @@ impl FrameRate {
 
     pub fn parse_time(self, input: &str, total: Option<i64>) -> Result<i64> {
         if self.numerator == 0 || self.denominator == 0 {
-            return Err(cli_error!(
-                "invalid_frame_rate",
-                "/settings/frame_rate",
-                3,
-                "frame rate must be positive"
+            return Err(anyhow!(
+                "invalid_frame_rate: frame rate must be positive (/settings/frame_rate) at {}:{}",
+                file!(),
+                line!()
             ));
         }
         if let Some(value) = input.strip_suffix('f') {
-            let frame: i64 = cli_try!(value.parse(), "invalid_time", "", 2);
+            let frame: i64 =
+                value
+                    .parse()
+                    .context(format!("invalid_time at {}:{}", file!(), line!()))?;
             if frame < 0 {
-                return Err(cli_error!("invalid_time", "", 2, "time cannot be negative"));
+                return Err(anyhow!(
+                    "invalid_time: time cannot be negative at {}:{}",
+                    file!(),
+                    line!()
+                ));
             }
             return Ok(frame);
         }
         let (n, d, multiplier) = if let Some(value) = input.strip_suffix('%') {
             let Some(total) = total else {
-                return Err(cli_error!(
-                    "invalid_time",
-                    "",
-                    2,
-                    "percent time is supported only for still --at"
+                return Err(anyhow!(
+                    "invalid_time: percent time is supported only for still --at at {}:{}",
+                    file!(),
+                    line!()
                 ));
             };
             let (n, d) = decimal(value)?;
             if n > d * 100 {
-                return Err(cli_error!(
-                    "invalid_time",
-                    "",
-                    2,
-                    "percentage must be between 0 and 100"
+                return Err(anyhow!(
+                    "invalid_time: percentage must be between 0 and 100 at {}:{}",
+                    file!(),
+                    line!()
                 ));
             }
             (n, d * 100, total.saturating_sub(1) as i128)
@@ -49,48 +53,64 @@ impl FrameRate {
             let (n, d) = match parts.as_slice() {
                 [seconds] => decimal(seconds)?,
                 [hours, minutes, seconds] => {
-                    let h: i128 = cli_try!(hours.parse(), "invalid_time", "", 2);
-                    let m: i128 = cli_try!(minutes.parse(), "invalid_time", "", 2);
+                    let h: i128 = hours.parse().context(format!(
+                        "invalid_time at {}:{}",
+                        file!(),
+                        line!()
+                    ))?;
+                    let m: i128 = minutes.parse().context(format!(
+                        "invalid_time at {}:{}",
+                        file!(),
+                        line!()
+                    ))?;
                     let (s, d) = decimal(seconds)?;
                     if h < 0 || !(0..60).contains(&m) || s >= 60 * d || h > 1_000_000_000 {
-                        return Err(cli_error!("invalid_time", "", 2, "invalid timecode"));
+                        return Err(anyhow!(
+                            "invalid_time: invalid timecode at {}:{}",
+                            file!(),
+                            line!()
+                        ));
                     }
                     ((h * 3600 + m * 60) * d + s, d)
                 }
                 _ => {
-                    return Err(cli_error!(
-                        "invalid_time",
-                        "",
-                        2,
-                        "expected seconds, frames, or HH:MM:SS"
+                    return Err(anyhow!(
+                        "invalid_time: expected seconds, frames, or HH:MM:SS at {}:{}",
+                        file!(),
+                        line!()
                     ));
                 }
             };
             (n, d * self.denominator as i128, self.numerator as i128)
         };
         let Some(scaled) = n.checked_mul(multiplier) else {
-            return Err(cli_error!("invalid_time", "", 2, "time is too large"));
+            return Err(anyhow!(
+                "invalid_time: time is too large at {}:{}",
+                file!(),
+                line!()
+            ));
         };
         let value = (scaled + d / 2) / d;
-        Ok(cli_try!(i64::try_from(value), "invalid_time", "", 2))
+        Ok(i64::try_from(value).context(format!("invalid_time at {}:{}", file!(), line!()))?)
     }
 }
 
 pub fn parse_rate(input: &str) -> Result<FrameRate> {
     let (n, d) = if let Some((n, d)) = input.split_once('/') {
         (
-            cli_try!(n.parse::<i128>(), "invalid_frame_rate", "", 2),
-            cli_try!(d.parse::<i128>(), "invalid_frame_rate", "", 2),
+            n.parse::<i128>()
+                .context(format!("invalid_frame_rate at {}:{}", file!(), line!()))?,
+            d.parse::<i128>()
+                .context(format!("invalid_frame_rate at {}:{}", file!(), line!()))?,
         )
     } else {
         decimal(input)?
     };
     if n <= 0 || d <= 0 {
-        return Err(cli_error!(
-            "invalid_frame_rate",
-            "",
-            2,
-            "frame rate must be positive"
+        return Err(anyhow!(
+            "invalid_frame_rate: frame rate must be positive at {}:{}",
+            file!(),
+            line!()
         ));
     }
     let mut a = n;
@@ -101,8 +121,16 @@ pub fn parse_rate(input: &str) -> Result<FrameRate> {
         b = r;
     }
     Ok(FrameRate {
-        numerator: cli_try!(u32::try_from(n / a), "invalid_frame_rate", "", 2),
-        denominator: cli_try!(u32::try_from(d / a), "invalid_frame_rate", "", 2),
+        numerator: u32::try_from(n / a).context(format!(
+            "invalid_frame_rate at {}:{}",
+            file!(),
+            line!()
+        ))?,
+        denominator: u32::try_from(d / a).context(format!(
+            "invalid_frame_rate at {}:{}",
+            file!(),
+            line!()
+        ))?,
     })
 }
 
@@ -113,17 +141,18 @@ fn decimal(value: &str) -> Result<(i128, i128)> {
         || value.len() > 18
         || value.bytes().any(|b| !b.is_ascii_digit() && b != b'.')
     {
-        return Err(cli_error!(
-            "invalid_time",
-            "",
-            2,
-            "invalid nonnegative decimal: {value}"
+        return Err(anyhow!(
+            "invalid_time: invalid nonnegative decimal: {value} at {}:{}",
+            file!(),
+            line!()
         ));
     }
     let places = if parts.len() == 2 { parts[1].len() } else { 0 };
     let digits = value.replace('.', "");
     Ok((
-        cli_try!(digits.parse(), "invalid_time", "", 2),
+        digits
+            .parse()
+            .context(format!("invalid_time at {}:{}", file!(), line!()))?,
         10_i128.pow(places as u32),
     ))
 }

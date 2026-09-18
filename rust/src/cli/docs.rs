@@ -11,37 +11,35 @@ pub fn generate() -> Result<String> {
     let mut output = String::from(
         r#"# OpenCut CLI
 
-Use OpenCut to inspect media, author timeline JSON, preview frames, render video, and transcribe audio. The CLI uses FFmpeg and shares the editor's timeline format.
+Use OpenCut to inspect media, author timeline JSON, validate timelines, and transcribe audio. The CLI uses FFmpeg and shares the editor's timeline format.
 
 ## Recommended workflow
 
-1. Probe source media before choosing cuts.
+1. Use `probe <file>` for video, audio, images, or timeline JSON. Media paths must be absolute. Probe source media before choosing cuts.
 2. Create a timeline with `new`, or compile explicit cut and camera decisions with `assemble`.
 3. Use `schema` when authoring JSON; do not guess document fields.
-4. Validate referenced media and inspect the timeline.
-5. Render a still to check composition, then run a dry run before the final render.
+4. Validate referenced media and probe the timeline.
 
 ```sh
-opencut probe recording.mp4 --json
+opencut probe /path/to/recording.mp4 --json
 opencut new episode.timeline.json --fps 30 --json
 opencut schema --json
-opencut --project-root /project validate episode.timeline.json --json
-opencut --project-root /project inspect episode.timeline.json --json
-opencut --project-root /project still episode.timeline.json --at 50% -o preview.png
-opencut --project-root /project render episode.timeline.json -o output.mp4 --dry-run --json
-opencut --project-root /project render episode.timeline.json -o output.mp4 --progress json --json
+opencut validate /project/episode.timeline.json --json
+opencut probe /project/episode.timeline.json --json
 ```
 
 ## Paths and output
 
 - Timeline and output arguments resolve from the working directory.
-- Relative asset paths resolve from `--project-root`, which defaults to the working directory, not the timeline's directory.
+- Relative timeline asset paths resolve from the timeline file's directory. Absolute asset paths are unchanged. `--project-root` applies only to assembly recipe sources.
 - Keep original media available; the timeline references it.
-- Use `--json` for machine-readable stdout. Progress goes to stderr; `render --progress none` disables it.
-- Treat any nonzero exit code as failure. JSON errors contain `error.message`; validation reports findings.
+- Use `--json` for machine-readable stdout. Diagnostics go to stderr.
+- Every executed command reports `elapsed_seconds` on stderr, excluding Cargo
+  build time. This also applies to failed commands.
+- Treat any nonzero exit code as failure. JSON errors contain `error.message`. Validation stops at the first media probe failure; independent document rule violations are reported as findings.
 - `new` refuses existing files. Use `--overwrite` explicitly when replacing supported outputs. Outputs cannot replace source media.
 
-## Authoring and previewing
+## Authoring
 
 `assemble` compiles decisions supplied by the caller; it does not choose cuts or camera switches automatically. Obtain the recipe contract before writing a recipe:
 
@@ -51,7 +49,17 @@ opencut --project-root /project assemble recipe.json --dry-run --json
 opencut --project-root /project assemble recipe.json -o episode.timeline.json --json
 ```
 
-Time arguments accept seconds (`12.5` or `12.5s`), frames (`375f`), and timestamps (`00:00:12.500`). Only `still --at` accepts percentages; `100%` selects the final frame. Use `render --range START..END` for a portion of a timeline.
+
+## GPUI rendering demo (macOS)
+
+`render -o hello.mp4` produces 150 frames at 30 fps: five seconds of centered
+white "hello gpui" text on black. It uses GPUI's Metal renderer and FFmpeg H.264
+encoding. The canvas is 640×360 logical pixels, producing 1280×720 output at the
+test platform's fixed 2× scale. This initial demo uses GPUI's test-support headless
+context with the real Metal renderer, without creating a native window. It requires
+macOS Metal and VideoToolbox services.
+It refuses existing output files and does not yet accept timelines.
+Elapsed time includes argument parsing, rendering, encoding, and cleanup.
 
 ## Transcription
 

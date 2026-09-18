@@ -1,9 +1,7 @@
 use crate::transcribe::audio::AudioReader;
 pub use crate::transcribe::audio::extract_audio_as_wav;
-use crate::{
-    cli::{error::Result, validate::MediaInfo},
-    timeline::TimelineSerialization,
-};
+use crate::{cli::validate::MediaInfo, timeline::TimelineSerialization};
+use anyhow::Result;
 use std::{collections::HashMap, path::Path};
 use ulid::Ulid;
 

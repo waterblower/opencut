@@ -1,0 +1,12 @@
+{
+  "lsp": {
+    "rust-analyzer": {
+      "initialization_options": {
+        "cargo": {
+          "extraArgs": ["--config", ".cargo/macos.toml"],
+          "features": ["cli"]
+        }
+      }
+    }
+  }
+}

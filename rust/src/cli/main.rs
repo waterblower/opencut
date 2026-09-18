@@ -1,29 +1,31 @@
+use anyhow::{Context as _, Error, Result, anyhow};
 mod args;
 mod docs;
+mod render;
 
 use args::{Args, Command};
 use clap::Parser;
 use opencut_player::timeline::{TimelineSettings as Settings, Track, TrackKind};
 use opencut_player::{
-    cli::engine::{probe, render},
+    cli::engine::probe,
     cli::{
         document::{self, Document},
-        error::Result,
         time::parse_rate,
         transcribe, validate,
     },
-    cli_error, cli_try,
 };
 use serde_json::{Value, json};
 use std::{
     io::{self, Write},
     path::Path,
-    process::ExitCode,
+    process::{ExitCode, Termination},
+    time::Instant,
 };
 use ulid::Ulid;
 
 #[tokio::main]
-async fn main() -> ExitCode {
+async fn main() -> CliExitCode {
+    let started = Instant::now();
     let json_mode = std::env::args().any(|a| a == "--json");
     let args = match Args::try_parse() {
         Ok(args) => args,
@@ -33,24 +35,30 @@ async fn main() -> ExitCode {
                 clap::error::ErrorKind::DisplayHelp | clap::error::ErrorKind::DisplayVersion
             ) {
                 let _ = error.print();
-                return ExitCode::SUCCESS;
+                return CliExitCode::Success;
             }
-            let error = cli_error!("usage_error", "", 2, "{error:#}");
+            let error = anyhow!("usage_error: {error:?} at {}:{}", file!(), line!());
             print_error(&error, json_mode);
-            return ExitCode::from(2);
+            return CliExitCode::UsageError;
         }
     };
     let api_key = std::env::var("MINIMAX_API_KEY").ok();
-    match run(
+    let result = run(
         args.command,
         args.json,
         &args.project_root,
         api_key.as_deref(),
     )
-    .await
-    {
+    .await;
+    let elapsed_seconds = started.elapsed().as_secs_f64();
+    let _ = writeln!(io::stderr().lock(), "elapsed_seconds: {elapsed_seconds:.6}");
+    print_result(result, args.json)
+}
+
+fn print_result(result: Result<Value>, json_mode: bool) -> CliExitCode {
+    match result {
         Ok(value) => {
-            let text = if args.json {
+            let text = if json_mode {
                 serde_json::to_string(&value)
             } else if let Some(text) = value.as_str() {
                 Ok(text.to_string())
@@ -59,29 +67,29 @@ async fn main() -> ExitCode {
             };
             let result = match text {
                 Ok(text) => writeln!(io::stdout().lock(), "{text}"),
-                Err(_) => return ExitCode::from(6),
+                Err(_) => return CliExitCode::OutputError,
             };
             if result.is_err() {
-                return ExitCode::from(6);
+                return CliExitCode::OutputError;
             }
-            ExitCode::SUCCESS
+            CliExitCode::Success
         }
         Err(error) => {
-            print_error(&error, args.json);
-            ExitCode::FAILURE
+            print_error(&error, json_mode);
+            CliExitCode::CommandError
         }
     }
 }
 
-fn print_error(error: &opencut_player::cli::error::Error, json: bool) {
+fn print_error(error: &Error, json: bool) {
     if json {
         let _ = writeln!(
             io::stdout().lock(),
             "{}",
-            json!({"error": {"message": format!("{error:#}")}})
+            json!({"error": {"message": format!("{error:?}")}})
         );
     } else {
-        let _ = writeln!(io::stderr().lock(), "{error:#}");
+        let _ = writeln!(io::stderr().lock(), "{error:?}");
     }
 }
 
@@ -91,7 +99,15 @@ async fn run(
     base: &Path,
     api_key: Option<&str>,
 ) -> Result<Value> {
+    let project_root = std::path::absolute(base).context(format!(
+        "could not resolve project root {} at {}:{}",
+        base.display(),
+        file!(),
+        line!()
+    ))?;
+    let base = project_root.as_path();
     match command {
+        Command::Render { output } => render::render(&output),
         Command::Transcribe {
             media_file,
             format,
@@ -101,22 +117,20 @@ async fn run(
             overwrite,
         } => {
             if post_merge && !matches!(format, transcribe::Format::Srt) {
-                return Err(cli_error!(
-                    "usage_error",
-                    "",
-                    2,
-                    "--post-merge requires --format srt"
+                return Err(anyhow!(
+                    "usage_error: --post-merge requires --format srt at {}:{}",
+                    file!(),
+                    line!()
                 ));
             }
             if let Some(output) = &output {
                 transcribe::check_output(&media_file, output, overwrite).await?;
             }
             let Some(api_key) = api_key else {
-                return Err(cli_error!(
-                    "missing_api_key",
-                    "",
-                    2,
-                    "set MINIMAX_API_KEY before transcribing"
+                return Err(anyhow!(
+                    "missing_api_key: set MINIMAX_API_KEY before transcribing at {}:{}",
+                    file!(),
+                    line!()
                 ));
             };
             let mut result = transcribe::transcribe_response(
@@ -127,11 +141,10 @@ async fn run(
             .await?;
             if post_merge {
                 let Some(srt) = result.as_str() else {
-                    return Err(cli_error!(
-                        "invalid_transcription_response",
-                        "",
-                        5,
-                        "expected SRT text"
+                    return Err(anyhow!(
+                        "invalid_transcription_response: expected SRT text at {}:{}",
+                        file!(),
+                        line!()
                     ));
                 };
                 result = Value::String(
@@ -148,12 +161,11 @@ async fn run(
             let bytes = if let Some(text) = result.as_str() {
                 text.as_bytes().to_vec()
             } else {
-                cli_try!(
-                    serde_json::to_vec_pretty(&result),
-                    "serialization_error",
-                    "",
-                    6
-                )
+                serde_json::to_vec_pretty(&result).context(format!(
+                    "serialization_error at {}:{}",
+                    file!(),
+                    line!()
+                ))?
             };
             document::write_atomic_bytes(&output, bytes, overwrite).await?;
             Ok(json!({"path": output, "format": format.as_str()}))
@@ -166,12 +178,24 @@ async fn run(
         } => {
             opencut_player::cli::assemble::run(&recipe, base, output.as_deref(), dry_run, overwrite)
         }
-        Command::Probe { media_file } => Ok(cli_try!(
-            serde_json::to_value(probe::probe(&media_file)?),
-            "serialization_error",
-            "",
-            6
-        )),
+        Command::Probe { file } => {
+            if file
+                .extension()
+                .is_some_and(|extension| extension.eq_ignore_ascii_case("json"))
+            {
+                let (_, doc) = document::load(&file)?;
+                validate::require_valid(&doc, None)?;
+                return Ok(document::summary(&doc));
+            }
+            match serde_json::to_value(probe::probe(&file)?) {
+                Ok(value) => Ok(value),
+                Err(error) => Err(anyhow!(
+                    "serialization_error: {error:?} at {}:{}",
+                    file!(),
+                    line!()
+                )),
+            }
+        }
         Command::New {
             timeline,
             width,
@@ -208,7 +232,11 @@ async fn run(
                 ],
             };
             validate::require_valid(&doc, None)?;
-            let raw = cli_try!(serde_json::to_value(&doc), "serialization_error", "", 6);
+            let raw = serde_json::to_value(&doc).context(format!(
+                "serialization_error at {}:{}",
+                file!(),
+                line!()
+            ))?;
             document::write_atomic(&timeline, &raw, false)?;
             if json_mode {
                 Ok(json!({"path": timeline, "document": raw}))
@@ -216,138 +244,52 @@ async fn run(
                 Ok(json!(timeline))
             }
         }
-        Command::Schema { kind, .. } => Ok(cli_try!(
-            serde_json::to_value(if kind == "recipe" {
-                schemars::schema_for!(opencut_player::cli::assemble::Recipe)
-            } else {
-                schemars::schema_for!(Document)
-            }),
-            "serialization_error",
-            "",
-            6
-        )),
+        Command::Schema { kind, .. } => Ok(serde_json::to_value(if kind == "recipe" {
+            schemars::schema_for!(opencut_player::cli::assemble::Recipe)
+        } else {
+            schemars::schema_for!(Document)
+        })
+        .context(format!("serialization_error at {}:{}", file!(), line!()))?),
         Command::Doc => Ok(json!(docs::generate()?)),
         Command::Validate { timeline } => {
             let (_, doc) = document::load(&timeline)?;
-            let (media, media_findings) = probe::inspect_assets(&doc, base);
-            let mut findings = validate::validate(&doc, Some(&media));
-            findings.extend(media_findings);
+            let base = document::asset_base(&timeline)?;
+            let media = probe::assets(&doc.assets, &base)?;
+            let findings = validate::validate(&doc, Some(&media));
             if !findings.is_empty() {
                 let exit = 1;
                 let value = json!({"valid": false, "findings": findings});
                 let text = if json_mode {
                     value.to_string()
                 } else {
-                    cli_try!(
-                        serde_json::to_string_pretty(&value),
-                        "serialization_error",
-                        "",
-                        6
-                    )
+                    serde_json::to_string_pretty(&value).context(format!(
+                        "serialization_error at {}:{}",
+                        file!(),
+                        line!()
+                    ))?
                 };
-                cli_try!(writeln!(io::stdout().lock(), "{text}"), "io_error", "", 6);
+                writeln!(io::stdout().lock(), "{text}").context(format!(
+                    "io_error at {}:{}",
+                    file!(),
+                    line!()
+                ))?;
                 std::process::exit(exit);
             }
             Ok(json!({"valid": true, "findings": []}))
         }
-        Command::Inspect { timeline } => {
-            let (_, doc) = document::load(&timeline)?;
-            validate::require_valid(&doc, None)?;
-            Ok(render::summary(&doc))
-        }
-        Command::Still {
-            timeline,
-            at,
-            output,
-            scale,
-            overwrite,
-        } => {
-            let (_, doc) = document::load(&timeline)?;
-            validate::require_valid(&doc, None)?;
-            let frame = doc
-                .settings
-                .frame_rate
-                .parse_time(&at, Some(doc.content_duration().frames()))?;
-            render::still(&doc, base, frame, &output, scale, overwrite)?;
-            Ok(json!({"path": output, "frame": frame}))
-        }
-        Command::Render {
-            timeline,
-            output,
-            range,
-            scale,
-            preset,
-            video_codec,
-            bitrate,
-            audio_codec: _,
-            progress,
-            overwrite,
-            dry_run,
-            no_metadata,
-        } => {
-            let (raw, doc) = document::load(&timeline)?;
-            validate::require_valid(&doc, None)?;
-            let (start, end) = match range {
-                Some(value) => {
-                    let Some((start, end)) = value.split_once("..") else {
-                        return Err(cli_error!("invalid_range", "", 2, "expected start..end"));
-                    };
-                    (
-                        doc.settings.frame_rate.parse_time(start, None)?,
-                        doc.settings.frame_rate.parse_time(end, None)?,
-                    )
-                }
-                None => (0, doc.content_duration().frames()),
-            };
-            let options = render::Options {
-                start,
-                end,
-                scale,
-                preset,
-                video_codec,
-                bitrate: match bitrate {
-                    Some(value) => Some(render::parse_bitrate(&value)?),
-                    None => None,
-                },
-                overwrite,
-                metadata: if no_metadata {
-                    None
-                } else {
-                    Some(raw.to_string())
-                },
-            };
-            if dry_run {
-                let media = probe::assets(&doc, base)?;
-                return render::plan(&doc, base, &output, &options, &media);
-            }
-            let (sender, receiver) = std::sync::mpsc::sync_channel(8);
-            let base = base.to_path_buf();
-            let worker =
-                std::thread::spawn(move || render::render(&doc, &base, &output, &options, sender));
-            for update in receiver {
-                if progress == "json" {
-                    eprintln!("{}", update);
-                } else if progress == "bar" {
-                    eprint!(
-                        "\rframe {}/{}  {:.1} fps",
-                        update["frame"],
-                        update["total"],
-                        update["fps"].as_f64().unwrap_or(0.0)
-                    );
-                }
-            }
-            if progress == "bar" {
-                eprintln!();
-            }
-            match worker.join() {
-                Ok(result) => result,
-                Err(_) => Err(cli_error!(
-                    "render_failure",
-                    "",
-                    5,
-                    "render worker panicked"
-                )),
-            }
-        }
+    }
+}
+
+#[repr(u8)]
+enum CliExitCode {
+    Success = 0,
+    CommandError = 1,
+    UsageError = 2,
+    OutputError = 6,
+}
+
+impl Termination for CliExitCode {
+    fn report(self) -> ExitCode {
+        ExitCode::from(self as u8)
     }
 }
