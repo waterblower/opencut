@@ -34,6 +34,8 @@ opencut probe /project/episode.timeline.json --json
 - Relative timeline asset paths resolve from the timeline file's directory. Absolute asset paths are unchanged. `--project-root` applies only to assembly recipe sources.
 - Keep original media available; the timeline references it.
 - Use `--json` for machine-readable stdout. Diagnostics go to stderr.
+- Every executed command reports `elapsed_seconds` on stderr, excluding Cargo
+  build time. This also applies to failed commands.
 - Treat any nonzero exit code as failure. JSON errors contain `error.message`. Validation stops at the first media probe failure; independent document rule violations are reported as findings.
 - `new` refuses existing files. Use `--overwrite` explicitly when replacing supported outputs. Outputs cannot replace source media.
 
@@ -57,8 +59,7 @@ test platform's fixed 2× scale. This initial demo uses GPUI's test-support head
 context with the real Metal renderer, without creating a native window. It requires
 macOS Metal and VideoToolbox services.
 It refuses existing output files and does not yet accept timelines.
-The result includes `elapsed_seconds`, measured from CLI argument parsing through
-rendering, encoding, and cleanup; Cargo build time is excluded.
+Elapsed time includes argument parsing, rendering, encoding, and cleanup.
 
 ## Transcription
 

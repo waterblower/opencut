@@ -5,7 +5,7 @@
 - Never include Python in the build process.
 - Do not define custom macros. Prefer ordinary functions and explicit control
   flow so the code is easy to read. Standard and dependency-provided macros
-  (such as `format!`, `file!`, `line!`, and derives) are allowed.
+  (such as `format!` and derives) are allowed.
 - Read environment variables only in `main()` or application initialization code.
   Pass the required values explicitly to business logic functions.
 - Never pass functions or closures as arguments to simple functions. Pass the
@@ -65,8 +65,9 @@
 - Import anyhow helpers explicitly and use unqualified names such as `anyhow!`,
   `bail!`, `Result`, and `Error`. Use an import alias when a name conflicts with
   another type. Do not change vendored dependency code to enforce this rule.
-- When refactoring or adding error-handling code, always include `file!()` and
-  `line!()` information in every newly added error context.
+- Do not add source file names or line numbers to error messages by default
+  (including `file!()` and `line!()`). Prefer context describing the failed
+  operation and relevant inputs.
 - Functions and methods should accept only the data they use. Prefer passing the
   smallest required values over accepting a broader type such as `&self` when
   the function does not depend on the rest of that type's state.
