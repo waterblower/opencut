@@ -72,7 +72,9 @@
   smallest required values over accepting a broader type such as `&self` when
   the function does not depend on the rest of that type's state.
 - Never use `#[serde(rename_all = "snake_case")]`.
-- Prefer `pub` over `pub(super)`.
+- Keep functions, methods, and other items private by default. Expose them only
+  when they are used outside their defining module.
+- When visibility outside the module is needed, prefer `pub` over `pub(super)`.
 - Do not call deprecated functions or methods.
 - Place private code at the bottom of each file, after public and
   restricted-public (`pub(...)`) code.
