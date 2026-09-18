@@ -1,6 +1,7 @@
 use anyhow::{Context as _, Error, Result, anyhow};
 mod args;
 mod docs;
+mod render;
 
 use args::{Args, Command};
 use clap::Parser;
@@ -17,12 +18,14 @@ use serde_json::{Value, json};
 use std::{
     io::{self, Write},
     path::Path,
-    process::ExitCode,
+    process::{ExitCode, Termination},
+    time::Instant,
 };
 use ulid::Ulid;
 
 #[tokio::main]
-async fn main() -> ExitCode {
+async fn main() -> CliExitCode {
+    let started = Instant::now();
     let json_mode = std::env::args().any(|a| a == "--json");
     let args = match Args::try_parse() {
         Ok(args) => args,
@@ -32,24 +35,30 @@ async fn main() -> ExitCode {
                 clap::error::ErrorKind::DisplayHelp | clap::error::ErrorKind::DisplayVersion
             ) {
                 let _ = error.print();
-                return ExitCode::SUCCESS;
+                return CliExitCode::Success;
             }
             let error = anyhow!("usage_error: {error:?} at {}:{}", file!(), line!());
             print_error(&error, json_mode);
-            return ExitCode::from(2);
+            return CliExitCode::UsageError;
         }
     };
     let api_key = std::env::var("MINIMAX_API_KEY").ok();
-    match run(
+    let result = run(
         args.command,
         args.json,
         &args.project_root,
         api_key.as_deref(),
     )
-    .await
-    {
+    .await;
+    let elapsed_seconds = started.elapsed().as_secs_f64();
+    let _ = writeln!(io::stderr().lock(), "elapsed_seconds: {elapsed_seconds:.6}");
+    print_result(result, args.json)
+}
+
+fn print_result(result: Result<Value>, json_mode: bool) -> CliExitCode {
+    match result {
         Ok(value) => {
-            let text = if args.json {
+            let text = if json_mode {
                 serde_json::to_string(&value)
             } else if let Some(text) = value.as_str() {
                 Ok(text.to_string())
@@ -58,16 +67,16 @@ async fn main() -> ExitCode {
             };
             let result = match text {
                 Ok(text) => writeln!(io::stdout().lock(), "{text}"),
-                Err(_) => return ExitCode::from(6),
+                Err(_) => return CliExitCode::OutputError,
             };
             if result.is_err() {
-                return ExitCode::from(6);
+                return CliExitCode::OutputError;
             }
-            ExitCode::SUCCESS
+            CliExitCode::Success
         }
         Err(error) => {
-            print_error(&error, args.json);
-            ExitCode::FAILURE
+            print_error(&error, json_mode);
+            CliExitCode::CommandError
         }
     }
 }
@@ -98,6 +107,7 @@ async fn run(
     ))?;
     let base = project_root.as_path();
     match command {
+        Command::Render { output } => render::render(&output),
         Command::Transcribe {
             media_file,
             format,
@@ -267,5 +277,19 @@ async fn run(
             }
             Ok(json!({"valid": true, "findings": []}))
         }
+    }
+}
+
+#[repr(u8)]
+enum CliExitCode {
+    Success = 0,
+    CommandError = 1,
+    UsageError = 2,
+    OutputError = 6,
+}
+
+impl Termination for CliExitCode {
+    fn report(self) -> ExitCode {
+        ExitCode::from(self as u8)
     }
 }
