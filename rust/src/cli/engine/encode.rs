@@ -1,6 +1,6 @@
 use super::decode::again;
 use crate::cli::time::FrameRate;
-use anyhow::{Context as _, Result, anyhow};
+use anyhow::{Context as _, Result, anyhow, bail};
 use ffmpeg_next as ffmpeg;
 use image::RgbaImage;
 use std::{
@@ -194,8 +194,8 @@ impl Encoder {
         let video = match video.open_with(options) {
             Ok(video) => video,
             Err(error) => {
-                return Err(anyhow!(
-                    "encoder_unavailable: could not open {} for {}x{} at {}/{} fps: {error}. {} at {}:{}",
+                bail!(
+                    "encoder_unavailable: could not open {} for {}x{} at {}/{} fps: {error}. {}",
                     codec.name(),
                     width,
                     height,
@@ -205,10 +205,8 @@ impl Encoder {
                         "VideoToolbox requires access to macOS media services; check execution permissions."
                     } else {
                         "Check encoder availability and output settings."
-                    },
-                    file!(),
-                    line!()
-                ));
+                    }
+                );
             }
         };
         {
@@ -275,7 +273,7 @@ impl Encoder {
             file!(),
             line!()
         ))?;
-        let scaler = ffmpeg::software::scaling::Context::get(
+        let mut scaler = ffmpeg::software::scaling::Context::get(
             ffmpeg::format::Pixel::RGBA,
             width,
             height,
@@ -285,26 +283,7 @@ impl Encoder {
             ffmpeg::software::scaling::Flags::BILINEAR,
         )
         .context(format!("encode_failure at {}:{}", file!(), line!()))?;
-        unsafe {
-            let coefficients = ffmpeg::ffi::sws_getCoefficients(ffmpeg::ffi::SWS_CS_ITU709);
-            let result = ffmpeg::ffi::sws_setColorspaceDetails(
-                scaler.as_ptr() as *mut _,
-                coefficients,
-                1,
-                coefficients,
-                0,
-                0,
-                1 << 16,
-                1 << 16,
-            );
-            if result < 0 {
-                return Err(anyhow!(
-                    "encode_failure: cannot configure BT.709 conversion at {}:{}",
-                    file!(),
-                    line!()
-                ));
-            }
-        }
+        configure_bt709(&mut scaler)?;
         Ok(Self {
             output,
             video,
@@ -523,4 +502,27 @@ impl Encoder {
             }
         }
     }
+}
+
+/// Configure full-range RGB to limited-range YUV using the BT.709 matrix.
+fn configure_bt709(scaler: &mut ffmpeg::software::scaling::Context) -> Result<()> {
+    // SAFETY: the mutable reference provides exclusive access to a live scaler.
+    // FFmpeg supplies a static coefficient table for the valid BT.709 identifier.
+    unsafe {
+        let coefficients = ffmpeg::ffi::sws_getCoefficients(ffmpeg::ffi::SWS_CS_ITU709);
+        let result = ffmpeg::ffi::sws_setColorspaceDetails(
+            scaler.as_mut_ptr(),
+            coefficients,
+            1,
+            coefficients,
+            0,
+            0,
+            1 << 16,
+            1 << 16,
+        );
+        if result < 0 {
+            bail!("encode_failure: cannot configure BT.709 conversion");
+        }
+    }
+    Ok(())
 }
