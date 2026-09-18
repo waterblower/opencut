@@ -11,19 +11,6 @@ use serde_json::{Value, json};
 use std::{fs, path::Path, sync::Arc};
 use ulid::Ulid;
 
-pub fn validate_render_request(output: &Path) -> Result<()> {
-    if !cfg!(target_os = "macos") {
-        bail!("GPUI demo rendering currently requires macOS");
-    }
-    if output.extension().and_then(|ext| ext.to_str()) != Some("mp4") {
-        bail!("render output must have an .mp4 extension");
-    }
-    if output.try_exists().context("could not check output")? {
-        bail!("output already exists: {}", output.display());
-    }
-    Ok(())
-}
-
 /// Draw each frame through GPUI's production renderer, then encode its pixels.
 pub fn render(output: &Path) -> Result<Value> {
     validate_render_request(output)?;
@@ -102,4 +89,17 @@ fn render_frame(cx: &mut HeadlessAppContext, window: AnyWindowHandle) -> Result<
     })
     .context("could not update GPUI frame")?
     .context("could not capture GPUI frame")
+}
+
+fn validate_render_request(output: &Path) -> Result<()> {
+    if !cfg!(target_os = "macos") {
+        bail!("GPUI demo rendering currently requires macOS");
+    }
+    if output.extension().and_then(|ext| ext.to_str()) != Some("mp4") {
+        bail!("render output must have an .mp4 extension");
+    }
+    if output.try_exists().context("could not check output")? {
+        bail!("output already exists: {}", output.display());
+    }
+    Ok(())
 }
