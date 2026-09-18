@@ -42,7 +42,7 @@ impl EncoderWorker {
             ))?;
             for message in receiver {
                 match message {
-                    EncodeMessage::Video(image, frame) => encoder.video(&image, frame)?,
+                    EncodeMessage::Video(image) => encoder.encode_new_frame(&image)?,
                     EncodeMessage::Audio(samples, start) => encoder.audio(&samples, start)?,
                     EncodeMessage::Finish => return encoder.finish(),
                 }
@@ -74,8 +74,8 @@ impl EncoderWorker {
         }
     }
 
-    pub fn video(&mut self, image: RgbaImage, frame: i64) -> Result<()> {
-        self.send(EncodeMessage::Video(image, frame))
+    pub fn encode_new_frame(&mut self, image: RgbaImage) -> Result<()> {
+        self.send(EncodeMessage::Video(image))
     }
 
     pub fn audio(&mut self, samples: Vec<[f32; 2]>, start: i64) -> Result<()> {
@@ -103,6 +103,7 @@ pub struct Encoder {
     audio: ffmpeg::encoder::Audio,
     scaler: ffmpeg::software::scaling::Context,
     video_base: ffmpeg::Rational,
+    next_frame_index: i64,
     audio_base: ffmpeg::Rational,
     rate: u32,
 }
@@ -290,6 +291,7 @@ impl Encoder {
             audio,
             scaler,
             video_base,
+            next_frame_index: 0,
             audio_base,
             rate,
         })
@@ -299,7 +301,7 @@ impl Encoder {
         self.audio.frame_size() as usize
     }
 
-    pub fn video(&mut self, image: &RgbaImage, frame: i64) -> Result<()> {
+    pub fn encode_new_frame(&mut self, image: &RgbaImage) -> Result<()> {
         let mut rgba =
             ffmpeg::frame::Video::new(ffmpeg::format::Pixel::RGBA, image.width(), image.height());
         let row = image.width() as usize * 4;
@@ -314,7 +316,7 @@ impl Encoder {
             file!(),
             line!()
         ))?;
-        converted.set_pts(Some(frame));
+        converted.set_pts(Some(self.next_frame_index));
         converted.set_color_space(ffmpeg::color::Space::BT709);
         converted.set_color_range(ffmpeg::color::Range::MPEG);
         converted.set_color_primaries(ffmpeg::color::Primaries::BT709);
@@ -324,6 +326,7 @@ impl Encoder {
             file!(),
             line!()
         ))?;
+        self.next_frame_index += 1;
         self.drain_video()
     }
 
@@ -409,7 +412,7 @@ pub fn bitrate(width: u32, height: u32, fps: FrameRate, preset: &str) -> usize {
 }
 
 enum EncodeMessage {
-    Video(RgbaImage, i64),
+    Video(RgbaImage),
     Audio(Vec<[f32; 2]>, i64),
     Finish,
 }

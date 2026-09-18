@@ -207,10 +207,11 @@ fn cli_assembles_without_overwriting_inputs() {
     let mut sample = 0;
     for frame in 0..150 {
         encoder
-            .video(
-                &RgbaImage::from_pixel(64, 48, Rgba([(frame + 40) as u8, 60, 100, 255])),
-                frame,
-            )
+            .encode_new_frame(&RgbaImage::from_pixel(
+                64,
+                48,
+                Rgba([(frame + 40) as u8, 60, 100, 255]),
+            ))
             .unwrap();
         while sample < (frame + 1) * 1600 {
             let count = encoder.audio_frame_size().min((240000 - sample) as usize);

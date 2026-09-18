@@ -40,11 +40,11 @@ pub fn render(output: &Path) -> Result<Value> {
             },
             None,
         )?;
-        encoder.video(&image, 0)?;
+        encoder.encode_new_frame(&image)?;
         for frame in 1..150 {
             let image = render_frame(&mut cx, window.into())
                 .context(format!("could not render GPUI frame {frame}"))?;
-            encoder.video(&image, frame)?;
+            encoder.encode_new_frame(&image)?;
         }
         encoder.finish()?;
         // Publishing without replacement also protects against another writer

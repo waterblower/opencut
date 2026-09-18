@@ -406,7 +406,7 @@ fn native_video_seek_and_audio_mix() {
     let mut audio_at = 0;
     for f in 0..60 {
         let image = RgbaImage::from_pixel(64, 48, Rgba([(f * 3 + 20) as u8, 60, 100, 255]));
-        encoder.video(&image, f).unwrap();
+        encoder.encode_new_frame(&image).unwrap();
         while audio_at < (f + 1) * 1600 {
             let count = (encoder.audio_frame_size() as i64).min(96000 - audio_at) as usize;
             let mut samples = Vec::new();
@@ -457,8 +457,9 @@ fn native_video_seek_and_audio_mix() {
 fn variable_pts_frame_selection() {
     let dir = Temp::new();
     let source = dir.0.join("variable.mov");
+    let sequential = dir.0.join("sequential.mov");
     let mut encoder = Encoder::open(
-        &source,
+        &sequential,
         (64, 48),
         FrameRate::default(),
         48000,
@@ -470,15 +471,43 @@ fn variable_pts_frame_selection() {
         None,
     )
     .unwrap();
-    for (pts, red) in [(0, 20), (2, 80), (5, 140), (9, 200)] {
+    for red in [20, 80, 140, 200] {
         encoder
-            .video(
-                &RgbaImage::from_pixel(64, 48, Rgba([red, 60, 100, 255])),
-                pts,
-            )
+            .encode_new_frame(&RgbaImage::from_pixel(64, 48, Rgba([red, 60, 100, 255])))
             .unwrap();
     }
     encoder.finish().unwrap();
+    // Remux the sequential export with irregular timestamps to exercise VFR decoding.
+    let mut input = ffmpeg_next::format::input(&sequential).unwrap();
+    let mut output = ffmpeg_next::format::output(&source).unwrap();
+    let video = input
+        .streams()
+        .best(ffmpeg_next::media::Type::Video)
+        .unwrap();
+    let video_index = video.index();
+    let mut stream = output
+        .add_stream(ffmpeg_next::encoder::find(ffmpeg_next::codec::Id::PRORES))
+        .unwrap();
+    stream.set_parameters(video.parameters());
+    stream.set_time_base((1, 30));
+    output.write_header().unwrap();
+    let time_base = output.stream(0).unwrap().time_base();
+    let mut timestamps = [0, 2, 5, 9].into_iter();
+    for (stream, mut packet) in input.packets() {
+        if stream.index() != video_index {
+            continue;
+        }
+        let pts = timestamps.next().unwrap();
+        packet.set_stream(0);
+        packet.set_pts(Some(pts));
+        packet.set_dts(Some(pts));
+        packet.set_duration(1);
+        packet.set_position(-1);
+        packet.rescale_ts((1, 30), time_base);
+        packet.write_interleaved(&mut output).unwrap();
+    }
+    assert!(timestamps.next().is_none());
+    output.write_trailer().unwrap();
     let worker = VideoWorker::new(source.clone());
     for (time, expected) in [
         (0.0, 20),
@@ -517,8 +546,8 @@ fn platform_video_encoders_and_fractional_frame_rate() {
         )
         .unwrap();
         let image = RgbaImage::from_pixel(64, 48, Rgba([220, 20, 10, 255]));
-        for frame in 0..5 {
-            encoder.video(&image, frame).unwrap();
+        for _ in 0..5 {
+            encoder.encode_new_frame(&image).unwrap();
         }
         encoder.finish().unwrap();
         let info = probe::probe(&output).unwrap();

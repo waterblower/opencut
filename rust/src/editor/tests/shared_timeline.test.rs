@@ -194,7 +194,7 @@ fn write_test_camera(source: &std::path::Path) {
             [10, 20, 220, 255]
         };
         encoder
-            .video(&RgbaImage::from_pixel(160, 90, Rgba(color)), frame)
+            .encode_new_frame(&RgbaImage::from_pixel(160, 90, Rgba(color)))
             .unwrap();
         while audio_at < (frame + 1) * 2000 {
             let count = (encoder.audio_frame_size() as i64).min(192000 - audio_at) as usize;
