@@ -3,12 +3,11 @@ use crate::{
     cli::{
         document::{self, Document},
         engine::probe,
-        error::Result,
         validate,
     },
-    cli_error, cli_try,
     timeline::*,
 };
+use anyhow::{Context as _, Result, anyhow};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use std::{
@@ -70,8 +69,12 @@ pub fn run(
     dry_run: bool,
     overwrite: bool,
 ) -> Result<Value> {
-    let bytes = cli_try!(fs::read(input), "io_error", "", 6);
-    let recipe: Recipe = cli_try!(serde_json::from_slice(&bytes), "invalid_recipe", "", 3);
+    let bytes = fs::read(input).context(format!("io_error at {}:{}", file!(), line!()))?;
+    let recipe: Recipe = serde_json::from_slice(&bytes).context(format!(
+        "invalid_recipe at {}:{}",
+        file!(),
+        line!()
+    ))?;
     let mut media = Vec::new();
     for (i, source) in recipe.sources.iter().enumerate() {
         let info = match probe::probe(&base.join(&source.path)) {
@@ -82,51 +85,70 @@ pub fn run(
         };
         media.push(info);
     }
-    let (doc, report) = compile(&recipe, &media)?;
+    let (mut doc, report) = compile(&recipe, &media)?;
     if let Some(output) = output {
         if output.exists() {
-            let target = cli_try!(fs::canonicalize(output), "io_error", "", 6);
-            let recipe_path = cli_try!(fs::canonicalize(input), "io_error", "", 6);
+            let target =
+                fs::canonicalize(output).context(format!("io_error at {}:{}", file!(), line!()))?;
+            let recipe_path =
+                fs::canonicalize(input).context(format!("io_error at {}:{}", file!(), line!()))?;
             if target == recipe_path {
-                return Err(cli_error!(
-                    "output_is_source",
-                    "",
-                    3,
-                    "output would overwrite the recipe"
+                return Err(anyhow!(
+                    "output_is_source: output would overwrite the recipe at {}:{}",
+                    file!(),
+                    line!()
                 ));
             }
             for source in &recipe.sources {
-                let path = cli_try!(fs::canonicalize(base.join(&source.path)), "io_error", "", 6);
+                let path = fs::canonicalize(base.join(&source.path)).context(format!(
+                    "io_error at {}:{}",
+                    file!(),
+                    line!()
+                ))?;
                 if target == path {
-                    return Err(cli_error!(
-                        "output_is_source",
-                        "",
-                        3,
-                        "output would overwrite source media"
+                    return Err(anyhow!(
+                        "output_is_source: output would overwrite source media at {}:{}",
+                        file!(),
+                        line!()
                     ));
                 }
             }
             if !overwrite {
-                return Err(cli_error!(
-                    "output_exists",
-                    "",
-                    6,
-                    "{} already exists",
-                    output.display()
+                return Err(anyhow!(
+                    "output_exists: {} already exists at {}:{}",
+                    output.display(),
+                    file!(),
+                    line!()
                 ));
             }
         }
     }
     if !dry_run {
         let Some(output) = output else {
-            return Err(cli_error!(
-                "usage_error",
-                "",
-                2,
-                "assemble requires --output unless --dry-run is supplied"
+            return Err(anyhow!(
+                "usage_error: assemble requires --output unless --dry-run is supplied at {}:{}",
+                file!(),
+                line!()
             ));
         };
-        let value = cli_try!(serde_json::to_value(&doc), "serialization_error", "", 6);
+        let timeline_dir = document::asset_base(output)?;
+        for asset in &mut doc.assets {
+            let source = std::path::absolute(base.join(&asset.path)).context(format!(
+                "could not resolve source path {} at {}:{}",
+                asset.path.display(),
+                file!(),
+                line!()
+            ))?;
+            asset.path = match source.strip_prefix(&timeline_dir) {
+                Ok(relative) => relative.to_path_buf(),
+                Err(_) => source,
+            };
+        }
+        let value = serde_json::to_value(&doc).context(format!(
+            "serialization_error at {}:{}",
+            file!(),
+            line!()
+        ))?;
         document::write_atomic(output, &value, overwrite)?;
     }
     Ok(json!({"path": output, "dry_run": dry_run, "report": report}))
@@ -139,27 +161,24 @@ pub fn compile(recipe: &Recipe, media: &[probe::Probe]) -> Result<(Document, Val
     };
     validate::require_valid(&doc, None)?;
     if recipe.time_base.numerator == 0 || recipe.time_base.denominator == 0 {
-        return Err(cli_error!(
-            "invalid_time_base",
-            "/time_base",
-            3,
-            "time base components must be positive"
+        return Err(anyhow!(
+            "invalid_time_base: time base components must be positive (/time_base) at {}:{}",
+            file!(),
+            line!()
         ));
     }
     if !recipe.gain_db.is_finite() || !(-96.0..=24.0).contains(&recipe.gain_db) {
-        return Err(cli_error!(
-            "invalid_gain",
-            "/gain_db",
-            3,
-            "gain must be -96..24 dB"
+        return Err(anyhow!(
+            "invalid_gain: gain must be -96..24 dB (/gain_db) at {}:{}",
+            file!(),
+            line!()
         ));
     }
     if recipe.sources.len() != media.len() || recipe.sources.is_empty() {
-        return Err(cli_error!(
-            "invalid_sources",
-            "/sources",
-            3,
-            "each source requires media metadata"
+        return Err(anyhow!(
+            "invalid_sources: each source requires media metadata (/sources) at {}:{}",
+            file!(),
+            line!()
         ));
     }
     let mut names = HashMap::new();
@@ -167,11 +186,11 @@ pub fn compile(recipe: &Recipe, media: &[probe::Probe]) -> Result<(Document, Val
     let mut rounding = Vec::new();
     for (i, source) in recipe.sources.iter().enumerate() {
         if source.name.is_empty() || names.insert(source.name.as_str(), i).is_some() {
-            return Err(cli_error!(
-                "duplicate_source",
+            return Err(anyhow!(
+                "duplicate_source: source names must be nonempty and unique ({}) at {}:{}",
                 &format!("/sources/{i}/name"),
-                3,
-                "source names must be nonempty and unique"
+                file!(),
+                line!()
             ));
         }
         let info = &media[i];
@@ -184,11 +203,11 @@ pub fn compile(recipe: &Recipe, media: &[probe::Probe]) -> Result<(Document, Val
                 _ => continue,
             };
             if slot.is_some() {
-                return Err(cli_error!(
-                    "unsupported_streams",
+                return Err(anyhow!(
+                    "unsupported_streams: only one video and one audio stream per source are supported; extract the intended stream first ({}) at {}:{}",
                     &format!("/sources/{i}/path"),
-                    3,
-                    "only one video and one audio stream per source are supported; extract the intended stream first"
+                    file!(),
+                    line!()
                 ));
             }
             *slot = Some(stream);
@@ -198,11 +217,11 @@ pub fn compile(recipe: &Recipe, media: &[probe::Probe]) -> Result<(Document, Val
             || !info.duration.is_finite()
             || info.duration <= 0.0
         {
-            return Err(cli_error!(
-                "invalid_source",
+            return Err(anyhow!(
+                "invalid_source: source must be a recording with known positive duration ({}) at {}:{}",
                 &format!("/sources/{i}/path"),
-                3,
-                "source must be a recording with known positive duration"
+                file!(),
+                line!()
             ));
         }
         let offset = quantize(
@@ -246,27 +265,24 @@ pub fn compile(recipe: &Recipe, media: &[probe::Probe]) -> Result<(Document, Val
         doc.assets.push(asset);
     }
     let Some(&master) = names.get(recipe.master_audio.as_str()) else {
-        return Err(cli_error!(
-            "unknown_source",
-            "/master_audio",
-            3,
-            "master audio source does not exist"
+        return Err(anyhow!(
+            "unknown_source: master audio source does not exist (/master_audio) at {}:{}",
+            file!(),
+            line!()
         ));
     };
     if !doc.assets[master].has_audio || recipe.sources[master].source_offset != 0 {
-        return Err(cli_error!(
-            "invalid_master_audio",
-            "/master_audio",
-            3,
-            "master must have audio and zero offset; it defines the episode clock"
+        return Err(anyhow!(
+            "invalid_master_audio: master must have audio and zero offset; it defines the episode clock (/master_audio) at {}:{}",
+            file!(),
+            line!()
         ));
     }
     if recipe.retained.is_empty() {
-        return Err(cli_error!(
-            "invalid_range",
-            "/retained",
-            3,
-            "at least one retained interval is required"
+        return Err(anyhow!(
+            "invalid_range: at least one retained interval is required (/retained) at {}:{}",
+            file!(),
+            line!()
         ));
     }
     let mut retained = Vec::new();
@@ -300,19 +316,17 @@ pub fn compile(recipe: &Recipe, media: &[probe::Probe]) -> Result<(Document, Val
         )?;
         previous = camera.end;
         let Some(&source) = names.get(camera.source.as_str()) else {
-            return Err(cli_error!(
-                "unknown_source",
-                &pointer,
-                3,
-                "camera source does not exist"
+            return Err(anyhow!(
+                "unknown_source: camera source does not exist ({pointer}) at {}:{}",
+                file!(),
+                line!()
             ));
         };
         if doc.assets[source].kind != MediaKind::Video {
-            return Err(cli_error!(
-                "invalid_camera",
-                &pointer,
-                3,
-                "camera source requires video"
+            return Err(anyhow!(
+                "invalid_camera: camera source requires video ({pointer}) at {}:{}",
+                file!(),
+                line!()
             ));
         }
         cameras.push((bounds.0, bounds.1, source));
@@ -334,14 +348,11 @@ pub fn compile(recipe: &Recipe, media: &[probe::Probe]) -> Result<(Document, Val
     let mut output_start = 0_i64;
     for (i, &(start, end)) in retained.iter().enumerate() {
         let pointer = format!("/retained/{i}");
-        let output_end = cli_try!(
-            output_start
-                .checked_add(end - start)
-                .ok_or("timeline duration overflow"),
-            "time_overflow",
-            &pointer,
-            3
-        );
+        let output_end = output_start.checked_add(end - start).context(format!(
+            "time_overflow: timeline duration overflow ({pointer}) at {}:{}",
+            file!(),
+            line!()
+        ))?;
         append_clip(
             &mut doc,
             master,
@@ -362,11 +373,10 @@ pub fn compile(recipe: &Recipe, media: &[probe::Probe]) -> Result<(Document, Val
                 continue;
             }
             if from != cursor {
-                return Err(cli_error!(
-                    "missing_camera_coverage",
-                    &pointer,
-                    3,
-                    "no camera at episode frame {cursor}"
+                return Err(anyhow!(
+                    "missing_camera_coverage: no camera at episode frame {cursor} ({pointer}) at {}:{}",
+                    file!(),
+                    line!()
                 ));
             }
             append_clip(
@@ -384,11 +394,10 @@ pub fn compile(recipe: &Recipe, media: &[probe::Probe]) -> Result<(Document, Val
             cursor = to;
         }
         if cursor != end {
-            return Err(cli_error!(
-                "missing_camera_coverage",
-                &pointer,
-                3,
-                "no camera at episode frame {cursor}"
+            return Err(anyhow!(
+                "missing_camera_coverage: no camera at episode frame {cursor} ({pointer}) at {}:{}",
+                file!(),
+                line!()
             ));
         }
         mappings.push(json!({"episode_start": start, "episode_end": end, "output_start": output_start, "output_end": output_end}));
@@ -421,12 +430,11 @@ fn quantize(
     let n = ticks as i128 * time_base.numerator as i128 * frame_rate.numerator as i128;
     let d = time_base.denominator as i128 * frame_rate.denominator as i128;
     let magnitude = (n.abs() + d / 2) / d;
-    let frame = cli_try!(
-        i64::try_from(if n < 0 { -magnitude } else { magnitude }),
-        "time_overflow",
-        pointer,
-        3
-    );
+    let frame = i64::try_from(if n < 0 { -magnitude } else { magnitude }).context(format!(
+        "time_overflow ({pointer}) at {}:{}",
+        file!(),
+        line!()
+    ))?;
     if n % d != 0 {
         rounding.push(json!({"pointer": pointer, "ticks": ticks, "effective_frames": frame}));
     }
@@ -443,11 +451,10 @@ fn interval(
     rounding: &mut Vec<Value>,
 ) -> Result<(i64, i64)> {
     if start < previous || end <= start {
-        return Err(cli_error!(
-            "invalid_range",
-            pointer,
-            3,
-            "ranges must be nonnegative, ordered, nonoverlapping, and nonempty"
+        return Err(anyhow!(
+            "invalid_range: ranges must be nonnegative, ordered, nonoverlapping, and nonempty ({pointer}) at {}:{}",
+            file!(),
+            line!()
         ));
     }
     let a = quantize(
@@ -465,11 +472,10 @@ fn interval(
         rounding,
     )?;
     if a == b {
-        return Err(cli_error!(
-            "collapsed_range",
-            pointer,
-            3,
-            "range disappears at the project frame rate"
+        return Err(anyhow!(
+            "collapsed_range: range disappears at the project frame rate ({pointer}) at {}:{}",
+            file!(),
+            line!()
         ));
     }
     Ok((a, b))
@@ -487,18 +493,16 @@ fn append_clip(
     streams: &[probe::Stream],
     pointer: &str,
 ) -> Result<()> {
-    let from = cli_try!(
-        start.checked_add(offset).ok_or("source time overflow"),
-        "time_overflow",
-        pointer,
-        3
-    );
-    let to = cli_try!(
-        end.checked_add(offset).ok_or("source time overflow"),
-        "time_overflow",
-        pointer,
-        3
-    );
+    let from = start.checked_add(offset).context(format!(
+        "time_overflow: source time overflow ({pointer}) at {}:{}",
+        file!(),
+        line!()
+    ))?;
+    let to = end.checked_add(offset).context(format!(
+        "time_overflow: source time overflow ({pointer}) at {}:{}",
+        file!(),
+        line!()
+    ))?;
     let asset = &doc.assets[source];
     let mut duration = asset.duration;
     for stream in streams {
@@ -515,12 +519,11 @@ fn append_clip(
             .seconds(TimelineTime::from_frames(to))
             > duration + 1e-9
     {
-        return Err(cli_error!(
-            "source_out_of_bounds",
-            pointer,
-            3,
-            "{} lacks source frames [{from}, {to})",
-            asset.name
+        return Err(anyhow!(
+            "source_out_of_bounds: {} lacks source frames [{from}, {to}) ({pointer}) at {}:{}",
+            asset.name,
+            file!(),
+            line!()
         ));
     }
     let data = MediaClipData {

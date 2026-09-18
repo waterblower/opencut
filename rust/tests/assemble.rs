@@ -6,7 +6,6 @@ use opencut_player::{
         document,
         engine::{
             audio::Mixer,
-            decode::VideoWorker,
             encode::{Encoder, VideoEncoding},
             probe::{self, Probe, Stream},
         },
@@ -188,7 +187,7 @@ fn single_camera_and_stream_duration_coverage() {
 }
 
 #[test]
-fn cli_assembles_previews_and_renders_without_overwriting_inputs() {
+fn cli_assembles_without_overwriting_inputs() {
     let dir = Temp::new();
     probe::init().unwrap();
     let source = dir.0.join("camera.mov");
@@ -208,10 +207,11 @@ fn cli_assembles_previews_and_renders_without_overwriting_inputs() {
     let mut sample = 0;
     for frame in 0..150 {
         encoder
-            .video(
-                &RgbaImage::from_pixel(64, 48, Rgba([(frame + 40) as u8, 60, 100, 255])),
-                frame,
-            )
+            .encode_new_frame(&RgbaImage::from_pixel(
+                64,
+                48,
+                Rgba([(frame + 40) as u8, 60, 100, 255]),
+            ))
             .unwrap();
         while sample < (frame + 1) * 1600 {
             let count = encoder.audio_frame_size().min((240000 - sample) as usize);
@@ -253,7 +253,7 @@ fn cli_assembles_previews_and_renders_without_overwriting_inputs() {
     );
     let original = fs::read(&output).unwrap();
     let (_, doc) = document::load(&output).unwrap();
-    let media = probe::assets(&doc, &dir.0).unwrap();
+    let media = probe::assets(&doc.assets, &dir.0).unwrap();
     let mut mixer = Mixer::default();
     for at in [12000, 32000, 56000, 80000] {
         let samples = mixer.block(&doc, &dir.0, &media, at, 1024).unwrap();
@@ -315,32 +315,6 @@ fn cli_assembles_previews_and_renders_without_overwriting_inputs() {
         .success()
     );
     assert_eq!(fs::read(&output).unwrap(), original);
-    let rendered = cli(
-        &dir,
-        &[
-            "render",
-            "nested/episode.json",
-            "-o",
-            "episode.mov",
-            "--video-codec",
-            "prores",
-            "--progress",
-            "none",
-            "--json",
-        ],
-    );
-    assert!(
-        rendered.status.success(),
-        "{}",
-        String::from_utf8_lossy(&rendered.stdout)
-    );
-    assert_eq!(decode(&rendered)["frames"], 60);
-    let worker = VideoWorker::new(dir.0.join("episode.mov"));
-    for (output_frame, source_frame) in [(0, 60), (14, 74), (15, 15), (29, 29), (30, 60), (59, 89)]
-    {
-        let frame = worker.at(output_frame as f64 / 30.0).unwrap();
-        assert!((frame.get_pixel(32, 24)[0] as i32 - (source_frame + 40)).abs() <= 5);
-    }
     let schema = cli(&dir, &["schema", "--kind", "recipe", "--json"]);
     assert!(schema.status.success());
     assert_eq!(

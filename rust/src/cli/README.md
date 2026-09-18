@@ -1,7 +1,7 @@
 # OpenCut CLI
 
 A headless application that reads the same timeline JSON as the OpenCut editor.
-The CLI renders with FFmpeg; the editor edits and renders with GStreamer.
+The CLI probes media with FFmpeg; the editor edits and renders with GStreamer.
 The shared [timeline module](../timeline/mod.rs) defines the format and serialization
 rules, without file I/O or backend state. CLI-specific services and the FFmpeg
 engine live beneath this application module.
@@ -12,21 +12,18 @@ From the Rust directory, `cargo cli` runs with the vendored FFmpeg environment:
 
 ```sh
 cargo cli --help
-cargo cli probe media.mp4 --json
+cargo cli probe /path/to/media.mp4 --json
 cargo cli new episode.timeline.json --fps 30000/1001 --json
 cargo cli schema --json
-cargo cli --project-root /path/to/project validate scenes/episode.timeline.json --json
-cargo cli --project-root /path/to/project inspect scenes/episode.timeline.json --json
-cargo cli --project-root /path/to/project still scenes/episode.timeline.json --at 50% -o preview.png
-cargo cli --project-root /path/to/project render scenes/episode.timeline.json -o output.mp4 --dry-run --json
-cargo cli --project-root /path/to/project render scenes/episode.timeline.json -o output.mp4 --progress json --json
+cargo cli validate scenes/episode.timeline.json --json
+cargo cli probe scenes/episode.timeline.json --json
 ```
 
-Timeline and output arguments resolve from the working directory. `--project-root`
-controls the base of relative **asset paths**, matching the editor. It defaults to
-the working directory, not the timeline's parent directory. Absolute asset paths
-are unchanged. A timeline saved in a nested project folder uses the same project
-root as a timeline at the top level.
+Timeline and output arguments resolve from the working directory. Relative media
+paths inside a timeline resolve from the directory containing that timeline file,
+including `..` references. Absolute asset paths are unchanged. `--project-root`
+only controls assembly recipe source paths; it does not override timeline asset
+resolution.
 
 From the repository root:
 
@@ -37,6 +34,16 @@ bash rust/scripts/cargo-cli.sh build --no-default-features --features cli --bin 
 The wrapper links the existing `rust/vendor/ffmpeg-8.1.2` libraries. It never builds
 FFmpeg or invokes Python. Disable default features to build the CLI without GPUI
 or GStreamer dependencies.
+
+## Probe media and timelines
+
+`probe <file>` accepts video, audio, image, and timeline files. Media paths must
+be absolute; relative media paths are rejected. Files with a `.json`
+extension (case-insensitive, including `.timeline.json`) are loaded as timelines
+and summarized with duration, settings, clips, tracks, gaps, and asset usage.
+Other files report media streams, codecs, duration, dimensions, and keyframe spacing
+where applicable. Timeline probing does not open referenced media; use `validate`
+to check those files. The separate `inspect` command has been removed.
 
 ## Shared timeline contract
 
@@ -62,7 +69,7 @@ The authoritative schema is generated from the actual shared Rust types by
   video tracks, also respecting earlier-track priority.
 - Visibility controls visual output; hiding a video track does not mute its audio.
   Track and clip muting control audio. Locking affects editing, not export.
-- View state survives serialization and is ignored by the CLI renderer.
+- View state survives serialization and is preserved by CLI document operations.
 
 `new` creates a document with visible video and audio tracks. All input timelines
 are read without rewriting them. Use `assemble` to build a podcast from supplied
@@ -85,14 +92,13 @@ and generate its authoritative schema with `schema --kind recipe`.
 cargo cli schema --kind recipe --json
 cargo cli --project-root /project assemble recipe.json --dry-run --json
 cargo cli --project-root /project assemble recipe.json -o episode.timeline.json --json
-cargo cli --project-root /project render episode.timeline.json --range 10s..15s -o review.mp4
 ```
 
 The recipe supplies output `settings`, a `time_base` in seconds per tick, named
 `sources`, `master_audio`, optional `gain_db` (default 0), `retained` intervals,
 and `cameras`. All start/end/offset values are signed integer ticks in that common
 time base. For example, `{ "numerator": 1, "denominator": 1000 }` means milliseconds.
-Source paths resolve against `--project-root`, independently of the recipe location.
+Recipe source paths resolve against `--project-root`, independently of the recipe location. Generated timelines store paths relative to their output directory when the source is beneath it, and absolute paths otherwise.
 The example references recordings you must supply; it is not a bundled media set.
 
 The master source must contain audio and have zero `source_offset`. It defines the
@@ -187,37 +193,19 @@ The library accepts credentials explicitly and requires a Tokio runtime. It does
 not read environment variables. Automated tests use local mock HTTP responses;
 they require no API key and do not make paid MiniMax requests.
 
-## Rendering and output
+## Output and errors
 
-H.264/HEVC use macOS VideoToolbox; `gpl` selects libx264 for H.264. ProRes uses
-FFmpeg's native encoder and requires MOV. H.264/HEVC accept MP4 or MOV. AAC stereo
-is included, including silence for timelines without audio. HEVC uses `hvc1` with
-out-of-band parameter sets for Apple playback compatibility.
+The `still` and `render` commands, CPU compositor, and text rasterizer have been
+removed ahead of the shared GPUI renderer refactor. CLI video export and still
+preview generation are currently unavailable. FFmpeg decoding, encoding, and
+audio mixing services remain available for reuse.
 
-Without `--bitrate`, video bitrate is the duration-weighted source bitrate of
-visible video clips contributing to the selected range. Unused assets and audio
-tracks are excluded. Preset-derived bitrate is the fallback. `--bitrate` accepts
-bits/s and decimal `k`/`M` suffixes. ProRes is profile-controlled.
-
-The FFmpeg compositor uses deterministic 8-bit RGBA, an opaque black background,
-and BT.709 output. Text uses embedded IBM Plex Sans with fallback for unavailable
-font names. Backend font rasterization and encoded bytes may differ; clip timing,
-source selection, layering, transforms, and audio inclusion use the shared
-contract. HDR, wide-gamut management, and animated effects are outside this format.
-Audio gain is clamped to the editor's -96..24 dB range, and summed samples are
-hard-clipped to [-1,1].
-
-`new` and render outputs refuse existing destinations unless supported overwrite
-flags are supplied. Source media cannot be output targets. Render outputs are
-staged next to the destination and committed only on success. The input timeline
-is embedded under `opencut.timeline` unless `--no-metadata` is supplied.
-
-CLI times accept seconds, `s`, frames with `f`, and `HH:MM:SS`. They round to the
-nearest timeline frame using rational arithmetic. Only `still --at` accepts
-percentages; `100%` selects the final frame.
-
-All commands accept `--json`. Results go to stdout; progress goes to stderr at
-most once every five seconds, plus final completion. Runtime failures use anyhow and exit code 1; Clap usage errors use exit code 2. JSON failures have the shape `{"error":{"message":"..."}}`. Diagnostic labels, paths, and source locations are included in the message. `validate` returns all findings.
+All commands accept `--json`. Results go to stdout and diagnostics go to stderr.
+Runtime failures use anyhow and exit code 1; Clap usage errors use exit code 2.
+JSON failures have the shape `{"error":{"message":"..."}}`. Diagnostic labels,
+paths, and source locations are included in the message. `validate` stops at the
+first media probe failure and reports that error with the asset path. Independent
+document rule violations are returned as findings.
 
 ## Verification and packaging
 
@@ -232,15 +220,14 @@ bash rust/scripts/cargo-cli.sh test --no-default-features --features cli --test 
 bash rust/scripts/package-cli.sh
 ```
 
-From the Rust directory, the cross-backend GUI round-trip test is:
+From the Rust directory, the GUI/CLI document compatibility test is:
 
 ```sh
 cargo test-mac --no-default-features --features editor,cli --bin opencut-editor shared_timeline
 ```
 
-This generates synthetic media, saves and edits a GUI timeline, renders it through
-both backends, and checks cut boundaries, transforms, caption placement/timing,
-and audio gain/muting. Its GStreamer export uses software AAC for headless testing.
+This generates synthetic media, checks GUI/CLI document round trips and podcast
+assembly, and checks editor export duration, cut boundaries, and audio gain/muting. Its GStreamer export uses software AAC for headless testing.
 
 The package is a local unsigned artifact linked against the existing vendored
 FFmpeg installation and its transitive libraries, not a relocatable distribution.

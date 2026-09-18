@@ -5,7 +5,7 @@ use std::path::Path;
 pub(super) const DEFAULT_VIDEO_BIT_RATE: usize = 8_000_000;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(super) enum ExportEncoder {
+pub enum ExportEncoder {
     Hardware,
     Software,
 }
