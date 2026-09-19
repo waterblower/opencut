@@ -168,6 +168,12 @@ fn handle_app_event(
     cx: &mut Context<Editor>,
 ) {
     match event {
+        AppEvent::Preview(event) => {
+            if let Err(error) = editor.handle_preview_event(event, cx) {
+                log::error!("Preview action failed: {error:?}");
+                editor.status = Some(format!("Preview failed: {error:#}"));
+            }
+        }
         AppEvent::SwitchProject { .. } | AppEvent::Transcribe { .. } => {}
         AppEvent::HorizontalSplitResized(state) => {
             if let Err(error) = save_project_local_settings(
