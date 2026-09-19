@@ -58,17 +58,8 @@ pub trait TimelineEditorExt: Sized {
 }
 impl TimelineEditorExt for TimelineSerialization {
     fn load(path: &Path) -> Result<Self> {
-        let contents = match fs::read(path) {
-            Ok(contents) => contents,
-            Err(error) => {
-                return Err(anyhow!(
-                    "could not read {}: {error} at {}:{}",
-                    path.display(),
-                    file!(),
-                    line!()
-                ));
-            }
-        };
+        let contents =
+            fs::read(path).with_context(|| format!("could not read {}", path.display()))?;
         let value = match serde_json::from_slice(&contents) {
             Ok(value) => value,
             Err(error) => {

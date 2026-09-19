@@ -67,7 +67,13 @@
 - When a function call returns an error, propagate it through intermediate
   functions instead of logging it there. Log the error only at the highest-level
   application, event, or task boundary.
+- Business logic must return errors without deciding how they are reported to
+  users or rendered in the UI. Keep user-facing error messages, error status
+  updates, and UI notifications in the application or event handling layer.
 - Always use debug formatting (`{error:?}`) when logging errors.
+- Do not use `super::` paths. Import items explicitly using full paths at the
+  beginning of the file, and use unqualified names in the code. Use an import
+  alias or qualified name only when needed to resolve a name conflict.
 - Import anyhow helpers explicitly and use unqualified names such as `anyhow!`,
   `bail!`, `Result`, and `Error`. Use an import alias when a name conflicts with
   another type. Do not change vendored dependency code to enforce this rule.
