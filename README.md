@@ -3,7 +3,7 @@
 OpenCut is an experimental desktop video tool written in Rust with
 [GPUI](https://gpui.rs/). The `rust` package contains two applications:
 
-- `opencut-player`: a focused local MP4 player powered by GStreamer.
+- `opencut-player`: a local MP4/MOV player using FFmpeg, CPAL audio, and GPUI rendering.
 - `opencut-editor`: a non-destructive, folder-based multi-track editor with
   GStreamer preview and GStreamer Editing Services export.
 
@@ -80,14 +80,15 @@ cargo test-mac
 Run these from `rust`. Extra Cargo flags such as `--release` are forwarded;
 application arguments follow `--`. On Windows, use the corresponding `-win`
 commands, such as `cargo editor-win` and `cargo test-win`. These are native host
-commands, not cross-compilation commands. Cargo aliases load `.cargo/macos.toml`
-or `.cargo/windows.toml` for build-time environment settings. Small shell runners
+commands, not cross-compilation commands. Editor aliases load `.cargo/macos.toml`
+or `.cargo/windows.toml`; player aliases use the FFmpeg-only `.cargo/cli.toml`
+or `.cargo/ffmpeg-windows.toml`. Small shell runners
 set runtime library and plugin paths for applications and tests. No Rust launcher
 is compiled, and the commands do not change the parent shell's environment.
 
-Windows uses the MSVC SDK in `rust/vendor/gstreamer` and FFmpeg in
+The editor on Windows uses the MSVC SDK in `rust/vendor/gstreamer` and FFmpeg in
 `rust/vendor/ffmpeg-8.1.2`. It defaults to software H.264 decoding to avoid
-corruption observed with Intel Iris Xe hardware decoding. macOS uses the vendored
+corruption observed with Intel Iris Xe hardware decoding. The editor on macOS uses the vendored
 GStreamer framework and vendored FFmpeg; set `FFMPEG_DIR` to override the
 FFmpeg location on either platform.
 
@@ -105,10 +106,12 @@ cargo check --config .cargo/macos.toml --no-default-features --features editor -
 cargo player-mac # Windows: cargo player-win
 ```
 
-The player supports local MP4 playback, scrubbing, frame stepping, volume and
-speed controls, looping, fullscreen, resizable playback history, media
-metadata, render FPS inspection, PNG frame capture, and the GPUI element
-inspector.
+The player uses vendored FFmpeg for MP4/MOV decoding and history thumbnails,
+CPAL for audio output, and GPUI for rendering. It does not require GStreamer.
+It supports playback, scrubbing, approximate frame stepping using the average
+frame rate, volume/mute, fullscreen, resizable playback history, and render FPS
+inspection. Playback speed, looping, and audio-device selection are not yet
+supported by this backend.
 
 | Shortcut | Action |
 | --- | --- |
