@@ -1,6 +1,5 @@
-use crate::{
-    editor::{explorer_drag::AssetBeingDragged, preview::load_timeline_position_with_options},
-    video::{FileVideoBackend, VideoBackend},
+use crate::editor::{
+    explorer_drag::AssetBeingDragged, preview::load_timeline_position_with_options,
 };
 use anyhow::{Context as _, Result};
 use gpui::{
@@ -36,6 +35,7 @@ mod media_probe;
 mod model;
 mod preview;
 mod preview_audio;
+mod preview_events;
 mod preview_image;
 mod preview_timeline;
 mod preview_video;
@@ -77,7 +77,7 @@ use generic_containers::{
 };
 use model::{MediaAsset, MediaKind};
 use preview::PreviewTarget;
-use preview_audio::AudioBackend;
+use preview_events::PreviewEvent;
 use preview_timeline::TimelinePreviewDrag;
 use project_settings::{load_project_local_settings, save_project_local_settings};
 use properties_transform::VideoTransformInputs;
@@ -251,9 +251,7 @@ impl Editor {
                     cx.notify();
                     return;
                 }
-                editor.event_bus.update(cx, |_, cx| {
-                    cx.emit(AppEvent::SwitchProject { project_path })
-                });
+                editor.emit_event(cx, AppEvent::SwitchProject { project_path });
             });
         })
         .detach();
@@ -509,7 +507,7 @@ impl Editor {
         _: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        self.toggle_playback();
+        self.emit_event(cx, AppEvent::Preview(PreviewEvent::TogglePlayback));
         cx.notify();
     }
 
@@ -700,7 +698,9 @@ fn format_time(seconds: f64, padded_minutes: bool) -> String {
 }
 
 pub struct EventBus;
+#[derive(Clone)]
 pub enum AppEvent {
+    Preview(PreviewEvent),
     SwitchProject {
         project_path: PathBuf,
     },
