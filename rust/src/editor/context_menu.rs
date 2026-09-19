@@ -123,17 +123,17 @@ impl Editor {
                     .when(can_transcribe, |this| {
                         let source_path = self.project_root.join(&menu.relative_path);
                         let project_root = self.project_root.clone();
-                        let event_bus = self.event_bus.clone();
                         this.child(file_menu_item("Generate SRT", "").on_click(cx.listener(
                             move |editor, _, _, cx| {
                                 editor.dismiss_context_menu();
                                 cx.notify();
-                                event_bus.update(cx, |_, cx| {
-                                    cx.emit(AppEvent::Transcribe {
+                                editor.emit_event(
+                                    cx,
+                                    AppEvent::Transcribe {
                                         source_path: source_path.clone(),
                                         project_root: project_root.clone(),
-                                    });
-                                });
+                                    },
+                                );
                             },
                         )))
                     })

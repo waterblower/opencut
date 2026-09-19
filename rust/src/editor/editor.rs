@@ -159,6 +159,10 @@ impl Editor {
         editor.schedule_project_waveforms(cx);
         Ok(editor)
     }
+
+    pub fn emit_event(&mut self, cx: &mut Context<Self>, event: AppEvent) {
+        self.event_bus.update(cx, |_, cx| cx.emit(event));
+    }
 }
 
 fn handle_app_event(
