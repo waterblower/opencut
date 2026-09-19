@@ -154,9 +154,8 @@ impl Editor {
             return Ok(());
         };
         timeline.record_editing_history();
-        edit_and_rebuild_timeline(
+        apply_timeline_edit(
             &mut self.preview,
-            &self.project_root,
             timeline,
             EditAction::SetVideoProperties {
                 clip_ids: vec![clip_id],
@@ -165,7 +164,6 @@ impl Editor {
         )
         .expect("setting video properties cannot be rejected");
 
-        super::timeline_video::refresh_timeline_video_frame(timeline.video_backend.playback_mut())?;
         timeline
             .data
             .save(&self.project_root.join(&timeline.path))?;

@@ -2,7 +2,7 @@ use crate::editor::{
     ACCENT, BORDER, MUTED, OpenInDefaultApp, PANEL, RevealInFinder, SURFACE, SURFACE_HOVER, TEXT,
     clip_placement::validate_clip_placement,
     context_menu::{ContextMenu, FileContextMenu},
-    editing::{EditAction, edit_and_rebuild_timeline},
+    editing::{EditAction, apply_timeline_edit},
     editor::Editor,
     explorer_filter::ExplorerFilter,
     model::MediaAsset,
@@ -422,9 +422,8 @@ impl Editor {
             _ => bail!("the drop target is not a media track"),
         };
 
-        edit_and_rebuild_timeline(
+        apply_timeline_edit(
             &mut self.preview,
-            &self.project_root,
             timeline,
             EditAction::AddClips {
                 clips: vec![media_clip],

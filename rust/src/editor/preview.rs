@@ -1,5 +1,3 @@
-use preview_timeline::preview_timeline_view;
-
 use super::*;
 use opencut_player::video2::{AudioBackend, VideoBackend};
 use preview_image::preview_image_file;
@@ -12,7 +10,7 @@ pub enum PreviewTarget {
     ImageFile(PathBuf),
 }
 
-pub fn load_timeline_position_with_options(
+pub fn set_timeline_position(
     preview: &mut PreviewState,
     timeline: &mut TimelineRuntimeState,
     position: TimelineTime,
@@ -20,12 +18,8 @@ pub fn load_timeline_position_with_options(
     preview.target = PreviewTarget::Timeline;
     let duration = timeline.data.content_duration();
     let position = position.clamp(TimelineTime::ZERO, duration);
-    preview.timeline_drag = None;
 
-    let _ = timeline
-        .video_backend
-        .playback_mut()
-        .seek(timeline.data.duration(position));
+    timeline.data.view.saved_playhead_frame = position;
 }
 
 impl PreviewTarget {
@@ -64,9 +58,11 @@ impl Editor {
                         .unwrap_or_else(|| "No preview available".into()),
                 )
                 .into_any_element(),
-            PreviewTarget::Timeline => {
-                preview_timeline_view(self, origin_x, origin_y, width, height, cx)
-            }
+            PreviewTarget::Timeline => div()
+                .w(px(width))
+                .h(px(height))
+                .bg(rgb(0x000000))
+                .into_any_element(),
             PreviewTarget::VideoFile(_, _) => {
                 self.preview_video_file(origin_x, origin_y, width, height, cx)
             }
@@ -124,10 +120,7 @@ impl PlaybackViewDelegate for Editor {
 
     fn playback_toggle_volume(&mut self, _: &mut Window, cx: &mut Context<Self>) {
         let has_playable_target = match &self.preview.target {
-            PreviewTarget::Timeline => self
-                .timeline
-                .as_ref()
-                .is_some_and(|timeline| !timeline.data.clips.is_empty()),
+            PreviewTarget::Timeline => false,
             PreviewTarget::VideoFile(_, _) => true,
             PreviewTarget::None | PreviewTarget::AudioFile(_, _) | PreviewTarget::ImageFile(_) => {
                 false

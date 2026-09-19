@@ -150,9 +150,8 @@ impl Editor {
             return Ok(());
         };
         timeline.record_editing_history();
-        edit_and_rebuild_timeline(
+        apply_timeline_edit(
             &mut self.preview,
-            &self.project_root,
             timeline,
             EditAction::SetFrameRate { frame_rate },
         )
@@ -161,7 +160,7 @@ impl Editor {
         let has_clips = !timeline.data.clips.is_empty();
         timeline.save_timeline_playhead(&self.project_root)?;
         if has_clips {
-            load_timeline_position_with_options(&mut self.preview, timeline, playhead);
+            set_timeline_position(&mut self.preview, timeline, playhead);
         }
         self.status = Some(format!(
             "Timeline frame rate changed to {}.",

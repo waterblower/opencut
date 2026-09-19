@@ -19,7 +19,6 @@ pub(super) const FRAME_RATE_PRESETS: [(FrameRate, &str); 8] = [
 
 pub struct TimelineRuntimeState {
     pub path: PathBuf,
-    pub(super) video_backend: TimelineVideoBackend,
     pub(super) h_scroll: ScrollHandle,
     pub(super) v_scroll: ScrollHandle,
     pub(super) interaction: TimelineInteractionState,
@@ -298,11 +297,12 @@ impl TimelineEditorExt for TimelineSerialization {
     }
 }
 impl TimelineRuntimeState {
-    pub(super) fn new(
-        path: PathBuf,
-        data: TimelineSerialization,
-        ges_timeline: gstreamer_editing_services::Timeline,
-    ) -> Result<Self> {
+    pub(super) fn new(path: PathBuf, data: TimelineSerialization) -> Self {
+        let mut data = data;
+        data.view.saved_playhead_frame = data
+            .view
+            .saved_playhead_frame
+            .clamp(TimelineTime::ZERO, data.content_duration());
         let scroll = ScrollHandle::new();
         scroll.set_offset(point(px(-data.view.horizontal_scroll), px(0.0)));
         let vertical_scroll = ScrollHandle::new();
@@ -312,10 +312,9 @@ impl TimelineRuntimeState {
         let selected_clip_id = data.clips.first().map(Clip::id);
         let selected_clip_ids = selected_clip_id.into_iter().collect();
 
-        Ok(Self {
+        Self {
             path,
             data,
-            video_backend: TimelineVideoBackend::new(ges_timeline)?,
             interaction: TimelineInteractionState {
                 active_tool: TimelineTool::Selection,
                 snapping_enabled,
@@ -327,21 +326,17 @@ impl TimelineRuntimeState {
                 clip_move_drag: None,
                 marquee_selection: None,
                 scrubbing_playhead: false,
-                last_scrub_seek: None,
             },
             h_scroll: scroll,
             v_scroll: vertical_scroll,
             undo_stack: Vec::new(),
             redo_stack: Vec::new(),
             preview_drop_asset: None,
-        })
+        }
     }
 
     pub fn playhead(&self) -> TimelineTime {
-        self.data
-            .settings
-            .frame_rate
-            .frames_from_duration_nearest(self.video_backend.playback().position())
+        self.data.view.saved_playhead_frame
     }
 
     pub(super) fn save_timeline_playhead(
@@ -350,7 +345,6 @@ impl TimelineRuntimeState {
     ) -> Result<()> {
         edit_timeline(
             self,
-            project_root,
             EditAction::SetSavedPlayhead {
                 playhead: self.playhead(),
             },
@@ -361,7 +355,6 @@ impl TimelineRuntimeState {
     pub fn save_timeline_scroll(&mut self, project_root: &Path) -> Result<()> {
         edit_timeline(
             self,
-            project_root,
             EditAction::SetScroll {
                 horizontal: -f32::from(self.h_scroll.offset().x),
                 vertical: -f32::from(self.v_scroll.offset().y),

@@ -108,9 +108,8 @@ impl Editor {
                         .map(|path| (asset.id, path))
                 })
                 .collect();
-            edit_and_rebuild_timeline(
+            apply_timeline_edit(
                 &mut self.preview,
-                &self.project_root,
                 timeline,
                 EditAction::UpdateAssetPaths { paths },
             )

@@ -53,7 +53,7 @@ pub struct TextClipProperties {
     pub text: String,
     pub font: String,
     pub font_size: f64,
-    /// Text color as big-endian ARGB, matching GStreamer.
+    /// Text color as big-endian ARGB.
     pub color: u32,
     pub position_x: f64,
     pub position_y: f64,

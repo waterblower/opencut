@@ -2,7 +2,7 @@
 
 FFmpeg-based local-file playback backend with CPAL audio output and a GPUI video
 element. This powers `cargo player-mac`, `cargo player-win`, and the editor's
-individual file previews. Timeline preview and export still use GStreamer.
+individual file previews. Timeline previews are currently black and silent; timeline export is unavailable.
 
 Implemented functionality includes opening paused with the first frame ready,
 play/pause, volume and mute, asynchronous and synchronous seeking, independent

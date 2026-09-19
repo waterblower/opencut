@@ -22,9 +22,8 @@ impl Editor {
         };
         timeline.record_editing_history();
         let clip_id = clip.id();
-        edit_and_rebuild_timeline(
+        apply_timeline_edit(
             &mut self.preview,
-            &self.project_root,
             timeline,
             EditAction::AddClips {
                 clips: vec![clip],

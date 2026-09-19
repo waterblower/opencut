@@ -445,16 +445,13 @@ pub async fn select_preview_file(
     let is_video = is_video_path(&relative_path);
     let is_audio = is_audio_path(&relative_path);
 
-    let (project_root, previous) = editor.update(cx, |editor, cx| -> Result<_> {
+    let (project_root, previous) = editor.update(cx, |editor, cx| {
         editor.select_only_clip(None);
         editor.explorer.selected_file = Some(relative_path.clone());
 
         let previous = if is_image || is_video || is_audio {
-            // The timeline remains alive when a file is selected; file backends
+            // The timeline remains loaded when a file is selected; file backends
             // are retired below, including ones that have failed.
-            if editor.preview.target.is_timeline() {
-                editor.pause_preview()?;
-            }
             let target = match (is_video, is_audio) {
                 (true, _) | (_, true) => PreviewTarget::None,
                 _ => PreviewTarget::ImageFile(relative_path.clone()),
@@ -465,7 +462,6 @@ pub async fn select_preview_file(
             editor.preview.is_scrubbing = false;
             editor.preview.is_adjusting_volume = false;
             editor.preview.last_scrub_seek = None;
-            editor.preview.timeline_drag = None;
             Some(previous)
         } else {
             None
@@ -474,8 +470,8 @@ pub async fn select_preview_file(
             editor.status = Some(format!("Loading preview for {}…", relative_path.display()));
         }
         cx.notify();
-        Ok((editor.project_root.clone(), previous))
-    })??;
+        (editor.project_root.clone(), previous)
+    })?;
 
     if let Some(previous) = previous {
         // Dropping a backend joins its workers, so keep it off the UI thread.

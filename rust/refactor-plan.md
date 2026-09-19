@@ -2,11 +2,11 @@
 
 ## Goal and constraints
 
-Replace GStreamer with a Rust-owned editing engine that uses **the same GPUI composition for preview and export**, with FFmpeg handling media decoding, encoding, and muxing.
+Build a Rust-owned editing engine that uses **the same GPUI composition for preview and export**, with FFmpeg handling media decoding, encoding, and muxing.
 
 Deliver the migration on **macOS first, then Windows, then Linux**. Each platform must support installation and use without a separate multimedia runtime setup.
 
-Preserve the current timeline format, editing operations, undo/redo, audio controls, and CLI command contracts. Visual output will follow the shared GPUI renderer; reproducing GStreamer’s exact text rasterization is not a requirement.
+Preserve the current timeline format, editing operations, undo/redo, audio controls, and CLI command contracts. Visual output will follow the shared GPUI renderer.
 
 Use the existing vendored FFmpeg 8.1.2 libraries. Do not build FFmpeg, invoke Python in the build, or introduce custom macros. Keep native operations behind small Rust interfaces with explicit ownership and error propagation.
 
@@ -44,53 +44,40 @@ Introduce shared interfaces for evaluating a frame, requesting decoded media, re
 
 Use bounded worker queues and generation identifiers for superseded preview requests. Export applies backpressure and drops no frames. Blocking decode, encode, and device operations stay off the UI thread; GPUI remains on its required platform thread.
 
-## Implementation sequence
+## Current state and next steps
 
-### 1. Establish a macOS offscreen rendering path
+- The editor updates the timeline model without a media pipeline. Timeline preview
+  is a static black surface; timeline playback, export, and transcription are
+  temporarily unavailable. Ruler and track editing remain functional.
+- File previews and metadata probing use FFmpeg; waveform generation uses FFmpeg;
+  audio playback uses CPAL. Build/run scripts use the vendored FFmpeg libraries.
+- The CLI demo renders GPUI text to a five-second video using the existing
+  `test-support` headless APIs. It does not modify the vendored Zed source.
 
-- Extend vendored GPUI with a production `offscreen-rendering` capability based on its existing Metal renderer.
-- Provide an offscreen host that performs real GPUI layout, text shaping, painting, and GPU rendering without a visible window.
-- Use production scheduling and asset loading. Do not ship the test dispatcher or fake platform as the export runtime.
-- Expose rendering to a reusable project-size texture and explicit RGBA readback. Reuse textures and buffers between frames.
-- Start with CPU pixel readback into the existing FFmpeg encoder. Hardware texture-to-encoder integration is a later optimization, not a migration prerequisite.
+### 1. Implement the timeline renderer
 
-### 2. Prove the shared renderer through OpenCut’s CLI
+Evaluate the timeline at an explicit time and produce a GPUI element from prepared
+media. Support video, images, text, transforms, clipping, and track visibility.
+Decode on workers, keeping I/O out of GPUI render callbacks. Share composition
+geometry with future preview interaction overlays.
 
-Use OpenCut’s [CLI entry point](/Users/mac/Documents/GitHub/OpenCut/rust/src/cli/main.rs:1), rather than modifying Zed’s vendored CLI.
+### 2. Restore timeline playback
 
-- Add a temporary opt-in GPUI rendering backend to existing `still` and `render` commands.
-- First render a short composition containing a decoded video and GPUI text, then cover images, multiple tracks, transforms, clipping, and audio.
-- Preserve existing output options, project-root resolution, render ranges, progress reporting, and overwrite protections.
-- Move reusable decoding, encoding, probing, and mixing services out of CLI ownership into the shared engine.
-- Replace the CLI’s independent text rasterization and CPU visual composition once GPUI parity tests pass.
-- Keep non-rendering CLI commands usable without initializing a GPU.
+Use one timeline clock and a shared audio mixer. Support seeking, source trims,
+overlaps, silence, gain/mute, and end-of-timeline behavior. Avoid independently
+clocked players for individual clips. Preserve all existing editing operations.
 
-### 3. Migrate preview, playback, and editing
+### 3. Implement export using the same composition
 
-- Replace GES timeline runtime state with the shared evaluator, media workers, mixer, and composition renderer.
-- Reuse the existing FFmpeg playback implementation selectively; do not create an independently clocked player for each timeline clip.
-- Support play/pause, scrubbing, seek completion, end-of-timeline behavior, audio-only timelines, and simultaneous visible clips.
-- Apply edits to the existing timeline model. Invalidate affected layout, decoded frames, or audio buffers according to the changed data.
-- Text and transform edits reuse decoded frames; source-position edits request new media.
-- Preserve locking, snapping, selection, resizing, track visibility, mute, gain, and undo/redo.
-- Route editor export through the same service used by CLI export.
-- Replace remaining GStreamer consumers, including standalone playback, audio preview, waveforms, metadata probing, and backend-specific debug checks.
+Render each frame at its exact timestamp and encode through FFmpeg. Restore the
+editor export UI and timeline transcription only when their rendering services
+are available. Preview and export must use identical project-space geometry.
 
-### 4. Cut over macOS and remove its runtime dependency
+### 4. Package and port
 
-- Make the shared renderer the macOS default after feature and parity checks pass.
-- Remove GStreamer from macOS application features, launch scripts, packaging, environment setup, and runtime discovery.
-- Bundle required FFmpeg libraries with application-relative loading paths.
-- Retain legacy implementation only where required by platforms awaiting migration; do not ship a second rendering backend in the migrated macOS application.
-- Remove obsolete diagnostic code and update development and distribution documentation.
-
-### 5. Port Windows, then Linux
-
-- Implement the same offscreen host and texture/readback contract using each platform’s GPUI graphics backend.
-- Reuse the shared evaluator, composition, worker protocols, audio mixer, and export service.
-- Add platform audio-device integration and package compatible prebuilt FFmpeg libraries; do not build FFmpeg locally.
-- Require the same functional and parity gates before each platform cuts over.
-- After Linux migration, remove remaining GStreamer dependencies, implementations, setup scripts, and obsolete tests from OpenCut.
+Bundle the existing FFmpeg libraries with application-relative loading paths.
+Deliver macOS first, then Windows and Linux with the same composition contract.
+Do not build FFmpeg locally or modify vendored Zed to add headless APIs.
 
 ## Validation and acceptance
 
@@ -101,7 +88,7 @@ Use OpenCut’s [CLI entry point](/Users/mac/Documents/GitHub/OpenCut/rust/src/c
 - **Audio correctness:** test mute, gain, overlaps, resampling, export ranges, seek resets, and long-duration A/V synchronization. Preview without an audio device remains usable with silent playback.
 - **Export correctness:** verify frame counts, timestamps, duration, codec/container options, cancellation, and failure cleanup. Only publish the final output after successful encoder draining and mux finalization.
 - **Performance instrumentation:** measure evaluation, decode, layout/paint, GPU submission/completion, readback, encoding, audio mixing, and queue waits separately. Report preview latency and export throughput; do not claim a Remotion speedup without an equivalent benchmark.
-- **Distribution:** launch and export from a clean machine without GStreamer, developer environment variables, or a separately installed FFmpeg.
+- **Distribution:** launch and export from a clean machine without developer environment variables or a separately installed multimedia runtime.
 
 ## Defaults and boundaries
 

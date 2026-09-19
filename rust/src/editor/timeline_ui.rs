@@ -519,20 +519,6 @@ impl Editor {
                         })),
                     )
                     .child(
-                        timeline_icon_button(
-                            "timeline-play",
-                            if self.preview_video_playing() {
-                                "Ⅱ"
-                            } else {
-                                "▶"
-                            },
-                        )
-                        .on_click(cx.listener(|editor, _, _, cx| {
-                            editor.emit_event(cx, AppEvent::Preview(PreviewEvent::TogglePlayback));
-                            cx.notify();
-                        })),
-                    )
-                    .child(
                         div()
                             .w(px(108.0))
                             .font_family("monospace")
@@ -637,7 +623,7 @@ impl Editor {
                             let Some(timeline) = editor.timeline.as_mut() else {
                                 return;
                             };
-                            timeline.zoom(0.8, &editor.project_root);
+                            timeline.zoom(0.8);
                             if let Err(error) = timeline.save_timeline_scroll(&editor.project_root)
                             {
                                 log::error!("{error:?}");
@@ -668,7 +654,7 @@ impl Editor {
                             let Some(timeline) = editor.timeline.as_mut() else {
                                 return;
                             };
-                            timeline.zoom(1.25, &editor.project_root);
+                            timeline.zoom(1.25);
                             if let Err(error) = timeline.save_timeline_scroll(&editor.project_root)
                             {
                                 log::error!("{error:?}");

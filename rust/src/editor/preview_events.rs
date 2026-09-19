@@ -47,15 +47,6 @@ impl Editor {
                         video.set_muted(volume <= f64::EPSILON)?;
                     }
                     PreviewTarget::AudioFile(_, audio) => audio.set_volume(volume)?,
-                    PreviewTarget::Timeline => {
-                        if let Some(timeline) = &editor.timeline {
-                            timeline.video_backend.playback().set_volume(volume);
-                            timeline
-                                .video_backend
-                                .playback()
-                                .set_muted(volume <= f64::EPSILON);
-                        }
-                    }
                     _ => {}
                 }
                 cx.notify();
@@ -68,25 +59,9 @@ impl Editor {
         match &mut self.preview.target {
             PreviewTarget::VideoFile(_, video) => video.set_paused(true)?,
             PreviewTarget::AudioFile(_, audio) => audio.set_paused(true)?,
-            PreviewTarget::Timeline => {
-                if let Some(timeline) = &self.timeline {
-                    timeline.video_backend.playback().set_paused(true);
-                }
-            }
             _ => {}
         }
         Ok(())
-    }
-
-    pub fn preview_video_playing(&self) -> bool {
-        match &self.preview.target {
-            PreviewTarget::VideoFile(_, video) => !video.paused(),
-            PreviewTarget::Timeline => self
-                .timeline
-                .as_ref()
-                .is_some_and(|timeline| !timeline.video_backend.playback().paused()),
-            _ => false,
-        }
     }
 
     pub async fn open_file_preview(
@@ -156,23 +131,6 @@ impl Editor {
         match &mut self.preview.target {
             PreviewTarget::VideoFile(_, video) => video.set_paused(!video.paused())?,
             PreviewTarget::AudioFile(_, audio) => audio.set_paused(!audio.paused())?,
-            PreviewTarget::Timeline => {
-                let Some(timeline) = self.timeline.as_mut() else {
-                    return Ok(());
-                };
-                let paused = timeline.video_backend.playback().paused();
-                if timeline.data.clips.is_empty() {
-                    return Ok(());
-                }
-                if paused && timeline.playhead() >= timeline.data.content_duration() {
-                    load_timeline_position_with_options(
-                        &mut self.preview,
-                        timeline,
-                        TimelineTime::ZERO,
-                    );
-                }
-                timeline.video_backend.playback().set_paused(!paused);
-            }
             _ => {}
         }
         Ok(())
@@ -186,7 +144,7 @@ impl Editor {
     ) -> Result<()> {
         if matches!(
             self.preview.target,
-            PreviewTarget::None | PreviewTarget::ImageFile(_)
+            PreviewTarget::None | PreviewTarget::Timeline | PreviewTarget::ImageFile(_)
         ) {
             return Ok(());
         }
@@ -217,16 +175,6 @@ impl Editor {
         let duration = match &self.preview.target {
             PreviewTarget::VideoFile(_, video) => video.duration(),
             PreviewTarget::AudioFile(_, audio) => audio.duration(),
-            PreviewTarget::Timeline => {
-                let Some(timeline) = self.timeline.as_mut() else {
-                    return Ok(());
-                };
-                let duration = timeline.data.content_duration().frames();
-                let position =
-                    TimelineTime::from_frames((duration as f64 * fraction as f64).round() as i64);
-                load_timeline_position_with_options(&mut self.preview, timeline, position);
-                return Ok(());
-            }
             _ => return Ok(()),
         };
         self.seek_file_preview(duration.mul_f64(fraction as f64), false, cx)

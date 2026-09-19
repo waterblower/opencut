@@ -109,9 +109,6 @@ impl Render for Editor {
             .when_some(rename_dialog, |this, dialog| this.child(dialog))
             .when_some(new_timeline_dialog, |this, dialog| this.child(dialog))
             .when_some(settings_modal, |this, modal| this.child(modal))
-            .when(self.export.dialog.is_some(), |this| {
-                this.child(self.export_dialog(cx))
-            })
             .when(self.global_settings_input.is_some(), |this| {
                 this.child(self.global_settings_dialog(cx))
             })
@@ -155,11 +152,6 @@ impl Editor {
     }
 
     fn topbar(&self, cx: &mut Context<Self>) -> gpui::AnyElement {
-        let export_enabled = self
-            .timeline
-            .as_ref()
-            .is_some_and(|timeline| !timeline.data.clips.is_empty())
-            && !self.export.running;
         let message = self.status.as_deref().unwrap_or("Ready").to_string();
         let timeline_name = self
             .timeline
@@ -228,23 +220,7 @@ impl Editor {
                         |editor, _, _, cx| {
                             editor.open_project_folder(cx);
                         },
-                    )))
-                    .child(
-                        toolbar_button(
-                            if self.export.running {
-                                "Exporting…"
-                            } else {
-                                "Export MP4"
-                            },
-                            export_enabled,
-                        )
-                        .bg(rgb(ACCENT))
-                        .text_color(rgb(0x17120a))
-                        .on_click(cx.listener(|editor, _, _, cx| {
-                            editor.open_export_dialog(cx);
-                            cx.notify();
-                        })),
-                    ),
+                    ))),
             )
             .into_any_element()
     }

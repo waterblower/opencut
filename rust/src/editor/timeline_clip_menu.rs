@@ -59,9 +59,8 @@ impl Editor {
             .into_iter()
             .map(|index| timeline.data.clips[index].id())
             .collect();
-        edit_and_rebuild_timeline(
+        apply_timeline_edit(
             &mut self.preview,
-            &self.project_root,
             timeline,
             EditAction::SetVideoProperties {
                 clip_ids,

@@ -1,7 +1,7 @@
 # OpenCut CLI
 
 A headless application that reads the same timeline JSON as the OpenCut editor.
-The CLI probes media with FFmpeg; the editor edits and renders with GStreamer.
+The CLI probes media with FFmpeg; the editor updates the same timeline model.
 The shared [timeline module](../timeline/mod.rs) defines the format and serialization
 rules, without file I/O or backend state. CLI-specific services and the FFmpeg
 engine live beneath this application module.
@@ -32,8 +32,7 @@ bash rust/scripts/cargo-cli.sh build --no-default-features --features cli --bin 
 ```
 
 The wrapper links the existing `rust/vendor/ffmpeg-8.1.2` libraries. It never builds
-FFmpeg or invokes Python. Disable default features to build the CLI without GPUI
-or GStreamer dependencies.
+FFmpeg or invokes Python. Disable default features to build only the CLI; its demo renderer uses GPUI.
 
 ## Probe media and timelines
 
@@ -219,15 +218,6 @@ bash rust/scripts/cargo-cli.sh test --no-default-features --features cli --test 
 # Local macOS package:
 bash rust/scripts/package-cli.sh
 ```
-
-From the Rust directory, the GUI/CLI document compatibility test is:
-
-```sh
-cargo test-mac --no-default-features --features editor,cli --bin opencut-editor shared_timeline
-```
-
-This generates synthetic media, checks GUI/CLI document round trips and podcast
-assembly, and checks editor export duration, cut boundaries, and audio gain/muting. Its GStreamer export uses software AAC for headless testing.
 
 The package is a local unsigned artifact linked against the existing vendored
 FFmpeg installation and its transitive libraries, not a relocatable distribution.

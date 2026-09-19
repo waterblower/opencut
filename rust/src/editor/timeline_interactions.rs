@@ -1,6 +1,5 @@
 use super::*;
 use anyhow::Result;
-use std::path::Path;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(super) enum TimelineTool {
@@ -47,7 +46,6 @@ pub(super) struct TimelineInteractionState {
     pub(super) clip_move_drag: Option<ClipMoveDrag>,
     pub(super) marquee_selection: Option<MarqueeSelection>,
     pub(super) scrubbing_playhead: bool,
-    pub(super) last_scrub_seek: Option<Instant>,
 }
 
 impl TimelineRuntimeState {
@@ -173,7 +171,7 @@ impl TimelineRuntimeState {
         )
     }
 
-    pub(super) fn zoom(&mut self, factor: f32, project_root: &Path) {
+    pub(super) fn zoom(&mut self, factor: f32) {
         let previous_pixels_per_second = self.data.view.pixels_per_second;
         let pixels_per_second = (self.data.view.pixels_per_second * factor).clamp(
             MIN_TIMELINE_PIXELS_PER_SECOND,
@@ -189,12 +187,8 @@ impl TimelineRuntimeState {
                 pixels_per_second,
             ));
             self.h_scroll.set_offset(scroll_offset);
-            edit_timeline(
-                self,
-                project_root,
-                EditAction::SetTimelineZoom { pixels_per_second },
-            )
-            .expect("changing timeline zoom cannot be rejected");
+            edit_timeline(self, EditAction::SetTimelineZoom { pixels_per_second })
+                .expect("changing timeline zoom cannot be rejected");
         }
     }
 
@@ -632,9 +626,8 @@ impl Editor {
         timeline.interaction.snap_guide = None;
         if drag.changed && drag.invalid_reason.is_none() {
             timeline.record_editing_history();
-            edit_and_rebuild_timeline(
+            apply_timeline_edit(
                 &mut self.preview,
-                &self.project_root,
                 timeline,
                 EditAction::MoveClips {
                     placements: drag.placements,
@@ -654,9 +647,8 @@ impl Editor {
             return;
         };
         let enabled = !timeline.interaction.snapping_enabled;
-        edit_and_rebuild_timeline(
+        apply_timeline_edit(
             &mut self.preview,
-            &self.project_root,
             timeline,
             EditAction::SetSnapping { enabled },
         )
@@ -719,7 +711,7 @@ impl Editor {
         };
         let previous_zoom = timeline.data.view.pixels_per_second;
         let factor = (gesture.magnification as f32).exp().clamp(0.5, 2.0);
-        timeline.zoom(factor, &self.project_root);
+        timeline.zoom(factor);
         let current_zoom = timeline.data.view.pixels_per_second;
         log::debug!(
             target: "opencut::timeline",
@@ -745,8 +737,7 @@ impl Editor {
         };
         timeline.interaction.scrubbing_playhead = true;
         let position = timeline.timeline_position_from_x(event.position.x.into());
-        timeline.interaction.last_scrub_seek = Some(Instant::now());
-        load_timeline_position_with_options(&mut self.preview, timeline, position);
+        set_timeline_position(&mut self.preview, timeline, position);
     }
 
     pub(super) fn update_playhead_scrub(
@@ -766,15 +757,7 @@ impl Editor {
         }
         let position = timeline.timeline_position_from_x(event.position.x.into());
 
-        let now = Instant::now();
-        let should_seek = timeline
-            .interaction
-            .last_scrub_seek
-            .is_none_or(|last_seek| now.duration_since(last_seek) >= SCRUB_SEEK_INTERVAL);
-        if should_seek {
-            timeline.interaction.last_scrub_seek = Some(now);
-            load_timeline_position_with_options(&mut self.preview, timeline, position);
-        }
+        set_timeline_position(&mut self.preview, timeline, position);
         cx.notify();
     }
 
@@ -791,9 +774,8 @@ impl Editor {
             return;
         }
         timeline.interaction.scrubbing_playhead = false;
-        timeline.interaction.last_scrub_seek = None;
         let position = timeline.timeline_position_from_x(event.position.x.into());
-        load_timeline_position_with_options(&mut self.preview, timeline, position);
+        set_timeline_position(&mut self.preview, timeline, position);
         if let Err(error) = timeline.save_timeline_playhead(&self.project_root) {
             log::error!("{error:?}");
         }
@@ -810,7 +792,7 @@ impl Editor {
         let target = (timeline.playhead() + TimelineTime::from_frames(frames))
             .clamp(TimelineTime::ZERO, timeline.data.content_duration());
         if target != timeline.playhead() || !self.preview.target.is_timeline() {
-            load_timeline_position_with_options(&mut self.preview, timeline, target);
+            set_timeline_position(&mut self.preview, timeline, target);
             timeline.save_timeline_playhead(&self.project_root)?;
         }
         Ok(())

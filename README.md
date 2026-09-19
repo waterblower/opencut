@@ -5,8 +5,8 @@ OpenCut is an experimental desktop video tool written in Rust with
 
 - `opencut-player`: a local MP4/MOV player using FFmpeg, CPAL audio, and GPUI rendering.
 - `opencut-editor`: a non-destructive, folder-based multi-track editor with
-  FFmpeg video/audio file previews, GStreamer timeline preview, and GStreamer
-  Editing Services export.
+  FFmpeg video/audio file previews and model-based timeline editing. Timeline
+  previews are currently black and silent; timeline export is unavailable.
 
 The project is an active prototype rather than a production-ready editor.
 
@@ -15,56 +15,12 @@ Devlog: https://www.youtube.com/playlist?list=PLRz1nfZl0jMU
 ## Requirements
 
 - Latest stable Rust (edition 2024)
-- GStreamer with Editing Services and the base, good, bad, ugly, and libav
-  plugins
-- FFmpeg development libraries
+- Existing FFmpeg development libraries in `rust/vendor/ffmpeg-8.1.2/`
+- Xcode command line tools and `pkg-config` on macOS
 
-On macOS, install the build tools with Homebrew:
-
-```sh
-brew install pkg-config
-```
-
-Run the commands below from the Rust package:
-
-```sh
-cd rust
-bash scripts/setup-gstreamer.sh
-```
-
-The setup script downloads the official GStreamer **1.28.6** universal macOS
-runtime and development packages, verifies pinned SHA-256 checksums, and extracts
-them into `rust/vendor/gstreamer/GStreamer.framework`. It retains both ARM64 and
-Intel libraries, plugins, GStreamer Editing Services, headers, and licenses.
-It also builds FAAC **2.1** and its GStreamer plugin for both architectures,
-using checksum-pinned sources and the upstream FAAC 2 compatibility patch.
-macOS Bash and Xcode command line tools are required. Downloads total
-about 871 MB; allow several GB for extraction. No system installer is run.
-
-`cargo editor-mac` uses this local framework for GStreamer compilation and plugin
-loading, including its GLib dependencies. Missing vendor files cause a setup
-error instead of falling back to system GStreamer. Other native dependencies,
-including the existing FFmpeg configuration, continue to use their existing setup.
-The downloaded packages and extracted framework are ignored by Git.
-To download and verify the pinned archives without extracting or compiling,
-run `bash scripts/setup-gstreamer.sh --verify-only`.
-
-The setup script relocates native library references to the absolute checkout
-path and locally signs the modified binaries. After moving the checkout, rerun
-`bash scripts/setup-gstreamer.sh`; verified downloads are reused. This is a
-local development setup, not macOS application bundle packaging.
-
-The editor exports AAC audio at 192 kbps using `atenc` (Apple AudioToolbox) on
-macOS and `avenc_aac` (GStreamer libav) on other platforms. The selected encoder
-must be installed; export reports an error if it is unavailable.
-
-Setup also includes FAAC as an additional available encoder, linked against
-the vendored GStreamer libraries. To add or rebuild just FAAC, run
-`bash scripts/setup-gstreamer.sh --faac-only`. No Homebrew GStreamer or FAAC
-libraries are needed at runtime.
-
-The optional upstream Python plugin expects a separate Python 3.9 framework and
-PyGObject; this setup does not configure Python bindings.
+Use the existing vendored FFmpeg libraries; do not build FFmpeg locally.
+On macOS, install `pkg-config` with `brew install pkg-config`, then run the
+commands below from `rust`.
 
 ## Player
 
@@ -84,14 +40,12 @@ commands, such as `cargo editor-win` and `cargo test-win`. These are native host
 commands, not cross-compilation commands. Editor aliases load `.cargo/macos.toml`
 or `.cargo/windows.toml`; player aliases use the FFmpeg-only `.cargo/cli.toml`
 or `.cargo/ffmpeg-windows.toml`. Small shell runners
-set runtime library and plugin paths for applications and tests. No Rust launcher
+set runtime library paths for applications and tests. No Rust launcher
 is compiled, and the commands do not change the parent shell's environment.
 
-The editor on Windows uses the MSVC SDK in `rust/vendor/gstreamer` and FFmpeg in
-`rust/vendor/ffmpeg-8.1.2`. It defaults to software H.264 decoding to avoid
-corruption observed with Intel Iris Xe hardware decoding. The editor on macOS uses the vendored
-GStreamer framework and vendored FFmpeg; set `FFMPEG_DIR` to override the
-FFmpeg location on either platform.
+Both applications use the existing vendored FFmpeg libraries. Platform runners
+set their runtime library paths without requiring a separately installed media
+runtime.
 
 For other Cargo operations, select the platform configuration from `rust`:
 
@@ -108,7 +62,7 @@ cargo player-mac # Windows: cargo player-win
 ```
 
 The player uses vendored FFmpeg for MP4/MOV decoding and history thumbnails,
-CPAL for audio output, and GPUI for rendering. It does not require GStreamer.
+CPAL for audio output, and GPUI for rendering. Playback is independent of the timeline editor.
 It supports playback, scrubbing, approximate frame stepping using the average
 frame rate, volume/mute, fullscreen, resizable playback history, and render FPS
 inspection. Playback speed, looping, and audio-device selection are not yet
@@ -147,11 +101,9 @@ Current editor capabilities:
 - Selection, blade, and trim tools support positioning clips, moving them between
   compatible tracks, splitting them, and trimming their source ranges without
   changing source files. Invalid moves show collision or compatibility feedback.
-- Multi-track preview includes layered video/images and synchronized overlapping
-  audio, with per-track visibility, mute, lock, reorder, creation, and deletion.
-- Clicking the timeline preview selects the visible clip at the playhead. A
-  selected visual clip can be dragged on the preview canvas and snapped by its
-  edges or center to the canvas edges and center lines.
+- Track visibility, mute, lock, reorder, creation, and deletion update the saved
+  timeline model. Timeline previews currently remain black and silent. Ruler and
+  track interactions continue to work, including scrubbing and frame stepping.
 - The frame-based timeline supports horizontal scroll and zoom (including macOS
   trackpad pinch), vertical track scrolling, frame ticks at high zoom, frame
   stepping, a draggable playhead, and optional snapping with visible guides for
@@ -161,16 +113,11 @@ Current editor capabilities:
   in memory by media path. Each clip renders only its selected source range.
 - Undo/redo, clip metadata, fullscreen preview, and a docked GPUI element
   inspector with render FPS are available in the editor UI.
-- A selected video or image clip exposes position, scale, opacity, and crop
-  controls. These transforms are used by timeline preview and export, and a clip
-  context-menu command can copy its transforms to the other visual clips on the
-  same track.
-- Clips store audio gain and mute values, which preview and export apply. Their
-  properties-panel controls are not implemented yet.
-- Export maps editor tracks and clips to a GStreamer Editing Services timeline,
-  composites visible visual tracks, mixes unmuted audio, and writes an
-  H.264/AAC MP4 with configurable resolution, frame rate, bitrate, and hardware
-  (when available) or software H.264 encoding.
+- Selected visual clips expose position and scale controls. These values remain
+  editable and persisted while timeline rendering is unavailable.
+- Clips retain audio gain and mute values in the document for future playback.
+- Individual audio/video files support Generate SRT. Timeline transcription and
+  timeline MP4 export are unavailable while their new backends are developed.
 
 Supported file extensions:
 
@@ -180,7 +127,7 @@ Supported file extensions:
 
 | Shortcut | Action |
 | --- | --- |
-| `Space` | Play or pause |
+| `Space` | Play or pause a media-file preview |
 | `Left` / `Right` | Move the playhead backward or forward one project frame |
 | `V` / `B` / `T` | Activate the selection, blade, or trim tool |
 | `Command-click` | Add or remove a clip from the current selection |
@@ -206,7 +153,8 @@ folder, so a project folder can be moved, backed up, or committed as one unit.
 
 The last opened project folder is stored locally in
 `rust/data/editor-settings.json`. This location is temporary while OpenCut is a
-prototype. On startup, the editor opens the first root-level timeline file.
+prototype. On startup, the editor restores the saved active timeline and playhead; a missing
+saved timeline leaves the editor with no active timeline.
 
 Source media is referenced in place and never rewritten. Waveform peaks are
 regenerated in memory when the editor opens a project and are not written to

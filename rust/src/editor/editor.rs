@@ -20,7 +20,6 @@ pub(crate) struct Editor {
     pub(super) waveform_cache: HashMap<PathBuf, Arc<waveform::WaveformData>>,
     pub(super) properties: PropertiesPanelState,
     pub(super) settings_open: bool,
-    pub(super) export: ExportState,
     pub status: Option<String>,
     pub(super) focus_handle: FocusHandle,
     pub(super) clipboard: Option<ClipClipboard>,
@@ -38,9 +37,6 @@ impl Editor {
         event_bus: Entity<EventBus>,
         cx: &mut Context<Self>,
     ) -> Result<Self> {
-        gstreamer_editing_services::init()
-            .expect("could not initialize GStreamer Editing Services");
-
         //
         // Load the active timeline
         //
@@ -67,22 +63,7 @@ impl Editor {
                             return Err(error);
                         }
                     };
-                let ges_timeline = build_ges_timeline(
-                    &timeline_data,
-                    &project_root,
-                    export::ExportOptions::from_timeline(&timeline_data),
-                    false,
-                )
-                .with_context(|| format!("build_ges_timeline failed at {}:{}", file!(), line!()))?;
-                let timeline =
-                    TimelineRuntimeState::new(timeline_path, timeline_data, ges_timeline)
-                        .with_context(|| {
-                            format!(
-                                "could not initialize the active timeline at {}:{}",
-                                file!(),
-                                line!()
-                            )
-                        })?;
+                let timeline = TimelineRuntimeState::new(timeline_path, timeline_data);
                 Ok(Some(timeline))
             })()?
         };
@@ -124,7 +105,6 @@ impl Editor {
             is_scrubbing: false,
             is_adjusting_volume: false,
             last_scrub_seek: None,
-            timeline_drag: None,
         };
 
         let properties = {
@@ -136,11 +116,6 @@ impl Editor {
                 transform_input_clip_id: None,
                 text_input_clip_id: None,
             }
-        };
-
-        let export = ExportState {
-            dialog: None,
-            running: false,
         };
 
         start_updates(cx);
@@ -167,7 +142,6 @@ impl Editor {
             properties,
             settings_open: false,
             global_settings_input: None,
-            export,
             timeline,
             clipboard: None,
             status: None,
@@ -175,12 +149,10 @@ impl Editor {
             context_menu: ContextMenu::None,
             active_asset_drag: AssetBeingDragged::None,
         };
-        if let Some(timeline) = editor.timeline.as_mut()
-            && !timeline.data.clips.is_empty()
-        {
+        if let Some(timeline) = editor.timeline.as_mut() {
             let playhead = timeline.playhead();
             editor.preview.target = PreviewTarget::Timeline;
-            load_timeline_position_with_options(&mut editor.preview, timeline, playhead);
+            set_timeline_position(&mut editor.preview, timeline, playhead);
         }
         editor.schedule_project_waveforms(cx);
         Ok(editor)
@@ -245,13 +217,8 @@ async fn handle_app_event(editor: WeakEntity<Editor>, event: AppEvent, cx: &mut 
                     return;
                 };
                 timeline.record_editing_history();
-                edit_and_rebuild_timeline(
-                    &mut editor.preview,
-                    &project_root,
-                    timeline,
-                    edit_action.clone(),
-                )
-                .expect("event bus edit actions cannot be rejected");
+                apply_timeline_edit(&mut editor.preview, timeline, edit_action.clone())
+                    .expect("event bus edit actions cannot be rejected");
                 if let Err(error) = timeline.data.save(&project_root.join(&timeline.path)) {
                     log::error!("{error:?}");
                 }
@@ -330,9 +297,8 @@ async fn handle_app_event(editor: WeakEntity<Editor>, event: AppEvent, cx: &mut 
                                 clips.iter().map(Clip::id).collect::<HashSet<_>>();
                             let selected_clip_id = clips.first().map(Clip::id);
                             timeline.record_editing_history();
-                            edit_and_rebuild_timeline(
+                            apply_timeline_edit(
                                 &mut editor.preview,
-                                &project_root,
                                 timeline,
                                 EditAction::AddClips {
                                     clips,
@@ -391,8 +357,7 @@ fn start_updates(cx: &mut Context<Editor>) {
                 let refresh_tree =
                     editor.explorer.last_tree_scan.elapsed() >= Duration::from_secs(1);
 
-                let should_render =
-                    editor.export.running || refresh_tree || pinch_zoomed || ended_explorer_drag;
+                let should_render = refresh_tree || pinch_zoomed || ended_explorer_drag;
 
                 if refresh_tree {
                     editor.explorer.refresh_file_tree(&editor.project_root)?;
