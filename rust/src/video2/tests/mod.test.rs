@@ -9,6 +9,24 @@ use std::{
     task::{Context, Poll, Wake, Waker},
 };
 
+#[track_caller]
+pub fn block_on<T>(future: impl Future<Output = T>) -> T {
+    let waker = Waker::from(Arc::new(ThreadWake(thread::current())));
+    let mut context = Context::from_waker(&waker);
+    let mut future = pin!(future);
+    let deadline = Instant::now() + Duration::from_secs(10);
+    loop {
+        if let Poll::Ready(value) = future.as_mut().poll(&mut context) {
+            return value;
+        }
+        assert!(
+            Instant::now() < deadline,
+            "async backend operation timed out"
+        );
+        thread::park_timeout(Duration::from_millis(20));
+    }
+}
+
 #[test]
 fn opens_paused_with_owned_frame_and_metadata() -> Result<()> {
     let fixture = Fixture::new("0")?;
@@ -446,23 +464,5 @@ impl Wake for ThreadWake {
     }
     fn wake_by_ref(self: &Arc<Self>) {
         self.0.unpark();
-    }
-}
-
-#[track_caller]
-fn block_on<T>(future: impl Future<Output = T>) -> T {
-    let waker = Waker::from(Arc::new(ThreadWake(thread::current())));
-    let mut context = Context::from_waker(&waker);
-    let mut future = pin!(future);
-    let deadline = Instant::now() + Duration::from_secs(10);
-    loop {
-        if let Poll::Ready(value) = future.as_mut().poll(&mut context) {
-            return value;
-        }
-        assert!(
-            Instant::now() < deadline,
-            "async backend operation timed out"
-        );
-        thread::park_timeout(Duration::from_millis(20));
     }
 }
