@@ -65,6 +65,7 @@ player = [
     "dep:serde_json",
 ]
 editor = [
+    "ffmpeg-video",
     "dep:tokio",
     "dep:gpui_tokio",
     "timeline",

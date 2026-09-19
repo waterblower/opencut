@@ -5,7 +5,8 @@ OpenCut is an experimental desktop video tool written in Rust with
 
 - `opencut-player`: a local MP4/MOV player using FFmpeg, CPAL audio, and GPUI rendering.
 - `opencut-editor`: a non-destructive, folder-based multi-track editor with
-  GStreamer preview and GStreamer Editing Services export.
+  FFmpeg video/audio file previews, GStreamer timeline preview, and GStreamer
+  Editing Services export.
 
 The project is an active prototype rather than a production-ready editor.
 
