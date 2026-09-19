@@ -589,5 +589,5 @@ fn f32_config(device: &cpal::Device) -> Result<cpal::StreamConfig> {
 }
 
 #[cfg(test)]
-#[path = "audio.test.rs"]
+#[path = "tests/audio.test.rs"]
 mod tests;
