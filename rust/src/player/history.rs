@@ -314,9 +314,14 @@ impl Player {
                                 cx.notify();
                             })),
                     )
-                    .on_click(cx.listener(move |this, _, _, cx| {
-                        this.open_path(path.clone(), cx);
-                        cx.notify();
+                    .on_click(cx.listener(move |_, _, _, cx| {
+                        let path = path.clone();
+                        cx.spawn(async move |player, cx| {
+                            if let Err(error) = Self::open_path(player, path, cx).await {
+                                eprintln!("Could not open video: {error:?}");
+                            }
+                        })
+                        .detach();
                     }))
             })
             .collect::<Vec<_>>();
