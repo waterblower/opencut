@@ -3,6 +3,7 @@
 - Do not build FFmpeg ourselves, including through `ffbuild/`. Link against the
   existing vendored libraries in `rust/vendor/ffmpeg-8.1.2/`.
 - Never include Python in the build process.
+- Do not write tests for `rust/src/player/`; it is a debug-only demo.
 - Do not define custom macros. Prefer ordinary functions and explicit control
   flow so the code is easy to read. Standard and dependency-provided macros
   (such as `format!` and derives) are allowed.
