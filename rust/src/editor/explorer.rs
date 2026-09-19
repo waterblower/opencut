@@ -1,21 +1,16 @@
-use crate::{
-    editor::{
-        ACCENT, BORDER, MUTED, OpenInDefaultApp, PANEL, RevealInFinder, SURFACE, SURFACE_HOVER,
-        TEXT,
-        clip_placement::validate_clip_placement,
-        context_menu::{ContextMenu, FileContextMenu},
-        editing::{EditAction, edit_and_rebuild_timeline},
-        editor::Editor,
-        explorer_filter::ExplorerFilter,
-        model::MediaAsset,
-        preview::PreviewTarget,
-        preview_audio::AudioBackend,
-        timeline::{TimelineEditorExt, TimelineTime},
-        timeline_clip::{AudioClipProperties, Clip, VideoClip, VideoClipProperties},
-        timeline_document,
-        track::TrackKind,
-    },
-    video::FileVideoBackend,
+use crate::editor::{
+    ACCENT, BORDER, MUTED, OpenInDefaultApp, PANEL, RevealInFinder, SURFACE, SURFACE_HOVER, TEXT,
+    clip_placement::validate_clip_placement,
+    context_menu::{ContextMenu, FileContextMenu},
+    editing::{EditAction, edit_and_rebuild_timeline},
+    editor::Editor,
+    explorer_filter::ExplorerFilter,
+    model::MediaAsset,
+    preview::PreviewTarget,
+    timeline::{TimelineEditorExt, TimelineTime},
+    timeline_clip::{AudioClipProperties, Clip, VideoClip, VideoClipProperties},
+    timeline_document,
+    track::TrackKind,
 };
 use anyhow::{Result, anyhow, bail};
 use gpui::{
