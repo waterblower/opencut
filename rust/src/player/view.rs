@@ -62,7 +62,10 @@ impl Render for Player {
                         .when(self.video.is_some(), |this| {
                             this.cursor(CursorStyle::PointingHand).on_click(cx.listener(
                                 |this, _, _, cx| {
-                                    this.toggle_playback(cx);
+                                    if let Err(error) = this.toggle_playback() {
+                                        eprintln!("Could not toggle playback: {error:?}");
+                                        return;
+                                    }
                                     cx.notify();
                                 },
                             ))
