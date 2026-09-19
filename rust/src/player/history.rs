@@ -1,8 +1,6 @@
 use super::*;
-use gst_video::VideoFrameExt as _;
-use gstreamer as gst;
-use gstreamer_app as gst_app;
-use gstreamer_video as gst_video;
+use anyhow::{Context as _, Result as AnyResult, bail};
+use ffmpeg_next as ffmpeg;
 use serde::{Deserialize, Serialize};
 use std::{
     collections::hash_map::DefaultHasher,
@@ -41,7 +39,7 @@ impl HistoryData {
             Ok(contents) => contents,
             Err(error) if error.kind() == ErrorKind::NotFound => return Self::default(),
             Err(error) => {
-                eprintln!("Could not read {}: {error}", path.display());
+                eprintln!("Could not read {}: {error:?}", path.display());
                 return Self::default();
             }
         };
@@ -59,12 +57,12 @@ impl HistoryData {
                     }
                 }
                 if changed && let Err(error) = history.save() {
-                    eprintln!("Could not update playback history: {error}");
+                    eprintln!("Could not update playback history: {error:?}");
                 }
                 history
             }
             Err(error) => {
-                eprintln!("Could not parse {}: {error}", path.display());
+                eprintln!("Could not parse {}: {error:?}", path.display());
                 Self::default()
             }
         }
@@ -101,7 +99,7 @@ impl HistoryData {
         }
 
         if let Err(error) = self.save() {
-            eprintln!("Could not save playback history: {error}");
+            eprintln!("Could not save playback history: {error:?}");
         }
         schedule_thumbnail(path, thumbnail);
     }
@@ -111,7 +109,7 @@ impl HistoryData {
             let entry = self.items.remove(index);
             remove_thumbnail(&entry);
             if let Err(error) = self.save() {
-                eprintln!("Could not save playback history: {error}");
+                eprintln!("Could not save playback history: {error:?}");
             }
         }
     }
@@ -120,12 +118,12 @@ impl HistoryData {
         let path = history_path();
         if let Some(directory) = path.parent() {
             fs::create_dir_all(directory)
-                .map_err(|error| format!("could not create {}: {error}", directory.display()))?;
+                .map_err(|error| format!("could not create {}: {error:?}", directory.display()))?;
         }
         let json = serde_json::to_string_pretty(self)
-            .map_err(|error| format!("could not serialize history: {error}"))?;
+            .map_err(|error| format!("could not serialize history: {error:?}"))?;
         fs::write(&path, format!("{json}\n"))
-            .map_err(|error| format!("could not write {}: {error}", path.display()))
+            .map_err(|error| format!("could not write {}: {error:?}", path.display()))
     }
 }
 
@@ -156,16 +154,16 @@ pub(super) fn save_history_width(width: f32) {
     let result = (|| -> Result<(), String> {
         if let Some(directory) = path.parent() {
             fs::create_dir_all(directory)
-                .map_err(|error| format!("could not create {}: {error}", directory.display()))?;
+                .map_err(|error| format!("could not create {}: {error:?}", directory.display()))?;
         }
         let json = serde_json::to_string_pretty(&settings)
-            .map_err(|error| format!("could not serialize settings: {error}"))?;
+            .map_err(|error| format!("could not serialize settings: {error:?}"))?;
         fs::write(&path, format!("{json}\n"))
-            .map_err(|error| format!("could not write {}: {error}", path.display()))
+            .map_err(|error| format!("could not write {}: {error:?}", path.display()))
     })();
 
     if let Err(error) = result {
-        eprintln!("Could not save sidebar settings: {error}");
+        eprintln!("Could not save sidebar settings: {error:?}");
     }
 }
 
@@ -177,86 +175,11 @@ fn schedule_thumbnail(video_path: PathBuf, thumbnail_path: PathBuf) {
     std::thread::spawn(move || {
         if let Err(error) = generate_thumbnail(&video_path, &thumbnail_path) {
             eprintln!(
-                "Could not create thumbnail for {}: {error}",
+                "Could not create thumbnail for {}: {error:?}",
                 video_path.display()
             );
         }
     });
-}
-
-fn generate_thumbnail(video_path: &Path, output_path: &Path) -> Result<(), String> {
-    gst::init().map_err(|error| format!("could not initialize GStreamer: {error}"))?;
-    if let Some(directory) = output_path.parent() {
-        fs::create_dir_all(directory)
-            .map_err(|error| format!("could not create {}: {error}", directory.display()))?;
-    }
-    if output_path.is_file() {
-        return Ok(());
-    }
-    let uri = Url::from_file_path(video_path)
-        .map_err(|_| format!("could not convert {} to a file URL", video_path.display()))?;
-    let pipeline = gst::parse::launch(&format!(
-        "uridecodebin uri=\"{}\" name=decoder decoder. ! queue ! videoconvert ! videoscale ! video/x-raw,format=RGBA,width=320,height=180,pixel-aspect-ratio=1/1 ! appsink name=history_thumbnail sync=false max-buffers=1 drop=true",
-        uri.as_str()
-    ))
-    .map_err(|error| format!("could not create thumbnail pipeline: {error}"))?
-    .downcast::<gst::Pipeline>()
-    .map_err(|_| "thumbnail pipeline had an unexpected type".to_string())?;
-    let sink = pipeline
-        .by_name("history_thumbnail")
-        .ok_or_else(|| "thumbnail sink was not created".to_string())?
-        .downcast::<gst_app::AppSink>()
-        .map_err(|_| "thumbnail sink had an unexpected type".to_string())?;
-    pipeline
-        .set_state(gst::State::Paused)
-        .map_err(|error| format!("could not start thumbnail pipeline: {error}"))?;
-    let result = (|| -> Result<(), String> {
-        let sample = sink
-            .try_pull_preroll(gst::ClockTime::from_seconds(10))
-            .ok_or_else(|| "timed out waiting for the first frame".to_string())?;
-        let info = gst_video::VideoInfo::from_caps(
-            sample
-                .caps()
-                .ok_or_else(|| "first frame had no video format".to_string())?,
-        )
-        .map_err(|error| format!("could not read first-frame format: {error}"))?;
-        let buffer = sample
-            .buffer()
-            .ok_or_else(|| "first frame had no pixel buffer".to_string())?;
-        let frame = gst_video::VideoFrameRef::from_buffer_ref_readable(buffer, &info)
-            .map_err(|error| format!("could not map first-frame pixels: {error}"))?;
-        let row_bytes = frame.width() as usize * 4;
-        let stride = usize::try_from(frame.info().stride()[0])
-            .map_err(|_| "first frame had a negative row stride".to_string())?;
-        let source = frame
-            .plane_data(0)
-            .map_err(|error| format!("could not read first-frame pixels: {error}"))?;
-        let mut pixels = Vec::with_capacity(row_bytes * frame.height() as usize);
-        for row in 0..frame.height() as usize {
-            let start = row * stride;
-            pixels.extend_from_slice(
-                source
-                    .get(start..start + row_bytes)
-                    .ok_or_else(|| "first-frame row was truncated".to_string())?,
-            );
-        }
-        let temporary = output_path.with_extension("png.part");
-        image::save_buffer_with_format(
-            &temporary,
-            &pixels,
-            frame.width(),
-            frame.height(),
-            image::ColorType::Rgba8,
-            image::ImageFormat::Png,
-        )
-        .map_err(|error| format!("could not encode thumbnail: {error}"))?;
-        fs::rename(&temporary, output_path)
-            .map_err(|error| format!("could not finish thumbnail: {error}"))
-    })();
-    if let Err(error) = pipeline.set_state(gst::State::Null) {
-        log::error!("could not stop thumbnail pipeline: {error}");
-    }
-    result
 }
 
 fn thumbnail_path(video_path: &Path) -> PathBuf {
@@ -272,7 +195,7 @@ fn remove_thumbnail(entry: &HistoryEntry) {
         && let Err(error) = fs::remove_file(thumbnail)
         && error.kind() != ErrorKind::NotFound
     {
-        eprintln!("Could not remove {}: {error}", thumbnail.display());
+        eprintln!("Could not remove {}: {error:?}", thumbnail.display());
     }
 }
 
@@ -392,7 +315,7 @@ impl Player {
                             })),
                     )
                     .on_click(cx.listener(move |this, _, _, cx| {
-                        this.open_path(path.clone());
+                        this.open_path(path.clone(), cx);
                         cx.notify();
                     }))
             })
@@ -486,4 +409,77 @@ fn history_path() -> PathBuf {
 
 fn settings_path() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("data/settings.json")
+}
+
+fn generate_thumbnail(video_path: &Path, output_path: &Path) -> AnyResult<()> {
+    if output_path.is_file() {
+        return Ok(());
+    }
+    ffmpeg::init().context("could not initialize FFmpeg")?;
+    let mut input = ffmpeg::format::input(video_path).context("could not open thumbnail source")?;
+    let Some(stream) = input.streams().best(ffmpeg::media::Type::Video) else {
+        bail!("thumbnail source has no video stream");
+    };
+    let index = stream.index();
+    let mut decoder = ffmpeg::codec::context::Context::from_parameters(stream.parameters())?
+        .decoder()
+        .video()
+        .context("could not open thumbnail decoder")?;
+    let mut frame = ffmpeg::frame::Video::empty();
+    for (stream, packet) in input.packets() {
+        if stream.index() != index {
+            continue;
+        }
+        decoder
+            .send_packet(&packet)
+            .context("could not submit thumbnail packet")?;
+        match decoder.receive_frame(&mut frame) {
+            Ok(()) => return save_thumbnail_frame(&frame, output_path),
+            Err(ffmpeg::Error::Other { errno }) if errno == ffmpeg::error::EAGAIN => {}
+            Err(error) => return Err(error).context("could not decode thumbnail"),
+        }
+    }
+    decoder
+        .send_eof()
+        .context("could not flush thumbnail decoder")?;
+    decoder
+        .receive_frame(&mut frame)
+        .context("thumbnail source has no decodable frame")?;
+    save_thumbnail_frame(&frame, output_path)
+}
+
+fn save_thumbnail_frame(frame: &ffmpeg::frame::Video, output_path: &Path) -> AnyResult<()> {
+    let mut scaler = ffmpeg::software::scaling::Context::get(
+        frame.format(),
+        frame.width(),
+        frame.height(),
+        ffmpeg::format::Pixel::RGBA,
+        320,
+        180,
+        ffmpeg::software::scaling::Flags::BILINEAR,
+    )
+    .context("could not create thumbnail scaler")?;
+    let mut rgba = ffmpeg::frame::Video::empty();
+    scaler
+        .run(frame, &mut rgba)
+        .context("could not scale thumbnail")?;
+    let mut pixels = Vec::with_capacity(320 * 180 * 4);
+    for row in 0..180 {
+        let start = row * rgba.stride(0);
+        pixels.extend_from_slice(&rgba.data(0)[start..start + 320 * 4]);
+    }
+    if let Some(directory) = output_path.parent() {
+        fs::create_dir_all(directory).context("could not create thumbnail directory")?;
+    }
+    let temporary = output_path.with_extension("png.part");
+    image::save_buffer_with_format(
+        &temporary,
+        &pixels,
+        320,
+        180,
+        image::ColorType::Rgba8,
+        image::ImageFormat::Png,
+    )
+    .context("could not encode thumbnail")?;
+    fs::rename(&temporary, output_path).context("could not finish thumbnail")
 }
