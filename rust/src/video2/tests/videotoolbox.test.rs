@@ -17,8 +17,6 @@ fn hevc_nal_parser_distinguishes_leading_pictures_and_rejects_truncation() -> Re
 
 #[test]
 fn unsupported_codec_stays_on_the_software_path() -> Result<()> {
-    assert!(
-        Decoder::open(&ffmpeg::codec::Parameters::new(), ffmpeg::Rational(1, 1000))?.is_none()
-    );
+    assert!(Decoder::open(&ffmpeg::codec::Parameters::new(), ffmpeg::Rational(1, 1000))?.is_none());
     Ok(())
 }
