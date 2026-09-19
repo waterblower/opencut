@@ -1,105 +1,9 @@
 use super::*;
-use anyhow::{Result, anyhow};
-use gst::prelude::*;
-use gstreamer as gst;
-use std::{path::Path, time::Duration};
-use url::Url;
+use std::path::Path;
 
 const AUDIO_CONTROL_HEIGHT: f32 = 96.0;
 const AUDIO_HORIZONTAL_PADDING: f32 = 22.0;
 const AUDIO_VOLUME_WIDTH: f32 = 96.0;
-
-pub(super) struct AudioBackend {
-    pipeline: gst::Element,
-}
-
-impl AudioBackend {
-    pub(super) fn new(url: &Url) -> Result<Self> {
-        gst::init().map_err(|error| anyhow!("could not initialize GStreamer: {error}"))?;
-        let video_sink = gst::ElementFactory::make("fakesink")
-            .build()
-            .map_err(|error| anyhow!("could not create audio preview sink: {error}"))?;
-        let pipeline = gst::ElementFactory::make("playbin")
-            .property("uri", url.as_str())
-            .property("video-sink", &video_sink)
-            .build()
-            .map_err(|error| anyhow!("could not create audio preview: {error}"))?;
-        pipeline
-            .set_state(gst::State::Paused)
-            .map_err(|error| anyhow!("could not prepare audio preview: {error}"))?;
-        let _ = pipeline.state(gst::ClockTime::from_seconds(2));
-        Ok(Self { pipeline })
-    }
-
-    pub(super) fn seek_with_accuracy(&self, position: Duration, accurate: bool) {
-        let nanos = position.as_nanos().min(u64::MAX as u128) as u64;
-        let flags = if accurate {
-            gst::SeekFlags::FLUSH | gst::SeekFlags::ACCURATE
-        } else {
-            gst::SeekFlags::FLUSH
-        };
-        let _ = self
-            .pipeline
-            .seek_simple(flags, gst::ClockTime::from_nseconds(nanos));
-    }
-
-    pub(super) fn position(&self) -> Duration {
-        Duration::from_nanos(
-            self.pipeline
-                .query_position::<gst::ClockTime>()
-                .map(|position| position.nseconds())
-                .unwrap_or(0),
-        )
-    }
-
-    pub(super) fn set_playing(&self, playing: bool) {
-        let state = if playing {
-            gst::State::Playing
-        } else {
-            gst::State::Paused
-        };
-        if self.pipeline.current_state() != state {
-            let _ = self.pipeline.set_state(state);
-        }
-    }
-
-    pub(super) fn duration(&self) -> Duration {
-        Duration::from_nanos(
-            self.pipeline
-                .query_duration::<gst::ClockTime>()
-                .map(|duration| duration.nseconds())
-                .unwrap_or(0),
-        )
-    }
-
-    pub(super) fn playing(&self) -> bool {
-        self.pipeline.current_state() == gst::State::Playing
-    }
-
-    pub(super) fn finished(&self) -> bool {
-        let duration = self.duration();
-        !duration.is_zero() && self.position().saturating_add(Duration::from_millis(20)) >= duration
-    }
-
-    pub(super) fn set_volume(&self, volume: f64) {
-        self.pipeline.set_property("volume", volume.clamp(0.0, 1.0));
-    }
-
-    pub fn volume(&self) -> f64 {
-        self.pipeline.property::<f64>("volume")
-    }
-}
-
-fn seek_audio_to_fraction(audio: &AudioBackend, fraction: f32, accurate: bool) {
-    let target = audio.duration().mul_f64(fraction.clamp(0.0, 1.0) as f64);
-    audio.seek_with_accuracy(target, accurate);
-}
-
-impl Drop for AudioBackend {
-    fn drop(&mut self) {
-        let _ = self.pipeline.set_state(gst::State::Null);
-    }
-}
 
 impl Editor {
     pub(super) fn preview_audio_file(
@@ -123,7 +27,7 @@ impl Editor {
                     (
                         audio.position(),
                         audio.duration(),
-                        !audio.playing() || audio.finished(),
+                        audio.paused() || audio.ended(),
                     )
                 });
 
@@ -171,12 +75,12 @@ impl Editor {
                 if editor.preview.is_scrubbing {
                     let fraction = ((f32::from(event.position.x) - timeline_left) / usable_width)
                         .clamp(0.0, 1.0);
-                    editor.update_audio_scrub(fraction, cx);
+                    editor.emit_event(cx, AppEvent::Preview(PreviewEvent::Scrub { fraction, phase: DragPhase::Update }));
                 }
                 if editor.preview.is_adjusting_volume {
                     let volume = ((f32::from(event.position.x) - volume_left) / AUDIO_VOLUME_WIDTH)
                         .clamp(0.0, 1.0) as f64;
-                    editor.set_audio_preview_volume(volume, cx);
+                    editor.emit_event(cx, AppEvent::Preview(PreviewEvent::SetVolume { volume, phase: DragPhase::Update }));
                 }
             }))
             .on_mouse_up(
@@ -186,14 +90,13 @@ impl Editor {
                         let fraction = ((f32::from(event.position.x) - timeline_left)
                             / usable_width)
                             .clamp(0.0, 1.0);
-                        editor.finish_audio_scrub(fraction, cx);
+                        editor.emit_event(cx, AppEvent::Preview(PreviewEvent::Scrub { fraction, phase: DragPhase::End }));
                     }
                     if editor.preview.is_adjusting_volume {
                         let volume = ((f32::from(event.position.x) - volume_left)
                             / AUDIO_VOLUME_WIDTH)
                             .clamp(0.0, 1.0) as f64;
-                        editor.preview.is_adjusting_volume = false;
-                        editor.set_audio_preview_volume(volume, cx);
+                        editor.emit_event(cx, AppEvent::Preview(PreviewEvent::SetVolume { volume, phase: DragPhase::End }));
                     }
                 }),
             )
@@ -204,14 +107,13 @@ impl Editor {
                         let fraction = ((f32::from(event.position.x) - timeline_left)
                             / usable_width)
                             .clamp(0.0, 1.0);
-                        editor.finish_audio_scrub(fraction, cx);
+                        editor.emit_event(cx, AppEvent::Preview(PreviewEvent::Scrub { fraction, phase: DragPhase::End }));
                     }
                     if editor.preview.is_adjusting_volume {
                         let volume = ((f32::from(event.position.x) - volume_left)
                             / AUDIO_VOLUME_WIDTH)
                             .clamp(0.0, 1.0) as f64;
-                        editor.preview.is_adjusting_volume = false;
-                        editor.set_audio_preview_volume(volume, cx);
+                        editor.emit_event(cx, AppEvent::Preview(PreviewEvent::SetVolume { volume, phase: DragPhase::End }));
                     }
                 }),
             )
@@ -231,7 +133,7 @@ impl Editor {
                     .when(has_media, |this| {
                         this.cursor(CursorStyle::PointingHand).on_click(cx.listener(
                             |editor, _, _, cx| {
-                                editor.toggle_playback();
+                                editor.emit_event(cx, AppEvent::Preview(PreviewEvent::TogglePlayback));
                                 cx.notify();
                             },
                         ))
@@ -258,10 +160,10 @@ impl Editor {
                             .text_ellipsis()
                             .child(file_name),
                     )
-                    .child(div().text_xs().text_color(rgb(MUTED)).child(if has_media {
-                        "Audio preview"
+                    .child(div().text_xs().text_color(rgb(MUTED)).child(if let Some(error) = self.preview.target.audio().and_then(|audio| audio.check().err()) { format!("Audio preview failed: {error:#}") } else if has_media {
+                        "Audio preview".to_string()
                     } else {
-                        "Loading audio preview…"
+                        "Loading audio preview…".to_string()
                     })),
             )
             .child(
@@ -292,7 +194,7 @@ impl Editor {
                                             - timeline_left)
                                             / usable_width)
                                             .clamp(0.0, 1.0);
-                                        editor.begin_audio_scrub(fraction, cx);
+                                        editor.emit_event(cx, AppEvent::Preview(PreviewEvent::Scrub { fraction, phase: DragPhase::Start }));
                                     }),
                                 )
                             })
@@ -355,7 +257,7 @@ impl Editor {
                                                 this.cursor(CursorStyle::PointingHand)
                                                     .hover(|style| style.bg(rgb(SURFACE_HOVER)))
                                                     .on_click(cx.listener(|editor, _, _, cx| {
-                                                        editor.toggle_playback();
+                                                        editor.emit_event(cx, AppEvent::Preview(PreviewEvent::TogglePlayback));
                                                         cx.notify();
                                                     }))
                                             }),
@@ -387,17 +289,13 @@ impl Editor {
                                                                   event: &MouseDownEvent,
                                                                   _,
                                                                   cx| {
-                                                                editor.preview.is_adjusting_volume =
-                                                                    true;
                                                                 let volume = ((f32::from(
                                                                     event.position.x,
                                                                 ) - volume_left)
                                                                     / AUDIO_VOLUME_WIDTH)
                                                                     .clamp(0.0, 1.0)
                                                                     as f64;
-                                                                editor.set_audio_preview_volume(
-                                                                    volume, cx,
-                                                                );
+                                                                editor.emit_event(cx, AppEvent::Preview(PreviewEvent::SetVolume { volume, phase: DragPhase::Start }));
                                                             },
                                                         ),
                                                     )
@@ -421,54 +319,5 @@ impl Editor {
                     ),
             )
             .into_any_element()
-    }
-
-    fn begin_audio_scrub(&mut self, fraction: f32, cx: &mut Context<Self>) {
-        let Some(audio) = self.preview.target.audio() else {
-            return;
-        };
-        audio.set_playing(false);
-        self.preview.is_scrubbing = true;
-        self.preview.last_scrub_seek = Some(Instant::now());
-        seek_audio_to_fraction(audio, fraction, false);
-
-        cx.notify();
-    }
-
-    fn update_audio_scrub(&mut self, fraction: f32, cx: &mut Context<Self>) {
-        if !self.preview.is_scrubbing {
-            return;
-        }
-        let now = Instant::now();
-        if self
-            .preview
-            .last_scrub_seek
-            .is_none_or(|last_seek| now.duration_since(last_seek) >= SCRUB_SEEK_INTERVAL)
-        {
-            self.preview.last_scrub_seek = Some(now);
-            if let Some(audio) = self.preview.target.audio() {
-                seek_audio_to_fraction(audio, fraction, false);
-            }
-        }
-
-        cx.notify();
-    }
-
-    fn finish_audio_scrub(&mut self, fraction: f32, cx: &mut Context<Self>) {
-        self.preview.last_scrub_seek = None;
-        self.preview.is_scrubbing = false;
-        if let Some(audio) = self.preview.target.audio() {
-            seek_audio_to_fraction(audio, fraction, true);
-        }
-
-        cx.notify();
-    }
-
-    fn set_audio_preview_volume(&self, volume: f64, cx: &mut Context<Self>) {
-        let Some(audio) = self.preview.target.audio() else {
-            return;
-        };
-        audio.set_volume(volume.clamp(0.0, 1.0));
-        cx.notify();
     }
 }
