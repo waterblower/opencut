@@ -1,5 +1,10 @@
-use crate::editor::{explorer::ExplorerState, project_settings::ProjectLocalSettings};
+use crate::editor::{
+    explorer::ExplorerState, preview_events::file_preview_requested,
+    project_settings::ProjectLocalSettings,
+};
 use anyhow::Error;
+use gpui::{AsyncApp, WeakEntity};
+use std::io::{Error as IoError, ErrorKind};
 
 use super::srt::srt_text_clips;
 use super::*;
@@ -47,7 +52,21 @@ impl Editor {
                     return Ok(None);
                 };
                 let timeline_data =
-                    TimelineSerialization::load(&project_root.join(&timeline_path))?;
+                    match TimelineSerialization::load(&project_root.join(&timeline_path)) {
+                        Ok(timeline) => timeline,
+                        Err(error) => {
+                            // The saved timeline may have been moved or deleted; open
+                            // the editor without an active timeline in that case.
+                            if error
+                                .downcast_ref::<IoError>()
+                                .is_some_and(|error| error.kind() == ErrorKind::NotFound)
+                            {
+                                return Ok(None);
+                            }
+                            // We still error out for other kinds of errors.
+                            return Err(error);
+                        }
+                    };
                 let ges_timeline = build_ges_timeline(
                     &timeline_data,
                     &project_root,
@@ -125,7 +144,14 @@ impl Editor {
         };
 
         start_updates(cx);
-        cx.subscribe(&event_bus, handle_app_event).detach();
+        cx.subscribe(&event_bus, |_, _, event: &AppEvent, cx| {
+            let event = event.clone();
+            cx.spawn(async move |editor, cx| {
+                handle_app_event(editor, event, cx).await;
+            })
+            .detach();
+        })
+        .detach();
 
         let project_local_settings = load_project_local_settings(&project_root);
         let mut editor = Self {
@@ -165,157 +191,191 @@ impl Editor {
     }
 }
 
-fn handle_app_event(
-    editor: &mut Editor,
-    _: Entity<EventBus>,
-    event: &AppEvent,
-    cx: &mut Context<Editor>,
-) {
-    match event {
+async fn handle_app_event(editor: WeakEntity<Editor>, event: AppEvent, cx: &mut AsyncApp) {
+    match &event {
         AppEvent::Preview(event) => {
-            if let Err(error) = editor.handle_preview_event(event, cx) {
+            let Ok(project_root) = editor.update(cx, |editor, _| editor.project_root.clone())
+            else {
+                return;
+            };
+            if let Err(error) = Editor::handle_preview_event(editor.clone(), event, cx).await {
                 log::error!("Preview action failed: {error:?}");
-                editor.status = Some(format!("Preview failed: {error:#}"));
+                let _ = editor.update(cx, |editor, cx| {
+                    editor.status = Some(match event {
+                        PreviewEvent::SelectFile(path) => {
+                            if !file_preview_requested(
+                                &editor.project_root,
+                                editor.explorer.selected_file.as_deref(),
+                                &editor.preview.target,
+                                &project_root,
+                                path,
+                            ) {
+                                return;
+                            }
+                            format!("Could not open {}: {error:#}", path.display())
+                        }
+                        _ => format!("Preview failed: {error:#}"),
+                    });
+                    cx.notify();
+                });
+                return;
             }
         }
-        AppEvent::SwitchProject { .. } | AppEvent::Transcribe { .. } => {}
+        AppEvent::SwitchProject { .. } | AppEvent::Transcribe { .. } => {
+            let _ = editor.update(cx, |_, cx| cx.notify());
+        }
         AppEvent::HorizontalSplitResized(state) => {
-            if let Err(error) = save_project_local_settings(
-                &editor.project_root,
-                &ProjectLocalSettings {
-                    active_timeline: editor.timeline.as_ref().map(|t| t.path.clone()),
-                    upper_space_split_state: state.clone(),
-                },
-            ) {
-                log::error!("Could not save project layout: {error:?}");
-            }
+            let _ = editor.update(cx, |editor, cx| {
+                if let Err(error) = save_project_local_settings(
+                    &editor.project_root,
+                    &ProjectLocalSettings {
+                        active_timeline: editor.timeline.as_ref().map(|t| t.path.clone()),
+                        upper_space_split_state: state.clone(),
+                    },
+                ) {
+                    log::error!("Could not save project layout: {error:?}");
+                }
+                cx.notify();
+            });
         }
         AppEvent::Edit(edit_action) => {
-            let project_root = editor.project_root.clone();
-            let Some(timeline) = editor.timeline.as_mut() else {
-                return;
-            };
-            timeline.record_editing_history();
-            edit_and_rebuild_timeline(
-                &mut editor.preview,
-                &project_root,
-                timeline,
-                edit_action.clone(),
-            )
-            .expect("event bus edit actions cannot be rejected");
-            if let Err(error) = timeline.data.save(&project_root.join(&timeline.path)) {
-                log::error!("{error:?}");
-            }
+            let _ = editor.update(cx, |editor, cx| {
+                let project_root = editor.project_root.clone();
+                let Some(timeline) = editor.timeline.as_mut() else {
+                    return;
+                };
+                timeline.record_editing_history();
+                edit_and_rebuild_timeline(
+                    &mut editor.preview,
+                    &project_root,
+                    timeline,
+                    edit_action.clone(),
+                )
+                .expect("event bus edit actions cannot be rejected");
+                if let Err(error) = timeline.data.save(&project_root.join(&timeline.path)) {
+                    log::error!("{error:?}");
+                }
+                cx.notify();
+            });
         }
         AppEvent::DragStarted(asset) => {
-            editor.active_asset_drag = asset.clone();
+            let _ = editor.update(cx, |editor, cx| {
+                editor.active_asset_drag = asset.clone();
+                cx.notify();
+            });
         }
         AppEvent::DragMove(event) => {
-            let timeline = editor.timeline.as_mut();
-            let on_track: Option<Ulid> = (|| {
-                let Some(timeline) = timeline.as_deref() else {
-                    return None;
-                };
-                let pointer = event.event.position;
-                if !event.bounds.contains(&pointer) {
-                    return None;
-                }
-                let local_y = f32::from(pointer.y) - f32::from(event.bounds.top());
-                if local_y < RULER_HEIGHT {
-                    return None;
-                }
-                let track_index = ((local_y - RULER_HEIGHT) / TRACK_HEIGHT).floor() as usize;
+            let _ = editor.update(cx, |editor, cx| {
+                let timeline = editor.timeline.as_mut();
+                let on_track: Option<Ulid> = (|| {
+                    let Some(timeline) = timeline.as_deref() else {
+                        return None;
+                    };
+                    let pointer = event.event.position;
+                    if !event.bounds.contains(&pointer) {
+                        return None;
+                    }
+                    let local_y = f32::from(pointer.y) - f32::from(event.bounds.top());
+                    if local_y < RULER_HEIGHT {
+                        return None;
+                    }
+                    let track_index = ((local_y - RULER_HEIGHT) / TRACK_HEIGHT).floor() as usize;
 
-                timeline.data.tracks.get(track_index).map(|track| track.id)
-            })();
+                    timeline.data.tracks.get(track_index).map(|track| track.id)
+                })();
 
-            if let (Some(timeline), Some(track_id)) = (timeline, on_track) {
-                let local_x = f32::from(event.event.position.x) - f32::from(event.bounds.left());
-                let start_time = timeline.data.nearest_time(
-                    ((local_x - TIMELINE_PADDING) / timeline.data.view.pixels_per_second).max(0.0)
-                        as f64,
-                );
-                timeline.preview_drop_asset = Some(PreviewDropAsset {
-                    track_id,
-                    start_time,
-                    asset: editor.active_asset_drag.clone(),
-                });
-            }
+                if let (Some(timeline), Some(track_id)) = (timeline, on_track) {
+                    let local_x =
+                        f32::from(event.event.position.x) - f32::from(event.bounds.left());
+                    let start_time = timeline.data.nearest_time(
+                        ((local_x - TIMELINE_PADDING) / timeline.data.view.pixels_per_second)
+                            .max(0.0) as f64,
+                    );
+                    timeline.preview_drop_asset = Some(PreviewDropAsset {
+                        track_id,
+                        start_time,
+                        asset: editor.active_asset_drag.clone(),
+                    });
+                }
+                cx.notify();
+            });
         }
         AppEvent::DragDrop => {
-            editor.active_asset_drag = AssetBeingDragged::None;
-            let Some(timeline) = editor.timeline.as_mut() else {
-                return;
-            };
-            let Some(preview) = timeline.preview_drop_asset.take() else {
-                return;
-            };
+            let _ = editor.update(cx, |editor, cx| {
+                editor.active_asset_drag = AssetBeingDragged::None;
+                let Some(timeline) = editor.timeline.as_mut() else {
+                    return;
+                };
+                let Some(preview) = timeline.preview_drop_asset.take() else {
+                    return;
+                };
 
-            match preview.asset {
-                AssetBeingDragged::Srt(srt) => {
-                    let result = (|| {
-                        let project_root = editor.project_root.clone();
-                        let Some(timeline) = editor.timeline.as_mut() else {
-                            return Ok(());
-                        };
-                        let mut text_clips =
-                            srt_text_clips(&srt.srt, timeline.data.settings.frame_rate);
-                        for clip in &mut text_clips {
-                            clip.track_id = preview.track_id;
-                            clip.timeline_start += preview.start_time;
+                match preview.asset {
+                    AssetBeingDragged::Srt(srt) => {
+                        let result = (|| {
+                            let project_root = editor.project_root.clone();
+                            let Some(timeline) = editor.timeline.as_mut() else {
+                                return Ok(());
+                            };
+                            let mut text_clips =
+                                srt_text_clips(&srt.srt, timeline.data.settings.frame_rate);
+                            for clip in &mut text_clips {
+                                clip.track_id = preview.track_id;
+                                clip.timeline_start += preview.start_time;
+                            }
+                            let clips = text_clips.into_iter().map(Clip::Text).collect::<Vec<_>>();
+                            editing::validate_clips_placements(&timeline.data, &clips)?;
+
+                            let selected_clip_ids =
+                                clips.iter().map(Clip::id).collect::<HashSet<_>>();
+                            let selected_clip_id = clips.first().map(Clip::id);
+                            timeline.record_editing_history();
+                            edit_and_rebuild_timeline(
+                                &mut editor.preview,
+                                &project_root,
+                                timeline,
+                                EditAction::AddClips {
+                                    clips,
+                                    assets: Vec::new(),
+                                },
+                            )?;
+                            timeline.interaction.selected_clip_ids = selected_clip_ids;
+                            timeline.interaction.selected_clip_id = selected_clip_id;
+                            timeline.data.save(&project_root.join(&timeline.path))?;
+                            editor.status = Some("Added subtitles to the timeline.".to_string());
+                            Ok::<(), Error>(())
+                        })();
+                        if let Err(error) = result {
+                            editor.status = Some(format!("Could not add subtitles: {error}"));
+                            eprintln!("Could not place dragged subtitles: {error:?}");
                         }
-                        let clips = text_clips.into_iter().map(Clip::Text).collect::<Vec<_>>();
-                        editing::validate_clips_placements(&timeline.data, &clips)?;
-
-                        let selected_clip_ids = clips.iter().map(Clip::id).collect::<HashSet<_>>();
-                        let selected_clip_id = clips.first().map(Clip::id);
-                        timeline.record_editing_history();
-                        edit_and_rebuild_timeline(
-                            &mut editor.preview,
-                            &project_root,
-                            timeline,
-                            EditAction::AddClips {
-                                clips,
-                                assets: Vec::new(),
-                            },
-                        )?;
-                        timeline.interaction.selected_clip_ids = selected_clip_ids;
-                        timeline.interaction.selected_clip_id = selected_clip_id;
-                        timeline.data.save(&project_root.join(&timeline.path))?;
-                        editor.status = Some("Added subtitles to the timeline.".to_string());
-                        Ok::<(), Error>(())
-                    })();
-                    if let Err(error) = result {
-                        editor.status = Some(format!("Could not add subtitles: {error}"));
-                        eprintln!("Could not place dragged subtitles: {error:?}");
                     }
+                    AssetBeingDragged::V1(asset) => {
+                        if !matches!(asset.metadata.kind, MediaKind::Video | MediaKind::Audio) {
+                            return;
+                        }
+                        let relative_path = asset
+                            .absolute_path
+                            .strip_prefix(&editor.project_root)
+                            .expect("dragged explorer assets are inside the project root")
+                            .to_path_buf();
+                        if let Err(error) = editor.place_explorer_asset(
+                            relative_path,
+                            preview.track_id,
+                            preview.start_time,
+                            asset.metadata,
+                            cx,
+                        ) {
+                            editor.status = Some(format!("Could not add media: {error}"));
+                            eprintln!("Could not place dragged explorer asset: {error:?}");
+                        }
+                    }
+                    AssetBeingDragged::None => return,
                 }
-                AssetBeingDragged::V1(asset) => {
-                    if !matches!(asset.metadata.kind, MediaKind::Video | MediaKind::Audio) {
-                        return;
-                    }
-                    let relative_path = asset
-                        .absolute_path
-                        .strip_prefix(&editor.project_root)
-                        .expect("dragged explorer assets are inside the project root")
-                        .to_path_buf();
-                    if let Err(error) = editor.place_explorer_asset(
-                        relative_path,
-                        preview.track_id,
-                        preview.start_time,
-                        asset.metadata,
-                        cx,
-                    ) {
-                        editor.status = Some(format!("Could not add media: {error}"));
-                        eprintln!("Could not place dragged explorer asset: {error:?}");
-                    }
-                }
-                AssetBeingDragged::None => return,
-            }
+                cx.notify();
+            });
         }
     }
-
-    cx.notify();
 }
 
 fn start_updates(cx: &mut Context<Editor>) {
