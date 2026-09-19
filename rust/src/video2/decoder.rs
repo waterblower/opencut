@@ -9,8 +9,10 @@ use std::{
 
 use ffmpeg_next as ffmpeg;
 
-use super::decompression::Decompression;
-use super::{Message, SeekRequest, State, Status, VideoFrame, audio::AudioWorker, lock, seconds};
+use crate::video2::decompression::Decompression;
+use crate::video2::{
+    Message, SeekRequest, State, Status, VideoFrame, audio::AudioWorker, lock, seconds,
+};
 
 /// Every potentially full media queue also services transport and shutdown.
 pub struct Control<'a, T = SeekRequest> {

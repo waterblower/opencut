@@ -9,7 +9,7 @@ use std::{
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use ffmpeg_next as ffmpeg;
 
-use super::{Clock, State, Status, decoder::Control, lock, seconds};
+use crate::video2::{Clock, State, Status, decoder::Control, lock, seconds};
 
 /// Audio has its own demuxer: device backpressure must never delay video frames.
 pub struct AudioWorker {

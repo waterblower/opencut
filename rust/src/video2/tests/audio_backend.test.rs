@@ -1,6 +1,13 @@
-use super::*;
-use crate::video2::tests::block_on;
-use std::{fs, io::Write, path::PathBuf};
+use crate::video2::{State, audio_backend::AudioBackend, lock, tests::block_on};
+use anyhow::{Result, anyhow};
+use std::{
+    fs,
+    io::Write,
+    path::{Path, PathBuf},
+    sync::{Arc, Mutex, mpsc},
+    thread,
+    time::{Duration, Instant},
+};
 
 #[test]
 fn seek_submits_immediately_clamps_and_preserves_pause_changes() -> Result<()> {
