@@ -1,8 +1,8 @@
 use anyhow::{Result, bail};
 use gpui::{
     App, AsyncApp, Context, CursorStyle, FocusHandle, KeyBinding, MouseButton, MouseDownEvent,
-    MouseMoveEvent, MouseUpEvent, ObjectFit, PathPromptOptions, Render, WeakEntity, Window, actions, div,
-    img, prelude::*, px, rgb,
+    MouseMoveEvent, MouseUpEvent, ObjectFit, PathPromptOptions, Render, WeakEntity, Window,
+    actions, div, img, prelude::*, px, rgb,
 };
 use std::{path::PathBuf, time::Duration, time::Instant};
 
@@ -130,20 +130,18 @@ impl Player {
             prompt: Some("Open Video".into()),
         });
 
-        cx.spawn(async move |player, cx| {
-            match selection.await {
-                Ok(Ok(Some(paths))) => {
-                    let Some(path) = paths.into_iter().next() else {
-                        return;
-                    };
-                    if let Err(error) = Self::open_path(player, path, cx).await {
-                        eprintln!("Could not open video: {error:?}");
-                    }
+        cx.spawn(async move |player, cx| match selection.await {
+            Ok(Ok(Some(paths))) => {
+                let Some(path) = paths.into_iter().next() else {
+                    return;
+                };
+                if let Err(error) = Self::open_path(player, path, cx).await {
+                    eprintln!("Could not open video: {error:?}");
                 }
-                Ok(Ok(None)) => {}
-                Ok(Err(error)) => eprintln!("Could not open file picker: {error:?}"),
-                Err(error) => eprintln!("File picker closed unexpectedly: {error:?}"),
             }
+            Ok(Ok(None)) => {}
+            Ok(Err(error)) => eprintln!("Could not open file picker: {error:?}"),
+            Err(error) => eprintln!("File picker closed unexpectedly: {error:?}"),
         })
         .detach();
     }
@@ -291,19 +289,11 @@ impl Player {
         }
     }
 
-    fn toggle_playback(&mut self, cx: &mut Context<Self>) {
+    fn toggle_playback(&mut self) -> Result<()> {
         let Some(video) = &mut self.video else {
-            return;
+            return Ok(());
         };
-        if video.ended() {
-            self.seek(Duration::ZERO, cx);
-        }
-        let Some(video) = &mut self.video else {
-            return;
-        };
-        if let Err(error) = video.set_paused(!video.paused()) {
-            eprintln!("Could not update playback: {error:?}");
-        }
+        video.set_paused(!video.paused())
     }
 
     fn toggle_mute(&mut self) {
@@ -328,7 +318,10 @@ impl Player {
         _: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        self.toggle_playback(cx);
+        if let Err(error) = self.toggle_playback() {
+            eprintln!("Could not toggle playback: {error:?}");
+            return;
+        }
         cx.notify();
     }
 
@@ -388,7 +381,10 @@ impl Player {
 
 impl PlaybackViewDelegate for Player {
     fn playback_toggle(&mut self, _: &mut Window, cx: &mut Context<Self>) {
-        self.toggle_playback(cx);
+        if let Err(error) = self.toggle_playback() {
+            eprintln!("Could not toggle playback: {error:?}");
+            return;
+        }
         cx.notify();
     }
 

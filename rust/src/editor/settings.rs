@@ -145,9 +145,7 @@ impl Editor {
             return Ok(());
         }
 
-        if let Some(video) = self.active_video() {
-            video.set_paused(true);
-        }
+        self.pause_preview()?;
         let Some(timeline) = self.timeline.as_mut() else {
             return Ok(());
         };

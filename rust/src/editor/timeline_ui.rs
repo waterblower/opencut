@@ -117,8 +117,6 @@ impl Editor {
             .enumerate()
             .map(|(index, track)| self.track_row(index, track, timeline_width, cx))
             .collect::<Vec<_>>();
-        let event_bus = self.event_bus.clone();
-        let drag_move_event_bus = event_bus.clone();
         let tracks = div()
             .id("timeline-tracks-vertical-scroll")
             .flex_1()
@@ -179,21 +177,22 @@ impl Editor {
                                     .w(px(timeline_width))
                                     .min_h_full()
                                     .on_drag_move::<FileTreeEntry>(cx.listener(
-                                        move |_, event: &DragMoveEvent<FileTreeEntry>, _, cx| {
+                                        move |editor,
+                                              event: &DragMoveEvent<FileTreeEntry>,
+                                              _,
+                                              cx| {
                                             let event = AssetDragMoveEvent {
                                                 event: event.event.clone(),
                                                 bounds: event.bounds,
                                             };
-                                            drag_move_event_bus.update(cx, |_, cx| {
-                                                cx.emit(AppEvent::DragMove(event));
-                                            });
+                                            editor.emit_event(cx, AppEvent::DragMove(event));
                                         },
                                     ))
-                                    .on_drop(cx.listener(move |_, _drag: &FileTreeEntry, _, cx| {
-                                        event_bus.update(cx, |_, cx| {
-                                            cx.emit(AppEvent::DragDrop);
-                                        });
-                                    }))
+                                    .on_drop(cx.listener(
+                                        move |editor, _drag: &FileTreeEntry, _, cx| {
+                                            editor.emit_event(cx, AppEvent::DragDrop);
+                                        },
+                                    ))
                                     .on_mouse_up_out(
                                         MouseButton::Left,
                                         cx.listener(|editor, _, _, cx| {
@@ -522,14 +521,14 @@ impl Editor {
                     .child(
                         timeline_icon_button(
                             "timeline-play",
-                            if self.active_video().is_some_and(|video| !video.paused()) {
+                            if self.preview_video_playing() {
                                 "Ⅱ"
                             } else {
                                 "▶"
                             },
                         )
                         .on_click(cx.listener(|editor, _, _, cx| {
-                            editor.toggle_playback();
+                            editor.emit_event(cx, AppEvent::Preview(PreviewEvent::TogglePlayback));
                             cx.notify();
                         })),
                     )

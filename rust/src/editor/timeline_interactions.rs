@@ -475,8 +475,8 @@ impl Editor {
         {
             return;
         }
-        if let Some(video) = self.active_video() {
-            video.set_paused(true);
+        if let Err(error) = self.pause_preview() {
+            log::error!("Could not pause preview: {error:?}");
         }
         let timeline = self.timeline.as_mut().expect("timeline was checked above");
         timeline.interaction.snap_guide = None;
@@ -737,8 +737,8 @@ impl Editor {
     }
 
     pub(super) fn begin_playhead_scrub(&mut self, event: &MouseDownEvent) {
-        if let Some(video) = self.active_video() {
-            video.set_paused(true);
+        if let Err(error) = self.pause_preview() {
+            log::error!("Could not pause preview: {error:?}");
         }
         let Some(timeline) = self.timeline.as_mut() else {
             return;

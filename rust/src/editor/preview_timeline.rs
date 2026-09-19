@@ -1240,7 +1240,7 @@ impl Editor {
         _: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        self.toggle_playback();
+        self.emit_event(cx, AppEvent::Preview(PreviewEvent::TogglePlayback));
         cx.notify();
     }
 
