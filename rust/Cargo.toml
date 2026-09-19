@@ -59,7 +59,8 @@ mp4 = ["mp3", "ui", "dep:image", "dep:smallvec", "dep:core-foundation", "dep:cor
 2windows = ["ui"]
 ui = ["dep:gpui", "dep:gpui_platform", "dep:env_logger"]
 player = [
-    "gstreamer-backend",
+    "ui",
+    "ffmpeg-video",
     "dep:serde",
     "dep:serde_json",
 ]

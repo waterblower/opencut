@@ -1,0 +1,5 @@
+[env]
+FFMPEG_DIR = { value = "vendor/ffmpeg-8.1.2", relative = true }
+
+[target.'cfg(target_os = "windows")']
+runner = ["powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "scripts/cargo-ffmpeg-windows.ps1", "--exec"]
