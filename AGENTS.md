@@ -12,6 +12,11 @@
 - Never pass functions or closures as arguments to simple functions. Pass the
   required values or references directly. If a callback is truly needed for a
   simple function, ask the user first.
+- Perform quick synchronous work, such as small UI state changes and cheap
+  backend commands, directly in UI callbacks without emitting events. Use event
+  handlers to coordinate asynchronous or CPU-heavy work. Run CPU-heavy work on
+  background workers; emitting an event alone does not move work off the UI
+  thread.
 - Do not introduce external state or extra stored state that increases the number
   of possible state combinations when a pure function or message passing can
   solve the problem. Prefer carrying the required data in messages over adding
