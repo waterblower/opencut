@@ -1,8 +1,8 @@
 use crate::editor::timeline_backend::{TimelineBackend, TimelineFrame, TimelineLayer};
 use anyhow::Result;
 use gpui::{
-    AnyElement, ElementId, IntoElement, Pixels, RenderImage, Size, TextAlign, div, img, prelude::*,
-    px, rgb, rgba, size,
+    AnyElement, App, ElementId, IntoElement, Pixels, RenderImage, RenderOnce, Size, TextAlign,
+    Window, div, img, prelude::*, px, rgb, rgba, size,
 };
 use image::Frame;
 use opencut_player::timeline::TimelineTime;
@@ -25,6 +25,7 @@ pub fn timeline_preview(
 
 /// A fitted timeline canvas, including its loading and error presentation.
 /// The backend owns decoding, scheduling, and prepared image caching.
+#[derive(IntoElement)]
 pub struct TimelinePreviewCanvasElement {
     frame: Result<Option<Arc<TimelinePreviewFrame>>>,
     id: ElementId,
@@ -43,10 +44,8 @@ impl TimelinePreviewCanvasElement {
     }
 }
 
-impl IntoElement for TimelinePreviewCanvasElement {
-    type Element = AnyElement;
-
-    fn into_element(self) -> Self::Element {
+impl RenderOnce for TimelinePreviewCanvasElement {
+    fn render(self, window: &mut Window, _: &mut App) -> impl IntoElement {
         let canvas = div()
             .id(self.id)
             .w(self.size.width)
@@ -60,7 +59,10 @@ impl IntoElement for TimelinePreviewCanvasElement {
             Ok(Some(frame)) => canvas
                 .child(frame.render(self.size.width.into(), self.size.height.into()))
                 .into_any_element(),
-            Ok(None) => canvas.into_any_element(),
+            Ok(None) => {
+                window.request_animation_frame();
+                canvas.into_any_element()
+            }
             Err(_) => canvas
                 .text_color(rgb(0xcccccc))
                 .child("Unable to render timeline preview")

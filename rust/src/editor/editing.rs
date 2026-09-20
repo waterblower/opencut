@@ -916,10 +916,6 @@ pub enum EditAction {
     SetSavedPlayhead {
         playhead: TimelineTime,
     },
-    SetScroll {
-        horizontal: f32,
-        vertical: f32,
-    },
     SetTimelineZoom {
         pixels_per_second: f32,
     },
@@ -1051,21 +1047,6 @@ pub fn edit_timeline(timeline: &mut TimelineRuntimeState, action: EditAction) ->
         EditAction::SetFrameRate { frame_rate } => data.set_frame_rate(frame_rate),
         EditAction::SetSavedPlayhead { playhead } => {
             data.view.saved_playhead_frame = playhead.max(TimelineTime::ZERO);
-        }
-        EditAction::SetScroll {
-            horizontal,
-            vertical,
-        } => {
-            data.view.horizontal_scroll = if horizontal.is_finite() {
-                horizontal.max(0.0)
-            } else {
-                0.0
-            };
-            data.view.vertical_scroll = if vertical.is_finite() {
-                vertical.max(0.0)
-            } else {
-                0.0
-            };
         }
         EditAction::SetTimelineZoom { pixels_per_second } => {
             data.view.pixels_per_second = pixels_per_second;

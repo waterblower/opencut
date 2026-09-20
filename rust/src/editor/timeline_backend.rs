@@ -10,8 +10,8 @@ use anyhow::{Context as _, Error, Result, anyhow, bail};
 use image::RgbaImage;
 use opencut_player::engine::{decode::VideoReader, raster::load_image};
 use opencut_player::timeline::{
-    Clip, MediaKind, TextClipProperties, TimelineSerialization, TimelineTime, TrackKind,
-    VideoClipProperties,
+    Clip, MediaKind, TextClipProperties, TimelineSerialization, TimelineTime, TimelineViewState,
+    TrackKind, VideoClipProperties,
 };
 use std::{
     collections::{HashMap, hash_map::Entry},
@@ -53,6 +53,7 @@ pub enum TimelineLayer {
 
 pub struct TimelineBackend {
     timeline: Arc<TimelineSerialization>,
+    revision: u64,
     commands: mpsc::Sender<SeekRequest>,
     frame: Arc<Mutex<Arc<TimelineFrame>>>,
     preview: Arc<Mutex<PreviewRequest>>,
@@ -82,13 +83,14 @@ impl TimelineBackend {
             layers: Vec::new(),
         })));
         let preview = Arc::new(Mutex::new(PreviewRequest {
-            timeline: Arc::clone(&timeline),
+            revision: 0,
             position: Duration::ZERO,
             result: None,
         }));
         let (commands, requests) = mpsc::channel::<SeekRequest>();
         let backend = Self {
             timeline,
+            revision: 0,
             commands,
             frame,
             preview,
@@ -99,28 +101,29 @@ impl TimelineBackend {
         thread::Builder::new()
             .name("timeline-preview".into())
             .spawn(move || {
-                let mut decoder: Option<FrameDecoder> = None;
+                let mut decoder: Option<(u64, FrameDecoder)> = None;
                 // Dropping the backend closes the channel; decoder cleanup stays here.
                 for request in requests {
                     if request.reply.is_none() {
                         let preview = preview.lock().unwrap();
-                        if !Arc::ptr_eq(&preview.timeline, &request.timeline)
+                        if preview.revision != request.revision
                             || preview.position != request.position
                         {
                             continue;
                         }
                     }
                     let result = (|| -> Result<Arc<TimelinePreviewFrame>> {
-                        if decoder.as_ref().is_none_or(|decoder| {
-                            !Arc::ptr_eq(&decoder.timeline, &request.timeline)
-                        }) {
+                        if decoder
+                            .as_ref()
+                            .is_none_or(|(revision, _)| *revision != request.revision)
+                        {
                             request.timeline.validate()?;
-                            decoder = Some(FrameDecoder::new(
-                                Arc::clone(&request.timeline),
-                                &media_root,
+                            decoder = Some((
+                                request.revision,
+                                FrameDecoder::new(Arc::clone(&request.timeline), &media_root),
                             ));
                         }
-                        let decoder = decoder.as_mut().unwrap();
+                        let (_, decoder) = decoder.as_mut().unwrap();
                         decoder.seek_sync(request.position)?;
                         let prepared =
                             Arc::new(TimelinePreviewFrame::new(Arc::clone(&decoder.frame)));
@@ -137,7 +140,7 @@ impl TimelineBackend {
                     };
                     {
                         let mut preview = preview.lock().unwrap();
-                        if Arc::ptr_eq(&preview.timeline, &request.timeline)
+                        if preview.revision == request.revision
                             && preview.position == request.position
                         {
                             preview.result = Some(result);
@@ -153,6 +156,7 @@ impl TimelineBackend {
             .commands
             .send(SeekRequest {
                 timeline: Arc::clone(&backend.timeline),
+                revision: backend.revision,
                 position: Duration::ZERO,
                 reply: None,
             })
@@ -164,10 +168,16 @@ impl TimelineBackend {
         &self.timeline
     }
 
-    /// Edits the authoritative document. Copy-on-write preserves worker snapshots;
-    /// requests identify cached frames by the snapshot they were prepared from.
+    /// Edits document content and invalidates prepared frames.
+    /// Copy-on-write preserves snapshots currently used by the worker.
     pub fn timeline_mut(&mut self) -> &mut TimelineSerialization {
+        self.revision = self.revision.wrapping_add(1);
         Arc::make_mut(&mut self.timeline)
+    }
+
+    /// Changes saved UI state without invalidating decoded content or frames.
+    pub fn view_mut(&mut self) -> &mut TimelineViewState {
+        &mut Arc::make_mut(&mut self.timeline).view
     }
 
     /// Requests the given timeline frame and immediately returns its cached
@@ -186,16 +196,17 @@ impl TimelineBackend {
             .timeline
             .duration(position.clamp(TimelineTime::ZERO, last));
         let mut preview = self.preview.lock().unwrap();
-        if !Arc::ptr_eq(&preview.timeline, &self.timeline) || preview.position != position {
+        if preview.revision != self.revision || preview.position != position {
             self.commands
                 .send(SeekRequest {
                     timeline: Arc::clone(&self.timeline),
+                    revision: self.revision,
                     position,
                     reply: None,
                 })
                 .context("Requesting timeline preview frame")?;
             *preview = PreviewRequest {
-                timeline: Arc::clone(&self.timeline),
+                revision: self.revision,
                 position,
                 result: None,
             };
@@ -239,6 +250,7 @@ impl TimelineBackend {
         self.commands
             .send(SeekRequest {
                 timeline: Arc::clone(&self.timeline),
+                revision: self.revision,
                 position,
                 reply: Some(reply),
             })
@@ -255,12 +267,13 @@ impl TimelineBackend {
 
 struct SeekRequest {
     timeline: Arc<TimelineSerialization>,
+    revision: u64,
     position: Duration,
     reply: Option<mpsc::Sender<Result<()>>>,
 }
 
 struct PreviewRequest {
-    timeline: Arc<TimelineSerialization>,
+    revision: u64,
     position: Duration,
     result: Option<Result<Arc<TimelinePreviewFrame>, Arc<Error>>>,
 }

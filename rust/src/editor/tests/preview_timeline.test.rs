@@ -6,6 +6,51 @@ use image::{Rgba, RgbaImage};
 use std::{sync::Arc, time::Duration};
 use ulid::Ulid;
 
+#[cfg(feature = "ffmpeg-video-tests")]
+#[gpui::test]
+fn canvas_requests_another_frame_only_while_loading(cx: &mut gpui::TestAppContext) {
+    use crate::editor::preview_timeline::TimelinePreviewCanvasElement;
+    use anyhow::anyhow;
+    use gpui::{AppContext, Context, IntoElement, Render, point, px, size};
+
+    struct PreviewProbe(u8);
+    impl Render for PreviewProbe {
+        fn render(&mut self, _: &mut gpui::Window, _: &mut Context<Self>) -> impl IntoElement {
+            let frame = match self.0 {
+                0 => Ok(None),
+                1 => Ok(Some(Arc::new(TimelinePreviewFrame::new(Arc::new(
+                    TimelineFrame {
+                        timestamp: Duration::ZERO,
+                        width: 160,
+                        height: 90,
+                        layers: Vec::new(),
+                    },
+                ))))),
+                _ => Err(anyhow!("decode failed")),
+            };
+            TimelinePreviewCanvasElement {
+                frame,
+                id: "preview-test".into(),
+                size: size(px(320.0), px(240.0)),
+            }
+        }
+    }
+
+    let window = cx.add_empty_window();
+    let view = window.new(|_| PreviewProbe(0));
+    for state in 0..3 {
+        view.update(window, |view, _| view.0 = state);
+        window.draw(
+            point(px(0.0), px(0.0)),
+            size(px(320.0), px(240.0)),
+            |_, _| view.clone().into_element(),
+        );
+        window.update(|window, cx| {
+            assert_eq!(window.simulate_next_frame(cx) > 0, state == 0);
+        });
+    }
+}
+
 #[test]
 fn prepares_bgra_without_changing_alpha_or_source_pixels() {
     let clip_id = Ulid::from(1_u128);

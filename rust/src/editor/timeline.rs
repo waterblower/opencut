@@ -358,13 +358,19 @@ impl TimelineRuntimeState {
     }
 
     pub fn save_timeline_scroll(&mut self, project_root: &Path) -> Result<()> {
-        edit_timeline(
-            self,
-            EditAction::SetScroll {
-                horizontal: -f32::from(self.h_scroll.offset().x),
-                vertical: -f32::from(self.v_scroll.offset().y),
-            },
-        )?;
+        let horizontal = -f32::from(self.h_scroll.offset().x);
+        let vertical = -f32::from(self.v_scroll.offset().y);
+        let view = self.backend.view_mut();
+        view.horizontal_scroll = if horizontal.is_finite() {
+            horizontal.max(0.0)
+        } else {
+            0.0
+        };
+        view.vertical_scroll = if vertical.is_finite() {
+            vertical.max(0.0)
+        } else {
+            0.0
+        };
         self.backend.timeline().save(&project_root.join(&self.path))
     }
 

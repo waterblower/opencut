@@ -16,6 +16,36 @@ use std::{
 use ulid::Ulid;
 
 #[test]
+fn saving_scroll_preserves_the_preview_and_editing_history() {
+    use crate::editor::timeline::TimelineRuntimeState;
+    use gpui::{point, px};
+
+    let dir = Temp::new();
+    let mut doc = document();
+    doc.tracks.push(track(1, TrackKind::Text));
+    doc.clips
+        .push(text_clip(10, 1, 0, 8, doc.settings.frame_rate));
+    let mut timeline =
+        TimelineRuntimeState::new("scroll.timeline.json".into(), doc, &dir.0).unwrap();
+    let original = wait_for_preview(&timeline.backend, time(0)).unwrap();
+    timeline.h_scroll.set_offset(point(px(-120.0), px(0.0)));
+    timeline.v_scroll.set_offset(point(px(0.0), px(-40.0)));
+    timeline.save_timeline_scroll(&dir.0).unwrap();
+
+    let cached = timeline.backend.preview_frame(time(0)).unwrap().unwrap();
+    assert!(Arc::ptr_eq(&original, &cached));
+    assert!(timeline.undo_stack.is_empty());
+    assert!(timeline.redo_stack.is_empty());
+    let saved: TimelineSerialization =
+        serde_json::from_slice(&fs::read(dir.0.join(&timeline.path)).unwrap()).unwrap();
+    assert_eq!(saved.view.horizontal_scroll, 120.0);
+    assert_eq!(saved.view.vertical_scroll, 40.0);
+    assert_eq!(saved.view.saved_playhead_frame, time(0));
+    timeline.backend.timeline_mut().clips.clear();
+    assert!(timeline.backend.preview_frame(time(0)).unwrap().is_none());
+}
+
+#[test]
 fn preview_reuses_frames_and_replaces_document_snapshots() {
     let dir = Temp::new();
     let mut doc = document();
