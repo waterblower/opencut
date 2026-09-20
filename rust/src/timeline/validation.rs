@@ -1,8 +1,8 @@
-use crate::timeline::{Clip, MediaKind, TimelineSerialization, TimelineTime, TrackKind};
+use crate::timeline::{Clip, MediaKind, TimelineEditingState, TimelineTime, TrackKind};
 use anyhow::{Result, bail};
 use std::collections::HashSet;
 
-impl TimelineSerialization {
+impl TimelineEditingState {
     /// Validates settings, unique track and asset IDs, and visual clip references,
     /// timing, and properties. Audio clips are not validated here.
     pub fn validate(&self) -> Result<()> {

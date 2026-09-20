@@ -1,4 +1,4 @@
-//! Shared timeline format and serialization rules; no file I/O or backend state.
+//! Shared editing data and persistence types; no file I/O or backend state.
 mod serialization;
 pub use serialization::{ParseError, parse};
 mod asset;
@@ -17,15 +17,25 @@ use ulid::Ulid;
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]
 #[cfg_attr(feature = "timeline-schema", derive(schemars::JsonSchema))]
 #[serde(default)]
+/// The persistence envelope, unpacked into editing and view state on load.
 pub struct TimelineSerialization {
+    pub editing_state: TimelineEditingState,
+    pub view_state: TimelineViewState,
+}
+
+/// Timeline content used by editing operations, rendering, and editing history.
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
+#[cfg_attr(feature = "timeline-schema", derive(schemars::JsonSchema))]
+#[serde(default)]
+pub struct TimelineEditingState {
     pub settings: TimelineSettings,
     pub assets: Vec<MediaAsset>,
     #[serde(alias = "layers")]
     pub tracks: Vec<Track>,
     pub clips: Vec<Clip>,
-    pub view: TimelineViewState,
 }
 
+/// Persisted UI preferences. Runtime scroll handles belong to the editor's view state.
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
 #[cfg_attr(feature = "timeline-schema", derive(schemars::JsonSchema))]
 #[serde(default)]
@@ -71,7 +81,7 @@ impl Default for TimelineViewState {
     }
 }
 
-impl TimelineSerialization {
+impl TimelineEditingState {
     pub fn asset(&self, id: Ulid) -> Option<&MediaAsset> {
         self.assets.iter().find(|asset| asset.id == id)
     }
