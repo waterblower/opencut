@@ -12,3 +12,6 @@ pub mod cli;
 
 #[cfg(feature = "transcribe")]
 pub mod transcribe;
+
+#[cfg(feature = "jev")]
+pub mod jev;
