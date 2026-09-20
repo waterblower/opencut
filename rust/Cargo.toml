@@ -50,6 +50,7 @@ timeline = ["dep:serde", "dep:serde_json", "dep:serde_path_to_error", "dep:ulid"
 timeline-schema = ["timeline", "dep:schemars"]
 cli = ["dep:gpui", "dep:gpui_platform", "gpui_platform/test-support", "timeline-schema", "dep:clap", "dep:ffmpeg-next", "dep:image", "dep:resvg", "dep:tokio", "transcribe"]
 transcribe = ["dep:anyhow", "dep:ffmpeg-next", "dep:reqwest", "dep:serde_json", "dep:unicode-script"]
+jev = ["dep:tokio", "dep:reqwest", "dep:serde", "dep:serde_json"]
 gpl = ["cli"]
 ffmpeg-backend = ["dep:anyhow", "dep:async-channel", "dep:ffmpeg-next", "dep:cpal", "dep:core-foundation", "dep:core-video"]
 ffmpeg-video = ["ffmpeg-backend", "dep:gpui", "dep:image", "dep:smallvec", "dep:log", "dep:core-foundation", "dep:core-video"]
