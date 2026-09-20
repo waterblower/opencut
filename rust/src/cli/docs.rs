@@ -16,13 +16,12 @@ Use OpenCut to inspect media, author timeline JSON, validate timelines, and tran
 ## Recommended workflow
 
 1. Use `probe <file>` for video, audio, images, or timeline JSON. Media paths must be absolute. Probe source media before choosing cuts.
-2. Create a timeline with `new`.
+2. Create a timeline in the editor or author JSON using the schema.
 3. Use `schema` when authoring JSON; do not guess document fields.
 4. Validate referenced media and probe the timeline.
 
 ```sh
 opencut probe /path/to/recording.mp4 --json
-opencut new episode.timeline.json --fps 30 --json
 opencut schema --json
 opencut validate /project/episode.timeline.json --json
 opencut probe /project/episode.timeline.json --json
@@ -37,7 +36,7 @@ opencut probe /project/episode.timeline.json --json
 - Every executed command reports `elapsed_seconds` on stderr, excluding Cargo
   build time. This also applies to failed commands.
 - Treat any nonzero exit code as failure. JSON errors contain `error.message`. Validation uses the shared timeline validator and stops at the first document or media probe error.
-- `new` refuses existing files. Use `--overwrite` explicitly when replacing supported outputs. Outputs cannot replace source media.
+- Use `--overwrite` explicitly when replacing supported outputs. Outputs cannot replace source media.
 
 ## GPUI rendering demo (macOS)
 

@@ -13,7 +13,6 @@ From the Rust directory, `cargo cli` runs with the vendored FFmpeg environment:
 ```sh
 cargo cli --help
 cargo cli probe /path/to/media.mp4 --json
-cargo cli new episode.timeline.json --fps 30000/1001 --json
 cargo cli schema --json
 cargo cli validate scenes/episode.timeline.json --json
 cargo cli probe scenes/episode.timeline.json --json
@@ -69,8 +68,7 @@ The authoritative schema is generated from the actual shared Rust types by
   Track and clip muting control audio. Locking affects editing, not export.
 - View state survives serialization and is preserved by CLI document operations.
 
-`new` creates a document with visible video and audio tracks. All input timelines
-are read without rewriting them. Subtitle import is not yet available in the CLI; existing GUI import/edit
+Create timelines in the editor or author JSON using the schema. Input timelines are read without rewriting them. Subtitle import is not yet available in the CLI; existing GUI import/edit
 operations remain available.
 
 **Legacy CLI timelines and the `edit` command have been removed.** Documents using

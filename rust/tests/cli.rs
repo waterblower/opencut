@@ -103,39 +103,18 @@ fn render_gpui_demo() {
 }
 
 #[test]
-fn schema_and_new_use_the_gui_document_contract() {
+fn schema_uses_the_gui_document_contract() {
     let dir = Temp::new();
-    let file = dir.0.join("new.timeline.json");
-    let output = cli(&[
-        "new",
-        file.to_str().unwrap(),
-        "--fps",
-        "30000/1001",
-        "--json",
-    ]);
-    assert!(
-        output.status.success(),
-        "{}",
-        String::from_utf8_lossy(&output.stdout)
-    );
-    let raw: Value = serde_json::from_slice(&fs::read(&file).unwrap()).unwrap();
-    assert!(raw.get("version").is_none());
-    assert_eq!(raw["editing_state"]["settings"]["audio_sample_rate"], 48000);
-    assert_eq!(raw["editing_state"]["tracks"][0]["kind"], "Video");
-    assert_eq!(raw["editing_state"]["tracks"][0]["visible"], true);
-    let doc = document::parse(&raw).unwrap();
-    assert_eq!(doc.settings.frame_rate, FrameRate::new(30000, 1001));
+    let file = dir.0.join("timeline.json");
     let schema = cli(&["schema", "--json"]);
     assert!(schema.status.success());
     assert_eq!(
         decode(&schema),
         serde_json::to_value(schemars::schema_for!(TimelineSerialization)).unwrap()
     );
-    assert!(!cli(&["new", file.to_str().unwrap()]).status.success());
-    assert_eq!(
-        fs::read(&file).unwrap(),
-        serde_json::to_vec_pretty(&raw).unwrap()
-    );
+    let removed = cli(&["new", file.to_str().unwrap(), "--json"]);
+    assert_eq!(removed.status.code(), Some(2));
+    assert!(!file.exists());
     let removed = cli(&["edit", file.to_str().unwrap(), "--json"]);
     assert_eq!(removed.status.code(), Some(2));
     fs::write(&file, r#"{"version":1,"clips":[]}"#).unwrap();

@@ -6,13 +6,8 @@ mod render;
 
 use args::{Args, Command};
 use clap::Parser;
-use opencut_player::timeline::{TimelineSettings as Settings, Track, TrackKind};
 use opencut_player::{
-    cli::{
-        document::{self, TimelineEditingState},
-        time::parse_rate,
-        transcribe,
-    },
+    cli::{document, transcribe},
     engine::probe,
 };
 use serde_json::{Value, json};
@@ -21,7 +16,6 @@ use std::{
     process::{ExitCode, Termination},
     time::Instant,
 };
-use ulid::Ulid;
 
 #[tokio::main]
 async fn main() -> CliExitCode {
@@ -168,50 +162,6 @@ async fn run(command: Command, json_mode: bool, api_key: Option<&str>) -> Result
                     file!(),
                     line!()
                 )),
-            }
-        }
-        Command::New {
-            timeline,
-            width,
-            height,
-            fps,
-        } => {
-            let doc = TimelineEditingState {
-                settings: Settings {
-                    width,
-                    height,
-                    frame_rate: parse_rate(&fps)?,
-                    ..Settings::default()
-                },
-                assets: vec![],
-                clips: vec![],
-                tracks: vec![
-                    Track {
-                        id: Ulid::generate(),
-                        kind: TrackKind::Video,
-                        name: "Video".into(),
-                        muted: false,
-                        visible: true,
-                        locked: false,
-                    },
-                    Track {
-                        id: Ulid::generate(),
-                        kind: TrackKind::Audio,
-                        name: "Audio".into(),
-                        muted: false,
-                        visible: true,
-                        locked: false,
-                    },
-                ],
-            };
-            doc.validate()?;
-            let raw = serde_json::to_value(TimelineSerialization::from_editing_state(&doc))
-                .context(format!("serialization_error at {}:{}", file!(), line!()))?;
-            document::write_atomic(&timeline, &raw, false)?;
-            if json_mode {
-                Ok(json!({"path": timeline, "document": raw}))
-            } else {
-                Ok(json!(timeline))
             }
         }
         Command::Schema { .. } => Ok(serde_json::to_value(schemars::schema_for!(

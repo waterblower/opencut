@@ -39,16 +39,6 @@ pub enum Command {
     },
     /// Summarize a video, audio, image, or timeline JSON file.
     Probe { file: PathBuf },
-    /// Create a shared editor timeline with video and audio tracks.
-    New {
-        timeline: PathBuf,
-        #[arg(long, default_value_t = 1920)]
-        width: u32,
-        #[arg(long, default_value_t = 1080)]
-        height: u32,
-        #[arg(long, default_value = "30")]
-        fps: String,
-    },
     /// Check document semantics and referenced media; stop if a media file cannot be probed.
     Validate { timeline: PathBuf },
     /// Print the authoritative timeline JSON Schema.
