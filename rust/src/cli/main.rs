@@ -11,7 +11,7 @@ use opencut_player::{
     cli::{
         document::{self, TimelineEditingState},
         time::parse_rate,
-        transcribe, validate,
+        transcribe,
     },
     engine::probe,
 };
@@ -158,7 +158,7 @@ async fn run(command: Command, json_mode: bool, api_key: Option<&str>) -> Result
                 .is_some_and(|extension| extension.eq_ignore_ascii_case("json"))
             {
                 let (_, doc) = document::load(&file)?;
-                validate::require_valid(&doc, None)?;
+                doc.validate()?;
                 return Ok(document::summary(&doc));
             }
             match serde_json::to_value(probe::probe(&file)?) {
@@ -204,7 +204,7 @@ async fn run(command: Command, json_mode: bool, api_key: Option<&str>) -> Result
                     },
                 ],
             };
-            validate::require_valid(&doc, None)?;
+            doc.validate()?;
             let raw = serde_json::to_value(TimelineSerialization::from_editing_state(&doc))
                 .context(format!("serialization_error at {}:{}", file!(), line!()))?;
             document::write_atomic(&timeline, &raw, false)?;
@@ -222,27 +222,8 @@ async fn run(command: Command, json_mode: bool, api_key: Option<&str>) -> Result
         Command::Validate { timeline } => {
             let (_, doc) = document::load(&timeline)?;
             let base = document::asset_base(&timeline)?;
-            let media = probe::assets(&doc.assets, &base)?;
-            let findings = validate::validate(&doc, Some(&media));
-            if !findings.is_empty() {
-                let exit = 1;
-                let value = json!({"valid": false, "findings": findings});
-                let text = if json_mode {
-                    value.to_string()
-                } else {
-                    serde_json::to_string_pretty(&value).context(format!(
-                        "serialization_error at {}:{}",
-                        file!(),
-                        line!()
-                    ))?
-                };
-                writeln!(io::stdout().lock(), "{text}").context(format!(
-                    "io_error at {}:{}",
-                    file!(),
-                    line!()
-                ))?;
-                std::process::exit(exit);
-            }
+            doc.validate()?;
+            probe::assets(&doc.assets, &base)?;
             Ok(json!({"valid": true, "findings": []}))
         }
     }

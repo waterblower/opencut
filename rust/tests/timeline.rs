@@ -1,6 +1,4 @@
 #![cfg(feature = "timeline")]
-#[cfg(feature = "cli")]
-use opencut_player::cli::validate;
 use opencut_player::timeline::{self as document, *};
 use serde_json::{Value, json};
 
@@ -9,8 +7,7 @@ fn editor_fixture_round_trips_without_losing_document_fields() {
     let raw: Value = serde_json::from_str(include_str!("fixtures/shared.timeline.json")).unwrap();
     let serialized = document::parse(&raw).unwrap();
     let doc = serialized.to_editing_state();
-    #[cfg(feature = "cli")]
-    validate::require_valid(&doc, None).unwrap();
+    doc.validate().unwrap();
     let mut editing = raw.clone();
     editing.as_object_mut().unwrap().remove("view");
     assert_eq!(
@@ -64,27 +61,14 @@ fn legacy_cli_documents_are_rejected_explicitly() {
     }
 }
 
-#[cfg(feature = "cli")]
 #[test]
-fn validation_reports_reference_and_overlap_errors_without_mutation() {
+fn validation_reports_missing_track_without_mutation() {
     let raw: Value = serde_json::from_str(include_str!("fixtures/shared.timeline.json")).unwrap();
     let mut doc = document::parse(&raw).unwrap().to_editing_state();
-    let mut duplicate = doc.clips[0].clone();
-    duplicate.set_id(ulid::Ulid::from(100_u128));
-    doc.clips.push(duplicate);
     doc.clips[1].set_track_id(ulid::Ulid::from(101_u128));
     let before = serde_json::to_value(TimelineSerialization::from_editing_state(&doc)).unwrap();
-    let findings = validate::validate(&doc, None);
-    assert!(
-        findings
-            .iter()
-            .any(|f| f.error.to_string().contains("unknown_track"))
-    );
-    assert!(
-        findings
-            .iter()
-            .any(|f| f.error.to_string().contains("overlap"))
-    );
+    let error = doc.validate().unwrap_err();
+    assert!(error.to_string().contains("references missing track"));
     assert_eq!(
         serde_json::to_value(TimelineSerialization::from_editing_state(&doc)).unwrap(),
         before

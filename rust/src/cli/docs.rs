@@ -36,7 +36,7 @@ opencut probe /project/episode.timeline.json --json
 - Use `--json` for machine-readable stdout. Diagnostics go to stderr.
 - Every executed command reports `elapsed_seconds` on stderr, excluding Cargo
   build time. This also applies to failed commands.
-- Treat any nonzero exit code as failure. JSON errors contain `error.message`. Validation stops at the first media probe failure; independent document rule violations are reported as findings.
+- Treat any nonzero exit code as failure. JSON errors contain `error.message`. Validation uses the shared timeline validator and stops at the first document or media probe error.
 - `new` refuses existing files. Use `--overwrite` explicitly when replacing supported outputs. Outputs cannot replace source media.
 
 ## GPUI rendering demo (macOS)

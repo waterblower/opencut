@@ -153,9 +153,8 @@ audio mixing services remain available for reuse.
 All commands accept `--json`. Results go to stdout and diagnostics go to stderr.
 Runtime failures use anyhow and exit code 1; Clap usage errors use exit code 2.
 JSON failures have the shape `{"error":{"message":"..."}}`. Diagnostic labels,
-paths, and source locations are included in the message. `validate` stops at the
-first media probe failure and reports that error with the asset path. Independent
-document rule violations are returned as findings.
+paths, and source locations are included in the message. `validate` uses the shared timeline validator and stops at the first document
+or media probe error. Media probe errors include the asset path.
 
 ## Verification and packaging
 

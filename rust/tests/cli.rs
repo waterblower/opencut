@@ -1,7 +1,7 @@
 #![cfg(feature = "cli")]
 use image::{Rgba, RgbaImage};
 use opencut_player::{
-    cli::{document, time::parse_rate, validate},
+    cli::{document, time::parse_rate},
     engine::{
         audio::Mixer,
         decode::VideoWorker,
@@ -453,7 +453,7 @@ fn native_video_seek_and_audio_mix() {
     clip.audio_properties.gain_db = -6.020599913;
     doc.clips.push(Clip::Video(clip));
     let media = probe::assets(&doc.assets, &dir.0).unwrap();
-    validate::require_valid(&doc, Some(&media)).unwrap();
+    doc.validate().unwrap();
     let mut mixer = Mixer::default();
     assert!(
         mixer
