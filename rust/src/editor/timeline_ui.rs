@@ -46,7 +46,12 @@ impl Editor {
                 .child("Create or select a timeline to begin editing")
                 .into_any_element();
         };
-        let frames_per_second = timeline.data.settings.frame_rate.frames_per_second();
+        let frames_per_second = timeline
+            .backend
+            .timeline()
+            .settings
+            .frame_rate
+            .frames_per_second();
 
         div()
             .id("editor-timeline")
@@ -88,30 +93,33 @@ impl Editor {
             .timeline
             .as_ref()
             .expect("timeline view requires timeline state");
-        let mut displayed_end = timeline.data.content_duration();
+        let mut displayed_end = timeline.backend.timeline().content_duration();
         if let Some(drag) = &timeline.interaction.clip_move_drag {
             for (clip_id, _, start) in &drag.placements {
-                let Some(clip) = timeline.data.clip(*clip_id) else {
+                let Some(clip) = timeline.backend.timeline().clip(*clip_id) else {
                     continue;
                 };
-                displayed_end = displayed_end
-                    .max(*start + clip.frame_length(timeline.data.settings.frame_rate));
+                displayed_end = displayed_end.max(
+                    *start + clip.frame_length(timeline.backend.timeline().settings.frame_rate),
+                );
             }
         }
         // Keep empty drop space beyond both the content and the moving selection.
-        let duration = timeline.data.seconds(displayed_end) + 12.0;
-        let timeline_width = (duration as f32 * timeline.data.view.pixels_per_second
+        let duration = timeline.backend.timeline().seconds(displayed_end) + 12.0;
+        let timeline_width = (duration as f32 * timeline.backend.timeline().view.pixels_per_second
             + TIMELINE_PADDING * 2.0)
             .max(900.0);
         let track_headers = timeline
-            .data
+            .backend
+            .timeline()
             .tracks
             .iter()
             .enumerate()
             .map(|(index, track)| self.track_header(index, track, cx))
             .collect::<Vec<_>>();
         let track_rows = timeline
-            .data
+            .backend
+            .timeline()
             .tracks
             .iter()
             .enumerate()
@@ -132,9 +140,9 @@ impl Editor {
             )
             .child(
                 div()
-                    .h(px(
-                        RULER_HEIGHT + timeline.data.tracks.len() as f32 * TRACK_HEIGHT
-                    ))
+                    .h(px(RULER_HEIGHT
+                        + timeline.backend.timeline().tracks.len() as f32
+                            * TRACK_HEIGHT))
                     .min_h_full()
                     .w_full()
                     .flex()
@@ -211,8 +219,12 @@ impl Editor {
                                     .child(self.timeline_playhead(cx))
                                     .when_some(timeline.interaction.snap_guide, |this, guide| {
                                         let guide_left = TIMELINE_PADDING
-                                            + timeline.data.seconds(guide) as f32
-                                                * timeline.data.view.pixels_per_second;
+                                            + timeline.backend.timeline().seconds(guide) as f32
+                                                * timeline
+                                                    .backend
+                                                    .timeline()
+                                                    .view
+                                                    .pixels_per_second;
                                         this.child(
                                             div()
                                                 .absolute()
@@ -236,8 +248,13 @@ impl Editor {
                                         timeline.interaction.blade_guide,
                                         |this, position| {
                                             let guide_left = TIMELINE_PADDING
-                                                + timeline.data.seconds(position) as f32
-                                                    * timeline.data.view.pixels_per_second;
+                                                + timeline.backend.timeline().seconds(position)
+                                                    as f32
+                                                    * timeline
+                                                        .backend
+                                                        .timeline()
+                                                        .view
+                                                        .pixels_per_second;
                                             this.child(
                                                 div()
                                                     .absolute()
@@ -267,8 +284,13 @@ impl Editor {
                                         },
                                         |this, position| {
                                             let guide_left = TIMELINE_PADDING
-                                                + timeline.data.seconds(position) as f32
-                                                    * timeline.data.view.pixels_per_second;
+                                                + timeline.backend.timeline().seconds(position)
+                                                    as f32
+                                                    * timeline
+                                                        .backend
+                                                        .timeline()
+                                                        .view
+                                                        .pixels_per_second;
                                             this.child(
                                                 div()
                                                     .absolute()
@@ -341,8 +363,8 @@ impl Editor {
             .as_ref()
             .expect("timeline view requires timeline state");
         let left = TIMELINE_PADDING
-            + timeline.data.seconds(timeline.playhead()) as f32
-                * timeline.data.view.pixels_per_second;
+            + timeline.backend.timeline().seconds(timeline.playhead()) as f32
+                * timeline.backend.timeline().view.pixels_per_second;
 
         div()
             .absolute()
@@ -385,10 +407,11 @@ impl Editor {
             .timeline
             .as_ref()
             .expect("timeline view requires timeline state");
-        let frame_rate = timeline.data.settings.frame_rate;
+        let frame_rate = timeline.backend.timeline().settings.frame_rate;
         let frames_per_second = frame_rate.frames_per_second();
         let displayed_frames = frame_rate.ceil(duration).frames().max(1);
-        let pixels_per_frame = timeline.data.view.pixels_per_second / frames_per_second as f32;
+        let pixels_per_frame =
+            timeline.backend.timeline().view.pixels_per_second / frames_per_second as f32;
         let frame_step = frame_tick_step(pixels_per_frame);
         let scroll_left = (-f32::from(timeline.h_scroll.offset().x)).max(0.0);
         let viewport_width = {
@@ -424,21 +447,22 @@ impl Editor {
                     .absolute()
                     .left(px(TIMELINE_PADDING
                         + frame_rate.seconds(TimelineTime::from_frames(frame)) as f32
-                            * timeline.data.view.pixels_per_second))
+                            * timeline.backend.timeline().view.pixels_per_second))
                     .bottom_0()
                     .h(px(height))
                     .border_l_1()
                     .border_color(rgb(if emphasized { 0x5a5a62 } else { 0x3a3a40 }))
             });
-        let tick_step = ruler_tick_step(duration, timeline.data.view.pixels_per_second);
+        let tick_step =
+            ruler_tick_step(duration, timeline.backend.timeline().view.pixels_per_second);
         let tick_count = (duration / tick_step).ceil() as usize + 1;
         let ruler_ticks = (0..tick_count).map(|index| {
             let time = index as f64 * tick_step;
             div()
                 .absolute()
-                .left(px(
-                    TIMELINE_PADDING + time as f32 * timeline.data.view.pixels_per_second
-                ))
+                .left(px(TIMELINE_PADDING
+                    + time as f32
+                        * timeline.backend.timeline().view.pixels_per_second))
                 .top_0()
                 .h_full()
                 .border_l_1()
@@ -525,9 +549,15 @@ impl Editor {
                             .text_sm()
                             .child(format!(
                                 "{} / {}",
-                                format_time(timeline.data.seconds(timeline.playhead()), false),
                                 format_time(
-                                    timeline.data.seconds(timeline.data.content_duration()),
+                                    timeline.backend.timeline().seconds(timeline.playhead()),
+                                    false
+                                ),
+                                format_time(
+                                    timeline
+                                        .backend
+                                        .timeline()
+                                        .seconds(timeline.backend.timeline().content_duration()),
                                     false
                                 )
                             )),
@@ -638,7 +668,10 @@ impl Editor {
                             .font_family("monospace")
                             .text_xs()
                             .text_color(rgb(MUTED))
-                            .child(format!("{:.1}px/s", timeline.data.view.pixels_per_second)),
+                            .child(format!(
+                                "{:.1}px/s",
+                                timeline.backend.timeline().view.pixels_per_second
+                            )),
                     )
                     .child(
                         div()

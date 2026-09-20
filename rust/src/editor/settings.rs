@@ -140,7 +140,7 @@ impl Editor {
         let Some(timeline) = self.timeline.as_ref() else {
             return Ok(());
         };
-        let previous = timeline.data.settings.frame_rate;
+        let previous = timeline.backend.timeline().settings.frame_rate;
         if previous == frame_rate {
             return Ok(());
         }
@@ -157,7 +157,7 @@ impl Editor {
         )
         .expect("changing the frame rate cannot be rejected");
         let playhead = timeline.playhead();
-        let has_clips = !timeline.data.clips.is_empty();
+        let has_clips = !timeline.backend.timeline().clips.is_empty();
         timeline.save_timeline_playhead(&self.project_root)?;
         if has_clips {
             set_timeline_position(&mut self.preview, timeline, playhead);

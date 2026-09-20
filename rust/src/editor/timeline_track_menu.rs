@@ -12,7 +12,7 @@ impl Editor {
         let Some(timeline) = self.timeline.as_mut() else {
             return Ok(());
         };
-        let clip = match text_clip_at(&timeline.data, track_id, position) {
+        let clip = match text_clip_at(timeline.backend.timeline(), track_id, position) {
             Ok(clip) => clip,
             Err(error) => {
                 self.status = Some(error.to_string());
@@ -35,7 +35,8 @@ impl Editor {
         timeline.interaction.selected_clip_ids.clear();
         timeline.interaction.selected_clip_ids.insert(clip_id);
         timeline
-            .data
+            .backend
+            .timeline()
             .save(&self.project_root.join(&timeline.path))?;
         self.status = Some("Added text clip.".to_string());
         cx.notify();

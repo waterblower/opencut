@@ -50,7 +50,7 @@ impl Render for Editor {
         let settings_modal = if self.settings_open
             && let Some(timeline) = self.timeline.as_ref()
         {
-            Some(self.settings_modal(&timeline.data, cx))
+            Some(self.settings_modal(timeline.backend.timeline(), cx))
         } else {
             None
         };
