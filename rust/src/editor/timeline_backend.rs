@@ -1,7 +1,7 @@
 //! Blocking timeline frame preparation without playback or UI state.
 //!
-//! Open and seek perform media I/O on the calling thread. UI callers should run
-//! them on a background worker. Snapshot reads never decode or advance time.
+//! The backend owns its decoding worker. Blocking open and seek wait for that
+//! worker; snapshot reads never decode or advance time.
 //! Layers are prepared for a renderer to compose over a black canvas; text is
 //! retained as text so the renderer can perform font shaping and layout.
 
@@ -15,7 +15,8 @@ use opencut_player::timeline::{
 use std::{
     collections::{HashMap, HashSet, hash_map::Entry},
     path::{Path, PathBuf},
-    sync::Arc,
+    sync::{Arc, Mutex, mpsc},
+    thread,
     time::Duration,
 };
 use ulid::Ulid;
@@ -50,6 +51,100 @@ pub enum TimelineLayer {
 }
 
 pub struct TimelineBackend {
+    commands: mpsc::Sender<SeekRequest>,
+    frame: Arc<Mutex<Arc<TimelineFrame>>>,
+    framerate: f64,
+    duration: Duration,
+}
+
+impl TimelineBackend {
+    /// Starts an internal worker and waits for position zero to be prepared.
+    /// Relative asset paths are resolved against `media_root`.
+    pub fn open_sync(timeline: TimelineSerialization, media_root: &Path) -> Result<Self> {
+        validate(&timeline)?;
+        let framerate = timeline.settings.frame_rate.frames_per_second();
+        let duration = timeline.duration(timeline.content_duration());
+        let media_root = media_root.to_owned();
+        let (commands, requests) = mpsc::channel::<SeekRequest>();
+        let (ready, initialized) = mpsc::sync_channel(1);
+        thread::Builder::new()
+            .name("timeline-preview".into())
+            .spawn(move || {
+                let mut decoder = match FrameDecoder::open_sync(timeline, &media_root) {
+                    Ok(decoder) => decoder,
+                    Err(error) => {
+                        let _ = ready.send(Err(error));
+                        return;
+                    }
+                };
+                let frame = Arc::new(Mutex::new(Arc::clone(&decoder.frame)));
+                if ready.send(Ok(Arc::clone(&frame))).is_err() {
+                    return;
+                }
+                // Dropping the backend closes the command channel. Cleanup stays
+                // on this worker; there is no thread join in the caller's Drop.
+                for request in requests {
+                    let result = (|| {
+                        decoder.seek_sync(request.position)?;
+                        *frame.lock().unwrap() = Arc::clone(&decoder.frame);
+                        Ok(())
+                    })();
+                    let _ = request.reply.send(result);
+                }
+            })
+            .context("Starting timeline preview worker")?;
+        let frame = initialized
+            .recv()
+            .context("Waiting for timeline initialization")??;
+        Ok(Self {
+            commands,
+            frame,
+            framerate,
+            duration,
+        })
+    }
+
+    pub fn frame_size(&self) -> (u32, u32) {
+        let frame = self.frame.lock().unwrap();
+        (frame.width, frame.height)
+    }
+
+    pub fn framerate(&self) -> Option<f64> {
+        Some(self.framerate)
+    }
+
+    /// Includes audio clips and invisible tracks in the document's duration.
+    pub fn duration(&self) -> Duration {
+        self.duration
+    }
+
+    pub fn position(&self) -> Duration {
+        self.frame.lock().unwrap().timestamp
+    }
+
+    /// Waits until the worker publishes the requested frame. A failed seek
+    /// preserves the previous snapshot and position.
+    pub fn seek_sync(&mut self, position: Duration) -> Result<()> {
+        let (reply, completion) = mpsc::channel();
+        self.commands
+            .send(SeekRequest { position, reply })
+            .context("Requesting timeline seek")?;
+        completion.recv().context("Waiting for timeline seek")?
+    }
+
+    /// Clones a snapshot handle without performing I/O. Older snapshots remain
+    /// valid after later seeks and after this backend is dropped.
+    pub fn get_current_frame(&self) -> Result<Arc<TimelineFrame>> {
+        Ok(Arc::clone(&self.frame.lock().unwrap()))
+    }
+}
+
+struct SeekRequest {
+    position: Duration,
+    reply: mpsc::Sender<Result<()>>,
+}
+
+struct FrameDecoder {
     timeline: TimelineSerialization,
     media_root: PathBuf,
     readers: HashMap<Ulid, VideoReader>,
@@ -57,11 +152,10 @@ pub struct TimelineBackend {
     frame: Arc<TimelineFrame>,
 }
 
-impl TimelineBackend {
+impl FrameDecoder {
     /// Owns an immutable document and returns with position zero prepared.
     /// Relative asset paths are resolved against `media_root`.
-    pub fn open_sync(timeline: TimelineSerialization, media_root: &Path) -> Result<Self> {
-        validate(&timeline)?;
+    fn open_sync(timeline: TimelineSerialization, media_root: &Path) -> Result<Self> {
         let frame = Arc::new(TimelineFrame {
             timestamp: Duration::ZERO,
             width: timeline.settings.width,
@@ -79,27 +173,10 @@ impl TimelineBackend {
         Ok(backend)
     }
 
-    pub fn frame_size(&self) -> (u32, u32) {
-        (self.timeline.settings.width, self.timeline.settings.height)
-    }
-
-    pub fn framerate(&self) -> Option<f64> {
-        Some(self.timeline.settings.frame_rate.frames_per_second())
-    }
-
-    /// Includes audio clips and invisible tracks in the document's duration.
-    pub fn duration(&self) -> Duration {
-        self.timeline.duration(self.timeline.content_duration())
-    }
-
-    pub fn position(&self) -> Duration {
-        self.frame.timestamp
-    }
-
     /// Snaps to the nearest timeline frame and clamps to the last valid frame.
     /// Empty timelines remain at zero. A failed seek preserves the previous
     /// snapshot and position, and can be retried after the media is repaired.
-    pub fn seek_sync(&mut self, position: Duration) -> Result<()> {
+    fn seek_sync(&mut self, position: Duration) -> Result<()> {
         let last =
             (self.timeline.content_duration() - TimelineTime::ONE_FRAME).max(TimelineTime::ZERO);
         let position = self
@@ -111,12 +188,6 @@ impl TimelineBackend {
         let frame = self.prepare(position)?;
         self.frame = Arc::new(frame);
         Ok(())
-    }
-
-    /// Clones a snapshot handle without performing I/O. Older snapshots remain
-    /// valid after later seeks and after this backend is dropped.
-    pub fn get_current_frame(&self) -> Result<Arc<TimelineFrame>> {
-        Ok(Arc::clone(&self.frame))
     }
 
     fn prepare(&mut self, position: TimelineTime) -> Result<TimelineFrame> {
