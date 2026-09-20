@@ -88,7 +88,8 @@ fn nonblocking_seek_owns_position_even_when_decoding_fails() {
     doc.assets.push(asset(100, "missing.png", MediaKind::Image));
     // Position zero is an empty frame; the missing image starts at one second.
     doc.clips.push(media_clip(10, 1, 100, 8, 0, 8));
-    let backend = TimelineBackend::open_sync(doc, &dir.0).unwrap();
+    let backend = TimelineBackend::new(doc, &dir.0).unwrap();
+    wait_for_preview(&backend, time(0)).unwrap();
     let previous = backend.get_current_frame().unwrap();
 
     backend.seek(Duration::from_millis(1060)).unwrap();
@@ -110,7 +111,8 @@ fn blocking_seek_publishes_the_preview_and_playhead_together() {
     doc.tracks.push(track(1, TrackKind::Text));
     doc.clips
         .push(text_clip(10, 1, 0, 8, doc.settings.frame_rate));
-    let mut backend = TimelineBackend::open_sync(doc, &dir.0).unwrap();
+    let mut backend = TimelineBackend::new(doc, &dir.0).unwrap();
+    wait_for_preview(&backend, time(0)).unwrap();
 
     backend.seek_sync(Duration::from_millis(500)).unwrap();
     let snapshot = backend.get_current_frame().unwrap();
@@ -165,7 +167,8 @@ fn new_rejects_missing_and_non_directory_media_roots_immediately() {
 fn metadata_empty_and_audio_only_timelines() {
     let dir = Temp::new();
     let mut doc = document();
-    let mut backend = TimelineBackend::open_sync(doc.clone(), &dir.0).unwrap();
+    let mut backend = TimelineBackend::new(doc.clone(), &dir.0).unwrap();
+    wait_for_preview(&backend, time(0)).unwrap();
     assert_eq!(backend.frame_size(), (16, 12));
     assert_eq!(backend.framerate(), Some(8.0));
     assert_eq!(backend.duration(), Duration::ZERO);
@@ -182,7 +185,8 @@ fn metadata_empty_and_audio_only_timelines() {
         unreachable!();
     };
     doc.clips.push(Clip::Audio(audio));
-    let mut backend = TimelineBackend::open_sync(doc, &dir.0).unwrap();
+    let mut backend = TimelineBackend::new(doc, &dir.0).unwrap();
+    wait_for_preview(&backend, time(0)).unwrap();
     assert_eq!(backend.duration(), Duration::from_secs(3));
     backend.seek_sync(Duration::MAX).unwrap();
     assert_eq!(backend.position(), Duration::from_millis(2875));
@@ -200,7 +204,8 @@ fn text_boundaries_gaps_and_fractional_frame_rate() {
     doc.clips
         .push(text_clip(11, 1, 6, 2, doc.settings.frame_rate));
     let rate = doc.settings.frame_rate;
-    let mut backend = TimelineBackend::open_sync(doc, &dir.0).unwrap();
+    let mut backend = TimelineBackend::new(doc, &dir.0).unwrap();
+    wait_for_preview(&backend, time(0)).unwrap();
     assert_eq!(backend.framerate(), Some(30_000.0 / 1001.0));
     assert_eq!(backend.duration(), rate.duration(time(8)));
     for (frame, ids) in [
@@ -264,7 +269,8 @@ fn layers_preserve_order_visibility_transforms_and_text() {
         unreachable!();
     };
     top.properties = text.clone();
-    let mut backend = TimelineBackend::open_sync(doc, &dir.0).unwrap();
+    let mut backend = TimelineBackend::new(doc, &dir.0).unwrap();
+    wait_for_preview(&backend, time(0)).unwrap();
     assert_eq!(backend.duration(), Duration::from_secs(3));
     let snapshot = backend.get_current_frame().unwrap();
     assert_eq!(layer_ids(&snapshot), vec![20, 21, 10]);
@@ -312,7 +318,8 @@ fn svg_images_resolve_absolute_paths_and_preserve_alpha() {
     doc.clips.push(media_clip(10, 1, 100, 0, 0, 8));
     let media_root = dir.0.join("not-the-media-root");
     fs::create_dir(&media_root).unwrap();
-    let backend = TimelineBackend::open_sync(doc, &media_root).unwrap();
+    let backend = TimelineBackend::new(doc, &media_root).unwrap();
+    wait_for_preview(&backend, time(0)).unwrap();
     let frame = backend.get_current_frame().unwrap();
     let TimelineLayer::Image { pixels, .. } = &frame.layers[0] else {
         unreachable!();
@@ -334,7 +341,8 @@ fn video_trims_rate_mapping_overlaps_and_backward_seeks() {
         media_clip(10, 1, 100, 0, 2, 10),
         media_clip(11, 1, 100, 0, 8, 16),
     ];
-    let mut backend = TimelineBackend::open_sync(doc, &dir.0).unwrap();
+    let mut backend = TimelineBackend::new(doc, &dir.0).unwrap();
+    wait_for_preview(&backend, time(0)).unwrap();
     let first = backend.get_current_frame().unwrap();
     assert_eq!(video_reds(&first), vec![35, 80]);
     assert!(Arc::ptr_eq(&first, &backend.get_current_frame().unwrap()));
@@ -369,7 +377,8 @@ fn failed_preparation_preserves_snapshot_and_can_be_retried() {
         text_clip(10, 1, 0, 8, doc.settings.frame_rate),
         media_clip(20, 2, 100, 8, 0, 8),
     ];
-    let mut backend = TimelineBackend::open_sync(doc, &dir.0).unwrap();
+    let mut backend = TimelineBackend::new(doc, &dir.0).unwrap();
+    wait_for_preview(&backend, time(0)).unwrap();
     let before = backend.get_current_frame().unwrap();
     for contents in [
         None,

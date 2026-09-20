@@ -232,14 +232,6 @@ impl TimelineBackend {
         }
     }
 
-    /// Starts an internal worker and waits for position zero to be prepared.
-    /// Relative asset paths are resolved against `media_root`.
-    pub fn open_sync(timeline: TimelineEditingState, media_root: &Path) -> Result<Self> {
-        let mut backend = Self::new(timeline, media_root)?;
-        backend.seek_sync(Duration::ZERO)?;
-        Ok(backend)
-    }
-
     pub fn frame_size(&self) -> (u32, u32) {
         (self.timeline.settings.width, self.timeline.settings.height)
     }
