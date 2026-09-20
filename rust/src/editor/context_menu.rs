@@ -53,10 +53,11 @@ impl Editor {
                 || explorer::is_audio_path(&menu.relative_path));
         let can_rename = !menu.relative_path.as_os_str().is_empty();
         let can_trash = can_rename
-            && !self
-                .timeline
-                .as_ref()
-                .is_some_and(|timeline| timeline.path.starts_with(&menu.relative_path));
+            && !self.timeline.as_ref().is_some_and(|timeline| {
+                timeline
+                    .path
+                    .starts_with(self.project_root.join(&menu.relative_path))
+            });
         let height = 92.0
             + if can_transcribe { 40.0 } else { 0.0 }
             + if can_create_timeline { 40.0 } else { 0.0 }
@@ -146,11 +147,9 @@ impl Editor {
                                     eprintln!("{error}");
                                     return;
                                 }
-                                if editor
-                                    .timeline
-                                    .as_ref()
-                                    .is_some_and(|timeline| timeline.path == timeline_path)
-                                {
+                                if editor.timeline.as_ref().is_some_and(|timeline| {
+                                    timeline.path == editor.project_root.join(&timeline_path)
+                                }) {
                                     editor.settings_open = true;
                                 }
                                 cx.notify();
@@ -451,9 +450,7 @@ impl Editor {
         let position = timeline
             .backend
             .timeline()
-            .nearest_time(
-                content_x as f64 / timeline.backend.timeline().view.pixels_per_second as f64,
-            )
+            .nearest_time(content_x as f64 / timeline.pixels_per_second as f64)
             .max(TimelineTime::ZERO);
         self.context_menu = ContextMenu::TextTrack(TextTrackContextMenu {
             track_id,

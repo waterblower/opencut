@@ -1,5 +1,5 @@
 use crate::engine::probe::MediaInfo;
-use crate::timeline::{Clip, MediaKind, TimelineSerialization, TimelineTime, TrackKind};
+use crate::timeline::{Clip, MediaKind, TimelineEditingState, TimelineTime, TrackKind};
 use anyhow::{Error, Result, anyhow};
 use serde::Serialize;
 use std::collections::{HashMap, HashSet};
@@ -25,7 +25,7 @@ impl Serialize for Finding {
 }
 
 pub fn validate(
-    doc: &TimelineSerialization,
+    doc: &TimelineEditingState,
     media: Option<&HashMap<Ulid, MediaInfo>>,
 ) -> Vec<Finding> {
     let mut findings = Vec::new();
@@ -274,7 +274,7 @@ pub fn validate(
 }
 
 pub fn require_valid(
-    doc: &TimelineSerialization,
+    doc: &TimelineEditingState,
     media: Option<&HashMap<Ulid, MediaInfo>>,
 ) -> Result<()> {
     let Some(finding) = validate(doc, media).into_iter().next() else {

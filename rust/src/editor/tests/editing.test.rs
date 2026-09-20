@@ -1,6 +1,7 @@
 use super::*;
 use crate::editor::tests::TimelineTestExt;
 use crate::editor::timeline_clip::AudioClipProperties;
+use opencut_player::timeline::{TimelineEditingState, TimelineSerialization};
 
 fn audio_asset(id: u64) -> MediaAsset {
     MediaAsset {
@@ -34,7 +35,7 @@ fn audio_clip(id: u64, start: i64, duration: i64) -> Clip {
 
 #[test]
 fn audio_clips_from_video_assets_cannot_move_to_video_tracks() {
-    let mut project = TimelineSerialization::with_test_tracks();
+    let mut project = TimelineEditingState::with_test_tracks();
     let mut asset = audio_asset(100);
     asset.kind = MediaKind::Video;
     project.assets.push(asset);
@@ -71,7 +72,7 @@ fn audio_clips_from_video_assets_cannot_move_to_video_tracks() {
 
 #[test]
 fn clipboard_preserves_relative_timing_tracks_and_primary_selection() {
-    let mut project = TimelineSerialization::with_test_tracks();
+    let mut project = TimelineEditingState::with_test_tracks();
     project.assets.push(audio_asset(100));
     project.clips = vec![audio_clip(10, 20, 8), audio_clip(11, 40, 12)];
     let selected = HashSet::from([ulid(10), ulid(11)]);
@@ -93,7 +94,7 @@ fn clipboard_preserves_relative_timing_tracks_and_primary_selection() {
 
 #[test]
 fn clipboard_rescales_source_bounds_between_timeline_frame_rates() {
-    let mut source = TimelineSerialization::with_test_tracks();
+    let mut source = TimelineEditingState::with_test_tracks();
     source.settings.frame_rate = FrameRate::new(24, 1);
     source.assets.push(audio_asset(100));
     let mut clip = audio_clip(10, 12, 24);
@@ -108,7 +109,7 @@ fn clipboard_rescales_source_bounds_between_timeline_frame_rates() {
     )
     .unwrap();
 
-    let mut destination = TimelineSerialization::with_test_tracks();
+    let mut destination = TimelineEditingState::with_test_tracks();
     destination.settings.frame_rate = FrameRate::new(30, 1);
     destination.tracks[0].id = ulid(201);
     destination.tracks[1].id = ulid(202);
@@ -138,7 +139,7 @@ fn clipboard_rescales_source_bounds_between_timeline_frame_rates() {
 
 #[test]
 fn clipboard_remaps_tracks_and_assets_between_timelines() {
-    let mut source = TimelineSerialization::with_test_tracks();
+    let mut source = TimelineEditingState::with_test_tracks();
     source.assets.push(audio_asset(100));
     source.clips = vec![audio_clip(10, 20, 8), audio_clip(11, 40, 12)];
     let clipboard = ClipClipboard::from_selection(
@@ -149,7 +150,7 @@ fn clipboard_remaps_tracks_and_assets_between_timelines() {
     )
     .unwrap();
 
-    let mut destination = TimelineSerialization::with_test_tracks();
+    let mut destination = TimelineEditingState::with_test_tracks();
     destination.tracks[0].id = ulid(201);
     destination.tracks[1].id = ulid(202);
     let (clips, assets) = clipboard
@@ -173,7 +174,7 @@ fn clipboard_remaps_tracks_and_assets_between_timelines() {
 
 #[test]
 fn clipboard_reuses_existing_destination_assets() {
-    let mut source = TimelineSerialization::with_test_tracks();
+    let mut source = TimelineEditingState::with_test_tracks();
     source.assets.push(audio_asset(100));
     source.clips = vec![audio_clip(10, 0, 8)];
     let clipboard = ClipClipboard::from_selection(
@@ -184,7 +185,7 @@ fn clipboard_reuses_existing_destination_assets() {
     )
     .unwrap();
 
-    let mut destination = TimelineSerialization::with_test_tracks();
+    let mut destination = TimelineEditingState::with_test_tracks();
     destination.tracks[1].id = ulid(202);
     let mut existing_asset = audio_asset(300);
     existing_asset.path = PathBuf::from("audio.mp3");
@@ -203,7 +204,7 @@ fn clipboard_reuses_existing_destination_assets() {
 
 #[test]
 fn clipboard_paste_rejects_the_complete_selection_on_collision() {
-    let mut project = TimelineSerialization::with_test_tracks();
+    let mut project = TimelineEditingState::with_test_tracks();
     project.assets.push(audio_asset(100));
     project.clips = vec![audio_clip(20, 105, 10)];
     let candidates = vec![audio_clip(10, 100, 8), audio_clip(11, 120, 12)];
@@ -239,7 +240,7 @@ fn track_magnet_does_not_ripple_multiple_deleted_clips() {
 
 #[test]
 fn select_all_excludes_clips_on_locked_tracks() {
-    let mut project = TimelineSerialization::with_test_tracks();
+    let mut project = TimelineEditingState::with_test_tracks();
     project.clips = vec![audio_clip(10, 0, 10), {
         let mut clip = audio_clip(11, 10, 10);
         clip.set_track_id(ulid(1));
@@ -252,10 +253,13 @@ fn select_all_excludes_clips_on_locked_tracks() {
 
 #[test]
 fn edits_do_not_require_source_media_or_a_playback_backend() -> Result<()> {
-    let mut data = TimelineSerialization::with_test_tracks();
+    let mut data = TimelineEditingState::with_test_tracks();
     data.assets.push(audio_asset(100));
-    let mut timeline =
-        TimelineRuntimeState::new("test.timeline.json".into(), data, Path::new("."))?;
+    let mut timeline = TimelineRuntimeState::new(
+        std::path::absolute("test.timeline.json")?,
+        data,
+        Path::new("."),
+    )?;
     edit_timeline(
         &mut timeline,
         EditAction::AddClips {
@@ -298,12 +302,15 @@ fn edits_do_not_require_source_media_or_a_playback_backend() -> Result<()> {
 
 #[test]
 fn invalid_edits_leave_the_document_unchanged() -> Result<()> {
-    let mut data = TimelineSerialization::with_test_tracks();
+    let mut data = TimelineEditingState::with_test_tracks();
     data.assets.push(audio_asset(100));
     data.clips = vec![audio_clip(10, 0, 30), audio_clip(11, 30, 30)];
-    let mut timeline =
-        TimelineRuntimeState::new("test.timeline.json".into(), data, Path::new("."))?;
-    let before = serde_json::to_value(timeline.backend.timeline())?;
+    let mut timeline = TimelineRuntimeState::new(
+        std::path::absolute("test.timeline.json")?,
+        data,
+        Path::new("."),
+    )?;
+    let before = serde_json::to_value(timeline.to_serialize())?;
     assert!(
         edit_timeline(
             &mut timeline,
@@ -313,21 +320,24 @@ fn invalid_edits_leave_the_document_unchanged() -> Result<()> {
         )
         .is_err()
     );
-    assert_eq!(serde_json::to_value(timeline.backend.timeline())?, before);
+    assert_eq!(serde_json::to_value(timeline.to_serialize())?, before);
     let mut invalid = timeline.backend.timeline().clip(ulid(11)).unwrap().clone();
     invalid.set_timeline_start(TimelineTime::from_frames(10));
     assert!(edit_timeline(&mut timeline, EditAction::UpdateClip { clip: invalid }).is_err());
-    assert_eq!(serde_json::to_value(timeline.backend.timeline())?, before);
+    assert_eq!(serde_json::to_value(timeline.to_serialize())?, before);
     Ok(())
 }
 
 #[test]
 fn splitting_trimming_and_ripple_deletion_update_the_model() -> Result<()> {
-    let mut data = TimelineSerialization::with_test_tracks();
+    let mut data = TimelineEditingState::with_test_tracks();
     data.assets.push(audio_asset(100));
     data.clips = vec![audio_clip(10, 0, 60), audio_clip(11, 60, 30)];
-    let mut timeline =
-        TimelineRuntimeState::new("test.timeline.json".into(), data, Path::new("."))?;
+    let mut timeline = TimelineRuntimeState::new(
+        std::path::absolute("test.timeline.json")?,
+        data,
+        Path::new("."),
+    )?;
     let (left, right) = timeline.backend.timeline().clips[0]
         .split_at(
             TimelineTime::from_frames(20),
@@ -402,11 +412,14 @@ fn splitting_trimming_and_ripple_deletion_update_the_model() -> Result<()> {
 
 #[test]
 fn track_controls_and_properties_work_without_preview() -> Result<()> {
-    let mut data = TimelineSerialization::with_test_tracks();
+    let mut data = TimelineEditingState::with_test_tracks();
     data.assets.push(audio_asset(100));
     data.clips = vec![audio_clip(10, 0, 60)];
-    let mut timeline =
-        TimelineRuntimeState::new("test.timeline.json".into(), data, Path::new("."))?;
+    let mut timeline = TimelineRuntimeState::new(
+        std::path::absolute("test.timeline.json")?,
+        data,
+        Path::new("."),
+    )?;
     let properties = VideoClipProperties {
         position_x: 25.0,
         position_y: -40.0,
@@ -442,16 +455,10 @@ fn track_controls_and_properties_work_without_preview() -> Result<()> {
     let track = timeline.backend.timeline().track(ulid(2)).unwrap();
     assert_eq!(track.visible, !visible);
     assert!(track.muted && track.locked);
-    edit_timeline(&mut timeline, EditAction::SetSnapping { enabled: false })?;
-    edit_timeline(&mut timeline, EditAction::SetTrackMagnet { enabled: true })?;
-    assert!(
-        !timeline.interaction.snapping_enabled
-            && !timeline.backend.timeline().view.snapping_enabled
-    );
-    assert!(
-        timeline.interaction.magnet_enabled
-            && timeline.backend.timeline().view.track_magnet_enabled
-    );
+    timeline.snapping_enabled = false;
+    timeline.track_magnet_enabled = true;
+    assert!(!timeline.snapping_enabled);
+    assert!(timeline.track_magnet_enabled);
     edit_timeline(&mut timeline, EditAction::DeleteTrack { track_id: ulid(2) })?;
     assert!(timeline.backend.timeline().track(ulid(2)).is_none());
     assert!(timeline.backend.timeline().clips.is_empty());
@@ -460,7 +467,7 @@ fn track_controls_and_properties_work_without_preview() -> Result<()> {
 
 #[test]
 fn text_edits_preserve_timing_without_a_renderer() -> Result<()> {
-    let mut data = TimelineSerialization::default();
+    let mut data = TimelineEditingState::default();
     data.tracks.push(Track {
         id: ulid(3),
         name: "Text".into(),
@@ -469,8 +476,11 @@ fn text_edits_preserve_timing_without_a_renderer() -> Result<()> {
         muted: false,
         visible: true,
     });
-    let mut timeline =
-        TimelineRuntimeState::new("test.timeline.json".into(), data, Path::new("."))?;
+    let mut timeline = TimelineRuntimeState::new(
+        std::path::absolute("test.timeline.json")?,
+        data,
+        Path::new("."),
+    )?;
     let mut clip = TextClip {
         id: ulid(10),
         track_id: ulid(3),
@@ -505,8 +515,8 @@ fn text_edits_preserve_timing_without_a_renderer() -> Result<()> {
             properties: clip.properties.clone(),
         },
     )?;
-    let json = serde_json::to_string(timeline.backend.timeline())?;
-    let restored: TimelineSerialization = serde_json::from_str(&json)?;
+    let json = serde_json::to_string(&timeline.to_serialize())?;
+    let restored = serde_json::from_str::<TimelineSerialization>(&json)?.to_editing_state();
     let Clip::Text(restored) = restored.clip(clip.id).unwrap() else {
         panic!("text clip must retain its kind");
     };
@@ -518,32 +528,19 @@ fn text_edits_preserve_timing_without_a_renderer() -> Result<()> {
 
 #[test]
 fn playhead_is_restored_saved_and_clamped_without_media() -> Result<()> {
-    let mut data = TimelineSerialization::with_test_tracks();
+    let mut data = TimelineEditingState::with_test_tracks();
     data.assets.push(audio_asset(100));
     data.clips = vec![audio_clip(10, 0, 60)];
-    data.view.saved_playhead_frame = TimelineTime::from_frames(35);
-    let mut timeline =
-        TimelineRuntimeState::new("test.timeline.json".into(), data, Path::new("."))?;
-    assert_eq!(timeline.playhead().frames(), 35);
-    edit_timeline(
-        &mut timeline,
-        EditAction::SetSavedPlayhead {
-            playhead: TimelineTime::from_frames(45),
-        },
-    )?;
     let directory = std::env::temp_dir().join(format!("opencut-playhead-{}", Ulid::generate()));
-    timeline.save_timeline_playhead(&directory)?;
-    let restored = TimelineSerialization::load(&directory.join(&timeline.path))?;
-    std::fs::remove_dir_all(&directory)?;
-    let restored = TimelineRuntimeState::new(timeline.path.clone(), restored, Path::new("."))?;
+    std::fs::create_dir_all(&directory)?;
+    let path = directory.join("test.timeline.json");
+    let mut timeline = TimelineRuntimeState::new(path.clone(), data, &directory)?;
+    timeline.backend.seek(Duration::from_millis(1500))?;
+    timeline.save()?;
+    let restored = TimelineRuntimeState::load(path, &directory)?;
     assert_eq!(restored.playhead().frames(), 45);
-    edit_timeline(
-        &mut timeline,
-        EditAction::SetSavedPlayhead {
-            playhead: TimelineTime::from_frames(100),
-        },
-    )?;
-    assert_eq!(timeline.playhead().frames(), 60);
+    timeline.backend.seek(Duration::MAX)?;
+    assert_eq!(timeline.playhead().frames(), 59);
     edit_timeline(
         &mut timeline,
         EditAction::RemoveClips {
@@ -552,17 +549,23 @@ fn playhead_is_restored_saved_and_clamped_without_media() -> Result<()> {
         },
     )?;
     assert_eq!(timeline.playhead(), TimelineTime::ZERO);
+    drop(restored);
+    drop(timeline);
+    std::fs::remove_dir_all(directory)?;
     Ok(())
 }
 
 #[test]
 fn replacing_history_snapshots_preserves_playhead_and_document() -> Result<()> {
-    let mut data = TimelineSerialization::with_test_tracks();
+    let mut data = TimelineEditingState::with_test_tracks();
     data.assets.push(audio_asset(100));
     data.clips = vec![audio_clip(10, 0, 60)];
-    data.view.saved_playhead_frame = TimelineTime::from_frames(15);
-    let mut timeline =
-        TimelineRuntimeState::new("test.timeline.json".into(), data, Path::new("."))?;
+    let mut timeline = TimelineRuntimeState::new(
+        std::path::absolute("test.timeline.json")?,
+        data,
+        Path::new("."),
+    )?;
+    timeline.backend.seek(Duration::from_millis(500))?;
     timeline.record_editing_history();
     edit_timeline(
         &mut timeline,

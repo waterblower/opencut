@@ -1,5 +1,7 @@
 use super::*;
 use crate::editor::preview_timeline::timeline_preview;
+use crate::editor::timeline_backend::TimelineBackend;
+use anyhow::Result;
 use opencut_player::video2::{AudioBackend, VideoBackend};
 use preview_image::preview_image_file;
 
@@ -13,14 +15,12 @@ pub enum PreviewTarget {
 
 pub fn set_timeline_position(
     preview: &mut PreviewState,
-    timeline: &mut TimelineRuntimeState,
+    backend: &TimelineBackend,
     position: TimelineTime,
-) {
+) -> Result<()> {
+    backend.seek(backend.timeline().duration(position))?;
     preview.target = PreviewTarget::Timeline;
-    let duration = timeline.backend.timeline().content_duration();
-    let position = position.clamp(TimelineTime::ZERO, duration);
-
-    timeline.backend.timeline_mut().view.saved_playhead_frame = position;
+    Ok(())
 }
 
 impl PreviewTarget {

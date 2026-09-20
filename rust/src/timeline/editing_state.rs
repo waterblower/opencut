@@ -1,4 +1,4 @@
-//! Runtime editing content and queries shared by the editor and CLI.
+//! Timeline editing content and queries shared by the editor and CLI.
 
 use crate::timeline::{
     Clip, MediaAsset, MediaKind, TimelineSettings, TimelineTime, Track, TrackKind,

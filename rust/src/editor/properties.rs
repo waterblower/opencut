@@ -62,7 +62,7 @@ pub fn current_properties_panel_viewable(editor: &Editor) -> PropertiesPanelView
             let timeline = editor
                 .timeline
                 .as_ref()
-                .filter(|timeline| timeline.path == path)
+                .filter(|timeline| timeline.path == editor.project_root.join(path))
                 .expect("should have the timeline");
             return PropertiesPanelViewable::TimelineFile(timeline);
         }

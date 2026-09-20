@@ -1,10 +1,11 @@
 use super::*;
 use anyhow::Result;
+use opencut_player::timeline::TimelineEditingState;
 
 impl Editor {
     pub(super) fn settings_modal(
         &self,
-        timeline: &TimelineSerialization,
+        timeline: &TimelineEditingState,
         cx: &mut Context<Self>,
     ) -> gpui::AnyElement {
         let selected = timeline.settings.frame_rate;
@@ -158,9 +159,9 @@ impl Editor {
         .expect("changing the frame rate cannot be rejected");
         let playhead = timeline.playhead();
         let has_clips = !timeline.backend.timeline().clips.is_empty();
-        timeline.save_timeline_playhead(&self.project_root)?;
+        timeline.save()?;
         if has_clips {
-            set_timeline_position(&mut self.preview, timeline, playhead);
+            set_timeline_position(&mut self.preview, &timeline.backend, playhead)?;
         }
         self.status = Some(format!(
             "Timeline frame rate changed to {}.",

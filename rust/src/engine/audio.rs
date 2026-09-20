@@ -1,5 +1,5 @@
 use crate::engine::probe::MediaInfo;
-use crate::timeline::TimelineSerialization;
+use crate::timeline::TimelineEditingState;
 use crate::transcribe::audio::AudioReader;
 pub use crate::transcribe::audio::extract_audio_as_wav;
 use anyhow::Result;
@@ -14,7 +14,7 @@ pub struct Mixer {
 impl Mixer {
     pub fn block(
         &mut self,
-        doc: &TimelineSerialization,
+        doc: &TimelineEditingState,
         base: &Path,
         media: &HashMap<Ulid, MediaInfo>,
         start: i64,

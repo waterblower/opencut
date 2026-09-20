@@ -1,4 +1,5 @@
 use anyhow::{Context as _, Error, Result, anyhow};
+use opencut_player::timeline::TimelineSerialization;
 mod args;
 mod docs;
 mod render;
@@ -8,7 +9,7 @@ use clap::Parser;
 use opencut_player::timeline::{TimelineSettings as Settings, Track, TrackKind};
 use opencut_player::{
     cli::{
-        document::{self, Document},
+        document::{self, TimelineEditingState},
         time::parse_rate,
         transcribe, validate,
     },
@@ -17,7 +18,6 @@ use opencut_player::{
 use serde_json::{Value, json};
 use std::{
     io::{self, Write},
-    path::Path,
     process::{ExitCode, Termination},
     time::Instant,
 };
@@ -43,13 +43,7 @@ async fn main() -> CliExitCode {
         }
     };
     let api_key = std::env::var("MINIMAX_API_KEY").ok();
-    let result = run(
-        args.command,
-        args.json,
-        &args.project_root,
-        api_key.as_deref(),
-    )
-    .await;
+    let result = run(args.command, args.json, api_key.as_deref()).await;
     let elapsed_seconds = started.elapsed().as_secs_f64();
     let _ = writeln!(io::stderr().lock(), "elapsed_seconds: {elapsed_seconds:.6}");
     print_result(result, args.json)
@@ -93,19 +87,7 @@ fn print_error(error: &Error, json: bool) {
     }
 }
 
-async fn run(
-    command: Command,
-    json_mode: bool,
-    base: &Path,
-    api_key: Option<&str>,
-) -> Result<Value> {
-    let project_root = std::path::absolute(base).context(format!(
-        "could not resolve project root {} at {}:{}",
-        base.display(),
-        file!(),
-        line!()
-    ))?;
-    let base = project_root.as_path();
+async fn run(command: Command, json_mode: bool, api_key: Option<&str>) -> Result<Value> {
     match command {
         Command::Render { output } => render::render(&output),
         Command::Transcribe {
@@ -170,14 +152,6 @@ async fn run(
             document::write_atomic_bytes(&output, bytes, overwrite).await?;
             Ok(json!({"path": output, "format": format.as_str()}))
         }
-        Command::Assemble {
-            recipe,
-            output,
-            dry_run,
-            overwrite,
-        } => {
-            opencut_player::cli::assemble::run(&recipe, base, output.as_deref(), dry_run, overwrite)
-        }
         Command::Probe { file } => {
             if file
                 .extension()
@@ -202,7 +176,7 @@ async fn run(
             height,
             fps,
         } => {
-            let doc = Document {
+            let doc = TimelineEditingState {
                 settings: Settings {
                     width,
                     height,
@@ -211,7 +185,6 @@ async fn run(
                 },
                 assets: vec![],
                 clips: vec![],
-                view: Default::default(),
                 tracks: vec![
                     Track {
                         id: Ulid::generate(),
@@ -232,11 +205,8 @@ async fn run(
                 ],
             };
             validate::require_valid(&doc, None)?;
-            let raw = serde_json::to_value(&doc).context(format!(
-                "serialization_error at {}:{}",
-                file!(),
-                line!()
-            ))?;
+            let raw = serde_json::to_value(TimelineSerialization::from_editing_state(&doc))
+                .context(format!("serialization_error at {}:{}", file!(), line!()))?;
             document::write_atomic(&timeline, &raw, false)?;
             if json_mode {
                 Ok(json!({"path": timeline, "document": raw}))
@@ -244,11 +214,9 @@ async fn run(
                 Ok(json!(timeline))
             }
         }
-        Command::Schema { kind, .. } => Ok(serde_json::to_value(if kind == "recipe" {
-            schemars::schema_for!(opencut_player::cli::assemble::Recipe)
-        } else {
-            schemars::schema_for!(Document)
-        })
+        Command::Schema { .. } => Ok(serde_json::to_value(schemars::schema_for!(
+            TimelineSerialization
+        ))
         .context(format!("serialization_error at {}:{}", file!(), line!()))?),
         Command::Doc => Ok(json!(docs::generate()?)),
         Command::Validate { timeline } => {

@@ -4,7 +4,7 @@ use anyhow::Result;
 use image::{Rgba, RgbaImage};
 use opencut_player::timeline::{
     AudioClipProperties, Clip, FrameRate, MediaAsset, MediaClipData, MediaKind, TextClip,
-    TextClipProperties, TimelineSerialization, TimelineTime, Track, TrackKind, VideoClipProperties,
+    TextClipProperties, TimelineEditingState, TimelineTime, Track, TrackKind, VideoClipProperties,
 };
 use std::{
     fs,
@@ -26,23 +26,26 @@ fn saving_scroll_preserves_the_preview_and_editing_history() {
     doc.clips
         .push(text_clip(10, 1, 0, 8, doc.settings.frame_rate));
     let mut timeline =
-        TimelineRuntimeState::new("scroll.timeline.json".into(), doc, &dir.0).unwrap();
+        TimelineRuntimeState::new(dir.0.join("scroll.timeline.json"), doc, &dir.0).unwrap();
     let original = wait_for_preview(&timeline.backend, time(0)).unwrap();
     timeline.h_scroll.set_offset(point(px(-120.0), px(0.0)));
     timeline.v_scroll.set_offset(point(px(0.0), px(-40.0)));
-    timeline.save_timeline_scroll(&dir.0).unwrap();
+    timeline.save().unwrap();
 
     let cached = timeline.backend.preview_frame(time(0)).unwrap().unwrap();
     assert!(Arc::ptr_eq(&original, &cached));
     assert!(timeline.undo_stack.is_empty());
     assert!(timeline.redo_stack.is_empty());
-    let saved: TimelineSerialization =
-        serde_json::from_slice(&fs::read(dir.0.join(&timeline.path)).unwrap()).unwrap();
-    assert_eq!(saved.view.horizontal_scroll, 120.0);
-    assert_eq!(saved.view.vertical_scroll, 40.0);
-    assert_eq!(saved.view.saved_playhead_frame, time(0));
-    timeline.backend.timeline_mut().clips.clear();
-    assert!(timeline.backend.preview_frame(time(0)).unwrap().is_none());
+    let saved: serde_json::Value =
+        serde_json::from_slice(&fs::read(&timeline.path).unwrap()).unwrap();
+    assert_eq!(saved["view_state"]["horizontal_scroll"], 120.0);
+    assert_eq!(saved["view_state"]["vertical_scroll"], 40.0);
+    assert_eq!(saved["view_state"]["saved_playhead_frame"], 0);
+    let mut edited = timeline.backend.timeline().clone();
+    edited.clips.clear();
+    timeline.backend.replace_timeline(edited).unwrap();
+    let edited = wait_for_preview(&timeline.backend, time(0)).unwrap();
+    assert!(!Arc::ptr_eq(&original, &edited));
 }
 
 #[test]
@@ -58,20 +61,63 @@ fn preview_reuses_frames_and_replaces_document_snapshots() {
         &original,
         &backend.preview_frame(time(0)).unwrap().unwrap()
     ));
-    assert!(backend.preview_frame(time(4)).unwrap().is_none());
+    backend.preview_frame(time(4)).unwrap();
+    assert_eq!(backend.position(), Duration::from_millis(500));
     let sought = wait_for_preview(&backend, time(4)).unwrap();
     assert_eq!(sought.frame.timestamp, Duration::from_millis(500));
     let last = wait_for_preview(&backend, time(100)).unwrap();
+    assert_eq!(backend.position(), Duration::from_millis(875));
     assert_eq!(last.frame.timestamp, Duration::from_millis(875));
     assert!(Arc::ptr_eq(
         &last,
         &backend.preview_frame(time(7)).unwrap().unwrap()
     ));
-    backend.timeline_mut().clips.clear();
-    assert!(backend.preview_frame(time(0)).unwrap().is_none());
+    let mut edited = backend.timeline().clone();
+    edited.clips.clear();
+    backend.replace_timeline(edited).unwrap();
     let edited = wait_for_preview(&backend, time(0)).unwrap();
     assert!(edited.frame.layers.is_empty());
     assert_eq!(original.frame.layers.len(), 1);
+}
+
+#[test]
+fn nonblocking_seek_owns_position_even_when_decoding_fails() {
+    let dir = Temp::new();
+    let mut doc = document();
+    doc.tracks.push(track(1, TrackKind::Video));
+    doc.assets.push(asset(100, "missing.png", MediaKind::Image));
+    // Position zero is an empty frame; the missing image starts at one second.
+    doc.clips.push(media_clip(10, 1, 100, 8, 0, 8));
+    let backend = TimelineBackend::open_sync(doc, &dir.0).unwrap();
+    let previous = backend.get_current_frame().unwrap();
+
+    backend.seek(Duration::from_millis(1060)).unwrap();
+    assert_eq!(backend.position(), Duration::from_secs(1));
+    let error = wait_for_preview(&backend, time(8)).err().unwrap();
+    assert!(format!("{error:?}").contains("missing.png"));
+    assert_eq!(backend.position(), Duration::from_secs(1));
+    assert!(Arc::ptr_eq(
+        &previous,
+        &backend.get_current_frame().unwrap()
+    ));
+    assert_eq!(previous.timestamp, Duration::ZERO);
+}
+
+#[test]
+fn blocking_seek_publishes_the_preview_and_playhead_together() {
+    let dir = Temp::new();
+    let mut doc = document();
+    doc.tracks.push(track(1, TrackKind::Text));
+    doc.clips
+        .push(text_clip(10, 1, 0, 8, doc.settings.frame_rate));
+    let mut backend = TimelineBackend::open_sync(doc, &dir.0).unwrap();
+
+    backend.seek_sync(Duration::from_millis(500)).unwrap();
+    let snapshot = backend.get_current_frame().unwrap();
+    let preview = backend.preview_frame(time(4)).unwrap().unwrap();
+    assert!(Arc::ptr_eq(&snapshot, &preview.frame));
+    assert_eq!(backend.position(), snapshot.timestamp);
+    assert_eq!(backend.position(), Duration::from_millis(500));
 }
 
 #[test]
@@ -84,7 +130,9 @@ fn preview_reports_decode_errors_and_recovers_after_an_edit() {
     let mut backend = TimelineBackend::new(doc, &dir.0).unwrap();
     let error = wait_for_preview(&backend, time(0)).err().unwrap();
     assert!(format!("{error:?}").contains("missing.png"));
-    backend.timeline_mut().clips.clear();
+    let mut edited = backend.timeline().clone();
+    edited.clips.clear();
+    backend.replace_timeline(edited).unwrap();
     assert!(
         wait_for_preview(&backend, time(0))
             .unwrap()
@@ -117,7 +165,6 @@ fn new_rejects_missing_and_non_directory_media_roots_immediately() {
 fn metadata_empty_and_audio_only_timelines() {
     let dir = Temp::new();
     let mut doc = document();
-    doc.view.saved_playhead_frame = time(42);
     let mut backend = TimelineBackend::open_sync(doc.clone(), &dir.0).unwrap();
     assert_eq!(backend.frame_size(), (16, 12));
     assert_eq!(backend.framerate(), Some(8.0));
@@ -436,8 +483,8 @@ impl Drop for Temp {
     }
 }
 
-fn document() -> TimelineSerialization {
-    let mut doc = TimelineSerialization::default();
+fn document() -> TimelineEditingState {
+    let mut doc = TimelineEditingState::default();
     doc.settings.width = 16;
     doc.settings.height = 12;
     doc.settings.frame_rate = FrameRate::new(8, 1);

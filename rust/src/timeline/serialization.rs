@@ -1,5 +1,5 @@
-use crate::engine::timeline::TimelineEditingState as RuntimeTimelineEditingState;
 use crate::timeline as runtime;
+use crate::timeline::TimelineEditingState as RuntimeTimelineEditingState;
 use anyhow::{Context as _, Result};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -31,6 +31,56 @@ impl TimelineSerialization {
     /// Rebuilds independent runtime content without exposing disk types.
     pub fn to_editing_state(&self) -> RuntimeTimelineEditingState {
         self.editing_state.to_runtime()
+    }
+
+    pub fn set_view_state(
+        &mut self,
+        playhead: runtime::TimelineTime,
+        scroll: (f32, f32),
+        pixels_per_second: f32,
+        snapping_enabled: bool,
+        track_magnet_enabled: bool,
+    ) {
+        self.view_state = TimelineViewState {
+            saved_playhead_frame: playhead.frames().max(0),
+            horizontal_scroll: nonnegative_finite(scroll.0),
+            vertical_scroll: nonnegative_finite(scroll.1),
+            pixels_per_second: if pixels_per_second.is_finite() && pixels_per_second > 0.0 {
+                pixels_per_second
+            } else {
+                72.0
+            },
+            snapping_enabled,
+            track_magnet_enabled,
+        };
+    }
+
+    pub fn playhead(&self) -> runtime::TimelineTime {
+        runtime::TimelineTime::from_frames(self.view_state.saved_playhead_frame.max(0))
+    }
+
+    pub fn scroll_offset(&self) -> (f32, f32) {
+        (
+            nonnegative_finite(self.view_state.horizontal_scroll),
+            nonnegative_finite(self.view_state.vertical_scroll),
+        )
+    }
+
+    pub fn pixels_per_second(&self) -> f32 {
+        let zoom = self.view_state.pixels_per_second;
+        if zoom.is_finite() && zoom > 0.0 {
+            zoom
+        } else {
+            72.0
+        }
+    }
+
+    pub fn snapping_enabled(&self) -> bool {
+        self.view_state.snapping_enabled
+    }
+
+    pub fn track_magnet_enabled(&self) -> bool {
+        self.view_state.track_magnet_enabled
     }
 
     pub fn load(path: &Path) -> Result<Self> {
@@ -101,13 +151,26 @@ pub fn parse(value: &Value) -> Result<TimelineSerialization, ParseError> {
         });
     }
     let mut value = value.clone();
-    let frame_rate = match value.pointer("/settings/frame_rate") {
+    // Existing editor files stored content and view preferences at the root.
+    if let Some(object) = value.as_object_mut()
+        && !object.contains_key("editing_state")
+    {
+        let view = object
+            .remove("view_state")
+            .or_else(|| object.remove("view"));
+        let editing = Value::Object(std::mem::take(object));
+        object.insert("editing_state".into(), editing);
+        if let Some(view) = view {
+            object.insert("view_state".into(), view);
+        }
+    }
+    let frame_rate = match value.pointer("/editing_state/settings/frame_rate") {
         Some(rate) => match serde_json::from_value::<FrameRate>(rate.clone()) {
             Ok(rate) => rate,
             Err(error) => {
                 return Err(ParseError {
                     code: "schema_error",
-                    pointer: "/settings/frame_rate".into(),
+                    pointer: "/editing_state/settings/frame_rate".into(),
                     message: error.to_string(),
                     file: file!(),
                     line: line!(),
@@ -116,14 +179,17 @@ pub fn parse(value: &Value) -> Result<TimelineSerialization, ParseError> {
         },
         None => FrameRate::default(),
     };
-    if let Some(clips) = value.get_mut("clips").and_then(Value::as_array_mut) {
+    if let Some(clips) = value
+        .pointer_mut("/editing_state/clips")
+        .and_then(Value::as_array_mut)
+    {
         for clip in clips {
-            let Some(clip) = clip.as_object_mut() else {
-                continue;
-            };
-            if !clip.contains_key("text") && !clip.contains_key("properties") {
+            if clip.get("kind").and_then(Value::as_str) != Some("Text") {
                 continue;
             }
+            let Some(clip) = clip.get_mut("data").and_then(Value::as_object_mut) else {
+                continue;
+            };
             let Some(frames) = clip.get("length").and_then(Value::as_i64) else {
                 continue;
             };
@@ -180,6 +246,14 @@ pub fn parse(value: &Value) -> Result<TimelineSerialization, ParseError> {
                 line: line!(),
             })
         }
+    }
+}
+
+fn nonnegative_finite(value: f32) -> f32 {
+    if value.is_finite() {
+        value.max(0.0)
+    } else {
+        0.0
     }
 }
 

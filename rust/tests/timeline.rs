@@ -7,12 +7,18 @@ use serde_json::{Value, json};
 #[test]
 fn editor_fixture_round_trips_without_losing_document_fields() {
     let raw: Value = serde_json::from_str(include_str!("fixtures/shared.timeline.json")).unwrap();
-    let doc = document::parse(&raw).unwrap();
+    let serialized = document::parse(&raw).unwrap();
+    let doc = serialized.to_editing_state();
     #[cfg(feature = "cli")]
     validate::require_valid(&doc, None).unwrap();
-    assert_eq!(serde_json::to_value(&doc).unwrap(), raw);
+    let mut editing = raw.clone();
+    editing.as_object_mut().unwrap().remove("view");
+    assert_eq!(
+        serde_json::to_value(&serialized).unwrap(),
+        json!({"editing_state": editing, "view_state": raw["view"]})
+    );
     assert_eq!(doc.content_duration().frames(), 60);
-    assert_eq!(doc.view.saved_playhead_frame.frames(), 20);
+    assert_eq!(serialized.playhead().frames(), 20);
     assert!(doc.tracks[0].locked);
     assert_eq!(
         doc.clips[3].frame_length(doc.settings.frame_rate).frames(),
@@ -39,7 +45,7 @@ fn preserves_gui_aliases_and_normalizes_media_clip_kind() {
     raw["clips"][2]["data"]["id"] = json!(99);
     let tracks = raw.as_object_mut().unwrap().remove("tracks").unwrap();
     raw["layers"] = tracks;
-    let doc = document::parse(&raw).unwrap();
+    let doc = document::parse(&raw).unwrap().to_editing_state();
     assert!(matches!(&doc.clips[2], Clip::Audio(_)));
     assert_eq!(doc.clips[2].id(), ulid::Ulid::from(99_u128));
 }
@@ -62,12 +68,12 @@ fn legacy_cli_documents_are_rejected_explicitly() {
 #[test]
 fn validation_reports_reference_and_overlap_errors_without_mutation() {
     let raw: Value = serde_json::from_str(include_str!("fixtures/shared.timeline.json")).unwrap();
-    let mut doc = document::parse(&raw).unwrap();
+    let mut doc = document::parse(&raw).unwrap().to_editing_state();
     let mut duplicate = doc.clips[0].clone();
     duplicate.set_id(ulid::Ulid::from(100_u128));
     doc.clips.push(duplicate);
     doc.clips[1].set_track_id(ulid::Ulid::from(101_u128));
-    let before = serde_json::to_value(&doc).unwrap();
+    let before = serde_json::to_value(TimelineSerialization::from_editing_state(&doc)).unwrap();
     let findings = validate::validate(&doc, None);
     assert!(
         findings
@@ -79,7 +85,10 @@ fn validation_reports_reference_and_overlap_errors_without_mutation() {
             .iter()
             .any(|f| f.error.to_string().contains("overlap"))
     );
-    assert_eq!(serde_json::to_value(&doc).unwrap(), before);
+    assert_eq!(
+        serde_json::to_value(TimelineSerialization::from_editing_state(&doc)).unwrap(),
+        before
+    );
 }
 
 #[test]

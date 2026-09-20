@@ -5,6 +5,8 @@ use gpui::{
     MouseDownEvent, MouseMoveEvent, MouseUpEvent, ObjectFit, PathPromptOptions, Pixels, Render,
     ScrollHandle, ScrollWheelEvent, TouchPhase, Window, actions, div, img, prelude::*, px, rgb,
 };
+use opencut_player::timeline::TimelineSerialization;
+use std::path::Path;
 use std::{
     collections::{HashMap, HashSet},
     path::PathBuf,
@@ -59,7 +61,7 @@ use clip_placement::{
     ClipPlacementRejection, validate_clip_placement, validate_text_clip_placement,
 };
 use context_menu::ContextMenu;
-use editing::{ClipClipboard, EditAction, apply_timeline_edit, edit_timeline};
+use editing::{ClipClipboard, EditAction, apply_timeline_edit};
 pub(crate) use editor::Editor;
 use explorer::{load_explorer_expansion, visible_tree};
 use explorer_filter::ExplorerFilter;
@@ -74,7 +76,7 @@ use project_settings::{load_project_local_settings, save_project_local_settings}
 use properties_transform::VideoTransformInputs;
 use timeline::{
     FRAME_RATE_PRESETS, FrameRate, FrameRateLabel, PreviewDropAsset, TimelineEditorExt,
-    TimelineRuntimeState, TimelineSerialization, TimelineTime, timeline_ranges_overlap,
+    TimelineRuntimeState, TimelineTime, timeline_ranges_overlap,
 };
 #[cfg(test)]
 use timeline_clip::AudioClip;
@@ -232,10 +234,7 @@ impl Editor {
 
     pub fn prepare_project_switch(&mut self) -> Result<()> {
         if let Some(timeline) = self.timeline.as_ref() {
-            timeline
-                .backend
-                .timeline()
-                .save(&self.project_root.join(&timeline.path))?;
+            timeline.save()?;
         }
         Ok(())
     }
@@ -249,12 +248,12 @@ impl Editor {
             if self
                 .timeline
                 .as_ref()
-                .is_some_and(|timeline| timeline.path == relative_path)
+                .is_some_and(|timeline| timeline.path == self.project_root.join(&relative_path))
             {
                 self.select_only_clip(None);
                 let timeline = self.timeline.as_mut().expect("timeline was checked above");
                 let playhead = timeline.playhead();
-                set_timeline_position(&mut self.preview, timeline, playhead);
+                set_timeline_position(&mut self.preview, &timeline.backend, playhead)?;
                 self.explorer.selected_file = Some(relative_path);
                 cx.notify();
                 return Ok(());
@@ -262,10 +261,7 @@ impl Editor {
             let path = self.project_root.join(&relative_path);
             let timeline = TimelineSerialization::load(&path)?;
             if let Some(timeline) = self.timeline.as_ref() {
-                timeline
-                    .backend
-                    .timeline()
-                    .save(&self.project_root.join(&timeline.path))?;
+                timeline.save()?;
             }
             self.activate_timeline(relative_path.clone(), timeline, cx)?;
             self.select_only_clip(None);
@@ -286,10 +282,7 @@ impl Editor {
         cx: &mut Context<Self>,
     ) -> Result<()> {
         if let Some(active_timeline) = self.timeline.as_ref() {
-            active_timeline
-                .backend
-                .timeline()
-                .save(&self.project_root.join(&active_timeline.path))?;
+            active_timeline.save()?;
         }
 
         // Expand the target folder so the new timeline is visible in the tree.
@@ -319,13 +312,19 @@ impl Editor {
             self.preview.last_scrub_seek = None;
             self.properties.transform_input_clip_id = None;
             self.properties.text_input_clip_id = None;
-            self.timeline = Some(TimelineRuntimeState::new(
-                timeline_path,
+            self.timeline = Some(TimelineRuntimeState::from_serialize(
                 active_timeline,
+                self.project_root.join(timeline_path),
                 &self.project_root,
             )?);
             let mut settings = load_project_local_settings(&self.project_root);
-            settings.active_timeline = self.timeline.as_ref().map(|timeline| timeline.path.clone());
+            settings.active_timeline = self.timeline.as_ref().and_then(|timeline| {
+                timeline
+                    .path
+                    .strip_prefix(&self.project_root)
+                    .ok()
+                    .map(Path::to_path_buf)
+            });
             save_project_local_settings(&self.project_root, &settings)?;
             self.explorer.search_query = None;
             self.explorer.search_results.clear();
@@ -333,15 +332,20 @@ impl Editor {
             self.explorer
                 .filter
                 .update(cx, |filter, cx| filter.clear(cx));
-            self.explorer.selected_file =
-                self.timeline.as_ref().map(|timeline| timeline.path.clone());
+            self.explorer.selected_file = self.timeline.as_ref().and_then(|timeline| {
+                timeline
+                    .path
+                    .strip_prefix(&self.project_root)
+                    .ok()
+                    .map(Path::to_path_buf)
+            });
             self.dismiss_context_menu();
             self.explorer
                 .refresh_file_tree(&self.project_root)
                 .context("refresh_file_tree failed")?;
             if let Some(timeline) = self.timeline.as_mut() {
                 let playhead = timeline.playhead();
-                set_timeline_position(&mut self.preview, timeline, playhead);
+                set_timeline_position(&mut self.preview, &timeline.backend, playhead)?;
             } else {
                 self.preview.target = PreviewTarget::None;
             }
@@ -370,6 +374,7 @@ impl Editor {
                         continue;
                     }
                 };
+            let timeline = timeline.to_editing_state();
             let referenced_assets = timeline
                 .clips
                 .iter()
@@ -511,7 +516,7 @@ impl Editor {
         let Some(timeline) = self.timeline.as_mut() else {
             return;
         };
-        if let Err(error) = timeline.blade_at_playhead(&mut self.preview, &self.project_root) {
+        if let Err(error) = timeline.blade_at_playhead(&mut self.preview) {
             log::error!("{error:?}");
         }
         cx.notify();

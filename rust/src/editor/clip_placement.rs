@@ -1,5 +1,6 @@
 use super::*;
 use anyhow::Result;
+use opencut_player::timeline::TimelineEditingState;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(super) enum ClipPlacementRejection {
@@ -41,7 +42,7 @@ impl std::fmt::Display for ClipPlacementRejection {
 impl std::error::Error for ClipPlacementRejection {}
 
 pub(super) fn validate_clip_placement(
-    timeline: &TimelineSerialization,
+    timeline: &TimelineEditingState,
     target_track_id: Ulid,
     media_kind: MediaKind,
     clip_length: TimelineTime,
@@ -64,7 +65,7 @@ pub(super) fn validate_clip_placement(
 }
 
 pub(super) fn validate_text_clip_placement(
-    timeline: &TimelineSerialization,
+    timeline: &TimelineEditingState,
     target_track_id: Ulid,
     clip_length: TimelineTime,
     target_timeline_start: TimelineTime,
@@ -81,7 +82,7 @@ pub(super) fn validate_text_clip_placement(
 }
 
 fn validate_clip_placement_on_track(
-    timeline: &TimelineSerialization,
+    timeline: &TimelineEditingState,
     target_track_id: Ulid,
     expected_track_kind: TrackKind,
     clip_length: TimelineTime,

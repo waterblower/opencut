@@ -3,10 +3,12 @@ mod serialization;
 pub use serialization::{ParseError, TimelineSerialization, parse};
 mod asset;
 mod clip;
+mod editing_state;
 mod time;
 mod track;
 pub use asset::*;
 pub use clip::*;
+pub use editing_state::TimelineEditingState;
 pub use time::*;
 pub use track::*;
 

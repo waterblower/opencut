@@ -164,10 +164,7 @@ impl Editor {
         )
         .expect("setting video properties cannot be rejected");
 
-        timeline
-            .backend
-            .timeline()
-            .save(&self.project_root.join(&timeline.path))?;
+        timeline.save()?;
         Ok(())
     }
 }

@@ -4,7 +4,7 @@ pub mod video2;
 #[cfg(feature = "timeline")]
 pub mod timeline;
 
-#[cfg(feature = "timeline")]
+#[cfg(any(feature = "cli", feature = "editor"))]
 pub mod engine;
 
 #[cfg(feature = "cli")]

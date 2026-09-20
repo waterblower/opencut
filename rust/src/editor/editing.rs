@@ -1,6 +1,6 @@
 use super::*;
-use anyhow::{Result, anyhow};
-use std::path::Path;
+use anyhow::{Result, anyhow, ensure};
+use opencut_player::timeline::TimelineEditingState;
 
 #[derive(Clone)]
 pub(super) struct ClipClipboard {
@@ -16,7 +16,7 @@ pub(super) struct ClipClipboard {
 impl ClipClipboard {
     fn from_selection(
         source_timeline: PathBuf,
-        timeline: &TimelineSerialization,
+        timeline: &TimelineEditingState,
         selected_clip_ids: &HashSet<Ulid>,
         primary_clip_id: Option<Ulid>,
     ) -> Option<Self> {
@@ -109,7 +109,7 @@ impl ClipClipboard {
     fn prepare_paste(
         &self,
         destination_path: &std::path::Path,
-        destination: &TimelineSerialization,
+        destination: &TimelineEditingState,
         position: TimelineTime,
     ) -> Result<(Vec<Clip>, Vec<MediaAsset>)> {
         let mut clips = self.clips_at(position, destination.settings.frame_rate);
@@ -195,11 +195,7 @@ impl ClipClipboard {
 }
 
 impl TimelineRuntimeState {
-    pub(super) fn blade_at_playhead(
-        &mut self,
-        preview: &mut PreviewState,
-        project_root: &Path,
-    ) -> Result<()> {
+    pub(super) fn blade_at_playhead(&mut self, preview: &mut PreviewState) -> Result<()> {
         let clips_to_split = self
             .backend
             .timeline()
@@ -242,9 +238,8 @@ impl TimelineRuntimeState {
                 removed_clips: removed_clip_ids,
                 added_clips: split_clips,
             },
-        )
-        .expect("split clip placements were validated before recording history");
-        self.backend.timeline().save(&project_root.join(&self.path))
+        )?;
+        self.save()
     }
 }
 
@@ -257,7 +252,7 @@ impl Editor {
             return Ok(());
         }
         let clip_ids = timeline.interaction.selected_clip_ids.clone();
-        let magnet_enabled = timeline.interaction.magnet_enabled;
+        let magnet_enabled = timeline.track_magnet_enabled;
         let Some(timeline) = self.timeline.as_mut() else {
             return Ok(());
         };
@@ -346,14 +341,10 @@ impl Editor {
             &mut self.preview,
             timeline,
             EditAction::AddClips { clips, assets },
-        )
-        .expect("clipboard placements were validated before recording history");
+        )?;
 
         self.status = Some(format!("Pasted {count} clip{}.", plural_suffix(count)));
-        timeline
-            .backend
-            .timeline()
-            .save(&self.project_root.join(&timeline.path))?;
+        timeline.save()?;
 
         self.schedule_active_timeline_waveforms(cx);
         Ok(())
@@ -370,8 +361,7 @@ impl Editor {
                 clip_ids: clip_ids.clone(),
                 close_track_gaps,
             },
-        )
-        .expect("removing clips cannot be rejected");
+        )?;
         timeline.interaction.selected_clip_ids.clear();
         timeline.interaction.selected_clip_id = None;
         self.properties.transform_input_clip_id = None;
@@ -380,10 +370,7 @@ impl Editor {
         let Some(timeline) = self.timeline.as_ref() else {
             return Ok(());
         };
-        timeline
-            .backend
-            .timeline()
-            .save(&self.project_root.join(&timeline.path))
+        timeline.save()
     }
 
     pub(super) fn duplicate_selected(&mut self) -> Result<()> {
@@ -476,12 +463,8 @@ impl Editor {
                 clips: duplicates,
                 assets: Vec::new(),
             },
-        )
-        .expect("duplicate placements were validated before recording history");
-        timeline
-            .backend
-            .timeline()
-            .save(&self.project_root.join(&timeline.path))
+        )?;
+        timeline.save()
     }
 
     pub(super) fn add_track(&mut self, kind: TrackKind) -> Result<()> {
@@ -520,12 +503,8 @@ impl Editor {
                     visible: true,
                 },
             },
-        )
-        .expect("adding a track cannot be rejected");
-        timeline
-            .backend
-            .timeline()
-            .save(&self.project_root.join(&timeline.path))
+        )?;
+        timeline.save()
     }
 
     pub(super) fn toggle_track_lock(&mut self, track_id: Ulid) -> Result<()> {
@@ -537,12 +516,8 @@ impl Editor {
             &mut self.preview,
             timeline,
             EditAction::ToggleTrackLock { track_id },
-        )
-        .expect("toggling a track lock cannot be rejected");
-        timeline
-            .backend
-            .timeline()
-            .save(&self.project_root.join(&timeline.path))
+        )?;
+        timeline.save()
     }
 
     pub(super) fn toggle_track_visibility(&mut self, track_id: Ulid) -> Result<()> {
@@ -554,12 +529,8 @@ impl Editor {
             &mut self.preview,
             timeline,
             EditAction::ToggleTrackVisibility { track_id },
-        )
-        .expect("toggling track visibility cannot be rejected");
-        timeline
-            .backend
-            .timeline()
-            .save(&self.project_root.join(&timeline.path))
+        )?;
+        timeline.save()
     }
 
     pub(super) fn toggle_track_mute(&mut self, track_id: Ulid) -> Result<()> {
@@ -571,12 +542,8 @@ impl Editor {
             &mut self.preview,
             timeline,
             EditAction::ToggleTrackMute { track_id },
-        )
-        .expect("toggling track mute cannot be rejected");
-        timeline
-            .backend
-            .timeline()
-            .save(&self.project_root.join(&timeline.path))
+        )?;
+        timeline.save()
     }
 
     pub(super) fn move_track(&mut self, track_id: Ulid, direction: i8) -> Result<()> {
@@ -608,12 +575,8 @@ impl Editor {
             &mut self.preview,
             timeline,
             EditAction::MoveTrack { index, target },
-        )
-        .expect("moving a track cannot be rejected");
-        timeline
-            .backend
-            .timeline()
-            .save(&self.project_root.join(&timeline.path))
+        )?;
+        timeline.save()
     }
 
     pub(super) fn delete_track(&mut self, track_id: Ulid) -> Result<()> {
@@ -637,8 +600,7 @@ impl Editor {
             &mut self.preview,
             timeline,
             EditAction::DeleteTrack { track_id },
-        )
-        .expect("deleting a track cannot be rejected");
+        )?;
         let remaining_clip_ids = timeline
             .backend
             .timeline()
@@ -663,10 +625,7 @@ impl Editor {
                 .find(|clip| timeline.interaction.selected_clip_ids.contains(&clip.id()))
                 .map(Clip::id);
         }
-        timeline
-            .backend
-            .timeline()
-            .save(&self.project_root.join(&timeline.path))
+        timeline.save()
     }
 
     pub(super) fn select_only_clip(&mut self, clip_id: Option<Ulid>) {
@@ -724,17 +683,16 @@ impl Editor {
         let Some(timeline) = self.timeline.as_mut() else {
             return Ok(());
         };
-        let Some(mut snapshot) = timeline.undo_stack.pop() else {
+        let Some(snapshot) = timeline.undo_stack.last().cloned() else {
             return Ok(());
         };
-        snapshot.view = timeline.backend.timeline().view.clone();
         let current = timeline.backend.timeline().clone();
         apply_timeline_edit(
             &mut self.preview,
             timeline,
             EditAction::ReplaceTimeline { timeline: snapshot },
-        )
-        .expect("restoring history cannot be rejected");
+        )?;
+        timeline.undo_stack.pop();
         timeline.redo_stack.push(current);
         self.reset_after_history_change()
     }
@@ -743,17 +701,16 @@ impl Editor {
         let Some(timeline) = self.timeline.as_mut() else {
             return Ok(());
         };
-        let Some(mut snapshot) = timeline.redo_stack.pop() else {
+        let Some(snapshot) = timeline.redo_stack.last().cloned() else {
             return Ok(());
         };
-        snapshot.view = timeline.backend.timeline().view.clone();
         let current = timeline.backend.timeline().clone();
         apply_timeline_edit(
             &mut self.preview,
             timeline,
             EditAction::ReplaceTimeline { timeline: snapshot },
-        )
-        .expect("restoring history cannot be rejected");
+        )?;
+        timeline.redo_stack.pop();
         timeline.undo_stack.push(current);
         self.reset_after_history_change()
     }
@@ -790,34 +747,24 @@ impl Editor {
         self.properties.transform_input_clip_id = None;
         self.properties.text_input_clip_id = None;
         if !timeline.backend.timeline().clips.is_empty() {
-            set_timeline_position(&mut self.preview, timeline, timeline.playhead());
+            set_timeline_position(&mut self.preview, &timeline.backend, timeline.playhead())?;
         }
         let Some(timeline) = self.timeline.as_ref() else {
             return Ok(());
         };
-        timeline
-            .backend
-            .timeline()
-            .save(&self.project_root.join(&timeline.path))
+        timeline.save()
     }
 
     pub(super) fn toggle_track_magnet(&mut self) {
         let Some(timeline) = self.timeline.as_mut() else {
             return;
         };
-        apply_timeline_edit(
-            &mut self.preview,
-            timeline,
-            EditAction::SetTrackMagnet {
-                enabled: !timeline.interaction.magnet_enabled,
-            },
-        )
-        .expect("changing the track magnet preference cannot be rejected");
+        timeline.track_magnet_enabled = !timeline.track_magnet_enabled;
     }
 }
 
 pub(super) fn validate_clips_placements(
-    timeline: &TimelineSerialization,
+    timeline: &TimelineEditingState,
     clips: &[Clip],
 ) -> Result<()> {
     if clips.is_empty() {
@@ -913,23 +860,11 @@ pub enum EditAction {
     SetFrameRate {
         frame_rate: FrameRate,
     },
-    SetSavedPlayhead {
-        playhead: TimelineTime,
-    },
-    SetTimelineZoom {
-        pixels_per_second: f32,
-    },
-    SetSnapping {
-        enabled: bool,
-    },
-    SetTrackMagnet {
-        enabled: bool,
-    },
     UpdateAssetPaths {
         paths: Vec<(Ulid, PathBuf)>,
     },
     ReplaceTimeline {
-        timeline: TimelineSerialization,
+        timeline: TimelineEditingState,
     },
 }
 
@@ -944,14 +879,17 @@ pub fn apply_timeline_edit(
 }
 
 pub fn edit_timeline(timeline: &mut TimelineRuntimeState, action: EditAction) -> Result<()> {
-    let data = timeline.backend.timeline_mut();
+    let mut data = timeline.backend.timeline().clone();
+    edit_content(&mut data, action)?;
+    timeline.backend.replace_timeline(data)
+}
+
+fn edit_content(data: &mut TimelineEditingState, action: EditAction) -> Result<()> {
     match action {
         EditAction::AddClips { clips, assets } => {
-            let mut updated = data.clone();
-            updated.assets.extend(assets);
-            validate_clips_placements(&updated, &clips)?;
-            updated.clips.extend(clips);
-            *data = updated;
+            data.assets.extend(assets);
+            validate_clips_placements(data, &clips)?;
+            data.clips.extend(clips);
         }
         EditAction::RemoveClips {
             clip_ids,
@@ -967,13 +905,10 @@ pub fn edit_timeline(timeline: &mut TimelineRuntimeState, action: EditAction) ->
             removed_clips,
             added_clips,
         } => {
-            let mut updated = data.clone();
-            updated
-                .clips
+            data.clips
                 .retain(|clip| !removed_clips.contains(&clip.id()));
-            validate_clips_placements(&updated, &added_clips)?;
-            updated.clips.extend(added_clips);
-            *data = updated;
+            validate_clips_placements(data, &added_clips)?;
+            data.clips.extend(added_clips);
         }
         EditAction::MoveClips { placements } => {
             let ids = placements.iter().map(|(id, _, _)| *id).collect();
@@ -997,11 +932,9 @@ pub fn edit_timeline(timeline: &mut TimelineRuntimeState, action: EditAction) ->
                 data.clips[index] = clip;
                 return Ok(());
             }
-            let mut updated = data.clone();
-            updated.clips.remove(index);
-            validate_clips_placements(&updated, std::slice::from_ref(&clip))?;
-            updated.clips.insert(index, clip);
-            *data = updated;
+            data.clips.remove(index);
+            validate_clips_placements(data, std::slice::from_ref(&clip))?;
+            data.clips.insert(index, clip);
         }
         EditAction::SetVideoProperties {
             clip_ids,
@@ -1028,7 +961,13 @@ pub fn edit_timeline(timeline: &mut TimelineRuntimeState, action: EditAction) ->
             data.tracks.retain(|track| track.id != track_id);
             data.clips.retain(|clip| clip.track_id() != track_id);
         }
-        EditAction::MoveTrack { index, target } => data.tracks.swap(index, target),
+        EditAction::MoveTrack { index, target } => {
+            ensure!(
+                index < data.tracks.len() && target < data.tracks.len(),
+                "The track being moved or its destination no longer exists"
+            );
+            data.tracks.swap(index, target);
+        }
         EditAction::ToggleTrackVisibility { track_id } => {
             if let Some(track) = data.track_mut(track_id) {
                 track.visible = !track.visible;
@@ -1045,23 +984,6 @@ pub fn edit_timeline(timeline: &mut TimelineRuntimeState, action: EditAction) ->
             }
         }
         EditAction::SetFrameRate { frame_rate } => data.set_frame_rate(frame_rate),
-        EditAction::SetSavedPlayhead { playhead } => {
-            data.view.saved_playhead_frame = playhead.max(TimelineTime::ZERO);
-        }
-        EditAction::SetTimelineZoom { pixels_per_second } => {
-            data.view.pixels_per_second = pixels_per_second;
-        }
-        EditAction::SetSnapping { enabled } => {
-            timeline.interaction.snap_guide = None;
-            timeline.interaction.snapping_enabled = enabled;
-            data.view.snapping_enabled = enabled;
-            return Ok(());
-        }
-        EditAction::SetTrackMagnet { enabled } => {
-            timeline.interaction.magnet_enabled = enabled;
-            data.view.track_magnet_enabled = enabled;
-            return Ok(());
-        }
         EditAction::UpdateAssetPaths { paths } => {
             for (asset_id, path) in paths {
                 if let Some(asset) = data.assets.iter_mut().find(|asset| asset.id == asset_id) {
@@ -1074,14 +996,10 @@ pub fn edit_timeline(timeline: &mut TimelineRuntimeState, action: EditAction) ->
         }
     }
 
-    data.view.saved_playhead_frame = data
-        .view
-        .saved_playhead_frame
-        .clamp(TimelineTime::ZERO, data.content_duration());
     Ok(())
 }
 
-fn unlocked_clip_ids(timeline: &TimelineSerialization) -> HashSet<Ulid> {
+fn unlocked_clip_ids(timeline: &TimelineEditingState) -> HashSet<Ulid> {
     timeline
         .clips
         .iter()
@@ -1138,3 +1056,7 @@ fn plural_suffix(count: usize) -> &'static str {
 #[cfg(test)]
 #[path = "tests/editing.test.rs"]
 mod tests;
+
+#[cfg(test)]
+#[path = "tests/editing_state.test.rs"]
+mod editing_state_tests;

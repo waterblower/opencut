@@ -5,6 +5,7 @@ use crate::editor::{
 use anyhow::Error;
 use gpui::{AsyncApp, WeakEntity};
 use std::io::{Error as IoError, ErrorKind};
+use std::path::Path;
 
 use super::srt::srt_text_clips;
 use super::*;
@@ -37,6 +38,7 @@ impl Editor {
         event_bus: Entity<EventBus>,
         cx: &mut Context<Self>,
     ) -> Result<Self> {
+        let project_root = std::path::absolute(project_root)?;
         //
         // Load the active timeline
         //
@@ -47,24 +49,24 @@ impl Editor {
                 let Some(timeline_path) = project_settings.active_timeline else {
                     return Ok(None);
                 };
-                let timeline_data =
-                    match TimelineSerialization::load(&project_root.join(&timeline_path)) {
-                        Ok(timeline) => timeline,
-                        Err(error) => {
-                            // The saved timeline may have been moved or deleted; open
-                            // the editor without an active timeline in that case.
-                            if error
-                                .downcast_ref::<IoError>()
-                                .is_some_and(|error| error.kind() == ErrorKind::NotFound)
-                            {
-                                return Ok(None);
-                            }
-                            // We still error out for other kinds of errors.
-                            return Err(error);
+                let timeline = match TimelineRuntimeState::load(
+                    project_root.join(&timeline_path),
+                    &project_root,
+                ) {
+                    Ok(timeline) => timeline,
+                    Err(error) => {
+                        // The saved timeline may have been moved or deleted; open
+                        // the editor without an active timeline in that case.
+                        if error
+                            .downcast_ref::<IoError>()
+                            .is_some_and(|error| error.kind() == ErrorKind::NotFound)
+                        {
+                            return Ok(None);
                         }
-                    };
-                let timeline =
-                    TimelineRuntimeState::new(timeline_path, timeline_data, &project_root)?;
+                        // We still error out for other kinds of errors.
+                        return Err(error);
+                    }
+                };
                 Ok(Some(timeline))
             })()?
         };
@@ -91,7 +93,13 @@ impl Editor {
                 search_results: Vec::new(),
                 search_pending: false,
                 scroll: ScrollHandle::new(),
-                selected_file: timeline.as_ref().map(|timeline| timeline.path.clone()),
+                selected_file: timeline.as_ref().and_then(|timeline| {
+                    timeline
+                        .path
+                        .strip_prefix(&project_root)
+                        .ok()
+                        .map(Path::to_path_buf)
+                }),
                 rename_dialog: None,
                 new_timeline_dialog: None,
 
@@ -152,7 +160,7 @@ impl Editor {
         };
         if let Some(timeline) = editor.timeline.as_mut() {
             let playhead = timeline.playhead();
-            set_timeline_position(&mut editor.preview, timeline, playhead);
+            set_timeline_position(&mut editor.preview, &timeline.backend, playhead)?;
         }
         editor.schedule_project_waveforms(cx);
         Ok(editor)
@@ -201,7 +209,13 @@ async fn handle_app_event(editor: WeakEntity<Editor>, event: AppEvent, cx: &mut 
                 if let Err(error) = save_project_local_settings(
                     &editor.project_root,
                     &ProjectLocalSettings {
-                        active_timeline: editor.timeline.as_ref().map(|t| t.path.clone()),
+                        active_timeline: editor.timeline.as_ref().and_then(|timeline| {
+                            timeline
+                                .path
+                                .strip_prefix(&editor.project_root)
+                                .ok()
+                                .map(Path::to_path_buf)
+                        }),
                         upper_space_split_state: state.clone(),
                     },
                 ) {
@@ -212,18 +226,13 @@ async fn handle_app_event(editor: WeakEntity<Editor>, event: AppEvent, cx: &mut 
         }
         AppEvent::Edit(edit_action) => {
             let _ = editor.update(cx, |editor, cx| {
-                let project_root = editor.project_root.clone();
                 let Some(timeline) = editor.timeline.as_mut() else {
                     return;
                 };
                 timeline.record_editing_history();
                 apply_timeline_edit(&mut editor.preview, timeline, edit_action.clone())
                     .expect("event bus edit actions cannot be rejected");
-                if let Err(error) = timeline
-                    .backend
-                    .timeline()
-                    .save(&project_root.join(&timeline.path))
-                {
+                if let Err(error) = timeline.save() {
                     log::error!("{error:?}");
                 }
                 cx.notify();
@@ -264,9 +273,7 @@ async fn handle_app_event(editor: WeakEntity<Editor>, event: AppEvent, cx: &mut 
                     let local_x =
                         f32::from(event.event.position.x) - f32::from(event.bounds.left());
                     let start_time = timeline.backend.timeline().nearest_time(
-                        ((local_x - TIMELINE_PADDING)
-                            / timeline.backend.timeline().view.pixels_per_second)
-                            .max(0.0) as f64,
+                        ((local_x - TIMELINE_PADDING) / timeline.pixels_per_second).max(0.0) as f64,
                     );
                     timeline.preview_drop_asset = Some(PreviewDropAsset {
                         track_id,
@@ -290,7 +297,6 @@ async fn handle_app_event(editor: WeakEntity<Editor>, event: AppEvent, cx: &mut 
                 match preview.asset {
                     AssetBeingDragged::Srt(srt) => {
                         let result = (|| {
-                            let project_root = editor.project_root.clone();
                             let Some(timeline) = editor.timeline.as_mut() else {
                                 return Ok(());
                             };
@@ -322,10 +328,7 @@ async fn handle_app_event(editor: WeakEntity<Editor>, event: AppEvent, cx: &mut 
                             )?;
                             timeline.interaction.selected_clip_ids = selected_clip_ids;
                             timeline.interaction.selected_clip_id = selected_clip_id;
-                            timeline
-                                .backend
-                                .timeline()
-                                .save(&project_root.join(&timeline.path))?;
+                            timeline.save()?;
                             editor.status = Some("Added subtitles to the timeline.".to_string());
                             Ok::<(), Error>(())
                         })();

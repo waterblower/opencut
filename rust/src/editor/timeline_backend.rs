@@ -1,4 +1,4 @@
-//! Blocking timeline frame preparation without playback or UI state.
+//! Timeline frame preparation with an owned playhead and no playback or UI state.
 //!
 //! The backend owns its decoding worker. Blocking open and seek wait for that
 //! worker; snapshot reads never decode or advance time.
@@ -10,8 +10,8 @@ use anyhow::{Context as _, Error, Result, anyhow, bail};
 use image::RgbaImage;
 use opencut_player::engine::{decode::VideoReader, raster::load_image};
 use opencut_player::timeline::{
-    Clip, MediaKind, TextClipProperties, TimelineSerialization, TimelineTime, TimelineViewState,
-    TrackKind, VideoClipProperties,
+    Clip, MediaKind, TextClipProperties, TimelineEditingState, TimelineTime, TrackKind,
+    VideoClipProperties,
 };
 use std::{
     collections::{HashMap, hash_map::Entry},
@@ -52,7 +52,7 @@ pub enum TimelineLayer {
 }
 
 pub struct TimelineBackend {
-    timeline: Arc<TimelineSerialization>,
+    timeline: Arc<TimelineEditingState>,
     revision: u64,
     commands: mpsc::Sender<SeekRequest>,
     frame: Arc<Mutex<Arc<TimelineFrame>>>,
@@ -63,7 +63,7 @@ impl TimelineBackend {
     /// Validates the document and media root, then starts preparing frame zero.
     /// Returns validation and worker-start errors immediately. Media decoding
     /// stays on the worker; its failures are returned by `preview_frame`.
-    pub fn new(timeline: TimelineSerialization, media_root: &Path) -> Result<Self> {
+    pub fn new(timeline: TimelineEditingState, media_root: &Path) -> Result<Self> {
         let metadata = media_root.metadata().context(format!(
             "Inspecting timeline media root {}",
             media_root.display()
@@ -127,27 +127,25 @@ impl TimelineBackend {
                         decoder.seek_sync(request.position)?;
                         let prepared =
                             Arc::new(TimelinePreviewFrame::new(Arc::clone(&decoder.frame)));
-                        *frame.lock().unwrap() = Arc::clone(&decoder.frame);
                         Ok(prepared)
                     })();
                     let result = match result {
                         Ok(prepared) => Ok(prepared),
                         Err(error) => Err(Arc::new(error)),
                     };
-                    let completion = match &result {
-                        Ok(_) => Ok(()),
-                        Err(error) => Err(anyhow!("{error:?}")),
-                    };
                     {
                         let mut preview = preview.lock().unwrap();
                         if preview.revision == request.revision
                             && preview.position == request.position
                         {
-                            preview.result = Some(result);
+                            if let Ok(prepared) = &result {
+                                *frame.lock().unwrap() = Arc::clone(&prepared.frame);
+                            }
+                            preview.result = Some(result.clone());
                         }
                     }
                     if let Some(reply) = request.reply {
-                        let _ = reply.send(completion);
+                        let _ = reply.send(result);
                     }
                 }
             })
@@ -164,37 +162,42 @@ impl TimelineBackend {
         Ok(backend)
     }
 
-    pub fn timeline(&self) -> &TimelineSerialization {
+    pub fn timeline(&self) -> &TimelineEditingState {
         &self.timeline
     }
 
-    /// Edits document content and invalidates prepared frames.
-    /// Copy-on-write preserves snapshots currently used by the worker.
-    pub fn timeline_mut(&mut self) -> &mut TimelineSerialization {
-        self.revision = self.revision.wrapping_add(1);
-        Arc::make_mut(&mut self.timeline)
+    /// Commits validated content and requests a frame at the current playhead.
+    /// Rejection preserves content, position, and cached frames. Worker snapshots
+    /// keep their previous content until decoding completes.
+    pub fn replace_timeline(&mut self, timeline: TimelineEditingState) -> Result<()> {
+        timeline.validate()?;
+        let mut preview = self.preview.lock().unwrap();
+        let position = clamp_position(&timeline, preview.position)?;
+        let revision = self.revision.wrapping_add(1);
+        let timeline = Arc::new(timeline);
+        self.commands
+            .send(SeekRequest {
+                timeline: Arc::clone(&timeline),
+                revision,
+                position,
+                reply: None,
+            })
+            .context("Requesting edited timeline frame")?;
+        self.timeline = timeline;
+        self.revision = revision;
+        *preview = PreviewRequest {
+            revision,
+            position,
+            result: None,
+        };
+        Ok(())
     }
 
-    /// Changes saved UI state without invalidating decoded content or frames.
-    pub fn view_mut(&mut self) -> &mut TimelineViewState {
-        &mut Arc::make_mut(&mut self.timeline).view
-    }
-
-    /// Requests the given timeline frame and immediately returns its cached
-    /// presentation, or `None` while the internal worker prepares it.
-    pub fn preview_frame(
-        &self,
-        position: TimelineTime,
-    ) -> Result<Option<Arc<TimelinePreviewFrame>>> {
-        let rate = self.timeline.settings.frame_rate;
-        if rate.numerator == 0 || rate.denominator == 0 {
-            bail!("Timeline frame rate must have a positive numerator and denominator");
-        }
-        let last =
-            (self.timeline.content_duration() - TimelineTime::ONE_FRAME).max(TimelineTime::ZERO);
-        let position = self
-            .timeline
-            .duration(position.clamp(TimelineTime::ZERO, last));
+    /// Moves the playhead immediately and prepares its frame on the worker.
+    /// Snaps and clamps to the timeline; repeated requests reuse the cached result.
+    /// Decode failures preserve the last successful snapshot, not the old playhead.
+    pub fn seek(&self, position: Duration) -> Result<()> {
+        let position = clamp_position(&self.timeline, position)?;
         let mut preview = self.preview.lock().unwrap();
         if preview.revision != self.revision || preview.position != position {
             self.commands
@@ -211,6 +214,17 @@ impl TimelineBackend {
                 result: None,
             };
         }
+        Ok(())
+    }
+
+    /// Requests the given timeline frame and immediately returns its cached
+    /// presentation, or `None` while the internal worker prepares it.
+    pub fn preview_frame(
+        &self,
+        position: TimelineTime,
+    ) -> Result<Option<Arc<TimelinePreviewFrame>>> {
+        self.seek(self.timeline.duration(position))?;
+        let preview = self.preview.lock().unwrap();
         match &preview.result {
             Some(Ok(frame)) => Ok(Some(Arc::clone(frame))),
             Some(Err(error)) => Err(anyhow!("{error:?}")),
@@ -220,7 +234,7 @@ impl TimelineBackend {
 
     /// Starts an internal worker and waits for position zero to be prepared.
     /// Relative asset paths are resolved against `media_root`.
-    pub fn open_sync(timeline: TimelineSerialization, media_root: &Path) -> Result<Self> {
+    pub fn open_sync(timeline: TimelineEditingState, media_root: &Path) -> Result<Self> {
         let mut backend = Self::new(timeline, media_root)?;
         backend.seek_sync(Duration::ZERO)?;
         Ok(backend)
@@ -239,13 +253,15 @@ impl TimelineBackend {
         self.timeline.duration(self.timeline.content_duration())
     }
 
+    /// The requested playhead, independent of decoding progress or failures.
     pub fn position(&self) -> Duration {
-        self.frame.lock().unwrap().timestamp
+        self.preview.lock().unwrap().position
     }
 
     /// Waits until the worker publishes the requested frame. A failed seek
     /// preserves the previous snapshot and position.
     pub fn seek_sync(&mut self, position: Duration) -> Result<()> {
+        let position = clamp_position(&self.timeline, position)?;
         let (reply, completion) = mpsc::channel();
         self.commands
             .send(SeekRequest {
@@ -255,7 +271,18 @@ impl TimelineBackend {
                 reply: Some(reply),
             })
             .context("Requesting timeline seek")?;
-        completion.recv().context("Waiting for timeline seek")?
+        let prepared = match completion.recv().context("Waiting for timeline seek")? {
+            Ok(prepared) => prepared,
+            Err(error) => return Err(anyhow!("{error:?}")),
+        };
+        let mut preview = self.preview.lock().unwrap();
+        *self.frame.lock().unwrap() = Arc::clone(&prepared.frame);
+        *preview = PreviewRequest {
+            revision: self.revision,
+            position,
+            result: Some(Ok(prepared)),
+        };
+        Ok(())
     }
 
     /// Clones a snapshot handle without performing I/O. Older snapshots remain
@@ -266,10 +293,10 @@ impl TimelineBackend {
 }
 
 struct SeekRequest {
-    timeline: Arc<TimelineSerialization>,
+    timeline: Arc<TimelineEditingState>,
     revision: u64,
     position: Duration,
-    reply: Option<mpsc::Sender<Result<()>>>,
+    reply: Option<mpsc::Sender<Result<Arc<TimelinePreviewFrame>, Arc<Error>>>>,
 }
 
 struct PreviewRequest {
@@ -279,7 +306,7 @@ struct PreviewRequest {
 }
 
 struct FrameDecoder {
-    timeline: Arc<TimelineSerialization>,
+    timeline: Arc<TimelineEditingState>,
     media_root: PathBuf,
     readers: HashMap<Ulid, VideoReader>,
     images: HashMap<Ulid, Arc<RgbaImage>>,
@@ -287,7 +314,7 @@ struct FrameDecoder {
 }
 
 impl FrameDecoder {
-    fn new(timeline: Arc<TimelineSerialization>, media_root: &Path) -> Self {
+    fn new(timeline: Arc<TimelineEditingState>, media_root: &Path) -> Self {
         let frame = Arc::new(TimelineFrame {
             timestamp: Duration::ZERO,
             width: timeline.settings.width,
@@ -406,6 +433,18 @@ impl FrameDecoder {
             layers,
         })
     }
+}
+
+fn clamp_position(timeline: &TimelineEditingState, position: Duration) -> Result<Duration> {
+    let rate = timeline.settings.frame_rate;
+    if rate.numerator == 0 || rate.denominator == 0 {
+        bail!("Timeline frame rate must have a positive numerator and denominator");
+    }
+    let last = (timeline.content_duration() - TimelineTime::ONE_FRAME).max(TimelineTime::ZERO);
+    let position = rate
+        .frames_from_duration_nearest(position)
+        .clamp(TimelineTime::ZERO, last);
+    Ok(rate.duration(position))
 }
 
 #[cfg(test)]

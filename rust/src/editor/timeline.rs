@@ -1,7 +1,7 @@
 use super::*;
 use crate::editor::timeline_backend::TimelineBackend;
-use anyhow::{Result, anyhow, ensure};
-use opencut_player::engine::timeline::TimelineEditingState;
+use anyhow::{Result, ensure};
+use opencut_player::timeline::TimelineEditingState;
 pub use opencut_player::timeline::{FrameRate, TimelineTime};
 use std::path::Path;
 

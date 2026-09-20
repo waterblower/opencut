@@ -28,7 +28,7 @@ impl Editor {
             && self
                 .timeline
                 .as_ref()
-                .is_some_and(|timeline| timeline.path == path);
+                .is_some_and(|timeline| timeline.path == entry.absolute_path);
 
         let metadata = file_entry_metadata(entry, active_timeline);
 

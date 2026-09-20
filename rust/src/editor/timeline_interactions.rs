@@ -97,14 +97,14 @@ impl TimelineRuntimeState {
                     + scroll_x
                     + TIMELINE_PADDING
                     + self.backend.timeline().seconds(clip.timeline_start()) as f32
-                        * self.backend.timeline().view.pixels_per_second;
+                        * self.pixels_per_second;
                 let clip_right = clip_left
                     + (self
                         .backend
                         .timeline()
                         .seconds(clip.frame_length(self.backend.timeline().settings.frame_rate))
                         as f32
-                        * self.backend.timeline().view.pixels_per_second)
+                        * self.pixels_per_second)
                         .max(4.0);
                 if clip_left <= right
                     && clip_right >= left
@@ -130,7 +130,7 @@ impl TimelineRuntimeState {
         time: TimelineTime,
         ignored_clip_ids: &HashSet<Ulid>,
     ) -> (TimelineTime, Option<TimelineTime>) {
-        if !self.interaction.snapping_enabled {
+        if !self.snapping_enabled {
             return (time.max(TimelineTime::ZERO), None);
         }
         let threshold = self
@@ -138,7 +138,7 @@ impl TimelineRuntimeState {
             .timeline()
             .settings
             .frame_rate
-            .ceil(SNAP_DISTANCE_PX as f64 / self.backend.timeline().view.pixels_per_second as f64)
+            .ceil(SNAP_DISTANCE_PX as f64 / self.pixels_per_second as f64)
             .frames()
             .max(1) as u64;
         let mut candidates = vec![TimelineTime::ZERO, self.playhead()];
@@ -175,8 +175,8 @@ impl TimelineRuntimeState {
     }
 
     pub(super) fn zoom(&mut self, factor: f32) {
-        let previous_pixels_per_second = self.backend.timeline().view.pixels_per_second;
-        let pixels_per_second = (self.backend.timeline().view.pixels_per_second * factor).clamp(
+        let previous_pixels_per_second = self.pixels_per_second;
+        let pixels_per_second = (self.pixels_per_second * factor).clamp(
             MIN_TIMELINE_PIXELS_PER_SECOND,
             MAX_TIMELINE_PIXELS_PER_SECOND,
         );
@@ -190,8 +190,7 @@ impl TimelineRuntimeState {
                 pixels_per_second,
             ));
             self.h_scroll.set_offset(scroll_offset);
-            edit_timeline(self, EditAction::SetTimelineZoom { pixels_per_second })
-                .expect("changing timeline zoom cannot be rejected");
+            self.pixels_per_second = pixels_per_second;
         }
     }
 
@@ -200,7 +199,7 @@ impl TimelineRuntimeState {
         let content_x = x - TRACK_HEADER_WIDTH - scroll_x - TIMELINE_PADDING;
         self.backend
             .timeline()
-            .nearest_time(content_x as f64 / self.backend.timeline().view.pixels_per_second as f64)
+            .nearest_time(content_x as f64 / self.pixels_per_second as f64)
             .clamp(
                 TimelineTime::ZERO,
                 self.backend.timeline().content_duration(),
@@ -302,9 +301,7 @@ impl Editor {
                 let Some(timeline) = self.timeline.as_mut() else {
                     return;
                 };
-                if let Err(error) =
-                    timeline.blade_at_playhead(&mut self.preview, &self.project_root)
-                {
+                if let Err(error) = timeline.blade_at_playhead(&mut self.preview) {
                     log::error!("{error:?}");
                 }
             }
@@ -531,7 +528,7 @@ impl Editor {
         let raw_delta = timeline.backend.timeline().settings.frame_rate.delta(
             (f32::from(event.position.x) - f32::from(timeline.h_scroll.offset().x) - start_x)
                 as f64
-                / timeline.backend.timeline().view.pixels_per_second as f64,
+                / timeline.pixels_per_second as f64,
         );
         let earliest_start = items
             .iter()
@@ -649,11 +646,7 @@ impl Editor {
             )
             .expect("clip move placements were validated during the drag");
 
-            if let Err(error) = timeline
-                .backend
-                .timeline()
-                .save(&self.project_root.join(&timeline.path))
-            {
+            if let Err(error) = timeline.save() {
                 log::error!("{error:?}");
             }
         }
@@ -664,13 +657,8 @@ impl Editor {
         let Some(timeline) = self.timeline.as_mut() else {
             return;
         };
-        let enabled = !timeline.interaction.snapping_enabled;
-        apply_timeline_edit(
-            &mut self.preview,
-            timeline,
-            EditAction::SetSnapping { enabled },
-        )
-        .expect("changing snapping cannot be rejected");
+        timeline.interaction.snap_guide = None;
+        timeline.snapping_enabled = !timeline.snapping_enabled;
     }
 
     pub(super) fn finish_timeline_scroll(
@@ -705,7 +693,7 @@ impl Editor {
             return;
         }
 
-        if let Err(error) = timeline.save_timeline_scroll(&self.project_root) {
+        if let Err(error) = timeline.save() {
             log::error!("{error:?}");
         }
     }
@@ -727,10 +715,10 @@ impl Editor {
         let Some(timeline) = self.timeline.as_mut() else {
             return Ok(false);
         };
-        let previous_zoom = timeline.backend.timeline().view.pixels_per_second;
+        let previous_zoom = timeline.pixels_per_second;
         let factor = (gesture.magnification as f32).exp().clamp(0.5, 2.0);
         timeline.zoom(factor);
-        let current_zoom = timeline.backend.timeline().view.pixels_per_second;
+        let current_zoom = timeline.pixels_per_second;
         log::debug!(
             target: "opencut::timeline",
             "trackpad-pinch magnification={:.4} location_y={:.1} ended={} action=zoom factor={factor:.4} px_per_second={previous_zoom:.2}->{:.2}",
@@ -741,7 +729,7 @@ impl Editor {
         );
         let changed = current_zoom != previous_zoom;
         if gesture.ended {
-            timeline.save_timeline_scroll(&self.project_root)?;
+            timeline.save()?;
         }
         Ok(changed)
     }
@@ -753,9 +741,12 @@ impl Editor {
         let Some(timeline) = self.timeline.as_mut() else {
             return;
         };
-        timeline.interaction.scrubbing_playhead = true;
         let position = timeline.timeline_position_from_x(event.position.x.into());
-        set_timeline_position(&mut self.preview, timeline, position);
+        if let Err(error) = set_timeline_position(&mut self.preview, &timeline.backend, position) {
+            log::error!("{error:?}");
+            return;
+        }
+        timeline.interaction.scrubbing_playhead = true;
     }
 
     pub(super) fn update_playhead_scrub(
@@ -775,7 +766,10 @@ impl Editor {
         }
         let position = timeline.timeline_position_from_x(event.position.x.into());
 
-        set_timeline_position(&mut self.preview, timeline, position);
+        if let Err(error) = set_timeline_position(&mut self.preview, &timeline.backend, position) {
+            log::error!("{error:?}");
+            return;
+        }
         cx.notify();
     }
 
@@ -793,8 +787,11 @@ impl Editor {
         }
         timeline.interaction.scrubbing_playhead = false;
         let position = timeline.timeline_position_from_x(event.position.x.into());
-        set_timeline_position(&mut self.preview, timeline, position);
-        if let Err(error) = timeline.save_timeline_playhead(&self.project_root) {
+        if let Err(error) = set_timeline_position(&mut self.preview, &timeline.backend, position) {
+            log::error!("{error:?}");
+            return;
+        }
+        if let Err(error) = timeline.save() {
             log::error!("{error:?}");
         }
         cx.notify();
@@ -812,8 +809,8 @@ impl Editor {
             timeline.backend.timeline().content_duration(),
         );
         if target != timeline.playhead() || !self.preview.target.is_timeline() {
-            set_timeline_position(&mut self.preview, timeline, target);
-            timeline.save_timeline_playhead(&self.project_root)?;
+            set_timeline_position(&mut self.preview, &timeline.backend, target)?;
+            timeline.save()?;
         }
         Ok(())
     }
