@@ -1,6 +1,6 @@
 use crate::jev::{
-    Answer, Client, ClientConfig, Error, Question, RequestOptions, SystemOneRequest,
-    SystemOneResponse,
+    Client, ClientConfig, Error, JevAnswer, JevQuestion, Question, RequestOptions,
+    SystemOneRequest, SystemOneResponse,
 };
 use serde_json::json;
 use std::{collections::BTreeMap, io::ErrorKind, net::TcpListener, time::Duration};
@@ -80,11 +80,11 @@ fn reads_typed_answers_and_usage_from_a_response() {
     assert_eq!(response.model, "jev-1.13.0");
     assert_eq!(response.usage.input_tokens, 304);
     assert_eq!(response.usage.output_tokens, 18);
-    let Answer::Noul { noul } = &response.answers["urgent"] else {
+    let JevAnswer::Noul { noul } = &response.answers["urgent"] else {
         panic!("expected a yes/no answer");
     };
     assert_eq!(*noul, 0.95);
-    let Answer::Choice {
+    let JevAnswer::Choice {
         choice,
         probabilities,
         ..
@@ -94,7 +94,7 @@ fn reads_typed_answers_and_usage_from_a_response() {
     };
     assert_eq!(choice, "billing");
     assert_eq!(probabilities["billing"], 0.88);
-    let Answer::Score { score, legend, .. } = &response.answers["frustration"] else {
+    let JevAnswer::Score { score, legend, .. } = &response.answers["frustration"] else {
         panic!("expected a score answer");
     };
     assert_eq!(*score, 1.05);
@@ -116,7 +116,7 @@ async fn rejects_an_empty_batch_before_sending() {
         max_retries: Some(0),
     };
     let request = SystemOneRequest::new("A customer message".into(), BTreeMap::new());
-    let error = client.system_one(&request, &options).await.unwrap_err();
+    let error = client.send_batch(&request, &options).await.unwrap_err();
     assert!(matches!(error, Error::InvalidRequest(_)));
 }
 
@@ -196,8 +196,9 @@ async fn rejects_invalid_criteria_without_contacting_the_server() {
     .unwrap();
     let mut invalid_questions = Vec::new();
     for count in [0, 1, 11] {
-        invalid_questions.push(Question::Score {
-            instructions: "Rate urgency".into(),
+        invalid_questions.push(JevQuestion::Score {
+            state: "Help!".into(),
+            question: "Rate urgency".into(),
             criteria: vec!["Level".into(); count],
         });
     }
@@ -206,19 +207,14 @@ async fn rejects_invalid_criteria_without_contacting_the_server() {
         for index in 0..count {
             criteria.insert(index.to_string(), None);
         }
-        invalid_questions.push(Question::Choice {
-            instructions: "Choose a department".into(),
+        invalid_questions.push(JevQuestion::Choice {
+            state: "Help!".into(),
+            question: "Choose a department".into(),
             criteria,
         });
     }
     for question in invalid_questions {
-        let request = SystemOneRequest::new(
-            "Help!".into(),
-            BTreeMap::from([("result".into(), question)]),
-        );
-        let result = client
-            .system_one(&request, &RequestOptions::default())
-            .await;
+        let result = client.send(question).await;
         assert!(matches!(result, Err(Error::InvalidRequest(_))));
     }
     assert_eq!(listener.accept().unwrap_err().kind(), ErrorKind::WouldBlock);

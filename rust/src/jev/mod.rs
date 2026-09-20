@@ -5,7 +5,10 @@
 
 mod types;
 
-pub use types::{Content, NoulCriteria, Question, SystemOneRequest};
+pub use types::{
+    Content, JevAnswer, JevQuestion, NoulCriteria, Question, SystemOneRequest, SystemOneResponse,
+    Usage,
+};
 
 #[cfg(test)]
 #[path = "tests/jev.test.rs"]

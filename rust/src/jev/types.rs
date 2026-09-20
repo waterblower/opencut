@@ -21,6 +21,62 @@ pub struct NoulCriteria {
     pub no: Option<Content>,
 }
 
+/// A single evaluation, including the state to evaluate.
+#[derive(Clone, Debug, PartialEq)]
+pub enum JevQuestion {
+    Noul {
+        state: Content,
+        question: Content,
+        criteria: Option<NoulCriteria>,
+    },
+    Choice {
+        state: Content,
+        question: Content,
+        criteria: BTreeMap<String, Option<Content>>,
+    },
+    Score {
+        state: Content,
+        question: Content,
+        criteria: Vec<Content>,
+    },
+}
+
+/// The provider's answer; scores and probabilities are preserved as returned.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "type")]
+pub enum JevAnswer {
+    #[serde(rename = "noul")]
+    Noul { noul: f64 },
+    #[serde(rename = "choice")]
+    Choice {
+        choice: String,
+        probabilities: BTreeMap<String, f64>,
+        confidence: f64,
+    },
+    #[serde(rename = "score")]
+    Score {
+        score: f64,
+        legend: BTreeMap<String, String>,
+        probabilities: BTreeMap<String, f64>,
+        confidence: f64,
+    },
+}
+
+/// Token counts reported by the provider.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct Usage {
+    pub input_tokens: u64,
+    pub output_tokens: u64,
+}
+
+/// A batch response retaining the resolved model and token usage.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct SystemOneResponse {
+    pub model: String,
+    pub answers: BTreeMap<String, JevAnswer>,
+    pub usage: Usage,
+}
+
 /// A question in a named evaluation batch.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "type")]

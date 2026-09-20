@@ -1,6 +1,6 @@
 # Public interface proposal
 
-This document defines the interface for review before client implementation.
+This document defines the agreed interface; client implementation is in progress.
 Enable the `jev` feature and import public types from `opencut_player::jev`.
 The API contract is <https://docs.typesafe.ai/api>.
 
@@ -12,7 +12,13 @@ pub struct Client { /* private fields */ }
 
 impl Client {
     pub fn new(api_key: &str, config: ClientConfig) -> Result<Self, Error>;
-    pub async fn system_one(
+    pub async fn send(&self, question: JevQuestion) -> Result<JevAnswer, Error>;
+    pub async fn send_with_options(
+        &self,
+        question: JevQuestion,
+        options: &RequestOptions,
+    ) -> Result<JevAnswer, Error>;
+    pub async fn send_batch(
         &self,
         request: &SystemOneRequest,
         options: &RequestOptions,
@@ -36,11 +42,15 @@ Both configuration types implement `Clone`, `Debug`, and `Default`.
 Unset request options inherit client settings; zero retries disables retries.
 Construction validates credentials, URL, default model, and a positive timeout.
 Credentials are copied into private client storage and excluded from debug output.
-Calls borrow their inputs; one client supports concurrent requests on Tokio.
+Single calls own their question; batch calls borrow their request.
+One client supports concurrent requests on Tokio.
 The SDK creates no runtime, reads no environment variables, and logs no errors.
 
 ## Requests and answers
 
+Use `JevQuestion::{Noul, Choice, Score}` for single evaluations. Each variant
+contains `state`, `question`, and its corresponding `criteria` shape.
+`send()` returns a `JevAnswer`; use `send_batch()` to retain model and usage.
 Use the existing `Content`, `NoulCriteria`, `Question`, and `SystemOneRequest`
 types in [types.rs](types.rs). `Content` supports text, objects, and arrays.
 Question variants carry their own instructions and criteria. Named batches use
@@ -48,7 +58,7 @@ Question variants carry their own instructions and criteria. Named batches use
 `model` unset. Set `request.model = Some(model)` to override the client default.
 
 ```rust
-pub enum Answer {
+pub enum JevAnswer {
     Noul { noul: f64 },
     Choice {
         choice: String,
@@ -65,7 +75,7 @@ pub enum Answer {
 
 pub struct SystemOneResponse {
     pub model: String,
-    pub answers: BTreeMap<String, Answer>,
+    pub answers: BTreeMap<String, JevAnswer>,
     pub usage: Usage,
 }
 
@@ -75,7 +85,8 @@ pub struct Usage {
 }
 ```
 
-Data types implement `Clone`, `Debug`, `PartialEq`, `Serialize`, and `Deserialize`.
+Data types implement `Clone`, `Debug`, and `PartialEq`; wire types also implement
+`Serialize` and `Deserialize`. `JevQuestion` is converted to a wire request internally.
 Question and answer variants use explicit JSON `type` tags. Callers match answer
 variants; the SDK preserves fractional scores, confidence, and probabilities.
 
