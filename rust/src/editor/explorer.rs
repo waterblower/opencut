@@ -368,18 +368,20 @@ impl Editor {
             return Ok(());
         };
         let duration = timeline
-            .data
+            .backend
+            .timeline()
             .nearest_time(asset.duration)
             .max(TimelineTime::ONE_FRAME);
         let track_kind = timeline
-            .data
+            .backend
+            .timeline()
             .tracks
             .iter()
             .find(|track| track.id == track_id)
             .map(|track| track.kind);
         let (start, _) = timeline.snap_clip_start_ignoring(raw_start, duration, &HashSet::new());
         validate_clip_placement(
-            &timeline.data,
+            timeline.backend.timeline(),
             track_id,
             asset.kind,
             duration,
@@ -392,7 +394,8 @@ impl Editor {
         };
         timeline.record_editing_history();
         let (asset_id, assets) = if let Some(asset_id) = timeline
-            .data
+            .backend
+            .timeline()
             .assets
             .iter()
             .find(|existing| existing.path == relative_path)
@@ -437,7 +440,8 @@ impl Editor {
             return Ok(());
         };
         timeline
-            .data
+            .backend
+            .timeline()
             .save(&self.project_root.join(&timeline.path))?;
 
         self.schedule_active_timeline_waveforms(cx);

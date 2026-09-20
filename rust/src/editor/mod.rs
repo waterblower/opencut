@@ -232,7 +232,8 @@ impl Editor {
     pub fn prepare_project_switch(&mut self) -> Result<()> {
         if let Some(timeline) = self.timeline.as_ref() {
             timeline
-                .data
+                .backend
+                .timeline()
                 .save(&self.project_root.join(&timeline.path))?;
         }
         Ok(())
@@ -261,7 +262,8 @@ impl Editor {
             let timeline = TimelineSerialization::load(&path)?;
             if let Some(timeline) = self.timeline.as_ref() {
                 timeline
-                    .data
+                    .backend
+                    .timeline()
                     .save(&self.project_root.join(&timeline.path))?;
             }
             self.activate_timeline(relative_path.clone(), timeline, cx)?;
@@ -284,7 +286,8 @@ impl Editor {
     ) -> Result<()> {
         if let Some(active_timeline) = self.timeline.as_ref() {
             active_timeline
-                .data
+                .backend
+                .timeline()
                 .save(&self.project_root.join(&active_timeline.path))?;
         }
 
@@ -387,13 +390,15 @@ impl Editor {
             return;
         };
         let referenced_assets = timeline
-            .data
+            .backend
+            .timeline()
             .clips
             .iter()
             .filter_map(|clip| clip.media().map(|clip| clip.asset_id))
             .collect::<HashSet<_>>();
         let paths = timeline
-            .data
+            .backend
+            .timeline()
             .assets
             .iter()
             .filter(|asset| asset.has_audio && referenced_assets.contains(&asset.id))

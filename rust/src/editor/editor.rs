@@ -219,7 +219,11 @@ async fn handle_app_event(editor: WeakEntity<Editor>, event: AppEvent, cx: &mut 
                 timeline.record_editing_history();
                 apply_timeline_edit(&mut editor.preview, timeline, edit_action.clone())
                     .expect("event bus edit actions cannot be rejected");
-                if let Err(error) = timeline.data.save(&project_root.join(&timeline.path)) {
+                if let Err(error) = timeline
+                    .backend
+                    .timeline()
+                    .save(&project_root.join(&timeline.path))
+                {
                     log::error!("{error:?}");
                 }
                 cx.notify();
@@ -248,14 +252,20 @@ async fn handle_app_event(editor: WeakEntity<Editor>, event: AppEvent, cx: &mut 
                     }
                     let track_index = ((local_y - RULER_HEIGHT) / TRACK_HEIGHT).floor() as usize;
 
-                    timeline.data.tracks.get(track_index).map(|track| track.id)
+                    timeline
+                        .backend
+                        .timeline()
+                        .tracks
+                        .get(track_index)
+                        .map(|track| track.id)
                 })();
 
                 if let (Some(timeline), Some(track_id)) = (timeline, on_track) {
                     let local_x =
                         f32::from(event.event.position.x) - f32::from(event.bounds.left());
-                    let start_time = timeline.data.nearest_time(
-                        ((local_x - TIMELINE_PADDING) / timeline.data.view.pixels_per_second)
+                    let start_time = timeline.backend.timeline().nearest_time(
+                        ((local_x - TIMELINE_PADDING)
+                            / timeline.backend.timeline().view.pixels_per_second)
                             .max(0.0) as f64,
                     );
                     timeline.preview_drop_asset = Some(PreviewDropAsset {
@@ -284,14 +294,19 @@ async fn handle_app_event(editor: WeakEntity<Editor>, event: AppEvent, cx: &mut 
                             let Some(timeline) = editor.timeline.as_mut() else {
                                 return Ok(());
                             };
-                            let mut text_clips =
-                                srt_text_clips(&srt.srt, timeline.data.settings.frame_rate);
+                            let mut text_clips = srt_text_clips(
+                                &srt.srt,
+                                timeline.backend.timeline().settings.frame_rate,
+                            );
                             for clip in &mut text_clips {
                                 clip.track_id = preview.track_id;
                                 clip.timeline_start += preview.start_time;
                             }
                             let clips = text_clips.into_iter().map(Clip::Text).collect::<Vec<_>>();
-                            editing::validate_clips_placements(&timeline.data, &clips)?;
+                            editing::validate_clips_placements(
+                                timeline.backend.timeline(),
+                                &clips,
+                            )?;
 
                             let selected_clip_ids =
                                 clips.iter().map(Clip::id).collect::<HashSet<_>>();
@@ -307,7 +322,10 @@ async fn handle_app_event(editor: WeakEntity<Editor>, event: AppEvent, cx: &mut 
                             )?;
                             timeline.interaction.selected_clip_ids = selected_clip_ids;
                             timeline.interaction.selected_clip_id = selected_clip_id;
-                            timeline.data.save(&project_root.join(&timeline.path))?;
+                            timeline
+                                .backend
+                                .timeline()
+                                .save(&project_root.join(&timeline.path))?;
                             editor.status = Some("Added subtitles to the timeline.".to_string());
                             Ok::<(), Error>(())
                         })();

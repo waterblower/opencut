@@ -100,7 +100,8 @@ impl Editor {
 
         if let Some(timeline) = self.timeline.as_mut() {
             let paths = timeline
-                .data
+                .backend
+                .timeline()
                 .assets
                 .iter()
                 .filter_map(|asset| {
@@ -164,7 +165,8 @@ impl Editor {
         }
         if let Some(timeline) = self.timeline.as_ref() {
             timeline
-                .data
+                .backend
+                .timeline()
                 .save(&self.project_root.join(&timeline.path))?;
         }
 
