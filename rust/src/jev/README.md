@@ -99,6 +99,7 @@ variants; the SDK preserves fractional scores, confidence, and probabilities.
 pub enum Error {
     InvalidConfig(String),
     InvalidRequest(String),
+    InvalidResponse(String),
     Transport(reqwest::Error),
     Timeout { timeout: Duration },
     Http { status: reqwest::StatusCode, body: Vec<u8> },

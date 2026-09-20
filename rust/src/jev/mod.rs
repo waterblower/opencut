@@ -17,3 +17,7 @@ mod types;
 #[cfg(test)]
 #[path = "tests/jev.test.rs"]
 mod tests;
+
+#[cfg(test)]
+#[path = "tests/jev_success.test.rs"]
+mod success_tests;
