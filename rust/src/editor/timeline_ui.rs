@@ -370,7 +370,8 @@ impl Editor {
                 |this| {
                     this.on_mouse_down(
                         MouseButton::Left,
-                        cx.listener(|editor, event: &MouseDownEvent, _, cx| {
+                        cx.listener(|editor, event: &MouseDownEvent, window, cx| {
+                            editor.focus_handle.focus(window, cx);
                             editor.begin_playhead_scrub(event);
                             cx.stop_propagation();
                             cx.notify();
@@ -470,7 +471,8 @@ impl Editor {
             .children(ruler_ticks)
             .on_mouse_down(
                 MouseButton::Left,
-                cx.listener(|editor, event: &MouseDownEvent, _, cx| {
+                cx.listener(|editor, event: &MouseDownEvent, window, cx| {
+                    editor.focus_handle.focus(window, cx);
                     editor.begin_playhead_scrub(event);
                     cx.stop_propagation();
                     cx.notify();

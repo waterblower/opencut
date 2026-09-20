@@ -6,6 +6,7 @@ use std::{
     path::{Path, PathBuf},
     sync::mpsc::{self, Receiver, SyncSender},
     thread::JoinHandle,
+    time::Instant,
 };
 
 pub struct VideoWorker {
@@ -149,44 +150,49 @@ impl VideoReader {
     }
 
     pub fn at(&mut self, seconds: f64) -> Result<RgbaImage> {
-        let seek = match self.requested {
-            Some(last) => seconds < last || seconds - last > 2.0,
-            None => seconds > 0.0,
-        };
-        if seek {
-            let timestamp =
-                ((seconds + self.origin) * ffmpeg::ffi::AV_TIME_BASE as f64).floor() as i64;
-            self.input
-                .seek(timestamp, ..timestamp)
-                .context("seek_failure")?;
-            self.decoder.flush();
-            self.eof = false;
-            self.previous = None;
-            self.next = None;
-        }
-        self.requested = Some(seconds);
-        loop {
-            if let Some((time, image)) = &self.next
-                && *time >= seconds
-            {
-                if let Some((previous_time, previous)) = &self.previous
-                    && seconds - previous_time <= time - seconds
+        let t = Instant::now();
+        let result = (|| {
+            let seek = match self.requested {
+                Some(last) => seconds < last || seconds - last > 2.0,
+                None => seconds > 0.0,
+            };
+            if seek {
+                let timestamp =
+                    ((seconds + self.origin) * ffmpeg::ffi::AV_TIME_BASE as f64).floor() as i64;
+                self.input
+                    .seek(timestamp, ..timestamp)
+                    .context("seek_failure")?;
+                self.decoder.flush();
+                self.eof = false;
+                self.previous = None;
+                self.next = None;
+            }
+            self.requested = Some(seconds);
+            loop {
+                if let Some((time, image)) = &self.next
+                    && *time >= seconds
                 {
-                    return Ok(previous.clone());
+                    if let Some((previous_time, previous)) = &self.previous
+                        && seconds - previous_time <= time - seconds
+                    {
+                        return Ok(previous.clone());
+                    }
+                    return Ok(image.clone());
                 }
-                return Ok(image.clone());
+                if self.next.is_some() {
+                    self.previous = self.next.take();
+                }
+                self.next = self.read()?;
+                if self.next.is_none() {
+                    let Some((_, image)) = &self.previous else {
+                        return Err(anyhow!("decode_failure: no decoded video frames"));
+                    };
+                    return Ok(image.clone());
+                }
             }
-            if self.next.is_some() {
-                self.previous = self.next.take();
-            }
-            self.next = self.read()?;
-            if self.next.is_none() {
-                let Some((_, image)) = &self.previous else {
-                    return Err(anyhow!("decode_failure: no decoded video frames"));
-                };
-                return Ok(image.clone());
-            }
-        }
+        })();
+        eprintln!("VideoReader::at({seconds:.3}s) took {:?}", t.elapsed());
+        result
     }
 
     fn read(&mut self) -> Result<Option<(f64, RgbaImage)>> {
