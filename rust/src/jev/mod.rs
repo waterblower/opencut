@@ -3,12 +3,16 @@
 //! API contract: <https://docs.typesafe.ai/api>.
 //! Credentials and runtime configuration are supplied by the caller.
 
-mod types;
-
+pub use client::{Client, Config, RequestOptions};
+pub use error::Error;
 pub use types::{
     Content, JevAnswer, JevQuestion, NoulCriteria, Question, SystemOneRequest, SystemOneResponse,
     Usage,
 };
+
+mod client;
+mod error;
+mod types;
 
 #[cfg(test)]
 #[path = "tests/jev.test.rs"]

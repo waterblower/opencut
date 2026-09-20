@@ -32,7 +32,8 @@ pub enum JevQuestion {
     Choice {
         state: Content,
         question: Content,
-        criteria: BTreeMap<String, Option<Content>>,
+        /// Ordered labels and optional descriptions; duplicate labels are invalid.
+        criteria: Vec<(String, Option<Content>)>,
     },
     Score {
         state: Content,
@@ -110,13 +111,13 @@ pub struct SystemOneRequest {
     pub state: Content,
     /// Nonempty map; answers are returned under these same names.
     pub questions: BTreeMap<String, Question>,
-    /// None selects the client's default model when sending the request.
+    /// None selects `jev-latest` when sending the request.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub model: Option<String>,
 }
 
 impl SystemOneRequest {
-    /// Creates an evaluation using the client's default model.
+    /// Creates an evaluation using `jev-latest`.
     pub fn new(state: Content, questions: BTreeMap<String, Question>) -> Self {
         Self {
             state,

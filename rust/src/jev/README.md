@@ -11,7 +11,7 @@ The API contract is <https://docs.typesafe.ai/api>.
 pub struct Client { /* private fields */ }
 
 impl Client {
-    pub fn new(api_key: &str, config: ClientConfig) -> Result<Self, Error>;
+    pub fn new(config: Config) -> Result<Self, Error>;
     pub async fn send(&self, question: JevQuestion) -> Result<JevAnswer, Error>;
     pub async fn send_with_options(
         &self,
@@ -25,9 +25,9 @@ impl Client {
     ) -> Result<SystemOneResponse, Error>;
 }
 
-pub struct ClientConfig {
+pub struct Config {
+    pub api_key: String,        // Required; empty by default
     pub base_url: String,       // Default: https://api.typesafe.ai
-    pub default_model: String,  // Default: jev-latest
     pub timeout: Duration,      // Default: 10 seconds per attempt
     pub max_retries: u32,       // Default: 2, after the initial attempt
 }
@@ -40,7 +40,7 @@ pub struct RequestOptions {
 
 Both configuration types implement `Clone`, `Debug`, and `Default`.
 Unset request options inherit client settings; zero retries disables retries.
-Construction validates credentials, URL, default model, and a positive timeout.
+Construction validates credentials, URL, and a positive timeout.
 Credentials are copied into private client storage and excluded from debug output.
 Single calls own their question; batch calls borrow their request.
 One client supports concurrent requests on Tokio.
@@ -50,12 +50,15 @@ The SDK creates no runtime, reads no environment variables, and logs no errors.
 
 Use `JevQuestion::{Noul, Choice, Score}` for single evaluations. Each variant
 contains `state`, `question`, and its corresponding `criteria` shape.
+Single-choice criteria use `Vec<(String, Option<Content>)>` for easy construction;
+duplicate labels are rejected before converting the pairs to the API's JSON map.
 `send()` returns a `JevAnswer`; use `send_batch()` to retain model and usage.
 Use the existing `Content`, `NoulCriteria`, `Question`, and `SystemOneRequest`
 types in [types.rs](types.rs). `Content` supports text, objects, and arrays.
 Question variants carry their own instructions and criteria. Named batches use
 `BTreeMap<String, Question>`; `SystemOneRequest::new(state, questions)` leaves
-`model` unset. Set `request.model = Some(model)` to override the client default.
+`model` unset, selecting `jev-latest`. Set `request.model = Some(model)` to pin
+a version or select another alias for that batch.
 
 ```rust
 pub enum JevAnswer {

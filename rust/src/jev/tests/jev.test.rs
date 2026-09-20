@@ -1,6 +1,6 @@
 use crate::jev::{
-    Client, ClientConfig, Error, JevAnswer, JevQuestion, Question, RequestOptions,
-    SystemOneRequest, SystemOneResponse,
+    Client, Config, Error, JevAnswer, JevQuestion, Question, RequestOptions, SystemOneRequest,
+    SystemOneResponse,
 };
 use serde_json::json;
 use std::{collections::BTreeMap, io::ErrorKind, net::TcpListener, time::Duration};
@@ -36,7 +36,7 @@ fn builds_a_named_batch_with_all_three_question_types() {
             ),
         ]),
     );
-    assert!(request.model.is_none()); // The client resolves its default when sending.
+    assert!(request.model.is_none()); // The client selects jev-latest when sending.
     let body = serde_json::to_value(&request).unwrap();
     assert_eq!(
         body["state"],
@@ -103,13 +103,11 @@ fn reads_typed_answers_and_usage_from_a_response() {
 
 #[tokio::test]
 async fn rejects_an_empty_batch_before_sending() {
-    let client = Client::new(
-        "test-key",
-        ClientConfig {
-            base_url: "http://127.0.0.1:1".into(),
-            ..ClientConfig::default()
-        },
-    )
+    let client = Client::new(Config {
+        api_key: "test-key".into(),
+        base_url: "http://127.0.0.1:1".into(),
+        ..Config::default()
+    })
     .unwrap();
     let options = RequestOptions {
         timeout: Some(Duration::from_millis(100)),
@@ -122,9 +120,9 @@ async fn rejects_an_empty_batch_before_sending() {
 
 #[test]
 fn default_options_inherit_the_client_configuration() {
-    let config = ClientConfig::default();
+    let config = Config::default();
+    assert!(config.api_key.is_empty());
     assert_eq!(config.base_url, "https://api.typesafe.ai");
-    assert_eq!(config.default_model, "jev-latest");
     assert_eq!(config.timeout, Duration::from_secs(10));
     assert_eq!(config.max_retries, 2);
     let options = RequestOptions::default();
@@ -135,24 +133,23 @@ fn default_options_inherit_the_client_configuration() {
 #[test]
 fn rejects_invalid_client_configuration() {
     for api_key in ["", "   ", "test\nkey"] {
-        let result = Client::new(api_key, ClientConfig::default());
+        let result = Client::new(Config {
+            api_key: api_key.into(),
+            ..Config::default()
+        });
         assert!(matches!(result, Err(Error::InvalidConfig(_))));
     }
-    for (base_url, default_model, timeout) in [
-        ("not a URL", "jev-latest", Duration::from_secs(10)),
-        ("https://api.typesafe.ai", "   ", Duration::from_secs(10)),
-        ("https://api.typesafe.ai", "jev-latest", Duration::ZERO),
+    for (base_url, timeout) in [
+        ("not a URL", Duration::from_secs(10)),
+        ("https://api.typesafe.ai", Duration::ZERO),
     ] {
-        let config = ClientConfig {
+        let config = Config {
+            api_key: "test-key".into(),
             base_url: base_url.into(),
-            default_model: default_model.into(),
             timeout,
-            ..ClientConfig::default()
+            ..Config::default()
         };
-        assert!(matches!(
-            Client::new("test-key", config),
-            Err(Error::InvalidConfig(_))
-        ));
+        assert!(matches!(Client::new(config), Err(Error::InvalidConfig(_))));
     }
 }
 
@@ -184,15 +181,13 @@ fn preserves_structured_content_optional_criteria_and_model_override() {
 async fn rejects_invalid_criteria_without_contacting_the_server() {
     let listener = TcpListener::bind("127.0.0.1:0").unwrap();
     listener.set_nonblocking(true).unwrap();
-    let client = Client::new(
-        "test-key",
-        ClientConfig {
-            base_url: format!("http://{}", listener.local_addr().unwrap()),
-            timeout: Duration::from_millis(100),
-            max_retries: 0,
-            ..ClientConfig::default()
-        },
-    )
+    let client = Client::new(Config {
+        api_key: "test-key".into(),
+        base_url: format!("http://{}", listener.local_addr().unwrap()),
+        timeout: Duration::from_millis(100),
+        max_retries: 0,
+        ..Config::default()
+    })
     .unwrap();
     let mut invalid_questions = Vec::new();
     for count in [0, 1, 11] {
@@ -203,9 +198,9 @@ async fn rejects_invalid_criteria_without_contacting_the_server() {
         });
     }
     for count in [0, 256] {
-        let mut criteria = BTreeMap::new();
+        let mut criteria = Vec::new();
         for index in 0..count {
-            criteria.insert(index.to_string(), None);
+            criteria.push((index.to_string(), None));
         }
         invalid_questions.push(JevQuestion::Choice {
             state: "Help!".into(),
@@ -213,9 +208,26 @@ async fn rejects_invalid_criteria_without_contacting_the_server() {
             criteria,
         });
     }
+    invalid_questions.push(JevQuestion::Choice {
+        state: "Help!".into(),
+        question: "Choose a department".into(),
+        criteria: vec![("billing".into(), None), ("billing".into(), None)],
+    });
     for question in invalid_questions {
         let result = client.send(question).await;
         assert!(matches!(result, Err(Error::InvalidRequest(_))));
     }
     assert_eq!(listener.accept().unwrap_err().kind(), ErrorKind::WouldBlock);
+}
+
+#[test]
+fn configuration_debug_output_redacts_the_api_key() {
+    let config = Config {
+        api_key: "secret-test-credential".into(),
+        ..Config::default()
+    };
+    for debug in [format!("{config:?}"), format!("{config:#?}")] {
+        assert!(!debug.contains(&config.api_key));
+        assert!(debug.contains("[redacted]"));
+    }
 }
