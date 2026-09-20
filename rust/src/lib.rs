@@ -1,3 +1,6 @@
+#[cfg(feature = "video3")]
+pub mod video3;
+
 #[cfg(feature = "ffmpeg-backend")]
 pub mod video2;
 

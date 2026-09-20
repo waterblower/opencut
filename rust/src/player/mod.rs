@@ -13,6 +13,9 @@ mod history;
 mod inspector;
 mod view;
 
+#[cfg(feature = "video3")]
+mod session;
+
 use history::{HistoryData, load_history_width, save_history_width};
 
 const HEADER_HEIGHT: f32 = 92.0;

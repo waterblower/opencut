@@ -1,5 +1,14 @@
 # Pull-based decoding and application-owned playback
 
+## Deferred: validate the player first
+
+The active priority is [Player-first pull playback with video3](player-video3-refactor-plan.md).
+Build a new independent backend and verify the pattern in the smaller player before
+starting this broader editor/shared-decoding refactor. The pilot must not reference
+or reuse the existing backend implementation. After its V8 review, revise this
+plan around the validated API before implementing any P-step. The interfaces below
+record the editor direction, not authorization to start or to reuse the old backend.
+
 ## Objective and boundaries
 
 The application pulls native frames, prepares their presentation, schedules them,
@@ -12,65 +21,35 @@ formats. This refactor does not add timeline playback/audio mixing, new GPU colo
 conversion, or new platform-specific hardware implementations. Reuse available
 macOS VideoToolbox support and retain software decoding elsewhere.
 
-This replaces the implementation direction in `timeline-decode-acceleration-plan.md`.
-Its hardware acceleration and intermediate-frame skipping objectives remain.
+This replaces the earlier plan to accelerate the existing autonomous backend.
+Hardware acceleration and intermediate-frame skipping objectives remain.
 No implementation is authorized by creating this plan.
 
 ## Interfaces and ownership
 
-### Proposed API pseudocode
+### Application execution structure
 
-The user's revised loop makes audio the master: pull samples into the device
-queue, use audio playback time to decide when video is due, and asynchronously
-wait for the next useful operation. The application-facing media backend exposes
-both `next_samples()` and `next_frame()`; neither owns playback scheduling.
+One logical `MediaBackend` groups an optional video decoder and an optional audio
+decoder for a source. Each decoder owns its own demux context. Audio-only and
+video-only sources instantiate only the applicable decoder. The backend has no
+threads, channels, application mutexes, playback clock, or async producer loops.
 
-```rust
-let t = Instant::now();
-while true {
-    let samples = video_backend.next_samples();
-    push_to_audio_device(samples);
-    let is_time_to_push_video = compute_video_frame_time();
-    if is_time_to_push_video {
-        let frame = video_backend.next_frame(); // Native FFmpeg frame type.
-        let rgba = convert_to_image(frame);
-        editor.set_current_preview_frame(rgba); // GPUI entity update.
-    }
-    let wait = compute_time_to_wait();
-    await sleep(wait);
-}
-```
-
-This is conceptual pseudocode, not the final Rust implementation. The detailed
-design below retains this application-owned flow while running blocking work off
-the UI thread and handling commands, errors, and EOF. The master is the device's
-played media position, not samples enqueued or elapsed time since `t`. Video is
-prepared ahead of its deadline; a due frame is published without starting a slow
-decode at that deadline. Audio refill continues while video work is outstanding,
-so this conceptual loop must not become a serial blocking audio/video loop.
-Waits are interruptible and driven by output capacity, frame deadlines, commands,
-or work completion; duration subtraction saturates at zero.
-
-### Refined concurrent API pseudocode
-
-The agreed refinement uses independent preparation tasks sharing one audio
-presentation clock. Retain the original sketch above as motivation; this is the
-execution structure to implement. The session controller starts these tasks
-concurrently, rather than awaiting the audio loop before starting video.
+The application execution layer owns the workers and exposes awaited handles.
+Its session controller starts audio refill and video preparation/presentation
+concurrently. The handles below are application worker handles, not the synchronous
+decoder objects. This is a scheduling sketch; control and late-frame handling are
+specified below.
 
 ```rust
 // Audio refill task.
-while let Some(samples) = audio_decoder.next_samples().await? {
+while let Some(samples) = audio_worker.next_samples().await? {
     audio_output.enqueue(samples).await?; // Bounded queue; waits for space.
 }
 
 // Concurrent video task.
-while let Some(frame) = video_decoder.next_frame().await? {
-    let pts = frame.timestamp;
-    let image = convert_to_image(frame).await?;
-
-    wait_until_audio_reaches(&audio_output, pts).await?;
-    editor.update_preview(image); // GPUI entity update.
+while let Some(prepared) = video_worker.prepare_next_frame().await? {
+    wait_until_audio_reaches(&audio_output, prepared.timestamp).await?;
+    editor.update_preview(prepared.image); // GPUI entity update.
 }
 ```
 
@@ -78,11 +57,19 @@ while let Some(frame) = video_decoder.next_frame().await? {
 future applies backpressure without blocking the video task or the device callback.
 The wait helper belongs to the application scheduling layer and rechecks the clock
 after waking; it does not create an independent video clock. The pseudocode omits
-late-frame selection and control handling, which remain required below. Decoder
-and conversion futures offload blocking work to their owning execution lanes.
+late-frame selection and control handling, which remain required below. Inside
+the video execution lane, preparation calls synchronous `next_frame()`, selects
+the frame, and converts it for presentation. Native frames and conversion contexts
+stay on that lane when they cannot safely cross threads. The decoder API still
+returns native frames; the application adapter returns prepared display results.
+Waits are interruptible by commands and clock changes, and durations saturate at zero.
 
 ### Pull decoding
 
+- Decoder methods are synchronous and sequential, each with one owner. They have
+  no application concurrency machinery. FFmpeg codec threading and VideoToolbox's
+  internal asynchronous decompression may remain implementation details; they do
+  not own playback scheduling or notify GPUI.
 - A synchronous `VideoDecoder::open(path)` exposes metadata and
   `next_frame(&mut self) -> Result<Option<DecodedVideoFrame>>`. `None` means fully
   drained EOF, never merely that the decoder needs another packet. The method
@@ -96,11 +83,10 @@ and conversion futures offload blocking work to their owning execution lanes.
   `None` means drained audio EOF. Audio and video normalize against a common media
   origin, preserving stream offsets. Audio seek flushes decoder/resampler state
   and trims leading samples to the requested position.
-- The application-facing media backend offers awaited `next_frame()` and
-  `next_samples()` operations through independent video/audio handles. Each wraps
-  a synchronous pull decoder on its blocking lane; they can run concurrently and
-  contain no autonomous producer loops. Use independent demux contexts, as the
-  current playback implementation does, so one stream cannot block the other.
+- The application moves the MediaBackend's two decoders into separate execution
+  lanes. Async handles belong to this application adapter, not MediaBackend or
+  the decoder modules. Never serialize both streams behind one shared backend
+  mutex. Independent demux contexts let audio continue during slow video decoding.
 - `seek(&mut self, position) -> Result<DecodedVideoFrame>` locates the nearest
   presentation frame using frames bracketing the target, with the earlier frame
   winning ties, and leaves sequential reading ready to continue after that frame.
@@ -124,8 +110,8 @@ and conversion futures offload blocking work to their owning execution lanes.
 - One application-owned session controller coordinates commands and the concurrent
   audio-refill and video-presentation tasks. Both belong to the same session and
   request revision; they do not independently choose playback position or state.
-  Share its implementation between editor and debug
-  player; keep it outside the decoder modules. GPUI entities contain display/control
+  Share its implementation between editor and debug player; keep it outside the
+  decoder modules. GPUI entities contain display/control
   state and a session handle, never live FFmpeg contexts.
 - Use one serial blocking execution lane for video and one for audio when present,
   each running on a background worker. Construct/use/drop native decoder and
@@ -211,24 +197,26 @@ and conversion futures offload blocking work to their owning execution lanes.
 
 ## Progress and review checkpoints
 
-0/9 active steps complete. Current step: none; awaiting implementation instruction.
-Blockers: none. After each completed step, update this checklist, graph, evidence,
+0/9 steps complete; all deferred pending the player pilot's V8 review and revision
+of this plan. Current step: none. Prerequisite: verified player/video3 pattern.
+After each completed step, update this checklist, graph, evidence,
 and progress summary, then pause for review unless the user waives checkpoints.
 No new tests without an explicit request; migrate and run existing tests.
 
-Direction update: the user's audio-master loop replaces the initial video-only
-pseudocode and is refined into concurrent audio/video tasks sharing the device's
-played-position clock. P1, P4, and P5 include `next_samples()`, bounded async enqueue,
-clock progress reporting, and coordinated seek resets. All implementation steps remain
-pending; none were completed or superseded by this clarification.
+Direction update: remove the superseded sequential-loop sketch. MediaBackend
+groups two synchronous decoders; concurrency belongs to the application adapter.
+P1, P4, and P5 specify independent execution, bounded audio enqueue, one played-
+audio clock, and coordinated seek resets. All nine implementation steps remain
+pending; these refinements do not mark any implementation work complete.
 
 - [ ] **P1 — Establish contracts and ownership** (pending; no dependencies).
-  Introduce the native-frame, metadata, command/result, and application session
+  Introduce MediaBackend, synchronous decoder, native-frame, metadata, command/result,
+  and application session
   interfaces above. Map existing callers to their replacement interfaces and
   separate timeline document/playhead state from decoder state. Start with the
   high-level control flow; bodies may remain incomplete at this checkpoint.
   Evidence: interface/caller review shows a single owner for each resource and
-  no playback timing or UI state in decoder contracts.
+  no playback timing, worker orchestration, or UI state in decoder contracts.
 - [ ] **P2 — Extract the pull video decoder** (pending; depends on P1).
   Share existing decompression across playback and engine feature configurations.
   Implement native-frame next/seek/EOF, hardware selection/fallback, and safe
@@ -242,16 +230,16 @@ pending; none were completed or superseded by this clarification.
   Evidence: existing image/preview checks pass; review confirms intermediate frames
   do not undergo RGBA conversion and rendering performs no decoding.
 - [ ] **P4 — Separate audio decoding and device output** (pending; depends on P1).
-  Expose `next_samples()`, bounded async `enqueue()`, `played_position()`, and
-  progress/state notifications;
+  Expose synchronous audio `next_samples()` separately from device output's bounded
+  async `enqueue()`, `played_position()`, and progress/state notifications;
   remove dependence on the old video backend's shared clock/control state. Preserve
   volume, mute, sample rate, channels, seek reset, underrun, and EOF behavior.
   Evidence: existing audio checks pass; callback review confirms no blocking work.
-- [ ] **P5 — Implement the application playback task** (pending; depends on P3, P4).
+- [ ] **P5 — Implement application execution and playback tasks** (pending; depends on P3, P4).
   Implement the session controller with concurrent audio/video tasks, independent
   serial execution lanes, one audio-master clock, coordinated seek resets,
-  interruptible waits, and audio refill,
-  command processing, bounded lookahead, stale-result rejection, and background
+  interruptible waits, audio refill, command processing, bounded lookahead,
+  stale-result rejection, and background
   resource retirement. Instrument decode, conversion, scheduling lateness, and
   publication separately. Evidence: code review covers pause during decode, rapid
   seeks, source replacement, EOF, and errors without UI waits or busy polling.
@@ -289,6 +277,7 @@ independent after P5. This describes dependency order, not permission to spawn a
 
 ```mermaid
 graph TD
+    V8["Player pilot V8 review — pending"] --> P1
     P1["P1: Contracts — pending"] --> P2["P2: Pull video — pending"]
     P1 --> P4["P4: Audio — pending"]
     P2 --> P3["P3: Conversion — pending"]
