@@ -1,4 +1,6 @@
+use crate::editor::preview_timeline::TimelinePreviewFrame;
 use crate::editor::timeline_backend::{TimelineBackend, TimelineFrame, TimelineLayer};
+use anyhow::Result;
 use image::{Rgba, RgbaImage};
 use opencut_player::timeline::{
     AudioClipProperties, Clip, FrameRate, MediaAsset, MediaClipData, MediaKind, TextClip,
@@ -9,9 +11,58 @@ use std::{
     path::{Path, PathBuf},
     process::Command,
     sync::Arc,
-    time::Duration,
+    time::{Duration, Instant},
 };
 use ulid::Ulid;
+
+#[test]
+fn preview_reuses_frames_and_replaces_document_snapshots() {
+    let dir = Temp::new();
+    let mut doc = document();
+    doc.tracks.push(track(1, TrackKind::Text));
+    doc.clips
+        .push(text_clip(10, 1, 0, 8, doc.settings.frame_rate));
+    let mut backend = TimelineBackend::new(doc, &dir.0).unwrap();
+    let original = wait_for_preview(&backend, time(0)).unwrap();
+    assert!(Arc::ptr_eq(
+        &original,
+        &backend.preview_frame(time(0)).unwrap().unwrap()
+    ));
+    assert!(backend.preview_frame(time(4)).unwrap().is_none());
+    let sought = wait_for_preview(&backend, time(4)).unwrap();
+    assert_eq!(sought.frame.timestamp, Duration::from_millis(500));
+    let last = wait_for_preview(&backend, time(100)).unwrap();
+    assert_eq!(last.frame.timestamp, Duration::from_millis(875));
+    assert!(Arc::ptr_eq(
+        &last,
+        &backend.preview_frame(time(7)).unwrap().unwrap()
+    ));
+    backend.timeline_mut().clips.clear();
+    assert!(backend.preview_frame(time(0)).unwrap().is_none());
+    let edited = wait_for_preview(&backend, time(0)).unwrap();
+    assert!(edited.frame.layers.is_empty());
+    assert_eq!(original.frame.layers.len(), 1);
+}
+
+#[test]
+fn preview_reports_decode_errors_and_recovers_after_an_edit() {
+    let dir = Temp::new();
+    let mut doc = document();
+    doc.tracks.push(track(1, TrackKind::Video));
+    doc.assets.push(asset(100, "missing.png", MediaKind::Image));
+    doc.clips.push(media_clip(10, 1, 100, 0, 0, 8));
+    let mut backend = TimelineBackend::new(doc, &dir.0).unwrap();
+    let error = wait_for_preview(&backend, time(0)).err().unwrap();
+    assert!(format!("{error:?}").contains("missing.png"));
+    backend.timeline_mut().clips.clear();
+    assert!(
+        wait_for_preview(&backend, time(0))
+            .unwrap()
+            .frame
+            .layers
+            .is_empty()
+    );
+}
 
 #[test]
 fn new_rejects_missing_and_non_directory_media_roots_immediately() {
@@ -325,6 +376,20 @@ fn invalid_settings_and_visual_references_are_rejected() {
 }
 
 struct Temp(PathBuf);
+
+fn wait_for_preview(
+    backend: &TimelineBackend,
+    position: TimelineTime,
+) -> Result<Arc<TimelinePreviewFrame>> {
+    let deadline = Instant::now() + Duration::from_secs(5);
+    loop {
+        if let Some(frame) = backend.preview_frame(position)? {
+            return Ok(frame);
+        }
+        assert!(Instant::now() < deadline, "timeline preview did not finish");
+        std::thread::sleep(Duration::from_millis(1));
+    }
+}
 
 impl Temp {
     fn new() -> Self {

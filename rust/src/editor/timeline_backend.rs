@@ -102,6 +102,14 @@ impl TimelineBackend {
                 let mut decoder: Option<FrameDecoder> = None;
                 // Dropping the backend closes the channel; decoder cleanup stays here.
                 for request in requests {
+                    if request.reply.is_none() {
+                        let preview = preview.lock().unwrap();
+                        if !Arc::ptr_eq(&preview.timeline, &request.timeline)
+                            || preview.position != request.position
+                        {
+                            continue;
+                        }
+                    }
                     let result = (|| -> Result<Arc<TimelinePreviewFrame>> {
                         if decoder.as_ref().is_none_or(|decoder| {
                             !Arc::ptr_eq(&decoder.timeline, &request.timeline)
@@ -166,9 +174,37 @@ impl TimelineBackend {
     /// presentation, or `None` while the internal worker prepares it.
     pub fn preview_frame(
         &self,
-        _position: TimelineTime,
+        position: TimelineTime,
     ) -> Result<Option<Arc<TimelinePreviewFrame>>> {
-        unimplemented!("schedule and cache still frames on the internal worker")
+        let rate = self.timeline.settings.frame_rate;
+        if rate.numerator == 0 || rate.denominator == 0 {
+            bail!("Timeline frame rate must have a positive numerator and denominator");
+        }
+        let last =
+            (self.timeline.content_duration() - TimelineTime::ONE_FRAME).max(TimelineTime::ZERO);
+        let position = self
+            .timeline
+            .duration(position.clamp(TimelineTime::ZERO, last));
+        let mut preview = self.preview.lock().unwrap();
+        if !Arc::ptr_eq(&preview.timeline, &self.timeline) || preview.position != position {
+            self.commands
+                .send(SeekRequest {
+                    timeline: Arc::clone(&self.timeline),
+                    position,
+                    reply: None,
+                })
+                .context("Requesting timeline preview frame")?;
+            *preview = PreviewRequest {
+                timeline: Arc::clone(&self.timeline),
+                position,
+                result: None,
+            };
+        }
+        match &preview.result {
+            Some(Ok(frame)) => Ok(Some(Arc::clone(frame))),
+            Some(Err(error)) => Err(anyhow!("{error:?}")),
+            None => Ok(None),
+        }
     }
 
     /// Starts an internal worker and waits for position zero to be prepared.
