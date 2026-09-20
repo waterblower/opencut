@@ -11,7 +11,7 @@ use std::{
     fmt::{Debug, Formatter, Result as FmtResult},
     time::Duration,
 };
-use tokio::time::{Instant, sleep, timeout_at};
+use tokio::time::timeout;
 
 /// Reusable client. Clones share the HTTP connection pool.
 #[derive(Clone)]
@@ -26,17 +26,6 @@ pub struct Config {
     /// Required credential; empty by default and redacted from debug output.
     pub api_key: String,
     pub base_url: String,
-    /// Timeout for each attempt, including response body delivery.
-    pub timeout: Duration,
-    /// Number of retries after the initial attempt; zero disables retries.
-    pub max_retries: u32,
-}
-
-/// Unset options inherit the corresponding client settings.
-#[derive(Clone, Debug, Default)]
-pub struct RequestOptions {
-    pub timeout: Option<Duration>,
-    pub max_retries: Option<u32>,
 }
 
 impl Client {
@@ -65,9 +54,6 @@ impl Client {
                 "API base URL must be HTTP(S) without credentials, query, or fragment".into(),
             ));
         }
-        if config.timeout.is_zero() {
-            return Err(Error::InvalidConfig("timeout must be positive".into()));
-        }
         config.base_url = url.as_str().trim_end_matches('/').to_owned();
         let http = match HttpClient::builder()
             .retry(never())
@@ -85,16 +71,9 @@ impl Client {
     }
 
     /// Evaluates named questions, preserving the model and token usage.
+    /// Makes one attempt with a five-second timeout including response body delivery.
     /// Returns `InvalidResponse` if answer names or types do not match the request.
-    pub async fn send(
-        &self,
-        request: &SystemOneRequest,
-        options: &RequestOptions,
-    ) -> Result<SystemOneResponse, Error> {
-        let timeout = options.timeout.unwrap_or(self.config.timeout);
-        if timeout.is_zero() {
-            return Err(Error::InvalidRequest("timeout must be positive".into()));
-        }
+    pub async fn send(&self, request: &SystemOneRequest) -> Result<SystemOneResponse, Error> {
         let model = request.model.as_deref().unwrap_or("jev-latest");
         if model.trim().is_empty() {
             return Err(Error::InvalidRequest("a model is required".into()));
@@ -132,46 +111,41 @@ impl Client {
             }
         };
         let url = format!("{}/v1/systemone", self.config.base_url);
-        let max_retries = options.max_retries.unwrap_or(self.config.max_retries);
-        let mut retries = 0;
-        let mut backoff = Duration::from_millis(500);
-        loop {
-            let Some(deadline) = Instant::now().checked_add(timeout) else {
-                return Err(Error::InvalidRequest("timeout is too large".into()));
-            };
-            let attempt = async {
-                let response = self
-                    .http
-                    .post(&url)
-                    .header(AUTHORIZATION, self.authorization.clone())
-                    .header(ACCEPT, "application/json")
-                    .header(CONTENT_TYPE, "application/json")
-                    .body(body.clone())
-                    .send()
-                    .await?;
-                let status = response.status();
-                let bytes = response.bytes().await?;
-                Ok::<_, TransportError>((status, bytes))
-            };
-            let (status, bytes) = match timeout_at(deadline, attempt).await {
-                Ok(Ok(response)) => response,
-                Ok(Err(error)) if error.is_timeout() => return Err(Error::Timeout { timeout }),
-                Ok(Err(error)) => return Err(Error::Transport(error)),
-                Err(_) => return Err(Error::Timeout { timeout }),
-            };
-            if status.is_success() {
-                return decode_response(&bytes, &request.questions);
-            }
-            if !matches!(status.as_u16(), 429 | 529) || retries == max_retries {
-                return Err(Error::Http {
-                    status,
-                    body: bytes.to_vec(),
+        let attempt = async {
+            let response = self
+                .http
+                .post(&url)
+                .header(AUTHORIZATION, self.authorization.clone())
+                .header(ACCEPT, "application/json")
+                .header(CONTENT_TYPE, "application/json")
+                .body(body)
+                .send()
+                .await?;
+            let status = response.status();
+            let bytes = response.bytes().await?;
+            Ok::<_, TransportError>((status, bytes))
+        };
+        let (status, bytes) = match timeout(REQUEST_TIMEOUT, attempt).await {
+            Ok(Ok(response)) => response,
+            Ok(Err(error)) if error.is_timeout() => {
+                return Err(Error::Timeout {
+                    timeout: REQUEST_TIMEOUT,
                 });
             }
-            retries += 1;
-            sleep(backoff).await;
-            backoff = backoff.saturating_mul(2).min(Duration::from_secs(5));
+            Ok(Err(error)) => return Err(Error::Transport(error)),
+            Err(_) => {
+                return Err(Error::Timeout {
+                    timeout: REQUEST_TIMEOUT,
+                });
+            }
+        };
+        if !status.is_success() {
+            return Err(Error::Http {
+                status,
+                body: bytes.to_vec(),
+            });
         }
+        decode_response(&bytes, &request.questions)
     }
 }
 
@@ -180,8 +154,6 @@ impl Default for Config {
         Self {
             api_key: String::new(),
             base_url: "https://api.typesafe.ai".into(),
-            timeout: Duration::from_secs(10),
-            max_retries: 2,
         }
     }
 }
@@ -192,11 +164,11 @@ impl Debug for Config {
             .debug_struct("Config")
             .field("api_key", &"[redacted]")
             .field("base_url", &self.base_url)
-            .field("timeout", &self.timeout)
-            .field("max_retries", &self.max_retries)
             .finish()
     }
 }
+
+const REQUEST_TIMEOUT: Duration = Duration::from_secs(5);
 
 #[derive(Serialize)]
 struct RequestBody<'a> {

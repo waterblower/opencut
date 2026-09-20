@@ -1,15 +1,12 @@
-use crate::jev::{
-    Client, Config, Error, JevAnswer, JevQuestion, Question, RequestOptions, SystemOneRequest,
-    SystemOneResponse,
-};
+use crate::jev::{Client, Config, Error, JevAnswer, Question, SystemOneRequest, SystemOneResponse};
 use serde_json::json;
-use std::{collections::BTreeMap, io::ErrorKind, net::TcpListener, time::Duration};
+use std::{collections::BTreeMap, io::ErrorKind, net::TcpListener};
 
 #[test]
 fn builds_a_named_batch_with_all_three_question_types() {
-    let request = SystemOneRequest::new(
-        "My payouts have been failing for three days!".into(),
-        BTreeMap::from([
+    let request = SystemOneRequest {
+        state: "My payouts have been failing for three days!".into(),
+        questions: BTreeMap::from([
             (
                 "urgent".into(),
                 Question::Noul {
@@ -35,7 +32,8 @@ fn builds_a_named_batch_with_all_three_question_types() {
                 },
             ),
         ]),
-    );
+        model: None,
+    };
     assert!(request.model.is_none()); // The client selects jev-latest when sending.
     let body = serde_json::to_value(&request).unwrap();
     assert_eq!(
@@ -109,25 +107,20 @@ async fn rejects_an_empty_batch_before_sending() {
         ..Config::default()
     })
     .unwrap();
-    let options = RequestOptions {
-        timeout: Some(Duration::from_millis(100)),
-        max_retries: Some(0),
+    let request = SystemOneRequest {
+        state: "A customer message".into(),
+        questions: BTreeMap::new(),
+        model: None,
     };
-    let request = SystemOneRequest::new("A customer message".into(), BTreeMap::new());
-    let error = client.send_batch(&request, &options).await.unwrap_err();
+    let error = client.send(&request).await.unwrap_err();
     assert!(matches!(error, Error::InvalidRequest(_)));
 }
 
 #[test]
-fn default_options_inherit_the_client_configuration() {
+fn configuration_defaults_to_the_typesafe_endpoint() {
     let config = Config::default();
     assert!(config.api_key.is_empty());
     assert_eq!(config.base_url, "https://api.typesafe.ai");
-    assert_eq!(config.timeout, Duration::from_secs(10));
-    assert_eq!(config.max_retries, 2);
-    let options = RequestOptions::default();
-    assert_eq!(options.timeout, None);
-    assert_eq!(options.max_retries, None);
 }
 
 #[test]
@@ -139,15 +132,10 @@ fn rejects_invalid_client_configuration() {
         });
         assert!(matches!(result, Err(Error::InvalidConfig(_))));
     }
-    for (base_url, timeout) in [
-        ("not a URL", Duration::from_secs(10)),
-        ("https://api.typesafe.ai", Duration::ZERO),
-    ] {
+    for base_url in ["not a URL", "ftp://api.typesafe.ai"] {
         let config = Config {
             api_key: "test-key".into(),
             base_url: base_url.into(),
-            timeout,
-            ..Config::default()
         };
         assert!(matches!(Client::new(config), Err(Error::InvalidConfig(_))));
     }
@@ -184,37 +172,32 @@ async fn rejects_invalid_criteria_without_contacting_the_server() {
     let client = Client::new(Config {
         api_key: "test-key".into(),
         base_url: format!("http://{}", listener.local_addr().unwrap()),
-        timeout: Duration::from_millis(100),
-        max_retries: 0,
-        ..Config::default()
     })
     .unwrap();
     let mut invalid_questions = Vec::new();
     for count in [0, 1, 11] {
-        invalid_questions.push(JevQuestion::Score {
-            state: "Help!".into(),
-            question: "Rate urgency".into(),
+        invalid_questions.push(Question::Score {
+            instructions: "Rate urgency".into(),
             criteria: vec!["Level".into(); count],
         });
     }
     for count in [0, 256] {
-        let mut criteria = Vec::new();
+        let mut criteria = BTreeMap::new();
         for index in 0..count {
-            criteria.push((index.to_string(), None));
+            criteria.insert(index.to_string(), None);
         }
-        invalid_questions.push(JevQuestion::Choice {
-            state: "Help!".into(),
-            question: "Choose a department".into(),
+        invalid_questions.push(Question::Choice {
+            instructions: "Choose a department".into(),
             criteria,
         });
     }
-    invalid_questions.push(JevQuestion::Choice {
-        state: "Help!".into(),
-        question: "Choose a department".into(),
-        criteria: vec![("billing".into(), None), ("billing".into(), None)],
-    });
     for question in invalid_questions {
-        let result = client.send(question).await;
+        let request = SystemOneRequest {
+            state: "Help!".into(),
+            questions: BTreeMap::from([("result".into(), question)]),
+            model: None,
+        };
+        let result = client.send(&request).await;
         assert!(matches!(result, Err(Error::InvalidRequest(_))));
     }
     assert_eq!(listener.accept().unwrap_err().kind(), ErrorKind::WouldBlock);

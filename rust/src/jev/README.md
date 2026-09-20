@@ -3,7 +3,45 @@
 Async Tokio SDK for single questions and named batches, using reqwest with Rustls.
 Enable the `jev` feature and import public types from `opencut_player::jev`.
 The API contract is <https://docs.typesafe.ai/api>.
-See [the compiling usage example](mod.rs) for client initialization and `send()`.
+
+## Example
+
+Set `TYPESAFE_API_KEY` in your environment and enable the `jev` Cargo feature.
+Read the key during application initialization, then pass it to the client:
+
+```rust
+use opencut_player::jev::{Client, Config, Question, SystemOneRequest};
+use std::{collections::BTreeMap, env, error::Error as StdError};
+
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn StdError>> {
+    let client = Client::new(Config {
+        api_key: env::var("TYPESAFE_API_KEY")?,
+        ..Config::default()
+    })?;
+
+    let request = SystemOneRequest {
+        state: "I was charged twice for the same order.".into(),
+        questions: BTreeMap::from([(
+            "billing".into(),
+            Question::Noul {
+                instructions: "Is this about billing?".into(),
+                criteria: None,
+            },
+        )]),
+        model: None,
+    };
+
+    let response = client.send(&request).await?;
+    println!("{:?}", response.answers["billing"]);
+    println!("Model: {}", response.model);
+    println!("Input tokens: {}", response.usage.input_tokens);
+    Ok(())
+}
+```
+
+Add more named questions to the map to evaluate them against the same state in
+one request. The client uses `jev-latest`, a five-second timeout, and no retries.
 
 ## Client and configuration
 
@@ -13,52 +51,34 @@ pub struct Client { /* private fields */ }
 
 impl Client {
     pub fn new(config: Config) -> Result<Self, Error>;
-    pub async fn send(&self, question: JevQuestion) -> Result<JevAnswer, Error>;
-    pub async fn send_with_options(
-        &self,
-        question: JevQuestion,
-        options: &RequestOptions,
-    ) -> Result<JevAnswer, Error>;
-    pub async fn send_batch(
+    pub async fn send(
         &self,
         request: &SystemOneRequest,
-        options: &RequestOptions,
     ) -> Result<SystemOneResponse, Error>;
 }
 
 pub struct Config {
     pub api_key: String,        // Required; empty by default
     pub base_url: String,       // Default: https://api.typesafe.ai
-    pub timeout: Duration,      // Default: 10 seconds per attempt
-    pub max_retries: u32,       // Default: 2, after the initial attempt
-}
-
-pub struct RequestOptions {
-    pub timeout: Option<Duration>,
-    pub max_retries: Option<u32>,
 }
 ```
 
-Both configuration types implement `Clone`, `Debug`, and `Default`.
-Unset request options inherit client settings; zero retries disables retries.
-Construction validates credentials, URL, and a positive timeout.
+`Config` implements `Clone`, `Debug`, and `Default`.
+Construction validates credentials and the URL.
 Credentials are copied into private client storage and excluded from debug output.
-Single calls own their question; batch calls borrow their request.
+Calls borrow their request.
 One client supports concurrent requests on Tokio.
 The SDK creates no runtime, reads no environment variables, and logs no errors.
 
 ## Requests and answers
 
-Use `JevQuestion::{Noul, Choice, Score}` for single evaluations. Each variant
-contains `state`, `question`, and its corresponding `criteria` shape.
-Single-choice criteria use `Vec<(String, Option<Content>)>` for easy construction;
-duplicate labels are rejected before converting the pairs to the API's JSON map.
-`send()` returns a `JevAnswer`; use `send_batch()` to retain model and usage.
+Use `send()` for one or more named questions against shared state.
+It returns named answers together with the model and token usage.
 Use `Content`, `NoulCriteria`, `Question`, and `SystemOneRequest`
 types in [types.rs](types.rs). `Content` supports text, objects, and arrays.
 Question variants carry their own instructions and criteria. Named batches use
-`BTreeMap<String, Question>`; `SystemOneRequest::new(state, questions)` leaves
-`model` unset, selecting `jev-latest`. Set `request.model = Some(model)` to pin
+`BTreeMap<String, Question>`. Construct `SystemOneRequest` with a struct literal;
+set `model: None` to select `jev-latest`, or `model: Some(model)` to pin
 a version or select another alias for that batch.
 
 ```rust
@@ -90,7 +110,7 @@ pub struct Usage {
 ```
 
 Data types implement `Clone`, `Debug`, and `PartialEq`; wire types also implement
-`Serialize` and `Deserialize`. `JevQuestion` is converted to a wire request internally.
+`Serialize` and `Deserialize`.
 Question and answer variants use explicit JSON `type` tags. Callers match answer
 variants; the SDK preserves fractional scores, confidence, and probabilities.
 
@@ -112,16 +132,14 @@ pub enum Error {
 HTTP error bodies remain raw bytes because the error JSON schema is unspecified.
 Validate requests before sending; malformed successful responses return `Decode`.
 Missing, extra, misnamed, or incorrectly typed answers return `InvalidResponse`.
-Each attempt's timeout includes body delivery. Retry only 429 and 529, waiting
-500 ms initially, doubling to a 5-second cap. Dropping the future stops local
-request processing and retry waits; it cannot undo work already received remotely.
-Timeouts, connection failures, decoding failures, and other HTTP statuses are
-returned without retrying. The timeout applies per attempt, not to the total call.
+Every request has a fixed five-second timeout covering connection and response
+body delivery. No failures are retried, including HTTP 429 and 529. Dropping the
+future stops local request processing; it cannot undo work already received remotely.
 
 ## Validation
 
 [tests/jev.test.rs](tests/jev.test.rs) demonstrates mixed batches, matching typed
-answers, configuration overrides, async calls, and matching validation errors.
+answers, configuration, async calls, and matching validation errors.
 [tests/jev_response.test.rs](tests/jev_response.test.rs) checks response validation
 and decoding errors using JSON fixtures. These tests never call TypeSafe.
 One validation test binds a loopback socket to verify that invalid criteria cause
@@ -143,5 +161,5 @@ during test initialization. Set `TYPESAFE_API_KEY`, then explicitly run:
 cargo test --no-default-features --features jev --lib jev::success_tests -- --ignored
 ```
 
-Live tests incur normal API usage. Timeout, retry, and cancellation behavior has
+Live tests incur normal API usage. Timeout and cancellation behavior has
 not been verified against the live service; no mock HTTP server is used.

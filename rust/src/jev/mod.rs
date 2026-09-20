@@ -4,10 +4,10 @@
 //! Credentials and runtime configuration are supplied by the caller.
 //!
 //! Enable the `jev` Cargo feature and call the client inside a Tokio runtime.
-//! Dropping a request future cancels local work and pending retries.
+//! Requests have a fixed five-second timeout and are never retried.
 //!
 //! ```no_run
-//! use opencut_player::jev::{Client, Config, Question, RequestOptions, SystemOneRequest};
+//! use opencut_player::jev::{Client, Config, Question, SystemOneRequest};
 //! use std::{collections::BTreeMap, env, error::Error as StdError};
 //!
 //! #[tokio::main]
@@ -16,20 +16,21 @@
 //!         api_key: env::var("TYPESAFE_API_KEY")?,
 //!         ..Config::default()
 //!     })?;
-//!     let request = SystemOneRequest::new(
-//!         "I was charged twice for the same order.".into(),
-//!         BTreeMap::from([("billing".into(), Question::Noul {
+//!     let request = SystemOneRequest {
+//!         state: "I was charged twice for the same order.".into(),
+//!         questions: BTreeMap::from([("billing".into(), Question::Noul {
 //!             instructions: "Is this about billing?".into(),
 //!             criteria: None,
 //!         })]),
-//!     );
-//!     let response = client.send(&request, &RequestOptions::default()).await?;
+//!         model: None,
+//!     };
+//!     let response = client.send(&request).await?;
 //!     println!("{:?}", response.answers["billing"]);
 //!     Ok(())
 //! }
 //! ```
 
-pub use client::{Client, Config, RequestOptions};
+pub use client::{Client, Config};
 pub use error::Error;
 pub use types::{
     Content, JevAnswer, NoulCriteria, Question, SystemOneRequest, SystemOneResponse, Usage,

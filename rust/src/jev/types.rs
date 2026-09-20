@@ -95,17 +95,6 @@ pub struct SystemOneRequest {
     pub model: Option<String>,
 }
 
-impl SystemOneRequest {
-    /// Creates an evaluation using `jev-latest`.
-    pub fn new(state: Content, questions: BTreeMap<String, Question>) -> Self {
-        Self {
-            state,
-            questions,
-            model: None,
-        }
-    }
-}
-
 impl From<String> for Content {
     fn from(text: String) -> Self {
         Self::Text(text)
