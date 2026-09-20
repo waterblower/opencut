@@ -37,7 +37,7 @@ async fn main() -> CliExitCode {
         }
     };
     let api_key = std::env::var("MINIMAX_API_KEY").ok();
-    let result = run(args.command, args.json, api_key.as_deref()).await;
+    let result = run(args.command, api_key.as_deref()).await;
     let elapsed_seconds = started.elapsed().as_secs_f64();
     let _ = writeln!(io::stderr().lock(), "elapsed_seconds: {elapsed_seconds:.6}");
     print_result(result, args.json)
@@ -81,7 +81,7 @@ fn print_error(error: &Error, json: bool) {
     }
 }
 
-async fn run(command: Command, json_mode: bool, api_key: Option<&str>) -> Result<Value> {
+async fn run(command: Command, api_key: Option<&str>) -> Result<Value> {
     match command {
         Command::Render { output } => render::render(&output),
         Command::Transcribe {
