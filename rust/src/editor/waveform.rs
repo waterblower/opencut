@@ -86,7 +86,6 @@ impl WaveformData {
 }
 
 pub(super) fn generate_waveform(source: &Path) -> Result<WaveformData> {
-    let t = Instant::now();
     ffmpeg::init().map_err(|error| anyhow!("could not initialize FFmpeg: {error}"))?;
     let mut input = format::input(source)
         .map_err(|error| anyhow!("could not open {}: {error}", source.display()))?;
@@ -134,7 +133,6 @@ pub(super) fn generate_waveform(source: &Path) -> Result<WaveformData> {
             source.display()
         ));
     }
-    eprintln!("time {}", t.elapsed().as_secs());
 
     Ok(WaveformData {
         sample_rate,
