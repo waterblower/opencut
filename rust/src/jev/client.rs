@@ -1,6 +1,4 @@
-use crate::jev::{
-    Content, Error, JevAnswer, JevQuestion, Question, SystemOneRequest, SystemOneResponse,
-};
+use crate::jev::{Content, Error, JevAnswer, Question, SystemOneRequest, SystemOneResponse};
 use reqwest::{
     Client as HttpClient, Error as TransportError, Url,
     header::{ACCEPT, AUTHORIZATION, CONTENT_TYPE, HeaderValue},
@@ -8,7 +6,11 @@ use reqwest::{
     retry::never,
 };
 use serde::Serialize;
-use std::{collections::BTreeMap, fmt, time::Duration};
+use std::{
+    collections::BTreeMap,
+    fmt::{Debug, Formatter, Result as FmtResult},
+    time::Duration,
+};
 use tokio::time::{Instant, sleep, timeout_at};
 
 /// Reusable client. Clones share the HTTP connection pool.
@@ -38,6 +40,7 @@ pub struct RequestOptions {
 }
 
 impl Client {
+    /// Validates configuration and creates a reusable HTTP connection pool.
     pub fn new(mut config: Config) -> Result<Self, Error> {
         if config.api_key.trim().is_empty() {
             return Err(Error::InvalidConfig("an API key is required".into()));
@@ -81,72 +84,9 @@ impl Client {
         })
     }
 
-    pub async fn send(&self, question: JevQuestion) -> Result<JevAnswer, Error> {
-        self.send_with_options(question, &RequestOptions::default())
-            .await
-    }
-
-    pub async fn send_with_options(
-        &self,
-        question: JevQuestion,
-        options: &RequestOptions,
-    ) -> Result<JevAnswer, Error> {
-        let (state, question) = match question {
-            JevQuestion::Noul {
-                state,
-                question,
-                criteria,
-            } => (
-                state,
-                Question::Noul {
-                    instructions: question,
-                    criteria,
-                },
-            ),
-            JevQuestion::Choice {
-                state,
-                question,
-                criteria,
-            } => {
-                let mut labels = BTreeMap::new();
-                for (label, description) in criteria {
-                    if labels.insert(label.clone(), description).is_some() {
-                        return Err(Error::InvalidRequest(format!(
-                            "duplicate choice label {label:?}"
-                        )));
-                    }
-                }
-                (
-                    state,
-                    Question::Choice {
-                        instructions: question,
-                        criteria: labels,
-                    },
-                )
-            }
-            JevQuestion::Score {
-                state,
-                question,
-                criteria,
-            } => (
-                state,
-                Question::Score {
-                    instructions: question,
-                    criteria,
-                },
-            ),
-        };
-        let request = SystemOneRequest::new(state, BTreeMap::from([("result".into(), question)]));
-        let mut response = self.send_batch(&request, options).await?;
-        let Some(answer) = response.answers.remove("result") else {
-            return Err(Error::InvalidResponse(
-                "missing answer for the question".into(),
-            ));
-        };
-        Ok(answer)
-    }
-
-    pub async fn send_batch(
+    /// Evaluates named questions, preserving the model and token usage.
+    /// Returns `InvalidResponse` if answer names or types do not match the request.
+    pub async fn send(
         &self,
         request: &SystemOneRequest,
         options: &RequestOptions,
@@ -246,8 +186,8 @@ impl Default for Config {
     }
 }
 
-impl fmt::Debug for Config {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+impl Debug for Config {
+    fn fmt(&self, formatter: &mut Formatter<'_>) -> FmtResult {
         formatter
             .debug_struct("Config")
             .field("api_key", &"[redacted]")

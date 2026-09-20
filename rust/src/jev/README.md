@@ -1,8 +1,9 @@
-# Public interface proposal
+# TypeSafe AI SDK
 
-This document defines the agreed interface; client implementation is in progress.
+Async Tokio SDK for single questions and named batches, using reqwest with Rustls.
 Enable the `jev` feature and import public types from `opencut_player::jev`.
 The API contract is <https://docs.typesafe.ai/api>.
+See [the compiling usage example](mod.rs) for client initialization and `send()`.
 
 ## Client and configuration
 
@@ -53,7 +54,7 @@ contains `state`, `question`, and its corresponding `criteria` shape.
 Single-choice criteria use `Vec<(String, Option<Content>)>` for easy construction;
 duplicate labels are rejected before converting the pairs to the API's JSON map.
 `send()` returns a `JevAnswer`; use `send_batch()` to retain model and usage.
-Use the existing `Content`, `NoulCriteria`, `Question`, and `SystemOneRequest`
+Use `Content`, `NoulCriteria`, `Question`, and `SystemOneRequest`
 types in [types.rs](types.rs). `Content` supports text, objects, and arrays.
 Question variants carry their own instructions and criteria. Named batches use
 `BTreeMap<String, Question>`; `SystemOneRequest::new(state, questions)` leaves
@@ -110,13 +111,37 @@ pub enum Error {
 `Error` implements `Debug`, `Display`, and `std::error::Error`, retaining sources.
 HTTP error bodies remain raw bytes because the error JSON schema is unspecified.
 Validate requests before sending; malformed successful responses return `Decode`.
+Missing, extra, misnamed, or incorrectly typed answers return `InvalidResponse`.
 Each attempt's timeout includes body delivery. Retry only 429 and 529, waiting
 500 ms initially, doubling to a 5-second cap. Dropping the future stops local
 request processing and retry waits; it cannot undo work already received remotely.
+Timeouts, connection failures, decoding failures, and other HTTP statuses are
+returned without retrying. The timeout applies per attempt, not to the total call.
 
-## Interface tests
+## Validation
 
 [tests/jev.test.rs](tests/jev.test.rs) demonstrates mixed batches, matching typed
 answers, configuration overrides, async calls, and matching validation errors.
-These tests intentionally reference public types awaiting implementation.
-Run them with `cargo test --no-default-features --features jev --lib jev::tests`.
+[tests/jev_response.test.rs](tests/jev_response.test.rs) checks response validation
+and decoding errors using JSON fixtures. These tests never call TypeSafe.
+One validation test binds a loopback socket to verify that invalid criteria cause
+no connection; it does not serve mock responses.
+
+Run from the Rust project directory:
+
+```sh
+cargo check --no-default-features --features jev --lib
+cargo test --no-default-features --features jev --lib jev::
+cargo test --no-default-features --features jev --doc
+```
+
+[tests/jev_success.test.rs](tests/jev_success.test.rs) contains live success cases
+for Noul, Choice, and Score. They are ignored by default and read credentials only
+during test initialization. Set `TYPESAFE_API_KEY`, then explicitly run:
+
+```sh
+cargo test --no-default-features --features jev --lib jev::success_tests -- --ignored
+```
+
+Live tests incur normal API usage. Timeout, retry, and cancellation behavior has
+not been verified against the live service; no mock HTTP server is used.

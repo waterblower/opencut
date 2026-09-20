@@ -21,27 +21,6 @@ pub struct NoulCriteria {
     pub no: Option<Content>,
 }
 
-/// A single evaluation, including the state to evaluate.
-#[derive(Clone, Debug, PartialEq)]
-pub enum JevQuestion {
-    Noul {
-        state: Content,
-        question: Content,
-        criteria: Option<NoulCriteria>,
-    },
-    Choice {
-        state: Content,
-        question: Content,
-        /// Ordered labels and optional descriptions; duplicate labels are invalid.
-        criteria: Vec<(String, Option<Content>)>,
-    },
-    Score {
-        state: Content,
-        question: Content,
-        criteria: Vec<Content>,
-    },
-}
-
 /// The provider's answer; scores and probabilities are preserved as returned.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "type")]
