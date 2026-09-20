@@ -5,6 +5,7 @@ mod asset;
 mod clip;
 mod time;
 mod track;
+mod validation;
 pub use asset::*;
 pub use clip::*;
 use serde::{Deserialize, Serialize};
