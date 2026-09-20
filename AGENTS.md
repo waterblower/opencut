@@ -1,5 +1,11 @@
 # Repository guidelines
 
+- Start planning and design at the highest level of abstraction: define the
+  intended behavior, public interfaces, and caller control flow before lower-level
+  details. When implementing, establish the high-level control flow and data
+  structures first. Early increments may contain empty or unimplemented constructs
+  and do not have to compile. Gradually fill in the lower-level details until the
+  complete implementation works, then run the required validation.
 - For complex refactors or code changes, work in increments of roughly 100 lines
   of code added or changed across all files. After each increment, pause, summarize
   the changes with clickable code links for the user to review, and wait for the
