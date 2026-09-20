@@ -1,7 +1,8 @@
 use super::*;
 use crate::editor::timeline_backend::TimelineBackend;
 use anyhow::{Result, anyhow, ensure};
-pub use opencut_player::timeline::{FrameRate, TimelineEditingState, TimelineTime};
+use opencut_player::engine::timeline::TimelineEditingState;
+pub use opencut_player::timeline::{FrameRate, TimelineTime};
 use std::path::Path;
 
 pub(super) const FRAME_RATE_PRESETS: [(FrameRate, &str); 8] = [

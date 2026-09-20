@@ -1,6 +1,108 @@
-use crate::timeline::{Clip, MediaKind, TimelineEditingState, TimelineTime, TrackKind};
+//! Runtime editing content and queries shared by the editor and CLI.
+
+use crate::timeline::{
+    Clip, MediaAsset, MediaKind, TimelineSettings, TimelineTime, Track, TrackKind,
+};
 use anyhow::{Result, bail};
-use std::collections::HashSet;
+use std::{collections::HashSet, time::Duration};
+use ulid::Ulid;
+
+/// Timeline content used by editing operations, rendering, and editing history.
+#[derive(Clone, Debug, Default)]
+pub struct TimelineEditingState {
+    pub settings: TimelineSettings,
+    pub assets: Vec<MediaAsset>,
+    pub tracks: Vec<Track>,
+    pub clips: Vec<Clip>,
+}
+
+impl TimelineEditingState {
+    pub fn asset(&self, id: Ulid) -> Option<&MediaAsset> {
+        self.assets.iter().find(|asset| asset.id == id)
+    }
+    pub fn clip(&self, id: Ulid) -> Option<&Clip> {
+        self.clips.iter().find(|clip| clip.id() == id)
+    }
+    pub fn clip_mut(&mut self, id: Ulid) -> Option<&mut Clip> {
+        self.clips.iter_mut().find(|clip| clip.id() == id)
+    }
+    pub fn clip_index(&self, id: Ulid) -> Option<usize> {
+        self.clips.iter().position(|clip| clip.id() == id)
+    }
+    pub fn content_duration(&self) -> TimelineTime {
+        let frame_rate = self.settings.frame_rate;
+        self.clips
+            .iter()
+            .map(|clip| clip.timeline_end(frame_rate))
+            .max()
+            .unwrap_or(TimelineTime::ZERO)
+    }
+    pub fn seconds(&self, time: TimelineTime) -> f64 {
+        self.settings.frame_rate.seconds(time)
+    }
+    pub fn duration(&self, time: TimelineTime) -> Duration {
+        self.settings.frame_rate.duration(time)
+    }
+    pub fn nearest_time(&self, seconds: f64) -> TimelineTime {
+        self.settings.frame_rate.nearest(seconds)
+    }
+    pub fn audio_duration(&self, time: TimelineTime) -> Duration {
+        let samples = self
+            .settings
+            .frame_rate
+            .audio_samples(time, self.settings.audio_sample_rate);
+        Duration::from_secs_f64(samples as f64 / self.settings.audio_sample_rate as f64)
+    }
+    pub fn source_frame_at(&self, clip: &Clip, timeline_position: TimelineTime) -> Option<i64> {
+        let asset = self.asset(clip.media()?.asset_id)?;
+        let source_rate = asset.frame_rate()?;
+        let source_time = clip.source_time_at(timeline_position)?;
+        Some(
+            self.settings
+                .frame_rate
+                .rescale_floor(source_time, source_rate)
+                .frames(),
+        )
+    }
+    pub fn source_position_at(&self, clip: &Clip, timeline_position: TimelineTime) -> Duration {
+        let Some(media) = clip.media() else {
+            return Duration::ZERO;
+        };
+        let Some(asset) = self.asset(media.asset_id) else {
+            return Duration::ZERO;
+        };
+        if let (Some(source_rate), Some(source_frame)) = (
+            asset.frame_rate(),
+            self.source_frame_at(clip, timeline_position),
+        ) {
+            return source_rate.duration(TimelineTime::from_frames(source_frame));
+        }
+        self.audio_duration(clip.source_time_at(timeline_position).unwrap_or_default())
+    }
+    pub fn source_start_seconds(&self, clip: &Clip) -> f64 {
+        self.source_position_at(clip, clip.timeline_start())
+            .as_secs_f64()
+    }
+    pub fn ceil_time(&self, seconds: f64) -> TimelineTime {
+        self.settings.frame_rate.ceil(seconds)
+    }
+    pub fn clip_locked(&self, clip_id: Ulid) -> bool {
+        self.clip(clip_id)
+            .and_then(|clip| self.track(clip.track_id()))
+            .is_some_and(|track| track.locked)
+    }
+    pub fn track(&self, id: Ulid) -> Option<&Track> {
+        self.tracks.iter().find(|track| track.id == id)
+    }
+    pub fn track_mut(&mut self, id: Ulid) -> Option<&mut Track> {
+        self.tracks.iter_mut().find(|track| track.id == id)
+    }
+    pub fn clips_on_track(&self, track_id: Ulid) -> impl Iterator<Item = &Clip> {
+        self.clips
+            .iter()
+            .filter(move |clip| clip.track_id() == track_id)
+    }
+}
 
 impl TimelineEditingState {
     /// Validates settings, unique track and asset IDs, and visual clip references,
