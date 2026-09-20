@@ -254,7 +254,7 @@ fn select_all_excludes_clips_on_locked_tracks() {
 fn edits_do_not_require_source_media_or_a_playback_backend() -> Result<()> {
     let mut data = TimelineSerialization::with_test_tracks();
     data.assets.push(audio_asset(100));
-    let mut timeline = TimelineRuntimeState::new("test.timeline.json".into(), data);
+    let mut timeline = TimelineRuntimeState::new("test.timeline.json".into(), data, Path::new("."));
     edit_timeline(
         &mut timeline,
         EditAction::AddClips {
@@ -298,7 +298,7 @@ fn invalid_edits_leave_the_document_unchanged() -> Result<()> {
     let mut data = TimelineSerialization::with_test_tracks();
     data.assets.push(audio_asset(100));
     data.clips = vec![audio_clip(10, 0, 30), audio_clip(11, 30, 30)];
-    let mut timeline = TimelineRuntimeState::new("test.timeline.json".into(), data);
+    let mut timeline = TimelineRuntimeState::new("test.timeline.json".into(), data, Path::new("."));
     let before = serde_json::to_value(&timeline.data)?;
     assert!(
         edit_timeline(
@@ -322,7 +322,7 @@ fn splitting_trimming_and_ripple_deletion_update_the_model() -> Result<()> {
     let mut data = TimelineSerialization::with_test_tracks();
     data.assets.push(audio_asset(100));
     data.clips = vec![audio_clip(10, 0, 60), audio_clip(11, 60, 30)];
-    let mut timeline = TimelineRuntimeState::new("test.timeline.json".into(), data);
+    let mut timeline = TimelineRuntimeState::new("test.timeline.json".into(), data, Path::new("."));
     let (left, right) = timeline.data.clips[0]
         .split_at(
             TimelineTime::from_frames(20),
@@ -392,7 +392,7 @@ fn track_controls_and_properties_work_without_preview() -> Result<()> {
     let mut data = TimelineSerialization::with_test_tracks();
     data.assets.push(audio_asset(100));
     data.clips = vec![audio_clip(10, 0, 60)];
-    let mut timeline = TimelineRuntimeState::new("test.timeline.json".into(), data);
+    let mut timeline = TimelineRuntimeState::new("test.timeline.json".into(), data, Path::new("."));
     let properties = VideoClipProperties {
         position_x: 25.0,
         position_y: -40.0,
@@ -446,7 +446,7 @@ fn text_edits_preserve_timing_without_a_renderer() -> Result<()> {
         muted: false,
         visible: true,
     });
-    let mut timeline = TimelineRuntimeState::new("test.timeline.json".into(), data);
+    let mut timeline = TimelineRuntimeState::new("test.timeline.json".into(), data, Path::new("."));
     let mut clip = TextClip {
         id: ulid(10),
         track_id: ulid(3),
@@ -498,7 +498,7 @@ fn playhead_is_restored_saved_and_clamped_without_media() -> Result<()> {
     data.assets.push(audio_asset(100));
     data.clips = vec![audio_clip(10, 0, 60)];
     data.view.saved_playhead_frame = TimelineTime::from_frames(35);
-    let mut timeline = TimelineRuntimeState::new("test.timeline.json".into(), data);
+    let mut timeline = TimelineRuntimeState::new("test.timeline.json".into(), data, Path::new("."));
     assert_eq!(timeline.playhead().frames(), 35);
     edit_timeline(
         &mut timeline,
@@ -510,7 +510,7 @@ fn playhead_is_restored_saved_and_clamped_without_media() -> Result<()> {
     timeline.save_timeline_playhead(&directory)?;
     let restored = TimelineSerialization::load(&directory.join(&timeline.path))?;
     std::fs::remove_dir_all(&directory)?;
-    let restored = TimelineRuntimeState::new(timeline.path.clone(), restored);
+    let restored = TimelineRuntimeState::new(timeline.path.clone(), restored, Path::new("."));
     assert_eq!(restored.playhead().frames(), 45);
     edit_timeline(
         &mut timeline,
@@ -536,7 +536,7 @@ fn replacing_history_snapshots_preserves_playhead_and_document() -> Result<()> {
     data.assets.push(audio_asset(100));
     data.clips = vec![audio_clip(10, 0, 60)];
     data.view.saved_playhead_frame = TimelineTime::from_frames(15);
-    let mut timeline = TimelineRuntimeState::new("test.timeline.json".into(), data);
+    let mut timeline = TimelineRuntimeState::new("test.timeline.json".into(), data, Path::new("."));
     timeline.record_editing_history();
     edit_timeline(
         &mut timeline,

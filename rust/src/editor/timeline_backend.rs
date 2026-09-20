@@ -52,13 +52,28 @@ pub enum TimelineLayer {
 }
 
 pub struct TimelineBackend {
+    timeline: Arc<TimelineSerialization>,
     commands: mpsc::Sender<SeekRequest>,
     frame: Arc<Mutex<Arc<TimelineFrame>>>,
-    framerate: f64,
-    duration: Duration,
 }
 
 impl TimelineBackend {
+    /// Creates a preview backend at position zero without waiting for media I/O.
+    /// Initialization failures are returned by `preview_frame`.
+    pub fn new(_timeline: TimelineSerialization, _media_root: &Path) -> Self {
+        unimplemented!("start the internal worker without waiting for its first frame")
+    }
+
+    pub fn timeline(&self) -> &TimelineSerialization {
+        &self.timeline
+    }
+
+    /// Edits the authoritative document. Copy-on-write preserves worker snapshots;
+    /// requests identify cached frames by the snapshot they were prepared from.
+    pub fn timeline_mut(&mut self) -> &mut TimelineSerialization {
+        Arc::make_mut(&mut self.timeline)
+    }
+
     /// Requests the given timeline frame and immediately returns its cached
     /// presentation, or `None` while the internal worker prepares it.
     pub fn preview_frame(
@@ -72,15 +87,15 @@ impl TimelineBackend {
     /// Relative asset paths are resolved against `media_root`.
     pub fn open_sync(timeline: TimelineSerialization, media_root: &Path) -> Result<Self> {
         validate(&timeline)?;
-        let framerate = timeline.settings.frame_rate.frames_per_second();
-        let duration = timeline.duration(timeline.content_duration());
+        let timeline = Arc::new(timeline);
+        let worker_timeline = Arc::clone(&timeline);
         let media_root = media_root.to_owned();
         let (commands, requests) = mpsc::channel::<SeekRequest>();
         let (ready, initialized) = mpsc::sync_channel(1);
         thread::Builder::new()
             .name("timeline-preview".into())
             .spawn(move || {
-                let mut decoder = match FrameDecoder::open_sync(timeline, &media_root) {
+                let mut decoder = match FrameDecoder::open_sync(worker_timeline, &media_root) {
                     Ok(decoder) => decoder,
                     Err(error) => {
                         let _ = ready.send(Err(error));
@@ -95,6 +110,10 @@ impl TimelineBackend {
                 // on this worker; there is no thread join in the caller's Drop.
                 for request in requests {
                     let result = (|| {
+                        if !Arc::ptr_eq(&decoder.timeline, &request.timeline) {
+                            validate(&request.timeline)?;
+                            decoder = FrameDecoder::open_sync(request.timeline, &media_root)?;
+                        }
                         decoder.seek_sync(request.position)?;
                         *frame.lock().unwrap() = Arc::clone(&decoder.frame);
                         Ok(())
@@ -107,25 +126,23 @@ impl TimelineBackend {
             .recv()
             .context("Waiting for timeline initialization")??;
         Ok(Self {
+            timeline,
             commands,
             frame,
-            framerate,
-            duration,
         })
     }
 
     pub fn frame_size(&self) -> (u32, u32) {
-        let frame = self.frame.lock().unwrap();
-        (frame.width, frame.height)
+        (self.timeline.settings.width, self.timeline.settings.height)
     }
 
     pub fn framerate(&self) -> Option<f64> {
-        Some(self.framerate)
+        Some(self.timeline.settings.frame_rate.frames_per_second())
     }
 
     /// Includes audio clips and invisible tracks in the document's duration.
     pub fn duration(&self) -> Duration {
-        self.duration
+        self.timeline.duration(self.timeline.content_duration())
     }
 
     pub fn position(&self) -> Duration {
@@ -137,7 +154,11 @@ impl TimelineBackend {
     pub fn seek_sync(&mut self, position: Duration) -> Result<()> {
         let (reply, completion) = mpsc::channel();
         self.commands
-            .send(SeekRequest { position, reply })
+            .send(SeekRequest {
+                timeline: Arc::clone(&self.timeline),
+                position,
+                reply,
+            })
             .context("Requesting timeline seek")?;
         completion.recv().context("Waiting for timeline seek")?
     }
@@ -150,12 +171,13 @@ impl TimelineBackend {
 }
 
 struct SeekRequest {
+    timeline: Arc<TimelineSerialization>,
     position: Duration,
     reply: mpsc::Sender<Result<()>>,
 }
 
 struct FrameDecoder {
-    timeline: TimelineSerialization,
+    timeline: Arc<TimelineSerialization>,
     media_root: PathBuf,
     readers: HashMap<Ulid, VideoReader>,
     images: HashMap<Ulid, Arc<RgbaImage>>,
@@ -165,7 +187,7 @@ struct FrameDecoder {
 impl FrameDecoder {
     /// Owns an immutable document and returns with position zero prepared.
     /// Relative asset paths are resolved against `media_root`.
-    fn open_sync(timeline: TimelineSerialization, media_root: &Path) -> Result<Self> {
+    fn open_sync(timeline: Arc<TimelineSerialization>, media_root: &Path) -> Result<Self> {
         let frame = Arc::new(TimelineFrame {
             timestamp: Duration::ZERO,
             width: timeline.settings.width,

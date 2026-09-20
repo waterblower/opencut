@@ -63,7 +63,8 @@ impl Editor {
                             return Err(error);
                         }
                     };
-                let timeline = TimelineRuntimeState::new(timeline_path, timeline_data);
+                let timeline =
+                    TimelineRuntimeState::new(timeline_path, timeline_data, &project_root);
                 Ok(Some(timeline))
             })()?
         };
@@ -151,7 +152,6 @@ impl Editor {
         };
         if let Some(timeline) = editor.timeline.as_mut() {
             let playhead = timeline.playhead();
-            editor.preview.target = PreviewTarget::Timeline;
             set_timeline_position(&mut editor.preview, timeline, playhead);
         }
         editor.schedule_project_waveforms(cx);

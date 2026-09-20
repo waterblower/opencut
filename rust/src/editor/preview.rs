@@ -1,11 +1,11 @@
 use super::*;
-use crate::editor::{preview_timeline::timeline_preview, timeline_backend::TimelineBackend};
+use crate::editor::preview_timeline::timeline_preview;
 use opencut_player::video2::{AudioBackend, VideoBackend};
 use preview_image::preview_image_file;
 
 pub enum PreviewTarget {
     None,
-    Timeline(TimelineBackend),
+    Timeline,
     VideoFile(PathBuf, VideoBackend),
     AudioFile(PathBuf, AudioBackend),
     ImageFile(PathBuf),
@@ -17,15 +17,15 @@ pub fn set_timeline_position(
     position: TimelineTime,
 ) {
     preview.target = PreviewTarget::Timeline;
-    let duration = timeline.data.content_duration();
+    let duration = timeline.backend.timeline().content_duration();
     let position = position.clamp(TimelineTime::ZERO, duration);
 
-    timeline.data.view.saved_playhead_frame = position;
+    timeline.backend.timeline_mut().view.saved_playhead_frame = position;
 }
 
 impl PreviewTarget {
     pub(super) fn is_timeline(&self) -> bool {
-        matches!(self, Self::Timeline(_))
+        matches!(self, Self::Timeline)
     }
 
     pub(super) fn audio(&self) -> Option<&AudioBackend> {
@@ -59,11 +59,11 @@ impl Editor {
                         .unwrap_or_else(|| "No preview available".into()),
                 )
                 .into_any_element(),
-            PreviewTarget::Timeline(backend) => {
+            PreviewTarget::Timeline => {
                 let Some(timeline) = self.timeline.as_ref() else {
                     return div().w(px(width)).h(px(height)).into_any_element();
                 };
-                timeline_preview(backend, timeline.playhead())
+                timeline_preview(&timeline.backend, timeline.playhead())
                     .id("timeline-preview")
                     .size(px(width), px(height))
                     .into_any_element()
@@ -125,7 +125,7 @@ impl PlaybackViewDelegate for Editor {
 
     fn playback_toggle_volume(&mut self, _: &mut Window, cx: &mut Context<Self>) {
         let has_playable_target = match &self.preview.target {
-            PreviewTarget::Timeline(_) => false,
+            PreviewTarget::Timeline => false,
             PreviewTarget::VideoFile(_, _) => true,
             PreviewTarget::None | PreviewTarget::AudioFile(_, _) | PreviewTarget::ImageFile(_) => {
                 false
@@ -148,7 +148,7 @@ impl PlaybackViewDelegate for Editor {
 impl Editor {
     pub fn preview_file_video(&self) -> Option<&VideoBackend> {
         match &self.preview.target {
-            PreviewTarget::Timeline(_) => None,
+            PreviewTarget::Timeline => None,
             PreviewTarget::VideoFile(_, video) => Some(video),
             PreviewTarget::None | PreviewTarget::AudioFile(_, _) | PreviewTarget::ImageFile(_) => {
                 None

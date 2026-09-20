@@ -315,7 +315,11 @@ impl Editor {
             self.preview.last_scrub_seek = None;
             self.properties.transform_input_clip_id = None;
             self.properties.text_input_clip_id = None;
-            self.timeline = Some(TimelineRuntimeState::new(timeline_path, active_timeline));
+            self.timeline = Some(TimelineRuntimeState::new(
+                timeline_path,
+                active_timeline,
+                &self.project_root,
+            ));
             let mut settings = load_project_local_settings(&self.project_root);
             settings.active_timeline = self.timeline.as_ref().map(|timeline| timeline.path.clone());
             save_project_local_settings(&self.project_root, &settings)?;
@@ -333,7 +337,6 @@ impl Editor {
                 .context("refresh_file_tree failed")?;
             if let Some(timeline) = self.timeline.as_mut() {
                 let playhead = timeline.playhead();
-                self.preview.target = PreviewTarget::Timeline;
                 set_timeline_position(&mut self.preview, timeline, playhead);
             } else {
                 self.preview.target = PreviewTarget::None;

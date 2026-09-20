@@ -1,4 +1,5 @@
 use super::*;
+use crate::editor::timeline_backend::TimelineBackend;
 use anyhow::{Result, anyhow};
 use gpui::point;
 pub use opencut_player::timeline::{
@@ -19,14 +20,13 @@ pub(super) const FRAME_RATE_PRESETS: [(FrameRate, &str); 8] = [
 
 pub struct TimelineRuntimeState {
     pub path: PathBuf,
+    pub backend: TimelineBackend,
     pub(super) h_scroll: ScrollHandle,
     pub(super) v_scroll: ScrollHandle,
     pub(super) interaction: TimelineInteractionState,
     pub(super) undo_stack: Vec<TimelineSerialization>,
     pub(super) redo_stack: Vec<TimelineSerialization>,
     pub(super) preview_drop_asset: Option<PreviewDropAsset>,
-    // serialized data
-    pub data: TimelineSerialization,
 }
 
 #[derive(Debug)]
@@ -297,7 +297,7 @@ impl TimelineEditorExt for TimelineSerialization {
     }
 }
 impl TimelineRuntimeState {
-    pub(super) fn new(path: PathBuf, data: TimelineSerialization) -> Self {
+    pub(super) fn new(path: PathBuf, data: TimelineSerialization, media_root: &Path) -> Self {
         let mut data = data;
         data.view.saved_playhead_frame = data
             .view
@@ -314,7 +314,7 @@ impl TimelineRuntimeState {
 
         Self {
             path,
-            data,
+            backend: TimelineBackend::new(data, media_root),
             interaction: TimelineInteractionState {
                 active_tool: TimelineTool::Selection,
                 snapping_enabled,
@@ -336,7 +336,7 @@ impl TimelineRuntimeState {
     }
 
     pub fn playhead(&self) -> TimelineTime {
-        self.data.view.saved_playhead_frame
+        self.backend.timeline().view.saved_playhead_frame
     }
 
     pub(super) fn save_timeline_playhead(
@@ -349,7 +349,7 @@ impl TimelineRuntimeState {
                 playhead: self.playhead(),
             },
         )?;
-        self.data.save(&project_root.join(&self.path))
+        self.backend.timeline().save(&project_root.join(&self.path))
     }
 
     pub fn save_timeline_scroll(&mut self, project_root: &Path) -> Result<()> {
@@ -360,11 +360,11 @@ impl TimelineRuntimeState {
                 vertical: -f32::from(self.v_scroll.offset().y),
             },
         )?;
-        self.data.save(&project_root.join(&self.path))
+        self.backend.timeline().save(&project_root.join(&self.path))
     }
 
     pub(super) fn record_editing_history(&mut self) {
-        self.undo_stack.push(self.data.clone());
+        self.undo_stack.push(self.backend.timeline().clone());
         if self.undo_stack.len() > 100 {
             self.undo_stack.remove(0);
         }
