@@ -1,4 +1,4 @@
-use crate::editor::editing::{EditAction, edit_timeline};
+use crate::editor::edit_action::{EditAction, edit_timeline};
 use crate::editor::timeline::TimelineRuntimeState;
 use anyhow::Result;
 use gpui::{point, px};

@@ -1,4 +1,5 @@
 use super::*;
+use crate::editor::edit_action::edit_timeline;
 use crate::editor::tests::TimelineTestExt;
 use crate::editor::timeline_clip::AudioClipProperties;
 use opencut_player::timeline::{TimelineEditingState, TimelineSerialization};
@@ -216,8 +217,8 @@ fn clipboard_paste_rejects_the_complete_selection_on_collision() {
 }
 
 #[test]
-fn track_magnet_does_not_ripple_multiple_deleted_clips() {
-    let mut clips = vec![
+fn track_magnet_does_not_ripple_multiple_deleted_clips() -> Result<()> {
+    let clips = vec![
         audio_clip(1, 10, 10),
         audio_clip(2, 30, 5),
         audio_clip(3, 50, 10),
@@ -228,14 +229,27 @@ fn track_magnet_does_not_ripple_multiple_deleted_clips() {
         },
     ];
 
-    ripple_clips_after_deletion(
-        &mut clips,
-        &HashSet::from([ulid(1), ulid(2)]),
-        FrameRate::default(),
-    );
-
-    assert_eq!(clips[2].timeline_start(), TimelineTime::from_frames(50));
-    assert_eq!(clips[3].timeline_start(), TimelineTime::from_frames(50));
+    let data = TimelineEditingState {
+        clips,
+        ..TimelineEditingState::with_test_tracks()
+    };
+    let mut timeline = TimelineRuntimeState::new(
+        std::path::absolute("test.timeline.json")?,
+        data,
+        Path::new("."),
+    )?;
+    edit_timeline(
+        &mut timeline,
+        EditAction::RemoveClips {
+            clip_ids: HashSet::from([ulid(1), ulid(2)]),
+            close_track_gaps: true,
+        },
+    )?;
+    let remaining = &timeline.backend.timeline().clips;
+    assert_eq!(remaining.len(), 2);
+    assert_eq!(remaining[0].timeline_start(), TimelineTime::from_frames(50));
+    assert_eq!(remaining[1].timeline_start(), TimelineTime::from_frames(50));
+    Ok(())
 }
 
 #[test]

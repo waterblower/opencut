@@ -2,7 +2,7 @@ use crate::editor::{
     ACCENT, BORDER, MUTED, OpenInDefaultApp, PANEL, RevealInFinder, SURFACE, SURFACE_HOVER, TEXT,
     clip_placement::validate_clip_placement,
     context_menu::{ContextMenu, FileContextMenu},
-    editing::{EditAction, apply_timeline_edit},
+    edit_action::{EditAction, apply_timeline_edit},
     editor::Editor,
     explorer_filter::ExplorerFilter,
     model::MediaAsset,

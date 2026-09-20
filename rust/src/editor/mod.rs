@@ -16,6 +16,7 @@ use std::{
 mod clip_placement;
 mod context_menu;
 mod debug_state;
+mod edit_action;
 mod editing;
 mod editor;
 mod editor_view;
@@ -61,7 +62,8 @@ use clip_placement::{
     ClipPlacementRejection, validate_clip_placement, validate_text_clip_placement,
 };
 use context_menu::ContextMenu;
-use editing::{ClipClipboard, EditAction, apply_timeline_edit};
+use edit_action::{EditAction, apply_timeline_edit};
+use editing::ClipClipboard;
 pub(crate) use editor::Editor;
 use explorer::{load_explorer_expansion, visible_tree};
 use explorer_filter::ExplorerFilter;
