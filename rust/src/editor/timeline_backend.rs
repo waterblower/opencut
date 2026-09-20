@@ -5,6 +5,7 @@
 //! Layers are prepared for a renderer to compose over a black canvas; text is
 //! retained as text so the renderer can perform font shaping and layout.
 
+use crate::editor::preview_timeline::TimelinePreviewFrame;
 use anyhow::{Context as _, Result, bail};
 use image::RgbaImage;
 use opencut_player::engine::{decode::VideoReader, raster::load_image};
@@ -58,6 +59,15 @@ pub struct TimelineBackend {
 }
 
 impl TimelineBackend {
+    /// Requests the given timeline frame and immediately returns its cached
+    /// presentation, or `None` while the internal worker prepares it.
+    pub fn preview_frame(
+        &self,
+        _position: TimelineTime,
+    ) -> Result<Option<Arc<TimelinePreviewFrame>>> {
+        unimplemented!("schedule and cache still frames on the internal worker")
+    }
+
     /// Starts an internal worker and waits for position zero to be prepared.
     /// Relative asset paths are resolved against `media_root`.
     pub fn open_sync(timeline: TimelineSerialization, media_root: &Path) -> Result<Self> {

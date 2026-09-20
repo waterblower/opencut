@@ -31,6 +31,7 @@ mod preview;
 mod preview_audio;
 mod preview_events;
 mod preview_image;
+mod preview_timeline;
 mod preview_video;
 mod project_settings;
 mod properties;
