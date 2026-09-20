@@ -37,8 +37,6 @@ pub(super) struct MarqueeSelection {
 
 pub(super) struct TimelineInteractionState {
     pub(super) active_tool: TimelineTool,
-    pub(super) snapping_enabled: bool,
-    pub(super) magnet_enabled: bool,
     pub(super) selected_clip_id: Option<Ulid>,
     pub(super) selected_clip_ids: HashSet<Ulid>,
     pub(super) blade_guide: Option<TimelineTime>,

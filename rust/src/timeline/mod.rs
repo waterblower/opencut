@@ -1,4 +1,4 @@
-//! Shared editing data and persistence types; no file I/O or backend state.
+//! Shared editing data and file persistence; no backend state.
 mod serialization;
 pub use serialization::{ParseError, parse};
 mod asset;

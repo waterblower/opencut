@@ -1,7 +1,36 @@
-use super::{Clip, FrameRate, TimelineSerialization, TimelineTime, TrackKind};
+use crate::timeline::{Clip, FrameRate, TimelineSerialization, TimelineTime, TrackKind};
+use anyhow::{Context as _, Result};
 use serde::Serialize;
 use serde_json::Value;
-use std::fmt;
+use std::{fmt, fs, path::Path};
+
+impl TimelineSerialization {
+    pub fn load(path: &Path) -> Result<Self> {
+        let contents = fs::read(path).context(format!("Reading timeline {}", path.display()))?;
+        let value = serde_json::from_slice(&contents)
+            .context(format!("Parsing timeline JSON {}", path.display()))?;
+        Ok(parse(&value)?)
+    }
+
+    pub fn save(&self, path: &Path) -> Result<()> {
+        let directory = path
+            .parent()
+            .context("Timeline path has no parent directory")?;
+        fs::create_dir_all(directory).context(format!(
+            "Creating timeline directory {}",
+            directory.display()
+        ))?;
+        let mut bytes = serde_json::to_vec_pretty(self).context("Serializing timeline")?;
+        bytes.push(b'\n');
+        let temporary = path.with_extension("json.tmp");
+        fs::write(&temporary, bytes).context(format!(
+            "Writing temporary timeline {}",
+            temporary.display()
+        ))?;
+        fs::rename(&temporary, path).context(format!("Replacing timeline {}", path.display()))?;
+        Ok(())
+    }
+}
 
 #[derive(Debug, Serialize)]
 pub struct ParseError {

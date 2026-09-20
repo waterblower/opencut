@@ -1,11 +1,8 @@
 use super::*;
 use crate::editor::timeline_backend::TimelineBackend;
-use anyhow::{Result, anyhow};
-use gpui::point;
-pub use opencut_player::timeline::{
-    FrameRate, TimelineSerialization, TimelineTime, TimelineViewState,
-};
-use std::{fs, path::Path};
+use anyhow::{Result, anyhow, ensure};
+pub use opencut_player::timeline::{FrameRate, TimelineEditingState, TimelineTime};
+use std::path::Path;
 
 pub(super) const FRAME_RATE_PRESETS: [(FrameRate, &str); 8] = [
     (FrameRate::new(24_000, 1_001), "23.976 fps"),
@@ -19,13 +16,17 @@ pub(super) const FRAME_RATE_PRESETS: [(FrameRate, &str); 8] = [
 ];
 
 pub struct TimelineRuntimeState {
+    /// Absolute path of the timeline file.
     pub path: PathBuf,
     pub backend: TimelineBackend,
-    pub(super) h_scroll: ScrollHandle,
-    pub(super) v_scroll: ScrollHandle,
+    pub h_scroll: ScrollHandle,
+    pub v_scroll: ScrollHandle,
+    pub pixels_per_second: f32,
+    pub snapping_enabled: bool,
+    pub track_magnet_enabled: bool,
     pub(super) interaction: TimelineInteractionState,
-    pub(super) undo_stack: Vec<TimelineSerialization>,
-    pub(super) redo_stack: Vec<TimelineSerialization>,
+    pub(super) undo_stack: Vec<TimelineEditingState>,
+    pub(super) redo_stack: Vec<TimelineEditingState>,
     pub(super) preview_drop_asset: Option<PreviewDropAsset>,
 }
 
@@ -45,8 +46,6 @@ pub fn timeline_ranges_overlap(
     left_start < right_end && right_start < left_end
 }
 pub trait TimelineEditorExt: Sized {
-    fn load(path: &Path) -> Result<Self>;
-    fn save(&self, path: &Path) -> Result<()>;
     fn validate_clip_move_placements(
         &self,
         placements: &[(Ulid, Ulid, TimelineTime)],
@@ -55,72 +54,7 @@ pub trait TimelineEditorExt: Sized {
     fn set_frame_rate(&mut self, frame_rate: FrameRate);
     fn repair_and_prune_invalid_data(&mut self);
 }
-impl TimelineEditorExt for TimelineSerialization {
-    fn load(path: &Path) -> Result<Self> {
-        let contents =
-            fs::read(path).with_context(|| format!("could not read {}", path.display()))?;
-        let value = match serde_json::from_slice(&contents) {
-            Ok(value) => value,
-            Err(error) => {
-                return Err(anyhow!(
-                    "could not parse {}: {error} at {}:{}",
-                    path.display(),
-                    file!(),
-                    line!()
-                ));
-            }
-        };
-        let mut timeline = opencut_player::timeline::parse(&value)?;
-        timeline.repair_and_prune_invalid_data();
-        Ok(timeline)
-    }
-
-    fn save(&self, path: &Path) -> Result<()> {
-        let Some(directory) = path.parent() else {
-            return Err(anyhow!(
-                "timeline path has no parent directory at {}:{}",
-                file!(),
-                line!()
-            ));
-        };
-        if let Err(error) = fs::create_dir_all(directory) {
-            return Err(anyhow!(
-                "could not create {}: {error} at {}:{}",
-                directory.display(),
-                file!(),
-                line!()
-            ));
-        }
-        let mut bytes = match serde_json::to_vec_pretty(self) {
-            Ok(bytes) => bytes,
-            Err(error) => {
-                return Err(anyhow!(
-                    "could not serialize timeline: {error} at {}:{}",
-                    file!(),
-                    line!()
-                ));
-            }
-        };
-        bytes.push(b'\n');
-        let temporary = path.with_extension("json.tmp");
-        if let Err(error) = fs::write(&temporary, bytes) {
-            return Err(anyhow!(
-                "could not write {}: {error} at {}:{}",
-                temporary.display(),
-                file!(),
-                line!()
-            ));
-        }
-        if let Err(error) = fs::rename(&temporary, path) {
-            return Err(anyhow!(
-                "could not replace {}: {error} at {}:{}",
-                path.display(),
-                file!(),
-                line!()
-            ));
-        }
-        Ok(())
-    }
+impl TimelineEditorExt for TimelineEditingState {
     fn validate_clip_move_placements(
         &self,
         placements: &[(Ulid, Ulid, TimelineTime)],
@@ -215,7 +149,6 @@ impl TimelineEditorExt for TimelineSerialization {
         self.repair_and_prune_invalid_data();
     }
     fn repair_and_prune_invalid_data(&mut self) {
-        self.view.normalize();
         if self.settings.frame_rate.numerator == 0 {
             self.settings.frame_rate.numerator = 30;
         }
@@ -299,31 +232,24 @@ impl TimelineEditorExt for TimelineSerialization {
 impl TimelineRuntimeState {
     pub(super) fn new(
         path: PathBuf,
-        data: TimelineSerialization,
+        editing_state: TimelineEditingState,
         media_root: &Path,
     ) -> Result<Self> {
-        let mut backend = TimelineBackend::new(data, media_root)?;
-        let data = backend.timeline_mut();
-        data.view.saved_playhead_frame = data
-            .view
-            .saved_playhead_frame
-            .clamp(TimelineTime::ZERO, data.content_duration());
-        let scroll = ScrollHandle::new();
-        scroll.set_offset(point(px(-data.view.horizontal_scroll), px(0.0)));
-        let vertical_scroll = ScrollHandle::new();
-        vertical_scroll.set_offset(point(px(0.0), px(-data.view.vertical_scroll)));
-        let snapping_enabled = data.view.snapping_enabled;
-        let magnet_enabled = data.view.track_magnet_enabled;
-        let selected_clip_id = data.clips.first().map(Clip::id);
+        ensure!(path.is_absolute(), "Timeline path must be absolute");
+        let backend = TimelineBackend::new(editing_state, media_root)?;
+        let selected_clip_id = backend.timeline().clips.first().map(Clip::id);
         let selected_clip_ids = selected_clip_id.into_iter().collect();
 
         Ok(Self {
             path,
             backend,
+            h_scroll: ScrollHandle::new(),
+            v_scroll: ScrollHandle::new(),
+            pixels_per_second: DEFAULT_TIMELINE_PIXELS_PER_SECOND,
+            snapping_enabled: true,
+            track_magnet_enabled: true,
             interaction: TimelineInteractionState {
                 active_tool: TimelineTool::Selection,
-                snapping_enabled,
-                magnet_enabled,
                 selected_clip_id,
                 selected_clip_ids,
                 blade_guide: None,
@@ -332,8 +258,6 @@ impl TimelineRuntimeState {
                 marquee_selection: None,
                 scrubbing_playhead: false,
             },
-            h_scroll: scroll,
-            v_scroll: vertical_scroll,
             undo_stack: Vec::new(),
             redo_stack: Vec::new(),
             preview_drop_asset: None,
@@ -341,37 +265,11 @@ impl TimelineRuntimeState {
     }
 
     pub fn playhead(&self) -> TimelineTime {
-        self.backend.timeline().view.saved_playhead_frame
-    }
-
-    pub(super) fn save_timeline_playhead(
-        self: &mut TimelineRuntimeState,
-        project_root: &Path,
-    ) -> Result<()> {
-        edit_timeline(
-            self,
-            EditAction::SetSavedPlayhead {
-                playhead: self.playhead(),
-            },
-        )?;
-        self.backend.timeline().save(&project_root.join(&self.path))
-    }
-
-    pub fn save_timeline_scroll(&mut self, project_root: &Path) -> Result<()> {
-        let horizontal = -f32::from(self.h_scroll.offset().x);
-        let vertical = -f32::from(self.v_scroll.offset().y);
-        let view = self.backend.view_mut();
-        view.horizontal_scroll = if horizontal.is_finite() {
-            horizontal.max(0.0)
-        } else {
-            0.0
-        };
-        view.vertical_scroll = if vertical.is_finite() {
-            vertical.max(0.0)
-        } else {
-            0.0
-        };
-        self.backend.timeline().save(&project_root.join(&self.path))
+        self.backend
+            .timeline()
+            .settings
+            .frame_rate
+            .frames_from_duration_nearest(self.backend.position())
     }
 
     pub(super) fn record_editing_history(&mut self) {
@@ -400,31 +298,6 @@ impl FrameRateLabel for FrameRate {
         } else {
             format!("{frames_per_second:.2} fps")
         }
-    }
-}
-trait TimelineViewExt {
-    fn normalize(&mut self);
-}
-impl TimelineViewExt for TimelineViewState {
-    fn normalize(&mut self) {
-        self.saved_playhead_frame = self.saved_playhead_frame.max(TimelineTime::ZERO);
-        self.horizontal_scroll = finite_nonnegative(self.horizontal_scroll);
-        self.vertical_scroll = finite_nonnegative(self.vertical_scroll);
-        self.pixels_per_second = if self.pixels_per_second.is_finite() {
-            self.pixels_per_second.clamp(
-                MIN_TIMELINE_PIXELS_PER_SECOND,
-                MAX_TIMELINE_PIXELS_PER_SECOND,
-            )
-        } else {
-            DEFAULT_TIMELINE_PIXELS_PER_SECOND
-        };
-    }
-}
-fn finite_nonnegative(value: f32) -> f32 {
-    if value.is_finite() {
-        value.max(0.0)
-    } else {
-        0.0
     }
 }
 #[cfg(test)]
