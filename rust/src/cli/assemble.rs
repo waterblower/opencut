@@ -2,9 +2,9 @@
 use crate::{
     cli::{
         document::{self, Document},
-        engine::probe,
         validate,
     },
+    engine::probe,
     timeline::*,
 };
 use anyhow::{Context as _, Result, anyhow};

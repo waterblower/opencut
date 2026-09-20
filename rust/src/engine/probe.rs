@@ -1,8 +1,18 @@
-use crate::{cli::validate::MediaInfo, timeline::MediaAsset};
+use crate::engine::raster::load_image;
+use crate::timeline::MediaAsset;
 use anyhow::{Context as _, Result, anyhow, bail};
 use ffmpeg_next as ffmpeg;
 use serde::Serialize;
 use std::{collections::HashMap, path::Path};
+
+#[derive(Clone, Debug)]
+pub struct MediaInfo {
+    pub duration: f64,
+    pub video: bool,
+    pub audio: bool,
+    pub image: bool,
+    pub video_bitrate: Option<u64>,
+}
 
 #[derive(Debug, Serialize)]
 pub struct Probe {
@@ -57,7 +67,7 @@ pub fn probe(path: &Path) -> Result<Probe> {
         );
     }
     if is_image(path) {
-        let image = crate::cli::engine::raster::load_image(path)?;
+        let image = load_image(path)?;
         return Ok(Probe {
             container: "image".into(),
             duration: 0.0,

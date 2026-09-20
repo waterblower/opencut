@@ -12,27 +12,14 @@ pub fn load_image(path: &Path) -> Result<RgbaImage> {
             resources_dir: path.parent().map(Path::to_path_buf),
             ..Default::default()
         };
-        let bytes =
-            std::fs::read(path).context(format!("unreadable_media at {}:{}", file!(), line!()))?;
-        let tree = resvg::usvg::Tree::from_data(&bytes, &options).context(format!(
-            "unreadable_media at {}:{}",
-            file!(),
-            line!()
-        ))?;
+        let bytes = std::fs::read(path).context("unreadable_media")?;
+        let tree = resvg::usvg::Tree::from_data(&bytes, &options).context("unreadable_media")?;
         let size = tree.size().to_int_size();
         if size.width() > 16384 || size.height() > 16384 {
-            return Err(anyhow!(
-                "image_too_large: SVG dimensions exceed 16384 at {}:{}",
-                file!(),
-                line!()
-            ));
+            return Err(anyhow!("image_too_large: SVG dimensions exceed 16384"));
         }
         let Some(mut pixmap) = resvg::tiny_skia::Pixmap::new(size.width(), size.height()) else {
-            return Err(anyhow!(
-                "raster_failure: cannot allocate SVG raster at {}:{}",
-                file!(),
-                line!()
-            ));
+            return Err(anyhow!("raster_failure: cannot allocate SVG raster"));
         };
         resvg::render(
             &tree,
@@ -51,7 +38,5 @@ pub fn load_image(path: &Path) -> Result<RgbaImage> {
         }
         return Ok(RgbaImage::from_raw(size.width(), size.height(), bytes).unwrap());
     }
-    Ok(image::open(path)
-        .context(format!("unreadable_media at {}:{}", file!(), line!()))?
-        .to_rgba8())
+    Ok(image::open(path).context("unreadable_media")?.to_rgba8())
 }

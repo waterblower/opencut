@@ -40,6 +40,7 @@ mod settings;
 mod srt;
 pub use srt::write_srt;
 mod timeline;
+mod timeline_backend;
 mod timeline_clip;
 mod timeline_clip_menu;
 mod timeline_document;

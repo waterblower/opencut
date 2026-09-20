@@ -1,5 +1,5 @@
-use super::decode::again;
-use crate::cli::time::FrameRate;
+use crate::engine::{decode::again, probe::init};
+use crate::timeline::FrameRate;
 use anyhow::{Context as _, Result, anyhow, bail};
 use ffmpeg_next as ffmpeg;
 use image::RgbaImage;
@@ -117,7 +117,7 @@ impl Encoder {
         settings: &VideoEncoding,
         metadata: Option<&str>,
     ) -> Result<Self> {
-        super::probe::init()?;
+        init()?;
         let (width, height) = dimensions;
         let codec_name = settings.codec.as_str();
         let preset = settings.preset.as_str();

@@ -66,6 +66,7 @@ player = [
 ]
 editor = [
     "ffmpeg-video",
+    "dep:resvg",
     "dep:tokio",
     "dep:gpui_tokio",
     "timeline",

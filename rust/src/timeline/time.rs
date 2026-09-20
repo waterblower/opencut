@@ -71,6 +71,12 @@ impl Default for FrameRate {
 }
 
 impl FrameRate {
+    pub fn samples(self, frames: i64, rate: u32) -> i64 {
+        let n = frames as i128 * self.denominator as i128 * rate as i128;
+        ((n + self.numerator as i128 / 2) / self.numerator.max(1) as i128)
+            .clamp(i64::MIN as i128, i64::MAX as i128) as i64
+    }
+
     pub const fn new(numerator: u32, denominator: u32) -> Self {
         Self {
             numerator,

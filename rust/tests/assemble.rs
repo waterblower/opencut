@@ -4,11 +4,11 @@ use opencut_player::{
     cli::{
         assemble::{self, Recipe},
         document,
-        engine::{
-            audio::Mixer,
-            encode::{Encoder, VideoEncoding},
-            probe::{self, Probe, Stream},
-        },
+    },
+    engine::{
+        audio::Mixer,
+        encode::{Encoder, VideoEncoding},
+        probe::{self, Probe, Stream},
     },
     timeline::*,
 };

@@ -4,7 +4,7 @@ use gpui::{
     div, prelude::*, px, rgb, size,
 };
 use opencut_player::{
-    cli::engine::encode::{Encoder, VideoEncoding},
+    engine::encode::{Encoder, VideoEncoding},
     timeline::FrameRate,
 };
 use serde_json::{Value, json};

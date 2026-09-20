@@ -1,3 +1,4 @@
+use crate::engine::probe::init;
 use anyhow::{Context as _, Result, anyhow};
 use ffmpeg_next as ffmpeg;
 use image::RgbaImage;
@@ -18,7 +19,11 @@ impl VideoWorker {
         let (sender, requests) = mpsc::sync_channel(1);
         let (results, receiver) = mpsc::sync_channel(1);
         let thread = std::thread::spawn(move || {
-            let mut reader = match VideoReader::open(&path) {
+            let initialized = (|| {
+                init()?;
+                VideoReader::open(&path)
+            })();
+            let mut reader = match initialized {
                 Ok(reader) => reader,
                 Err(error) => {
                     let _ = results.send(Err(error));
@@ -78,7 +83,7 @@ pub fn origin(input: &ffmpeg::format::context::Input) -> f64 {
     }
 }
 
-struct VideoReader {
+pub struct VideoReader {
     input: ffmpeg::format::context::Input,
     decoder: ffmpeg::decoder::Video,
     scaler: ffmpeg::software::scaling::Context,
@@ -93,28 +98,18 @@ struct VideoReader {
 }
 
 impl VideoReader {
-    fn open(path: &Path) -> Result<Self> {
-        super::probe::init()?;
-        let input = ffmpeg::format::input(path).context(format!(
-            "unreadable_media at {}:{}",
-            file!(),
-            line!()
-        ))?;
+    pub fn open(path: &Path) -> Result<Self> {
+        ffmpeg::init().context("Initializing FFmpeg")?;
+        let input = ffmpeg::format::input(path).context("unreadable_media")?;
         let Some(stream) = input.streams().best(ffmpeg::media::Type::Video) else {
             return Err(anyhow!(
-                "missing_video: {} has no video stream at {}:{}",
-                path.display(),
-                file!(),
-                line!()
+                "missing_video: {} has no video stream",
+                path.display()
             ));
         };
         let context = ffmpeg::codec::context::Context::from_parameters(stream.parameters())
-            .context(format!("decode_failure at {}:{}", file!(), line!()))?;
-        let decoder = context.decoder().video().context(format!(
-            "decode_failure at {}:{}",
-            file!(),
-            line!()
-        ))?;
+            .context("decode_failure")?;
+        let decoder = context.decoder().video().context("decode_failure")?;
         let scaler = ffmpeg::software::scaling::Context::get(
             decoder.format(),
             decoder.width(),
@@ -124,7 +119,7 @@ impl VideoReader {
             decoder.height(),
             ffmpeg::software::scaling::Flags::BILINEAR,
         )
-        .context(format!("decode_failure at {}:{}", file!(), line!()))?;
+        .context("decode_failure")?;
         let mut rotation = 0;
         for side in stream.side_data() {
             if side.kind() == ffmpeg::codec::packet::side_data::Type::DisplayMatrix
@@ -153,7 +148,7 @@ impl VideoReader {
         })
     }
 
-    fn at(&mut self, seconds: f64) -> Result<RgbaImage> {
+    pub fn at(&mut self, seconds: f64) -> Result<RgbaImage> {
         let seek = match self.requested {
             Some(last) => seconds < last || seconds - last > 2.0,
             None => seconds > 0.0,
@@ -161,11 +156,9 @@ impl VideoReader {
         if seek {
             let timestamp =
                 ((seconds + self.origin) * ffmpeg::ffi::AV_TIME_BASE as f64).floor() as i64;
-            self.input.seek(timestamp, ..timestamp).context(format!(
-                "seek_failure at {}:{}",
-                file!(),
-                line!()
-            ))?;
+            self.input
+                .seek(timestamp, ..timestamp)
+                .context("seek_failure")?;
             self.decoder.flush();
             self.eof = false;
             self.previous = None;
@@ -189,11 +182,7 @@ impl VideoReader {
             self.next = self.read()?;
             if self.next.is_none() {
                 let Some((_, image)) = &self.previous else {
-                    return Err(anyhow!(
-                        "decode_failure: no decoded video frames at {}:{}",
-                        file!(),
-                        line!()
-                    ));
+                    return Err(anyhow!("decode_failure: no decoded video frames"));
                 };
                 return Ok(image.clone());
             }
@@ -207,9 +196,7 @@ impl VideoReader {
                 Ok(()) => {
                     let Some(pts) = decoded.timestamp() else {
                         return Err(anyhow!(
-                            "missing_pts: video frame has no presentation timestamp at {}:{}",
-                            file!(),
-                            line!()
+                            "missing_pts: video frame has no presentation timestamp"
                         ));
                     };
                     unsafe {
@@ -234,18 +221,14 @@ impl VideoReader {
                         );
                         if status < 0 {
                             return Err(anyhow!(
-                                "decode_failure: cannot configure source color matrix at {}:{}",
-                                file!(),
-                                line!()
+                                "decode_failure: cannot configure source color matrix"
                             ));
                         }
                     }
                     let mut rgba = ffmpeg::frame::Video::empty();
-                    self.scaler.run(&decoded, &mut rgba).context(format!(
-                        "decode_failure at {}:{}",
-                        file!(),
-                        line!()
-                    ))?;
+                    self.scaler
+                        .run(&decoded, &mut rgba)
+                        .context("decode_failure")?;
                     let mut image = RgbaImage::new(rgba.width(), rgba.height());
                     let row = rgba.width() as usize * 4;
                     for y in 0..rgba.height() as usize {
@@ -264,11 +247,7 @@ impl VideoReader {
                 Err(ffmpeg::Error::Eof) => return Ok(None),
                 Err(error) if again(error) => {}
                 Err(error) => {
-                    return Err(anyhow!(
-                        "decode_failure: {error} at {}:{}",
-                        file!(),
-                        line!()
-                    ));
+                    return Err(anyhow!("decode_failure: {error}"));
                 }
             }
             if self.eof {
@@ -278,27 +257,17 @@ impl VideoReader {
             match packet.read(&mut self.input) {
                 Ok(()) => {
                     if packet.stream() == self.stream {
-                        self.decoder.send_packet(&packet).context(format!(
-                            "decode_failure at {}:{}",
-                            file!(),
-                            line!()
-                        ))?;
+                        self.decoder
+                            .send_packet(&packet)
+                            .context("decode_failure")?;
                     }
                 }
                 Err(ffmpeg::Error::Eof) => {
-                    self.decoder.send_eof().context(format!(
-                        "decode_failure at {}:{}",
-                        file!(),
-                        line!()
-                    ))?;
+                    self.decoder.send_eof().context("decode_failure")?;
                     self.eof = true;
                 }
                 Err(error) => {
-                    return Err(anyhow!(
-                        "decode_failure: {error} at {}:{}",
-                        file!(),
-                        line!()
-                    ));
+                    return Err(anyhow!("decode_failure: {error}"));
                 }
             }
         }

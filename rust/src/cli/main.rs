@@ -7,12 +7,12 @@ use args::{Args, Command};
 use clap::Parser;
 use opencut_player::timeline::{TimelineSettings as Settings, Track, TrackKind};
 use opencut_player::{
-    cli::engine::probe,
     cli::{
         document::{self, Document},
         time::parse_rate,
         transcribe, validate,
     },
+    engine::probe,
 };
 use serde_json::{Value, json};
 use std::{

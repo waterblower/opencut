@@ -1,3 +1,4 @@
+use crate::engine::probe::MediaInfo;
 use crate::timeline::{Clip, MediaKind, TimelineSerialization, TimelineTime, TrackKind};
 use anyhow::{Error, Result, anyhow};
 use serde::Serialize;
@@ -21,15 +22,6 @@ impl Serialize for Finding {
         state.serialize_field("fix_hint", &self.fix_hint)?;
         state.end()
     }
-}
-
-#[derive(Clone, Debug)]
-pub struct MediaInfo {
-    pub duration: f64,
-    pub video: bool,
-    pub audio: bool,
-    pub image: bool,
-    pub video_bitrate: Option<u64>,
 }
 
 pub fn validate(

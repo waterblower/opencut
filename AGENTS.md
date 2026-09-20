@@ -1,5 +1,12 @@
 # Repository guidelines
 
+- For complex refactors or code changes, work in increments of roughly 100 lines
+  of code added or changed across all files. After each increment, pause, summarize
+  the changes with clickable code links for the user to review, and wait for the
+  user's explicit instruction to proceed before making further code changes.
+  Repeat this review checkpoint throughout the task. Complete the entire change
+  without these pauses only when the user explicitly asks to finish without
+  waiting for review.
 - Do not build FFmpeg ourselves, including through `ffbuild/`. Link against the
   existing vendored libraries in `rust/vendor/ffmpeg-8.1.2/`.
 - Never include Python in the build process.

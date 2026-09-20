@@ -1,16 +1,12 @@
 #![cfg(feature = "cli")]
 use image::{Rgba, RgbaImage};
 use opencut_player::{
-    cli::{
-        document,
-        engine::{
-            audio::Mixer,
-            decode::VideoWorker,
-            encode::{Encoder, VideoEncoding},
-            probe,
-        },
-        time::parse_rate,
-        validate,
+    cli::{document, time::parse_rate, validate},
+    engine::{
+        audio::Mixer,
+        decode::VideoWorker,
+        encode::{Encoder, VideoEncoding},
+        probe,
     },
     timeline::*,
 };
