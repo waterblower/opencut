@@ -297,8 +297,13 @@ impl TimelineEditorExt for TimelineSerialization {
     }
 }
 impl TimelineRuntimeState {
-    pub(super) fn new(path: PathBuf, data: TimelineSerialization, media_root: &Path) -> Self {
-        let mut data = data;
+    pub(super) fn new(
+        path: PathBuf,
+        data: TimelineSerialization,
+        media_root: &Path,
+    ) -> Result<Self> {
+        let mut backend = TimelineBackend::new(data, media_root)?;
+        let data = backend.timeline_mut();
         data.view.saved_playhead_frame = data
             .view
             .saved_playhead_frame
@@ -312,9 +317,9 @@ impl TimelineRuntimeState {
         let selected_clip_id = data.clips.first().map(Clip::id);
         let selected_clip_ids = selected_clip_id.into_iter().collect();
 
-        Self {
+        Ok(Self {
             path,
-            backend: TimelineBackend::new(data, media_root),
+            backend,
             interaction: TimelineInteractionState {
                 active_tool: TimelineTool::Selection,
                 snapping_enabled,
@@ -332,7 +337,7 @@ impl TimelineRuntimeState {
             undo_stack: Vec::new(),
             redo_stack: Vec::new(),
             preview_drop_asset: None,
-        }
+        })
     }
 
     pub fn playhead(&self) -> TimelineTime {

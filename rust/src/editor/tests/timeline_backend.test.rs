@@ -14,6 +14,25 @@ use std::{
 use ulid::Ulid;
 
 #[test]
+fn new_rejects_missing_and_non_directory_media_roots_immediately() {
+    let dir = Temp::new();
+    let missing = dir.0.join("missing");
+    let Err(error) = TimelineBackend::new(document(), &missing) else {
+        panic!("missing media root was accepted");
+    };
+    assert_eq!(
+        error.downcast_ref::<std::io::Error>().unwrap().kind(),
+        std::io::ErrorKind::NotFound
+    );
+    let file = dir.0.join("file");
+    fs::write(&file, b"").unwrap();
+    let Err(error) = TimelineBackend::new(document(), &file) else {
+        panic!("non-directory media root was accepted");
+    };
+    assert!(error.to_string().contains("not a directory"));
+}
+
+#[test]
 fn metadata_empty_and_audio_only_timelines() {
     let dir = Temp::new();
     let mut doc = document();
@@ -163,7 +182,9 @@ fn svg_images_resolve_absolute_paths_and_preserve_alpha() {
     svg.path = path;
     doc.assets.push(svg);
     doc.clips.push(media_clip(10, 1, 100, 0, 0, 8));
-    let backend = TimelineBackend::open_sync(doc, &dir.0.join("not-the-media-root")).unwrap();
+    let media_root = dir.0.join("not-the-media-root");
+    fs::create_dir(&media_root).unwrap();
+    let backend = TimelineBackend::open_sync(doc, &media_root).unwrap();
     let frame = backend.get_current_frame().unwrap();
     let TimelineLayer::Image { pixels, .. } = &frame.layers[0] else {
         unreachable!();
@@ -296,7 +317,7 @@ fn invalid_settings_and_visual_references_are_rejected() {
     ];
     assert_eq!(cases.len(), expected.len());
     for (doc, expected) in cases.into_iter().zip(expected) {
-        let Err(error) = TimelineBackend::open_sync(doc, &dir.0) else {
+        let Err(error) = TimelineBackend::new(doc, &dir.0) else {
             panic!("expected rejection for {expected}");
         };
         assert!(error.to_string().contains(expected), "{error:?}");

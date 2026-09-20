@@ -6,7 +6,7 @@
 //! retained as text so the renderer can perform font shaping and layout.
 
 use crate::editor::preview_timeline::TimelinePreviewFrame;
-use anyhow::{Context as _, Result, bail};
+use anyhow::{Context as _, Error, Result, anyhow, bail};
 use image::RgbaImage;
 use opencut_player::engine::{decode::VideoReader, raster::load_image};
 use opencut_player::timeline::{
@@ -14,7 +14,7 @@ use opencut_player::timeline::{
     VideoClipProperties,
 };
 use std::{
-    collections::{HashMap, HashSet, hash_map::Entry},
+    collections::{HashMap, hash_map::Entry},
     path::{Path, PathBuf},
     sync::{Arc, Mutex, mpsc},
     thread,
@@ -55,13 +55,101 @@ pub struct TimelineBackend {
     timeline: Arc<TimelineSerialization>,
     commands: mpsc::Sender<SeekRequest>,
     frame: Arc<Mutex<Arc<TimelineFrame>>>,
+    preview: Arc<Mutex<PreviewRequest>>,
 }
 
 impl TimelineBackend {
-    /// Creates a preview backend at position zero without waiting for media I/O.
-    /// Initialization failures are returned by `preview_frame`.
-    pub fn new(_timeline: TimelineSerialization, _media_root: &Path) -> Self {
-        unimplemented!("start the internal worker without waiting for its first frame")
+    /// Validates the document and media root, then starts preparing frame zero.
+    /// Returns validation and worker-start errors immediately. Media decoding
+    /// stays on the worker; its failures are returned by `preview_frame`.
+    pub fn new(timeline: TimelineSerialization, media_root: &Path) -> Result<Self> {
+        let metadata = media_root.metadata().context(format!(
+            "Inspecting timeline media root {}",
+            media_root.display()
+        ))?;
+        if !metadata.is_dir() {
+            bail!(
+                "Timeline media root is not a directory: {}",
+                media_root.display()
+            );
+        }
+        timeline.validate()?;
+        let timeline = Arc::new(timeline);
+        let frame = Arc::new(Mutex::new(Arc::new(TimelineFrame {
+            timestamp: Duration::ZERO,
+            width: timeline.settings.width,
+            height: timeline.settings.height,
+            layers: Vec::new(),
+        })));
+        let preview = Arc::new(Mutex::new(PreviewRequest {
+            timeline: Arc::clone(&timeline),
+            position: Duration::ZERO,
+            result: None,
+        }));
+        let (commands, requests) = mpsc::channel::<SeekRequest>();
+        let backend = Self {
+            timeline,
+            commands,
+            frame,
+            preview,
+        };
+        let media_root = media_root.to_owned();
+        let frame = Arc::clone(&backend.frame);
+        let preview = Arc::clone(&backend.preview);
+        thread::Builder::new()
+            .name("timeline-preview".into())
+            .spawn(move || {
+                let mut decoder: Option<FrameDecoder> = None;
+                // Dropping the backend closes the channel; decoder cleanup stays here.
+                for request in requests {
+                    let result = (|| -> Result<Arc<TimelinePreviewFrame>> {
+                        if decoder.as_ref().is_none_or(|decoder| {
+                            !Arc::ptr_eq(&decoder.timeline, &request.timeline)
+                        }) {
+                            request.timeline.validate()?;
+                            decoder = Some(FrameDecoder::new(
+                                Arc::clone(&request.timeline),
+                                &media_root,
+                            ));
+                        }
+                        let decoder = decoder.as_mut().unwrap();
+                        decoder.seek_sync(request.position)?;
+                        let prepared =
+                            Arc::new(TimelinePreviewFrame::new(Arc::clone(&decoder.frame)));
+                        *frame.lock().unwrap() = Arc::clone(&decoder.frame);
+                        Ok(prepared)
+                    })();
+                    let result = match result {
+                        Ok(prepared) => Ok(prepared),
+                        Err(error) => Err(Arc::new(error)),
+                    };
+                    let completion = match &result {
+                        Ok(_) => Ok(()),
+                        Err(error) => Err(anyhow!("{error:?}")),
+                    };
+                    {
+                        let mut preview = preview.lock().unwrap();
+                        if Arc::ptr_eq(&preview.timeline, &request.timeline)
+                            && preview.position == request.position
+                        {
+                            preview.result = Some(result);
+                        }
+                    }
+                    if let Some(reply) = request.reply {
+                        let _ = reply.send(completion);
+                    }
+                }
+            })
+            .context("Starting timeline preview worker")?;
+        backend
+            .commands
+            .send(SeekRequest {
+                timeline: Arc::clone(&backend.timeline),
+                position: Duration::ZERO,
+                reply: None,
+            })
+            .context("Requesting initial timeline frame")?;
+        Ok(backend)
     }
 
     pub fn timeline(&self) -> &TimelineSerialization {
@@ -86,50 +174,9 @@ impl TimelineBackend {
     /// Starts an internal worker and waits for position zero to be prepared.
     /// Relative asset paths are resolved against `media_root`.
     pub fn open_sync(timeline: TimelineSerialization, media_root: &Path) -> Result<Self> {
-        validate(&timeline)?;
-        let timeline = Arc::new(timeline);
-        let worker_timeline = Arc::clone(&timeline);
-        let media_root = media_root.to_owned();
-        let (commands, requests) = mpsc::channel::<SeekRequest>();
-        let (ready, initialized) = mpsc::sync_channel(1);
-        thread::Builder::new()
-            .name("timeline-preview".into())
-            .spawn(move || {
-                let mut decoder = match FrameDecoder::open_sync(worker_timeline, &media_root) {
-                    Ok(decoder) => decoder,
-                    Err(error) => {
-                        let _ = ready.send(Err(error));
-                        return;
-                    }
-                };
-                let frame = Arc::new(Mutex::new(Arc::clone(&decoder.frame)));
-                if ready.send(Ok(Arc::clone(&frame))).is_err() {
-                    return;
-                }
-                // Dropping the backend closes the command channel. Cleanup stays
-                // on this worker; there is no thread join in the caller's Drop.
-                for request in requests {
-                    let result = (|| {
-                        if !Arc::ptr_eq(&decoder.timeline, &request.timeline) {
-                            validate(&request.timeline)?;
-                            decoder = FrameDecoder::open_sync(request.timeline, &media_root)?;
-                        }
-                        decoder.seek_sync(request.position)?;
-                        *frame.lock().unwrap() = Arc::clone(&decoder.frame);
-                        Ok(())
-                    })();
-                    let _ = request.reply.send(result);
-                }
-            })
-            .context("Starting timeline preview worker")?;
-        let frame = initialized
-            .recv()
-            .context("Waiting for timeline initialization")??;
-        Ok(Self {
-            timeline,
-            commands,
-            frame,
-        })
+        let mut backend = Self::new(timeline, media_root)?;
+        backend.seek_sync(Duration::ZERO)?;
+        Ok(backend)
     }
 
     pub fn frame_size(&self) -> (u32, u32) {
@@ -157,7 +204,7 @@ impl TimelineBackend {
             .send(SeekRequest {
                 timeline: Arc::clone(&self.timeline),
                 position,
-                reply,
+                reply: Some(reply),
             })
             .context("Requesting timeline seek")?;
         completion.recv().context("Waiting for timeline seek")?
@@ -173,7 +220,13 @@ impl TimelineBackend {
 struct SeekRequest {
     timeline: Arc<TimelineSerialization>,
     position: Duration,
-    reply: mpsc::Sender<Result<()>>,
+    reply: Option<mpsc::Sender<Result<()>>>,
+}
+
+struct PreviewRequest {
+    timeline: Arc<TimelineSerialization>,
+    position: Duration,
+    result: Option<Result<Arc<TimelinePreviewFrame>, Arc<Error>>>,
 }
 
 struct FrameDecoder {
@@ -185,24 +238,20 @@ struct FrameDecoder {
 }
 
 impl FrameDecoder {
-    /// Owns an immutable document and returns with position zero prepared.
-    /// Relative asset paths are resolved against `media_root`.
-    fn open_sync(timeline: Arc<TimelineSerialization>, media_root: &Path) -> Result<Self> {
+    fn new(timeline: Arc<TimelineSerialization>, media_root: &Path) -> Self {
         let frame = Arc::new(TimelineFrame {
             timestamp: Duration::ZERO,
             width: timeline.settings.width,
             height: timeline.settings.height,
             layers: Vec::new(),
         });
-        let mut backend = Self {
+        Self {
             timeline,
             media_root: media_root.to_owned(),
             readers: HashMap::new(),
             images: HashMap::new(),
             frame,
-        };
-        backend.seek_sync(Duration::ZERO)?;
-        Ok(backend)
+        }
     }
 
     /// Snaps to the nearest timeline frame and clamps to the last valid frame.
@@ -308,99 +357,6 @@ impl FrameDecoder {
             layers,
         })
     }
-}
-
-fn validate(timeline: &TimelineSerialization) -> Result<()> {
-    let settings = timeline.settings;
-    if settings.width == 0 || settings.height == 0 {
-        bail!("Timeline canvas dimensions must be positive");
-    }
-    if settings.frame_rate.numerator == 0 || settings.frame_rate.denominator == 0 {
-        bail!("Timeline frame rate must have a positive numerator and denominator");
-    }
-    if settings.audio_sample_rate == 0 {
-        bail!("Timeline audio sample rate must be positive");
-    }
-    let mut track_ids = HashSet::new();
-    for track in &timeline.tracks {
-        if !track_ids.insert(track.id) {
-            bail!("Duplicate timeline track {}", track.id);
-        }
-    }
-    let mut asset_ids = HashSet::new();
-    for asset in &timeline.assets {
-        if !asset_ids.insert(asset.id) {
-            bail!("Duplicate timeline asset {}", asset.id);
-        }
-    }
-    let mut clip_ids = HashSet::new();
-    for clip in &timeline.clips {
-        if matches!(clip, Clip::Audio(_)) {
-            continue;
-        }
-        if !clip_ids.insert(clip.id()) {
-            bail!("Duplicate visual clip {}", clip.id());
-        }
-        let Some(track) = timeline.track(clip.track_id()) else {
-            bail!(
-                "Visual clip {} references missing track {}",
-                clip.id(),
-                clip.track_id()
-            );
-        };
-        if clip.timeline_start() < TimelineTime::ZERO
-            || clip.frame_length(settings.frame_rate) <= TimelineTime::ZERO
-        {
-            bail!("Visual clip {} has an invalid time range", clip.id());
-        }
-        match clip {
-            Clip::Video(media) => {
-                if track.kind != TrackKind::Video {
-                    bail!("Video clip {} requires a video track", media.id);
-                }
-                let Some(asset) = timeline.asset(media.asset_id) else {
-                    bail!(
-                        "Visual clip {} references missing asset {}",
-                        media.id,
-                        media.asset_id
-                    );
-                };
-                if asset.kind == MediaKind::Audio {
-                    bail!(
-                        "Visual clip {} references audio asset {}",
-                        media.id,
-                        asset.id
-                    );
-                }
-                if media.source_in < TimelineTime::ZERO {
-                    bail!("Visual clip {} has a negative source trim", media.id);
-                }
-                let properties = media.video_properties;
-                if !properties.position_x.is_finite()
-                    || !properties.position_y.is_finite()
-                    || !properties.scale.is_finite()
-                    || properties.scale < 0.0
-                {
-                    bail!("Visual clip {} has invalid transform properties", media.id);
-                }
-            }
-            Clip::Text(text) => {
-                if track.kind != TrackKind::Text {
-                    bail!("Text clip {} requires a text track", text.id);
-                }
-                let properties = &text.properties;
-                if !properties.position_x.is_finite()
-                    || !properties.position_y.is_finite()
-                    || !properties.font_size.is_finite()
-                    || properties.font_size <= 0.0
-                {
-                    bail!("Text clip {} has invalid layout properties", text.id);
-                }
-            }
-            Clip::Audio(_) => {}
-        }
-    }
-    Ok(())
 }
 
 #[cfg(test)]

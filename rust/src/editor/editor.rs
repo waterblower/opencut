@@ -64,7 +64,7 @@ impl Editor {
                         }
                     };
                 let timeline =
-                    TimelineRuntimeState::new(timeline_path, timeline_data, &project_root);
+                    TimelineRuntimeState::new(timeline_path, timeline_data, &project_root)?;
                 Ok(Some(timeline))
             })()?
         };

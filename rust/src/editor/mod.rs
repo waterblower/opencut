@@ -322,7 +322,7 @@ impl Editor {
                 timeline_path,
                 active_timeline,
                 &self.project_root,
-            ));
+            )?);
             let mut settings = load_project_local_settings(&self.project_root);
             settings.active_timeline = self.timeline.as_ref().map(|timeline| timeline.path.clone());
             save_project_local_settings(&self.project_root, &settings)?;
