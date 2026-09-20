@@ -201,17 +201,19 @@ impl TimelineRuntimeState {
         project_root: &Path,
     ) -> Result<()> {
         let clips_to_split = self
-            .data
+            .backend
+            .timeline()
             .clips
             .iter()
             .filter(|clip| {
                 let local = self.playhead() - clip.timeline_start();
                 let crosses_playhead = local >= TimelineTime::ONE_FRAME
                     && local
-                        <= clip.frame_length(self.data.settings.frame_rate)
+                        <= clip.frame_length(self.backend.timeline().settings.frame_rate)
                             - TimelineTime::ONE_FRAME;
                 let track_is_editable = self
-                    .data
+                    .backend
+                    .timeline()
                     .track(clip.track_id())
                     .is_some_and(|track| !track.locked);
                 crosses_playhead && track_is_editable
@@ -226,7 +228,7 @@ impl TimelineRuntimeState {
             .into_iter()
             .flat_map(|clip| {
                 let (left, right) = clip
-                    .split_at(self.playhead(), self.data.settings.frame_rate)
+                    .split_at(self.playhead(), self.backend.timeline().settings.frame_rate)
                     .expect("clips at the playhead must be splittable");
                 [left, right]
             })
@@ -242,7 +244,7 @@ impl TimelineRuntimeState {
             },
         )
         .expect("split clip placements were validated before recording history");
-        self.data.save(&project_root.join(&self.path))
+        self.backend.timeline().save(&project_root.join(&self.path))
     }
 }
 
@@ -269,7 +271,7 @@ impl Editor {
         };
         let Some(clipboard) = ClipClipboard::from_selection(
             timeline.path.clone(),
-            &timeline.data,
+            timeline.backend.timeline(),
             &timeline.interaction.selected_clip_ids,
             timeline.interaction.selected_clip_id,
         ) else {
@@ -290,7 +292,7 @@ impl Editor {
         }
         let Some(clipboard) = ClipClipboard::from_selection(
             timeline.path.clone(),
-            &timeline.data,
+            timeline.backend.timeline(),
             &timeline.interaction.selected_clip_ids,
             timeline.interaction.selected_clip_id,
         ) else {
@@ -317,7 +319,7 @@ impl Editor {
         };
         let playhead = timeline.playhead();
         let (mut clips, assets) =
-            match clipboard.prepare_paste(&timeline.path, &timeline.data, playhead) {
+            match clipboard.prepare_paste(&timeline.path, timeline.backend.timeline(), playhead) {
                 Ok(paste) => paste,
                 Err(rejection) => {
                     eprintln!("Cannot paste clips: {rejection}.");
@@ -349,7 +351,8 @@ impl Editor {
 
         self.status = Some(format!("Pasted {count} clip{}.", plural_suffix(count)));
         timeline
-            .data
+            .backend
+            .timeline()
             .save(&self.project_root.join(&timeline.path))?;
 
         self.schedule_active_timeline_waveforms(cx);
@@ -377,7 +380,10 @@ impl Editor {
         let Some(timeline) = self.timeline.as_ref() else {
             return Ok(());
         };
-        timeline.data.save(&self.project_root.join(&timeline.path))
+        timeline
+            .backend
+            .timeline()
+            .save(&self.project_root.join(&timeline.path))
     }
 
     pub(super) fn duplicate_selected(&mut self) -> Result<()> {
@@ -390,7 +396,7 @@ impl Editor {
         }
         let clips = clip_ids
             .iter()
-            .filter_map(|clip_id| timeline.data.clip(*clip_id).cloned())
+            .filter_map(|clip_id| timeline.backend.timeline().clip(*clip_id).cloned())
             .collect::<Vec<_>>();
         if clips.len() != clip_ids.len() {
             return Ok(());
@@ -402,7 +408,7 @@ impl Editor {
             .unwrap_or(TimelineTime::ZERO);
         let selection_end = clips
             .iter()
-            .map(|clip| clip.timeline_end(timeline.data.settings.frame_rate))
+            .map(|clip| clip.timeline_end(timeline.backend.timeline().settings.frame_rate))
             .max()
             .unwrap_or(selection_start);
         let mut delta = selection_end - selection_start;
@@ -412,7 +418,8 @@ impl Editor {
                 .map(|clip| (clip.id(), clip.track_id(), clip.timeline_start() + delta))
                 .collect::<Vec<_>>();
             if timeline
-                .data
+                .backend
+                .timeline()
                 .validate_clip_move_placements(&candidate, &HashSet::new())
                 .is_ok()
             {
@@ -421,19 +428,20 @@ impl Editor {
             let mut next_delta = delta + TimelineTime::ONE_FRAME;
             for (clip, (_, track_id, start)) in clips.iter().zip(&candidate) {
                 for other in timeline
-                    .data
+                    .backend
+                    .timeline()
                     .clips
                     .iter()
                     .filter(|other| other.track_id() == *track_id)
                 {
                     if timeline_ranges_overlap(
                         *start,
-                        *start + clip.frame_length(timeline.data.settings.frame_rate),
+                        *start + clip.frame_length(timeline.backend.timeline().settings.frame_rate),
                         other.timeline_start(),
-                        other.timeline_end(timeline.data.settings.frame_rate),
+                        other.timeline_end(timeline.backend.timeline().settings.frame_rate),
                     ) {
                         next_delta = next_delta.max(
-                            other.timeline_end(timeline.data.settings.frame_rate)
+                            other.timeline_end(timeline.backend.timeline().settings.frame_rate)
                                 - clip.timeline_start(),
                         );
                     }
@@ -470,7 +478,10 @@ impl Editor {
             },
         )
         .expect("duplicate placements were validated before recording history");
-        timeline.data.save(&self.project_root.join(&timeline.path))
+        timeline
+            .backend
+            .timeline()
+            .save(&self.project_root.join(&timeline.path))
     }
 
     pub(super) fn add_track(&mut self, kind: TrackKind) -> Result<()> {
@@ -479,7 +490,8 @@ impl Editor {
             return Ok(());
         };
         let number = timeline
-            .data
+            .backend
+            .timeline()
             .tracks
             .iter()
             .filter(|track| track.kind == kind)
@@ -510,7 +522,10 @@ impl Editor {
             },
         )
         .expect("adding a track cannot be rejected");
-        timeline.data.save(&self.project_root.join(&timeline.path))
+        timeline
+            .backend
+            .timeline()
+            .save(&self.project_root.join(&timeline.path))
     }
 
     pub(super) fn toggle_track_lock(&mut self, track_id: Ulid) -> Result<()> {
@@ -524,7 +539,10 @@ impl Editor {
             EditAction::ToggleTrackLock { track_id },
         )
         .expect("toggling a track lock cannot be rejected");
-        timeline.data.save(&self.project_root.join(&timeline.path))
+        timeline
+            .backend
+            .timeline()
+            .save(&self.project_root.join(&timeline.path))
     }
 
     pub(super) fn toggle_track_visibility(&mut self, track_id: Ulid) -> Result<()> {
@@ -538,7 +556,10 @@ impl Editor {
             EditAction::ToggleTrackVisibility { track_id },
         )
         .expect("toggling track visibility cannot be rejected");
-        timeline.data.save(&self.project_root.join(&timeline.path))
+        timeline
+            .backend
+            .timeline()
+            .save(&self.project_root.join(&timeline.path))
     }
 
     pub(super) fn toggle_track_mute(&mut self, track_id: Ulid) -> Result<()> {
@@ -552,7 +573,10 @@ impl Editor {
             EditAction::ToggleTrackMute { track_id },
         )
         .expect("toggling track mute cannot be rejected");
-        timeline.data.save(&self.project_root.join(&timeline.path))
+        timeline
+            .backend
+            .timeline()
+            .save(&self.project_root.join(&timeline.path))
     }
 
     pub(super) fn move_track(&mut self, track_id: Ulid, direction: i8) -> Result<()> {
@@ -560,7 +584,8 @@ impl Editor {
             return Ok(());
         };
         let Some(index) = timeline
-            .data
+            .backend
+            .timeline()
             .tracks
             .iter()
             .position(|track| track.id == track_id)
@@ -569,7 +594,7 @@ impl Editor {
         };
         let target = if direction < 0 {
             index.checked_sub(1)
-        } else if index + 1 < timeline.data.tracks.len() {
+        } else if index + 1 < timeline.backend.timeline().tracks.len() {
             Some(index + 1)
         } else {
             None
@@ -585,7 +610,10 @@ impl Editor {
             EditAction::MoveTrack { index, target },
         )
         .expect("moving a track cannot be rejected");
-        timeline.data.save(&self.project_root.join(&timeline.path))
+        timeline
+            .backend
+            .timeline()
+            .save(&self.project_root.join(&timeline.path))
     }
 
     pub(super) fn delete_track(&mut self, track_id: Ulid) -> Result<()> {
@@ -593,14 +621,15 @@ impl Editor {
             return Ok(());
         };
         let Some(index) = timeline
-            .data
+            .backend
+            .timeline()
             .tracks
             .iter()
             .position(|track| track.id == track_id)
         else {
             return Ok(());
         };
-        if timeline.data.tracks[index].locked {
+        if timeline.backend.timeline().tracks[index].locked {
             return Ok(());
         }
         timeline.record_editing_history();
@@ -611,7 +640,8 @@ impl Editor {
         )
         .expect("deleting a track cannot be rejected");
         let remaining_clip_ids = timeline
-            .data
+            .backend
+            .timeline()
             .clips
             .iter()
             .map(Clip::id)
@@ -623,16 +653,20 @@ impl Editor {
         if timeline
             .interaction
             .selected_clip_id
-            .is_some_and(|id| timeline.data.clip(id).is_none())
+            .is_some_and(|id| timeline.backend.timeline().clip(id).is_none())
         {
             timeline.interaction.selected_clip_id = timeline
-                .data
+                .backend
+                .timeline()
                 .clips
                 .iter()
                 .find(|clip| timeline.interaction.selected_clip_ids.contains(&clip.id()))
                 .map(Clip::id);
         }
-        timeline.data.save(&self.project_root.join(&timeline.path))
+        timeline
+            .backend
+            .timeline()
+            .save(&self.project_root.join(&timeline.path))
     }
 
     pub(super) fn select_only_clip(&mut self, clip_id: Option<Ulid>) {
@@ -652,9 +686,10 @@ impl Editor {
         let Some(timeline) = self.timeline.as_mut() else {
             return;
         };
-        timeline.interaction.selected_clip_ids = unlocked_clip_ids(&timeline.data);
+        timeline.interaction.selected_clip_ids = unlocked_clip_ids(timeline.backend.timeline());
         timeline.interaction.selected_clip_id = timeline
-            .data
+            .backend
+            .timeline()
             .clips
             .iter()
             .find(|clip| timeline.interaction.selected_clip_ids.contains(&clip.id()))
@@ -670,13 +705,14 @@ impl Editor {
         if timeline.interaction.selected_clip_ids.remove(&clip_id) {
             if timeline.interaction.selected_clip_id == Some(clip_id) {
                 timeline.interaction.selected_clip_id = timeline
-                    .data
+                    .backend
+                    .timeline()
                     .clips
                     .iter()
                     .find(|clip| timeline.interaction.selected_clip_ids.contains(&clip.id()))
                     .map(Clip::id);
             }
-        } else if timeline.data.clip(clip_id).is_some() {
+        } else if timeline.backend.timeline().clip(clip_id).is_some() {
             timeline.interaction.selected_clip_ids.insert(clip_id);
             timeline.interaction.selected_clip_id = Some(clip_id);
         }
@@ -691,8 +727,8 @@ impl Editor {
         let Some(mut snapshot) = timeline.undo_stack.pop() else {
             return Ok(());
         };
-        snapshot.view = timeline.data.view.clone();
-        let current = timeline.data.clone();
+        snapshot.view = timeline.backend.timeline().view.clone();
+        let current = timeline.backend.timeline().clone();
         apply_timeline_edit(
             &mut self.preview,
             timeline,
@@ -710,8 +746,8 @@ impl Editor {
         let Some(mut snapshot) = timeline.redo_stack.pop() else {
             return Ok(());
         };
-        snapshot.view = timeline.data.view.clone();
-        let current = timeline.data.clone();
+        snapshot.view = timeline.backend.timeline().view.clone();
+        let current = timeline.backend.timeline().clone();
         apply_timeline_edit(
             &mut self.preview,
             timeline,
@@ -728,7 +764,8 @@ impl Editor {
         };
 
         let available_clip_ids = timeline
-            .data
+            .backend
+            .timeline()
             .clips
             .iter()
             .map(Clip::id)
@@ -743,7 +780,8 @@ impl Editor {
             .filter(|clip_id| timeline.interaction.selected_clip_ids.contains(clip_id))
             .or_else(|| {
                 timeline
-                    .data
+                    .backend
+                    .timeline()
                     .clips
                     .iter()
                     .find(|clip| timeline.interaction.selected_clip_ids.contains(&clip.id()))
@@ -751,13 +789,16 @@ impl Editor {
             });
         self.properties.transform_input_clip_id = None;
         self.properties.text_input_clip_id = None;
-        if !timeline.data.clips.is_empty() {
+        if !timeline.backend.timeline().clips.is_empty() {
             set_timeline_position(&mut self.preview, timeline, timeline.playhead());
         }
         let Some(timeline) = self.timeline.as_ref() else {
             return Ok(());
         };
-        timeline.data.save(&self.project_root.join(&timeline.path))
+        timeline
+            .backend
+            .timeline()
+            .save(&self.project_root.join(&timeline.path))
     }
 
     pub(super) fn toggle_track_magnet(&mut self) {
@@ -907,76 +948,70 @@ pub fn apply_timeline_edit(
 }
 
 pub fn edit_timeline(timeline: &mut TimelineRuntimeState, action: EditAction) -> Result<()> {
+    let data = timeline.backend.timeline_mut();
     match action {
         EditAction::AddClips { clips, assets } => {
-            let mut updated = timeline.data.clone();
+            let mut updated = data.clone();
             updated.assets.extend(assets);
             validate_clips_placements(&updated, &clips)?;
             updated.clips.extend(clips);
-            timeline.data = updated;
+            *data = updated;
         }
         EditAction::RemoveClips {
             clip_ids,
             close_track_gaps,
         } => {
             if close_track_gaps {
-                let frame_rate = timeline.data.settings.frame_rate;
-                ripple_clips_after_deletion(&mut timeline.data.clips, &clip_ids, frame_rate);
+                let frame_rate = data.settings.frame_rate;
+                ripple_clips_after_deletion(&mut data.clips, &clip_ids, frame_rate);
             }
-            timeline
-                .data
-                .clips
-                .retain(|clip| !clip_ids.contains(&clip.id()));
+            data.clips.retain(|clip| !clip_ids.contains(&clip.id()));
         }
         EditAction::SplitClips {
             removed_clips,
             added_clips,
         } => {
-            let mut updated = timeline.data.clone();
+            let mut updated = data.clone();
             updated
                 .clips
                 .retain(|clip| !removed_clips.contains(&clip.id()));
             validate_clips_placements(&updated, &added_clips)?;
             updated.clips.extend(added_clips);
-            timeline.data = updated;
+            *data = updated;
         }
         EditAction::MoveClips { placements } => {
             let ids = placements.iter().map(|(id, _, _)| *id).collect();
-            timeline
-                .data
-                .validate_clip_move_placements(&placements, &ids)?;
+            data.validate_clip_move_placements(&placements, &ids)?;
             for (id, track_id, start) in placements {
-                if let Some(clip) = timeline.data.clip_mut(id) {
+                if let Some(clip) = data.clip_mut(id) {
                     clip.set_timeline_start(start);
                     clip.set_track_id(track_id);
                 }
             }
         }
         EditAction::UpdateClip { clip } => {
-            let index = timeline
-                .data
+            let index = data
                 .clip_index(clip.id())
                 .ok_or_else(|| anyhow!("The clip being updated no longer exists"))?;
-            if let (Clip::Text(previous), Clip::Text(updated)) =
-                (&timeline.data.clips[index], &clip)
+            if let (Clip::Text(previous), Clip::Text(updated)) = (&data.clips[index], &clip)
                 && previous.track_id == updated.track_id
                 && previous.timeline_start == updated.timeline_start
                 && previous.length == updated.length
             {
-                timeline.data.clips[index] = clip;
+                data.clips[index] = clip;
                 return Ok(());
             }
-            let mut updated = timeline.data.clone();
+            let mut updated = data.clone();
             updated.clips.remove(index);
             validate_clips_placements(&updated, std::slice::from_ref(&clip))?;
             updated.clips.insert(index, clip);
-            timeline.data = updated;
+            *data = updated;
         }
         EditAction::SetVideoProperties {
             clip_ids,
             properties,
         } => {
-            for clip in &mut timeline.data.clips {
+            for clip in &mut data.clips {
                 if clip_ids.contains(&clip.id())
                     && let Some(media) = clip.media_mut()
                 {
@@ -988,87 +1023,80 @@ pub fn edit_timeline(timeline: &mut TimelineRuntimeState, action: EditAction) ->
             clip_id,
             properties,
         } => {
-            if let Some(Clip::Text(clip)) = timeline.data.clip_mut(clip_id) {
+            if let Some(Clip::Text(clip)) = data.clip_mut(clip_id) {
                 clip.properties = properties;
             }
         }
-        EditAction::AddTrack { track } => timeline.data.tracks.push(track),
+        EditAction::AddTrack { track } => data.tracks.push(track),
         EditAction::DeleteTrack { track_id } => {
-            timeline.data.tracks.retain(|track| track.id != track_id);
-            timeline
-                .data
-                .clips
-                .retain(|clip| clip.track_id() != track_id);
+            data.tracks.retain(|track| track.id != track_id);
+            data.clips.retain(|clip| clip.track_id() != track_id);
         }
-        EditAction::MoveTrack { index, target } => timeline.data.tracks.swap(index, target),
+        EditAction::MoveTrack { index, target } => data.tracks.swap(index, target),
         EditAction::ToggleTrackVisibility { track_id } => {
-            if let Some(track) = timeline.data.track_mut(track_id) {
+            if let Some(track) = data.track_mut(track_id) {
                 track.visible = !track.visible;
             }
         }
         EditAction::ToggleTrackMute { track_id } => {
-            if let Some(track) = timeline.data.track_mut(track_id) {
+            if let Some(track) = data.track_mut(track_id) {
                 track.muted = !track.muted;
             }
         }
         EditAction::ToggleTrackLock { track_id } => {
-            if let Some(track) = timeline.data.track_mut(track_id) {
+            if let Some(track) = data.track_mut(track_id) {
                 track.locked = !track.locked;
             }
         }
-        EditAction::SetFrameRate { frame_rate } => timeline.data.set_frame_rate(frame_rate),
+        EditAction::SetFrameRate { frame_rate } => data.set_frame_rate(frame_rate),
         EditAction::SetSavedPlayhead { playhead } => {
-            timeline.data.view.saved_playhead_frame = playhead.max(TimelineTime::ZERO);
+            data.view.saved_playhead_frame = playhead.max(TimelineTime::ZERO);
         }
         EditAction::SetScroll {
             horizontal,
             vertical,
         } => {
-            timeline.data.view.horizontal_scroll = if horizontal.is_finite() {
+            data.view.horizontal_scroll = if horizontal.is_finite() {
                 horizontal.max(0.0)
             } else {
                 0.0
             };
-            timeline.data.view.vertical_scroll = if vertical.is_finite() {
+            data.view.vertical_scroll = if vertical.is_finite() {
                 vertical.max(0.0)
             } else {
                 0.0
             };
         }
         EditAction::SetTimelineZoom { pixels_per_second } => {
-            timeline.data.view.pixels_per_second = pixels_per_second;
+            data.view.pixels_per_second = pixels_per_second;
         }
         EditAction::SetSnapping { enabled } => {
             timeline.interaction.snap_guide = None;
             timeline.interaction.snapping_enabled = enabled;
-            timeline.data.view.snapping_enabled = enabled;
+            data.view.snapping_enabled = enabled;
             return Ok(());
         }
         EditAction::SetTrackMagnet { enabled } => {
             timeline.interaction.magnet_enabled = enabled;
-            timeline.data.view.track_magnet_enabled = enabled;
+            data.view.track_magnet_enabled = enabled;
             return Ok(());
         }
         EditAction::UpdateAssetPaths { paths } => {
             for (asset_id, path) in paths {
-                if let Some(asset) = timeline
-                    .data
-                    .assets
-                    .iter_mut()
-                    .find(|asset| asset.id == asset_id)
-                {
+                if let Some(asset) = data.assets.iter_mut().find(|asset| asset.id == asset_id) {
                     asset.path = path;
                 }
             }
         }
-        EditAction::ReplaceTimeline { timeline: data } => {
-            timeline.data = data;
+        EditAction::ReplaceTimeline { timeline: updated } => {
+            *data = updated;
         }
     }
 
-    timeline.data.view.saved_playhead_frame = timeline
-        .playhead()
-        .clamp(TimelineTime::ZERO, timeline.data.content_duration());
+    data.view.saved_playhead_frame = data
+        .view
+        .saved_playhead_frame
+        .clamp(TimelineTime::ZERO, data.content_duration());
     Ok(())
 }
 
