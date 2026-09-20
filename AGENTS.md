@@ -6,13 +6,31 @@
   structures first. Early increments may contain empty or unimplemented constructs
   and do not have to compile. Gradually fill in the lower-level details until the
   complete implementation works, then run the required validation.
-- For complex refactors or code changes, work in increments of roughly 100 lines
-  of code added or changed across all files. After each increment, pause, summarize
-  the changes with clickable code links for the user to review, and wait for the
-  user's explicit instruction to proceed before making further code changes.
-  Repeat this review checkpoint throughout the task. Complete the entire change
-  without these pauses only when the user explicitly asks to finish without
-  waiting for review.
+- For every task in Plan mode, and any task expected to be large or complex,
+  create a `{task-name}-plan.md` in the repository root unless the user specifies
+  another location. Write the plan before implementation and keep it as the
+  shared source of truth for the task's direction and progress.
+- Always make each step as small and focused as practical, with one clear outcome
+  that can be reviewed independently. Split large steps before starting them;
+  do not bundle unrelated changes merely to reduce the number of checkpoints.
+- Describe each step in detail: its intended changes, prerequisites, and the
+  checks or evidence required to consider it complete. Give steps stable IDs and
+  Markdown checkboxes (`[ ]` pending, `[x]` complete). List steps in topological
+  order, with prerequisites before dependent steps. Explicitly identify steps
+  that have no dependencies on each other and can run in parallel or any order.
+- Include a Mermaid dependency graph in the plan, using the same step IDs as the
+  checklist. Show prerequisite edges and label each step's status: pending,
+  in progress, complete, blocked, or superseded. Keep a short progress summary
+  with completed/total active steps, the current step, and any blockers.
+- After completing each step, immediately update its checkbox, status, completion
+  evidence, progress summary, and graph. If the user changes direction, update
+  the plan before continuing: revise steps and dependencies, record the changed
+  direction, and mark obsolete steps as superseded rather than complete.
+- The review checkpoint is the completion of each step, not a fixed line count.
+  At each checkpoint, pause implementation, summarize the result with clickable
+  code links and a link to the updated plan, and wait for the user's explicit
+  instruction before proceeding. Complete the task without these pauses only
+  when the user explicitly asks to finish without waiting for review.
 - Do not build FFmpeg ourselves, including through `ffbuild/`. Link against the
   existing vendored libraries in `rust/vendor/ffmpeg-8.1.2/`.
 - Never include Python in the build process.
