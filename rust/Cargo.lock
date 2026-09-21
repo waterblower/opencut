@@ -5036,7 +5036,6 @@ dependencies = [
  "core-foundation 0.10.0",
  "core-video",
  "cpal",
- "crossbeam-queue",
  "env_logger",
  "ffmpeg-next",
  "futures-lite",
