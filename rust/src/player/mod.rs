@@ -101,6 +101,7 @@ async fn run_playback(
     let mut gpu = GpuResources::new(dimensions)?;
     let started = Instant::now();
     loop {
+        player.is_playing().await;
         // Callback returns Some(wait) to continue, None at EOF, or Err on failure.
         // A zero wait means continue immediately, so EOF needs a separate value.
         let res = player.update(cx, |player, cx| -> Result<Option<Duration>> {
