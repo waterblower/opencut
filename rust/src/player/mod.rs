@@ -6,7 +6,9 @@ use core_video::pixel_buffer::CVPixelBuffer;
 use ffmpeg_next::{
     Error as FfmpegError, ffi, format::Pixel, frame::Video, software::scaling, util::color,
 };
-use gpui::{App, Context, FocusHandle, KeyBinding, RenderImage, Window, actions};
+use gpui::{
+    App, AsyncApp, Context, FocusHandle, KeyBinding, RenderImage, WeakEntity, Window, actions,
+};
 use image::{Frame, RgbaImage};
 use opencut_player::video3::{VideoBackend, VideoFrame};
 use std::{
@@ -49,87 +51,13 @@ impl Player {
         };
 
         cx.spawn(async move |player, cx| {
-            let bge = cx.background_executor().clone();
-            eprintln!("Player task started");
-            #[cfg(target_os = "macos")]
-            let mut gpu = match GpuResources::new(dimensions) {
-                Ok(gpu) => gpu,
-                Err(error) => {
-                    eprintln!("Player failed: {error:?}");
-                    std::process::exit(1);
-                }
-            };
-            let started = Instant::now();
-            loop {
-                // Callback returns Some(wait) to continue, None at EOF, or Err on failure.
-                // A zero wait means continue immediately, so EOF needs a separate value.
-                let res = player.update(cx, |player, cx| -> Result<Option<Duration>> {
-                    let stage_started = Instant::now();
-                    let Some(frame) = player.video_backend.video.next_frame()? else {
-                        return Ok(None);
-                    };
-                    let decode_time = stage_started.elapsed();
-
-                    let stage_started = Instant::now();
-
-                    #[cfg(target_os = "macos")]
-                    let surface = match gpu.as_mut() {
-                        Some(gpu) => gpu.convert(&frame)?,
-                        None => None,
-                    };
-
-                    #[cfg(target_os = "macos")]
-                    let image = match surface {
-                        Some(buffer) => DisplayedFrame::Surface(buffer),
-                        None => convert(&mut player.scaler, &frame)?,
-                    };
-
-                    #[cfg(not(target_os = "macos"))]
-                    let image = convert(&mut player.scaler, &frame)?;
-
-                    let convert_time = stage_started.elapsed();
-                    let path = match &image {
-                        #[cfg(target_os = "macos")]
-                        DisplayedFrame::Surface(_) => "GPU-prepared NV12 surface",
-                        DisplayedFrame::Image(_) => "converted BGRA",
-                    };
-
-                    eprintln!(
-                        "PTS {} µs: next_frame={decode_time:?}, prepare={convert_time:?}, path={path}",
-                        frame.timestamp.0,
-                    );
-
-                    let position = Duration::from_micros(frame.timestamp.0.max(0) as u64);
-
-                    player.set_frame(image, position, cx);
-
-                    let duration = frame
-                        .duration
-                        .or(player.video_backend.metadata.video.average_frame_interval)
-                        .unwrap_or_default();
-                    let wait = position
-                        .saturating_add(duration)
-                        .saturating_sub(started.elapsed());
-                    Ok(Some(wait))
-                });
-                let wait = match res {
-                    // Frame processed
-                    Ok(Ok(Some(wait))) => wait,
-                    // Decoder reached EOF
-                    Ok(Ok(None)) => break,
-                    // Could not access the player entity (e.g. it was dropped).
-                    Err(error) => {
-                        eprintln!("Player update failed: {error:?}");
-                        break;
-                    }
-                    // Decode/conversion failed.
-                    Ok(Err(error)) => {
-                        eprintln!("Player failed: {error:?}");
-                        std::process::exit(1);
-                    }
-                };
-                bge.timer(wait).await;
-            }
+            run_playback(
+                player,
+                cx,
+                #[cfg(target_os = "macos")]
+                dimensions,
+            )
+            .await;
         })
         .detach();
         Ok(player)
@@ -156,6 +84,94 @@ pub enum DisplayedFrame {
     #[cfg(target_os = "macos")]
     Surface(CVPixelBuffer),
     Image(Arc<RenderImage>),
+}
+
+async fn run_playback(
+    player: WeakEntity<Player>,
+    cx: &mut AsyncApp,
+    #[cfg(target_os = "macos")] dimensions: (usize, usize),
+) {
+    let bge = cx.background_executor().clone();
+    eprintln!("Player task started");
+    #[cfg(target_os = "macos")]
+    let mut gpu = match GpuResources::new(dimensions) {
+        Ok(gpu) => gpu,
+        Err(error) => {
+            eprintln!("Player failed: {error:?}");
+            std::process::exit(1);
+        }
+    };
+    let started = Instant::now();
+    loop {
+        // Callback returns Some(wait) to continue, None at EOF, or Err on failure.
+        // A zero wait means continue immediately, so EOF needs a separate value.
+        let res = player.update(cx, |player, cx| -> Result<Option<Duration>> {
+            let stage_started = Instant::now();
+            let Some(frame) = player.video_backend.video.next_frame()? else {
+                return Ok(None);
+            };
+            let decode_time = stage_started.elapsed();
+
+            let stage_started = Instant::now();
+
+            #[cfg(target_os = "macos")]
+            let surface = match gpu.as_mut() {
+                Some(gpu) => gpu.convert(&frame)?,
+                None => None,
+            };
+
+            #[cfg(target_os = "macos")]
+            let image = match surface {
+                Some(buffer) => DisplayedFrame::Surface(buffer),
+                None => convert(&mut player.scaler, &frame)?,
+            };
+
+            #[cfg(not(target_os = "macos"))]
+            let image = convert(&mut player.scaler, &frame)?;
+
+            let convert_time = stage_started.elapsed();
+            let path = match &image {
+                #[cfg(target_os = "macos")]
+                DisplayedFrame::Surface(_) => "GPU-prepared NV12 surface",
+                DisplayedFrame::Image(_) => "converted BGRA",
+            };
+
+            eprintln!(
+                "PTS {} µs: next_frame={decode_time:?}, prepare={convert_time:?}, path={path}",
+                frame.timestamp.0,
+            );
+
+            let position = Duration::from_micros(frame.timestamp.0.max(0) as u64);
+
+            player.set_frame(image, position, cx);
+
+            let duration = frame
+                .duration
+                .or(player.video_backend.metadata.video.average_frame_interval)
+                .unwrap_or_default();
+            let wait = position
+                .saturating_add(duration)
+                .saturating_sub(started.elapsed());
+            Ok(Some(wait))
+        });
+        let wait = match res {
+            // Frame processed
+            Ok(Ok(Some(wait))) => wait,
+            // Decoder reached EOF
+            Ok(Ok(None)) => break,
+            // Could not access the player entity (e.g. it was dropped).
+            Err(error) => {
+                eprintln!("Player update failed: {error:?}");
+                break;
+            }
+            // Decode/conversion failed.
+            Ok(Err(error)) => {
+                eprintln!("Player failed: {error:?}");
+                std::process::exit(1);
+            }
+        };
+        bge.timer(wait).await;
+    }
 }
 
 /// CPU fallback for frames unsupported by the native surface path.
