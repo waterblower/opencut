@@ -1,5 +1,6 @@
 # Repository guidelines
 
+- Never call `mcp.cua_repl.js` (also exposed as `mcp__cua_repl.js`).
 - Start planning and design at the highest level of abstraction: define the
   intended behavior, public interfaces, and caller control flow before lower-level
   details. When implementing, establish the high-level control flow and data
