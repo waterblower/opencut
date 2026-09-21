@@ -55,6 +55,9 @@
   of possible state combinations when a pure function or message passing can
   solve the problem. Prefer carrying the required data in messages over adding
   state to a broader owner solely so event handlers can access it.
+- State should live in the narrowest scope that needs it. Prefer a local variable
+  over a struct field unless the value actually needs to be shared across methods
+  or control flows.
 - Do not extract a separate function when it has only one caller and its body is
   a single expression or statement. Inline that logic at the call site.
 - Prefer `let ... else` with an early return when required optional state is
@@ -117,6 +120,8 @@
 - Functions and methods should accept only the data they use. Prefer passing the
   smallest required values over accepting a broader type such as `&self` when
   the function does not depend on the rest of that type's state.
+- If a function's first argument is a mutable reference, prefer a method on that
+  type using `&mut self` instead of a free function.
 - Prefer a functional style: helpers and lower-level functions should return
   data or proposed state changes instead of mutating `self` or application state.
   Apply mutations as high in the call stack as possible, ideally at the outermost
