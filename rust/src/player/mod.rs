@@ -22,8 +22,6 @@ mod view;
 pub struct Player {
     video_backend: VideoBackend,
     scaler: Option<scaling::Context>,
-    #[cfg(target_os = "macos")]
-    gpu: Option<GpuResources>,
     displayed: Option<DisplayedFrame>,
     position: Duration,
     title: String,
@@ -31,19 +29,19 @@ pub struct Player {
 }
 
 impl Player {
-    pub fn new(
-        video_backend: VideoBackend,
-        path: PathBuf,
-        window: &mut Window,
-        cx: &mut Context<Self>,
-    ) -> Self {
+    pub fn new(path: PathBuf, window: &mut Window, cx: &mut Context<Self>) -> Result<Self> {
+        let video_backend = VideoBackend::open_video(&path)?;
+
         let focus_handle = cx.focus_handle();
         focus_handle.focus(window, cx);
+        #[cfg(target_os = "macos")]
+        let dimensions = (
+            video_backend.metadata.video.width as usize,
+            video_backend.metadata.video.height as usize,
+        );
         let player = Self {
             video_backend,
             scaler: None,
-            #[cfg(target_os = "macos")]
-            gpu: None,
             displayed: None,
             position: Duration::ZERO,
             title: path.display().to_string(),
@@ -53,6 +51,14 @@ impl Player {
         cx.spawn(async move |player, cx| {
             let bge = cx.background_executor().clone();
             eprintln!("Player task started");
+            #[cfg(target_os = "macos")]
+            let mut gpu = match GpuResources::new(dimensions) {
+                Ok(gpu) => gpu,
+                Err(error) => {
+                    eprintln!("Player failed: {error:?}");
+                    std::process::exit(1);
+                }
+            };
             let started = Instant::now();
             loop {
                 let res = player.update(cx, |player, cx| -> Result<Option<Duration>> {
@@ -63,15 +69,22 @@ impl Player {
                     let decode_time = stage_started.elapsed();
 
                     let stage_started = Instant::now();
+
                     #[cfg(target_os = "macos")]
-                    let surface = gpu::convert(&mut player.gpu, &frame)?;
+                    let surface = match gpu.as_mut() {
+                        Some(gpu) => gpu.convert(&frame)?,
+                        None => None,
+                    };
+
                     #[cfg(target_os = "macos")]
                     let image = match surface {
                         Some(buffer) => DisplayedFrame::Surface(buffer),
                         None => convert(&mut player.scaler, &frame)?,
                     };
+
                     #[cfg(not(target_os = "macos"))]
                     let image = convert(&mut player.scaler, &frame)?;
+
                     let convert_time = stage_started.elapsed();
                     let path = match &image {
                         #[cfg(target_os = "macos")]
@@ -110,7 +123,7 @@ impl Player {
             }
         })
         .detach();
-        player
+        Ok(player)
     }
 }
 
