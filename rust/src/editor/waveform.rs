@@ -7,7 +7,7 @@ use ffmpeg::{
     util::format::{Sample, sample::Type as SampleType},
 };
 use ffmpeg_next as ffmpeg;
-use std::{path::Path, time::Instant};
+use std::path::Path;
 
 const WAVEFORM_FINE_SAMPLES_PER_PEAK: u32 = 64;
 const WAVEFORM_LEVEL_REDUCTION: usize = 4;
