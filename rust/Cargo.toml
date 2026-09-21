@@ -53,6 +53,9 @@ player = [
     "ui",
     "video3",
     "dep:image",
+    "dep:core-foundation",
+    "dep:core-video",
+    "dep:metal",
 ]
 editor = [
     "ffmpeg-video",
@@ -113,6 +116,7 @@ ulid = { version = "3", optional = true, features = ["serde"] }
 block2 = { version = "0.6", optional = true }
 core-foundation = { version = "0.10", optional = true }
 core-video = { version = "0.5.2", optional = true }
+metal = { version = "0.33", optional = true }
 objc2-app-kit = { version = "0.3", optional = true, default-features = false, features = [
     "NSEvent",
     "block2",

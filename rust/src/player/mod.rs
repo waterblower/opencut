@@ -1,4 +1,8 @@
+#[cfg(target_os = "macos")]
+use crate::player::gpu::GpuResources;
 use anyhow::{Context as _, Result, bail};
+#[cfg(target_os = "macos")]
+use core_video::pixel_buffer::CVPixelBuffer;
 use ffmpeg_next::{
     Error as FfmpegError, ffi, format::Pixel, frame::Video, software::scaling, util::color,
 };
@@ -11,12 +15,16 @@ use std::{
     time::{Duration, Instant},
 };
 
+#[cfg(target_os = "macos")]
+mod gpu;
 mod view;
 
 pub struct Player {
     video_backend: VideoBackend,
     scaler: Option<scaling::Context>,
-    displayed: Option<Arc<RenderImage>>,
+    #[cfg(target_os = "macos")]
+    gpu: Option<GpuResources>,
+    displayed: Option<DisplayedFrame>,
     position: Duration,
     title: String,
     focus_handle: FocusHandle,
@@ -34,6 +42,8 @@ impl Player {
         let player = Self {
             video_backend,
             scaler: None,
+            #[cfg(target_os = "macos")]
+            gpu: None,
             displayed: None,
             position: Duration::ZERO,
             title: path.display().to_string(),
@@ -53,11 +63,24 @@ impl Player {
                     let decode_time = stage_started.elapsed();
 
                     let stage_started = Instant::now();
+                    #[cfg(target_os = "macos")]
+                    let surface = gpu::convert(&mut player.gpu, &frame)?;
+                    #[cfg(target_os = "macos")]
+                    let image = match surface {
+                        Some(buffer) => DisplayedFrame::Surface(buffer),
+                        None => convert(&mut player.scaler, &frame)?,
+                    };
+                    #[cfg(not(target_os = "macos"))]
                     let image = convert(&mut player.scaler, &frame)?;
                     let convert_time = stage_started.elapsed();
+                    let path = match &image {
+                        #[cfg(target_os = "macos")]
+                        DisplayedFrame::Surface(_) => "GPU-prepared NV12 surface",
+                        DisplayedFrame::Image(_) => "converted BGRA",
+                    };
 
                     eprintln!(
-                        "PTS {} µs: next_frame={decode_time:?}, convert={convert_time:?}",
+                        "PTS {} µs: next_frame={decode_time:?}, prepare={convert_time:?}, path={path}",
                         frame.timestamp.0,
                     );
 
@@ -101,8 +124,23 @@ pub fn bind_keys(cx: &mut App) {
     ]);
 }
 
-/// Convert a selected frame using a caller-owned, reusable scaler.
-fn convert(scaler: &mut Option<scaling::Context>, frame: &VideoFrame) -> Result<Arc<RenderImage>> {
+enum DisplayedFrame {
+    #[cfg(target_os = "macos")]
+    Surface(CVPixelBuffer),
+    Image(Arc<RenderImage>),
+}
+
+/// CPU fallback for frames unsupported by the native surface path.
+fn convert(scaler: &mut Option<scaling::Context>, frame: &VideoFrame) -> Result<DisplayedFrame> {
+    let matrix = match frame.color_space {
+        color::Space::BT709 => ffi::SWS_CS_ITU709,
+        color::Space::BT2020NCL | color::Space::BT2020CL => ffi::SWS_CS_BT2020,
+        color::Space::FCC => ffi::SWS_CS_FCC,
+        color::Space::SMPTE240M => ffi::SWS_CS_SMPTE240M,
+        color::Space::BT470BG | color::Space::SMPTE170M => ffi::SWS_CS_ITU601,
+        _ if frame.native.height() >= 720 => ffi::SWS_CS_ITU709,
+        _ => ffi::SWS_CS_ITU601,
+    };
     let mut transferred = Video::empty();
     // SAFETY: frame owns its AVFrame. A non-null hw_frames_ctx requires a
     // hardware transfer; the newly allocated destination is exclusively owned.
@@ -143,15 +181,6 @@ fn convert(scaler: &mut Option<scaling::Context>, frame: &VideoFrame) -> Result<
         );
     }
     let scaler = scaler.as_mut().context("missing scaler")?;
-    let matrix = match frame.color_space {
-        color::Space::BT709 => ffi::SWS_CS_ITU709,
-        color::Space::BT2020NCL | color::Space::BT2020CL => ffi::SWS_CS_BT2020,
-        color::Space::FCC => ffi::SWS_CS_FCC,
-        color::Space::SMPTE240M => ffi::SWS_CS_SMPTE240M,
-        color::Space::BT470BG | color::Space::SMPTE170M => ffi::SWS_CS_ITU601,
-        _ if source.height() >= 720 => ffi::SWS_CS_ITU709,
-        _ => ffi::SWS_CS_ITU601,
-    };
     // SAFETY: coefficients have static lifetime; scaler is exclusively owned.
     let result = unsafe {
         let coefficients = ffi::sws_getCoefficients(matrix as i32);
@@ -197,7 +226,9 @@ fn convert(scaler: &mut Option<scaling::Context>, frame: &VideoFrame) -> Result<
     let (pixels, width, height) = rotate(pixels, width, height, quarter);
     let pixels =
         RgbaImage::from_raw(width, height, pixels).context("invalid prepared image dimensions")?;
-    Ok(Arc::new(RenderImage::new(vec![Frame::new(pixels)])))
+    Ok(DisplayedFrame::Image(Arc::new(RenderImage::new(vec![
+        Frame::new(pixels),
+    ]))))
 }
 
 fn rotate(pixels: Vec<u8>, width: u32, height: u32, quarter: u32) -> (Vec<u8>, u32, u32) {

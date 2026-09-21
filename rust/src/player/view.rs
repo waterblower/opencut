@@ -1,4 +1,6 @@
-use crate::player::Player;
+use crate::player::{DisplayedFrame, Player};
+#[cfg(target_os = "macos")]
+use gpui::surface;
 use gpui::{
     Context, CursorStyle, ObjectFit, Render, Window, div, img, prelude::*, px, relative, rgb,
 };
@@ -31,12 +33,20 @@ impl Render for Player {
                     .h(px(height))
                     .overflow_hidden()
                     .when_some(self.displayed.as_ref(), |this, frame| {
-                        this.child(
-                            img(frame.clone())
+                        let content = match frame {
+                            #[cfg(target_os = "macos")]
+                            DisplayedFrame::Surface(buffer) => surface(buffer.clone())
                                 .object_fit(ObjectFit::Contain)
                                 .w(px(width))
-                                .h(px(height)),
-                        )
+                                .h(px(height))
+                                .into_any_element(),
+                            DisplayedFrame::Image(image) => img(image.clone())
+                                .object_fit(ObjectFit::Contain)
+                                .w(px(width))
+                                .h(px(height))
+                                .into_any_element(),
+                        };
+                        this.child(content)
                     }),
             )
             .child(
