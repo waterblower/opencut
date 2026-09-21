@@ -1,8 +1,12 @@
 use anyhow::{Context as _, Result};
 use gpui::{App, Context, FocusHandle, KeyBinding, RenderImage, Window, actions};
 use image::{Frame, RgbaImage};
-use opencut_player::video3::{FrameConverter, PixelOrder, VideoBackend, VideoFrame};
-use std::{path::PathBuf, sync::Arc, time::Duration};
+use opencut_player::video3::{FrameConverter, PixelOrder, VideoBackend};
+use std::{
+    path::PathBuf,
+    sync::Arc,
+    time::{Duration, Instant},
+};
 
 mod view;
 
@@ -36,30 +40,55 @@ impl Player {
         cx.spawn(async move |player, cx| {
             let bge = cx.background_executor().clone();
             eprintln!("Player task started");
+            let started = Instant::now();
             loop {
-                let res = player.update(cx, |player, cx| -> Result<Option<VideoFrame>> {
+                let res = player.update(cx, |player, cx| -> Result<Option<Duration>> {
+                    let stage_started = Instant::now();
                     let Some(frame) = player.video_backend.video.next_frame()? else {
-                        cx.notify();
                         return Ok(None);
                     };
+                    let decode_time = stage_started.elapsed();
+
+                    let stage_started = Instant::now();
                     let converted = player.converter.convert(&frame, PixelOrder::Bgra)?;
+                    let convert_time = stage_started.elapsed();
+
+                    let stage_started = Instant::now();
                     let pixels =
                         RgbaImage::from_raw(converted.width, converted.height, converted.pixels)
                             .context("invalid prepared image dimensions")?;
-                    player.displayed = Some(Arc::new(RenderImage::new(vec![Frame::new(pixels)])));
-                    player.position = Duration::from_micros(frame.timestamp.0.max(0) as u64);
+                    let pixels_time = stage_started.elapsed();
+
+                    let stage_started = Instant::now();
+                    let image = Arc::new(RenderImage::new(vec![Frame::new(pixels)]));
+                    let image_time = stage_started.elapsed();
+                    eprintln!(
+                        "PTS {} µs: next_frame={decode_time:?}, convert={convert_time:?}, RgbaImage={pixels_time:?}, RenderImage={image_time:?}",
+                        frame.timestamp.0,
+                    );
+                    let position = Duration::from_micros(frame.timestamp.0.max(0) as u64);
+                    player.displayed = Some(image);
+                    player.position = position;
                     cx.notify();
-                    Ok(Some(frame))
+
+                    let duration = frame
+                        .duration
+                        .or(player.video_backend.metadata.video.average_frame_interval)
+                        .unwrap_or_default();
+                    let wait = position
+                        .saturating_add(duration)
+                        .saturating_sub(started.elapsed());
+                    Ok(Some(wait))
                 });
-                match res {
-                    Ok(Ok(Some(_))) => {}
+                let wait = match res {
+                    Ok(Ok(Some(wait))) => wait,
                     Ok(Ok(None)) | Err(_) => break,
                     Ok(Err(error)) => {
                         eprintln!("Player failed: {error:?}");
                         std::process::exit(1);
                     }
-                }
-                bge.timer(Duration::from_micros(16_600)).await;
+                };
+                bge.timer(wait).await;
             }
         })
         .detach();

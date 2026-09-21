@@ -5038,7 +5038,6 @@ dependencies = [
  "cpal",
  "env_logger",
  "ffmpeg-next",
- "futures-lite",
  "gpui",
  "gpui-component",
  "gpui_platform",

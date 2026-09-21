@@ -4,6 +4,7 @@ mod player;
 use crate::player::Player;
 use gpui::{App, Bounds, WindowBounds, WindowOptions, prelude::*, px, size};
 use gpui_platform::application;
+use opencut_player::video3::VideoBackend;
 use std::{path::PathBuf, process::ExitCode};
 
 fn main() -> ExitCode {
@@ -24,6 +25,13 @@ fn main() -> ExitCode {
         path
     };
     env_logger::init();
+    let video_backend = match VideoBackend::open_video(&path) {
+        Ok(backend) => backend,
+        Err(error) => {
+            eprintln!("Could not open video: {error:?}");
+            return ExitCode::FAILURE;
+        }
+    };
 
     application().run(move |cx: &mut App| {
         crate::player::bind_keys(cx);
@@ -42,7 +50,7 @@ fn main() -> ExitCode {
                 focus: true,
                 ..WindowOptions::default()
             },
-            move |window, cx| cx.new(|cx| Player::new(path, window, cx)),
+            move |window, cx| cx.new(|cx| Player::new(video_backend, path, window, cx)),
         )
         .expect("failed to create the GPUI window");
         cx.activate(true);
