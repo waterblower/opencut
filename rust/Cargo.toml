@@ -51,9 +51,14 @@ mp3 = ["dep:anyhow", "dep:ffmpeg-next", "dep:cpal"]
 ui = ["dep:gpui", "dep:gpui_platform", "dep:env_logger"]
 player = [
     "ui",
-    "ffmpeg-video",
+    "video3",
+    "dep:async-channel",
+    "dep:cpal",
+    "dep:image",
     "dep:serde",
     "dep:serde_json",
+    "dep:crossbeam-queue",
+    "dep:futures-lite",
 ]
 editor = [
     "ffmpeg-video",
@@ -83,6 +88,8 @@ schemars = { version = "=1.2.2", optional = true, features = ["derive"] }
 resvg = { version = "=0.45.1", optional = true }
 anyhow = { version = "1", optional = true }
 async-channel = { version = "2.5", optional = true }
+crossbeam-queue = { version = "0.3", optional = true }
+futures-lite = { version = "2.6", optional = true }
 cpal = { version = "0.17.1", optional = true }
 env_logger = { version = "0.11", optional = true }
 ffmpeg-next = { version = "8.1", optional = true }
