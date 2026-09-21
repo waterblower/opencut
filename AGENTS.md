@@ -7,29 +7,29 @@
   structures first. Early increments may contain empty or unimplemented constructs
   and do not have to compile. Gradually fill in the lower-level details until the
   complete implementation works, then run the required validation.
-- For every task in Plan mode, and any task expected to be large or complex,
-  create a `{task-name}-plan.md` in the repository root unless the user specifies
-  another location. Write the plan before implementation and keep it as the
-  shared source of truth for the task's direction and progress.
+- Do not create a plan file unless the user explicitly asks for one, even in
+  Plan mode or for large or complex tasks. Otherwise, keep planning brief and
+  in the conversation. When requested, keep the plan proportional to the task;
+  do not write a large plan unless the user asks for that level of detail.
 - Always make each step as small and focused as practical, with one clear outcome
   that can be reviewed independently. Split large steps before starting them;
   do not bundle unrelated changes merely to reduce the number of checkpoints.
-- Describe each step in detail: its intended changes, prerequisites, and the
+- When a plan file is requested, describe each step: its intended changes, prerequisites, and the
   checks or evidence required to consider it complete. Give steps stable IDs and
   Markdown checkboxes (`[ ]` pending, `[x]` complete). List steps in topological
   order, with prerequisites before dependent steps. Explicitly identify steps
   that have no dependencies on each other and can run in parallel or any order.
-- Include a Mermaid dependency graph in the plan, using the same step IDs as the
+- For a requested detailed plan, include a Mermaid dependency graph, using the same step IDs as the
   checklist. Show prerequisite edges and label each step's status: pending,
   in progress, complete, blocked, or superseded. Keep a short progress summary
   with completed/total active steps, the current step, and any blockers.
-- After completing each step, immediately update its checkbox, status, completion
+- When working from a requested plan, after each step update its checkbox, status, completion
   evidence, progress summary, and graph. If the user changes direction, update
   the plan before continuing: revise steps and dependencies, record the changed
   direction, and mark obsolete steps as superseded rather than complete.
 - The review checkpoint is the completion of each step, not a fixed line count.
   At each checkpoint, pause implementation, summarize the result with clickable
-  code links and a link to the updated plan, and wait for the user's explicit
+  code links and, if applicable, a link to the updated plan, and wait for the user's explicit
   instruction before proceeding. Complete the task without these pauses only
   when the user explicitly asks to finish without waiting for review.
 - Do not build FFmpeg ourselves, including through `ffbuild/`. Link against the
@@ -117,6 +117,13 @@
 - Functions and methods should accept only the data they use. Prefer passing the
   smallest required values over accepting a broader type such as `&self` when
   the function does not depend on the rest of that type's state.
+- Prefer a functional style: helpers and lower-level functions should return
+  data or proposed state changes instead of mutating `self` or application state.
+  Apply mutations as high in the call stack as possible, ideally at the outermost
+  application, event, or UI boundary. Pass helpers only the inputs they need and
+  let the caller apply their results. When a stateful resource such as a decoder
+  or converter requires mutation, limit mutable access to that resource; do not
+  use it as a reason to mutate broader application state inside the helper.
 - Never use `#[serde(rename_all = "snake_case")]`.
 - Keep functions, methods, and other items private by default. Expose them only
   when they are used outside their defining module.
