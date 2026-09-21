@@ -51,13 +51,17 @@ impl Player {
         };
 
         cx.spawn(async move |player, cx| {
-            run_playback(
+            let res = run_playback(
                 player,
                 cx,
                 #[cfg(target_os = "macos")]
                 dimensions,
             )
             .await;
+            if let Err(error) = res {
+                eprintln!("Player failed: {error:?}");
+                std::process::exit(1);
+            }
         })
         .detach();
         Ok(player)
@@ -90,17 +94,11 @@ async fn run_playback(
     player: WeakEntity<Player>,
     cx: &mut AsyncApp,
     #[cfg(target_os = "macos")] dimensions: (usize, usize),
-) {
+) -> Result<()> {
     let bge = cx.background_executor().clone();
     eprintln!("Player task started");
     #[cfg(target_os = "macos")]
-    let mut gpu = match GpuResources::new(dimensions) {
-        Ok(gpu) => gpu,
-        Err(error) => {
-            eprintln!("Player failed: {error:?}");
-            std::process::exit(1);
-        }
-    };
+    let mut gpu = GpuResources::new(dimensions)?;
     let started = Instant::now();
     loop {
         // Callback returns Some(wait) to continue, None at EOF, or Err on failure.
@@ -161,17 +159,16 @@ async fn run_playback(
             Ok(Ok(None)) => break,
             // Could not access the player entity (e.g. it was dropped).
             Err(error) => {
-                eprintln!("Player update failed: {error:?}");
-                break;
+                return Err(error);
             }
             // Decode/conversion failed.
             Ok(Err(error)) => {
-                eprintln!("Player failed: {error:?}");
-                std::process::exit(1);
+                return Err(error);
             }
         };
         bge.timer(wait).await;
     }
+    return Ok(());
 }
 
 /// CPU fallback for frames unsupported by the native surface path.
