@@ -1,13 +1,28 @@
-#[path = "../playback_view.rs"]
-mod playback_view;
 #[path = "mod.rs"]
 mod player;
 
 use crate::player::Player;
 use gpui::{App, Bounds, WindowBounds, WindowOptions, prelude::*, px, size};
 use gpui_platform::application;
+use std::{path::PathBuf, process::ExitCode};
 
-fn main() {
+fn main() -> ExitCode {
+    let path = {
+        let arguments: Vec<_> = std::env::args_os().skip(1).collect();
+        let [path] = arguments.as_slice() else {
+            eprintln!("Usage: cargo player-mac <path_to_video>");
+            return ExitCode::from(2);
+        };
+        let path = PathBuf::from(path);
+        if !path.is_file() {
+            eprintln!(
+                "Video file does not exist or is not a file: {}",
+                path.display()
+            );
+            return ExitCode::from(2);
+        }
+        path
+    };
     env_logger::init();
 
     application().run(move |cx: &mut App| {
@@ -27,9 +42,10 @@ fn main() {
                 focus: true,
                 ..WindowOptions::default()
             },
-            move |window, cx| cx.new(|cx| Player::new(window, cx)),
+            move |window, cx| cx.new(|cx| Player::new(path, window, cx)),
         )
         .expect("failed to create the GPUI window");
         cx.activate(true);
     });
+    ExitCode::SUCCESS
 }
