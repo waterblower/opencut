@@ -1,109 +1,69 @@
-use crate::player::session::{
-    PlaybackSnapshot, PlaybackState, PreparedFrame, SessionCommand, SessionHandle, SessionUpdate,
-};
-use gpui::{App, Context, FocusHandle, KeyBinding, Window, actions};
-use opencut_player::video3::MediaInfo;
-use std::path::PathBuf;
+use anyhow::{Context as _, Result};
+use gpui::{App, Context, FocusHandle, KeyBinding, RenderImage, Window, actions};
+use image::{Frame, RgbaImage};
+use opencut_player::video3::{FrameConverter, PixelOrder, VideoBackend, VideoFrame};
+use std::{path::PathBuf, sync::Arc, time::Duration};
 
-mod lanes;
-mod prepare;
-mod session;
 mod view;
 
 pub struct Player {
-    session: SessionHandle,
-    metadata: Option<MediaInfo>,
-    snapshot: PlaybackSnapshot,
-    displayed: Option<PreparedFrame>,
+    video_backend: VideoBackend,
+    converter: FrameConverter,
+    displayed: Option<Arc<RenderImage>>,
+    position: Duration,
     title: String,
     focus_handle: FocusHandle,
 }
 
 impl Player {
-    pub fn new(path: PathBuf, window: &mut Window, cx: &mut Context<Self>) -> Self {
-        let title = path.display().to_string();
+    pub fn new(
+        video_backend: VideoBackend,
+        path: PathBuf,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> Self {
+        let focus_handle = cx.focus_handle();
+        focus_handle.focus(window, cx);
+        let player = Self {
+            video_backend,
+            converter: FrameConverter::new(),
+            displayed: None,
+            position: Duration::ZERO,
+            title: path.display().to_string(),
+            focus_handle,
+        };
 
-        let (session, updates) = SessionHandle::open(path, &cx.to_async());
         cx.spawn(async move |player, cx| {
-            while let Ok(update) = updates.recv().await {
-                let result = player.update(cx, |player, cx| {
-                    // There is one source for this window. Metadata is valid even
-                    // if a playback command changed the request while opening.
-                    match update.value {
-                        SessionUpdate::Opened(metadata) => player.metadata = Some(metadata),
-                        SessionUpdate::Display(frame)
-                            if player.session.current(update.revision) =>
-                        {
-                            player.displayed = Some(frame);
-                        }
-                        SessionUpdate::Snapshot(snapshot)
-                            if player.session.current(update.revision) =>
-                        {
-                            player.snapshot = snapshot;
-                        }
-                        _ => return,
-                    }
+            let bge = cx.background_executor().clone();
+            eprintln!("Player task started");
+            loop {
+                let res = player.update(cx, |player, cx| -> Result<Option<VideoFrame>> {
+                    let Some(frame) = player.video_backend.video.next_frame()? else {
+                        cx.notify();
+                        return Ok(None);
+                    };
+                    let converted = player.converter.convert(&frame, PixelOrder::Bgra)?;
+                    let pixels =
+                        RgbaImage::from_raw(converted.width, converted.height, converted.pixels)
+                            .context("invalid prepared image dimensions")?;
+                    player.displayed = Some(Arc::new(RenderImage::new(vec![Frame::new(pixels)])));
+                    player.position = Duration::from_micros(frame.timestamp.0.max(0) as u64);
                     cx.notify();
+                    Ok(Some(frame))
                 });
-                if result.is_err() {
-                    break;
+                match res {
+                    Ok(Ok(Some(_))) => {}
+                    Ok(Ok(None)) | Err(_) => break,
+                    Ok(Err(error)) => {
+                        eprintln!("Player failed: {error:?}");
+                        std::process::exit(1);
+                    }
                 }
+                bge.timer(Duration::from_micros(16_600)).await;
             }
         })
         .detach();
-
-        Self {
-            session,
-            metadata: None,
-            snapshot: PlaybackSnapshot::default(),
-            displayed: None,
-            title,
-            focus_handle: {
-                let focus_handle = cx.focus_handle();
-                focus_handle.focus(window, cx);
-                focus_handle
-            },
-        }
-    }
-}
-
-impl Player {
-    fn playing(&self) -> bool {
-        matches!(
-            self.snapshot.state,
-            PlaybackState::Loading | PlaybackState::Preparing | PlaybackState::Playing
-        )
-    }
-
-    fn toggle_playback(&mut self, cx: &mut Context<Self>) {
-        let playing = !self.playing();
-        let command = if playing && matches!(self.snapshot.state, PlaybackState::Ended) {
-            SessionCommand::Seek {
-                position: std::time::Duration::ZERO,
-                resume: true,
-            }
-        } else {
-            SessionCommand::SetPlaying(playing)
-        };
-        if let Err(error) = self.session.command(command) {
-            eprintln!("Could not toggle playback: {error:?}");
-            return;
-        }
-        self.snapshot.state = if playing {
-            PlaybackState::Preparing
-        } else {
-            PlaybackState::Paused
-        };
-        cx.notify();
-    }
-
-    fn step(&mut self, direction: i8, cx: &mut Context<Self>) {
-        if let Err(error) = self.session.command(SessionCommand::Step { direction }) {
-            eprintln!("Could not step video: {error:?}");
-            return;
-        }
-        self.snapshot.state = PlaybackState::Paused;
-        cx.notify();
+        player
     }
 }
 
