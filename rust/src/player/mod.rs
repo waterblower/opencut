@@ -61,6 +61,8 @@ impl Player {
             };
             let started = Instant::now();
             loop {
+                // Callback returns Some(wait) to continue, None at EOF, or Err on failure.
+                // A zero wait means continue immediately, so EOF needs a separate value.
                 let res = player.update(cx, |player, cx| -> Result<Option<Duration>> {
                     let stage_started = Instant::now();
                     let Some(frame) = player.video_backend.video.next_frame()? else {
@@ -98,9 +100,8 @@ impl Player {
                     );
 
                     let position = Duration::from_micros(frame.timestamp.0.max(0) as u64);
-                    player.displayed = Some(image);
-                    player.position = position;
-                    cx.notify();
+
+                    player.set_frame(image, position, cx);
 
                     let duration = frame
                         .duration
@@ -112,8 +113,16 @@ impl Player {
                     Ok(Some(wait))
                 });
                 let wait = match res {
+                    // Frame processed
                     Ok(Ok(Some(wait))) => wait,
-                    Ok(Ok(None)) | Err(_) => break,
+                    // Decoder reached EOF
+                    Ok(Ok(None)) => break,
+                    // Could not access the player entity (e.g. it was dropped).
+                    Err(error) => {
+                        eprintln!("Player update failed: {error:?}");
+                        break;
+                    }
+                    // Decode/conversion failed.
                     Ok(Err(error)) => {
                         eprintln!("Player failed: {error:?}");
                         std::process::exit(1);
@@ -124,6 +133,12 @@ impl Player {
         })
         .detach();
         Ok(player)
+    }
+
+    pub fn set_frame(&mut self, image: DisplayedFrame, position: Duration, cx: &mut Context<Self>) {
+        self.displayed = Some(image);
+        self.position = position;
+        cx.notify();
     }
 }
 
@@ -137,7 +152,7 @@ pub fn bind_keys(cx: &mut App) {
     ]);
 }
 
-enum DisplayedFrame {
+pub enum DisplayedFrame {
     #[cfg(target_os = "macos")]
     Surface(CVPixelBuffer),
     Image(Arc<RenderImage>),
