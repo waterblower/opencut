@@ -12,7 +12,7 @@ use ffmpeg_next::{
 use std::{
     collections::VecDeque,
     marker::PhantomData,
-    path::{Path, PathBuf},
+    path::Path,
     rc::Rc,
     time::{Duration, Instant},
 };
@@ -47,7 +47,6 @@ pub struct DecodeDiagnostics {
 pub struct VideoDecoder {
     input: Input,
     decoder: decoder::Video,
-    path: PathBuf,
     stream_index: usize,
     time_base: Rational,
     origin_microseconds: i64,
@@ -81,14 +80,18 @@ impl VideoDecoder {
     /// The selected frame and any decoded successor stay owned by the decoder.
     pub fn seek(&mut self, position: Duration) -> Result<()> {
         let started = Instant::now();
+        let demux_before = self.diagnostics.demux_time;
+        let decode_before = self.diagnostics.decode_time;
         {
             let frame = self.seek_inner(position)?;
             self.lookahead.push_front(frame);
         }
         eprintln!(
-            "Seek to {} µs: seek={:?}",
+            "Seek to {} µs: seek={:?}, packet_read={:?}, codec_send_receive={:?}",
             position.as_micros(),
-            started.elapsed()
+            started.elapsed(),
+            self.diagnostics.demux_time - demux_before,
+            self.diagnostics.decode_time - decode_before,
         );
         Ok(())
     }
@@ -109,7 +112,6 @@ impl VideoDecoder {
         let mut decoder = Self {
             input,
             decoder,
-            path: path.to_path_buf(),
             stream_index,
             time_base,
             origin_microseconds,
@@ -136,38 +138,26 @@ impl VideoDecoder {
     fn seek_inner(&mut self, position: Duration) -> Result<VideoFrame> {
         // Even an out-of-range request clamps to the final available frame.
         let target = i64::try_from(position.as_micros()).unwrap_or(i64::MAX);
-        let seek_position = if self.input.duration() >= 0 {
-            target.min(self.input.duration())
-        } else {
-            target
-        };
-        let absolute = self.origin_microseconds.saturating_add(seek_position);
 
-        self.input
-            .seek(absolute, ..absolute)
-            .context("seeking video demuxer")?;
-        self.decoder.flush();
-        self.drain = DrainState::Reading;
-        self.lookahead.clear();
-        let first = self.decode_next()?;
-        // A successful indexed seek can land after the target or at EOF. Scan
-        // from the beginning in that case to preserve nearest-frame selection.
-        let first = match first {
-            Some(frame) if frame.timestamp.0 <= target => Some(frame),
-            _ => {
-                self.reopen()?;
-                self.decode_next()?
+        // Forward fast path: when the target is only a short distance past the
+        // pending frame, continuing the current decode is cheaper than an
+        // indexed seek that re-decodes the group of pictures from its keyframe.
+        let mut earlier = match self.lookahead.pop_front() {
+            Some(pending)
+                if pending.timestamp.0 <= target
+                    && target - pending.timestamp.0 <= FORWARD_SCAN_LIMIT_MICROSECONDS =>
+            {
+                pending
             }
-        };
-        let Some(mut earlier) = first else {
-            bail!("video stream contains no decoded frames");
+            _ => self.indexed_seek(target)?,
         };
         if earlier.timestamp.0 >= target {
             return Ok(earlier);
         }
 
+        // Consume any remaining lookahead before decoding fresh frames.
         loop {
-            let Some(later) = self.decode_next()? else {
+            let Some(later) = self.next_frame()? else {
                 return Ok(earlier);
             };
             if later.timestamp < earlier.timestamp {
@@ -186,7 +176,54 @@ impl VideoDecoder {
             return Ok(later);
         }
     }
+
+    /// Land on a decodable frame at or before the target through the demuxer
+    /// index, clamping to the first frame when the target precedes it.
+    fn indexed_seek(&mut self, target: i64) -> Result<VideoFrame> {
+        let mut seek_position = if self.input.duration() >= 0 {
+            target.min(self.input.duration())
+        } else {
+            target
+        };
+
+        // The indexed seek normally lands on the keyframe at or before the
+        // request, but reordering or index granularity can land it after the
+        // target or at EOF. Retry slightly earlier through the index instead of
+        // reopening and rescanning from the start of the file.
+        let mut retry_step = FALLBACK_SEEK_STEP_MICROSECONDS;
+        loop {
+            let absolute = self.origin_microseconds.saturating_add(seek_position);
+            self.input
+                .seek(absolute, ..absolute)
+                .context("seeking video demuxer")?;
+            self.decoder.flush();
+            self.drain = DrainState::Reading;
+            self.lookahead.clear();
+            let landed = self.decode_next()?;
+            let step = match landed {
+                Some(frame) if frame.timestamp.0 <= target || seek_position <= 0 => {
+                    return Ok(frame);
+                }
+                Some(frame) => frame_step_microseconds(&frame).unwrap_or(retry_step),
+                None if seek_position <= 0 => bail!("video stream contains no decoded frames"),
+                None => retry_step,
+            };
+            // Move the request itself earlier: the landing frame is already past
+            // the target, so its timestamp is no better anchor than the request.
+            seek_position = seek_position.saturating_sub(step).max(0);
+            retry_step = retry_step.saturating_mul(2);
+        }
+    }
 }
+
+/// Step used when the landing frame has no usable duration.
+const FALLBACK_SEEK_STEP_MICROSECONDS: i64 = 50_000;
+
+/// Furthest a target may lie past the pending frame to scan forward instead
+/// of seeking. A few frames of decoding beats re-decoding a whole group of
+/// pictures, but a long scan would be slower than the index for intra-only
+/// or short-GOP content.
+const FORWARD_SCAN_LIMIT_MICROSECONDS: i64 = 250_000;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum DrainState {
@@ -266,18 +303,6 @@ impl VideoDecoder {
             }
         }
     }
-
-    fn reopen(&mut self) -> Result<()> {
-        let (input, decoder, time_base, rotation) =
-            open_decoder(&self.path, self.stream_index, self.diagnostics.mode)?;
-        self.decoder = decoder;
-        self.input = input;
-        self.time_base = time_base;
-        self.stream_rotation = rotation;
-        self.drain = DrainState::Reading;
-        self.lookahead.clear();
-        Ok(())
-    }
 }
 
 fn open_decoder(
@@ -312,12 +337,20 @@ fn open_decoder(
     }
     let mut context = codec::context::Context::from_parameters(stream.parameters())
         .context("copying video codec parameters")?;
-    if mode == DecodeMode::VideoToolbox {
-        hardware::configure(&mut context)?;
-    }
-    context.set_threading(codec::threading::Config::kind(
-        codec::threading::Type::Frame,
-    ));
+    // Frame threads only help software decoding. VideoToolbox serializes its
+    // frames anyway, and the thread pipeline would add a refill delay of one
+    // frame per thread after every seek flush.
+    let threading = match mode {
+        DecodeMode::Software => codec::threading::Config::kind(codec::threading::Type::Frame),
+        DecodeMode::VideoToolbox => {
+            hardware::configure(&mut context)?;
+            codec::threading::Config {
+                kind: codec::threading::Type::None,
+                count: 1,
+            }
+        }
+    };
+    context.set_threading(threading);
     let mut decoder = context.decoder();
     decoder.set_packet_time_base(time_base);
     let decoder = decoder.video().context("opening software video decoder")?;
@@ -357,6 +390,13 @@ fn describe_frame(
         rotation_degrees,
         native,
     })
+}
+
+/// Positive frame duration in microseconds, if the container reported one.
+fn frame_step_microseconds(frame: &VideoFrame) -> Option<i64> {
+    let duration = frame.duration?;
+    let micros = i64::try_from(duration.as_micros()).ok()?;
+    if micros > 0 { Some(micros) } else { None }
 }
 
 fn display_rotation(data: &[u8]) -> Result<f64> {
