@@ -22,7 +22,7 @@ pub struct MediaTime(pub i64);
 pub struct MediaInfo {
     /// Common origin in FFmpeg's microsecond time base, before normalization.
     pub origin_microseconds: i64,
-    pub duration: Option<Duration>,
+    pub duration: Duration,
     pub video: VideoInfo,
     pub audio: Option<AudioInfo>,
 }
@@ -74,7 +74,7 @@ impl VideoBackend {
         })
     }
 
-    /// Requires a video stream. Probe resources are dropped before returning.
+    /// Requires a video stream and known duration. Probe resources are dropped before returning.
     pub fn probe(path: &Path) -> Result<MediaInfo> {
         ffmpeg_next::init().context("initializing FFmpeg")?;
         let input = format::input(path).context("opening media for metadata")?;
@@ -100,10 +100,11 @@ impl VideoBackend {
             }
         }
 
-        let duration = if input.duration() >= 0 {
-            Some(Duration::from_micros(input.duration() as u64))
+        let duration_microseconds = input.duration();
+        let duration = if duration_microseconds > 0 {
+            Duration::from_micros(duration_microseconds as u64)
         } else {
-            None
+            bail!("media duration is unavailable: {}", path.display());
         };
         let rate = video.avg_frame_rate();
         let average_frame_interval = if rate.numerator() > 0 && rate.denominator() > 0 {
