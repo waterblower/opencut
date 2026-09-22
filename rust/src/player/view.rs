@@ -2,7 +2,8 @@ use crate::player::{DisplayedFrame, PlaybackState, Player, TogglePlayback};
 #[cfg(target_os = "macos")]
 use gpui::surface;
 use gpui::{
-    Context, CursorStyle, ObjectFit, Render, Window, div, img, prelude::*, px, relative, rgb,
+    ClickEvent, Context, CursorStyle, ObjectFit, Render, Window, div, img, prelude::*, px,
+    relative, rgb,
 };
 use std::time::Duration;
 
@@ -10,11 +11,11 @@ impl Render for Player {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let width = f32::from(window.viewport_size().width).max(1.0);
         let height = (f32::from(window.viewport_size().height) - 100.0).max(1.0);
-        let duration = self.video_backend.metadata.duration.unwrap_or_default();
+        let duration = self.video_backend.metadata.duration;
         let position = self.position;
         let playback_label = match self.playback_state {
             PlaybackState::Playing => "Pause",
-            PlaybackState::Paused(_) => "Play",
+            PlaybackState::Paused => "Play",
             PlaybackState::Ended => "Ended",
         };
         let progress = if duration.is_zero() {
@@ -65,6 +66,13 @@ impl Render for Player {
                     .flex_shrink_0()
                     .bg(rgb(0x303030))
                     .cursor(CursorStyle::PointingHand)
+                    .on_click(cx.listener(move |player, event: &ClickEvent, window, cx| {
+                        let fraction = f32::from(event.position().x) / width;
+                        if let Err(error) = player.seek(fraction, window, cx) {
+                            eprintln!("Player seek failed: {error:?}");
+                            std::process::exit(1);
+                        }
+                    }))
                     .child(div().h_full().w(relative(progress)).bg(rgb(0xdba34b))),
             )
             .child(

@@ -26,6 +26,8 @@ mod view;
 pub struct Player {
     video_backend: VideoBackend,
     scaler: Option<scaling::Context>,
+    #[cfg(target_os = "macos")]
+    gpu: Option<GpuResources>,
     displayed: Option<DisplayedFrame>,
     position: Duration,
     playback_state: PlaybackState,
@@ -41,13 +43,15 @@ impl Player {
         let focus_handle = cx.focus_handle();
         focus_handle.focus(window, cx);
         #[cfg(target_os = "macos")]
-        let dimensions = (
+        let gpu = GpuResources::new((
             video_backend.metadata.video.width as usize,
             video_backend.metadata.video.height as usize,
-        );
+        ))?;
         let player = Self {
             video_backend,
             scaler: None,
+            #[cfg(target_os = "macos")]
+            gpu,
             displayed: None,
             position: Duration::ZERO,
             playback_state: PlaybackState::Playing,
@@ -57,13 +61,7 @@ impl Player {
         };
 
         cx.spawn(async move |player, cx| {
-            let res = run_playback(
-                player,
-                cx,
-                #[cfg(target_os = "macos")]
-                dimensions,
-            )
-            .await;
+            let res = run_playback(player, cx).await;
             if let Err(error) = res {
                 eprintln!("Player failed: {error:?}");
                 std::process::exit(1);
@@ -103,6 +101,72 @@ enum PlaybackState {
 }
 
 impl Player {
+    fn set_next_frame(&mut self, cx: &mut Context<Self>) -> Result<Duration> {
+        let decode_start = Instant::now();
+        let frame = match self.video_backend.video.next_frame()? {
+            // A decoded frame is available;
+            // prepare and display it below.
+            Some(frame) => frame,
+            // The decoder is drained. EOF
+            None => {
+                self.playback_state = PlaybackState::Ended;
+                cx.notify();
+                return Ok(Duration::ZERO);
+            }
+        };
+        let decode_end = Instant::now();
+
+        #[cfg(target_os = "macos")]
+        let surface = match self.gpu.as_mut() {
+            Some(gpu) => gpu.convert(&frame)?,
+            None => None,
+        };
+
+        #[cfg(target_os = "macos")]
+        let image = match surface {
+            Some(buffer) => DisplayedFrame::Surface(buffer),
+            None => convert(&mut self.scaler, &frame)?,
+        };
+
+        #[cfg(not(target_os = "macos"))]
+        let image = convert(&mut self.scaler, &frame)?;
+
+        let convert_end = Instant::now();
+        let path = match &image {
+            #[cfg(target_os = "macos")]
+            DisplayedFrame::Surface(_) => "GPU-prepared NV12 surface",
+            DisplayedFrame::Image(_) => "converted BGRA",
+        };
+
+        {
+            let decode_time = decode_end.duration_since(decode_start);
+            let convert_time = convert_end.duration_since(decode_end);
+            eprintln!(
+                "PTS {} µs: next_frame={decode_time:?}, prepare={convert_time:?}, path={path}",
+                frame.timestamp.0,
+            );
+        }
+
+        let position = Duration::from_micros(frame.timestamp.0.max(0) as u64);
+        self.set_frame(image, position, cx);
+
+        let duration = frame
+            .duration
+            .or(self.video_backend.metadata.video.average_frame_interval)
+            .unwrap_or_default();
+        Ok(duration)
+    }
+
+    fn seek(&mut self, fraction: f32, window: &mut Window, cx: &mut Context<Self>) -> Result<()> {
+        let duration = self.video_backend.metadata.duration;
+        let position = duration.mul_f64(f64::from(fraction.clamp(0.0, 1.0)));
+        self.video_backend.video.seek(position)?;
+        self.set_next_frame(cx)?;
+        self.focus_handle.focus(window, cx);
+        cx.notify();
+        Ok(())
+    }
+
     fn toggle_playback(&mut self, cx: &mut Context<Self>) {
         self.playback_state = match self.playback_state {
             PlaybackState::Playing => PlaybackState::Paused,
@@ -150,83 +214,34 @@ impl WaitUntilPlaying for WeakEntity<Player> {
     }
 }
 
-async fn run_playback(
-    player: WeakEntity<Player>,
-    cx: &mut AsyncApp,
-    #[cfg(target_os = "macos")] dimensions: (usize, usize),
-) -> Result<()> {
+async fn run_playback(player: WeakEntity<Player>, cx: &mut AsyncApp) -> Result<()> {
     let bge = cx.background_executor().clone();
     eprintln!("Player task started");
-    #[cfg(target_os = "macos")]
-    let mut gpu = GpuResources::new(dimensions)?;
     loop {
         player.wait_until_playing(cx).await?;
         // Return the time to wait, or propagate a playback error.
         let res = player.update(cx, |player, cx| -> Result<Duration> {
             let cycle_start = Instant::now();
-            let frame = match player.video_backend.video.next_frame()? {
-                // A decoded frame is available;
-                // prepare and display it below.
-                Some(frame) => frame,
-                // The decoder is drained. EOF
-                None => {
-                    player.playback_state = PlaybackState::Ended;
-                    cx.notify();
-                    return Ok(Duration::ZERO);
-                }
-            };
-            let decode_end = Instant::now();
-
-            #[cfg(target_os = "macos")]
-            let surface = match gpu.as_mut() {
-                Some(gpu) => gpu.convert(&frame)?,
-                None => None,
-            };
-
-            #[cfg(target_os = "macos")]
-            let image = match surface {
-                Some(buffer) => DisplayedFrame::Surface(buffer),
-                None => convert(&mut player.scaler, &frame)?,
-            };
-
-            #[cfg(not(target_os = "macos"))]
-            let image = convert(&mut player.scaler, &frame)?;
-
-            let convert_end = Instant::now();
-            let path = match &image {
-                #[cfg(target_os = "macos")]
-                DisplayedFrame::Surface(_) => "GPU-prepared NV12 surface",
-                DisplayedFrame::Image(_) => "converted BGRA",
-            };
-
-            {
-                let decode_time = decode_end.duration_since(cycle_start);
-                let convert_time = convert_end.duration_since(decode_end);
-                eprintln!(
-                    "PTS {} µs: next_frame={decode_time:?}, prepare={convert_time:?}, path={path}",
-                    frame.timestamp.0,
-                );
+            let duration = player.set_next_frame(cx)?;
+            if duration.is_zero() {
+                return Ok(duration);
             }
-
-            let position = Duration::from_micros(frame.timestamp.0.max(0) as u64);
-            player.set_frame(image, position, cx);
-
-            let duration = frame
-                .duration
-                .or(player.video_backend.metadata.video.average_frame_interval)
-                .unwrap_or_default();
             let time_to_wait = frame_wait(duration, cycle_start.elapsed())?;
             Ok(time_to_wait)
         })??;
-        bge.timer(res).await;
+        if res.is_zero() {
+            return Ok(());
+        } else {
+            bge.timer(res).await;
+        }
     }
 }
 
-fn frame_wait(deadline: Duration, elapsed: Duration) -> Result<Duration> {
-    if deadline >= elapsed {
-        Ok(deadline - elapsed)
+fn frame_wait(frame_budget: Duration, elapsed: Duration) -> Result<Duration> {
+    if frame_budget >= elapsed {
+        Ok(frame_budget - elapsed)
     } else {
-        bail!("frame deadline missed: deadline={deadline:?}, elapsed={elapsed:?}");
+        bail!("frame deadline missed: deadline={frame_budget:?}, elapsed={elapsed:?}");
     }
 }
 
