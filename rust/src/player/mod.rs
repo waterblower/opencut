@@ -231,20 +231,8 @@ async fn run_playback(
             let elapsed = started.elapsed();
             let time_to_wait = frame_wait(next_frame_at, elapsed)?;
             Ok(time_to_wait)
-        });
-        let wait = match res {
-            // Update succeeded: wait until the deadline, or reach the EOF gate immediately.
-            Ok(Ok(wait)) => wait,
-            // Could not access the player entity (e.g. it was dropped).
-            Err(error) => {
-                return Err(error);
-            }
-            // Decode/conversion failed.
-            Ok(Err(error)) => {
-                return Err(error);
-            }
-        };
-        bge.timer(wait).await;
+        })??;
+        bge.timer(res).await;
     }
 }
 
