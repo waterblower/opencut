@@ -29,7 +29,6 @@ pub struct Player {
     displayed: Option<DisplayedFrame>,
     position: Duration,
     playback_state: PlaybackState,
-    paused_duration: Duration,
     play_waker: Option<Waker>,
     title: String,
     focus_handle: FocusHandle,
@@ -52,7 +51,6 @@ impl Player {
             displayed: None,
             position: Duration::ZERO,
             playback_state: PlaybackState::Playing,
-            paused_duration: Duration::ZERO,
             play_waker: None,
             title: path.display().to_string(),
             focus_handle,
@@ -100,18 +98,15 @@ pub enum DisplayedFrame {
 
 enum PlaybackState {
     Playing,
-    Paused(Instant),
+    Paused,
     Ended,
 }
 
 impl Player {
     fn toggle_playback(&mut self, cx: &mut Context<Self>) {
         self.playback_state = match self.playback_state {
-            PlaybackState::Playing => PlaybackState::Paused(Instant::now()),
-            PlaybackState::Paused(started) => {
-                self.paused_duration += started.elapsed();
-                PlaybackState::Playing
-            }
+            PlaybackState::Playing => PlaybackState::Paused,
+            PlaybackState::Paused => PlaybackState::Playing,
             PlaybackState::Ended => return,
         };
         if matches!(self.playback_state, PlaybackState::Playing)
@@ -164,25 +159,30 @@ async fn run_playback(
     eprintln!("Player task started");
     #[cfg(target_os = "macos")]
     let mut gpu = GpuResources::new(dimensions)?;
-    let started = Instant::now();
+    let mut started = Instant::now();
     let mut next_frame_at = Duration::ZERO;
     loop {
+        let wait_started = Instant::now();
         player.wait_until_playing(cx).await?;
-        // Callback returns Some(wait) to continue, None at EOF, or Err on failure.
-        // A zero wait means continue immediately, so EOF needs a separate value.
-        let res = player.update(cx, |player, cx| -> Result<Option<Duration>> {
-            // A pause may overlap the previous timer. Preserve the remaining
-            // frame interval on resume instead of decoding the next frame early.
-            let elapsed = started.elapsed().saturating_sub(player.paused_duration);
-            let wait = next_frame_at.saturating_sub(elapsed);
-            if !wait.is_zero() {
-                return Ok(Some(wait));
+        // Exclude time spent waiting for play from the local playback clock.
+        started += wait_started.elapsed();
+        // Return the time to wait, or propagate a playback error.
+        let res = player.update(cx, |player, cx| -> Result<Duration> {
+            let elapsed = started.elapsed();
+            if next_frame_at > elapsed {
+                return Ok(next_frame_at - elapsed);
             }
             let stage_started = Instant::now();
-            let Some(frame) = player.video_backend.video.next_frame()? else {
-                player.playback_state = PlaybackState::Ended;
-                cx.notify();
-                return Ok(None);
+            let frame = match player.video_backend.video.next_frame()? {
+                // A decoded frame is available;
+                // prepare and display it below.
+                Some(frame) => frame,
+                // The decoder is drained. EOF
+                None => {
+                    player.playback_state = PlaybackState::Ended;
+                    cx.notify();
+                    return Ok(Duration::ZERO);
+                }
             };
             let decode_time = stage_started.elapsed();
 
@@ -223,16 +223,18 @@ async fn run_playback(
                 .duration
                 .or(player.video_backend.metadata.video.average_frame_interval)
                 .unwrap_or_default();
-            next_frame_at = position.saturating_add(duration);
-            let elapsed = started.elapsed().saturating_sub(player.paused_duration);
-            let wait = next_frame_at.saturating_sub(elapsed);
-            Ok(Some(wait))
+            if let Some(deadline) = position.checked_add(duration) {
+                next_frame_at = deadline;
+            } else {
+                bail!("frame deadline overflow: position={position:?}, duration={duration:?}");
+            }
+            let elapsed = started.elapsed();
+            let time_to_wait = frame_wait(next_frame_at, elapsed)?;
+            Ok(time_to_wait)
         });
         let wait = match res {
-            // Wait for the next frame deadline (also rechecked after resuming).
-            Ok(Ok(Some(wait))) => wait,
-            // Decoder reached EOF
-            Ok(Ok(None)) => break,
+            // Update succeeded: wait until the deadline, or reach the EOF gate immediately.
+            Ok(Ok(wait)) => wait,
             // Could not access the player entity (e.g. it was dropped).
             Err(error) => {
                 return Err(error);
@@ -244,7 +246,14 @@ async fn run_playback(
         };
         bge.timer(wait).await;
     }
-    return Ok(());
+}
+
+fn frame_wait(deadline: Duration, elapsed: Duration) -> Result<Duration> {
+    if deadline >= elapsed {
+        Ok(deadline - elapsed)
+    } else {
+        bail!("frame deadline missed: deadline={deadline:?}, elapsed={elapsed:?}");
+    }
 }
 
 /// CPU fallback for frames unsupported by the native surface path.
