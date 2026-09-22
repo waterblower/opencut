@@ -12,8 +12,10 @@ use gpui::{
 use image::{Frame, RgbaImage};
 use opencut_player::video3::{VideoBackend, VideoFrame};
 use std::{
+    future::poll_fn,
     path::PathBuf,
     sync::Arc,
+    task::{Poll, Waker},
     time::{Duration, Instant},
 };
 
@@ -26,6 +28,9 @@ pub struct Player {
     scaler: Option<scaling::Context>,
     displayed: Option<DisplayedFrame>,
     position: Duration,
+    playback_state: PlaybackState,
+    paused_duration: Duration,
+    play_waker: Option<Waker>,
     title: String,
     focus_handle: FocusHandle,
 }
@@ -46,6 +51,9 @@ impl Player {
             scaler: None,
             displayed: None,
             position: Duration::ZERO,
+            playback_state: PlaybackState::Playing,
+            paused_duration: Duration::ZERO,
+            play_waker: None,
             title: path.display().to_string(),
             focus_handle,
         };
@@ -90,6 +98,60 @@ pub enum DisplayedFrame {
     Image(Arc<RenderImage>),
 }
 
+enum PlaybackState {
+    Playing,
+    Paused(Instant),
+    Ended,
+}
+
+impl Player {
+    fn toggle_playback(&mut self, cx: &mut Context<Self>) {
+        self.playback_state = match self.playback_state {
+            PlaybackState::Playing => PlaybackState::Paused(Instant::now()),
+            PlaybackState::Paused(started) => {
+                self.paused_duration += started.elapsed();
+                PlaybackState::Playing
+            }
+            PlaybackState::Ended => return,
+        };
+        if matches!(self.playback_state, PlaybackState::Playing) {
+            if let Some(waker) = self.play_waker.take() {
+                waker.wake();
+            }
+        }
+        cx.notify();
+    }
+}
+
+impl Drop for Player {
+    fn drop(&mut self) {
+        // Let a paused task observe that its weak entity is no longer available.
+        if let Some(waker) = self.play_waker.take() {
+            waker.wake();
+        }
+    }
+}
+
+async fn wait_until_playing(player: &WeakEntity<Player>, cx: &mut AsyncApp) -> Result<()> {
+    // One playback task waits here. Checking state and registering its waker in
+    // the same foreground update prevents a play action from being missed.
+    poll_fn(|task_cx| {
+        match player.update(cx, |player, _| {
+            if matches!(player.playback_state, PlaybackState::Playing) {
+                player.play_waker = None;
+                Poll::Ready(Ok(()))
+            } else {
+                player.play_waker = Some(task_cx.waker().clone());
+                Poll::Pending
+            }
+        }) {
+            Ok(poll) => poll,
+            Err(error) => Poll::Ready(Err(error)),
+        }
+    })
+    .await
+}
+
 async fn run_playback(
     player: WeakEntity<Player>,
     cx: &mut AsyncApp,
@@ -100,13 +162,23 @@ async fn run_playback(
     #[cfg(target_os = "macos")]
     let mut gpu = GpuResources::new(dimensions)?;
     let started = Instant::now();
+    let mut next_frame_at = Duration::ZERO;
     loop {
-        player.is_playing().await;
+        wait_until_playing(&player, cx).await?;
         // Callback returns Some(wait) to continue, None at EOF, or Err on failure.
         // A zero wait means continue immediately, so EOF needs a separate value.
         let res = player.update(cx, |player, cx| -> Result<Option<Duration>> {
+            // A pause may overlap the previous timer. Preserve the remaining
+            // frame interval on resume instead of decoding the next frame early.
+            let elapsed = started.elapsed().saturating_sub(player.paused_duration);
+            let wait = next_frame_at.saturating_sub(elapsed);
+            if !wait.is_zero() {
+                return Ok(Some(wait));
+            }
             let stage_started = Instant::now();
             let Some(frame) = player.video_backend.video.next_frame()? else {
+                player.playback_state = PlaybackState::Ended;
+                cx.notify();
                 return Ok(None);
             };
             let decode_time = stage_started.elapsed();
@@ -148,13 +220,13 @@ async fn run_playback(
                 .duration
                 .or(player.video_backend.metadata.video.average_frame_interval)
                 .unwrap_or_default();
-            let wait = position
-                .saturating_add(duration)
-                .saturating_sub(started.elapsed());
+            next_frame_at = position.saturating_add(duration);
+            let elapsed = started.elapsed().saturating_sub(player.paused_duration);
+            let wait = next_frame_at.saturating_sub(elapsed);
             Ok(Some(wait))
         });
         let wait = match res {
-            // Frame processed
+            // Wait for the next frame deadline (also rechecked after resuming).
             Ok(Ok(Some(wait))) => wait,
             // Decoder reached EOF
             Ok(Ok(None)) => break,

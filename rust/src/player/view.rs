@@ -1,4 +1,4 @@
-use crate::player::{DisplayedFrame, Player};
+use crate::player::{DisplayedFrame, PlaybackState, Player, TogglePlayback};
 #[cfg(target_os = "macos")]
 use gpui::surface;
 use gpui::{
@@ -7,7 +7,7 @@ use gpui::{
 use std::time::Duration;
 
 impl Render for Player {
-    fn render(&mut self, window: &mut Window, _cx: &mut Context<Self>) -> impl IntoElement {
+    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let width = f32::from(window.viewport_size().width).max(1.0);
         let height = (f32::from(window.viewport_size().height) - 100.0).max(1.0);
         let duration = self.video_backend.metadata.duration.unwrap_or_default();
@@ -21,6 +21,9 @@ impl Render for Player {
         div()
             .id("player")
             .track_focus(&self.focus_handle)
+            .on_action(cx.listener(|player, _: &TogglePlayback, _, cx| {
+                player.toggle_playback(cx);
+            }))
             .size_full()
             .flex()
             .flex_col()
@@ -71,7 +74,14 @@ impl Render for Player {
                             .id("play-pause")
                             .cursor(CursorStyle::PointingHand)
                             .p_2()
-                            .child("Play"),
+                            .on_click(cx.listener(|player, _, _, cx| {
+                                player.toggle_playback(cx);
+                            }))
+                            .child(match self.playback_state {
+                                PlaybackState::Playing => "Pause",
+                                PlaybackState::Paused(_) => "Play",
+                                PlaybackState::Ended => "Ended",
+                            }),
                     )
                     .child(format!(
                         "{} / {}",
