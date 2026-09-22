@@ -114,10 +114,10 @@ impl Player {
             }
             PlaybackState::Ended => return,
         };
-        if matches!(self.playback_state, PlaybackState::Playing) {
-            if let Some(waker) = self.play_waker.take() {
-                waker.wake();
-            }
+        if matches!(self.playback_state, PlaybackState::Playing)
+            && let Some(waker) = self.play_waker.take()
+        {
+            waker.wake();
         }
         cx.notify();
     }
@@ -133,10 +133,10 @@ impl Drop for Player {
 }
 
 async fn wait_until_playing(player: &WeakEntity<Player>, cx: &mut AsyncApp) -> Result<()> {
-    // One playback task waits here. Checking state and registering its waker in
-    // the same foreground update prevents a play action from being missed.
+    // One playback task waits here. Check the state and register its waker in
+    // one foreground update, releasing entity access before suspending.
     poll_fn(|task_cx| {
-        match player.update(cx, |player, _| {
+        player.update(cx, |player, _| {
             if matches!(player.playback_state, PlaybackState::Playing) {
                 player.play_waker = None;
                 Poll::Ready(Ok(()))
@@ -144,10 +144,7 @@ async fn wait_until_playing(player: &WeakEntity<Player>, cx: &mut AsyncApp) -> R
                 player.play_waker = Some(task_cx.waker().clone());
                 Poll::Pending
             }
-        }) {
-            Ok(poll) => poll,
-            Err(error) => Poll::Ready(Err(error)),
-        }
+        })?
     })
     .await
 }

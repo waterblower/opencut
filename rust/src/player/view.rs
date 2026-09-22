@@ -12,6 +12,11 @@ impl Render for Player {
         let height = (f32::from(window.viewport_size().height) - 100.0).max(1.0);
         let duration = self.video_backend.metadata.duration.unwrap_or_default();
         let position = self.position;
+        let playback_label = match self.playback_state {
+            PlaybackState::Playing => "Pause",
+            PlaybackState::Paused(_) => "Play",
+            PlaybackState::Ended => "Ended",
+        };
         let progress = if duration.is_zero() {
             0.0
         } else {
@@ -77,11 +82,7 @@ impl Render for Player {
                             .on_click(cx.listener(|player, _, _, cx| {
                                 player.toggle_playback(cx);
                             }))
-                            .child(match self.playback_state {
-                                PlaybackState::Playing => "Pause",
-                                PlaybackState::Paused(_) => "Play",
-                                PlaybackState::Ended => "Ended",
-                            }),
+                            .child(playback_label),
                     )
                     .child(format!(
                         "{} / {}",
