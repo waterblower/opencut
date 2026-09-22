@@ -132,21 +132,27 @@ impl Drop for Player {
     }
 }
 
-async fn wait_until_playing(player: &WeakEntity<Player>, cx: &mut AsyncApp) -> Result<()> {
-    // One playback task waits here. Check the state and register its waker in
-    // one foreground update, releasing entity access before suspending.
-    poll_fn(|task_cx| {
-        player.update(cx, |player, _| {
-            if matches!(player.playback_state, PlaybackState::Playing) {
-                player.play_waker = None;
-                Poll::Ready(Ok(()))
-            } else {
-                player.play_waker = Some(task_cx.waker().clone());
-                Poll::Pending
-            }
-        })?
-    })
-    .await
+trait WaitUntilPlaying {
+    async fn wait_until_playing(&self, cx: &mut AsyncApp) -> Result<()>;
+}
+
+impl WaitUntilPlaying for WeakEntity<Player> {
+    async fn wait_until_playing(&self, cx: &mut AsyncApp) -> Result<()> {
+        // One playback task waits here. Check the state and register its waker in
+        // one foreground update, releasing entity access before suspending.
+        poll_fn(|task_cx| {
+            self.update(cx, |player, _| {
+                if matches!(player.playback_state, PlaybackState::Playing) {
+                    player.play_waker = None;
+                    Poll::Ready(Ok(()))
+                } else {
+                    player.play_waker = Some(task_cx.waker().clone());
+                    Poll::Pending
+                }
+            })?
+        })
+        .await
+    }
 }
 
 async fn run_playback(
@@ -161,7 +167,7 @@ async fn run_playback(
     let started = Instant::now();
     let mut next_frame_at = Duration::ZERO;
     loop {
-        wait_until_playing(&player, cx).await?;
+        player.wait_until_playing(cx).await?;
         // Callback returns Some(wait) to continue, None at EOF, or Err on failure.
         // A zero wait means continue immediately, so EOF needs a separate value.
         let res = player.update(cx, |player, cx| -> Result<Option<Duration>> {
