@@ -80,8 +80,16 @@ impl VideoDecoder {
     /// Position the next pull at the nearest bracketing frame, earlier on ties.
     /// The selected frame and any decoded successor stay owned by the decoder.
     pub fn seek(&mut self, position: Duration) -> Result<()> {
-        let frame = self.seek_inner(position)?;
-        self.lookahead.push_front(frame);
+        let started = Instant::now();
+        {
+            let frame = self.seek_inner(position)?;
+            self.lookahead.push_front(frame);
+        }
+        eprintln!(
+            "Seek to {} µs: seek={:?}",
+            position.as_micros(),
+            started.elapsed()
+        );
         Ok(())
     }
 
