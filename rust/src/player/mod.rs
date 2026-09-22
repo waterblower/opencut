@@ -159,20 +159,11 @@ async fn run_playback(
     eprintln!("Player task started");
     #[cfg(target_os = "macos")]
     let mut gpu = GpuResources::new(dimensions)?;
-    let mut started = Instant::now();
-    let mut next_frame_at = Duration::ZERO;
     loop {
-        let wait_started = Instant::now();
         player.wait_until_playing(cx).await?;
-        // Exclude time spent waiting for play from the local playback clock.
-        started += wait_started.elapsed();
         // Return the time to wait, or propagate a playback error.
         let res = player.update(cx, |player, cx| -> Result<Duration> {
-            let elapsed = started.elapsed();
-            if next_frame_at > elapsed {
-                return Ok(next_frame_at - elapsed);
-            }
-            let stage_started = Instant::now();
+            let cycle_start = Instant::now();
             let frame = match player.video_backend.video.next_frame()? {
                 // A decoded frame is available;
                 // prepare and display it below.
@@ -184,9 +175,7 @@ async fn run_playback(
                     return Ok(Duration::ZERO);
                 }
             };
-            let decode_time = stage_started.elapsed();
-
-            let stage_started = Instant::now();
+            let decode_end = Instant::now();
 
             #[cfg(target_os = "macos")]
             let surface = match gpu.as_mut() {
@@ -203,33 +192,30 @@ async fn run_playback(
             #[cfg(not(target_os = "macos"))]
             let image = convert(&mut player.scaler, &frame)?;
 
-            let convert_time = stage_started.elapsed();
+            let convert_end = Instant::now();
             let path = match &image {
                 #[cfg(target_os = "macos")]
                 DisplayedFrame::Surface(_) => "GPU-prepared NV12 surface",
                 DisplayedFrame::Image(_) => "converted BGRA",
             };
 
-            eprintln!(
-                "PTS {} µs: next_frame={decode_time:?}, prepare={convert_time:?}, path={path}",
-                frame.timestamp.0,
-            );
+            {
+                let decode_time = decode_end.duration_since(cycle_start);
+                let convert_time = convert_end.duration_since(decode_end);
+                eprintln!(
+                    "PTS {} µs: next_frame={decode_time:?}, prepare={convert_time:?}, path={path}",
+                    frame.timestamp.0,
+                );
+            }
 
             let position = Duration::from_micros(frame.timestamp.0.max(0) as u64);
-
             player.set_frame(image, position, cx);
 
             let duration = frame
                 .duration
                 .or(player.video_backend.metadata.video.average_frame_interval)
                 .unwrap_or_default();
-            if let Some(deadline) = position.checked_add(duration) {
-                next_frame_at = deadline;
-            } else {
-                bail!("frame deadline overflow: position={position:?}, duration={duration:?}");
-            }
-            let elapsed = started.elapsed();
-            let time_to_wait = frame_wait(next_frame_at, elapsed)?;
+            let time_to_wait = frame_wait(duration, cycle_start.elapsed())?;
             Ok(time_to_wait)
         })??;
         bge.timer(res).await;
