@@ -12,7 +12,10 @@ impl Render for Player {
         let width = f32::from(window.viewport_size().width).max(1.0);
         let height = (f32::from(window.viewport_size().height) - 100.0).max(1.0);
         let duration = self.video_backend.metadata.duration;
-        let position = self.position;
+        let position = match &self.displayed {
+            Some((_, position)) => *position,
+            None => Duration::ZERO,
+        };
         let playback_label = match self.playback_state {
             PlaybackState::Playing => "Pause",
             PlaybackState::Paused => "Play",
@@ -44,7 +47,7 @@ impl Render for Player {
                     .w_full()
                     .h(px(height))
                     .overflow_hidden()
-                    .when_some(self.displayed.as_ref(), |this, frame| {
+                    .when_some(self.displayed.as_ref(), |this, (frame, _)| {
                         let content = match frame {
                             #[cfg(target_os = "macos")]
                             DisplayedFrame::Surface(buffer) => surface(buffer.clone())

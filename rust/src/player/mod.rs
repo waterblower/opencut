@@ -28,8 +28,7 @@ pub struct Player {
     scaler: Option<scaling::Context>,
     #[cfg(target_os = "macos")]
     gpu: Option<GpuResources>,
-    displayed: Option<DisplayedFrame>,
-    position: Duration,
+    displayed: Option<(DisplayedFrame, Duration)>,
     playback_state: PlaybackState,
     play_waker: Option<Waker>,
     title: String,
@@ -53,7 +52,6 @@ impl Player {
             #[cfg(target_os = "macos")]
             gpu,
             displayed: None,
-            position: Duration::ZERO,
             playback_state: PlaybackState::Playing,
             play_waker: None,
             title: path.display().to_string(),
@@ -72,8 +70,7 @@ impl Player {
     }
 
     pub fn set_frame(&mut self, image: DisplayedFrame, position: Duration, cx: &mut Context<Self>) {
-        self.displayed = Some(image);
-        self.position = position;
+        self.displayed = Some((image, position));
         cx.notify();
     }
 }
