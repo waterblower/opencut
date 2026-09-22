@@ -10,6 +10,7 @@ use ffmpeg_next::{
     util::{color, error::EAGAIN},
 };
 use std::{
+    collections::VecDeque,
     marker::PhantomData,
     path::{Path, PathBuf},
     rc::Rc,
@@ -38,7 +39,6 @@ pub enum DecodeMode {
 pub struct DecodeDiagnostics {
     /// Verified from received frames, not merely decoder creation.
     pub mode: DecodeMode,
-    pub fallback_reason: Option<String>,
     pub demux_time: Duration,
     pub decode_time: Duration,
 }
@@ -53,91 +53,36 @@ pub struct VideoDecoder {
     origin_microseconds: i64,
     stream_rotation: f64,
     drain: DrainState,
-    /// First frame after opening, or lookahead when a seek selects its predecessor.
-    lookahead: Option<VideoFrame>,
+    /// At most two frames: the next selected frame and any decoded successor.
+    lookahead: VecDeque<VideoFrame>,
     diagnostics: DecodeDiagnostics,
-    last_returned: Option<MediaTime>,
     _lane_local: PhantomData<Rc<()>>,
 }
 
 impl VideoDecoder {
     pub fn open(path: &Path, stream_index: usize, origin_microseconds: i64) -> Result<Self> {
-        if cfg!(target_os = "macos") {
-            match Self::open_mode(
-                path,
-                stream_index,
-                origin_microseconds,
-                DecodeMode::VideoToolbox,
-            ) {
-                Ok(decoder) => return Ok(decoder),
-                Err(error) => {
-                    let mut decoder = Self::open_mode(
-                        path,
-                        stream_index,
-                        origin_microseconds,
-                        DecodeMode::Software,
-                    )?;
-                    decoder.diagnostics.fallback_reason =
-                        Some(format!("hardware opening failed: {error:?}"));
-                    return Ok(decoder);
-                }
-            }
-        }
-        Self::open_mode(
-            path,
-            stream_index,
-            origin_microseconds,
-            DecodeMode::Software,
-        )
+        let mode = if cfg!(target_os = "macos") {
+            DecodeMode::VideoToolbox
+        } else {
+            DecodeMode::Software
+        };
+        Self::open_mode(path, stream_index, origin_microseconds, mode)
     }
 
     /// None is drained EOF; packet pumping and EAGAIN remain internal.
     pub fn next_frame(&mut self) -> Result<Option<VideoFrame>> {
-        let result = if let Some(frame) = self.lookahead.take() {
-            Ok(Some(frame))
-        } else {
-            self.decode_next()
-        };
-        let frame = match result {
-            Ok(frame) => frame,
-            Err(error) if self.diagnostics.mode == DecodeMode::VideoToolbox => {
-                let previous = self.last_returned;
-                self.fallback(format!("hardware pull failed: {error:?}"))?;
-                let mut candidate = match previous {
-                    Some(time) if time.0 >= 0 => {
-                        Some(self.seek_inner(Duration::from_micros(time.0 as u64))?)
-                    }
-                    _ => self.decode_next()?,
-                };
-                loop {
-                    match (&candidate, previous) {
-                        (Some(frame), Some(previous)) if frame.timestamp <= previous => {
-                            candidate = self.next_native()?;
-                        }
-                        _ => break candidate,
-                    }
-                }
-            }
-            Err(error) => return Err(error),
-        };
-        if let Some(frame) = &frame {
-            self.last_returned = Some(frame.timestamp);
+        if let Some(frame) = self.lookahead.pop_front() {
+            return Ok(Some(frame));
         }
-        Ok(frame)
+        self.decode_next()
     }
 
-    /// Nearest bracketing frame, earlier on ties, with retained native lookahead.
-    pub fn seek(&mut self, position: Duration) -> Result<VideoFrame> {
-        let frame = match self.seek_inner(position) {
-            Ok(frame) => frame,
-            Err(error) if self.diagnostics.mode == DecodeMode::VideoToolbox => {
-                self.fallback(format!("hardware seek failed: {error:?}"))?;
-                self.seek_inner(position)?
-            }
-            Err(error) => return Err(error),
-        };
-        self.last_returned = Some(frame.timestamp);
-        Ok(frame)
+    /// Position the next pull at the nearest bracketing frame, earlier on ties.
+    /// The selected frame and any decoded successor stay owned by the decoder.
+    pub fn seek(&mut self, position: Duration) -> Result<()> {
+        let frame = self.seek_inner(position)?;
+        self.lookahead.push_front(frame);
+        Ok(())
     }
 
     pub fn diagnostics(&self) -> DecodeDiagnostics {
@@ -162,28 +107,19 @@ impl VideoDecoder {
             origin_microseconds,
             stream_rotation,
             drain: DrainState::Reading,
-            lookahead: None,
+            lookahead: VecDeque::new(),
             diagnostics: DecodeDiagnostics {
                 mode,
-                fallback_reason: None,
                 demux_time: Duration::ZERO,
                 decode_time: Duration::ZERO,
             },
-            last_returned: None,
             _lane_local: PhantomData,
         };
         let Some(first) = decoder.decode_next()? else {
             bail!("video stream contains no decoded frames");
         };
-        decoder.lookahead = Some(first);
+        decoder.lookahead.push_back(first);
         Ok(decoder)
-    }
-
-    fn next_native(&mut self) -> Result<Option<VideoFrame>> {
-        if let Some(frame) = self.lookahead.take() {
-            return Ok(Some(frame));
-        }
-        self.decode_next()
     }
 
     /// Nearest bracketing frame, earlier on ties; clamp to first/last frame.
@@ -199,17 +135,15 @@ impl VideoDecoder {
         };
         let absolute = self.origin_microseconds.saturating_add(seek_position);
 
-        // An indexed seek must land at/before the target. If seeking is unsupported,
-        // lands too late, or lands beyond EOF, fall back to a fresh sequential scan.
-        // Reopening also handles streams whose first frame starts after media zero.
-        let first = if self.input.seek(absolute, ..absolute).is_ok() {
-            self.decoder.flush();
-            self.drain = DrainState::Reading;
-            self.lookahead = None;
-            self.decode_next()?
-        } else {
-            None
-        };
+        self.input
+            .seek(absolute, ..absolute)
+            .context("seeking video demuxer")?;
+        self.decoder.flush();
+        self.drain = DrainState::Reading;
+        self.lookahead.clear();
+        let first = self.decode_next()?;
+        // A successful indexed seek can land after the target or at EOF. Scan
+        // from the beginning in that case to preserve nearest-frame selection.
         let first = match first {
             Some(frame) if frame.timestamp.0 <= target => Some(frame),
             _ => {
@@ -238,17 +172,11 @@ impl VideoDecoder {
             let before = i128::from(target) - i128::from(earlier.timestamp.0);
             let after = i128::from(later.timestamp.0) - i128::from(target);
             if before <= after {
-                self.lookahead = Some(later);
+                self.lookahead.push_back(later);
                 return Ok(earlier);
             }
             return Ok(later);
         }
-    }
-
-    fn fallback(&mut self, reason: String) -> Result<()> {
-        self.diagnostics.mode = DecodeMode::Software;
-        self.diagnostics.fallback_reason = Some(reason);
-        self.reopen()
     }
 }
 
@@ -339,7 +267,7 @@ impl VideoDecoder {
         self.time_base = time_base;
         self.stream_rotation = rotation;
         self.drain = DrainState::Reading;
-        self.lookahead = None;
+        self.lookahead.clear();
         Ok(())
     }
 }

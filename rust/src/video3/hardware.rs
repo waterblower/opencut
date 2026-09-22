@@ -48,7 +48,7 @@ unsafe extern "C" fn select_format(
     formats: *const ffi::AVPixelFormat,
 ) -> ffi::AVPixelFormat {
     // SAFETY: FFmpeg supplies a NONE-terminated array for this callback. Refuse
-    // implicit software selection; the caller must reopen a fresh decoder.
+    // implicit software selection so hardware failures propagate to the caller.
     unsafe {
         let mut candidate = formats;
         while !candidate.is_null() && *candidate != ffi::AVPixelFormat::AV_PIX_FMT_NONE {
