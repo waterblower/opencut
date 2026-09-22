@@ -28,7 +28,10 @@ impl Render for Player {
             .id("player")
             .track_focus(&self.focus_handle)
             .on_action(cx.listener(|player, _: &TogglePlayback, _, cx| {
-                player.toggle_playback(cx);
+                if let Err(error) = player.toggle_playback(cx) {
+                    eprintln!("Player playback control failed: {error:?}");
+                    std::process::exit(1);
+                }
             }))
             .size_full()
             .flex()
@@ -88,7 +91,10 @@ impl Render for Player {
                             .cursor(CursorStyle::PointingHand)
                             .p_2()
                             .on_click(cx.listener(|player, _, _, cx| {
-                                player.toggle_playback(cx);
+                                if let Err(error) = player.toggle_playback(cx) {
+                                    eprintln!("Player playback control failed: {error:?}");
+                                    std::process::exit(1);
+                                }
                             }))
                             .child(playback_label),
                     )

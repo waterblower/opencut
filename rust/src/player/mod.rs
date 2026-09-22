@@ -162,16 +162,19 @@ impl Player {
         let position = duration.mul_f64(f64::from(fraction.clamp(0.0, 1.0)));
         self.video_backend.video.seek(position)?;
         self.set_next_frame(cx)?;
+        if matches!(self.playback_state, PlaybackState::Ended) {
+            self.playback_state = PlaybackState::Paused;
+        }
         self.focus_handle.focus(window, cx);
         cx.notify();
         Ok(())
     }
 
-    fn toggle_playback(&mut self, cx: &mut Context<Self>) {
+    fn toggle_playback(&mut self, cx: &mut Context<Self>) -> Result<()> {
         self.playback_state = match self.playback_state {
             PlaybackState::Playing => PlaybackState::Paused,
             PlaybackState::Paused => PlaybackState::Playing,
-            PlaybackState::Ended => return,
+            PlaybackState::Ended => PlaybackState::Playing,
         };
         if matches!(self.playback_state, PlaybackState::Playing)
             && let Some(waker) = self.play_waker.take()
@@ -179,6 +182,7 @@ impl Player {
             waker.wake();
         }
         cx.notify();
+        Ok(())
     }
 }
 
@@ -229,11 +233,8 @@ async fn run_playback(player: WeakEntity<Player>, cx: &mut AsyncApp) -> Result<(
             let time_to_wait = frame_wait(duration, cycle_start.elapsed())?;
             Ok(time_to_wait)
         })??;
-        if res.is_zero() {
-            return Ok(());
-        } else {
-            bge.timer(res).await;
-        }
+        // At EOF, the next iteration waits at the play gate until restarted.
+        bge.timer(res).await;
     }
 }
 
