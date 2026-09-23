@@ -3,10 +3,12 @@
 //! Returns native frames and PCM; the application prepares images for rendering.
 
 mod audio;
+mod audio_backend;
 mod hardware;
 mod video;
 
 pub use audio::{AudioDecoder, AudioSamples, PcmFormat};
+pub use audio_backend::{AudioBackend, AudioMediaInfo};
 pub use video::{DecodeDiagnostics, DecodeMode, VideoDecoder, VideoFrame};
 
 use anyhow::{Context, Error, Result, bail};
@@ -76,7 +78,6 @@ impl VideoBackend {
 
     /// Requires a video stream and known duration. Probe resources are dropped before returning.
     pub fn probe(path: &Path) -> Result<MediaInfo> {
-        ffmpeg_next::init().context("initializing FFmpeg")?;
         let input = format::input(path).context("opening media for metadata")?;
         let Some(video) = input.streams().best(Type::Video) else {
             bail!("media has no video stream");
