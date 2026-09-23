@@ -310,7 +310,6 @@ fn open_decoder(
     stream_index: usize,
     mode: DecodeMode,
 ) -> Result<(Input, decoder::Video, Rational, f64)> {
-    ffmpeg_next::init().context("initializing FFmpeg")?;
     let input = format::input(path).context("opening video demuxer")?;
     let Some(stream) = input.stream(stream_index) else {
         bail!("video stream {stream_index} is no longer present");
