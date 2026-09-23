@@ -52,6 +52,7 @@ ui = ["dep:gpui", "dep:gpui_platform", "dep:env_logger"]
 player = [
     "ui",
     "video3",
+    "dep:cpal",
     "dep:image",
     "dep:core-foundation",
     "dep:core-video",
