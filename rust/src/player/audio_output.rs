@@ -123,7 +123,10 @@ impl AudioOutput {
         Ok(())
     }
 
-    /// Submit one decoded block and ensure output is playing.
+    /// 将一块 PCM 音频数据放入软件队列，并确保设备输出流正在运行。
+    /// 返回成功只表示入队成功、输出流已启动，不表示数据已送到设备，更不表示播放结束。
+    /// 随后设备回调会从队列取出 samples，填入设备输出缓冲，
+    /// 再由设备按采样率逐个播放；播放结束需要另外等待队列和设备中的尾部音频耗尽。
     pub fn push_samples(&mut self, samples: AudioSamples) -> Result<()> {
         validate_samples(&samples, &self.format)?;
         self.check_error()?;
