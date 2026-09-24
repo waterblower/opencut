@@ -1,5 +1,6 @@
 mod audio_output;
 mod audio_player;
+mod audio_player_view;
 mod gpu;
 mod video_player;
 mod video_player_view;

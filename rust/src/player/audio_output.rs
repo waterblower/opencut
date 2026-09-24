@@ -1,5 +1,8 @@
 use anyhow::{Context, Result, bail};
-use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
+use cpal::{
+    StreamInstant,
+    traits::{DeviceTrait, HostTrait, StreamTrait},
+};
 use opencut_player::video3::{AudioSamples, PcmFormat};
 use std::{
     collections::VecDeque,
@@ -9,7 +12,7 @@ use std::{
 
 pub struct AudioOutput {
     pub format: PcmFormat,
-    samples: Arc<Mutex<VecDeque<f32>>>,
+    buffer: Arc<Mutex<OutputBuffer>>,
     error: Arc<Mutex<Option<cpal::StreamError>>>,
     stream: cpal::Stream,
 }
@@ -40,26 +43,57 @@ impl AudioOutput {
         let capacity = (config.sample_rate as usize)
             .checked_mul(usize::from(config.channels))
             .context("audio output buffer is too large")?;
-        let samples = Arc::new(Mutex::new(VecDeque::<f32>::with_capacity(capacity)));
+        let buffer = Arc::new(Mutex::new(OutputBuffer {
+            samples: VecDeque::with_capacity(capacity),
+            device_tail: Duration::ZERO,
+        }));
         let error = Arc::new(Mutex::new(None));
-        let callback_samples = samples.clone();
+        let callback_buffer = buffer.clone();
         let callback_error = error.clone();
+        let channels = usize::from(config.channels);
+        let sample_rate = config.sample_rate;
+        // Only the device callback needs the timestamp of its last submission.
+        let mut last_submission: Option<(StreamInstant, Duration)> = None;
         let stream = device
             .build_output_stream(
                 &config,
-                move |buffer: &mut [f32], _: &cpal::OutputCallbackInfo| {
+                move |buffer: &mut [f32], info: &cpal::OutputCallbackInfo| {
                     buffer.fill(0.0);
                     // A busy producer or an empty buffer yields silence rather
                     // than blocking the device's audio thread.
-                    let Ok(mut samples) = callback_samples.try_lock() else {
+                    let Ok(mut queued) = callback_buffer.try_lock() else {
                         return;
                     };
+                    let samples = &mut queued.samples;
                     let count = buffer.len().min(samples.len());
                     let (first, second) = samples.as_slices();
                     let first_count = count.min(first.len());
                     buffer[..first_count].copy_from_slice(&first[..first_count]);
                     buffer[first_count..count].copy_from_slice(&second[..count - first_count]);
                     samples.drain(..count);
+                    let timestamp = info.timestamp();
+                    if count > 0 {
+                        let duration = Duration::from_secs_f64(
+                            (count / channels) as f64 / f64::from(sample_rate),
+                        );
+                        last_submission = Some((timestamp.playback, duration));
+                    }
+                    // Silence must not extend the tail. Compare the callback clock
+                    // with the predicted playback time, including device latency.
+                    queued.device_tail = match last_submission {
+                        Some((playback, duration)) => {
+                            match timestamp.callback.duration_since(&playback) {
+                                Some(elapsed) => duration.saturating_sub(elapsed),
+                                None => {
+                                    playback
+                                        .duration_since(&timestamp.callback)
+                                        .unwrap_or_default()
+                                        + duration
+                                }
+                            }
+                        }
+                        None => Duration::ZERO,
+                    };
                 },
                 move |error| {
                     let Ok(mut pending) = callback_error.lock() else {
@@ -74,7 +108,7 @@ impl AudioOutput {
             .context("creating audio output stream")?;
         Ok(Self {
             format,
-            samples,
+            buffer,
             error,
             stream,
         })
@@ -92,20 +126,13 @@ impl AudioOutput {
     /// Submit one decoded block and ensure output is playing.
     pub fn push_samples(&mut self, samples: AudioSamples) -> Result<()> {
         validate_samples(&samples, &self.format)?;
+        self.check_error()?;
         {
-            let mut pending = match self.error.lock() {
-                Ok(pending) => pending,
-                Err(_) => bail!("audio output error lock is poisoned"),
-            };
-            if let Some(error) = pending.take() {
-                return Err(error).context("audio output failed");
-            }
-        }
-        {
-            let mut queued = match self.samples.lock() {
+            let mut buffer = match self.buffer.lock() {
                 Ok(queued) => queued,
                 Err(_) => bail!("audio output buffer lock is poisoned"),
             };
+            let queued = &mut buffer.samples;
             if samples.samples.len() > queued.capacity() - queued.len() {
                 bail!("audio output buffer is full");
             }
@@ -119,11 +146,11 @@ impl AudioOutput {
     /// Wait until queued PCM reaches the reserve for the next decode cycle.
     pub fn compute_time_to_wait(&self, cycle_elapsed: Duration) -> Result<Duration> {
         let queued_frames = {
-            let samples = match self.samples.lock() {
-                Ok(samples) => samples,
+            let buffer = match self.buffer.lock() {
+                Ok(buffer) => buffer,
                 Err(_) => bail!("audio output buffer lock is poisoned"),
             };
-            samples.len() / self.format.channel_layout.len()
+            buffer.samples.len() / self.format.channel_layout.len()
         };
         let queued_duration =
             Duration::from_secs_f64(queued_frames as f64 / f64::from(self.format.sample_rate));
@@ -136,8 +163,28 @@ impl AudioOutput {
         Ok(queued_duration.saturating_sub(refill_reserve))
     }
 
+    /// Estimate the remaining tail from the queue and device callback timestamps.
+    /// Zero means the callback clock has passed the last samples' predicted end.
+    pub fn remaining_duration(&self) -> Result<Duration> {
+        self.check_error()?;
+        let buffer = match self.buffer.lock() {
+            Ok(buffer) => buffer,
+            Err(_) => bail!("audio output buffer lock is poisoned"),
+        };
+        let queued_frames = buffer.samples.len() / self.format.channel_layout.len();
+        let queued_duration =
+            Duration::from_secs_f64(queued_frames as f64 / f64::from(self.format.sample_rate));
+        // Queue removal and device-tail updates share a lock: an empty queue
+        // cannot be mistaken for completion while its samples move to the device.
+        Ok(queued_duration + buffer.device_tail)
+    }
+
     /// Replace the stream to discard queued PCM and leave output stopped for a seek.
     pub fn clear(&mut self) -> Result<()> {
+        // Design decision pending playback testing: keep stream replacement for
+        // now. If the short tail of old audio after a seek is acceptable, clear
+        // only the software PCM queue and let device-submitted samples finish.
+        // The 50 ms refill reserve is not a limit on the device's buffered audio.
         // Clearing the software queue alone leaves samples already submitted to
         // the device. A fresh stream also discards that stream's pending output.
         let output = Self::open()?;
@@ -149,6 +196,24 @@ impl AudioOutput {
         // or format error leaves the current playback untouched.
         self.set_playing(false)?;
         *self = output;
+        Ok(())
+    }
+}
+
+struct OutputBuffer {
+    samples: VecDeque<f32>,
+    device_tail: Duration,
+}
+
+impl AudioOutput {
+    fn check_error(&self) -> Result<()> {
+        let mut pending = match self.error.lock() {
+            Ok(pending) => pending,
+            Err(_) => bail!("audio output error lock is poisoned"),
+        };
+        if let Some(error) = pending.take() {
+            return Err(error).context("audio output failed");
+        }
         Ok(())
     }
 }
