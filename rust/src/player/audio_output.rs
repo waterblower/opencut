@@ -2,21 +2,16 @@ use anyhow::{Context, Result, bail};
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use opencut_player::video3::{AudioSamples, PcmFormat};
 use std::{
-    sync::mpsc::{Receiver, SyncSender, TryRecvError, sync_channel},
+    collections::VecDeque,
+    sync::{Arc, Mutex},
     time::Duration,
 };
 
 pub struct AudioOutput {
     pub format: PcmFormat,
-    pub samples: SyncSender<Option<AudioSamples>>,
-    pub events: Receiver<OutputEvent>,
-    pub errors: Receiver<cpal::StreamError>,
+    samples: Arc<Mutex<VecDeque<f32>>>,
+    error: Arc<Mutex<Option<cpal::StreamError>>>,
     stream: cpal::Stream,
-}
-
-pub enum OutputEvent {
-    Position(Duration),
-    Finished(Duration),
 }
 
 impl AudioOutput {
@@ -40,66 +35,39 @@ impl AudioOutput {
             selected.context("audio device has no f32 output configuration")?
         };
         let format = PcmFormat::default_layout(config.sample_rate, config.channels)?;
-        let channels = usize::from(config.channels);
-        let rate = config.sample_rate;
-        // Eight decoded blocks bound decode-ahead and memory use.
-        let (samples, receiver) = sync_channel::<Option<AudioSamples>>(8);
-        let (events, event_receiver) = sync_channel(32);
-        // Device failures must not be displaced by progress notifications.
-        let (errors, error_receiver) = sync_channel(1);
-        let mut pending: Option<AudioSamples> = None;
-        let mut cursor = 0;
-        let mut ended = false;
-        let mut reported_end = false;
+        // Bound decode-ahead to one second of interleaved PCM. Submission never
+        // grows the buffer, and the device callback never allocates or waits.
+        let capacity = (config.sample_rate as usize)
+            .checked_mul(usize::from(config.channels))
+            .context("audio output buffer is too large")?;
+        let samples = Arc::new(Mutex::new(VecDeque::<f32>::with_capacity(capacity)));
+        let error = Arc::new(Mutex::new(None));
+        let callback_samples = samples.clone();
+        let callback_error = error.clone();
         let stream = device
             .build_output_stream(
                 &config,
-                move |buffer: &mut [f32], info: &cpal::OutputCallbackInfo| {
-                    let mut written = 0;
-                    while written < buffer.len() && !ended {
-                        if pending.is_none() {
-                            match receiver.try_recv() {
-                                Ok(Some(block)) => {
-                                    pending = Some(block);
-                                    cursor = 0;
-                                }
-                                Ok(None) | Err(TryRecvError::Disconnected) => {
-                                    ended = true;
-                                    break;
-                                }
-                                Err(TryRecvError::Empty) => break,
-                            }
-                        }
-                        let Some(block) = &pending else { break };
-                        let count = (buffer.len() - written).min(block.samples.len() - cursor);
-                        buffer[written..written + count]
-                            .copy_from_slice(&block.samples[cursor..cursor + count]);
-                        written += count;
-                        cursor += count;
-                        let position = Duration::from_micros(block.timestamp.0.max(0) as u64)
-                            + Duration::from_secs_f64((cursor / channels) as f64 / f64::from(rate));
-                        let _ = events.try_send(OutputEvent::Position(position));
-                        if cursor == block.samples.len() {
-                            pending = None;
-                        }
-                    }
-                    buffer[written..].fill(0.0);
-                    if ended && !reported_end {
-                        let time = info.timestamp();
-                        let latency = time
-                            .playback
-                            .duration_since(&time.callback)
-                            .unwrap_or_default();
-                        let tail = Duration::from_secs_f64(
-                            written as f64 / channels as f64 / f64::from(rate),
-                        );
-                        reported_end = events
-                            .try_send(OutputEvent::Finished(latency + tail))
-                            .is_ok();
-                    }
+                move |buffer: &mut [f32], _: &cpal::OutputCallbackInfo| {
+                    buffer.fill(0.0);
+                    // A busy producer or an empty buffer yields silence rather
+                    // than blocking the device's audio thread.
+                    let Ok(mut samples) = callback_samples.try_lock() else {
+                        return;
+                    };
+                    let count = buffer.len().min(samples.len());
+                    let (first, second) = samples.as_slices();
+                    let first_count = count.min(first.len());
+                    buffer[..first_count].copy_from_slice(&first[..first_count]);
+                    buffer[first_count..count].copy_from_slice(&second[..count - first_count]);
+                    samples.drain(..count);
                 },
                 move |error| {
-                    let _ = errors.try_send(error);
+                    let Ok(mut pending) = callback_error.lock() else {
+                        return;
+                    };
+                    if pending.is_none() {
+                        *pending = Some(error);
+                    }
                 },
                 None,
             )
@@ -107,8 +75,7 @@ impl AudioOutput {
         Ok(Self {
             format,
             samples,
-            events: event_receiver,
-            errors: error_receiver,
+            error,
             stream,
         })
     }
@@ -121,11 +88,75 @@ impl AudioOutput {
         }
         Ok(())
     }
+
+    /// Submit one decoded block and ensure output is playing.
+    pub fn push_samples(&mut self, samples: AudioSamples) -> Result<()> {
+        validate_samples(&samples, &self.format)?;
+        {
+            let mut pending = match self.error.lock() {
+                Ok(pending) => pending,
+                Err(_) => bail!("audio output error lock is poisoned"),
+            };
+            if let Some(error) = pending.take() {
+                return Err(error).context("audio output failed");
+            }
+        }
+        {
+            let mut queued = match self.samples.lock() {
+                Ok(queued) => queued,
+                Err(_) => bail!("audio output buffer lock is poisoned"),
+            };
+            if samples.samples.len() > queued.capacity() - queued.len() {
+                bail!("audio output buffer is full");
+            }
+            queued.extend(samples.samples);
+        }
+        // Release the buffer before starting the stream: play may invoke its callback.
+        self.set_playing(true)?;
+        Ok(())
+    }
+
+    /// Wait until queued PCM reaches the reserve for the next decode cycle.
+    pub fn compute_time_to_wait(&self, cycle_elapsed: Duration) -> Result<Duration> {
+        let queued_frames = {
+            let samples = match self.samples.lock() {
+                Ok(samples) => samples,
+                Err(_) => bail!("audio output buffer lock is poisoned"),
+            };
+            samples.len() / self.format.channel_layout.len()
+        };
+        let queued_duration =
+            Duration::from_secs_f64(queued_frames as f64 / f64::from(self.format.sample_rate));
+        // Keep 50 ms available for device callbacks and scheduling jitter. A
+        // slower decode cycle needs at least its observed duration as reserve.
+        // The queue already reflects consumption during this cycle; elapsed
+        // estimates the next cycle's cost, rather than being subtracted again.
+        let refill_reserve = Duration::from_millis(50).max(cycle_elapsed);
+        // Refill immediately when the reserve is low, including after an underrun.
+        Ok(queued_duration.saturating_sub(refill_reserve))
+    }
+
+    /// Replace the stream to discard queued PCM and leave output stopped for a seek.
+    pub fn clear(&mut self) -> Result<()> {
+        // Clearing the software queue alone leaves samples already submitted to
+        // the device. A fresh stream also discards that stream's pending output.
+        let output = Self::open()?;
+        if output.format != self.format {
+            bail!("audio output format changed while clearing playback");
+        }
+        output.set_playing(false)?;
+        // Prepare the replacement before stopping the current stream so an open
+        // or format error leaves the current playback untouched.
+        self.set_playing(false)?;
+        *self = output;
+        Ok(())
+    }
 }
 
-pub fn validate_samples(samples: &AudioSamples, format: &PcmFormat) -> Result<()> {
+fn validate_samples(samples: &AudioSamples, format: &PcmFormat) -> Result<()> {
     if samples.format != *format
-        || samples.samples.len() != samples.frame_count * format.channel_layout.len()
+        || samples.frame_count.checked_mul(format.channel_layout.len())
+            != Some(samples.samples.len())
     {
         bail!("decoded audio does not match output configuration");
     }
