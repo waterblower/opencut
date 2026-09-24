@@ -140,6 +140,25 @@ impl WaitUntilPlaying for WeakEntity<AudioPlayer> {
 }
 
 async fn run_player(player: WeakEntity<AudioPlayer>, cx: &mut AsyncApp) -> Result<()> {
+    /// 解码结束后等待尾部音频播完；返回下次检查前的等待时长，耗尽后进入 Ended。
+    fn finish_playback(
+        player: &mut AudioPlayer,
+        cx: &mut Context<AudioPlayer>,
+    ) -> Result<Duration> {
+        let remaining = player.audio_output.remaining_duration()?;
+        if !remaining.is_zero() {
+            // 保持 Playing，由外层 timer 等待后再次检查。
+            return Ok(remaining);
+        }
+        // 软件队列和设备尾部均已耗尽，停止输出并显示完成进度。
+        player.audio_output.set_playing(false)?;
+        player.playback_state = PlaybackState::Ended;
+        player.position = player.audio_backend.metadata.duration;
+        cx.notify();
+        // 播放任务继续存在，下一轮会停在 play gate，等待用户重播。
+        Ok(Duration::ZERO)
+    }
+
     let mut error_cx = cx.clone();
     // 在整个播放循环外等待错误，暂停和 timer 等待期间也能被设备错误唤醒。
     // 任一分支完成后，退出本函数并丢弃另一个 future；不会新建后台任务。
@@ -154,30 +173,15 @@ async fn run_player(player: WeakEntity<AudioPlayer>, cx: &mut AsyncApp) -> Resul
                 player.wait_until_playing(cx).await?;
                 let time_to_wait = player.update(cx, |player, cx| -> Result<Duration> {
                     let cycle_start = Instant::now();
-                    // Some(samples) continues to submission below. None means decoding
-                    // has ended, but previously submitted audio may still be playing.
-                    let Some(samples) = player.get_next_samples(cx)? else {
-                        let remaining = player.audio_output.remaining_duration()?;
-                        if !remaining.is_zero() {
-                            // Stay Playing. Return from this update so the outer timer
-                            // waits for the remaining tail, then the next cycle rechecks it.
-                            return Ok(remaining);
+                    match player.get_next_samples(cx)? {
+                        // 提交下一块音频，并计算补充数据前的等待时长。
+                        Some(samples) => {
+                            player.audio_output.push_samples(samples)?;
+                            player.audio_output.compute_time_to_wait(cycle_start.elapsed())
                         }
-                        // Both the software queue and device tail have drained. Stop
-                        // output and show the completed position in the UI.
-                        player.audio_output.set_playing(false)?;
-                        player.playback_state = PlaybackState::Ended;
-                        player.position = player.audio_backend.metadata.duration;
-                        cx.notify();
-                        // This ends only the current update, not the playback task.
-                        // The next cycle waits at the play gate until the user replays.
-                        return Ok(Duration::ZERO);
-                    };
-                    player.audio_output.push_samples(samples)?;
-                    let time_to_wait = player
-                        .audio_output
-                        .compute_time_to_wait(cycle_start.elapsed())?;
-                    Ok(time_to_wait)
+                        // 解码结束后，等待已提交的尾部音频播完。
+                        None => finish_playback(player, cx),
+                    }
                 })??;
                 // Recheck the decoder and output after waiting so pause and seek still
                 // apply during the tail. Once output drains, the play gate waits for replay.
