@@ -56,7 +56,13 @@ fn main() -> Result<()> {
         };
         if audio_only {
             cx.open_window(options, move |window, cx| {
-                cx.new(|cx| AudioPlayer::new(path, window, cx))
+                cx.new(|cx| match AudioPlayer::new(path, window, cx) {
+                    Ok(player) => player,
+                    Err(error) => {
+                        eprintln!("Audio player failed: {error:?}");
+                        std::process::exit(1);
+                    }
+                })
             })
             .expect("failed to create the audio player window");
         } else {
