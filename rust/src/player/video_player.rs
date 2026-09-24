@@ -1,5 +1,5 @@
 #[cfg(target_os = "macos")]
-use crate::player::gpu::GpuResources;
+use crate::gpu::GpuResources;
 use anyhow::{Context as _, Result, bail};
 #[cfg(target_os = "macos")]
 use core_video::pixel_buffer::CVPixelBuffer;
@@ -19,23 +19,19 @@ use std::{
     time::{Duration, Instant},
 };
 
-#[cfg(target_os = "macos")]
-mod gpu;
-mod view;
-
-pub struct Player {
-    video_backend: VideoBackend,
+pub struct VideoPlayer {
+    pub video_backend: VideoBackend,
     scaler: Option<scaling::Context>,
     #[cfg(target_os = "macos")]
     gpu: Option<GpuResources>,
-    displayed: Option<(DisplayedFrame, Duration)>,
-    playback_state: PlaybackState,
+    pub displayed: Option<(DisplayedFrame, Duration)>,
+    pub playback_state: PlaybackState,
     play_waker: Option<Waker>,
-    title: String,
-    focus_handle: FocusHandle,
+    pub title: String,
+    pub focus_handle: FocusHandle,
 }
 
-impl Player {
+impl VideoPlayer {
     pub fn new(path: PathBuf, window: &mut Window, cx: &mut Context<Self>) -> Result<Self> {
         let video_backend = VideoBackend::open_video(&path)?;
 
@@ -91,13 +87,13 @@ pub enum DisplayedFrame {
     Image(Arc<RenderImage>),
 }
 
-enum PlaybackState {
+pub enum PlaybackState {
     Playing,
     Paused,
     Ended,
 }
 
-impl Player {
+impl VideoPlayer {
     fn set_next_frame(&mut self, cx: &mut Context<Self>) -> Result<Duration> {
         let decode_start = Instant::now();
         let frame = match self.video_backend.video.next_frame()? {
@@ -154,7 +150,12 @@ impl Player {
         Ok(duration)
     }
 
-    fn seek(&mut self, fraction: f32, window: &mut Window, cx: &mut Context<Self>) -> Result<()> {
+    pub fn seek(
+        &mut self,
+        fraction: f32,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> Result<()> {
         let duration = self.video_backend.metadata.duration;
         let position = duration.mul_f64(f64::from(fraction.clamp(0.0, 1.0)));
         self.video_backend.video.seek(position)?;
@@ -167,7 +168,7 @@ impl Player {
         Ok(())
     }
 
-    fn toggle_playback(&mut self, cx: &mut Context<Self>) -> Result<()> {
+    pub fn toggle_playback(&mut self, cx: &mut Context<Self>) -> Result<()> {
         self.playback_state = match self.playback_state {
             PlaybackState::Playing => PlaybackState::Paused,
             PlaybackState::Paused => PlaybackState::Playing,
@@ -183,7 +184,7 @@ impl Player {
     }
 }
 
-impl Drop for Player {
+impl Drop for VideoPlayer {
     fn drop(&mut self) {
         // Let a paused task observe that its weak entity is no longer available.
         if let Some(waker) = self.play_waker.take() {
@@ -196,7 +197,7 @@ trait WaitUntilPlaying {
     async fn wait_until_playing(&self, cx: &mut AsyncApp) -> Result<()>;
 }
 
-impl WaitUntilPlaying for WeakEntity<Player> {
+impl WaitUntilPlaying for WeakEntity<VideoPlayer> {
     async fn wait_until_playing(&self, cx: &mut AsyncApp) -> Result<()> {
         // One playback task waits here. Check the state and register its waker in
         // one foreground update, releasing entity access before suspending.
@@ -215,7 +216,7 @@ impl WaitUntilPlaying for WeakEntity<Player> {
     }
 }
 
-async fn run_playback(player: WeakEntity<Player>, cx: &mut AsyncApp) -> Result<()> {
+async fn run_playback(player: WeakEntity<VideoPlayer>, cx: &mut AsyncApp) -> Result<()> {
     let bge = cx.background_executor().clone();
     eprintln!("Player task started");
     loop {

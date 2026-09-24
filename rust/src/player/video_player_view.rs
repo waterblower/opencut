@@ -1,4 +1,4 @@
-use crate::player::{DisplayedFrame, PlaybackState, Player, TogglePlayback};
+use crate::video_player::{DisplayedFrame, PlaybackState, TogglePlayback, VideoPlayer};
 #[cfg(target_os = "macos")]
 use gpui::surface;
 use gpui::{
@@ -7,7 +7,7 @@ use gpui::{
 };
 use std::time::Duration;
 
-impl Render for Player {
+impl Render for VideoPlayer {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let width = f32::from(window.viewport_size().width).max(1.0);
         let height = (f32::from(window.viewport_size().height) - 100.0).max(1.0);
