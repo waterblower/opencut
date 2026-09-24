@@ -138,15 +138,23 @@ async fn run_playback(player: WeakEntity<AudioPlayer>, cx: &mut AsyncApp) -> Res
         player.wait_until_playing(cx).await?;
         let time_to_wait = player.update(cx, |player, cx| -> Result<Duration> {
             let cycle_start = Instant::now();
+            // Some(samples) continues to submission below. None means decoding
+            // has ended, but previously submitted audio may still be playing.
             let Some(samples) = player.get_next_samples(cx)? else {
                 let remaining = player.audio_output.remaining_duration()?;
                 if !remaining.is_zero() {
+                    // Stay Playing. Return from this update so the outer timer
+                    // waits for the remaining tail, then the next cycle rechecks it.
                     return Ok(remaining);
                 }
+                // Both the software queue and device tail have drained. Stop
+                // output and show the completed position in the UI.
                 player.audio_output.set_playing(false)?;
                 player.playback_state = PlaybackState::Ended;
                 player.position = player.audio_backend.metadata.duration;
                 cx.notify();
+                // This ends only the current update, not the playback task.
+                // The next cycle waits at the play gate until the user replays.
                 return Ok(Duration::ZERO);
             };
             player.audio_output.push_samples(samples)?;
