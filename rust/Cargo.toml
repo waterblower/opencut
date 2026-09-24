@@ -57,6 +57,7 @@ player = [
     "dep:core-foundation",
     "dep:core-video",
     "dep:metal",
+    "dep:futures",
 ]
 editor = [
     "ffmpeg-video",
@@ -86,6 +87,7 @@ schemars = { version = "=1.2.2", optional = true, features = ["derive"] }
 resvg = { version = "=0.45.1", optional = true }
 anyhow = { version = "1", optional = true }
 async-channel = { version = "2.5", optional = true }
+futures = { version = "0.3", optional = true, default-features = false, features = ["std", "async-await"] }
 cpal = { version = "0.17.1", optional = true }
 env_logger = { version = "0.11", optional = true }
 ffmpeg-next = { version = "8.1", optional = true }
