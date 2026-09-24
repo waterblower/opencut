@@ -169,6 +169,9 @@ impl AudioOutput {
 
     /// Wait until queued PCM reaches the reserve for the next decode cycle.
     pub fn compute_time_to_wait(&self, cycle_elapsed: Duration) -> Result<Duration> {
+        // 为设备回调和调度抖动保留的最小音频时长。
+        const MIN_REFILL_RESERVE: Duration = Duration::from_millis(50);
+
         let queued_frames = {
             let buffer = match self.buffer.lock() {
                 Ok(buffer) => buffer,
@@ -178,11 +181,10 @@ impl AudioOutput {
         };
         let queued_duration =
             Duration::from_secs_f64(queued_frames as f64 / f64::from(self.format.sample_rate));
-        // Keep 50 ms available for device callbacks and scheduling jitter. A
-        // slower decode cycle needs at least its observed duration as reserve.
+        // A slower decode cycle needs at least its observed duration as reserve.
         // The queue already reflects consumption during this cycle; elapsed
         // estimates the next cycle's cost, rather than being subtracted again.
-        let refill_reserve = Duration::from_millis(50).max(cycle_elapsed);
+        let refill_reserve = MIN_REFILL_RESERVE.max(cycle_elapsed);
         // Refill immediately when the reserve is low, including after an underrun.
         Ok(queued_duration.saturating_sub(refill_reserve))
     }
