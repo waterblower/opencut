@@ -64,9 +64,13 @@ impl AudioDecoder {
             .audio
             .as_ref()
             .context("media has no audio stream")?;
+        Self::open_stream(path, info.stream_index, metadata.origin_microseconds)
+    }
+
+    pub fn open_stream(path: &Path, stream_index: usize, origin_microseconds: i64) -> Result<Self> {
         let input = format::input(path).context("opening independent audio demuxer")?;
         let stream = input
-            .stream(info.stream_index)
+            .stream(stream_index)
             .context("audio stream is missing")?;
         let time_base = stream.time_base();
         let mut decoder = codec::context::Context::from_parameters(stream.parameters())?.decoder();
@@ -75,9 +79,9 @@ impl AudioDecoder {
         Ok(Self {
             input,
             decoder,
-            stream_index: info.stream_index,
+            stream_index,
             time_base,
-            origin: metadata.origin_microseconds,
+            origin: origin_microseconds,
             drain: Drain::Reading,
             output: None,
             resampler: None,
