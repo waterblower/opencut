@@ -1,10 +1,6 @@
 use anyhow::{Context, Result, anyhow, bail};
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
-use futures::{
-    FutureExt,
-    channel::oneshot::{Receiver, Sender, channel},
-    future::Shared,
-};
+use futures::{FutureExt, channel::oneshot, future::Shared};
 use opencut_player::video3::{AudioSamples, PcmFormat};
 use std::{
     collections::VecDeque,
@@ -16,17 +12,17 @@ use std::{
 pub struct AudioOutput {
     pub format: PcmFormat,
     buffer: Arc<Mutex<OutputBuffer>>,
-    error_sender: Arc<Mutex<Option<Sender<cpal::StreamError>>>>,
-    device_error: Shared<Receiver<cpal::StreamError>>,
+    error_sender: Arc<Mutex<Option<oneshot::Sender<cpal::StreamError>>>>,
+    device_error: Shared<oneshot::Receiver<cpal::StreamError>>,
     stream: cpal::Stream,
 }
 
 impl AudioOutput {
     pub fn open() -> Result<Self> {
         let position = Duration::ZERO;
-        let (error_sender, device_error) = channel();
+        let (error_sender, error_receiver) = oneshot::channel();
         let error_sender = Arc::new(Mutex::new(Some(error_sender)));
-        let device_error = device_error.shared();
+        let device_error = error_receiver.shared();
         let device = cpal::default_host()
             .default_output_device()
             .context("no audio output device")?;
