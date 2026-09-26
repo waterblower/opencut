@@ -1,8 +1,5 @@
-use anyhow::{Context, Result, bail};
-use cpal::{
-    StreamInstant,
-    traits::{DeviceTrait, HostTrait, StreamTrait},
-};
+use anyhow::{Context, Result, anyhow, bail};
+use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use futures::{
     FutureExt,
     channel::oneshot::{Receiver, Sender, channel},
@@ -13,7 +10,7 @@ use std::{
     collections::VecDeque,
     future::Future,
     sync::{Arc, Mutex},
-    time::Duration,
+    time::{Duration, Instant},
 };
 
 pub struct AudioOutput {
@@ -26,6 +23,7 @@ pub struct AudioOutput {
 
 impl AudioOutput {
     pub fn open() -> Result<Self> {
+        let position = Duration::ZERO;
         let (error_sender, device_error) = channel();
         let error_sender = Arc::new(Mutex::new(Some(error_sender)));
         let device_error = device_error.shared();
@@ -53,56 +51,28 @@ impl AudioOutput {
         let capacity = (config.sample_rate as usize)
             .checked_mul(usize::from(config.channels))
             .context("audio output buffer is too large")?;
-        let buffer = Arc::new(Mutex::new(OutputBuffer {
-            samples: VecDeque::with_capacity(capacity),
-            device_tail: Duration::ZERO,
-        }));
+        let buffer = Arc::new(Mutex::new(OutputBuffer::new(
+            capacity,
+            position,
+            config.sample_rate,
+        )));
         let callback_buffer = buffer.clone();
         let callback_error_sender = error_sender.clone();
         let channels = usize::from(config.channels);
         let sample_rate = config.sample_rate;
-        // Only the device callback needs the timestamp of its last submission.
-        let mut last_submission: Option<(StreamInstant, Duration)> = None;
+        let mut skipped_frames = 0;
         let stream = device
             .build_output_stream(
                 &config,
                 move |buffer: &mut [f32], info: &cpal::OutputCallbackInfo| {
                     buffer.fill(0.0);
-                    // A busy producer or an empty buffer yields silence rather
-                    // than blocking the device's audio thread.
                     let Ok(mut queued) = callback_buffer.try_lock() else {
+                        // 锁竞争时也已经输出了静音；下次回调补计这些设备帧。
+                        skipped_frames += buffer.len() / channels;
                         return;
                     };
-                    let samples = &mut queued.samples;
-                    let count = buffer.len().min(samples.len());
-                    let (first, second) = samples.as_slices();
-                    let first_count = count.min(first.len());
-                    buffer[..first_count].copy_from_slice(&first[..first_count]);
-                    buffer[first_count..count].copy_from_slice(&second[..count - first_count]);
-                    samples.drain(..count);
-                    let timestamp = info.timestamp();
-                    if count > 0 {
-                        let duration = Duration::from_secs_f64(
-                            (count / channels) as f64 / f64::from(sample_rate),
-                        );
-                        last_submission = Some((timestamp.playback, duration));
-                    }
-                    // Silence must not extend the tail. Compare the callback clock
-                    // with the predicted playback time, including device latency.
-                    queued.device_tail = match last_submission {
-                        Some((playback, duration)) => {
-                            match timestamp.callback.duration_since(&playback) {
-                                Some(elapsed) => duration.saturating_sub(elapsed),
-                                None => {
-                                    playback
-                                        .duration_since(&timestamp.callback)
-                                        .unwrap_or_default()
-                                        + duration
-                                }
-                            }
-                        }
-                        None => Duration::ZERO,
-                    };
+                    queued.render(buffer, info, channels, sample_rate, skipped_frames);
+                    skipped_frames = 0;
                 },
                 move |error| {
                     let sender = {
@@ -136,7 +106,26 @@ impl AudioOutput {
         async move { Err(device_error.await?).context("audio output failed") }
     }
 
+    pub fn is_playing(&self) -> Result<bool> {
+        let buffer = self
+            .buffer
+            .lock()
+            .map_err(|_| anyhow!("audio output buffer lock is poisoned"))?;
+        Ok(buffer.playing)
+    }
+
     pub fn set_playing(&self, playing: bool) -> Result<()> {
+        {
+            let mut buffer = self
+                .buffer
+                .lock()
+                .map_err(|_| anyhow!("audio output buffer lock is poisoned"))?;
+            if buffer.playing == playing {
+                return Ok(());
+            }
+            buffer.playing = playing;
+        }
+        // 不持有队列锁调用设备 API；play/pause 可能等待设备回调。
         if playing {
             self.stream.play().context("starting audio output")?;
         } else {
@@ -145,67 +134,110 @@ impl AudioOutput {
         Ok(())
     }
 
-    /// 将一块 PCM 音频数据放入软件队列，并确保设备输出流正在运行。
-    /// 返回成功只表示入队成功、输出流已启动，不表示数据已送到设备，更不表示播放结束。
-    /// 随后设备回调会从队列取出 samples，填入设备输出缓冲，
-    /// 再由设备按采样率逐个播放；播放结束需要另外等待队列和设备中的尾部音频耗尽。
+    /// 按提交顺序加入 PCM 并启动输出，保留独立音频播放器的原有语义。
+    /// 返回成功只表示入队和启动成功；播放完成仍需等待队列及设备尾部耗尽。
     pub fn push_samples(&mut self, samples: AudioSamples) -> Result<()> {
         validate_samples(&samples, &self.format)?;
         {
-            let mut buffer = match self.buffer.lock() {
-                Ok(queued) => queued,
-                Err(_) => bail!("audio output buffer lock is poisoned"),
-            };
-            let queued = &mut buffer.samples;
-            if samples.samples.len() > queued.capacity() - queued.len() {
+            let mut buffer = self
+                .buffer
+                .lock()
+                .map_err(|_| anyhow!("audio output buffer lock is poisoned"))?;
+            if samples.samples.len() > buffer.samples.capacity() - buffer.samples.len()
+                || buffer.spans.len() == buffer.spans.capacity()
+            {
                 bail!("audio output buffer is full");
             }
-            queued.extend(samples.samples);
+            if samples.frame_count > 0 {
+                // None 表示紧接上一块播放；seek/underrun 后也不按 PTS 丢弃 PCM。
+                buffer.spans.push_back(AudioSpan {
+                    start: None,
+                    frames: samples.frame_count,
+                });
+                buffer.samples.extend(samples.samples);
+            }
         }
-        // Release the buffer before starting the stream: play may invoke its callback.
-        self.set_playing(true)?;
+        self.set_playing(true)
+    }
+
+    /// 仅把 PCM 放入软件队列，不启动设备，更不表示音频已经播放完。
+    /// 回调随后按 PTS 取走 samples；设备仍需等待输出延迟并逐个播放它们。
+    pub fn enqueue_samples(&mut self, samples: AudioSamples) -> Result<()> {
+        validate_samples(&samples, &self.format)?;
+        if samples.frame_count == 0 {
+            return Ok(());
+        }
+        let mut buffer = self
+            .buffer
+            .lock()
+            .map_err(|_| anyhow!("audio output buffer lock is poisoned"))?;
+        // PTS 使用微秒，换算回 sample index 时四舍五入，避免每块少一个采样。
+        let start = (samples.timestamp.0 as f64 * f64::from(self.format.sample_rate) / 1_000_000.0)
+            .round() as i64;
+        let queued_end = buffer.queued_end().unwrap_or(buffer.next_frame);
+        let skip = (queued_end.max(buffer.next_frame) - start)
+            .max(0)
+            .min(samples.frame_count as i64) as usize;
+        let frames = samples.frame_count - skip;
+        if frames == 0 {
+            return Ok(());
+        }
+        let count = frames * self.format.channel_layout.len();
+        if count > buffer.samples.capacity() - buffer.samples.len()
+            || buffer.spans.len() == buffer.spans.capacity()
+        {
+            bail!("audio output buffer is full");
+        }
+        buffer.spans.push_back(AudioSpan {
+            start: Some(start + skip as i64),
+            frames,
+        });
+        buffer.samples.extend(
+            samples
+                .samples
+                .into_iter()
+                .skip(skip * self.format.channel_layout.len()),
+        );
         Ok(())
     }
 
-    /// Wait until queued PCM reaches the reserve for the next decode cycle.
+    /// 为回调和调度抖动保留 50 ms；这个值与视频帧时长无关。
     pub fn compute_time_to_wait(&self, cycle_elapsed: Duration) -> Result<Duration> {
-        // 为设备回调和调度抖动保留的最小音频时长。
         const MIN_REFILL_RESERVE: Duration = Duration::from_millis(50);
-
-        let queued_frames = {
-            let buffer = match self.buffer.lock() {
-                Ok(buffer) => buffer,
-                Err(_) => bail!("audio output buffer lock is poisoned"),
-            };
-            buffer.samples.len() / self.format.channel_layout.len()
-        };
-        let queued_duration =
-            Duration::from_secs_f64(queued_frames as f64 / f64::from(self.format.sample_rate));
-        // A slower decode cycle needs at least its observed duration as reserve.
-        // The queue already reflects consumption during this cycle; elapsed
-        // estimates the next cycle's cost, rather than being subtracted again.
-        let refill_reserve = MIN_REFILL_RESERVE.max(cycle_elapsed);
-        // Refill immediately when the reserve is low, including after an underrun.
-        Ok(queued_duration.saturating_sub(refill_reserve))
+        let buffer = self
+            .buffer
+            .lock()
+            .map_err(|_| anyhow!("audio output buffer lock is poisoned"))?;
+        let end = buffer.queued_end().unwrap_or(buffer.next_frame);
+        let queued = Duration::from_secs_f64(
+            (end - buffer.next_frame).max(0) as f64 / f64::from(self.format.sample_rate),
+        );
+        Ok(queued.saturating_sub(MIN_REFILL_RESERVE.max(cycle_elapsed)))
     }
 
-    /// Estimate the remaining tail from the queue and device callback timestamps.
-    /// Zero means the callback clock has passed the last samples' predicted end.
+    /// 软件队列和已经送往设备的真实音频都播完，才返回零。
     pub fn remaining_duration(&self) -> Result<Duration> {
-        let buffer = match self.buffer.lock() {
-            Ok(buffer) => buffer,
-            Err(_) => bail!("audio output buffer lock is poisoned"),
-        };
-        let queued_frames = buffer.samples.len() / self.format.channel_layout.len();
-        let queued_duration =
-            Duration::from_secs_f64(queued_frames as f64 / f64::from(self.format.sample_rate));
-        // Queue removal and device-tail updates share a lock: an empty queue
-        // cannot be mistaken for completion while its samples move to the device.
-        Ok(queued_duration + buffer.device_tail)
+        let buffer = self
+            .buffer
+            .lock()
+            .map_err(|_| anyhow!("audio output buffer lock is poisoned"))?;
+        let queued_end = buffer.queued_end().unwrap_or(buffer.next_frame);
+        let queued = Duration::from_secs_f64(
+            (queued_end - buffer.next_frame).max(0) as f64 / f64::from(self.format.sample_rate),
+        );
+        let device_tail = buffer
+            .device_tail
+            .map_or(Duration::ZERO, |end| end.saturating_duration_since(Instant::now()));
+        Ok(queued + device_tail)
+    }
+
+    /// 清空输出并保持停止，保留独立音频播放器的无参数接口。
+    pub fn clear(&mut self) -> Result<()> {
+        self.clear_at(Duration::ZERO)
     }
 
     /// Replace the stream to discard queued PCM and leave output stopped for a seek.
-    pub fn clear(&mut self) -> Result<()> {
+    pub fn clear_at(&mut self, position: Duration) -> Result<()> {
         // Design decision pending playback testing: keep stream replacement for
         // now. If the short tail of old audio after a seek is acceptable, clear
         // only the software PCM queue and let device-submitted samples finish.
@@ -240,56 +272,28 @@ impl AudioOutput {
             let capacity = (config.sample_rate as usize)
                 .checked_mul(usize::from(config.channels))
                 .context("audio output buffer is too large")?;
-            let buffer = Arc::new(Mutex::new(OutputBuffer {
-                samples: VecDeque::with_capacity(capacity),
-                device_tail: Duration::ZERO,
-            }));
+            let buffer = Arc::new(Mutex::new(OutputBuffer::new(
+                capacity,
+                position,
+                config.sample_rate,
+            )));
             let callback_buffer = buffer.clone();
             let callback_error_sender = error_sender.clone();
             let channels = usize::from(config.channels);
             let sample_rate = config.sample_rate;
-            // Only the device callback needs the timestamp of its last submission.
-            let mut last_submission: Option<(StreamInstant, Duration)> = None;
+            let mut skipped_frames = 0;
             let stream = device
                 .build_output_stream(
                     &config,
                     move |buffer: &mut [f32], info: &cpal::OutputCallbackInfo| {
                         buffer.fill(0.0);
-                        // A busy producer or an empty buffer yields silence rather
-                        // than blocking the device's audio thread.
                         let Ok(mut queued) = callback_buffer.try_lock() else {
+                            // 锁竞争时也已经输出了静音；下次回调补计这些设备帧。
+                            skipped_frames += buffer.len() / channels;
                             return;
                         };
-                        let samples = &mut queued.samples;
-                        let count = buffer.len().min(samples.len());
-                        let (first, second) = samples.as_slices();
-                        let first_count = count.min(first.len());
-                        buffer[..first_count].copy_from_slice(&first[..first_count]);
-                        buffer[first_count..count].copy_from_slice(&second[..count - first_count]);
-                        samples.drain(..count);
-                        let timestamp = info.timestamp();
-                        if count > 0 {
-                            let duration = Duration::from_secs_f64(
-                                (count / channels) as f64 / f64::from(sample_rate),
-                            );
-                            last_submission = Some((timestamp.playback, duration));
-                        }
-                        // Silence must not extend the tail. Compare the callback clock
-                        // with the predicted playback time, including device latency.
-                        queued.device_tail = match last_submission {
-                            Some((playback, duration)) => {
-                                match timestamp.callback.duration_since(&playback) {
-                                    Some(elapsed) => duration.saturating_sub(elapsed),
-                                    None => {
-                                        playback
-                                            .duration_since(&timestamp.callback)
-                                            .unwrap_or_default()
-                                            + duration
-                                    }
-                                }
-                            }
-                            None => Duration::ZERO,
-                        };
+                        queued.render(buffer, info, channels, sample_rate, skipped_frames);
+                        skipped_frames = 0;
                     },
                     move |error| {
                         let sender = {
@@ -327,9 +331,104 @@ impl AudioOutput {
     }
 }
 
+struct AudioSpan {
+    // Some 按媒体时间播放；None 按提交顺序播放。
+    start: Option<i64>,
+    frames: usize,
+}
+
 struct OutputBuffer {
     samples: VecDeque<f32>,
-    device_tail: Duration,
+    spans: VecDeque<AudioSpan>,
+    next_frame: i64,
+    playing: bool,
+    device_tail: Option<Instant>, // 最后提交的真实 PCM 预计播完的本地时刻；仅用于判断输出耗尽。
+}
+
+impl OutputBuffer {
+    fn new(capacity: usize, position: Duration, sample_rate: u32) -> Self {
+        Self {
+            samples: VecDeque::with_capacity(capacity),
+            spans: VecDeque::with_capacity(sample_rate as usize),
+            next_frame: (position.as_secs_f64() * f64::from(sample_rate)).round() as i64,
+            playing: false,
+            device_tail: None,
+        }
+    }
+
+    fn queued_end(&self) -> Option<i64> {
+        if self.spans.is_empty() {
+            return None;
+        }
+        let mut end = self.next_frame;
+        for span in &self.spans {
+            end = match span.start {
+                Some(start) => end.max(start + span.frames as i64),
+                None => end + span.frames as i64,
+            };
+        }
+        Some(end)
+    }
+
+    fn render(
+        &mut self,
+        output: &mut [f32],
+        info: &cpal::OutputCallbackInfo,
+        channels: usize,
+        sample_rate: u32,
+        skipped_frames: usize,
+    ) {
+        if !self.playing {
+            return;
+        }
+        let now = Instant::now();
+        self.next_frame += skipped_frames as i64;
+        let start = self.next_frame;
+        let frames = output.len() / channels;
+        let end = start + frames as i64;
+        let mut cursor = start;
+        while let Some(span) = self.spans.front_mut() {
+            let mut span_start = span.start.unwrap_or(cursor);
+            // 仅有时间戳的块需要丢弃过期 PCM；顺序提交的块始终接着播放。
+            let skip = (cursor - span_start).max(0).min(span.frames as i64) as usize;
+            self.samples.drain(..skip * channels);
+            span_start += skip as i64;
+            span.frames -= skip;
+            if span.frames == 0 {
+                self.spans.pop_front();
+                continue;
+            }
+            if span_start >= end {
+                break;
+            }
+            let offset = (span_start - start) as usize * channels;
+            let count = span.frames.min((end - span_start) as usize);
+            for sample in &mut output[offset..offset + count * channels] {
+                *sample = self.samples.pop_front().unwrap_or_default();
+            }
+            cursor = span_start + count as i64;
+            if span.start.is_some() {
+                span.start = Some(cursor);
+            }
+            span.frames -= count;
+            if span.frames == 0 {
+                self.spans.pop_front();
+            }
+            if cursor == end {
+                break;
+            }
+        }
+        self.next_frame = end;
+        if cursor > start {
+            let timestamp = info.timestamp();
+            let latency = timestamp
+                .playback
+                .duration_since(&timestamp.callback)
+                .unwrap_or_default();
+            let duration = Duration::from_secs_f64((cursor - start) as f64 / f64::from(sample_rate));
+            self.device_tail = Some(now + latency + duration); // 输出静音不延长真实音频尾部。
+        }
+    }
 }
 
 fn validate_samples(samples: &AudioSamples, format: &PcmFormat) -> Result<()> {
