@@ -343,7 +343,8 @@ struct AudioSpan {
 struct OutputBuffer {
     samples: VecDeque<f32>,
     spans: VecDeque<AudioSpan>,
-    next_frame: i64,
+    next_frame: i64,              // 下一次设备回调的起始采样帧编号；
+                                  // 每帧含各声道一个样本，静音时也推进。
     device_tail: Option<Instant>, // 最后提交的真实 PCM 预计播完的本地时刻；仅用于判断输出耗尽。
 }
 
