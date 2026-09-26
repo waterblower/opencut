@@ -79,7 +79,7 @@ impl VideoPlayer {
         Ok(matches!(self.playback_state, PlaybackState::Paused)
             && self.video_backend.video.is_drained()
             && self.video_backend.audio.is_drained()
-            && !self.audio_output.is_playing()? // 自然结束时停止设备并保留 EOF；用户暂停会重新定位解码器。
+            && !self.audio_output.is_playing() // 自然结束时停止设备并保留 EOF；用户暂停会重新定位解码器。
             && self.audio_output.remaining_duration()?.is_zero())
     }
 
@@ -284,7 +284,7 @@ impl WaitUntilPlaying for WeakEntity<VideoPlayer> {
         poll_fn(|task_cx| {
             self.update(cx, |player, _cx| {
                 if matches!(player.playback_state, PlaybackState::Playing) {
-                    if !player.audio_output.is_playing()? {
+                    if !player.audio_output.is_playing() {
                         if clock.get().start_position_of_video >= player.duration()
                             && player.video_backend.video.is_drained()
                             && player.video_backend.audio.is_drained()
@@ -310,7 +310,7 @@ impl WaitUntilPlaying for WeakEntity<VideoPlayer> {
                     Poll::Ready(Ok(()))
                 } else {
                     if clock.get().start_time_of_system.is_some() {
-                        let position = if player.audio_output.is_playing()? {
+                        let position = if player.audio_output.is_playing() {
                             let position = clock.get().position().min(player.duration());
                             player.seek(position)?; // 暂停只重置解码和输出位置，保留 displayed，不额外展示一帧。
                             position
