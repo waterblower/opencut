@@ -103,6 +103,20 @@ are relative to the OpenCut root.
   state is appropriate, even if its body is a single expression.
 - Prefer `let ... else` with an early return when required optional state is
   absent, instead of nesting the remaining control flow inside `if let`.
+- Prefer explicit `match` for `Option`/`Result` branching over `map`, `map_or`,
+  `map_or_else`, or `map_err` when they express alternative control-flow paths,
+  even when the branches are short. Make each case and its result visible.
+  This preference does not prohibit ordinary iterator transformations. Prefer:
+
+  ```rust
+  match self.start_time_of_system {
+      Some(start) => self.start_position_of_video + start.elapsed(),
+      None => self.start_position_of_video,
+  }
+  ```
+
+  over `self.start_position_of_video +
+  self.start_time_of_system.map_or(Duration::ZERO, |start| start.elapsed())`.
 - Prefer an immediately invoked closure with explicit early returns over
   `Option::map` or `Result::map_err` when transforming a value requires multiple
   steps. For example, prefer:
