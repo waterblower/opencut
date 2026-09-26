@@ -11,10 +11,11 @@ impl Render for VideoPlayer {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let width = f32::from(window.viewport_size().width).max(1.0);
         let height = (f32::from(window.viewport_size().height) - 100.0).max(1.0);
-        let duration = self.video_backend.metadata.duration;
-        let position = match &self.displayed {
-            Some((_, position)) => *position,
-            None => Duration::ZERO,
+        let duration = self.duration();
+        let position = match (&self.playback_state, &self.displayed) {
+            (PlaybackState::Ended, _) => duration,
+            (_, Some((_, pts, _))) => (*pts).min(duration), // 播放中和暂停时，UI 进度使用当前展示帧的 PTS。
+            (_, None) => Duration::ZERO,
         };
         let playback_label = match self.playback_state {
             PlaybackState::Playing => "Pause",
@@ -31,10 +32,7 @@ impl Render for VideoPlayer {
             .id("player")
             .track_focus(&self.focus_handle)
             .on_action(cx.listener(|player, _: &TogglePlayback, _, cx| {
-                if let Err(error) = player.toggle_playback(cx) {
-                    eprintln!("Player playback control failed: {error:?}");
-                    std::process::exit(1);
-                }
+                player.toggle_playback(cx);
             }))
             .size_full()
             .flex()
@@ -47,7 +45,7 @@ impl Render for VideoPlayer {
                     .w_full()
                     .h(px(height))
                     .overflow_hidden()
-                    .when_some(self.displayed.as_ref(), |this, (frame, _)| {
+                    .when_some(self.displayed.as_ref(), |this, (frame, _, _)| {
                         let content = match frame {
                             #[cfg(target_os = "macos")]
                             DisplayedFrame::Surface(buffer) => surface(buffer.clone())
@@ -94,10 +92,7 @@ impl Render for VideoPlayer {
                             .cursor(CursorStyle::PointingHand)
                             .p_2()
                             .on_click(cx.listener(|player, _, _, cx| {
-                                if let Err(error) = player.toggle_playback(cx) {
-                                    eprintln!("Player playback control failed: {error:?}");
-                                    std::process::exit(1);
-                                }
+                                player.toggle_playback(cx);
                             }))
                             .child(playback_label),
                     )
