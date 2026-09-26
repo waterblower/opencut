@@ -44,28 +44,19 @@ pub struct AudioInfo {
     pub channels: u16,
 }
 
-/// 打开含视频流的媒体文件，提供同步的视频及可选音频解码。
-/// 没有视频流时打开失败；纯音频文件使用 AudioBackend。
+/// 同步解码同时包含视频流和音频流的媒体文件；缺少任一流时打开失败。
+/// 纯音频文件使用 AudioBackend。
 pub struct VideoBackend {
     pub metadata: MediaInfo,
     pub video: VideoDecoder,
-    /// None 表示文件没有音频流，或通过 open_video 只打开了视频解码。
-    pub audio: Option<AudioDecoder>,
+    pub audio: AudioDecoder,
 }
 
 impl VideoBackend {
-    /// 打开视频，并在文件含有音频流时打开音频；任一解码器打开失败都返回错误。
+    /// 打开视频和音频；缺少音轨或任一解码器打开失败都返回错误。
     pub fn open(path: &Path) -> Result<Self> {
-        let mut backend = Self::open_video(path)?;
-        if backend.metadata.audio.is_some() {
-            backend.audio = Some(AudioDecoder::open(path, &backend.metadata)?);
-        }
-        Ok(backend)
-    }
-
-    /// Open video only, without initializing an audio decoder.
-    pub fn open_video(path: &Path) -> Result<Self> {
         let metadata = Self::probe(path)?;
+        let audio = AudioDecoder::open(path, &metadata)?;
         let video = VideoDecoder::open(
             path,
             metadata.video.stream_index,
@@ -74,7 +65,7 @@ impl VideoBackend {
         Ok(Self {
             metadata,
             video,
-            audio: None,
+            audio,
         })
     }
 
