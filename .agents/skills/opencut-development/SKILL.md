@@ -1,4 +1,41 @@
-# Repository guidelines
+---
+name: opencut-development
+description: Development and code review guidelines for the OpenCut repository. Use when implementing, debugging, refactoring, or reviewing OpenCut code, especially state ownership, synchronous playback, Rust APIs, and build or validation decisions.
+---
+
+# OpenCut development
+
+Apply these guidelines to work in this repository. All repository paths below
+are relative to the OpenCut root.
+
+## State design: derive values instead of duplicating state
+
+- If a value can always be derived from existing authoritative data and has no
+  independent reason to change, **never store it as a separate state field**.
+  Compute it with a pure function, a read-only accessor, or a local expression.
+  Reuse across multiple methods is not a reason to store a derived value.
+- Duplicate mutable state admits inconsistent combinations. As the code grows,
+  the potential state space grows combinatorially, and every update, seek, reset,
+  and error path must maintain more synchronization invariants. Missed updates
+  create unexpected bugs. Remove the duplicated state rather than adding more
+  synchronization code to keep copies consistent.
+- Before adding a field, identify the independent information it represents and
+  what can legitimately change it. If its only updates mirror another value,
+  derive it instead. Keep authoritative state in its actual owner; callers query
+  it rather than maintaining their own copies or flags.
+- For example, expose `duration()` from existing media metadata; compute a
+  displayed frame's end as its PTS plus its duration; query decoder completion
+  rather than storing another EOF flag in the player. Completion must include
+  decoder and resampler draining, while device playback completion is a separate
+  fact. Preserve genuinely distinct information such as a frame's PTS, its
+  duration, and the playback clock; do not conflate them merely because their
+  types are identical.
+- Do not introduce external state or extra stored state when pure computation
+  can solve the problem. In existing message-based flows, carry the required
+  data in messages rather than adding fields to a broader owner solely so event
+  handlers can access it. This is not a reason to introduce message passing.
+
+## Repository workflow and coding rules
 
 - Never call `mcp.cua_repl.js` (also exposed as `mcp__cua_repl.js`).
 - Start planning and design at the highest level of abstraction: define the
@@ -46,20 +83,24 @@
 - Never pass functions or closures as arguments to simple functions. Pass the
   required values or references directly. If a callback is truly needed for a
   simple function, ask the user first.
+- First make synchronous code fast and measure its cost at the call site.
+  Synchronous execution exposes performance problems; do not hide them behind
+  concurrency. Do not add workers, channels, request/reply protocols, or future
+  wrappers unless the user's chosen architecture calls for them.
 - Perform quick synchronous work, such as small UI state changes and cheap
-  backend commands, directly in UI callbacks without emitting events. Use event
-  handlers to coordinate asynchronous or CPU-heavy work. Run CPU-heavy work on
-  background workers; emitting an event alone does not move work off the UI
-  thread.
-- Do not introduce external state or extra stored state that increases the number
-  of possible state combinations when a pure function or message passing can
-  solve the problem. Prefer carrying the required data in messages over adding
-  state to a broader owner solely so event handlers can access it.
+  backend commands, directly in UI callbacks without emitting events. When
+  asynchronous execution is part of the authorized architecture, use event
+  handlers to coordinate it and run CPU-heavy work on background workers;
+  emitting an event alone does not move work off the UI thread. An explicitly
+  synchronous implementation remains synchronous even when its cost blocks the
+  UI; optimize that cost before changing the execution model.
 - State should live in the narrowest scope that needs it. Prefer a local variable
   over a struct field unless the value actually needs to be shared across methods
   or control flows.
 - Do not extract a separate function when it has only one caller and its body is
-  a single expression or statement. Inline that logic at the call site.
+  a single expression or statement. Inline that logic at the call site. A
+  read-only accessor that keeps the underlying owner private without duplicating
+  state is appropriate, even if its body is a single expression.
 - Prefer `let ... else` with an early return when required optional state is
   absent, instead of nesting the remaining control flow inside `if let`.
 - Prefer an immediately invoked closure with explicit early returns over
@@ -136,5 +177,10 @@
 - Do not call deprecated functions or methods.
 - Place private code at the bottom of each file, after public and
   restricted-public (`pub(...)`) code.
+- Explain easily confused state in concise Chinese comments to the right of the
+  relevant code, with clear indentation and aligned comment columns. Distinguish
+  sources of truth, derived values, time positions versus durations, and decoder
+  EOF versus completed playback. Preserve intentional formatting and existing
+  `#[rustfmt::skip]` annotations.
 - When referencing any file to the user, always use a clickable Markdown file
   link. For code locations, include the relevant line number in the link.
