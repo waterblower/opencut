@@ -225,9 +225,9 @@ impl AudioOutput {
         let queued = Duration::from_secs_f64(
             (queued_end - buffer.next_frame).max(0) as f64 / f64::from(self.format.sample_rate),
         );
-        let device_tail = buffer
-            .device_tail
-            .map_or(Duration::ZERO, |end| end.saturating_duration_since(Instant::now()));
+        let device_tail = buffer.device_tail.map_or(Duration::ZERO, |end| {
+            end.saturating_duration_since(Instant::now())
+        });
         Ok(queued + device_tail)
     }
 
@@ -425,7 +425,8 @@ impl OutputBuffer {
                 .playback
                 .duration_since(&timestamp.callback)
                 .unwrap_or_default();
-            let duration = Duration::from_secs_f64((cursor - start) as f64 / f64::from(sample_rate));
+            let duration =
+                Duration::from_secs_f64((cursor - start) as f64 / f64::from(sample_rate));
             self.device_tail = Some(now + latency + duration); // 输出静音不延长真实音频尾部。
         }
     }
