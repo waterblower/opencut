@@ -113,14 +113,13 @@ impl AudioDecoder {
                 None => self.decode_next()?,
             };
             let Some(frame) = frame else {
-                let Some(resampler) = &mut self.resampler else {
-                    return Ok(None);
-                };
-                let samples = resampler.convert(None, &output, self.trim_before)?;
-                if let Some(samples) = samples {
+                if let Some(resampler) = &mut self.resampler
+                    && let Some(samples) = resampler.convert(None, &output, self.trim_before)?
+                {
                     return Ok(Some(samples));
                 }
                 self.resampler = None;
+                self.drain = Drain::Drained; // 解码器和重采样尾部均已耗尽，才记录最终 EOF。
                 return Ok(None);
             };
             let timestamp = match frame.timestamp().or(frame.pts()) {
@@ -164,6 +163,10 @@ impl AudioDecoder {
         }
     }
 
+    pub fn is_drained(&self) -> bool {
+        self.drain == Drain::Drained // 不再产生 PCM；不代表输出设备已经播完。
+    }
+
     pub fn seek(&mut self, position: Duration) -> Result<()> {
         let target = i64::try_from(position.as_micros()).unwrap_or(i64::MAX);
         let absolute = self.origin.saturating_add(target);
@@ -179,16 +182,18 @@ impl AudioDecoder {
     }
 }
 
+#[rustfmt::skip]
 #[derive(PartialEq, Eq)]
 enum Drain {
-    Reading,
-    Draining,
-    Drained,
+    Reading,           // 读取压缩包并解码。
+    DrainingDecoder,   // 输入 EOF 已送入 FFmpeg，继续取出缓存的音频帧。
+    DrainingResampler, // FFmpeg 已 EOF，继续取出重采样器缓存的 PCM。
+    Drained,           // 所有 PCM 均已取出；seek 后回到 Reading。
 }
 
 impl AudioDecoder {
     fn decode_next(&mut self) -> Result<Option<Audio>> {
-        if self.drain == Drain::Drained {
+        if matches!(self.drain, Drain::DrainingResampler | Drain::Drained) {
             return Ok(None);
         }
         let mut frame = Audio::empty();
@@ -196,7 +201,7 @@ impl AudioDecoder {
             match self.decoder.receive_frame(&mut frame) {
                 Ok(()) => return Ok(Some(frame)),
                 Err(FfmpegError::Eof) => {
-                    self.drain = Drain::Drained;
+                    self.drain = Drain::DrainingResampler;
                     return Ok(None);
                 }
                 Err(FfmpegError::Other { errno: EAGAIN }) if self.drain == Drain::Reading => {}
@@ -217,7 +222,7 @@ impl AudioDecoder {
                     }
                     Err(FfmpegError::Eof) => {
                         self.decoder.send_eof()?;
-                        self.drain = Drain::Draining;
+                        self.drain = Drain::DrainingDecoder;
                         break;
                     }
                     Err(error) => return Err(error).context("reading audio packet"),
