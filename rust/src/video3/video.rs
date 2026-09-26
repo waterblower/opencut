@@ -76,6 +76,10 @@ impl VideoDecoder {
         self.decode_next()
     }
 
+    pub fn is_drained(&self) -> bool {
+        self.drain == DrainState::Drained && self.lookahead.is_empty() // seek 留下的帧也已取完；不代表最后一帧已展示完。
+    }
+
     /// Position the next pull at the nearest bracketing frame, earlier on ties.
     /// The selected frame and any decoded successor stay owned by the decoder.
     pub fn seek(&mut self, position: Duration) -> Result<()> {
