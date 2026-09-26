@@ -75,10 +75,19 @@ impl VideoPlayer {
         self.video_backend.metadata.duration
     }
 
+    pub fn is_ended(&self) -> Result<bool> {
+        Ok(matches!(self.playback_state, PlaybackState::Paused)
+            && self.video_backend.video.is_drained()
+            && self.video_backend.audio.is_drained()
+            && !self.audio_output.is_playing()? // 自然结束时停止设备并保留 EOF；用户暂停会重新定位解码器。
+            && self.audio_output.remaining_duration()?.is_zero())
+    }
+
+    #[rustfmt::skip]
     pub fn toggle_playback(&mut self, cx: &mut Context<Self>) {
         self.playback_state = match self.playback_state {
             PlaybackState::Playing => PlaybackState::Paused,
-            PlaybackState::Paused | PlaybackState::Ended => PlaybackState::Playing,
+            PlaybackState::Paused  => PlaybackState::Playing,
         };
         if matches!(self.playback_state, PlaybackState::Playing) {
             for waker in &mut self.play_wakers {
@@ -110,7 +119,6 @@ pub enum DisplayedFrame {
 pub enum PlaybackState {
     Playing, // 两个循环继续推进，共用同一个媒体时间基准。
     Paused,  // 用户暂停、时钟冻结；seek 直接更新画面。
-    Ended,   // 音频尾部和最后一帧均已播完；再次播放会从头开始。
 }
 
 impl Drop for VideoPlayer {
@@ -218,7 +226,7 @@ impl VideoPlayer {
             && video_remaining.is_zero()
         {
             self.audio_output.set_playing(false)?;
-            self.playback_state = PlaybackState::Ended;
+            self.playback_state = PlaybackState::Paused;
             clock.set(PlaybackClock {
                 start_position_of_video: self.duration(),
                 start_time_of_system: None,

@@ -12,15 +12,22 @@ impl Render for VideoPlayer {
         let width = f32::from(window.viewport_size().width).max(1.0);
         let height = (f32::from(window.viewport_size().height) - 100.0).max(1.0);
         let duration = self.duration();
-        let position = match (&self.playback_state, &self.displayed) {
-            (PlaybackState::Ended, _) => duration,
+        let ended = match self.is_ended() {
+            Ok(ended) => ended,
+            Err(error) => {
+                eprintln!("Reading player completion failed: {error:?}");
+                std::process::exit(1);
+            }
+        };
+        let position = match (ended, &self.displayed) {
+            (true, _) => duration,
             (_, Some((_, pts, _))) => (*pts).min(duration), // 播放中和暂停时，UI 进度使用当前展示帧的 PTS。
             (_, None) => Duration::ZERO,
         };
-        let playback_label = match self.playback_state {
-            PlaybackState::Playing => "Pause",
-            PlaybackState::Paused => "Play",
-            PlaybackState::Ended => "Ended",
+        let playback_label = match (ended, &self.playback_state) {
+            (true, _) => "Ended",
+            (_, PlaybackState::Playing) => "Pause",
+            (_, PlaybackState::Paused) => "Play",
         };
         let progress = if duration.is_zero() {
             0.0
@@ -121,9 +128,6 @@ pub fn seek(
     let duration = player.duration();
     let position = duration.mul_f64(f64::from(fraction.clamp(0.0, 1.0)));
     player.seek(position)?;
-    if matches!(player.playback_state, PlaybackState::Ended) {
-        player.playback_state = PlaybackState::Paused;
-    }
     player.focus_handle.focus(window, cx);
     cx.notify();
     Ok(())
