@@ -5,13 +5,17 @@ use opencut_player::video3::{AudioSamples, PcmFormat};
 use std::{
     collections::VecDeque,
     future::Future,
-    sync::{Arc, Mutex},
+    sync::{
+        Arc, Mutex,
+        atomic::{AtomicBool, Ordering},
+    },
     time::{Duration, Instant},
 };
 
 pub struct AudioOutput {
     pub format: PcmFormat,
     buffer: Arc<Mutex<OutputBuffer>>,
+    playing: Arc<AtomicBool>, // 输出流的控制状态；回调只读取，不属于 PCM 队列。
     error_sender: Arc<Mutex<Option<oneshot::Sender<cpal::StreamError>>>>,
     device_error: Shared<oneshot::Receiver<cpal::StreamError>>,
     stream: cpal::Stream,
@@ -53,6 +57,8 @@ impl AudioOutput {
             config.sample_rate,
         )));
         let callback_buffer = buffer.clone();
+        let playing = Arc::new(AtomicBool::new(false));
+        let callback_playing = playing.clone();
         let callback_error_sender = error_sender.clone();
         let channels = usize::from(config.channels);
         let sample_rate = config.sample_rate;
@@ -62,6 +68,9 @@ impl AudioOutput {
                 &config,
                 move |buffer: &mut [f32], info: &cpal::OutputCallbackInfo| {
                     buffer.fill(0.0);
+                    if !callback_playing.load(Ordering::Relaxed) {
+                        return;
+                    }
                     let Ok(mut queued) = callback_buffer.try_lock() else {
                         // 锁竞争时也已经输出了静音；下次回调补计这些设备帧。
                         skipped_frames += buffer.len() / channels;
@@ -89,6 +98,7 @@ impl AudioOutput {
         Ok(Self {
             format,
             buffer,
+            playing,
             error_sender,
             device_error,
             stream,
@@ -102,32 +112,23 @@ impl AudioOutput {
         async move { Err(device_error.await?).context("audio output failed") }
     }
 
-    pub fn is_playing(&self) -> Result<bool> {
-        let buffer = self
-            .buffer
-            .lock()
-            .map_err(|_| anyhow!("audio output buffer lock is poisoned"))?;
-        Ok(buffer.playing)
+    pub fn is_playing(&self) -> bool {
+        self.playing.load(Ordering::Relaxed)
     }
 
     pub fn set_playing(&self, playing: bool) -> Result<()> {
-        {
-            let mut buffer = self
-                .buffer
-                .lock()
-                .map_err(|_| anyhow!("audio output buffer lock is poisoned"))?;
-            if buffer.playing == playing {
-                return Ok(());
-            }
-            buffer.playing = playing;
+        if self.playing.swap(playing, Ordering::Relaxed) == playing {
+            return Ok(());
         }
-        // 不持有队列锁调用设备 API；play/pause 可能等待设备回调。
-        if playing {
-            self.stream.play().context("starting audio output")?;
+        let result = if playing {
+            self.stream.play().context("starting audio output")
         } else {
-            self.stream.pause().context("pausing audio output")?;
+            self.stream.pause().context("pausing audio output")
+        };
+        if result.is_err() {
+            self.playing.store(!playing, Ordering::Relaxed); // 设备操作失败时恢复原控制状态。
         }
-        Ok(())
+        result
     }
 
     /// 按提交顺序加入 PCM 并启动输出，保留独立音频播放器的原有语义。
@@ -274,6 +275,8 @@ impl AudioOutput {
                 config.sample_rate,
             )));
             let callback_buffer = buffer.clone();
+            let playing = Arc::new(AtomicBool::new(false));
+            let callback_playing = playing.clone();
             let callback_error_sender = error_sender.clone();
             let channels = usize::from(config.channels);
             let sample_rate = config.sample_rate;
@@ -283,6 +286,9 @@ impl AudioOutput {
                     &config,
                     move |buffer: &mut [f32], info: &cpal::OutputCallbackInfo| {
                         buffer.fill(0.0);
+                        if !callback_playing.load(Ordering::Relaxed) {
+                            return;
+                        }
                         let Ok(mut queued) = callback_buffer.try_lock() else {
                             // 锁竞争时也已经输出了静音；下次回调补计这些设备帧。
                             skipped_frames += buffer.len() / channels;
@@ -310,6 +316,7 @@ impl AudioOutput {
             Self {
                 format,
                 buffer,
+                playing,
                 error_sender,
                 device_error,
                 stream,
@@ -337,7 +344,6 @@ struct OutputBuffer {
     samples: VecDeque<f32>,
     spans: VecDeque<AudioSpan>,
     next_frame: i64,
-    playing: bool,
     device_tail: Option<Instant>, // 最后提交的真实 PCM 预计播完的本地时刻；仅用于判断输出耗尽。
 }
 
@@ -347,7 +353,6 @@ impl OutputBuffer {
             samples: VecDeque::with_capacity(capacity),
             spans: VecDeque::with_capacity(sample_rate as usize),
             next_frame: (position.as_secs_f64() * f64::from(sample_rate)).round() as i64,
-            playing: false,
             device_tail: None,
         }
     }
@@ -374,9 +379,6 @@ impl OutputBuffer {
         sample_rate: u32,
         skipped_frames: usize,
     ) {
-        if !self.playing {
-            return;
-        }
         let now = Instant::now();
         self.next_frame += skipped_frames as i64;
         let start = self.next_frame;
