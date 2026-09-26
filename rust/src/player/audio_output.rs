@@ -140,18 +140,12 @@ impl AudioOutput {
                 .buffer
                 .lock()
                 .map_err(|_| anyhow!("audio output buffer lock is poisoned"))?;
-            if samples.samples.len() > buffer.samples.capacity() - buffer.samples.len()
-                || buffer.spans.len() == buffer.spans.capacity()
-            {
-                bail!("audio output buffer is full");
-            }
             if samples.frame_count > 0 {
                 // None 表示紧接上一块播放；seek/underrun 后也不按 PTS 丢弃 PCM。
-                buffer.spans.push_back(AudioSpan {
+                buffer.enqueue(AudioChunk {
                     start: None,
-                    frames: samples.frame_count,
-                });
-                buffer.samples.extend(samples.samples);
+                    samples: samples.samples.into(),
+                })?;
             }
         }
         self.set_playing(true)
@@ -171,31 +165,20 @@ impl AudioOutput {
         // PTS 使用微秒，换算回 sample index 时四舍五入，避免每块少一个采样。
         let start = (samples.timestamp.0 as f64 * f64::from(self.format.sample_rate) / 1_000_000.0)
             .round() as i64;
-        let queued_end = buffer.queued_end().unwrap_or(buffer.next_frame);
+        let channels = self.format.channel_layout.len();
+        let queued_end = buffer.queued_end(channels).unwrap_or(buffer.next_frame);
         let skip = (queued_end.max(buffer.next_frame) - start)
             .max(0)
             .min(samples.frame_count as i64) as usize;
-        let frames = samples.frame_count - skip;
-        if frames == 0 {
+        if skip == samples.frame_count {
             return Ok(());
         }
-        let count = frames * self.format.channel_layout.len();
-        if count > buffer.samples.capacity() - buffer.samples.len()
-            || buffer.spans.len() == buffer.spans.capacity()
-        {
-            bail!("audio output buffer is full");
-        }
-        buffer.spans.push_back(AudioSpan {
+        let mut pcm = VecDeque::from(samples.samples);
+        pcm.drain(..skip * channels);
+        buffer.enqueue(AudioChunk {
             start: Some(start + skip as i64),
-            frames,
-        });
-        buffer.samples.extend(
-            samples
-                .samples
-                .into_iter()
-                .skip(skip * self.format.channel_layout.len()),
-        );
-        Ok(())
+            samples: pcm,
+        })
     }
 
     /// 为回调和调度抖动保留 50 ms；这个值与视频帧时长无关。
@@ -205,7 +188,9 @@ impl AudioOutput {
             .buffer
             .lock()
             .map_err(|_| anyhow!("audio output buffer lock is poisoned"))?;
-        let end = buffer.queued_end().unwrap_or(buffer.next_frame);
+        let end = buffer
+            .queued_end(self.format.channel_layout.len())
+            .unwrap_or(buffer.next_frame);
         let queued = Duration::from_secs_f64(
             (end - buffer.next_frame).max(0) as f64 / f64::from(self.format.sample_rate),
         );
@@ -218,7 +203,9 @@ impl AudioOutput {
             .buffer
             .lock()
             .map_err(|_| anyhow!("audio output buffer lock is poisoned"))?;
-        let queued_end = buffer.queued_end().unwrap_or(buffer.next_frame);
+        let queued_end = buffer
+            .queued_end(self.format.channel_layout.len())
+            .unwrap_or(buffer.next_frame);
         let queued = Duration::from_secs_f64(
             (queued_end - buffer.next_frame).max(0) as f64 / f64::from(self.format.sample_rate),
         );
@@ -334,42 +321,53 @@ impl AudioOutput {
     }
 }
 
-struct AudioSpan {
-    // Some 按媒体时间播放；None 按提交顺序播放。
-    start: Option<i64>,
-    frames: usize,
+struct AudioChunk {
+    start: Option<i64>,     // Some 按采样帧位置播放；None 按提交顺序播放。
+    samples: VecDeque<f32>, // 剩余 PCM；帧数由 samples.len() / channels 计算，不另存一份。
 }
 
 struct OutputBuffer {
-    samples: VecDeque<f32>,
-    spans: VecDeque<AudioSpan>,
+    chunks: VecDeque<AudioChunk>, // PCM 与起点绑定；耗尽的块由生产者回收。
+    capacity: usize,              // 固定的 PCM 样本数量上限，不是当前队列长度。
     next_frame: i64,              // 下一次设备回调的起始采样帧编号；
-                                  // 每帧含各声道一个样本，静音时也推进。
+    // 每帧含各声道一个样本，静音时也推进。
     device_tail: Option<Instant>, // 最后提交的真实 PCM 预计播完的本地时刻；仅用于判断输出耗尽。
 }
 
 impl OutputBuffer {
     fn new(capacity: usize, position: Duration, sample_rate: u32) -> Self {
         Self {
-            samples: VecDeque::with_capacity(capacity),
-            spans: VecDeque::with_capacity(sample_rate as usize),
+            chunks: VecDeque::with_capacity(sample_rate as usize),
+            capacity,
             next_frame: (position.as_secs_f64() * f64::from(sample_rate)).round() as i64,
             device_tail: None,
         }
     }
 
-    fn queued_end(&self) -> Option<i64> {
-        if self.spans.is_empty() {
-            return None;
+    fn enqueue(&mut self, chunk: AudioChunk) -> Result<()> {
+        self.chunks.retain(|chunk| !chunk.samples.is_empty()); // 只在生产者线程释放已耗尽块的内存。
+        let queued_samples: usize = self.chunks.iter().map(|chunk| chunk.samples.len()).sum();
+        if chunk.samples.len() > self.capacity - queued_samples {
+            bail!("audio output buffer is full");
         }
-        let mut end = self.next_frame;
-        for span in &self.spans {
-            end = match span.start {
-                Some(start) => end.max(start + span.frames as i64),
-                None => end + span.frames as i64,
-            };
+        self.chunks.push_back(chunk);
+        Ok(())
+    }
+
+    fn queued_end(&self, channels: usize) -> Option<i64> {
+        let mut end: Option<i64> = None;
+        for chunk in &self.chunks {
+            if chunk.samples.is_empty() {
+                continue;
+            }
+            let cursor = end.unwrap_or(self.next_frame);
+            let frames = (chunk.samples.len() / channels) as i64;
+            end = Some(match chunk.start {
+                Some(start) => cursor.max(start + frames),
+                None => cursor + frames,
+            });
         }
-        Some(end)
+        end
     }
 
     fn render(
@@ -386,32 +384,31 @@ impl OutputBuffer {
         let frames = output.len() / channels;
         let end = start + frames as i64;
         let mut cursor = start;
-        while let Some(span) = self.spans.front_mut() {
-            let mut span_start = span.start.unwrap_or(cursor);
+        for chunk in &mut self.chunks {
+            let mut chunk_start = chunk.start.unwrap_or(cursor);
             // 仅有时间戳的块需要丢弃过期 PCM；顺序提交的块始终接着播放。
-            let skip = (cursor - span_start).max(0).min(span.frames as i64) as usize;
-            self.samples.drain(..skip * channels);
-            span_start += skip as i64;
-            span.frames -= skip;
-            if span.frames == 0 {
-                self.spans.pop_front();
+            let frames = chunk.samples.len() / channels;
+            let skip = (cursor - chunk_start).max(0).min(frames as i64) as usize;
+            chunk.samples.drain(..skip * channels);
+            chunk_start += skip as i64;
+            if chunk.samples.is_empty() {
                 continue;
             }
-            if span_start >= end {
+            if chunk_start >= end {
                 break;
             }
-            let offset = (span_start - start) as usize * channels;
-            let count = span.frames.min((end - span_start) as usize);
-            for sample in &mut output[offset..offset + count * channels] {
-                *sample = self.samples.pop_front().unwrap_or_default();
-            }
-            cursor = span_start + count as i64;
-            if span.start.is_some() {
-                span.start = Some(cursor);
-            }
-            span.frames -= count;
-            if span.frames == 0 {
-                self.spans.pop_front();
+            let offset = (chunk_start - start) as usize * channels;
+            let count = (chunk.samples.len() / channels).min((end - chunk_start) as usize);
+            let sample_count = count * channels;
+            let (first, second) = chunk.samples.as_slices();
+            let first_count = sample_count.min(first.len());
+            output[offset..offset + first_count].copy_from_slice(&first[..first_count]);
+            output[offset + first_count..offset + sample_count]
+                .copy_from_slice(&second[..sample_count - first_count]);
+            chunk.samples.drain(..sample_count);
+            cursor = chunk_start + count as i64;
+            if chunk.start.is_some() {
+                chunk.start = Some(cursor);
             }
             if cursor == end {
                 break;
