@@ -167,6 +167,11 @@ impl AudioDecoder {
         self.drain == Drain::Drained // 不再产生 PCM；不代表输出设备已经播完。
     }
 
+    /// 最近一次 seek 的目标；尚未 seek 时为零，不代表当前解码或播放位置。
+    pub fn seek_position(&self) -> Duration {
+        Duration::from_micros(self.trim_before.max(0) as u64)
+    }
+
     pub fn seek(&mut self, position: Duration) -> Result<()> {
         let target = i64::try_from(position.as_micros()).unwrap_or(i64::MAX);
         let absolute = self.origin.saturating_add(target);
