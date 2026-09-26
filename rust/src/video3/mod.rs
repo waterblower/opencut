@@ -44,15 +44,17 @@ pub struct AudioInfo {
     pub channels: u16,
 }
 
-/// Convenience owner for synchronous callers. Each decoder has its own demuxer.
-/// The blocking player owns this directly and opens only the video decoder.
+/// 打开含视频流的媒体文件，提供同步的视频及可选音频解码。
+/// 没有视频流时打开失败；纯音频文件使用 AudioBackend。
 pub struct VideoBackend {
     pub metadata: MediaInfo,
     pub video: VideoDecoder,
+    /// None 表示文件没有音频流，或通过 open_video 只打开了视频解码。
     pub audio: Option<AudioDecoder>,
 }
 
 impl VideoBackend {
+    /// 打开视频，并在文件含有音频流时打开音频；任一解码器打开失败都返回错误。
     pub fn open(path: &Path) -> Result<Self> {
         let mut backend = Self::open_video(path)?;
         if backend.metadata.audio.is_some() {
