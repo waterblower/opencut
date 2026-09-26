@@ -72,7 +72,7 @@ impl Render for VideoPlayer {
                     .cursor(CursorStyle::PointingHand)
                     .on_click(cx.listener(move |player, event: &ClickEvent, window, cx| {
                         let fraction = f32::from(event.position().x) / width;
-                        if let Err(error) = player.seek(fraction, window, cx) {
+                        if let Err(error) = seek(player, fraction, window, cx) {
                             eprintln!("Player seek failed: {error:?}");
                             std::process::exit(1);
                         }
@@ -110,6 +110,23 @@ impl Render for VideoPlayer {
                     ),
             )
     }
+}
+
+pub fn seek(
+    player: &mut VideoPlayer,
+    fraction: f32,
+    window: &mut Window,
+    cx: &mut Context<VideoPlayer>,
+) -> anyhow::Result<()> {
+    let duration = player.duration();
+    let position = duration.mul_f64(f64::from(fraction.clamp(0.0, 1.0)));
+    player.seek(position)?;
+    if matches!(player.playback_state, PlaybackState::Ended) {
+        player.playback_state = PlaybackState::Paused;
+    }
+    player.focus_handle.focus(window, cx);
+    cx.notify();
+    Ok(())
 }
 
 fn format_time(time: Duration) -> String {
