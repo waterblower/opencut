@@ -5,127 +5,49 @@ use super::super::track::{Track, TrackKind};
 use super::*;
 use crate::editor::tests::TimelineTestExt;
 use crate::editor::timeline_document::deserialize_timeline;
-use opencut_player::timeline::TimelineSettings;
+use opencut_player::timeline::{TimelineEditingState, TimelineSerialization, TimelineSettings};
 
 #[test]
-fn lowercase_media_and_track_kinds_deserialize() {
-    assert_eq!(
-        serde_json::from_str::<MediaKind>(r#""video""#).unwrap(),
-        MediaKind::Video
+fn timeline_view_state_is_sanitized_at_the_persistence_boundary() {
+    let mut document = TimelineSerialization::default();
+    document.set_view_state(
+        TimelineTime::from_frames(-10),
+        (f32::NAN, -20.0),
+        f32::NAN,
+        false,
+        false,
     );
+    assert_eq!(document.playhead(), TimelineTime::ZERO);
+    assert_eq!(document.scroll_offset(), (0.0, 0.0));
     assert_eq!(
-        serde_json::from_str::<MediaKind>(r#""image""#).unwrap(),
-        MediaKind::Image
-    );
-    assert_eq!(
-        serde_json::from_str::<MediaKind>(r#""audio""#).unwrap(),
-        MediaKind::Audio
-    );
-    assert_eq!(
-        serde_json::from_str::<TrackKind>(r#""video""#).unwrap(),
-        TrackKind::Video
-    );
-    assert_eq!(
-        serde_json::from_str::<TrackKind>(r#""audio""#).unwrap(),
-        TrackKind::Audio
-    );
-    assert_eq!(
-        serde_json::from_str::<TrackKind>(r#""text""#).unwrap(),
-        TrackKind::Text
-    );
-}
-
-#[test]
-fn timeline_view_state_is_sanitized_when_the_timeline_is_normalized() {
-    let mut timeline = TimelineSerialization {
-        view: TimelineViewState {
-            saved_playhead_frame: TimelineTime::from_frames(-10),
-            horizontal_scroll: f32::NAN,
-            vertical_scroll: -20.0,
-            pixels_per_second: f32::NAN,
-            snapping_enabled: false,
-            track_magnet_enabled: false,
-        },
-        ..TimelineSerialization::default()
-    };
-
-    timeline.repair_and_prune_invalid_data();
-
-    assert_eq!(timeline.view.saved_playhead_frame, TimelineTime::ZERO);
-    assert_eq!(timeline.view.horizontal_scroll, 0.0);
-    assert_eq!(timeline.view.vertical_scroll, 0.0);
-    assert_eq!(
-        timeline.view.pixels_per_second,
+        document.pixels_per_second(),
         DEFAULT_TIMELINE_PIXELS_PER_SECOND
     );
-    assert!(!timeline.view.snapping_enabled);
-    assert!(!timeline.view.track_magnet_enabled);
-}
-
-#[test]
-fn timeline_view_defaults_enable_snap_and_magnet() {
-    let timeline: TimelineSerialization = serde_json::from_str(
-        r#"{
-            "settings": {
-                "frame_rate": { "numerator": 30, "denominator": 1 },
-                "width": 1920,
-                "height": 1080,
-                "audio_sample_rate": 48000
-            },
-            "assets": [],
-            "tracks": [],
-            "clips": [],
-            "view": {
-                "saved_playhead_frame": 10,
-                "horizontal_scroll": 20.0,
-                "vertical_scroll": 30.0
-            }
-        }"#,
-    )
-    .unwrap();
-
-    assert!(timeline.view.snapping_enabled);
-    assert!(timeline.view.track_magnet_enabled);
-    assert_eq!(
-        timeline.view.pixels_per_second,
-        DEFAULT_TIMELINE_PIXELS_PER_SECOND
-    );
+    assert!(!document.snapping_enabled() && !document.track_magnet_enabled());
 }
 
 #[test]
 fn missing_timeline_view_fields_use_defaults() {
-    let timeline: TimelineSerialization = serde_json::from_str(
-        r#"{
-            "settings": {
-                "frame_rate": { "numerator": 30, "denominator": 1 },
-                "width": 1920,
-                "height": 1080,
-                "audio_sample_rate": 48000
-            },
-            "assets": [],
-            "tracks": [],
-            "clips": [],
-            "view": {}
-        }"#,
-    )
-    .unwrap();
-
-    assert_eq!(timeline.view, TimelineViewState::default());
+    let document = deserialize_timeline(r#"{"view": {"horizontal_scroll":20.0}}"#).unwrap();
+    assert!(document.snapping_enabled() && document.track_magnet_enabled());
+    assert_eq!(document.scroll_offset(), (20.0, 0.0));
+    assert_eq!(document.playhead(), TimelineTime::ZERO);
+    assert_eq!(
+        document.pixels_per_second(),
+        DEFAULT_TIMELINE_PIXELS_PER_SECOND
+    );
 }
 
 #[test]
 fn timeline_view_zoom_round_trips_through_timeline_json() {
-    let mut timeline = TimelineSerialization::default();
-    timeline.view.pixels_per_second = 144.0;
-
-    let json = serde_json::to_string(&timeline).unwrap();
-    let restored: TimelineSerialization = serde_json::from_str(&json).unwrap();
-
-    assert_eq!(restored.view.pixels_per_second, 144.0);
+    let mut document = TimelineSerialization::default();
+    document.set_view_state(TimelineTime::ZERO, (0.0, 0.0), 144.0, true, true);
+    let restored = deserialize_timeline(&serde_json::to_string(&document).unwrap()).unwrap();
+    assert_eq!(restored.pixels_per_second(), 144.0);
 }
 
 #[cfg(test)]
-impl TimelineTestExt for TimelineSerialization {
+impl TimelineTestExt for TimelineEditingState {
     fn with_test_tracks() -> Self {
         Self {
             tracks: vec![
@@ -200,7 +122,7 @@ fn image_asset() -> MediaAsset {
 
 #[test]
 fn new_timelines_have_no_tracks() {
-    assert!(TimelineSerialization::default().tracks.is_empty());
+    assert!(TimelineEditingState::default().tracks.is_empty());
 }
 
 #[test]
@@ -213,10 +135,10 @@ fn frame_rate_labels_use_presets_and_format_custom_rates() {
 
 #[test]
 fn repairs_overlapping_clips_when_loading_a_timeline() {
-    let mut project = TimelineSerialization {
+    let mut project = TimelineEditingState {
         assets: vec![video_asset()],
         clips: vec![video_clip(10, 0, 150), video_clip(11, 90, 120)],
-        ..TimelineSerialization::with_test_tracks()
+        ..TimelineEditingState::with_test_tracks()
     };
 
     project.repair_and_prune_invalid_data();
@@ -233,10 +155,10 @@ fn repairs_overlapping_clips_when_loading_a_timeline() {
 
 #[test]
 fn still_image_clips_can_extend_beyond_their_default_duration() {
-    let mut project = TimelineSerialization {
+    let mut project = TimelineEditingState {
         assets: vec![image_asset()],
         clips: vec![video_clip(10, 0, 300)],
-        ..TimelineSerialization::with_test_tracks()
+        ..TimelineEditingState::with_test_tracks()
     };
 
     project.repair_and_prune_invalid_data();
@@ -253,10 +175,10 @@ fn still_image_clips_can_extend_beyond_their_default_duration() {
 
 #[test]
 fn time_based_media_remains_bounded_by_its_source_duration() {
-    let mut project = TimelineSerialization {
+    let mut project = TimelineEditingState {
         assets: vec![video_asset()],
         clips: vec![video_clip(10, 0, 1_200)],
-        ..TimelineSerialization::with_test_tracks()
+        ..TimelineEditingState::with_test_tracks()
     };
 
     project.repair_and_prune_invalid_data();
@@ -270,7 +192,7 @@ fn time_based_media_remains_bounded_by_its_source_duration() {
 #[test]
 fn assetless_text_clips_survive_timeline_repair() {
     let track_id = ulid(3);
-    let mut project = TimelineSerialization {
+    let mut project = TimelineEditingState {
         tracks: vec![Track {
             id: track_id,
             name: "Text 1".into(),
@@ -286,7 +208,7 @@ fn assetless_text_clips_survive_timeline_repair() {
             length: FrameRate::default().duration(TimelineTime::from_frames(150)),
             properties: TextClipProperties::default(),
         })],
-        ..TimelineSerialization::default()
+        ..TimelineEditingState::default()
     };
 
     project.repair_and_prune_invalid_data();
@@ -298,7 +220,7 @@ fn assetless_text_clips_survive_timeline_repair() {
 fn text_clips_can_move_without_a_media_asset() {
     let track_id = ulid(3);
     let clip_id = ulid(10);
-    let project = TimelineSerialization {
+    let project = TimelineEditingState {
         tracks: vec![Track {
             id: track_id,
             name: "Text 1".into(),
@@ -314,7 +236,7 @@ fn text_clips_can_move_without_a_media_asset() {
             length: FrameRate::default().duration(TimelineTime::from_frames(150)),
             properties: TextClipProperties::default(),
         })],
-        ..TimelineSerialization::default()
+        ..TimelineEditingState::default()
     };
 
     assert!(
@@ -330,7 +252,7 @@ fn text_clips_can_move_without_a_media_asset() {
 #[test]
 fn changing_frame_rate_keeps_text_duration_and_recomputes_frame_length() {
     let track_id = ulid(3);
-    let mut project = TimelineSerialization {
+    let mut project = TimelineEditingState {
         settings: TimelineSettings {
             frame_rate: FrameRate::new(30, 1),
             ..TimelineSettings::default()
@@ -350,7 +272,7 @@ fn changing_frame_rate_keeps_text_duration_and_recomputes_frame_length() {
             length: Duration::from_secs(5),
             properties: TextClipProperties::default(),
         })],
-        ..TimelineSerialization::default()
+        ..TimelineEditingState::default()
     };
 
     project.set_frame_rate(FrameRate::new(24, 1));
@@ -460,7 +382,7 @@ fn long_timeline_duration_uses_exact_frame_counts() {
 
 #[test]
 fn preview_and_export_boundaries_share_the_same_frame_time() {
-    let project = TimelineSerialization {
+    let project = TimelineEditingState {
         settings: TimelineSettings {
             frame_rate: FrameRate {
                 numerator: 24_000,
@@ -468,7 +390,7 @@ fn preview_and_export_boundaries_share_the_same_frame_time() {
             },
             ..TimelineSettings::default()
         },
-        ..TimelineSerialization::default()
+        ..TimelineEditingState::default()
     };
     let boundary = TimelineTime::from_frames(98_765);
     let preview_duration = project.duration(boundary).as_secs_f64();
@@ -490,14 +412,14 @@ fn timeline_frames_map_to_exact_audio_samples() {
 
 #[test]
 fn maps_30_fps_source_frames_onto_a_24_fps_timeline() {
-    let project = TimelineSerialization {
+    let project = TimelineEditingState {
         settings: TimelineSettings {
             frame_rate: FrameRate::new(24, 1),
             ..TimelineSettings::default()
         },
         assets: vec![video_asset()],
         clips: vec![video_clip(10, 0, 24)],
-        ..TimelineSerialization::default()
+        ..TimelineEditingState::default()
     };
     let clip = &project.clips[0];
     let mapped = (0..=8)
@@ -513,10 +435,10 @@ fn maps_30_fps_source_frames_onto_a_24_fps_timeline() {
 
 #[test]
 fn changing_timeline_rate_preserves_elapsed_edit_times() {
-    let mut project = TimelineSerialization {
+    let mut project = TimelineEditingState {
         assets: vec![video_asset()],
         clips: vec![video_clip(10, 30, 300)],
-        ..TimelineSerialization::with_test_tracks()
+        ..TimelineEditingState::with_test_tracks()
     };
 
     project.set_frame_rate(FrameRate::new(24, 1));
@@ -670,12 +592,12 @@ fn splitting_text_clip_preserves_text_and_divides_length() {
 
 #[test]
 fn timeline_serialization_stores_integer_frames_and_rational_rate() {
-    let project = TimelineSerialization {
+    let project = TimelineEditingState {
         assets: vec![video_asset()],
         clips: vec![video_clip(10, 17, 83)],
-        ..TimelineSerialization::default()
+        ..TimelineEditingState::default()
     };
-    let json = serde_json::to_value(project).unwrap();
+    let json = serde_json::to_value(TimelineSerialization::from_editing_state(&project)).unwrap()["editing_state"].clone();
     assert!(json.get("version").is_none());
     assert_eq!(json["settings"]["frame_rate"]["numerator"], 30);
     assert_eq!(json["settings"]["frame_rate"]["denominator"], 1);
@@ -718,7 +640,7 @@ fn untagged_media_clip_is_rejected() {
         "source_out": 30
     });
 
-    assert!(serde_json::from_value::<Clip>(value).is_err());
+    assert!(parse_clip(value).is_err());
 }
 
 #[test]
@@ -735,7 +657,7 @@ fn text_properties_clip_is_rejected() {
         }
     });
 
-    assert!(serde_json::from_value::<Clip>(value).is_err());
+    assert!(parse_clip(value).is_err());
 }
 
 #[test]
@@ -758,7 +680,7 @@ fn tagged_text_clip_deserializes_duration() {
         },
     });
 
-    let clip = serde_json::from_value::<Clip>(value).unwrap();
+    let clip = parse_clip(value).unwrap();
     assert_eq!(clip.text().unwrap().length, Duration::from_secs(3));
 }
 
@@ -793,7 +715,7 @@ fn timeline_load_migrates_frame_length_using_its_own_frame_rate() {
         .inspect_err(|e| eprintln!("{e:#}"))
         .unwrap();
     assert_eq!(
-        timeline.clips[0].text().unwrap().length,
+        timeline.to_editing_state().clips[0].text().unwrap().length,
         Duration::from_mins(5)
     )
 }
@@ -808,7 +730,7 @@ fn text_clip_round_trip_uses_text_specific_fields() {
         properties: TextClipProperties::default(),
     });
 
-    let mut value = serde_json::to_value(&clip).unwrap();
+    let mut value = clip_json(&clip);
     assert_eq!(value["kind"], "Text");
     assert_eq!(value["data"]["length"]["secs"], 3);
     assert_eq!(value["data"]["length"]["nanos"], 0);
@@ -819,7 +741,7 @@ fn text_clip_round_trip_uses_text_specific_fields() {
     value["data"]["future_data_field"] = serde_json::json!(true);
     value["data"]["properties"]["future_property_field"] = serde_json::json!(true);
 
-    let restored = serde_json::from_value::<Clip>(value).unwrap();
+    let restored = parse_clip(value).unwrap();
     assert_eq!(
         restored.text().unwrap().frame_length(FrameRate::default()),
         TimelineTime::from_frames(90)
@@ -838,8 +760,8 @@ fn clip_properties_round_trip_through_timeline_json() {
         gain_db: -6.0,
         muted: true,
     };
-    let value = serde_json::to_value(&clip).unwrap();
-    let restored = serde_json::from_value::<Clip>(value).unwrap();
+    let value = clip_json(&clip);
+    let restored = parse_clip(value).unwrap();
 
     assert_eq!(
         restored.media().unwrap().video_properties,
@@ -849,4 +771,17 @@ fn clip_properties_round_trip_through_timeline_json() {
         restored.media().unwrap().audio_properties,
         clip.media().unwrap().audio_properties
     );
+}
+
+fn parse_clip(value: serde_json::Value) -> anyhow::Result<Clip> {
+    let document = opencut_player::timeline::parse(&serde_json::json!({"clips": [value]}))?;
+    Ok(document.to_editing_state().clips.remove(0))
+}
+
+fn clip_json(clip: &Clip) -> serde_json::Value {
+    let state = TimelineEditingState {
+        clips: vec![clip.clone()],
+        ..Default::default()
+    };
+    serde_json::to_value(TimelineSerialization::from_editing_state(&state)).unwrap()["editing_state"]["clips"][0].clone()
 }

@@ -1,21 +1,16 @@
-use crate::{
-    editor::{
-        ACCENT, BORDER, MUTED, OpenInDefaultApp, PANEL, RevealInFinder, SURFACE, SURFACE_HOVER,
-        TEXT,
-        clip_placement::validate_clip_placement,
-        context_menu::{ContextMenu, FileContextMenu},
-        editing::{EditAction, edit_and_rebuild_timeline},
-        editor::Editor,
-        explorer_filter::ExplorerFilter,
-        model::MediaAsset,
-        preview::PreviewTarget,
-        preview_audio::AudioBackend,
-        timeline::{TimelineEditorExt, TimelineTime},
-        timeline_clip::{AudioClipProperties, Clip, VideoClip, VideoClipProperties},
-        timeline_document,
-        track::TrackKind,
-    },
-    video::FileVideoBackend,
+use crate::editor::{
+    ACCENT, BORDER, MUTED, OpenInDefaultApp, PANEL, RevealInFinder, SURFACE, SURFACE_HOVER, TEXT,
+    clip_placement::validate_clip_placement,
+    context_menu::{ContextMenu, FileContextMenu},
+    edit_action::{EditAction, apply_timeline_edit},
+    editor::Editor,
+    explorer_filter::ExplorerFilter,
+    model::MediaAsset,
+    preview::PreviewTarget,
+    timeline::TimelineTime,
+    timeline_clip::{AudioClipProperties, Clip, VideoClip, VideoClipProperties},
+    timeline_document,
+    track::TrackKind,
 };
 use anyhow::{Result, anyhow, bail};
 use gpui::{
@@ -36,6 +31,7 @@ use ulid::Ulid;
 mod explorer_file_entry;
 #[path = "explorer_file_menu.rs"]
 mod explorer_file_menu;
+pub use explorer_file_entry::select_preview_file;
 pub(super) use explorer_file_entry::{
     FileTreeEntry, FileTreeEntryKind, is_audio_path, is_image_path, is_srt_path, is_video_path,
     search_tree, visible_tree,
@@ -372,18 +368,20 @@ impl Editor {
             return Ok(());
         };
         let duration = timeline
-            .data
+            .backend
+            .timeline()
             .nearest_time(asset.duration)
             .max(TimelineTime::ONE_FRAME);
         let track_kind = timeline
-            .data
+            .backend
+            .timeline()
             .tracks
             .iter()
             .find(|track| track.id == track_id)
             .map(|track| track.kind);
         let (start, _) = timeline.snap_clip_start_ignoring(raw_start, duration, &HashSet::new());
         validate_clip_placement(
-            &timeline.data,
+            timeline.backend.timeline(),
             track_id,
             asset.kind,
             duration,
@@ -396,7 +394,8 @@ impl Editor {
         };
         timeline.record_editing_history();
         let (asset_id, assets) = if let Some(asset_id) = timeline
-            .data
+            .backend
+            .timeline()
             .assets
             .iter()
             .find(|existing| existing.path == relative_path)
@@ -426,9 +425,8 @@ impl Editor {
             _ => bail!("the drop target is not a media track"),
         };
 
-        edit_and_rebuild_timeline(
+        apply_timeline_edit(
             &mut self.preview,
-            &self.project_root,
             timeline,
             EditAction::AddClips {
                 clips: vec![media_clip],
@@ -441,9 +439,7 @@ impl Editor {
         let Some(timeline) = self.timeline.as_ref() else {
             return Ok(());
         };
-        timeline
-            .data
-            .save(&self.project_root.join(&timeline.path))?;
+        timeline.save()?;
 
         self.schedule_active_timeline_waveforms(cx);
         self.status = Some("Added media at the selected timeline position.".to_string());

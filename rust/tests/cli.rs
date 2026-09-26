@@ -1,16 +1,12 @@
 #![cfg(feature = "cli")]
 use image::{Rgba, RgbaImage};
 use opencut_player::{
-    cli::{
-        document,
-        engine::{
-            audio::Mixer,
-            decode::VideoWorker,
-            encode::{Encoder, VideoEncoding},
-            probe,
-        },
-        time::parse_rate,
-        validate,
+    cli::{document, time::parse_rate},
+    engine::{
+        audio::Mixer,
+        decode::VideoWorker,
+        encode::{Encoder, VideoEncoding},
+        probe,
     },
     timeline::*,
 };
@@ -107,39 +103,18 @@ fn render_gpui_demo() {
 }
 
 #[test]
-fn schema_and_new_use_the_gui_document_contract() {
+fn schema_uses_the_gui_document_contract() {
     let dir = Temp::new();
-    let file = dir.0.join("new.timeline.json");
-    let output = cli(&[
-        "new",
-        file.to_str().unwrap(),
-        "--fps",
-        "30000/1001",
-        "--json",
-    ]);
-    assert!(
-        output.status.success(),
-        "{}",
-        String::from_utf8_lossy(&output.stdout)
-    );
-    let raw: Value = serde_json::from_slice(&fs::read(&file).unwrap()).unwrap();
-    assert!(raw.get("version").is_none());
-    assert_eq!(raw["settings"]["audio_sample_rate"], 48000);
-    assert_eq!(raw["tracks"][0]["kind"], "Video");
-    assert_eq!(raw["tracks"][0]["visible"], true);
-    let doc = document::parse(&raw).unwrap();
-    assert_eq!(doc.settings.frame_rate, FrameRate::new(30000, 1001));
+    let file = dir.0.join("timeline.json");
     let schema = cli(&["schema", "--json"]);
     assert!(schema.status.success());
     assert_eq!(
         decode(&schema),
         serde_json::to_value(schemars::schema_for!(TimelineSerialization)).unwrap()
     );
-    assert!(!cli(&["new", file.to_str().unwrap()]).status.success());
-    assert_eq!(
-        fs::read(&file).unwrap(),
-        serde_json::to_vec_pretty(&raw).unwrap()
-    );
+    let removed = cli(&["new", file.to_str().unwrap(), "--json"]);
+    assert_eq!(removed.status.code(), Some(2));
+    assert!(!file.exists());
     let removed = cli(&["edit", file.to_str().unwrap(), "--json"]);
     assert_eq!(removed.status.code(), Some(2));
     fs::write(&file, r#"{"version":1,"clips":[]}"#).unwrap();
@@ -164,7 +139,12 @@ fn probe_summarizes_timelines_without_opening_referenced_media() {
     let expected = document::summary(&doc);
     for name in ["project.timeline.json", "project.json", "uppercase.JSON"] {
         let file = dir.0.join(name);
-        document::write_atomic(&file, &serde_json::to_value(&doc).unwrap(), false).unwrap();
+        document::write_atomic(
+            &file,
+            &serde_json::to_value(TimelineSerialization::from_editing_state(&doc)).unwrap(),
+            false,
+        )
+        .unwrap();
         let output = cli(&["probe", file.to_str().unwrap(), "--json"]);
         assert!(
             output.status.success(),
@@ -250,7 +230,12 @@ fn timeline_assets_resolve_from_timeline_directory() {
     doc.clips
         .push(Clip::Video(media_clip(200, 1, 100, 0, 0, 30)));
     let file = dir.0.join("scenes/intro.timeline.json");
-    document::write_atomic(&file, &serde_json::to_value(&doc).unwrap(), false).unwrap();
+    document::write_atomic(
+        &file,
+        &serde_json::to_value(TimelineSerialization::from_editing_state(&doc)).unwrap(),
+        false,
+    )
+    .unwrap();
     let result = Command::new(env!("CARGO_BIN_EXE_opencut"))
         .current_dir(&dir.0)
         .args(["validate", "scenes/intro.timeline.json", "--json"])
@@ -258,14 +243,24 @@ fn timeline_assets_resolve_from_timeline_directory() {
         .unwrap();
     assert!(result.status.success());
     doc.assets[0].path = "../image.png".into();
-    document::write_atomic(&file, &serde_json::to_value(&doc).unwrap(), true).unwrap();
+    document::write_atomic(
+        &file,
+        &serde_json::to_value(TimelineSerialization::from_editing_state(&doc)).unwrap(),
+        true,
+    )
+    .unwrap();
     assert!(
         cli(&["validate", file.to_str().unwrap(), "--json"])
             .status
             .success()
     );
     doc.assets[0].path = dir.0.join("image.png");
-    document::write_atomic(&file, &serde_json::to_value(&doc).unwrap(), true).unwrap();
+    document::write_atomic(
+        &file,
+        &serde_json::to_value(TimelineSerialization::from_editing_state(&doc)).unwrap(),
+        true,
+    )
+    .unwrap();
     assert!(
         cli(&["validate", file.to_str().unwrap(), "--json"])
             .status
@@ -327,14 +322,13 @@ fn validation_stops_at_first_missing_asset_and_reports_schema_locations() {
         asset(101, "missing-b.wav", MediaKind::Audio, true),
     ];
     let file = dir.0.join("missing.timeline.json");
-    document::write_atomic(&file, &serde_json::to_value(&doc).unwrap(), false).unwrap();
-    let result = cli(&[
-        "validate",
-        file.to_str().unwrap(),
-        "--project-root",
-        dir.0.to_str().unwrap(),
-        "--json",
-    ]);
+    document::write_atomic(
+        &file,
+        &serde_json::to_value(TimelineSerialization::from_editing_state(&doc)).unwrap(),
+        false,
+    )
+    .unwrap();
+    let result = cli(&["validate", file.to_str().unwrap(), "--json"]);
     assert_eq!(result.status.code(), Some(1));
     let report = decode(&result);
     let message = report["error"]["message"].as_str().unwrap();
@@ -352,8 +346,8 @@ fn validation_stops_at_first_missing_asset_and_reports_schema_locations() {
     let message = format!("{error:?}");
     assert!(message.contains("/assets/1/path"));
     assert!(message.contains("missing-b.wav"));
-    let mut raw = serde_json::to_value(&doc).unwrap();
-    raw["settings"]["width"] = json!("wrong");
+    let mut raw = serde_json::to_value(TimelineSerialization::from_editing_state(&doc)).unwrap();
+    raw["editing_state"]["settings"]["width"] = json!("wrong");
     assert!(
         document::parse(&raw)
             .unwrap_err()
@@ -438,7 +432,7 @@ fn native_video_seek_and_audio_mix() {
     clip.audio_properties.gain_db = -6.020599913;
     doc.clips.push(Clip::Video(clip));
     let media = probe::assets(&doc.assets, &dir.0).unwrap();
-    validate::require_valid(&doc, Some(&media)).unwrap();
+    doc.validate().unwrap();
     let mut mixer = Mixer::default();
     assert!(
         mixer
@@ -616,8 +610,8 @@ fn platform_video_encoders_and_fractional_frame_rate() {
     }
 }
 
-fn empty() -> TimelineSerialization {
-    TimelineSerialization {
+fn empty() -> TimelineEditingState {
+    TimelineEditingState {
         settings: TimelineSettings {
             width: 64,
             height: 48,
@@ -736,7 +730,9 @@ fn generates_agent_docs_from_cli_definitions() {
     assert!(!text.contains("$schema"));
     assert!(!text.contains("--llm"));
     assert!(text.contains("--post-merge"));
-    assert!(text.contains("--project-root"));
+    assert!(!text.contains("--project-root"));
+    assert!(!text.contains("assemble"));
+    assert!(!text.contains("recipe"));
     let json_output = Command::new(env!("CARGO_BIN_EXE_opencut"))
         .args(["docs", "--json"])
         .output()

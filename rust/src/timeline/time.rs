@@ -1,12 +1,9 @@
-use serde::{Deserialize, Serialize};
 use std::{
     ops::{Add, AddAssign, Sub, SubAssign},
     time::Duration,
 };
 
-#[derive(Clone, Copy, Debug, Default, Deserialize, Eq, Ord, PartialEq, PartialOrd, Serialize)]
-#[cfg_attr(feature = "timeline-schema", derive(schemars::JsonSchema))]
-#[serde(transparent)]
+#[derive(Clone, Copy, Debug, Default, Eq, Ord, PartialEq, PartialOrd)]
 pub struct TimelineTime(i64);
 
 impl TimelineTime {
@@ -54,8 +51,7 @@ impl SubAssign for TimelineTime {
     }
 }
 
-#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
-#[cfg_attr(feature = "timeline-schema", derive(schemars::JsonSchema))]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct FrameRate {
     pub numerator: u32,
     pub denominator: u32,
@@ -71,6 +67,12 @@ impl Default for FrameRate {
 }
 
 impl FrameRate {
+    pub fn samples(self, frames: i64, rate: u32) -> i64 {
+        let n = frames as i128 * self.denominator as i128 * rate as i128;
+        ((n + self.numerator as i128 / 2) / self.numerator.max(1) as i128)
+            .clamp(i64::MIN as i128, i64::MAX as i128) as i64
+    }
+
     pub const fn new(numerator: u32, denominator: u32) -> Self {
         Self {
             numerator,

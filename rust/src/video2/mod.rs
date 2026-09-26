@@ -21,6 +21,8 @@ use std::{
 use ffmpeg_next::frame::Video;
 
 mod audio;
+mod audio_backend;
+pub use audio_backend::AudioBackend;
 mod decoder;
 mod decompression;
 
@@ -330,10 +332,10 @@ impl State {
 
     fn check(&self) -> Result<()> {
         if let Status::Failed(error) = &self.status {
-            bail!("Video playback failed: {error} at {}:{}", file!(), line!());
+            bail!("Playback failed: {error}");
         }
         if matches!(self.status, Status::Stopped) {
-            bail!("Video playback stopped at {}:{}", file!(), line!());
+            bail!("Playback stopped");
         }
         Ok(())
     }
@@ -532,8 +534,9 @@ fn present(
 }
 
 #[cfg(test)]
+#[path = "tests/mod.test.rs"]
 mod tests;
 
 #[cfg(test)]
-#[path = "seek.test.rs"]
+#[path = "tests/seek.test.rs"]
 mod seek_tests;

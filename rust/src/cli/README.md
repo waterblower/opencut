@@ -1,10 +1,10 @@
 # OpenCut CLI
 
 A headless application that reads the same timeline JSON as the OpenCut editor.
-The CLI probes media with FFmpeg; the editor edits and renders with GStreamer.
+The CLI probes media with FFmpeg; the editor updates the same timeline model.
 The shared [timeline module](../timeline/mod.rs) defines the format and serialization
-rules, without file I/O or backend state. CLI-specific services and the FFmpeg
-engine live beneath this application module.
+rules and file I/O, without backend state. CLI-specific services live beneath this
+application module; the shared FFmpeg engine lives in `src/engine`.
 
 ## Build and run
 
@@ -13,7 +13,6 @@ From the Rust directory, `cargo cli` runs with the vendored FFmpeg environment:
 ```sh
 cargo cli --help
 cargo cli probe /path/to/media.mp4 --json
-cargo cli new episode.timeline.json --fps 30000/1001 --json
 cargo cli schema --json
 cargo cli validate scenes/episode.timeline.json --json
 cargo cli probe scenes/episode.timeline.json --json
@@ -21,9 +20,7 @@ cargo cli probe scenes/episode.timeline.json --json
 
 Timeline and output arguments resolve from the working directory. Relative media
 paths inside a timeline resolve from the directory containing that timeline file,
-including `..` references. Absolute asset paths are unchanged. `--project-root`
-only controls assembly recipe source paths; it does not override timeline asset
-resolution.
+including `..` references. Absolute asset paths are unchanged.
 
 From the repository root:
 
@@ -32,8 +29,7 @@ bash rust/scripts/cargo-cli.sh build --no-default-features --features cli --bin 
 ```
 
 The wrapper links the existing `rust/vendor/ffmpeg-8.1.2` libraries. It never builds
-FFmpeg or invokes Python. Disable default features to build the CLI without GPUI
-or GStreamer dependencies.
+FFmpeg or invokes Python. Disable default features to build only the CLI; its demo renderer uses GPUI.
 
 ## Probe media and timelines
 
@@ -50,8 +46,9 @@ to check those files. The separate `inspect` command has been removed.
 The authoritative schema is generated from the actual shared Rust types by
 `opencut schema`. See the [complete example](../../tests/fixtures/shared.timeline.json).
 
-- Root fields are `settings`, `assets`, `tracks`, `clips`, and `view`. There is no
-  CLI-specific `version` field. Existing GUI defaults and deserialization aliases
+- Root fields are `editing_state` and `view_state`. Editing state contains
+  `settings`, `assets`, `tracks`, and `clips`. Existing flat documents remain readable.
+  There is no CLI-specific `version` field. Existing GUI defaults and deserialization aliases
   remain supported; canonical serialization uses the GUI field names and tags.
 - Settings include width, height, rational `frame_rate`, and `audio_sample_rate`.
 - Assets include ULID, path, media kind, display name, duration, dimensions,
@@ -71,62 +68,13 @@ The authoritative schema is generated from the actual shared Rust types by
   Track and clip muting control audio. Locking affects editing, not export.
 - View state survives serialization and is preserved by CLI document operations.
 
-`new` creates a document with visible video and audio tracks. All input timelines
-are read without rewriting them. Use `assemble` to build a podcast from supplied
-decisions. Subtitle import is not yet available in the CLI; existing GUI import/edit
+Create timelines in the editor or author JSON using the schema. Input timelines are read without rewriting them. Subtitle import is not yet available in the CLI; existing GUI import/edit
 operations remain available.
 
 **Legacy CLI timelines and the `edit` command have been removed.** Documents using
 the old `type` clip tags, root `version`, or `transitions` are rejected with
 `legacy_cli_format`. CLI-only effects, opacity, background color, and transitions
 are not part of this shared format. There is no legacy conversion layer.
-
-## Podcast assembly
-
-An external agent supplies editing decisions. `assemble` does not call models or
-transcription services; it compiles those decisions into the same editable document
-used by the GUI. See the [example recipe](../../tests/fixtures/podcast.recipe.json)
-and generate its authoritative schema with `schema --kind recipe`.
-
-```sh
-cargo cli schema --kind recipe --json
-cargo cli --project-root /project assemble recipe.json --dry-run --json
-cargo cli --project-root /project assemble recipe.json -o episode.timeline.json --json
-```
-
-The recipe supplies output `settings`, a `time_base` in seconds per tick, named
-`sources`, `master_audio`, optional `gain_db` (default 0), `retained` intervals,
-and `cameras`. All start/end/offset values are signed integer ticks in that common
-time base. For example, `{ "numerator": 1, "denominator": 1000 }` means milliseconds.
-Recipe source paths resolve against `--project-root`, independently of the recipe location. Generated timelines store paths relative to their output directory when the source is beneath it, and absolute paths otherwise.
-The example references recordings you must supply; it is not a bundled media set.
-
-The master source must contain audio and have zero `source_offset`. It defines the
-uncut episode clock. Other sources obey `source_time = episode_time + source_offset`:
-a +2000 ms offset maps episode time 10 seconds to camera time 12 seconds. Offsets
-and boundaries round independently once to the nearest project frame (ties away
-from zero); the report lists every adjustment. Source offsets therefore preserve
-clip lengths on the same frame grid. Sample-accurate cuts and drift correction
-are not supported by this assembly interface.
-
-Retained intervals and camera selections must each be chronological, nonoverlapping,
-nonnegative, and nonempty. Ranges are end-exclusive. Camera choices refer to uncut
-episode time and must cover every retained frame. Removed intervals disappear from
-both video and audio. Camera switches never split the master audio; camera clips
-are explicitly muted. Missing source coverage is an error. Files with more than
-one audio or video stream are rejected because the shared format cannot yet select
-a stream. Coverage checks use the selected stream's duration when available,
-falling back to the recording duration when the container does not report stream
-duration. Unknown recipe fields (including captions) are rejected.
-
-`--dry-run` probes and validates without writing a timeline, and does not require
-`-o`. Its report includes total frames, the project frame rate, episode-to-output
-intervals, per-clip source/output bounds, and rounding adjustments. Every reported
-time is in project frames except the explicitly named original `ticks` fields.
-Normal assembly returns the same report and writes atomically. Existing output
-requires `--overwrite`; neither source media nor the input recipe can be replaced.
-Reassembly does not merge manual GUI edits: use a new output file for revisions.
-Captions, extraction commands, audio analysis, and cut fades are later milestones.
 
 ## Transcription
 
@@ -145,7 +93,7 @@ Source-relative timing is preserved, including silence before speech and timesta
 gaps. The audio must have a known positive duration and fit within 500 seconds;
 overlong audio is rejected, never truncated or split. The normalized WAV is at
 most about 16 MB, below MiniMax's 50 MB upload limit. Video-only files are rejected.
-Input and output paths resolve from the working directory, not `--project-root`.
+Input and output paths resolve from the working directory.
 
 `--format` accepts `json`, `verbose_json` (default), `srt`, or `vtt`.
 With `--format srt`, add `--post-merge` to merge consecutive cues whose gap is
@@ -203,9 +151,8 @@ audio mixing services remain available for reuse.
 All commands accept `--json`. Results go to stdout and diagnostics go to stderr.
 Runtime failures use anyhow and exit code 1; Clap usage errors use exit code 2.
 JSON failures have the shape `{"error":{"message":"..."}}`. Diagnostic labels,
-paths, and source locations are included in the message. `validate` stops at the
-first media probe failure and reports that error with the asset path. Independent
-document rule violations are returned as findings.
+paths, and source locations are included in the message. `validate` uses the shared timeline validator and stops at the first document
+or media probe error. Media probe errors include the asset path.
 
 ## Verification and packaging
 
@@ -213,21 +160,12 @@ document rule violations are returned as findings.
 # Shared format alone, without either media backend:
 cargo test --manifest-path rust/Cargo.toml --no-default-features --features timeline-schema --lib --test timeline
 # CLI and FFmpeg integration:
-bash rust/scripts/cargo-cli.sh test --no-default-features --features cli --lib --test cli --test assemble --test timeline --test transcribe
+bash rust/scripts/cargo-cli.sh test --no-default-features --features cli --lib --test cli --test timeline --test transcribe
 # Optional VideoToolbox encoder tests:
 bash rust/scripts/cargo-cli.sh test --no-default-features --features cli --test cli -- --ignored
 # Local macOS package:
 bash rust/scripts/package-cli.sh
 ```
-
-From the Rust directory, the GUI/CLI document compatibility test is:
-
-```sh
-cargo test-mac --no-default-features --features editor,cli --bin opencut-editor shared_timeline
-```
-
-This generates synthetic media, checks GUI/CLI document round trips and podcast
-assembly, and checks editor export duration, cut boundaries, and audio gain/muting. Its GStreamer export uses software AAC for headless testing.
 
 The package is a local unsigned artifact linked against the existing vendored
 FFmpeg installation and its transitive libraries, not a relocatable distribution.
@@ -236,8 +174,8 @@ depends on the vendored build. Signing and publishing remain separate operations
 
 Generate an agent-friendly Markdown usage guide with `opencut doc`.
 It includes workflows, examples, and command options generated from the CLI
-definitions. Full schemas are available separately via `opencut schema` and
-`opencut schema --kind recipe`. The `docs` alias is also supported;
+definitions. The full timeline schema is available separately via `opencut schema`.
+The `docs` alias is also supported;
 `--json` returns the guide as a JSON string.
 
 ```sh

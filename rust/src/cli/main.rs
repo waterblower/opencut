@@ -1,27 +1,21 @@
 use anyhow::{Context as _, Error, Result, anyhow};
+use opencut_player::timeline::TimelineSerialization;
 mod args;
 mod docs;
 mod render;
 
 use args::{Args, Command};
 use clap::Parser;
-use opencut_player::timeline::{TimelineSettings as Settings, Track, TrackKind};
 use opencut_player::{
-    cli::engine::probe,
-    cli::{
-        document::{self, Document},
-        time::parse_rate,
-        transcribe, validate,
-    },
+    cli::{document, transcribe},
+    engine::probe,
 };
 use serde_json::{Value, json};
 use std::{
     io::{self, Write},
-    path::Path,
     process::{ExitCode, Termination},
     time::Instant,
 };
-use ulid::Ulid;
 
 #[tokio::main]
 async fn main() -> CliExitCode {
@@ -43,13 +37,7 @@ async fn main() -> CliExitCode {
         }
     };
     let api_key = std::env::var("MINIMAX_API_KEY").ok();
-    let result = run(
-        args.command,
-        args.json,
-        &args.project_root,
-        api_key.as_deref(),
-    )
-    .await;
+    let result = run(args.command, api_key.as_deref()).await;
     let elapsed_seconds = started.elapsed().as_secs_f64();
     let _ = writeln!(io::stderr().lock(), "elapsed_seconds: {elapsed_seconds:.6}");
     print_result(result, args.json)
@@ -93,19 +81,7 @@ fn print_error(error: &Error, json: bool) {
     }
 }
 
-async fn run(
-    command: Command,
-    json_mode: bool,
-    base: &Path,
-    api_key: Option<&str>,
-) -> Result<Value> {
-    let project_root = std::path::absolute(base).context(format!(
-        "could not resolve project root {} at {}:{}",
-        base.display(),
-        file!(),
-        line!()
-    ))?;
-    let base = project_root.as_path();
+async fn run(command: Command, api_key: Option<&str>) -> Result<Value> {
     match command {
         Command::Render { output } => render::render(&output),
         Command::Transcribe {
@@ -170,21 +146,13 @@ async fn run(
             document::write_atomic_bytes(&output, bytes, overwrite).await?;
             Ok(json!({"path": output, "format": format.as_str()}))
         }
-        Command::Assemble {
-            recipe,
-            output,
-            dry_run,
-            overwrite,
-        } => {
-            opencut_player::cli::assemble::run(&recipe, base, output.as_deref(), dry_run, overwrite)
-        }
         Command::Probe { file } => {
             if file
                 .extension()
                 .is_some_and(|extension| extension.eq_ignore_ascii_case("json"))
             {
                 let (_, doc) = document::load(&file)?;
-                validate::require_valid(&doc, None)?;
+                doc.validate()?;
                 return Ok(document::summary(&doc));
             }
             match serde_json::to_value(probe::probe(&file)?) {
@@ -196,85 +164,16 @@ async fn run(
                 )),
             }
         }
-        Command::New {
-            timeline,
-            width,
-            height,
-            fps,
-        } => {
-            let doc = Document {
-                settings: Settings {
-                    width,
-                    height,
-                    frame_rate: parse_rate(&fps)?,
-                    ..Settings::default()
-                },
-                assets: vec![],
-                clips: vec![],
-                view: Default::default(),
-                tracks: vec![
-                    Track {
-                        id: Ulid::generate(),
-                        kind: TrackKind::Video,
-                        name: "Video".into(),
-                        muted: false,
-                        visible: true,
-                        locked: false,
-                    },
-                    Track {
-                        id: Ulid::generate(),
-                        kind: TrackKind::Audio,
-                        name: "Audio".into(),
-                        muted: false,
-                        visible: true,
-                        locked: false,
-                    },
-                ],
-            };
-            validate::require_valid(&doc, None)?;
-            let raw = serde_json::to_value(&doc).context(format!(
-                "serialization_error at {}:{}",
-                file!(),
-                line!()
-            ))?;
-            document::write_atomic(&timeline, &raw, false)?;
-            if json_mode {
-                Ok(json!({"path": timeline, "document": raw}))
-            } else {
-                Ok(json!(timeline))
-            }
-        }
-        Command::Schema { kind, .. } => Ok(serde_json::to_value(if kind == "recipe" {
-            schemars::schema_for!(opencut_player::cli::assemble::Recipe)
-        } else {
-            schemars::schema_for!(Document)
-        })
+        Command::Schema { .. } => Ok(serde_json::to_value(schemars::schema_for!(
+            TimelineSerialization
+        ))
         .context(format!("serialization_error at {}:{}", file!(), line!()))?),
         Command::Doc => Ok(json!(docs::generate()?)),
         Command::Validate { timeline } => {
             let (_, doc) = document::load(&timeline)?;
             let base = document::asset_base(&timeline)?;
-            let media = probe::assets(&doc.assets, &base)?;
-            let findings = validate::validate(&doc, Some(&media));
-            if !findings.is_empty() {
-                let exit = 1;
-                let value = json!({"valid": false, "findings": findings});
-                let text = if json_mode {
-                    value.to_string()
-                } else {
-                    serde_json::to_string_pretty(&value).context(format!(
-                        "serialization_error at {}:{}",
-                        file!(),
-                        line!()
-                    ))?
-                };
-                writeln!(io::stdout().lock(), "{text}").context(format!(
-                    "io_error at {}:{}",
-                    file!(),
-                    line!()
-                ))?;
-                std::process::exit(exit);
-            }
+            doc.validate()?;
+            probe::assets(&doc.assets, &base)?;
             Ok(json!({"valid": true, "findings": []}))
         }
     }

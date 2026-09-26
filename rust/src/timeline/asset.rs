@@ -1,18 +1,12 @@
-use super::FrameRate;
-use super::deserialize_ulid;
-use serde::{Deserialize, Serialize};
+use crate::timeline::FrameRate;
 use std::path::PathBuf;
 use ulid::Ulid;
 
-#[derive(Clone, Copy, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
-#[cfg_attr(feature = "timeline-schema", derive(schemars::JsonSchema))]
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub enum MediaKind {
     #[default]
-    #[serde(alias = "video")]
     Video,
-    #[serde(alias = "image")]
     Image,
-    #[serde(alias = "audio")]
     Audio,
 }
 
@@ -26,13 +20,9 @@ impl MediaKind {
     }
 }
 
-#[derive(Clone, Debug, Deserialize, Serialize)]
-#[cfg_attr(feature = "timeline-schema", derive(schemars::JsonSchema))]
+#[derive(Clone, Debug)]
 pub struct MediaAsset {
-    #[serde(deserialize_with = "deserialize_ulid")]
-    #[cfg_attr(feature = "timeline-schema", schemars(with = "String"))]
     pub id: Ulid,
-    #[serde(default)]
     pub kind: MediaKind,
     pub path: PathBuf,
     pub name: String,
@@ -40,9 +30,7 @@ pub struct MediaAsset {
     pub width: u32,
     pub height: u32,
     pub framerate: f64,
-    #[serde(default)]
     pub frame_rate_numerator: u32,
-    #[serde(default)]
     pub frame_rate_denominator: u32,
     pub codec: String,
     pub has_audio: bool,

@@ -1,7 +1,6 @@
-use crate::editor::TimelineEditorExt;
 use anyhow::{Context as _, Result, anyhow};
 
-use super::timeline::TimelineSerialization;
+use opencut_player::timeline::TimelineSerialization;
 use std::{
     fs,
     path::{Path, PathBuf},

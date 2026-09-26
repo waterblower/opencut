@@ -35,7 +35,7 @@ pub fn current_properties_panel_viewable(editor: &Editor) -> PropertiesPanelView
     if let Some(timeline) = editor.timeline.as_ref()
         && let Some(clip_id) = timeline.interaction.selected_clip_id
     {
-        let Some(clip) = timeline.data.clip(clip_id) else {
+        let Some(clip) = timeline.backend.timeline().clip(clip_id) else {
             return PropertiesPanelViewable::None;
         };
         return match clip {
@@ -62,7 +62,7 @@ pub fn current_properties_panel_viewable(editor: &Editor) -> PropertiesPanelView
             let timeline = editor
                 .timeline
                 .as_ref()
-                .filter(|timeline| timeline.path == path)
+                .filter(|timeline| timeline.path == editor.project_root.join(path))
                 .expect("should have the timeline");
             return PropertiesPanelViewable::TimelineFile(timeline);
         }
@@ -197,12 +197,14 @@ fn timeline_file(timeline: &TimelineRuntimeState) -> gpui::AnyElement {
         .map(|name| name.to_string_lossy().into_owned())
         .unwrap_or_else(|| timeline.path.display().to_string());
     let duration = timeline
-        .data
+        .backend
+        .timeline()
         .settings
         .frame_rate
-        .seconds(timeline.data.content_duration());
+        .seconds(timeline.backend.timeline().content_duration());
     let playhead = timeline
-        .data
+        .backend
+        .timeline()
         .settings
         .frame_rate
         .seconds(timeline.playhead());
@@ -248,30 +250,36 @@ fn timeline_file(timeline: &TimelineRuntimeState) -> gpui::AnyElement {
                 .child(property_field("Playhead", format_time(playhead, false), ""))
                 .child(property_field(
                     "Frame rate",
-                    timeline.data.settings.frame_rate.label(),
+                    timeline.backend.timeline().settings.frame_rate.label(),
                     "",
                 ))
                 .child(property_field(
                     "Resolution",
                     format!(
                         "{} × {}",
-                        timeline.data.settings.width, timeline.data.settings.height
+                        timeline.backend.timeline().settings.width,
+                        timeline.backend.timeline().settings.height
                     ),
                     "px",
                 ))
                 .child(property_field(
                     "Audio rate",
-                    timeline.data.settings.audio_sample_rate.to_string(),
+                    timeline
+                        .backend
+                        .timeline()
+                        .settings
+                        .audio_sample_rate
+                        .to_string(),
                     "Hz",
                 ))
                 .child(property_field(
                     "Tracks",
-                    timeline.data.tracks.len().to_string(),
+                    timeline.backend.timeline().tracks.len().to_string(),
                     "",
                 ))
                 .child(property_field(
                     "Clips",
-                    timeline.data.clips.len().to_string(),
+                    timeline.backend.timeline().clips.len().to_string(),
                     "",
                 )),
         )

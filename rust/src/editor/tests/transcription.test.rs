@@ -5,30 +5,25 @@ use std::{fs, path::Path};
 #[tokio::test]
 async fn rejects_missing_key_media_and_timeline_sources() {
     let directory = test_directory();
-    let error = start_transcription(
-        directory.path.join("missing.mp4"),
-        directory.path.clone(),
-        String::new(),
-    )
-    .await
-    .unwrap_err();
+    let error = start_transcription(directory.path.join("missing.mp4"), String::new())
+        .await
+        .unwrap_err();
     assert!(error.to_string().contains("MiniMax API key"));
-    let error = start_transcription(
-        directory.path.join("missing.mp4"),
-        directory.path.clone(),
-        "test-key".into(),
-    )
-    .await
-    .unwrap_err();
+    let error = start_transcription(directory.path.join("missing.mp4"), "test-key".into())
+        .await
+        .unwrap_err();
     assert!(error.to_string().contains("unreadable_media"));
     let error = start_transcription(
         directory.path.join("source.timeline.json"),
-        directory.path.clone(),
         "test-key".into(),
     )
     .await
     .unwrap_err();
-    assert!(error.to_string().contains("could not read"));
+    assert!(
+        error
+            .to_string()
+            .contains("Timeline transcription is unavailable")
+    );
 }
 
 #[test]

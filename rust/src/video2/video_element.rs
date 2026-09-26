@@ -246,9 +246,9 @@ fn fitted_bounds(bounds: Bounds<Pixels>, width: u32, height: u32) -> Bounds<Pixe
 }
 
 #[cfg(test)]
-#[path = "video_element.test.rs"]
+#[path = "tests/video_element.test.rs"]
 mod tests;
 
 #[cfg(all(test, feature = "ffmpeg-video-tests"))]
-#[path = "video_element.gpui_test.rs"]
+#[path = "tests/video_element.gpui_test.rs"]
 mod gpui_tests;

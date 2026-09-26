@@ -50,14 +50,14 @@ impl Editor {
             !menu.is_directory && timeline_document::is_timeline_path(&menu.relative_path);
         let can_transcribe = !menu.is_directory
             && (explorer::is_video_path(&menu.relative_path)
-                || explorer::is_audio_path(&menu.relative_path)
-                || timeline_document::is_timeline_path(&menu.relative_path));
+                || explorer::is_audio_path(&menu.relative_path));
         let can_rename = !menu.relative_path.as_os_str().is_empty();
         let can_trash = can_rename
-            && !self
-                .timeline
-                .as_ref()
-                .is_some_and(|timeline| timeline.path.starts_with(&menu.relative_path));
+            && !self.timeline.as_ref().is_some_and(|timeline| {
+                timeline
+                    .path
+                    .starts_with(self.project_root.join(&menu.relative_path))
+            });
         let height = 92.0
             + if can_transcribe { 40.0 } else { 0.0 }
             + if can_create_timeline { 40.0 } else { 0.0 }
@@ -123,17 +123,17 @@ impl Editor {
                     .when(can_transcribe, |this| {
                         let source_path = self.project_root.join(&menu.relative_path);
                         let project_root = self.project_root.clone();
-                        let event_bus = self.event_bus.clone();
                         this.child(file_menu_item("Generate SRT", "").on_click(cx.listener(
                             move |editor, _, _, cx| {
                                 editor.dismiss_context_menu();
                                 cx.notify();
-                                event_bus.update(cx, |_, cx| {
-                                    cx.emit(AppEvent::Transcribe {
+                                editor.emit_event(
+                                    cx,
+                                    AppEvent::Transcribe {
                                         source_path: source_path.clone(),
                                         project_root: project_root.clone(),
-                                    });
-                                });
+                                    },
+                                );
                             },
                         )))
                     })
@@ -147,11 +147,9 @@ impl Editor {
                                     eprintln!("{error}");
                                     return;
                                 }
-                                if editor
-                                    .timeline
-                                    .as_ref()
-                                    .is_some_and(|timeline| timeline.path == timeline_path)
-                                {
+                                if editor.timeline.as_ref().is_some_and(|timeline| {
+                                    timeline.path == editor.project_root.join(&timeline_path)
+                                }) {
                                     editor.settings_open = true;
                                 }
                                 cx.notify();
@@ -258,7 +256,7 @@ impl Editor {
         let enabled = self
             .timeline
             .as_ref()
-            .and_then(|timeline| transform_targets(&timeline.data, menu.clip_id))
+            .and_then(|timeline| transform_targets(timeline.backend.timeline(), menu.clip_id))
             .is_some_and(|(_, targets)| !targets.is_empty());
 
         div()
@@ -439,7 +437,8 @@ impl Editor {
             return;
         };
         if !timeline
-            .data
+            .backend
+            .timeline()
             .track(track_id)
             .is_some_and(|track| track.kind == TrackKind::Text)
         {
@@ -449,8 +448,9 @@ impl Editor {
         let content_x =
             f32::from(event.position.x) - TRACK_HEADER_WIDTH - scroll_x - TIMELINE_PADDING;
         let position = timeline
-            .data
-            .nearest_time(content_x as f64 / timeline.data.view.pixels_per_second as f64)
+            .backend
+            .timeline()
+            .nearest_time(content_x as f64 / timeline.pixels_per_second as f64)
             .max(TimelineTime::ZERO);
         self.context_menu = ContextMenu::TextTrack(TextTrackContextMenu {
             track_id,

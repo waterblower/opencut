@@ -1,13 +1,10 @@
 #![cfg(feature = "cli")]
 use image::{Rgba, RgbaImage};
 use opencut_player::{
-    cli::{
-        document,
-        engine::{
-            audio::extract_audio_as_wav,
-            encode::{Encoder, VideoEncoding},
-        },
-        transcribe,
+    cli::{document, transcribe},
+    engine::{
+        audio::extract_audio_as_wav,
+        encode::{Encoder, VideoEncoding},
     },
     timeline::FrameRate,
 };
