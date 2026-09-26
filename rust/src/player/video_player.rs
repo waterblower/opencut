@@ -1,3 +1,4 @@
+use crate::audio_output::AudioOutput;
 #[cfg(target_os = "macos")]
 use crate::gpu::GpuResources;
 use anyhow::{Context as _, Result, bail};
@@ -6,12 +7,14 @@ use core_video::pixel_buffer::CVPixelBuffer;
 use ffmpeg_next::{
     Error as FfmpegError, ffi, format::Pixel, frame::Video, software::scaling, util::color,
 };
+use futures::{FutureExt, select, try_join};
 use gpui::{
     App, AsyncApp, Context, FocusHandle, KeyBinding, RenderImage, WeakEntity, Window, actions,
 };
 use image::{Frame, RgbaImage};
 use opencut_player::video3::{VideoBackend, VideoFrame};
 use std::{
+    cell::Cell,
     future::poll_fn,
     path::PathBuf,
     sync::Arc,
@@ -19,44 +22,47 @@ use std::{
     time::{Duration, Instant},
 };
 
+#[rustfmt::skip]
 pub struct VideoPlayer {
-    pub video_backend: VideoBackend,
+    video_backend: VideoBackend,
+    audio_output: AudioOutput,                                   // 已打开的音频设备；有设备不代表正在播放。
     scaler: Option<scaling::Context>,
     #[cfg(target_os = "macos")]
     gpu: Option<GpuResources>,
-    pub displayed: Option<(DisplayedFrame, Duration)>,
+    play_wakers: [Option<Waker>; 2],                              // 分别唤醒视频、音频循环；只保存等待者，不保存播放进度。
+    pub displayed: Option<(DisplayedFrame, Duration, Duration)>, // (图像, 帧 PTS, 该帧时长)；None：尚未呈现首帧。
     pub playback_state: PlaybackState,
-    play_waker: Option<Waker>,
     pub title: String,
     pub focus_handle: FocusHandle,
 }
 
 impl VideoPlayer {
     pub fn new(path: PathBuf, window: &mut Window, cx: &mut Context<Self>) -> Result<Self> {
-        let video_backend = VideoBackend::open_video(&path)?;
-
-        let focus_handle = cx.focus_handle();
-        focus_handle.focus(window, cx);
+        // 同步打开和配置；性能成本直接体现在调用处，不交给后台 worker。
+        let mut backend = VideoBackend::open(&path)?;
+        let audio_output = AudioOutput::open()?;
+        backend.audio.configure_output(&audio_output.format)?;
         #[cfg(target_os = "macos")]
         let gpu = GpuResources::new((
-            video_backend.metadata.video.width as usize,
-            video_backend.metadata.video.height as usize,
+            backend.metadata.video.width as usize,
+            backend.metadata.video.height as usize,
         ))?;
+        let focus_handle = cx.focus_handle();
+        focus_handle.focus(window, cx);
         let player = Self {
-            video_backend,
+            video_backend: backend,
+            audio_output,
             scaler: None,
             #[cfg(target_os = "macos")]
             gpu,
+            play_wakers: [None, None],
             displayed: None,
             playback_state: PlaybackState::Playing,
-            play_waker: None,
             title: path.display().to_string(),
             focus_handle,
         };
-
         cx.spawn(async move |player, cx| {
-            let res = run_playback(player, cx).await;
-            if let Err(error) = res {
+            if let Err(error) = run_player(player, cx).await {
                 eprintln!("Player failed: {error:?}");
                 std::process::exit(1);
             }
@@ -65,8 +71,22 @@ impl VideoPlayer {
         Ok(player)
     }
 
-    pub fn set_frame(&mut self, image: DisplayedFrame, position: Duration, cx: &mut Context<Self>) {
-        self.displayed = Some((image, position));
+    pub fn duration(&self) -> Duration {
+        self.video_backend.metadata.duration
+    }
+
+    pub fn toggle_playback(&mut self, cx: &mut Context<Self>) {
+        self.playback_state = match self.playback_state {
+            PlaybackState::Playing => PlaybackState::Paused,
+            PlaybackState::Paused | PlaybackState::Ended => PlaybackState::Playing,
+        };
+        if matches!(self.playback_state, PlaybackState::Playing) {
+            for waker in &mut self.play_wakers {
+                if let Some(waker) = waker.take() {
+                    waker.wake();
+                }
+            }
+        }
         cx.notify();
     }
 }
@@ -88,126 +108,213 @@ pub enum DisplayedFrame {
 }
 
 pub enum PlaybackState {
-    Playing,
-    Paused,
-    Ended,
-}
-
-impl VideoPlayer {
-    fn set_next_frame(&mut self, cx: &mut Context<Self>) -> Result<Duration> {
-        let decode_start = Instant::now();
-        let frame = match self.video_backend.video.next_frame()? {
-            // A decoded frame is available;
-            // prepare and display it below.
-            Some(frame) => frame,
-            // The decoder is drained. EOF
-            None => {
-                self.playback_state = PlaybackState::Ended;
-                cx.notify();
-                return Ok(Duration::ZERO);
-            }
-        };
-        let decode_end = Instant::now();
-
-        #[cfg(target_os = "macos")]
-        let surface = match self.gpu.as_mut() {
-            Some(gpu) => gpu.convert(&frame)?,
-            None => None,
-        };
-
-        #[cfg(target_os = "macos")]
-        let image = match surface {
-            Some(buffer) => DisplayedFrame::Surface(buffer),
-            None => convert(&mut self.scaler, &frame)?,
-        };
-
-        #[cfg(not(target_os = "macos"))]
-        let image = convert(&mut self.scaler, &frame)?;
-
-        let convert_end = Instant::now();
-        let path = match &image {
-            #[cfg(target_os = "macos")]
-            DisplayedFrame::Surface(_) => "GPU-prepared NV12 surface",
-            DisplayedFrame::Image(_) => "converted BGRA",
-        };
-
-        {
-            let decode_time = decode_end.duration_since(decode_start);
-            let convert_time = convert_end.duration_since(decode_end);
-            eprintln!(
-                "PTS {} µs: next_frame={decode_time:?}, prepare={convert_time:?}, path={path}",
-                frame.timestamp.0,
-            );
-        }
-
-        let position = Duration::from_micros(frame.timestamp.0.max(0) as u64);
-        self.set_frame(image, position, cx);
-
-        let duration = frame
-            .duration
-            .or(self.video_backend.metadata.video.average_frame_interval)
-            .unwrap_or_default();
-        Ok(duration)
-    }
-
-    pub fn seek(
-        &mut self,
-        fraction: f32,
-        window: &mut Window,
-        cx: &mut Context<Self>,
-    ) -> Result<()> {
-        let duration = self.video_backend.metadata.duration;
-        let position = duration.mul_f64(f64::from(fraction.clamp(0.0, 1.0)));
-        self.video_backend.video.seek(position)?;
-        self.set_next_frame(cx)?;
-        if matches!(self.playback_state, PlaybackState::Ended) {
-            self.playback_state = PlaybackState::Paused;
-        }
-        self.focus_handle.focus(window, cx);
-        cx.notify();
-        Ok(())
-    }
-
-    pub fn toggle_playback(&mut self, cx: &mut Context<Self>) -> Result<()> {
-        self.playback_state = match self.playback_state {
-            PlaybackState::Playing => PlaybackState::Paused,
-            PlaybackState::Paused => PlaybackState::Playing,
-            PlaybackState::Ended => PlaybackState::Playing,
-        };
-        if matches!(self.playback_state, PlaybackState::Playing)
-            && let Some(waker) = self.play_waker.take()
-        {
-            waker.wake();
-        }
-        cx.notify();
-        Ok(())
-    }
+    Playing, // 两个循环继续推进，共用同一个媒体时间基准。
+    Paused,  // 用户暂停、时钟冻结；seek 直接更新画面。
+    Ended,   // 音频尾部和最后一帧均已播完；再次播放会从头开始。
 }
 
 impl Drop for VideoPlayer {
     fn drop(&mut self) {
-        // Let a paused task observe that its weak entity is no longer available.
-        if let Some(waker) = self.play_waker.take() {
-            waker.wake();
+        for waker in &mut self.play_wakers {
+            if let Some(waker) = waker.take() {
+                waker.wake(); // 让两个等待中的循环发现 WeakEntity 已失效并退出。
+            }
         }
     }
 }
 
+#[rustfmt::skip]
+#[derive(Clone, Copy)]
+struct PlaybackClock {
+    start_position_of_video: Duration,     // 共同起点；不逐轮累加播放位置。
+    start_time_of_system: Option<Instant>, // None 表示冻结；播放时间由起点加实际经过时间计算。
+}
+
+impl PlaybackClock {
+    fn position(&self) -> Duration {
+        match self.start_time_of_system {
+            Some(start) => self.start_position_of_video + start.elapsed(),
+            None => self.start_position_of_video,
+        }
+    }
+}
+
+impl VideoPlayer {
+    pub fn seek(&mut self, position: Duration) -> Result<()> {
+        self.audio_output.clear_at(position)?;
+        self.video_backend.video.seek(position)?;
+        self.video_backend.audio.seek(position)?;
+        if let Some(frame) = self.prepare_next_frame()? {
+            self.displayed = Some(frame);
+        }
+        Ok(())
+    }
+
+    fn prepare_next_frame(&mut self) -> Result<Option<(DisplayedFrame, Duration, Duration)>> {
+        let started = Instant::now();
+        let Some(frame) = self.video_backend.video.next_frame()? else {
+            return Ok(None);
+        };
+        let frame_position = Duration::from_micros(frame.timestamp.0.max(0) as u64);
+        #[cfg(target_os = "macos")]
+        let image = match &mut self.gpu {
+            Some(gpu) => match gpu.convert(&frame)? {
+                Some(surface) => DisplayedFrame::Surface(surface),
+                None => convert(&mut self.scaler, &frame)?,
+            },
+            None => convert(&mut self.scaler, &frame)?,
+        };
+        #[cfg(not(target_os = "macos"))]
+        let image = convert(&mut self.scaler, &frame)?;
+        let duration = frame
+            .duration
+            .or(self.video_backend.metadata.video.average_frame_interval)
+            .unwrap_or_else(|| self.duration().saturating_sub(frame_position));
+        eprintln!(
+            "PTS {} µs: synchronous frame={:?}",
+            frame.timestamp.0,
+            started.elapsed()
+        );
+        Ok(Some((image, frame_position, duration)))
+    }
+
+    fn advance_video(
+        &mut self,
+        clock: &Cell<PlaybackClock>,
+        pending_frame: &mut Option<((DisplayedFrame, Duration, Duration), Instant)>,
+        cx: &mut Context<Self>,
+    ) -> Result<Duration> {
+        let anchor = clock
+            .get()
+            .start_time_of_system
+            .context("video clock is paused")?;
+        if pending_frame
+            .as_ref()
+            .is_some_and(|(_, prepared_at)| *prepared_at != anchor)
+        {
+            *pending_frame = None; // 暂停恢复或 seek 已改变计时起点，旧的待展示帧失效。
+        }
+        if pending_frame.is_none() {
+            *pending_frame = self.prepare_next_frame()?.map(|frame| (frame, anchor));
+        }
+        let position = clock.get().position();
+        if let Some(((_, pts, _), _)) = pending_frame.as_ref() {
+            let wait = pts.saturating_sub(position);
+            if !wait.is_zero() {
+                return Ok(wait.min(MAX_CONTROL_WAIT)); // 提前准备，按 PTS 等待；长间隔中仍检查暂停/seek。
+            }
+            let (frame, _) = pending_frame.take().expect("prepared video frame exists");
+            self.displayed = Some(frame);
+            cx.notify();
+            return Ok(Duration::ZERO); // 下一轮准备后续帧，不等到其展示时刻才开始解码。
+        }
+        let video_remaining = match &self.displayed {
+            Some((_, pts, duration)) => (*pts + *duration).saturating_sub(position),
+            None => Duration::ZERO,
+        };
+        let audio_remaining = self.audio_output.remaining_duration()?;
+        if self.video_backend.audio.is_drained()
+            && audio_remaining.is_zero()
+            && video_remaining.is_zero()
+        {
+            self.audio_output.set_playing(false)?;
+            self.playback_state = PlaybackState::Ended;
+            clock.set(PlaybackClock {
+                start_position_of_video: self.duration(),
+                start_time_of_system: None,
+            });
+            cx.notify();
+            return Ok(Duration::ZERO);
+        }
+        if !self.video_backend.audio.is_drained() {
+            return Ok(MAX_CONTROL_WAIT);
+        }
+        Ok(video_remaining.max(audio_remaining).min(MAX_CONTROL_WAIT))
+    }
+
+    fn advance_audio(&mut self) -> Result<Duration> {
+        let cycle_start = Instant::now();
+        if !self.video_backend.audio.is_drained() {
+            let wait = self.audio_output.compute_time_to_wait(Duration::ZERO)?;
+            if !wait.is_zero() {
+                return Ok(wait.min(MAX_CONTROL_WAIT));
+            }
+            if let Some(samples) = self.video_backend.audio.next_samples()? {
+                self.audio_output.enqueue_samples(samples)?;
+            }
+        }
+        if self.video_backend.audio.is_drained() {
+            return Ok(MAX_CONTROL_WAIT); // 输出自行消费尾部；视频循环统一判断音画是否都结束。
+        }
+        Ok(self
+            .audio_output
+            .compute_time_to_wait(cycle_start.elapsed())?
+            .min(MAX_CONTROL_WAIT))
+    }
+}
+
+const MAX_CONTROL_WAIT: Duration = Duration::from_millis(100); // 限制控制响应延迟，不对视频 PTS 做取整。
+const VIDEO_LOOP: usize = 0;
+const AUDIO_LOOP: usize = 1;
+
 trait WaitUntilPlaying {
-    async fn wait_until_playing(&self, cx: &mut AsyncApp) -> Result<()>;
+    async fn wait_until_playing(
+        &self,
+        clock: &Cell<PlaybackClock>,
+        loop_index: usize,
+        cx: &mut AsyncApp,
+    ) -> Result<()>;
 }
 
 impl WaitUntilPlaying for WeakEntity<VideoPlayer> {
-    async fn wait_until_playing(&self, cx: &mut AsyncApp) -> Result<()> {
-        // One playback task waits here. Check the state and register its waker in
-        // one foreground update, releasing entity access before suspending.
+    async fn wait_until_playing(
+        &self,
+        clock: &Cell<PlaybackClock>,
+        loop_index: usize,
+        cx: &mut AsyncApp,
+    ) -> Result<()> {
         poll_fn(|task_cx| {
-            self.update(cx, |player, _| {
+            self.update(cx, |player, _cx| {
                 if matches!(player.playback_state, PlaybackState::Playing) {
-                    player.play_waker = None;
+                    if !player.audio_output.is_playing()? {
+                        if clock.get().start_position_of_video >= player.duration()
+                            && player.video_backend.video.is_drained()
+                            && player.video_backend.audio.is_drained()
+                        {
+                            player.seek(Duration::ZERO)?;
+                        }
+                        while !player.video_backend.audio.is_drained()
+                            && player
+                                .audio_output
+                                .compute_time_to_wait(Duration::ZERO)?
+                                .is_zero()
+                        {
+                            player.advance_audio()?; // 设备仍停止时完成短预缓冲，再启动共同计时。
+                        }
+                        let position = player.video_backend.audio.seek_position();
+                        player.audio_output.set_playing(true)?;
+                        clock.set(PlaybackClock {
+                            start_position_of_video: position,
+                            start_time_of_system: Some(Instant::now()),
+                        });
+                    }
+                    player.play_wakers[loop_index] = None;
                     Poll::Ready(Ok(()))
                 } else {
-                    player.play_waker = Some(task_cx.waker().clone());
+                    if clock.get().start_time_of_system.is_some() {
+                        let position = if player.audio_output.is_playing()? {
+                            let position = clock.get().position().min(player.duration());
+                            player.seek(position)?; // 暂停只重置解码和输出位置，保留 displayed，不额外展示一帧。
+                            position
+                        } else {
+                            player.video_backend.audio.seek_position() // 暂停前发生了 seek，保留解码器的目标。
+                        };
+                        clock.set(PlaybackClock {
+                            start_position_of_video: position,
+                            start_time_of_system: None,
+                        });
+                    }
+                    player.play_wakers[loop_index] = Some(task_cx.waker().clone());
                     Poll::Pending
                 }
             })?
@@ -216,31 +323,41 @@ impl WaitUntilPlaying for WeakEntity<VideoPlayer> {
     }
 }
 
-async fn run_playback(player: WeakEntity<VideoPlayer>, cx: &mut AsyncApp) -> Result<()> {
-    let bge = cx.background_executor().clone();
-    eprintln!("Player task started");
-    loop {
-        player.wait_until_playing(cx).await?;
-        // Return the time to wait, or propagate a playback error.
-        let res = player.update(cx, |player, cx| -> Result<Duration> {
-            let cycle_start = Instant::now();
-            let duration = player.set_next_frame(cx)?;
-            if duration.is_zero() {
-                return Ok(duration);
-            }
-            let time_to_wait = frame_wait(duration, cycle_start.elapsed())?;
-            Ok(time_to_wait)
-        })??;
-        // At EOF, the next iteration waits at the play gate until restarted.
-        bge.timer(res).await;
-    }
-}
+async fn run_player(player: WeakEntity<VideoPlayer>, cx: &mut AsyncApp) -> Result<()> {
+    let mut error_cx = cx.clone();
+    select! {
+        device_error_result = async {
+            let error = player.update(&mut error_cx, |player, _| player.audio_output.detect_error())?;
+            error.await
+        }.fuse() => device_error_result,
+        playback_result = async {
+            let bge = cx.background_executor().clone();
+            let clock = Cell::new(PlaybackClock {
+                start_position_of_video: Duration::ZERO,
+                start_time_of_system: None
+            });
 
-fn frame_wait(frame_budget: Duration, elapsed: Duration) -> Result<Duration> {
-    if frame_budget >= elapsed {
-        Ok(frame_budget - elapsed)
-    } else {
-        bail!("frame deadline missed: deadline={frame_budget:?}, elapsed={elapsed:?}");
+            let mut video_cx = cx.clone();
+            let mut video_loop = async || -> Result<()> {
+                let mut pending_frame = None;
+                loop {
+                    player.wait_until_playing(&clock, VIDEO_LOOP, &mut video_cx).await?;
+                    let wait = player.update(&mut video_cx, |player, cx| player.advance_video(&clock, &mut pending_frame, cx))??;
+                    bge.timer(wait).await;
+                }
+            };
+
+            let mut audio_cx = cx.clone();
+            let mut audio_loop = async || -> Result<()> {
+                loop {
+                    player.wait_until_playing(&clock, AUDIO_LOOP, &mut audio_cx).await?;
+                    let wait = player.update(&mut audio_cx, |player, _| player.advance_audio())??;
+                    bge.timer(wait).await;
+                }
+            };
+            try_join!(video_loop(), audio_loop())?;
+            Ok(())
+        }.fuse() => playback_result,
     }
 }
 
