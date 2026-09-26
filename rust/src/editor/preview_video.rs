@@ -1,6 +1,6 @@
 use super::*;
 use crate::playback_view::{CONTROL_HEIGHT, PlaybackViewProps, playback_view};
-use crate::video::video;
+use opencut_player::video2::video;
 
 impl Editor {
     pub(super) fn preview_video_file(
@@ -22,11 +22,17 @@ impl Editor {
             .justify_center()
             .overflow_hidden()
             .bg(rgb(0x000000))
-            .child(if let Some(video_handle) = self.active_video() {
-                video(video_handle)
-                    .id("editor-video-file-preview")
-                    .size(px(width), px(surface_height))
-                    .into_any_element()
+            .child(if let Some(video_handle) = self.preview_file_video() {
+                match video(video_handle) {
+                    Ok(element) => element
+                        .id("editor-video-file-preview")
+                        .size(px(width), px(surface_height))
+                        .into_any_element(),
+                    Err(error) => div()
+                        .text_color(rgb(ERROR))
+                        .child(format!("Video preview failed: {error:#}"))
+                        .into_any_element(),
+                }
             } else {
                 div()
                     .size_full()
@@ -39,15 +45,15 @@ impl Editor {
             })
             .into_any_element();
         let (position, duration, paused) = self
-            .active_video()
+            .preview_file_video()
             .map_or((Duration::ZERO, Duration::ZERO, true), |video| {
                 (video.position(), video.duration(), video.paused())
             });
 
-        let has_media = self.active_video().is_some();
+        let has_media = self.preview_file_video().is_some();
 
         let volume = self
-            .active_video()
+            .preview_file_video()
             .map_or(0.0, |video| video.volume().clamp(0.0, 1.0));
 
         playback_view(

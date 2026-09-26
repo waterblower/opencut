@@ -10,9 +10,6 @@ use std::path::PathBuf;
 pub struct Args {
     #[arg(long, global = true)]
     pub json: bool,
-    /// Base directory for assembly recipe sources; timeline assets use the timeline's directory.
-    #[arg(long, global = true, default_value = ".")]
-    pub project_root: PathBuf,
     #[command(subcommand)]
     pub command: Command,
 }
@@ -40,34 +37,12 @@ pub enum Command {
         #[arg(long)]
         overwrite: bool,
     },
-    /// Assemble explicit podcast cuts and camera choices into an editor timeline.
-    Assemble {
-        recipe: PathBuf,
-        #[arg(short, long, required_unless_present = "dry_run")]
-        output: Option<PathBuf>,
-        #[arg(long)]
-        dry_run: bool,
-        #[arg(long)]
-        overwrite: bool,
-    },
     /// Summarize a video, audio, image, or timeline JSON file.
     Probe { file: PathBuf },
-    /// Create a shared editor timeline with video and audio tracks.
-    New {
-        timeline: PathBuf,
-        #[arg(long, default_value_t = 1920)]
-        width: u32,
-        #[arg(long, default_value_t = 1080)]
-        height: u32,
-        #[arg(long, default_value = "30")]
-        fps: String,
-    },
     /// Check document semantics and referenced media; stop if a media file cannot be probed.
     Validate { timeline: PathBuf },
-    /// Print the authoritative timeline or assembly recipe JSON Schema.
+    /// Print the authoritative timeline JSON Schema.
     Schema {
-        #[arg(long, default_value = "timeline", value_parser = ["timeline", "recipe"])]
-        kind: String,
         #[arg(long, default_value = "json-schema", value_parser = ["json-schema"])]
         format: String,
     },

@@ -1,7 +1,8 @@
 use super::*;
+use crate::editor::edit_action::edit_timeline;
 use crate::editor::tests::TimelineTestExt;
 use crate::editor::timeline_clip::AudioClipProperties;
-use gstreamer_editing_services::prelude::*;
+use opencut_player::timeline::{TimelineEditingState, TimelineSerialization};
 
 fn audio_asset(id: u64) -> MediaAsset {
     MediaAsset {
@@ -35,7 +36,7 @@ fn audio_clip(id: u64, start: i64, duration: i64) -> Clip {
 
 #[test]
 fn audio_clips_from_video_assets_cannot_move_to_video_tracks() {
-    let mut project = TimelineSerialization::with_test_tracks();
+    let mut project = TimelineEditingState::with_test_tracks();
     let mut asset = audio_asset(100);
     asset.kind = MediaKind::Video;
     project.assets.push(asset);
@@ -72,7 +73,7 @@ fn audio_clips_from_video_assets_cannot_move_to_video_tracks() {
 
 #[test]
 fn clipboard_preserves_relative_timing_tracks_and_primary_selection() {
-    let mut project = TimelineSerialization::with_test_tracks();
+    let mut project = TimelineEditingState::with_test_tracks();
     project.assets.push(audio_asset(100));
     project.clips = vec![audio_clip(10, 20, 8), audio_clip(11, 40, 12)];
     let selected = HashSet::from([ulid(10), ulid(11)]);
@@ -94,7 +95,7 @@ fn clipboard_preserves_relative_timing_tracks_and_primary_selection() {
 
 #[test]
 fn clipboard_rescales_source_bounds_between_timeline_frame_rates() {
-    let mut source = TimelineSerialization::with_test_tracks();
+    let mut source = TimelineEditingState::with_test_tracks();
     source.settings.frame_rate = FrameRate::new(24, 1);
     source.assets.push(audio_asset(100));
     let mut clip = audio_clip(10, 12, 24);
@@ -109,7 +110,7 @@ fn clipboard_rescales_source_bounds_between_timeline_frame_rates() {
     )
     .unwrap();
 
-    let mut destination = TimelineSerialization::with_test_tracks();
+    let mut destination = TimelineEditingState::with_test_tracks();
     destination.settings.frame_rate = FrameRate::new(30, 1);
     destination.tracks[0].id = ulid(201);
     destination.tracks[1].id = ulid(202);
@@ -139,7 +140,7 @@ fn clipboard_rescales_source_bounds_between_timeline_frame_rates() {
 
 #[test]
 fn clipboard_remaps_tracks_and_assets_between_timelines() {
-    let mut source = TimelineSerialization::with_test_tracks();
+    let mut source = TimelineEditingState::with_test_tracks();
     source.assets.push(audio_asset(100));
     source.clips = vec![audio_clip(10, 20, 8), audio_clip(11, 40, 12)];
     let clipboard = ClipClipboard::from_selection(
@@ -150,7 +151,7 @@ fn clipboard_remaps_tracks_and_assets_between_timelines() {
     )
     .unwrap();
 
-    let mut destination = TimelineSerialization::with_test_tracks();
+    let mut destination = TimelineEditingState::with_test_tracks();
     destination.tracks[0].id = ulid(201);
     destination.tracks[1].id = ulid(202);
     let (clips, assets) = clipboard
@@ -174,7 +175,7 @@ fn clipboard_remaps_tracks_and_assets_between_timelines() {
 
 #[test]
 fn clipboard_reuses_existing_destination_assets() {
-    let mut source = TimelineSerialization::with_test_tracks();
+    let mut source = TimelineEditingState::with_test_tracks();
     source.assets.push(audio_asset(100));
     source.clips = vec![audio_clip(10, 0, 8)];
     let clipboard = ClipClipboard::from_selection(
@@ -185,7 +186,7 @@ fn clipboard_reuses_existing_destination_assets() {
     )
     .unwrap();
 
-    let mut destination = TimelineSerialization::with_test_tracks();
+    let mut destination = TimelineEditingState::with_test_tracks();
     destination.tracks[1].id = ulid(202);
     let mut existing_asset = audio_asset(300);
     existing_asset.path = PathBuf::from("audio.mp3");
@@ -204,7 +205,7 @@ fn clipboard_reuses_existing_destination_assets() {
 
 #[test]
 fn clipboard_paste_rejects_the_complete_selection_on_collision() {
-    let mut project = TimelineSerialization::with_test_tracks();
+    let mut project = TimelineEditingState::with_test_tracks();
     project.assets.push(audio_asset(100));
     project.clips = vec![audio_clip(20, 105, 10)];
     let candidates = vec![audio_clip(10, 100, 8), audio_clip(11, 120, 12)];
@@ -216,8 +217,8 @@ fn clipboard_paste_rejects_the_complete_selection_on_collision() {
 }
 
 #[test]
-fn track_magnet_does_not_ripple_multiple_deleted_clips() {
-    let mut clips = vec![
+fn track_magnet_does_not_ripple_multiple_deleted_clips() -> Result<()> {
+    let clips = vec![
         audio_clip(1, 10, 10),
         audio_clip(2, 30, 5),
         audio_clip(3, 50, 10),
@@ -228,19 +229,32 @@ fn track_magnet_does_not_ripple_multiple_deleted_clips() {
         },
     ];
 
-    ripple_clips_after_deletion(
-        &mut clips,
-        &HashSet::from([ulid(1), ulid(2)]),
-        FrameRate::default(),
-    );
-
-    assert_eq!(clips[2].timeline_start(), TimelineTime::from_frames(50));
-    assert_eq!(clips[3].timeline_start(), TimelineTime::from_frames(50));
+    let data = TimelineEditingState {
+        clips,
+        ..TimelineEditingState::with_test_tracks()
+    };
+    let mut timeline = TimelineRuntimeState::new(
+        std::path::absolute("test.timeline.json")?,
+        data,
+        Path::new("."),
+    )?;
+    edit_timeline(
+        &mut timeline,
+        EditAction::RemoveClips {
+            clip_ids: HashSet::from([ulid(1), ulid(2)]),
+            close_track_gaps: true,
+        },
+    )?;
+    let remaining = &timeline.backend.timeline().clips;
+    assert_eq!(remaining.len(), 2);
+    assert_eq!(remaining[0].timeline_start(), TimelineTime::from_frames(50));
+    assert_eq!(remaining[1].timeline_start(), TimelineTime::from_frames(50));
+    Ok(())
 }
 
 #[test]
 fn select_all_excludes_clips_on_locked_tracks() {
-    let mut project = TimelineSerialization::with_test_tracks();
+    let mut project = TimelineEditingState::with_test_tracks();
     project.clips = vec![audio_clip(10, 0, 10), {
         let mut clip = audio_clip(11, 10, 10);
         clip.set_track_id(ulid(1));
@@ -252,482 +266,348 @@ fn select_all_excludes_clips_on_locked_tracks() {
 }
 
 #[test]
-fn moves_ges_clip_without_rebuilding_timeline() {
-    use gstreamer_editing_services::prelude::*;
-
-    gstreamer_editing_services::init().unwrap();
-    let track_id = ulid(3);
-    let clip_id = ulid(10);
-    let mut project = TimelineSerialization {
-        tracks: vec![Track {
-            id: track_id,
-            name: "Text 1".to_string(),
-            kind: TrackKind::Text,
-            locked: false,
-            muted: false,
-            visible: true,
-        }],
-        clips: vec![Clip::Text(TextClip {
-            id: clip_id,
-            track_id,
-            timeline_start: TimelineTime::ZERO,
-            length: Duration::from_secs(2),
-            properties: TextClipProperties::default(),
-        })],
-        ..TimelineSerialization::default()
-    };
-    let ges = build_ges_timeline(
-        &project,
-        Path::new(env!("CARGO_MANIFEST_DIR")),
-        export::ExportOptions::from_timeline(&project),
-        false,
-    )
-    .unwrap();
-    let start = TimelineTime::from_frames(45);
-
-    ges_move_clips(&ges, &project, &[(clip_id, track_id, start)]).unwrap();
-    project.clips[0].set_timeline_start(start);
-
-    let clip = ges
-        .layers()
-        .into_iter()
-        .flat_map(|layer| layer.clips())
-        .find(|clip| clip.name().as_deref() == Some(format!("opencut-clip-{clip_id}").as_str()))
-        .unwrap();
-    let expected_start = project.duration(start);
-    // Text starts one nanosecond before the frame boundary to avoid a title gap.
-    assert!(
-        clip.start()
-            .nseconds()
-            .abs_diff(expected_start.as_nanos() as u64)
-            <= 1
-    );
-
-    let background = ges
-        .layers()
-        .into_iter()
-        .flat_map(|layer| layer.clips())
-        .find(|clip| clip.name().as_deref() == Some("opencut-black-background"))
-        .unwrap();
-    assert_eq!(
-        background.duration().nseconds(),
-        project.duration(project.content_duration()).as_nanos() as u64
-    );
-}
-
-#[test]
-fn moves_adjacent_ges_clips_together_without_transient_overlap() {
-    use gstreamer_editing_services::prelude::*;
-
-    gstreamer_editing_services::init().unwrap();
-    let track_id = ulid(3);
-    let first_clip_id = ulid(10);
-    let second_clip_id = ulid(11);
-    let mut project = TimelineSerialization {
-        tracks: vec![Track {
-            id: track_id,
-            name: "Text 1".to_string(),
-            kind: TrackKind::Text,
-            locked: false,
-            muted: false,
-            visible: true,
-        }],
-        clips: vec![
-            Clip::Text(TextClip {
-                id: first_clip_id,
-                track_id,
-                timeline_start: TimelineTime::ZERO,
-                length: Duration::from_secs(2),
-                properties: TextClipProperties::default(),
-            }),
-            Clip::Text(TextClip {
-                id: second_clip_id,
-                track_id,
-                timeline_start: TimelineTime::from_frames(60),
-                length: Duration::from_secs(2),
-                properties: TextClipProperties::default(),
-            }),
-        ],
-        ..TimelineSerialization::default()
-    };
-    let ges = build_ges_timeline(
-        &project,
-        Path::new(env!("CARGO_MANIFEST_DIR")),
-        export::ExportOptions::from_timeline(&project),
-        false,
-    )
-    .unwrap();
-    let placements = [
-        (first_clip_id, track_id, TimelineTime::from_frames(60)),
-        (second_clip_id, track_id, TimelineTime::from_frames(120)),
-    ];
-
-    ges_move_clips(&ges, &project, &placements).unwrap();
-    for (clip_id, _, start) in placements {
-        project.clip_mut(clip_id).unwrap().set_timeline_start(start);
-    }
-
-    let starts = ges
-        .layers()
-        .into_iter()
-        .flat_map(|layer| layer.clips())
-        .filter_map(|clip| {
-            let name = clip.name()?;
-            let id = name.strip_prefix("opencut-clip-")?.parse::<Ulid>().ok()?;
-            Some((id, clip.start()))
-        })
-        .collect::<HashMap<_, _>>();
-    assert!(
-        starts[&first_clip_id]
-            .nseconds()
-            .abs_diff(project.duration(TimelineTime::from_frames(60)).as_nanos() as u64)
-            <= 1
-    );
-    assert!(
-        starts[&second_clip_id]
-            .nseconds()
-            .abs_diff(project.duration(TimelineTime::from_frames(120)).as_nanos() as u64)
-            <= 1
-    );
-}
-
-#[test]
-fn moves_adjacent_ges_clips_beyond_timeline_end_without_parking_overlap() {
-    use gstreamer_editing_services::prelude::*;
-
-    gstreamer_editing_services::init().unwrap();
-    let track_id = ulid(2);
-    let first_clip_id = ulid(10);
-    let second_clip_id = ulid(11);
-    let project = TimelineSerialization {
-        tracks: vec![Track {
-            id: track_id,
-            name: "Audio 1".to_string(),
-            kind: TrackKind::Audio,
-            locked: false,
-            muted: false,
-            visible: true,
-        }],
-        assets: vec![audio_asset(100)],
-        clips: vec![audio_clip(10, 0, 90), audio_clip(11, 90, 60)],
-        ..TimelineSerialization::default()
-    };
-    // Synthetic sources exercise GES overlap validation without a media fixture.
-    let ges = gstreamer_editing_services::Timeline::new_audio_video();
-    let layer = ges.append_layer();
-    for data in &project.clips {
-        let clip = gstreamer_editing_services::TestClip::new().unwrap();
-        clip.set_supported_formats(gstreamer_editing_services::TrackType::AUDIO);
-        clip.set_name(Some(&format!("opencut-clip-{}", data.id())))
-            .unwrap();
-        let (start, duration) = super::super::export_gstreamer::clip_clock_range(
-            project.settings.frame_rate,
-            data,
-            data.timeline_start(),
-        );
-        assert!(clip.set_start(start));
-        assert!(clip.set_duration(duration));
-        layer.add_clip(&clip).unwrap();
-    }
-    let placements = [
-        (first_clip_id, track_id, TimelineTime::from_frames(240)),
-        (second_clip_id, track_id, TimelineTime::from_frames(330)),
-    ];
-
-    let mut runtime =
-        TimelineRuntimeState::new("test.timeline.json".into(), project, ges.clone()).unwrap();
-    assert_eq!(
-        runtime.data.content_duration(),
-        TimelineTime::from_frames(150)
-    );
+fn edits_do_not_require_source_media_or_a_playback_backend() -> Result<()> {
+    let mut data = TimelineEditingState::with_test_tracks();
+    data.assets.push(audio_asset(100));
+    let mut timeline = TimelineRuntimeState::new(
+        std::path::absolute("test.timeline.json")?,
+        data,
+        Path::new("."),
+    )?;
     edit_timeline(
-        &mut runtime,
-        Path::new(env!("CARGO_MANIFEST_DIR")),
-        EditAction::MoveClips {
-            placements: placements.to_vec(),
+        &mut timeline,
+        EditAction::AddClips {
+            clips: vec![audio_clip(10, 0, 30), audio_clip(11, 30, 30)],
+            assets: Vec::new(),
         },
-    )
-    .unwrap();
-    let project = &runtime.data;
-    assert_eq!(project.content_duration(), TimelineTime::from_frames(390));
-    assert_eq!(ges.duration(), gstreamer::ClockTime::from_seconds(13));
-
-    let starts = ges
-        .layers()
-        .into_iter()
-        .flat_map(|layer| layer.clips())
-        .filter_map(|clip| {
-            let name = clip.name()?;
-            let id = name.strip_prefix("opencut-clip-")?.parse::<Ulid>().ok()?;
-            Some((id, clip.start()))
-        })
-        .collect::<HashMap<_, _>>();
-    for (clip_id, _, start) in placements {
-        let (expected_start, _) = super::super::export_gstreamer::clip_clock_range(
-            project.settings.frame_rate,
-            project.clip(clip_id).unwrap(),
-            start,
-        );
-        assert_eq!(starts[&clip_id], expected_start);
-    }
+    )?;
+    edit_timeline(
+        &mut timeline,
+        EditAction::MoveClips {
+            placements: vec![
+                (ulid(10), ulid(2), TimelineTime::from_frames(90)),
+                (ulid(11), ulid(2), TimelineTime::from_frames(120)),
+            ],
+        },
+    )?;
+    assert_eq!(
+        timeline
+            .backend
+            .timeline()
+            .clip(ulid(10))
+            .unwrap()
+            .timeline_start()
+            .frames(),
+        90
+    );
+    assert_eq!(
+        timeline
+            .backend
+            .timeline()
+            .clip(ulid(11))
+            .unwrap()
+            .timeline_start()
+            .frames(),
+        120
+    );
+    assert_eq!(timeline.backend.timeline().content_duration().frames(), 150);
+    Ok(())
 }
 
 #[test]
-fn removes_ges_clip_and_ripples_surviving_clips() {
-    use gstreamer_editing_services::prelude::*;
+fn invalid_edits_leave_the_document_unchanged() -> Result<()> {
+    let mut data = TimelineEditingState::with_test_tracks();
+    data.assets.push(audio_asset(100));
+    data.clips = vec![audio_clip(10, 0, 30), audio_clip(11, 30, 30)];
+    let mut timeline = TimelineRuntimeState::new(
+        std::path::absolute("test.timeline.json")?,
+        data,
+        Path::new("."),
+    )?;
+    let before = serde_json::to_value(timeline.to_serialize())?;
+    assert!(
+        edit_timeline(
+            &mut timeline,
+            EditAction::MoveClips {
+                placements: vec![(ulid(11), ulid(2), TimelineTime::from_frames(10))],
+            }
+        )
+        .is_err()
+    );
+    assert_eq!(serde_json::to_value(timeline.to_serialize())?, before);
+    let mut invalid = timeline.backend.timeline().clip(ulid(11)).unwrap().clone();
+    invalid.set_timeline_start(TimelineTime::from_frames(10));
+    assert!(edit_timeline(&mut timeline, EditAction::UpdateClip { clip: invalid }).is_err());
+    assert_eq!(serde_json::to_value(timeline.to_serialize())?, before);
+    Ok(())
+}
 
-    gstreamer_editing_services::init().unwrap();
-    let track_id = ulid(3);
-    let removed_clip_id = ulid(10);
-    let surviving_clip_id = ulid(11);
-    let project = TimelineSerialization {
-        tracks: vec![Track {
-            id: track_id,
-            name: "Text 1".to_string(),
-            kind: TrackKind::Text,
-            locked: false,
-            muted: false,
-            visible: true,
-        }],
-        clips: vec![
-            Clip::Text(TextClip {
-                id: removed_clip_id,
-                track_id,
-                timeline_start: TimelineTime::ZERO,
-                length: Duration::from_secs(2),
-                properties: TextClipProperties::default(),
-            }),
-            Clip::Text(TextClip {
-                id: surviving_clip_id,
-                track_id,
-                timeline_start: TimelineTime::from_frames(60),
-                length: Duration::from_secs(2),
-                properties: TextClipProperties::default(),
-            }),
-        ],
-        ..TimelineSerialization::default()
-    };
-    let ges = build_ges_timeline(
-        &project,
-        Path::new(env!("CARGO_MANIFEST_DIR")),
-        export::ExportOptions::from_timeline(&project),
-        false,
-    )
-    .unwrap();
-    let mut runtime =
-        TimelineRuntimeState::new("test.timeline.json".into(), project, ges.clone()).unwrap();
-
+#[test]
+fn splitting_trimming_and_ripple_deletion_update_the_model() -> Result<()> {
+    let mut data = TimelineEditingState::with_test_tracks();
+    data.assets.push(audio_asset(100));
+    data.clips = vec![audio_clip(10, 0, 60), audio_clip(11, 60, 30)];
+    let mut timeline = TimelineRuntimeState::new(
+        std::path::absolute("test.timeline.json")?,
+        data,
+        Path::new("."),
+    )?;
+    let (left, right) = timeline.backend.timeline().clips[0]
+        .split_at(
+            TimelineTime::from_frames(20),
+            timeline.backend.timeline().settings.frame_rate,
+        )
+        .unwrap();
+    let left_id = left.id();
+    let right_id = right.id();
     edit_timeline(
-        &mut runtime,
-        Path::new(env!("CARGO_MANIFEST_DIR")),
+        &mut timeline,
+        EditAction::SplitClips {
+            removed_clips: HashSet::from([ulid(10)]),
+            added_clips: vec![left, right],
+        },
+    )?;
+    assert_eq!(timeline.backend.timeline().clips.len(), 3);
+    assert_eq!(
+        timeline
+            .backend
+            .timeline()
+            .clip(right_id)
+            .unwrap()
+            .media()
+            .unwrap()
+            .source_in
+            .frames(),
+        20
+    );
+    let mut trimmed = timeline.backend.timeline().clip(right_id).unwrap().clone();
+    trimmed.media_mut().unwrap().source_out = TimelineTime::from_frames(50);
+    edit_timeline(&mut timeline, EditAction::UpdateClip { clip: trimmed })?;
+    edit_timeline(
+        &mut timeline,
         EditAction::RemoveClips {
-            clip_ids: HashSet::from([removed_clip_id]),
+            clip_ids: HashSet::from([left_id]),
             close_track_gaps: true,
         },
-    )
-    .unwrap();
-
-    assert!(runtime.data.clip(removed_clip_id).is_none());
+    )?;
     assert_eq!(
-        runtime
-            .data
-            .clip(surviving_clip_id)
+        timeline
+            .backend
+            .timeline()
+            .clip(right_id)
             .unwrap()
             .timeline_start(),
         TimelineTime::ZERO
     );
-    let surviving_clip = ges
-        .layers()
-        .into_iter()
-        .flat_map(|layer| layer.clips())
-        .find(|clip| {
-            clip.name().as_deref() == Some(format!("opencut-clip-{surviving_clip_id}").as_str())
-        })
-        .unwrap();
-    assert_eq!(surviving_clip.start(), gstreamer::ClockTime::ZERO);
-    data_parity_check(&runtime, &ges).unwrap();
-}
-
-#[test]
-fn splits_ges_clip_with_one_edit_action() {
-    gstreamer_editing_services::init().unwrap();
-    let track_id = ulid(3);
-    let original_clip_id = ulid(10);
-    let original_clip = Clip::Text(TextClip {
-        id: original_clip_id,
-        track_id,
-        timeline_start: TimelineTime::ZERO,
-        length: Duration::from_secs(4),
-        properties: TextClipProperties::default(),
-    });
-    let project = TimelineSerialization {
-        tracks: vec![Track {
-            id: track_id,
-            name: "Text 1".to_string(),
-            kind: TrackKind::Text,
-            locked: false,
-            muted: false,
-            visible: true,
-        }],
-        clips: vec![original_clip.clone()],
-        ..TimelineSerialization::default()
-    };
-    let ges = build_ges_timeline(
-        &project,
-        Path::new(env!("CARGO_MANIFEST_DIR")),
-        export::ExportOptions::from_timeline(&project),
-        false,
-    )
-    .unwrap();
-    let mut runtime =
-        TimelineRuntimeState::new("test.timeline.json".into(), project, ges.clone()).unwrap();
-    let split_position = TimelineTime::from_frames(60);
-    let (left, right) = original_clip
-        .split_at(split_position, runtime.data.settings.frame_rate)
-        .unwrap();
-    let right_clip_id = right.id();
-
-    edit_timeline(
-        &mut runtime,
-        Path::new(env!("CARGO_MANIFEST_DIR")),
-        EditAction::SplitClips {
-            removed_clips: HashSet::from([original_clip_id]),
-            added_clips: vec![left, right],
-        },
-    )
-    .unwrap();
-
-    assert!(runtime.data.clip(original_clip_id).is_some());
-    assert!(runtime.data.clip(right_clip_id).is_some());
-    assert_eq!(runtime.data.clips.len(), 2);
     assert_eq!(
-        runtime.data.content_duration(),
-        TimelineTime::from_frames(120)
+        timeline
+            .backend
+            .timeline()
+            .clip(right_id)
+            .unwrap()
+            .media()
+            .unwrap()
+            .source_out
+            .frames(),
+        50
     );
-    data_parity_check(&runtime, &ges).unwrap();
+    assert_eq!(
+        timeline
+            .backend
+            .timeline()
+            .clip(ulid(11))
+            .unwrap()
+            .timeline_start()
+            .frames(),
+        40
+    );
+    Ok(())
 }
 
 #[test]
-fn detects_timeline_and_ges_data_divergence() {
-    gstreamer_editing_services::init().unwrap();
-    let track_id = ulid(3);
-    let clip_id = ulid(10);
-    let project = TimelineSerialization {
-        tracks: vec![Track {
-            id: track_id,
-            name: "Text 1".to_string(),
-            kind: TrackKind::Text,
-            locked: false,
-            muted: false,
-            visible: true,
-        }],
-        clips: vec![Clip::Text(TextClip {
-            id: clip_id,
-            track_id,
-            timeline_start: TimelineTime::ZERO,
-            length: Duration::from_secs(2),
-            properties: TextClipProperties::default(),
-        })],
-        ..TimelineSerialization::default()
-    };
-    let ges = build_ges_timeline(
-        &project,
-        Path::new(env!("CARGO_MANIFEST_DIR")),
-        export::ExportOptions::from_timeline(&project),
-        false,
-    )
-    .unwrap();
-    let mut runtime =
-        TimelineRuntimeState::new("test.timeline.json".into(), project, ges.clone()).unwrap();
-
-    let rendered = ges
-        .layers()
-        .into_iter()
-        .flat_map(|layer| layer.clips())
-        .find(|clip| clip.name().as_deref() == Some(format!("opencut-clip-{clip_id}").as_str()))
-        .unwrap();
-    assert!(rendered.set_duration(gstreamer::ClockTime::from_mseconds(1_985)));
-    // Parity checks read the edited GES objects, not the streaming state.
-    // Waiting for a synchronous commit can deadlock during preview preroll.
-    assert!(ges.commit());
-    data_parity_check(&runtime, &ges).unwrap();
-
-    runtime.data.clips[0].set_timeline_start(TimelineTime::ONE_FRAME);
-    let error = data_parity_check(&runtime, &ges).unwrap_err();
-    assert!(
-        error.to_string().contains("starts at"),
-        "unexpected error: {error}"
-    );
-}
-
-#[test]
-fn updates_video_transform_without_rebuilding_ges_clip() {
-    gstreamer_editing_services::init().unwrap();
-    let mut project = TimelineSerialization::with_test_tracks();
-    project.settings.width = 1920;
-    project.settings.height = 1080;
-    let mut asset = audio_asset(100);
-    asset.kind = MediaKind::Video;
-    asset.width = 1920;
-    asset.height = 1080;
-    project.assets.push(asset);
-    let Clip::Audio(mut media) = audio_clip(10, 0, 60) else {
-        unreachable!();
-    };
-    media.track_id = ulid(1);
-    project.clips.push(Clip::Video(media));
-    let ges = gstreamer_editing_services::Timeline::new_audio_video();
-    let layer = ges.append_layer();
-    let rendered = gstreamer_editing_services::TestClip::new().unwrap();
-    rendered.set_supported_formats(gstreamer_editing_services::TrackType::VIDEO);
-    rendered
-        .set_name(Some(&format!("opencut-clip-{}", ulid(10))))
-        .unwrap();
-    assert!(rendered.set_duration(gstreamer::ClockTime::from_seconds(2)));
-    layer.add_clip(&rendered).unwrap();
-    let mut runtime =
-        TimelineRuntimeState::new("test.timeline.json".into(), project, ges.clone()).unwrap();
+fn track_controls_and_properties_work_without_preview() -> Result<()> {
+    let mut data = TimelineEditingState::with_test_tracks();
+    data.assets.push(audio_asset(100));
+    data.clips = vec![audio_clip(10, 0, 60)];
+    let mut timeline = TimelineRuntimeState::new(
+        std::path::absolute("test.timeline.json")?,
+        data,
+        Path::new("."),
+    )?;
     let properties = VideoClipProperties {
-        position_x: 120.0,
-        position_y: 60.0,
+        position_x: 25.0,
+        position_y: -40.0,
         scale: 0.5,
     };
-    let rebuild = edit_timeline(
-        &mut runtime,
-        Path::new(env!("CARGO_MANIFEST_DIR")),
+    edit_timeline(
+        &mut timeline,
         EditAction::SetVideoProperties {
             clip_ids: vec![ulid(10)],
             properties,
         },
-    )
-    .unwrap();
-    assert!(!rebuild);
-    assert_eq!(runtime.video_backend.ges_timeline(), &ges);
+    )?;
     assert_eq!(
-        layer.clips()[0],
-        rendered
-            .clone()
-            .upcast::<gstreamer_editing_services::Clip>()
-    );
-    for (name, expected) in [
-        ("posx", 600),
-        ("posy", 330),
-        ("width", 960),
-        ("height", 540),
-    ] {
-        assert_eq!(
-            rendered.child_property(name).unwrap().get::<i32>().unwrap(),
-            expected
-        );
-    }
-    assert_eq!(
-        runtime
-            .data
-            .clip(ulid(10))
-            .unwrap()
+        timeline.backend.timeline().clips[0]
             .media()
             .unwrap()
             .video_properties,
         properties
     );
+    let visible = timeline.backend.timeline().track(ulid(2)).unwrap().visible;
+    edit_timeline(
+        &mut timeline,
+        EditAction::ToggleTrackVisibility { track_id: ulid(2) },
+    )?;
+    edit_timeline(
+        &mut timeline,
+        EditAction::ToggleTrackMute { track_id: ulid(2) },
+    )?;
+    edit_timeline(
+        &mut timeline,
+        EditAction::ToggleTrackLock { track_id: ulid(2) },
+    )?;
+    let track = timeline.backend.timeline().track(ulid(2)).unwrap();
+    assert_eq!(track.visible, !visible);
+    assert!(track.muted && track.locked);
+    timeline.snapping_enabled = false;
+    timeline.track_magnet_enabled = true;
+    assert!(!timeline.snapping_enabled);
+    assert!(timeline.track_magnet_enabled);
+    edit_timeline(&mut timeline, EditAction::DeleteTrack { track_id: ulid(2) })?;
+    assert!(timeline.backend.timeline().track(ulid(2)).is_none());
+    assert!(timeline.backend.timeline().clips.is_empty());
+    Ok(())
+}
+
+#[test]
+fn text_edits_preserve_timing_without_a_renderer() -> Result<()> {
+    let mut data = TimelineEditingState::default();
+    data.tracks.push(Track {
+        id: ulid(3),
+        name: "Text".into(),
+        kind: TrackKind::Text,
+        locked: false,
+        muted: false,
+        visible: true,
+    });
+    let mut timeline = TimelineRuntimeState::new(
+        std::path::absolute("test.timeline.json")?,
+        data,
+        Path::new("."),
+    )?;
+    let mut clip = TextClip {
+        id: ulid(10),
+        track_id: ulid(3),
+        timeline_start: TimelineTime::from_frames(15),
+        length: Duration::from_secs(2),
+        properties: TextClipProperties::default(),
+    };
+    edit_timeline(
+        &mut timeline,
+        EditAction::AddClips {
+            clips: vec![Clip::Text(clip.clone())],
+            assets: Vec::new(),
+        },
+    )?;
+    // Track locks restrict placement changes; text properties remain editable.
+    edit_timeline(
+        &mut timeline,
+        EditAction::ToggleTrackLock { track_id: ulid(3) },
+    )?;
+    clip.properties.text = "Hello 日本語".into();
+    edit_timeline(
+        &mut timeline,
+        EditAction::UpdateClip {
+            clip: Clip::Text(clip.clone()),
+        },
+    )?;
+    clip.properties.font_size = 72.0;
+    edit_timeline(
+        &mut timeline,
+        EditAction::SetTextProperties {
+            clip_id: clip.id,
+            properties: clip.properties.clone(),
+        },
+    )?;
+    let json = serde_json::to_string(&timeline.to_serialize())?;
+    let restored = serde_json::from_str::<TimelineSerialization>(&json)?.to_editing_state();
+    let Clip::Text(restored) = restored.clip(clip.id).unwrap() else {
+        panic!("text clip must retain its kind");
+    };
+    assert_eq!(restored.properties, clip.properties);
+    assert_eq!(restored.timeline_start, clip.timeline_start);
+    assert_eq!(restored.length, clip.length);
+    Ok(())
+}
+
+#[test]
+fn playhead_is_restored_saved_and_clamped_without_media() -> Result<()> {
+    let mut data = TimelineEditingState::with_test_tracks();
+    data.assets.push(audio_asset(100));
+    data.clips = vec![audio_clip(10, 0, 60)];
+    let directory = std::env::temp_dir().join(format!("opencut-playhead-{}", Ulid::generate()));
+    std::fs::create_dir_all(&directory)?;
+    let path = directory.join("test.timeline.json");
+    let mut timeline = TimelineRuntimeState::new(path.clone(), data, &directory)?;
+    timeline.backend.seek(Duration::from_millis(1500))?;
+    timeline.save()?;
+    let restored = TimelineRuntimeState::load(path, &directory)?;
+    assert_eq!(restored.playhead().frames(), 45);
+    timeline.backend.seek(Duration::MAX)?;
+    assert_eq!(timeline.playhead().frames(), 59);
+    edit_timeline(
+        &mut timeline,
+        EditAction::RemoveClips {
+            clip_ids: HashSet::from([ulid(10)]),
+            close_track_gaps: false,
+        },
+    )?;
+    assert_eq!(timeline.playhead(), TimelineTime::ZERO);
+    drop(restored);
+    drop(timeline);
+    std::fs::remove_dir_all(directory)?;
+    Ok(())
+}
+
+#[test]
+fn replacing_history_snapshots_preserves_playhead_and_document() -> Result<()> {
+    let mut data = TimelineEditingState::with_test_tracks();
+    data.assets.push(audio_asset(100));
+    data.clips = vec![audio_clip(10, 0, 60)];
+    let mut timeline = TimelineRuntimeState::new(
+        std::path::absolute("test.timeline.json")?,
+        data,
+        Path::new("."),
+    )?;
+    timeline.backend.seek(Duration::from_millis(500))?;
+    timeline.record_editing_history();
+    edit_timeline(
+        &mut timeline,
+        EditAction::MoveClips {
+            placements: vec![(ulid(10), ulid(2), TimelineTime::from_frames(30))],
+        },
+    )?;
+    let redo = timeline.backend.timeline().clone();
+    let undo = timeline.undo_stack.pop().unwrap();
+    edit_timeline(
+        &mut timeline,
+        EditAction::ReplaceTimeline { timeline: undo },
+    )?;
+    assert_eq!(
+        timeline.backend.timeline().clips[0].timeline_start(),
+        TimelineTime::ZERO
+    );
+    assert_eq!(timeline.playhead().frames(), 15);
+    edit_timeline(
+        &mut timeline,
+        EditAction::ReplaceTimeline { timeline: redo },
+    )?;
+    assert_eq!(
+        timeline.backend.timeline().clips[0]
+            .timeline_start()
+            .frames(),
+        30
+    );
+    assert_eq!(timeline.playhead().frames(), 15);
+    Ok(())
 }

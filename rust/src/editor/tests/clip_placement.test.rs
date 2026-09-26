@@ -2,10 +2,11 @@ use super::*;
 use crate::editor::tests::TimelineTestExt;
 use crate::editor::timeline_clip::AudioClipProperties;
 use anyhow::Result;
+use opencut_player::timeline::TimelineEditingState;
 
 #[test]
 fn validates_one_clip_placement() {
-    let mut timeline = TimelineSerialization::with_test_tracks();
+    let mut timeline = TimelineEditingState::with_test_tracks();
 
     assert_eq!(
         placement_rejection(validate_clip_placement(

@@ -1,6 +1,10 @@
 //! CLI-owned file I/O for the shared timeline format.
-pub use crate::timeline::TimelineSerialization as Document;
-pub use crate::timeline::parse;
+pub use crate::timeline::TimelineEditingState;
+use crate::timeline::{ParseError, TrackKind};
+
+pub fn parse(value: &Value) -> std::result::Result<TimelineEditingState, ParseError> {
+    Ok(crate::timeline::parse(value)?.to_editing_state())
+}
 use anyhow::{Context as _, Result, anyhow};
 use serde_json::{Value, json};
 use std::{
@@ -10,14 +14,14 @@ use std::{
 };
 use ulid::Ulid;
 
-pub fn load(path: &Path) -> Result<(Value, Document)> {
+pub fn load(path: &Path) -> Result<(Value, TimelineEditingState)> {
     let contents = fs::read(path).context(format!("io_error at {}:{}", file!(), line!()))?;
     let value: Value = serde_json::from_slice(&contents).context(format!(
         "invalid_json at {}:{}",
         file!(),
         line!()
     ))?;
-    let document = crate::timeline::parse(&value)?;
+    let document = parse(&value)?;
     Ok((value, document))
 }
 
@@ -57,7 +61,7 @@ pub async fn write_atomic_bytes(path: &Path, bytes: Vec<u8>, overwrite: bool) ->
         .context(format!("io_error at {}:{}", file!(), line!()))?
 }
 
-pub fn summary(doc: &Document) -> Value {
+pub fn summary(doc: &TimelineEditingState) -> Value {
     let fps = doc.settings.frame_rate;
     let mut clips = Vec::new();
     let mut tracks = Vec::new();
@@ -83,7 +87,7 @@ pub fn summary(doc: &Document) -> Value {
         if end < doc.content_duration().frames() {
             gaps.push(json!({"start_frame": end, "end_frame": doc.content_duration().frames()}));
         }
-        tracks.push(json!({"id": track.id, "kind": track.kind, "name": track.name, "muted": track.muted, "gaps": gaps}));
+        tracks.push(json!({"id": track.id, "kind": match track.kind { TrackKind::Video => "Video", TrackKind::Audio => "Audio", TrackKind::Text => "Text" }, "name": track.name, "muted": track.muted, "gaps": gaps}));
     }
     for asset in &doc.assets {
         let used: Vec<_> = doc
@@ -94,7 +98,7 @@ pub fn summary(doc: &Document) -> Value {
             .collect();
         assets.push(json!({"id": asset.id, "path": asset.path, "clips": used}));
     }
-    json!({"frames": doc.content_duration().frames(), "duration_s": fps.seconds(doc.content_duration()), "settings": doc.settings, "tracks": tracks, "clips": clips, "assets": assets})
+    json!({"frames": doc.content_duration().frames(), "duration_s": fps.seconds(doc.content_duration()), "settings": {"width": doc.settings.width, "height": doc.settings.height, "audio_sample_rate": doc.settings.audio_sample_rate, "frame_rate": {"numerator": fps.numerator, "denominator": fps.denominator}}, "tracks": tracks, "clips": clips, "assets": assets})
 }
 
 fn write_bytes(path: &Path, bytes: &[u8], overwrite: bool) -> Result<()> {

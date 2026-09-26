@@ -1,9 +1,9 @@
 use super::*;
 use crate::editor::tests::TimelineTestExt;
 use crate::editor::{
-    MediaKind, clip_placement::ClipPlacementRejection, timeline::TimelineSerialization,
-    timeline_clip::AudioClip, ulid,
+    MediaKind, clip_placement::ClipPlacementRejection, timeline_clip::AudioClip, ulid,
 };
+use opencut_player::timeline::TimelineEditingState;
 use std::path::Path;
 
 fn asset(kind: MediaKind, has_audio: bool) -> MediaAsset {
@@ -25,7 +25,7 @@ fn asset(kind: MediaKind, has_audio: bool) -> MediaAsset {
 
 #[test]
 fn explorer_drop_rejects_incompatible_tracks() {
-    let project = TimelineSerialization::with_test_tracks();
+    let project = TimelineEditingState::with_test_tracks();
     let audio = asset(MediaKind::Audio, true);
     let audio_rejection = validate_clip_placement(
         &project,
@@ -65,7 +65,7 @@ fn explorer_drop_rejects_incompatible_tracks() {
 
 #[test]
 fn explorer_drop_detects_collisions_but_allows_adjacent_clips() {
-    let mut project = TimelineSerialization::with_test_tracks();
+    let mut project = TimelineEditingState::with_test_tracks();
     project.clips.push(Clip::Audio(AudioClip {
         id: ulid(20),
         track_id: ulid(2),

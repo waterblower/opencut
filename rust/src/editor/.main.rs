@@ -9,9 +9,6 @@ mod macos_pinch;
 #[path = "../playback_view.rs"]
 mod playback_view;
 
-#[path = "../video/mod.rs"]
-mod video;
-
 mod asset;
 use anyhow::{anyhow, bail};
 use asset::EditorAssets;
@@ -68,12 +65,8 @@ fn run_app(cx: &mut App) {
             let project_root = project_root.clone();
             let source_path = source_path.clone();
             let task = gpui_tokio::Tokio::spawn(cx, async move {
-                let srt = editor::transcription::start_transcription(
-                    source_path.clone(),
-                    project_root.clone(),
-                    api_key,
-                )
-                .await?;
+                let srt = editor::transcription::start_transcription(source_path.clone(), api_key)
+                    .await?;
                 log::info!("Writing SRT for {}", source_path.display());
                 let Some(stem) = source_path.file_stem() else {
                     bail!(
@@ -114,17 +107,13 @@ fn run_app(cx: &mut App) {
                 ),
             };
             let ready = window
-                .update(cx, |editor, _, cx| {
-                    match editor.prepare_project_switch(cx) {
-                        Ok(ready) => ready,
-                        Err(error) => {
-                            editor.status = Some(format!("{error}"));
-                            log::error!(
-                                "Could not save timeline before switching projects: {error:?}"
-                            );
-                            cx.notify();
-                            false
-                        }
+                .update(cx, |editor, _, cx| match editor.prepare_project_switch() {
+                    Ok(()) => true,
+                    Err(error) => {
+                        editor.status = Some(format!("{error}"));
+                        log::error!("Could not save timeline before switching projects: {error:?}");
+                        cx.notify();
+                        false
                     }
                 })
                 .unwrap_or(false);

@@ -83,7 +83,7 @@ impl Editor {
         {
             return;
         }
-        let Some(clip) = timeline.data.clip(clip_id) else {
+        let Some(clip) = timeline.backend.timeline().clip(clip_id) else {
             self.properties.transform_input_clip_id = None;
             return;
         };
@@ -120,7 +120,7 @@ impl Editor {
         let Some(timeline) = self.timeline.as_ref() else {
             return Ok(());
         };
-        if timeline.data.clip_locked(clip_id) {
+        if timeline.backend.timeline().clip_locked(clip_id) {
             return Ok(());
         }
         let Ok(mut value) = text.trim().parse::<f64>() else {
@@ -135,10 +135,10 @@ impl Editor {
         ) {
             value /= 100.0;
         }
-        let Some(index) = timeline.data.clip_index(clip_id) else {
+        let Some(index) = timeline.backend.timeline().clip_index(clip_id) else {
             return Ok(());
         };
-        let Some(clip) = timeline.data.clips[index].media() else {
+        let Some(clip) = timeline.backend.timeline().clips[index].media() else {
             return Ok(());
         };
         let mut properties = clip.video_properties;
@@ -154,9 +154,8 @@ impl Editor {
             return Ok(());
         };
         timeline.record_editing_history();
-        edit_and_rebuild_timeline(
+        apply_timeline_edit(
             &mut self.preview,
-            &self.project_root,
             timeline,
             EditAction::SetVideoProperties {
                 clip_ids: vec![clip_id],
@@ -165,10 +164,7 @@ impl Editor {
         )
         .expect("setting video properties cannot be rejected");
 
-        super::timeline_video::refresh_timeline_video_frame(timeline.video_backend.playback_mut())?;
-        timeline
-            .data
-            .save(&self.project_root.join(&timeline.path))?;
+        timeline.save()?;
         Ok(())
     }
 }

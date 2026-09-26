@@ -1,4 +1,5 @@
 use super::*;
+use crate::editor::project_settings::{load_project_local_settings, save_project_local_settings};
 use anyhow::{Result, anyhow, bail};
 
 impl Editor {
@@ -100,7 +101,8 @@ impl Editor {
 
         if let Some(timeline) = self.timeline.as_mut() {
             let paths = timeline
-                .data
+                .backend
+                .timeline()
                 .assets
                 .iter()
                 .filter_map(|asset| {
@@ -108,13 +110,11 @@ impl Editor {
                         .map(|path| (asset.id, path))
                 })
                 .collect();
-            edit_and_rebuild_timeline(
+            apply_timeline_edit(
                 &mut self.preview,
-                &self.project_root,
                 timeline,
                 EditAction::UpdateAssetPaths { paths },
-            )
-            .expect("updating asset paths cannot be rejected");
+            )?;
             for snapshot in timeline
                 .undo_stack
                 .iter_mut()
@@ -154,19 +154,28 @@ impl Editor {
             PreviewTarget::None | PreviewTarget::Timeline => {}
         }
 
-        let renamed_active_timeline = self
-            .timeline
-            .as_ref()
-            .and_then(|timeline| remap_relative_path(&timeline.path, &old_relative, &new_relative));
+        let renamed_active_timeline = self.timeline.as_ref().and_then(|timeline| {
+            remap_relative_path(
+                &timeline.path,
+                &self.project_root.join(&old_relative),
+                &self.project_root.join(&new_relative),
+            )
+        });
         if let Some(renamed_active_timeline) = renamed_active_timeline
             && let Some(timeline) = self.timeline.as_mut()
         {
             timeline.path = renamed_active_timeline;
+            let mut settings = load_project_local_settings(&self.project_root);
+            settings.active_timeline = Some(
+                timeline
+                    .path
+                    .strip_prefix(&self.project_root)?
+                    .to_path_buf(),
+            );
+            save_project_local_settings(&self.project_root, &settings)?;
         }
         if let Some(timeline) = self.timeline.as_ref() {
-            timeline
-                .data
-                .save(&self.project_root.join(&timeline.path))?;
+            timeline.save()?;
         }
 
         self.explorer.rename_dialog = None;
@@ -229,11 +238,11 @@ impl Editor {
         if relative_path.as_os_str().is_empty() {
             bail!("The project folder cannot be moved to Trash here.");
         }
-        if self
-            .timeline
-            .as_ref()
-            .is_some_and(|timeline| timeline.path.starts_with(&relative_path))
-        {
+        if self.timeline.as_ref().is_some_and(|timeline| {
+            timeline
+                .path
+                .starts_with(self.project_root.join(&relative_path))
+        }) {
             bail!("The active timeline cannot be moved to Trash.");
         }
 

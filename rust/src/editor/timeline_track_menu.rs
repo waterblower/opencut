@@ -1,5 +1,6 @@
 use super::*;
 use anyhow::{Result, bail};
+use opencut_player::timeline::TimelineEditingState;
 
 impl Editor {
     pub(super) fn add_text(
@@ -12,7 +13,7 @@ impl Editor {
         let Some(timeline) = self.timeline.as_mut() else {
             return Ok(());
         };
-        let clip = match text_clip_at(&timeline.data, track_id, position) {
+        let clip = match text_clip_at(timeline.backend.timeline(), track_id, position) {
             Ok(clip) => clip,
             Err(error) => {
                 self.status = Some(error.to_string());
@@ -22,9 +23,8 @@ impl Editor {
         };
         timeline.record_editing_history();
         let clip_id = clip.id();
-        edit_and_rebuild_timeline(
+        apply_timeline_edit(
             &mut self.preview,
-            &self.project_root,
             timeline,
             EditAction::AddClips {
                 clips: vec![clip],
@@ -35,9 +35,7 @@ impl Editor {
         timeline.interaction.selected_clip_id = Some(clip_id);
         timeline.interaction.selected_clip_ids.clear();
         timeline.interaction.selected_clip_ids.insert(clip_id);
-        timeline
-            .data
-            .save(&self.project_root.join(&timeline.path))?;
+        timeline.save()?;
         self.status = Some("Added text clip.".to_string());
         cx.notify();
         Ok(())
@@ -45,7 +43,7 @@ impl Editor {
 }
 
 fn text_clip_at(
-    timeline: &TimelineSerialization,
+    timeline: &TimelineEditingState,
     track_id: Ulid,
     position: TimelineTime,
 ) -> Result<Clip> {
@@ -90,7 +88,7 @@ mod tests {
     #[test]
     fn rejects_text_when_the_position_is_inside_an_existing_clip() {
         let track_id = Ulid::generate();
-        let mut timeline = TimelineSerialization::default();
+        let mut timeline = TimelineEditingState::default();
         timeline.tracks.push(Track {
             id: track_id,
             name: "Text 1".to_string(),

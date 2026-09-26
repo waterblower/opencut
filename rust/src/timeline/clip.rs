@@ -1,5 +1,4 @@
-use super::{FrameRate, TimelineTime, deserialize_ulid};
-use serde::{Deserialize, Serialize};
+use crate::timeline::{FrameRate, TimelineTime};
 use std::time::Duration;
 use ulid::Ulid;
 
@@ -7,9 +6,7 @@ use ulid::Ulid;
 ///
 /// Position is an offset in timeline pixels from the clip's centered placement. Scale is a
 /// normalized multiplier, so `1.0` means 100%.
-#[derive(Clone, Copy, Debug, Deserialize, PartialEq, Serialize)]
-#[cfg_attr(feature = "timeline-schema", derive(schemars::JsonSchema))]
-#[serde(default)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub struct VideoClipProperties {
     pub position_x: f64,
     pub position_y: f64,
@@ -29,9 +26,7 @@ impl Default for VideoClipProperties {
 /// Static audio adjustments for one timeline clip.
 ///
 /// `0 dB` is unity gain.
-#[derive(Clone, Copy, Debug, Deserialize, PartialEq, Serialize)]
-#[cfg_attr(feature = "timeline-schema", derive(schemars::JsonSchema))]
-#[serde(default)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub struct AudioClipProperties {
     pub gain_db: f64,
     pub muted: bool,
@@ -46,14 +41,12 @@ impl Default for AudioClipProperties {
     }
 }
 
-#[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
-#[cfg_attr(feature = "timeline-schema", derive(schemars::JsonSchema))]
-#[serde(default)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct TextClipProperties {
     pub text: String,
     pub font: String,
     pub font_size: f64,
-    /// Text color as big-endian ARGB, matching GStreamer.
+    /// Text color as big-endian ARGB.
     pub color: u32,
     pub position_x: f64,
     pub position_y: f64,
@@ -72,49 +65,31 @@ impl Default for TextClipProperties {
     }
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
-#[cfg_attr(feature = "timeline-schema", derive(schemars::JsonSchema))]
-// https://serde.rs/enum-representations.html#adjacently-tagged
-#[serde(tag = "kind", content = "data")]
+#[derive(Clone, Debug)]
 pub enum Clip {
-    #[serde(alias = "Media")]
     Video(VideoClip),
     Audio(AudioClip),
     Text(TextClip),
 }
 
-#[derive(Clone, Debug, Deserialize, Serialize)]
-#[cfg_attr(feature = "timeline-schema", derive(schemars::JsonSchema))]
+#[derive(Clone, Debug)]
 pub struct MediaClipData {
-    #[serde(deserialize_with = "deserialize_ulid")]
-    #[cfg_attr(feature = "timeline-schema", schemars(with = "String"))]
     pub id: Ulid,
-    #[serde(alias = "layer_id", deserialize_with = "deserialize_ulid")]
-    #[cfg_attr(feature = "timeline-schema", schemars(with = "String"))]
     pub track_id: Ulid,
-    #[serde(default = "Ulid::nil", deserialize_with = "deserialize_ulid")]
-    #[cfg_attr(feature = "timeline-schema", schemars(with = "String"))]
     pub asset_id: Ulid,
     pub timeline_start: TimelineTime,
     pub source_in: TimelineTime,
     pub source_out: TimelineTime,
-    #[serde(default)]
     pub video_properties: VideoClipProperties,
-    #[serde(default)]
     pub audio_properties: AudioClipProperties,
 }
 
 pub type VideoClip = MediaClipData;
 pub type AudioClip = MediaClipData;
 
-#[derive(Clone, Debug, Deserialize, Serialize)]
-#[cfg_attr(feature = "timeline-schema", derive(schemars::JsonSchema))]
+#[derive(Clone, Debug)]
 pub struct TextClip {
-    #[serde(deserialize_with = "deserialize_ulid")]
-    #[cfg_attr(feature = "timeline-schema", schemars(with = "String"))]
     pub id: Ulid,
-    #[serde(deserialize_with = "deserialize_ulid")]
-    #[cfg_attr(feature = "timeline-schema", schemars(with = "String"))]
     pub track_id: Ulid,
     pub timeline_start: TimelineTime,
     pub length: Duration,

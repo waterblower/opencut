@@ -1,8 +1,9 @@
 use super::*;
 use anyhow::Result;
+use opencut_player::timeline::TimelineEditingState;
 
 pub(super) fn transform_targets(
-    timeline: &TimelineSerialization,
+    timeline: &TimelineEditingState,
     source_clip_id: Ulid,
 ) -> Option<(VideoClipProperties, Vec<usize>)> {
     let source = timeline.clip(source_clip_id)?;
@@ -43,7 +44,7 @@ impl Editor {
         let Some((properties, targets)) = self
             .timeline
             .as_ref()
-            .and_then(|timeline| transform_targets(&timeline.data, source_clip_id))
+            .and_then(|timeline| transform_targets(timeline.backend.timeline(), source_clip_id))
         else {
             return Ok(());
         };
@@ -57,11 +58,10 @@ impl Editor {
         timeline.record_editing_history();
         let clip_ids = targets
             .into_iter()
-            .map(|index| timeline.data.clips[index].id())
+            .map(|index| timeline.backend.timeline().clips[index].id())
             .collect();
-        edit_and_rebuild_timeline(
+        apply_timeline_edit(
             &mut self.preview,
-            &self.project_root,
             timeline,
             EditAction::SetVideoProperties {
                 clip_ids,
@@ -71,9 +71,7 @@ impl Editor {
         .expect("setting video properties cannot be rejected");
         self.properties.transform_input_clip_id = None;
 
-        timeline
-            .data
-            .save(&self.project_root.join(&timeline.path))?;
+        timeline.save()?;
 
         self.status = Some(format!(
             "Applied transforms to {changed} other clip{}.",

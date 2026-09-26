@@ -4,7 +4,7 @@
       "initialization_options": {
         "cargo": {
           "extraArgs": ["--config", ".cargo/macos.toml"],
-          "features": ["cli"]
+          "features": ["cli", "player"]
         }
       }
     }

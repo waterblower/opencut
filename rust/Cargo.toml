@@ -25,16 +25,6 @@ path = "src/examples/mp3.rs"
 required-features = ["mp3"]
 
 [[bin]]
-name = "mp4"
-path = "src/examples/mp4.rs"
-required-features = ["mp4"]
-
-[[bin]]
-name = "mp4-v2"
-path = "src/examples/mp4-v2.rs"
-required-features = ["mp4"]
-
-[[bin]]
 name = "2windows"
 path = "src/examples/2windows.rs"
 required-features = ["2windows"]
@@ -46,29 +36,37 @@ required-features = ["editor"]
 
 [features]
 default = ["editor"]
-timeline = ["dep:serde", "dep:serde_json", "dep:serde_path_to_error", "dep:ulid"]
+timeline = ["dep:anyhow", "dep:serde", "dep:serde_json", "dep:serde_path_to_error", "dep:ulid"]
 timeline-schema = ["timeline", "dep:schemars"]
 cli = ["dep:gpui", "dep:gpui_platform", "gpui_platform/test-support", "timeline-schema", "dep:clap", "dep:ffmpeg-next", "dep:image", "dep:resvg", "dep:tokio", "transcribe"]
 transcribe = ["dep:anyhow", "dep:ffmpeg-next", "dep:reqwest", "dep:serde_json", "dep:unicode-script"]
+jev = ["dep:tokio", "dep:reqwest", "dep:serde", "dep:serde_json"]
 gpl = ["cli"]
 ffmpeg-backend = ["dep:anyhow", "dep:async-channel", "dep:ffmpeg-next", "dep:cpal", "dep:core-foundation", "dep:core-video"]
 ffmpeg-video = ["ffmpeg-backend", "dep:gpui", "dep:image", "dep:smallvec", "dep:log", "dep:core-foundation", "dep:core-video"]
 ffmpeg-video-tests = ["ffmpeg-video", "gpui/test-support"]
+video3 = ["dep:anyhow", "dep:ffmpeg-next"]
 mp3 = ["dep:anyhow", "dep:ffmpeg-next", "dep:cpal"]
-mp4 = ["mp3", "ui", "dep:image", "dep:smallvec", "dep:core-foundation", "dep:core-video"]
 2windows = ["ui"]
 ui = ["dep:gpui", "dep:gpui_platform", "dep:env_logger"]
 player = [
-    "gstreamer-backend",
-    "dep:serde",
-    "dep:serde_json",
+    "ui",
+    "video3",
+    "dep:cpal",
+    "dep:image",
+    "dep:core-foundation",
+    "dep:core-video",
+    "dep:metal",
+    "dep:futures",
 ]
 editor = [
+    "ffmpeg-video",
+    "dep:resvg",
     "dep:tokio",
     "dep:gpui_tokio",
     "timeline",
     "transcribe",
-    "gstreamer-backend",
+    "ui",
     "gpui/inspector",
     "dep:gpui-component",
     "dep:serde",
@@ -79,26 +77,7 @@ editor = [
     "dep:objc2-app-kit",
     "dep:objc2-foundation",
     "dep:ffmpeg-next",
-    "dep:gstreamer-editing-services",
-    "dep:gstreamer-pbutils",
 ]
-gstreamer-backend = [
-    "ui",
-    "dep:anyhow",
-    "dep:image",
-    "dep:log",
-    "dep:url",
-    "dep:core-foundation",
-    "dep:core-video",
-    "dep:gstreamer",
-    "dep:gstreamer-app",
-    "dep:gstreamer-audio",
-    "dep:gstreamer-video",
-    "dep:parking_lot",
-    "dep:smallvec",
-    "dep:yuv",
-]
-
 [dependencies]
 tokio = { version = "1", optional = true, features = ["rt-multi-thread", "macros", "fs", "time"] }
 reqwest = { version = "=0.12.24", optional = true, default-features = false, features = ["multipart", "rustls-tls"] }
@@ -108,6 +87,7 @@ schemars = { version = "=1.2.2", optional = true, features = ["derive"] }
 resvg = { version = "=0.45.1", optional = true }
 anyhow = { version = "1", optional = true }
 async-channel = { version = "2.5", optional = true }
+futures = { version = "0.3", optional = true, default-features = false, features = ["std", "async-await"] }
 cpal = { version = "0.17.1", optional = true }
 env_logger = { version = "0.11", optional = true }
 ffmpeg-next = { version = "8.1", optional = true }
@@ -118,12 +98,6 @@ gpui = {
 gpui_platform = { path = "vendor/zed/crates/gpui_platform", features = ["font-kit"], optional = true }
 gpui_tokio = { path = "vendor/zed/crates/gpui_tokio", optional = true }
 gpui-component = { git = "https://github.com/longbridge/gpui-component", rev = "7d0aaf55", optional = true }
-gstreamer = { version = "0.25", optional = true }
-gstreamer-app = { version = "0.25", optional = true }
-gstreamer-audio = { version = "0.25", optional = true }
-gstreamer-editing-services = { version = "0.25", optional = true, features = ["v1_18"] }
-gstreamer-pbutils = { version = "0.25", optional = true }
-gstreamer-video = { version = "0.25", optional = true }
 image = { version = "0.25", optional = true, default-features = false, features = [
     "bmp",
     "gif",
@@ -134,20 +108,18 @@ image = { version = "0.25", optional = true, default-features = false, features 
 ] }
 
 log = { version = "0.4", optional = true }
-parking_lot = { version = "0.12", optional = true }
 smallvec = { version = "1", optional = true }
 serde = { version = "1", optional = true, features = ["derive"] }
 serde_json = { version = "1", optional = true }
-url = { version = "2", optional = true }
 unicode-segmentation = { version = "1", optional = true }
 unicode-script = { version = "0.5.8", optional = true }
 ulid = { version = "3", optional = true, features = ["serde"] }
-yuv = { version = "0.8", optional = true }
 
 [target.'cfg(target_os = "macos")'.dependencies]
 block2 = { version = "0.6", optional = true }
 core-foundation = { version = "0.10", optional = true }
 core-video = { version = "0.5.2", optional = true }
+metal = { version = "0.33", optional = true }
 objc2-app-kit = { version = "0.3", optional = true, default-features = false, features = [
     "NSEvent",
     "block2",

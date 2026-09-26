@@ -2,12 +2,6 @@ pub use crate::timeline::FrameRate;
 use anyhow::{Context as _, Result, anyhow};
 
 impl FrameRate {
-    pub fn samples(self, frames: i64, rate: u32) -> i64 {
-        let n = frames as i128 * self.denominator as i128 * rate as i128;
-        ((n + self.numerator as i128 / 2) / self.numerator.max(1) as i128)
-            .clamp(i64::MIN as i128, i64::MAX as i128) as i64
-    }
-
     pub fn parse_time(self, input: &str, total: Option<i64>) -> Result<i64> {
         if self.numerator == 0 || self.denominator == 0 {
             return Err(anyhow!(

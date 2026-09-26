@@ -1,9 +1,9 @@
-use crate::editor::{AppEvent, explorer_drag::AssetBeingDragged};
-use anyhow::{Context as _, Result, anyhow};
+use crate::editor::{AppEvent, explorer_drag::AssetBeingDragged, preview_events::PreviewEvent};
+use anyhow::{Result, anyhow};
+use gpui::{AsyncApp, WeakEntity};
 
 use super::*;
 use std::{collections::HashSet, fs, path::Path};
-use url::Url;
 
 impl Editor {
     pub fn explorer_file_entry(
@@ -28,7 +28,7 @@ impl Editor {
             && self
                 .timeline
                 .as_ref()
-                .is_some_and(|timeline| timeline.path == path);
+                .is_some_and(|timeline| timeline.path == entry.absolute_path);
 
         let metadata = file_entry_metadata(entry, active_timeline);
 
@@ -94,7 +94,10 @@ impl Editor {
                         | FileTreeEntryKind::Image
                         | FileTreeEntryKind::Audio
                         | FileTreeEntryKind::Other => {
-                            editor.select_file(path.clone(), cx);
+                            editor.emit_event(
+                                cx,
+                                AppEvent::Preview(PreviewEvent::SelectFile(path.clone())),
+                            );
                         }
                     }
                     cx.notify();
@@ -433,103 +436,54 @@ pub fn is_srt_path(path: &Path) -> bool {
         .is_some_and(|extension| matches!(extension.to_ascii_lowercase().as_str(), "srt"))
 }
 
-impl Editor {
-    pub(super) fn select_file(&mut self, relative_path: PathBuf, cx: &mut Context<Self>) {
-        let is_image = is_image_path(&relative_path);
-        let is_video = is_video_path(&relative_path);
-        let is_audio = is_audio_path(&relative_path);
+pub async fn select_preview_file(
+    editor: WeakEntity<Editor>,
+    relative_path: PathBuf,
+    cx: &mut AsyncApp,
+) -> Result<()> {
+    let is_image = is_image_path(&relative_path);
+    let is_video = is_video_path(&relative_path);
+    let is_audio = is_audio_path(&relative_path);
 
-        self.select_only_clip(None);
-        self.explorer.selected_file = Some(relative_path.clone());
+    let (project_root, previous) = editor.update(cx, |editor, cx| {
+        editor.select_only_clip(None);
+        editor.explorer.selected_file = Some(relative_path.clone());
 
-        if is_image || is_video || is_audio {
-            if let Some(video) = self.active_video() {
-                video.set_paused(true);
-            }
-            self.preview.target = match (is_video, is_audio) {
+        let previous = if is_image || is_video || is_audio {
+            // The timeline remains loaded when a file is selected; file backends
+            // are retired below, including ones that have failed.
+            let target = match (is_video, is_audio) {
                 (true, _) | (_, true) => PreviewTarget::None,
                 _ => PreviewTarget::ImageFile(relative_path.clone()),
             };
-            self.status = None;
-            self.preview.volume_control_open = false;
-            self.preview.is_scrubbing = false;
-            self.preview.is_adjusting_volume = false;
-            self.preview.last_scrub_seek = None;
-            self.preview.timeline_drag = None;
-        }
-
-        if !is_video && !is_audio {
-            return;
-        }
-
-        let project_root = self.project_root.clone();
-        let source_path = project_root.join(&relative_path);
-        let Ok(url) = Url::from_file_path(&source_path) else {
-            eprintln!("Could not open {}", source_path.display());
-            return;
+            let previous = std::mem::replace(&mut editor.preview.target, target);
+            editor.status = None;
+            editor.preview.volume_control_open = false;
+            editor.preview.is_scrubbing = false;
+            editor.preview.is_adjusting_volume = false;
+            editor.preview.last_scrub_seek = None;
+            Some(previous)
+        } else {
+            None
         };
-        self.status = Some(format!("Loading preview for {}…", relative_path.display()));
-
-        if is_audio {
-            cx.spawn(async move |editor, cx| {
-                let result = cx
-                    .background_executor()
-                    .spawn(async move { AudioBackend::new(&url) })
-                    .await;
-
-                editor
-                    .update(cx, |editor, cx| {
-                        let still_requested =
-                            matches!(
-                                editor.explorer.selected_file.as_ref(),
-                                Some(path) if path == &relative_path
-                            ) && matches!(&editor.preview.target, PreviewTarget::None);
-                        if editor.project_root != project_root || !still_requested {
-                            return;
-                        }
-
-                        match result {
-                            Ok(audio) => {
-                                audio.set_playing(false);
-                                editor.preview.target =
-                                    PreviewTarget::AudioFile(relative_path.clone(), audio);
-                                editor.status = Some("Audio preview ready.".to_string());
-                            }
-                            Err(error) => {
-                                editor.status = None;
-                                eprintln!("{error}");
-                            }
-                        }
-                        cx.notify();
-                    })
-                    .ok();
-            })
-            .detach();
-            return;
+        if is_video || is_audio {
+            editor.status = Some(format!("Loading preview for {}…", relative_path.display()));
         }
+        cx.notify();
+        (editor.project_root.clone(), previous)
+    })?;
 
-        let video = FileVideoBackend::open(&url)
-            .with_context(|| format!("Could not preview {}", source_path.display()));
-
-        let still_requested = matches!(
-            self.explorer.selected_file.as_ref(),
-            Some(path) if path == &relative_path
-        ) && matches!(&self.preview.target, PreviewTarget::None);
-        if self.project_root != project_root || !still_requested {
-            return;
-        }
-
-        match video {
-            Ok(video) => {
-                self.preview.target = PreviewTarget::VideoFile(relative_path, video);
-                self.status = Some("Video preview ready.".to_string());
-            }
-            Err(error) => {
-                self.status = None;
-                eprintln!("{error}");
-            }
-        }
+    if let Some(previous) = previous {
+        // Dropping a backend joins its workers, so keep it off the UI thread.
+        cx.background_executor()
+            .spawn(async move { drop(previous) })
+            .await;
     }
+    if !is_video && !is_audio {
+        return Ok(());
+    }
+
+    return Editor::open_file_preview(editor, project_root, relative_path, is_audio, cx).await;
 }
 
 fn file_entry_metadata(entry: &FileTreeEntry, active_timeline: bool) -> Option<String> {

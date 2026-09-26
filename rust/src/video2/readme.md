@@ -1,8 +1,8 @@
-# video2 — WIP
+# video2 — FFmpeg playback
 
-Experimental FFmpeg-based local-file playback backend with CPAL audio output
-and an optional GPUI video element. This is work in progress, not the active
-player backend: `cargo player` uses the [GStreamer implementation](../video/).
+FFmpeg-based local-file playback backend with CPAL audio output and a GPUI video
+element. This powers `cargo player-mac`, `cargo player-win`, and the editor's
+individual file previews. Timeline previews are currently black and silent; timeline export is unavailable.
 
 Implemented functionality includes opening paused with the first frame ready,
 play/pause, volume and mute, asynchronous and synchronous seeking, independent
@@ -11,8 +11,9 @@ state and supersedes older seek requests.
 
 ## Current limitations
 
-- **Local video files only.** Input must be a regular file containing a video
-  stream. There is no URL/live-stream or audio-only input API. FFmpeg chooses
+- **Local media files only.** `VideoBackend` requires a video stream;
+  `AudioBackend` opens audio-only previews with the same FFmpeg/CPAL audio worker.
+  There is no URL/live-stream input API. FFmpeg chooses
   the best video and audio streams; callers cannot select tracks or subtitles.
 - **Limited playback controls.** There is no playback-rate, looping, reverse
   playback, or export API. Resuming after end-of-file does not restart playback;

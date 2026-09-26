@@ -1,10 +1,11 @@
 use super::*;
 use anyhow::Result;
+use opencut_player::timeline::TimelineEditingState;
 
 impl Editor {
     pub(super) fn settings_modal(
         &self,
-        timeline: &TimelineSerialization,
+        timeline: &TimelineEditingState,
         cx: &mut Context<Self>,
     ) -> gpui::AnyElement {
         let selected = timeline.settings.frame_rate;
@@ -140,30 +141,27 @@ impl Editor {
         let Some(timeline) = self.timeline.as_ref() else {
             return Ok(());
         };
-        let previous = timeline.data.settings.frame_rate;
+        let previous = timeline.backend.timeline().settings.frame_rate;
         if previous == frame_rate {
             return Ok(());
         }
 
-        if let Some(video) = self.active_video() {
-            video.set_paused(true);
-        }
+        self.pause_preview()?;
         let Some(timeline) = self.timeline.as_mut() else {
             return Ok(());
         };
         timeline.record_editing_history();
-        edit_and_rebuild_timeline(
+        apply_timeline_edit(
             &mut self.preview,
-            &self.project_root,
             timeline,
             EditAction::SetFrameRate { frame_rate },
         )
         .expect("changing the frame rate cannot be rejected");
         let playhead = timeline.playhead();
-        let has_clips = !timeline.data.clips.is_empty();
-        timeline.save_timeline_playhead(&self.project_root)?;
+        let has_clips = !timeline.backend.timeline().clips.is_empty();
+        timeline.save()?;
         if has_clips {
-            load_timeline_position_with_options(&mut self.preview, timeline, playhead);
+            set_timeline_position(&mut self.preview, &timeline.backend, playhead)?;
         }
         self.status = Some(format!(
             "Timeline frame rate changed to {}.",
