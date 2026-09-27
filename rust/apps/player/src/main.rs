@@ -1,16 +1,9 @@
-mod audio_output;
-mod audio_player;
-mod audio_player_view;
-mod gpu;
-mod video_player;
-mod video_player_view;
-
-use crate::audio_player::{AudioPlayer, ToggleAudio};
-use crate::video_player::VideoPlayer;
 use anyhow::{Context as _, Result};
 use ffmpeg_next::{format, format::stream::Disposition, media::Type};
 use gpui::{App, Bounds, KeyBinding, WindowBounds, WindowOptions, prelude::*, px, size};
 use gpui_platform::application;
+use player_ui::audio_player::{AudioPlayer, ToggleAudio};
+use player_ui::video_player::{self, VideoPlayer};
 
 use std::path::{Path, PathBuf};
 
@@ -39,7 +32,7 @@ fn main() -> Result<()> {
         if audio_only {
             cx.bind_keys([KeyBinding::new("space", ToggleAudio, None)]);
         } else {
-            crate::video_player::bind_keys(cx);
+            video_player::bind_keys(cx);
         }
 
         cx.on_window_closed(|cx, _window_id| {

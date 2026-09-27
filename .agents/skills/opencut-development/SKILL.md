@@ -74,7 +74,7 @@ are relative to the OpenCut root.
 - Never include Python in the build process.
 - Do not write new tests unless the user explicitly requests them. Existing tests
   may still be updated to accommodate requested changes and run for validation.
-- Do not write tests for `rust/apps/player/`; it is a debug-only demo.
+- Do not write tests for `rust/apps/player/` or `rust/libs/player-ui/`; they are a debug-only demo.
 - Do not define custom macros. Prefer ordinary functions and explicit control
   flow so the code is easy to read. Standard and dependency-provided macros
   (such as `format!` and derives) are allowed.
