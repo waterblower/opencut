@@ -1,103 +1,45 @@
-[package]
-name = "opencut-player"
+[workspace]
+resolver = "3"
+members = [
+    "libs/media-backend",
+    "libs/timeline",
+    "libs/engine",
+    "libs/transcribe",
+    "apps/cli",
+    "apps/editor",
+    "apps/player",
+    "examples",
+    "scripts",
+]
+exclude = ["vendor"]
+
+[workspace.package]
 version = "0.1.0"
 edition = "2024"
 publish = false
-default-run = "opencut-editor"
 
-[[bin]]
-name = "opencut"
-path = "src/cli/main.rs"
-required-features = ["cli"]
+[workspace.dependencies]
+timeline = { path = "libs/timeline" }
+engine = { path = "libs/engine" }
+transcribe = { path = "libs/transcribe" }
+media-backend = { path = "libs/media-backend" }
 
-[[bin]]
-name = "opencut-player"
-path = "src/player/main.rs"
-required-features = ["player"]
-
-[[bin]]
-name = "loc"
-path = "scripts/count_lines.rs"
-
-[[bin]]
-name = "mp3"
-path = "src/examples/mp3.rs"
-required-features = ["mp3"]
-
-[[bin]]
-name = "2windows"
-path = "src/examples/2windows.rs"
-required-features = ["2windows"]
-
-[[bin]]
-name = "opencut-editor"
-path = "src/editor/.main.rs"
-required-features = ["editor"]
-
-[features]
-default = ["editor"]
-timeline = ["dep:anyhow", "dep:serde", "dep:serde_json", "dep:serde_path_to_error", "dep:ulid"]
-timeline-schema = ["timeline", "dep:schemars"]
-cli = ["dep:gpui", "dep:gpui_platform", "gpui_platform/test-support", "timeline-schema", "dep:clap", "dep:ffmpeg-next", "dep:image", "dep:resvg", "dep:tokio", "transcribe"]
-transcribe = ["dep:anyhow", "dep:ffmpeg-next", "dep:reqwest", "dep:serde_json", "dep:unicode-script"]
-jev = ["dep:tokio", "dep:reqwest", "dep:serde", "dep:serde_json"]
-gpl = ["cli"]
-editor-tests = ["editor", "gpui/test-support"]
-media-backend = ["dep:anyhow", "dep:ffmpeg-next"]
-mp3 = ["dep:anyhow", "dep:ffmpeg-next", "dep:cpal"]
-2windows = ["ui"]
-ui = ["dep:gpui", "dep:gpui_platform", "dep:env_logger"]
-player = [
-    "ui",
-    "media-backend",
-    "dep:cpal",
-    "dep:image",
-    "dep:core-foundation",
-    "dep:core-video",
-    "dep:metal",
-    "dep:futures",
-]
-editor = [
-    "dep:image",
-    "dep:smallvec",
-    "dep:log",
-    "dep:resvg",
-    "dep:tokio",
-    "dep:gpui_tokio",
-    "timeline",
-    "transcribe",
-    "ui",
-    "gpui/inspector",
-    "dep:gpui-component",
-    "dep:serde",
-    "dep:serde_json",
-    "dep:unicode-segmentation",
-    "dep:ulid",
-    "dep:block2",
-    "dep:objc2-app-kit",
-    "dep:objc2-foundation",
-    "dep:ffmpeg-next",
-]
-[dependencies]
-tokio = { version = "1", optional = true, features = ["rt-multi-thread", "macros", "fs", "time"] }
-reqwest = { version = "=0.12.24", optional = true, default-features = false, features = ["multipart", "rustls-tls"] }
-serde_path_to_error = { version = "=0.1.20", optional = true }
-clap = { version = "=4.5.49", optional = true, features = ["derive"] }
-schemars = { version = "=1.2.2", optional = true, features = ["derive"] }
-resvg = { version = "=0.45.1", optional = true }
-anyhow = { version = "1", optional = true }
-futures = { version = "0.3", optional = true, default-features = false, features = ["std", "async-await"] }
-cpal = { version = "0.17.1", optional = true }
-env_logger = { version = "0.11", optional = true }
-ffmpeg-next = { version = "8.1", optional = true }
-gpui = {
-  path = "vendor/zed/crates/gpui",
-  optional = true,
-}
-gpui_platform = { path = "vendor/zed/crates/gpui_platform", features = ["font-kit"], optional = true }
-gpui_tokio = { path = "vendor/zed/crates/gpui_tokio", optional = true }
-gpui-component = { git = "https://github.com/longbridge/gpui-component", rev = "7d0aaf55", optional = true }
-image = { version = "0.25", optional = true, default-features = false, features = [
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "fs", "time"] }
+reqwest = { version = "=0.12.24", default-features = false, features = ["multipart", "rustls-tls"] }
+serde_path_to_error = "=0.1.20"
+clap = { version = "=4.5.49", features = ["derive"] }
+schemars = { version = "=1.2.2", features = ["derive"] }
+resvg = "=0.45.1"
+anyhow = "1"
+futures = { version = "0.3", default-features = false, features = ["std", "async-await"] }
+cpal = "0.17.1"
+env_logger = "0.11"
+ffmpeg-next = "8.1"
+gpui = { path = "vendor/zed/crates/gpui" }
+gpui_platform = { path = "vendor/zed/crates/gpui_platform", features = ["font-kit"] }
+gpui_tokio = { path = "vendor/zed/crates/gpui_tokio" }
+gpui-component = { git = "https://github.com/longbridge/gpui-component", rev = "7d0aaf55" }
+image = { version = "0.25", default-features = false, features = [
     "bmp",
     "gif",
     "ico",
@@ -105,26 +47,23 @@ image = { version = "0.25", optional = true, default-features = false, features 
     "png",
     "webp",
 ] }
-
-log = { version = "0.4", optional = true }
-smallvec = { version = "1", optional = true }
-serde = { version = "1", optional = true, features = ["derive"] }
-serde_json = { version = "1", optional = true }
-unicode-segmentation = { version = "1", optional = true }
-unicode-script = { version = "0.5.8", optional = true }
-ulid = { version = "3", optional = true, features = ["serde"] }
-
-[target.'cfg(target_os = "macos")'.dependencies]
-block2 = { version = "0.6", optional = true }
-core-foundation = { version = "0.10", optional = true }
-core-video = { version = "0.5.2", optional = true }
-metal = { version = "0.33", optional = true }
-objc2-app-kit = { version = "0.3", optional = true, default-features = false, features = [
+log = "0.4"
+smallvec = "1"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+unicode-segmentation = "1"
+unicode-script = "0.5.8"
+ulid = { version = "3", features = ["serde"] }
+block2 = "0.6"
+core-foundation = "0.10"
+core-video = "0.5.2"
+metal = "0.33"
+objc2-app-kit = { version = "0.3", default-features = false, features = [
     "NSEvent",
     "block2",
     "objc2-core-foundation",
 ] }
-objc2-foundation = { version = "0.3", optional = true, default-features = false, features = [
+objc2-foundation = { version = "0.3", default-features = false, features = [
     "NSError",
     "NSFileManager",
     "NSString",

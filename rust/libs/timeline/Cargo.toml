@@ -1,0 +1,16 @@
+[package]
+name = "timeline"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+
+[features]
+timeline-schema = ["dep:schemars"]
+
+[dependencies]
+anyhow.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+serde_path_to_error.workspace = true
+ulid.workspace = true
+schemars = { workspace = true, optional = true }

@@ -3,4 +3,4 @@ FFMPEG_DIR = { value = "vendor/ffmpeg-8.1.2", relative = true }
 PKG_CONFIG_PATH = { value = "vendor/ffmpeg-8.1.2/lib/pkgconfig", relative = true }
 
 [target.'cfg(target_os = "macos")']
-runner = ["bash", "scripts/cargo-cli.sh", "--exec"]
+runner = ["scripts/cargo-cli.sh", "--exec"]

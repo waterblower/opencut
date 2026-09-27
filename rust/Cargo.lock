@@ -1810,6 +1810,34 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d0881ea181b1df73ff77ffaaf9c7544ecc11e82fba9b5f27b262a3c73a332555"
 
 [[package]]
+name = "editor"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "block2 0.6.2",
+ "engine",
+ "env_logger",
+ "ffmpeg-next",
+ "gpui",
+ "gpui-component",
+ "gpui_platform",
+ "gpui_tokio",
+ "image",
+ "log",
+ "objc2-app-kit 0.3.2",
+ "objc2-foundation 0.3.2",
+ "resvg 0.45.1",
+ "serde",
+ "serde_json",
+ "smallvec",
+ "timeline",
+ "tokio",
+ "transcribe",
+ "ulid",
+ "unicode-segmentation",
+]
+
+[[package]]
 name = "either"
 version = "1.17.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1852,6 +1880,20 @@ name = "endi"
 version = "1.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "66b7e2430c6dff6a955451e2cfc438f09cea1965a9d6f87f7e3b90decc014099"
+
+[[package]]
+name = "engine"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "ffmpeg-next",
+ "image",
+ "resvg 0.45.1",
+ "serde",
+ "timeline",
+ "transcribe",
+ "ulid",
+]
 
 [[package]]
 name = "enum-iterator"
@@ -2012,6 +2054,18 @@ checksum = "8be9f3dfaaffdae2972880079a491a1a8bb7cbed0b8dd7a347f668b4150a3b93"
 dependencies = [
  "event-listener",
  "pin-project-lite",
+]
+
+[[package]]
+name = "examples"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "cpal",
+ "env_logger",
+ "ffmpeg-next",
+ "gpui",
+ "gpui_platform",
 ]
 
 [[package]]
@@ -4186,6 +4240,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "media-backend"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "ffmpeg-next",
+]
+
+[[package]]
 name = "memchr"
 version = "2.8.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5026,38 +5088,22 @@ dependencies = [
 ]
 
 [[package]]
-name = "opencut-player"
+name = "opencut"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "block2 0.6.2",
  "clap",
- "core-foundation 0.10.0",
- "core-video",
- "cpal",
- "env_logger",
+ "engine",
  "ffmpeg-next",
- "futures",
  "gpui",
- "gpui-component",
  "gpui_platform",
- "gpui_tokio",
  "image",
- "log",
- "metal",
- "objc2-app-kit 0.3.2",
- "objc2-foundation 0.3.2",
- "reqwest",
- "resvg 0.45.1",
  "schemars",
- "serde",
  "serde_json",
- "serde_path_to_error",
- "smallvec",
+ "timeline",
  "tokio",
+ "transcribe",
  "ulid",
- "unicode-script",
- "unicode-segmentation",
 ]
 
 [[package]]
@@ -5305,6 +5351,24 @@ name = "pkg-config"
 version = "0.3.33"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "19f132c84eca552bf34cab8ec81f1c1dcc229b811638f9d283dceabe58c5569e"
+
+[[package]]
+name = "player"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "core-foundation 0.10.0",
+ "core-video",
+ "cpal",
+ "env_logger",
+ "ffmpeg-next",
+ "futures",
+ "gpui",
+ "gpui_platform",
+ "image",
+ "media-backend",
+ "metal",
+]
 
 [[package]]
 name = "png"
@@ -6431,6 +6495,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "scripts"
+version = "0.1.0"
+
+[[package]]
 name = "seahash"
 version = "4.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -7324,6 +7392,18 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9e1c906769ad99c88eaa54e728060edef082f8e358ff32030cb7c7d315e81109"
 
 [[package]]
+name = "timeline"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "schemars",
+ "serde",
+ "serde_json",
+ "serde_path_to_error",
+ "ulid",
+]
+
+[[package]]
 name = "tiny-keccak"
 version = "2.0.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -7638,6 +7718,19 @@ dependencies = [
  "thread_local",
  "tracing-core",
  "tracing-log",
+]
+
+[[package]]
+name = "transcribe"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "clap",
+ "ffmpeg-next",
+ "reqwest",
+ "serde_json",
+ "tokio",
+ "unicode-script",
 ]
 
 [[package]]
