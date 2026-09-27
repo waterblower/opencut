@@ -1,10 +1,11 @@
 # OpenCut
 
 OpenCut is an experimental desktop video tool written in Rust with
-[GPUI](https://gpui.rs/). The `rust` package contains two applications:
+[GPUI](https://gpui.rs/). The `rust` workspace contains shared libraries under `rust/libs` and these
+applications under `rust/apps`:
 
-- `opencut-player`: a local MP4/MOV player using FFmpeg, CPAL audio, and GPUI rendering.
-- `opencut-editor`: a non-destructive, folder-based multi-track editor with
+- `player`: a local MP4/MOV player using FFmpeg, CPAL audio, and GPUI rendering.
+- `editor`: a non-destructive, folder-based multi-track editor with
   FFmpeg video/audio file previews and model-based timeline editing. Timeline
   previews are currently black and silent; timeline export is unavailable.
 
@@ -50,11 +51,11 @@ runtime.
 For other Cargo operations, select the platform configuration from `rust`:
 
 ```powershell
-cargo check --config .cargo/windows.toml --no-default-features --features editor --bin opencut-editor
+cargo check --config .cargo/windows.toml -p editor
 ```
 
 ```sh
-cargo check --config .cargo/macos.toml --no-default-features --features editor --bin opencut-editor
+cargo check --config .cargo/macos.toml -p editor
 ```
 
 ```sh

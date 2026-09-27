@@ -1,0 +1,23 @@
+[package]
+name = "opencut"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+
+[features]
+gpl = ["engine/gpl"]
+
+[dependencies]
+engine.workspace = true
+anyhow.workspace = true
+clap.workspace = true
+ffmpeg-next.workspace = true
+gpui.workspace = true
+image.workspace = true
+serde_json.workspace = true
+tokio.workspace = true
+ulid.workspace = true
+timeline = { workspace = true, features = ["timeline-schema"] }
+transcribe = { workspace = true, features = ["cli"] }
+gpui_platform = { workspace = true, features = ["test-support"] }
+schemars.workspace = true

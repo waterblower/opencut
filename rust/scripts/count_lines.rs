@@ -34,7 +34,7 @@ struct Count {
 }
 
 fn main() {
-    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let root = PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/.."));
     let mut counts = BTreeMap::<String, Count>::new();
 
     if let Err(error) = count_directory(&root, &mut counts) {

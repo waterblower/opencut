@@ -1,0 +1,9 @@
+[package]
+name = "scripts"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+
+[[bin]]
+name = "loc"
+path = "count_lines.rs"
