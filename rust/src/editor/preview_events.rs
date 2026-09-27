@@ -2,8 +2,7 @@ use super::*;
 use crate::editor::explorer::select_preview_file;
 use anyhow::Result;
 use gpui::{AsyncApp, WeakEntity};
-use opencut_player::video2::{AudioBackend, VideoBackend};
-use std::{future::Future, path::Path, pin::Pin};
+use std::path::Path;
 
 #[derive(Clone)]
 pub enum PreviewEvent {
@@ -40,15 +39,8 @@ impl Editor {
                     DragPhase::End => editor.preview.is_adjusting_volume = false,
                     DragPhase::Update => {}
                 }
-                let volume = volume.clamp(0.0, 1.0);
-                match &mut editor.preview.target {
-                    PreviewTarget::VideoFile(_, video) => {
-                        video.set_volume(volume)?;
-                        video.set_muted(volume <= f64::EPSILON)?;
-                    }
-                    PreviewTarget::AudioFile(_, audio) => audio.set_volume(volume)?,
-                    _ => {}
-                }
+                let _ = volume;
+                todo!("set the new player's volume");
                 cx.notify();
                 Ok(())
             })?,
@@ -57,8 +49,9 @@ impl Editor {
 
     pub fn pause_preview(&mut self) -> Result<()> {
         match &mut self.preview.target {
-            PreviewTarget::VideoFile(_, video) => video.set_paused(true)?,
-            PreviewTarget::AudioFile(_, audio) => audio.set_paused(true)?,
+            PreviewTarget::VideoFile(_, _) | PreviewTarget::AudioFile(_, _) => {
+                todo!("pause the new player")
+            }
             _ => {}
         }
         Ok(())
@@ -72,11 +65,8 @@ impl Editor {
         cx: &mut AsyncApp,
     ) -> Result<()> {
         let source = project_root.join(&relative_path);
-        let mut target = if audio_only {
-            PreviewTarget::AudioFile(relative_path.clone(), AudioBackend::open(&source).await?)
-        } else {
-            PreviewTarget::VideoFile(relative_path.clone(), VideoBackend::open(&source).await?)
-        };
+        let _ = &source;
+        let target: PreviewTarget = todo!("open the new player");
         editor.update(cx, |editor, cx| -> Result<()> {
             if !file_preview_requested(
                 &editor.project_root,
@@ -86,9 +76,6 @@ impl Editor {
                 &relative_path,
             ) {
                 return Ok(());
-            }
-            if let PreviewTarget::VideoFile(_, video) = &mut target {
-                video.set_paused(false)?;
             }
             editor.preview.target = target;
             editor.status = Some(
@@ -120,20 +107,13 @@ pub fn file_preview_requested(
 
 impl Editor {
     fn toggle_preview_playback(&mut self, cx: &mut Context<Self>) -> Result<()> {
-        let ended = match &self.preview.target {
-            PreviewTarget::VideoFile(_, video) => video.ended(),
-            PreviewTarget::AudioFile(_, audio) => audio.ended(),
-            _ => false,
-        };
-        if ended {
-            return self.seek_file_preview(Duration::ZERO, true, cx);
+        match &self.preview.target {
+            PreviewTarget::VideoFile(_, _) | PreviewTarget::AudioFile(_, _) => {
+                let _ = cx;
+                todo!("toggle the new player")
+            }
+            _ => Ok(()),
         }
-        match &mut self.preview.target {
-            PreviewTarget::VideoFile(_, video) => video.set_paused(!video.paused())?,
-            PreviewTarget::AudioFile(_, audio) => audio.set_paused(!audio.paused())?,
-            _ => {}
-        }
-        Ok(())
     }
 
     fn scrub_preview(
@@ -172,11 +152,7 @@ impl Editor {
             _ => return Ok(()),
         }
         let fraction = fraction.clamp(0.0, 1.0);
-        let duration = match &self.preview.target {
-            PreviewTarget::VideoFile(_, video) => video.duration(),
-            PreviewTarget::AudioFile(_, audio) => audio.duration(),
-            _ => return Ok(()),
-        };
+        let duration: Duration = todo!("read the new player's duration");
         self.seek_file_preview(duration.mul_f64(fraction as f64), false, cx)
     }
 
@@ -186,32 +162,8 @@ impl Editor {
         resume: bool,
         cx: &mut Context<Self>,
     ) -> Result<()> {
-        let completion: Pin<Box<dyn Future<Output = Result<()>> + Send>> =
-            match &mut self.preview.target {
-                PreviewTarget::VideoFile(_, video) => {
-                    let completion = video.seek(position);
-                    if resume {
-                        video.set_paused(false)?;
-                    }
-                    Box::pin(completion)
-                }
-                PreviewTarget::AudioFile(_, audio) => {
-                    let completion = audio.seek(position);
-                    if resume {
-                        audio.set_paused(false)?;
-                    }
-                    Box::pin(completion)
-                }
-                _ => return Ok(()),
-            };
-        cx.spawn(async move |editor, cx| {
-            if let Err(error) = completion.await {
-                log::error!("Could not seek file preview: {error:?}");
-            }
-            let _ = editor.update(cx, |_, cx| cx.notify());
-        })
-        .detach();
-        Ok(())
+        let _ = (position, resume, cx);
+        todo!("seek the new player")
     }
 }
 

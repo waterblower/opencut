@@ -2,14 +2,13 @@ use super::*;
 use crate::editor::preview_timeline::timeline_preview;
 use crate::editor::timeline_backend::TimelineBackend;
 use anyhow::Result;
-use opencut_player::video2::{AudioBackend, VideoBackend};
 use preview_image::preview_image_file;
 
 pub enum PreviewTarget {
     None,
     Timeline,
-    VideoFile(PathBuf, VideoBackend),
-    AudioFile(PathBuf, AudioBackend),
+    VideoFile(PathBuf, ()), // TODO: hold the new player.
+    AudioFile(PathBuf, ()), // TODO: hold the new player.
     ImageFile(PathBuf),
 }
 
@@ -28,12 +27,6 @@ impl PreviewTarget {
         matches!(self, Self::Timeline)
     }
 
-    pub(super) fn audio(&self) -> Option<&AudioBackend> {
-        let Self::AudioFile(_, audio) = self else {
-            return None;
-        };
-        Some(audio)
-    }
 }
 
 impl Editor {
@@ -145,14 +138,3 @@ impl PlaybackViewDelegate for Editor {
     }
 }
 
-impl Editor {
-    pub fn preview_file_video(&self) -> Option<&VideoBackend> {
-        match &self.preview.target {
-            PreviewTarget::Timeline => None,
-            PreviewTarget::VideoFile(_, video) => Some(video),
-            PreviewTarget::None | PreviewTarget::AudioFile(_, _) | PreviewTarget::ImageFile(_) => {
-                None
-            }
-        }
-    }
-}

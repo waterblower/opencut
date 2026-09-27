@@ -6,7 +6,7 @@ use image::{Rgba, RgbaImage};
 use std::{sync::Arc, time::Duration};
 use ulid::Ulid;
 
-#[cfg(feature = "ffmpeg-video-tests")]
+#[cfg(feature = "editor-tests")]
 #[gpui::test]
 fn canvas_requests_another_frame_only_while_loading(cx: &mut gpui::TestAppContext) {
     use crate::editor::preview_timeline::TimelinePreviewCanvasElement;

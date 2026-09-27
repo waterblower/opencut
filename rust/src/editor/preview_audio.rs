@@ -19,32 +19,18 @@ impl Editor {
             .file_name()
             .map(|name| name.to_string_lossy().into_owned())
             .unwrap_or_else(|| path.display().to_string());
-        let (position, duration, paused) =
-            self.preview
-                .target
-                .audio()
-                .map_or((Duration::ZERO, Duration::ZERO, true), |audio| {
-                    (
-                        audio.position(),
-                        audio.duration(),
-                        audio.paused() || audio.ended(),
-                    )
-                });
-
+        let (position, duration, paused): (Duration, Duration, bool) =
+            todo!("read the new player's state");
         let progress = if duration.is_zero() {
             0.0
         } else {
             (position.as_secs_f64() / duration.as_secs_f64()).clamp(0.0, 1.0) as f32
         };
-        let has_media = self.preview.target.audio().is_some();
+        let has_media = true;
         let usable_width = (width - AUDIO_HORIZONTAL_PADDING * 2.0).max(1.0);
         let timeline_left = origin_x + AUDIO_HORIZONTAL_PADDING;
         let volume_left = origin_x + width - AUDIO_HORIZONTAL_PADDING - AUDIO_VOLUME_WIDTH;
-        let volume = self
-            .preview
-            .target
-            .audio()
-            .map_or(0.0, |a| a.volume().clamp(0.0, 1.0)) as f32;
+        let volume = 1.0;
         let format_time = |duration: Duration| {
             let total_seconds = duration.as_secs();
             let hours = total_seconds / 3600;
@@ -160,7 +146,7 @@ impl Editor {
                             .text_ellipsis()
                             .child(file_name),
                     )
-                    .child(div().text_xs().text_color(rgb(MUTED)).child(if let Some(error) = self.preview.target.audio().and_then(|audio| audio.check().err()) { format!("Audio preview failed: {error:#}") } else if has_media {
+                    .child(div().text_xs().text_color(rgb(MUTED)).child(if has_media {
                         "Audio preview".to_string()
                     } else {
                         "Loading audio preview…".to_string()
