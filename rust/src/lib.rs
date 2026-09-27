@@ -1,5 +1,6 @@
-#[cfg(feature = "video3")]
-pub mod video3;
+#[cfg(feature = "media-backend")]
+#[path = "media-backend/mod.rs"]
+pub mod media_backend;
 
 #[cfg(feature = "timeline")]
 pub mod timeline;

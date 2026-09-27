@@ -12,7 +12,7 @@ use gpui::{
     App, AsyncApp, Context, FocusHandle, KeyBinding, RenderImage, WeakEntity, Window, actions,
 };
 use image::{Frame, RgbaImage};
-use opencut_player::video3::{VideoBackend, VideoFrame};
+use opencut_player::media_backend::{VideoBackend, VideoFrame};
 use std::{
     cell::Cell,
     future::poll_fn,

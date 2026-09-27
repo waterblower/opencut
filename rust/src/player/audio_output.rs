@@ -1,7 +1,7 @@
 use anyhow::{Context, Result, anyhow, bail};
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use futures::{FutureExt, channel::oneshot, future::Shared};
-use opencut_player::video3::{AudioSamples, PcmFormat};
+use opencut_player::media_backend::{AudioSamples, PcmFormat};
 use std::{
     collections::VecDeque,
     future::Future,

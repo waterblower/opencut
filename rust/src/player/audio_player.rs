@@ -2,7 +2,7 @@ use crate::audio_output::AudioOutput;
 use anyhow::Result;
 use futures::{FutureExt, select};
 use gpui::{AsyncApp, Context, FocusHandle, WeakEntity, Window, actions};
-use opencut_player::video3::{AudioBackend, AudioSamples};
+use opencut_player::media_backend::{AudioBackend, AudioSamples};
 use std::{
     future::poll_fn,
     path::PathBuf,

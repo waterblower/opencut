@@ -24,7 +24,7 @@ use metal::{
     CommandQueue, CompileOptions, ComputePipelineState, Device, MTLCommandBufferStatus,
     MTLPixelFormat, MTLSize, MTLTextureUsage, TextureRef, foreign_types::ForeignTypeRef,
 };
-use opencut_player::video3::VideoFrame;
+use opencut_player::media_backend::VideoFrame;
 
 /// Reusable native resources only; playback state stays in the caller.
 pub struct GpuResources {

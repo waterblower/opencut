@@ -43,13 +43,13 @@ transcribe = ["dep:anyhow", "dep:ffmpeg-next", "dep:reqwest", "dep:serde_json", 
 jev = ["dep:tokio", "dep:reqwest", "dep:serde", "dep:serde_json"]
 gpl = ["cli"]
 editor-tests = ["editor", "gpui/test-support"]
-video3 = ["dep:anyhow", "dep:ffmpeg-next"]
+media-backend = ["dep:anyhow", "dep:ffmpeg-next"]
 mp3 = ["dep:anyhow", "dep:ffmpeg-next", "dep:cpal"]
 2windows = ["ui"]
 ui = ["dep:gpui", "dep:gpui_platform", "dep:env_logger"]
 player = [
     "ui",
-    "video3",
+    "media-backend",
     "dep:cpal",
     "dep:image",
     "dep:core-foundation",
