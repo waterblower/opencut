@@ -69,6 +69,13 @@ are relative to the OpenCut root.
   code links and, if applicable, a link to the updated plan, and wait for the user's explicit
   instruction before proceeding. Complete the task without these pauses only
   when the user explicitly asks to finish without waiting for review.
+- Whenever you mention a code location (a function, type, field, or specific
+  lines) in a reply, include a clickable reference with the file path and line
+  number so the user can jump there in the editor, for example
+  [`preview_player`](rust/apps/editor/src/preview.rs#L33) or a line range such as
+  [preview.rs#L33-L76](rust/apps/editor/src/preview.rs#L33-L76). Use paths
+  relative to the repository root. Look up the actual line numbers first;
+  never guess them.
 - Do not build FFmpeg ourselves, including through `ffbuild/`. Link against the
   existing vendored libraries in `rust/vendor/ffmpeg-8.1.2/`.
 - Never include Python in the build process.
