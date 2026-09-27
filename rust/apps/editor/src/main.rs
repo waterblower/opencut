@@ -1,5 +1,6 @@
 #![allow(dead_code)]
 
+#[path = "mod.rs"]
 mod editor;
 mod gpui_inspector;
 mod macos_pinch;
