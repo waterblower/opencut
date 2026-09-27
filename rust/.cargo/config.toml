@@ -1,20 +1,20 @@
 [alias]
-cli = "run --config .cargo/cli.toml --quiet --no-default-features --features cli --bin opencut --"
-editor-mac = "run --config .cargo/macos.toml --no-default-features --features editor --bin opencut-editor"
-editor-win = "run --config .cargo/windows.toml --no-default-features --features editor --bin opencut-editor"
+cli = "run --config .cargo/cli.toml --quiet -p opencut --"
+editor-mac = "run --config .cargo/macos.toml -p editor"
+editor-win = "run --config .cargo/windows.toml -p editor"
 test-mac = ["test", "--config", ".cargo/macos.toml", "--config", "env.RUST_TEST_THREADS=\"1\""]
 test-win = ["test", "--config", ".cargo/windows.toml", "--config", "env.RUST_TEST_THREADS=\"1\""]
-player-mac = "run --config .cargo/cli.toml --no-default-features --features player --bin opencut-player --"
-player-win = "run --config .cargo/ffmpeg-windows.toml --no-default-features --features player --bin opencut-player --"
-build-editor-mac = "build --config .cargo/macos.toml --no-default-features --features editor --bin opencut-editor"
-build-editor-win = "build --config .cargo/windows.toml --no-default-features --features editor --bin opencut-editor"
-build-player-mac = "build --config .cargo/cli.toml --no-default-features --features player --bin opencut-player"
-build-player-win = "build --config .cargo/ffmpeg-windows.toml --no-default-features --features player --bin opencut-player"
-mp3-mac = "run --config .cargo/macos.toml --no-default-features --features mp3 --bin mp3"
-mp3-win = "run --config .cargo/windows.toml --no-default-features --features mp3 --bin mp3"
-2win-mac = "run --config .cargo/macos.toml --quiet --no-default-features --features 2windows --bin 2windows"
-2win-win = "run --config .cargo/windows.toml --quiet --no-default-features --features 2windows --bin 2windows"
-loc = "run --quiet --no-default-features --bin loc"
+player-mac = "run --config .cargo/cli.toml -p player --"
+player-win = "run --config .cargo/ffmpeg-windows.toml -p player --"
+build-editor-mac = "build --config .cargo/macos.toml -p editor"
+build-editor-win = "build --config .cargo/windows.toml -p editor"
+build-player-mac = "build --config .cargo/cli.toml -p player"
+build-player-win = "build --config .cargo/ffmpeg-windows.toml -p player"
+mp3-mac = "run --config .cargo/macos.toml -p examples --bin mp3"
+mp3-win = "run --config .cargo/windows.toml -p examples --bin mp3"
+2win-mac = "run --config .cargo/macos.toml --quiet -p examples --bin 2windows"
+2win-win = "run --config .cargo/windows.toml --quiet -p examples --bin 2windows"
+loc = "run --quiet -p scripts --bin loc"
 
 
 [build]
