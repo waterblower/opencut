@@ -28,13 +28,7 @@ impl Render for Editor {
                 .overflow_hidden()
                 .bg(rgb(0x000000))
                 .text_color(rgb(TEXT))
-                .child(self.preview_player(
-                    0.0,
-                    0.0,
-                    editor_width,
-                    f32::from(viewport.height),
-                    cx,
-                ));
+                .child(self.preview_player(editor_width, f32::from(viewport.height)));
         }
         let context_menu = self.context_menu_overlay(editor_viewport, cx);
         let rename_dialog = self
@@ -139,13 +133,7 @@ impl Editor {
             width,
             constraints,
             self.explorer_panel(cx),
-            self.preview_player(
-                widths.left + HORIZONTAL_SPLIT_DIVIDER_WIDTH,
-                TOPBAR_HEIGHT,
-                widths.center,
-                preview_height,
-                cx,
-            ),
+            self.preview_player(widths.center, preview_height),
             properties_panel_view,
         )
         .into_any_element()

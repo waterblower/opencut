@@ -31,11 +31,9 @@ mod global_settings_dialog;
 mod media_probe;
 mod model;
 mod preview;
-mod preview_audio;
 mod preview_events;
 mod preview_image;
 mod preview_timeline;
-mod preview_video;
 mod project_settings;
 mod properties;
 mod properties_text;
@@ -67,10 +65,7 @@ use editing::ClipClipboard;
 pub(crate) use editor::Editor;
 use explorer::{load_explorer_expansion, visible_tree};
 use explorer_filter::ExplorerFilter;
-use generic_containers::{
-    HORIZONTAL_SPLIT_DIVIDER_WIDTH, HorizontalSplit, HorizontalSplitConstraints,
-    HorizontalSplitState,
-};
+use generic_containers::{HorizontalSplit, HorizontalSplitConstraints, HorizontalSplitState};
 use model::{MediaAsset, MediaKind};
 use preview::PreviewTarget;
 use preview_events::PreviewEvent;

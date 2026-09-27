@@ -30,14 +30,7 @@ impl PreviewTarget {
 }
 
 impl Editor {
-    pub(super) fn preview_player(
-        &self,
-        origin_x: f32,
-        origin_y: f32,
-        width: f32,
-        height: f32,
-        cx: &mut Context<Self>,
-    ) -> gpui::AnyElement {
+    pub(super) fn preview_player(&self, width: f32, height: f32) -> gpui::AnyElement {
         match &self.preview.target {
             PreviewTarget::None => div()
                 .w(px(width))
@@ -61,12 +54,16 @@ impl Editor {
                     .size(px(width), px(height))
                     .into_any_element()
             }
-            PreviewTarget::VideoFile(_, _) => {
-                self.preview_video_file(origin_x, origin_y, width, height, cx)
-            }
-            PreviewTarget::AudioFile(path, _) => {
-                self.preview_audio_file(path, origin_x, width, height, cx)
-            }
+            PreviewTarget::VideoFile(_, player) => div()
+                .w(px(width))
+                .h(px(height))
+                .child(player.clone())
+                .into_any_element(),
+            PreviewTarget::AudioFile(_, player) => div()
+                .w(px(width))
+                .h(px(height))
+                .child(player.clone())
+                .into_any_element(),
             PreviewTarget::ImageFile(path) => {
                 preview_image_file(self.project_root.join(path), width, height)
             }
