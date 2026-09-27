@@ -37,7 +37,6 @@ fn debug_state(editor: &Editor) -> Result<String> {
         "preview": {
             "target": target,
             "fullscreen": editor.preview.fullscreen,
-            "scrubbing": editor.preview.is_scrubbing,
         },
         "status": editor.status,
         "timeline": null,

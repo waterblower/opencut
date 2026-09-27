@@ -75,10 +75,6 @@ impl Render for Editor {
             .capture_any_mouse_down(cx.listener(|editor, event: &MouseDownEvent, window, cx| {
                 if event.button == MouseButton::Left {
                     editor.focus_handle.focus(window, cx);
-                    if editor.preview.volume_control_open {
-                        editor.preview.volume_control_open = false;
-                        cx.notify();
-                    }
                 }
             }))
             .size_full()

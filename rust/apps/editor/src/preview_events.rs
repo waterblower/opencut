@@ -9,8 +9,6 @@ use std::path::Path;
 pub enum PreviewEvent {
     SelectFile(PathBuf),
     TogglePlayback,
-    Scrub { fraction: f32, phase: DragPhase },
-    SetVolume { volume: f64, phase: DragPhase },
 }
 
 impl Editor {
@@ -23,25 +21,6 @@ impl Editor {
             PreviewEvent::SelectFile(path) => select_preview_file(editor, path.clone(), cx).await,
             PreviewEvent::TogglePlayback => editor.update(cx, |editor, cx| {
                 editor.toggle_preview_playback(cx)?;
-                cx.notify();
-                Ok(())
-            })?,
-            PreviewEvent::Scrub { fraction, phase } => editor.update(cx, |editor, cx| {
-                editor.scrub_preview(*fraction, *phase, cx)?;
-                cx.notify();
-                Ok(())
-            })?,
-            PreviewEvent::SetVolume { volume, phase } => editor.update(cx, |editor, cx| {
-                match phase {
-                    DragPhase::Start => editor.preview.is_adjusting_volume = true,
-                    DragPhase::Update | DragPhase::End if !editor.preview.is_adjusting_volume => {
-                        return Ok(());
-                    }
-                    DragPhase::End => editor.preview.is_adjusting_volume = false,
-                    DragPhase::Update => {}
-                }
-                let _ = volume;
-                todo!("set the new player's volume");
                 cx.notify();
                 Ok(())
             })?,
@@ -135,56 +114,6 @@ impl Editor {
             }
             _ => Ok(()),
         }
-    }
-
-    fn scrub_preview(
-        &mut self,
-        fraction: f32,
-        phase: DragPhase,
-        cx: &mut Context<Self>,
-    ) -> Result<()> {
-        if matches!(
-            self.preview.target,
-            PreviewTarget::None | PreviewTarget::Timeline | PreviewTarget::ImageFile(_)
-        ) {
-            return Ok(());
-        }
-        let now = Instant::now();
-        match phase {
-            DragPhase::Start => {
-                self.pause_preview()?;
-                self.preview.is_scrubbing = true;
-                self.preview.last_scrub_seek = Some(now);
-            }
-            DragPhase::Update if self.preview.is_scrubbing => {
-                if self
-                    .preview
-                    .last_scrub_seek
-                    .is_some_and(|last| now.duration_since(last) < SCRUB_SEEK_INTERVAL)
-                {
-                    return Ok(());
-                }
-                self.preview.last_scrub_seek = Some(now);
-            }
-            DragPhase::End if self.preview.is_scrubbing => {
-                self.preview.last_scrub_seek = None;
-                self.preview.is_scrubbing = false;
-            }
-            _ => return Ok(()),
-        }
-        let fraction = fraction.clamp(0.0, 1.0);
-        let duration: Duration = todo!("read the new player's duration");
-        self.seek_file_preview(duration.mul_f64(fraction as f64), false, cx)
-    }
-
-    fn seek_file_preview(
-        &mut self,
-        position: Duration,
-        resume: bool,
-        cx: &mut Context<Self>,
-    ) -> Result<()> {
-        let _ = (position, resume, cx);
-        todo!("seek the new player")
     }
 }
 
