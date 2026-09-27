@@ -122,9 +122,12 @@ pub fn file_preview_requested(
 impl Editor {
     fn toggle_preview_playback(&mut self, cx: &mut Context<Self>) -> Result<()> {
         match &self.preview.target {
-            PreviewTarget::VideoFile(_, _) | PreviewTarget::AudioFile(_, _) => {
-                let _ = cx;
-                todo!("toggle the new player")
+            PreviewTarget::VideoFile(_, player) => {
+                player.update(cx, |player, cx| player.toggle_playback(cx));
+                Ok(())
+            }
+            PreviewTarget::AudioFile(_, player) => {
+                player.update(cx, |player, cx| player.toggle_playback(cx))
             }
             _ => Ok(()),
         }
