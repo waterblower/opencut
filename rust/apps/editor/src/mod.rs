@@ -31,11 +31,9 @@ mod global_settings_dialog;
 mod media_probe;
 mod model;
 mod preview;
-mod preview_audio;
 mod preview_events;
 mod preview_image;
 mod preview_timeline;
-mod preview_video;
 mod project_settings;
 mod properties;
 mod properties_text;
@@ -57,7 +55,6 @@ mod track_ui;
 pub mod transcription;
 mod waveform;
 
-use crate::playback_view::{DragPhase, PlaybackViewDelegate};
 use clip_placement::{
     ClipPlacementRejection, validate_clip_placement, validate_text_clip_placement,
 };
@@ -67,10 +64,7 @@ use editing::ClipClipboard;
 pub(crate) use editor::Editor;
 use explorer::{load_explorer_expansion, visible_tree};
 use explorer_filter::ExplorerFilter;
-use generic_containers::{
-    HORIZONTAL_SPLIT_DIVIDER_WIDTH, HorizontalSplit, HorizontalSplitConstraints,
-    HorizontalSplitState,
-};
+use generic_containers::{HorizontalSplit, HorizontalSplitConstraints, HorizontalSplitState};
 use model::{MediaAsset, MediaKind};
 use preview::PreviewTarget;
 use preview_events::PreviewEvent;
@@ -105,7 +99,6 @@ const SNAP_DISTANCE_PX: f32 = 8.0;
 const MIN_TIMELINE_PIXELS_PER_SECOND: f32 = 0.1;
 const MAX_TIMELINE_PIXELS_PER_SECOND: f32 = 1000.0;
 const DEFAULT_TIMELINE_PIXELS_PER_SECOND: f32 = 72.0;
-const SCRUB_SEEK_INTERVAL: Duration = Duration::from_millis(50);
 const IDLE_UPDATE_INTERVAL: Duration = Duration::from_millis(16);
 
 const BACKGROUND: u32 = 0x080809;
@@ -191,10 +184,6 @@ pub(crate) fn bind_keys(cx: &mut App) {
 struct PreviewState {
     target: PreviewTarget,
     fullscreen: bool,
-    volume_control_open: bool,
-    is_scrubbing: bool,
-    is_adjusting_volume: bool,
-    last_scrub_seek: Option<Instant>,
 }
 
 struct PropertiesPanelState {
@@ -308,10 +297,6 @@ impl Editor {
     ) -> Result<()> {
         let t = Instant::now();
         let res = (|| -> Result<()> {
-            self.preview.volume_control_open = false;
-            self.preview.is_scrubbing = false;
-            self.preview.is_adjusting_volume = false;
-            self.preview.last_scrub_seek = None;
             self.properties.transform_input_clip_id = None;
             self.properties.text_input_clip_id = None;
             self.timeline = Some(TimelineRuntimeState::from_serialize(

@@ -110,10 +110,6 @@ impl Editor {
         let preview = PreviewState {
             target: PreviewTarget::None,
             fullscreen: false,
-            volume_control_open: false,
-            is_scrubbing: false,
-            is_adjusting_volume: false,
-            last_scrub_seek: None,
         };
 
         let properties = {

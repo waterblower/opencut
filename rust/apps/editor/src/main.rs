@@ -1,9 +1,9 @@
 #![allow(dead_code)]
 
+#[path = "mod.rs"]
 mod editor;
 mod gpui_inspector;
 mod macos_pinch;
-mod playback_view;
 
 mod asset;
 use anyhow::{anyhow, bail};

@@ -5,6 +5,7 @@ members = [
     "libs/timeline",
     "libs/engine",
     "libs/transcribe",
+    "libs/player-ui",
     "apps/cli",
     "apps/editor",
     "apps/player",
@@ -23,6 +24,7 @@ timeline = { path = "libs/timeline" }
 engine = { path = "libs/engine" }
 transcribe = { path = "libs/transcribe" }
 media-backend = { path = "libs/media-backend" }
+player-ui = { path = "libs/player-ui" }
 
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "fs", "time"] }
 reqwest = { version = "=0.12.24", default-features = false, features = ["multipart", "rustls-tls"] }
