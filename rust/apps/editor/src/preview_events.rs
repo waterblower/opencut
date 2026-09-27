@@ -50,7 +50,7 @@ impl Editor {
 
     pub fn pause_preview(&mut self) -> Result<()> {
         match &mut self.preview.target {
-            PreviewTarget::VideoFile(_, _) | PreviewTarget::AudioFile(_, _) => {
+            PreviewTarget::VideoFile { .. } | PreviewTarget::AudioFile { .. } => {
                 todo!("pause the new player")
             }
             _ => {}
@@ -78,19 +78,23 @@ impl Editor {
             }
             // media_backend is not Send, so the player opens on the UI thread.
             editor.preview.target = if audio_only {
-                let mut player = AudioPlayer::new(source)?;
-                let player = cx.new(|cx| {
-                    player.start(cx);
-                    player
-                });
-                PreviewTarget::AudioFile(relative_path.clone(), player)
+                let player = AudioPlayer::new(source)?;
+                let player = cx.new(move |_| player);
+                let task = player.update(cx, |player, cx| player.start(cx));
+                PreviewTarget::AudioFile {
+                    _task: task,
+                    path: relative_path.clone(),
+                    player,
+                }
             } else {
-                let mut player = VideoPlayer::new(source)?;
-                let player = cx.new(|cx| {
-                    player.start(cx);
-                    player
-                });
-                PreviewTarget::VideoFile(relative_path.clone(), player)
+                let player = VideoPlayer::new(source)?;
+                let player = cx.new(move |_| player);
+                let task = player.update(cx, |player, cx| player.start(cx));
+                PreviewTarget::VideoFile {
+                    _task: task,
+                    path: relative_path.clone(),
+                    player,
+                }
             };
             editor.status = Some(
                 if audio_only {
@@ -122,11 +126,11 @@ pub fn file_preview_requested(
 impl Editor {
     fn toggle_preview_playback(&mut self, cx: &mut Context<Self>) -> Result<()> {
         match &self.preview.target {
-            PreviewTarget::VideoFile(_, player) => {
+            PreviewTarget::VideoFile { player, .. } => {
                 player.update(cx, |player, cx| player.toggle_playback(cx));
                 Ok(())
             }
-            PreviewTarget::AudioFile(_, player) => {
+            PreviewTarget::AudioFile { player, .. } => {
                 player.update(cx, |player, cx| player.toggle_playback(cx))
             }
             _ => Ok(()),

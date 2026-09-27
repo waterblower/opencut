@@ -8,7 +8,7 @@ use ffmpeg_next::{
     Error as FfmpegError, ffi, format::Pixel, frame::Video, software::scaling, util::color,
 };
 use futures::{FutureExt, select, try_join};
-use gpui::{AsyncApp, Context, RenderImage, WeakEntity};
+use gpui::{AsyncApp, Context, RenderImage, Task, WeakEntity};
 use image::{Frame, RgbaImage};
 use media_backend::{VideoBackend, VideoFrame};
 use std::{
@@ -59,15 +59,14 @@ impl VideoPlayer {
         Ok(player)
     }
 
-    /// Starts the playback task; call once, from the entity's constructor.
-    pub fn start(&mut self, cx: &mut Context<Self>) {
+    /// Starts playback once. The owner must retain the task and drop it before the player.
+    pub fn start(&mut self, cx: &mut Context<Self>) -> Task<()> {
         cx.spawn(async move |player, cx| {
             if let Err(error) = run_player(player, cx).await {
                 eprintln!("Player failed: {error:?}");
                 std::process::exit(1);
             }
         })
-        .detach();
     }
 
     pub fn duration(&self) -> Duration {

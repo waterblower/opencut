@@ -8,8 +8,16 @@ use preview_image::preview_image_file;
 pub enum PreviewTarget {
     None,
     Timeline,
-    VideoFile(PathBuf, Entity<VideoPlayer>),
-    AudioFile(PathBuf, Entity<AudioPlayer>),
+    VideoFile {
+        _task: gpui::Task<()>, // 按字段声明顺序释放：先取消播放任务，再释放播放器。
+        path: PathBuf,
+        player: Entity<VideoPlayer>,
+    },
+    AudioFile {
+        _task: gpui::Task<()>, // 按字段声明顺序释放：先取消播放任务，再释放播放器。
+        path: PathBuf,
+        player: Entity<AudioPlayer>,
+    },
     ImageFile(PathBuf),
 }
 
@@ -54,12 +62,12 @@ impl Editor {
                     .size(px(width), px(height))
                     .into_any_element()
             }
-            PreviewTarget::VideoFile(_, player) => div()
+            PreviewTarget::VideoFile { player, .. } => div()
                 .w(px(width))
                 .h(px(height))
                 .child(player.clone())
                 .into_any_element(),
-            PreviewTarget::AudioFile(_, player) => div()
+            PreviewTarget::AudioFile { player, .. } => div()
                 .w(px(width))
                 .h(px(height))
                 .child(player.clone())
@@ -116,8 +124,8 @@ impl PlaybackViewDelegate for Editor {
     fn playback_toggle_volume(&mut self, _: &mut Window, cx: &mut Context<Self>) {
         let has_playable_target = match &self.preview.target {
             PreviewTarget::Timeline => false,
-            PreviewTarget::VideoFile(_, _) => true,
-            PreviewTarget::None | PreviewTarget::AudioFile(_, _) | PreviewTarget::ImageFile(_) => {
+            PreviewTarget::VideoFile { .. } => true,
+            PreviewTarget::None | PreviewTarget::AudioFile { .. } | PreviewTarget::ImageFile(_) => {
                 false
             }
         };

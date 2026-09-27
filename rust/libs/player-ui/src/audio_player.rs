@@ -1,7 +1,7 @@
 use crate::audio_output::AudioOutput;
 use anyhow::Result;
 use futures::{FutureExt, select};
-use gpui::{AsyncApp, Context, WeakEntity};
+use gpui::{AsyncApp, Context, Task, WeakEntity};
 use media_backend::{AudioBackend, AudioSamples};
 use std::{
     future::poll_fn,
@@ -36,8 +36,8 @@ impl AudioPlayer {
         Ok(player)
     }
 
-    /// Starts the playback task; call once, from the entity's constructor.
-    pub fn start(&mut self, cx: &mut Context<Self>) {
+    /// Starts playback once. The owner must retain the task and drop it before the player.
+    pub fn start(&mut self, cx: &mut Context<Self>) -> Task<()> {
         cx.spawn(async move |player, cx| {
             if let Err(error) = run_player(player.clone(), cx).await {
                 // 取消播放 future 不会销毁 player 持有的设备流，需要显式停止输出。
@@ -50,7 +50,6 @@ impl AudioPlayer {
                 std::process::exit(1);
             }
         })
-        .detach();
     }
 }
 

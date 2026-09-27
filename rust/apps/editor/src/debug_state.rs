@@ -24,8 +24,8 @@ fn debug_state(editor: &Editor) -> Result<String> {
     let target = match &editor.preview.target {
         PreviewTarget::None => "None",
         PreviewTarget::Timeline => "Timeline",
-        PreviewTarget::VideoFile(_, _) => "VideoFile",
-        PreviewTarget::AudioFile(_, _) => "AudioFile",
+        PreviewTarget::VideoFile { .. } => "VideoFile",
+        PreviewTarget::AudioFile { .. } => "AudioFile",
         PreviewTarget::ImageFile(_) => "ImageFile",
     };
     // Deliberately select fields rather than serializing the application/global settings.

@@ -1,8 +1,8 @@
 use anyhow::{Context as _, Result};
 use ffmpeg_next::{format, format::stream::Disposition, media::Type};
 use gpui::{
-    AnyElement, App, Bounds, Context, Entity, FocusHandle, KeyBinding, MouseButton, Render, Window,
-    WindowBounds, WindowOptions, actions, div, prelude::*, px, size,
+    AnyElement, App, Bounds, Context, Entity, FocusHandle, KeyBinding, MouseButton, Render, Task,
+    Window, WindowBounds, WindowOptions, actions, div, prelude::*, px, size,
 };
 use gpui_platform::application;
 use player_ui::audio_player::AudioPlayer;
@@ -48,12 +48,13 @@ fn main() -> Result<()> {
             ..WindowOptions::default()
         };
         cx.open_window(options, move |window, cx| {
-            let player = if audio_only {
+            let (player, task) = if audio_only {
                 match AudioPlayer::new(path) {
-                    Ok(mut player) => Player::Audio(cx.new(|cx| {
-                        player.start(cx);
-                        player
-                    })),
+                    Ok(player) => {
+                        let player = cx.new(move |_| player);
+                        let task = player.update(cx, |player, cx| player.start(cx));
+                        (Player::Audio(player), task)
+                    }
                     Err(error) => {
                         eprintln!("Audio player failed: {error:?}");
                         std::process::exit(1);
@@ -61,10 +62,11 @@ fn main() -> Result<()> {
                 }
             } else {
                 match VideoPlayer::new(path) {
-                    Ok(mut player) => Player::Video(cx.new(|cx| {
-                        player.start(cx);
-                        player
-                    })),
+                    Ok(player) => {
+                        let player = cx.new(move |_| player);
+                        let task = player.update(cx, |player, cx| player.start(cx));
+                        (Player::Video(player), task)
+                    }
                     Err(error) => {
                         eprintln!("Player failed: {error:?}");
                         std::process::exit(1);
@@ -74,6 +76,7 @@ fn main() -> Result<()> {
             let focus_handle = cx.focus_handle();
             focus_handle.focus(window, cx);
             cx.new(|_| PlayerWindow {
+                _playback_task: task,
                 focus_handle,
                 player,
             })
@@ -93,6 +96,7 @@ enum Player {
 
 /// Window root: owns keyboard focus and key actions; the player views only render and handle clicks.
 struct PlayerWindow {
+    _playback_task: Task<()>, // 窗口销毁时先取消播放任务，再释放播放器。
     focus_handle: FocusHandle,
     player: Player,
 }
