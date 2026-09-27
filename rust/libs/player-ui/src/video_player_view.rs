@@ -10,7 +10,6 @@ use std::time::Duration;
 impl Render for VideoPlayer {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let width = f32::from(window.viewport_size().width).max(1.0);
-        let height = (f32::from(window.viewport_size().height) - 100.0).max(1.0);
         let duration = self.duration();
         let ended = match self.is_ended() {
             Ok(ended) => ended,
@@ -46,20 +45,19 @@ impl Render for VideoPlayer {
                 div()
                     .relative()
                     .w_full()
-                    .h(px(height))
+                    .flex_1()
+                    .min_h_0()
                     .overflow_hidden()
                     .when_some(self.displayed.as_ref(), |this, (frame, _, _)| {
                         let content = match frame {
                             #[cfg(target_os = "macos")]
                             DisplayedFrame::Surface(buffer) => surface(buffer.clone())
                                 .object_fit(ObjectFit::Contain)
-                                .w(px(width))
-                                .h(px(height))
+                                .size_full()
                                 .into_any_element(),
                             DisplayedFrame::Image(image) => img(image.clone())
                                 .object_fit(ObjectFit::Contain)
-                                .w(px(width))
-                                .h(px(height))
+                                .size_full()
                                 .into_any_element(),
                         };
                         this.child(content)
