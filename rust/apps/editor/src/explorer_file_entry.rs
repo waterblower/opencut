@@ -458,10 +458,6 @@ pub async fn select_preview_file(
             };
             let previous = std::mem::replace(&mut editor.preview.target, target);
             editor.status = None;
-            editor.preview.volume_control_open = false;
-            editor.preview.is_scrubbing = false;
-            editor.preview.is_adjusting_volume = false;
-            editor.preview.last_scrub_seek = None;
             Some(previous)
         } else {
             None

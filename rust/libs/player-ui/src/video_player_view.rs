@@ -1,16 +1,15 @@
-use crate::video_player::{DisplayedFrame, PlaybackState, TogglePlayback, VideoPlayer};
+use crate::video_player::{DisplayedFrame, PlaybackState, VideoPlayer};
 #[cfg(target_os = "macos")]
 use gpui::surface;
 use gpui::{
-    ClickEvent, Context, CursorStyle, ObjectFit, Render, Window, div, img, prelude::*, px,
+    Bounds, ClickEvent, Context, CursorStyle, ObjectFit, Render, Window, div, img, prelude::*, px,
     relative, rgb,
 };
-use std::time::Duration;
+use std::{cell::Cell, rc::Rc, time::Duration};
 
 impl Render for VideoPlayer {
-    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        let width = f32::from(window.viewport_size().width).max(1.0);
-        let height = (f32::from(window.viewport_size().height) - 100.0).max(1.0);
+    fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        let seek_bounds = Rc::new(Cell::new(Bounds::default()));
         let duration = self.duration();
         let ended = match self.is_ended() {
             Ok(ended) => ended,
@@ -36,11 +35,13 @@ impl Render for VideoPlayer {
         };
 
         div()
+            .on_children_prepainted({
+                let seek_bounds = seek_bounds.clone();
+                move |bounds, _, _| {
+                    seek_bounds.set(bounds[1]); // 子元素依次为视频、进度条、控制栏；使用进度条的窗口坐标。
+                }
+            })
             .id("player")
-            .track_focus(&self.focus_handle)
-            .on_action(cx.listener(|player, _: &TogglePlayback, _, cx| {
-                player.toggle_playback(cx);
-            }))
             .size_full()
             .flex()
             .flex_col()
@@ -50,20 +51,19 @@ impl Render for VideoPlayer {
                 div()
                     .relative()
                     .w_full()
-                    .h(px(height))
+                    .flex_1()
+                    .min_h_0()
                     .overflow_hidden()
                     .when_some(self.displayed.as_ref(), |this, (frame, _, _)| {
                         let content = match frame {
                             #[cfg(target_os = "macos")]
                             DisplayedFrame::Surface(buffer) => surface(buffer.clone())
                                 .object_fit(ObjectFit::Contain)
-                                .w(px(width))
-                                .h(px(height))
+                                .size_full()
                                 .into_any_element(),
                             DisplayedFrame::Image(image) => img(image.clone())
                                 .object_fit(ObjectFit::Contain)
-                                .w(px(width))
-                                .h(px(height))
+                                .size_full()
                                 .into_any_element(),
                         };
                         this.child(content)
@@ -77,11 +77,16 @@ impl Render for VideoPlayer {
                     .flex_shrink_0()
                     .bg(rgb(0x303030))
                     .cursor(CursorStyle::PointingHand)
-                    .on_click(cx.listener(move |player, event: &ClickEvent, window, cx| {
-                        let fraction = f32::from(event.position().x) / width;
-                        if let Err(error) = seek(player, fraction, window, cx) {
-                            eprintln!("Player seek failed: {error:?}");
-                            std::process::exit(1);
+                    .on_click(cx.listener({
+                        let seek_bounds = seek_bounds.clone();
+                        move |player, event: &ClickEvent, _, cx| {
+                            let bounds = seek_bounds.get();
+                            let width = f32::from(bounds.size.width).max(1.0);
+                            let fraction = f32::from(event.position().x - bounds.left()) / width;
+                            if let Err(error) = seek(player, fraction, cx) {
+                                eprintln!("Player seek failed: {error:?}");
+                                std::process::exit(1);
+                            }
                         }
                     }))
                     .child(div().h_full().w(relative(progress)).bg(rgb(0xdba34b))),
@@ -122,13 +127,11 @@ impl Render for VideoPlayer {
 pub fn seek(
     player: &mut VideoPlayer,
     fraction: f32,
-    window: &mut Window,
     cx: &mut Context<VideoPlayer>,
 ) -> anyhow::Result<()> {
     let duration = player.duration();
     let position = duration.mul_f64(f64::from(fraction.clamp(0.0, 1.0)));
     player.seek(position)?;
-    player.focus_handle.focus(window, cx);
     cx.notify();
     Ok(())
 }

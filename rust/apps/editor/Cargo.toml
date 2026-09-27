@@ -11,6 +11,7 @@ editor-tests = ["gpui/test-support"]
 timeline.workspace = true
 engine.workspace = true
 transcribe.workspace = true
+player-ui.workspace = true
 anyhow.workspace = true
 env_logger.workspace = true
 ffmpeg-next.workspace = true

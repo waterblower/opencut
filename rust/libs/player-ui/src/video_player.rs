@@ -8,9 +8,7 @@ use ffmpeg_next::{
     Error as FfmpegError, ffi, format::Pixel, frame::Video, software::scaling, util::color,
 };
 use futures::{FutureExt, select, try_join};
-use gpui::{
-    App, AsyncApp, Context, FocusHandle, KeyBinding, RenderImage, WeakEntity, Window, actions,
-};
+use gpui::{AsyncApp, Context, RenderImage, Task, WeakEntity};
 use image::{Frame, RgbaImage};
 use media_backend::{VideoBackend, VideoFrame};
 use std::{
@@ -33,11 +31,11 @@ pub struct VideoPlayer {
     pub displayed: Option<(DisplayedFrame, Duration, Duration)>, // (图像, 帧 PTS, 该帧时长)；None：尚未呈现首帧。
     pub playback_state: PlaybackState,
     pub title: String,
-    pub focus_handle: FocusHandle,
 }
 
 impl VideoPlayer {
-    pub fn new(path: PathBuf, window: &mut Window, cx: &mut Context<Self>) -> Result<Self> {
+    /// Opens the media and output devices. Call [`Self::start`] once the player is in an entity.
+    pub fn new(path: PathBuf) -> Result<Self> {
         // 同步打开和配置；性能成本直接体现在调用处，不交给后台 worker。
         let mut backend = VideoBackend::open(&path)?;
         let audio_output = AudioOutput::open()?;
@@ -47,8 +45,6 @@ impl VideoPlayer {
             backend.metadata.video.width as usize,
             backend.metadata.video.height as usize,
         ))?;
-        let focus_handle = cx.focus_handle();
-        focus_handle.focus(window, cx);
         let player = Self {
             video_backend: backend,
             audio_output,
@@ -59,16 +55,18 @@ impl VideoPlayer {
             displayed: None,
             playback_state: PlaybackState::Playing,
             title: path.display().to_string(),
-            focus_handle,
         };
+        Ok(player)
+    }
+
+    /// Starts playback once. The owner must retain the task and drop it before the player.
+    pub fn start(&mut self, cx: &mut Context<Self>) -> Task<()> {
         cx.spawn(async move |player, cx| {
             if let Err(error) = run_player(player, cx).await {
                 eprintln!("Player failed: {error:?}");
                 std::process::exit(1);
             }
         })
-        .detach();
-        Ok(player)
     }
 
     pub fn duration(&self) -> Duration {
@@ -98,16 +96,6 @@ impl VideoPlayer {
         }
         cx.notify();
     }
-}
-
-actions!(opencut, [TogglePlayback, StepBackward, StepForward]);
-
-pub fn bind_keys(cx: &mut App) {
-    cx.bind_keys([
-        KeyBinding::new("space", TogglePlayback, None),
-        KeyBinding::new("left", StepBackward, None),
-        KeyBinding::new("right", StepForward, None),
-    ]);
 }
 
 pub enum DisplayedFrame {
