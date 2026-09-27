@@ -2,13 +2,14 @@ use super::*;
 use crate::editor::preview_timeline::timeline_preview;
 use crate::editor::timeline_backend::TimelineBackend;
 use anyhow::Result;
+use player_ui::{audio_player::AudioPlayer, video_player::VideoPlayer};
 use preview_image::preview_image_file;
 
 pub enum PreviewTarget {
     None,
     Timeline,
-    VideoFile(PathBuf, ()), // TODO: hold the new player.
-    AudioFile(PathBuf, ()), // TODO: hold the new player.
+    VideoFile(PathBuf, Entity<VideoPlayer>),
+    AudioFile(PathBuf, Entity<AudioPlayer>),
     ImageFile(PathBuf),
 }
 

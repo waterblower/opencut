@@ -1826,6 +1826,7 @@ dependencies = [
  "log",
  "objc2-app-kit 0.3.2",
  "objc2-foundation 0.3.2",
+ "player-ui",
  "resvg 0.45.1",
  "serde",
  "serde_json",

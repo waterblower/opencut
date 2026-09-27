@@ -1,4 +1,4 @@
-use crate::audio_player::{AudioPlayer, PlaybackState, ToggleAudio};
+use crate::audio_player::{AudioPlayer, PlaybackState};
 use gpui::{ClickEvent, Context, Render, Window, div, prelude::*, px, relative, rgb};
 
 impl Render for AudioPlayer {
@@ -25,12 +25,6 @@ impl Render for AudioPlayer {
         );
         div()
             .id("audio-player")
-            .track_focus(&self.focus)
-            .on_action(cx.listener(|player, _: &ToggleAudio, _, cx| {
-                if let Err(error) = player.toggle_playback(cx) {
-                    eprintln!("Toggling audio playback failed: {error:?}");
-                }
-            }))
             .size_full()
             .flex()
             .flex_col()
@@ -50,12 +44,11 @@ impl Render for AudioPlayer {
                     .h(px(20.0))
                     .bg(rgb(0x303030))
                     .cursor_pointer()
-                    .on_click(cx.listener(move |player, event: &ClickEvent, window, cx| {
+                    .on_click(cx.listener(move |player, event: &ClickEvent, _, cx| {
                         let fraction = (f32::from(event.position().x) / width).clamp(0.0, 1.0);
                         if let Err(error) = player.seek(duration.mul_f64(f64::from(fraction)), cx) {
                             eprintln!("Seeking audio failed: {error:?}");
                         }
-                        player.focus.focus(window, cx);
                     }))
                     .child(div().h_full().w(relative(progress)).bg(rgb(0xdba34b))),
             )

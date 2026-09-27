@@ -1,9 +1,12 @@
 use anyhow::{Context as _, Result};
 use ffmpeg_next::{format, format::stream::Disposition, media::Type};
-use gpui::{App, Bounds, KeyBinding, WindowBounds, WindowOptions, prelude::*, px, size};
+use gpui::{
+    AnyElement, App, Bounds, Context, Entity, FocusHandle, KeyBinding, MouseButton, Render, Window,
+    WindowBounds, WindowOptions, actions, div, prelude::*, px, size,
+};
 use gpui_platform::application;
-use player_ui::audio_player::{AudioPlayer, ToggleAudio};
-use player_ui::video_player::{self, VideoPlayer};
+use player_ui::audio_player::AudioPlayer;
+use player_ui::video_player::VideoPlayer;
 
 use std::path::{Path, PathBuf};
 
@@ -29,11 +32,7 @@ fn main() -> Result<()> {
     let audio_only = is_audio_only(&path)?;
 
     application().run(move |cx: &mut App| {
-        if audio_only {
-            cx.bind_keys([KeyBinding::new("space", ToggleAudio, None)]);
-        } else {
-            video_player::bind_keys(cx);
-        }
+        cx.bind_keys([KeyBinding::new("space", TogglePlayback, None)]);
 
         cx.on_window_closed(|cx, _window_id| {
             if cx.windows().is_empty() {
@@ -48,32 +47,86 @@ fn main() -> Result<()> {
             focus: true,
             ..WindowOptions::default()
         };
-        if audio_only {
-            cx.open_window(options, move |window, cx| {
-                cx.new(|cx| match AudioPlayer::new(path, window, cx) {
-                    Ok(player) => player,
+        cx.open_window(options, move |window, cx| {
+            let player = if audio_only {
+                match AudioPlayer::new(path) {
+                    Ok(mut player) => Player::Audio(cx.new(|cx| {
+                        player.start(cx);
+                        player
+                    })),
                     Err(error) => {
                         eprintln!("Audio player failed: {error:?}");
                         std::process::exit(1);
                     }
-                })
-            })
-            .expect("failed to create the audio player window");
-        } else {
-            cx.open_window(options, move |window, cx| {
-                cx.new(|cx| match VideoPlayer::new(path, window, cx) {
-                    Ok(player) => player,
+                }
+            } else {
+                match VideoPlayer::new(path) {
+                    Ok(mut player) => Player::Video(cx.new(|cx| {
+                        player.start(cx);
+                        player
+                    })),
                     Err(error) => {
                         eprintln!("Player failed: {error:?}");
                         std::process::exit(1);
                     }
-                })
+                }
+            };
+            let focus_handle = cx.focus_handle();
+            focus_handle.focus(window, cx);
+            cx.new(|_| PlayerWindow {
+                focus_handle,
+                player,
             })
-            .expect("failed to create the video player window");
-        }
+        })
+        .expect("failed to create the player window");
         cx.activate(true);
     });
     return Ok(());
+}
+
+actions!(opencut, [TogglePlayback]);
+
+enum Player {
+    Audio(Entity<AudioPlayer>),
+    Video(Entity<VideoPlayer>),
+}
+
+/// Window root: owns keyboard focus and key actions; the player views only render and handle clicks.
+struct PlayerWindow {
+    focus_handle: FocusHandle,
+    player: Player,
+}
+
+impl Render for PlayerWindow {
+    fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        let player: AnyElement = match &self.player {
+            Player::Audio(player) => player.clone().into_any_element(),
+            Player::Video(player) => player.clone().into_any_element(),
+        };
+        div()
+            .size_full()
+            .track_focus(&self.focus_handle)
+            // Clicking the player's controls must not leave the window without focus.
+            .on_mouse_down(
+                MouseButton::Left,
+                cx.listener(|this, _, window, cx| this.focus_handle.focus(window, cx)),
+            )
+            .on_action(
+                cx.listener(|this, _: &TogglePlayback, _, cx| match &this.player {
+                    Player::Audio(player) => {
+                        if let Err(error) =
+                            player.update(cx, |player, cx| player.toggle_playback(cx))
+                        {
+                            eprintln!("Toggling audio playback failed: {error:?}");
+                        }
+                    }
+                    Player::Video(player) => {
+                        player.update(cx, |player, cx| player.toggle_playback(cx))
+                    }
+                }),
+            )
+            .child(player)
+    }
 }
 
 fn is_audio_only(path: &Path) -> Result<bool> {

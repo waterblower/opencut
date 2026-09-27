@@ -1,4 +1,4 @@
-use crate::video_player::{DisplayedFrame, PlaybackState, TogglePlayback, VideoPlayer};
+use crate::video_player::{DisplayedFrame, PlaybackState, VideoPlayer};
 #[cfg(target_os = "macos")]
 use gpui::surface;
 use gpui::{
@@ -37,10 +37,6 @@ impl Render for VideoPlayer {
 
         div()
             .id("player")
-            .track_focus(&self.focus_handle)
-            .on_action(cx.listener(|player, _: &TogglePlayback, _, cx| {
-                player.toggle_playback(cx);
-            }))
             .size_full()
             .flex()
             .flex_col()
@@ -77,9 +73,9 @@ impl Render for VideoPlayer {
                     .flex_shrink_0()
                     .bg(rgb(0x303030))
                     .cursor(CursorStyle::PointingHand)
-                    .on_click(cx.listener(move |player, event: &ClickEvent, window, cx| {
+                    .on_click(cx.listener(move |player, event: &ClickEvent, _, cx| {
                         let fraction = f32::from(event.position().x) / width;
-                        if let Err(error) = seek(player, fraction, window, cx) {
+                        if let Err(error) = seek(player, fraction, cx) {
                             eprintln!("Player seek failed: {error:?}");
                             std::process::exit(1);
                         }
@@ -122,13 +118,11 @@ impl Render for VideoPlayer {
 pub fn seek(
     player: &mut VideoPlayer,
     fraction: f32,
-    window: &mut Window,
     cx: &mut Context<VideoPlayer>,
 ) -> anyhow::Result<()> {
     let duration = player.duration();
     let position = duration.mul_f64(f64::from(fraction.clamp(0.0, 1.0)));
     player.seek(position)?;
-    player.focus_handle.focus(window, cx);
     cx.notify();
     Ok(())
 }

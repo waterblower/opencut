@@ -1,7 +1,7 @@
 use crate::audio_output::AudioOutput;
 use anyhow::Result;
 use futures::{FutureExt, select};
-use gpui::{AsyncApp, Context, FocusHandle, WeakEntity, Window, actions};
+use gpui::{AsyncApp, Context, WeakEntity};
 use media_backend::{AudioBackend, AudioSamples};
 use std::{
     future::poll_fn,
@@ -17,16 +17,14 @@ pub struct AudioPlayer {
     play_waker: Option<Waker>,
     pub position: Duration,
     pub title: String,
-    pub focus: FocusHandle,
 }
 
 impl AudioPlayer {
-    pub fn new(path: PathBuf, window: &mut Window, cx: &mut Context<Self>) -> Result<Self> {
+    /// Opens the media and output devices. Call [`Self::start`] once the player is in an entity.
+    pub fn new(path: PathBuf) -> Result<Self> {
         let mut audio_backend = AudioBackend::open(&path)?;
         let audio_output = AudioOutput::open()?;
         audio_backend.audio.configure_output(&audio_output.format)?;
-        let focus = cx.focus_handle();
-        focus.focus(window, cx);
         let player = Self {
             audio_backend,
             audio_output,
@@ -34,8 +32,12 @@ impl AudioPlayer {
             play_waker: None,
             position: Duration::ZERO,
             title: path.display().to_string(),
-            focus,
         };
+        Ok(player)
+    }
+
+    /// Starts the playback task; call once, from the entity's constructor.
+    pub fn start(&mut self, cx: &mut Context<Self>) {
         cx.spawn(async move |player, cx| {
             if let Err(error) = run_player(player.clone(), cx).await {
                 // 取消播放 future 不会销毁 player 持有的设备流，需要显式停止输出。
@@ -49,11 +51,8 @@ impl AudioPlayer {
             }
         })
         .detach();
-        Ok(player)
     }
 }
-
-actions!(opencut, [ToggleAudio]);
 
 pub enum PlaybackState {
     Playing,

@@ -2,6 +2,7 @@ use super::*;
 use crate::editor::explorer::select_preview_file;
 use anyhow::Result;
 use gpui::{AsyncApp, WeakEntity};
+use player_ui::{audio_player::AudioPlayer, video_player::VideoPlayer};
 use std::path::Path;
 
 #[derive(Clone)]
@@ -65,8 +66,6 @@ impl Editor {
         cx: &mut AsyncApp,
     ) -> Result<()> {
         let source = project_root.join(&relative_path);
-        let _ = &source;
-        let target: PreviewTarget = todo!("open the new player");
         editor.update(cx, |editor, cx| -> Result<()> {
             if !file_preview_requested(
                 &editor.project_root,
@@ -77,7 +76,22 @@ impl Editor {
             ) {
                 return Ok(());
             }
-            editor.preview.target = target;
+            // media_backend is not Send, so the player opens on the UI thread.
+            editor.preview.target = if audio_only {
+                let mut player = AudioPlayer::new(source)?;
+                let player = cx.new(|cx| {
+                    player.start(cx);
+                    player
+                });
+                PreviewTarget::AudioFile(relative_path.clone(), player)
+            } else {
+                let mut player = VideoPlayer::new(source)?;
+                let player = cx.new(|cx| {
+                    player.start(cx);
+                    player
+                });
+                PreviewTarget::VideoFile(relative_path.clone(), player)
+            };
             editor.status = Some(
                 if audio_only {
                     "Audio preview ready."
