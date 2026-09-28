@@ -1,6 +1,6 @@
 //! Synchronous timeline export. No editor state, playback clock, or worker is used.
 
-use crate::raster::load_image;
+use crate::image::load_image;
 use ::timeline::TimelineSerialization;
 use ::timeline::serialization::{
     Clip, FrameRate, MediaAsset, MediaClipData, MediaKind, TextClipProperties, TimelineSettings,

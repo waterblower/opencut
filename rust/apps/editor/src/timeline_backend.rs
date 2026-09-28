@@ -6,7 +6,7 @@
 //! retained as text so the renderer can perform font shaping and layout.
 
 use crate::editor::preview_timeline::TimelinePreviewFrame;
-use ::engine::{decode::VideoReader, raster::load_image};
+use ::engine::{decode::VideoReader, image::load_image};
 use ::timeline::{
     Clip, MediaKind, TextClipProperties, TimelineEditingState, TimelineTime, TrackKind,
     VideoClipProperties,

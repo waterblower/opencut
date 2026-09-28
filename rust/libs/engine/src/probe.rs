@@ -1,4 +1,4 @@
-use crate::raster::load_image;
+use crate::image::load_image;
 use anyhow::{Context as _, Result, anyhow, bail};
 use ffmpeg_next as ffmpeg;
 use serde::Serialize;

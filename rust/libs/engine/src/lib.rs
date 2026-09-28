@@ -2,4 +2,4 @@
 pub mod decode;
 pub mod export;
 pub mod probe;
-pub mod raster;
+pub mod image;
