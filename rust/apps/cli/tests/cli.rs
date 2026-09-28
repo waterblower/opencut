@@ -8,8 +8,7 @@ use std::{
 use ulid::Ulid;
 use {
     engine::{
-        audio::Mixer,
-        decode::VideoWorker,
+        decode::VideoReader,
         encode::{Encoder, VideoEncoding},
         probe,
     },
@@ -84,9 +83,9 @@ fn render_gpui_demo() {
             .count(),
         150
     );
-    let worker = VideoWorker::new(output);
+    let mut reader = VideoReader::open(&output).unwrap();
     for time in [0.0, 149.0 / 30.0] {
-        let image = worker.at(time).unwrap();
+        let image = reader.at(time).unwrap();
         assert!(
             image.get_pixel(0, 0).0[..3]
                 .iter()
@@ -271,51 +270,6 @@ fn timeline_assets_resolve_from_timeline_directory() {
 }
 
 #[test]
-fn audio_resampling_gaps_mutes_and_hidden_video() {
-    let dir = Temp::new();
-    write_tone(&dir.0.join("tone.wav"), 44100, 2);
-    let mut doc = empty();
-    doc.assets
-        .push(asset(100, "tone.wav", MediaKind::Audio, true));
-    doc.clips
-        .push(Clip::Audio(media_clip(200, 2, 100, 15, 0, 30)));
-    let infos = probe::assets(&doc.assets, &dir.0).unwrap();
-    let gap = Mixer::default()
-        .block(&doc, &dir.0, &infos, 0, 1024)
-        .unwrap();
-    assert!(gap.iter().all(|s| *s == [0.0, 0.0]));
-    let samples = Mixer::default()
-        .block(&doc, &dir.0, &infos, 30000, 2048)
-        .unwrap();
-    assert!(power(&samples) > 0.01);
-    doc.tracks[1].muted = true;
-    assert!(
-        Mixer::default()
-            .block(&doc, &dir.0, &infos, 30000, 2048)
-            .unwrap()
-            .iter()
-            .all(|s| *s == [0.0, 0.0])
-    );
-    doc.tracks[1].muted = false;
-    let mut hidden = media_clip(201, 1, 100, 15, 0, 30);
-    hidden.audio_properties.gain_db = -6.020599913;
-    doc.clips = vec![Clip::Video(hidden)];
-    doc.tracks[0].visible = false;
-    let half = Mixer::default()
-        .block(&doc, &dir.0, &infos, 30000, 2048)
-        .unwrap();
-    assert!((power(&half) / power(&samples) - 0.25).abs() < 0.001);
-    doc.clips[0].media_mut().unwrap().audio_properties.muted = true;
-    assert!(
-        Mixer::default()
-            .block(&doc, &dir.0, &infos, 30000, 2048)
-            .unwrap()
-            .iter()
-            .all(|s| *s == [0.0, 0.0])
-    );
-}
-
-#[test]
 fn validation_stops_at_first_missing_asset_and_reports_schema_locations() {
     let dir = Temp::new();
     let mut doc = empty();
@@ -381,7 +335,7 @@ fn exact_time_and_invalid_inputs() {
 }
 
 #[test]
-fn native_video_seek_and_audio_mix() {
+fn native_video_seek() {
     let dir = Temp::new();
     let source = dir.0.join("source.mov");
     probe::init().unwrap();
@@ -390,29 +344,16 @@ fn native_video_seek_and_audio_mix() {
         &source,
         (64, 48),
         fps,
-        48000,
         &VideoEncoding {
             codec: "prores".into(),
             preset: "standard".into(),
             bitrate: 128000,
         },
-        None,
     )
     .unwrap();
-    let mut audio_at = 0;
     for f in 0..60 {
         let image = RgbaImage::from_pixel(64, 48, Rgba([(f * 3 + 20) as u8, 60, 100, 255]));
         encoder.encode_new_frame(&image).unwrap();
-        while audio_at < (f + 1) * 1600 {
-            let count = (encoder.audio_frame_size() as i64).min(96000 - audio_at) as usize;
-            let mut samples = Vec::new();
-            for n in audio_at..audio_at + count as i64 {
-                let v = (n as f64 * 440.0 * std::f64::consts::TAU / 48000.0).sin() as f32 * 0.2;
-                samples.push([v, v]);
-            }
-            encoder.audio(&samples, audio_at).unwrap();
-            audio_at += count as i64;
-        }
     }
     encoder.finish().unwrap();
     let output = cli(&["probe", source.to_str().unwrap(), "--json"]);
@@ -421,32 +362,12 @@ fn native_video_seek_and_audio_mix() {
     assert!(info["streams"].as_array().unwrap().iter().any(|stream| {
         stream["kind"] == "video" && stream["width"] == 64 && stream["height"] == 48
     }));
-    let worker = VideoWorker::new(source.clone());
+    let mut reader = VideoReader::open(&source).unwrap();
     for f in [0, 29, 30, 59, 15, 16, 0] {
-        let frame = worker.at(f as f64 / 30.0).unwrap();
+        let frame = reader.at(f as f64 / 30.0).unwrap();
         let red = frame.get_pixel(32, 24)[0] as i32;
         assert!((red - (f * 3 + 20)).abs() <= 4, "frame {f} red {red}");
     }
-    let mut doc = empty();
-    doc.assets
-        .push(asset(100, "source.mov", MediaKind::Video, true));
-    let mut clip = media_clip(200, 1, 100, 15, 15, 45);
-    clip.audio_properties.gain_db = -6.020599913;
-    doc.clips.push(Clip::Video(clip));
-    let media = probe::assets(&doc.assets, &dir.0).unwrap();
-    doc.validate().unwrap();
-    let mut mixer = Mixer::default();
-    assert!(
-        mixer
-            .block(&doc, &dir.0, &media, 0, 1000)
-            .unwrap()
-            .iter()
-            .all(|s| *s == [0.0, 0.0])
-    );
-    let samples = mixer.block(&doc, &dir.0, &media, 30000, 4096).unwrap();
-    let rms =
-        (samples.iter().map(|s| (s[0] * s[0]) as f64).sum::<f64>() / samples.len() as f64).sqrt();
-    assert!((rms - 0.07071).abs() < 0.01, "RMS {rms}");
 }
 
 #[test]
@@ -458,13 +379,11 @@ fn variable_pts_frame_selection() {
         &sequential,
         (64, 48),
         FrameRate::default(),
-        48000,
         &VideoEncoding {
             codec: "prores".into(),
             preset: "standard".into(),
             bitrate: 128000,
         },
-        None,
     )
     .unwrap();
     for red in [20, 80, 140, 200] {
@@ -504,7 +423,7 @@ fn variable_pts_frame_selection() {
     }
     assert!(timestamps.next().is_none());
     output.write_trailer().unwrap();
-    let worker = VideoWorker::new(source.clone());
+    let mut reader = VideoReader::open(&source).unwrap();
     for (time, expected) in [
         (0.0, 20),
         (1.0 / 30.0, 20),
@@ -512,7 +431,7 @@ fn variable_pts_frame_selection() {
         (8.0 / 30.0, 200),
         (2.0 / 30.0, 80),
     ] {
-        let image = worker.at(time).unwrap();
+        let image = reader.at(time).unwrap();
         assert!(
             (image.get_pixel(32, 24)[0] as i32 - expected).abs() <= 4,
             "time {time}"
@@ -532,13 +451,11 @@ fn platform_video_encoders_and_fractional_frame_rate() {
             &output,
             (64, 48),
             FrameRate::new(30000, 1001),
-            48000,
             &VideoEncoding {
                 codec: codec.into(),
                 preset: "standard".into(),
                 bitrate: 500000,
             },
-            None,
         )
         .unwrap();
         let image = RgbaImage::from_pixel(64, 48, Rgba([220, 20, 10, 255]));
@@ -693,9 +610,6 @@ fn write_tone(path: &Path, rate: u32, seconds: u32) {
         wav.extend_from_slice(&sample.to_le_bytes());
     }
     fs::write(path, wav).unwrap();
-}
-fn power(samples: &[[f32; 2]]) -> f64 {
-    samples.iter().map(|s| (s[0] * s[0]) as f64).sum::<f64>() / samples.len() as f64
 }
 fn cli(args: &[&str]) -> Output {
     Command::new(env!("CARGO_BIN_EXE_opencut"))

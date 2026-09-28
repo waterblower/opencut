@@ -9,10 +9,8 @@ gpl = []
 
 [dependencies]
 timeline.workspace = true
-transcribe.workspace = true
 anyhow.workspace = true
 ffmpeg-next.workspace = true
 image.workspace = true
 resvg.workspace = true
 serde.workspace = true
-ulid.workspace = true

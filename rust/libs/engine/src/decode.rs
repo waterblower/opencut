@@ -1,87 +1,10 @@
-use crate::probe::init;
 use anyhow::{Context as _, Result, anyhow};
 use ffmpeg_next as ffmpeg;
 use image::RgbaImage;
-use std::{
-    path::{Path, PathBuf},
-    sync::mpsc::{self, Receiver, SyncSender},
-    thread::JoinHandle,
-    time::Instant,
-};
-
-pub struct VideoWorker {
-    sender: Option<SyncSender<f64>>,
-    receiver: Receiver<Result<RgbaImage>>,
-    thread: Option<JoinHandle<()>>,
-}
-
-impl VideoWorker {
-    pub fn new(path: PathBuf) -> Self {
-        let (sender, requests) = mpsc::sync_channel(1);
-        let (results, receiver) = mpsc::sync_channel(1);
-        let thread = std::thread::spawn(move || {
-            let initialized = (|| {
-                init()?;
-                VideoReader::open(&path)
-            })();
-            let mut reader = match initialized {
-                Ok(reader) => reader,
-                Err(error) => {
-                    let _ = results.send(Err(error));
-                    return;
-                }
-            };
-            for time in requests {
-                let result = reader.at(time);
-                let failed = result.is_err();
-                if results.send(result).is_err() || failed {
-                    break;
-                }
-            }
-        });
-        Self {
-            sender: Some(sender),
-            receiver,
-            thread: Some(thread),
-        }
-    }
-    pub fn at(&self, seconds: f64) -> Result<RgbaImage> {
-        if self.sender.as_ref().unwrap().send(seconds).is_err() {
-            if let Ok(result) = self.receiver.try_recv() {
-                return result;
-            }
-            return Err(anyhow!(
-                "decode_failure: decoder worker stopped at {}:{}",
-                file!(),
-                line!()
-            ));
-        }
-        self.receiver
-            .recv()
-            .context(format!("decode_failure at {}:{}", file!(), line!()))?
-    }
-}
-
-impl Drop for VideoWorker {
-    fn drop(&mut self) {
-        self.sender.take();
-        if let Some(thread) = self.thread.take() {
-            let _ = thread.join();
-        }
-    }
-}
+use std::{path::Path, time::Instant};
 
 pub fn again(error: ffmpeg::Error) -> bool {
     matches!(error, ffmpeg::Error::Other { errno } if errno == ffmpeg::error::EAGAIN)
-}
-
-pub fn origin(input: &ffmpeg::format::context::Input) -> f64 {
-    let start = unsafe { (*input.as_ptr()).start_time };
-    if start == ffmpeg::ffi::AV_NOPTS_VALUE {
-        0.0
-    } else {
-        start as f64 / ffmpeg::ffi::AV_TIME_BASE as f64
-    }
 }
 
 pub struct VideoReader {
@@ -277,5 +200,14 @@ impl VideoReader {
                 }
             }
         }
+    }
+}
+
+fn origin(input: &ffmpeg::format::context::Input) -> f64 {
+    let start = unsafe { (*input.as_ptr()).start_time };
+    if start == ffmpeg::ffi::AV_NOPTS_VALUE {
+        0.0
+    } else {
+        start as f64 / ffmpeg::ffi::AV_TIME_BASE as f64
     }
 }

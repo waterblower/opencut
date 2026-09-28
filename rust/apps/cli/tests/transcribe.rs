@@ -1,3 +1,4 @@
+use ::transcribe::audio::extract_audio_as_wav;
 use image::{Rgba, RgbaImage};
 use serde_json::{Value, json};
 use std::{
@@ -7,10 +8,7 @@ use std::{
 };
 use ulid::Ulid;
 use {
-    engine::{
-        audio::extract_audio_as_wav,
-        encode::{Encoder, VideoEncoding},
-    },
+    engine::encode::{Encoder, VideoEncoding},
     opencut::{document, transcribe},
     timeline::FrameRate,
 };
@@ -216,17 +214,16 @@ fn write_wav(path: &Path, rate: u32, frames: u32) {
 }
 
 fn write_video(path: &Path, audio: bool) {
+    let video_path = path.with_extension("video.mov");
     let mut encoder = Encoder::open(
-        path,
+        &video_path,
         (64, 48),
         FrameRate::default(),
-        48_000,
         &VideoEncoding {
             codec: "prores".into(),
             preset: "draft".into(),
             bitrate: 128_000,
         },
-        None,
     )
     .unwrap();
     for _ in 0..30 {
@@ -234,15 +231,98 @@ fn write_video(path: &Path, audio: bool) {
             .encode_new_frame(&RgbaImage::from_pixel(64, 48, Rgba([0, 0, 0, 255])))
             .unwrap();
     }
-    if audio {
-        for (from, to) in [(12_288, 24_576), (36_864, 49_152)] {
-            for start in (from..to).step_by(encoder.audio_frame_size()) {
-                let count = encoder.audio_frame_size().min((to - start) as usize);
-                encoder.audio(&vec![[0.25, 0.25]; count], start).unwrap();
+    encoder.finish().unwrap();
+    if !audio {
+        fs::rename(&video_path, path).unwrap();
+        return;
+    }
+
+    // Encode this test fixture directly so audio offset and gap coverage does
+    // not require unused production audio encoding APIs.
+    let mut input = ffmpeg_next::format::input(&video_path).unwrap();
+    let mut output = ffmpeg_next::format::output(path).unwrap();
+    let video = input
+        .streams()
+        .best(ffmpeg_next::media::Type::Video)
+        .unwrap();
+    let video_base = video.time_base();
+    {
+        let mut stream = output
+            .add_stream(ffmpeg_next::encoder::find(ffmpeg_next::codec::Id::PRORES))
+            .unwrap();
+        stream.set_parameters(video.parameters());
+        stream.set_time_base(video_base);
+    }
+    let aac = ffmpeg_next::encoder::find(ffmpeg_next::codec::Id::AAC).unwrap();
+    let mut audio = ffmpeg_next::codec::context::Context::new_with_codec(aac)
+        .encoder()
+        .audio()
+        .unwrap();
+    audio.set_rate(48_000);
+    audio.set_channel_layout(ffmpeg_next::ChannelLayout::STEREO);
+    audio.set_format(ffmpeg_next::format::Sample::F32(
+        ffmpeg_next::format::sample::Type::Planar,
+    ));
+    audio.set_time_base((1, 48_000));
+    audio.set_bit_rate(192_000);
+    audio.set_flags(ffmpeg_next::codec::Flags::GLOBAL_HEADER);
+    let mut audio = audio.open_as(aac).unwrap();
+    {
+        let mut stream = output.add_stream(aac).unwrap();
+        stream.set_parameters(&audio);
+        stream.set_time_base((1, 48_000));
+    }
+    output.write_header().unwrap();
+    let output_video_base = output.stream(0).unwrap().time_base();
+    for (_, mut packet) in input.packets() {
+        packet.set_stream(0);
+        packet.set_position(-1);
+        packet.rescale_ts(video_base, output_video_base);
+        packet.write_interleaved(&mut output).unwrap();
+    }
+    for (from, to) in [(12_288, 24_576), (36_864, 49_152)] {
+        for start in (from..to).step_by(audio.frame_size() as usize) {
+            let count = (audio.frame_size() as i64).min(to - start) as usize;
+            let mut frame = ffmpeg_next::frame::Audio::new(
+                audio.format(),
+                count,
+                ffmpeg_next::ChannelLayout::STEREO,
+            );
+            frame.set_rate(48_000);
+            frame.set_pts(Some(start));
+            for channel in 0..2 {
+                frame.plane_mut::<f32>(channel).fill(0.25);
             }
+            audio.send_frame(&frame).unwrap();
+            drain_fixture_audio(&mut audio, &mut output);
         }
     }
-    encoder.finish().unwrap();
+    audio.send_eof().unwrap();
+    drain_fixture_audio(&mut audio, &mut output);
+    output.write_trailer().unwrap();
+    drop(input);
+    fs::remove_file(video_path).unwrap();
+}
+
+fn drain_fixture_audio(
+    audio: &mut ffmpeg_next::encoder::Audio,
+    output: &mut ffmpeg_next::format::context::Output,
+) {
+    loop {
+        let mut packet = ffmpeg_next::Packet::empty();
+        match audio.receive_packet(&mut packet) {
+            Ok(()) => {
+                packet.set_stream(1);
+                packet.rescale_ts((1, 48_000), output.stream(1).unwrap().time_base());
+                packet.write_interleaved(output).unwrap();
+            }
+            Err(ffmpeg_next::Error::Eof) => return,
+            Err(ffmpeg_next::Error::Other { errno }) if errno == ffmpeg_next::error::EAGAIN => {
+                return;
+            }
+            Err(error) => panic!("encoding fixture audio: {error:?}"),
+        }
+    }
 }
 
 struct Temp(PathBuf);

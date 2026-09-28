@@ -143,10 +143,10 @@ they require no API key and do not make paid MiniMax requests.
 
 ## Output and errors
 
-The `still` and `render` commands, CPU compositor, and text rasterizer have been
-removed ahead of the shared GPUI renderer refactor. CLI video export and still
-preview generation are currently unavailable. FFmpeg decoding, encoding, and
-audio mixing services remain available for reuse.
+The `still` command, CPU compositor, and text rasterizer have been removed ahead
+of the shared GPUI renderer refactor. The `render` command exports a fixed GPUI
+demo; timeline export and still preview generation are currently unavailable.
+Shared FFmpeg decoding, probing, and video-only encoding remain available.
 
 All commands accept `--json`. Results go to stdout and diagnostics go to stderr.
 Runtime failures use anyhow and exit code 1; Clap usage errors use exit code 2.

@@ -32,13 +32,11 @@ pub fn render(output: &Path) -> Result<Value> {
             &temporary,
             dimensions,
             FrameRate::new(30, 1),
-            48_000,
             &VideoEncoding {
                 codec: "h264".into(),
                 preset: "draft".into(),
                 bitrate: 2_000_000,
             },
-            None,
         )?;
         encoder.encode_new_frame(&image)?;
         for frame in 1..150 {

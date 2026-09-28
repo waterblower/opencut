@@ -1,5 +1,4 @@
-//! Shared media decoding, encoding, probing, and mixing for the CLI and editor.
-pub mod audio;
+//! Shared media decoding, encoding, and probing for the CLI and editor.
 pub mod decode;
 pub mod encode;
 pub mod probe;

@@ -2,18 +2,8 @@ use crate::{decode::again, probe::init};
 use anyhow::{Context as _, Result, anyhow, bail};
 use ffmpeg_next as ffmpeg;
 use image::RgbaImage;
-use std::{
-    path::{Path, PathBuf},
-    sync::mpsc::{self, SyncSender},
-    thread::JoinHandle,
-};
+use std::path::Path;
 use timeline::FrameRate;
-
-pub struct EncoderWorker {
-    sender: Option<SyncSender<EncodeMessage>>,
-    worker: Option<JoinHandle<Result<()>>>,
-    pub audio_frame_size: usize,
-}
 
 pub struct VideoEncoding {
     pub codec: String,
@@ -21,91 +11,12 @@ pub struct VideoEncoding {
     pub bitrate: u64,
 }
 
-impl EncoderWorker {
-    pub fn open(
-        path: PathBuf,
-        dimensions: (u32, u32),
-        fps: FrameRate,
-        rate: u32,
-        video: VideoEncoding,
-        metadata: Option<String>,
-    ) -> Result<Self> {
-        let (sender, receiver) = mpsc::sync_channel(2);
-        let (ready, initialized) = mpsc::sync_channel(1);
-        let worker = std::thread::spawn(move || {
-            let mut encoder =
-                Encoder::open(&path, dimensions, fps, rate, &video, metadata.as_deref())?;
-            ready.send(encoder.audio_frame_size()).context(format!(
-                "render_cancelled at {}:{}",
-                file!(),
-                line!()
-            ))?;
-            for message in receiver {
-                match message {
-                    EncodeMessage::Video(image) => encoder.encode_new_frame(&image)?,
-                    EncodeMessage::Audio(samples, start) => encoder.audio(&samples, start)?,
-                    EncodeMessage::Finish => return encoder.finish(),
-                }
-            }
-            Err(anyhow!(
-                "render_cancelled: encoder input closed before completion at {}:{}",
-                file!(),
-                line!()
-            ))
-        });
-        let mut result = Self {
-            sender: Some(sender),
-            worker: Some(worker),
-            audio_frame_size: 0,
-        };
-        match initialized.recv() {
-            Ok(size) => {
-                result.audio_frame_size = size;
-                Ok(result)
-            }
-            Err(_) => {
-                result.join()?;
-                Err(anyhow!(
-                    "encode_failure: encoder did not initialize at {}:{}",
-                    file!(),
-                    line!()
-                ))
-            }
-        }
-    }
-
-    pub fn encode_new_frame(&mut self, image: RgbaImage) -> Result<()> {
-        self.send(EncodeMessage::Video(image))
-    }
-
-    pub fn audio(&mut self, samples: Vec<[f32; 2]>, start: i64) -> Result<()> {
-        self.send(EncodeMessage::Audio(samples, start))
-    }
-
-    pub fn finish(mut self) -> Result<()> {
-        let _ = self.sender.as_ref().unwrap().send(EncodeMessage::Finish);
-        self.join()
-    }
-}
-
-impl Drop for EncoderWorker {
-    fn drop(&mut self) {
-        self.sender.take();
-        if let Some(worker) = self.worker.take() {
-            let _ = worker.join();
-        }
-    }
-}
-
 pub struct Encoder {
     output: ffmpeg::format::context::Output,
     video: ffmpeg::encoder::Video,
-    audio: ffmpeg::encoder::Audio,
     scaler: ffmpeg::software::scaling::Context,
     video_base: ffmpeg::Rational,
     next_frame_index: i64,
-    audio_base: ffmpeg::Rational,
-    rate: u32,
 }
 
 impl Encoder {
@@ -113,9 +24,7 @@ impl Encoder {
         path: &Path,
         dimensions: (u32, u32),
         fps: FrameRate,
-        rate: u32,
         settings: &VideoEncoding,
-        metadata: Option<&str>,
     ) -> Result<Self> {
         init()?;
         let (width, height) = dimensions;
@@ -227,53 +136,9 @@ impl Encoder {
                 }
             }
         }
-        let Some(aac) = ffmpeg::encoder::find(ffmpeg::codec::Id::AAC) else {
-            return Err(anyhow!(
-                "encoder_unavailable: AAC encoder is not compiled in at {}:{}",
-                file!(),
-                line!()
-            ));
-        };
-        let mut audio = ffmpeg::codec::context::Context::new_with_codec(aac)
-            .encoder()
-            .audio()
+        output
+            .write_header()
             .context(format!("encode_failure at {}:{}", file!(), line!()))?;
-        audio.set_rate(rate as i32);
-        audio.set_channel_layout(ffmpeg::ChannelLayout::STEREO);
-        audio.set_format(ffmpeg::format::Sample::F32(
-            ffmpeg::format::sample::Type::Planar,
-        ));
-        audio.set_bit_rate(192000);
-        audio.set_time_base((1, rate as i32));
-        if global {
-            audio.set_flags(ffmpeg::codec::Flags::GLOBAL_HEADER);
-        }
-        let audio =
-            audio
-                .open_as(aac)
-                .context(format!("encode_failure at {}:{}", file!(), line!()))?;
-        let audio_base = ffmpeg::Rational(1, rate as i32);
-        {
-            let mut stream = output.add_stream(aac).context(format!(
-                "encode_failure at {}:{}",
-                file!(),
-                line!()
-            ))?;
-            stream.set_time_base(audio_base);
-            stream.set_parameters(&audio);
-        }
-        if let Some(metadata) = metadata {
-            let mut dictionary = ffmpeg::Dictionary::new();
-            dictionary.set("opencut.timeline", metadata);
-            output.set_metadata(dictionary);
-        }
-        let mut mux_options = ffmpeg::Dictionary::new();
-        mux_options.set("movflags", "+use_metadata_tags");
-        output.write_header_with(mux_options).context(format!(
-            "encode_failure at {}:{}",
-            file!(),
-            line!()
-        ))?;
         let mut scaler = ffmpeg::software::scaling::Context::get(
             ffmpeg::format::Pixel::RGBA,
             width,
@@ -288,17 +153,10 @@ impl Encoder {
         Ok(Self {
             output,
             video,
-            audio,
             scaler,
             video_base,
             next_frame_index: 0,
-            audio_base,
-            rate,
         })
-    }
-
-    pub fn audio_frame_size(&self) -> usize {
-        self.audio.frame_size() as usize
     }
 
     pub fn encode_new_frame(&mut self, image: &RgbaImage) -> Result<()> {
@@ -330,36 +188,11 @@ impl Encoder {
         self.drain_video()
     }
 
-    pub fn audio(&mut self, samples: &[[f32; 2]], start: i64) -> Result<()> {
-        let mut frame = ffmpeg::frame::Audio::new(
-            self.audio.format(),
-            samples.len(),
-            ffmpeg::ChannelLayout::STEREO,
-        );
-        frame.set_rate(self.rate);
-        frame.set_pts(Some(start));
-        for channel in 0..2 {
-            for (i, sample) in samples.iter().enumerate() {
-                frame.plane_mut::<f32>(channel)[i] = sample[channel];
-            }
-        }
-        self.audio.send_frame(&frame).context(format!(
-            "encode_failure at {}:{}",
-            file!(),
-            line!()
-        ))?;
-        self.drain_audio()
-    }
-
     pub fn finish(mut self) -> Result<()> {
         self.video
             .send_eof()
             .context(format!("encode_failure at {}:{}", file!(), line!()))?;
         self.drain_video()?;
-        self.audio
-            .send_eof()
-            .context(format!("encode_failure at {}:{}", file!(), line!()))?;
-        self.drain_audio()?;
         self.output.write_trailer().context(format!(
             "encode_failure at {}:{}",
             file!(),
@@ -369,7 +202,7 @@ impl Encoder {
     }
 }
 
-pub fn video_codec(name: &str) -> Result<ffmpeg::Codec> {
+fn video_codec(name: &str) -> Result<ffmpeg::Codec> {
     let encoder = match name {
         "h264" => {
             #[cfg(feature = "gpl")]
@@ -401,55 +234,6 @@ pub fn video_codec(name: &str) -> Result<ffmpeg::Codec> {
     Ok(codec)
 }
 
-pub fn bitrate(width: u32, height: u32, fps: FrameRate, preset: &str) -> usize {
-    let factor = match preset {
-        "draft" => 0.07,
-        "high" => 0.25,
-        _ => 0.14,
-    };
-    (width as f64 * height as f64 * fps.numerator as f64 / fps.denominator as f64 * factor)
-        .max(128000.0) as usize
-}
-
-enum EncodeMessage {
-    Video(RgbaImage),
-    Audio(Vec<[f32; 2]>, i64),
-    Finish,
-}
-
-impl EncoderWorker {
-    fn send(&mut self, message: EncodeMessage) -> Result<()> {
-        if self.sender.as_ref().unwrap().send(message).is_err() {
-            self.join()?;
-            return Err(anyhow!(
-                "encode_failure: encoder closed at {}:{}",
-                file!(),
-                line!()
-            ));
-        }
-        Ok(())
-    }
-
-    fn join(&mut self) -> Result<()> {
-        self.sender.take();
-        let Some(worker) = self.worker.take() else {
-            return Err(anyhow!(
-                "encode_failure: encoder already joined at {}:{}",
-                file!(),
-                line!()
-            ));
-        };
-        match worker.join() {
-            Ok(result) => result,
-            Err(_) => Err(anyhow!(
-                "encode_failure: encoder worker panicked at {}:{}",
-                file!(),
-                line!()
-            )),
-        }
-    }
-}
-
 impl Encoder {
     fn drain_video(&mut self) -> Result<()> {
         loop {
@@ -461,32 +245,6 @@ impl Encoder {
                         packet.set_duration(1);
                     }
                     packet.rescale_ts(self.video_base, self.output.stream(0).unwrap().time_base());
-                    packet.write_interleaved(&mut self.output).context(format!(
-                        "encode_failure at {}:{}",
-                        file!(),
-                        line!()
-                    ))?;
-                }
-                Err(ffmpeg::Error::Eof) => return Ok(()),
-                Err(error) if again(error) => return Ok(()),
-                Err(error) => {
-                    return Err(anyhow!(
-                        "encode_failure: {error} at {}:{}",
-                        file!(),
-                        line!()
-                    ));
-                }
-            }
-        }
-    }
-
-    fn drain_audio(&mut self) -> Result<()> {
-        loop {
-            let mut packet = ffmpeg::Packet::empty();
-            match self.audio.receive_packet(&mut packet) {
-                Ok(()) => {
-                    packet.set_stream(1);
-                    packet.rescale_ts(self.audio_base, self.output.stream(1).unwrap().time_base());
                     packet.write_interleaved(&mut self.output).context(format!(
                         "encode_failure at {}:{}",
                         file!(),

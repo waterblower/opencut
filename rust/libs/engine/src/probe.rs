@@ -2,17 +2,8 @@ use crate::raster::load_image;
 use anyhow::{Context as _, Result, anyhow, bail};
 use ffmpeg_next as ffmpeg;
 use serde::Serialize;
-use std::{collections::HashMap, path::Path};
+use std::path::Path;
 use timeline::MediaAsset;
-
-#[derive(Clone, Debug)]
-pub struct MediaInfo {
-    pub duration: f64,
-    pub video: bool,
-    pub audio: bool,
-    pub image: bool,
-    pub video_bitrate: Option<u64>,
-}
 
 #[derive(Debug, Serialize)]
 pub struct Probe {
@@ -43,18 +34,6 @@ pub fn init() -> Result<()> {
     ffmpeg::init().context(format!("ffmpeg_init at {}:{}", file!(), line!()))?;
     ffmpeg::log::set_level(ffmpeg::log::Level::Quiet);
     Ok(())
-}
-
-pub fn is_image(path: &Path) -> bool {
-    let ext = path
-        .extension()
-        .unwrap_or_default()
-        .to_string_lossy()
-        .to_ascii_lowercase();
-    matches!(
-        ext.as_str(),
-        "png" | "jpg" | "jpeg" | "webp" | "bmp" | "gif" | "ico" | "svg"
-    )
 }
 
 pub fn probe(path: &Path) -> Result<Probe> {
@@ -229,35 +208,22 @@ pub fn probe(path: &Path) -> Result<Probe> {
     })
 }
 
-pub fn assets(assets: &[MediaAsset], base: &Path) -> Result<HashMap<ulid::Ulid, MediaInfo>> {
-    let mut infos = HashMap::new();
+pub fn assets(assets: &[MediaAsset], base: &Path) -> Result<()> {
     for (i, asset) in assets.iter().enumerate() {
         let path = base.join(&asset.path);
-        let p = match probe(&path) {
-            Ok(p) => p,
-            Err(error) => {
-                return Err(error.context(format!(
-                    "/assets/{i}/path ({}), at {}:{}",
-                    path.display(),
-                    file!(),
-                    line!()
-                )));
-            }
-        };
-        infos.insert(
-            asset.id,
-            MediaInfo {
-                duration: p.duration,
-                video: p.streams.iter().any(|s| s.kind == "video"),
-                audio: p.streams.iter().any(|s| s.kind == "audio"),
-                image: is_image(&path),
-                video_bitrate: p
-                    .streams
-                    .iter()
-                    .find(|s| s.kind == "video")
-                    .and_then(|s| s.bitrate),
-            },
-        );
+        probe(&path).context(format!("/assets/{i}/path ({})", path.display()))?;
     }
-    Ok(infos)
+    Ok(())
+}
+
+fn is_image(path: &Path) -> bool {
+    let ext = path
+        .extension()
+        .unwrap_or_default()
+        .to_string_lossy()
+        .to_ascii_lowercase();
+    matches!(
+        ext.as_str(),
+        "png" | "jpg" | "jpeg" | "webp" | "bmp" | "gif" | "ico" | "svg"
+    )
 }

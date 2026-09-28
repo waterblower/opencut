@@ -1892,8 +1892,6 @@ dependencies = [
  "resvg 0.45.1",
  "serde",
  "timeline",
- "transcribe",
- "ulid",
 ]
 
 [[package]]
