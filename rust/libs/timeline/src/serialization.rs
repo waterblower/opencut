@@ -15,11 +15,23 @@ use ulid::Ulid;
 #[cfg_attr(feature = "timeline-schema", derive(schemars::JsonSchema))]
 #[serde(default)]
 pub struct TimelineSerialization {
-    editing_state: TimelineEditingState,
+    pub editing_state: TimelineEditingState,
     view_state: TimelineViewState,
 }
 
 impl TimelineSerialization {
+    /// Frame count from frame zero to the latest clip end, including gaps.
+    pub fn frame_count(&self) -> i64 {
+        let mut frame_count = 0;
+        for clip in &self.editing_state.clips {
+            let end_frame = clip.end_frame(self.editing_state.settings.frame_rate);
+            if end_frame > frame_count {
+                frame_count = end_frame;
+            }
+        }
+        frame_count
+    }
+
     /// Captures editing content with default persisted view preferences.
     pub fn from_editing_state(editing_state: &RuntimeTimelineEditingState) -> Self {
         Self {
@@ -28,7 +40,7 @@ impl TimelineSerialization {
         }
     }
 
-    /// Rebuilds independent runtime content without exposing disk types.
+    /// Rebuilds independent runtime content for editing.
     pub fn to_editing_state(&self) -> RuntimeTimelineEditingState {
         self.editing_state.to_runtime()
     }
@@ -261,12 +273,12 @@ fn nonnegative_finite(value: f32) -> f32 {
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]
 #[cfg_attr(feature = "timeline-schema", derive(schemars::JsonSchema))]
 #[serde(default)]
-struct TimelineEditingState {
-    settings: TimelineSettings,
-    assets: Vec<MediaAsset>,
+pub struct TimelineEditingState {
+    pub settings: TimelineSettings,
+    pub assets: Vec<MediaAsset>,
     #[serde(alias = "layers")]
-    tracks: Vec<Track>,
-    clips: Vec<Clip>,
+    pub tracks: Vec<Track>,
+    pub clips: Vec<Clip>,
 }
 
 /// Only the view preferences selected for persistence.
@@ -284,11 +296,11 @@ struct TimelineViewState {
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[cfg_attr(feature = "timeline-schema", derive(schemars::JsonSchema))]
-struct TimelineSettings {
-    frame_rate: FrameRate,
-    width: u32,
-    height: u32,
-    audio_sample_rate: u32,
+pub struct TimelineSettings {
+    pub frame_rate: FrameRate,
+    pub width: u32,
+    pub height: u32,
+    pub audio_sample_rate: u32,
 }
 
 impl Default for TimelineSettings {
@@ -317,7 +329,7 @@ impl Default for TimelineViewState {
 
 #[derive(Clone, Copy, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
 #[cfg_attr(feature = "timeline-schema", derive(schemars::JsonSchema))]
-enum MediaKind {
+pub enum MediaKind {
     #[default]
     #[serde(alias = "video")]
     Video,
@@ -329,29 +341,29 @@ enum MediaKind {
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[cfg_attr(feature = "timeline-schema", derive(schemars::JsonSchema))]
-struct MediaAsset {
+pub struct MediaAsset {
     #[serde(deserialize_with = "deserialize_ulid")]
     #[cfg_attr(feature = "timeline-schema", schemars(with = "String"))]
-    id: Ulid,
+    pub id: Ulid,
     #[serde(default)]
-    kind: MediaKind,
-    path: PathBuf,
+    pub kind: MediaKind,
+    pub path: PathBuf,
     name: String,
     duration: f64,
     width: u32,
     height: u32,
-    framerate: f64,
+    pub framerate: f64,
     #[serde(default)]
-    frame_rate_numerator: u32,
+    pub frame_rate_numerator: u32,
     #[serde(default)]
-    frame_rate_denominator: u32,
+    pub frame_rate_denominator: u32,
     codec: String,
-    has_audio: bool,
+    pub has_audio: bool,
 }
 
 #[derive(Clone, Copy, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
 #[cfg_attr(feature = "timeline-schema", derive(schemars::JsonSchema))]
-enum TrackKind {
+pub enum TrackKind {
     #[default]
     #[serde(alias = "video")]
     Video,
@@ -363,18 +375,18 @@ enum TrackKind {
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[cfg_attr(feature = "timeline-schema", derive(schemars::JsonSchema))]
-struct Track {
+pub struct Track {
     #[serde(deserialize_with = "deserialize_ulid")]
     #[cfg_attr(feature = "timeline-schema", schemars(with = "String"))]
-    id: Ulid,
+    pub id: Ulid,
     name: String,
-    kind: TrackKind,
+    pub kind: TrackKind,
     #[serde(default)]
     locked: bool,
     #[serde(default)]
-    muted: bool,
+    pub muted: bool,
     #[serde(default)]
-    visible: bool,
+    pub visible: bool,
 }
 /// Static visual adjustments for one timeline clip.
 ///
@@ -383,10 +395,10 @@ struct Track {
 #[derive(Clone, Copy, Debug, Deserialize, PartialEq, Serialize)]
 #[cfg_attr(feature = "timeline-schema", derive(schemars::JsonSchema))]
 #[serde(default)]
-struct VideoClipProperties {
-    position_x: f64,
-    position_y: f64,
-    scale: f64,
+pub struct VideoClipProperties {
+    pub position_x: f64,
+    pub position_y: f64,
+    pub scale: f64,
 }
 
 impl Default for VideoClipProperties {
@@ -405,9 +417,9 @@ impl Default for VideoClipProperties {
 #[derive(Clone, Copy, Debug, Deserialize, PartialEq, Serialize)]
 #[cfg_attr(feature = "timeline-schema", derive(schemars::JsonSchema))]
 #[serde(default)]
-struct AudioClipProperties {
-    gain_db: f64,
-    muted: bool,
+pub struct AudioClipProperties {
+    pub gain_db: f64,
+    pub muted: bool,
 }
 
 impl Default for AudioClipProperties {
@@ -422,14 +434,14 @@ impl Default for AudioClipProperties {
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
 #[cfg_attr(feature = "timeline-schema", derive(schemars::JsonSchema))]
 #[serde(default)]
-struct TextClipProperties {
-    text: String,
-    font: String,
-    font_size: f64,
+pub struct TextClipProperties {
+    pub text: String,
+    pub font: String,
+    pub font_size: f64,
     /// Text color as big-endian ARGB.
-    color: u32,
-    position_x: f64,
-    position_y: f64,
+    pub color: u32,
+    pub position_x: f64,
+    pub position_y: f64,
 }
 
 impl Default for TextClipProperties {
@@ -449,53 +461,73 @@ impl Default for TextClipProperties {
 #[cfg_attr(feature = "timeline-schema", derive(schemars::JsonSchema))]
 // https://serde.rs/enum-representations.html#adjacently-tagged
 #[serde(tag = "kind", content = "data")]
-enum Clip {
+pub enum Clip {
     #[serde(alias = "Media")]
     Video(MediaClipData),
     Audio(MediaClipData),
     Text(TextClip),
 }
 
-#[derive(Clone, Debug, Deserialize, Serialize)]
-#[cfg_attr(feature = "timeline-schema", derive(schemars::JsonSchema))]
-struct MediaClipData {
-    #[serde(deserialize_with = "deserialize_ulid")]
-    #[cfg_attr(feature = "timeline-schema", schemars(with = "String"))]
-    id: Ulid,
-    #[serde(alias = "layer_id", deserialize_with = "deserialize_ulid")]
-    #[cfg_attr(feature = "timeline-schema", schemars(with = "String"))]
-    track_id: Ulid,
-    #[serde(default = "Ulid::nil", deserialize_with = "deserialize_ulid")]
-    #[cfg_attr(feature = "timeline-schema", schemars(with = "String"))]
-    asset_id: Ulid,
-    timeline_start: i64,
-    source_in: i64,
-    source_out: i64,
-    #[serde(default)]
-    video_properties: VideoClipProperties,
-    #[serde(default)]
-    audio_properties: AudioClipProperties,
+impl Clip {
+    /// Exclusive end frame on the timeline, using its frame rate.
+    pub fn end_frame(&self, fps: FrameRate) -> i64 {
+        let (start, length) = match self {
+            Self::Video(media) | Self::Audio(media) => (
+                media.timeline_start,
+                media.source_out.saturating_sub(media.source_in).max(0),
+            ),
+            Self::Text(text) => {
+                let numerator = text.length.as_nanos() * u128::from(fps.numerator);
+                let denominator = 1_000_000_000 * u128::from(fps.denominator);
+                let length =
+                    ((numerator + denominator / 2) / denominator).min(i64::MAX as u128) as i64;
+                (text.timeline_start, length)
+            }
+        };
+        start.saturating_add(length)
+    }
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[cfg_attr(feature = "timeline-schema", derive(schemars::JsonSchema))]
-struct TextClip {
+pub struct MediaClipData {
     #[serde(deserialize_with = "deserialize_ulid")]
     #[cfg_attr(feature = "timeline-schema", schemars(with = "String"))]
-    id: Ulid,
+    pub id: Ulid,
+    #[serde(alias = "layer_id", deserialize_with = "deserialize_ulid")]
+    #[cfg_attr(feature = "timeline-schema", schemars(with = "String"))]
+    pub track_id: Ulid,
+    #[serde(default = "Ulid::nil", deserialize_with = "deserialize_ulid")]
+    #[cfg_attr(feature = "timeline-schema", schemars(with = "String"))]
+    pub asset_id: Ulid,
+    pub timeline_start: i64,
+    pub source_in: i64,
+    pub source_out: i64,
+    #[serde(default)]
+    pub video_properties: VideoClipProperties,
+    #[serde(default)]
+    pub audio_properties: AudioClipProperties,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[cfg_attr(feature = "timeline-schema", derive(schemars::JsonSchema))]
+pub struct TextClip {
     #[serde(deserialize_with = "deserialize_ulid")]
     #[cfg_attr(feature = "timeline-schema", schemars(with = "String"))]
-    track_id: Ulid,
-    timeline_start: i64,
-    length: Duration,
-    properties: TextClipProperties,
+    pub id: Ulid,
+    #[serde(deserialize_with = "deserialize_ulid")]
+    #[cfg_attr(feature = "timeline-schema", schemars(with = "String"))]
+    pub track_id: Ulid,
+    pub timeline_start: i64,
+    pub length: Duration,
+    pub properties: TextClipProperties,
 }
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[cfg_attr(feature = "timeline-schema", derive(schemars::JsonSchema))]
-struct FrameRate {
-    numerator: u32,
-    denominator: u32,
+pub struct FrameRate {
+    pub numerator: u32,
+    pub denominator: u32,
 }
 
 impl Default for FrameRate {
