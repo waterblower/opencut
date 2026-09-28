@@ -22,7 +22,7 @@ use std::{
     fs::{self, OpenOptions},
     path::{Path, PathBuf},
     sync::Arc,
-    time::Duration,
+    time::{Duration, Instant},
 };
 use ulid::Ulid;
 
@@ -58,6 +58,13 @@ pub fn export(
             .open(&temporary)
             .context("Creating temporary export")?,
     );
+    let started = Instant::now();
+    eprintln!(
+        "Export starting: {frame_count} frames, {}x{} -> {}",
+        settings.width,
+        settings.height,
+        output_path.display(),
+    );
     let result = (|| -> Result<()> {
         let platform = gpui_platform::current_platform(true);
         let mut cx = HeadlessAppContext::with_platform(
@@ -89,6 +96,7 @@ pub fn export(
         let mut visuals = VisualSources::default();
         let mut audio = AudioSources::default();
         let mut audio_position = 0_i64; // 已提交编码的采样数；不随视频帧率取整累加。
+        let mut last_progress = Instant::now();
         for index in 0..frame_count {
             let canvas = visuals.frame(timeline_serialization, &option.project_root, index)?;
             window.update(&mut cx, |view, _, _| *view = canvas)?;
@@ -116,7 +124,18 @@ pub fn export(
                 encoder.audio(&samples, audio_position, total_samples)?;
                 audio_position += count as i64;
             }
+            let completed = index + 1;
+            if last_progress.elapsed() >= Duration::from_secs(1) || completed == frame_count {
+                let elapsed = started.elapsed().as_secs_f64();
+                let remaining = elapsed * (frame_count - completed) as f64 / completed as f64;
+                eprintln!(
+                    "Export frames: {:.1}% ({completed}/{frame_count}), elapsed {elapsed:.1}s, remaining ~{remaining:.1}s",
+                    completed as f64 / frame_count as f64 * 100.0,
+                );
+                last_progress = Instant::now();
+            }
         }
+        eprintln!("Export finalizing: flushing encoders and writing MP4");
         encoder.finish(total_samples)?;
         fs::hard_link(&temporary, output_path)
             .context(format!("Publishing export {}", output_path.display()))?;
@@ -124,7 +143,10 @@ pub fn export(
     })();
     let cleanup = fs::remove_file(&temporary);
     match (result, cleanup) {
-        (Ok(()), Ok(())) => Ok(()),
+        (Ok(()), Ok(())) => {
+            eprintln!("Export complete: {:.1}s", started.elapsed().as_secs_f64());
+            Ok(())
+        }
         (Err(error), Ok(())) => Err(error),
         (Ok(()), Err(error)) => Err(error).context("Removing temporary export"),
         (Err(error), Err(cleanup)) => Err(error.context(format!(
@@ -165,8 +187,11 @@ impl Render for ExportCanvas {
                         continue;
                     }
                     let dimensions = image.size(0);
-                    let image_width = dimensions.width.0 as f32 * properties.scale as f32 / scale;
-                    let image_height = dimensions.height.0 as f32 * properties.scale as f32 / scale;
+                    let source_width = dimensions.width.0 as f32;
+                    let source_height = dimensions.height.0 as f32;
+                    let fit = (width / source_width).min(height / source_height); // 先完整适配画布，再应用 clip 缩放。
+                    let image_width = source_width * fit * properties.scale as f32;
+                    let image_height = source_height * fit * properties.scale as f32;
                     canvas = canvas.child(
                         img(Arc::clone(image))
                             .absolute()
