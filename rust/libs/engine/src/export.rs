@@ -1,12 +1,12 @@
 //! Synchronous timeline export. No editor state, playback clock, or worker is used.
 
+use crate::{decode::VideoReader, raster::load_image};
 use ::timeline::TimelineSerialization;
 use ::timeline::serialization::{
     Clip, FrameRate, MediaAsset, MediaClipData, MediaKind, TextClipProperties, TimelineSettings,
     TrackKind, VideoClipProperties,
 };
 use anyhow::{Context as _, Result, bail};
-use engine::{decode::VideoReader, raster::load_image};
 use ffmpeg_next as ffmpeg;
 use gpui::{
     AppContext as _, Context, HeadlessAppContext, IntoElement, Render, RenderImage, TextAlign,

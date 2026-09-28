@@ -24,7 +24,6 @@ mod explorer;
 mod explorer_drag;
 mod explorer_filter;
 mod explorer_view;
-pub mod export;
 #[path = "generic-containers/mod.rs"]
 mod generic_containers;
 pub mod global_settings;
