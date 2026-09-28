@@ -1,4 +1,5 @@
-use crate::editor::timeline_backend::{TimelineBackend, TimelineFrame, TimelineLayer};
+use crate::editor::timeline_backend::TimelineBackend;
+use ::engine::timeline_decoder::{TimelineFrame, TimelineLayer};
 use ::timeline::TimelineTime;
 use anyhow::Result;
 use gpui::{
