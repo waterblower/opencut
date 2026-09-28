@@ -52,17 +52,6 @@ Canvas size, frame rate, and audio sample rate come from the timeline settings.
 Requires macOS Metal and VideoToolbox services. Existing output files are refused.
 On success, stdout reports the output path and frame count.
 
-## GPUI rendering demo (macOS)
-
-`render -o hello.mp4` produces 150 frames at 30 fps: five seconds of centered
-white "hello gpui" text on black. It uses GPUI's Metal renderer and FFmpeg H.264
-encoding. The canvas is 640×360 logical pixels, producing 1280×720 output at the
-test platform's fixed 2× scale. This initial demo uses GPUI's test-support headless
-context with the real Metal renderer, without creating a native window. It requires
-macOS Metal and VideoToolbox services.
-It refuses existing output files and does not yet accept timelines.
-Elapsed time includes argument parsing, rendering, encoding, and cleanup.
-
 ## Transcription
 
 Set `MINIMAX_API_KEY` in the environment. Transcription uploads the selected audio/video file's audio to MiniMax.

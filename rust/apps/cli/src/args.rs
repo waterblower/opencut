@@ -30,11 +30,6 @@ pub enum Command {
         #[arg(long, default_value_t = 8_000, value_parser = clap::value_parser!(u64).range(1..=i64::MAX as u64 / 1_000))]
         video_bitrate: u64,
     },
-    /// Render a five-second, 30 fps GPUI demo (macOS): white text on black.
-    Render {
-        #[arg(short, long, default_value = "output.mp4")]
-        output: PathBuf,
-    },
     /// Transcribe audio/video with MiniMax (MINIMAX_API_KEY).
     Transcribe {
         media_file: PathBuf,

@@ -1,6 +1,6 @@
 //! Synchronous timeline export. No editor state, playback clock, or worker is used.
 
-use crate::{decode::VideoReader, raster::load_image};
+use crate::raster::load_image;
 use ::timeline::TimelineSerialization;
 use ::timeline::serialization::{
     Clip, FrameRate, MediaAsset, MediaClipData, MediaKind, TextClipProperties, TimelineSettings,
@@ -13,7 +13,9 @@ use gpui::{
     Window, div, img, prelude::*, px, rgb, rgba, size,
 };
 use image::{Frame, RgbaImage};
-use media_backend::{AudioBackend, AudioDecoder, AudioSamples, PcmFormat};
+use media_backend::{
+    AudioBackend, AudioDecoder, AudioSamples, PcmFormat, VideoBackend, VideoDecoder, VideoFrame,
+};
 use smallvec::smallvec;
 use std::{
     collections::{HashMap, HashSet, hash_map::Entry},
@@ -209,8 +211,16 @@ impl Render for ExportCanvas {
 
 #[derive(Default)]
 struct VisualSources {
-    videos: HashMap<Ulid, VideoReader>, // 按 clip 隔离游标，同一素材可同时出现在不同位置。
+    videos: HashMap<Ulid, ClipVideo>, // 按 clip 隔离游标，同一素材可同时出现在不同位置。
     images: HashMap<Ulid, Arc<RenderImage>>,
+}
+
+struct ClipVideo {
+    decoder: VideoDecoder,
+    current: VideoFrame,
+    next: Option<VideoFrame>, // 保留后一帧，按时间选择最近帧；距离相同时选前一帧。
+    scaler: Option<ffmpeg::software::scaling::Context>,
+    image: Option<Arc<RenderImage>>, // 同一源帧用于多个输出帧时复用转换结果。
 }
 
 #[derive(Default)]
@@ -406,20 +416,17 @@ impl VisualSources {
                         let path = project_root.join(&asset.path);
                         let image = match asset.kind {
                             MediaKind::Video => {
-                                if let Entry::Vacant(entry) = self.videos.entry(media.id) {
-                                    entry.insert(VideoReader::open(&path).context(format!(
-                                        "Opening export video {}",
-                                        path.display()
-                                    ))?);
-                                }
                                 let source = source_position(media, asset, position, data.settings);
-                                let pixels = self
-                                    .videos
+                                if let Entry::Vacant(entry) = self.videos.entry(media.id) {
+                                    entry.insert(ClipVideo::open(&path, source).context(
+                                        format!("Opening export video {}", path.display()),
+                                    )?);
+                                }
+                                self.videos
                                     .get_mut(&media.id)
                                     .unwrap()
-                                    .at(source.as_secs_f64())
-                                    .context(format!("Decoding clip {} at {source:?}", media.id))?;
-                                prepare_image(pixels)
+                                    .image_at(source)
+                                    .context(format!("Decoding clip {} at {source:?}", media.id))?
                             }
                             MediaKind::Image => {
                                 if let Entry::Vacant(entry) = self.images.entry(asset.id) {
@@ -452,6 +459,151 @@ impl VisualSources {
             height: data.settings.height,
             layers,
         })
+    }
+}
+
+impl ClipVideo {
+    fn open(path: &Path, position: Duration) -> Result<Self> {
+        let metadata = VideoBackend::probe(path)?;
+        let mut decoder = VideoDecoder::open(
+            path,
+            metadata.video.stream_index,
+            metadata.origin_microseconds,
+        )?;
+        if !position.is_zero() {
+            decoder.seek(position)?;
+        }
+        let current = decoder
+            .next_frame()?
+            .context("Video has no decoded frames")?;
+        let next = decoder.next_frame()?;
+        Ok(Self {
+            decoder,
+            current,
+            next,
+            scaler: None,
+            image: None,
+        })
+    }
+
+    fn image_at(&mut self, position: Duration) -> Result<Arc<RenderImage>> {
+        let target = i128::try_from(position.as_micros()).context("Video position is too large")?;
+        while let Some(next) = &self.next {
+            if next.timestamp < self.current.timestamp {
+                bail!("Video presentation timestamps moved backwards");
+            }
+            let current_time = i128::from(self.current.timestamp.0);
+            let next_time = i128::from(next.timestamp.0);
+            if next_time > target && (next_time - target).abs() >= (current_time - target).abs() {
+                break;
+            }
+            self.current = self.next.take().unwrap();
+            self.image = None;
+            self.next = self.decoder.next_frame()?;
+        }
+        if let Some(image) = &self.image {
+            return Ok(Arc::clone(image));
+        }
+
+        let frame = &self.current;
+        let mut transferred = ffmpeg::frame::Video::empty();
+        // SAFETY: frame owns its AVFrame; the transfer destination is exclusively owned.
+        let hardware = unsafe { !(*frame.native.as_ptr()).hw_frames_ctx.is_null() };
+        let source = if hardware {
+            let result = unsafe {
+                ffmpeg::ffi::av_hwframe_transfer_data(
+                    transferred.as_mut_ptr(),
+                    frame.native.as_ptr(),
+                    0,
+                )
+            };
+            if result < 0 {
+                return Err(ffmpeg::Error::from(result)).context("Transferring export video frame");
+            }
+            &transferred
+        } else {
+            &frame.native
+        };
+        let definition = ffmpeg::software::scaling::context::Definition {
+            format: source.format(),
+            width: source.width(),
+            height: source.height(),
+        };
+        let reconfigure = match &self.scaler {
+            Some(scaler) => *scaler.input() != definition,
+            None => true,
+        };
+        if reconfigure {
+            self.scaler = Some(ffmpeg::software::scaling::Context::get(
+                source.format(),
+                source.width(),
+                source.height(),
+                ffmpeg::format::Pixel::BGRA,
+                source.width(),
+                source.height(),
+                ffmpeg::software::scaling::Flags::BILINEAR,
+            )?);
+        }
+        let scaler = self
+            .scaler
+            .as_mut()
+            .context("Missing export video scaler")?;
+        let matrix = match frame.color_space {
+            ffmpeg::color::Space::BT709 => ffmpeg::ffi::SWS_CS_ITU709,
+            ffmpeg::color::Space::BT2020NCL | ffmpeg::color::Space::BT2020CL => {
+                ffmpeg::ffi::SWS_CS_BT2020
+            }
+            ffmpeg::color::Space::FCC => ffmpeg::ffi::SWS_CS_FCC,
+            ffmpeg::color::Space::SMPTE240M => ffmpeg::ffi::SWS_CS_SMPTE240M,
+            ffmpeg::color::Space::BT470BG | ffmpeg::color::Space::SMPTE170M => {
+                ffmpeg::ffi::SWS_CS_ITU601
+            }
+            _ if source.height() >= 720 => ffmpeg::ffi::SWS_CS_ITU709,
+            _ => ffmpeg::ffi::SWS_CS_ITU601,
+        };
+        // SAFETY: coefficients have static lifetime; scaler is exclusively owned.
+        let result = unsafe {
+            let coefficients = ffmpeg::ffi::sws_getCoefficients(matrix);
+            ffmpeg::ffi::sws_setColorspaceDetails(
+                scaler.as_mut_ptr(),
+                coefficients,
+                i32::from(frame.color_range == ffmpeg::color::Range::JPEG),
+                coefficients,
+                1,
+                0,
+                1 << 16,
+                1 << 16,
+            )
+        };
+        if result < 0 {
+            return Err(ffmpeg::Error::from(result)).context("Configuring export video colors");
+        }
+        let mut bgra = ffmpeg::frame::Video::empty();
+        scaler
+            .run(source, &mut bgra)
+            .context("Converting export video frame")?;
+        let mut pixels = RgbaImage::new(bgra.width(), bgra.height()); // GPUI 使用 BGRA 字节布局。
+        let row_bytes = bgra.width() as usize * 4;
+        for (row, output) in pixels.as_mut().chunks_exact_mut(row_bytes).enumerate() {
+            let offset = row * bgra.stride(0);
+            output.copy_from_slice(&bgra.data(0)[offset..offset + row_bytes]);
+        }
+        let quarter = frame.rotation_degrees / 90.0;
+        if !quarter.is_finite() || (quarter - quarter.round()).abs() > 0.1 / 90.0 {
+            bail!(
+                "Unsupported display rotation: {} degrees",
+                frame.rotation_degrees
+            );
+        }
+        pixels = match quarter.round().rem_euclid(4.0) as u32 {
+            1 => image::imageops::rotate270(&pixels),
+            2 => image::imageops::rotate180(&pixels),
+            3 => image::imageops::rotate90(&pixels),
+            _ => pixels,
+        };
+        let image = Arc::new(RenderImage::new(smallvec![Frame::new(pixels)]));
+        self.image = Some(Arc::clone(&image));
+        Ok(image)
     }
 }
 

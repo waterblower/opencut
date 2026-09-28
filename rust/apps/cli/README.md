@@ -29,7 +29,7 @@ bash rust/scripts/cargo-cli.sh build -p opencut
 ```
 
 The wrapper links the existing `rust/vendor/ffmpeg-8.1.2` libraries. It never builds
-FFmpeg or invokes Python. Disable default features to build only the CLI; its demo renderer uses GPUI.
+FFmpeg or invokes Python. Timeline export uses GPUI through the shared engine.
 
 ## Export timelines (macOS)
 
@@ -157,10 +157,8 @@ they require no API key and do not make paid MiniMax requests.
 
 ## Output and errors
 
-The `still` command, CPU compositor, and text rasterizer have been removed ahead
-of the shared GPUI renderer refactor. The `render` command exports a fixed GPUI
-demo; timeline export and still preview generation are currently unavailable.
-Shared FFmpeg decoding, probing, and video-only encoding remain available.
+The `still` command and the GPUI `render` demo have been removed. Use `export`
+to export timelines; still preview generation is currently unavailable.
 
 All commands accept `--json`. Results go to stdout and diagnostics go to stderr.
 Runtime failures use anyhow and exit code 1; Clap usage errors use exit code 2.

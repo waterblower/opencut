@@ -2,7 +2,6 @@ use anyhow::{Context as _, Error, Result, anyhow};
 use timeline::TimelineSerialization;
 mod args;
 mod docs;
-mod render;
 
 use args::{Args, Command};
 use clap::Parser;
@@ -103,7 +102,6 @@ async fn run(command: Command, api_key: Option<&str>) -> Result<Value> {
             )?;
             Ok(json!({"path": output, "frames": document.frame_count()}))
         }
-        Command::Render { output } => render::render(&output),
         Command::Transcribe {
             media_file,
             format,

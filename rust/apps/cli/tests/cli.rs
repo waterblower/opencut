@@ -8,7 +8,6 @@ use std::{
 use ulid::Ulid;
 use {
     engine::{
-        decode::VideoReader,
         encode::{Encoder, VideoEncoding},
         probe,
     },
@@ -20,10 +19,10 @@ use {
 };
 
 #[test]
-fn still_command_is_removed() {
+fn removed_commands_are_unavailable() {
     let help = cli(&["--help"]);
     let help = String::from_utf8(help.stdout).unwrap();
-    for command in ["still"] {
+    for command in ["still", "render"] {
         assert!(!help.contains(&format!("  {command} ")));
         let output = cli(&[command, "--json"]);
         assert_eq!(output.status.code(), Some(2));
@@ -33,73 +32,6 @@ fn still_command_is_removed() {
                 .unwrap()
                 .contains("usage_error")
         );
-    }
-}
-
-#[test]
-#[cfg(target_os = "macos")]
-fn render_refuses_existing_output() {
-    let dir = Temp::new();
-    let output = dir.0.join("existing.mp4");
-    fs::write(&output, b"keep me").unwrap();
-    let result = cli(&["render", "-o", output.to_str().unwrap(), "--json"]);
-    assert_eq!(result.status.code(), Some(1));
-    assert!(
-        decode(&result)["error"]["message"]
-            .as_str()
-            .unwrap()
-            .contains("already exists")
-    );
-    assert_eq!(fs::read(output).unwrap(), b"keep me");
-}
-
-#[test]
-#[cfg(target_os = "macos")]
-#[ignore = "requires a macOS graphical session, Metal, and VideoToolbox"]
-fn render_gpui_demo() {
-    let dir = Temp::new();
-    let output = dir.0.join("hello.mp4");
-    let result = cli(&["render", "-o", output.to_str().unwrap(), "--json"]);
-    assert!(
-        result.status.success(),
-        "{}",
-        String::from_utf8_lossy(&result.stderr)
-    );
-    assert_eq!(decode(&result)["frames"], 150);
-    probe::init().unwrap();
-    let mut input = ffmpeg_next::format::input(&output).unwrap();
-    let stream = input
-        .streams()
-        .best(ffmpeg_next::media::Type::Video)
-        .unwrap();
-    assert_eq!(stream.avg_frame_rate(), ffmpeg_next::Rational(30, 1));
-    assert_eq!(stream.frames(), 150);
-    assert!((stream.duration() as f64 * f64::from(stream.time_base()) - 5.0).abs() < 0.001);
-    let index = stream.index();
-    assert_eq!(
-        input
-            .packets()
-            .filter(|(stream, _)| stream.index() == index)
-            .count(),
-        150
-    );
-    let mut reader = VideoReader::open(&output).unwrap();
-    for time in [0.0, 149.0 / 30.0] {
-        let image = reader.at(time).unwrap();
-        assert!(
-            image.get_pixel(0, 0).0[..3]
-                .iter()
-                .all(|&channel| channel < 8)
-        );
-        let white_pixels = image
-            .pixels()
-            .filter(|pixel| pixel.0[..3].iter().all(|&channel| channel > 220))
-            .count();
-        assert!(
-            white_pixels > 100,
-            "text should produce visible white pixels"
-        );
-        assert!(white_pixels < (image.width() * image.height() / 10) as usize);
     }
 }
 
@@ -335,111 +267,6 @@ fn exact_time_and_invalid_inputs() {
 }
 
 #[test]
-fn native_video_seek() {
-    let dir = Temp::new();
-    let source = dir.0.join("source.mov");
-    probe::init().unwrap();
-    let fps = FrameRate::default();
-    let mut encoder = Encoder::open(
-        &source,
-        (64, 48),
-        fps,
-        &VideoEncoding {
-            codec: "prores".into(),
-            preset: "standard".into(),
-            bitrate: 128000,
-        },
-    )
-    .unwrap();
-    for f in 0..60 {
-        let image = RgbaImage::from_pixel(64, 48, Rgba([(f * 3 + 20) as u8, 60, 100, 255]));
-        encoder.encode_new_frame(&image).unwrap();
-    }
-    encoder.finish().unwrap();
-    let output = cli(&["probe", source.to_str().unwrap(), "--json"]);
-    assert!(output.status.success());
-    let info = decode(&output);
-    assert!(info["streams"].as_array().unwrap().iter().any(|stream| {
-        stream["kind"] == "video" && stream["width"] == 64 && stream["height"] == 48
-    }));
-    let mut reader = VideoReader::open(&source).unwrap();
-    for f in [0, 29, 30, 59, 15, 16, 0] {
-        let frame = reader.at(f as f64 / 30.0).unwrap();
-        let red = frame.get_pixel(32, 24)[0] as i32;
-        assert!((red - (f * 3 + 20)).abs() <= 4, "frame {f} red {red}");
-    }
-}
-
-#[test]
-fn variable_pts_frame_selection() {
-    let dir = Temp::new();
-    let source = dir.0.join("variable.mov");
-    let sequential = dir.0.join("sequential.mov");
-    let mut encoder = Encoder::open(
-        &sequential,
-        (64, 48),
-        FrameRate::default(),
-        &VideoEncoding {
-            codec: "prores".into(),
-            preset: "standard".into(),
-            bitrate: 128000,
-        },
-    )
-    .unwrap();
-    for red in [20, 80, 140, 200] {
-        encoder
-            .encode_new_frame(&RgbaImage::from_pixel(64, 48, Rgba([red, 60, 100, 255])))
-            .unwrap();
-    }
-    encoder.finish().unwrap();
-    // Remux the sequential export with irregular timestamps to exercise VFR decoding.
-    let mut input = ffmpeg_next::format::input(&sequential).unwrap();
-    let mut output = ffmpeg_next::format::output(&source).unwrap();
-    let video = input
-        .streams()
-        .best(ffmpeg_next::media::Type::Video)
-        .unwrap();
-    let video_index = video.index();
-    let mut stream = output
-        .add_stream(ffmpeg_next::encoder::find(ffmpeg_next::codec::Id::PRORES))
-        .unwrap();
-    stream.set_parameters(video.parameters());
-    stream.set_time_base((1, 30));
-    output.write_header().unwrap();
-    let time_base = output.stream(0).unwrap().time_base();
-    let mut timestamps = [0, 2, 5, 9].into_iter();
-    for (stream, mut packet) in input.packets() {
-        if stream.index() != video_index {
-            continue;
-        }
-        let pts = timestamps.next().unwrap();
-        packet.set_stream(0);
-        packet.set_pts(Some(pts));
-        packet.set_dts(Some(pts));
-        packet.set_duration(1);
-        packet.set_position(-1);
-        packet.rescale_ts((1, 30), time_base);
-        packet.write_interleaved(&mut output).unwrap();
-    }
-    assert!(timestamps.next().is_none());
-    output.write_trailer().unwrap();
-    let mut reader = VideoReader::open(&source).unwrap();
-    for (time, expected) in [
-        (0.0, 20),
-        (1.0 / 30.0, 20),
-        (4.0 / 30.0, 140),
-        (8.0 / 30.0, 200),
-        (2.0 / 30.0, 80),
-    ] {
-        let image = reader.at(time).unwrap();
-        assert!(
-            (image.get_pixel(32, 24)[0] as i32 - expected).abs() <= 4,
-            "time {time}"
-        );
-    }
-}
-
-#[test]
 #[cfg(target_os = "macos")]
 #[ignore = "requires macOS VideoToolbox encoder services"]
 fn platform_video_encoders_and_fractional_frame_rate() {
@@ -646,7 +473,7 @@ fn generates_agent_docs_from_cli_definitions() {
     assert!(!text.contains("$schema"));
     assert!(!text.contains("--llm"));
     assert!(text.contains("--post-merge"));
-    assert!(!text.contains("--project-root"));
+    assert!(text.contains("--project-root"));
     assert!(!text.contains("assemble"));
     assert!(!text.contains("recipe"));
     let json_output = Command::new(env!("CARGO_BIN_EXE_opencut"))

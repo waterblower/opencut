@@ -5099,8 +5099,6 @@ dependencies = [
  "clap",
  "engine",
  "ffmpeg-next",
- "gpui",
- "gpui_platform",
  "image",
  "schemars",
  "serde_json",
