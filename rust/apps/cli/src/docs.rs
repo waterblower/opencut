@@ -11,7 +11,7 @@ pub fn generate() -> Result<String> {
     let mut output = String::from(
         r#"# OpenCut CLI
 
-Use OpenCut to inspect media, author timeline JSON, validate timelines, and transcribe audio. The CLI uses FFmpeg and shares the editor's timeline format.
+Use OpenCut to inspect media, author timeline JSON, validate and export timelines, and transcribe audio. The CLI uses FFmpeg and shares the editor's timeline format.
 
 ## Recommended workflow
 
@@ -31,12 +31,26 @@ opencut probe /project/episode.timeline.json --json
 
 - Timeline and output arguments resolve from the working directory.
 - Relative timeline asset paths resolve from the timeline file's directory. Absolute asset paths are unchanged.
+- For export, `--project-root` overrides the base directory for relative assets.
 - Keep original media available; the timeline references it.
 - Use `--json` for machine-readable stdout. Diagnostics go to stderr.
 - Every executed command reports `elapsed_seconds` on stderr, excluding Cargo
   build time. This also applies to failed commands.
 - Treat any nonzero exit code as failure. JSON errors contain `error.message`. Validation uses the shared timeline validator and stops at the first document or media probe error.
 - Use `--overwrite` explicitly when replacing supported outputs. Outputs cannot replace source media.
+
+## Timeline export (macOS)
+
+```sh
+opencut export /project/episode.timeline.json -o episode.mp4
+opencut export /project/timelines/episode.json -o episode.mp4 --project-root /project --video-bitrate 8000 --json
+```
+
+Exports the complete timeline synchronously to H.264 video and stereo AAC audio.
+Canvas size, frame rate, and audio sample rate come from the timeline settings.
+`--video-bitrate` is in kbps (1 kbps = 1,000 bits per second) and defaults to 8,000.
+Requires macOS Metal and VideoToolbox services. Existing output files are refused.
+On success, stdout reports the output path and frame count.
 
 ## GPUI rendering demo (macOS)
 

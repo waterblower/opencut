@@ -31,6 +31,20 @@ bash rust/scripts/cargo-cli.sh build -p opencut
 The wrapper links the existing `rust/vendor/ffmpeg-8.1.2` libraries. It never builds
 FFmpeg or invokes Python. Disable default features to build only the CLI; its demo renderer uses GPUI.
 
+## Export timelines (macOS)
+
+```sh
+cargo cli export /project/episode.timeline.json -o episode.mp4
+cargo cli export /project/timelines/episode.json -o episode.mp4 --project-root /project --video-bitrate 8000 --json
+```
+
+Exports the complete timeline synchronously to MP4 with H.264 video and stereo
+AAC audio, using the timeline's dimensions, frame rate, and audio sample rate.
+`--project-root` overrides the timeline directory when resolving relative asset
+paths. `--video-bitrate` is in kbps (1 kbps = 1,000 bits per second) and defaults to 8,000.
+The command requires macOS Metal and VideoToolbox services and refuses existing
+output files. On success, stdout reports the output path and frame count.
+
 ## Probe media and timelines
 
 `probe <file>` accepts video, audio, image, and timeline files. Media paths must

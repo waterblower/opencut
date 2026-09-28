@@ -6,6 +6,7 @@ mod render;
 
 use args::{Args, Command};
 use clap::Parser;
+use engine::export::{ExportOption, export};
 use engine::probe;
 use opencut::{document, transcribe};
 use serde_json::{Value, json};
@@ -81,6 +82,27 @@ fn print_error(error: &Error, json: bool) {
 
 async fn run(command: Command, api_key: Option<&str>) -> Result<Value> {
     match command {
+        Command::Export {
+            timeline,
+            output,
+            project_root,
+            video_bitrate,
+        } => {
+            let document = TimelineSerialization::load(&timeline)?;
+            let project_root = match project_root {
+                Some(root) => root,
+                None => document::asset_base(&timeline)?,
+            };
+            export(
+                &document,
+                &output,
+                &ExportOption {
+                    project_root,
+                    video_bitrate: video_bitrate * 1_000,
+                },
+            )?;
+            Ok(json!({"path": output, "frames": document.frame_count()}))
+        }
         Command::Render { output } => render::render(&output),
         Command::Transcribe {
             media_file,

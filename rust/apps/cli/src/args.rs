@@ -16,6 +16,20 @@ pub struct Args {
 
 #[derive(Subcommand)]
 pub enum Command {
+    /// Export a timeline to MP4 with H.264 video and stereo AAC audio (macOS).
+    Export {
+        /// Timeline JSON file.
+        timeline: PathBuf,
+        /// Output MP4 file; must not already exist.
+        #[arg(short, long)]
+        output: PathBuf,
+        /// Base directory for relative assets; defaults to the timeline's directory.
+        #[arg(long)]
+        project_root: Option<PathBuf>,
+        /// H.264 target bitrate in kbps (1 kbps = 1,000 bits per second).
+        #[arg(long, default_value_t = 8_000, value_parser = clap::value_parser!(u64).range(1..=i64::MAX as u64 / 1_000))]
+        video_bitrate: u64,
+    },
     /// Render a five-second, 30 fps GPUI demo (macOS): white text on black.
     Render {
         #[arg(short, long, default_value = "output.mp4")]

@@ -75,6 +75,14 @@ pub fn export(
                 },
             )
             .context("Creating export canvas")?;
+        window.update(&mut cx, |_, window, cx| {
+            let scale = window.scale_factor(); // timeline 使用输出像素；窗口使用逻辑像素。
+            window.resize(size(
+                px(settings.width as f32 / scale),
+                px(settings.height as f32 / scale),
+            ));
+            window.bounds_changed(cx);
+        })?;
         let mut encoder = ExportEncoder::open(&temporary, settings, option.video_bitrate)?;
         let mut visuals = VisualSources::default();
         let mut audio = AudioSources::default();
@@ -138,9 +146,10 @@ enum ExportLayer {
 }
 
 impl Render for ExportCanvas {
-    fn render(&mut self, _: &mut Window, _: &mut Context<Self>) -> impl IntoElement {
-        let width = self.width as f32;
-        let height = self.height as f32;
+    fn render(&mut self, window: &mut Window, _: &mut Context<Self>) -> impl IntoElement {
+        let scale = window.scale_factor();
+        let width = self.width as f32 / scale;
+        let height = self.height as f32 / scale;
         let mut canvas = div()
             .relative()
             .overflow_hidden()
@@ -154,17 +163,16 @@ impl Render for ExportCanvas {
                         continue;
                     }
                     let dimensions = image.size(0);
-                    let image_width = dimensions.width.0 as f32 * properties.scale as f32;
-                    let image_height = dimensions.height.0 as f32 * properties.scale as f32;
+                    let image_width = dimensions.width.0 as f32 * properties.scale as f32 / scale;
+                    let image_height = dimensions.height.0 as f32 * properties.scale as f32 / scale;
                     canvas = canvas.child(
                         img(Arc::clone(image))
                             .absolute()
                             .left(px(
-                                (width - image_width) / 2.0 + properties.position_x as f32
+                                (width - image_width) / 2.0 + properties.position_x as f32 / scale
                             ))
-                            .top(px(
-                                (height - image_height) / 2.0 + properties.position_y as f32
-                            ))
+                            .top(px((height - image_height) / 2.0
+                                + properties.position_y as f32 / scale))
                             .w(px(image_width))
                             .h(px(image_height)),
                     );
@@ -185,8 +193,8 @@ impl Render for ExportCanvas {
                                     .flex_shrink_0()
                                     .whitespace_nowrap()
                                     .font_family(properties.font.clone())
-                                    .text_size(px(properties.font_size as f32))
-                                    .line_height(px(properties.font_size as f32 * 1.2))
+                                    .text_size(px(properties.font_size as f32 / scale))
+                                    .line_height(px(properties.font_size as f32 * 1.2 / scale))
                                     .text_align(TextAlign::Center)
                                     .text_color(rgba(properties.color.rotate_left(8)))
                                     .child(properties.text.clone()),
@@ -687,7 +695,13 @@ impl ExportEncoder {
 
     fn video(&mut self, image: &RgbaImage, index: i64) -> Result<()> {
         if image.dimensions() != (self.video.width(), self.video.height()) {
-            bail!("Export renderer returned unexpected pixel dimensions");
+            bail!(
+                "Export renderer returned {}x{} pixels; expected {}x{}",
+                image.width(),
+                image.height(),
+                self.video.width(),
+                self.video.height(),
+            );
         }
         let mut rgba =
             ffmpeg::frame::Video::new(ffmpeg::format::Pixel::RGBA, image.width(), image.height());
