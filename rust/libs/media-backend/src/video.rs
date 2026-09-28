@@ -59,6 +59,8 @@ pub struct VideoDecoder {
 }
 
 impl VideoDecoder {
+    /// Use VideoToolbox on macOS and software decoding on other platforms.
+    /// Unsupported codecs and hardware failures are errors; there is no software fallback.
     pub fn open(path: &Path, stream_index: usize, origin_microseconds: i64) -> Result<Self> {
         let mode = if cfg!(target_os = "macos") {
             DecodeMode::VideoToolbox
@@ -343,10 +345,13 @@ fn open_decoder(
     // Frame threads only help software decoding. VideoToolbox serializes its
     // frames anyway, and the thread pipeline would add a refill delay of one
     // frame per thread after every seek flush.
+    #[rustfmt::skip]
     let threading = match mode {
-        DecodeMode::Software => codec::threading::Config::kind(codec::threading::Type::Frame),
+        DecodeMode::Software => {
+            codec::threading::Config::kind(codec::threading::Type::Frame)
+        }
         DecodeMode::VideoToolbox => {
-            hardware::configure(&mut context)?;
+            hardware::use_videotoolbox(&mut context)?;
             codec::threading::Config {
                 kind: codec::threading::Type::None,
                 count: 1,
@@ -356,7 +361,7 @@ fn open_decoder(
     context.set_threading(threading);
     let mut decoder = context.decoder();
     decoder.set_packet_time_base(time_base);
-    let decoder = decoder.video().context("opening software video decoder")?;
+    let decoder = decoder.video().context("opening video decoder")?;
     Ok((input, decoder, time_base, rotation))
 }
 
