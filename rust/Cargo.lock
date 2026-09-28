@@ -5098,7 +5098,6 @@ dependencies = [
  "anyhow",
  "clap",
  "engine",
- "ffmpeg-next",
  "image",
  "schemars",
  "serde_json",

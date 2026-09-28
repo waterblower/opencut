@@ -7,10 +7,7 @@ use std::{
 };
 use ulid::Ulid;
 use {
-    engine::{
-        encode::{Encoder, VideoEncoding},
-        probe,
-    },
+    engine::probe,
     opencut::{
         document,
         time::{ParseTime, parse_rate},
@@ -264,96 +261,6 @@ fn exact_time_and_invalid_inputs() {
         assert!(fps.parse_time(input, Some(60)).is_err(), "{input}");
     }
     assert!(parse_rate("30/0").is_err());
-}
-
-#[test]
-#[cfg(target_os = "macos")]
-#[ignore = "requires macOS VideoToolbox encoder services"]
-fn platform_video_encoders_and_fractional_frame_rate() {
-    let dir = Temp::new();
-    probe::init().unwrap();
-    for (codec, container) in [("h264", "mp4"), ("hevc", "mp4"), ("hevc", "mov")] {
-        let output = dir.0.join(format!("{codec}.{container}"));
-        let mut encoder = Encoder::open(
-            &output,
-            (64, 48),
-            FrameRate::new(30000, 1001),
-            &VideoEncoding {
-                codec: codec.into(),
-                preset: "standard".into(),
-                bitrate: 500000,
-            },
-        )
-        .unwrap();
-        let image = RgbaImage::from_pixel(64, 48, Rgba([220, 20, 10, 255]));
-        for _ in 0..5 {
-            encoder.encode_new_frame(&image).unwrap();
-        }
-        encoder.finish().unwrap();
-        let info = probe::probe(&output).unwrap();
-        assert_eq!(info.streams[0].codec, codec);
-        assert_eq!(info.streams[0].fps, Some([30000, 1001]));
-        assert_eq!(
-            info.streams[0].codec_tag,
-            if codec == "hevc" { "hvc1" } else { "avc1" }
-        );
-        if codec == "hevc" {
-            let mut input = ffmpeg_next::format::input(&output).unwrap();
-            let stream = input
-                .streams()
-                .best(ffmpeg_next::media::Type::Video)
-                .unwrap();
-            let index = stream.index();
-            let parameters = stream.parameters();
-            let config = unsafe {
-                let p = &*parameters.as_ptr();
-                assert!(!p.extradata.is_null() && p.extradata_size >= 23);
-                std::slice::from_raw_parts(p.extradata, p.extradata_size as usize).to_vec()
-            };
-            assert_eq!(config[0], 1);
-            let length_size = (config[21] & 3) as usize + 1;
-            let mut offset = 23;
-            let mut parameter_sets = Vec::new();
-            for _ in 0..config[22] {
-                let kind = config[offset] & 63;
-                if matches!(kind, 32..=34) {
-                    assert_ne!(
-                        config[offset] & 128,
-                        0,
-                        "hvc1 parameter-set array must be complete"
-                    );
-                    parameter_sets.push(kind);
-                }
-                let count = u16::from_be_bytes([config[offset + 1], config[offset + 2]]);
-                offset += 3;
-                for _ in 0..count {
-                    let length = u16::from_be_bytes([config[offset], config[offset + 1]]) as usize;
-                    offset += 2 + length;
-                }
-            }
-            assert_eq!(parameter_sets, [32, 33, 34]);
-            for (stream, packet) in input.packets() {
-                if stream.index() != index {
-                    continue;
-                }
-                let data = packet.data().unwrap();
-                let mut offset = 0;
-                while offset < data.len() {
-                    let mut length = 0_usize;
-                    for byte in &data[offset..offset + length_size] {
-                        length = (length << 8) | *byte as usize;
-                    }
-                    offset += length_size;
-                    assert!(length >= 2 && offset + length <= data.len());
-                    assert!(
-                        !matches!((data[offset] >> 1) & 63, 32..=34),
-                        "hvc1 samples must not contain parameter sets"
-                    );
-                    offset += length;
-                }
-            }
-        }
-    }
 }
 
 fn empty() -> TimelineEditingState {

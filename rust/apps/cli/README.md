@@ -173,16 +173,14 @@ or media probe error. Media probe errors include the asset path.
 cargo test --manifest-path rust/Cargo.toml -p timeline --features timeline-schema
 # CLI and FFmpeg integration:
 bash rust/scripts/cargo-cli.sh test -p opencut -p timeline
-# Optional VideoToolbox encoder tests:
-bash rust/scripts/cargo-cli.sh test -p opencut --test cli -- --ignored
 # Local macOS package:
 bash rust/scripts/package-cli.sh
 ```
 
 The package is a local unsigned artifact linked against the existing vendored
 FFmpeg installation and its transitive libraries, not a relocatable distribution.
-`OPENCUT_GPL=1` selects libx264; it does not build codecs. FFmpeg licensing still
-depends on the vendored build. Signing and publishing remain separate operations.
+FFmpeg licensing still depends on the vendored build. Signing and publishing
+remain separate operations.
 
 Generate an agent-friendly Markdown usage guide with `opencut doc`.
 It includes workflows, examples, and command options generated from the CLI
