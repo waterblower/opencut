@@ -4,8 +4,8 @@ use ulid::Ulid;
 
 /// Static visual adjustments for one timeline clip.
 ///
-/// Position is an offset in timeline pixels from the clip's centered placement. Scale is a
-/// normalized multiplier, so `1.0` means 100%.
+/// Position is an offset in timeline pixels from the clip's centered placement.
+/// Scale multiplies the aspect-ratio-preserving fit to the canvas; `1.0` shows the full image.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct VideoClipProperties {
     pub position_x: f64,

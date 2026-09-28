@@ -4,15 +4,15 @@ version.workspace = true
 edition.workspace = true
 publish.workspace = true
 
-[features]
-gpl = []
-
 [dependencies]
 timeline.workspace = true
-transcribe.workspace = true
 anyhow.workspace = true
 ffmpeg-next.workspace = true
+gpui.workspace = true
+gpui_platform = { workspace = true, features = ["test-support"] }
 image.workspace = true
+media-backend.workspace = true
 resvg.workspace = true
 serde.workspace = true
+smallvec.workspace = true
 ulid.workspace = true

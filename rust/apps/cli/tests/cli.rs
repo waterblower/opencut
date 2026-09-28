@@ -7,12 +7,7 @@ use std::{
 };
 use ulid::Ulid;
 use {
-    engine::{
-        audio::Mixer,
-        decode::VideoWorker,
-        encode::{Encoder, VideoEncoding},
-        probe,
-    },
+    engine::probe,
     opencut::{
         document,
         time::{ParseTime, parse_rate},
@@ -21,10 +16,10 @@ use {
 };
 
 #[test]
-fn still_command_is_removed() {
+fn removed_commands_are_unavailable() {
     let help = cli(&["--help"]);
     let help = String::from_utf8(help.stdout).unwrap();
-    for command in ["still"] {
+    for command in ["still", "render"] {
         assert!(!help.contains(&format!("  {command} ")));
         let output = cli(&[command, "--json"]);
         assert_eq!(output.status.code(), Some(2));
@@ -34,73 +29,6 @@ fn still_command_is_removed() {
                 .unwrap()
                 .contains("usage_error")
         );
-    }
-}
-
-#[test]
-#[cfg(target_os = "macos")]
-fn render_refuses_existing_output() {
-    let dir = Temp::new();
-    let output = dir.0.join("existing.mp4");
-    fs::write(&output, b"keep me").unwrap();
-    let result = cli(&["render", "-o", output.to_str().unwrap(), "--json"]);
-    assert_eq!(result.status.code(), Some(1));
-    assert!(
-        decode(&result)["error"]["message"]
-            .as_str()
-            .unwrap()
-            .contains("already exists")
-    );
-    assert_eq!(fs::read(output).unwrap(), b"keep me");
-}
-
-#[test]
-#[cfg(target_os = "macos")]
-#[ignore = "requires a macOS graphical session, Metal, and VideoToolbox"]
-fn render_gpui_demo() {
-    let dir = Temp::new();
-    let output = dir.0.join("hello.mp4");
-    let result = cli(&["render", "-o", output.to_str().unwrap(), "--json"]);
-    assert!(
-        result.status.success(),
-        "{}",
-        String::from_utf8_lossy(&result.stderr)
-    );
-    assert_eq!(decode(&result)["frames"], 150);
-    probe::init().unwrap();
-    let mut input = ffmpeg_next::format::input(&output).unwrap();
-    let stream = input
-        .streams()
-        .best(ffmpeg_next::media::Type::Video)
-        .unwrap();
-    assert_eq!(stream.avg_frame_rate(), ffmpeg_next::Rational(30, 1));
-    assert_eq!(stream.frames(), 150);
-    assert!((stream.duration() as f64 * f64::from(stream.time_base()) - 5.0).abs() < 0.001);
-    let index = stream.index();
-    assert_eq!(
-        input
-            .packets()
-            .filter(|(stream, _)| stream.index() == index)
-            .count(),
-        150
-    );
-    let worker = VideoWorker::new(output);
-    for time in [0.0, 149.0 / 30.0] {
-        let image = worker.at(time).unwrap();
-        assert!(
-            image.get_pixel(0, 0).0[..3]
-                .iter()
-                .all(|&channel| channel < 8)
-        );
-        let white_pixels = image
-            .pixels()
-            .filter(|pixel| pixel.0[..3].iter().all(|&channel| channel > 220))
-            .count();
-        assert!(
-            white_pixels > 100,
-            "text should produce visible white pixels"
-        );
-        assert!(white_pixels < (image.width() * image.height() / 10) as usize);
     }
 }
 
@@ -271,51 +199,6 @@ fn timeline_assets_resolve_from_timeline_directory() {
 }
 
 #[test]
-fn audio_resampling_gaps_mutes_and_hidden_video() {
-    let dir = Temp::new();
-    write_tone(&dir.0.join("tone.wav"), 44100, 2);
-    let mut doc = empty();
-    doc.assets
-        .push(asset(100, "tone.wav", MediaKind::Audio, true));
-    doc.clips
-        .push(Clip::Audio(media_clip(200, 2, 100, 15, 0, 30)));
-    let infos = probe::assets(&doc.assets, &dir.0).unwrap();
-    let gap = Mixer::default()
-        .block(&doc, &dir.0, &infos, 0, 1024)
-        .unwrap();
-    assert!(gap.iter().all(|s| *s == [0.0, 0.0]));
-    let samples = Mixer::default()
-        .block(&doc, &dir.0, &infos, 30000, 2048)
-        .unwrap();
-    assert!(power(&samples) > 0.01);
-    doc.tracks[1].muted = true;
-    assert!(
-        Mixer::default()
-            .block(&doc, &dir.0, &infos, 30000, 2048)
-            .unwrap()
-            .iter()
-            .all(|s| *s == [0.0, 0.0])
-    );
-    doc.tracks[1].muted = false;
-    let mut hidden = media_clip(201, 1, 100, 15, 0, 30);
-    hidden.audio_properties.gain_db = -6.020599913;
-    doc.clips = vec![Clip::Video(hidden)];
-    doc.tracks[0].visible = false;
-    let half = Mixer::default()
-        .block(&doc, &dir.0, &infos, 30000, 2048)
-        .unwrap();
-    assert!((power(&half) / power(&samples) - 0.25).abs() < 0.001);
-    doc.clips[0].media_mut().unwrap().audio_properties.muted = true;
-    assert!(
-        Mixer::default()
-            .block(&doc, &dir.0, &infos, 30000, 2048)
-            .unwrap()
-            .iter()
-            .all(|s| *s == [0.0, 0.0])
-    );
-}
-
-#[test]
 fn validation_stops_at_first_missing_asset_and_reports_schema_locations() {
     let dir = Temp::new();
     let mut doc = empty();
@@ -378,238 +261,6 @@ fn exact_time_and_invalid_inputs() {
         assert!(fps.parse_time(input, Some(60)).is_err(), "{input}");
     }
     assert!(parse_rate("30/0").is_err());
-}
-
-#[test]
-fn native_video_seek_and_audio_mix() {
-    let dir = Temp::new();
-    let source = dir.0.join("source.mov");
-    probe::init().unwrap();
-    let fps = FrameRate::default();
-    let mut encoder = Encoder::open(
-        &source,
-        (64, 48),
-        fps,
-        48000,
-        &VideoEncoding {
-            codec: "prores".into(),
-            preset: "standard".into(),
-            bitrate: 128000,
-        },
-        None,
-    )
-    .unwrap();
-    let mut audio_at = 0;
-    for f in 0..60 {
-        let image = RgbaImage::from_pixel(64, 48, Rgba([(f * 3 + 20) as u8, 60, 100, 255]));
-        encoder.encode_new_frame(&image).unwrap();
-        while audio_at < (f + 1) * 1600 {
-            let count = (encoder.audio_frame_size() as i64).min(96000 - audio_at) as usize;
-            let mut samples = Vec::new();
-            for n in audio_at..audio_at + count as i64 {
-                let v = (n as f64 * 440.0 * std::f64::consts::TAU / 48000.0).sin() as f32 * 0.2;
-                samples.push([v, v]);
-            }
-            encoder.audio(&samples, audio_at).unwrap();
-            audio_at += count as i64;
-        }
-    }
-    encoder.finish().unwrap();
-    let output = cli(&["probe", source.to_str().unwrap(), "--json"]);
-    assert!(output.status.success());
-    let info = decode(&output);
-    assert!(info["streams"].as_array().unwrap().iter().any(|stream| {
-        stream["kind"] == "video" && stream["width"] == 64 && stream["height"] == 48
-    }));
-    let worker = VideoWorker::new(source.clone());
-    for f in [0, 29, 30, 59, 15, 16, 0] {
-        let frame = worker.at(f as f64 / 30.0).unwrap();
-        let red = frame.get_pixel(32, 24)[0] as i32;
-        assert!((red - (f * 3 + 20)).abs() <= 4, "frame {f} red {red}");
-    }
-    let mut doc = empty();
-    doc.assets
-        .push(asset(100, "source.mov", MediaKind::Video, true));
-    let mut clip = media_clip(200, 1, 100, 15, 15, 45);
-    clip.audio_properties.gain_db = -6.020599913;
-    doc.clips.push(Clip::Video(clip));
-    let media = probe::assets(&doc.assets, &dir.0).unwrap();
-    doc.validate().unwrap();
-    let mut mixer = Mixer::default();
-    assert!(
-        mixer
-            .block(&doc, &dir.0, &media, 0, 1000)
-            .unwrap()
-            .iter()
-            .all(|s| *s == [0.0, 0.0])
-    );
-    let samples = mixer.block(&doc, &dir.0, &media, 30000, 4096).unwrap();
-    let rms =
-        (samples.iter().map(|s| (s[0] * s[0]) as f64).sum::<f64>() / samples.len() as f64).sqrt();
-    assert!((rms - 0.07071).abs() < 0.01, "RMS {rms}");
-}
-
-#[test]
-fn variable_pts_frame_selection() {
-    let dir = Temp::new();
-    let source = dir.0.join("variable.mov");
-    let sequential = dir.0.join("sequential.mov");
-    let mut encoder = Encoder::open(
-        &sequential,
-        (64, 48),
-        FrameRate::default(),
-        48000,
-        &VideoEncoding {
-            codec: "prores".into(),
-            preset: "standard".into(),
-            bitrate: 128000,
-        },
-        None,
-    )
-    .unwrap();
-    for red in [20, 80, 140, 200] {
-        encoder
-            .encode_new_frame(&RgbaImage::from_pixel(64, 48, Rgba([red, 60, 100, 255])))
-            .unwrap();
-    }
-    encoder.finish().unwrap();
-    // Remux the sequential export with irregular timestamps to exercise VFR decoding.
-    let mut input = ffmpeg_next::format::input(&sequential).unwrap();
-    let mut output = ffmpeg_next::format::output(&source).unwrap();
-    let video = input
-        .streams()
-        .best(ffmpeg_next::media::Type::Video)
-        .unwrap();
-    let video_index = video.index();
-    let mut stream = output
-        .add_stream(ffmpeg_next::encoder::find(ffmpeg_next::codec::Id::PRORES))
-        .unwrap();
-    stream.set_parameters(video.parameters());
-    stream.set_time_base((1, 30));
-    output.write_header().unwrap();
-    let time_base = output.stream(0).unwrap().time_base();
-    let mut timestamps = [0, 2, 5, 9].into_iter();
-    for (stream, mut packet) in input.packets() {
-        if stream.index() != video_index {
-            continue;
-        }
-        let pts = timestamps.next().unwrap();
-        packet.set_stream(0);
-        packet.set_pts(Some(pts));
-        packet.set_dts(Some(pts));
-        packet.set_duration(1);
-        packet.set_position(-1);
-        packet.rescale_ts((1, 30), time_base);
-        packet.write_interleaved(&mut output).unwrap();
-    }
-    assert!(timestamps.next().is_none());
-    output.write_trailer().unwrap();
-    let worker = VideoWorker::new(source.clone());
-    for (time, expected) in [
-        (0.0, 20),
-        (1.0 / 30.0, 20),
-        (4.0 / 30.0, 140),
-        (8.0 / 30.0, 200),
-        (2.0 / 30.0, 80),
-    ] {
-        let image = worker.at(time).unwrap();
-        assert!(
-            (image.get_pixel(32, 24)[0] as i32 - expected).abs() <= 4,
-            "time {time}"
-        );
-    }
-}
-
-#[test]
-#[cfg(target_os = "macos")]
-#[ignore = "requires macOS VideoToolbox encoder services"]
-fn platform_video_encoders_and_fractional_frame_rate() {
-    let dir = Temp::new();
-    probe::init().unwrap();
-    for (codec, container) in [("h264", "mp4"), ("hevc", "mp4"), ("hevc", "mov")] {
-        let output = dir.0.join(format!("{codec}.{container}"));
-        let mut encoder = Encoder::open(
-            &output,
-            (64, 48),
-            FrameRate::new(30000, 1001),
-            48000,
-            &VideoEncoding {
-                codec: codec.into(),
-                preset: "standard".into(),
-                bitrate: 500000,
-            },
-            None,
-        )
-        .unwrap();
-        let image = RgbaImage::from_pixel(64, 48, Rgba([220, 20, 10, 255]));
-        for _ in 0..5 {
-            encoder.encode_new_frame(&image).unwrap();
-        }
-        encoder.finish().unwrap();
-        let info = probe::probe(&output).unwrap();
-        assert_eq!(info.streams[0].codec, codec);
-        assert_eq!(info.streams[0].fps, Some([30000, 1001]));
-        assert_eq!(
-            info.streams[0].codec_tag,
-            if codec == "hevc" { "hvc1" } else { "avc1" }
-        );
-        if codec == "hevc" {
-            let mut input = ffmpeg_next::format::input(&output).unwrap();
-            let stream = input
-                .streams()
-                .best(ffmpeg_next::media::Type::Video)
-                .unwrap();
-            let index = stream.index();
-            let parameters = stream.parameters();
-            let config = unsafe {
-                let p = &*parameters.as_ptr();
-                assert!(!p.extradata.is_null() && p.extradata_size >= 23);
-                std::slice::from_raw_parts(p.extradata, p.extradata_size as usize).to_vec()
-            };
-            assert_eq!(config[0], 1);
-            let length_size = (config[21] & 3) as usize + 1;
-            let mut offset = 23;
-            let mut parameter_sets = Vec::new();
-            for _ in 0..config[22] {
-                let kind = config[offset] & 63;
-                if matches!(kind, 32..=34) {
-                    assert_ne!(
-                        config[offset] & 128,
-                        0,
-                        "hvc1 parameter-set array must be complete"
-                    );
-                    parameter_sets.push(kind);
-                }
-                let count = u16::from_be_bytes([config[offset + 1], config[offset + 2]]);
-                offset += 3;
-                for _ in 0..count {
-                    let length = u16::from_be_bytes([config[offset], config[offset + 1]]) as usize;
-                    offset += 2 + length;
-                }
-            }
-            assert_eq!(parameter_sets, [32, 33, 34]);
-            for (stream, packet) in input.packets() {
-                if stream.index() != index {
-                    continue;
-                }
-                let data = packet.data().unwrap();
-                let mut offset = 0;
-                while offset < data.len() {
-                    let mut length = 0_usize;
-                    for byte in &data[offset..offset + length_size] {
-                        length = (length << 8) | *byte as usize;
-                    }
-                    offset += length_size;
-                    assert!(length >= 2 && offset + length <= data.len());
-                    assert!(
-                        !matches!((data[offset] >> 1) & 63, 32..=34),
-                        "hvc1 samples must not contain parameter sets"
-                    );
-                    offset += length;
-                }
-            }
-        }
-    }
 }
 
 fn empty() -> TimelineEditingState {
@@ -694,9 +345,6 @@ fn write_tone(path: &Path, rate: u32, seconds: u32) {
     }
     fs::write(path, wav).unwrap();
 }
-fn power(samples: &[[f32; 2]]) -> f64 {
-    samples.iter().map(|s| (s[0] * s[0]) as f64).sum::<f64>() / samples.len() as f64
-}
 fn cli(args: &[&str]) -> Output {
     Command::new(env!("CARGO_BIN_EXE_opencut"))
         .args(args)
@@ -732,7 +380,7 @@ fn generates_agent_docs_from_cli_definitions() {
     assert!(!text.contains("$schema"));
     assert!(!text.contains("--llm"));
     assert!(text.contains("--post-merge"));
-    assert!(!text.contains("--project-root"));
+    assert!(text.contains("--project-root"));
     assert!(!text.contains("assemble"));
     assert!(!text.contains("recipe"));
     let json_output = Command::new(env!("CARGO_BIN_EXE_opencut"))

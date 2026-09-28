@@ -6,50 +6,15 @@
 //! retained as text so the renderer can perform font shaping and layout.
 
 use crate::editor::preview_timeline::TimelinePreviewFrame;
-use ::engine::{decode::VideoReader, raster::load_image};
-use ::timeline::{
-    Clip, MediaKind, TextClipProperties, TimelineEditingState, TimelineTime, TrackKind,
-    VideoClipProperties,
-};
+use ::engine::timeline_decoder::{TimelineDecoder, TimelineFrame};
+use ::timeline::{TimelineEditingState, TimelineTime};
 use anyhow::{Context as _, Error, Result, anyhow, bail};
-use image::RgbaImage;
 use std::{
-    collections::{HashMap, hash_map::Entry},
-    path::{Path, PathBuf},
+    path::Path,
     sync::{Arc, Mutex, mpsc},
     thread,
     time::Duration,
 };
-use ulid::Ulid;
-
-/// An immutable snapshot. Layers are ordered from bottom to top.
-#[derive(Clone, Debug)]
-pub struct TimelineFrame {
-    pub timestamp: Duration,
-    pub width: u32,
-    pub height: u32,
-    pub layers: Vec<TimelineLayer>,
-}
-
-/// Video and image pixels are unpremultiplied RGBA in source dimensions.
-/// Visual properties retain their document units; no transforms are baked in.
-#[derive(Clone, Debug)]
-pub enum TimelineLayer {
-    Video {
-        clip_id: Ulid,
-        pixels: Arc<RgbaImage>,
-        properties: VideoClipProperties,
-    },
-    Image {
-        clip_id: Ulid,
-        pixels: Arc<RgbaImage>,
-        properties: VideoClipProperties,
-    },
-    Text {
-        clip_id: Ulid,
-        properties: TextClipProperties,
-    },
-}
 
 pub struct TimelineBackend {
     timeline: Arc<TimelineEditingState>,
@@ -101,7 +66,7 @@ impl TimelineBackend {
         thread::Builder::new()
             .name("timeline-preview".into())
             .spawn(move || {
-                let mut decoder: Option<(u64, FrameDecoder)> = None;
+                let mut decoder: Option<(u64, TimelineDecoder)> = None;
                 // Dropping the backend closes the channel; decoder cleanup stays here.
                 for request in requests {
                     if request.reply.is_none() {
@@ -117,16 +82,12 @@ impl TimelineBackend {
                             .as_ref()
                             .is_none_or(|(revision, _)| *revision != request.revision)
                         {
-                            request.timeline.validate()?;
-                            decoder = Some((
-                                request.revision,
-                                FrameDecoder::new(Arc::clone(&request.timeline), &media_root),
-                            ));
+                            decoder = Some((request.revision, TimelineDecoder::new(&media_root)));
                         }
                         let (_, decoder) = decoder.as_mut().unwrap();
-                        decoder.seek_sync(request.position)?;
-                        let prepared =
-                            Arc::new(TimelinePreviewFrame::new(Arc::clone(&decoder.frame)));
+                        let frame =
+                            Arc::new(decoder.frame_at(&request.timeline, request.position)?);
+                        let prepared = Arc::new(TimelinePreviewFrame::new(frame));
                         Ok(prepared)
                     })();
                     let result = match result {
@@ -295,136 +256,6 @@ struct PreviewRequest {
     revision: u64,
     position: Duration,
     result: Option<Result<Arc<TimelinePreviewFrame>, Arc<Error>>>,
-}
-
-struct FrameDecoder {
-    timeline: Arc<TimelineEditingState>,
-    media_root: PathBuf,
-    readers: HashMap<Ulid, VideoReader>,
-    images: HashMap<Ulid, Arc<RgbaImage>>,
-    frame: Arc<TimelineFrame>,
-}
-
-impl FrameDecoder {
-    fn new(timeline: Arc<TimelineEditingState>, media_root: &Path) -> Self {
-        let frame = Arc::new(TimelineFrame {
-            timestamp: Duration::ZERO,
-            width: timeline.settings.width,
-            height: timeline.settings.height,
-            layers: Vec::new(),
-        });
-        Self {
-            timeline,
-            media_root: media_root.to_owned(),
-            readers: HashMap::new(),
-            images: HashMap::new(),
-            frame,
-        }
-    }
-
-    /// Snaps to the nearest timeline frame and clamps to the last valid frame.
-    /// Empty timelines remain at zero. A failed seek preserves the previous
-    /// snapshot and position, and can be retried after the media is repaired.
-    fn seek_sync(&mut self, position: Duration) -> Result<()> {
-        let last =
-            (self.timeline.content_duration() - TimelineTime::ONE_FRAME).max(TimelineTime::ZERO);
-        let position = self
-            .timeline
-            .settings
-            .frame_rate
-            .frames_from_duration_nearest(position)
-            .clamp(TimelineTime::ZERO, last);
-        let frame = self.prepare(position)?;
-        self.frame = Arc::new(frame);
-        Ok(())
-    }
-
-    fn prepare(&mut self, position: TimelineTime) -> Result<TimelineFrame> {
-        let mut layers = Vec::new();
-        // The first document track is the top track. Within a track, later
-        // document clips paint over earlier ones.
-        for track in self.timeline.tracks.iter().rev() {
-            if !track.visible || track.kind == TrackKind::Audio {
-                continue;
-            }
-            for clip in self.timeline.clips_on_track(track.id) {
-                if position < clip.timeline_start()
-                    || position >= clip.timeline_end(self.timeline.settings.frame_rate)
-                {
-                    continue;
-                }
-                match clip {
-                    Clip::Audio(_) => {}
-                    Clip::Text(clip) => layers.push(TimelineLayer::Text {
-                        clip_id: clip.id,
-                        properties: clip.properties.clone(),
-                    }),
-                    Clip::Video(media) => {
-                        // Document references were checked during open.
-                        let asset = self.timeline.asset(media.asset_id).unwrap();
-                        let path = self.media_root.join(&asset.path);
-                        match asset.kind {
-                            MediaKind::Video => {
-                                if let Entry::Vacant(entry) = self.readers.entry(asset.id) {
-                                    let reader = VideoReader::open(&path).context(format!(
-                                        "Opening timeline video {}",
-                                        path.display()
-                                    ))?;
-                                    entry.insert(reader);
-                                }
-                                let source = self.timeline.source_position_at(clip, position);
-                                let result = self
-                                    .readers
-                                    .get_mut(&asset.id)
-                                    .unwrap()
-                                    .at(source.as_secs_f64());
-                                let pixels = match result {
-                                    Ok(pixels) => pixels,
-                                    Err(error) => {
-                                        // A failed decoder may be partially advanced. Reopen it
-                                        // on retry instead of reusing that uncertain state.
-                                        self.readers.remove(&asset.id);
-                                        return Err(error).context(format!(
-                                            "Preparing timeline clip {} from {} at {:.6}s",
-                                            media.id,
-                                            path.display(),
-                                            source.as_secs_f64(),
-                                        ));
-                                    }
-                                };
-                                layers.push(TimelineLayer::Video {
-                                    clip_id: media.id,
-                                    pixels: Arc::new(pixels),
-                                    properties: media.video_properties,
-                                });
-                            }
-                            MediaKind::Image => {
-                                if let Entry::Vacant(entry) = self.images.entry(asset.id) {
-                                    let pixels = load_image(&path).context(format!(
-                                        "Loading timeline image {}",
-                                        path.display()
-                                    ))?;
-                                    entry.insert(Arc::new(pixels));
-                                }
-                                layers.push(TimelineLayer::Image {
-                                    clip_id: media.id,
-                                    pixels: Arc::clone(self.images.get(&asset.id).unwrap()),
-                                    properties: media.video_properties,
-                                });
-                            }
-                            MediaKind::Audio => unreachable!("visual assets were validated"),
-                        }
-                    }
-                }
-            }
-        }
-        Ok(TimelineFrame {
-            timestamp: self.timeline.duration(position),
-            width: self.timeline.settings.width,
-            height: self.timeline.settings.height,
-            layers,
-        })
-    }
 }
 
 fn clamp_position(timeline: &TimelineEditingState, position: Duration) -> Result<Duration> {

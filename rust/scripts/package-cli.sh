@@ -4,9 +4,7 @@ set -euo pipefail
 cli_root="$(cd -- "$(dirname -- "$0")/.." && pwd)"
 cli_prefix="$cli_root/vendor/ffmpeg-8.1.2"
 export CARGO_TARGET_DIR="$cli_root/target/cli-release"
-cli_features=
-if [[ "${OPENCUT_GPL:-0}" == 1 ]]; then cli_features=gpl; fi
-bash "$cli_root/scripts/cargo-cli.sh" rustc --locked --release -p opencut --features "$cli_features" --bin opencut -- -C strip=symbols
+bash "$cli_root/scripts/cargo-cli.sh" rustc --locked --release -p opencut --bin opencut -- -C strip=symbols
 cli_stage="$(mktemp -d "$cli_root/target/opencut-release.XXXXXX")"
 cp "$CARGO_TARGET_DIR/release/opencut" "$cli_stage/opencut"
 cli_size="$(stat -f %z "$cli_stage/opencut")"

@@ -1,5 +1,5 @@
 //! Timeline file persistence and shared value types; no runtime-only state.
-mod serialization;
+pub mod serialization;
 pub use serialization::{ParseError, TimelineSerialization, parse};
 mod asset;
 mod clip;

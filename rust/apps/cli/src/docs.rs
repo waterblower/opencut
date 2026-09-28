@@ -11,7 +11,7 @@ pub fn generate() -> Result<String> {
     let mut output = String::from(
         r#"# OpenCut CLI
 
-Use OpenCut to inspect media, author timeline JSON, validate timelines, and transcribe audio. The CLI uses FFmpeg and shares the editor's timeline format.
+Use OpenCut to inspect media, author timeline JSON, validate and export timelines, and transcribe audio. The CLI uses FFmpeg and shares the editor's timeline format.
 
 ## Recommended workflow
 
@@ -31,6 +31,7 @@ opencut probe /project/episode.timeline.json --json
 
 - Timeline and output arguments resolve from the working directory.
 - Relative timeline asset paths resolve from the timeline file's directory. Absolute asset paths are unchanged.
+- For export, `--project-root` overrides the base directory for relative assets.
 - Keep original media available; the timeline references it.
 - Use `--json` for machine-readable stdout. Diagnostics go to stderr.
 - Every executed command reports `elapsed_seconds` on stderr, excluding Cargo
@@ -38,16 +39,18 @@ opencut probe /project/episode.timeline.json --json
 - Treat any nonzero exit code as failure. JSON errors contain `error.message`. Validation uses the shared timeline validator and stops at the first document or media probe error.
 - Use `--overwrite` explicitly when replacing supported outputs. Outputs cannot replace source media.
 
-## GPUI rendering demo (macOS)
+## Timeline export (macOS)
 
-`render -o hello.mp4` produces 150 frames at 30 fps: five seconds of centered
-white "hello gpui" text on black. It uses GPUI's Metal renderer and FFmpeg H.264
-encoding. The canvas is 640×360 logical pixels, producing 1280×720 output at the
-test platform's fixed 2× scale. This initial demo uses GPUI's test-support headless
-context with the real Metal renderer, without creating a native window. It requires
-macOS Metal and VideoToolbox services.
-It refuses existing output files and does not yet accept timelines.
-Elapsed time includes argument parsing, rendering, encoding, and cleanup.
+```sh
+opencut export /project/episode.timeline.json -o episode.mp4
+opencut export /project/timelines/episode.json -o episode.mp4 --project-root /project --video-bitrate 8000 --json
+```
+
+Exports the complete timeline synchronously to H.264 video and stereo AAC audio.
+Canvas size, frame rate, and audio sample rate come from the timeline settings.
+`--video-bitrate` is in kbps (1 kbps = 1,000 bits per second) and defaults to 8,000.
+Requires macOS Metal and VideoToolbox services. Existing output files are refused.
+On success, stdout reports the output path and frame count.
 
 ## Transcription
 

@@ -1,5 +1,6 @@
 use crate::editor::preview_timeline::TimelinePreviewFrame;
-use crate::editor::timeline_backend::{TimelineBackend, TimelineFrame, TimelineLayer};
+use crate::editor::timeline_backend::TimelineBackend;
+use ::engine::timeline_decoder::{TimelineFrame, TimelineLayer};
 use ::timeline::{
     AudioClipProperties, Clip, FrameRate, MediaAsset, MediaClipData, MediaKind, TextClip,
     TextClipProperties, TimelineEditingState, TimelineTime, Track, TrackKind, VideoClipProperties,
@@ -331,12 +332,16 @@ fn svg_images_resolve_absolute_paths_and_preserve_alpha() {
 }
 
 #[test]
+#[cfg_attr(
+    target_os = "macos",
+    ignore = "requires macOS VideoToolbox decoder services"
+)]
 fn video_trims_rate_mapping_overlaps_and_backward_seeks() {
     let dir = Temp::new();
     write_video(&dir.0);
     let mut doc = document();
     doc.tracks.push(track(1, TrackKind::Video));
-    doc.assets.push(asset(100, "source.avi", MediaKind::Video));
+    doc.assets.push(asset(100, "source.mp4", MediaKind::Video));
     doc.clips = vec![
         media_clip(10, 1, 100, 0, 2, 10),
         media_clip(11, 1, 100, 0, 8, 16),
@@ -344,7 +349,7 @@ fn video_trims_rate_mapping_overlaps_and_backward_seeks() {
     let mut backend = TimelineBackend::new(doc, &dir.0).unwrap();
     wait_for_preview(&backend, time(0)).unwrap();
     let first = backend.get_current_frame().unwrap();
-    assert_eq!(video_reds(&first), vec![35, 80]);
+    assert_video_reds(&first, &[35, 80]);
     assert!(Arc::ptr_eq(&first, &backend.get_current_frame().unwrap()));
     for (millis, reds) in [
         (125, vec![35, 80]),
@@ -355,24 +360,25 @@ fn video_trims_rate_mapping_overlaps_and_backward_seeks() {
         (0, vec![35, 80]),
     ] {
         backend.seek_sync(Duration::from_millis(millis)).unwrap();
-        assert_eq!(video_reds(&backend.get_current_frame().unwrap()), reds);
+        assert_video_reds(&backend.get_current_frame().unwrap(), &reds);
     }
-    assert_eq!(video_reds(&first), vec![35, 80]);
+    assert_video_reds(&first, &[35, 80]);
     backend.seek_sync(Duration::MAX).unwrap();
     assert_eq!(backend.position(), Duration::from_millis(875));
-    assert_eq!(
-        video_reds(&backend.get_current_frame().unwrap()),
-        vec![80, 125]
-    );
+    assert_video_reds(&backend.get_current_frame().unwrap(), &[80, 125]);
 }
 
 #[test]
+#[cfg_attr(
+    target_os = "macos",
+    ignore = "requires macOS VideoToolbox decoder services"
+)]
 fn failed_preparation_preserves_snapshot_and_can_be_retried() {
     let dir = Temp::new();
     write_video(&dir.0);
     let mut doc = document();
     doc.tracks = vec![track(1, TrackKind::Text), track(2, TrackKind::Video)];
-    doc.assets.push(asset(100, "broken.avi", MediaKind::Video));
+    doc.assets.push(asset(100, "broken.mp4", MediaKind::Video));
     doc.clips = vec![
         text_clip(10, 1, 0, 8, doc.settings.frame_rate),
         media_clip(20, 2, 100, 8, 0, 8),
@@ -386,16 +392,16 @@ fn failed_preparation_preserves_snapshot_and_can_be_retried() {
         Some(b"YUV4MPEG2 W8 H6 F4:1 Ip A1:1 C420jpeg\n".as_slice()),
     ] {
         if let Some(contents) = contents {
-            fs::write(dir.0.join("broken.avi"), contents).unwrap();
+            fs::write(dir.0.join("broken.mp4"), contents).unwrap();
         }
         let error = backend.seek_sync(Duration::from_secs(1)).unwrap_err();
-        assert!(format!("{error:#}").contains("broken.avi"));
+        assert!(format!("{error:#}").contains("broken.mp4"));
         assert_eq!(backend.position(), Duration::ZERO);
         assert!(Arc::ptr_eq(&before, &backend.get_current_frame().unwrap()));
     }
-    fs::copy(dir.0.join("source.avi"), dir.0.join("broken.avi")).unwrap();
+    fs::copy(dir.0.join("source.mp4"), dir.0.join("broken.mp4")).unwrap();
     backend.seek_sync(Duration::from_secs(1)).unwrap();
-    assert_eq!(video_reds(&backend.get_current_frame().unwrap()), vec![20]);
+    assert_video_reds(&backend.get_current_frame().unwrap(), &[20]);
     assert_eq!(layer_ids(&before), vec![10]);
 }
 
@@ -575,22 +581,25 @@ fn layer_ids(frame: &TimelineFrame) -> Vec<u128> {
     ids
 }
 
-fn video_reds(frame: &TimelineFrame) -> Vec<u8> {
-    let mut reds = Vec::new();
-    for layer in &frame.layers {
+fn assert_video_reds(frame: &TimelineFrame, expected: &[u8]) {
+    assert_eq!(frame.layers.len(), expected.len());
+    for (layer, expected) in frame.layers.iter().zip(expected) {
         let TimelineLayer::Video { pixels, .. } = layer else {
             panic!("expected video");
         };
-        assert_eq!(pixels.dimensions(), (8, 6));
-        reds.push(pixels.get_pixel(0, 0).0[0]);
+        assert_eq!(pixels.dimensions(), (64, 48));
+        let actual = pixels.get_pixel(32, 24).0[0];
+        assert!(
+            actual.abs_diff(*expected) <= 3,
+            "red {actual}, expected {expected}"
+        );
     }
-    reds
 }
 
 fn write_video(dir: &Path) {
     let mut bytes = Vec::new();
     for frame in 0..12 {
-        let image = RgbaImage::from_pixel(8, 6, Rgba([20 + frame * 15, 60, 100, 255]));
+        let image = RgbaImage::from_pixel(64, 48, Rgba([20 + frame * 15, 60, 100, 255]));
         bytes.extend_from_slice(image.as_raw());
     }
     fs::write(dir.join("frames.rgba"), bytes).unwrap();
@@ -605,14 +614,27 @@ fn write_video(dir: &Path) {
             "-pixel_format",
             "rgba",
             "-video_size",
-            "8x6",
+            "64x48",
             "-framerate",
             "4",
             "-i",
         ])
         .arg(dir.join("frames.rgba"))
-        .args(["-c:v", "rawvideo", "-pix_fmt", "bgr24"])
-        .arg(dir.join("source.avi"))
+        .args([
+            "-c:v",
+            "libx264",
+            "-crf",
+            "18",
+            "-pix_fmt",
+            "yuv420p",
+            "-vf",
+            "scale=out_color_matrix=bt709:out_range=tv",
+            "-colorspace",
+            "bt709",
+            "-color_range",
+            "tv",
+        ])
+        .arg(dir.join("source.mp4"))
         .output()
         .unwrap();
     assert!(
