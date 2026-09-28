@@ -29,7 +29,21 @@ bash rust/scripts/cargo-cli.sh build -p opencut
 ```
 
 The wrapper links the existing `rust/vendor/ffmpeg-8.1.2` libraries. It never builds
-FFmpeg or invokes Python. Disable default features to build only the CLI; its demo renderer uses GPUI.
+FFmpeg or invokes Python. Timeline export uses GPUI through the shared engine.
+
+## Export timelines (macOS)
+
+```sh
+cargo cli export /project/episode.timeline.json -o episode.mp4
+cargo cli export /project/timelines/episode.json -o episode.mp4 --project-root /project --video-bitrate 8000 --json
+```
+
+Exports the complete timeline synchronously to MP4 with H.264 video and stereo
+AAC audio, using the timeline's dimensions, frame rate, and audio sample rate.
+`--project-root` overrides the timeline directory when resolving relative asset
+paths. `--video-bitrate` is in kbps (1 kbps = 1,000 bits per second) and defaults to 8,000.
+The command requires macOS Metal and VideoToolbox services and refuses existing
+output files. On success, stdout reports the output path and frame count.
 
 ## Probe media and timelines
 
@@ -143,10 +157,8 @@ they require no API key and do not make paid MiniMax requests.
 
 ## Output and errors
 
-The `still` and `render` commands, CPU compositor, and text rasterizer have been
-removed ahead of the shared GPUI renderer refactor. CLI video export and still
-preview generation are currently unavailable. FFmpeg decoding, encoding, and
-audio mixing services remain available for reuse.
+The `still` command and the GPUI `render` demo have been removed. Use `export`
+to export timelines; still preview generation is currently unavailable.
 
 All commands accept `--json`. Results go to stdout and diagnostics go to stderr.
 Runtime failures use anyhow and exit code 1; Clap usage errors use exit code 2.
@@ -161,16 +173,14 @@ or media probe error. Media probe errors include the asset path.
 cargo test --manifest-path rust/Cargo.toml -p timeline --features timeline-schema
 # CLI and FFmpeg integration:
 bash rust/scripts/cargo-cli.sh test -p opencut -p timeline
-# Optional VideoToolbox encoder tests:
-bash rust/scripts/cargo-cli.sh test -p opencut --test cli -- --ignored
 # Local macOS package:
 bash rust/scripts/package-cli.sh
 ```
 
 The package is a local unsigned artifact linked against the existing vendored
 FFmpeg installation and its transitive libraries, not a relocatable distribution.
-`OPENCUT_GPL=1` selects libx264; it does not build codecs. FFmpeg licensing still
-depends on the vendored build. Signing and publishing remain separate operations.
+FFmpeg licensing still depends on the vendored build. Signing and publishing
+remain separate operations.
 
 Generate an agent-friendly Markdown usage guide with `opencut doc`.
 It includes workflows, examples, and command options generated from the CLI

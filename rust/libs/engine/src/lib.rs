@@ -1,6 +1,6 @@
-//! Shared media decoding, encoding, probing, and mixing for the CLI and editor.
-pub mod audio;
-pub mod decode;
-pub mod encode;
+//! Shared media decoding, encoding, and probing for the CLI and editor.
+pub mod export;
+pub mod image;
 pub mod probe;
-pub mod raster;
+pub mod timeline_decoder;
+pub mod video_frame;

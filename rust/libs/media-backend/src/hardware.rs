@@ -4,7 +4,8 @@ use std::ptr;
 
 /// The codec owns the device reference after successful creation. No opaque
 /// application pointer or cross-thread native owner is needed by get_format.
-pub fn configure(context: &mut codec::context::Context) -> Result<()> {
+/// Returns an error if the codec has no VideoToolbox device configuration.
+pub fn use_videotoolbox(context: &mut codec::context::Context) -> Result<()> {
     if !cfg!(target_os = "macos") {
         bail!("VideoToolbox is only available on macOS");
     }

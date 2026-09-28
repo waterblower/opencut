@@ -1,4 +1,5 @@
-use crate::editor::timeline_backend::{TimelineBackend, TimelineFrame, TimelineLayer};
+use crate::editor::timeline_backend::TimelineBackend;
+use ::engine::timeline_decoder::{TimelineFrame, TimelineLayer};
 use ::timeline::TimelineTime;
 use anyhow::Result;
 use gpui::{
@@ -139,8 +140,11 @@ impl TimelinePreviewFrame {
                     if properties.scale <= 0.0 {
                         continue;
                     }
-                    let width = pixels.width() as f32 * properties.scale as f32 * scale;
-                    let height = pixels.height() as f32 * properties.scale as f32 * scale;
+                    let source_width = pixels.width() as f32;
+                    let source_height = pixels.height() as f32;
+                    let fit = (canvas_width / source_width).min(canvas_height / source_height); // 先完整适配画布，再应用 clip 缩放。
+                    let width = source_width * fit * properties.scale as f32;
+                    let height = source_height * fit * properties.scale as f32;
                     let x = (canvas_width - width) / 2.0 + properties.position_x as f32 * scale;
                     let y = (canvas_height - height) / 2.0 + properties.position_y as f32 * scale;
                     canvas = canvas.child(

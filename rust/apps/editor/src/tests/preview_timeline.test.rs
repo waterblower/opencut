@@ -1,7 +1,5 @@
-use crate::editor::{
-    preview_timeline::TimelinePreviewFrame,
-    timeline_backend::{TimelineFrame, TimelineLayer},
-};
+use crate::editor::preview_timeline::TimelinePreviewFrame;
+use ::engine::timeline_decoder::{TimelineFrame, TimelineLayer};
 use image::{Rgba, RgbaImage};
 use std::{sync::Arc, time::Duration};
 use ulid::Ulid;

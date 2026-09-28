@@ -1,4 +1,5 @@
-use image::{Rgba, RgbaImage};
+use ::transcribe::audio::extract_audio_as_wav;
+use opencut::{document, transcribe};
 use serde_json::{Value, json};
 use std::{
     fs,
@@ -6,14 +7,6 @@ use std::{
     process::Command,
 };
 use ulid::Ulid;
-use {
-    engine::{
-        audio::extract_audio_as_wav,
-        encode::{Encoder, VideoEncoding},
-    },
-    opencut::{document, transcribe},
-    timeline::FrameRate,
-};
 
 #[test]
 fn normalizes_stereo_audio_to_mono_16khz_and_drains_resampler() {
@@ -33,38 +26,9 @@ fn normalizes_stereo_audio_to_mono_16khz_and_drains_resampler() {
     }
 }
 
-#[test]
-fn extracts_video_audio_preserving_initial_offset_and_gaps() {
-    let temp = Temp::new();
-    let input = temp.0.join("recording.mov");
-    write_video(&input, true);
-    let wav = extract_audio_as_wav(&input).unwrap();
-    let samples: Vec<_> = wav[44..]
-        .chunks_exact(2)
-        .map(|b| i16::from_le_bytes([b[0], b[1]]))
-        .collect();
-    assert!(
-        samples.len() >= 15_900 && samples.len() <= 16_500,
-        "{} samples",
-        samples.len()
-    );
-    assert!(samples[..3_000].iter().all(|s| *s == 0));
-    assert!(samples[4_800..6_400].iter().any(|s| s.abs() > 100));
-    assert!(samples[9_600..11_000].iter().all(|s| *s == 0));
-    assert!(samples[12_800..14_400].iter().any(|s| s.abs() > 100));
-}
-
 #[tokio::test]
 async fn extracts_whole_audio_and_transcription_rejects_overlong_input() {
     let temp = Temp::new();
-    let silent_video = temp.0.join("no-audio.mov");
-    write_video(&silent_video, false);
-    assert!(
-        extract_audio_as_wav(&silent_video)
-            .unwrap_err()
-            .to_string()
-            .contains("missing_audio")
-    );
     let long = temp.0.join("too-long.wav");
     write_wav(&long, 8_000, 500 * 8_000);
     assert_eq!(
@@ -213,36 +177,6 @@ fn write_wav(path: &Path, rate: u32, frames: u32) {
         wav.extend_from_slice(&24576_i16.to_le_bytes());
     }
     fs::write(path, wav).unwrap();
-}
-
-fn write_video(path: &Path, audio: bool) {
-    let mut encoder = Encoder::open(
-        path,
-        (64, 48),
-        FrameRate::default(),
-        48_000,
-        &VideoEncoding {
-            codec: "prores".into(),
-            preset: "draft".into(),
-            bitrate: 128_000,
-        },
-        None,
-    )
-    .unwrap();
-    for _ in 0..30 {
-        encoder
-            .encode_new_frame(&RgbaImage::from_pixel(64, 48, Rgba([0, 0, 0, 255])))
-            .unwrap();
-    }
-    if audio {
-        for (from, to) in [(12_288, 24_576), (36_864, 49_152)] {
-            for start in (from..to).step_by(encoder.audio_frame_size()) {
-                let count = encoder.audio_frame_size().min((to - start) as usize);
-                encoder.audio(&vec![[0.25, 0.25]; count], start).unwrap();
-            }
-        }
-    }
-    encoder.finish().unwrap();
 }
 
 struct Temp(PathBuf);

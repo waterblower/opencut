@@ -1888,11 +1888,14 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "ffmpeg-next",
+ "gpui",
+ "gpui_platform",
  "image",
+ "media-backend",
  "resvg 0.45.1",
  "serde",
+ "smallvec",
  "timeline",
- "transcribe",
  "ulid",
 ]
 
@@ -5095,9 +5098,6 @@ dependencies = [
  "anyhow",
  "clap",
  "engine",
- "ffmpeg-next",
- "gpui",
- "gpui_platform",
  "image",
  "schemars",
  "serde_json",
