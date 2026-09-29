@@ -643,3 +643,72 @@ fn write_video(dir: &Path) {
         String::from_utf8_lossy(&output.stderr)
     );
 }
+
+#[cfg(feature = "editor-tests")]
+#[gpui::test]
+fn canvas_requests_another_frame_only_while_loading(cx: &mut gpui::TestAppContext) {
+    use crate::editor::preview_timeline::timeline_preview;
+    use anyhow::anyhow;
+    use gpui::{
+        AppContext, Context, IntoElement, ParentElement, Render, Styled, div, point, px, size,
+    };
+
+    use crate::editor::timeline_backend::PreviewRequest;
+    use std::sync::{Mutex, mpsc};
+
+    struct PreviewProbe(TimelineBackend);
+    impl Render for PreviewProbe {
+        fn render(&mut self, _: &mut gpui::Window, _: &mut Context<Self>) -> impl IntoElement {
+            div()
+                .w(px(320.0))
+                .h(px(240.0))
+                .child(timeline_preview(&self.0))
+        }
+    }
+
+    let window = cx.add_empty_window();
+    let (commands, _requests) = mpsc::channel();
+    let backend = TimelineBackend {
+        timeline: Arc::new(TimelineEditingState::default()),
+        revision: 0,
+        commands,
+        frame: Arc::new(Mutex::new(Arc::new(TimelineFrame {
+            timestamp: Duration::ZERO,
+            width: 160,
+            height: 90,
+            layers: Vec::new(),
+        }))),
+        preview: Arc::new(Mutex::new(PreviewRequest {
+            revision: 0,
+            position: Duration::ZERO,
+            result: None,
+        })),
+    };
+    let view = window.new(|_| PreviewProbe(backend));
+    for state in 0..3 {
+        view.update(window, |view, _| {
+            let frame = match state {
+                0 => None,
+                1 => Some(Ok(Arc::new(TimelinePreviewFrame::new(Arc::new(
+                    TimelineFrame {
+                        timestamp: Duration::ZERO,
+                        width: 160,
+                        height: 90,
+                        layers: Vec::new(),
+                    },
+                ))))),
+                _ => Some(Err(Arc::new(anyhow!("decode failed")))),
+            };
+
+            view.0.preview.lock().unwrap().result = frame;
+        });
+        window.draw(
+            point(px(0.0), px(0.0)),
+            size(px(320.0), px(240.0)),
+            |_, _| view.clone().into_element(),
+        );
+        window.update(|window, cx| {
+            assert_eq!(window.simulate_next_frame(cx) > 0, state == 0);
+        });
+    }
+}

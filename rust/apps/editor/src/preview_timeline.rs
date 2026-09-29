@@ -1,74 +1,54 @@
 use crate::editor::timeline_backend::TimelineBackend;
 use ::engine::timeline_decoder::{TimelineFrame, TimelineLayer};
-use ::timeline::TimelineTime;
-use anyhow::Result;
 use gpui::{
-    AnyElement, App, ElementId, IntoElement, Pixels, RenderImage, RenderOnce, Size, TextAlign,
-    Window, div, img, prelude::*, px, rgb, rgba, size,
+    AnyElement, AvailableSpace, IntoElement, RenderImage, TextAlign, canvas, div, img, prelude::*,
+    px, rgb, rgba,
 };
 use image::Frame;
 use smallvec::smallvec;
 use std::{collections::HashMap, sync::Arc};
 use ulid::Ulid;
 
-/// Requests a still frame without waiting for media I/O or decoding.
-/// Repeated requests for the same position reuse the backend's prepared frame.
-pub fn timeline_preview(
-    timeline: &TimelineBackend,
-    position: TimelineTime,
-) -> TimelinePreviewCanvasElement {
-    TimelinePreviewCanvasElement {
-        frame: timeline.preview_frame(position),
-        id: "timeline-preview".into(),
-        size: size(px(0.0), px(0.0)),
-    }
-}
-
-/// A fitted timeline canvas, including its loading and error presentation.
-/// The backend owns decoding, scheduling, and prepared image caching.
-#[derive(IntoElement)]
-pub struct TimelinePreviewCanvasElement {
-    frame: Result<Option<Arc<TimelinePreviewFrame>>>,
-    id: ElementId,
-    size: Size<Pixels>,
-}
-
-impl TimelinePreviewCanvasElement {
-    pub fn id(mut self, id: impl Into<ElementId>) -> Self {
-        self.id = id.into();
-        self
-    }
-
-    pub fn size(mut self, width: Pixels, height: Pixels) -> Self {
-        self.size = size(width, height);
-        self
-    }
-}
-
-impl RenderOnce for TimelinePreviewCanvasElement {
-    fn render(self, window: &mut Window, _: &mut App) -> impl IntoElement {
-        let canvas = div()
-            .id(self.id)
-            .w(self.size.width)
-            .h(self.size.height)
-            .overflow_hidden()
+/// The parent supplies the size; layout bounds determine the composition scale.
+pub fn timeline_preview(timeline: &TimelineBackend) -> impl IntoElement {
+    let position = timeline
+        .timeline()
+        .settings
+        .frame_rate
+        .frames_from_duration_nearest(timeline.position());
+    let root = div()
+        .id("timeline-preview")
+        .size_full()
+        .overflow_hidden()
+        .bg(rgb(0));
+    match timeline.preview_frame(position) {
+        Ok(Some(frame)) => root
+            .child(
+                canvas(
+                    move |bounds, window, cx| {
+                        let mut element =
+                            frame.render(bounds.size.width.into(), bounds.size.height.into());
+                        element.prepaint_as_root(
+                            bounds.origin,
+                            bounds.size.map(AvailableSpace::Definite),
+                            window,
+                            cx,
+                        );
+                        element
+                    },
+                    |_, mut element, window, cx| element.paint(window, cx),
+                )
+                .size_full(),
+            )
+            .into_any_element(),
+        Ok(None) => root.into_any_element(),
+        Err(_) => root
             .flex()
             .items_center()
             .justify_center()
-            .bg(rgb(0));
-        match self.frame {
-            Ok(Some(frame)) => canvas
-                .child(frame.render(self.size.width.into(), self.size.height.into()))
-                .into_any_element(),
-            Ok(None) => {
-                window.request_animation_frame();
-                canvas.into_any_element()
-            }
-            Err(_) => canvas
-                .text_color(rgb(0xcccccc))
-                .child("Unable to render timeline preview")
-                .into_any_element(),
-        }
+            .text_color(rgb(0xcccccc))
+            .child("Unable to render timeline preview")
+            .into_any_element(),
     }
 }
 

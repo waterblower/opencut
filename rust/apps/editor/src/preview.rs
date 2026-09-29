@@ -57,9 +57,10 @@ impl Editor {
                 let Some(timeline) = self.timeline.as_ref() else {
                     return div().w(px(width)).h(px(height)).into_any_element();
                 };
-                timeline_preview(&timeline.backend, timeline.playhead())
-                    .id("timeline-preview")
-                    .size(px(width), px(height))
+                div()
+                    .w(px(width))
+                    .h(px(height))
+                    .child(timeline_preview(&timeline.backend))
                     .into_any_element()
             }
             PreviewTarget::VideoFile { player, .. } => div()
