@@ -1,4 +1,4 @@
-use crate::{MediaInfo, MediaTime, timestamp_microseconds};
+use crate::{MediaInfo, MediaTime, time::timestamp_microseconds};
 use anyhow::{Context, Result, bail};
 use ffmpeg_next::{
     ChannelLayout, Error as FfmpegError, Packet, Rational, codec, decoder,
