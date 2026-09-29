@@ -1,6 +1,6 @@
 //! Timeline editing content and queries shared by the editor and CLI.
 
-use crate::{Clip, MediaAsset, MediaKind, TimelineSettings, TimelineTime, Track, TrackKind};
+use crate::{Clip, MediaAsset, MediaKind, TimelineFrame, TimelineSettings, Track, TrackKind};
 use anyhow::{Result, bail};
 use std::{collections::HashSet, time::Duration};
 use ulid::Ulid;
@@ -27,31 +27,31 @@ impl TimelineEditingState {
     pub fn clip_index(&self, id: Ulid) -> Option<usize> {
         self.clips.iter().position(|clip| clip.id() == id)
     }
-    pub fn content_duration(&self) -> TimelineTime {
+    pub fn content_duration(&self) -> TimelineFrame {
         let frame_rate = self.settings.frame_rate;
         self.clips
             .iter()
             .map(|clip| clip.timeline_end(frame_rate))
             .max()
-            .unwrap_or(TimelineTime::ZERO)
+            .unwrap_or(TimelineFrame::ZERO)
     }
-    pub fn seconds(&self, time: TimelineTime) -> f64 {
+    pub fn seconds(&self, time: TimelineFrame) -> f64 {
         self.settings.frame_rate.seconds(time)
     }
-    pub fn duration(&self, time: TimelineTime) -> Duration {
+    pub fn position_at_frame(&self, time: TimelineFrame) -> Duration {
         self.settings.frame_rate.duration(time)
     }
-    pub fn nearest_time(&self, seconds: f64) -> TimelineTime {
+    pub fn nearest_time(&self, seconds: f64) -> TimelineFrame {
         self.settings.frame_rate.nearest(seconds)
     }
-    pub fn audio_duration(&self, time: TimelineTime) -> Duration {
+    pub fn audio_duration(&self, time: TimelineFrame) -> Duration {
         let samples = self
             .settings
             .frame_rate
             .audio_samples(time, self.settings.audio_sample_rate);
         Duration::from_secs_f64(samples as f64 / self.settings.audio_sample_rate as f64)
     }
-    pub fn source_frame_at(&self, clip: &Clip, timeline_position: TimelineTime) -> Option<i64> {
+    pub fn source_frame_at(&self, clip: &Clip, timeline_position: TimelineFrame) -> Option<i64> {
         let asset = self.asset(clip.media()?.asset_id)?;
         let source_rate = asset.frame_rate()?;
         let source_time = clip.source_time_at(timeline_position)?;
@@ -62,7 +62,7 @@ impl TimelineEditingState {
                 .frames(),
         )
     }
-    pub fn source_position_at(&self, clip: &Clip, timeline_position: TimelineTime) -> Duration {
+    pub fn source_position_at(&self, clip: &Clip, timeline_position: TimelineFrame) -> Duration {
         let Some(media) = clip.media() else {
             return Duration::ZERO;
         };
@@ -73,7 +73,7 @@ impl TimelineEditingState {
             asset.frame_rate(),
             self.source_frame_at(clip, timeline_position),
         ) {
-            return source_rate.duration(TimelineTime::from_frames(source_frame));
+            return source_rate.duration(TimelineFrame::from_frames(source_frame));
         }
         self.audio_duration(clip.source_time_at(timeline_position).unwrap_or_default())
     }
@@ -81,7 +81,7 @@ impl TimelineEditingState {
         self.source_position_at(clip, clip.timeline_start())
             .as_secs_f64()
     }
-    pub fn ceil_time(&self, seconds: f64) -> TimelineTime {
+    pub fn ceil_time(&self, seconds: f64) -> TimelineFrame {
         self.settings.frame_rate.ceil(seconds)
     }
     pub fn clip_locked(&self, clip_id: Ulid) -> bool {
@@ -143,8 +143,8 @@ impl TimelineEditingState {
                     clip.track_id()
                 );
             };
-            if clip.timeline_start() < TimelineTime::ZERO
-                || clip.frame_length(settings.frame_rate) <= TimelineTime::ZERO
+            if clip.timeline_start() < TimelineFrame::ZERO
+                || clip.frame_length(settings.frame_rate) <= TimelineFrame::ZERO
             {
                 bail!("Visual clip {} has an invalid time range", clip.id());
             }
@@ -167,7 +167,7 @@ impl TimelineEditingState {
                             asset.id
                         );
                     }
-                    if media.source_in < TimelineTime::ZERO {
+                    if media.source_in < TimelineFrame::ZERO {
                         bail!("Visual clip {} has a negative source trim", media.id);
                     }
                     let properties = media.video_properties;

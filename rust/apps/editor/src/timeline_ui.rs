@@ -64,17 +64,14 @@ impl Editor {
             .border_color(rgb(BORDER))
             .bg(rgb(0x0a0a0c))
             .on_mouse_move(cx.listener(Self::update_clip_move))
-            .on_mouse_move(cx.listener(Self::update_playhead_scrub))
             .on_mouse_move(cx.listener(Self::update_marquee_selection))
             .on_scroll_wheel(cx.listener(Self::finish_timeline_scroll))
             .on_mouse_up(MouseButton::Left, cx.listener(Self::finish_clip_move))
-            .on_mouse_up(MouseButton::Left, cx.listener(Self::finish_playhead_scrub))
             .on_mouse_up(
                 MouseButton::Left,
                 cx.listener(Self::finish_marquee_selection),
             )
             .on_mouse_up_out(MouseButton::Left, cx.listener(Self::finish_clip_move))
-            .on_mouse_up_out(MouseButton::Left, cx.listener(Self::finish_playhead_scrub))
             .on_mouse_up_out(
                 MouseButton::Left,
                 cx.listener(Self::finish_marquee_selection),
@@ -215,7 +212,7 @@ impl Editor {
                                     )
                                     .child(div().h(px(RULER_HEIGHT)).flex_shrink_0())
                                     .children(track_rows)
-                                    .child(self.timeline_playhead(cx))
+                                    .child(self.timeline_playhead())
                                     .when_some(timeline.interaction.snap_guide, |this, guide| {
                                         let guide_left = TIMELINE_PADDING
                                             + timeline.backend.timeline().seconds(guide) as f32
@@ -336,15 +333,15 @@ impl Editor {
                                     .top_0()
                                     .w(px(timeline_width))
                                     .h_full()
-                                    .child(self.timeline_ruler(duration, cx))
-                                    .child(self.timeline_playhead(cx)),
+                                    .child(self.timeline_ruler(duration))
+                                    .child(self.timeline_playhead()),
                             ),
                     ),
             )
             .into_any_element()
     }
 
-    fn timeline_playhead(&self, cx: &mut Context<Self>) -> gpui::AnyElement {
+    fn timeline_playhead(&self) -> gpui::AnyElement {
         let timeline = self
             .timeline
             .as_ref()
@@ -360,25 +357,6 @@ impl Editor {
             .left(px(left))
             .w(px(1.0))
             .bg(rgb(ACCENT))
-            .cursor(if timeline.interaction.active_tool == TimelineTool::Blade {
-                CursorStyle::Crosshair
-            } else {
-                CursorStyle::ResizeLeftRight
-            })
-            .when(
-                timeline.interaction.active_tool != TimelineTool::Blade,
-                |this| {
-                    this.on_mouse_down(
-                        MouseButton::Left,
-                        cx.listener(|editor, event: &MouseDownEvent, window, cx| {
-                            editor.focus_handle.focus(window, cx);
-                            editor.begin_playhead_scrub(event);
-                            cx.stop_propagation();
-                            cx.notify();
-                        }),
-                    )
-                },
-            )
             .child(
                 div()
                     .absolute()
@@ -390,7 +368,7 @@ impl Editor {
             .into_any_element()
     }
 
-    fn timeline_ruler(&self, duration: f64, cx: &mut Context<Self>) -> gpui::AnyElement {
+    fn timeline_ruler(&self, duration: f64) -> gpui::AnyElement {
         let timeline = self
             .timeline
             .as_ref()
@@ -433,7 +411,8 @@ impl Editor {
                 div()
                     .absolute()
                     .left(px(TIMELINE_PADDING
-                        + frame_rate.seconds(TimelineTime::from_frames(frame)) as f32
+                        + frame_rate.seconds(TimelineFrame::from_frames(frame))
+                            as f32
                             * timeline.pixels_per_second))
                     .bottom_0()
                     .h(px(height))
@@ -466,18 +445,8 @@ impl Editor {
             .h(px(RULER_HEIGHT))
             .border_b_1()
             .border_color(rgb(BORDER))
-            .cursor(CursorStyle::PointingHand)
             .children(frame_ticks)
             .children(ruler_ticks)
-            .on_mouse_down(
-                MouseButton::Left,
-                cx.listener(|editor, event: &MouseDownEvent, window, cx| {
-                    editor.focus_handle.focus(window, cx);
-                    editor.begin_playhead_scrub(event);
-                    cx.stop_propagation();
-                    cx.notify();
-                }),
-            )
             .into_any_element()
     }
 

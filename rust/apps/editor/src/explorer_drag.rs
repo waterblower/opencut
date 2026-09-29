@@ -8,7 +8,7 @@ use gpui::{
 use ulid::Ulid;
 
 use crate::editor::{
-    ACCENT, MediaAsset, MediaKind, TimelineTime,
+    ACCENT, MediaAsset, MediaKind, TimelineFrame,
     explorer::{FileTreeEntry, FileTreeEntryKind, is_srt_path},
     media_probe::probe_asset,
 };
@@ -19,9 +19,9 @@ pub(super) struct ExplorerDropPreview {
     pub(super) absolute_path: PathBuf,
     pub(super) name: String,
     pub(super) track_id: Ulid,
-    pub(super) raw_start: TimelineTime,
-    pub(super) start: TimelineTime,
-    pub(super) duration: TimelineTime,
+    pub(super) raw_start: TimelineFrame,
+    pub(super) start: TimelineFrame,
+    pub(super) duration: TimelineFrame,
     pub(super) invalid_reason: Option<String>,
 }
 

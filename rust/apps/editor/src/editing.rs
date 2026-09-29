@@ -9,7 +9,7 @@ pub(super) struct ClipClipboard {
     clips: Vec<Clip>,
     assets: Vec<MediaAsset>,
     tracks: Vec<(Ulid, TrackKind, usize)>,
-    selection_start: TimelineTime,
+    selection_start: TimelineFrame,
     primary_index: Option<usize>,
 }
 
@@ -63,7 +63,7 @@ impl ClipClipboard {
             .iter()
             .map(Clip::timeline_start)
             .min()
-            .unwrap_or(TimelineTime::ZERO);
+            .unwrap_or(TimelineFrame::ZERO);
         let primary_index =
             primary_clip_id.and_then(|clip_id| clips.iter().position(|clip| clip.id() == clip_id));
         Some(Self {
@@ -77,7 +77,7 @@ impl ClipClipboard {
         })
     }
 
-    fn clips_at(&self, position: TimelineTime, frame_rate: FrameRate) -> Vec<Clip> {
+    fn clips_at(&self, position: TimelineFrame, frame_rate: FrameRate) -> Vec<Clip> {
         self.clips
             .iter()
             .cloned()
@@ -97,7 +97,7 @@ impl ClipClipboard {
                         clip.source_out = self
                             .source_frame_rate
                             .rescale_nearest(clip.source_out, frame_rate)
-                            .max(clip.source_in + TimelineTime::ONE_FRAME);
+                            .max(clip.source_in + TimelineFrame::ONE_FRAME);
                     }
                     Clip::Text(_) => {}
                 }
@@ -110,7 +110,7 @@ impl ClipClipboard {
         &self,
         destination_path: &std::path::Path,
         destination: &TimelineEditingState,
-        position: TimelineTime,
+        position: TimelineFrame,
     ) -> Result<(Vec<Clip>, Vec<MediaAsset>)> {
         let mut clips = self.clips_at(position, destination.settings.frame_rate);
         let same_timeline = self.source_timeline == destination_path;
@@ -203,10 +203,10 @@ impl TimelineRuntimeState {
             .iter()
             .filter(|clip| {
                 let local = self.playhead() - clip.timeline_start();
-                let crosses_playhead = local >= TimelineTime::ONE_FRAME
+                let crosses_playhead = local >= TimelineFrame::ONE_FRAME
                     && local
                         <= clip.frame_length(self.backend.timeline().settings.frame_rate)
-                            - TimelineTime::ONE_FRAME;
+                            - TimelineFrame::ONE_FRAME;
                 let track_is_editable = self
                     .backend
                     .timeline()
@@ -392,7 +392,7 @@ impl Editor {
             .iter()
             .map(Clip::timeline_start)
             .min()
-            .unwrap_or(TimelineTime::ZERO);
+            .unwrap_or(TimelineFrame::ZERO);
         let selection_end = clips
             .iter()
             .map(|clip| clip.timeline_end(timeline.backend.timeline().settings.frame_rate))
@@ -412,7 +412,7 @@ impl Editor {
             {
                 break candidate;
             }
-            let mut next_delta = delta + TimelineTime::ONE_FRAME;
+            let mut next_delta = delta + TimelineFrame::ONE_FRAME;
             for (clip, (_, track_id, start)) in clips.iter().zip(&candidate) {
                 for other in timeline
                     .backend
@@ -747,7 +747,7 @@ impl Editor {
         self.properties.transform_input_clip_id = None;
         self.properties.text_input_clip_id = None;
         if !timeline.backend.timeline().clips.is_empty() {
-            set_timeline_position(&mut self.preview, &timeline.backend, timeline.playhead())?;
+            timeline.backend.seek_frame(timeline.playhead())?;
         }
         let Some(timeline) = self.timeline.as_ref() else {
             return Ok(());

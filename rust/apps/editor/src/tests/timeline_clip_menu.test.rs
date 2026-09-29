@@ -25,9 +25,9 @@ fn clip(id: u64, track_id: u64, asset_id: u64) -> Clip {
         id: ulid(id),
         track_id: ulid(track_id),
         asset_id: ulid(asset_id),
-        timeline_start: TimelineTime::from_frames(id as i64),
-        source_in: TimelineTime::ZERO,
-        source_out: TimelineTime::ONE_FRAME,
+        timeline_start: TimelineFrame::from_frames(id as i64),
+        source_in: TimelineFrame::ZERO,
+        source_out: TimelineFrame::ONE_FRAME,
         video_properties: VideoClipProperties::default(),
         audio_properties: AudioClipProperties::default(),
     };

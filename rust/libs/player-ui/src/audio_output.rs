@@ -105,11 +105,14 @@ impl AudioOutput {
         })
     }
 
-    /// 等待设备错误，对调用方只暴露 async 语义，不暴露通知机制。
+    /// 等待设备错误；设备错误和通知通道关闭错误都向调用方传播。
     pub fn detect_error(&self) -> impl Future<Output = Result<()>> + use<> {
         // 等待期间不借用 AudioOutput，允许播放循环继续提交数据或重建流。
         let device_error = self.device_error.clone();
-        async move { Err(device_error.await?).context("audio output failed") }
+        async move {
+            let error = device_error.await.context("audio output error channel closed")?;
+            Err(error).context("audio output failed")
+        }
     }
 
     pub fn is_playing(&self) -> bool {

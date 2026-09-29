@@ -1,7 +1,5 @@
 use super::*;
 use crate::editor::preview_timeline::timeline_preview;
-use crate::editor::timeline_backend::TimelineBackend;
-use anyhow::Result;
 use player_ui::{audio_player::AudioPlayer, video_player::VideoPlayer};
 use preview_image::preview_image_file;
 
@@ -19,16 +17,6 @@ pub enum PreviewTarget {
         player: Entity<AudioPlayer>,
     },
     ImageFile(PathBuf),
-}
-
-pub fn set_timeline_position(
-    preview: &mut PreviewState,
-    backend: &TimelineBackend,
-    position: TimelineTime,
-) -> Result<()> {
-    backend.seek(backend.timeline().duration(position))?;
-    preview.target = PreviewTarget::Timeline;
-    Ok(())
 }
 
 impl PreviewTarget {
@@ -57,9 +45,10 @@ impl Editor {
                 let Some(timeline) = self.timeline.as_ref() else {
                     return div().w(px(width)).h(px(height)).into_any_element();
                 };
-                timeline_preview(&timeline.backend, timeline.playhead())
-                    .id("timeline-preview")
-                    .size(px(width), px(height))
+                div()
+                    .w(px(width))
+                    .h(px(height))
+                    .child(timeline_preview(&timeline.backend))
                     .into_any_element()
             }
             PreviewTarget::VideoFile { player, .. } => div()

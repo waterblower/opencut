@@ -157,11 +157,10 @@ impl Editor {
             EditAction::SetFrameRate { frame_rate },
         )
         .expect("changing the frame rate cannot be rejected");
-        let playhead = timeline.playhead();
         let has_clips = !timeline.backend.timeline().clips.is_empty();
         timeline.save()?;
         if has_clips {
-            set_timeline_position(&mut self.preview, &timeline.backend, playhead)?;
+            timeline.backend.seek_frame(timeline.playhead())?;
         }
         self.status = Some(format!(
             "Timeline frame rate changed to {}.",

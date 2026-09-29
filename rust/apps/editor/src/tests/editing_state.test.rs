@@ -1,8 +1,8 @@
 use crate::editor::edit_action::{EditAction, edit_timeline};
 use crate::editor::timeline::TimelineRuntimeState;
 use ::timeline::{
-    Clip, FrameRate, TextClip, TextClipProperties, TimelineEditingState, TimelineSettings,
-    TimelineTime, Track, TrackKind,
+    Clip, FrameRate, TextClip, TextClipProperties, TimelineEditingState, TimelineFrame,
+    TimelineSettings, Track, TrackKind,
 };
 use anyhow::Result;
 use gpui::{point, px};
@@ -12,17 +12,14 @@ use ulid::Ulid;
 #[test]
 fn rejected_edits_preserve_content_position_history_and_preview() -> Result<()> {
     let mut timeline = runtime()?;
-    timeline.backend.seek_sync(Duration::from_secs(1))?;
-    let before = timeline
-        .backend
-        .preview_frame(timeline.playhead())?
-        .unwrap();
+    timeline.backend.seek(Duration::from_secs(1))?;
+    let before = timeline.backend.preview_frame();
     for action in [
         EditAction::MoveClips {
             placements: vec![(
                 Ulid::from(2_u128),
                 Ulid::from(1_u128),
-                TimelineTime::from_frames(-1),
+                TimelineFrame::from_frames(-1),
             )],
         },
         EditAction::SetTextProperties {
@@ -36,7 +33,7 @@ fn rejected_edits_preserve_content_position_history_and_preview() -> Result<()> 
         assert!(edit_timeline(&mut timeline, action).is_err());
         assert_eq!(
             timeline.backend.timeline().clips[0].timeline_start(),
-            TimelineTime::ZERO
+            TimelineFrame::ZERO
         );
         let Clip::Text(clip) = &timeline.backend.timeline().clips[0] else {
             panic!("expected the original text clip");
@@ -44,10 +41,7 @@ fn rejected_edits_preserve_content_position_history_and_preview() -> Result<()> 
         assert_eq!(clip.properties.font_size, 64.0);
         assert_eq!(timeline.backend.position(), Duration::from_secs(1));
         assert!(timeline.undo_stack.is_empty() && timeline.redo_stack.is_empty());
-        let after = timeline
-            .backend
-            .preview_frame(timeline.playhead())?
-            .unwrap();
+        let after = timeline.backend.preview_frame();
         assert!(Arc::ptr_eq(&before, &after));
     }
     Ok(())
@@ -63,7 +57,7 @@ fn history_replacement_preserves_live_view_preferences_and_playhead() -> Result<
             placements: vec![(
                 Ulid::from(2_u128),
                 Ulid::from(1_u128),
-                TimelineTime::from_frames(10),
+                TimelineFrame::from_frames(10),
             )],
         },
     )?;
@@ -102,11 +96,8 @@ fn history_replacement_preserves_live_view_preferences_and_playhead() -> Result<
 #[test]
 fn persistence_captures_selected_state_and_rebuilds_runtime_resources() -> Result<()> {
     let mut timeline = runtime()?;
-    timeline.backend.seek_sync(Duration::from_secs(1))?;
-    let prepared = timeline
-        .backend
-        .preview_frame(timeline.playhead())?
-        .unwrap();
+    timeline.backend.seek(Duration::from_secs(1))?;
+    let prepared = timeline.backend.preview_frame();
     timeline.pixels_per_second = 180.0;
     timeline.snapping_enabled = false;
     timeline.track_magnet_enabled = false;
@@ -118,7 +109,6 @@ fn persistence_captures_selected_state_and_rebuilds_runtime_resources() -> Resul
         .push(timeline.backend.timeline().clone());
     timeline.interaction.selected_clip_id = None;
     timeline.interaction.selected_clip_ids.clear();
-    timeline.interaction.scrubbing_playhead = true;
 
     let document = timeline.to_serialize();
     let json = serde_json::to_value(&document)?;
@@ -132,10 +122,7 @@ fn persistence_captures_selected_state_and_rebuilds_runtime_resources() -> Resul
             "snapping_enabled": false, "track_magnet_enabled": false
         })
     );
-    let after = timeline
-        .backend
-        .preview_frame(timeline.playhead())?
-        .unwrap();
+    let after = timeline.backend.preview_frame();
     assert!(Arc::ptr_eq(&prepared, &after));
 
     let restored = TimelineRuntimeState::from_serialize(
@@ -145,7 +132,6 @@ fn persistence_captures_selected_state_and_rebuilds_runtime_resources() -> Resul
     )?;
     assert_eq!(serde_json::to_value(restored.to_serialize())?, json);
     assert!(restored.undo_stack.is_empty() && restored.redo_stack.is_empty());
-    assert!(!restored.interaction.scrubbing_playhead);
     assert_eq!(
         restored.interaction.selected_clip_id,
         Some(Ulid::from(2_u128))
@@ -185,7 +171,7 @@ fn runtime() -> Result<TimelineRuntimeState> {
         clips: vec![Clip::Text(TextClip {
             id: Ulid::from(2_u128),
             track_id,
-            timeline_start: TimelineTime::ZERO,
+            timeline_start: TimelineFrame::ZERO,
             length: Duration::from_secs(3),
             properties: TextClipProperties::default(),
         })],

@@ -21,11 +21,11 @@ fn editor_fixture_round_trips_without_losing_document_fields() {
         30
     );
     assert_eq!(
-        doc.source_frame_at(&doc.clips[0], TimelineTime::ZERO),
+        doc.source_frame_at(&doc.clips[0], TimelineFrame::ZERO),
         Some(12)
     );
     assert_eq!(
-        doc.source_position_at(&doc.clips[0], TimelineTime::ZERO)
+        doc.source_position_at(&doc.clips[0], TimelineFrame::ZERO)
             .as_secs_f64(),
         0.5
     );
@@ -77,11 +77,11 @@ fn validation_reports_missing_track_without_mutation() {
 #[test]
 fn shared_time_rounding_and_text_duration_are_rational() {
     let fps = FrameRate::new(30000, 1001);
-    let time = TimelineTime::from_frames(30000);
+    let time = TimelineFrame::from_frames(30000);
     assert_eq!(fps.duration(time).as_secs(), 1001);
     assert_eq!(fps.audio_samples(time, 48000), 48_048_000);
     assert_eq!(
-        fps.rescale_floor(TimelineTime::from_frames(15), FrameRate::new(24, 1))
+        fps.rescale_floor(TimelineFrame::from_frames(15), FrameRate::new(24, 1))
             .frames(),
         12
     );

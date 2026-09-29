@@ -6,3 +6,8 @@ mod audio_player_view;
 mod gpu;
 pub mod video_player;
 mod video_player_view;
+
+trait WaitUntilPlaying {
+    /// Waits for Playing without decoding, changing clocks, or performing device I/O.
+    async fn wait_until_playing(&self, cx: &mut gpui::AsyncApp);
+}

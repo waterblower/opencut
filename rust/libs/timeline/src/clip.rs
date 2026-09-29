@@ -1,4 +1,4 @@
-use crate::{FrameRate, TimelineTime};
+use crate::{FrameRate, TimelineFrame};
 use std::time::Duration;
 use ulid::Ulid;
 
@@ -77,9 +77,9 @@ pub struct MediaClipData {
     pub id: Ulid,
     pub track_id: Ulid,
     pub asset_id: Ulid,
-    pub timeline_start: TimelineTime,
-    pub source_in: TimelineTime,
-    pub source_out: TimelineTime,
+    pub timeline_start: TimelineFrame,
+    pub source_in: TimelineFrame,
+    pub source_out: TimelineFrame,
     pub video_properties: VideoClipProperties,
     pub audio_properties: AudioClipProperties,
 }
@@ -91,13 +91,13 @@ pub type AudioClip = MediaClipData;
 pub struct TextClip {
     pub id: Ulid,
     pub track_id: Ulid,
-    pub timeline_start: TimelineTime,
+    pub timeline_start: TimelineFrame,
     pub length: Duration,
     pub properties: TextClipProperties,
 }
 
 impl TextClip {
-    pub fn frame_length(&self, frame_rate: FrameRate) -> TimelineTime {
+    pub fn frame_length(&self, frame_rate: FrameRate) -> TimelineFrame {
         frame_rate.frames_from_duration_nearest(self.length)
     }
 }
@@ -131,14 +131,14 @@ impl Clip {
         }
     }
 
-    pub fn timeline_start(&self) -> TimelineTime {
+    pub fn timeline_start(&self) -> TimelineFrame {
         match self {
             Self::Video(clip) | Self::Audio(clip) => clip.timeline_start,
             Self::Text(clip) => clip.timeline_start,
         }
     }
 
-    pub fn set_timeline_start(&mut self, timeline_start: TimelineTime) {
+    pub fn set_timeline_start(&mut self, timeline_start: TimelineFrame) {
         match self {
             Self::Video(clip) | Self::Audio(clip) => clip.timeline_start = timeline_start,
             Self::Text(clip) => clip.timeline_start = timeline_start,
@@ -166,23 +166,23 @@ impl Clip {
         Some(clip)
     }
 
-    pub fn frame_length(&self, frame_rate: FrameRate) -> TimelineTime {
+    pub fn frame_length(&self, frame_rate: FrameRate) -> TimelineFrame {
         match self {
             Self::Video(clip) | Self::Audio(clip) => {
-                (clip.source_out - clip.source_in).max(TimelineTime::ZERO)
+                (clip.source_out - clip.source_in).max(TimelineFrame::ZERO)
             }
-            Self::Text(clip) => clip.frame_length(frame_rate).max(TimelineTime::ZERO),
+            Self::Text(clip) => clip.frame_length(frame_rate).max(TimelineFrame::ZERO),
         }
     }
 
-    pub fn timeline_end(&self, frame_rate: FrameRate) -> TimelineTime {
+    pub fn timeline_end(&self, frame_rate: FrameRate) -> TimelineFrame {
         self.timeline_start() + self.frame_length(frame_rate)
     }
 
-    pub fn source_time_at(&self, timeline_position: TimelineTime) -> Option<TimelineTime> {
+    pub fn source_time_at(&self, timeline_position: TimelineFrame) -> Option<TimelineFrame> {
         let clip = self.media()?;
         let local = (timeline_position - clip.timeline_start)
-            .clamp(TimelineTime::ZERO, clip.source_out - clip.source_in);
+            .clamp(TimelineFrame::ZERO, clip.source_out - clip.source_in);
         Some((clip.source_in + local).min(clip.source_out))
     }
 }

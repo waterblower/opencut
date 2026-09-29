@@ -469,12 +469,8 @@ pub async fn select_preview_file(
         (editor.project_root.clone(), previous)
     })?;
 
-    if let Some(previous) = previous {
-        // Dropping a backend joins its workers, so keep it off the UI thread.
-        cx.background_executor()
-            .spawn(async move { drop(previous) })
-            .await;
-    }
+    // Cancel playback before releasing its entity, on the same lane as the playback task.
+    drop(previous);
     if !is_video && !is_audio {
         return Ok(());
     }

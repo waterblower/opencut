@@ -11,8 +11,8 @@ use std::{
     time::Duration,
 };
 use timeline::{
-    Clip, MediaKind, TextClipProperties, TimelineEditingState, TimelineTime, TrackKind,
-    VideoClipProperties,
+    Clip, MediaKind, TextClipProperties, TimelineEditingState, TimelineFrame as TimelineFrameIndex,
+    TrackKind, VideoClipProperties,
 };
 use ulid::Ulid;
 
@@ -62,6 +62,13 @@ impl TimelineDecoder {
         }
     }
 
+    /// Drop media resources when document edits may rebind asset IDs.
+    pub fn clear_cache(&mut self) {
+        self.readers.clear();
+        self.images.clear();
+        self.scaler = None;
+    }
+
     /// Snaps to the nearest timeline frame and clamps to the last valid frame.
     /// Empty timelines remain at zero. Returned frames own their pixels and survive later calls.
     /// Recreate the decoder when asset IDs are rebound to different media.
@@ -71,19 +78,20 @@ impl TimelineDecoder {
         position: Duration,
     ) -> Result<TimelineFrame> {
         timeline.validate()?;
-        let last = (timeline.content_duration() - TimelineTime::ONE_FRAME).max(TimelineTime::ZERO);
+        let last = (timeline.content_duration() - TimelineFrameIndex::ONE_FRAME)
+            .max(TimelineFrameIndex::ZERO);
         let position = timeline
             .settings
             .frame_rate
             .frames_from_duration_nearest(position)
-            .clamp(TimelineTime::ZERO, last);
+            .clamp(TimelineFrameIndex::ZERO, last);
         self.prepare(timeline, position)
     }
 
     fn prepare(
         &mut self,
         timeline: &TimelineEditingState,
-        position: TimelineTime,
+        position: TimelineFrameIndex,
     ) -> Result<TimelineFrame> {
         let mut layers = Vec::new();
         // The first document track is the top track. Within a track, later
@@ -176,7 +184,7 @@ impl TimelineDecoder {
             }
         }
         Ok(TimelineFrame {
-            timestamp: timeline.duration(position),
+            timestamp: timeline.position_at_frame(position),
             width: timeline.settings.width,
             height: timeline.settings.height,
             layers,
