@@ -109,7 +109,6 @@ fn persistence_captures_selected_state_and_rebuilds_runtime_resources() -> Resul
         .push(timeline.backend.timeline().clone());
     timeline.interaction.selected_clip_id = None;
     timeline.interaction.selected_clip_ids.clear();
-    timeline.interaction.scrubbing_playhead = true;
 
     let document = timeline.to_serialize();
     let json = serde_json::to_value(&document)?;
@@ -133,7 +132,6 @@ fn persistence_captures_selected_state_and_rebuilds_runtime_resources() -> Resul
     )?;
     assert_eq!(serde_json::to_value(restored.to_serialize())?, json);
     assert!(restored.undo_stack.is_empty() && restored.redo_stack.is_empty());
-    assert!(!restored.interaction.scrubbing_playhead);
     assert_eq!(
         restored.interaction.selected_clip_id,
         Some(Ulid::from(2_u128))

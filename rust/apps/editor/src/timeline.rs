@@ -257,7 +257,6 @@ impl TimelineRuntimeState {
                 snap_guide: None,
                 clip_move_drag: None,
                 marquee_selection: None,
-                scrubbing_playhead: false,
             },
             undo_stack: Vec::new(),
             redo_stack: Vec::new(),

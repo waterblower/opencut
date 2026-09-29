@@ -43,7 +43,6 @@ pub(super) struct TimelineInteractionState {
     pub(super) snap_guide: Option<TimelineFrame>,
     pub(super) clip_move_drag: Option<ClipMoveDrag>,
     pub(super) marquee_selection: Option<MarqueeSelection>,
-    pub(super) scrubbing_playhead: bool,
 }
 
 impl TimelineRuntimeState {
@@ -732,68 +731,6 @@ impl Editor {
             timeline.save()?;
         }
         Ok(changed)
-    }
-
-    pub(super) fn begin_playhead_scrub(&mut self, event: &MouseDownEvent) {
-        if let Err(error) = self.pause_preview() {
-            log::error!("Could not pause preview: {error:?}");
-        }
-        let Some(timeline) = self.timeline.as_mut() else {
-            return;
-        };
-        let position = timeline.timeline_position_from_x(event.position.x.into());
-        if let Err(error) = timeline.backend.seek_frame(position) {
-            log::error!("{error:?}");
-            return;
-        }
-        timeline.interaction.scrubbing_playhead = true;
-    }
-
-    pub(super) fn update_playhead_scrub(
-        &mut self,
-        event: &MouseMoveEvent,
-        _: &mut Window,
-        cx: &mut Context<Self>,
-    ) {
-        if !event.dragging() {
-            return;
-        }
-        let Some(timeline) = self.timeline.as_mut() else {
-            return;
-        };
-        if !timeline.interaction.scrubbing_playhead {
-            return;
-        }
-        let position = timeline.timeline_position_from_x(event.position.x.into());
-        if let Err(error) = timeline.backend.seek_frame(position) {
-            log::error!("{error:?}");
-            return;
-        }
-        cx.notify();
-    }
-
-    pub(super) fn finish_playhead_scrub(
-        &mut self,
-        event: &MouseUpEvent,
-        _: &mut Window,
-        cx: &mut Context<Self>,
-    ) {
-        let Some(timeline) = self.timeline.as_mut() else {
-            return;
-        };
-        if !timeline.interaction.scrubbing_playhead {
-            return;
-        }
-        timeline.interaction.scrubbing_playhead = false;
-        let position = timeline.timeline_position_from_x(event.position.x.into());
-        if let Err(error) = timeline.backend.seek_frame(position) {
-            log::error!("{error:?}");
-            return;
-        }
-        if let Err(error) = timeline.save() {
-            log::error!("{error:?}");
-        }
-        cx.notify();
     }
 
     pub(super) fn step_playhead(&mut self, frames: i64) -> Result<()> {
