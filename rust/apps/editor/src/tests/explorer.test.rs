@@ -31,8 +31,8 @@ fn explorer_drop_rejects_incompatible_tracks() {
         &project,
         ulid(1),
         audio.kind,
-        TimelineTime::from_frames(30),
-        TimelineTime::ZERO,
+        TimelineFrame::from_frames(30),
+        TimelineFrame::ZERO,
         &HashSet::new(),
     )
     .unwrap_err();
@@ -49,8 +49,8 @@ fn explorer_drop_rejects_incompatible_tracks() {
         &project,
         ulid(2),
         silent_video.kind,
-        TimelineTime::from_frames(30),
-        TimelineTime::ZERO,
+        TimelineFrame::from_frames(30),
+        TimelineFrame::ZERO,
         &HashSet::new(),
     )
     .unwrap_err();
@@ -70,9 +70,9 @@ fn explorer_drop_detects_collisions_but_allows_adjacent_clips() {
         id: ulid(20),
         track_id: ulid(2),
         asset_id: ulid(10),
-        timeline_start: TimelineTime::from_frames(30),
-        source_in: TimelineTime::ZERO,
-        source_out: TimelineTime::from_frames(30),
+        timeline_start: TimelineFrame::from_frames(30),
+        source_in: TimelineFrame::ZERO,
+        source_out: TimelineFrame::from_frames(30),
         video_properties: VideoClipProperties::default(),
         audio_properties: AudioClipProperties::default(),
     }));
@@ -83,8 +83,8 @@ fn explorer_drop_detects_collisions_but_allows_adjacent_clips() {
             &project,
             ulid(2),
             audio.kind,
-            TimelineTime::from_frames(30),
-            TimelineTime::from_frames(15),
+            TimelineFrame::from_frames(30),
+            TimelineFrame::from_frames(15),
             &HashSet::new(),
         )
         .unwrap_err()
@@ -97,8 +97,8 @@ fn explorer_drop_detects_collisions_but_allows_adjacent_clips() {
             &project,
             ulid(2),
             audio.kind,
-            TimelineTime::from_frames(30),
-            TimelineTime::ZERO,
+            TimelineFrame::from_frames(30),
+            TimelineFrame::ZERO,
             &HashSet::new(),
         )
         .is_ok()

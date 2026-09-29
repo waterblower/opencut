@@ -6,7 +6,7 @@ impl Editor {
     pub(super) fn add_text(
         &mut self,
         track_id: Ulid,
-        position: TimelineTime,
+        position: TimelineFrame,
         cx: &mut Context<Self>,
     ) -> Result<()> {
         self.dismiss_context_menu();
@@ -45,7 +45,7 @@ impl Editor {
 fn text_clip_at(
     timeline: &TimelineEditingState,
     track_id: Ulid,
-    position: TimelineTime,
+    position: TimelineFrame,
 ) -> Result<Clip> {
     let Some(track) = timeline.track(track_id) else {
         bail!("The text track is unavailable.");
@@ -63,7 +63,7 @@ fn text_clip_at(
         bail!("A text clip already exists at this position.");
     }
 
-    let default_duration = timeline.ceil_time(5.0).max(TimelineTime::ONE_FRAME);
+    let default_duration = timeline.ceil_time(5.0).max(TimelineFrame::ONE_FRAME);
     let duration = timeline
         .clips_on_track(track_id)
         .filter(|clip| clip.timeline_start() > position)
@@ -76,7 +76,7 @@ fn text_clip_at(
         id: Ulid::generate(),
         track_id,
         timeline_start: position,
-        length: timeline.duration(duration),
+        length: timeline.position_at_frame(duration),
         properties: TextClipProperties::default(),
     }))
 }
@@ -97,12 +97,12 @@ mod tests {
             muted: false,
             visible: true,
         });
-        let clip = text_clip_at(&timeline, track_id, TimelineTime::ZERO).unwrap();
+        let clip = text_clip_at(&timeline, track_id, TimelineFrame::ZERO).unwrap();
         let clip_end = clip.timeline_end(timeline.settings.frame_rate);
         timeline.clips.push(clip);
 
         assert_eq!(
-            text_clip_at(&timeline, track_id, TimelineTime::ONE_FRAME)
+            text_clip_at(&timeline, track_id, TimelineFrame::ONE_FRAME)
                 .unwrap_err()
                 .to_string(),
             "A text clip already exists at this position."

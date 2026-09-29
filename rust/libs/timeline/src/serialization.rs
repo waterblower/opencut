@@ -47,7 +47,7 @@ impl TimelineSerialization {
 
     pub fn set_view_state(
         &mut self,
-        playhead: runtime::TimelineTime,
+        playhead: runtime::TimelineFrame,
         scroll: (f32, f32),
         pixels_per_second: f32,
         snapping_enabled: bool,
@@ -67,8 +67,8 @@ impl TimelineSerialization {
         };
     }
 
-    pub fn playhead(&self) -> runtime::TimelineTime {
-        runtime::TimelineTime::from_frames(self.view_state.saved_playhead_frame.max(0))
+    pub fn playhead(&self) -> runtime::TimelineFrame {
+        runtime::TimelineFrame::from_frames(self.view_state.saved_playhead_frame.max(0))
     }
 
     pub fn scroll_offset(&self) -> (f32, f32) {
@@ -207,7 +207,7 @@ pub fn parse(value: &Value) -> Result<TimelineSerialization, ParseError> {
             };
             let duration = frame_rate
                 .to_runtime()
-                .duration(runtime::TimelineTime::from_frames(frames));
+                .duration(runtime::TimelineFrame::from_frames(frames));
             clip.insert(
                 "length".into(),
                 serde_json::json!({"secs": duration.as_secs(), "nanos": duration.subsec_nanos()}),
@@ -691,9 +691,9 @@ impl MediaClipData {
             id: self.id,
             track_id: self.track_id,
             asset_id: self.asset_id,
-            timeline_start: runtime::TimelineTime::from_frames(self.timeline_start),
-            source_in: runtime::TimelineTime::from_frames(self.source_in),
-            source_out: runtime::TimelineTime::from_frames(self.source_out),
+            timeline_start: runtime::TimelineFrame::from_frames(self.timeline_start),
+            source_in: runtime::TimelineFrame::from_frames(self.source_in),
+            source_out: runtime::TimelineFrame::from_frames(self.source_out),
             video_properties: self.video_properties.to_runtime(),
             audio_properties: self.audio_properties.to_runtime(),
         }
@@ -715,7 +715,7 @@ impl TextClip {
         runtime::TextClip {
             id: self.id,
             track_id: self.track_id,
-            timeline_start: runtime::TimelineTime::from_frames(self.timeline_start),
+            timeline_start: runtime::TimelineFrame::from_frames(self.timeline_start),
             length: self.length,
             properties: self.properties.to_runtime(),
         }

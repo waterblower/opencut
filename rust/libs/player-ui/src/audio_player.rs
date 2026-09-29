@@ -1,7 +1,7 @@
-use crate::audio_output::AudioOutput;
+use crate::{WaitUntilPlaying, audio_output::AudioOutput};
 use anyhow::Result;
 use futures::{FutureExt, select};
-use gpui::{AsyncApp, Context, Task, WeakEntity};
+use gpui::{AsyncApp, Context, Entity, Task};
 use media_backend::{AudioBackend, AudioSamples};
 use std::{
     future::poll_fn,
@@ -39,13 +39,10 @@ impl AudioPlayer {
     /// Starts playback once. The owner must retain the task and drop it before the player.
     pub fn start(&mut self, cx: &mut Context<Self>) -> Task<()> {
         cx.spawn(async move |player, cx| {
-            if let Err(error) = run_player(player.clone(), cx).await {
-                // 取消播放 future 不会销毁 player 持有的设备流，需要显式停止输出。
-                if let Ok(Err(stop_error)) =
-                    player.update(cx, |player, _| player.audio_output.set_playing(false))
-                {
-                    eprintln!("Stopping audio output failed: {stop_error:?}");
-                }
+            let Some(player) = player.upgrade() else {
+                return;
+            };
+            if let Err(error) = run_player(player, cx).await {
                 eprintln!("Audio player failed: {error:?}");
                 std::process::exit(1);
             }
@@ -116,28 +113,25 @@ impl Drop for AudioPlayer {
     }
 }
 
-trait WaitUntilPlaying {
-    async fn wait_until_playing(&self, cx: &mut AsyncApp) -> Result<()>;
-}
-
-impl WaitUntilPlaying for WeakEntity<AudioPlayer> {
-    async fn wait_until_playing(&self, cx: &mut AsyncApp) -> Result<()> {
+impl WaitUntilPlaying for Entity<AudioPlayer> {
+    async fn wait_until_playing(&self, cx: &mut AsyncApp) {
         poll_fn(|task_cx| {
             self.update(cx, |player, _| {
                 if matches!(player.playback_state, PlaybackState::Playing) {
                     player.play_waker = None;
-                    Poll::Ready(Ok(()))
+                    Poll::Ready(())
                 } else {
                     player.play_waker = Some(task_cx.waker().clone());
                     Poll::Pending
                 }
-            })?
+            })
         })
         .await
     }
 }
 
-async fn run_player(player: WeakEntity<AudioPlayer>, cx: &mut AsyncApp) -> Result<()> {
+/// The owner cancels the task to release its strong player reference.
+async fn run_player(player: Entity<AudioPlayer>, cx: &mut AsyncApp) -> Result<()> {
     /// 解码结束后等待尾部音频播完；返回下次检查前的等待时长，耗尽后进入 Ended。
     fn finish_playback(
         player: &mut AudioPlayer,
@@ -162,13 +156,13 @@ async fn run_player(player: WeakEntity<AudioPlayer>, cx: &mut AsyncApp) -> Resul
     // 任一分支完成后，退出本函数并丢弃另一个 future；不会新建后台任务。
     select! {
         device_error_result = async {
-            let error = player.update(&mut error_cx, |player, _| player.audio_output.detect_error())?;
+            let error = player.update(&mut error_cx, |player, _| player.audio_output.detect_error());
             error.await
         }.fuse() => device_error_result,
         playback_result = async {
             let bge = cx.background_executor().clone();
             loop {
-                player.wait_until_playing(cx).await?;
+                player.wait_until_playing(cx).await;
                 let time_to_wait = player.update(cx, |player, cx| -> Result<Duration> {
                     let cycle_start = Instant::now();
                     match player.get_next_samples(cx)? {
@@ -180,7 +174,7 @@ async fn run_player(player: WeakEntity<AudioPlayer>, cx: &mut AsyncApp) -> Resul
                         // 解码结束后，等待已提交的尾部音频播完。
                         None => finish_playback(player, cx),
                     }
-                })??;
+                })?;
                 // Recheck the decoder and output after waiting so pause and seek still
                 // apply during the tail. Once output drains, the play gate waits for replay.
                 bge.timer(time_to_wait).await;

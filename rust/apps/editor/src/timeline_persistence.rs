@@ -47,9 +47,12 @@ impl TimelineRuntimeState {
     ) -> Result<Self> {
         ensure!(path.is_absolute(), "Timeline path must be absolute");
         let mut runtime = Self::new(path, document.to_editing_state(), media_root)?;
-        runtime
-            .backend
-            .seek(runtime.backend.timeline().duration(document.playhead()))?;
+        runtime.backend.seek(
+            runtime
+                .backend
+                .timeline()
+                .position_at_frame(document.playhead()),
+        )?;
         let (horizontal, vertical) = document.scroll_offset();
         runtime.h_scroll.set_offset(point(px(-horizontal), px(0.0)));
         runtime.v_scroll.set_offset(point(px(0.0), px(-vertical)));

@@ -104,6 +104,11 @@ are relative to the OpenCut root.
 - State should live in the narrowest scope that needs it. Prefer a local variable
   over a struct field unless the value actually needs to be shared across methods
   or control flows.
+- Do not introduce one-line forwarding wrappers around a helper with only one
+  production caller. Put the implementation in the entry-point function, or
+  call the implementation directly with the data it needs. An extra function
+  name and call layer add unnecessary semantic indirection, even when the
+  helper itself has many lines. Test-only callers do not justify the wrapper.
 - Do not extract a separate function when it has only one caller and its body is
   a single expression or statement. Inline that logic at the call site. A
   read-only accessor that keeps the underlying owner private without duplicating

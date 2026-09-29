@@ -14,7 +14,7 @@ fn timeline_clip_move_preview(
     timeline: &TimelineEditingState,
     pixels_per_second: f32,
     clip_id: Ulid,
-    start: TimelineTime,
+    start: TimelineFrame,
     invalid_reason: Option<&'static str>,
 ) -> gpui::AnyElement {
     let name = timeline
@@ -27,7 +27,7 @@ fn timeline_clip_move_preview(
     let duration = timeline
         .clip(clip_id)
         .map(|clip| clip.frame_length(timeline.settings.frame_rate))
-        .unwrap_or(TimelineTime::ZERO);
+        .unwrap_or(TimelineFrame::ZERO);
     let width = (timeline.seconds(duration) as f32 * pixels_per_second).max(4.0);
     let valid = invalid_reason.is_none();
     let feedback_color = if valid { ACCENT } else { ERROR };
@@ -619,7 +619,7 @@ fn preview_drop_asset(
                 TIMELINE_PADDING + timeline.seconds(preview.start_time) as f32 * pixels_per_second;
             let duration = timeline
                 .nearest_time(asset.metadata.duration)
-                .max(TimelineTime::ONE_FRAME);
+                .max(TimelineFrame::ONE_FRAME);
             let width = (timeline.seconds(duration) as f32 * pixels_per_second).max(4.0);
 
             Some(
