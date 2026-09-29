@@ -11,48 +11,32 @@ use ulid::Ulid;
 
 /// The parent supplies the size; layout bounds determine the composition scale.
 pub fn timeline_preview(timeline: &TimelineBackend) -> impl IntoElement {
-    let position = timeline
-        .timeline()
-        .settings
-        .frame_rate
-        .frames_from_duration_nearest(timeline.position());
-    let root = div()
+    let frame = timeline.preview_frame();
+    div()
         .id("timeline-preview")
         .size_full()
         .overflow_hidden()
-        .bg(rgb(0));
-    match timeline.preview_frame(position) {
-        Ok(Some(frame)) => root
-            .child(
-                canvas(
-                    move |bounds, window, cx| {
-                        let mut element =
-                            frame.render(bounds.size.width.into(), bounds.size.height.into());
-                        element.prepaint_as_root(
-                            bounds.origin,
-                            bounds.size.map(AvailableSpace::Definite),
-                            window,
-                            cx,
-                        );
-                        element
-                    },
-                    |_, mut element, window, cx| element.paint(window, cx),
-                )
-                .size_full(),
+        .bg(rgb(0))
+        .child(
+            canvas(
+                move |bounds, window, cx| {
+                    let mut element =
+                        frame.render(bounds.size.width.into(), bounds.size.height.into());
+                    element.prepaint_as_root(
+                        bounds.origin,
+                        bounds.size.map(AvailableSpace::Definite),
+                        window,
+                        cx,
+                    );
+                    element
+                },
+                |_, mut element, window, cx| element.paint(window, cx),
             )
-            .into_any_element(),
-        Ok(None) => root.into_any_element(),
-        Err(_) => root
-            .flex()
-            .items_center()
-            .justify_center()
-            .text_color(rgb(0xcccccc))
-            .child("Unable to render timeline preview")
-            .into_any_element(),
-    }
+            .size_full(),
+        )
 }
 
-/// Render images are prepared once on the backend worker, never during UI rendering.
+/// Render images are prepared during open, seek, or editing, never during UI rendering.
 pub struct TimelinePreviewFrame {
     pub frame: Arc<TimelineFrame>,
     images: HashMap<Ulid, Arc<RenderImage>>,

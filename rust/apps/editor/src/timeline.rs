@@ -1,7 +1,7 @@
 use super::*;
 use crate::editor::timeline_backend::TimelineBackend;
 use ::timeline::TimelineEditingState;
-pub use ::timeline::{FrameRate, TimelineTime};
+pub use ::timeline::{FrameRate, TimelineFrame};
 use anyhow::{Result, ensure};
 use std::path::Path;
 
@@ -34,22 +34,22 @@ pub struct TimelineRuntimeState {
 #[derive(Debug)]
 pub struct PreviewDropAsset {
     pub track_id: Ulid,
-    pub start_time: TimelineTime,
+    pub start_time: TimelineFrame,
     pub asset: AssetBeingDragged,
 }
 
 pub fn timeline_ranges_overlap(
-    left_start: TimelineTime,
-    left_end: TimelineTime,
-    right_start: TimelineTime,
-    right_end: TimelineTime,
+    left_start: TimelineFrame,
+    left_end: TimelineFrame,
+    right_start: TimelineFrame,
+    right_end: TimelineFrame,
 ) -> bool {
     left_start < right_end && right_start < left_end
 }
 pub trait TimelineEditorExt: Sized {
     fn validate_clip_move_placements(
         &self,
-        placements: &[(Ulid, Ulid, TimelineTime)],
+        placements: &[(Ulid, Ulid, TimelineFrame)],
         ignored_clip_ids: &HashSet<Ulid>,
     ) -> Result<()>;
     fn set_frame_rate(&mut self, frame_rate: FrameRate);
@@ -58,7 +58,7 @@ pub trait TimelineEditorExt: Sized {
 impl TimelineEditorExt for TimelineEditingState {
     fn validate_clip_move_placements(
         &self,
-        placements: &[(Ulid, Ulid, TimelineTime)],
+        placements: &[(Ulid, Ulid, TimelineFrame)],
         ignored_clip_ids: &HashSet<Ulid>,
     ) -> Result<()> {
         if placements.is_empty() {
@@ -109,7 +109,7 @@ impl TimelineEditorExt for TimelineEditingState {
                     let other_duration = self
                         .clip(*other_id)
                         .map(|clip| clip.frame_length(frame_rate))
-                        .unwrap_or(TimelineTime::ZERO);
+                        .unwrap_or(TimelineFrame::ZERO);
                     track_id == other_track_id
                         && timeline_ranges_overlap(
                             *start,
@@ -137,7 +137,7 @@ impl TimelineEditorExt for TimelineEditingState {
             let timeline_start = previous.rescale_nearest(old_start, frame_rate);
             clip.set_timeline_start(timeline_start);
             let new_duration = (previous.rescale_nearest(old_end, frame_rate) - timeline_start)
-                .max(TimelineTime::ONE_FRAME);
+                .max(TimelineFrame::ONE_FRAME);
             match clip {
                 Clip::Video(clip) | Clip::Audio(clip) => {
                     clip.source_in = previous.rescale_nearest(clip.source_in, frame_rate);
@@ -172,13 +172,13 @@ impl TimelineEditorExt for TimelineEditingState {
                     (Some(_), _) => true,
                     (None, _) => true,
                 }
-                || clip.timeline_start() < TimelineTime::ZERO
+                || clip.timeline_start() < TimelineFrame::ZERO
                 || match clip {
                     Clip::Video(clip) | Clip::Audio(clip) => {
-                        clip.source_in < TimelineTime::ZERO
-                            || clip.source_out - clip.source_in < TimelineTime::ONE_FRAME
+                        clip.source_in < TimelineFrame::ZERO
+                            || clip.source_out - clip.source_in < TimelineFrame::ONE_FRAME
                     }
-                    Clip::Text(clip) => clip.frame_length(frame_rate) < TimelineTime::ONE_FRAME,
+                    Clip::Text(clip) => clip.frame_length(frame_rate) < TimelineFrame::ONE_FRAME,
                 };
             !is_invalid
         });
@@ -190,20 +190,20 @@ impl TimelineEditorExt for TimelineEditingState {
                 if asset.kind == MediaKind::Image {
                     // An image has no time-based source to exhaust. Its five-second
                     // asset duration is only the initial clip length, not a maximum.
-                    clip.source_in = clip.source_in.max(TimelineTime::ZERO);
+                    clip.source_in = clip.source_in.max(TimelineFrame::ZERO);
                     clip.source_out = clip
                         .source_out
-                        .max(clip.source_in + TimelineTime::ONE_FRAME);
+                        .max(clip.source_in + TimelineFrame::ONE_FRAME);
                 } else {
                     let asset_duration = frame_rate
                         .nearest(asset.duration)
-                        .max(TimelineTime::ONE_FRAME);
+                        .max(TimelineFrame::ONE_FRAME);
                     let maximum_in =
-                        (asset_duration - TimelineTime::ONE_FRAME).max(TimelineTime::ZERO);
-                    clip.source_in = clip.source_in.clamp(TimelineTime::ZERO, maximum_in);
+                        (asset_duration - TimelineFrame::ONE_FRAME).max(TimelineFrame::ZERO);
+                    clip.source_in = clip.source_in.clamp(TimelineFrame::ZERO, maximum_in);
                     clip.source_out = clip
                         .source_out
-                        .clamp(clip.source_in + TimelineTime::ONE_FRAME, asset_duration);
+                        .clamp(clip.source_in + TimelineFrame::ONE_FRAME, asset_duration);
                 }
             }
         }
@@ -221,7 +221,7 @@ impl TimelineEditorExt for TimelineEditingState {
                     .cmp(&self.clips[*right].timeline_start())
                     .then_with(|| self.clips[*left].id().cmp(&self.clips[*right].id()))
             });
-            let mut next_available = TimelineTime::ZERO;
+            let mut next_available = TimelineFrame::ZERO;
             for index in indices {
                 let timeline_start = self.clips[index].timeline_start().max(next_available);
                 self.clips[index].set_timeline_start(timeline_start);
@@ -265,7 +265,7 @@ impl TimelineRuntimeState {
         })
     }
 
-    pub fn playhead(&self) -> TimelineTime {
+    pub fn playhead(&self) -> TimelineFrame {
         self.backend
             .timeline()
             .settings

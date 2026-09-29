@@ -10,7 +10,7 @@ pub(super) enum TimelineTool {
 #[derive(Clone)]
 pub(super) struct ClipMoveItem {
     pub(super) clip_id: Ulid,
-    pub(super) original_timeline_start: TimelineTime,
+    pub(super) original_timeline_start: TimelineFrame,
     pub(super) original_track_id: Ulid,
     pub(super) original_track_index: usize,
 }
@@ -18,10 +18,10 @@ pub(super) struct ClipMoveItem {
 pub(super) struct ClipMoveDrag {
     pub(super) anchor_clip_id: Ulid,
     pub(super) start_x: f32,
-    pub(super) original_anchor_start: TimelineTime,
+    pub(super) original_anchor_start: TimelineFrame,
     pub(super) original_anchor_track_index: usize,
     pub(super) items: Vec<ClipMoveItem>,
-    pub(super) placements: Vec<(Ulid, Ulid, TimelineTime)>,
+    pub(super) placements: Vec<(Ulid, Ulid, TimelineFrame)>,
     pub(super) invalid_reason: Option<&'static str>,
     pub(super) changed: bool,
 }
@@ -39,8 +39,8 @@ pub(super) struct TimelineInteractionState {
     pub(super) active_tool: TimelineTool,
     pub(super) selected_clip_id: Option<Ulid>,
     pub(super) selected_clip_ids: HashSet<Ulid>,
-    pub(super) blade_guide: Option<TimelineTime>,
-    pub(super) snap_guide: Option<TimelineTime>,
+    pub(super) blade_guide: Option<TimelineFrame>,
+    pub(super) snap_guide: Option<TimelineFrame>,
     pub(super) clip_move_drag: Option<ClipMoveDrag>,
     pub(super) marquee_selection: Option<MarqueeSelection>,
     pub(super) scrubbing_playhead: bool,
@@ -127,11 +127,11 @@ impl TimelineRuntimeState {
 
     pub(super) fn snap_time_ignoring(
         &self,
-        time: TimelineTime,
+        time: TimelineFrame,
         ignored_clip_ids: &HashSet<Ulid>,
-    ) -> (TimelineTime, Option<TimelineTime>) {
+    ) -> (TimelineFrame, Option<TimelineFrame>) {
         if !self.snapping_enabled {
-            return (time.max(TimelineTime::ZERO), None);
+            return (time.max(TimelineFrame::ZERO), None);
         }
         let threshold = self
             .backend
@@ -141,7 +141,7 @@ impl TimelineRuntimeState {
             .ceil(SNAP_DISTANCE_PX as f64 / self.pixels_per_second as f64)
             .frames()
             .max(1) as u64;
-        let mut candidates = vec![TimelineTime::ZERO, self.playhead()];
+        let mut candidates = vec![TimelineFrame::ZERO, self.playhead()];
         for clip in &self.backend.timeline().clips {
             if !ignored_clip_ids.contains(&clip.id()) {
                 candidates.push(clip.timeline_start());
@@ -152,16 +152,16 @@ impl TimelineRuntimeState {
             .into_iter()
             .filter(|candidate| candidate.abs_diff(time) <= threshold)
             .min_by_key(|candidate| candidate.abs_diff(time))
-            .map(|candidate| (candidate.max(TimelineTime::ZERO), Some(candidate)));
-        snapped.unwrap_or((time.max(TimelineTime::ZERO), None))
+            .map(|candidate| (candidate.max(TimelineFrame::ZERO), Some(candidate)));
+        snapped.unwrap_or((time.max(TimelineFrame::ZERO), None))
     }
 
     pub(super) fn snap_clip_start_ignoring(
         &self,
-        start: TimelineTime,
-        duration: TimelineTime,
+        start: TimelineFrame,
+        duration: TimelineFrame,
         ignored_clip_ids: &HashSet<Ulid>,
-    ) -> (TimelineTime, Option<TimelineTime>) {
+    ) -> (TimelineFrame, Option<TimelineFrame>) {
         let (start_candidate, start_guide) = self.snap_time_ignoring(start, ignored_clip_ids);
         let (snapped_end, end_guide) = self.snap_time_ignoring(start + duration, ignored_clip_ids);
         let end_candidate = snapped_end - duration;
@@ -194,35 +194,35 @@ impl TimelineRuntimeState {
         }
     }
 
-    pub(super) fn timeline_position_from_x(&self, x: f32) -> TimelineTime {
+    pub(super) fn timeline_position_from_x(&self, x: f32) -> TimelineFrame {
         let scroll_x: f32 = self.h_scroll.offset().x.into();
         let content_x = x - TRACK_HEADER_WIDTH - scroll_x - TIMELINE_PADDING;
         self.backend
             .timeline()
             .nearest_time(content_x as f64 / self.pixels_per_second as f64)
             .clamp(
-                TimelineTime::ZERO,
+                TimelineFrame::ZERO,
                 self.backend.timeline().content_duration(),
             )
     }
 }
 
 pub(super) fn choose_clip_snap(
-    original_start: TimelineTime,
-    start_candidate: TimelineTime,
-    start_guide: Option<TimelineTime>,
-    end_candidate: TimelineTime,
-    end_guide: Option<TimelineTime>,
-) -> (TimelineTime, Option<TimelineTime>) {
+    original_start: TimelineFrame,
+    start_candidate: TimelineFrame,
+    start_guide: Option<TimelineFrame>,
+    end_candidate: TimelineFrame,
+    end_guide: Option<TimelineFrame>,
+) -> (TimelineFrame, Option<TimelineFrame>) {
     match (start_guide, end_guide) {
-        (None, None) => (original_start.max(TimelineTime::ZERO), None),
-        (Some(guide), None) => (start_candidate.max(TimelineTime::ZERO), Some(guide)),
-        (None, Some(guide)) => (end_candidate.max(TimelineTime::ZERO), Some(guide)),
+        (None, None) => (original_start.max(TimelineFrame::ZERO), None),
+        (Some(guide), None) => (start_candidate.max(TimelineFrame::ZERO), Some(guide)),
+        (None, Some(guide)) => (end_candidate.max(TimelineFrame::ZERO), Some(guide)),
         (Some(start_guide), Some(end_guide)) => {
             if end_candidate.abs_diff(original_start) < start_candidate.abs_diff(original_start) {
-                (end_candidate.max(TimelineTime::ZERO), Some(end_guide))
+                (end_candidate.max(TimelineFrame::ZERO), Some(end_guide))
             } else {
-                (start_candidate.max(TimelineTime::ZERO), Some(start_guide))
+                (start_candidate.max(TimelineFrame::ZERO), Some(start_guide))
             }
         }
     }
@@ -254,7 +254,7 @@ impl Editor {
         let position = timeline
             .timeline_position_from_x(event.position.x.into())
             .clamp(
-                TimelineTime::ZERO,
+                TimelineFrame::ZERO,
                 timeline.backend.timeline().content_duration(),
             );
         let timeline = self.timeline.as_mut().expect("timeline was checked above");
@@ -534,15 +534,15 @@ impl Editor {
             .iter()
             .map(|item| item.original_timeline_start)
             .min()
-            .unwrap_or(TimelineTime::ZERO);
+            .unwrap_or(TimelineFrame::ZERO);
         let raw_anchor_start = original_anchor_start
-            + TimelineTime::from_frames(raw_delta.frames().max(-earliest_start.frames()));
+            + TimelineFrame::from_frames(raw_delta.frames().max(-earliest_start.frames()));
         let anchor_duration = timeline
             .backend
             .timeline()
             .clip(anchor_clip_id)
             .map(|clip| clip.frame_length(timeline.backend.timeline().settings.frame_rate))
-            .unwrap_or(TimelineTime::ZERO);
+            .unwrap_or(TimelineFrame::ZERO);
         let (snapped_start, snap_guide) = timeline.snap_clip_start_ignoring(
             raw_anchor_start,
             anchor_duration,
@@ -742,7 +742,7 @@ impl Editor {
             return;
         };
         let position = timeline.timeline_position_from_x(event.position.x.into());
-        if let Err(error) = set_timeline_position(&mut self.preview, &timeline.backend, position) {
+        if let Err(error) = timeline.backend.seek_frame(position) {
             log::error!("{error:?}");
             return;
         }
@@ -765,8 +765,7 @@ impl Editor {
             return;
         }
         let position = timeline.timeline_position_from_x(event.position.x.into());
-
-        if let Err(error) = set_timeline_position(&mut self.preview, &timeline.backend, position) {
+        if let Err(error) = timeline.backend.seek_frame(position) {
             log::error!("{error:?}");
             return;
         }
@@ -787,7 +786,7 @@ impl Editor {
         }
         timeline.interaction.scrubbing_playhead = false;
         let position = timeline.timeline_position_from_x(event.position.x.into());
-        if let Err(error) = set_timeline_position(&mut self.preview, &timeline.backend, position) {
+        if let Err(error) = timeline.backend.seek_frame(position) {
             log::error!("{error:?}");
             return;
         }
@@ -804,12 +803,12 @@ impl Editor {
         if timeline.backend.timeline().clips.is_empty() {
             return Ok(());
         }
-        let target = (timeline.playhead() + TimelineTime::from_frames(frames)).clamp(
-            TimelineTime::ZERO,
+        let target = (timeline.playhead() + TimelineFrame::from_frames(frames)).clamp(
+            TimelineFrame::ZERO,
             timeline.backend.timeline().content_duration(),
         );
         if target != timeline.playhead() || !self.preview.target.is_timeline() {
-            set_timeline_position(&mut self.preview, &timeline.backend, target)?;
+            timeline.backend.seek_frame(target)?;
             timeline.save()?;
         }
         Ok(())

@@ -1,4 +1,4 @@
-use crate::editor::{explorer_drag::AssetBeingDragged, preview::set_timeline_position};
+use crate::editor::explorer_drag::AssetBeingDragged;
 use ::timeline::TimelineSerialization;
 use anyhow::{Context as _, Result};
 use gpui::{
@@ -72,7 +72,7 @@ use project_settings::{load_project_local_settings, save_project_local_settings}
 use properties_transform::VideoTransformInputs;
 use timeline::{
     FRAME_RATE_PRESETS, FrameRate, FrameRateLabel, PreviewDropAsset, TimelineEditorExt,
-    TimelineRuntimeState, TimelineTime, timeline_ranges_overlap,
+    TimelineFrame, TimelineRuntimeState, timeline_ranges_overlap,
 };
 #[cfg(test)]
 use timeline_clip::AudioClip;
@@ -243,8 +243,7 @@ impl Editor {
             {
                 self.select_only_clip(None);
                 let timeline = self.timeline.as_mut().expect("timeline was checked above");
-                let playhead = timeline.playhead();
-                set_timeline_position(&mut self.preview, &timeline.backend, playhead)?;
+                timeline.backend.seek_frame(timeline.playhead())?;
                 self.explorer.selected_file = Some(relative_path);
                 cx.notify();
                 return Ok(());
@@ -331,8 +330,7 @@ impl Editor {
                 .refresh_file_tree(&self.project_root)
                 .context("refresh_file_tree failed")?;
             if let Some(timeline) = self.timeline.as_mut() {
-                let playhead = timeline.playhead();
-                set_timeline_position(&mut self.preview, &timeline.backend, playhead)?;
+                timeline.backend.seek_frame(timeline.playhead())?;
             } else {
                 self.preview.target = PreviewTarget::None;
             }

@@ -155,8 +155,7 @@ impl Editor {
             active_asset_drag: AssetBeingDragged::None,
         };
         if let Some(timeline) = editor.timeline.as_mut() {
-            let playhead = timeline.playhead();
-            set_timeline_position(&mut editor.preview, &timeline.backend, playhead)?;
+            timeline.backend.seek_frame(timeline.playhead())?;
         }
         editor.schedule_project_waveforms(cx);
         Ok(editor)
