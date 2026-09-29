@@ -51,6 +51,8 @@ pub fn export(
         i64::try_from(total_samples).context("Export audio duration is too large")?;
 
     let temporary = output_path.with_file_name(format!(".opencut-export-{}.mp4", Ulid::generate()));
+    // 只占用临时文件名：create_new 保证不覆盖已有文件；
+    // 句柄立即关闭，FFmpeg 按路径另行打开写入。
     drop(
         OpenOptions::new()
             .write(true)
@@ -85,11 +87,13 @@ pub fn export(
             )
             .context("Creating export canvas")?;
         window.update(&mut cx, |_, window, cx| {
-            let scale = window.scale_factor(); // timeline 使用输出像素；窗口使用逻辑像素。
-            window.resize(size(
-                px(settings.width as f32 / scale),
-                px(settings.height as f32 / scale),
-            ));
+            // settings.width/height：输出像素，即编码帧尺寸。
+            // logical_width/height：GPUI 逻辑像素；
+            // 乘以 scale 后等于输出像素，render_to_image 才得到完整输出帧。
+            let scale = window.scale_factor();
+            let logical_width = settings.width as f32 / scale;
+            let logical_height = settings.height as f32 / scale;
+            window.resize(size(px(logical_width), px(logical_height)));
             window.bounds_changed(cx);
         })?;
         let mut encoder = ExportEncoder::open(&temporary, settings, option.video_bitrate)?;
