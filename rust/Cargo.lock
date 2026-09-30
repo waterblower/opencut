@@ -5358,17 +5358,12 @@ name = "player"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "engine",
  "env_logger",
  "ffmpeg-next",
  "gpui",
  "gpui_platform",
- "image",
- "media-backend",
  "player-ui",
- "smallvec",
  "timeline",
- "ulid",
 ]
 
 [[package]]
@@ -5379,12 +5374,16 @@ dependencies = [
  "core-foundation 0.10.0",
  "core-video",
  "cpal",
+ "engine",
  "ffmpeg-next",
  "futures",
  "gpui",
  "image",
  "media-backend",
  "metal",
+ "smallvec",
+ "timeline",
+ "ulid",
 ]
 
 [[package]]

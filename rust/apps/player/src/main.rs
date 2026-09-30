@@ -6,13 +6,11 @@ use gpui::{
 };
 use gpui_platform::application;
 use player_ui::audio_player::AudioPlayer;
+use player_ui::timeline_player::TimelinePlayer;
 use player_ui::video_player::VideoPlayer;
-use timeline_player::TimelinePlayer;
+use timeline::TimelineSerialization;
 
 use std::path::{Path, PathBuf};
-
-mod playback_decoder;
-mod timeline_player;
 
 fn main() -> Result<()> {
     let path = {
@@ -53,10 +51,17 @@ fn main() -> Result<()> {
         };
         cx.open_window(options, move |window, cx| {
             let (player, task) = match input_file_type {
-                InputFileType::Timeline => match TimelinePlayer::new(&path) {
+                InputFileType::Timeline => match open_timeline(&path) {
                     Ok(player) => {
                         let player = cx.new(move |_| player);
-                        let task = player.update(cx, |player, cx| player.start(cx));
+                        let task = player.update(cx, |player, cx| {
+                            let task = player.start(cx);
+                            player.play(cx).map(|()| task)
+                        });
+                        let task = task.unwrap_or_else(|error| {
+                            eprintln!("Timeline player failed: {error:?}");
+                            std::process::exit(1);
+                        });
                         (Player::Timeline(player), task)
                     }
                     Err(error) => {
@@ -174,6 +179,18 @@ impl InputFileType {
         }
         Ok(Self::Video)
     }
+}
+
+/// Media paths in the document resolve against its directory.
+fn open_timeline(path: &Path) -> Result<TimelinePlayer> {
+    let timeline = TimelineSerialization::load(path)?.to_editing_state();
+    let project_root = std::path::absolute(path)?
+        .parent()
+        .context("Timeline path has no parent directory")?
+        .to_path_buf();
+    let mut player = TimelinePlayer::new(timeline, &project_root)?;
+    player.title = path.display().to_string();
+    Ok(player)
 }
 
 fn is_audio_only(path: &Path) -> Result<bool> {

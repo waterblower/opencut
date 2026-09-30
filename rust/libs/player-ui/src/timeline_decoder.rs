@@ -25,6 +25,7 @@ const TIMESTAMP_TOLERANCE: i64 = 1_000; // 吸收源帧 PTS 与目标时间的�
 
 /// Render images are prepared when a frame is decoded, never during UI rendering.
 pub struct PreparedFrame {
+    pub frame: TimelineFrameIndex, // 已钳制到最后一帧。
     pub timestamp: Duration,
     pub width: u32,
     pub height: u32,
@@ -39,13 +40,22 @@ pub enum PreparedLayer {
     Text(TextClipProperties),
 }
 
-pub struct PlaybackDecoder {
+impl PreparedFrame {
+    pub fn images(&self) -> impl Iterator<Item = &Arc<RenderImage>> {
+        self.layers.iter().filter_map(|layer| match layer {
+            PreparedLayer::Picture { image, .. } => Some(image),
+            PreparedLayer::Text(_) => None,
+        })
+    }
+}
+
+pub struct TimelineDecoder {
     project_root: PathBuf,
     readers: HashMap<Ulid, ClipReader>, // 按 clip 而非素材区分：同一素材的重叠 clip 各自前进。
     images: HashMap<Ulid, Arc<RenderImage>>,
 }
 
-impl PlaybackDecoder {
+impl TimelineDecoder {
     pub fn new(project_root: &Path) -> Self {
         Self {
             project_root: project_root.to_owned(),
@@ -135,6 +145,7 @@ impl PlaybackDecoder {
         // Clips outside the current frame release their decoders.
         self.readers.retain(|id, _| active_readers.contains(id));
         Ok(PreparedFrame {
+            frame: position,
             timestamp: timeline.position_at_frame(position),
             width: timeline.settings.width,
             height: timeline.settings.height,
