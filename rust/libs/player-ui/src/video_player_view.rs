@@ -131,8 +131,7 @@ pub fn seek(
 ) -> anyhow::Result<()> {
     let duration = player.duration();
     let position = duration.mul_f64(f64::from(fraction.clamp(0.0, 1.0)));
-    player.seek(position)?;
-    cx.notify();
+    player.seek(position, cx)?;
     Ok(())
 }
 

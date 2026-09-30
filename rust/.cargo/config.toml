@@ -6,10 +6,12 @@ test-mac = ["test", "--config", ".cargo/macos.toml", "--config", "env.RUST_TEST_
 test-win = ["test", "--config", ".cargo/windows.toml", "--config", "env.RUST_TEST_THREADS=\"1\""]
 player-mac = "run --config .cargo/cli.toml -p player --"
 player-win = "run --config .cargo/ffmpeg-windows.toml -p player --"
+player-linux = "run --config .cargo/cli.toml -p player --"
 build-editor-mac = "build --config .cargo/macos.toml -p editor"
 build-editor-win = "build --config .cargo/windows.toml -p editor"
 build-player-mac = "build --config .cargo/cli.toml -p player"
 build-player-win = "build --config .cargo/ffmpeg-windows.toml -p player"
+build-player-linux = "build --config .cargo/cli.toml -p player"
 mp3-mac = "run --config .cargo/macos.toml -p examples --bin mp3"
 mp3-win = "run --config .cargo/windows.toml -p examples --bin mp3"
 2win-mac = "run --config .cargo/macos.toml --quiet -p examples --bin 2windows"

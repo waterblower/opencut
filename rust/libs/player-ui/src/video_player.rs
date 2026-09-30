@@ -8,7 +8,7 @@ use ffmpeg_next::{
     Error as FfmpegError, ffi, format::Pixel, frame::Video, software::scaling, util::color,
 };
 use futures::{FutureExt, select, try_join};
-use gpui::{AsyncApp, Context, Entity, RenderImage, Task};
+use gpui::{AsyncApp, Context, RenderImage, Task, WeakEntity};
 use image::{Frame, RgbaImage};
 use media_backend::{VideoBackend, VideoFrame};
 use std::{
@@ -61,11 +61,17 @@ impl VideoPlayer {
 
     /// Starts playback once. The owner must retain the task and drop it before the player.
     pub fn start(&mut self, cx: &mut Context<Self>) -> Task<()> {
+        cx.on_release(|player, cx| {
+            if let Some((DisplayedFrame::Image(image), _, _)) = player.displayed.take() {
+                cx.defer(move |cx| cx.drop_image(image, None));
+            }
+        })
+        .detach();
         cx.spawn(async move |player, cx| {
-            let Some(player) = player.upgrade() else {
-                return;
-            };
-            if let Err(error) = run_player(player, cx).await {
+            if let Err(error) = run_player(&player, cx).await {
+                if player.upgrade().is_none() {
+                    return;
+                }
                 eprintln!("Player failed: {error:?}");
                 std::process::exit(1);
             }
@@ -135,12 +141,12 @@ impl PlaybackClock {
 }
 
 impl VideoPlayer {
-    pub fn seek(&mut self, position: Duration) -> Result<()> {
+    pub fn seek(&mut self, position: Duration, cx: &mut Context<Self>) -> Result<()> {
         self.audio_output.clear_at(position)?;
         self.video_backend.video.seek(position)?;
         self.video_backend.audio.seek(position)?;
         if let Some(frame) = self.prepare_next_frame()? {
-            self.displayed = Some(frame);
+            self.show(frame, cx);
         }
         Ok(())
     }
@@ -199,8 +205,7 @@ impl VideoPlayer {
                 return Ok(wait.min(MAX_CONTROL_WAIT)); // 提前准备，按 PTS 等待；长间隔中仍检查暂停/seek。
             }
             let (frame, _) = pending_frame.take().expect("prepared video frame exists");
-            self.displayed = Some(frame);
-            cx.notify();
+            self.show(frame, cx);
             return Ok(Duration::ZERO); // 下一轮准备后续帧，不等到其展示时刻才开始解码。
         }
         let video_remaining = match &self.displayed {
@@ -227,6 +232,14 @@ impl VideoPlayer {
         Ok(video_remaining.max(audio_remaining).min(MAX_CONTROL_WAIT))
     }
 
+    fn show(&mut self, frame: (DisplayedFrame, Duration, Duration), cx: &mut Context<Self>) {
+        if let Some((DisplayedFrame::Image(image), _, _)) = self.displayed.replace(frame) {
+            // 等当前窗口归还 App 后，释放旧帧在各窗口图集中的纹理。
+            cx.defer(move |cx| cx.drop_image(image, None));
+        }
+        cx.notify();
+    }
+
     fn advance_audio(&mut self) -> Result<Duration> {
         let cycle_start = Instant::now();
         if !self.video_backend.audio.is_drained() {
@@ -249,10 +262,10 @@ impl VideoPlayer {
 }
 
 const MAX_CONTROL_WAIT: Duration = Duration::from_millis(100); // 限制控制响应延迟，不对视频 PTS 做取整。
-impl WaitUntilPlaying for Entity<VideoPlayer> {
+impl WaitUntilPlaying for WeakEntity<VideoPlayer> {
     async fn wait_until_playing(&self, cx: &mut AsyncApp) {
         poll_fn(|task_cx| {
-            self.update(cx, |player, _| {
+            match self.update(cx, |player, _| {
                 if matches!(player.playback_state, PlaybackState::Playing) {
                     Poll::Ready(())
                 } else {
@@ -265,21 +278,28 @@ impl WaitUntilPlaying for Entity<VideoPlayer> {
                     }
                     Poll::Pending
                 }
-            })
+            }) {
+                Ok(state) => state,
+                Err(_) => Poll::Ready(()),
+            }
         })
         .await
     }
 }
 
 impl VideoPlayer {
-    fn sync_playback_clock(&mut self, clock: &Cell<PlaybackClock>) -> Result<()> {
+    fn sync_playback_clock(
+        &mut self,
+        clock: &Cell<PlaybackClock>,
+        cx: &mut Context<Self>,
+    ) -> Result<()> {
         if matches!(self.playback_state, PlaybackState::Playing) {
             if !self.audio_output.is_playing() {
                 if clock.get().start_position_of_video >= self.duration()
                     && self.video_backend.video.is_drained()
                     && self.video_backend.audio.is_drained()
                 {
-                    self.seek(Duration::ZERO)?;
+                    self.seek(Duration::ZERO, cx)?;
                 }
                 while !self.video_backend.audio.is_drained()
                     && self
@@ -299,7 +319,7 @@ impl VideoPlayer {
         } else if clock.get().start_time_of_system.is_some() {
             let position = if self.audio_output.is_playing() {
                 let position = clock.get().position().min(self.duration());
-                self.seek(position)?;
+                self.seek(position, cx)?;
                 position
             } else {
                 self.video_backend.audio.seek_position()
@@ -313,12 +333,12 @@ impl VideoPlayer {
     }
 }
 
-/// The owner cancels the task to release its strong player reference.
-async fn run_player(player: Entity<VideoPlayer>, cx: &mut AsyncApp) -> Result<()> {
+/// Only weak ownership crosses awaits, so closing the window releases the player immediately.
+async fn run_player(player: &WeakEntity<VideoPlayer>, cx: &mut AsyncApp) -> Result<()> {
     let mut error_cx = cx.clone();
     select! {
         device_error_result = async {
-            let error = player.update(&mut error_cx, |player, _| player.audio_output.detect_error());
+            let error = player.update(&mut error_cx, |player, _| player.audio_output.detect_error())?;
             error.await
         }.fuse() => device_error_result,
         playback_result = async {
@@ -332,10 +352,10 @@ async fn run_player(player: Entity<VideoPlayer>, cx: &mut AsyncApp) -> Result<()
             let mut video_loop = async || -> Result<()> {
                 let mut pending_frame = None;
                 loop {
-                    player.update(&mut video_cx, |player, _| player.sync_playback_clock(&clock))?; // 等待前处理暂停：冻结时钟并停止、重置音频输出。
+                    player.update(&mut video_cx, |player, cx| player.sync_playback_clock(&clock, cx))??; // 等待前处理暂停：冻结时钟并停止、重置音频输出。
                     player.wait_until_playing(&mut video_cx).await;
-                    player.update(&mut video_cx, |player, _| player.sync_playback_clock(&clock))?; // 恢复后预缓冲、启动输出和时钟；持续播放时不做额外操作。
-                    let wait = player.update(&mut video_cx, |player, cx| player.advance_video(&clock, &mut pending_frame, cx))?;
+                    player.update(&mut video_cx, |player, cx| player.sync_playback_clock(&clock, cx))??; // 恢复后预缓冲、启动输出和时钟；持续播放时不做额外操作。
+                    let wait = player.update(&mut video_cx, |player, cx| player.advance_video(&clock, &mut pending_frame, cx))??;
                     bge.timer(wait).await;
                 }
             };
@@ -343,10 +363,10 @@ async fn run_player(player: Entity<VideoPlayer>, cx: &mut AsyncApp) -> Result<()
             let mut audio_cx = cx.clone();
             let mut audio_loop = async || -> Result<()> {
                 loop {
-                    player.update(&mut audio_cx, |player, _| player.sync_playback_clock(&clock))?; // 等待前处理暂停：冻结时钟并停止、重置音频输出。
+                    player.update(&mut audio_cx, |player, cx| player.sync_playback_clock(&clock, cx))??; // 等待前处理暂停：冻结时钟并停止、重置音频输出。
                     player.wait_until_playing(&mut audio_cx).await;
-                    player.update(&mut audio_cx, |player, _| player.sync_playback_clock(&clock))?; // 恢复后预缓冲、启动输出和时钟；持续播放时不做额外操作。
-                    let wait = player.update(&mut audio_cx, |player, _| player.advance_audio())?;
+                    player.update(&mut audio_cx, |player, cx| player.sync_playback_clock(&clock, cx))??; // 恢复后预缓冲、启动输出和时钟；持续播放时不做额外操作。
+                    let wait = player.update(&mut audio_cx, |player, _| player.advance_audio())??;
                     bge.timer(wait).await;
                 }
             };
