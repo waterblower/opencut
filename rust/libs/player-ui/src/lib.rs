@@ -3,6 +3,7 @@
 mod audio_output;
 pub mod audio_player;
 mod audio_player_view;
+#[cfg(target_os = "macos")]
 mod gpu;
 pub mod timeline_player;
 pub mod timeline_player_view;

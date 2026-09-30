@@ -16,7 +16,7 @@ fn main() -> Result<()> {
     let path = {
         let arguments: Vec<_> = std::env::args_os().skip(1).collect();
         let [path] = arguments.as_slice() else {
-            eprintln!("Usage: cargo player-mac <path_to_media_or_timeline>");
+            eprintln!("Usage: player <path_to_media_or_timeline>");
             return Ok(());
         };
         let path = PathBuf::from(path);

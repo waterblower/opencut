@@ -80,6 +80,11 @@ impl AudioOutput {
                     skipped_frames = 0;
                 },
                 move |error| {
+                    // ALSA 会恢复 underrun；恢复失败另行报告设备错误。
+                    #[cfg(target_os = "linux")]
+                    if matches!(error, cpal::StreamError::BufferUnderrun) {
+                        return;
+                    }
                     let sender = {
                         let Ok(mut sender) = callback_error_sender.lock() else {
                             return;
@@ -290,6 +295,11 @@ impl AudioOutput {
                         skipped_frames = 0;
                     },
                     move |error| {
+                        // ALSA 会恢复 underrun；恢复失败另行报告设备错误。
+                        #[cfg(target_os = "linux")]
+                        if matches!(error, cpal::StreamError::BufferUnderrun) {
+                            return;
+                        }
                         let sender = {
                             let Ok(mut sender) = callback_error_sender.lock() else {
                                 return;

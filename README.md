@@ -18,6 +18,7 @@ Devlog: https://www.youtube.com/playlist?list=PLRz1nfZl0jMU
 - Latest stable Rust (edition 2024)
 - Existing FFmpeg development libraries in `rust/vendor/ffmpeg-8.1.2/`
 - Xcode command line tools and `pkg-config` on macOS
+- A Vulkan-capable graphics driver and the native development packages below on Linux
 
 Use the existing vendored FFmpeg libraries; do not build FFmpeg locally.
 On macOS, install `pkg-config` with `brew install pkg-config`, then run the
@@ -47,6 +48,61 @@ is compiled, and the commands do not change the parent shell's environment.
 Both applications use the existing vendored FFmpeg libraries. Platform runners
 set their runtime library paths without requiring a separately installed media
 runtime.
+
+### Linux player
+
+Initialize the pinned GPUI source from the repository root:
+
+```sh
+git submodule update --init --depth 1 rust/vendor/zed
+```
+
+Use a recent stable Rust toolchain with `rustfmt` and `clippy`. The pinned GPUI
+snapshot declares Rust 1.97.1. On Debian/Ubuntu, install the native dependencies:
+
+```sh
+sudo apt-get install build-essential pkg-config clang libclang-dev cmake \
+  libasound2-dev libfontconfig-dev libwayland-dev libx11-xcb-dev \
+  libxkbcommon-x11-dev libssl-dev libzstd-dev libvulkan1 mesa-vulkan-drivers
+```
+
+Provide an FFmpeg 8.1 shared development build, including headers and pkg-config
+files, in `rust/vendor/ffmpeg-8.1.2/`. Do not compile FFmpeg. This directory is the
+historical lookup path, not a guarantee of the installed library's patch version.
+The Linux validation uses the precompiled LGPL shared 8.1-branch build
+`n8.1.3-6-gff48edd8b2-20260929` from
+[BtbN, a provider linked by FFmpeg](https://ffmpeg.org/download.html#build-linux).
+To reproduce that dependency from `rust`:
+
+```sh
+archive=ffmpeg-n8.1.3-6-gff48edd8b2-linux64-lgpl-shared-8.1.tar.xz
+curl -fL "https://github.com/BtbN/FFmpeg-Builds/releases/download/autobuild-2026-09-29-13-10/$archive" -o "$archive"
+echo "10058038d7e05869a32bb7d8594dd1a0b4032b8a10f1387dbe7e5ce4f978b8c0  $archive" | sha256sum -c -
+mkdir -p vendor/ffmpeg-8.1.2
+tar -xJf "$archive" -C vendor/ffmpeg-8.1.2 --strip-components=1
+vendor/ffmpeg-8.1.2/bin/ffmpeg -version
+```
+
+Upstream dated binary releases may expire; if the archive is unavailable, use a
+compatible precompiled shared development build and verify its provenance,
+checksum, and actual version rather than building FFmpeg locally.
+
+From `rust`, build and run in an X11 or Wayland desktop with an available audio
+output device:
+
+```sh
+cargo build-player-linux --locked
+cargo player-linux /absolute/path/to/video.mp4
+cargo fmt -p player -p player-ui --check
+cargo clippy --locked --config .cargo/cli.toml -p player --no-deps
+cargo test --locked --config .cargo/cli.toml -p media-backend -p timeline
+```
+
+Linux enables both GPUI display backends and uses CPU video-frame conversion
+with Vulkan rendering; the Metal path remains macOS-only. CPAL's ALSA backend
+recovers audio underruns, while other output errors still terminate playback.
+These Linux aliases target the standalone player; they do not establish Linux
+support for the editor or media export.
 
 For other Cargo operations, select the platform configuration from `rust`:
 
