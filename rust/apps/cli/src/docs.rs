@@ -49,7 +49,8 @@ opencut export /project/timelines/episode.json -o episode.mp4 --project-root /pr
 Exports the complete timeline synchronously to H.264 video and stereo AAC audio.
 Canvas size, frame rate, and audio sample rate come from the timeline settings.
 `--video-bitrate` is in kbps (1 kbps = 1,000 bits per second) and defaults to 8,000.
-Requires macOS Metal and VideoToolbox services. Existing output files are refused.
+Requires macOS Metal and VideoToolbox services. Existing output files are refused
+unless `--overwrite` is given.
 On success, stdout reports the output path and frame count.
 
 ## Transcription

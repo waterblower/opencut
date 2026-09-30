@@ -86,6 +86,7 @@ async fn run(command: Command, api_key: Option<&str>) -> Result<Value> {
             output,
             project_root,
             video_bitrate,
+            overwrite,
         } => {
             let document = TimelineSerialization::load(&timeline)?;
             let project_root = match project_root {
@@ -98,6 +99,7 @@ async fn run(command: Command, api_key: Option<&str>) -> Result<Value> {
                 &ExportOption {
                     project_root,
                     video_bitrate: video_bitrate * 1_000,
+                    overwrite,
                 },
             )?;
             Ok(json!({"path": output, "frames": document.frame_count()}))

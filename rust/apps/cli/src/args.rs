@@ -20,7 +20,7 @@ pub enum Command {
     Export {
         /// Timeline JSON file.
         timeline: PathBuf,
-        /// Output MP4 file; must not already exist.
+        /// Output MP4 file; must not already exist unless --overwrite is given.
         #[arg(short, long)]
         output: PathBuf,
         /// Base directory for relative assets; defaults to the timeline's directory.
@@ -29,6 +29,9 @@ pub enum Command {
         /// H.264 target bitrate in kbps (1 kbps = 1,000 bits per second).
         #[arg(long, default_value_t = 8_000, value_parser = clap::value_parser!(u64).range(1..=i64::MAX as u64 / 1_000))]
         video_bitrate: u64,
+        /// Replace an existing output file; source media is never replaced.
+        #[arg(long)]
+        overwrite: bool,
     },
     /// Transcribe audio/video with MiniMax (MINIMAX_API_KEY).
     Transcribe {
