@@ -43,11 +43,9 @@ impl Editor {
                         match settings.save() {
                             Ok(()) => {
                                 editor.global_settings_input = None;
-                                editor.status = Some("Settings saved.".into());
                             }
                             Err(error) => {
-                                log::error!("{error}");
-                                editor.status = Some(error.to_string());
+                                log::error!("{error:?}");
                             }
                         }
                         cx.notify();

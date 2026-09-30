@@ -85,10 +85,7 @@ impl Editor {
                             }
                         }
                         FileTreeEntryKind::Timeline => {
-                            let err = editor.open_timeline(path.clone(), cx);
-                            if let Err(error) = err {
-                                eprintln!("{error:?}");
-                            }
+                            editor.emit_event(cx, AppEvent::OpenTimeline { path: path.clone() });
                         }
                         FileTreeEntryKind::Video
                         | FileTreeEntryKind::Image
@@ -457,13 +454,12 @@ pub async fn select_preview_file(
                 _ => PreviewTarget::ImageFile(relative_path.clone()),
             };
             let previous = std::mem::replace(&mut editor.preview.target, target);
-            editor.status = None;
             Some(previous)
         } else {
             None
         };
         if is_video || is_audio {
-            editor.status = Some(format!("Loading preview for {}…", relative_path.display()));
+            log::debug!("Loading preview for {}…", relative_path.display());
         }
         cx.notify();
         (editor.project_root.clone(), previous)

@@ -3,8 +3,8 @@
 use crate::{image::load_image, video_frame::frame_to_rgba};
 use ::timeline::TimelineSerialization;
 use ::timeline::serialization::{
-    Clip, FrameRate, MediaAsset, MediaClipData, MediaKind, TextClipProperties, TimelineSettings,
-    TrackKind, VideoClipProperties,
+    Clip, FrameRate, MediaAsset, MediaClipData, MediaKind, TextClipProperties,
+    TimelineEditingState, TimelineSettings, TrackKind, VideoClipProperties,
 };
 use anyhow::{Context as _, Result, bail};
 use ffmpeg_next as ffmpeg;
@@ -31,11 +31,14 @@ pub struct ExportOption {
     pub project_root: PathBuf,
     /// H.264 target bitrate in bits per second.
     pub video_bitrate: u64,
+    /// Replace an existing output file. Source media is never replaced.
+    pub overwrite: bool,
 }
 
 /// Export the entire timeline to MP4 (H.264 + stereo AAC), synchronously.
 /// Canvas size, frame rate, and audio sample rate come from the document.
-/// Requires macOS with Metal and VideoToolbox; existing output is never replaced.
+/// Requires macOS with Metal and VideoToolbox; existing output is replaced only with
+/// `option.overwrite`, and never when it is one of the timeline's source media.
 /// Persisted playhead and other view preferences do not affect the export.
 pub fn export(
     timeline_serialization: &TimelineSerialization,
@@ -49,6 +52,65 @@ pub fn export(
     let total_samples = frame_units(frame_count, settings.frame_rate, settings.audio_sample_rate);
     let total_samples =
         i64::try_from(total_samples).context("Export audio duration is too large")?;
+
+    // 每个 clip 一个解码器：导出开始前全部打开，整个导出期间按 clip ID 复用。
+    let data = &timeline_serialization.editing_state;
+    let mut videos = HashMap::new(); // 按 clip 隔离游标，同一素材可同时出现在不同位置。
+    let mut images = HashMap::new(); // 图片不随时间变化，按素材共享。
+    let mut audios = HashMap::new();
+    for clip in &data.clips {
+        let Some(media) = clip_media(clip) else {
+            continue;
+        };
+        let track = data
+            .tracks
+            .iter()
+            .find(|track| track.id == media.track_id)
+            .context("Missing clip track")?;
+        let asset = data
+            .assets
+            .iter()
+            .find(|asset| asset.id == media.asset_id)
+            .context("Missing clip asset")?;
+        let path = option.project_root.join(&asset.path);
+        if matches!(clip, Clip::Video(_)) && track.visible {
+            match asset.kind {
+                MediaKind::Video => {
+                    let source = source_position(media, asset, media.timeline_start, settings);
+                    let video = ClipVideo::open(&path, source)
+                        .context(format!("Opening export video {}", path.display()))?;
+                    videos.insert(media.id, video);
+                }
+                MediaKind::Image => {
+                    if let Entry::Vacant(entry) = images.entry(asset.id) {
+                        let pixels = load_image(&path)
+                            .context(format!("Loading export image {}", path.display()))?;
+                        entry.insert(prepare_image(pixels));
+                    }
+                }
+                MediaKind::Audio => bail!("Audio asset used as a visual clip"),
+            }
+        }
+        if !track.muted && !media.audio_properties.muted && asset.has_audio {
+            let mut backend = AudioBackend::open(&path)
+                .context(format!("Opening export audio {}", path.display()))?;
+            backend
+                .audio
+                .configure_output(&PcmFormat::default_layout(settings.audio_sample_rate, 2)?)?;
+            if media.source_in > 0 {
+                backend
+                    .audio
+                    .seek(frame_duration(media.source_in, settings.frame_rate))?;
+            }
+            audios.insert(
+                media.id,
+                ClipAudio {
+                    decoder: backend.audio,
+                    pending: None,
+                },
+            );
+        }
+    }
 
     let temporary = output_path.with_file_name(format!(".opencut-export-{}.mp4", Ulid::generate()));
     // 只占用临时文件名：create_new 保证不覆盖已有文件；
@@ -97,8 +159,7 @@ pub fn export(
             window.bounds_changed(cx);
         })?;
         let mut encoder = ExportEncoder::open(&temporary, settings, option.video_bitrate)?;
-        let mut visuals = VisualSources::default();
-        let mut audio = AudioSources::default();
+
         let mut audio_position = 0_i64; // 已提交编码的采样数；不随视频帧率取整累加。
         let mut last_progress = Instant::now();
         for index in 0..frame_count {
@@ -106,12 +167,12 @@ pub fn export(
                 &mut cx,
                 window,
                 &mut encoder,
-                &mut visuals,
-                &mut audio,
+                &mut videos,
+                &images,
+                &mut audios,
                 &mut audio_position,
                 &mut last_progress,
                 timeline_serialization,
-                option,
                 index,
                 frame_count,
                 total_samples,
@@ -120,16 +181,20 @@ pub fn export(
         }
         eprintln!("Export finalizing: flushing encoders and writing MP4");
         encoder.finish(total_samples)?;
-        fs::hard_link(&temporary, output_path)
-            .context(format!("Publishing export {}", output_path.display()))?;
+        if option.overwrite {
+            fs::rename(&temporary, output_path) // 原子替换：输出路径上不会出现写了一半的文件。
+        } else {
+            fs::hard_link(&temporary, output_path) // 目标已存在时失败，不会覆盖。
+        }
+        .context(format!("Publishing export {}", output_path.display()))?;
         Ok(())
     })();
-    let cleanup = fs::remove_file(&temporary);
+    let cleanup = match fs::remove_file(&temporary) {
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()), // rename 已把临时文件发布为输出。
+        cleanup => cleanup,
+    };
     match (result, cleanup) {
-        (Ok(()), Ok(())) => {
-            eprintln!("Export complete: {:.1}s", started.elapsed().as_secs_f64());
-            Ok(())
-        }
+        (Ok(()), Ok(())) => Ok(()),
         (Err(error), Ok(())) => Err(error),
         (Ok(()), Err(error)) => Err(error).context("Removing temporary export"),
         (Err(error), Err(cleanup)) => Err(error.context(format!(
@@ -143,19 +208,20 @@ fn render_frame(
     cx: &mut HeadlessAppContext,
     window: WindowHandle<ExportCanvas>,
     encoder: &mut ExportEncoder,
-    visuals: &mut VisualSources,
-    audio: &mut AudioSources,
+    videos: &mut HashMap<Ulid, ClipVideo>,
+    images: &HashMap<Ulid, Arc<RenderImage>>,
+    audios: &mut HashMap<Ulid, ClipAudio>,
     audio_position: &mut i64,
     last_progress: &mut Instant,
     timeline_serialization: &TimelineSerialization,
-    option: &ExportOption,
     index: i64,
     frame_count: i64,
     total_samples: i64,
     started: Instant,
 ) -> Result<()> {
     let settings = timeline_serialization.editing_state.settings;
-    let canvas = visuals.frame(timeline_serialization, &option.project_root, index)?;
+
+    let canvas = visual_frame(videos, images, &timeline_serialization.editing_state, index)?;
     window.update(cx, |view, _, _| *view = canvas)?;
     let image = cx.update_window(window.into(), |_, window, cx| {
         window.refresh();
@@ -171,9 +237,9 @@ fn render_frame(
     while *audio_position < audio_end {
         let count =
             (encoder.audio.frame_size() as i64).min(total_samples - *audio_position) as usize;
-        let samples = audio.mix(
-            timeline_serialization,
-            &option.project_root,
+        let samples = mix_audio(
+            audios,
+            &timeline_serialization.editing_state,
             *audio_position,
             count,
         )?;
@@ -185,7 +251,7 @@ fn render_frame(
         let elapsed = started.elapsed().as_secs_f64();
         let remaining = elapsed * (frame_count - completed) as f64 / completed as f64;
         eprintln!(
-            "Export frames: {:.1}% ({completed}/{frame_count}), elapsed {elapsed:.1}s, remaining ~{remaining:.1}s",
+            "Export frames: {:.1}% ({completed}/{frame_count}), remaining ~{remaining:.1}s",
             completed as f64 / frame_count as f64 * 100.0,
         );
         *last_progress = Instant::now();
@@ -200,8 +266,8 @@ struct ExportCanvas {
 }
 
 enum ExportLayer {
-    Image {
-        image: Arc<RenderImage>,
+    VideoFrame {
+        frame_image: Arc<RenderImage>,
         properties: VideoClipProperties,
     },
     Text(TextClipProperties),
@@ -220,18 +286,21 @@ impl Render for ExportCanvas {
             .bg(rgb(0));
         for layer in &self.layers {
             match layer {
-                ExportLayer::Image { image, properties } => {
+                ExportLayer::VideoFrame {
+                    frame_image,
+                    properties,
+                } => {
                     if properties.scale <= 0.0 {
                         continue;
                     }
-                    let dimensions = image.size(0);
+                    let dimensions = frame_image.size(0);
                     let source_width = dimensions.width.0 as f32;
                     let source_height = dimensions.height.0 as f32;
                     let fit = (width / source_width).min(height / source_height); // 先完整适配画布，再应用 clip 缩放。
                     let image_width = source_width * fit * properties.scale as f32;
                     let image_height = source_height * fit * properties.scale as f32;
                     canvas = canvas.child(
-                        img(Arc::clone(image))
+                        img(Arc::clone(frame_image))
                             .absolute()
                             .left(px(
                                 (width - image_width) / 2.0 + properties.position_x as f32 / scale
@@ -272,23 +341,12 @@ impl Render for ExportCanvas {
     }
 }
 
-#[derive(Default)]
-struct VisualSources {
-    videos: HashMap<Ulid, ClipVideo>, // 按 clip 隔离游标，同一素材可同时出现在不同位置。
-    images: HashMap<Ulid, Arc<RenderImage>>,
-}
-
 struct ClipVideo {
     decoder: VideoDecoder,
     current: VideoFrame,
     next: Option<VideoFrame>, // 保留后一帧，按时间选择最近帧；距离相同时选前一帧。
     scaler: Option<ffmpeg::software::scaling::Context>,
     image: Option<Arc<RenderImage>>, // 同一源帧用于多个输出帧时复用转换结果。
-}
-
-#[derive(Default)]
-struct AudioSources {
-    clips: HashMap<Ulid, ClipAudio>,
 }
 
 struct ClipAudio {
@@ -347,7 +405,22 @@ fn validate_export(
         bail!("Export output must have an .mp4 extension");
     }
     match fs::symlink_metadata(output) {
-        Ok(_) => bail!("Export output already exists: {}", output.display()),
+        Ok(_) if !option.overwrite => {
+            bail!("Export output already exists: {}", output.display())
+        }
+        Ok(_) => {
+            let target = fs::canonicalize(output).context("Resolving export output")?;
+            for asset in &timeline.editing_state.assets {
+                if fs::canonicalize(option.project_root.join(&asset.path))
+                    .is_ok_and(|source| source == target)
+                {
+                    bail!(
+                        "Export output would replace source media: {}",
+                        output.display()
+                    );
+                }
+            }
+        }
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
         Err(error) => return Err(error).context("Inspecting export output"),
     }
@@ -443,86 +516,64 @@ fn validate_export(
     Ok(())
 }
 
-impl VisualSources {
-    fn frame(
-        &mut self,
-        timeline: &TimelineSerialization,
-        project_root: &Path,
-        position: i64,
-    ) -> Result<ExportCanvas> {
-        let data = &timeline.editing_state;
-        let mut layers = Vec::new();
-        // 文档第一条轨道在最上层；同轨后面的 clip 覆盖前面的 clip。
-        for track in data.tracks.iter().rev() {
-            if !track.visible || track.kind == TrackKind::Audio {
+fn visual_frame(
+    videos: &mut HashMap<Ulid, ClipVideo>,
+    images: &HashMap<Ulid, Arc<RenderImage>>,
+    timeline: &TimelineEditingState,
+    position: i64,
+) -> Result<ExportCanvas> {
+    let mut layers = Vec::new();
+    // 文档第一条轨道在最上层；同轨后面的 clip 覆盖前面的 clip。
+    for track in timeline.tracks.iter().rev() {
+        if !track.visible || track.kind == TrackKind::Audio {
+            continue;
+        }
+        for clip in timeline
+            .clips
+            .iter()
+            .filter(|clip| clip_track(clip) == track.id)
+        {
+            if position < clip_start(clip)
+                || position >= clip.end_frame(timeline.settings.frame_rate)
+            {
                 continue;
             }
-            for clip in data
-                .clips
-                .iter()
-                .filter(|clip| clip_track(clip) == track.id)
-            {
-                if position < clip_start(clip)
-                    || position >= clip.end_frame(data.settings.frame_rate)
-                {
-                    continue;
-                }
-                match clip {
-                    Clip::Audio(_) => {}
-                    Clip::Text(text) => layers.push(ExportLayer::Text(text.properties.clone())),
-                    Clip::Video(media) => {
-                        let asset = data
-                            .assets
-                            .iter()
-                            .find(|asset| asset.id == media.asset_id)
-                            .context("Missing visual asset")?;
-                        let path = project_root.join(&asset.path);
-                        let image = match asset.kind {
-                            MediaKind::Video => {
-                                let source = source_position(media, asset, position, data.settings);
-                                if let Entry::Vacant(entry) = self.videos.entry(media.id) {
-                                    entry.insert(ClipVideo::open(&path, source).context(
-                                        format!("Opening export video {}", path.display()),
-                                    )?);
-                                }
-                                self.videos
-                                    .get_mut(&media.id)
-                                    .unwrap()
-                                    .image_at(source)
-                                    .context(format!("Decoding clip {} at {source:?}", media.id))?
-                            }
-                            MediaKind::Image => {
-                                if let Entry::Vacant(entry) = self.images.entry(asset.id) {
-                                    let pixels = load_image(&path).context(format!(
-                                        "Loading export image {}",
-                                        path.display()
-                                    ))?;
-                                    entry.insert(prepare_image(pixels));
-                                }
-                                Arc::clone(&self.images[&asset.id])
-                            }
-                            MediaKind::Audio => bail!("Audio asset used as a visual clip"),
-                        };
-                        layers.push(ExportLayer::Image {
-                            image,
-                            properties: media.video_properties,
-                        });
-                    }
+            match clip {
+                Clip::Audio(_) => {}
+                Clip::Text(text) => layers.push(ExportLayer::Text(text.properties.clone())),
+                Clip::Video(media) => {
+                    let asset = timeline
+                        .assets
+                        .iter()
+                        .find(|asset| asset.id == media.asset_id)
+                        .context("Missing visual asset")?;
+                    let frame_image = match asset.kind {
+                        MediaKind::Video => {
+                            let source = source_position(media, asset, position, timeline.settings);
+                            videos
+                                .get_mut(&media.id)
+                                .context("Missing export video decoder")?
+                                .image_at(source)
+                                .context(format!("Decoding clip {} at {source:?}", media.id))?
+                        }
+                        MediaKind::Image => {
+                            Arc::clone(images.get(&asset.id).context("Missing export image")?)
+                        }
+                        MediaKind::Audio => bail!("Audio asset used as a visual clip"),
+                    };
+                    layers.push(ExportLayer::VideoFrame {
+                        frame_image,
+                        properties: media.video_properties,
+                    });
                 }
             }
         }
-        self.videos.retain(|id, _| {
-            data.clips
-                .iter()
-                .find(|clip| clip_id(clip) == *id)
-                .is_some_and(|clip| clip.end_frame(data.settings.frame_rate) > position)
-        });
-        Ok(ExportCanvas {
-            width: data.settings.width,
-            height: data.settings.height,
-            layers,
-        })
     }
+    Ok(ExportCanvas {
+        width: timeline.settings.width,
+        height: timeline.settings.height,
+        layers,
+    })
 }
 
 impl ClipVideo {
@@ -574,95 +625,68 @@ impl ClipVideo {
     }
 }
 
-impl AudioSources {
-    fn mix(
-        &mut self,
-        timeline: &TimelineSerialization,
-        project_root: &Path,
-        start: i64,
-        count: usize,
-    ) -> Result<Vec<[f32; 2]>> {
-        let mut mixed = vec![[0.0_f32; 2]; count];
-        let data = &timeline.editing_state;
-        let settings = data.settings;
-        let rate = settings.audio_sample_rate;
-        let fps = settings.frame_rate;
-        let end = start + count as i64;
-        for clip in &data.clips {
-            let Some(media) = clip_media(clip) else {
-                continue;
-            };
-            let track = data
-                .tracks
-                .iter()
-                .find(|track| track.id == media.track_id)
-                .context("Missing audio track")?;
-            let asset = data
-                .assets
-                .iter()
-                .find(|asset| asset.id == media.asset_id)
-                .context("Missing audio asset")?;
-            if track.muted || media.audio_properties.muted || !asset.has_audio {
-                continue;
-            }
-            let clip_start = frame_units(media.timeline_start, fps, rate) as i64;
-            let clip_end = frame_units(clip.end_frame(fps), fps, rate) as i64;
-            let from = start.max(clip_start);
-            let to = end.min(clip_end);
-            if from >= to {
-                continue;
-            }
-            if let Entry::Vacant(entry) = self.clips.entry(media.id) {
-                let path = project_root.join(&asset.path);
-                let mut backend = AudioBackend::open(&path)
-                    .context(format!("Opening export audio {}", path.display()))?;
-                backend
-                    .audio
-                    .configure_output(&PcmFormat::default_layout(rate, 2)?)?;
-                if media.source_in > 0 {
-                    backend.audio.seek(frame_duration(media.source_in, fps))?;
-                }
-                entry.insert(ClipAudio {
-                    decoder: backend.audio,
-                    pending: None,
-                });
-            }
-            let source = (frame_units(media.source_in, fps, rate) as i64)
-                .checked_add(from - clip_start)
-                .context("Export source audio interval overflow")?;
-            let source_end = frame_units(media.source_out, fps, rate) as i64;
-            // 两端独立舍入可能相差一个采样；不读取 source_out 之后的声音。
-            let count = (to - from).min(source_end - source).max(0) as usize;
-            if count == 0 {
-                continue;
-            }
-            let samples = self
-                .clips
-                .get_mut(&media.id)
-                .unwrap()
-                .read(source, count, rate)
-                .context(format!("Reading audio for clip {}", media.id))?;
-            let gain =
-                10.0_f32.powf(media.audio_properties.gain_db.clamp(-96.0, 24.0) as f32 / 20.0);
-            for (index, sample) in samples.iter().enumerate() {
-                let target = &mut mixed[(from - start) as usize + index];
-                target[0] += sample[0] * gain;
-                target[1] += sample[1] * gain;
-            }
+fn mix_audio(
+    audios: &mut HashMap<Ulid, ClipAudio>,
+    data: &TimelineEditingState,
+    start: i64,
+    count: usize,
+) -> Result<Vec<[f32; 2]>> {
+    let mut mixed = vec![[0.0_f32; 2]; count];
+    let settings = data.settings;
+    let rate = settings.audio_sample_rate;
+    let fps = settings.frame_rate;
+    let end = start + count as i64;
+    for clip in &data.clips {
+        let Some(media) = clip_media(clip) else {
+            continue;
+        };
+        let track = data
+            .tracks
+            .iter()
+            .find(|track| track.id == media.track_id)
+            .context("Missing audio track")?;
+        let asset = data
+            .assets
+            .iter()
+            .find(|asset| asset.id == media.asset_id)
+            .context("Missing audio asset")?;
+        if track.muted || media.audio_properties.muted || !asset.has_audio {
+            continue;
         }
-        self.clips.retain(|id, _| {
-            data.clips
-                .iter()
-                .find(|clip| clip_id(clip) == *id)
-                .is_some_and(|clip| frame_units(clip.end_frame(fps), fps, rate) > end as u64)
-        });
-        for sample in &mut mixed {
-            for channel in sample {
-                *channel = channel.clamp(-1.0, 1.0);
-            }
+        let clip_start = frame_units(media.timeline_start, fps, rate) as i64;
+        let clip_end = frame_units(clip.end_frame(fps), fps, rate) as i64;
+        let from = start.max(clip_start);
+        let to = end.min(clip_end);
+        if from >= to {
+            continue;
         }
-        Ok(mixed)
+        let source = (frame_units(media.source_in, fps, rate) as i64)
+            .checked_add(from - clip_start)
+            .context("Export source audio interval overflow")?;
+        let source_end = frame_units(media.source_out, fps, rate) as i64;
+        // 两端独立舍入可能相差一个采样；不读取 source_out 之后的声音。
+        let count = (to - from).min(source_end - source).max(0) as usize;
+        if count == 0 {
+            continue;
+        }
+        let samples = audios
+            .get_mut(&media.id)
+            .context("Missing export audio decoder")?
+            .read(source, count, rate)
+            .context(format!("Reading audio for clip {}", media.id))?;
+        let gain = 10.0_f32.powf(media.audio_properties.gain_db.clamp(-96.0, 24.0) as f32 / 20.0);
+        for (index, sample) in samples.iter().enumerate() {
+            let target = &mut mixed[(from - start) as usize + index];
+            target[0] += sample[0] * gain;
+            target[1] += sample[1] * gain;
+        }
     }
+    for sample in &mut mixed {
+        for channel in sample {
+            *channel = channel.clamp(-1.0, 1.0);
+        }
+    }
+    Ok(mixed)
 }
 
 impl ClipAudio {
@@ -1024,6 +1048,6 @@ fn source_frame_rate(asset: &MediaAsset) -> Option<FrameRate> {
 fn prepare_image(mut pixels: RgbaImage) -> Arc<RenderImage> {
     for pixel in pixels.pixels_mut() {
         pixel.0.swap(0, 2);
-    } // GPUI 使用 BGRA。  
+    } // GPUI 使用 BGRA。
     Arc::new(RenderImage::new(smallvec![Frame::new(pixels)]))
 }

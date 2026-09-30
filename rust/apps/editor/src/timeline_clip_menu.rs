@@ -51,7 +51,7 @@ impl Editor {
         if targets.is_empty() {
             return Ok(());
         }
-        let changed = targets.len();
+
         let Some(timeline) = self.timeline.as_mut() else {
             return Ok(());
         };
@@ -73,10 +73,6 @@ impl Editor {
 
         timeline.save()?;
 
-        self.status = Some(format!(
-            "Applied transforms to {changed} other clip{}.",
-            if changed == 1 { "" } else { "s" }
-        ));
         Ok(())
     }
 }

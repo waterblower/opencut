@@ -272,9 +272,7 @@ impl Editor {
         ) else {
             return;
         };
-        let count = clipboard.clips.len();
         self.clipboard = Some(clipboard);
-        self.status = Some(format!("Copied {count} clip{}.", plural_suffix(count)));
     }
 
     pub(super) fn cut_selected_clips(&mut self) -> Result<()> {
@@ -293,7 +291,6 @@ impl Editor {
         ) else {
             return Ok(());
         };
-        let count = clipboard.clips.len();
         let clip_ids = timeline.interaction.selected_clip_ids.clone();
         let Some(timeline) = self.timeline.as_mut() else {
             return Ok(());
@@ -301,7 +298,6 @@ impl Editor {
         timeline.record_editing_history();
         self.clipboard = Some(clipboard);
         self.remove_clips(&clip_ids, false)?;
-        self.status = Some(format!("Cut {count} clip{}.", plural_suffix(count)));
         Ok(())
     }
 
@@ -329,7 +325,7 @@ impl Editor {
         for clip in &mut clips {
             clip.set_id(Ulid::generate());
         }
-        let count = clips.len();
+
         timeline.interaction.selected_clip_ids = clips.iter().map(Clip::id).collect();
         timeline.interaction.selected_clip_id = clipboard
             .primary_index
@@ -343,7 +339,6 @@ impl Editor {
             EditAction::AddClips { clips, assets },
         )?;
 
-        self.status = Some(format!("Pasted {count} clip{}.", plural_suffix(count)));
         timeline.save()?;
 
         self.schedule_active_timeline_waveforms(cx);

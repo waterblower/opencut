@@ -442,7 +442,6 @@ impl Editor {
         timeline.save()?;
 
         self.schedule_active_timeline_waveforms(cx);
-        self.status = Some("Added media at the selected timeline position.".to_string());
         Ok(())
     }
 }

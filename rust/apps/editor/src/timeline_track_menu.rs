@@ -13,14 +13,7 @@ impl Editor {
         let Some(timeline) = self.timeline.as_mut() else {
             return Ok(());
         };
-        let clip = match text_clip_at(timeline.backend.timeline(), track_id, position) {
-            Ok(clip) => clip,
-            Err(error) => {
-                self.status = Some(error.to_string());
-                cx.notify();
-                return Ok(());
-            }
-        };
+        let clip = text_clip_at(timeline.backend.timeline(), track_id, position)?;
         timeline.record_editing_history();
         let clip_id = clip.id();
         apply_timeline_edit(
@@ -36,7 +29,6 @@ impl Editor {
         timeline.interaction.selected_clip_ids.clear();
         timeline.interaction.selected_clip_ids.insert(clip_id);
         timeline.save()?;
-        self.status = Some("Added text clip.".to_string());
         cx.notify();
         Ok(())
     }

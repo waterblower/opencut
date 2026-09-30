@@ -1830,7 +1830,6 @@ dependencies = [
  "resvg 0.45.1",
  "serde",
  "serde_json",
- "smallvec",
  "timeline",
  "tokio",
  "transcribe",
@@ -5381,9 +5380,7 @@ dependencies = [
  "image",
  "media-backend",
  "metal",
- "smallvec",
  "timeline",
- "ulid",
 ]
 
 [[package]]

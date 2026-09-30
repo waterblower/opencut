@@ -162,10 +162,6 @@ impl Editor {
         if has_clips {
             timeline.backend.seek_frame(timeline.playhead())?;
         }
-        self.status = Some(format!(
-            "Timeline frame rate changed to {}.",
-            frame_rate.label()
-        ));
         Ok(())
     }
 }

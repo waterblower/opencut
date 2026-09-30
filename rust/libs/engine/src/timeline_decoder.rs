@@ -1,8 +1,8 @@
-//! Timeline frame preparation for forward playback. Unlike the engine's TimelineDecoder,
-//! each video clip keeps decoding forward and only seeks on backward or distant jumps.
+//! Timeline frame preparation for playback and scrubbing. Each video clip keeps decoding
+//! forward and only seeks on backward or distant jumps.
 
+use crate::image::load_image;
 use anyhow::{Context as _, Result, bail};
-use engine::image::load_image;
 use ffmpeg_next::{ffi, format::Pixel, frame::Video, software::scaling, util::color};
 use gpui::RenderImage;
 use image::{Frame, RgbaImage};
@@ -34,17 +34,21 @@ pub struct PreparedFrame {
 
 pub enum PreparedLayer {
     Picture {
+        clip_id: Ulid,
         image: Arc<RenderImage>, // BGRA；源帧未变化时沿用同一图像。
         properties: VideoClipProperties,
     },
-    Text(TextClipProperties),
+    Text {
+        clip_id: Ulid,
+        properties: TextClipProperties,
+    },
 }
 
 impl PreparedFrame {
     pub fn images(&self) -> impl Iterator<Item = &Arc<RenderImage>> {
         self.layers.iter().filter_map(|layer| match layer {
             PreparedLayer::Picture { image, .. } => Some(image),
-            PreparedLayer::Text(_) => None,
+            PreparedLayer::Text { .. } => None,
         })
     }
 }
@@ -89,7 +93,10 @@ impl TimelineDecoder {
                 }
                 match clip {
                     Clip::Audio(_) => {}
-                    Clip::Text(clip) => layers.push(PreparedLayer::Text(clip.properties.clone())),
+                    Clip::Text(clip) => layers.push(PreparedLayer::Text {
+                        clip_id: clip.id,
+                        properties: clip.properties.clone(),
+                    }),
                     Clip::Video(media) => {
                         let asset = timeline
                             .asset(media.asset_id)
@@ -135,6 +142,7 @@ impl TimelineDecoder {
                             MediaKind::Audio => bail!("Visual clip {} uses audio", media.id),
                         };
                         layers.push(PreparedLayer::Picture {
+                            clip_id: media.id,
                             image,
                             properties: media.video_properties,
                         });
