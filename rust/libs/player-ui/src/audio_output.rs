@@ -110,7 +110,9 @@ impl AudioOutput {
         // 等待期间不借用 AudioOutput，允许播放循环继续提交数据或重建流。
         let device_error = self.device_error.clone();
         async move {
-            let error = device_error.await.context("audio output error channel closed")?;
+            let error = device_error
+                .await
+                .context("audio output error channel closed")?;
             Err(error).context("audio output failed")
         }
     }
