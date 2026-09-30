@@ -7,14 +7,18 @@ use gpui::{
 use gpui_platform::application;
 use player_ui::audio_player::AudioPlayer;
 use player_ui::video_player::VideoPlayer;
+use timeline_player::TimelinePlayer;
 
 use std::path::{Path, PathBuf};
+
+mod playback_decoder;
+mod timeline_player;
 
 fn main() -> Result<()> {
     let path = {
         let arguments: Vec<_> = std::env::args_os().skip(1).collect();
         let [path] = arguments.as_slice() else {
-            eprintln!("Usage: cargo player-mac <path_to_media>");
+            eprintln!("Usage: cargo player-mac <path_to_media_or_timeline>");
             return Ok(());
         };
         let path = PathBuf::from(path);
@@ -29,7 +33,7 @@ fn main() -> Result<()> {
     };
     env_logger::init();
     ffmpeg_next::init().context("initializing FFmpeg").unwrap();
-    let audio_only = is_audio_only(&path)?;
+    let input_file_type = InputFileType::parse(&path)?;
 
     application().run(move |cx: &mut App| {
         cx.bind_keys([KeyBinding::new("space", TogglePlayback, None)]);
@@ -48,8 +52,19 @@ fn main() -> Result<()> {
             ..WindowOptions::default()
         };
         cx.open_window(options, move |window, cx| {
-            let (player, task) = if audio_only {
-                match AudioPlayer::new(path) {
+            let (player, task) = match input_file_type {
+                InputFileType::Timeline => match TimelinePlayer::new(&path) {
+                    Ok(player) => {
+                        let player = cx.new(move |_| player);
+                        let task = player.update(cx, |player, cx| player.start(cx));
+                        (Player::Timeline(player), task)
+                    }
+                    Err(error) => {
+                        eprintln!("Timeline player failed: {error:?}");
+                        std::process::exit(1);
+                    }
+                },
+                InputFileType::Audio => match AudioPlayer::new(path) {
                     Ok(player) => {
                         let player = cx.new(move |_| player);
                         let task = player.update(cx, |player, cx| player.start(cx));
@@ -59,9 +74,8 @@ fn main() -> Result<()> {
                         eprintln!("Audio player failed: {error:?}");
                         std::process::exit(1);
                     }
-                }
-            } else {
-                match VideoPlayer::new(path) {
+                },
+                InputFileType::Video => match VideoPlayer::new(path) {
                     Ok(player) => {
                         let player = cx.new(move |_| player);
                         let task = player.update(cx, |player, cx| player.start(cx));
@@ -71,7 +85,7 @@ fn main() -> Result<()> {
                         eprintln!("Player failed: {error:?}");
                         std::process::exit(1);
                     }
-                }
+                },
             };
             let focus_handle = cx.focus_handle();
             focus_handle.focus(window, cx);
@@ -89,9 +103,16 @@ fn main() -> Result<()> {
 
 actions!(opencut, [TogglePlayback]);
 
+enum InputFileType {
+    Audio,
+    Video,
+    Timeline, // *.timeline, *.timeline.json
+}
+
 enum Player {
     Audio(Entity<AudioPlayer>),
     Video(Entity<VideoPlayer>),
+    Timeline(Entity<TimelinePlayer>),
 }
 
 /// Window root: owns keyboard focus and key actions; the player views only render and handle clicks.
@@ -106,6 +127,7 @@ impl Render for PlayerWindow {
         let player: AnyElement = match &self.player {
             Player::Audio(player) => player.clone().into_any_element(),
             Player::Video(player) => player.clone().into_any_element(),
+            Player::Timeline(player) => player.clone().into_any_element(),
         };
         div()
             .size_full()
@@ -127,9 +149,30 @@ impl Render for PlayerWindow {
                     Player::Video(player) => {
                         player.update(cx, |player, cx| player.toggle_playback(cx))
                     }
+                    Player::Timeline(player) => {
+                        if let Err(error) =
+                            player.update(cx, |player, cx| player.toggle_playback(cx))
+                        {
+                            eprintln!("Toggling timeline playback failed: {error:?}");
+                        }
+                    }
                 }),
             )
             .child(player)
+    }
+}
+
+impl InputFileType {
+    /// Timelines are recognized by name; media files are probed for a video stream.
+    fn parse(path: &Path) -> Result<Self> {
+        let name = path.file_name().unwrap_or_default().to_string_lossy();
+        if name.ends_with(".timeline") || name.ends_with(".timeline.json") {
+            return Ok(Self::Timeline);
+        }
+        if is_audio_only(path)? {
+            return Ok(Self::Audio);
+        }
+        Ok(Self::Video)
     }
 }
 

@@ -6,8 +6,14 @@ publish.workspace = true
 
 [dependencies]
 player-ui.workspace = true
+engine.workspace = true
+media-backend.workspace = true
+timeline.workspace = true
 anyhow.workspace = true
 env_logger.workspace = true
 ffmpeg-next.workspace = true
 gpui.workspace = true
 gpui_platform.workspace = true
+image.workspace = true
+smallvec.workspace = true
+ulid.workspace = true
