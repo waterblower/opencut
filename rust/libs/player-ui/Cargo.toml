@@ -5,13 +5,17 @@ edition.workspace = true
 publish.workspace = true
 
 [dependencies]
+engine.workspace = true
 media-backend.workspace = true
+timeline.workspace = true
 anyhow.workspace = true
 cpal.workspace = true
 ffmpeg-next.workspace = true
 futures.workspace = true
 gpui.workspace = true
 image.workspace = true
+smallvec.workspace = true
+ulid.workspace = true
 
 [target.'cfg(target_os = "macos")'.dependencies]
 core-foundation.workspace = true
