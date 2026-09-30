@@ -10,7 +10,7 @@ use anyhow::{Context as _, Result, bail};
 use ffmpeg_next as ffmpeg;
 use gpui::{
     AppContext as _, Context, HeadlessAppContext, IntoElement, Render, RenderImage, TextAlign,
-    Window, div, img, prelude::*, px, rgb, rgba, size,
+    Window, WindowHandle, div, img, prelude::*, px, rgb, rgba, size,
 };
 use image::{Frame, RgbaImage};
 use media_backend::{
@@ -102,42 +102,21 @@ pub fn export(
         let mut audio_position = 0_i64; // 已提交编码的采样数；不随视频帧率取整累加。
         let mut last_progress = Instant::now();
         for index in 0..frame_count {
-            let canvas = visuals.frame(timeline_serialization, &option.project_root, index)?;
-            window.update(&mut cx, |view, _, _| *view = canvas)?;
-            let image = cx.update_window(window.into(), |_, window, cx| {
-                window.refresh();
-                let arena = window.draw(cx);
-                let image = window.render_to_image();
-                arena.clear(cx);
-                image
-            })??;
-            encoder.video(&image, index)?;
-
-            let audio_end =
-                frame_units(index + 1, settings.frame_rate, settings.audio_sample_rate) as i64;
-            // 按 AAC 块顺序推进，至多提前一个块；最终块止于 timeline 末尾。
-            while audio_position < audio_end {
-                let count = (encoder.audio.frame_size() as i64).min(total_samples - audio_position)
-                    as usize;
-                let samples = audio.mix(
-                    timeline_serialization,
-                    &option.project_root,
-                    audio_position,
-                    count,
-                )?;
-                encoder.audio(&samples, audio_position, total_samples)?;
-                audio_position += count as i64;
-            }
-            let completed = index + 1;
-            if last_progress.elapsed() >= Duration::from_secs(1) || completed == frame_count {
-                let elapsed = started.elapsed().as_secs_f64();
-                let remaining = elapsed * (frame_count - completed) as f64 / completed as f64;
-                eprintln!(
-                    "Export frames: {:.1}% ({completed}/{frame_count}), elapsed {elapsed:.1}s, remaining ~{remaining:.1}s",
-                    completed as f64 / frame_count as f64 * 100.0,
-                );
-                last_progress = Instant::now();
-            }
+            render_frame(
+                &mut cx,
+                window,
+                &mut encoder,
+                &mut visuals,
+                &mut audio,
+                &mut audio_position,
+                &mut last_progress,
+                timeline_serialization,
+                option,
+                index,
+                frame_count,
+                total_samples,
+                started,
+            )?;
         }
         eprintln!("Export finalizing: flushing encoders and writing MP4");
         encoder.finish(total_samples)?;
@@ -157,6 +136,61 @@ pub fn export(
             "Also could not remove temporary export: {cleanup:?}"
         ))),
     }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn render_frame(
+    cx: &mut HeadlessAppContext,
+    window: WindowHandle<ExportCanvas>,
+    encoder: &mut ExportEncoder,
+    visuals: &mut VisualSources,
+    audio: &mut AudioSources,
+    audio_position: &mut i64,
+    last_progress: &mut Instant,
+    timeline_serialization: &TimelineSerialization,
+    option: &ExportOption,
+    index: i64,
+    frame_count: i64,
+    total_samples: i64,
+    started: Instant,
+) -> Result<()> {
+    let settings = timeline_serialization.editing_state.settings;
+    let canvas = visuals.frame(timeline_serialization, &option.project_root, index)?;
+    window.update(cx, |view, _, _| *view = canvas)?;
+    let image = cx.update_window(window.into(), |_, window, cx| {
+        window.refresh();
+        let arena = window.draw(cx);
+        let image = window.render_to_image();
+        arena.clear(cx);
+        image
+    })??;
+    encoder.video(&image, index)?;
+
+    let audio_end = frame_units(index + 1, settings.frame_rate, settings.audio_sample_rate) as i64;
+    // 按 AAC 块顺序推进，至多提前一个块；最终块止于 timeline 末尾。
+    while *audio_position < audio_end {
+        let count =
+            (encoder.audio.frame_size() as i64).min(total_samples - *audio_position) as usize;
+        let samples = audio.mix(
+            timeline_serialization,
+            &option.project_root,
+            *audio_position,
+            count,
+        )?;
+        encoder.audio(&samples, *audio_position, total_samples)?;
+        *audio_position += count as i64;
+    }
+    let completed = index + 1;
+    if last_progress.elapsed() >= Duration::from_secs(1) || completed == frame_count {
+        let elapsed = started.elapsed().as_secs_f64();
+        let remaining = elapsed * (frame_count - completed) as f64 / completed as f64;
+        eprintln!(
+            "Export frames: {:.1}% ({completed}/{frame_count}), elapsed {elapsed:.1}s, remaining ~{remaining:.1}s",
+            completed as f64 / frame_count as f64 * 100.0,
+        );
+        *last_progress = Instant::now();
+    }
+    Ok(())
 }
 
 struct ExportCanvas {
@@ -990,6 +1024,6 @@ fn source_frame_rate(asset: &MediaAsset) -> Option<FrameRate> {
 fn prepare_image(mut pixels: RgbaImage) -> Arc<RenderImage> {
     for pixel in pixels.pixels_mut() {
         pixel.0.swap(0, 2);
-    } // GPUI 使用 BGRA。
+    } // GPUI 使用 BGRA。  
     Arc::new(RenderImage::new(smallvec![Frame::new(pixels)]))
 }
