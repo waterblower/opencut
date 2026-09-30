@@ -5,7 +5,7 @@ use gpui::{AsyncApp, WeakEntity};
 use player_ui::{audio_player::AudioPlayer, video_player::VideoPlayer};
 use std::path::Path;
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub enum PreviewEvent {
     SelectFile(PathBuf),
     TogglePlayback,
@@ -75,14 +75,6 @@ impl Editor {
                     player,
                 }
             };
-            editor.status = Some(
-                if audio_only {
-                    "Audio preview ready."
-                } else {
-                    "Video preview ready."
-                }
-                .into(),
-            );
             cx.notify();
             Ok(())
         })??;
@@ -112,7 +104,13 @@ impl Editor {
             PreviewTarget::AudioFile { player, .. } => {
                 player.update(cx, |player, cx| player.toggle_playback(cx))
             }
-            _ => Ok(()),
+            PreviewTarget::Timeline => {
+                let Some(timeline) = self.timeline.as_mut() else {
+                    return Ok(());
+                };
+                timeline.backend.toggle_playback()
+            }
+            PreviewTarget::None | PreviewTarget::ImageFile(_) => Ok(()),
         }
     }
 }

@@ -6,17 +6,18 @@ mod gpui_inspector;
 mod macos_pinch;
 
 mod asset;
-use anyhow::{anyhow, bail};
 use asset::EditorAssets;
 
 use editor::global_settings::GlobalEditorSettings;
-use editor::{AppEvent, Editor, EventBus};
+use editor::{Editor, EventBus};
 use gpui::{
     App, Bounds, Entity, WindowBounds, WindowHandle, WindowOptions, prelude::*, px, rgb, size,
 };
 use gpui_platform::application;
 use std::io::Write as _;
 use std::path::PathBuf;
+
+use crate::editor::event_bus::handle_event;
 
 fn main() {
     env_logger::Builder::from_env(
@@ -52,87 +53,15 @@ fn run_app(cx: &mut App) {
         event_bus.clone(),
         cx,
     );
-    cx.subscribe(&event_bus, move |event_bus, event, cx| match event {
-        AppEvent::Transcribe {
-            source_path,
-            project_root,
-        } => {
-            let api_key = GlobalEditorSettings::load().minimax_api_key;
-            let project_root = project_root.clone();
-            let source_path = source_path.clone();
-            let task = gpui_tokio::Tokio::spawn(cx, async move {
-                let srt = editor::transcription::start_transcription(source_path.clone(), api_key)
-                    .await?;
-                log::info!("Writing SRT for {}", source_path.display());
-                let Some(stem) = source_path.file_stem() else {
-                    bail!(
-                        "transcription source has no filename at {}:{}",
-                        file!(),
-                        line!()
-                    );
-                };
-                let stem = stem.to_string_lossy();
-                let path = project_root.join(format!("{stem}.srt"));
-                editor::write_srt(&path, &srt)?;
-                Ok(path)
-            });
-            cx.spawn(async move |_| {
-                let result = match task.await {
-                    Ok(result) => result,
-                    Err(error) => Err(anyhow!(
-                        "transcription task failed: {error} at {}:{}",
-                        file!(),
-                        line!()
-                    )),
-                };
-                match result {
-                    Ok(path) => log::info!("SRT saved: {}", path.display()),
-                    Err(error) => log::error!("SRT generation failed: {error:?}"),
-                }
-            })
-            .detach();
-        }
-        AppEvent::SwitchProject { project_path } => {
-            let root = match std::fs::canonicalize(project_path) {
-                Ok(root) => root,
-                Err(error) => panic!(
-                    "could not open {}: {error} at {}:{}",
-                    project_path.display(),
-                    file!(),
-                    line!()
-                ),
-            };
-            let ready = window
-                .update(cx, |editor, _, cx| match editor.prepare_project_switch() {
-                    Ok(()) => true,
-                    Err(error) => {
-                        editor.status = Some(format!("{error}"));
-                        log::error!("Could not save timeline before switching projects: {error:?}");
-                        cx.notify();
-                        false
-                    }
-                })
-                .unwrap_or(false);
-            if !ready {
-                return;
-            }
-            drop(close_subscription.take());
-            if let Err(error) = window.update(cx, |_, window, _| window.remove_window()) {
-                panic!("could not close editor: {error} at {}:{}", file!(), line!());
-            }
-            window = open_editor_window(root.clone(), event_bus, cx);
-            close_subscription = Some(cx.on_window_closed(quit_after_last_window));
-            let mut settings = GlobalEditorSettings::load();
-            settings.project_root = root;
-            if let Err(error) = settings.save() {
-                panic!(
-                    "could not save project settings: {error} at {}:{}",
-                    file!(),
-                    line!()
-                );
-            }
-        }
-        _ => {}
+    cx.subscribe(&event_bus, move |event_bus, event, cx| {
+        handle_event(
+            cx,
+            &mut window,
+            event.clone(),
+            event_bus,
+            &mut close_subscription,
+            quit_after_last_window,
+        )
     })
     .detach();
 }

@@ -185,11 +185,7 @@ impl Editor {
         self.explorer.refresh_file_tree(&self.project_root)?;
         self.save_explorer_expansion()?;
         self.schedule_explorer_search(cx);
-        self.status = Some(format!(
-            "Renamed {} to {}.",
-            old_relative.display(),
-            new_relative.display()
-        ));
+
         Ok(())
     }
 
@@ -252,7 +248,6 @@ impl Editor {
             .map(|name| name.to_string_lossy().into_owned())
             .unwrap_or_else(|| relative_path.display().to_string());
         if let Err(error) = move_path_to_trash(&path) {
-            self.status = None;
             return Err(anyhow!("Could not move {display_name} to Trash: {error}"));
         }
         self.explorer
@@ -265,7 +260,6 @@ impl Editor {
         self.explorer.refresh_file_tree(&self.project_root)?;
         self.save_explorer_expansion()?;
         self.schedule_explorer_search(cx);
-        self.status = Some(format!("Moved {display_name} to Trash."));
         Ok(())
     }
 

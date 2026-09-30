@@ -9,11 +9,9 @@ impl Editor {
         match debug_state(self) {
             Ok(report) => {
                 cx.write_to_clipboard(ClipboardItem::new_string(report));
-                self.status = Some("Debug state copied. Paste it into the bug report.".into());
             }
             Err(error) => {
                 log::error!("Could not dump debug state: {error:?}");
-                self.status = Some(format!("Could not dump debug state: {error:?}"));
             }
         }
         cx.notify();
@@ -38,7 +36,6 @@ fn debug_state(editor: &Editor) -> Result<String> {
             "target": target,
             "fullscreen": editor.preview.fullscreen,
         },
-        "status": editor.status,
         "timeline": null,
     });
     if let Some(timeline) = &editor.timeline {

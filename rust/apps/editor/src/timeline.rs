@@ -1,5 +1,5 @@
 use super::*;
-use crate::editor::timeline_backend::TimelineBackend;
+use ::engine::timeline_backend::TimelineBackend;
 use ::timeline::TimelineEditingState;
 pub use ::timeline::{FrameRate, TimelineFrame};
 use anyhow::{Result, ensure};

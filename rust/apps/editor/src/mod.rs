@@ -2,9 +2,9 @@ use crate::editor::explorer_drag::AssetBeingDragged;
 use ::timeline::TimelineSerialization;
 use anyhow::{Context as _, Result};
 use gpui::{
-    App, Bounds, Context, CursorStyle, Entity, EventEmitter, FocusHandle, KeyBinding, MouseButton,
-    MouseDownEvent, MouseMoveEvent, MouseUpEvent, ObjectFit, PathPromptOptions, Pixels, Render,
-    ScrollHandle, ScrollWheelEvent, TouchPhase, Window, actions, div, img, prelude::*, px, rgb,
+    App, Context, CursorStyle, Entity, FocusHandle, KeyBinding, MouseButton, MouseDownEvent,
+    MouseMoveEvent, MouseUpEvent, ObjectFit, PathPromptOptions, Render, ScrollHandle,
+    ScrollWheelEvent, TouchPhase, Window, actions, div, img, prelude::*, px, rgb,
 };
 use std::path::Path;
 use std::{
@@ -20,6 +20,7 @@ mod edit_action;
 mod editing;
 mod editor;
 mod editor_view;
+pub mod event_bus;
 mod explorer;
 mod explorer_drag;
 mod explorer_filter;
@@ -33,7 +34,6 @@ mod model;
 mod preview;
 mod preview_events;
 mod preview_image;
-mod preview_timeline;
 mod project_settings;
 mod properties;
 mod properties_text;
@@ -42,7 +42,6 @@ mod settings;
 mod srt;
 pub use srt::write_srt;
 mod timeline;
-mod timeline_backend;
 mod timeline_clip;
 mod timeline_clip_menu;
 mod timeline_document;
@@ -62,6 +61,7 @@ use context_menu::ContextMenu;
 use edit_action::{EditAction, apply_timeline_edit};
 use editing::ClipClipboard;
 pub(crate) use editor::Editor;
+pub use event_bus::{AppEvent, AssetDragMoveEvent, EventBus};
 use explorer::{load_explorer_expansion, visible_tree};
 use explorer_filter::ExplorerFilter;
 use generic_containers::{HorizontalSplit, HorizontalSplitConstraints, HorizontalSplitState};
@@ -71,8 +71,8 @@ use preview_events::PreviewEvent;
 use project_settings::{load_project_local_settings, save_project_local_settings};
 use properties_transform::VideoTransformInputs;
 use timeline::{
-    FRAME_RATE_PRESETS, FrameRate, FrameRateLabel, PreviewDropAsset, TimelineEditorExt,
-    TimelineFrame, TimelineRuntimeState, timeline_ranges_overlap,
+    FRAME_RATE_PRESETS, FrameRate, PreviewDropAsset, TimelineEditorExt, TimelineFrame,
+    TimelineRuntimeState, timeline_ranges_overlap,
 };
 #[cfg(test)]
 use timeline_clip::AudioClip;
@@ -256,7 +256,6 @@ impl Editor {
             self.activate_timeline(relative_path.clone(), timeline, cx)?;
             self.select_only_clip(None);
             self.explorer.selected_file = Some(relative_path.clone());
-            self.status = Some(format!("Opened {}", relative_path.display()));
             Ok(())
         })()
         .context("open_timeline failed")
@@ -284,7 +283,6 @@ impl Editor {
         self.activate_timeline(relative_path.clone(), timeline, cx)?;
         self.explorer.refresh_file_tree(&self.project_root)?;
         self.save_explorer_expansion()?;
-        self.status = Some(format!("Created {}", relative_path.display()));
         Ok(())
     }
 
@@ -331,6 +329,7 @@ impl Editor {
                 .context("refresh_file_tree failed")?;
             if let Some(timeline) = self.timeline.as_mut() {
                 timeline.backend.seek_frame(timeline.playhead())?;
+                self.preview.target = PreviewTarget::Timeline;
             } else {
                 self.preview.target = PreviewTarget::None;
             }
@@ -646,33 +645,6 @@ fn format_time(seconds: f64, padded_minutes: bool) -> String {
         format!("{minutes_text}:{seconds:02}")
     }
 }
-
-pub struct EventBus;
-#[derive(Clone)]
-pub enum AppEvent {
-    Preview(PreviewEvent),
-    SwitchProject {
-        project_path: PathBuf,
-    },
-    /// Transcribe the audio or video file at this absolute path.
-    Transcribe {
-        source_path: PathBuf,
-        project_root: PathBuf,
-    },
-    HorizontalSplitResized(HorizontalSplitState),
-    Edit(EditAction),
-    DragStarted(AssetBeingDragged),
-    DragMove(AssetDragMoveEvent),
-    DragDrop,
-}
-
-#[derive(Clone, Debug)]
-pub struct AssetDragMoveEvent {
-    pub(in crate::editor) event: MouseMoveEvent,
-    pub(in crate::editor) bounds: Bounds<Pixels>,
-}
-
-impl EventEmitter<AppEvent> for EventBus {}
 
 #[cfg(test)]
 #[path = "tests/mod.test.rs"]

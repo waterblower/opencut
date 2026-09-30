@@ -5,6 +5,9 @@ use super::*;
 impl Render for Editor {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         self.sync_video_transform_inputs(cx);
+        if let Some(timeline) = self.timeline.as_mut() {
+            timeline.backend.release_retired_images(cx); // 释放上次渲染后被替换的预览帧纹理。
+        }
 
         let viewport = window.viewport_size();
         let editor_width =
@@ -136,7 +139,6 @@ impl Editor {
     }
 
     fn topbar(&self, cx: &mut Context<Self>) -> gpui::AnyElement {
-        let message = self.status.as_deref().unwrap_or("Ready").to_string();
         let timeline_name = self
             .timeline
             .as_ref()
@@ -173,21 +175,6 @@ impl Editor {
                             .font_family("monospace")
                             .text_color(rgb(MUTED))
                             .child(format!("EDITOR · {timeline_name} · AUTOSAVED")),
-                    ),
-            )
-            .child(
-                div()
-                    .min_w_0()
-                    .flex_1()
-                    .px_5()
-                    .flex()
-                    .justify_center()
-                    .child(
-                        div()
-                            .text_sm()
-                            .text_ellipsis()
-                            .text_color(rgb(MUTED))
-                            .child(message),
                     ),
             )
             .child(

@@ -18,7 +18,7 @@ pub struct HorizontalSplitWidths {
     pub right: f32,
 }
 
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct HorizontalSplitState {
     left_width: f32,
     right_width: f32,

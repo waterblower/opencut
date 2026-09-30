@@ -1,6 +1,8 @@
 use super::*;
-use crate::editor::preview_timeline::timeline_preview;
-use player_ui::{audio_player::AudioPlayer, video_player::VideoPlayer};
+use player_ui::{
+    audio_player::AudioPlayer, timeline_player_view::timeline_backend_picture,
+    video_player::VideoPlayer,
+};
 use preview_image::preview_image_file;
 
 pub enum PreviewTarget {
@@ -35,11 +37,7 @@ impl Editor {
                 .items_center()
                 .justify_center()
                 .text_color(rgb(MUTED))
-                .child(
-                    self.status
-                        .clone()
-                        .unwrap_or_else(|| "No preview available".into()),
-                )
+                .child("No preview available")
                 .into_any_element(),
             PreviewTarget::Timeline => {
                 let Some(timeline) = self.timeline.as_ref() else {
@@ -48,7 +46,7 @@ impl Editor {
                 div()
                     .w(px(width))
                     .h(px(height))
-                    .child(timeline_preview(&timeline.backend))
+                    .child(timeline_backend_picture(&timeline.backend))
                     .into_any_element()
             }
             PreviewTarget::VideoFile { player, .. } => div()

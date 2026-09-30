@@ -4,10 +4,8 @@ mod audio_output;
 pub mod audio_player;
 mod audio_player_view;
 mod gpu;
-pub mod timeline_decoder;
-pub mod timeline_playback;
 pub mod timeline_player;
-mod timeline_player_view;
+pub mod timeline_player_view;
 pub mod video_player;
 mod video_player_view;
 
