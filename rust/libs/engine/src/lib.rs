@@ -1,5 +1,6 @@
 //! Shared media decoding, encoding, and probing for the CLI and editor.
 pub mod export;
+mod export_encoder;
 pub mod export_v2;
 pub mod image;
 pub mod probe;
