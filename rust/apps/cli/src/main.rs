@@ -4,13 +4,13 @@ mod args;
 mod docs;
 pub mod document;
 pub mod error;
+mod export;
 pub mod subtitles;
 pub mod time;
 pub mod transcribe;
 
 use args::{Args, Command};
 use clap::Parser;
-use engine::export::{ExportOption, export};
 use engine::probe;
 use serde_json::{Value, json};
 use std::{
@@ -41,7 +41,7 @@ async fn main() -> CliExitCode {
     let api_key = std::env::var("MINIMAX_API_KEY").ok();
     let result = run(args.command, api_key.as_deref()).await;
     let elapsed_seconds = started.elapsed().as_secs_f64();
-    let _ = writeln!(io::stderr().lock(), "elapsed_seconds: {elapsed_seconds:.6}");
+    eprintln!("elapsed_seconds: {elapsed_seconds:.6}");
     print_result(result, args.json)
 }
 
@@ -85,29 +85,8 @@ fn print_error(error: &Error, json: bool) {
 
 async fn run(command: Command, api_key: Option<&str>) -> Result<Value> {
     match command {
-        Command::Export {
-            timeline,
-            output,
-            project_root,
-            video_bitrate,
-            overwrite,
-        } => {
-            let document = TimelineSerialization::load(&timeline)?;
-            let project_root = match project_root {
-                Some(root) => root,
-                None => document::asset_base(&timeline)?,
-            };
-            export(
-                &document,
-                &output,
-                &ExportOption {
-                    project_root,
-                    video_bitrate: video_bitrate * 1_000,
-                    overwrite,
-                },
-            )?;
-            Ok(json!({"path": output, "frames": document.frame_count()}))
-        }
+        Command::Export(args) => export::export_v1(args),
+        Command::Export2(args) => export::export_v2(args),
         Command::Transcribe {
             media_file,
             format,
