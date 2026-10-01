@@ -19,3 +19,4 @@ loc = "run --quiet -p scripts --bin loc"
 
 [build]
 target-dir = "target"
+rustflags = ["-A", "unused"]
