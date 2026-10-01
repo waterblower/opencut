@@ -7,7 +7,9 @@ use crate::gpu::GpuResources;
 use crate::image::load_image;
 use anyhow::{Context as _, Result, bail};
 use ffmpeg_next::{ffi, format::Pixel, frame::Video, software::scaling, util::color};
-use gpui::RenderImage;
+use gpui::{
+    AnyElement, IntoElement, ParentElement, RenderImage, Styled, TextAlign, div, px, rgb, rgba,
+};
 use image::{Frame, RgbaImage};
 use media_backend::{VideoBackend, VideoDecoder, VideoFrame};
 use smallvec::smallvec;
@@ -26,13 +28,12 @@ use ulid::Ulid;
 const FORWARD_DECODE_LIMIT: i64 = 1_000_000; // 目标超出当前帧 1 秒以上时改为 seek，而不是逐帧解码过去。
 const TIMESTAMP_TOLERANCE: i64 = 1_000; // 吸收源帧 PTS 与目标时间的微秒取整误差。
 
-/// Render images are prepared when a frame is decoded, never during UI rendering.
-pub struct PreparedFrame {
-    pub frame: TimelineFrameIndex, // 已钳制到最后一帧。
+pub struct TimelineFrameComposition {
+    pub frame: TimelineFrameIndex, // 限制在时间线有效帧范围内。
     pub timestamp: Duration,
     pub width: u32,
     pub height: u32,
-    pub layers: Vec<PreparedLayer>, // 自下而上。
+    pub layers: Vec<PreparedLayer>, // 按绘制顺序排列：底层在前，顶层在后。
 }
 
 pub enum PreparedLayer {
@@ -47,7 +48,84 @@ pub enum PreparedLayer {
     },
 }
 
-impl PreparedFrame {
+impl TimelineFrameComposition {
+    /// Fits the composition into the given logical dimensions and applies layer transforms.
+    pub fn render_frame(&self, width: f32, height: f32) -> AnyElement {
+        let root = div()
+            .w(px(width.max(0.0)))
+            .h(px(height.max(0.0)))
+            .flex()
+            .items_center()
+            .justify_center()
+            .overflow_hidden()
+            .bg(rgb(0));
+        let scale = (width / self.width as f32).min(height / self.height as f32);
+        if !scale.is_finite() || scale <= 0.0 {
+            return root.into_any_element();
+        }
+        let canvas_width = self.width as f32 * scale;
+        let canvas_height = self.height as f32 * scale;
+        let mut canvas = div()
+            .relative()
+            .flex_shrink_0()
+            .overflow_hidden()
+            .w(px(canvas_width))
+            .h(px(canvas_height));
+        for layer in &self.layers {
+            match layer {
+                PreparedLayer::Picture {
+                    frame: image,
+                    properties,
+                    ..
+                } => {
+                    if properties.scale <= 0.0 {
+                        continue;
+                    }
+                    let (source_width, source_height) = image.dimensions();
+                    let fit = (canvas_width / source_width).min(canvas_height / source_height);
+                    let width = source_width * fit * properties.scale as f32;
+                    let height = source_height * fit * properties.scale as f32;
+                    let x = (canvas_width - width) / 2.0 + properties.position_x as f32 * scale;
+                    let y = (canvas_height - height) / 2.0 + properties.position_y as f32 * scale;
+                    canvas = canvas.child(
+                        div()
+                            .child(image.element())
+                            .absolute()
+                            .left(px(x))
+                            .top(px(y))
+                            .w(px(width))
+                            .h(px(height)),
+                    );
+                }
+                PreparedLayer::Text { properties, .. } => {
+                    canvas = canvas.child(
+                        div()
+                            .absolute()
+                            .left(px(properties.position_x as f32 * canvas_width))
+                            .top(px(properties.position_y as f32 * canvas_height))
+                            .w(px(0.0))
+                            .h(px(0.0))
+                            .flex()
+                            .items_center()
+                            .justify_center()
+                            .child(
+                                div()
+                                    .flex_shrink_0()
+                                    .whitespace_nowrap()
+                                    .font_family(properties.font.clone())
+                                    .text_size(px(properties.font_size as f32 * scale))
+                                    .line_height(px(properties.font_size as f32 * scale * 1.2))
+                                    .text_align(TextAlign::Center)
+                                    .text_color(rgba(properties.color.rotate_left(8)))
+                                    .child(properties.text.clone()),
+                            ),
+                    );
+                }
+            }
+        }
+        root.child(canvas).into_any_element()
+    }
+
     pub fn images(&self) -> impl Iterator<Item = &Arc<RenderImage>> {
         self.layers.iter().filter_map(|layer| match layer {
             PreparedLayer::Picture {
@@ -79,7 +157,7 @@ impl TimelineDecoder {
         &mut self,
         timeline: &TimelineEditingState,
         position: TimelineFrameIndex,
-    ) -> Result<PreparedFrame> {
+    ) -> Result<TimelineFrameComposition> {
         let last = (timeline.content_duration() - TimelineFrameIndex::ONE_FRAME)
             .max(TimelineFrameIndex::ZERO);
         let position = position.clamp(TimelineFrameIndex::ZERO, last);
@@ -160,7 +238,7 @@ impl TimelineDecoder {
         }
         // Clips outside the current frame release their decoders.
         self.readers.retain(|id, _| active_readers.contains(id));
-        Ok(PreparedFrame {
+        Ok(TimelineFrameComposition {
             frame: position,
             timestamp: timeline.position_at_frame(position),
             width: timeline.settings.width,
