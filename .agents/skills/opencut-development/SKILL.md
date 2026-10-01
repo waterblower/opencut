@@ -104,6 +104,9 @@ are relative to the OpenCut root.
 - State should live in the narrowest scope that needs it. Prefer a local variable
   over a struct field unless the value actually needs to be shared across methods
   or control flows.
+- Do not shadow variables in the same scope in our code. Give transformed values
+  distinct, descriptive names, such as `rotated_pixels` instead of redeclaring
+  `pixels`. This applies even when the new value has the same type.
 - Do not introduce one-line forwarding wrappers around a helper with only one
   production caller. Put the implementation in the entry-point function, or
   call the implementation directly with the data it needs. An extra function
