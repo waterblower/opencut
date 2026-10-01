@@ -15,8 +15,8 @@ use std::{
     time::Duration,
 };
 use timeline::{
-    Clip, MediaKind, TextClipProperties, TimelineEditingState, TimelineFrame as TimelineFrameIndex,
-    TrackKind, VideoClipProperties,
+    Clip, MediaKind, TextClipProperties, TimelineEditingState, TimelineFrameIndex, TrackKind,
+    VideoClipProperties,
 };
 use ulid::Ulid;
 

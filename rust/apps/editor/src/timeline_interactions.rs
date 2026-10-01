@@ -10,7 +10,7 @@ pub(super) enum TimelineTool {
 #[derive(Clone)]
 pub(super) struct ClipMoveItem {
     pub(super) clip_id: Ulid,
-    pub(super) original_timeline_start: TimelineFrame,
+    pub(super) original_timeline_start: TimelineFrameIndex,
     pub(super) original_track_id: Ulid,
     pub(super) original_track_index: usize,
 }
@@ -18,10 +18,10 @@ pub(super) struct ClipMoveItem {
 pub(super) struct ClipMoveDrag {
     pub(super) anchor_clip_id: Ulid,
     pub(super) start_x: f32,
-    pub(super) original_anchor_start: TimelineFrame,
+    pub(super) original_anchor_start: TimelineFrameIndex,
     pub(super) original_anchor_track_index: usize,
     pub(super) items: Vec<ClipMoveItem>,
-    pub(super) placements: Vec<(Ulid, Ulid, TimelineFrame)>,
+    pub(super) placements: Vec<(Ulid, Ulid, TimelineFrameIndex)>,
     pub(super) invalid_reason: Option<&'static str>,
     pub(super) changed: bool,
 }
@@ -39,8 +39,8 @@ pub(super) struct TimelineInteractionState {
     pub(super) active_tool: TimelineTool,
     pub(super) selected_clip_id: Option<Ulid>,
     pub(super) selected_clip_ids: HashSet<Ulid>,
-    pub(super) blade_guide: Option<TimelineFrame>,
-    pub(super) snap_guide: Option<TimelineFrame>,
+    pub(super) blade_guide: Option<TimelineFrameIndex>,
+    pub(super) snap_guide: Option<TimelineFrameIndex>,
     pub(super) clip_move_drag: Option<ClipMoveDrag>,
     pub(super) marquee_selection: Option<MarqueeSelection>,
 }
@@ -126,11 +126,11 @@ impl TimelineRuntimeState {
 
     pub(super) fn snap_time_ignoring(
         &self,
-        time: TimelineFrame,
+        time: TimelineFrameIndex,
         ignored_clip_ids: &HashSet<Ulid>,
-    ) -> (TimelineFrame, Option<TimelineFrame>) {
+    ) -> (TimelineFrameIndex, Option<TimelineFrameIndex>) {
         if !self.snapping_enabled {
-            return (time.max(TimelineFrame::ZERO), None);
+            return (time.max(TimelineFrameIndex::ZERO), None);
         }
         let threshold = self
             .backend
@@ -140,7 +140,7 @@ impl TimelineRuntimeState {
             .ceil(SNAP_DISTANCE_PX as f64 / self.pixels_per_second as f64)
             .frames()
             .max(1) as u64;
-        let mut candidates = vec![TimelineFrame::ZERO, self.playhead()];
+        let mut candidates = vec![TimelineFrameIndex::ZERO, self.playhead()];
         for clip in &self.backend.timeline().clips {
             if !ignored_clip_ids.contains(&clip.id()) {
                 candidates.push(clip.timeline_start());
@@ -151,16 +151,16 @@ impl TimelineRuntimeState {
             .into_iter()
             .filter(|candidate| candidate.abs_diff(time) <= threshold)
             .min_by_key(|candidate| candidate.abs_diff(time))
-            .map(|candidate| (candidate.max(TimelineFrame::ZERO), Some(candidate)));
-        snapped.unwrap_or((time.max(TimelineFrame::ZERO), None))
+            .map(|candidate| (candidate.max(TimelineFrameIndex::ZERO), Some(candidate)));
+        snapped.unwrap_or((time.max(TimelineFrameIndex::ZERO), None))
     }
 
     pub(super) fn snap_clip_start_ignoring(
         &self,
-        start: TimelineFrame,
-        duration: TimelineFrame,
+        start: TimelineFrameIndex,
+        duration: TimelineFrameIndex,
         ignored_clip_ids: &HashSet<Ulid>,
-    ) -> (TimelineFrame, Option<TimelineFrame>) {
+    ) -> (TimelineFrameIndex, Option<TimelineFrameIndex>) {
         let (start_candidate, start_guide) = self.snap_time_ignoring(start, ignored_clip_ids);
         let (snapped_end, end_guide) = self.snap_time_ignoring(start + duration, ignored_clip_ids);
         let end_candidate = snapped_end - duration;
@@ -193,35 +193,38 @@ impl TimelineRuntimeState {
         }
     }
 
-    pub(super) fn timeline_position_from_x(&self, x: f32) -> TimelineFrame {
+    pub(super) fn timeline_position_from_x(&self, x: f32) -> TimelineFrameIndex {
         let scroll_x: f32 = self.h_scroll.offset().x.into();
         let content_x = x - TRACK_HEADER_WIDTH - scroll_x - TIMELINE_PADDING;
         self.backend
             .timeline()
             .nearest_time(content_x as f64 / self.pixels_per_second as f64)
             .clamp(
-                TimelineFrame::ZERO,
+                TimelineFrameIndex::ZERO,
                 self.backend.timeline().content_duration(),
             )
     }
 }
 
 pub(super) fn choose_clip_snap(
-    original_start: TimelineFrame,
-    start_candidate: TimelineFrame,
-    start_guide: Option<TimelineFrame>,
-    end_candidate: TimelineFrame,
-    end_guide: Option<TimelineFrame>,
-) -> (TimelineFrame, Option<TimelineFrame>) {
+    original_start: TimelineFrameIndex,
+    start_candidate: TimelineFrameIndex,
+    start_guide: Option<TimelineFrameIndex>,
+    end_candidate: TimelineFrameIndex,
+    end_guide: Option<TimelineFrameIndex>,
+) -> (TimelineFrameIndex, Option<TimelineFrameIndex>) {
     match (start_guide, end_guide) {
-        (None, None) => (original_start.max(TimelineFrame::ZERO), None),
-        (Some(guide), None) => (start_candidate.max(TimelineFrame::ZERO), Some(guide)),
-        (None, Some(guide)) => (end_candidate.max(TimelineFrame::ZERO), Some(guide)),
+        (None, None) => (original_start.max(TimelineFrameIndex::ZERO), None),
+        (Some(guide), None) => (start_candidate.max(TimelineFrameIndex::ZERO), Some(guide)),
+        (None, Some(guide)) => (end_candidate.max(TimelineFrameIndex::ZERO), Some(guide)),
         (Some(start_guide), Some(end_guide)) => {
             if end_candidate.abs_diff(original_start) < start_candidate.abs_diff(original_start) {
-                (end_candidate.max(TimelineFrame::ZERO), Some(end_guide))
+                (end_candidate.max(TimelineFrameIndex::ZERO), Some(end_guide))
             } else {
-                (start_candidate.max(TimelineFrame::ZERO), Some(start_guide))
+                (
+                    start_candidate.max(TimelineFrameIndex::ZERO),
+                    Some(start_guide),
+                )
             }
         }
     }
@@ -253,7 +256,7 @@ impl Editor {
         let position = timeline
             .timeline_position_from_x(event.position.x.into())
             .clamp(
-                TimelineFrame::ZERO,
+                TimelineFrameIndex::ZERO,
                 timeline.backend.timeline().content_duration(),
             );
         let timeline = self.timeline.as_mut().expect("timeline was checked above");
@@ -533,15 +536,15 @@ impl Editor {
             .iter()
             .map(|item| item.original_timeline_start)
             .min()
-            .unwrap_or(TimelineFrame::ZERO);
+            .unwrap_or(TimelineFrameIndex::ZERO);
         let raw_anchor_start = original_anchor_start
-            + TimelineFrame::from_frames(raw_delta.frames().max(-earliest_start.frames()));
+            + TimelineFrameIndex::from_frames(raw_delta.frames().max(-earliest_start.frames()));
         let anchor_duration = timeline
             .backend
             .timeline()
             .clip(anchor_clip_id)
             .map(|clip| clip.frame_length(timeline.backend.timeline().settings.frame_rate))
-            .unwrap_or(TimelineFrame::ZERO);
+            .unwrap_or(TimelineFrameIndex::ZERO);
         let (snapped_start, snap_guide) = timeline.snap_clip_start_ignoring(
             raw_anchor_start,
             anchor_duration,
@@ -740,8 +743,8 @@ impl Editor {
         if timeline.backend.timeline().clips.is_empty() {
             return Ok(());
         }
-        let target = (timeline.playhead() + TimelineFrame::from_frames(frames)).clamp(
-            TimelineFrame::ZERO,
+        let target = (timeline.playhead() + TimelineFrameIndex::from_frames(frames)).clamp(
+            TimelineFrameIndex::ZERO,
             timeline.backend.timeline().content_duration(),
         );
         if target != timeline.playhead() || !self.preview.target.is_timeline() {

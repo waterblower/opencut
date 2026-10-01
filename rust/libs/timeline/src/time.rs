@@ -4,26 +4,36 @@ use std::{
 };
 
 #[derive(Clone, Copy, Debug, Default, Eq, Ord, PartialEq, PartialOrd)]
-pub struct TimelineFrame(i64);
+pub struct TimelineFrameIndex(i64);
 
-impl TimelineFrame {
+impl TimelineFrameIndex {
     pub const ZERO: Self = Self(0);
     pub const ONE_FRAME: Self = Self(1);
-
-    pub const fn from_frames(frames: i64) -> Self {
-        Self(frames)
-    }
-
-    pub const fn frames(self) -> i64 {
-        self.0
-    }
 
     pub fn abs_diff(self, other: Self) -> u64 {
         self.0.abs_diff(other.0)
     }
 }
 
-impl Add for TimelineFrame {
+impl From<i64> for TimelineFrameIndex {
+    fn from(value: i64) -> Self {
+        Self(value)
+    }
+}
+
+impl From<TimelineFrameIndex> for i64 {
+    fn from(value: TimelineFrameIndex) -> Self {
+        value.0
+    }
+}
+
+impl From<TimelineFrameIndex> for u128 {
+    fn from(value: TimelineFrameIndex) -> Self {
+        value.0 as u128
+    }
+}
+
+impl Add for TimelineFrameIndex {
     type Output = Self;
 
     fn add(self, rhs: Self) -> Self::Output {
@@ -31,13 +41,13 @@ impl Add for TimelineFrame {
     }
 }
 
-impl AddAssign for TimelineFrame {
+impl AddAssign for TimelineFrameIndex {
     fn add_assign(&mut self, rhs: Self) {
         *self = *self + rhs;
     }
 }
 
-impl Sub for TimelineFrame {
+impl Sub for TimelineFrameIndex {
     type Output = Self;
 
     fn sub(self, rhs: Self) -> Self::Output {
@@ -45,7 +55,7 @@ impl Sub for TimelineFrame {
     }
 }
 
-impl SubAssign for TimelineFrame {
+impl SubAssign for TimelineFrameIndex {
     fn sub_assign(&mut self, rhs: Self) {
         *self = *self - rhs;
     }
@@ -84,12 +94,12 @@ impl FrameRate {
         self.numerator as f64 / self.denominator.max(1) as f64
     }
 
-    pub fn seconds(self, time: TimelineFrame) -> f64 {
-        time.frames() as f64 * self.denominator.max(1) as f64 / self.numerator.max(1) as f64
+    pub fn seconds(self, time: TimelineFrameIndex) -> f64 {
+        i64::from(time) as f64 * self.denominator.max(1) as f64 / self.numerator.max(1) as f64
     }
 
-    pub fn duration(self, time: TimelineFrame) -> Duration {
-        let frames = time.frames().max(0) as u128;
+    pub fn duration(self, time: TimelineFrameIndex) -> Duration {
+        let frames = u128::from(time).max(0);
         let numerator = frames
             .saturating_mul(self.denominator.max(1) as u128)
             .saturating_mul(1_000_000_000);
@@ -97,71 +107,67 @@ impl FrameRate {
         Duration::from_nanos(nanos.min(u64::MAX as u128) as u64)
     }
 
-    pub fn frames_from_duration_nearest(self, duration: Duration) -> TimelineFrame {
+    pub fn frames_from_duration_nearest(self, duration: Duration) -> TimelineFrameIndex {
         let numerator = duration
             .as_nanos()
             .saturating_mul(self.numerator.max(1) as u128);
         let denominator = (self.denominator.max(1) as u128).saturating_mul(1_000_000_000);
-        TimelineFrame::from_frames(divide_round(numerator, denominator).min(i64::MAX as u128) as i64)
+
+        (divide_round(numerator, denominator).min(i64::MAX as u128) as i64).into()
     }
 
-    pub fn audio_samples(self, time: TimelineFrame, sample_rate: u32) -> u64 {
-        let frames = time.frames().max(0) as u128;
+    pub fn audio_samples(self, time: TimelineFrameIndex, sample_rate: u32) -> u64 {
+        let frames = u128::from(time).max(0);
         let numerator = frames
             .saturating_mul(self.denominator.max(1) as u128)
             .saturating_mul(sample_rate as u128);
         divide_round(numerator, self.numerator.max(1) as u128).min(u64::MAX as u128) as u64
     }
 
-    pub fn nearest(self, seconds: f64) -> TimelineFrame {
+    pub fn nearest(self, seconds: f64) -> TimelineFrameIndex {
         if !seconds.is_finite() || seconds <= 0.0 {
-            return TimelineFrame::ZERO;
+            return TimelineFrameIndex::ZERO;
         }
-        TimelineFrame::from_frames(
-            (seconds * self.frames_per_second())
-                .round()
-                .clamp(0.0, i64::MAX as f64) as i64,
-        )
+        ((seconds * self.frames_per_second())
+            .round()
+            .clamp(0.0, i64::MAX as f64) as i64)
+            .into()
     }
-    pub fn ceil(self, seconds: f64) -> TimelineFrame {
+    pub fn ceil(self, seconds: f64) -> TimelineFrameIndex {
         if !seconds.is_finite() || seconds <= 0.0 {
-            return TimelineFrame::ZERO;
+            return TimelineFrameIndex::ZERO;
         }
-        TimelineFrame::from_frames(
-            (seconds * self.frames_per_second())
-                .ceil()
-                .clamp(0.0, i64::MAX as f64) as i64,
-        )
+        ((seconds * self.frames_per_second())
+            .ceil()
+            .clamp(0.0, i64::MAX as f64) as i64)
+            .into()
     }
-    pub fn delta(self, seconds: f64) -> TimelineFrame {
+    pub fn delta(self, seconds: f64) -> TimelineFrameIndex {
         if !seconds.is_finite() {
-            return TimelineFrame::ZERO;
+            return TimelineFrameIndex::ZERO;
         }
-        TimelineFrame::from_frames(
-            (seconds * self.frames_per_second())
-                .round()
-                .clamp(i64::MIN as f64, i64::MAX as f64) as i64,
-        )
+        ((seconds * self.frames_per_second())
+            .round()
+            .clamp(i64::MIN as f64, i64::MAX as f64) as i64)
+            .into()
     }
-    pub fn rescale_nearest(self, time: TimelineFrame, target: Self) -> TimelineFrame {
-        if time <= TimelineFrame::ZERO {
-            return TimelineFrame::ZERO;
+    pub fn rescale_nearest(self, time: TimelineFrameIndex, target: Self) -> TimelineFrameIndex {
+        if time <= TimelineFrameIndex::ZERO {
+            return TimelineFrameIndex::ZERO;
         }
-        let numerator = (time.frames() as u128)
-            * self.denominator.max(1) as u128
-            * target.numerator.max(1) as u128;
+        let numerator =
+            u128::from(time) * self.denominator.max(1) as u128 * target.numerator.max(1) as u128;
         let denominator = self.numerator.max(1) as u128 * target.denominator.max(1) as u128;
-        TimelineFrame::from_frames(divide_round(numerator, denominator).min(i64::MAX as u128) as i64)
+        (divide_round(numerator, denominator).min(i64::MAX as u128) as i64).into()
     }
-    pub fn rescale_floor(self, time: TimelineFrame, target: Self) -> TimelineFrame {
-        if time <= TimelineFrame::ZERO {
-            return TimelineFrame::ZERO;
+    pub fn rescale_floor(self, time: TimelineFrameIndex, target: Self) -> TimelineFrameIndex {
+        if time <= TimelineFrameIndex::ZERO {
+            return TimelineFrameIndex::ZERO;
         }
-        let numerator = (time.frames() as u128)
-            * self.denominator.max(1) as u128
-            * target.numerator.max(1) as u128;
+        let numerator =
+            u128::from(time) * self.denominator.max(1) as u128 * target.numerator.max(1) as u128;
         let denominator = self.numerator.max(1) as u128 * target.denominator.max(1) as u128;
-        TimelineFrame::from_frames((numerator / denominator).min(i64::MAX as u128) as i64)
+        ((numerator / denominator).min(i64::MAX as u128) as i64).into()
     }
 }
 

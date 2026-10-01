@@ -7,7 +7,7 @@ use crate::editor::{
     explorer_filter::ExplorerFilter,
     model::MediaAsset,
     preview::PreviewTarget,
-    timeline::TimelineFrame,
+    timeline::TimelineFrameIndex,
     timeline_clip::{AudioClipProperties, Clip, VideoClip, VideoClipProperties},
     timeline_document,
     track::TrackKind,
@@ -360,7 +360,7 @@ impl Editor {
         &mut self,
         relative_path: PathBuf,
         track_id: Ulid,
-        raw_start: TimelineFrame,
+        raw_start: TimelineFrameIndex,
         mut asset: MediaAsset,
         cx: &mut Context<Self>,
     ) -> Result<()> {
@@ -371,7 +371,7 @@ impl Editor {
             .backend
             .timeline()
             .nearest_time(asset.duration)
-            .max(TimelineFrame::ONE_FRAME);
+            .max(TimelineFrameIndex::ONE_FRAME);
         let track_kind = timeline
             .backend
             .timeline()
@@ -414,7 +414,7 @@ impl Editor {
             track_id,
             asset_id,
             timeline_start: start,
-            source_in: TimelineFrame::ZERO,
+            source_in: TimelineFrameIndex::ZERO,
             source_out: duration,
             video_properties: VideoClipProperties::default(),
             audio_properties: AudioClipProperties::default(),

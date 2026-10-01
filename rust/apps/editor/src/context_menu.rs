@@ -345,7 +345,7 @@ impl Editor {
 
 pub(super) struct TextTrackContextMenu {
     pub(super) track_id: Ulid,
-    pub(super) position: TimelineFrame,
+    pub(super) position: TimelineFrameIndex,
     pub(super) x: f32,
     pub(super) y: f32,
 }
@@ -451,7 +451,7 @@ impl Editor {
             .backend
             .timeline()
             .nearest_time(content_x as f64 / timeline.pixels_per_second as f64)
-            .max(TimelineFrame::ZERO);
+            .max(TimelineFrameIndex::ZERO);
         self.context_menu = ContextMenu::TextTrack(TextTrackContextMenu {
             track_id,
             position,

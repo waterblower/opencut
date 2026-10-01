@@ -1,4 +1,4 @@
-use super::{ACCENT, FrameRate, TIMELINE_PADDING, TRACK_HEIGHT, TimelineFrame};
+use super::{ACCENT, FrameRate, TIMELINE_PADDING, TRACK_HEIGHT, TimelineFrameIndex};
 pub use ::timeline::{
     AudioClip, AudioClipProperties, Clip, TextClip, TextClipProperties, VideoClip,
     VideoClipProperties,
@@ -11,7 +11,7 @@ use ulid::Ulid;
 pub trait ClipEditingExt {
     fn split_at(
         &self,
-        timeline_position: TimelineFrame,
+        timeline_position: TimelineFrameIndex,
         frame_rate: FrameRate,
     ) -> Option<(Self, Self)>
     where
@@ -20,12 +20,12 @@ pub trait ClipEditingExt {
 impl ClipEditingExt for Clip {
     fn split_at(
         &self,
-        timeline_position: TimelineFrame,
+        timeline_position: TimelineFrameIndex,
         frame_rate: FrameRate,
     ) -> Option<(Self, Self)> {
         let local = timeline_position - self.timeline_start();
-        if local < TimelineFrame::ONE_FRAME
-            || local > self.frame_length(frame_rate) - TimelineFrame::ONE_FRAME
+        if local < TimelineFrameIndex::ONE_FRAME
+            || local > self.frame_length(frame_rate) - TimelineFrameIndex::ONE_FRAME
         {
             return None;
         }

@@ -10,7 +10,7 @@ use std::{
     sync::Arc,
     time::{Duration, Instant},
 };
-use timeline::{FrameRate, TimelineEditingState, TimelineFrame};
+use timeline::{FrameRate, TimelineEditingState, TimelineFrameIndex};
 
 pub const MAX_CONTROL_WAIT: Duration = Duration::from_millis(100); // 暂停时轮询间隔；限制控制响应延迟。
 
@@ -62,7 +62,7 @@ impl TimelineBackend {
         }
         timeline.validate()?;
         let mut decoder = TimelineDecoder::new(project_root);
-        let frame = decoder.frame_at(&timeline, TimelineFrame::ZERO)?;
+        let frame = decoder.frame_at(&timeline, TimelineFrameIndex::ZERO)?;
         Ok(Self {
             timeline,
             project_root: project_root.to_owned(),
@@ -106,11 +106,11 @@ impl TimelineBackend {
         }
         let frame = rate
             .frames_from_duration_nearest(position)
-            .clamp(TimelineFrame::ZERO, self.last_frame());
+            .clamp(TimelineFrameIndex::ZERO, self.last_frame());
         self.seek_precise(self.timeline.position_at_frame(frame))
     }
 
-    pub fn seek_frame(&mut self, frame: TimelineFrame) -> Result<()> {
+    pub fn seek_frame(&mut self, frame: TimelineFrameIndex) -> Result<()> {
         self.seek(self.timeline.position_at_frame(frame))
     }
 
@@ -197,7 +197,7 @@ impl TimelineBackend {
             let frame = self.decoder.frame_at(&self.timeline, frame)?;
             self.show(frame);
         }
-        let next = rate.duration(frame + TimelineFrame::ONE_FRAME);
+        let next = rate.duration(frame + TimelineFrameIndex::ONE_FRAME);
         Ok(Advance {
             wait: next
                 .saturating_sub(self.clock.position())
@@ -234,7 +234,7 @@ impl TimelineBackend {
     }
 
     /// The displayed timeline frame.
-    pub fn frame(&self) -> TimelineFrame {
+    pub fn frame(&self) -> TimelineFrameIndex {
         self.displayed.frame
     }
 
@@ -257,8 +257,9 @@ impl TimelineBackend {
         Ok(self.preview_frame())
     }
 
-    fn last_frame(&self) -> TimelineFrame {
-        (self.timeline.content_duration() - TimelineFrame::ONE_FRAME).max(TimelineFrame::ZERO)
+    fn last_frame(&self) -> TimelineFrameIndex {
+        (self.timeline.content_duration() - TimelineFrameIndex::ONE_FRAME)
+            .max(TimelineFrameIndex::ZERO)
     }
 
     /// Replaces the displayed frame and retires images the new frame no longer uses.
@@ -279,11 +280,11 @@ impl TimelineBackend {
 
 /// The timeline frame containing the position; frames change at their start, not their midpoint.
 /// One extra nanosecond absorbs `FrameRate::duration` rounding a frame start down.
-fn floor_frame(rate: FrameRate, position: Duration) -> TimelineFrame {
+fn floor_frame(rate: FrameRate, position: Duration) -> TimelineFrameIndex {
     let frames = position
         .as_nanos()
         .saturating_add(1)
         .saturating_mul(rate.numerator.max(1) as u128)
         / (rate.denominator.max(1) as u128 * 1_000_000_000);
-    TimelineFrame::from_frames(frames.min(i64::MAX as u128) as i64)
+    (frames.min(i64::MAX as u128) as i64).into()
 }

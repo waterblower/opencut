@@ -411,7 +411,7 @@ impl Editor {
                 div()
                     .absolute()
                     .left(px(TIMELINE_PADDING
-                        + frame_rate.seconds(TimelineFrame::from_frames(frame))
+                        + frame_rate.seconds(TimelineFrameIndex::from_frames(frame))
                             as f32
                             * timeline.pixels_per_second))
                     .bottom_0()

@@ -71,7 +71,7 @@ use preview_events::PreviewEvent;
 use project_settings::{load_project_local_settings, save_project_local_settings};
 use properties_transform::VideoTransformInputs;
 use timeline::{
-    FRAME_RATE_PRESETS, FrameRate, PreviewDropAsset, TimelineEditorExt, TimelineFrame,
+    FRAME_RATE_PRESETS, FrameRate, PreviewDropAsset, TimelineEditorExt, TimelineFrameIndex,
     TimelineRuntimeState, timeline_ranges_overlap,
 };
 #[cfg(test)]

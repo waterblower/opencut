@@ -354,7 +354,6 @@ struct ClipAudio {
     pending: Option<AudioSamples>, // 尚未被当前请求完全消耗的解码块。
 }
 
-
 fn validate_export(
     timeline: &TimelineSerialization,
     output: &Path,
@@ -723,7 +722,6 @@ impl ClipAudio {
         Ok(result)
     }
 }
-
 
 fn clip_id(clip: &Clip) -> Ulid {
     match clip {

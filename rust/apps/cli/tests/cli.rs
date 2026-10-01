@@ -316,9 +316,9 @@ fn media_clip(
         id: Ulid::from(id),
         track_id: Ulid::from(track),
         asset_id: Ulid::from(asset),
-        timeline_start: TimelineFrame::from_frames(start),
-        source_in: TimelineFrame::from_frames(input),
-        source_out: TimelineFrame::from_frames(out),
+        timeline_start: TimelineFrameIndex::from_frames(start),
+        source_in: TimelineFrameIndex::from_frames(input),
+        source_out: TimelineFrameIndex::from_frames(out),
         video_properties: Default::default(),
         audio_properties: Default::default(),
     }
