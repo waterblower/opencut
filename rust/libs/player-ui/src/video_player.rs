@@ -1,9 +1,8 @@
-#[cfg(target_os = "macos")]
-use crate::gpu::GpuResources;
 use crate::{WaitUntilPlaying, audio_output::AudioOutput};
 use anyhow::{Context as _, Result, bail};
+pub use engine::displayed_frame::DisplayedFrame;
 #[cfg(target_os = "macos")]
-use core_video::pixel_buffer::CVPixelBuffer;
+use engine::gpu::GpuResources;
 use ffmpeg_next::{
     Error as FfmpegError, ffi, format::Pixel, frame::Video, software::scaling, util::color,
 };
@@ -97,12 +96,6 @@ impl VideoPlayer {
         }
         cx.notify();
     }
-}
-
-pub enum DisplayedFrame {
-    #[cfg(target_os = "macos")]
-    Surface(CVPixelBuffer),
-    Image(Arc<RenderImage>),
 }
 
 pub enum PlaybackState {
@@ -452,7 +445,7 @@ fn convert(scaler: &mut Option<scaling::Context>, frame: &VideoFrame) -> Result<
     let (pixels, width, height) = rotate(pixels, width, height, quarter);
     let pixels =
         RgbaImage::from_raw(width, height, pixels).context("invalid prepared image dimensions")?;
-    Ok(DisplayedFrame::Image(Arc::new(RenderImage::new(vec![
+    Ok(DisplayedFrame::GpuiImage(Arc::new(RenderImage::new(vec![
         Frame::new(pixels),
     ]))))
 }

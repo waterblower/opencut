@@ -5,7 +5,7 @@ use engine::{
 };
 use gpui::{
     AnyElement, AvailableSpace, Bounds, ClickEvent, Context, CursorStyle, TextAlign, Window,
-    canvas, div, img, prelude::*, px, relative, rgb, rgba,
+    canvas, div, prelude::*, px, relative, rgb, rgba,
 };
 use std::{cell::Cell, rc::Rc, sync::Arc, time::Duration};
 
@@ -166,21 +166,22 @@ fn render_frame(frame: &PreparedFrame, width: f32, height: f32) -> AnyElement {
     for layer in &frame.layers {
         match layer {
             PreparedLayer::Picture {
-                image, properties, ..
+                frame: image,
+                properties,
+                ..
             } => {
                 if properties.scale <= 0.0 {
                     continue;
                 }
-                let size = image.size(0);
-                let source_width = size.width.0 as f32;
-                let source_height = size.height.0 as f32;
+                let (source_width, source_height) = image.dimensions();
                 let fit = (canvas_width / source_width).min(canvas_height / source_height);
                 let width = source_width * fit * properties.scale as f32;
                 let height = source_height * fit * properties.scale as f32;
                 let x = (canvas_width - width) / 2.0 + properties.position_x as f32 * scale;
                 let y = (canvas_height - height) / 2.0 + properties.position_y as f32 * scale;
                 canvas = canvas.child(
-                    img(Arc::clone(image))
+                    div()
+                        .child(image.element())
                         .absolute()
                         .left(px(x))
                         .top(px(y))
