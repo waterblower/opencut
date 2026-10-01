@@ -1,6 +1,9 @@
 //! Timeline frame preparation for playback and scrubbing. Each video clip keeps decoding
 //! forward and only seeks on backward or distant jumps.
 
+use crate::displayed_frame::DisplayedFrame;
+#[cfg(target_os = "macos")]
+use crate::gpu::GpuResources;
 use crate::image::load_image;
 use anyhow::{Context as _, Result, bail};
 use ffmpeg_next::{ffi, format::Pixel, frame::Video, software::scaling, util::color};
@@ -12,7 +15,7 @@ use std::{
     collections::{HashMap, HashSet, hash_map::Entry},
     path::{Path, PathBuf},
     sync::Arc,
-    time::Duration,
+    time::{Duration, Instant},
 };
 use timeline::{
     Clip, MediaKind, TextClipProperties, TimelineEditingState, TimelineFrameIndex, TrackKind,
@@ -35,7 +38,7 @@ pub struct PreparedFrame {
 pub enum PreparedLayer {
     Picture {
         clip_id: Ulid,
-        image: Arc<RenderImage>, // BGRA；源帧未变化时沿用同一图像。
+        frame: DisplayedFrame, // GPU surface 或 CPU 图像；源帧未变化时复用。
         properties: VideoClipProperties,
     },
     Text {
@@ -47,8 +50,11 @@ pub enum PreparedLayer {
 impl PreparedFrame {
     pub fn images(&self) -> impl Iterator<Item = &Arc<RenderImage>> {
         self.layers.iter().filter_map(|layer| match layer {
-            PreparedLayer::Picture { image, .. } => Some(image),
-            PreparedLayer::Text { .. } => None,
+            PreparedLayer::Picture {
+                frame: DisplayedFrame::GpuiImage(image),
+                ..
+            } => Some(image),
+            _ => None,
         })
     }
 }
@@ -129,21 +135,23 @@ impl TimelineDecoder {
                                     }
                                 }
                             }
-                            MediaKind::Image => match self.images.entry(asset.id) {
-                                Entry::Occupied(entry) => Arc::clone(entry.get()),
-                                Entry::Vacant(entry) => {
-                                    let pixels = load_image(&path).context(format!(
-                                        "Loading timeline image {}",
-                                        path.display()
-                                    ))?;
-                                    Arc::clone(entry.insert(bgra_image(swap_red_blue(pixels))))
-                                }
-                            },
+                            MediaKind::Image => {
+                                DisplayedFrame::GpuiImage(match self.images.entry(asset.id) {
+                                    Entry::Occupied(entry) => Arc::clone(entry.get()),
+                                    Entry::Vacant(entry) => {
+                                        let pixels = load_image(&path).context(format!(
+                                            "Loading timeline image {}",
+                                            path.display()
+                                        ))?;
+                                        Arc::clone(entry.insert(bgra_image(swap_red_blue(pixels))))
+                                    }
+                                })
+                            }
                             MediaKind::Audio => bail!("Visual clip {} uses audio", media.id),
                         };
                         layers.push(PreparedLayer::Picture {
                             clip_id: media.id,
-                            image,
+                            frame: image,
                             properties: media.video_properties,
                         });
                     }
@@ -163,10 +171,12 @@ impl TimelineDecoder {
 }
 
 struct ClipReader {
+    #[cfg(target_os = "macos")]
+    gpu: Option<GpuResources>,
     decoder: VideoDecoder,
     scaler: Option<scaling::Context>,
-    next: Option<VideoFrame>,               // 已解码、尚未到展示时间的帧。
-    shown: Option<(i64, Arc<RenderImage>)>, // (源 PTS 微秒, 图像)。
+    next: Option<VideoFrame>,             // 已解码、尚未到展示时间的帧。
+    shown: Option<(i64, DisplayedFrame)>, // (源 PTS 微秒, 图像)。
 }
 
 impl ClipReader {
@@ -178,6 +188,11 @@ impl ClipReader {
             metadata.origin_microseconds,
         )?;
         Ok(Self {
+            #[cfg(target_os = "macos")]
+            gpu: GpuResources::new((
+                metadata.video.width as usize,
+                metadata.video.height as usize,
+            ))?,
             decoder,
             scaler: None,
             next: None,
@@ -186,7 +201,8 @@ impl ClipReader {
     }
 
     /// Latest frame at or before the source position; converts only when the frame changes.
-    fn picture_at(&mut self, source: Duration) -> Result<Arc<RenderImage>> {
+    fn picture_at(&mut self, source: Duration) -> Result<DisplayedFrame> {
+        let started = Instant::now();
         let target = i64::try_from(source.as_micros()).unwrap_or(i64::MAX);
         let mut selected = None;
         let continues = self.shown.as_ref().is_some_and(|(shown, _)| {
@@ -213,12 +229,24 @@ impl ClipReader {
                 _ => break,
             }
         }
+        let decoded = Instant::now();
         if let Some(frame) = selected {
-            let image = bgra_image(frame_to_bgra(&frame, &mut self.scaler)?);
+            #[cfg(target_os = "macos")]
+            let surface = match &mut self.gpu {
+                Some(gpu) => gpu.convert(&frame)?,
+                None => None,
+            };
+            #[cfg(target_os = "macos")]
+            let image = match surface {
+                Some(buffer) => DisplayedFrame::Surface(buffer),
+                None => DisplayedFrame::GpuiImage(frame_to_gpui_image(&frame, &mut self.scaler)?),
+            };
+            #[cfg(not(target_os = "macos"))]
+            let image = DisplayedFrame::GpuiImage(frame_to_gpui_image(&frame, &mut self.scaler)?);
             self.shown = Some((frame.timestamp.0, image));
         }
         let (_, image) = self.shown.as_ref().context("Video has no decoded frame")?;
-        Ok(Arc::clone(image))
+        Ok(image.clone())
     }
 }
 
@@ -234,8 +262,11 @@ fn swap_red_blue(mut pixels: RgbaImage) -> RgbaImage {
     pixels
 }
 
-/// Converts to BGRA in FFmpeg directly, avoiding a per-pixel channel swap, and applies display rotation.
-fn frame_to_bgra(frame: &VideoFrame, scaler: &mut Option<scaling::Context>) -> Result<RgbaImage> {
+fn frame_to_gpui_image(
+    frame: &VideoFrame,
+    scaler: &mut Option<scaling::Context>,
+) -> Result<Arc<gpui::RenderImage>> {
+    let started = Instant::now();
     let mut transferred = Video::empty();
     // SAFETY: frame owns its AVFrame; the transfer destination is exclusively owned.
     let hardware = unsafe { !(*frame.native.as_ptr()).hw_frames_ctx.is_null() };
@@ -250,6 +281,7 @@ fn frame_to_bgra(frame: &VideoFrame, scaler: &mut Option<scaling::Context>) -> R
     } else {
         &frame.native
     };
+    let transferred_at = Instant::now();
     let definition = scaling::context::Definition {
         format: source.format(),
         width: source.width(),
@@ -269,7 +301,7 @@ fn frame_to_bgra(frame: &VideoFrame, scaler: &mut Option<scaling::Context>) -> R
             scaling::Flags::BILINEAR,
         )?);
     }
-    let scaler = scaler.as_mut().context("Missing video scaler")?;
+    let active_scaler = scaler.as_mut().context("Missing video scaler")?;
     let matrix = match frame.color_space {
         color::Space::BT709 => ffi::SWS_CS_ITU709,
         color::Space::BT2020NCL | color::Space::BT2020CL => ffi::SWS_CS_BT2020,
@@ -283,7 +315,7 @@ fn frame_to_bgra(frame: &VideoFrame, scaler: &mut Option<scaling::Context>) -> R
     let result = unsafe {
         let coefficients = ffi::sws_getCoefficients(matrix as i32);
         ffi::sws_setColorspaceDetails(
-            scaler.as_mut_ptr(),
+            active_scaler.as_mut_ptr(),
             coefficients,
             i32::from(frame.color_range == color::Range::JPEG),
             coefficients,
@@ -296,28 +328,63 @@ fn frame_to_bgra(frame: &VideoFrame, scaler: &mut Option<scaling::Context>) -> R
     if result < 0 {
         return Err(ffmpeg_next::Error::from(result)).context("Configuring video colors");
     }
-    let mut bgra = Video::empty();
-    scaler
-        .run(source, &mut bgra)
-        .context("Converting video frame")?;
-    let mut pixels = RgbaImage::new(bgra.width(), bgra.height());
-    let row_bytes = bgra.width() as usize * 4;
-    for (row, output) in pixels.as_mut().chunks_exact_mut(row_bytes).enumerate() {
-        let offset = row * bgra.stride(0);
-        output.copy_from_slice(&bgra.data(0)[offset..offset + row_bytes]);
+    let configured = Instant::now();
+
+    let image = convert_to_gpui_image(source, active_scaler)?;
+    let converted = Instant::now();
+
+    // 暂不应用视频的旋转元数据，保留解码像素的原始方向；
+    // 带旋转标记的视频可能横置或倒置。
+
+    // eprintln!(
+    //     "Timeline image: hardware={hardware}, transfer={:?}, configure={:?}, convert_bgra={:?}",
+    //     transferred_at.duration_since(started),
+    //     configured.duration_since(transferred_at),
+    //     converted.duration_since(configured),
+    // );
+    Ok(image)
+}
+
+/// Converts a CPU frame directly into GPUI's tightly packed BGRA image buffer.
+/// The scaler must match the source and output BGRA at the same dimensions.
+fn convert_to_gpui_image(
+    source: &Video,
+    scaler: &mut scaling::Context,
+) -> Result<Arc<RenderImage>> {
+    let width = source.width();
+    let height = source.height();
+    let row_bytes = width.checked_mul(4).context("BGRA row size overflow")?;
+    let stride = i32::try_from(row_bytes).context("BGRA row too large")?;
+    let source_height = i32::try_from(height).context("Video height too large")?;
+    // 容器类型是 RgbaImage，实际存储 GPUI 要求的 BGRA 字节；直接写入以避免中间帧复制。
+    let mut pixels = RgbaImage::new(width, height);
+    let destination = [
+        pixels.as_mut().as_mut_ptr(),
+        std::ptr::null_mut(),
+        std::ptr::null_mut(),
+        std::ptr::null_mut(),
+    ];
+    let destination_strides = [stride, 0, 0, 0];
+    // SAFETY: source remains alive; pixels is exclusively owned and sized for the
+    // scaler's full BGRA output. sws_scale writes synchronously and retains no pointers.
+    let rows = unsafe {
+        let source_frame = &*source.as_ptr();
+        let source_data = source_frame.data.map(|plane| plane as *const u8);
+        ffi::sws_scale(
+            scaler.as_mut_ptr(),
+            source_data.as_ptr(),
+            source_frame.linesize.as_ptr(),
+            0,
+            source_height,
+            destination.as_ptr(),
+            destination_strides.as_ptr(),
+        )
+    };
+    if rows < 0 {
+        return Err(ffmpeg_next::Error::from(rows)).context("Converting video frame");
     }
-    let quarter = frame.rotation_degrees / 90.0;
-    if !quarter.is_finite() || (quarter - quarter.round()).abs() > 0.1 / 90.0 {
-        bail!(
-            "Unsupported display rotation: {} degrees",
-            frame.rotation_degrees
-        );
+    if rows != source_height {
+        bail!("Converted {rows} rows; expected {source_height}");
     }
-    // Rotation moves whole pixels, so the channel order does not matter.
-    Ok(match quarter.round().rem_euclid(4.0) as u32 {
-        1 => image::imageops::rotate270(&pixels),
-        2 => image::imageops::rotate180(&pixels),
-        3 => image::imageops::rotate90(&pixels),
-        _ => pixels,
-    })
+    Ok(bgra_image(pixels))
 }

@@ -7,3 +7,7 @@ pub mod probe;
 pub mod timeline_backend;
 pub mod timeline_decoder;
 pub mod video_frame;
+
+pub mod displayed_frame;
+#[cfg(target_os = "macos")]
+pub mod gpu;

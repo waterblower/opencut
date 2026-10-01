@@ -14,8 +14,3 @@ ffmpeg-next.workspace = true
 futures.workspace = true
 gpui.workspace = true
 image.workspace = true
-
-[target.'cfg(target_os = "macos")'.dependencies]
-core-foundation.workspace = true
-core-video.workspace = true
-metal.workspace = true

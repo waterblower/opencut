@@ -1,8 +1,8 @@
-use std::{path::Path, sync::Arc};
+use std::{path::Path, sync::Arc, time::Instant};
 
 use gpui::{
     AnyElement, AppContext as _, Context, HeadlessAppContext, IntoElement, ParentElement, Render,
-    Styled, TextAlign, Window, div, img, px, rgb, rgba, size,
+    Styled, TextAlign, Window, div, px, rgb, rgba, size,
 };
 use timeline::TimelineSerialization;
 
@@ -65,10 +65,16 @@ pub fn export_v2(
     // The Render Loop //
     // --------------- //
     for i in 0..frame_count {
-        // render each frame
+        let started = Instant::now();
+        // get frame compositions from the decoder
         let frame = decoder.frame_at(&editing_state, i.into())?;
-        let element = render_frame(&frame, logical_width, logical_height);
+        let decoded = Instant::now();
 
+        // convert the composition to GPUI element
+        let element = render_frame(&frame, logical_width, logical_height);
+        let composed = Instant::now();
+
+        // convert the GPUI element to image buffer, aka raw frame data
         let image = cx.update_window(window.into(), |root, window, cx| {
             let view = root.downcast::<ExportCanvas>().unwrap();
             view.update(cx, |view, _| {
@@ -77,12 +83,26 @@ pub fn export_v2(
 
             window.refresh();
             let arena = window.draw(cx);
+            let capture_started = Instant::now();
             let image = window.render_to_image();
+            let capture_elapsed = capture_started.elapsed();
             arena.clear(cx);
+            // eprintln!("Export frame {i}: window.render_to_image={capture_elapsed:?}");
             image
         })??;
+        let rendered = Instant::now();
 
+        // send to encoder
         encoder.video(&image, i)?;
+        let encoded = Instant::now();
+        eprintln!(
+            "Export frame {i}: decode={:?}, compose={:?}, render_to_image={:?}, encode={:?}, total={:?}",
+            decoded.duration_since(started),
+            composed.duration_since(decoded),
+            rendered.duration_since(composed),
+            encoded.duration_since(rendered),
+            encoded.duration_since(started),
+        );
     }
     encoder.finish(0)?;
     return Ok(());
@@ -126,21 +146,22 @@ fn render_frame(frame: &PreparedFrame, width: f32, height: f32) -> AnyElement {
     for layer in &frame.layers {
         match layer {
             PreparedLayer::Picture {
-                image, properties, ..
+                frame: image,
+                properties,
+                ..
             } => {
                 if properties.scale <= 0.0 {
                     continue;
                 }
-                let size = image.size(0);
-                let source_width = size.width.0 as f32;
-                let source_height = size.height.0 as f32;
+                let (source_width, source_height) = image.dimensions();
                 let fit = (canvas_width / source_width).min(canvas_height / source_height);
                 let width = source_width * fit * properties.scale as f32;
                 let height = source_height * fit * properties.scale as f32;
                 let x = (canvas_width - width) / 2.0 + properties.position_x as f32 * scale;
                 let y = (canvas_height - height) / 2.0 + properties.position_y as f32 * scale;
                 canvas = canvas.child(
-                    img(Arc::clone(image))
+                    div()
+                        .child(image.element())
                         .absolute()
                         .left(px(x))
                         .top(px(y))

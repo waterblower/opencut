@@ -61,7 +61,7 @@ impl Render for VideoPlayer {
                                 .object_fit(ObjectFit::Contain)
                                 .size_full()
                                 .into_any_element(),
-                            DisplayedFrame::Image(image) => img(image.clone())
+                            DisplayedFrame::GpuiImage(image) => img(image.clone())
                                 .object_fit(ObjectFit::Contain)
                                 .size_full()
                                 .into_any_element(),

@@ -16,3 +16,8 @@ resvg.workspace = true
 serde.workspace = true
 smallvec.workspace = true
 ulid.workspace = true
+
+[target.'cfg(target_os = "macos")'.dependencies]
+core-foundation.workspace = true
+core-video.workspace = true
+metal.workspace = true

@@ -1886,11 +1886,14 @@ name = "engine"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "core-foundation 0.10.0",
+ "core-video",
  "ffmpeg-next",
  "gpui",
  "gpui_platform",
  "image",
  "media-backend",
+ "metal",
  "resvg 0.45.1",
  "serde",
  "smallvec",
@@ -5370,8 +5373,6 @@ name = "player-ui"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "core-foundation 0.10.0",
- "core-video",
  "cpal",
  "engine",
  "ffmpeg-next",
@@ -5379,7 +5380,6 @@ dependencies = [
  "gpui",
  "image",
  "media-backend",
- "metal",
  "timeline",
 ]
 
