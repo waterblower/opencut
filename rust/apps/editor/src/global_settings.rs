@@ -1,20 +1,18 @@
-use anyhow::{Result, bail};
+use anyhow::{Context as _, Result, bail};
 use serde::{Deserialize, Serialize};
 use std::{fs, path::PathBuf};
 
-#[derive(Deserialize, Serialize)]
+#[derive(Default, Deserialize, Serialize)]
 pub struct GlobalEditorSettings {
+    #[serde(default)]
     pub project_root: PathBuf,
     #[serde(default)]
     pub minimax_api_key: String,
 }
 
 impl GlobalEditorSettings {
-    pub fn load() -> Self {
-        load_settings(
-            &settings_path(),
-            &PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/../..")),
-        )
+    pub fn load() -> Result<Self> {
+        load_settings(&settings_path())
     }
 
     pub fn save(&self) -> Result<()> {
@@ -22,20 +20,26 @@ impl GlobalEditorSettings {
     }
 }
 
-fn load_settings(path: &std::path::Path, default_root: &std::path::Path) -> GlobalEditorSettings {
-    if let Ok(contents) = fs::read_to_string(path)
-        && let Ok(mut settings) = serde_json::from_str::<GlobalEditorSettings>(&contents)
-    {
-        if !settings.project_root.is_dir() {
-            settings.project_root = default_root.to_path_buf();
+fn load_settings(path: &std::path::Path) -> Result<GlobalEditorSettings> {
+    let contents = match fs::read_to_string(path) {
+        Ok(contents) => contents,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            return Ok(GlobalEditorSettings::default());
         }
-        return settings;
-    }
-
-    GlobalEditorSettings {
-        project_root: default_root.to_path_buf(),
-        minimax_api_key: String::new(),
-    }
+        Err(error) => {
+            return Err(error).with_context(|| {
+                format!(
+                    "Could not load editor settings from {} ({}:{})",
+                    path.display(),
+                    file!(),
+                    line!()
+                )
+            });
+        }
+    };
+    let settings: GlobalEditorSettings = serde_json::from_str(&contents)
+        .with_context(|| format!("Parsing settings {}", path.display()))?;
+    Ok(settings)
 }
 
 fn save_settings(path: &std::path::Path, settings: &GlobalEditorSettings) -> Result<()> {
@@ -69,7 +73,10 @@ fn save_settings(path: &std::path::Path, settings: &GlobalEditorSettings) -> Res
 }
 
 fn settings_path() -> PathBuf {
-    PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/../..")).join("data/editor-settings.json")
+    std::env::home_dir()
+        .expect("Could not determine the user's home directory")
+        .join(".opencut")
+        .join("editor-settings.json")
 }
 
 #[cfg(test)]
@@ -87,26 +94,27 @@ mod tests {
             serde_json::json!({"project_root": directory}).to_string(),
         )
         .unwrap();
-        let mut settings = load_settings(&path, &directory);
+        let mut settings = load_settings(&path).unwrap();
         assert!(settings.minimax_api_key.is_empty());
         settings.minimax_api_key = "test-key".into();
         save_settings(&path, &settings).unwrap();
-        let mut settings = load_settings(&path, &directory);
+        let mut settings = load_settings(&path).unwrap();
         settings.project_root = directory.join("missing-project");
         save_settings(&path, &settings).unwrap();
-        let mut settings = load_settings(&path, &directory);
-        assert_eq!(settings.project_root, directory);
-        assert_eq!(settings.minimax_api_key, "test-key");
+        assert_eq!(
+            load_settings(&path).unwrap().project_root,
+            directory.join("missing-project")
+        );
         let next_project = directory.join("next");
         fs::create_dir(&next_project).unwrap();
         settings.project_root = next_project.clone();
         save_settings(&path, &settings).unwrap();
-        let mut settings = load_settings(&path, &directory);
+        let mut settings = load_settings(&path).unwrap();
         assert_eq!(settings.project_root, next_project);
         assert_eq!(settings.minimax_api_key, "test-key");
         settings.minimax_api_key.clear();
         save_settings(&path, &settings).unwrap();
-        assert!(load_settings(&path, &directory).minimax_api_key.is_empty());
+        assert!(load_settings(&path).unwrap().minimax_api_key.is_empty());
         fs::remove_dir_all(directory).unwrap();
     }
 }

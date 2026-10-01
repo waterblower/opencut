@@ -4,6 +4,7 @@
 mod editor;
 mod gpui_inspector;
 mod macos_pinch;
+mod project_picker;
 
 mod asset;
 use asset::EditorAssets;
@@ -19,7 +20,7 @@ use std::path::PathBuf;
 
 use crate::editor::event_bus::handle_event;
 
-fn main() {
+fn main() -> anyhow::Result<()> {
     env_logger::Builder::from_env(
         env_logger::Env::default().default_filter_or("opencut_editor=debug"),
     )
@@ -34,11 +35,16 @@ fn main() {
     })
     .init();
 
+    let settings = GlobalEditorSettings::load()?;
+
     macos_pinch::install();
-    application().with_assets(EditorAssets).run(run_app);
+    application().with_assets(EditorAssets).run(move |cx| {
+        run_app(cx, settings.project_root.clone());
+    });
+    Ok(())
 }
 
-fn run_app(cx: &mut App) {
+fn run_app(cx: &mut App, project_root: PathBuf) {
     gpui_tokio::init(cx);
     gpui_component::init(cx);
 
@@ -46,13 +52,20 @@ fn run_app(cx: &mut App) {
     gpui_inspector::init(cx);
     editor::bind_keys(cx);
     cx.set_quit_mode(gpui::QuitMode::Explicit);
+    if project_root.is_dir() {
+        open_project(project_root, cx);
+        return;
+    }
+    if let Err(error) = project_picker::open(cx) {
+        log::error!("Could not open project picker: {error:?}");
+        cx.quit();
+    }
+}
+
+fn open_project(project_root: PathBuf, cx: &mut App) {
     let mut close_subscription = Some(cx.on_window_closed(quit_after_last_window));
     let event_bus = cx.new(|_| EventBus {});
-    let mut window = open_editor_window(
-        GlobalEditorSettings::load().project_root,
-        event_bus.clone(),
-        cx,
-    );
+    let mut window = open_editor_window(project_root, event_bus.clone(), cx);
     cx.subscribe(&event_bus, move |event_bus, event, cx| {
         handle_event(
             cx,
