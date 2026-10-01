@@ -1,7 +1,7 @@
 use crate::editor::edit_action::{EditAction, edit_timeline};
 use crate::editor::timeline::TimelineRuntimeState;
 use ::timeline::{
-    Clip, FrameRate, TextClip, TextClipProperties, TimelineEditingState, TimelineFrame,
+    Clip, FrameRate, TextClip, TextClipProperties, TimelineEditingState, TimelineFrameIndex,
     TimelineSettings, Track, TrackKind,
 };
 use anyhow::Result;
@@ -19,7 +19,7 @@ fn rejected_edits_preserve_content_position_history_and_preview() -> Result<()> 
             placements: vec![(
                 Ulid::from(2_u128),
                 Ulid::from(1_u128),
-                TimelineFrame::from_frames(-1),
+                TimelineFrameIndex::from_frames(-1),
             )],
         },
         EditAction::SetTextProperties {
@@ -33,7 +33,7 @@ fn rejected_edits_preserve_content_position_history_and_preview() -> Result<()> 
         assert!(edit_timeline(&mut timeline, action).is_err());
         assert_eq!(
             timeline.backend.timeline().clips[0].timeline_start(),
-            TimelineFrame::ZERO
+            TimelineFrameIndex::ZERO
         );
         let Clip::Text(clip) = &timeline.backend.timeline().clips[0] else {
             panic!("expected the original text clip");
@@ -57,7 +57,7 @@ fn history_replacement_preserves_live_view_preferences_and_playhead() -> Result<
             placements: vec![(
                 Ulid::from(2_u128),
                 Ulid::from(1_u128),
-                TimelineFrame::from_frames(10),
+                TimelineFrameIndex::from_frames(10),
             )],
         },
     )?;
@@ -171,7 +171,7 @@ fn runtime() -> Result<TimelineRuntimeState> {
         clips: vec![Clip::Text(TextClip {
             id: Ulid::from(2_u128),
             track_id,
-            timeline_start: TimelineFrame::ZERO,
+            timeline_start: TimelineFrameIndex::ZERO,
             length: Duration::from_secs(3),
             properties: TextClipProperties::default(),
         })],

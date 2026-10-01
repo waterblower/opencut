@@ -47,14 +47,14 @@ impl TimelineSerialization {
 
     pub fn set_view_state(
         &mut self,
-        playhead: runtime::TimelineFrame,
+        playhead: runtime::TimelineFrameIndex,
         scroll: (f32, f32),
         pixels_per_second: f32,
         snapping_enabled: bool,
         track_magnet_enabled: bool,
     ) {
         self.view_state = TimelineViewState {
-            saved_playhead_frame: playhead.frames().max(0),
+            saved_playhead_frame: i64::from(playhead).max(0),
             horizontal_scroll: nonnegative_finite(scroll.0),
             vertical_scroll: nonnegative_finite(scroll.1),
             pixels_per_second: if pixels_per_second.is_finite() && pixels_per_second > 0.0 {
@@ -67,8 +67,8 @@ impl TimelineSerialization {
         };
     }
 
-    pub fn playhead(&self) -> runtime::TimelineFrame {
-        runtime::TimelineFrame::from_frames(self.view_state.saved_playhead_frame.max(0))
+    pub fn playhead(&self) -> runtime::TimelineFrameIndex {
+        self.view_state.saved_playhead_frame.max(0).into()
     }
 
     pub fn scroll_offset(&self) -> (f32, f32) {
@@ -205,9 +205,7 @@ pub fn parse(value: &Value) -> Result<TimelineSerialization, ParseError> {
             let Some(frames) = clip.get("length").and_then(Value::as_i64) else {
                 continue;
             };
-            let duration = frame_rate
-                .to_runtime()
-                .duration(runtime::TimelineFrame::from_frames(frames));
+            let duration = frame_rate.to_runtime().duration(frames.into());
             clip.insert(
                 "length".into(),
                 serde_json::json!({"secs": duration.as_secs(), "nanos": duration.subsec_nanos()}),
@@ -678,9 +676,9 @@ impl MediaClipData {
             id: value.id,
             track_id: value.track_id,
             asset_id: value.asset_id,
-            timeline_start: value.timeline_start.frames(),
-            source_in: value.source_in.frames(),
-            source_out: value.source_out.frames(),
+            timeline_start: value.timeline_start.into(),
+            source_in: value.source_in.into(),
+            source_out: value.source_out.into(),
             video_properties: VideoClipProperties::from_runtime(&value.video_properties),
             audio_properties: AudioClipProperties::from_runtime(&value.audio_properties),
         }
@@ -691,9 +689,9 @@ impl MediaClipData {
             id: self.id,
             track_id: self.track_id,
             asset_id: self.asset_id,
-            timeline_start: runtime::TimelineFrame::from_frames(self.timeline_start),
-            source_in: runtime::TimelineFrame::from_frames(self.source_in),
-            source_out: runtime::TimelineFrame::from_frames(self.source_out),
+            timeline_start: self.timeline_start.into(),
+            source_in: self.source_in.into(),
+            source_out: self.source_out.into(),
             video_properties: self.video_properties.to_runtime(),
             audio_properties: self.audio_properties.to_runtime(),
         }
@@ -705,7 +703,7 @@ impl TextClip {
         Self {
             id: value.id,
             track_id: value.track_id,
-            timeline_start: value.timeline_start.frames(),
+            timeline_start: value.timeline_start.into(),
             length: value.length,
             properties: TextClipProperties::from_runtime(&value.properties),
         }
@@ -715,7 +713,7 @@ impl TextClip {
         runtime::TextClip {
             id: self.id,
             track_id: self.track_id,
-            timeline_start: runtime::TimelineFrame::from_frames(self.timeline_start),
+            timeline_start: self.timeline_start.into(),
             length: self.length,
             properties: self.properties.to_runtime(),
         }

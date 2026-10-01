@@ -3,8 +3,8 @@ use crate::editor::editing::validate_clips_placements;
 use crate::editor::preview::PreviewTarget;
 use crate::editor::timeline::{TimelineEditorExt, TimelineRuntimeState};
 use ::timeline::{
-    Clip, FrameRate, MediaAsset, TextClipProperties, TimelineEditingState, TimelineFrame, Track,
-    VideoClipProperties,
+    Clip, FrameRate, MediaAsset, TextClipProperties, TimelineEditingState, TimelineFrameIndex,
+    Track, VideoClipProperties,
 };
 use anyhow::{Result, anyhow, ensure};
 use std::{collections::HashSet, path::PathBuf};
@@ -28,7 +28,7 @@ pub enum EditAction {
         clip: Clip,
     },
     MoveClips {
-        placements: Vec<(Ulid, Ulid, TimelineFrame)>,
+        placements: Vec<(Ulid, Ulid, TimelineFrameIndex)>,
     },
     SetVideoProperties {
         clip_ids: Vec<Ulid>,
@@ -229,7 +229,7 @@ fn ripple_clips_after_deletion(
             .filter(|(track_id, deleted_end, _)| {
                 *track_id == clip.track_id() && *deleted_end <= clip.timeline_start()
             })
-            .fold(TimelineFrame::ZERO, |total, (_, _, duration)| {
+            .fold(TimelineFrameIndex::ZERO, |total, (_, _, duration)| {
                 total + *duration
             });
         clip.set_timeline_start(clip.timeline_start() - shift);

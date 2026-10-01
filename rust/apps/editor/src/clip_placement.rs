@@ -45,8 +45,8 @@ pub(super) fn validate_clip_placement(
     timeline: &TimelineEditingState,
     target_track_id: Ulid,
     media_kind: MediaKind,
-    clip_length: TimelineFrame,
-    target_timeline_start: TimelineFrame,
+    clip_length: TimelineFrameIndex,
+    target_timeline_start: TimelineFrameIndex,
     ignored_clip_ids: &HashSet<Ulid>,
 ) -> Result<()> {
     let expected_track_kind = if media_kind == MediaKind::Audio {
@@ -67,8 +67,8 @@ pub(super) fn validate_clip_placement(
 pub(super) fn validate_text_clip_placement(
     timeline: &TimelineEditingState,
     target_track_id: Ulid,
-    clip_length: TimelineFrame,
-    target_timeline_start: TimelineFrame,
+    clip_length: TimelineFrameIndex,
+    target_timeline_start: TimelineFrameIndex,
     ignored_clip_ids: &HashSet<Ulid>,
 ) -> Result<()> {
     validate_clip_placement_on_track(
@@ -85,14 +85,14 @@ fn validate_clip_placement_on_track(
     timeline: &TimelineEditingState,
     target_track_id: Ulid,
     expected_track_kind: TrackKind,
-    clip_length: TimelineFrame,
-    target_timeline_start: TimelineFrame,
+    clip_length: TimelineFrameIndex,
+    target_timeline_start: TimelineFrameIndex,
     ignored_clip_ids: &HashSet<Ulid>,
 ) -> Result<()> {
-    if target_timeline_start < TimelineFrame::ZERO {
+    if target_timeline_start < TimelineFrameIndex::ZERO {
         return Err(ClipPlacementRejection::BeforeTimelineStart.into());
     }
-    if clip_length < TimelineFrame::ONE_FRAME {
+    if clip_length < TimelineFrameIndex::ONE_FRAME {
         return Err(ClipPlacementRejection::DurationTooShort.into());
     }
     let Some(track) = timeline.track(target_track_id) else {
