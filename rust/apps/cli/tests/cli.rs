@@ -1,3 +1,4 @@
+use engine::probe;
 use image::{Rgba, RgbaImage};
 use serde_json::{Value, json};
 use std::{
@@ -5,15 +6,14 @@ use std::{
     path::{Path, PathBuf},
     process::{Command, Output},
 };
+use time::{ParseTime, parse_rate};
+use timeline::*;
 use ulid::Ulid;
-use {
-    engine::probe,
-    opencut::{
-        document,
-        time::{ParseTime, parse_rate},
-    },
-    timeline::*,
-};
+
+#[path = "../src/document.rs"]
+pub mod document;
+#[path = "../src/time.rs"]
+pub mod time;
 
 #[test]
 fn removed_commands_are_unavailable() {

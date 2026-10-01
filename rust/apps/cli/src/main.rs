@@ -2,12 +2,16 @@ use anyhow::{Context as _, Error, Result, anyhow};
 use timeline::TimelineSerialization;
 mod args;
 mod docs;
+pub mod document;
+pub mod error;
+pub mod subtitles;
+pub mod time;
+pub mod transcribe;
 
 use args::{Args, Command};
 use clap::Parser;
 use engine::export::{ExportOption, export};
 use engine::probe;
-use opencut::{document, transcribe};
 use serde_json::{Value, json};
 use std::{
     io::{self, Write},
@@ -144,7 +148,7 @@ async fn run(command: Command, api_key: Option<&str>) -> Result<Value> {
                     ));
                 };
                 result = Value::String(
-                    opencut::subtitles::merge_srt_sections(&::transcribe::SRT::from_string(srt)?)?
+                    subtitles::merge_srt_sections(&::transcribe::SRT::from_string(srt)?)?
                         .to_string(),
                 );
             }
