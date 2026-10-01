@@ -17,22 +17,9 @@ pub struct Args {
 #[derive(Subcommand)]
 pub enum Command {
     /// Export a timeline to MP4 with H.264 video and stereo AAC audio (macOS).
-    Export {
-        /// Timeline JSON file.
-        timeline: PathBuf,
-        /// Output MP4 file; must not already exist unless --overwrite is given.
-        #[arg(short, long)]
-        output: PathBuf,
-        /// Base directory for relative assets; defaults to the timeline's directory.
-        #[arg(long)]
-        project_root: Option<PathBuf>,
-        /// H.264 target bitrate in kbps (1 kbps = 1,000 bits per second).
-        #[arg(long, default_value_t = 8_000, value_parser = clap::value_parser!(u64).range(1..=i64::MAX as u64 / 1_000))]
-        video_bitrate: u64,
-        /// Replace an existing output file; source media is never replaced.
-        #[arg(long)]
-        overwrite: bool,
-    },
+    Export(ExportArgs),
+    /// Export a timeline using the v2 rendering engine.
+    Export2(ExportArgs),
     /// Transcribe audio/video with MiniMax (MINIMAX_API_KEY).
     Transcribe {
         media_file: PathBuf,
@@ -61,4 +48,22 @@ pub enum Command {
     /// Print an agent-friendly Markdown guide to using the CLI.
     #[command(alias = "docs")]
     Doc,
+}
+
+#[derive(clap::Args)]
+pub struct ExportArgs {
+    /// Timeline JSON file.
+    pub timeline: PathBuf,
+    /// Output MP4 file; must not already exist unless --overwrite is given.
+    #[arg(short, long)]
+    pub output: PathBuf,
+    /// Base directory for relative assets; defaults to the timeline's directory.
+    #[arg(long)]
+    pub project_root: Option<PathBuf>,
+    /// H.264 target bitrate in kbps (1 kbps = 1,000 bits per second).
+    #[arg(long, default_value_t = 8_000, value_parser = clap::value_parser!(u64).range(1..=i64::MAX as u64 / 1_000))]
+    pub video_bitrate: u64,
+    /// Replace an existing output file; source media is never replaced.
+    #[arg(long)]
+    pub overwrite: bool,
 }
