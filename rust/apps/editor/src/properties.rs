@@ -357,22 +357,22 @@ fn audio_clip(clip: &AudioClip) -> gpui::AnyElement {
                 .child(properties_section_label("CLIP"))
                 .child(property_field(
                     "Timeline start",
-                    clip.timeline_start.frames().to_string(),
+                    i64::from(clip.timeline_start).to_string(),
                     "frames",
                 ))
                 .child(property_field(
                     "Source in",
-                    clip.source_in.frames().to_string(),
+                    i64::from(clip.source_in).to_string(),
                     "frames",
                 ))
                 .child(property_field(
                     "Source out",
-                    clip.source_out.frames().to_string(),
+                    i64::from(clip.source_out).to_string(),
                     "frames",
                 ))
                 .child(property_field(
                     "Duration",
-                    duration.frames().to_string(),
+                    i64::from(duration).to_string(),
                     "frames",
                 ))
                 .child(properties_section_label("AUDIO"))
@@ -550,22 +550,22 @@ fn video_clip(clip: &VideoClip) -> gpui::AnyElement {
                 .child(properties_section_label("CLIP"))
                 .child(property_field(
                     "Timeline start",
-                    clip.timeline_start.frames().to_string(),
+                    i64::from(clip.timeline_start).to_string(),
                     "frames",
                 ))
                 .child(property_field(
                     "Source in",
-                    clip.source_in.frames().to_string(),
+                    i64::from(clip.source_in).to_string(),
                     "frames",
                 ))
                 .child(property_field(
                     "Source out",
-                    clip.source_out.frames().to_string(),
+                    i64::from(clip.source_out).to_string(),
                     "frames",
                 ))
                 .child(property_field(
                     "Duration",
-                    duration.frames().to_string(),
+                    i64::from(duration).to_string(),
                     "frames",
                 ))
                 .child(properties_section_label("TRANSFORM"))

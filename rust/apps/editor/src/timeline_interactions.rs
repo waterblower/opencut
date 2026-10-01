@@ -132,14 +132,14 @@ impl TimelineRuntimeState {
         if !self.snapping_enabled {
             return (time.max(TimelineFrameIndex::ZERO), None);
         }
-        let threshold = self
-            .backend
-            .timeline()
-            .settings
-            .frame_rate
-            .ceil(SNAP_DISTANCE_PX as f64 / self.pixels_per_second as f64)
-            .frames()
-            .max(1) as u64;
+        let threshold = i64::from(
+            self.backend
+                .timeline()
+                .settings
+                .frame_rate
+                .ceil(SNAP_DISTANCE_PX as f64 / self.pixels_per_second as f64),
+        )
+        .max(1) as u64;
         let mut candidates = vec![TimelineFrameIndex::ZERO, self.playhead()];
         for clip in &self.backend.timeline().clips {
             if !ignored_clip_ids.contains(&clip.id()) {
@@ -538,7 +538,7 @@ impl Editor {
             .min()
             .unwrap_or(TimelineFrameIndex::ZERO);
         let raw_anchor_start = original_anchor_start
-            + TimelineFrameIndex::from_frames(raw_delta.frames().max(-earliest_start.frames()));
+            + TimelineFrameIndex::from(i64::from(raw_delta).max(-i64::from(earliest_start)));
         let anchor_duration = timeline
             .backend
             .timeline()
@@ -743,7 +743,7 @@ impl Editor {
         if timeline.backend.timeline().clips.is_empty() {
             return Ok(());
         }
-        let target = (timeline.playhead() + TimelineFrameIndex::from_frames(frames)).clamp(
+        let target = (timeline.playhead() + TimelineFrameIndex::from(frames)).clamp(
             TimelineFrameIndex::ZERO,
             timeline.backend.timeline().content_duration(),
         );

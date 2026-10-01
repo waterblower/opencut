@@ -21,10 +21,10 @@ fn zoom_does_not_scroll_past_the_timeline_origin() {
 
 #[test]
 fn snaps_a_moving_clip_end_when_its_start_has_no_target() {
-    let original_start = TimelineFrameIndex::from_frames(100);
+    let original_start = TimelineFrameIndex::from(100);
     let unsnapped_start = original_start;
-    let snapped_start_from_end = TimelineFrameIndex::from_frames(102);
-    let target_edge = TimelineFrameIndex::from_frames(202);
+    let snapped_start_from_end = TimelineFrameIndex::from(102);
+    let target_edge = TimelineFrameIndex::from(202);
 
     assert_eq!(
         choose_clip_snap(

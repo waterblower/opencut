@@ -67,7 +67,7 @@ pub fn summary(doc: &TimelineEditingState) -> Value {
     let mut tracks = Vec::new();
     let mut assets = Vec::new();
     for clip in &doc.clips {
-        clips.push(json!({"id": clip.id(), "track_id": clip.track_id(), "start_frame": clip.timeline_start().frames(), "end_frame": clip.timeline_end(fps).frames(), "start_s": fps.seconds(clip.timeline_start()), "duration_s": fps.seconds(clip.frame_length(fps)), "asset_id": clip.media().map(|data| data.asset_id)}));
+        clips.push(json!({"id": clip.id(), "track_id": clip.track_id(), "start_frame": i64::from(clip.timeline_start()), "end_frame": i64::from(clip.timeline_end(fps)), "start_s": fps.seconds(clip.timeline_start()), "duration_s": fps.seconds(clip.frame_length(fps)), "asset_id": clip.media().map(|data| data.asset_id)}));
     }
     for track in &doc.tracks {
         let mut members: Vec<_> = doc
@@ -75,17 +75,19 @@ pub fn summary(doc: &TimelineEditingState) -> Value {
             .iter()
             .filter(|c| c.track_id() == track.id)
             .collect();
-        members.sort_by_key(|c| c.timeline_start().frames());
+        members.sort_by_key(|c| i64::from(c.timeline_start()));
         let mut gaps = Vec::new();
         let mut end = 0;
         for clip in members {
-            if clip.timeline_start().frames() > end {
-                gaps.push(json!({"start_frame": end, "end_frame": clip.timeline_start().frames()}));
+            if i64::from(clip.timeline_start()) > end {
+                gaps.push(
+                    json!({"start_frame": end, "end_frame": i64::from(clip.timeline_start())}),
+                );
             }
-            end = clip.timeline_end(fps).frames();
+            end = i64::from(clip.timeline_end(fps));
         }
-        if end < doc.content_duration().frames() {
-            gaps.push(json!({"start_frame": end, "end_frame": doc.content_duration().frames()}));
+        if end < i64::from(doc.content_duration()) {
+            gaps.push(json!({"start_frame": end, "end_frame": i64::from(doc.content_duration())}));
         }
         tracks.push(json!({"id": track.id, "kind": match track.kind { TrackKind::Video => "Video", TrackKind::Audio => "Audio", TrackKind::Text => "Text" }, "name": track.name, "muted": track.muted, "gaps": gaps}));
     }
@@ -98,7 +100,7 @@ pub fn summary(doc: &TimelineEditingState) -> Value {
             .collect();
         assets.push(json!({"id": asset.id, "path": asset.path, "clips": used}));
     }
-    json!({"frames": doc.content_duration().frames(), "duration_s": fps.seconds(doc.content_duration()), "settings": {"width": doc.settings.width, "height": doc.settings.height, "audio_sample_rate": doc.settings.audio_sample_rate, "frame_rate": {"numerator": fps.numerator, "denominator": fps.denominator}}, "tracks": tracks, "clips": clips, "assets": assets})
+    json!({"frames": i64::from(doc.content_duration()), "duration_s": fps.seconds(doc.content_duration()), "settings": {"width": doc.settings.width, "height": doc.settings.height, "audio_sample_rate": doc.settings.audio_sample_rate, "frame_rate": {"numerator": fps.numerator, "denominator": fps.denominator}}, "tracks": tracks, "clips": clips, "assets": assets})
 }
 
 fn write_bytes(path: &Path, bytes: &[u8], overwrite: bool) -> Result<()> {

@@ -26,9 +26,9 @@ fn audio_clip(id: u64, start: i64, duration: i64) -> Clip {
         id: ulid(id),
         track_id: ulid(2),
         asset_id: ulid(100),
-        timeline_start: TimelineFrameIndex::from_frames(start),
+        timeline_start: TimelineFrameIndex::from(start),
         source_in: TimelineFrameIndex::ZERO,
-        source_out: TimelineFrameIndex::from_frames(duration),
+        source_out: TimelineFrameIndex::from(duration),
         video_properties: VideoClipProperties::default(),
         audio_properties: AudioClipProperties::default(),
     })
@@ -44,10 +44,10 @@ fn audio_clips_from_video_assets_cannot_move_to_video_tracks() {
     let selected = HashSet::from([ulid(10), ulid(11)]);
 
     for placements in [
-        vec![(ulid(10), ulid(1), TimelineFrameIndex::from_frames(120))],
+        vec![(ulid(10), ulid(1), TimelineFrameIndex::from(120))],
         vec![
-            (ulid(10), ulid(2), TimelineFrameIndex::from_frames(120)),
-            (ulid(11), ulid(1), TimelineFrameIndex::from_frames(150)),
+            (ulid(10), ulid(2), TimelineFrameIndex::from(120)),
+            (ulid(11), ulid(1), TimelineFrameIndex::from(150)),
         ],
     ] {
         let error = project
@@ -62,8 +62,8 @@ fn audio_clips_from_video_assets_cannot_move_to_video_tracks() {
         project
             .validate_clip_move_placements(
                 &[
-                    (ulid(10), ulid(2), TimelineFrameIndex::from_frames(120)),
-                    (ulid(11), ulid(2), TimelineFrameIndex::from_frames(150)),
+                    (ulid(10), ulid(2), TimelineFrameIndex::from(120)),
+                    (ulid(11), ulid(2), TimelineFrameIndex::from(150)),
                 ],
                 &selected,
             )
@@ -85,18 +85,9 @@ fn clipboard_preserves_relative_timing_tracks_and_primary_selection() {
     )
     .unwrap();
 
-    let pasted = clipboard.clips_at(
-        TimelineFrameIndex::from_frames(100),
-        project.settings.frame_rate,
-    );
-    assert_eq!(
-        pasted[0].timeline_start(),
-        TimelineFrameIndex::from_frames(100)
-    );
-    assert_eq!(
-        pasted[1].timeline_start(),
-        TimelineFrameIndex::from_frames(120)
-    );
+    let pasted = clipboard.clips_at(TimelineFrameIndex::from(100), project.settings.frame_rate);
+    assert_eq!(pasted[0].timeline_start(), TimelineFrameIndex::from(100));
+    assert_eq!(pasted[1].timeline_start(), TimelineFrameIndex::from(120));
     assert_eq!(pasted[0].track_id(), ulid(2));
     assert_eq!(pasted[1].track_id(), ulid(2));
     assert_eq!(clipboard.primary_index, Some(1));
@@ -108,8 +99,8 @@ fn clipboard_rescales_source_bounds_between_timeline_frame_rates() {
     source.settings.frame_rate = FrameRate::new(24, 1);
     source.assets.push(audio_asset(100));
     let mut clip = audio_clip(10, 12, 24);
-    clip.media_mut().unwrap().source_in = TimelineFrameIndex::from_frames(24);
-    clip.media_mut().unwrap().source_out = TimelineFrameIndex::from_frames(48);
+    clip.media_mut().unwrap().source_in = TimelineFrameIndex::from(24);
+    clip.media_mut().unwrap().source_out = TimelineFrameIndex::from(48);
     source.clips = vec![clip, audio_clip(11, 36, 24)];
     let clipboard = ClipClipboard::from_selection(
         "one.timeline.json".into(),
@@ -127,30 +118,24 @@ fn clipboard_rescales_source_bounds_between_timeline_frame_rates() {
         .prepare_paste(
             std::path::Path::new("two.timeline.json"),
             &destination,
-            TimelineFrameIndex::from_frames(60),
+            TimelineFrameIndex::from(60),
         )
         .unwrap();
 
-    assert_eq!(
-        clips[0].timeline_start(),
-        TimelineFrameIndex::from_frames(60)
-    );
+    assert_eq!(clips[0].timeline_start(), TimelineFrameIndex::from(60));
     assert_eq!(
         clips[0].media().unwrap().source_in,
-        TimelineFrameIndex::from_frames(30)
+        TimelineFrameIndex::from(30)
     );
     assert_eq!(
         clips[0].media().unwrap().source_out,
-        TimelineFrameIndex::from_frames(60)
+        TimelineFrameIndex::from(60)
     );
     assert_eq!(
         clips[0].frame_length(destination.settings.frame_rate),
-        TimelineFrameIndex::from_frames(30)
+        TimelineFrameIndex::from(30)
     );
-    assert_eq!(
-        clips[1].timeline_start(),
-        TimelineFrameIndex::from_frames(90)
-    );
+    assert_eq!(clips[1].timeline_start(), TimelineFrameIndex::from(90));
 }
 
 #[test]
@@ -173,7 +158,7 @@ fn clipboard_remaps_tracks_and_assets_between_timelines() {
         .prepare_paste(
             std::path::Path::new("two.timeline.json"),
             &destination,
-            TimelineFrameIndex::from_frames(100),
+            TimelineFrameIndex::from(100),
         )
         .unwrap();
 
@@ -184,14 +169,8 @@ fn clipboard_remaps_tracks_and_assets_between_timelines() {
     assert_eq!(clips[1].track_id(), ulid(202));
     assert_eq!(clips[0].media().unwrap().asset_id, assets[0].id);
     assert_eq!(clips[1].media().unwrap().asset_id, assets[0].id);
-    assert_eq!(
-        clips[0].timeline_start(),
-        TimelineFrameIndex::from_frames(100)
-    );
-    assert_eq!(
-        clips[1].timeline_start(),
-        TimelineFrameIndex::from_frames(120)
-    );
+    assert_eq!(clips[0].timeline_start(), TimelineFrameIndex::from(100));
+    assert_eq!(clips[1].timeline_start(), TimelineFrameIndex::from(120));
 }
 
 #[test]
@@ -268,14 +247,8 @@ fn track_magnet_does_not_ripple_multiple_deleted_clips() -> Result<()> {
     )?;
     let remaining = &timeline.backend.timeline().clips;
     assert_eq!(remaining.len(), 2);
-    assert_eq!(
-        remaining[0].timeline_start(),
-        TimelineFrameIndex::from_frames(50)
-    );
-    assert_eq!(
-        remaining[1].timeline_start(),
-        TimelineFrameIndex::from_frames(50)
-    );
+    assert_eq!(remaining[0].timeline_start(), TimelineFrameIndex::from(50));
+    assert_eq!(remaining[1].timeline_start(), TimelineFrameIndex::from(50));
     Ok(())
 }
 
@@ -312,32 +285,37 @@ fn edits_do_not_require_source_media_or_a_playback_backend() -> Result<()> {
         &mut timeline,
         EditAction::MoveClips {
             placements: vec![
-                (ulid(10), ulid(2), TimelineFrameIndex::from_frames(90)),
-                (ulid(11), ulid(2), TimelineFrameIndex::from_frames(120)),
+                (ulid(10), ulid(2), TimelineFrameIndex::from(90)),
+                (ulid(11), ulid(2), TimelineFrameIndex::from(120)),
             ],
         },
     )?;
     assert_eq!(
-        timeline
-            .backend
-            .timeline()
-            .clip(ulid(10))
-            .unwrap()
-            .timeline_start()
-            .frames(),
+        i64::from(
+            timeline
+                .backend
+                .timeline()
+                .clip(ulid(10))
+                .unwrap()
+                .timeline_start()
+        ),
         90
     );
     assert_eq!(
-        timeline
-            .backend
-            .timeline()
-            .clip(ulid(11))
-            .unwrap()
-            .timeline_start()
-            .frames(),
+        i64::from(
+            timeline
+                .backend
+                .timeline()
+                .clip(ulid(11))
+                .unwrap()
+                .timeline_start()
+        ),
         120
     );
-    assert_eq!(timeline.backend.timeline().content_duration().frames(), 150);
+    assert_eq!(
+        i64::from(timeline.backend.timeline().content_duration()),
+        150
+    );
     Ok(())
 }
 
@@ -356,14 +334,14 @@ fn invalid_edits_leave_the_document_unchanged() -> Result<()> {
         edit_timeline(
             &mut timeline,
             EditAction::MoveClips {
-                placements: vec![(ulid(11), ulid(2), TimelineFrameIndex::from_frames(10))],
+                placements: vec![(ulid(11), ulid(2), TimelineFrameIndex::from(10))],
             }
         )
         .is_err()
     );
     assert_eq!(serde_json::to_value(timeline.to_serialize())?, before);
     let mut invalid = timeline.backend.timeline().clip(ulid(11)).unwrap().clone();
-    invalid.set_timeline_start(TimelineFrameIndex::from_frames(10));
+    invalid.set_timeline_start(TimelineFrameIndex::from(10));
     assert!(edit_timeline(&mut timeline, EditAction::UpdateClip { clip: invalid }).is_err());
     assert_eq!(serde_json::to_value(timeline.to_serialize())?, before);
     Ok(())
@@ -381,7 +359,7 @@ fn splitting_trimming_and_ripple_deletion_update_the_model() -> Result<()> {
     )?;
     let (left, right) = timeline.backend.timeline().clips[0]
         .split_at(
-            TimelineFrameIndex::from_frames(20),
+            TimelineFrameIndex::from(20),
             timeline.backend.timeline().settings.frame_rate,
         )
         .unwrap();
@@ -396,19 +374,20 @@ fn splitting_trimming_and_ripple_deletion_update_the_model() -> Result<()> {
     )?;
     assert_eq!(timeline.backend.timeline().clips.len(), 3);
     assert_eq!(
-        timeline
-            .backend
-            .timeline()
-            .clip(right_id)
-            .unwrap()
-            .media()
-            .unwrap()
-            .source_in
-            .frames(),
+        i64::from(
+            timeline
+                .backend
+                .timeline()
+                .clip(right_id)
+                .unwrap()
+                .media()
+                .unwrap()
+                .source_in
+        ),
         20
     );
     let mut trimmed = timeline.backend.timeline().clip(right_id).unwrap().clone();
-    trimmed.media_mut().unwrap().source_out = TimelineFrameIndex::from_frames(50);
+    trimmed.media_mut().unwrap().source_out = TimelineFrameIndex::from(50);
     edit_timeline(&mut timeline, EditAction::UpdateClip { clip: trimmed })?;
     edit_timeline(
         &mut timeline,
@@ -427,25 +406,27 @@ fn splitting_trimming_and_ripple_deletion_update_the_model() -> Result<()> {
         TimelineFrameIndex::ZERO
     );
     assert_eq!(
-        timeline
-            .backend
-            .timeline()
-            .clip(right_id)
-            .unwrap()
-            .media()
-            .unwrap()
-            .source_out
-            .frames(),
+        i64::from(
+            timeline
+                .backend
+                .timeline()
+                .clip(right_id)
+                .unwrap()
+                .media()
+                .unwrap()
+                .source_out
+        ),
         50
     );
     assert_eq!(
-        timeline
-            .backend
-            .timeline()
-            .clip(ulid(11))
-            .unwrap()
-            .timeline_start()
-            .frames(),
+        i64::from(
+            timeline
+                .backend
+                .timeline()
+                .clip(ulid(11))
+                .unwrap()
+                .timeline_start()
+        ),
         40
     );
     Ok(())
@@ -525,7 +506,7 @@ fn text_edits_preserve_timing_without_a_renderer() -> Result<()> {
     let mut clip = TextClip {
         id: ulid(10),
         track_id: ulid(3),
-        timeline_start: TimelineFrameIndex::from_frames(15),
+        timeline_start: TimelineFrameIndex::from(15),
         length: Duration::from_secs(2),
         properties: TextClipProperties::default(),
     };
@@ -579,9 +560,9 @@ fn playhead_is_restored_saved_and_clamped_without_media() -> Result<()> {
     timeline.backend.seek(Duration::from_millis(1500))?;
     timeline.save()?;
     let restored = TimelineRuntimeState::load(path, &directory)?;
-    assert_eq!(restored.playhead().frames(), 45);
+    assert_eq!(i64::from(restored.playhead()), 45);
     timeline.backend.seek(Duration::MAX)?;
-    assert_eq!(timeline.playhead().frames(), 59);
+    assert_eq!(i64::from(timeline.playhead()), 59);
     edit_timeline(
         &mut timeline,
         EditAction::RemoveClips {
@@ -611,7 +592,7 @@ fn replacing_history_snapshots_preserves_playhead_and_document() -> Result<()> {
     edit_timeline(
         &mut timeline,
         EditAction::MoveClips {
-            placements: vec![(ulid(10), ulid(2), TimelineFrameIndex::from_frames(30))],
+            placements: vec![(ulid(10), ulid(2), TimelineFrameIndex::from(30))],
         },
     )?;
     let redo = timeline.backend.timeline().clone();
@@ -624,17 +605,15 @@ fn replacing_history_snapshots_preserves_playhead_and_document() -> Result<()> {
         timeline.backend.timeline().clips[0].timeline_start(),
         TimelineFrameIndex::ZERO
     );
-    assert_eq!(timeline.playhead().frames(), 15);
+    assert_eq!(i64::from(timeline.playhead()), 15);
     edit_timeline(
         &mut timeline,
         EditAction::ReplaceTimeline { timeline: redo },
     )?;
     assert_eq!(
-        timeline.backend.timeline().clips[0]
-            .timeline_start()
-            .frames(),
+        i64::from(timeline.backend.timeline().clips[0].timeline_start()),
         30
     );
-    assert_eq!(timeline.playhead().frames(), 15);
+    assert_eq!(i64::from(timeline.playhead()), 15);
     Ok(())
 }
