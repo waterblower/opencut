@@ -61,7 +61,14 @@ pub fn handle_event(
             source_path,
             project_root,
         } => {
-            let api_key = GlobalEditorSettings::load().minimax_api_key;
+            let settings = match GlobalEditorSettings::load() {
+                Ok(settings) => settings,
+                Err(error) => {
+                    log::error!("Could not load settings: {error:?}");
+                    return;
+                }
+            };
+            let api_key = settings.minimax_api_key;
             let project_root = project_root.clone();
             let source_path = source_path.clone();
             let task = gpui_tokio::Tokio::spawn(cx, async move {
@@ -124,7 +131,13 @@ pub fn handle_event(
             }
             *window = open_editor_window(root.clone(), event_bus, cx);
             *close_subscription = Some(cx.on_window_closed(quit_after_last_window));
-            let mut settings = GlobalEditorSettings::load();
+            let mut settings = match GlobalEditorSettings::load() {
+                Ok(settings) => settings,
+                Err(error) => {
+                    log::error!("Could not load settings: {error:?}");
+                    return;
+                }
+            };
             settings.project_root = root;
             if let Err(error) = settings.save() {
                 panic!(

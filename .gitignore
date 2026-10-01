@@ -25,3 +25,4 @@ rust/vendor/ffmpeg*
 /rust/vendor/gstreamer/
 *.env
 .delta/
+rust/.testdata/

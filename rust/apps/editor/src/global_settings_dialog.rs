@@ -4,7 +4,13 @@ use gpui_component::input::{Input, InputState};
 
 impl Editor {
     pub fn open_global_settings(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        let settings = GlobalEditorSettings::load();
+        let settings = match GlobalEditorSettings::load() {
+            Ok(settings) => settings,
+            Err(error) => {
+                log::error!("Could not load settings: {error:?}");
+                return;
+            }
+        };
         self.dismiss_context_menu();
         self.settings_open = false;
         let input = cx.new(|cx| {
@@ -38,7 +44,10 @@ impl Editor {
                     })))
                     .child(settings_button("Save").on_click(cx.listener(|editor, _, _, cx| {
                         let Some(input) = editor.global_settings_input.as_ref() else { return; };
-                        let mut settings = GlobalEditorSettings::load();
+                        let mut settings = match GlobalEditorSettings::load() {
+            Ok(settings) => settings,
+            Err(error) => { log::error!("Could not load settings: {error:?}"); return; }
+        };
                         settings.minimax_api_key = input.read(cx).value().trim().to_string();
                         match settings.save() {
                             Ok(()) => {
