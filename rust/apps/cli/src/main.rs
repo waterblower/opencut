@@ -85,8 +85,7 @@ fn print_error(error: &Error, json: bool) {
 
 async fn run(command: Command, api_key: Option<&str>) -> Result<Value> {
     match command {
-        Command::Export(args) => export::export_v1(args),
-        Command::Export2(args) => export::export_v2(args),
+        Command::Export(args) => export::export(args),
         Command::Transcribe {
             media_file,
             format,

@@ -34,8 +34,8 @@ FFmpeg or invokes Python. Timeline export uses GPUI through the shared engine.
 ## Export timelines (macOS)
 
 ```sh
-cargo cli export /project/episode.timeline.json -o episode.mp4
-cargo cli export /project/timelines/episode.json -o episode.mp4 --project-root /project --video-bitrate 8000 --json
+cargo cli export2 /project/episode.timeline.json -o episode.mp4
+cargo cli export2 /project/timelines/episode.json -o episode.mp4 --project-root /project --video-bitrate 8000 --json
 ```
 
 Exports the complete timeline synchronously to MP4 with H.264 video and stereo
@@ -157,7 +157,7 @@ they require no API key and do not make paid MiniMax requests.
 
 ## Output and errors
 
-The `still` command and the GPUI `render` demo have been removed. Use `export`
+The `still` command and the GPUI `render` demo have been removed. Use `export2`
 to export timelines; still preview generation is currently unavailable.
 
 All commands accept `--json`. Results go to stdout and diagnostics go to stderr.
