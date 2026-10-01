@@ -37,7 +37,7 @@ pub enum Command {
     Transcribe {
         media_file: PathBuf,
         #[arg(long, value_enum, default_value = "verbose_json")]
-        format: opencut::transcribe::Format,
+        format: crate::transcribe::Format,
         /// Merge SRT cues separated by less than 100 ms (requires --format srt).
         #[arg(long)]
         post_merge: bool,

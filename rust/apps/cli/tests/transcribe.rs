@@ -1,5 +1,8 @@
 use ::transcribe::audio::extract_audio_as_wav;
-use opencut::{document, transcribe};
+#[path = "../src/document.rs"]
+pub mod document;
+#[path = "../src/transcribe.rs"]
+pub mod transcribe;
 use serde_json::{Value, json};
 use std::{
     fs,
