@@ -375,7 +375,7 @@ impl Editor {
             .expect("timeline view requires timeline state");
         let frame_rate = timeline.backend.timeline().settings.frame_rate;
         let frames_per_second = frame_rate.frames_per_second();
-        let displayed_frames = frame_rate.ceil(duration).frames().max(1);
+        let displayed_frames = i64::from(frame_rate.ceil(duration)).max(1);
         let pixels_per_frame = timeline.pixels_per_second / frames_per_second as f32;
         let frame_step = frame_tick_step(pixels_per_frame);
         let scroll_left = (-f32::from(timeline.h_scroll.offset().x)).max(0.0);
@@ -411,8 +411,7 @@ impl Editor {
                 div()
                     .absolute()
                     .left(px(TIMELINE_PADDING
-                        + frame_rate.seconds(TimelineFrameIndex::from_frames(frame))
-                            as f32
+                        + frame_rate.seconds(TimelineFrameIndex::from(frame)) as f32
                             * timeline.pixels_per_second))
                     .bottom_0()
                     .h(px(height))

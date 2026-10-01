@@ -45,7 +45,7 @@ fn debug_state(editor: &Editor) -> Result<String> {
             "selected_clip_id": timeline.interaction.selected_clip_id,
             "selected_clip_ids": timeline.interaction.selected_clip_ids,
             "undo_count": timeline.undo_stack.len(), "redo_count": timeline.redo_stack.len(),
-            "playhead_frame": timeline.playhead().frames(),
+            "playhead_frame": i64::from(timeline.playhead()),
         });
     }
     let json = serde_json::to_string_pretty(&report).context("Formatting debug state")?;

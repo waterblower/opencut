@@ -11,7 +11,7 @@ use ::timeline::{TimelineEditingState, TimelineSerialization, TimelineSettings};
 fn timeline_view_state_is_sanitized_at_the_persistence_boundary() {
     let mut document = TimelineSerialization::default();
     document.set_view_state(
-        TimelineFrameIndex::from_frames(-10),
+        TimelineFrameIndex::from(-10),
         (f32::NAN, -20.0),
         f32::NAN,
         false,
@@ -78,9 +78,9 @@ fn video_clip(id: u64, start: i64, duration: i64) -> Clip {
         id: ulid(id),
         track_id: ulid(1),
         asset_id: ulid(100),
-        timeline_start: TimelineFrameIndex::from_frames(start),
+        timeline_start: TimelineFrameIndex::from(start),
         source_in: TimelineFrameIndex::ZERO,
-        source_out: TimelineFrameIndex::from_frames(duration),
+        source_out: TimelineFrameIndex::from(duration),
         video_properties: VideoClipProperties::default(),
         audio_properties: AudioClipProperties::default(),
     })
@@ -145,11 +145,11 @@ fn repairs_overlapping_clips_when_loading_a_timeline() {
 
     assert_eq!(
         project.clips[0].timeline_start(),
-        TimelineFrameIndex::from_frames(0)
+        TimelineFrameIndex::from(0)
     );
     assert_eq!(
         project.clips[1].timeline_start(),
-        TimelineFrameIndex::from_frames(150)
+        TimelineFrameIndex::from(150)
     );
 }
 
@@ -165,7 +165,7 @@ fn still_image_clips_can_extend_beyond_their_default_duration() {
 
     assert_eq!(
         project.clips[0].frame_length(project.settings.frame_rate),
-        TimelineFrameIndex::from_frames(300)
+        TimelineFrameIndex::from(300)
     );
     assert_eq!(
         project.seconds(project.clips[0].frame_length(project.settings.frame_rate)),
@@ -185,7 +185,7 @@ fn time_based_media_remains_bounded_by_its_source_duration() {
 
     assert_eq!(
         project.clips[0].frame_length(project.settings.frame_rate),
-        TimelineFrameIndex::from_frames(900)
+        TimelineFrameIndex::from(900)
     );
 }
 
@@ -205,7 +205,7 @@ fn assetless_text_clips_survive_timeline_repair() {
             id: ulid(10),
             track_id,
             timeline_start: TimelineFrameIndex::ZERO,
-            length: FrameRate::default().duration(TimelineFrameIndex::from_frames(150)),
+            length: FrameRate::default().duration(TimelineFrameIndex::from(150)),
             properties: TextClipProperties::default(),
         })],
         ..TimelineEditingState::default()
@@ -233,7 +233,7 @@ fn text_clips_can_move_without_a_media_asset() {
             id: clip_id,
             track_id,
             timeline_start: TimelineFrameIndex::ZERO,
-            length: FrameRate::default().duration(TimelineFrameIndex::from_frames(150)),
+            length: FrameRate::default().duration(TimelineFrameIndex::from(150)),
             properties: TextClipProperties::default(),
         })],
         ..TimelineEditingState::default()
@@ -242,7 +242,7 @@ fn text_clips_can_move_without_a_media_asset() {
     assert!(
         project
             .validate_clip_move_placements(
-                &[(clip_id, track_id, TimelineFrameIndex::from_frames(30))],
+                &[(clip_id, track_id, TimelineFrameIndex::from(30))],
                 &HashSet::from([clip_id]),
             )
             .is_ok()
@@ -281,7 +281,7 @@ fn changing_frame_rate_keeps_text_duration_and_recomputes_frame_length() {
     assert_eq!(text.length, Duration::from_secs(5));
     assert_eq!(
         text.frame_length(project.settings.frame_rate),
-        TimelineFrameIndex::from_frames(120)
+        TimelineFrameIndex::from(120)
     );
 }
 
@@ -301,7 +301,7 @@ fn fractional_frame_rates_round_trip_without_drift() {
             denominator: 1_001,
         },
     ] {
-        let original = TimelineFrameIndex::from_frames(1_000_003);
+        let original = TimelineFrameIndex::from(1_000_003);
         let seconds = frame_rate.seconds(original);
         assert_eq!(frame_rate.nearest(seconds), original);
     }
@@ -318,7 +318,7 @@ fn frame_boundaries_round_trip_through_duration() {
         FrameRate::new(60_000, 1_001),
     ] {
         for frame in 0..10_000 {
-            let time = TimelineFrameIndex::from_frames(frame);
+            let time = TimelineFrameIndex::from(frame);
             assert_eq!(
                 frame_rate.frames_from_duration_nearest(frame_rate.duration(time)),
                 time,
@@ -341,7 +341,7 @@ fn durations_convert_to_the_nearest_frame() {
     ] {
         assert_eq!(
             frame_rate.frames_from_duration_nearest(Duration::from_nanos(nanoseconds)),
-            TimelineFrameIndex::from_frames(expected_frame),
+            TimelineFrameIndex::from(expected_frame),
         );
     }
 }
@@ -353,7 +353,7 @@ fn repeated_frame_splits_preserve_the_total_duration() {
     let original_duration = remaining.frame_length(frame_rate);
     let mut pieces = Vec::new();
     for split in [1, 17, 301, 999, 2_048] {
-        let position = remaining.timeline_start() + TimelineFrameIndex::from_frames(split);
+        let position = remaining.timeline_start() + TimelineFrameIndex::from(split);
         let (left, right) = remaining.split_at(position, frame_rate).unwrap();
         pieces.push(left.frame_length(frame_rate));
         remaining = right;
@@ -392,7 +392,7 @@ fn preview_and_export_boundaries_share_the_same_frame_time() {
         },
         ..TimelineEditingState::default()
     };
-    let boundary = TimelineFrameIndex::from_frames(98_765);
+    let boundary = TimelineFrameIndex::from(98_765);
     let preview_duration = project.position_at_frame(boundary).as_secs_f64();
     let export_seconds = project.seconds(boundary);
     assert!((preview_duration - export_seconds).abs() <= 1.0e-9);
@@ -405,7 +405,7 @@ fn timeline_frames_map_to_exact_audio_samples() {
         denominator: 1_001,
     };
     assert_eq!(
-        frame_rate.audio_samples(TimelineFrameIndex::from_frames(30_000), 48_000),
+        frame_rate.audio_samples(TimelineFrameIndex::from(30_000), 48_000),
         48_048_000
     );
 }
@@ -425,7 +425,7 @@ fn maps_30_fps_source_frames_onto_a_24_fps_timeline() {
     let mapped = (0..=8)
         .map(|frame| {
             project
-                .source_frame_at(clip, TimelineFrameIndex::from_frames(frame))
+                .source_frame_at(clip, TimelineFrameIndex::from(frame))
                 .unwrap()
         })
         .collect::<Vec<_>>();
@@ -445,39 +445,39 @@ fn changing_timeline_rate_preserves_elapsed_edit_times() {
 
     assert_eq!(
         project.clips[0].timeline_start(),
-        TimelineFrameIndex::from_frames(24)
+        TimelineFrameIndex::from(24)
     );
     assert_eq!(
         project.clips[0].frame_length(project.settings.frame_rate),
-        TimelineFrameIndex::from_frames(240)
+        TimelineFrameIndex::from(240)
     );
 }
 
 #[test]
 fn clip_source_time_clamps_to_its_source_range() {
     let mut clip = video_clip(10, 100, 60);
-    clip.media_mut().unwrap().source_in = TimelineFrameIndex::from_frames(30);
-    clip.media_mut().unwrap().source_out = TimelineFrameIndex::from_frames(90);
+    clip.media_mut().unwrap().source_in = TimelineFrameIndex::from(30);
+    clip.media_mut().unwrap().source_out = TimelineFrameIndex::from(90);
 
     assert_eq!(
-        clip.source_time_at(TimelineFrameIndex::from_frames(50)),
-        Some(TimelineFrameIndex::from_frames(30))
+        clip.source_time_at(TimelineFrameIndex::from(50)),
+        Some(TimelineFrameIndex::from(30))
     );
     assert_eq!(
-        clip.source_time_at(TimelineFrameIndex::from_frames(100)),
-        Some(TimelineFrameIndex::from_frames(30))
+        clip.source_time_at(TimelineFrameIndex::from(100)),
+        Some(TimelineFrameIndex::from(30))
     );
     assert_eq!(
-        clip.source_time_at(TimelineFrameIndex::from_frames(125)),
-        Some(TimelineFrameIndex::from_frames(55))
+        clip.source_time_at(TimelineFrameIndex::from(125)),
+        Some(TimelineFrameIndex::from(55))
     );
     assert_eq!(
-        clip.source_time_at(TimelineFrameIndex::from_frames(160)),
-        Some(TimelineFrameIndex::from_frames(90))
+        clip.source_time_at(TimelineFrameIndex::from(160)),
+        Some(TimelineFrameIndex::from(90))
     );
     assert_eq!(
-        clip.source_time_at(TimelineFrameIndex::from_frames(200)),
-        Some(TimelineFrameIndex::from_frames(90))
+        clip.source_time_at(TimelineFrameIndex::from(200)),
+        Some(TimelineFrameIndex::from(90))
     );
 }
 
@@ -485,35 +485,35 @@ fn clip_source_time_clamps_to_its_source_range() {
 fn splitting_clip_preserves_ranges_and_properties() {
     let mut clip = video_clip(10, 100, 60);
     let media = clip.media_mut().unwrap();
-    media.source_in = TimelineFrameIndex::from_frames(30);
-    media.source_out = TimelineFrameIndex::from_frames(90);
+    media.source_in = TimelineFrameIndex::from(30);
+    media.source_out = TimelineFrameIndex::from(90);
     media.video_properties.position_x = 42.0;
     media.audio_properties.gain_db = -6.0;
     media.audio_properties.muted = true;
 
     let (left, right) = clip
-        .split_at(TimelineFrameIndex::from_frames(125), FrameRate::default())
+        .split_at(TimelineFrameIndex::from(125), FrameRate::default())
         .unwrap();
 
     assert_eq!(left.id(), ulid(10));
-    assert_eq!(left.timeline_start(), TimelineFrameIndex::from_frames(100));
+    assert_eq!(left.timeline_start(), TimelineFrameIndex::from(100));
     assert_eq!(
         left.media().unwrap().source_in,
-        TimelineFrameIndex::from_frames(30)
+        TimelineFrameIndex::from(30)
     );
     assert_eq!(
         left.media().unwrap().source_out,
-        TimelineFrameIndex::from_frames(55)
+        TimelineFrameIndex::from(55)
     );
     assert_ne!(right.id(), clip.id());
-    assert_eq!(right.timeline_start(), TimelineFrameIndex::from_frames(125));
+    assert_eq!(right.timeline_start(), TimelineFrameIndex::from(125));
     assert_eq!(
         right.media().unwrap().source_in,
-        TimelineFrameIndex::from_frames(55)
+        TimelineFrameIndex::from(55)
     );
     assert_eq!(
         right.media().unwrap().source_out,
-        TimelineFrameIndex::from_frames(90)
+        TimelineFrameIndex::from(90)
     );
     assert_eq!(
         left.media().unwrap().video_properties,
@@ -539,19 +539,19 @@ fn splitting_clip_rejects_its_outer_frames() {
 
     let frame_rate = FrameRate::default();
     assert!(
-        clip.split_at(TimelineFrameIndex::from_frames(100), frame_rate)
+        clip.split_at(TimelineFrameIndex::from(100), frame_rate)
             .is_none()
     );
     assert!(
-        clip.split_at(TimelineFrameIndex::from_frames(160), frame_rate)
+        clip.split_at(TimelineFrameIndex::from(160), frame_rate)
             .is_none()
     );
     assert!(
-        clip.split_at(TimelineFrameIndex::from_frames(101), frame_rate)
+        clip.split_at(TimelineFrameIndex::from(101), frame_rate)
             .is_some()
     );
     assert!(
-        clip.split_at(TimelineFrameIndex::from_frames(159), frame_rate)
+        clip.split_at(TimelineFrameIndex::from(159), frame_rate)
             .is_some()
     );
 }
@@ -561,8 +561,8 @@ fn splitting_text_clip_preserves_text_and_divides_length() {
     let clip = Clip::Text(TextClip {
         id: ulid(10),
         track_id: ulid(3),
-        timeline_start: TimelineFrameIndex::from_frames(100),
-        length: FrameRate::default().duration(TimelineFrameIndex::from_frames(60)),
+        timeline_start: TimelineFrameIndex::from(100),
+        length: FrameRate::default().duration(TimelineFrameIndex::from(60)),
         properties: TextClipProperties {
             text: "Title".to_string(),
             ..TextClipProperties::default()
@@ -571,18 +571,12 @@ fn splitting_text_clip_preserves_text_and_divides_length() {
 
     let frame_rate = FrameRate::default();
     let (left, right) = clip
-        .split_at(TimelineFrameIndex::from_frames(125), frame_rate)
+        .split_at(TimelineFrameIndex::from(125), frame_rate)
         .unwrap();
 
-    assert_eq!(
-        left.frame_length(frame_rate),
-        TimelineFrameIndex::from_frames(25)
-    );
-    assert_eq!(right.timeline_start(), TimelineFrameIndex::from_frames(125));
-    assert_eq!(
-        right.frame_length(frame_rate),
-        TimelineFrameIndex::from_frames(35)
-    );
+    assert_eq!(left.frame_length(frame_rate), TimelineFrameIndex::from(25));
+    assert_eq!(right.timeline_start(), TimelineFrameIndex::from(125));
+    assert_eq!(right.frame_length(frame_rate), TimelineFrameIndex::from(35));
     assert_eq!(
         left.text().unwrap().properties,
         clip.text().unwrap().properties
@@ -728,8 +722,8 @@ fn text_clip_round_trip_uses_text_specific_fields() {
     let clip = Clip::Text(TextClip {
         id: ulid(10),
         track_id: ulid(3),
-        timeline_start: TimelineFrameIndex::from_frames(12),
-        length: FrameRate::default().duration(TimelineFrameIndex::from_frames(90)),
+        timeline_start: TimelineFrameIndex::from(12),
+        length: FrameRate::default().duration(TimelineFrameIndex::from(90)),
         properties: TextClipProperties::default(),
     });
 
@@ -747,7 +741,7 @@ fn text_clip_round_trip_uses_text_specific_fields() {
     let restored = parse_clip(value).unwrap();
     assert_eq!(
         restored.text().unwrap().frame_length(FrameRate::default()),
-        TimelineFrameIndex::from_frames(90)
+        TimelineFrameIndex::from(90)
     );
 }
 

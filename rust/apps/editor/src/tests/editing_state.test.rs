@@ -19,7 +19,7 @@ fn rejected_edits_preserve_content_position_history_and_preview() -> Result<()> 
             placements: vec![(
                 Ulid::from(2_u128),
                 Ulid::from(1_u128),
-                TimelineFrameIndex::from_frames(-1),
+                TimelineFrameIndex::from(-1),
             )],
         },
         EditAction::SetTextProperties {
@@ -57,7 +57,7 @@ fn history_replacement_preserves_live_view_preferences_and_playhead() -> Result<
             placements: vec![(
                 Ulid::from(2_u128),
                 Ulid::from(1_u128),
-                TimelineFrameIndex::from_frames(10),
+                TimelineFrameIndex::from(10),
             )],
         },
     )?;
@@ -79,9 +79,7 @@ fn history_replacement_preserves_live_view_preferences_and_playhead() -> Result<
             EditAction::ReplaceTimeline { timeline: snapshot },
         )?;
         assert_eq!(
-            timeline.backend.timeline().clips[0]
-                .timeline_start()
-                .frames(),
+            i64::from(timeline.backend.timeline().clips[0].timeline_start()),
             start
         );
         assert_eq!(timeline.backend.position(), Duration::from_millis(1500));
