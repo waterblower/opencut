@@ -42,8 +42,8 @@ opencut probe /project/episode.timeline.json --json
 ## Timeline export (macOS)
 
 ```sh
-opencut export /project/episode.timeline.json -o episode.mp4
-opencut export /project/timelines/episode.json -o episode.mp4 --project-root /project --video-bitrate 8000 --json
+opencut export2 /project/episode.timeline.json -o episode.mp4
+opencut export2 /project/timelines/episode.json -o episode.mp4 --project-root /project --video-bitrate 8000 --json
 ```
 
 Exports the complete timeline synchronously to H.264 video and stereo AAC audio.

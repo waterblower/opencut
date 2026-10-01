@@ -18,8 +18,6 @@ pub struct Args {
 pub enum Command {
     /// Export a timeline to MP4 with H.264 video and stereo AAC audio (macOS).
     Export(ExportArgs),
-    /// Export a timeline using the v2 rendering engine.
-    Export2(ExportArgs),
     /// Transcribe audio/video with MiniMax (MINIMAX_API_KEY).
     Transcribe {
         media_file: PathBuf,
