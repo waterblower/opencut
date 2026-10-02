@@ -78,19 +78,25 @@ impl TimelineBackend {
         &self.timeline
     }
 
-    /// Prepares edited content at the current frame before publishing it.
-    /// Errors preserve the document and frame.
+    /// Prepares edited content at the current playback time before publishing it.
+    /// Reaching the new end pauses playback. Errors preserve all existing state.
     pub fn replace_timeline(&mut self, timeline: TimelineEditingState) -> Result<()> {
         timeline.validate()?;
+        let duration = timeline.position_at_frame(timeline.content_duration());
+        let position = self.clock_position().min(duration);
+        let playing = self.playing && position < duration;
+        let frame_index = floor_frame(timeline.settings.frame_rate, position);
         // Asset IDs may now point at different media, so no cached decoder is reused.
         let mut decoder = TimelineDecoder::new(&self.project_root);
-        let frame = decoder.frame_at(&timeline, self.frame_index())?;
+        let frame = decoder.frame_at(&timeline, frame_index)?;
         self.timeline = timeline;
         self.decoder = decoder;
         self.show(frame);
-        if !self.playing {
-            self.clock.start_position = self.clock.start_position.min(self.duration());
-        }
+        self.playing = playing;
+        self.clock = PlaybackClock {
+            start_position: position,
+            start_time: if playing { Some(Instant::now()) } else { None },
+        };
         Ok(())
     }
 
