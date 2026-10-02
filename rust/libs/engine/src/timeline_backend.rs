@@ -87,7 +87,7 @@ impl TimelineBackend {
         timeline.validate()?;
         // Asset IDs may now point at different media, so no cached decoder is reused.
         let mut decoder = TimelineDecoder::new(&self.project_root);
-        let frame = decoder.frame_at(&timeline, self.frame())?;
+        let frame = decoder.frame_at(&timeline, self.frame_index())?;
         self.timeline = timeline;
         self.decoder = decoder;
         self.show(frame);
@@ -112,7 +112,7 @@ impl TimelineBackend {
     /// Errors preserve the previous frame and position.
     pub fn seek_frame(&mut self, frame: TimelineFrameIndex) -> Result<()> {
         let frame = frame.clamp(TimelineFrameIndex::ZERO, self.last_frame());
-        if frame != self.frame() {
+        if frame != self.frame_index() {
             let picture = self.decoder.frame_at(&self.timeline, frame)?;
             self.show(picture);
         }
@@ -185,7 +185,7 @@ impl TimelineBackend {
                 changed: true,
             });
         }
-        let changed = frame != self.frame();
+        let changed = frame != self.frame_index();
         if changed {
             let frame = self.decoder.frame_at(&self.timeline, frame)?;
             self.show(frame);
@@ -226,9 +226,9 @@ impl TimelineBackend {
             .position_at_frame(self.timeline.content_duration())
     }
 
-    /// The displayed timeline frame.
-    pub fn frame(&self) -> TimelineFrameIndex {
-        self.displayed.frame
+    /// The index of the displayed timeline frame.
+    pub fn frame_index(&self) -> TimelineFrameIndex {
+        self.displayed.frame_index
     }
 
     /// Start time of the displayed frame.

@@ -213,3 +213,7 @@ are relative to the OpenCut root.
   `#[rustfmt::skip]` annotations.
 - When referencing any file to the user, always use a clickable Markdown file
   link. For code locations, include the relevant line number in the link.
+- Do not use the bare word "frame" for a frame index. It is ambiguous: it can mean
+  the frame data (a decoded or composited picture) or the position of a frame on
+  the timeline. Name an index `frame_index` (or `..._frame_index`, with type
+  `TimelineFrameIndex`) and frame data `frame` or `picture`, so a name says which one it is.
