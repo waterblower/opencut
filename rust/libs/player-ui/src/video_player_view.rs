@@ -1,8 +1,8 @@
-use crate::video_player::{DisplayedFrame, PlaybackState, VideoPlayer};
+use crate::video_player::{PlaybackState, VideoPlayer};
 #[cfg(target_os = "macos")]
 use gpui::surface;
 use gpui::{
-    Bounds, ClickEvent, Context, CursorStyle, ObjectFit, Render, Window, div, img, prelude::*, px,
+    Bounds, ClickEvent, Context, CursorStyle, ObjectFit, Render, Window, div, prelude::*, px,
     relative, rgb,
 };
 use std::{cell::Cell, rc::Rc, time::Duration};
@@ -55,17 +55,13 @@ impl Render for VideoPlayer {
                     .min_h_0()
                     .overflow_hidden()
                     .when_some(self.displayed.as_ref(), |this, (frame, _, _)| {
-                        let content = match frame {
-                            #[cfg(target_os = "macos")]
-                            DisplayedFrame::Surface(buffer) => surface(buffer.clone())
-                                .object_fit(ObjectFit::Contain)
-                                .size_full()
-                                .into_any_element(),
-                            DisplayedFrame::GpuiImage(image) => img(image.clone())
-                                .object_fit(ObjectFit::Contain)
-                                .size_full()
-                                .into_any_element(),
-                        };
+                        #[cfg(target_os = "macos")]
+                        let content = surface(frame.clone())
+                            .object_fit(ObjectFit::Contain)
+                            .size_full()
+                            .into_any_element();
+                        #[cfg(not(target_os = "macos"))]
+                        let content: gpui::AnyElement = match *frame {};
                         this.child(content)
                     }),
             )

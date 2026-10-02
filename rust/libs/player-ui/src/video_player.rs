@@ -1,11 +1,14 @@
 use crate::{WaitUntilPlaying, audio_output::AudioOutput};
 use anyhow::{Context as _, Result, bail};
-pub use engine::displayed_frame::DisplayedFrame;
+#[cfg(target_os = "macos")]
+use core_video::pixel_buffer::CVPixelBuffer;
 #[cfg(target_os = "macos")]
 use engine::gpu::GpuResources;
 use futures::{FutureExt, select, try_join};
 use gpui::{AsyncApp, Context, Entity, Task};
 use media_backend::VideoBackend;
+#[cfg(not(target_os = "macos"))]
+use std::convert::Infallible as CVPixelBuffer; // 不支持的平台无法构造视频 surface。
 use std::{
     cell::Cell,
     future::poll_fn,
@@ -21,7 +24,7 @@ pub struct VideoPlayer {
     #[cfg(target_os = "macos")]
     gpu: GpuResources,
     play_wakers: Vec<Waker>,                              // 分别唤醒视频、音频循环；只保存等待者，不保存播放进度。
-    pub displayed: Option<(DisplayedFrame, Duration, Duration)>, // (图像, 帧 PTS, 该帧时长)；None：尚未呈现首帧。
+    pub displayed: Option<(CVPixelBuffer, Duration, Duration)>, // (图像, 帧 PTS, 该帧时长)；None：尚未呈现首帧。
     pub playback_state: PlaybackState,
     pub title: String,
 }
@@ -29,6 +32,8 @@ pub struct VideoPlayer {
 impl VideoPlayer {
     /// Opens the media and output devices. Call [`Self::start`] once the player is in an entity.
     pub fn new(path: PathBuf) -> Result<Self> {
+        #[cfg(not(target_os = "macos"))]
+        bail!("Video playback requires macOS GPU surfaces");
         // 同步打开和配置；性能成本直接体现在调用处，不交给后台 worker。
         let mut backend = VideoBackend::open(&path)?;
         let audio_output = AudioOutput::open()?;
@@ -131,16 +136,16 @@ impl VideoPlayer {
         Ok(())
     }
 
-    fn prepare_next_frame(&mut self) -> Result<Option<(DisplayedFrame, Duration, Duration)>> {
+    fn prepare_next_frame(&mut self) -> Result<Option<(CVPixelBuffer, Duration, Duration)>> {
         let started = Instant::now();
         let Some(frame) = self.video_backend.video.next_frame()? else {
             return Ok(None);
         };
         let frame_position = Duration::from_micros(frame.timestamp.0.max(0) as u64);
         #[cfg(target_os = "macos")]
-        let image = DisplayedFrame::Surface(self.gpu.convert(&frame)?);
+        let image = self.gpu.convert(&frame)?;
         #[cfg(not(target_os = "macos"))]
-        let image: DisplayedFrame = bail!("Video playback requires macOS GPU surfaces");
+        let image: VideoSurface = bail!("Video playback requires macOS GPU surfaces");
         let duration = frame
             .duration
             .or(self.video_backend.metadata.video.average_frame_interval)
@@ -156,7 +161,7 @@ impl VideoPlayer {
     fn advance_video(
         &mut self,
         clock: &Cell<PlaybackClock>,
-        pending_frame: &mut Option<((DisplayedFrame, Duration, Duration), Instant)>,
+        pending_frame: &mut Option<((CVPixelBuffer, Duration, Duration), Instant)>,
         cx: &mut Context<Self>,
     ) -> Result<Duration> {
         let anchor = clock
