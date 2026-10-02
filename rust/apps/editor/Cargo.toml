@@ -9,7 +9,6 @@ editor-tests = ["gpui/test-support"]
 
 [dependencies]
 timeline.workspace = true
-engine.workspace = true
 transcribe.workspace = true
 player-ui.workspace = true
 anyhow.workspace = true

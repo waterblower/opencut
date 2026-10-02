@@ -317,15 +317,13 @@ impl Editor {
             return;
         };
         let referenced_assets = timeline
-            .backend
-            .timeline()
+            .editing_state
             .clips
             .iter()
             .filter_map(|clip| clip.media().map(|clip| clip.asset_id))
             .collect::<HashSet<_>>();
         let paths = timeline
-            .backend
-            .timeline()
+            .editing_state
             .assets
             .iter()
             .filter(|asset| asset.has_audio && referenced_assets.contains(&asset.id))

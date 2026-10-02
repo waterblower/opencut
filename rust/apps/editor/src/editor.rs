@@ -62,10 +62,7 @@ impl Editor {
                 let Some(timeline_path) = project_settings.active_timeline else {
                     return Ok(None);
                 };
-                let timeline = match TimelineRuntimeState::load(
-                    project_root.join(&timeline_path),
-                    &project_root,
-                ) {
+                let timeline = match TimelineRuntimeState::load(project_root.join(&timeline_path)) {
                     Ok(timeline) => timeline,
                     Err(error) => {
                         // The saved timeline may have been moved or deleted; open
@@ -170,7 +167,7 @@ impl Editor {
             active_asset_drag: AssetBeingDragged::None,
         };
         if let Some(timeline) = editor.timeline.as_mut() {
-            timeline.backend.seek_frame(timeline.playhead())?;
+            timeline.seek_frame(timeline.playhead());
         }
 
         // todo:

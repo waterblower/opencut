@@ -6,15 +6,13 @@ use ::timeline::{
 };
 use anyhow::Result;
 use gpui::{point, px};
-use std::sync::Arc;
 use std::time::Duration;
 use ulid::Ulid;
 
 #[test]
-fn rejected_edits_preserve_content_position_history_and_preview() -> Result<()> {
+fn rejected_edits_preserve_content_playhead_and_history() -> Result<()> {
     let mut timeline = runtime()?;
-    timeline.backend.seek(Duration::from_secs(1))?;
-    let before = timeline.backend.preview_frame();
+    timeline.seek_frame(TimelineFrameIndex::from(10));
     for action in [
         EditAction::MoveClips {
             placements: vec![(
@@ -33,17 +31,15 @@ fn rejected_edits_preserve_content_position_history_and_preview() -> Result<()> 
     ] {
         assert!(edit_timeline(&mut timeline, action).is_err());
         assert_eq!(
-            timeline.backend.timeline().clips[0].timeline_start(),
+            timeline.editing_state.clips[0].timeline_start(),
             TimelineFrameIndex::ZERO
         );
-        let Clip::Text(clip) = &timeline.backend.timeline().clips[0] else {
+        let Clip::Text(clip) = &timeline.editing_state.clips[0] else {
             panic!("expected the original text clip");
         };
         assert_eq!(clip.properties.font_size, 64.0);
-        assert_eq!(timeline.backend.position(), Duration::from_secs(1));
+        assert_eq!(timeline.playhead(), TimelineFrameIndex::from(10));
         assert!(timeline.undo_stack.is_empty() && timeline.redo_stack.is_empty());
-        let after = timeline.backend.preview_frame();
-        assert!(Arc::ptr_eq(&before, &after));
     }
     Ok(())
 }
@@ -62,7 +58,7 @@ fn history_replacement_preserves_live_view_preferences_and_playhead() -> Result<
             )],
         },
     )?;
-    let redo = timeline.backend.timeline().clone();
+    let redo = timeline.editing_state.clone();
     let undo = timeline.undo_stack.pop().unwrap();
 
     timeline.pixels_per_second = 180.0;
@@ -72,7 +68,7 @@ fn history_replacement_preserves_live_view_preferences_and_playhead() -> Result<
     timeline.v_scroll.set_offset(point(px(0.0), px(-20.0)));
     let horizontal = timeline.h_scroll.offset();
     let vertical = timeline.v_scroll.offset();
-    timeline.backend.seek(Duration::from_millis(1500))?;
+    timeline.seek_frame(TimelineFrameIndex::from(15));
 
     for (snapshot, start) in [(undo, 0), (redo, 10)] {
         edit_timeline(
@@ -80,10 +76,10 @@ fn history_replacement_preserves_live_view_preferences_and_playhead() -> Result<
             EditAction::ReplaceTimeline { timeline: snapshot },
         )?;
         assert_eq!(
-            i64::from(timeline.backend.timeline().clips[0].timeline_start()),
+            i64::from(timeline.editing_state.clips[0].timeline_start()),
             start
         );
-        assert_eq!(timeline.backend.position(), Duration::from_millis(1500));
+        assert_eq!(timeline.playhead(), TimelineFrameIndex::from(15));
         assert_eq!(timeline.pixels_per_second, 180.0);
         assert!(!timeline.snapping_enabled && !timeline.track_magnet_enabled);
         assert_eq!(timeline.h_scroll.offset(), horizontal);
@@ -93,19 +89,16 @@ fn history_replacement_preserves_live_view_preferences_and_playhead() -> Result<
 }
 
 #[test]
-fn persistence_captures_selected_state_and_rebuilds_runtime_resources() -> Result<()> {
+fn persistence_captures_selected_state() -> Result<()> {
     let mut timeline = runtime()?;
-    timeline.backend.seek(Duration::from_secs(1))?;
-    let prepared = timeline.backend.preview_frame();
+    timeline.seek_frame(TimelineFrameIndex::from(10));
     timeline.pixels_per_second = 180.0;
     timeline.snapping_enabled = false;
     timeline.track_magnet_enabled = false;
     timeline.h_scroll.set_offset(point(px(-40.0), px(0.0)));
     timeline.v_scroll.set_offset(point(px(0.0), px(-20.0)));
     timeline.record_editing_history();
-    timeline
-        .redo_stack
-        .push(timeline.backend.timeline().clone());
+    timeline.redo_stack.push(timeline.editing_state.clone());
     timeline.interaction.selected_clip_id = None;
     timeline.interaction.selected_clip_ids.clear();
 
@@ -121,14 +114,8 @@ fn persistence_captures_selected_state_and_rebuilds_runtime_resources() -> Resul
             "snapping_enabled": false, "track_magnet_enabled": false
         })
     );
-    let after = timeline.backend.preview_frame();
-    assert!(Arc::ptr_eq(&prepared, &after));
 
-    let restored = TimelineRuntimeState::from_serialize(
-        document,
-        timeline.path.clone(),
-        &std::env::temp_dir(),
-    )?;
+    let restored = TimelineRuntimeState::from_serialize(document, timeline.path.clone())?;
     assert_eq!(serde_json::to_value(restored.to_serialize())?, json);
     assert!(restored.undo_stack.is_empty() && restored.redo_stack.is_empty());
     assert_eq!(
@@ -137,14 +124,10 @@ fn persistence_captures_selected_state_and_rebuilds_runtime_resources() -> Resul
     );
     assert!(restored.preview_drop_asset.is_none());
     assert!(
-        TimelineRuntimeState::from_serialize(
-            timeline.to_serialize(),
-            "relative.json".into(),
-            &std::env::temp_dir()
-        )
-        .is_err()
+        TimelineRuntimeState::from_serialize(timeline.to_serialize(), "relative.json".into())
+            .is_err()
     );
-    assert!(TimelineRuntimeState::load("relative.json".into(), &std::env::temp_dir()).is_err());
+    assert!(TimelineRuntimeState::load("relative.json".into()).is_err());
     timeline.path = "relative.json".into();
     assert!(timeline.save().is_err());
     Ok(())
@@ -177,5 +160,5 @@ fn runtime() -> Result<TimelineRuntimeState> {
         ..Default::default()
     };
     let root = std::env::temp_dir();
-    TimelineRuntimeState::new(root.join("editing-state.timeline.json"), data, &root)
+    TimelineRuntimeState::new(root.join("editing-state.timeline.json"), data)
 }

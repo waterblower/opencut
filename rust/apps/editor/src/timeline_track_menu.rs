@@ -19,7 +19,7 @@ impl Editor {
         let Some(timeline) = self.timeline.as_mut() else {
             return Ok(());
         };
-        let clip = text_clip_at(timeline.backend.timeline(), track_id, position)?;
+        let clip = text_clip_at(&timeline.editing_state, track_id, position)?;
         timeline.record_editing_history();
         let clip_id = clip.id();
         apply_timeline_edit(

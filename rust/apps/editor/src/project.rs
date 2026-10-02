@@ -62,7 +62,7 @@ impl Editor {
             {
                 self.select_only_clip(None);
                 let timeline = self.timeline.as_mut().expect("timeline was checked above");
-                timeline.backend.seek_frame(timeline.playhead())?;
+                timeline.seek_frame(timeline.playhead());
                 if !matches!(self.preview.target, PreviewTarget::Timeline { .. }) {
                     self.show_timeline_preview(cx)?;
                 }
@@ -121,7 +121,6 @@ impl Editor {
             self.timeline = Some(TimelineRuntimeState::from_serialize(
                 active_timeline,
                 self.project_root.join(timeline_path),
-                &self.project_root,
             )?);
             let mut settings = load_project_local_settings(&self.project_root);
             settings.active_timeline = self.timeline.as_ref().and_then(|timeline| {
@@ -150,7 +149,7 @@ impl Editor {
                 .refresh_file_tree(&self.project_root)
                 .context("refresh_file_tree failed")?;
             if let Some(timeline) = self.timeline.as_mut() {
-                timeline.backend.seek_frame(timeline.playhead())?;
+                timeline.seek_frame(timeline.playhead());
             }
             self.show_timeline_preview(cx)?;
             self.schedule_active_timeline_waveforms(cx);
@@ -174,8 +173,7 @@ impl Editor {
             Ok(relative_path) => relative_path.to_path_buf(),
             Err(_) => timeline.path.clone(),
         };
-        let mut player =
-            TimelinePlayer::new(timeline.backend.timeline().clone(), &self.project_root)?;
+        let mut player = TimelinePlayer::new(timeline.editing_state.clone(), &self.project_root)?;
         player.title = relative_path.display().to_string();
         let player = cx.new(move |_| player);
         let task = player.update(cx, |player, cx| player.start(cx));

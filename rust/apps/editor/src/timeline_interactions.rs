@@ -11,7 +11,8 @@ use crate::timeline_clip::Clip;
 use anyhow::Result;
 use gpui::prelude::*;
 use gpui::{
-    MouseDownEvent, MouseMoveEvent, MouseUpEvent, ScrollWheelEvent, TouchPhase, Window, px,
+    ClickEvent, Context, MouseDownEvent, MouseMoveEvent, MouseUpEvent, ScrollWheelEvent,
+    TouchPhase, Window, px,
 };
 use std::collections::HashSet;
 use ulid::Ulid;
@@ -64,14 +65,13 @@ impl TimelineRuntimeState {
     pub(super) fn selected_clips_editable(&self) -> bool {
         !self.interaction.selected_clip_ids.is_empty()
             && self.interaction.selected_clip_ids.iter().all(|clip_id| {
-                self.backend.timeline().clip(*clip_id).is_some()
-                    && !self.backend.timeline().clip_locked(*clip_id)
+                self.editing_state.clip(*clip_id).is_some()
+                    && !self.editing_state.clip_locked(*clip_id)
             })
     }
 
     pub(super) fn selected_clip_ids_in_timeline_order(&self) -> Vec<Ulid> {
-        self.backend
-            .timeline()
+        self.editing_state
             .clips
             .iter()
             .filter(|clip| self.interaction.selected_clip_ids.contains(&clip.id()))
@@ -99,24 +99,23 @@ impl TimelineRuntimeState {
         let scroll_y = f32::from(self.v_scroll.offset().y);
 
         let mut selected = selection.initial_selection.clone();
-        for (track_index, track) in self.backend.timeline().tracks.iter().enumerate() {
+        for (track_index, track) in self.editing_state.tracks.iter().enumerate() {
             let clip_top = TIMELINE_HEADER_HEIGHT
                 + RULER_HEIGHT
                 + track_index as f32 * TRACK_HEIGHT
                 + scroll_y
                 + 5.0;
             let clip_bottom = clip_top + TRACK_HEIGHT - 10.0;
-            for clip in self.backend.timeline().clips_on_track(track.id) {
+            for clip in self.editing_state.clips_on_track(track.id) {
                 let clip_left = TRACK_HEADER_WIDTH
                     + scroll_x
                     + TIMELINE_PADDING
-                    + self.backend.timeline().seconds(clip.timeline_start()) as f32
+                    + self.editing_state.seconds(clip.timeline_start()) as f32
                         * self.pixels_per_second;
                 let clip_right = clip_left
                     + (self
-                        .backend
-                        .timeline()
-                        .seconds(clip.frame_length(self.backend.timeline().settings.frame_rate))
+                        .editing_state
+                        .seconds(clip.frame_length(self.editing_state.settings.frame_rate))
                         as f32
                         * self.pixels_per_second)
                         .max(4.0);
@@ -130,8 +129,7 @@ impl TimelineRuntimeState {
             }
         }
         self.interaction.selected_clip_id = self
-            .backend
-            .timeline()
+            .editing_state
             .clips
             .iter()
             .find(|clip| selected.contains(&clip.id()))
@@ -148,18 +146,17 @@ impl TimelineRuntimeState {
             return (time.max(TimelineFrameIndex::ZERO), None);
         }
         let threshold = i64::from(
-            self.backend
-                .timeline()
+            self.editing_state
                 .settings
                 .frame_rate
                 .ceil(SNAP_DISTANCE_PX as f64 / self.pixels_per_second as f64),
         )
         .max(1) as u64;
         let mut candidates = vec![TimelineFrameIndex::ZERO, self.playhead()];
-        for clip in &self.backend.timeline().clips {
+        for clip in &self.editing_state.clips {
             if !ignored_clip_ids.contains(&clip.id()) {
                 candidates.push(clip.timeline_start());
-                candidates.push(clip.timeline_end(self.backend.timeline().settings.frame_rate));
+                candidates.push(clip.timeline_end(self.editing_state.settings.frame_rate));
             }
         }
         let snapped = candidates
@@ -196,7 +193,7 @@ impl TimelineRuntimeState {
         );
         if pixels_per_second != previous_pixels_per_second {
             let mut scroll_offset = self.h_scroll.offset();
-            let playhead_seconds = self.backend.timeline().seconds(self.playhead());
+            let playhead_seconds = self.editing_state.seconds(self.playhead());
             scroll_offset.x = px(zoom_scroll_offset(
                 f32::from(scroll_offset.x),
                 playhead_seconds,
@@ -211,12 +208,11 @@ impl TimelineRuntimeState {
     pub(super) fn timeline_position_from_x(&self, x: f32) -> TimelineFrameIndex {
         let scroll_x: f32 = self.h_scroll.offset().x.into();
         let content_x = x - TRACK_HEADER_WIDTH - scroll_x - TIMELINE_PADDING;
-        self.backend
-            .timeline()
+        self.editing_state
             .nearest_time(content_x as f64 / self.pixels_per_second as f64)
             .clamp(
                 TimelineFrameIndex::ZERO,
-                self.backend.timeline().content_duration(),
+                self.editing_state.content_duration(),
             )
     }
 }
@@ -272,7 +268,7 @@ impl Editor {
             .timeline_position_from_x(event.position.x.into())
             .clamp(
                 TimelineFrameIndex::ZERO,
-                timeline.backend.timeline().content_duration(),
+                timeline.editing_state.content_duration(),
             );
         let timeline = self.timeline.as_mut().expect("timeline was checked above");
         if timeline.interaction.blade_guide != Some(position) {
@@ -453,12 +449,11 @@ impl Editor {
         if !timeline.selected_clips_editable() {
             return;
         }
-        let Some(anchor) = timeline.backend.timeline().clip(clip_id).cloned() else {
+        let Some(anchor) = timeline.editing_state.clip(clip_id).cloned() else {
             return;
         };
         let Some(original_anchor_track_index) = timeline
-            .backend
-            .timeline()
+            .editing_state
             .tracks
             .iter()
             .position(|track| track.id == anchor.track_id())
@@ -469,10 +464,9 @@ impl Editor {
             .selected_clip_ids_in_timeline_order()
             .into_iter()
             .filter_map(|selected_id| {
-                let clip = timeline.backend.timeline().clip(selected_id)?;
+                let clip = timeline.editing_state.clip(selected_id)?;
                 let original_track_index = timeline
-                    .backend
-                    .timeline()
+                    .editing_state
                     .tracks
                     .iter()
                     .position(|track| track.id == clip.track_id())?;
@@ -508,7 +502,7 @@ impl Editor {
             placements: items
                 .iter()
                 .filter_map(|item| {
-                    timeline.backend.timeline().clip(item.clip_id)?;
+                    timeline.editing_state.clip(item.clip_id)?;
                     Some((
                         item.clip_id,
                         item.original_track_id,
@@ -542,7 +536,7 @@ impl Editor {
         let original_anchor_start = drag.original_anchor_start;
         let original_anchor_track_index = drag.original_anchor_track_index;
         let items = drag.items.clone();
-        let raw_delta = timeline.backend.timeline().settings.frame_rate.delta(
+        let raw_delta = timeline.editing_state.settings.frame_rate.delta(
             (f32::from(event.position.x) - f32::from(timeline.h_scroll.offset().x) - start_x)
                 as f64
                 / timeline.pixels_per_second as f64,
@@ -555,10 +549,9 @@ impl Editor {
         let raw_anchor_start = original_anchor_start
             + TimelineFrameIndex::from(i64::from(raw_delta).max(-i64::from(earliest_start)));
         let anchor_duration = timeline
-            .backend
-            .timeline()
+            .editing_state
             .clip(anchor_clip_id)
-            .map(|clip| clip.frame_length(timeline.backend.timeline().settings.frame_rate))
+            .map(|clip| clip.frame_length(timeline.editing_state.settings.frame_rate))
             .unwrap_or(TimelineFrameIndex::ZERO);
         let (snapped_start, snap_guide) = timeline.snap_clip_start_ignoring(
             raw_anchor_start,
@@ -585,7 +578,7 @@ impl Editor {
             .map(|item| item.original_track_index)
             .max()
             .unwrap_or(0);
-        let maximum_track_index = timeline.backend.timeline().tracks.len().saturating_sub(1);
+        let maximum_track_index = timeline.editing_state.tracks.len().saturating_sub(1);
         let track_delta = requested_track_delta.clamp(
             -(first_track_index as isize),
             maximum_track_index.saturating_sub(last_track_index) as isize,
@@ -595,8 +588,8 @@ impl Editor {
                 .iter()
                 .filter_map(|item| {
                     let target_index = item.original_track_index.checked_add_signed(track_delta)?;
-                    let track_id = timeline.backend.timeline().tracks.get(target_index)?.id;
-                    timeline.backend.timeline().clip(item.clip_id)?;
+                    let track_id = timeline.editing_state.tracks.get(target_index)?.id;
+                    timeline.editing_state.clip(item.clip_id)?;
                     Some((
                         item.clip_id,
                         track_id,
@@ -610,8 +603,7 @@ impl Editor {
             Some("Destination track is unavailable")
         } else {
             timeline
-                .backend
-                .timeline()
+                .editing_state
                 .validate_clip_move_placements(&placements, &timeline.interaction.selected_clip_ids)
                 .err()
                 .map(|error| {
@@ -750,21 +742,39 @@ impl Editor {
         Ok(changed)
     }
 
+    /// Moves the editing playhead to the frame under a click on the ruler.
+    pub fn seek_to_ruler_click(
+        &mut self,
+        event: &ClickEvent,
+        _: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let Some(timeline) = self.timeline.as_mut() else {
+            return;
+        };
+        let frame_index = timeline.timeline_position_from_x(event.position().x.into());
+        timeline.seek_frame(frame_index);
+        if let Err(error) = timeline.save() {
+            log::error!("{error:?}");
+        }
+        cx.notify();
+    }
+
     pub(super) fn step_playhead(&mut self, frames: i64) -> Result<()> {
         let Some(timeline) = self.timeline.as_mut() else {
             return Ok(());
         };
-        if timeline.backend.timeline().clips.is_empty() {
+        if timeline.editing_state.clips.is_empty() {
             return Ok(());
         }
         let target = (timeline.playhead() + TimelineFrameIndex::from(frames)).clamp(
             TimelineFrameIndex::ZERO,
-            timeline.backend.timeline().content_duration(),
+            timeline.editing_state.content_duration(),
         );
         if target != timeline.playhead()
             || !matches!(self.preview.target, PreviewTarget::Timeline { .. })
         {
-            timeline.backend.seek_frame(target)?;
+            timeline.seek_frame(target);
             timeline.save()?;
         }
         Ok(())

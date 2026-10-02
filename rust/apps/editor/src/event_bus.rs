@@ -227,8 +227,7 @@ pub async fn handle_app_event(editor: WeakEntity<Editor>, event: AppEvent, cx: &
                     let track_index = ((local_y - RULER_HEIGHT) / TRACK_HEIGHT).floor() as usize;
 
                     timeline
-                        .backend
-                        .timeline()
+                        .editing_state
                         .tracks
                         .get(track_index)
                         .map(|track| track.id)
@@ -237,7 +236,7 @@ pub async fn handle_app_event(editor: WeakEntity<Editor>, event: AppEvent, cx: &
                 if let (Some(timeline), Some(track_id)) = (timeline, on_track) {
                     let local_x =
                         f32::from(event.event.position.x) - f32::from(event.bounds.left());
-                    let start_time = timeline.backend.timeline().nearest_time(
+                    let start_time = timeline.editing_state.nearest_time(
                         ((local_x - TIMELINE_PADDING) / timeline.pixels_per_second).max(0.0) as f64,
                     );
                     timeline.preview_drop_asset = Some(PreviewDropAsset {
@@ -267,14 +266,14 @@ pub async fn handle_app_event(editor: WeakEntity<Editor>, event: AppEvent, cx: &
                             };
                             let mut text_clips = srt_text_clips(
                                 &srt.srt,
-                                timeline.backend.timeline().settings.frame_rate,
+                                timeline.editing_state.settings.frame_rate,
                             );
                             for clip in &mut text_clips {
                                 clip.track_id = preview.track_id;
                                 clip.timeline_start += preview.start_time;
                             }
                             let clips = text_clips.into_iter().map(Clip::Text).collect::<Vec<_>>();
-                            validate_clips_placements(timeline.backend.timeline(), &clips)?;
+                            validate_clips_placements(&timeline.editing_state, &clips)?;
 
                             let selected_clip_ids =
                                 clips.iter().map(Clip::id).collect::<HashSet<_>>();

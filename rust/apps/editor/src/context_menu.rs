@@ -267,7 +267,7 @@ impl Editor {
         let enabled = self
             .timeline
             .as_ref()
-            .and_then(|timeline| transform_targets(timeline.backend.timeline(), menu.clip_id))
+            .and_then(|timeline| transform_targets(&timeline.editing_state, menu.clip_id))
             .is_some_and(|(_, targets)| !targets.is_empty());
 
         div()
@@ -448,8 +448,7 @@ impl Editor {
             return;
         };
         if !timeline
-            .backend
-            .timeline()
+            .editing_state
             .track(track_id)
             .is_some_and(|track| track.kind == TrackKind::Text)
         {
@@ -459,8 +458,7 @@ impl Editor {
         let content_x =
             f32::from(event.position.x) - TRACK_HEADER_WIDTH - scroll_x - TIMELINE_PADDING;
         let position = timeline
-            .backend
-            .timeline()
+            .editing_state
             .nearest_time(content_x as f64 / timeline.pixels_per_second as f64)
             .max(TimelineFrameIndex::ZERO);
         self.context_menu = ContextMenu::TextTrack(TextTrackContextMenu {

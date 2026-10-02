@@ -13,9 +13,6 @@ use gpui::{CursorStyle, MouseButton, MouseDownEvent, Window, div, px, rgb};
 impl Render for Editor {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         self.sync_video_transform_inputs(cx);
-        if let Some(timeline) = self.timeline.as_mut() {
-            timeline.backend.release_retired_images(cx); // 释放上次渲染后被替换的预览帧纹理。
-        }
 
         let viewport = window.viewport_size();
         let editor_width =
@@ -55,7 +52,7 @@ impl Render for Editor {
         let settings_modal = if self.settings_open
             && let Some(timeline) = self.timeline.as_ref()
         {
-            Some(self.settings_modal(timeline.backend.timeline(), cx))
+            Some(self.settings_modal(&timeline.editing_state, cx))
         } else {
             None
         };

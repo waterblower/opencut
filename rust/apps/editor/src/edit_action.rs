@@ -73,9 +73,12 @@ pub fn apply_timeline_edit(timeline: &mut TimelineRuntimeState, action: EditActi
 }
 
 pub fn edit_timeline(timeline: &mut TimelineRuntimeState, action: EditAction) -> Result<()> {
-    let mut data = timeline.backend.timeline().clone();
+    let mut data = timeline.editing_state.clone();
     edit_content(&mut data, action)?;
-    timeline.backend.replace_timeline(data)
+    data.validate()?;
+    timeline.editing_state = data;
+    timeline.seek_frame(timeline.playhead());
+    Ok(())
 }
 
 fn edit_content(data: &mut TimelineEditingState, action: EditAction) -> Result<()> {

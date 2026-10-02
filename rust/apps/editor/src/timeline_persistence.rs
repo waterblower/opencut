@@ -7,14 +7,14 @@ use crate::timeline::TimelineRuntimeState;
 use ::timeline::TimelineSerialization;
 use anyhow::{Result, ensure};
 use gpui::{point, px};
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 impl TimelineRuntimeState {
-    /// Loads an absolute timeline file path. Media paths resolve against `media_root`.
-    pub fn load(path: PathBuf, media_root: &Path) -> Result<Self> {
+    /// Loads an absolute timeline file path.
+    pub fn load(path: PathBuf) -> Result<Self> {
         ensure!(path.is_absolute(), "Timeline path must be absolute");
         let document = TimelineSerialization::load(&path)?;
-        Self::from_serialize(document, path, media_root)
+        Self::from_serialize(document, path)
     }
 
     pub fn save(&self) -> Result<()> {
@@ -22,10 +22,10 @@ impl TimelineRuntimeState {
         self.to_serialize().save(&self.path)
     }
 
-    /// Selects content, backend position, scroll offsets, zoom, and UI preferences.
+    /// Selects content, playhead, scroll offsets, zoom, and UI preferences.
     /// Excludes worker state, caches, tasks, history, and transient interactions.
     pub fn to_serialize(&self) -> TimelineSerialization {
-        let mut document = TimelineSerialization::from_editing_state(self.backend.timeline());
+        let mut document = TimelineSerialization::from_editing_state(&self.editing_state);
         document.set_view_state(
             self.playhead(),
             (
@@ -40,20 +40,11 @@ impl TimelineRuntimeState {
     }
 
     /// Rebuilds runtime resources and restores only persisted content/preferences.
-    /// `path` must be absolute; media paths resolve against `media_root`.
-    pub fn from_serialize(
-        document: TimelineSerialization,
-        path: PathBuf,
-        media_root: &Path,
-    ) -> Result<Self> {
+    /// `path` must be absolute.
+    pub fn from_serialize(document: TimelineSerialization, path: PathBuf) -> Result<Self> {
         ensure!(path.is_absolute(), "Timeline path must be absolute");
-        let mut runtime = Self::new(path, document.to_editing_state(), media_root)?;
-        runtime.backend.seek(
-            runtime
-                .backend
-                .timeline()
-                .position_at_frame(document.playhead()),
-        )?;
+        let mut runtime = Self::new(path, document.to_editing_state())?;
+        runtime.seek_frame(document.playhead());
         let (horizontal, vertical) = document.scroll_offset();
         runtime.h_scroll.set_offset(point(px(-horizontal), px(0.0)));
         runtime.v_scroll.set_offset(point(px(0.0), px(-vertical)));

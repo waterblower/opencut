@@ -114,8 +114,7 @@ impl Editor {
 
         if let Some(timeline) = self.timeline.as_mut() {
             let paths = timeline
-                .backend
-                .timeline()
+                .editing_state
                 .assets
                 .iter()
                 .filter_map(|asset| {

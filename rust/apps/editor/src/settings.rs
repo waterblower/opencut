@@ -146,7 +146,7 @@ impl Editor {
         let Some(timeline) = self.timeline.as_ref() else {
             return Ok(());
         };
-        let previous = timeline.backend.timeline().settings.frame_rate;
+        let previous = timeline.editing_state.settings.frame_rate;
         if previous == frame_rate {
             return Ok(());
         }
@@ -158,10 +158,10 @@ impl Editor {
         timeline.record_editing_history();
         apply_timeline_edit(timeline, EditAction::SetFrameRate { frame_rate })
             .expect("changing the frame rate cannot be rejected");
-        let has_clips = !timeline.backend.timeline().clips.is_empty();
+        let has_clips = !timeline.editing_state.clips.is_empty();
         timeline.save()?;
         if has_clips {
-            timeline.backend.seek_frame(timeline.playhead())?;
+            timeline.seek_frame(timeline.playhead());
         }
         Ok(())
     }

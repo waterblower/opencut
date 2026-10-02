@@ -356,20 +356,18 @@ impl Editor {
             return Ok(());
         };
         let duration = timeline
-            .backend
-            .timeline()
+            .editing_state
             .nearest_time(asset.duration)
             .max(TimelineFrameIndex::ONE_FRAME);
         let track_kind = timeline
-            .backend
-            .timeline()
+            .editing_state
             .tracks
             .iter()
             .find(|track| track.id == track_id)
             .map(|track| track.kind);
         let (start, _) = timeline.snap_clip_start_ignoring(raw_start, duration, &HashSet::new());
         validate_clip_placement(
-            timeline.backend.timeline(),
+            &timeline.editing_state,
             track_id,
             asset.kind,
             duration,
@@ -382,8 +380,7 @@ impl Editor {
         };
         timeline.record_editing_history();
         let (asset_id, assets) = if let Some(asset_id) = timeline
-            .backend
-            .timeline()
+            .editing_state
             .assets
             .iter()
             .find(|existing| existing.path == relative_path)

@@ -88,7 +88,7 @@ impl Editor {
         {
             return;
         }
-        let Some(clip) = timeline.backend.timeline().clip(clip_id) else {
+        let Some(clip) = timeline.editing_state.clip(clip_id) else {
             self.properties.transform_input_clip_id = None;
             return;
         };
@@ -125,7 +125,7 @@ impl Editor {
         let Some(timeline) = self.timeline.as_ref() else {
             return Ok(());
         };
-        if timeline.backend.timeline().clip_locked(clip_id) {
+        if timeline.editing_state.clip_locked(clip_id) {
             return Ok(());
         }
         let Ok(mut value) = text.trim().parse::<f64>() else {
@@ -140,10 +140,10 @@ impl Editor {
         ) {
             value /= 100.0;
         }
-        let Some(index) = timeline.backend.timeline().clip_index(clip_id) else {
+        let Some(index) = timeline.editing_state.clip_index(clip_id) else {
             return Ok(());
         };
-        let Some(clip) = timeline.backend.timeline().clips[index].media() else {
+        let Some(clip) = timeline.editing_state.clips[index].media() else {
             return Ok(());
         };
         let mut properties = clip.video_properties;
