@@ -57,7 +57,10 @@ use asset::EditorAssets;
 use editor::Editor;
 use event_bus::{EventBus, handle_event};
 use global_settings::GlobalEditorSettings;
-use gpui::{App, Bounds, Entity, WindowBounds, WindowHandle, WindowOptions, prelude::*, px, size};
+use gpui::{
+    App, Bounds, Entity, Subscription, WindowBounds, WindowHandle, WindowOptions, prelude::*, px,
+    size,
+};
 use gpui_platform::application;
 use std::io::Write as _;
 use std::path::PathBuf;
@@ -101,19 +104,25 @@ fn run_app(cx: &mut App, project_root: PathBuf) {
     }
 }
 
+/// The open editor window, and the subscription that quits the app when its last window closes.
+struct OpenProject {
+    window: WindowHandle<Editor>,
+    close_subscription: Option<Subscription>,
+}
+
 fn open_project(project_root: PathBuf, cx: &mut App) {
-    let mut close_subscription = Some(cx.on_window_closed(quit_after_last_window));
     let event_bus = cx.new(|_| EventBus {});
-    let mut window = open_editor_window(project_root, event_bus.clone(), cx);
+    let window = open_editor_window(project_root, event_bus.clone(), cx);
+    let close_subscription = cx.on_window_closed(quit_after_last_window);
+    let project = cx.new(|_| OpenProject {
+        window,
+        close_subscription: Some(close_subscription),
+    });
     cx.subscribe(&event_bus, move |event_bus, event, cx| {
-        handle_event(
-            cx,
-            &mut window,
-            event.clone(),
-            event_bus,
-            &mut close_subscription,
-            quit_after_last_window,
-        )
+        let project_for_task = project.clone();
+        let owned_event = event.clone();
+        cx.spawn(async move |cx| handle_event(cx, project_for_task, event_bus, owned_event).await)
+            .detach();
     })
     .detach();
 }

@@ -6,18 +6,15 @@ use crate::generic_containers::HorizontalSplitState;
 use crate::global_settings::GlobalEditorSettings;
 use crate::layout::{RULER_HEIGHT, TIMELINE_PADDING, TRACK_HEIGHT};
 use crate::model::MediaKind;
-use crate::open_editor_window;
 use crate::preview_events::PreviewEvent;
 use crate::project_settings::{ProjectLocalSettings, save_project_local_settings};
 use crate::srt::{srt_text_clips, write_srt};
 use crate::timeline::{PreviewDropAsset, TimelineFrameIndex};
 use crate::timeline_clip::Clip;
 use crate::transcription::start_transcription;
+use crate::{OpenProject, open_editor_window, quit_after_last_window};
 use anyhow::{Error, anyhow, bail};
-use gpui::{
-    App, AsyncApp, Bounds, Entity, EventEmitter, MouseMoveEvent, Pixels, Subscription, WeakEntity,
-    WindowHandle, WindowId,
-};
+use gpui::{AsyncApp, Bounds, Entity, EventEmitter, MouseMoveEvent, Pixels, WeakEntity};
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use ulid::Ulid;
@@ -48,13 +45,11 @@ pub enum AppEvent {
     },
 }
 
-pub fn handle_event(
-    cx: &mut App,
-    window: &mut WindowHandle<Editor>,
-    event: AppEvent,
+pub async fn handle_event(
+    cx: &mut AsyncApp,
+    project: Entity<OpenProject>,
     event_bus: Entity<EventBus>,
-    close_subscription: &mut Option<Subscription>,
-    quit_after_last_window: fn(&mut App, WindowId),
+    event: AppEvent,
 ) {
     eprintln!("handle_event: {:?}", event);
     match event {
@@ -70,68 +65,69 @@ pub fn handle_event(
                 }
             };
             let api_key = settings.minimax_api_key;
-            let project_root = project_root.clone();
-            let source_path = source_path.clone();
-            let task = gpui_tokio::Tokio::spawn(cx, async move {
-                let srt = start_transcription(source_path.clone(), api_key).await?;
-                log::info!("Writing SRT for {}", source_path.display());
-                let Some(stem) = source_path.file_stem() else {
-                    bail!(
-                        "transcription source has no filename at {}:{}",
-                        file!(),
-                        line!()
-                    );
-                };
-                let stem = stem.to_string_lossy();
-                let path = project_root.join(format!("{stem}.srt"));
-                write_srt(&path, &srt)?;
-                Ok(path)
+            let task = cx.update(|cx| {
+                gpui_tokio::Tokio::spawn(cx, async move {
+                    let srt = start_transcription(source_path.clone(), api_key).await?;
+                    log::info!("Writing SRT for {}", source_path.display());
+                    let Some(stem) = source_path.file_stem() else {
+                        bail!(
+                            "transcription source has no filename: {}",
+                            source_path.display()
+                        );
+                    };
+                    let stem = stem.to_string_lossy();
+                    let path = project_root.join(format!("{stem}.srt"));
+                    write_srt(&path, &srt)?;
+                    Ok(path)
+                })
             });
-            cx.spawn(async move |_| {
-                let result = match task.await {
-                    Ok(result) => result,
-                    Err(error) => Err(anyhow!(
-                        "transcription task failed: {error} at {}:{}",
-                        file!(),
-                        line!()
-                    )),
-                };
-                match result {
-                    Ok(path) => log::info!("SRT saved: {}", path.display()),
-                    Err(error) => log::error!("SRT generation failed: {error:?}"),
-                }
-            })
-            .detach();
+            let result = match task.await {
+                Ok(result) => result,
+                Err(error) => Err(anyhow!("transcription task failed: {error}")),
+            };
+            match result {
+                Ok(path) => log::info!("SRT saved: {}", path.display()),
+                Err(error) => log::error!("SRT generation failed: {error:?}"),
+            }
         }
         AppEvent::SwitchProject { project_path } => {
             let root = match std::fs::canonicalize(&project_path) {
                 Ok(root) => root,
-                Err(error) => panic!(
-                    "could not open {}: {error} at {}:{}",
-                    project_path.display(),
-                    file!(),
-                    line!()
-                ),
+                Err(error) => panic!("could not open {}: {error}", project_path.display()),
             };
-            let ready = window
-                .update(cx, |editor, _, cx| match editor.prepare_project_switch() {
-                    Ok(()) => true,
-                    Err(error) => {
-                        log::error!("Could not save timeline before switching projects: {error:?}");
-                        cx.notify();
-                        false
+            let switched = project.update(cx, |project, cx| {
+                let ready = match project.window.update(cx, |editor, _, cx| {
+                    match editor.prepare_project_switch() {
+                        Ok(()) => true,
+                        Err(error) => {
+                            log::error!(
+                                "Could not save timeline before switching projects: {error:?}"
+                            );
+                            cx.notify();
+                            false
+                        }
                     }
-                })
-                .unwrap();
-            if !ready {
+                }) {
+                    Ok(ready) => ready,
+                    Err(error) => panic!("could not reach the editor: {error}"),
+                };
+                if !ready {
+                    return false;
+                }
+                drop(project.close_subscription.take());
+                if let Err(error) = project
+                    .window
+                    .update(cx, |_, window, _| window.remove_window())
+                {
+                    panic!("could not close editor: {error}");
+                }
+                project.window = open_editor_window(root.clone(), event_bus, cx);
+                project.close_subscription = Some(cx.on_window_closed(quit_after_last_window));
+                true
+            });
+            if !switched {
                 return;
             }
-            drop(close_subscription.take());
-            if let Err(error) = window.update(cx, |_, window, _| window.remove_window()) {
-                panic!("could not close editor: {error} at {}:{}", file!(), line!());
-            }
-            *window = open_editor_window(root.clone(), event_bus, cx);
-            *close_subscription = Some(cx.on_window_closed(quit_after_last_window));
             let mut settings = match GlobalEditorSettings::load() {
                 Ok(settings) => settings,
                 Err(error) => {
@@ -141,14 +137,11 @@ pub fn handle_event(
             };
             settings.project_root = root;
             if let Err(error) = settings.save() {
-                panic!(
-                    "could not save project settings: {error} at {}:{}",
-                    file!(),
-                    line!()
-                );
+                panic!("could not save project settings: {error}");
             }
         }
         event => {
+            let window = project.read_with(cx, |project, _| project.window);
             let editor = match window.entity(cx) {
                 Ok(editor) => editor.downgrade(),
                 Err(error) => {
@@ -156,8 +149,7 @@ pub fn handle_event(
                     return;
                 }
             };
-            cx.spawn(async move |cx| handle_app_event(editor, event, cx).await)
-                .detach();
+            handle_app_event(editor, event, cx).await;
         }
     }
 }
