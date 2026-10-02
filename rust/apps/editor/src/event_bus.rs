@@ -10,7 +10,7 @@ use crate::open_editor_window;
 use crate::preview_events::PreviewEvent;
 use crate::project_settings::{ProjectLocalSettings, save_project_local_settings};
 use crate::srt::{srt_text_clips, write_srt};
-use crate::timeline::PreviewDropAsset;
+use crate::timeline::{PreviewDropAsset, TimelineFrameIndex};
 use crate::timeline_clip::Clip;
 use crate::transcription::start_transcription;
 use anyhow::{Error, anyhow, bail};
@@ -42,6 +42,9 @@ pub enum AppEvent {
     DragDrop,
     OpenTimeline {
         path: PathBuf,
+    },
+    TimelineSeek {
+        frame_index: TimelineFrameIndex,
     },
 }
 
@@ -151,7 +154,8 @@ pub fn handle_event(
         | AppEvent::DragStarted(_)
         | AppEvent::DragMove(_)
         | AppEvent::DragDrop
-        | AppEvent::OpenTimeline { .. } => {
+        | AppEvent::OpenTimeline { .. }
+        | AppEvent::TimelineSeek { .. } => {
             // These events are handled by the editor subscriber in handle_app_event.
         }
     }
@@ -318,6 +322,9 @@ pub async fn handle_app_event(editor: WeakEntity<Editor>, event: AppEvent, cx: &
                 }
                 cx.notify();
             });
+        }
+        AppEvent::TimelineSeek { frame_index } => {
+            log::debug!("TimelineSeek: {frame_index:?}");
         }
         AppEvent::OpenTimeline { path } => {
             let err = editor.update(cx, |editor, cx| {

@@ -1,6 +1,7 @@
 use crate::clip_placement::ClipPlacementRejection;
 use crate::edit_action::{EditAction, apply_timeline_edit};
 use crate::editor::Editor;
+use crate::event_bus::AppEvent;
 use crate::layout::{
     MAX_TIMELINE_PIXELS_PER_SECOND, MIN_TIMELINE_PIXELS_PER_SECOND, RULER_HEIGHT, SNAP_DISTANCE_PX,
     TIMELINE_HEADER_HEIGHT, TIMELINE_HEIGHT, TIMELINE_PADDING, TRACK_HEADER_WIDTH, TRACK_HEIGHT,
@@ -757,6 +758,7 @@ impl Editor {
         if let Err(error) = timeline.save() {
             log::error!("{error:?}");
         }
+        self.emit_event(cx, AppEvent::TimelineSeek { frame_index });
         cx.notify();
     }
 
