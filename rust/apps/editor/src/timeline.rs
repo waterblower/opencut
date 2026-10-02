@@ -282,10 +282,15 @@ impl TimelineRuntimeState {
 
     /// Moves the editing playhead to `frame_index`, clamped to the last frame of the content.
     pub fn seek_frame(&mut self, frame_index: TimelineFrameIndex) {
-        let last_frame_index = (self.editing_state.content_duration()
-            - TimelineFrameIndex::ONE_FRAME)
-            .max(TimelineFrameIndex::ZERO);
-        self.playhead = frame_index.clamp(TimelineFrameIndex::ZERO, last_frame_index);
+        let last_frame_index =
+            self.editing_state.content_duration() - TimelineFrameIndex::ONE_FRAME;
+        if frame_index < TimelineFrameIndex::ZERO {
+            self.playhead = TimelineFrameIndex::ZERO;
+        } else if frame_index > last_frame_index {
+            self.playhead = last_frame_index;
+        } else {
+            self.playhead = frame_index;
+        }
     }
 
     pub(super) fn record_editing_history(&mut self) {
