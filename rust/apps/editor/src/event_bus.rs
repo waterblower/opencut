@@ -346,6 +346,7 @@ async fn handle_app_event(
                         let player = cx.new(move |_| timeline_player);
                         editor.preview.target = PreviewTarget::Timeline {
                             _task: player.update(cx, |player, cx| player.start(cx)),
+                            _subscription: cx.observe(&player, |_, _, cx| cx.notify()),
                             path: relative_path,
                             player,
                         };

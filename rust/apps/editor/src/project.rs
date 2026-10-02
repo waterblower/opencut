@@ -178,6 +178,7 @@ impl Editor {
         let task = player.update(cx, |player, cx| player.start(cx));
         Ok(PreviewTarget::Timeline {
             _task: task,
+            _subscription: cx.observe(&player, |_, _, cx| cx.notify()),
             path: relative_path,
             player,
         })
