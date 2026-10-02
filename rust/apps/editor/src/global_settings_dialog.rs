@@ -1,6 +1,5 @@
 use super::global_settings::GlobalEditorSettings;
 use super::*;
-use gpui_component::input::{Input, InputState};
 
 impl Editor {
     pub fn open_global_settings(&mut self, window: &mut Window, cx: &mut Context<Self>) {
@@ -14,11 +13,15 @@ impl Editor {
         self.dismiss_context_menu();
         self.settings_open = false;
         let input = cx.new(|cx| {
-            InputState::new(window, cx)
-                .default_value(settings.minimax_api_key)
-                .masked(true)
+            TextInput::new_secret_field(
+                "global-settings-api-key",
+                settings.minimax_api_key,
+                "",
+                self.focus_handle.clone(),
+                cx,
+            )
         });
-        input.update(cx, |input, cx| input.focus(window, cx));
+        input.update(cx, |input, cx| input.focus_and_select_all(window, cx));
         self.global_settings_input = Some(input);
         cx.notify();
     }
@@ -34,7 +37,7 @@ impl Editor {
                 .rounded_xl().border_1().border_color(rgb(BORDER)).bg(rgb(PANEL)).shadow_lg()
                 .child(div().text_lg().child("Settings"))
                 .child(div().text_sm().child("MiniMax API key"))
-                .child(Input::new(input))
+                .child(input.clone())
                 .child(div().text_xs().text_color(rgb(MUTED))
                     .child("Saved in global settings for all projects. Used to send audio to MiniMax for SRT generation."))
                 .child(div().flex().justify_end().gap_2()
@@ -48,7 +51,7 @@ impl Editor {
             Ok(settings) => settings,
             Err(error) => { log::error!("Could not load settings: {error:?}"); return; }
         };
-                        settings.minimax_api_key = input.read(cx).value().trim().to_string();
+                        settings.minimax_api_key = input.read(cx).text().trim().to_string();
                         match settings.save() {
                             Ok(()) => {
                                 editor.global_settings_input = None;

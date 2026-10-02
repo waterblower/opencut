@@ -14,7 +14,7 @@ impl Editor {
             .file_name()
             .map(|name| name.to_string_lossy().into_owned())
             .unwrap_or_else(|| self.project_root.display().to_string());
-        let filter_query = self.explorer.filter.read(cx).query().to_string();
+        let filter_query = self.explorer.filter.read(cx).text().to_string();
         let filter = filter_query.trim().to_lowercase();
         let show_root_contents = self.explorer.root_expanded || !filter.is_empty();
 

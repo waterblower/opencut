@@ -11,8 +11,8 @@ use crate::editor::{
 };
 use gpui::prelude::FluentBuilder;
 use gpui::{
-    Entity, InteractiveElement, IntoElement, ObjectFit, ParentElement, StatefulInteractiveElement,
-    Styled, StyledImage, div, img, px, rgb,
+    Entity, FocusHandle, InteractiveElement, IntoElement, ObjectFit, ParentElement,
+    StatefulInteractiveElement, Styled, StyledImage, div, img, px, rgb,
 };
 use std::{
     fs,
@@ -78,10 +78,11 @@ pub fn current_properties_panel_viewable(editor: &Editor) -> PropertiesPanelView
 pub(super) fn properties_panel(
     data: PropertiesPanelViewable<'_>,
     event_bus: Entity<EventBus>,
+    return_focus: FocusHandle,
 ) -> gpui::AnyElement {
     match data {
         PropertiesPanelViewable::TextClip(clip) => {
-            TextClipPropertiesView::new(clip.clone(), event_bus).into_any_element()
+            TextClipPropertiesView::new(clip.clone(), event_bus, return_focus).into_any_element()
         }
         PropertiesPanelViewable::VideoClip(clip) => video_clip(clip),
         PropertiesPanelViewable::AudioClip(clip) => audio_clip(clip),

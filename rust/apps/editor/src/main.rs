@@ -46,9 +46,6 @@ fn main() -> anyhow::Result<()> {
 
 fn run_app(cx: &mut App, project_root: PathBuf) {
     gpui_tokio::init(cx);
-    gpui_component::init(cx);
-
-    gpui_component::Theme::global_mut(cx).caret = rgb(0xffffff).into();
     gpui_inspector::init(cx);
     editor::bind_keys(cx);
     cx.set_quit_mode(gpui::QuitMode::Explicit);

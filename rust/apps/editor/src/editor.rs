@@ -11,6 +11,7 @@ pub(crate) struct Editor {
     pub(super) explorer: ExplorerState,
     pub(super) preview: PreviewState,
     pub timeline: Option<TimelineRuntimeState>,
+
     // other
     pub project_root: PathBuf,
     pub(super) waveform_jobs: HashSet<PathBuf>,
@@ -25,7 +26,7 @@ pub(crate) struct Editor {
     // entities
     pub(super) event_bus: Entity<EventBus>,
     pub(super) upper_split_state: Entity<HorizontalSplitState>,
-    pub global_settings_input: Option<Entity<gpui_component::input::InputState>>,
+    pub global_settings_input: Option<Entity<TextInput>>,
 }
 
 impl Editor {
@@ -70,7 +71,9 @@ impl Editor {
 
         let focus_handle = cx.focus_handle();
         let explorer = {
-            let explorer_filter = cx.new(|cx| ExplorerFilter::new(focus_handle.clone(), cx));
+            let explorer_filter = cx.new(|cx| {
+                TextInput::new_search("explorer-filter", "Filter files…", focus_handle.clone(), cx)
+            });
             cx.observe(&explorer_filter, |editor, _, cx| {
                 editor.schedule_explorer_search(cx);
                 cx.notify();
@@ -153,6 +156,12 @@ impl Editor {
         if let Some(timeline) = editor.timeline.as_mut() {
             timeline.backend.seek_frame(timeline.playhead())?;
         }
+
+        // todo:
+        // instead of have an async starting here
+        // with a sync signature, so that we increase indirect
+        // we should submit an event to compute waveforms
+        // and update the UI using real async functions
         editor.schedule_project_waveforms(cx);
         Ok(editor)
     }

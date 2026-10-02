@@ -23,7 +23,6 @@ mod editor_view;
 pub mod event_bus;
 mod explorer;
 mod explorer_drag;
-mod explorer_filter;
 mod explorer_view;
 #[path = "generic-containers/mod.rs"]
 mod generic_containers;
@@ -63,8 +62,9 @@ use editing::ClipClipboard;
 pub(crate) use editor::Editor;
 pub use event_bus::{AppEvent, AssetDragMoveEvent, EventBus};
 use explorer::{load_explorer_expansion, visible_tree};
-use explorer_filter::ExplorerFilter;
-use generic_containers::{HorizontalSplit, HorizontalSplitConstraints, HorizontalSplitState};
+use generic_containers::{
+    HorizontalSplit, HorizontalSplitConstraints, HorizontalSplitState, TextInput, TextInputEvent,
+};
 use model::{MediaAsset, MediaKind};
 use preview::PreviewTarget;
 use preview_events::PreviewEvent;
@@ -112,7 +112,7 @@ const ACCENT: u32 = 0xf0b75e;
 const ERROR: u32 = 0xff8b8b;
 const CLIP_BLUE: u32 = 0x294d75;
 const EDITOR_KEY_CONTEXT: &str = "Editor";
-const EDITOR_SHORTCUT_CONTEXT: &str = "Editor && !ExplorerFilter && !Input";
+const EDITOR_SHORTCUT_CONTEXT: &str = "Editor && !TextInput";
 
 actions!(
     opencut_editor,
@@ -140,7 +140,7 @@ actions!(
 );
 
 pub(crate) fn bind_keys(cx: &mut App) {
-    explorer_filter::bind_keys(cx);
+    generic_containers::text_input::bind_keys(cx);
     cx.bind_keys([
         KeyBinding::new("space", TogglePlayback, Some(EDITOR_SHORTCUT_CONTEXT)),
         KeyBinding::new("left", StepBackwardFrame, Some(EDITOR_SHORTCUT_CONTEXT)),
@@ -338,116 +338,6 @@ impl Editor {
         })();
         log::debug!("activate_timeline: {}", t.elapsed().as_millis());
         res.context("activate_timeline failed")
-    }
-
-    fn schedule_project_waveforms(&mut self, cx: &mut Context<Self>) {
-        let mut paths = HashSet::new();
-        let timeline_paths = match project_timeline_files(&self.project_root) {
-            Ok(paths) => paths,
-            Err(error) => {
-                eprintln!("Could not scan project timelines for waveforms: {error}");
-                return;
-            }
-        };
-        for timeline_path in timeline_paths {
-            let timeline =
-                match TimelineSerialization::load(&self.project_root.join(&timeline_path)) {
-                    Ok(timeline) => timeline,
-                    Err(error) => {
-                        eprintln!("Could not scan timeline for waveforms: {error}");
-                        continue;
-                    }
-                };
-            let timeline = timeline.to_editing_state();
-            let referenced_assets = timeline
-                .clips
-                .iter()
-                .filter_map(|clip| clip.media().map(|clip| clip.asset_id))
-                .collect::<HashSet<_>>();
-            paths.extend(
-                timeline
-                    .assets
-                    .into_iter()
-                    .filter(|asset| asset.has_audio && referenced_assets.contains(&asset.id))
-                    .map(|asset| asset.path),
-            );
-        }
-        self.schedule_waveforms(paths, cx);
-    }
-
-    pub(super) fn schedule_active_timeline_waveforms(&mut self, cx: &mut Context<Self>) {
-        let Some(timeline) = self.timeline.as_ref() else {
-            return;
-        };
-        let referenced_assets = timeline
-            .backend
-            .timeline()
-            .clips
-            .iter()
-            .filter_map(|clip| clip.media().map(|clip| clip.asset_id))
-            .collect::<HashSet<_>>();
-        let paths = timeline
-            .backend
-            .timeline()
-            .assets
-            .iter()
-            .filter(|asset| asset.has_audio && referenced_assets.contains(&asset.id))
-            .map(|asset| asset.path.clone())
-            .collect::<Vec<_>>();
-        self.schedule_waveforms(paths, cx);
-    }
-
-    fn schedule_waveforms(
-        &mut self,
-        paths: impl IntoIterator<Item = PathBuf>,
-        cx: &mut Context<Self>,
-    ) {
-        let mut paths = paths
-            .into_iter()
-            .filter(|path| {
-                !self.waveform_cache.contains_key(path) && !self.waveform_jobs.contains(path)
-            })
-            .collect::<Vec<_>>();
-        if paths.is_empty() {
-            return;
-        }
-        paths.sort();
-        self.waveform_jobs.extend(paths.iter().cloned());
-        let project_root = self.project_root.clone();
-        cx.spawn(async move |editor, cx| {
-            for relative_path in paths {
-                if editor.update(cx, |_, _| ()).is_err() {
-                    break;
-                }
-                let source = project_root.join(&relative_path);
-                let result = cx
-                    .background_executor()
-                    .spawn(async move { waveform::generate_waveform(&source) })
-                    .await;
-                let current_project = editor
-                    .update(cx, |editor, cx| {
-                        if editor.project_root != project_root {
-                            return false;
-                        }
-                        editor.waveform_jobs.remove(&relative_path);
-                        match result {
-                            Ok(waveform) => {
-                                editor
-                                    .waveform_cache
-                                    .insert(relative_path.clone(), Arc::new(waveform));
-                            }
-                            Err(error) => eprintln!("Waveform: {error}"),
-                        }
-                        cx.notify();
-                        true
-                    })
-                    .unwrap_or(false);
-                if !current_project {
-                    break;
-                }
-            }
-        })
-        .detach();
     }
 
     fn action_toggle_playback(

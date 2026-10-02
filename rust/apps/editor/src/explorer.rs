@@ -4,7 +4,7 @@ use crate::editor::{
     context_menu::{ContextMenu, FileContextMenu},
     edit_action::{EditAction, apply_timeline_edit},
     editor::Editor,
-    explorer_filter::ExplorerFilter,
+    generic_containers::TextInput,
     model::MediaAsset,
     preview::PreviewTarget,
     timeline::TimelineFrameIndex,
@@ -39,12 +39,12 @@ pub(super) use explorer_file_entry::{
 
 pub(super) struct RenameDialogState {
     relative_path: PathBuf,
-    input: Entity<ExplorerFilter>,
+    input: Entity<TextInput>,
 }
 
 pub(super) struct NewTimelineDialogState {
     relative_directory: PathBuf,
-    input: Entity<ExplorerFilter>,
+    input: Entity<TextInput>,
 }
 
 pub(super) struct ExplorerExpansion {
@@ -56,7 +56,7 @@ pub struct ExplorerState {
     pub file_tree: Vec<FileTreeEntry>,
     pub expanded_directories: HashSet<PathBuf>,
     pub root_expanded: bool,
-    pub filter: Entity<ExplorerFilter>,
+    pub filter: Entity<TextInput>,
     pub search_query: Option<String>,
     pub search_results: Vec<FileTreeEntry>,
     pub search_pending: bool,
@@ -134,7 +134,7 @@ impl Editor {
 
 impl Editor {
     pub(super) fn schedule_explorer_search(&mut self, cx: &mut Context<Self>) {
-        let query = self.explorer.filter.read(cx).query().trim().to_string();
+        let query = self.explorer.filter.read(cx).text().trim().to_string();
         if query.is_empty() {
             self.explorer.search_query = None;
             self.explorer.search_results.clear();

@@ -124,6 +124,7 @@ impl Editor {
         let properties_panel_view = properties_panel(
             current_properties_panel_viewable(self),
             self.event_bus.clone(),
+            self.focus_handle.clone(),
         );
         HorizontalSplit::new(
             "editor-upper-workspace",

@@ -15,7 +15,7 @@ impl Editor {
         let default_name =
             timeline_document::default_timeline_name(&self.project_root, &relative_directory);
         let input = cx.new(|cx| {
-            ExplorerFilter::new_field(
+            TextInput::new_field(
                 "new-timeline-name",
                 default_name,
                 "Timeline name",
@@ -36,7 +36,7 @@ impl Editor {
             return Ok(());
         };
         let relative_directory = state.relative_directory.clone();
-        let name = state.input.read(cx).query().trim().to_string();
+        let name = state.input.read(cx).text().trim().to_string();
         let (relative_path, timeline) =
             timeline_document::create(&self.project_root, &relative_directory, &name)
                 .map_err(|error| anyhow!("Could not create timeline: {error}"))?;
@@ -58,7 +58,7 @@ impl Editor {
             return;
         };
         let input = cx.new(|cx| {
-            ExplorerFilter::new_field(
+            TextInput::new_field(
                 "rename-project-entry",
                 name,
                 "New name",
@@ -79,7 +79,7 @@ impl Editor {
             return Ok(());
         };
         let old_relative = state.relative_path.clone();
-        let new_name = state.input.read(cx).query().trim().to_string();
+        let new_name = state.input.read(cx).text().trim().to_string();
         let Some(new_relative) = renamed_relative_path(&old_relative, &new_name) else {
             bail!("Enter a single non-empty file or folder name.");
         };
