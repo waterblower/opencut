@@ -1,6 +1,8 @@
 use super::*;
-use crate::editor::tests::TimelineTestExt;
-use crate::editor::timeline_clip::{AudioClipProperties, VideoClip};
+use crate::model::{MediaAsset, MediaKind};
+use crate::test_support::{TimelineTestExt, ulid};
+use crate::timeline::TimelineFrameIndex;
+use crate::timeline_clip::{AudioClipProperties, Clip, VideoClip, VideoClipProperties};
 use ::timeline::TimelineEditingState;
 
 fn asset(id: u64, kind: MediaKind) -> MediaAsset {

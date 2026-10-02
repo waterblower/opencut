@@ -1,6 +1,7 @@
+use crate::event_bus::{AppEvent, EventBus};
+use gpui::prelude::*;
+use gpui::{App, Entity, MouseButton, Window, div, px, rgb};
 use serde::{Deserialize, Serialize};
-
-use super::super::*;
 
 pub const HORIZONTAL_SPLIT_DIVIDER_WIDTH: f32 = 1.0;
 

@@ -1,10 +1,9 @@
+use crate::timeline::FrameRate;
+use crate::timeline_clip::{TextClip, TextClipProperties};
+use ::transcribe::SRT;
 use anyhow::{Result, bail};
 use std::path::Path;
-
-use ::transcribe::SRT;
 use ulid::Ulid;
-
-use crate::editor::{FrameRate, TextClip, TextClipProperties};
 
 pub fn write_srt(path: &Path, srt: &SRT) -> Result<()> {
     if !path.is_absolute() {

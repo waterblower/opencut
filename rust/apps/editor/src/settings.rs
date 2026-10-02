@@ -1,6 +1,11 @@
-use super::*;
+use crate::edit_action::{EditAction, apply_timeline_edit};
+use crate::editor::Editor;
+use crate::theme::{ACCENT, BORDER, MUTED, PANEL, SURFACE, SURFACE_HOVER, TEXT};
+use crate::timeline::{FRAME_RATE_PRESETS, FrameRate};
 use ::timeline::TimelineEditingState;
 use anyhow::Result;
+use gpui::prelude::*;
+use gpui::{CursorStyle, MouseButton, div, px, rgb};
 
 impl Editor {
     pub(super) fn settings_modal(
@@ -141,7 +146,7 @@ impl Editor {
         let Some(timeline) = self.timeline.as_ref() else {
             return Ok(());
         };
-        let previous = timeline.backend.timeline().settings.frame_rate;
+        let previous = timeline.editing_state.settings.frame_rate;
         if previous == frame_rate {
             return Ok(());
         }
@@ -151,16 +156,12 @@ impl Editor {
             return Ok(());
         };
         timeline.record_editing_history();
-        apply_timeline_edit(
-            &mut self.preview,
-            timeline,
-            EditAction::SetFrameRate { frame_rate },
-        )
-        .expect("changing the frame rate cannot be rejected");
-        let has_clips = !timeline.backend.timeline().clips.is_empty();
+        apply_timeline_edit(timeline, EditAction::SetFrameRate { frame_rate })
+            .expect("changing the frame rate cannot be rejected");
+        let has_clips = !timeline.editing_state.clips.is_empty();
         timeline.save()?;
         if has_clips {
-            timeline.backend.seek_frame(timeline.playhead())?;
+            timeline.seek_frame(timeline.playhead());
         }
         Ok(())
     }

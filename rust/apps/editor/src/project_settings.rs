@@ -1,11 +1,8 @@
+use crate::generic_containers::HorizontalSplitState;
 use anyhow::{Context as _, Result, bail};
 use serde::{Deserialize, Serialize};
-use std::{
-    fs,
-    path::{Path, PathBuf},
-};
-
-use crate::editor::generic_containers::HorizontalSplitState;
+use std::fs;
+use std::path::{Path, PathBuf};
 
 #[derive(Deserialize, Serialize)]
 #[serde(default)]
@@ -19,8 +16,8 @@ impl Default for ProjectLocalSettings {
         Self {
             active_timeline: None,
             upper_space_split_state: HorizontalSplitState::new(
-                super::DEFAULT_MEDIA_PANEL_WIDTH,
-                super::DEFAULT_PROPERTIES_PANEL_WIDTH,
+                crate::layout::DEFAULT_MEDIA_PANEL_WIDTH,
+                crate::layout::DEFAULT_PROPERTIES_PANEL_WIDTH,
             ),
         }
     }

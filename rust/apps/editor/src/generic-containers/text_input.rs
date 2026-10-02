@@ -1,16 +1,17 @@
-use super::{BORDER, MUTED, SURFACE, SURFACE_HOVER, TEXT};
+use crate::theme::{BORDER, MUTED, SURFACE, SURFACE_HOVER, TEXT};
+use gpui::prelude::*;
 use gpui::{
     App, Bounds, ClipboardItem, Context, CursorStyle, Element, ElementId, ElementInputHandler,
-    Entity, EntityInputHandler, FocusHandle, Focusable, GlobalElementId, IntoElement, KeyBinding,
-    LayoutId, MouseButton, MouseDownEvent, MouseMoveEvent, MouseUpEvent, PaintQuad, Pixels, Point,
-    Render, ShapedLine, SharedString, Style, TextRun, UTF16Selection, UnderlineStyle, Window,
-    actions, div, fill, point, prelude::*, px, relative, rgb, rgba, size,
+    Entity, EntityInputHandler, EventEmitter, FocusHandle, Focusable, GlobalElementId, IntoElement,
+    KeyBinding, LayoutId, MouseButton, MouseDownEvent, MouseMoveEvent, MouseUpEvent, PaintQuad,
+    Pixels, Point, Render, ShapedLine, SharedString, Style, TextRun, UTF16Selection,
+    UnderlineStyle, Window, actions, div, fill, point, px, relative, rgb, rgba, size,
 };
 use std::ops::Range;
 use unicode_segmentation::UnicodeSegmentation;
 
 actions!(
-    explorer_filter,
+    text_input,
     [
         Backspace,
         Delete,
@@ -29,8 +30,17 @@ actions!(
     ]
 );
 
-pub(super) fn bind_keys(cx: &mut App) {
-    let context = Some("ExplorerFilter");
+const MASK_CHARACTER: char = '•';
+
+/// Emitted when the text changes through editing, not through `set_text_silently`.
+pub enum TextInputEvent {
+    Change,
+}
+
+impl EventEmitter<TextInputEvent> for TextInput {}
+
+pub fn bind_keys(cx: &mut App) {
+    let context = Some("TextInput");
     cx.bind_keys([
         KeyBinding::new("backspace", Backspace, context),
         KeyBinding::new("delete", Delete, context),
@@ -49,13 +59,14 @@ pub(super) fn bind_keys(cx: &mut App) {
     ]);
 }
 
-pub(super) struct ExplorerFilter {
+pub struct TextInput {
     focus_handle: FocusHandle,
     return_focus: FocusHandle,
     element_id: SharedString,
     placeholder: SharedString,
     appearance: InputAppearance,
     constraint: InputConstraint,
+    masked: bool,
     content: SharedString,
     selected_range: Range<usize>,
     selection_reversed: bool,
@@ -67,7 +78,7 @@ pub(super) struct ExplorerFilter {
 
 #[derive(Clone, Copy, Eq, PartialEq)]
 enum InputAppearance {
-    ExplorerFilter,
+    Search,
     Field,
     InlineField,
 }
@@ -79,20 +90,25 @@ enum InputConstraint {
     Number,
 }
 
-impl ExplorerFilter {
-    pub(super) fn new(return_focus: FocusHandle, cx: &mut Context<Self>) -> Self {
+impl TextInput {
+    pub fn new_search(
+        element_id: &'static str,
+        placeholder: &'static str,
+        return_focus: FocusHandle,
+        cx: &mut Context<Self>,
+    ) -> Self {
         Self::new_with_appearance(
-            "explorer-filter",
+            element_id,
             "",
-            "Filter files…",
-            InputAppearance::ExplorerFilter,
+            placeholder,
+            InputAppearance::Search,
             InputConstraint::Any,
             return_focus,
             cx,
         )
     }
 
-    pub(super) fn new_field(
+    pub fn new_field(
         element_id: &'static str,
         content: String,
         placeholder: &'static str,
@@ -110,7 +126,27 @@ impl ExplorerFilter {
         )
     }
 
-    pub(super) fn new_integer_field(
+    pub fn new_secret_field(
+        element_id: &'static str,
+        content: String,
+        placeholder: &'static str,
+        return_focus: FocusHandle,
+        cx: &mut Context<Self>,
+    ) -> Self {
+        let mut field = Self::new_with_appearance(
+            element_id,
+            &content,
+            placeholder,
+            InputAppearance::Field,
+            InputConstraint::Any,
+            return_focus,
+            cx,
+        );
+        field.masked = true;
+        field
+    }
+
+    pub fn new_integer_field(
         element_id: &'static str,
         content: String,
         placeholder: &'static str,
@@ -128,7 +164,25 @@ impl ExplorerFilter {
         )
     }
 
-    pub(super) fn new_inline_number_field(
+    pub fn new_inline_field(
+        element_id: &'static str,
+        content: String,
+        placeholder: &'static str,
+        return_focus: FocusHandle,
+        cx: &mut Context<Self>,
+    ) -> Self {
+        Self::new_with_appearance(
+            element_id,
+            &content,
+            placeholder,
+            InputAppearance::InlineField,
+            InputConstraint::Any,
+            return_focus,
+            cx,
+        )
+    }
+
+    pub fn new_inline_number_field(
         element_id: &'static str,
         content: String,
         placeholder: &'static str,
@@ -162,6 +216,7 @@ impl ExplorerFilter {
             placeholder: placeholder.into(),
             appearance,
             constraint,
+            masked: false,
             content: content.to_string().into(),
             selected_range: content.len()..content.len(),
             selection_reversed: false,
@@ -172,24 +227,26 @@ impl ExplorerFilter {
         }
     }
 
-    pub(super) fn query(&self) -> &str {
+    pub fn text(&self) -> &str {
         self.content.as_ref()
     }
 
-    pub(super) fn clear(&mut self, cx: &mut Context<Self>) {
+    pub fn clear(&mut self, cx: &mut Context<Self>) {
         self.content = "".into();
         self.selected_range = 0..0;
         self.selection_reversed = false;
         self.marked_range = None;
+        cx.emit(TextInputEvent::Change);
         cx.notify();
     }
 
-    pub(super) fn set_text(&mut self, text: String, cx: &mut Context<Self>) {
+    pub fn set_text(&mut self, text: String, cx: &mut Context<Self>) {
         self.set_text_silently(text);
+        cx.emit(TextInputEvent::Change);
         cx.notify();
     }
 
-    pub(super) fn set_text_silently(&mut self, text: String) {
+    pub fn set_text_silently(&mut self, text: String) {
         let cursor = text.len();
         self.content = text.into();
         self.selected_range = cursor..cursor;
@@ -197,7 +254,7 @@ impl ExplorerFilter {
         self.marked_range = None;
     }
 
-    pub(super) fn focus_and_select_all(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+    pub fn focus_and_select_all(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         self.selected_range = 0..self.content.len();
         self.selection_reversed = false;
         self.marked_range = None;
@@ -211,6 +268,42 @@ impl ExplorerFilter {
         } else {
             self.selected_range.end
         }
+    }
+
+    /// The text as painted: the content, or one mask character per grapheme when masked.
+    fn display_text(&self) -> SharedString {
+        if self.masked {
+            self.content
+                .graphemes(true)
+                .map(|_| MASK_CHARACTER)
+                .collect::<String>()
+                .into()
+        } else {
+            self.content.clone()
+        }
+    }
+
+    /// Maps a byte offset in the content to the matching byte offset in the display text.
+    fn display_offset(&self, content_offset: usize) -> usize {
+        if !self.masked {
+            return content_offset;
+        }
+        self.content
+            .grapheme_indices(true)
+            .take_while(|(index, _)| *index < content_offset)
+            .count()
+            * MASK_CHARACTER.len_utf8()
+    }
+
+    /// Maps a byte offset in the display text back to the content, on a grapheme boundary.
+    fn content_offset(&self, display_offset: usize) -> usize {
+        if !self.masked {
+            return display_offset;
+        }
+        self.content
+            .grapheme_indices(true)
+            .nth(display_offset / MASK_CHARACTER.len_utf8())
+            .map_or(self.content.len(), |(index, _)| index)
     }
 
     fn filtered_input(&self, text: &str) -> String {
@@ -271,7 +364,7 @@ impl ExplorerFilter {
         if position.y > bounds.bottom() {
             return self.content.len();
         }
-        line.closest_index_for_x(position.x - bounds.left())
+        self.content_offset(line.closest_index_for_x(position.x - bounds.left()))
     }
 
     fn on_mouse_down(
@@ -363,7 +456,7 @@ impl ExplorerFilter {
     }
 
     fn copy(&mut self, _: &Copy, _: &mut Window, cx: &mut Context<Self>) {
-        if !self.selected_range.is_empty() {
+        if !self.masked && !self.selected_range.is_empty() {
             cx.write_to_clipboard(ClipboardItem::new_string(
                 self.content[self.selected_range.clone()].to_string(),
             ));
@@ -371,7 +464,7 @@ impl ExplorerFilter {
     }
 
     fn cut(&mut self, _: &Cut, window: &mut Window, cx: &mut Context<Self>) {
-        if !self.selected_range.is_empty() {
+        if !self.masked && !self.selected_range.is_empty() {
             cx.write_to_clipboard(ClipboardItem::new_string(
                 self.content[self.selected_range.clone()].to_string(),
             ));
@@ -386,7 +479,7 @@ impl ExplorerFilter {
     }
 
     fn dismiss(&mut self, _: &Dismiss, window: &mut Window, cx: &mut Context<Self>) {
-        if self.appearance == InputAppearance::ExplorerFilter {
+        if self.appearance == InputAppearance::Search {
             self.clear(cx);
         }
         self.return_focus.focus(window, cx);
@@ -439,7 +532,7 @@ fn utf16_offset_from_utf8(text: &str, offset: usize) -> usize {
     utf16_offset
 }
 
-impl EntityInputHandler for ExplorerFilter {
+impl EntityInputHandler for TextInput {
     fn text_for_range(
         &mut self,
         range_utf16: Range<usize>,
@@ -498,6 +591,7 @@ impl EntityInputHandler for ExplorerFilter {
         self.selected_range = cursor..cursor;
         self.selection_reversed = false;
         self.marked_range = None;
+        cx.emit(TextInputEvent::Change);
         cx.notify();
     }
 
@@ -535,6 +629,7 @@ impl EntityInputHandler for ExplorerFilter {
                 cursor..cursor
             });
         self.selection_reversed = false;
+        cx.emit(TextInputEvent::Change);
         cx.notify();
     }
 
@@ -548,8 +643,14 @@ impl EntityInputHandler for ExplorerFilter {
         let line = self.last_layout.as_ref()?;
         let range = self.range_from_utf16(&range_utf16);
         Some(Bounds::from_corners(
-            point(bounds.left() + line.x_for_index(range.start), bounds.top()),
-            point(bounds.left() + line.x_for_index(range.end), bounds.bottom()),
+            point(
+                bounds.left() + line.x_for_index(self.display_offset(range.start)),
+                bounds.top(),
+            ),
+            point(
+                bounds.left() + line.x_for_index(self.display_offset(range.end)),
+                bounds.bottom(),
+            ),
         ))
     }
 
@@ -562,22 +663,22 @@ impl EntityInputHandler for ExplorerFilter {
         let bounds = self.last_bounds?;
         let line = self.last_layout.as_ref()?;
         let local = bounds.localize(&point)?;
-        let index = line.index_for_x(local.x)?;
+        let index = self.content_offset(line.index_for_x(local.x)?);
         Some(self.offset_to_utf16(index))
     }
 }
 
-struct FilterTextElement {
-    input: Entity<ExplorerFilter>,
+struct TextInputElement {
+    input: Entity<TextInput>,
 }
 
-struct FilterPrepaintState {
+struct TextInputPrepaintState {
     line: Option<ShapedLine>,
     cursor: Option<PaintQuad>,
     selection: Option<PaintQuad>,
 }
 
-impl IntoElement for FilterTextElement {
+impl IntoElement for TextInputElement {
     type Element = Self;
 
     fn into_element(self) -> Self::Element {
@@ -585,9 +686,9 @@ impl IntoElement for FilterTextElement {
     }
 }
 
-impl Element for FilterTextElement {
+impl Element for TextInputElement {
     type RequestLayoutState = ();
-    type PrepaintState = FilterPrepaintState;
+    type PrepaintState = TextInputPrepaintState;
 
     fn id(&self) -> Option<ElementId> {
         None
@@ -620,14 +721,18 @@ impl Element for FilterTextElement {
         cx: &mut App,
     ) -> Self::PrepaintState {
         let input = self.input.read(cx);
-        let content = input.content.clone();
-        let selected_range = input.selected_range.clone();
-        let cursor_offset = input.cursor_offset();
+        let selected_range = input.display_offset(input.selected_range.start)
+            ..input.display_offset(input.selected_range.end);
+        let cursor_offset = input.display_offset(input.cursor_offset());
+        let marked_range = input
+            .marked_range
+            .as_ref()
+            .map(|marked| input.display_offset(marked.start)..input.display_offset(marked.end));
         let style = window.text_style();
-        let (display_text, color) = if content.is_empty() {
+        let (display_text, color) = if input.content.is_empty() {
             (input.placeholder.clone(), rgb(MUTED).into())
         } else {
-            (content, style.color)
+            (input.display_text(), style.color)
         };
         let base_run = TextRun {
             len: display_text.len(),
@@ -637,7 +742,7 @@ impl Element for FilterTextElement {
             underline: None,
             strikethrough: None,
         };
-        let runs = if let Some(marked) = input.marked_range.as_ref() {
+        let runs = if let Some(marked) = marked_range.as_ref() {
             [
                 TextRun {
                     len: marked.start,
@@ -697,7 +802,7 @@ impl Element for FilterTextElement {
                 None,
             )
         };
-        FilterPrepaintState {
+        TextInputPrepaintState {
             line: Some(line),
             cursor,
             selection,
@@ -723,7 +828,7 @@ impl Element for FilterTextElement {
         if let Some(selection) = prepaint.selection.take() {
             window.paint_quad(selection);
         }
-        let line = prepaint.line.take().expect("filter text was not shaped");
+        let line = prepaint.line.take().expect("text input was not shaped");
         line.paint(
             bounds.origin,
             window.line_height(),
@@ -732,7 +837,7 @@ impl Element for FilterTextElement {
             window,
             cx,
         )
-        .expect("filter text could not be painted");
+        .expect("text input could not be painted");
         if focus_handle.is_focused(window)
             && let Some(cursor) = prepaint.cursor.take()
         {
@@ -745,7 +850,7 @@ impl Element for FilterTextElement {
     }
 }
 
-impl Render for ExplorerFilter {
+impl Render for TextInput {
     fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let is_field = self.appearance == InputAppearance::Field;
         let is_inline_field = self.appearance == InputAppearance::InlineField;
@@ -765,7 +870,7 @@ impl Render for ExplorerFilter {
                     .id(self.element_id.clone())
                     .h_full()
                     .w_full()
-                    .key_context("ExplorerFilter")
+                    .key_context("TextInput")
                     .track_focus(&self.focus_handle(cx))
                     .flex()
                     .items_center()
@@ -803,12 +908,12 @@ impl Render for ExplorerFilter {
                             .when(is_field || is_inline_field, |this| this.text_base())
                             .when(!is_field && !is_inline_field, |this| this.text_sm())
                             .text_color(rgb(TEXT))
-                            .child(FilterTextElement { input: cx.entity() }),
+                            .child(TextInputElement { input: cx.entity() }),
                     )
                     .when(!is_field && !self.content.is_empty(), |this| {
                         this.child(
                             div()
-                                .id("clear-explorer-filter")
+                                .id("clear-text-input")
                                 .size_5()
                                 .flex_shrink_0()
                                 .flex()
@@ -830,7 +935,7 @@ impl Render for ExplorerFilter {
     }
 }
 
-impl Focusable for ExplorerFilter {
+impl Focusable for TextInput {
     fn focus_handle(&self, _: &App) -> FocusHandle {
         self.focus_handle.clone()
     }

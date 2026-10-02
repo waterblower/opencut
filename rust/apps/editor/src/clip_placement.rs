@@ -1,6 +1,11 @@
-use super::*;
+use crate::model::MediaKind;
+use crate::timeline::{TimelineFrameIndex, timeline_ranges_overlap};
+use crate::track::TrackKind;
 use ::timeline::TimelineEditingState;
 use anyhow::Result;
+use gpui::prelude::*;
+use std::collections::HashSet;
+use ulid::Ulid;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(super) enum ClipPlacementRejection {

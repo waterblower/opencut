@@ -1,15 +1,12 @@
+use gpui::prelude::*;
 use gpui::{
     AnyElement, App, Context, CursorStyle, DivInspectorState, Inspector, InspectorElementId,
-    MouseButton, SharedString, StyleRefinement, Window, div, prelude::*, px, rgb,
+    MouseButton, SharedString, StyleRefinement, Window, div, px, rgb,
 };
-use std::{
-    cell::RefCell,
-    sync::{
-        Mutex, OnceLock,
-        atomic::{AtomicBool, Ordering},
-    },
-    time::{Duration, Instant},
-};
+use std::cell::RefCell;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Mutex, OnceLock};
+use std::time::{Duration, Instant};
 
 const PANEL: u32 = 0x111114;
 const SURFACE: u32 = 0x18181c;
@@ -51,8 +48,8 @@ impl RenderFps {
 }
 
 pub(crate) fn init(cx: &mut App) {
-    cx.register_inspector_element(|id: InspectorElementId, state: &DivInspectorState, _, _| {
-        render_div_state(&id, state)
+    cx.register_inspector_element(|_, _| {
+        |id: InspectorElementId, state: &DivInspectorState, _, _| render_div_state(&id, state)
     });
     cx.set_inspector_renderer(Box::new(render_inspector));
 }

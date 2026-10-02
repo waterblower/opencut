@@ -1,8 +1,8 @@
 use super::*;
-use crate::editor::tests::TimelineTestExt;
-use crate::editor::{
-    MediaKind, clip_placement::ClipPlacementRejection, timeline_clip::AudioClip, ulid,
-};
+use crate::clip_placement::ClipPlacementRejection;
+use crate::model::MediaKind;
+use crate::test_support::{TimelineTestExt, ulid};
+use crate::timeline_clip::AudioClip;
 use ::timeline::TimelineEditingState;
 use std::path::Path;
 

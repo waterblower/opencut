@@ -1,6 +1,19 @@
-use super::*;
-use crate::editor::project_settings::{load_project_local_settings, save_project_local_settings};
+use crate::actions::{OpenInDefaultApp, RevealInFinder};
+use crate::context_menu::{ContextMenu, FileContextMenu};
+use crate::edit_action::{EditAction, apply_timeline_edit};
+use crate::editor::Editor;
+use crate::explorer::{
+    NewTimelineDialogState, RenameDialogState, move_path_to_trash, remap_relative_path,
+    renamed_relative_path,
+};
+use crate::generic_containers::TextInput;
+use crate::preview::PreviewTarget;
+use crate::project_settings::{load_project_local_settings, save_project_local_settings};
+use crate::timeline_document;
 use anyhow::{Result, anyhow, bail};
+use gpui::Window;
+use gpui::prelude::*;
+use std::path::{Path, PathBuf};
 
 impl Editor {
     /// Opens the new-timeline dialog for `relative_directory`, pre-filled with the next
@@ -15,7 +28,7 @@ impl Editor {
         let default_name =
             timeline_document::default_timeline_name(&self.project_root, &relative_directory);
         let input = cx.new(|cx| {
-            ExplorerFilter::new_field(
+            TextInput::new_field(
                 "new-timeline-name",
                 default_name,
                 "Timeline name",
@@ -36,7 +49,7 @@ impl Editor {
             return Ok(());
         };
         let relative_directory = state.relative_directory.clone();
-        let name = state.input.read(cx).query().trim().to_string();
+        let name = state.input.read(cx).text().trim().to_string();
         let (relative_path, timeline) =
             timeline_document::create(&self.project_root, &relative_directory, &name)
                 .map_err(|error| anyhow!("Could not create timeline: {error}"))?;
@@ -58,7 +71,7 @@ impl Editor {
             return;
         };
         let input = cx.new(|cx| {
-            ExplorerFilter::new_field(
+            TextInput::new_field(
                 "rename-project-entry",
                 name,
                 "New name",
@@ -79,7 +92,7 @@ impl Editor {
             return Ok(());
         };
         let old_relative = state.relative_path.clone();
-        let new_name = state.input.read(cx).query().trim().to_string();
+        let new_name = state.input.read(cx).text().trim().to_string();
         let Some(new_relative) = renamed_relative_path(&old_relative, &new_name) else {
             bail!("Enter a single non-empty file or folder name.");
         };
@@ -101,8 +114,7 @@ impl Editor {
 
         if let Some(timeline) = self.timeline.as_mut() {
             let paths = timeline
-                .backend
-                .timeline()
+                .editing_state
                 .assets
                 .iter()
                 .filter_map(|asset| {
@@ -110,11 +122,7 @@ impl Editor {
                         .map(|path| (asset.id, path))
                 })
                 .collect();
-            apply_timeline_edit(
-                &mut self.preview,
-                timeline,
-                EditAction::UpdateAssetPaths { paths },
-            )?;
+            apply_timeline_edit(timeline, EditAction::UpdateAssetPaths { paths })?;
             for snapshot in timeline
                 .undo_stack
                 .iter_mut()
@@ -151,7 +159,7 @@ impl Editor {
                     *path = new_path;
                 }
             }
-            PreviewTarget::None | PreviewTarget::Timeline => {}
+            PreviewTarget::None | PreviewTarget::Timeline { .. } => {}
         }
 
         let renamed_active_timeline = self.timeline.as_ref().and_then(|timeline| {
@@ -189,7 +197,7 @@ impl Editor {
         Ok(())
     }
 
-    pub(in crate::editor) fn reveal_selected_file(&mut self, cx: &mut Context<Self>) {
+    pub(crate) fn reveal_selected_file(&mut self, cx: &mut Context<Self>) {
         let Some(path) = file_action_path(
             match &self.context_menu {
                 ContextMenu::File(menu) => Some(menu),
@@ -206,7 +214,7 @@ impl Editor {
         cx.reveal_path(&path);
     }
 
-    pub(in crate::editor) fn open_selected_file_in_default_app(&mut self, cx: &mut Context<Self>) {
+    pub(crate) fn open_selected_file_in_default_app(&mut self, cx: &mut Context<Self>) {
         let Some(path) = file_action_path(
             match &self.context_menu {
                 ContextMenu::File(menu) => Some(menu),
@@ -223,7 +231,7 @@ impl Editor {
         cx.open_with_system(&path);
     }
 
-    pub(in crate::editor) fn trash_selected_file(&mut self, cx: &mut Context<Self>) -> Result<()> {
+    pub(crate) fn trash_selected_file(&mut self, cx: &mut Context<Self>) -> Result<()> {
         let ContextMenu::File(menu) = &self.context_menu else {
             return Ok(());
         };

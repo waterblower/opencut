@@ -1,4 +1,5 @@
-use crate::editor::{Editor, preview::PreviewTarget};
+use crate::editor::Editor;
+use crate::preview::PreviewTarget;
 use anyhow::{Context as _, Result};
 use gpui::{ClipboardItem, Context};
 use serde_json::json;
@@ -21,7 +22,7 @@ impl Editor {
 fn debug_state(editor: &Editor) -> Result<String> {
     let target = match &editor.preview.target {
         PreviewTarget::None => "None",
-        PreviewTarget::Timeline => "Timeline",
+        PreviewTarget::Timeline { .. } => "Timeline",
         PreviewTarget::VideoFile { .. } => "VideoFile",
         PreviewTarget::AudioFile { .. } => "AudioFile",
         PreviewTarget::ImageFile(_) => "ImageFile",

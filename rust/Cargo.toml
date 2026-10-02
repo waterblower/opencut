@@ -40,7 +40,6 @@ ffmpeg-next = "8.1"
 gpui = { path = "vendor/zed/crates/gpui" }
 gpui_platform = { path = "vendor/zed/crates/gpui_platform", features = ["font-kit"] }
 gpui_tokio = { path = "vendor/zed/crates/gpui_tokio" }
-gpui-component = { git = "https://github.com/longbridge/gpui-component", rev = "7d0aaf55" }
 image = { version = "0.25", default-features = false, features = [
     "bmp",
     "gif",

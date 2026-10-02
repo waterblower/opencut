@@ -29,7 +29,7 @@ const FORWARD_DECODE_LIMIT: i64 = 1_000_000; // 目标超出当前帧 1 秒以�
 const TIMESTAMP_TOLERANCE: i64 = 1_000; // 吸收源帧 PTS 与目标时间的微秒取整误差。
 
 pub struct TimelineFrameComposition {
-    pub frame: TimelineFrameIndex, // 限制在时间线有效帧范围内。
+    pub frame_index: TimelineFrameIndex, // 限制在时间线有效帧范围内。
     pub timestamp: Duration,
     pub width: u32,
     pub height: u32,
@@ -239,7 +239,7 @@ impl TimelineDecoder {
         // Clips outside the current frame release their decoders.
         self.readers.retain(|id, _| active_readers.contains(id));
         Ok(TimelineFrameComposition {
-            frame: position,
+            frame_index: position,
             timestamp: timeline.position_at_frame(position),
             width: timeline.settings.width,
             height: timeline.settings.height,

@@ -1,11 +1,16 @@
-use super::super::model::DEFAULT_IMAGE_CLIP_DURATION;
-use super::super::timeline_clip::VideoClip;
-use super::super::timeline_clip::{AudioClipProperties, TextClipProperties, VideoClipProperties};
-use super::super::track::{Track, TrackKind};
 use super::*;
-use crate::editor::tests::TimelineTestExt;
-use crate::editor::timeline_document::deserialize_timeline;
+use crate::layout::DEFAULT_TIMELINE_PIXELS_PER_SECOND;
+use crate::model::{DEFAULT_IMAGE_CLIP_DURATION, MediaAsset, MediaKind};
+use crate::test_support::{TimelineTestExt, ulid};
+use crate::timeline_clip::{
+    AudioClipProperties, Clip, ClipEditingExt, TextClip, TextClipProperties, VideoClip,
+    VideoClipProperties,
+};
+use crate::timeline_document::deserialize_timeline;
+use crate::track::{Track, TrackKind};
 use ::timeline::{TimelineEditingState, TimelineSerialization, TimelineSettings};
+use std::collections::HashSet;
+use std::time::Duration;
 
 #[test]
 fn timeline_view_state_is_sanitized_at_the_persistence_boundary() {

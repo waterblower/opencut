@@ -1,6 +1,20 @@
-use super::*;
+use crate::clip_placement::{
+    ClipPlacementRejection, validate_clip_placement, validate_text_clip_placement,
+};
+use crate::edit_action::{EditAction, apply_timeline_edit};
+use crate::editor::Editor;
+use crate::model::MediaAsset;
+use crate::timeline::{
+    FrameRate, TimelineEditorExt, TimelineFrameIndex, TimelineRuntimeState, timeline_ranges_overlap,
+};
+use crate::timeline_clip::{Clip, ClipEditingExt};
+use crate::track::{Track, TrackKind};
 use ::timeline::TimelineEditingState;
 use anyhow::Result;
+use gpui::prelude::*;
+use std::collections::{HashMap, HashSet};
+use std::path::PathBuf;
+use ulid::Ulid;
 
 #[derive(Clone)]
 pub(super) struct ClipClipboard {
@@ -195,21 +209,19 @@ impl ClipClipboard {
 }
 
 impl TimelineRuntimeState {
-    pub(super) fn blade_at_playhead(&mut self, preview: &mut PreviewState) -> Result<()> {
+    pub(super) fn blade_at_playhead(&mut self) -> Result<()> {
         let clips_to_split = self
-            .backend
-            .timeline()
+            .editing_state
             .clips
             .iter()
             .filter(|clip| {
                 let local = self.playhead() - clip.timeline_start();
                 let crosses_playhead = local >= TimelineFrameIndex::ONE_FRAME
                     && local
-                        <= clip.frame_length(self.backend.timeline().settings.frame_rate)
+                        <= clip.frame_length(self.editing_state.settings.frame_rate)
                             - TimelineFrameIndex::ONE_FRAME;
                 let track_is_editable = self
-                    .backend
-                    .timeline()
+                    .editing_state
                     .track(clip.track_id())
                     .is_some_and(|track| !track.locked);
                 crosses_playhead && track_is_editable
@@ -224,7 +236,7 @@ impl TimelineRuntimeState {
             .into_iter()
             .flat_map(|clip| {
                 let (left, right) = clip
-                    .split_at(self.playhead(), self.backend.timeline().settings.frame_rate)
+                    .split_at(self.playhead(), self.editing_state.settings.frame_rate)
                     .expect("clips at the playhead must be splittable");
                 [left, right]
             })
@@ -232,7 +244,6 @@ impl TimelineRuntimeState {
 
         self.record_editing_history();
         apply_timeline_edit(
-            preview,
             self,
             EditAction::SplitClips {
                 removed_clips: removed_clip_ids,
@@ -266,7 +277,7 @@ impl Editor {
         };
         let Some(clipboard) = ClipClipboard::from_selection(
             timeline.path.clone(),
-            timeline.backend.timeline(),
+            &timeline.editing_state,
             &timeline.interaction.selected_clip_ids,
             timeline.interaction.selected_clip_id,
         ) else {
@@ -285,7 +296,7 @@ impl Editor {
         }
         let Some(clipboard) = ClipClipboard::from_selection(
             timeline.path.clone(),
-            timeline.backend.timeline(),
+            &timeline.editing_state,
             &timeline.interaction.selected_clip_ids,
             timeline.interaction.selected_clip_id,
         ) else {
@@ -310,7 +321,7 @@ impl Editor {
         };
         let playhead = timeline.playhead();
         let (mut clips, assets) =
-            match clipboard.prepare_paste(&timeline.path, timeline.backend.timeline(), playhead) {
+            match clipboard.prepare_paste(&timeline.path, &timeline.editing_state, playhead) {
                 Ok(paste) => paste,
                 Err(rejection) => {
                     eprintln!("Cannot paste clips: {rejection}.");
@@ -333,11 +344,7 @@ impl Editor {
             .or_else(|| clips.first())
             .map(Clip::id);
 
-        apply_timeline_edit(
-            &mut self.preview,
-            timeline,
-            EditAction::AddClips { clips, assets },
-        )?;
+        apply_timeline_edit(timeline, EditAction::AddClips { clips, assets })?;
 
         timeline.save()?;
 
@@ -350,7 +357,6 @@ impl Editor {
             return Ok(());
         };
         apply_timeline_edit(
-            &mut self.preview,
             timeline,
             EditAction::RemoveClips {
                 clip_ids: clip_ids.clone(),
@@ -378,7 +384,7 @@ impl Editor {
         }
         let clips = clip_ids
             .iter()
-            .filter_map(|clip_id| timeline.backend.timeline().clip(*clip_id).cloned())
+            .filter_map(|clip_id| timeline.editing_state.clip(*clip_id).cloned())
             .collect::<Vec<_>>();
         if clips.len() != clip_ids.len() {
             return Ok(());
@@ -390,7 +396,7 @@ impl Editor {
             .unwrap_or(TimelineFrameIndex::ZERO);
         let selection_end = clips
             .iter()
-            .map(|clip| clip.timeline_end(timeline.backend.timeline().settings.frame_rate))
+            .map(|clip| clip.timeline_end(timeline.editing_state.settings.frame_rate))
             .max()
             .unwrap_or(selection_start);
         let mut delta = selection_end - selection_start;
@@ -400,8 +406,7 @@ impl Editor {
                 .map(|clip| (clip.id(), clip.track_id(), clip.timeline_start() + delta))
                 .collect::<Vec<_>>();
             if timeline
-                .backend
-                .timeline()
+                .editing_state
                 .validate_clip_move_placements(&candidate, &HashSet::new())
                 .is_ok()
             {
@@ -410,20 +415,19 @@ impl Editor {
             let mut next_delta = delta + TimelineFrameIndex::ONE_FRAME;
             for (clip, (_, track_id, start)) in clips.iter().zip(&candidate) {
                 for other in timeline
-                    .backend
-                    .timeline()
+                    .editing_state
                     .clips
                     .iter()
                     .filter(|other| other.track_id() == *track_id)
                 {
                     if timeline_ranges_overlap(
                         *start,
-                        *start + clip.frame_length(timeline.backend.timeline().settings.frame_rate),
+                        *start + clip.frame_length(timeline.editing_state.settings.frame_rate),
                         other.timeline_start(),
-                        other.timeline_end(timeline.backend.timeline().settings.frame_rate),
+                        other.timeline_end(timeline.editing_state.settings.frame_rate),
                     ) {
                         next_delta = next_delta.max(
-                            other.timeline_end(timeline.backend.timeline().settings.frame_rate)
+                            other.timeline_end(timeline.editing_state.settings.frame_rate)
                                 - clip.timeline_start(),
                         );
                     }
@@ -452,7 +456,6 @@ impl Editor {
             .or_else(|| duplicates.first())
             .map(Clip::id);
         apply_timeline_edit(
-            &mut self.preview,
             timeline,
             EditAction::AddClips {
                 clips: duplicates,
@@ -468,8 +471,7 @@ impl Editor {
             return Ok(());
         };
         let number = timeline
-            .backend
-            .timeline()
+            .editing_state
             .tracks
             .iter()
             .filter(|track| track.kind == kind)
@@ -486,7 +488,6 @@ impl Editor {
         };
         timeline.record_editing_history();
         apply_timeline_edit(
-            &mut self.preview,
             timeline,
             EditAction::AddTrack {
                 track: Track {
@@ -507,11 +508,7 @@ impl Editor {
             return Ok(());
         };
         timeline.record_editing_history();
-        apply_timeline_edit(
-            &mut self.preview,
-            timeline,
-            EditAction::ToggleTrackLock { track_id },
-        )?;
+        apply_timeline_edit(timeline, EditAction::ToggleTrackLock { track_id })?;
         timeline.save()
     }
 
@@ -520,11 +517,7 @@ impl Editor {
             return Ok(());
         };
         timeline.record_editing_history();
-        apply_timeline_edit(
-            &mut self.preview,
-            timeline,
-            EditAction::ToggleTrackVisibility { track_id },
-        )?;
+        apply_timeline_edit(timeline, EditAction::ToggleTrackVisibility { track_id })?;
         timeline.save()
     }
 
@@ -533,11 +526,7 @@ impl Editor {
             return Ok(());
         };
         timeline.record_editing_history();
-        apply_timeline_edit(
-            &mut self.preview,
-            timeline,
-            EditAction::ToggleTrackMute { track_id },
-        )?;
+        apply_timeline_edit(timeline, EditAction::ToggleTrackMute { track_id })?;
         timeline.save()
     }
 
@@ -546,8 +535,7 @@ impl Editor {
             return Ok(());
         };
         let Some(index) = timeline
-            .backend
-            .timeline()
+            .editing_state
             .tracks
             .iter()
             .position(|track| track.id == track_id)
@@ -556,7 +544,7 @@ impl Editor {
         };
         let target = if direction < 0 {
             index.checked_sub(1)
-        } else if index + 1 < timeline.backend.timeline().tracks.len() {
+        } else if index + 1 < timeline.editing_state.tracks.len() {
             Some(index + 1)
         } else {
             None
@@ -566,11 +554,7 @@ impl Editor {
         };
 
         timeline.record_editing_history();
-        apply_timeline_edit(
-            &mut self.preview,
-            timeline,
-            EditAction::MoveTrack { index, target },
-        )?;
+        apply_timeline_edit(timeline, EditAction::MoveTrack { index, target })?;
         timeline.save()
     }
 
@@ -579,26 +563,20 @@ impl Editor {
             return Ok(());
         };
         let Some(index) = timeline
-            .backend
-            .timeline()
+            .editing_state
             .tracks
             .iter()
             .position(|track| track.id == track_id)
         else {
             return Ok(());
         };
-        if timeline.backend.timeline().tracks[index].locked {
+        if timeline.editing_state.tracks[index].locked {
             return Ok(());
         }
         timeline.record_editing_history();
-        apply_timeline_edit(
-            &mut self.preview,
-            timeline,
-            EditAction::DeleteTrack { track_id },
-        )?;
+        apply_timeline_edit(timeline, EditAction::DeleteTrack { track_id })?;
         let remaining_clip_ids = timeline
-            .backend
-            .timeline()
+            .editing_state
             .clips
             .iter()
             .map(Clip::id)
@@ -610,11 +588,10 @@ impl Editor {
         if timeline
             .interaction
             .selected_clip_id
-            .is_some_and(|id| timeline.backend.timeline().clip(id).is_none())
+            .is_some_and(|id| timeline.editing_state.clip(id).is_none())
         {
             timeline.interaction.selected_clip_id = timeline
-                .backend
-                .timeline()
+                .editing_state
                 .clips
                 .iter()
                 .find(|clip| timeline.interaction.selected_clip_ids.contains(&clip.id()))
@@ -640,10 +617,9 @@ impl Editor {
         let Some(timeline) = self.timeline.as_mut() else {
             return;
         };
-        timeline.interaction.selected_clip_ids = unlocked_clip_ids(timeline.backend.timeline());
+        timeline.interaction.selected_clip_ids = unlocked_clip_ids(&timeline.editing_state);
         timeline.interaction.selected_clip_id = timeline
-            .backend
-            .timeline()
+            .editing_state
             .clips
             .iter()
             .find(|clip| timeline.interaction.selected_clip_ids.contains(&clip.id()))
@@ -659,14 +635,13 @@ impl Editor {
         if timeline.interaction.selected_clip_ids.remove(&clip_id) {
             if timeline.interaction.selected_clip_id == Some(clip_id) {
                 timeline.interaction.selected_clip_id = timeline
-                    .backend
-                    .timeline()
+                    .editing_state
                     .clips
                     .iter()
                     .find(|clip| timeline.interaction.selected_clip_ids.contains(&clip.id()))
                     .map(Clip::id);
             }
-        } else if timeline.backend.timeline().clip(clip_id).is_some() {
+        } else if timeline.editing_state.clip(clip_id).is_some() {
             timeline.interaction.selected_clip_ids.insert(clip_id);
             timeline.interaction.selected_clip_id = Some(clip_id);
         }
@@ -681,12 +656,8 @@ impl Editor {
         let Some(snapshot) = timeline.undo_stack.last().cloned() else {
             return Ok(());
         };
-        let current = timeline.backend.timeline().clone();
-        apply_timeline_edit(
-            &mut self.preview,
-            timeline,
-            EditAction::ReplaceTimeline { timeline: snapshot },
-        )?;
+        let current = timeline.editing_state.clone();
+        apply_timeline_edit(timeline, EditAction::ReplaceTimeline { timeline: snapshot })?;
         timeline.undo_stack.pop();
         timeline.redo_stack.push(current);
         self.reset_after_history_change()
@@ -699,12 +670,8 @@ impl Editor {
         let Some(snapshot) = timeline.redo_stack.last().cloned() else {
             return Ok(());
         };
-        let current = timeline.backend.timeline().clone();
-        apply_timeline_edit(
-            &mut self.preview,
-            timeline,
-            EditAction::ReplaceTimeline { timeline: snapshot },
-        )?;
+        let current = timeline.editing_state.clone();
+        apply_timeline_edit(timeline, EditAction::ReplaceTimeline { timeline: snapshot })?;
         timeline.redo_stack.pop();
         timeline.undo_stack.push(current);
         self.reset_after_history_change()
@@ -716,8 +683,7 @@ impl Editor {
         };
 
         let available_clip_ids = timeline
-            .backend
-            .timeline()
+            .editing_state
             .clips
             .iter()
             .map(Clip::id)
@@ -732,8 +698,7 @@ impl Editor {
             .filter(|clip_id| timeline.interaction.selected_clip_ids.contains(clip_id))
             .or_else(|| {
                 timeline
-                    .backend
-                    .timeline()
+                    .editing_state
                     .clips
                     .iter()
                     .find(|clip| timeline.interaction.selected_clip_ids.contains(&clip.id()))
@@ -741,8 +706,8 @@ impl Editor {
             });
         self.properties.transform_input_clip_id = None;
         self.properties.text_input_clip_id = None;
-        if !timeline.backend.timeline().clips.is_empty() {
-            timeline.backend.seek_frame(timeline.playhead())?;
+        if !timeline.editing_state.clips.is_empty() {
+            timeline.seek_frame(timeline.playhead());
         }
         let Some(timeline) = self.timeline.as_ref() else {
             return Ok(());

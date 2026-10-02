@@ -65,7 +65,7 @@ impl TimelinePlayer {
     }
 
     pub fn seek(&mut self, position: Duration, cx: &mut Context<Self>) -> Result<()> {
-        let result = self.backend.seek_precise(position);
+        let result = self.backend.seek(position);
         self.changed(cx);
         result
     }

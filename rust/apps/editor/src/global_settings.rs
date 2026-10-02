@@ -1,6 +1,7 @@
 use anyhow::{Context as _, Result, bail};
 use serde::{Deserialize, Serialize};
-use std::{fs, path::PathBuf};
+use std::fs;
+use std::path::PathBuf;
 
 #[derive(Default, Deserialize, Serialize)]
 pub struct GlobalEditorSettings {

@@ -1,9 +1,20 @@
-use super::*;
-use ::engine::timeline_backend::TimelineBackend;
+use crate::clip_placement::{
+    ClipPlacementRejection, validate_clip_placement, validate_text_clip_placement,
+};
+use crate::explorer_drag::AssetBeingDragged;
+use crate::layout::DEFAULT_TIMELINE_PIXELS_PER_SECOND;
+use crate::model::MediaKind;
+use crate::timeline_clip::Clip;
+use crate::timeline_interactions::{TimelineInteractionState, TimelineTool};
+use crate::track::TrackKind;
 use ::timeline::TimelineEditingState;
 pub use ::timeline::{FrameRate, TimelineFrameIndex};
 use anyhow::{Result, ensure};
-use std::path::Path;
+use gpui::ScrollHandle;
+use gpui::prelude::*;
+use std::collections::HashSet;
+use std::path::PathBuf;
+use ulid::Ulid;
 
 pub(super) const FRAME_RATE_PRESETS: [(FrameRate, &str); 8] = [
     (FrameRate::new(24_000, 1_001), "23.976 fps"),
@@ -19,7 +30,8 @@ pub(super) const FRAME_RATE_PRESETS: [(FrameRate, &str); 8] = [
 pub struct TimelineRuntimeState {
     /// Absolute path of the timeline file.
     pub path: PathBuf,
-    pub backend: TimelineBackend,
+    pub editing_state: TimelineEditingState,
+    playhead: TimelineFrameIndex, // 编辑区自己的播放头；与预览播放器互不同步。
     pub h_scroll: ScrollHandle,
     pub v_scroll: ScrollHandle,
     pub pixels_per_second: f32,
@@ -234,19 +246,16 @@ impl TimelineEditorExt for TimelineEditingState {
     }
 }
 impl TimelineRuntimeState {
-    pub(super) fn new(
-        path: PathBuf,
-        editing_state: TimelineEditingState,
-        media_root: &Path,
-    ) -> Result<Self> {
+    pub(super) fn new(path: PathBuf, editing_state: TimelineEditingState) -> Result<Self> {
         ensure!(path.is_absolute(), "Timeline path must be absolute");
-        let backend = TimelineBackend::new(editing_state, media_root)?;
-        let selected_clip_id = backend.timeline().clips.first().map(Clip::id);
+        editing_state.validate()?;
+        let selected_clip_id = editing_state.clips.first().map(Clip::id);
         let selected_clip_ids = selected_clip_id.into_iter().collect();
 
         Ok(Self {
             path,
-            backend,
+            editing_state,
+            playhead: TimelineFrameIndex::ZERO,
             h_scroll: ScrollHandle::new(),
             v_scroll: ScrollHandle::new(),
             pixels_per_second: DEFAULT_TIMELINE_PIXELS_PER_SECOND,
@@ -268,15 +277,24 @@ impl TimelineRuntimeState {
     }
 
     pub fn playhead(&self) -> TimelineFrameIndex {
-        self.backend
-            .timeline()
-            .settings
-            .frame_rate
-            .frames_from_duration_nearest(self.backend.position())
+        self.playhead
+    }
+
+    /// Moves the editing playhead to `frame_index`, clamped to the last frame of the content.
+    pub fn seek_frame(&mut self, frame_index: TimelineFrameIndex) {
+        let last_frame_index =
+            self.editing_state.content_duration() - TimelineFrameIndex::ONE_FRAME;
+        if frame_index < TimelineFrameIndex::ZERO {
+            self.playhead = TimelineFrameIndex::ZERO;
+        } else if frame_index > last_frame_index {
+            self.playhead = last_frame_index;
+        } else {
+            self.playhead = frame_index;
+        }
     }
 
     pub(super) fn record_editing_history(&mut self) {
-        self.undo_stack.push(self.backend.timeline().clone());
+        self.undo_stack.push(self.editing_state.clone());
         if self.undo_stack.len() > 100 {
             self.undo_stack.remove(0);
         }

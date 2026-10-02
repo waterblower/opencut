@@ -1,13 +1,20 @@
-use super::*;
-use player_ui::{
-    audio_player::AudioPlayer, timeline_player_view::timeline_backend_picture,
-    video_player::VideoPlayer,
-};
-use preview_image::preview_image_file;
+use crate::editor::Editor;
+use crate::preview_image::preview_image_file;
+use crate::theme::MUTED;
+use gpui::prelude::*;
+use gpui::{Entity, div, px, rgb};
+use player_ui::audio_player::AudioPlayer;
+use player_ui::timeline_player::TimelinePlayer;
+use player_ui::video_player::VideoPlayer;
+use std::path::PathBuf;
 
 pub enum PreviewTarget {
     None,
-    Timeline,
+    Timeline {
+        _task: gpui::Task<()>, // 按字段声明顺序释放：先取消播放任务，再释放播放器。
+        path: PathBuf,
+        player: Entity<TimelinePlayer>,
+    },
     VideoFile {
         _task: gpui::Task<()>, // 按字段声明顺序释放：先取消播放任务，再释放播放器。
         path: PathBuf,
@@ -19,12 +26,6 @@ pub enum PreviewTarget {
         player: Entity<AudioPlayer>,
     },
     ImageFile(PathBuf),
-}
-
-impl PreviewTarget {
-    pub(super) fn is_timeline(&self) -> bool {
-        matches!(self, Self::Timeline)
-    }
 }
 
 impl Editor {
@@ -39,16 +40,11 @@ impl Editor {
                 .text_color(rgb(MUTED))
                 .child("No preview available")
                 .into_any_element(),
-            PreviewTarget::Timeline => {
-                let Some(timeline) = self.timeline.as_ref() else {
-                    return div().w(px(width)).h(px(height)).into_any_element();
-                };
-                div()
-                    .w(px(width))
-                    .h(px(height))
-                    .child(timeline_backend_picture(&timeline.backend))
-                    .into_any_element()
-            }
+            PreviewTarget::Timeline { player, .. } => div()
+                .w(px(width))
+                .h(px(height))
+                .child(player.clone())
+                .into_any_element(),
             PreviewTarget::VideoFile { player, .. } => div()
                 .w(px(width))
                 .h(px(height))
@@ -64,4 +60,9 @@ impl Editor {
             }
         }
     }
+}
+
+pub(crate) struct PreviewState {
+    pub(crate) target: PreviewTarget,
+    pub(crate) fullscreen: bool,
 }

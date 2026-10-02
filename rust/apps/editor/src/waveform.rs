@@ -1,13 +1,18 @@
+use crate::editor::Editor;
+use crate::timeline_document::project_timeline_files;
+use ::timeline::TimelineSerialization;
 use anyhow::{Result, anyhow};
-use ffmpeg::{
-    channel_layout::ChannelLayout,
-    codec, format, frame,
-    media::Type,
-    software::resampling::Context as ResamplingContext,
-    util::format::{Sample, sample::Type as SampleType},
-};
+use ffmpeg::channel_layout::ChannelLayout;
+use ffmpeg::media::Type;
+use ffmpeg::software::resampling::Context as ResamplingContext;
+use ffmpeg::util::format::Sample;
+use ffmpeg::util::format::sample::Type as SampleType;
+use ffmpeg::{codec, format, frame};
 use ffmpeg_next as ffmpeg;
-use std::path::Path;
+use gpui::Context;
+use std::collections::HashSet;
+use std::path::{Path, PathBuf};
+use std::sync::Arc;
 
 const WAVEFORM_FINE_SAMPLES_PER_PEAK: u32 = 64;
 const WAVEFORM_LEVEL_REDUCTION: usize = 4;
@@ -269,6 +274,116 @@ fn seconds_to_sample(seconds: f64, sample_rate: u32, total_samples: u64) -> u64 
         return 0;
     }
     ((seconds * f64::from(sample_rate)).round().max(0.0) as u64).min(total_samples)
+}
+
+impl Editor {
+    pub(super) fn schedule_project_waveforms(&mut self, cx: &mut Context<Self>) {
+        let mut paths = HashSet::new();
+        let timeline_paths = match project_timeline_files(&self.project_root) {
+            Ok(paths) => paths,
+            Err(error) => {
+                eprintln!("Could not scan project timelines for waveforms: {error}");
+                return;
+            }
+        };
+        for timeline_path in timeline_paths {
+            let timeline =
+                match TimelineSerialization::load(&self.project_root.join(&timeline_path)) {
+                    Ok(timeline) => timeline,
+                    Err(error) => {
+                        eprintln!("Could not scan timeline for waveforms: {error}");
+                        continue;
+                    }
+                };
+            let timeline = timeline.to_editing_state();
+            let referenced_assets = timeline
+                .clips
+                .iter()
+                .filter_map(|clip| clip.media().map(|clip| clip.asset_id))
+                .collect::<HashSet<_>>();
+            paths.extend(
+                timeline
+                    .assets
+                    .into_iter()
+                    .filter(|asset| asset.has_audio && referenced_assets.contains(&asset.id))
+                    .map(|asset| asset.path),
+            );
+        }
+        self.schedule_waveforms(paths, cx);
+    }
+
+    pub(super) fn schedule_active_timeline_waveforms(&mut self, cx: &mut Context<Self>) {
+        let Some(timeline) = self.timeline.as_ref() else {
+            return;
+        };
+        let referenced_assets = timeline
+            .editing_state
+            .clips
+            .iter()
+            .filter_map(|clip| clip.media().map(|clip| clip.asset_id))
+            .collect::<HashSet<_>>();
+        let paths = timeline
+            .editing_state
+            .assets
+            .iter()
+            .filter(|asset| asset.has_audio && referenced_assets.contains(&asset.id))
+            .map(|asset| asset.path.clone())
+            .collect::<Vec<_>>();
+        self.schedule_waveforms(paths, cx);
+    }
+
+    fn schedule_waveforms(
+        &mut self,
+        paths: impl IntoIterator<Item = PathBuf>,
+        cx: &mut Context<Self>,
+    ) {
+        let mut paths = paths
+            .into_iter()
+            .filter(|path| {
+                !self.waveform_cache.contains_key(path) && !self.waveform_jobs.contains(path)
+            })
+            .collect::<Vec<_>>();
+        if paths.is_empty() {
+            return;
+        }
+        paths.sort();
+        self.waveform_jobs.extend(paths.iter().cloned());
+        let project_root = self.project_root.clone();
+        cx.spawn(async move |editor, cx| {
+            for relative_path in paths {
+                if editor.update(cx, |_, _| ()).is_err() {
+                    break;
+                }
+                let source = project_root.join(&relative_path);
+                let result = cx
+                    .background_executor()
+                    .spawn(async move { generate_waveform(&source) })
+                    .await;
+                let current_project = editor
+                    .update(cx, |editor, cx| {
+                        if editor.project_root != project_root {
+                            return false;
+                        }
+                        editor.waveform_jobs.remove(&relative_path);
+                        match result {
+                            Ok(waveform) => {
+                                editor
+                                    .waveform_cache
+                                    .insert(relative_path.clone(), Arc::new(waveform));
+                            }
+                            Err(error) => eprintln!("Waveform: {error}"),
+                        }
+                        cx.notify();
+                        true
+                    })
+                    .unwrap_or(false);
+                if !current_project {
+                    break;
+                }
+            }
+        })
+        .detach();
+    }
 }
 
 #[cfg(test)]

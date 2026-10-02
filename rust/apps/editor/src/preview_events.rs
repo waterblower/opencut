@@ -1,9 +1,11 @@
-use super::*;
-use crate::editor::explorer::select_preview_file;
+use crate::editor::Editor;
+use crate::preview::PreviewTarget;
 use anyhow::Result;
-use gpui::{AsyncApp, WeakEntity};
-use player_ui::{audio_player::AudioPlayer, video_player::VideoPlayer};
-use std::path::Path;
+use gpui::prelude::*;
+use gpui::{AsyncApp, Entity};
+use player_ui::audio_player::AudioPlayer;
+use player_ui::video_player::VideoPlayer;
+use std::path::{Path, PathBuf};
 
 #[derive(Clone, Debug)]
 pub enum PreviewEvent {
@@ -12,21 +14,6 @@ pub enum PreviewEvent {
 }
 
 impl Editor {
-    pub async fn handle_preview_event(
-        editor: WeakEntity<Self>,
-        event: &PreviewEvent,
-        cx: &mut AsyncApp,
-    ) -> Result<()> {
-        match event {
-            PreviewEvent::SelectFile(path) => select_preview_file(editor, path.clone(), cx).await,
-            PreviewEvent::TogglePlayback => editor.update(cx, |editor, cx| {
-                editor.toggle_preview_playback(cx)?;
-                cx.notify();
-                Ok(())
-            })?,
-        }
-    }
-
     pub fn pause_preview(&mut self) -> Result<()> {
         match &mut self.preview.target {
             PreviewTarget::VideoFile { .. } | PreviewTarget::AudioFile { .. } => {
@@ -38,7 +25,7 @@ impl Editor {
     }
 
     pub async fn open_file_preview(
-        editor: WeakEntity<Self>,
+        editor: Entity<Self>,
         project_root: PathBuf,
         relative_path: PathBuf,
         audio_only: bool,
@@ -77,7 +64,7 @@ impl Editor {
             };
             cx.notify();
             Ok(())
-        })??;
+        })?;
         Ok(())
     }
 }
@@ -95,7 +82,7 @@ pub fn file_preview_requested(
 }
 
 impl Editor {
-    fn toggle_preview_playback(&mut self, cx: &mut Context<Self>) -> Result<()> {
+    pub fn toggle_preview_playback(&mut self, cx: &mut Context<Self>) -> Result<()> {
         match &self.preview.target {
             PreviewTarget::VideoFile { player, .. } => {
                 player.update(cx, |player, cx| player.toggle_playback(cx));
@@ -104,11 +91,8 @@ impl Editor {
             PreviewTarget::AudioFile { player, .. } => {
                 player.update(cx, |player, cx| player.toggle_playback(cx))
             }
-            PreviewTarget::Timeline => {
-                let Some(timeline) = self.timeline.as_mut() else {
-                    return Ok(());
-                };
-                timeline.backend.toggle_playback()
+            PreviewTarget::Timeline { player, .. } => {
+                player.update(cx, |player, cx| player.toggle_playback(cx))
             }
             PreviewTarget::None | PreviewTarget::ImageFile(_) => Ok(()),
         }

@@ -1,17 +1,16 @@
-use anyhow::Result;
-use std::{fs::read_to_string, path::PathBuf};
-
+use crate::explorer_file_entry::{FileTreeEntry, FileTreeEntryKind, is_srt_path};
+use crate::media_probe::probe_asset;
+use crate::model::{MediaAsset, MediaKind};
+use crate::theme::ACCENT;
+use crate::timeline::TimelineFrameIndex;
 use ::transcribe::SRT;
+use anyhow::Result;
 use gpui::{
     Context, IntoElement, ParentElement, Render, SharedString, Styled, Window, div, px, rgb,
 };
+use std::fs::read_to_string;
+use std::path::PathBuf;
 use ulid::Ulid;
-
-use crate::editor::{
-    ACCENT, MediaAsset, MediaKind, TimelineFrameIndex,
-    explorer::{FileTreeEntry, FileTreeEntryKind, is_srt_path},
-    media_probe::probe_asset,
-};
 
 #[derive(Clone, Debug)]
 pub(super) struct ExplorerDropPreview {
