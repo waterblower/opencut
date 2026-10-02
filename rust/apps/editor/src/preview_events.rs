@@ -107,11 +107,8 @@ impl Editor {
             PreviewTarget::AudioFile { player, .. } => {
                 player.update(cx, |player, cx| player.toggle_playback(cx))
             }
-            PreviewTarget::Timeline => {
-                let Some(timeline) = self.timeline.as_mut() else {
-                    return Ok(());
-                };
-                timeline.backend.toggle_playback()
+            PreviewTarget::Timeline { player, .. } => {
+                player.update(cx, |player, cx| player.toggle_playback(cx))
             }
             PreviewTarget::None | PreviewTarget::ImageFile(_) => Ok(()),
         }

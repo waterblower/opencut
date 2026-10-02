@@ -123,11 +123,7 @@ impl Editor {
                         .map(|path| (asset.id, path))
                 })
                 .collect();
-            apply_timeline_edit(
-                &mut self.preview,
-                timeline,
-                EditAction::UpdateAssetPaths { paths },
-            )?;
+            apply_timeline_edit(timeline, EditAction::UpdateAssetPaths { paths })?;
             for snapshot in timeline
                 .undo_stack
                 .iter_mut()
@@ -164,7 +160,7 @@ impl Editor {
                     *path = new_path;
                 }
             }
-            PreviewTarget::None | PreviewTarget::Timeline => {}
+            PreviewTarget::None | PreviewTarget::Timeline { .. } => {}
         }
 
         let renamed_active_timeline = self.timeline.as_ref().and_then(|timeline| {

@@ -160,7 +160,6 @@ impl Editor {
         };
         timeline.record_editing_history();
         apply_timeline_edit(
-            &mut self.preview,
             timeline,
             EditAction::SetVideoProperties {
                 clip_ids: vec![clip_id],

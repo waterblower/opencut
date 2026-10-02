@@ -5,6 +5,7 @@ use crate::layout::{
     MAX_TIMELINE_PIXELS_PER_SECOND, MIN_TIMELINE_PIXELS_PER_SECOND, RULER_HEIGHT, SNAP_DISTANCE_PX,
     TIMELINE_HEADER_HEIGHT, TIMELINE_HEIGHT, TIMELINE_PADDING, TRACK_HEADER_WIDTH, TRACK_HEIGHT,
 };
+use crate::preview::PreviewTarget;
 use crate::timeline::{TimelineEditorExt, TimelineFrameIndex, TimelineRuntimeState};
 use crate::timeline_clip::Clip;
 use anyhow::Result;
@@ -317,7 +318,7 @@ impl Editor {
                 let Some(timeline) = self.timeline.as_mut() else {
                     return;
                 };
-                if let Err(error) = timeline.blade_at_playhead(&mut self.preview) {
+                if let Err(error) = timeline.blade_at_playhead() {
                     log::error!("{error:?}");
                 }
             }
@@ -654,7 +655,6 @@ impl Editor {
         if drag.changed && drag.invalid_reason.is_none() {
             timeline.record_editing_history();
             apply_timeline_edit(
-                &mut self.preview,
                 timeline,
                 EditAction::MoveClips {
                     placements: drag.placements,
@@ -761,7 +761,9 @@ impl Editor {
             TimelineFrameIndex::ZERO,
             timeline.backend.timeline().content_duration(),
         );
-        if target != timeline.playhead() || !self.preview.target.is_timeline() {
+        if target != timeline.playhead()
+            || !matches!(self.preview.target, PreviewTarget::Timeline { .. })
+        {
             timeline.backend.seek_frame(target)?;
             timeline.save()?;
         }

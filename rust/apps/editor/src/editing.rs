@@ -4,7 +4,6 @@ use crate::clip_placement::{
 use crate::edit_action::{EditAction, apply_timeline_edit};
 use crate::editor::Editor;
 use crate::model::MediaAsset;
-use crate::preview::PreviewState;
 use crate::timeline::{
     FrameRate, TimelineEditorExt, TimelineFrameIndex, TimelineRuntimeState, timeline_ranges_overlap,
 };
@@ -210,7 +209,7 @@ impl ClipClipboard {
 }
 
 impl TimelineRuntimeState {
-    pub(super) fn blade_at_playhead(&mut self, preview: &mut PreviewState) -> Result<()> {
+    pub(super) fn blade_at_playhead(&mut self) -> Result<()> {
         let clips_to_split = self
             .backend
             .timeline()
@@ -247,7 +246,6 @@ impl TimelineRuntimeState {
 
         self.record_editing_history();
         apply_timeline_edit(
-            preview,
             self,
             EditAction::SplitClips {
                 removed_clips: removed_clip_ids,
@@ -348,11 +346,7 @@ impl Editor {
             .or_else(|| clips.first())
             .map(Clip::id);
 
-        apply_timeline_edit(
-            &mut self.preview,
-            timeline,
-            EditAction::AddClips { clips, assets },
-        )?;
+        apply_timeline_edit(timeline, EditAction::AddClips { clips, assets })?;
 
         timeline.save()?;
 
@@ -365,7 +359,6 @@ impl Editor {
             return Ok(());
         };
         apply_timeline_edit(
-            &mut self.preview,
             timeline,
             EditAction::RemoveClips {
                 clip_ids: clip_ids.clone(),
@@ -467,7 +460,6 @@ impl Editor {
             .or_else(|| duplicates.first())
             .map(Clip::id);
         apply_timeline_edit(
-            &mut self.preview,
             timeline,
             EditAction::AddClips {
                 clips: duplicates,
@@ -501,7 +493,6 @@ impl Editor {
         };
         timeline.record_editing_history();
         apply_timeline_edit(
-            &mut self.preview,
             timeline,
             EditAction::AddTrack {
                 track: Track {
@@ -522,11 +513,7 @@ impl Editor {
             return Ok(());
         };
         timeline.record_editing_history();
-        apply_timeline_edit(
-            &mut self.preview,
-            timeline,
-            EditAction::ToggleTrackLock { track_id },
-        )?;
+        apply_timeline_edit(timeline, EditAction::ToggleTrackLock { track_id })?;
         timeline.save()
     }
 
@@ -535,11 +522,7 @@ impl Editor {
             return Ok(());
         };
         timeline.record_editing_history();
-        apply_timeline_edit(
-            &mut self.preview,
-            timeline,
-            EditAction::ToggleTrackVisibility { track_id },
-        )?;
+        apply_timeline_edit(timeline, EditAction::ToggleTrackVisibility { track_id })?;
         timeline.save()
     }
 
@@ -548,11 +531,7 @@ impl Editor {
             return Ok(());
         };
         timeline.record_editing_history();
-        apply_timeline_edit(
-            &mut self.preview,
-            timeline,
-            EditAction::ToggleTrackMute { track_id },
-        )?;
+        apply_timeline_edit(timeline, EditAction::ToggleTrackMute { track_id })?;
         timeline.save()
     }
 
@@ -581,11 +560,7 @@ impl Editor {
         };
 
         timeline.record_editing_history();
-        apply_timeline_edit(
-            &mut self.preview,
-            timeline,
-            EditAction::MoveTrack { index, target },
-        )?;
+        apply_timeline_edit(timeline, EditAction::MoveTrack { index, target })?;
         timeline.save()
     }
 
@@ -606,11 +581,7 @@ impl Editor {
             return Ok(());
         }
         timeline.record_editing_history();
-        apply_timeline_edit(
-            &mut self.preview,
-            timeline,
-            EditAction::DeleteTrack { track_id },
-        )?;
+        apply_timeline_edit(timeline, EditAction::DeleteTrack { track_id })?;
         let remaining_clip_ids = timeline
             .backend
             .timeline()
@@ -697,11 +668,7 @@ impl Editor {
             return Ok(());
         };
         let current = timeline.backend.timeline().clone();
-        apply_timeline_edit(
-            &mut self.preview,
-            timeline,
-            EditAction::ReplaceTimeline { timeline: snapshot },
-        )?;
+        apply_timeline_edit(timeline, EditAction::ReplaceTimeline { timeline: snapshot })?;
         timeline.undo_stack.pop();
         timeline.redo_stack.push(current);
         self.reset_after_history_change()
@@ -715,11 +682,7 @@ impl Editor {
             return Ok(());
         };
         let current = timeline.backend.timeline().clone();
-        apply_timeline_edit(
-            &mut self.preview,
-            timeline,
-            EditAction::ReplaceTimeline { timeline: snapshot },
-        )?;
+        apply_timeline_edit(timeline, EditAction::ReplaceTimeline { timeline: snapshot })?;
         timeline.redo_stack.pop();
         timeline.undo_stack.push(current);
         self.reset_after_history_change()

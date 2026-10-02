@@ -7,7 +7,6 @@ use crate::global_settings::GlobalEditorSettings;
 use crate::layout::{RULER_HEIGHT, TIMELINE_PADDING, TRACK_HEIGHT};
 use crate::model::MediaKind;
 use crate::open_editor_window;
-use crate::preview::PreviewTarget;
 use crate::preview_events::PreviewEvent;
 use crate::project_settings::{ProjectLocalSettings, save_project_local_settings};
 use crate::srt::{srt_text_clips, write_srt};
@@ -196,7 +195,7 @@ pub async fn handle_app_event(editor: WeakEntity<Editor>, event: AppEvent, cx: &
                     return;
                 };
                 timeline.record_editing_history();
-                apply_timeline_edit(&mut editor.preview, timeline, edit_action.clone())
+                apply_timeline_edit(timeline, edit_action.clone())
                     .expect("event bus edit actions cannot be rejected");
                 if let Err(error) = timeline.save() {
                     log::error!("{error:?}");
@@ -282,7 +281,6 @@ pub async fn handle_app_event(editor: WeakEntity<Editor>, event: AppEvent, cx: &
                             let selected_clip_id = clips.first().map(Clip::id);
                             timeline.record_editing_history();
                             apply_timeline_edit(
-                                &mut editor.preview,
                                 timeline,
                                 EditAction::AddClips {
                                     clips,
@@ -327,7 +325,6 @@ pub async fn handle_app_event(editor: WeakEntity<Editor>, event: AppEvent, cx: &
                 if let Err(error) = editor.open_timeline(path.clone(), cx) {
                     log::error!("Could not open timeline: {error:?}");
                 }
-                editor.preview.target = PreviewTarget::Timeline;
                 cx.notify();
             });
             match err {

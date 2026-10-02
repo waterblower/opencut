@@ -156,12 +156,8 @@ impl Editor {
             return Ok(());
         };
         timeline.record_editing_history();
-        apply_timeline_edit(
-            &mut self.preview,
-            timeline,
-            EditAction::SetFrameRate { frame_rate },
-        )
-        .expect("changing the frame rate cannot be rejected");
+        apply_timeline_edit(timeline, EditAction::SetFrameRate { frame_rate })
+            .expect("changing the frame rate cannot be rejected");
         let has_clips = !timeline.backend.timeline().clips.is_empty();
         timeline.save()?;
         if has_clips {

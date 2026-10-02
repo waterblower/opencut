@@ -29,13 +29,6 @@ fn completed_open_only_installs_into_the_requested_file_preview() {
     assert!(!file_preview_requested(
         root,
         Some(file),
-        &PreviewTarget::Timeline,
-        root,
-        file
-    ));
-    assert!(!file_preview_requested(
-        root,
-        Some(file),
         &PreviewTarget::ImageFile("image.png".into()),
         root,
         file

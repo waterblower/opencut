@@ -68,7 +68,6 @@ impl Editor {
             .map(|index| timeline.backend.timeline().clips[index].id())
             .collect();
         apply_timeline_edit(
-            &mut self.preview,
             timeline,
             EditAction::SetVideoProperties {
                 clip_ids,

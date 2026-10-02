@@ -414,7 +414,6 @@ impl Editor {
         };
 
         apply_timeline_edit(
-            &mut self.preview,
             timeline,
             EditAction::AddClips {
                 clips: vec![media_clip],

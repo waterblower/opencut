@@ -132,7 +132,7 @@ impl Editor {
         let Some(timeline) = self.timeline.as_mut() else {
             return;
         };
-        if let Err(error) = timeline.blade_at_playhead(&mut self.preview) {
+        if let Err(error) = timeline.blade_at_playhead() {
             log::error!("{error:?}");
         }
         cx.notify();

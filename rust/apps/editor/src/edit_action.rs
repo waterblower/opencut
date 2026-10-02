@@ -1,5 +1,4 @@
 use crate::editing::validate_clips_placements;
-use crate::preview::{PreviewState, PreviewTarget};
 use crate::timeline::{TimelineEditorExt, TimelineRuntimeState};
 use ::timeline::{
     Clip, FrameRate, MediaAsset, TextClipProperties, TimelineEditingState, TimelineFrameIndex,
@@ -68,14 +67,9 @@ pub enum EditAction {
     },
 }
 
-pub fn apply_timeline_edit(
-    preview: &mut PreviewState,
-    timeline: &mut TimelineRuntimeState,
-    action: EditAction,
-) -> Result<()> {
-    edit_timeline(timeline, action)?;
-    preview.target = PreviewTarget::Timeline;
-    Ok(())
+/// Applies an edit to the editing timeline only; the preview player is not synced with it.
+pub fn apply_timeline_edit(timeline: &mut TimelineRuntimeState, action: EditAction) -> Result<()> {
+    edit_timeline(timeline, action)
 }
 
 pub fn edit_timeline(timeline: &mut TimelineRuntimeState, action: EditAction) -> Result<()> {

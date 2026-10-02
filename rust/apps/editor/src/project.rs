@@ -7,6 +7,7 @@ use ::timeline::TimelineSerialization;
 use anyhow::{Context as _, Result};
 use gpui::PathPromptOptions;
 use gpui::prelude::*;
+use player_ui::timeline_player::TimelinePlayer;
 use std::path::{Path, PathBuf};
 use std::time::Instant;
 
@@ -62,6 +63,9 @@ impl Editor {
                 self.select_only_clip(None);
                 let timeline = self.timeline.as_mut().expect("timeline was checked above");
                 timeline.backend.seek_frame(timeline.playhead())?;
+                if !matches!(self.preview.target, PreviewTarget::Timeline { .. }) {
+                    self.show_timeline_preview(cx)?;
+                }
                 self.explorer.selected_file = Some(relative_path);
                 cx.notify();
                 return Ok(());
@@ -147,14 +151,39 @@ impl Editor {
                 .context("refresh_file_tree failed")?;
             if let Some(timeline) = self.timeline.as_mut() {
                 timeline.backend.seek_frame(timeline.playhead())?;
-                self.preview.target = PreviewTarget::Timeline;
-            } else {
-                self.preview.target = PreviewTarget::None;
             }
+            self.show_timeline_preview(cx)?;
             self.schedule_active_timeline_waveforms(cx);
             Ok(())
         })();
         log::debug!("activate_timeline: {}", t.elapsed().as_millis());
         res.context("activate_timeline failed")
+    }
+}
+
+impl Editor {
+    /// Opens a standalone preview player on a snapshot of the active timeline.
+    /// It is deliberately decoupled: later edits and playhead moves in the editing area
+    /// do not reach it.
+    pub(crate) fn show_timeline_preview(&mut self, cx: &mut Context<Self>) -> Result<()> {
+        let Some(timeline) = self.timeline.as_ref() else {
+            self.preview.target = PreviewTarget::None;
+            return Ok(());
+        };
+        let relative_path = match timeline.path.strip_prefix(&self.project_root) {
+            Ok(relative_path) => relative_path.to_path_buf(),
+            Err(_) => timeline.path.clone(),
+        };
+        let mut player =
+            TimelinePlayer::new(timeline.backend.timeline().clone(), &self.project_root)?;
+        player.title = relative_path.display().to_string();
+        let player = cx.new(move |_| player);
+        let task = player.update(cx, |player, cx| player.start(cx));
+        self.preview.target = PreviewTarget::Timeline {
+            _task: task,
+            path: relative_path,
+            player,
+        };
+        Ok(())
     }
 }
