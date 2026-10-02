@@ -104,27 +104,20 @@ impl TimelineBackend {
         if rate.numerator == 0 || rate.denominator == 0 {
             bail!("Timeline frame rate must have a positive numerator and denominator");
         }
-        let frame = rate
-            .frames_from_duration_nearest(position)
-            .clamp(TimelineFrameIndex::ZERO, self.last_frame());
-        self.seek_precise(self.timeline.position_at_frame(frame))
+        let frame = rate.frames_from_duration_nearest(position);
+        self.seek_frame(frame)
     }
 
-    pub fn seek_frame(&mut self, frame: TimelineFrameIndex) -> Result<()> {
-        self.seek(self.timeline.position_at_frame(frame))
-    }
-
-    /// Shows the frame containing `position` and keeps `position` as the exact playback time.
+    /// Shows `frame`, clamped to the last one, and restarts the playback clock at its start.
     /// Errors preserve the previous frame and position.
-    pub fn seek_precise(&mut self, position: Duration) -> Result<()> {
-        let position = position.min(self.duration());
-        let frame = floor_frame(self.timeline.settings.frame_rate, position).min(self.last_frame());
+    pub fn seek_frame(&mut self, frame: TimelineFrameIndex) -> Result<()> {
+        let frame = frame.clamp(TimelineFrameIndex::ZERO, self.last_frame());
         if frame != self.frame() {
-            let frame = self.decoder.frame_at(&self.timeline, frame)?;
-            self.show(frame);
+            let picture = self.decoder.frame_at(&self.timeline, frame)?;
+            self.show(picture);
         }
         self.clock = PlaybackClock {
-            start_position: position,
+            start_position: self.timeline.position_at_frame(frame),
             start_time: self.clock.start_time.map(|_| Instant::now()),
         };
         Ok(())
@@ -144,7 +137,7 @@ impl TimelineBackend {
             return Ok(());
         }
         if self.is_ended() {
-            self.seek_precise(Duration::ZERO)?;
+            self.seek_frame(TimelineFrameIndex::ZERO)?;
         }
         self.clock.start_time = Some(Instant::now());
         self.playing = true;
