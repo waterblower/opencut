@@ -1,5 +1,4 @@
 use crate::editor::Editor;
-use crate::explorer_file_entry::select_preview_file;
 use crate::preview::PreviewTarget;
 use anyhow::Result;
 use gpui::prelude::*;
@@ -15,21 +14,6 @@ pub enum PreviewEvent {
 }
 
 impl Editor {
-    pub async fn handle_preview_event(
-        editor: WeakEntity<Self>,
-        event: &PreviewEvent,
-        cx: &mut AsyncApp,
-    ) -> Result<()> {
-        match event {
-            PreviewEvent::SelectFile(path) => select_preview_file(editor, path.clone(), cx).await,
-            PreviewEvent::TogglePlayback => editor.update(cx, |editor, cx| {
-                editor.toggle_preview_playback(cx)?;
-                cx.notify();
-                Ok(())
-            })?,
-        }
-    }
-
     pub fn pause_preview(&mut self) -> Result<()> {
         match &mut self.preview.target {
             PreviewTarget::VideoFile { .. } | PreviewTarget::AudioFile { .. } => {
@@ -98,7 +82,7 @@ pub fn file_preview_requested(
 }
 
 impl Editor {
-    fn toggle_preview_playback(&mut self, cx: &mut Context<Self>) -> Result<()> {
+    pub fn toggle_preview_playback(&mut self, cx: &mut Context<Self>) -> Result<()> {
         match &self.preview.target {
             PreviewTarget::VideoFile { player, .. } => {
                 player.update(cx, |player, cx| player.toggle_playback(cx));

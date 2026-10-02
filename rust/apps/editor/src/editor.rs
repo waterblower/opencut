@@ -11,7 +11,7 @@ use crate::properties::PropertiesPanelState;
 use crate::properties_transform::VideoTransformInputs;
 use crate::timeline::TimelineRuntimeState;
 use crate::waveform;
-use anyhow::{Error, Result};
+use anyhow::Result;
 use gpui::prelude::*;
 use gpui::{Entity, FocusHandle, ScrollHandle};
 use std::collections::{HashMap, HashSet};
@@ -179,7 +179,7 @@ fn start_updates(cx: &mut Context<Editor>) {
     cx.spawn(async move |editor, cx| {
         loop {
             cx.background_executor().timer(IDLE_UPDATE_INTERVAL).await;
-            let result = editor.update(cx, |editor, cx| {
+            let result = editor.update(cx, |editor, cx| -> Result<()> {
                 let pinch_zoomed = editor.apply_timeline_pinch()?;
                 let ended_explorer_drag = !cx.has_active_drag();
                 if ended_explorer_drag && let Some(timeline) = editor.timeline.as_mut() {
@@ -196,7 +196,7 @@ fn start_updates(cx: &mut Context<Editor>) {
                 if should_render {
                     cx.notify();
                 }
-                Ok::<(), Error>(())
+                Ok(())
             });
             match result {
                 Ok(Ok(())) => {}
