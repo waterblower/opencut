@@ -7,6 +7,7 @@ use crate::generic_containers::HorizontalSplitState;
 use crate::global_settings::GlobalEditorSettings;
 use crate::layout::{RULER_HEIGHT, TIMELINE_PADDING, TRACK_HEIGHT};
 use crate::model::MediaKind;
+use crate::preview::PreviewTarget;
 use crate::preview_events::PreviewEvent;
 use crate::project_settings::{ProjectLocalSettings, save_project_local_settings};
 use crate::srt::{srt_text_clips, write_srt};
@@ -314,7 +315,15 @@ async fn handle_app_event(
             })?;
         }
         AppEvent::TimelineSeek { frame_index } => {
-            eprintln!("TimelineSeek: {frame_index:?}");
+            editor.update(cx, |editor, cx| -> Result<()> {
+                let PreviewTarget::Timeline { player, .. } = &editor.preview.target else {
+                    return Ok(());
+                };
+                player.update(cx, |player, cx| {
+                    let position = player.backend.timeline().position_at_frame(*frame_index);
+                    player.seek(position, cx)
+                })
+            })?;
         }
         AppEvent::OpenTimeline { path } => {
             editor.update(cx, |editor, cx| -> Result<()> {
