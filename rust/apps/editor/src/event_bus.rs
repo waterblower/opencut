@@ -163,10 +163,10 @@ async fn handle_app_event(
     event: AppEvent,
     cx: &mut AsyncApp,
 ) -> Result<()> {
-    match &event {
+    match event {
         AppEvent::Preview(preview_event) => match preview_event {
             PreviewEvent::SelectFile(path) => {
-                select_preview_file(editor, path.clone(), cx).await?;
+                select_preview_file(editor, path, cx).await?;
             }
             PreviewEvent::TogglePlayback => {
                 editor.update(cx, |editor, cx| -> Result<()> {
@@ -191,7 +191,7 @@ async fn handle_app_event(
                                 .ok()
                                 .map(Path::to_path_buf)
                         }),
-                        upper_space_split_state: state.clone(),
+                        upper_space_split_state: state,
                     },
                 )?;
                 cx.notify();
@@ -204,7 +204,7 @@ async fn handle_app_event(
                     return Ok(());
                 };
                 timeline.record_editing_history();
-                apply_timeline_edit(timeline, edit_action.clone())
+                apply_timeline_edit(timeline, edit_action)
                     .expect("event bus edit actions cannot be rejected");
                 timeline.save()?;
                 cx.notify();
@@ -213,7 +213,7 @@ async fn handle_app_event(
         }
         AppEvent::DragStarted(asset) => {
             editor.update(cx, |editor, cx| {
-                editor.active_asset_drag = asset.clone();
+                editor.active_asset_drag = asset;
                 cx.notify();
             });
         }
@@ -320,14 +320,14 @@ async fn handle_app_event(
                     return Ok(());
                 };
                 player.update(cx, |player, cx| {
-                    let position = player.backend.timeline().position_at_frame(*frame_index);
+                    let position = player.backend.timeline().position_at_frame(frame_index);
                     player.seek(position, cx)
                 })
             })?;
         }
         AppEvent::OpenTimeline { path } => {
             editor.update(cx, |editor, cx| -> Result<()> {
-                editor.open_timeline(path.clone(), cx)?;
+                editor.open_timeline(path, cx)?;
                 cx.notify();
                 Ok(())
             })?;
