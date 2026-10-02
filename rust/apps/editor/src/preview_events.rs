@@ -2,7 +2,7 @@ use crate::editor::Editor;
 use crate::preview::PreviewTarget;
 use anyhow::Result;
 use gpui::prelude::*;
-use gpui::{AsyncApp, WeakEntity};
+use gpui::{AsyncApp, Entity};
 use player_ui::audio_player::AudioPlayer;
 use player_ui::video_player::VideoPlayer;
 use std::path::{Path, PathBuf};
@@ -25,7 +25,7 @@ impl Editor {
     }
 
     pub async fn open_file_preview(
-        editor: WeakEntity<Self>,
+        editor: Entity<Self>,
         project_root: PathBuf,
         relative_path: PathBuf,
         audio_only: bool,
@@ -64,7 +64,7 @@ impl Editor {
             };
             cx.notify();
             Ok(())
-        })??;
+        })?;
         Ok(())
     }
 }

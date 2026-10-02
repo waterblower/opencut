@@ -7,7 +7,7 @@ use crate::preview_events::PreviewEvent;
 use crate::theme::{ACCENT, MUTED, PANEL, SURFACE_HOVER, TEXT};
 use anyhow::{Result, anyhow};
 use gpui::prelude::*;
-use gpui::{AsyncApp, CursorStyle, MouseButton, MouseDownEvent, WeakEntity, div, px, rgb};
+use gpui::{AsyncApp, CursorStyle, Entity, MouseButton, MouseDownEvent, div, px, rgb};
 use std::collections::HashSet;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -441,7 +441,7 @@ pub fn is_srt_path(path: &Path) -> bool {
 }
 
 pub async fn select_preview_file(
-    editor: WeakEntity<Editor>,
+    editor: Entity<Editor>,
     relative_path: PathBuf,
     cx: &mut AsyncApp,
 ) -> Result<()> {
@@ -470,7 +470,7 @@ pub async fn select_preview_file(
         }
         cx.notify();
         (editor.project_root.clone(), previous)
-    })?;
+    });
 
     // Cancel playback before releasing its entity, on the same lane as the playback task.
     drop(previous);

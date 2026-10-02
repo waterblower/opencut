@@ -14,7 +14,7 @@ use crate::timeline::{PreviewDropAsset, TimelineFrameIndex};
 use crate::timeline_clip::Clip;
 use crate::transcription::start_transcription;
 use crate::{OpenProject, open_editor_window, quit_after_last_window};
-use anyhow::{Context as _, Result, anyhow, bail};
+use anyhow::{Result, anyhow, bail};
 use gpui::{AsyncApp, Bounds, Entity, EventEmitter, MouseMoveEvent, Pixels};
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
@@ -165,7 +165,7 @@ async fn handle_app_event(
     match &event {
         AppEvent::Preview(preview_event) => match preview_event {
             PreviewEvent::SelectFile(path) => {
-                select_preview_file(editor.downgrade(), path.clone(), cx).await?;
+                select_preview_file(editor, path.clone(), cx).await?;
             }
             PreviewEvent::TogglePlayback => {
                 editor.update(cx, |editor, cx| -> Result<()> {
