@@ -161,9 +161,9 @@ impl Editor {
 }
 
 impl Editor {
-    /// Builds a standalone preview player on a snapshot of the active timeline.
-    /// It is deliberately decoupled: later edits and playhead moves in the editing area
-    /// do not reach it.
+    /// Builds a standalone preview player on a snapshot of the active timeline, starting at
+    /// its playhead. It is deliberately decoupled: later edits and playhead moves in the
+    /// editing area do not reach it.
     pub fn create_timeline_preview(&self, cx: &mut Context<Self>) -> Result<PreviewTarget> {
         let Some(timeline) = self.timeline.as_ref() else {
             return Ok(PreviewTarget::None);
@@ -174,6 +174,7 @@ impl Editor {
         };
         let mut player = TimelinePlayer::new(timeline.editing_state.clone(), &self.project_root)?;
         player.title = relative_path.display().to_string();
+        player.backend.seek_frame(timeline.playhead())?;
         let player = cx.new(move |_| player);
         let task = player.update(cx, |player, cx| player.start(cx));
         Ok(PreviewTarget::Timeline {
