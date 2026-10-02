@@ -7,6 +7,7 @@ use crate::layout::{
     RULER_HEIGHT, TIMELINE_HEADER_HEIGHT, TIMELINE_HEIGHT, TIMELINE_PADDING, TRACK_HEADER_WIDTH,
     TRACK_HEIGHT,
 };
+use crate::preview::PreviewTarget;
 use crate::theme::{ACCENT, BORDER, ERROR, MUTED, SURFACE, SURFACE_HOVER};
 use crate::time_format::format_time;
 use crate::timeline::TimelineFrameIndex;
@@ -220,7 +221,7 @@ impl Editor {
                                     )
                                     .child(div().h(px(RULER_HEIGHT)).flex_shrink_0())
                                     .children(track_rows)
-                                    .child(self.timeline_playhead())
+                                    .child(self.timeline_playhead(cx))
                                     .when_some(timeline.interaction.snap_guide, |this, guide| {
                                         let guide_left = TIMELINE_PADDING
                                             + timeline.editing_state.seconds(guide) as f32
@@ -340,20 +341,33 @@ impl Editor {
                                     .w(px(timeline_width))
                                     .h_full()
                                     .child(self.timeline_ruler(duration, cx))
-                                    .child(self.timeline_playhead()),
+                                    .child(self.timeline_playhead(cx)),
                             ),
                     ),
             )
             .into_any_element()
     }
 
-    fn timeline_playhead(&self) -> gpui::AnyElement {
+    fn timeline_playhead_seconds(&self, cx: &Context<Self>) -> f64 {
+        let timeline = self
+            .timeline
+            .as_ref()
+            .expect("timeline view requires timeline state");
+        if let PreviewTarget::Timeline { path, player, .. } = &self.preview.target {
+            if self.project_root.join(path) == timeline.path {
+                return player.read(cx).backend.position().as_secs_f64();
+            }
+        }
+        timeline.editing_state.seconds(timeline.playhead())
+    }
+
+    fn timeline_playhead(&self, cx: &Context<Self>) -> gpui::AnyElement {
         let timeline = self
             .timeline
             .as_ref()
             .expect("timeline view requires timeline state");
         let left = TIMELINE_PADDING
-            + timeline.editing_state.seconds(timeline.playhead()) as f32
+            + self.timeline_playhead_seconds(cx) as f32
                 * timeline.pixels_per_second;
 
         div()
@@ -512,7 +526,7 @@ impl Editor {
                             .child(format!(
                                 "{} / {}",
                                 format_time(
-                                    timeline.editing_state.seconds(timeline.playhead()),
+                                    self.timeline_playhead_seconds(cx),
                                     false
                                 ),
                                 format_time(

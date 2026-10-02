@@ -154,7 +154,10 @@ fn open_editor_window(
             focus: true,
             ..WindowOptions::default()
         },
-        |_, _| editor,
+        |window, cx| {
+            editor.read(cx).focus_handle.clone().focus(window, cx);
+            editor
+        },
     ) {
         Ok(window) => window,
         Err(error) => panic!(

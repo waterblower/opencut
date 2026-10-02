@@ -31,7 +31,7 @@ impl TimelinePlayer {
                 let Ok(wait) = player.update(cx, |player, cx| match player.backend.advance() {
                     Ok(advance) => {
                         if advance.changed {
-                            player.changed(cx);
+                            cx.notify();
                         }
                         advance.wait
                     }
@@ -50,14 +50,14 @@ impl TimelinePlayer {
     pub fn play(&mut self, cx: &mut Context<Self>) -> Result<()> {
         self.error = None;
         let result = self.backend.play();
-        self.changed(cx);
+        cx.notify();
         result
     }
 
     pub fn toggle_playback(&mut self, cx: &mut Context<Self>) -> Result<()> {
         if self.backend.is_playing() {
             self.backend.pause();
-            self.changed(cx);
+            cx.notify();
             Ok(())
         } else {
             self.play(cx)
@@ -66,7 +66,7 @@ impl TimelinePlayer {
 
     pub fn seek(&mut self, position: Duration, cx: &mut Context<Self>) -> Result<()> {
         let result = self.backend.seek(position);
-        self.changed(cx);
+        cx.notify();
         result
     }
 
@@ -75,11 +75,6 @@ impl TimelinePlayer {
         eprintln!("Timeline player failed: {error:?}");
         self.backend.pause();
         self.error = Some(format!("{error:#}"));
-        self.changed(cx);
-    }
-
-    fn changed(&mut self, cx: &mut Context<Self>) {
-        self.backend.release_retired_images(cx);
         cx.notify();
     }
 }
