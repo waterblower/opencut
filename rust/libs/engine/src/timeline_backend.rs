@@ -1,10 +1,9 @@
 //! Timeline preview and playback state without a GPUI context. Seeks and edits prepare frames
 //! synchronously; snapshot reads never decode. Owners that play drive [`TimelineBackend::advance`]
-//! from a task, redraw when it reports a change, and release retired images.
+//! from a task and redraw when it reports a change.
 
 use crate::timeline_decoder::{TimelineDecoder, TimelineFrameComposition};
 use anyhow::{Context as _, Result, bail};
-use gpui::{App, RenderImage};
 use std::{
     path::{Path, PathBuf},
     sync::Arc,
@@ -22,7 +21,6 @@ pub struct TimelineBackend {
     displayed: Arc<TimelineFrameComposition>,    // 当前展示的合成帧；图像在准备时转换，渲染时不解码。
     clock: PlaybackClock,
     playing: bool,
-    retired: Vec<Arc<RenderImage>>,   // 不再展示的图像；GPUI 纹理需由持有者释放。
 }
 
 /// Result of one playback step.
@@ -73,7 +71,6 @@ impl TimelineBackend {
                 start_time: None,
             },
             playing: false,
-            retired: Vec::new(),
         })
     }
 
@@ -241,19 +238,8 @@ impl TimelineBackend {
             .max(TimelineFrameIndex::ZERO)
     }
 
-    /// Replaces the displayed frame and retires images the new frame no longer uses.
     fn show(&mut self, frame: TimelineFrameComposition) {
-        let previous = std::mem::replace(&mut self.displayed, Arc::new(frame));
-        for image in previous.images() {
-            if !self.displayed.images().any(|kept| Arc::ptr_eq(kept, image))
-                && !self
-                    .retired
-                    .iter()
-                    .any(|retired| Arc::ptr_eq(retired, image))
-            {
-                self.retired.push(Arc::clone(image));
-            }
-        }
+        self.displayed = Arc::new(frame);
     }
 }
 
