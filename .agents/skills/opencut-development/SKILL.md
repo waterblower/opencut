@@ -217,3 +217,6 @@ are relative to the OpenCut root.
   the frame data (a decoded or composited picture) or the position of a frame on
   the timeline. Name an index `frame_index` (or `..._frame_index`, with type
   `TimelineFrameIndex`) and frame data `frame` or `picture`, so a name says which one it is.
+- Do not use `_` in a `match` or `if let ... else` pattern when it stands for only one
+  remaining case. Name that case explicitly, so adding a new case forces the code to
+  be revisited.

@@ -64,7 +64,7 @@ impl Editor {
                 let timeline = self.timeline.as_mut().expect("timeline was checked above");
                 timeline.seek_frame(timeline.playhead());
                 if !matches!(self.preview.target, PreviewTarget::Timeline { .. }) {
-                    self.show_timeline_preview(cx)?;
+                    self.preview.target = self.create_timeline_preview(cx)?;
                 }
                 self.explorer.selected_file = Some(relative_path);
                 cx.notify();
@@ -151,7 +151,7 @@ impl Editor {
             if let Some(timeline) = self.timeline.as_mut() {
                 timeline.seek_frame(timeline.playhead());
             }
-            self.show_timeline_preview(cx)?;
+            self.preview.target = self.create_timeline_preview(cx)?;
             self.schedule_active_timeline_waveforms(cx);
             Ok(())
         })();
@@ -161,13 +161,12 @@ impl Editor {
 }
 
 impl Editor {
-    /// Opens a standalone preview player on a snapshot of the active timeline.
+    /// Builds a standalone preview player on a snapshot of the active timeline.
     /// It is deliberately decoupled: later edits and playhead moves in the editing area
     /// do not reach it.
-    pub(crate) fn show_timeline_preview(&mut self, cx: &mut Context<Self>) -> Result<()> {
+    pub fn create_timeline_preview(&self, cx: &mut Context<Self>) -> Result<PreviewTarget> {
         let Some(timeline) = self.timeline.as_ref() else {
-            self.preview.target = PreviewTarget::None;
-            return Ok(());
+            return Ok(PreviewTarget::None);
         };
         let relative_path = match timeline.path.strip_prefix(&self.project_root) {
             Ok(relative_path) => relative_path.to_path_buf(),
@@ -177,11 +176,10 @@ impl Editor {
         player.title = relative_path.display().to_string();
         let player = cx.new(move |_| player);
         let task = player.update(cx, |player, cx| player.start(cx));
-        self.preview.target = PreviewTarget::Timeline {
+        Ok(PreviewTarget::Timeline {
             _task: task,
             path: relative_path,
             player,
-        };
-        Ok(())
+        })
     }
 }
