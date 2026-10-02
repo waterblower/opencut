@@ -1,6 +1,5 @@
-use std::borrow::Cow;
-
 use gpui::{AssetSource, SharedString};
+use std::borrow::Cow;
 
 #[derive(Clone, Copy)]
 pub enum IconName {

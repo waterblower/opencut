@@ -1,13 +1,12 @@
-use crate::editor::PreviewState;
-use crate::editor::editing::validate_clips_placements;
-use crate::editor::preview::PreviewTarget;
-use crate::editor::timeline::{TimelineEditorExt, TimelineRuntimeState};
+use crate::editing::validate_clips_placements;
+use crate::timeline::{TimelineEditorExt, TimelineRuntimeState};
 use ::timeline::{
     Clip, FrameRate, MediaAsset, TextClipProperties, TimelineEditingState, TimelineFrameIndex,
     Track, VideoClipProperties,
 };
 use anyhow::{Result, anyhow, ensure};
-use std::{collections::HashSet, path::PathBuf};
+use std::collections::HashSet;
+use std::path::PathBuf;
 use ulid::Ulid;
 
 #[derive(Clone, Debug)]
@@ -68,20 +67,18 @@ pub enum EditAction {
     },
 }
 
-pub fn apply_timeline_edit(
-    preview: &mut PreviewState,
-    timeline: &mut TimelineRuntimeState,
-    action: EditAction,
-) -> Result<()> {
-    edit_timeline(timeline, action)?;
-    preview.target = PreviewTarget::Timeline;
-    Ok(())
+/// Applies an edit to the editing timeline only; the preview player is not synced with it.
+pub fn apply_timeline_edit(timeline: &mut TimelineRuntimeState, action: EditAction) -> Result<()> {
+    edit_timeline(timeline, action)
 }
 
 pub fn edit_timeline(timeline: &mut TimelineRuntimeState, action: EditAction) -> Result<()> {
-    let mut data = timeline.backend.timeline().clone();
+    let mut data = timeline.editing_state.clone();
     edit_content(&mut data, action)?;
-    timeline.backend.replace_timeline(data)
+    data.validate()?;
+    timeline.editing_state = data;
+    timeline.seek_frame(timeline.playhead());
+    Ok(())
 }
 
 fn edit_content(data: &mut TimelineEditingState, action: EditAction) -> Result<()> {

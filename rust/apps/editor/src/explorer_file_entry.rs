@@ -1,9 +1,16 @@
-use crate::editor::{AppEvent, explorer_drag::AssetBeingDragged, preview_events::PreviewEvent};
+use crate::editor::Editor;
+use crate::event_bus::AppEvent;
+use crate::explorer::explorer_file_badge;
+use crate::explorer_drag::AssetBeingDragged;
+use crate::preview::PreviewTarget;
+use crate::preview_events::PreviewEvent;
+use crate::theme::{ACCENT, MUTED, PANEL, SURFACE_HOVER, TEXT};
 use anyhow::{Result, anyhow};
-use gpui::{AsyncApp, WeakEntity};
-
-use super::*;
-use std::{collections::HashSet, fs, path::Path};
+use gpui::prelude::*;
+use gpui::{AsyncApp, CursorStyle, Entity, MouseButton, MouseDownEvent, div, px, rgb};
+use std::collections::HashSet;
+use std::fs;
+use std::path::{Path, PathBuf};
 
 impl Editor {
     pub fn explorer_file_entry(
@@ -374,7 +381,7 @@ fn file_tree_entry(
 ) -> FileTreeEntry {
     let kind = if is_directory {
         FileTreeEntryKind::Directory { expanded }
-    } else if super::super::timeline_document::is_timeline_path(&relative_path) {
+    } else if crate::timeline_document::is_timeline_path(&relative_path) {
         FileTreeEntryKind::Timeline
     } else if is_video_path(&relative_path) {
         FileTreeEntryKind::Video
@@ -434,7 +441,7 @@ pub fn is_srt_path(path: &Path) -> bool {
 }
 
 pub async fn select_preview_file(
-    editor: WeakEntity<Editor>,
+    editor: Entity<Editor>,
     relative_path: PathBuf,
     cx: &mut AsyncApp,
 ) -> Result<()> {
@@ -463,7 +470,7 @@ pub async fn select_preview_file(
         }
         cx.notify();
         (editor.project_root.clone(), previous)
-    })?;
+    });
 
     // Cancel playback before releasing its entity, on the same lane as the playback task.
     drop(previous);

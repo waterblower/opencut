@@ -1,9 +1,10 @@
-use crate::editor::global_settings::GlobalEditorSettings;
+use crate::global_settings::GlobalEditorSettings;
 use crate::{open_project, quit_after_last_window};
 use anyhow::{Result, bail};
+use gpui::prelude::*;
 use gpui::{
     App, Bounds, Context, IntoElement, PathPromptOptions, Render, Window, WindowBounds,
-    WindowOptions, div, prelude::*, px, rgb, size,
+    WindowOptions, div, px, rgb, size,
 };
 use std::path::PathBuf;
 

@@ -1,6 +1,13 @@
-use super::*;
+use crate::context_menu::ContextMenu;
+use crate::edit_action::{EditAction, apply_timeline_edit};
+use crate::editor::Editor;
+use crate::model::MediaKind;
+use crate::timeline_clip::VideoClipProperties;
+use crate::track::TrackKind;
 use ::timeline::TimelineEditingState;
 use anyhow::Result;
+use gpui::prelude::*;
+use ulid::Ulid;
 
 pub(super) fn transform_targets(
     timeline: &TimelineEditingState,
@@ -44,7 +51,7 @@ impl Editor {
         let Some((properties, targets)) = self
             .timeline
             .as_ref()
-            .and_then(|timeline| transform_targets(timeline.backend.timeline(), source_clip_id))
+            .and_then(|timeline| transform_targets(&timeline.editing_state, source_clip_id))
         else {
             return Ok(());
         };
@@ -58,10 +65,9 @@ impl Editor {
         timeline.record_editing_history();
         let clip_ids = targets
             .into_iter()
-            .map(|index| timeline.backend.timeline().clips[index].id())
+            .map(|index| timeline.editing_state.clips[index].id())
             .collect();
         apply_timeline_edit(
-            &mut self.preview,
             timeline,
             EditAction::SetVideoProperties {
                 clip_ids,

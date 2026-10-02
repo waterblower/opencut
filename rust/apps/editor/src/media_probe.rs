@@ -1,13 +1,12 @@
-use crate::editor::explorer::{is_audio_path, is_image_path, is_video_path};
-
-use super::{
-    model::{DEFAULT_IMAGE_CLIP_DURATION, MediaAsset, MediaKind},
-    timeline::FrameRate,
-};
+use crate::explorer_file_entry::{is_audio_path, is_image_path, is_video_path};
+use crate::model::{DEFAULT_IMAGE_CLIP_DURATION, MediaAsset, MediaKind};
+use crate::timeline::FrameRate;
 use anyhow::{Context as _, Result, bail};
-use ffmpeg::{codec, format, media::Type};
+use ffmpeg::media::Type;
+use ffmpeg::{codec, format};
 use ffmpeg_next as ffmpeg;
-use std::{fs, path::Path};
+use std::fs;
+use std::path::Path;
 use ulid::Ulid;
 
 pub(super) fn probe_asset(path: &Path) -> Result<MediaAsset> {

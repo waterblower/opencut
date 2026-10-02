@@ -1,11 +1,22 @@
-use super::*;
-use crate::{
-    asset::IconName,
-    editor::{srt::srt_text_clips, timeline_clip::text_clip_component},
-};
+use crate::asset::IconName;
+use crate::editor::Editor;
+use crate::explorer_drag::AssetBeingDragged;
+use crate::layout::{TIMELINE_PADDING, TRACK_HEIGHT};
+use crate::model::MediaKind;
+use crate::srt::srt_text_clips;
+use crate::theme::{ACCENT, BORDER, CLIP_BLUE, ERROR, MUTED, SURFACE, SURFACE_HOVER};
+use crate::timeline::{PreviewDropAsset, TimelineFrameIndex};
+use crate::timeline_clip::{Clip, text_clip_component};
+use crate::timeline_interactions::TimelineTool;
+use crate::track::{Track, TrackKind};
+use crate::waveform;
 use ::timeline::TimelineEditingState;
-use gpui::{Bounds, canvas, fill, point, rgba, size};
+use gpui::prelude::*;
+use gpui::{
+    Bounds, CursorStyle, MouseButton, MouseDownEvent, canvas, div, fill, point, px, rgb, rgba, size,
+};
 use std::sync::Arc;
+use ulid::Ulid;
 
 const CLIP_WAVEFORM_HEIGHT: f32 = 80.0;
 const CLIP_WAVEFORM_VISUAL_GAIN: f32 = 2.0;
@@ -202,8 +213,7 @@ impl Editor {
             .expect("track rows require an active timeline");
         let track_id = track.id;
         let clips = timeline
-            .backend
-            .timeline()
+            .editing_state
             .clips_on_track(track.id)
             .map(|clip| self.timeline_clip(clip, cx))
             .collect::<Vec<_>>();
@@ -218,7 +228,7 @@ impl Editor {
                     .filter(|(_, track_id, _)| *track_id == track.id)
                     .map(|(clip_id, _, start)| {
                         timeline_clip_move_preview(
-                            timeline.backend.timeline(),
+                            &timeline.editing_state,
                             timeline.pixels_per_second,
                             *clip_id,
                             *start,
@@ -233,11 +243,7 @@ impl Editor {
             if preview.track_id != track.id {
                 return None;
             }
-            preview_drop_asset(
-                preview,
-                timeline.backend.timeline(),
-                timeline.pixels_per_second,
-            )
+            preview_drop_asset(preview, &timeline.editing_state, timeline.pixels_per_second)
         })();
 
         div()
@@ -290,7 +296,7 @@ impl Editor {
                     });
                 text_clip_component(
                     clip.clone(),
-                    timeline.backend.timeline().settings.frame_rate,
+                    timeline.editing_state.settings.frame_rate,
                     timeline.pixels_per_second,
                     timeline.interaction.selected_clip_ids.contains(&clip_id),
                     moving,
@@ -313,14 +319,14 @@ impl Editor {
             .as_ref()
             .expect("timeline clips require an active timeline");
         let media = clip.media().expect("video tracks contain media clips");
-        let asset = timeline.backend.timeline().asset(media.asset_id);
+        let asset = timeline.editing_state.asset(media.asset_id);
         let name = asset
             .map(|asset| asset.name.clone())
             .unwrap_or_else(|| "Missing media".to_string());
 
         let waveform = asset.and_then(|asset| self.waveform_cache.get(&asset.path).cloned());
-        let source_start = timeline.backend.timeline().seconds(media.source_in);
-        let source_end = timeline.backend.timeline().seconds(media.source_out);
+        let source_start = timeline.editing_state.seconds(media.source_in);
+        let source_end = timeline.editing_state.seconds(media.source_out);
         let content = div()
             .absolute()
             .inset_0()
@@ -339,22 +345,21 @@ impl Editor {
             .as_ref()
             .expect("timeline clips require an active timeline");
         let media = clip.media().expect("audio tracks contain media clips");
-        let asset = timeline.backend.timeline().asset(media.asset_id);
+        let asset = timeline.editing_state.asset(media.asset_id);
         let name = asset
             .map(|asset| asset.name.clone())
             .unwrap_or_else(|| "Missing media".to_string());
         let waveform = asset.and_then(|asset| self.waveform_cache.get(&asset.path).cloned());
-        let source_start = timeline.backend.timeline().seconds(media.source_in);
-        let source_end = timeline.backend.timeline().seconds(media.source_out);
+        let source_start = timeline.editing_state.seconds(media.source_in);
+        let source_end = timeline.editing_state.seconds(media.source_out);
         let detail = if asset.is_some_and(|asset| asset.has_audio) {
             "Audio".to_string()
         } else {
             format!(
                 "{}s",
                 timeline
-                    .backend
-                    .timeline()
-                    .seconds(clip.frame_length(timeline.backend.timeline().settings.frame_rate))
+                    .editing_state
+                    .seconds(clip.frame_length(timeline.editing_state.settings.frame_rate))
                     .round()
             )
         };
@@ -390,12 +395,11 @@ impl Editor {
                 drag.changed && drag.items.iter().any(|item| item.clip_id == clip_id)
             });
         let left = TIMELINE_PADDING
-            + timeline.backend.timeline().seconds(clip.timeline_start()) as f32
+            + timeline.editing_state.seconds(clip.timeline_start()) as f32
                 * timeline.pixels_per_second;
         let width = (timeline
-            .backend
-            .timeline()
-            .seconds(clip.frame_length(timeline.backend.timeline().settings.frame_rate))
+            .editing_state
+            .seconds(clip.frame_length(timeline.editing_state.settings.frame_rate))
             as f32
             * timeline.pixels_per_second)
             .max(4.0);

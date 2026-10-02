@@ -1,4 +1,16 @@
-use super::*;
+use crate::editor::Editor;
+use crate::event_bus::AppEvent;
+use crate::explorer_file_entry::{is_audio_path, is_video_path};
+use crate::layout::{TIMELINE_PADDING, TRACK_HEADER_WIDTH};
+use crate::theme::{BORDER, ERROR, MUTED, TEXT};
+use crate::timeline::TimelineFrameIndex;
+use crate::timeline_clip_menu::transform_targets;
+use crate::timeline_document;
+use crate::track::TrackKind;
+use gpui::prelude::*;
+use gpui::{CursorStyle, MouseButton, MouseDownEvent, div, px, rgb};
+use std::path::PathBuf;
+use ulid::Ulid;
 
 pub(super) enum ContextMenu {
     None,
@@ -49,8 +61,7 @@ impl Editor {
         let can_open_timeline_settings =
             !menu.is_directory && timeline_document::is_timeline_path(&menu.relative_path);
         let can_transcribe = !menu.is_directory
-            && (explorer::is_video_path(&menu.relative_path)
-                || explorer::is_audio_path(&menu.relative_path));
+            && (is_video_path(&menu.relative_path) || is_audio_path(&menu.relative_path));
         let can_rename = !menu.relative_path.as_os_str().is_empty();
         let can_trash = can_rename
             && !self.timeline.as_ref().is_some_and(|timeline| {
@@ -256,7 +267,7 @@ impl Editor {
         let enabled = self
             .timeline
             .as_ref()
-            .and_then(|timeline| transform_targets(timeline.backend.timeline(), menu.clip_id))
+            .and_then(|timeline| transform_targets(&timeline.editing_state, menu.clip_id))
             .is_some_and(|(_, targets)| !targets.is_empty());
 
         div()
@@ -437,8 +448,7 @@ impl Editor {
             return;
         };
         if !timeline
-            .backend
-            .timeline()
+            .editing_state
             .track(track_id)
             .is_some_and(|track| track.kind == TrackKind::Text)
         {
@@ -448,8 +458,7 @@ impl Editor {
         let content_x =
             f32::from(event.position.x) - TRACK_HEADER_WIDTH - scroll_x - TIMELINE_PADDING;
         let position = timeline
-            .backend
-            .timeline()
+            .editing_state
             .nearest_time(content_x as f64 / timeline.pixels_per_second as f64)
             .max(TimelineFrameIndex::ZERO);
         self.context_menu = ContextMenu::TextTrack(TextTrackContextMenu {

@@ -1,6 +1,8 @@
-use super::*;
+use crate::timeline_document;
 use ::transcribe::{self, Format, Options, SRT};
-use anyhow::bail;
+use anyhow::{Result, bail};
+use gpui::prelude::*;
+use std::path::PathBuf;
 
 /// Return merged SRT subtitles. The caller owns serialization and publication.
 /// Run on a Tokio executor; audio preparation runs directly on the caller's thread.

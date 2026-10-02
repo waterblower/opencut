@@ -1,24 +1,69 @@
 #![allow(dead_code)]
 
-#[path = "mod.rs"]
-mod editor;
-mod gpui_inspector;
-mod macos_pinch;
-mod project_picker;
-
+mod actions;
 mod asset;
-use asset::EditorAssets;
+mod clip_placement;
+mod context_menu;
+mod debug_state;
+mod edit_action;
+mod editing;
+mod editor;
+mod editor_view;
+mod event_bus;
+mod explorer;
+mod explorer_drag;
+mod explorer_file_entry;
+mod explorer_file_menu;
+mod explorer_view;
+#[path = "generic-containers/mod.rs"]
+mod generic_containers;
+mod global_settings;
+mod global_settings_dialog;
+mod gpui_inspector;
+mod layout;
+mod macos_pinch;
+mod media_probe;
+mod model;
+mod preview;
+mod preview_events;
+mod preview_image;
+mod project;
+mod project_picker;
+mod project_settings;
+mod properties;
+mod properties_text;
+mod properties_transform;
+mod settings;
+mod srt;
+#[cfg(test)]
+#[path = "tests/test_support.rs"]
+mod test_support;
+mod theme;
+mod time_format;
+mod timeline;
+mod timeline_clip;
+mod timeline_clip_menu;
+mod timeline_document;
+mod timeline_interactions;
+mod timeline_persistence;
+mod timeline_track_menu;
+mod timeline_ui;
+mod track;
+mod track_ui;
+mod transcription;
+mod waveform;
 
-use editor::global_settings::GlobalEditorSettings;
-use editor::{Editor, EventBus};
+use asset::EditorAssets;
+use editor::Editor;
+use event_bus::{EventBus, handle_event};
+use global_settings::GlobalEditorSettings;
 use gpui::{
-    App, Bounds, Entity, WindowBounds, WindowHandle, WindowOptions, prelude::*, px, rgb, size,
+    App, Bounds, Entity, Subscription, WindowBounds, WindowHandle, WindowOptions, prelude::*, px,
+    size,
 };
 use gpui_platform::application;
 use std::io::Write as _;
 use std::path::PathBuf;
-
-use crate::editor::event_bus::handle_event;
 
 fn main() -> anyhow::Result<()> {
     env_logger::Builder::from_env(
@@ -46,11 +91,8 @@ fn main() -> anyhow::Result<()> {
 
 fn run_app(cx: &mut App, project_root: PathBuf) {
     gpui_tokio::init(cx);
-    gpui_component::init(cx);
-
-    gpui_component::Theme::global_mut(cx).caret = rgb(0xffffff).into();
     gpui_inspector::init(cx);
-    editor::bind_keys(cx);
+    actions::bind_keys(cx);
     cx.set_quit_mode(gpui::QuitMode::Explicit);
     if project_root.is_dir() {
         open_project(project_root, cx);
@@ -62,19 +104,25 @@ fn run_app(cx: &mut App, project_root: PathBuf) {
     }
 }
 
+/// The open editor window, and the subscription that quits the app when its last window closes.
+struct OpenProject {
+    window: WindowHandle<Editor>,
+    close_subscription: Option<Subscription>,
+}
+
 fn open_project(project_root: PathBuf, cx: &mut App) {
-    let mut close_subscription = Some(cx.on_window_closed(quit_after_last_window));
     let event_bus = cx.new(|_| EventBus {});
-    let mut window = open_editor_window(project_root, event_bus.clone(), cx);
+    let window = open_editor_window(project_root, event_bus.clone(), cx);
+    let close_subscription = cx.on_window_closed(quit_after_last_window);
+    let project = cx.new(|_| OpenProject {
+        window,
+        close_subscription: Some(close_subscription),
+    });
     cx.subscribe(&event_bus, move |event_bus, event, cx| {
-        handle_event(
-            cx,
-            &mut window,
-            event.clone(),
-            event_bus,
-            &mut close_subscription,
-            quit_after_last_window,
-        )
+        let project_for_task = project.clone();
+        let owned_event = event.clone();
+        cx.spawn(async move |cx| handle_event(cx, project_for_task, event_bus, owned_event).await)
+            .detach();
     })
     .detach();
 }

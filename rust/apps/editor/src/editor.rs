@@ -1,16 +1,33 @@
-use crate::editor::event_bus::handle_app_event;
-use crate::editor::explorer::ExplorerState;
-use anyhow::Error;
+use crate::context_menu::ContextMenu;
+use crate::editing::ClipClipboard;
+use crate::event_bus::{AppEvent, EventBus};
+use crate::explorer::{ExplorerState, load_explorer_expansion};
+use crate::explorer_drag::AssetBeingDragged;
+use crate::explorer_file_entry::visible_tree;
+use crate::generic_containers::{HorizontalSplitState, TextInput};
+use crate::preview::{PreviewState, PreviewTarget};
+use crate::project_settings::load_project_local_settings;
+use crate::properties::PropertiesPanelState;
+use crate::properties_transform::VideoTransformInputs;
+use crate::timeline::TimelineRuntimeState;
+use crate::waveform;
+use anyhow::Result;
+use gpui::prelude::*;
+use gpui::{Entity, FocusHandle, ScrollHandle};
+use std::collections::{HashMap, HashSet};
 use std::io::{Error as IoError, ErrorKind};
-use std::path::Path;
+use std::path::{Path, PathBuf};
+use std::sync::Arc;
+use std::time::{Duration, Instant};
 
-use super::*;
+const IDLE_UPDATE_INTERVAL: Duration = Duration::from_millis(16);
 
 pub(crate) struct Editor {
     // main UI sections
     pub(super) explorer: ExplorerState,
     pub(super) preview: PreviewState,
     pub timeline: Option<TimelineRuntimeState>,
+
     // other
     pub project_root: PathBuf,
     pub(super) waveform_jobs: HashSet<PathBuf>,
@@ -25,7 +42,7 @@ pub(crate) struct Editor {
     // entities
     pub(super) event_bus: Entity<EventBus>,
     pub(super) upper_split_state: Entity<HorizontalSplitState>,
-    pub global_settings_input: Option<Entity<gpui_component::input::InputState>>,
+    pub global_settings_input: Option<Entity<TextInput>>,
 }
 
 impl Editor {
@@ -45,10 +62,7 @@ impl Editor {
                 let Some(timeline_path) = project_settings.active_timeline else {
                     return Ok(None);
                 };
-                let timeline = match TimelineRuntimeState::load(
-                    project_root.join(&timeline_path),
-                    &project_root,
-                ) {
+                let timeline = match TimelineRuntimeState::load(project_root.join(&timeline_path)) {
                     Ok(timeline) => timeline,
                     Err(error) => {
                         // The saved timeline may have been moved or deleted; open
@@ -70,7 +84,9 @@ impl Editor {
 
         let focus_handle = cx.focus_handle();
         let explorer = {
-            let explorer_filter = cx.new(|cx| ExplorerFilter::new(focus_handle.clone(), cx));
+            let explorer_filter = cx.new(|cx| {
+                TextInput::new_search("explorer-filter", "Filter files…", focus_handle.clone(), cx)
+            });
             cx.observe(&explorer_filter, |editor, _, cx| {
                 editor.schedule_explorer_search(cx);
                 cx.notify();
@@ -120,15 +136,6 @@ impl Editor {
         };
 
         start_updates(cx);
-        cx.subscribe(&event_bus, |_, _, event: &AppEvent, cx| {
-            let event = event.clone();
-            cx.spawn(async move |editor, cx| {
-                handle_app_event(editor, event, cx).await;
-            })
-            .detach();
-        })
-        .detach();
-
         let project_local_settings = load_project_local_settings(&project_root);
         let mut editor = Self {
             // Entities
@@ -151,8 +158,14 @@ impl Editor {
             active_asset_drag: AssetBeingDragged::None,
         };
         if let Some(timeline) = editor.timeline.as_mut() {
-            timeline.backend.seek_frame(timeline.playhead())?;
+            timeline.seek_frame(timeline.playhead());
         }
+
+        // todo:
+        // instead of have an async starting here
+        // with a sync signature, so that we increase indirect
+        // we should submit an event to compute waveforms
+        // and update the UI using real async functions
         editor.schedule_project_waveforms(cx);
         Ok(editor)
     }
@@ -166,7 +179,7 @@ fn start_updates(cx: &mut Context<Editor>) {
     cx.spawn(async move |editor, cx| {
         loop {
             cx.background_executor().timer(IDLE_UPDATE_INTERVAL).await;
-            let result = editor.update(cx, |editor, cx| {
+            let result = editor.update(cx, |editor, cx| -> Result<()> {
                 let pinch_zoomed = editor.apply_timeline_pinch()?;
                 let ended_explorer_drag = !cx.has_active_drag();
                 if ended_explorer_drag && let Some(timeline) = editor.timeline.as_mut() {
@@ -183,7 +196,7 @@ fn start_updates(cx: &mut Context<Editor>) {
                 if should_render {
                     cx.notify();
                 }
-                Ok::<(), Error>(())
+                Ok(())
             });
             match result {
                 Ok(Ok(())) => {}

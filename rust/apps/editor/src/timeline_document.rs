@@ -1,10 +1,7 @@
-use anyhow::{Context as _, Result, anyhow};
-
 use ::timeline::TimelineSerialization;
-use std::{
-    fs,
-    path::{Path, PathBuf},
-};
+use anyhow::{Context as _, Result, anyhow};
+use std::fs;
+use std::path::{Path, PathBuf};
 
 const TIMELINE_SUFFIX: &str = ".timeline.json";
 

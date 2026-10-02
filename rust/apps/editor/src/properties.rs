@@ -1,23 +1,21 @@
-use crate::editor::{
-    BORDER, EventBus, MUTED, PANEL, SURFACE,
-    editor::Editor,
-    explorer::{is_audio_path, is_image_path, is_srt_path, is_video_path},
-    format_time,
-    properties_text::TextClipPropertiesView,
-    properties_transform::{properties_section_label, properties_tab},
-    timeline::{FrameRateLabel, TimelineRuntimeState},
-    timeline_clip::{AudioClip, Clip, TextClip, VideoClip},
-    timeline_document,
-};
+use crate::editor::Editor;
+use crate::event_bus::EventBus;
+use crate::explorer_file_entry::{is_audio_path, is_image_path, is_srt_path, is_video_path};
+use crate::properties_text::TextClipPropertiesView;
+use crate::properties_transform::{VideoTransformInputs, properties_section_label, properties_tab};
+use crate::theme::{BORDER, MUTED, PANEL, SURFACE};
+use crate::time_format::format_time;
+use crate::timeline::{FrameRateLabel, TimelineRuntimeState};
+use crate::timeline_clip::{AudioClip, Clip, TextClip, VideoClip};
+use crate::timeline_document;
 use gpui::prelude::FluentBuilder;
 use gpui::{
-    Entity, InteractiveElement, IntoElement, ObjectFit, ParentElement, StatefulInteractiveElement,
-    Styled, StyledImage, div, img, px, rgb,
+    Entity, FocusHandle, InteractiveElement, IntoElement, ObjectFit, ParentElement,
+    StatefulInteractiveElement, Styled, StyledImage, div, img, px, rgb,
 };
-use std::{
-    fs,
-    path::{Path, PathBuf},
-};
+use std::fs;
+use std::path::{Path, PathBuf};
+use ulid::Ulid;
 
 pub(super) enum PropertiesPanelViewable<'a> {
     VideoClip(&'a VideoClip),
@@ -35,7 +33,7 @@ pub fn current_properties_panel_viewable(editor: &Editor) -> PropertiesPanelView
     if let Some(timeline) = editor.timeline.as_ref()
         && let Some(clip_id) = timeline.interaction.selected_clip_id
     {
-        let Some(clip) = timeline.backend.timeline().clip(clip_id) else {
+        let Some(clip) = timeline.editing_state.clip(clip_id) else {
             return PropertiesPanelViewable::None;
         };
         return match clip {
@@ -75,13 +73,20 @@ pub fn current_properties_panel_viewable(editor: &Editor) -> PropertiesPanelView
     PropertiesPanelViewable::TimelineFile(timeline)
 }
 
+pub(crate) struct PropertiesPanelState {
+    pub(crate) transform_inputs: VideoTransformInputs,
+    pub(crate) transform_input_clip_id: Option<Ulid>,
+    pub(crate) text_input_clip_id: Option<Ulid>,
+}
+
 pub(super) fn properties_panel(
     data: PropertiesPanelViewable<'_>,
     event_bus: Entity<EventBus>,
+    return_focus: FocusHandle,
 ) -> gpui::AnyElement {
     match data {
         PropertiesPanelViewable::TextClip(clip) => {
-            TextClipPropertiesView::new(clip.clone(), event_bus).into_any_element()
+            TextClipPropertiesView::new(clip.clone(), event_bus, return_focus).into_any_element()
         }
         PropertiesPanelViewable::VideoClip(clip) => video_clip(clip),
         PropertiesPanelViewable::AudioClip(clip) => audio_clip(clip),
@@ -197,14 +202,12 @@ fn timeline_file(timeline: &TimelineRuntimeState) -> gpui::AnyElement {
         .map(|name| name.to_string_lossy().into_owned())
         .unwrap_or_else(|| timeline.path.display().to_string());
     let duration = timeline
-        .backend
-        .timeline()
+        .editing_state
         .settings
         .frame_rate
-        .seconds(timeline.backend.timeline().content_duration());
+        .seconds(timeline.editing_state.content_duration());
     let playhead = timeline
-        .backend
-        .timeline()
+        .editing_state
         .settings
         .frame_rate
         .seconds(timeline.playhead());
@@ -250,23 +253,22 @@ fn timeline_file(timeline: &TimelineRuntimeState) -> gpui::AnyElement {
                 .child(property_field("Playhead", format_time(playhead, false), ""))
                 .child(property_field(
                     "Frame rate",
-                    timeline.backend.timeline().settings.frame_rate.label(),
+                    timeline.editing_state.settings.frame_rate.label(),
                     "",
                 ))
                 .child(property_field(
                     "Resolution",
                     format!(
                         "{} × {}",
-                        timeline.backend.timeline().settings.width,
-                        timeline.backend.timeline().settings.height
+                        timeline.editing_state.settings.width,
+                        timeline.editing_state.settings.height
                     ),
                     "px",
                 ))
                 .child(property_field(
                     "Audio rate",
                     timeline
-                        .backend
-                        .timeline()
+                        .editing_state
                         .settings
                         .audio_sample_rate
                         .to_string(),
@@ -274,12 +276,12 @@ fn timeline_file(timeline: &TimelineRuntimeState) -> gpui::AnyElement {
                 ))
                 .child(property_field(
                     "Tracks",
-                    timeline.backend.timeline().tracks.len().to_string(),
+                    timeline.editing_state.tracks.len().to_string(),
                     "",
                 ))
                 .child(property_field(
                     "Clips",
-                    timeline.backend.timeline().clips.len().to_string(),
+                    timeline.editing_state.clips.len().to_string(),
                     "",
                 )),
         )

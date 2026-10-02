@@ -1,8 +1,11 @@
 use super::*;
-use crate::editor::tests::TimelineTestExt;
-use crate::editor::timeline_clip::AudioClipProperties;
+use crate::model::MediaKind;
+use crate::test_support::{TimelineTestExt, ulid};
+use crate::timeline::TimelineFrameIndex;
+use crate::timeline_clip::{AudioClip, AudioClipProperties, Clip, VideoClipProperties};
 use ::timeline::TimelineEditingState;
 use anyhow::Result;
+use std::collections::HashSet;
 
 #[test]
 fn validates_one_clip_placement() {

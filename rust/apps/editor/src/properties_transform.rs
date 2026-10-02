@@ -1,5 +1,10 @@
-use super::*;
+use crate::edit_action::{EditAction, apply_timeline_edit};
+use crate::editor::Editor;
+use crate::generic_containers::TextInput;
+use crate::theme::{ACCENT, MUTED, TEXT};
 use anyhow::Result;
+use gpui::prelude::*;
+use gpui::{Entity, FocusHandle, div, rgb};
 
 #[derive(Clone, Copy)]
 enum VideoTransformProperty {
@@ -9,16 +14,16 @@ enum VideoTransformProperty {
 }
 
 pub(super) struct VideoTransformInputs {
-    position_x: Entity<ExplorerFilter>,
-    position_y: Entity<ExplorerFilter>,
-    scale: Entity<ExplorerFilter>,
+    position_x: Entity<TextInput>,
+    position_y: Entity<TextInput>,
+    scale: Entity<TextInput>,
 }
 
 impl VideoTransformInputs {
     pub(super) fn new(return_focus: FocusHandle, cx: &mut Context<Editor>) -> Self {
         let field = |cx: &mut Context<Editor>, id, value: &str| {
             cx.new(|cx| {
-                ExplorerFilter::new_inline_number_field(
+                TextInput::new_inline_number_field(
                     id,
                     value.to_string(),
                     "0.0",
@@ -34,7 +39,7 @@ impl VideoTransformInputs {
         }
     }
 
-    fn input(&self, property: VideoTransformProperty) -> Entity<ExplorerFilter> {
+    fn input(&self, property: VideoTransformProperty) -> Entity<TextInput> {
         match property {
             VideoTransformProperty::PositionX => self.position_x.clone(),
             VideoTransformProperty::PositionY => self.position_y.clone(),
@@ -42,7 +47,7 @@ impl VideoTransformInputs {
         }
     }
 
-    fn fields(&self) -> [(VideoTransformProperty, Entity<ExplorerFilter>); 3] {
+    fn fields(&self) -> [(VideoTransformProperty, Entity<TextInput>); 3] {
         [
             (VideoTransformProperty::PositionX, self.position_x.clone()),
             (VideoTransformProperty::PositionY, self.position_y.clone()),
@@ -59,7 +64,7 @@ impl Editor {
         for (property, input) in inputs.fields() {
             let observed_input = input.clone();
             cx.observe(&input, move |editor, _, cx| {
-                let value = observed_input.read(cx).query().to_string();
+                let value = observed_input.read(cx).text().to_string();
                 if let Err(error) = editor.set_video_transform_from_text(property, &value) {
                     log::error!("Could not update video transform: {error:?}");
                 }
@@ -83,7 +88,7 @@ impl Editor {
         {
             return;
         }
-        let Some(clip) = timeline.backend.timeline().clip(clip_id) else {
+        let Some(clip) = timeline.editing_state.clip(clip_id) else {
             self.properties.transform_input_clip_id = None;
             return;
         };
@@ -101,7 +106,7 @@ impl Editor {
         for (property, value) in values {
             let text = format_transform_value(value);
             let input = self.properties.transform_inputs.input(property);
-            if input.read(cx).query() != text {
+            if input.read(cx).text() != text {
                 input.update(cx, |input, _| input.set_text_silently(text));
             }
         }
@@ -120,7 +125,7 @@ impl Editor {
         let Some(timeline) = self.timeline.as_ref() else {
             return Ok(());
         };
-        if timeline.backend.timeline().clip_locked(clip_id) {
+        if timeline.editing_state.clip_locked(clip_id) {
             return Ok(());
         }
         let Ok(mut value) = text.trim().parse::<f64>() else {
@@ -135,10 +140,10 @@ impl Editor {
         ) {
             value /= 100.0;
         }
-        let Some(index) = timeline.backend.timeline().clip_index(clip_id) else {
+        let Some(index) = timeline.editing_state.clip_index(clip_id) else {
             return Ok(());
         };
-        let Some(clip) = timeline.backend.timeline().clips[index].media() else {
+        let Some(clip) = timeline.editing_state.clips[index].media() else {
             return Ok(());
         };
         let mut properties = clip.video_properties;
@@ -155,7 +160,6 @@ impl Editor {
         };
         timeline.record_editing_history();
         apply_timeline_edit(
-            &mut self.preview,
             timeline,
             EditAction::SetVideoProperties {
                 clip_ids: vec![clip_id],

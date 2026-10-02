@@ -1,6 +1,12 @@
-use super::*;
+use crate::edit_action::{EditAction, apply_timeline_edit};
+use crate::editor::Editor;
+use crate::timeline::TimelineFrameIndex;
+use crate::timeline_clip::{Clip, TextClip, TextClipProperties};
+use crate::track::{Track, TrackKind};
 use ::timeline::TimelineEditingState;
 use anyhow::{Result, bail};
+use gpui::prelude::*;
+use ulid::Ulid;
 
 impl Editor {
     pub(super) fn add_text(
@@ -13,11 +19,10 @@ impl Editor {
         let Some(timeline) = self.timeline.as_mut() else {
             return Ok(());
         };
-        let clip = text_clip_at(timeline.backend.timeline(), track_id, position)?;
+        let clip = text_clip_at(&timeline.editing_state, track_id, position)?;
         timeline.record_editing_history();
         let clip_id = clip.id();
         apply_timeline_edit(
-            &mut self.preview,
             timeline,
             EditAction::AddClips {
                 clips: vec![clip],

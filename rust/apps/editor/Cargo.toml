@@ -9,7 +9,6 @@ editor-tests = ["gpui/test-support"]
 
 [dependencies]
 timeline.workspace = true
-engine.workspace = true
 transcribe.workspace = true
 player-ui.workspace = true
 anyhow.workspace = true
@@ -17,7 +16,6 @@ env_logger.workspace = true
 ffmpeg-next.workspace = true
 gpui_platform.workspace = true
 gpui_tokio.workspace = true
-gpui-component.workspace = true
 image.workspace = true
 log.workspace = true
 resvg.workspace = true

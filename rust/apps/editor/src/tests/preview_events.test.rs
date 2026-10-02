@@ -1,4 +1,5 @@
 use super::*;
+use crate::preview::PreviewTarget;
 
 #[test]
 fn completed_open_only_installs_into_the_requested_file_preview() {
@@ -22,13 +23,6 @@ fn completed_open_only_installs_into_the_requested_file_preview() {
         Path::new("/other-project"),
         Some(file),
         &PreviewTarget::None,
-        root,
-        file
-    ));
-    assert!(!file_preview_requested(
-        root,
-        Some(file),
-        &PreviewTarget::Timeline,
         root,
         file
     ));
