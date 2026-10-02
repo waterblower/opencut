@@ -148,21 +148,21 @@ pub fn handle_event(
                 );
             }
         }
-        AppEvent::Preview(_)
-        | AppEvent::HorizontalSplitResized(_)
-        | AppEvent::Edit(_)
-        | AppEvent::DragStarted(_)
-        | AppEvent::DragMove(_)
-        | AppEvent::DragDrop
-        | AppEvent::OpenTimeline { .. }
-        | AppEvent::TimelineSeek { .. } => {
-            // These events are handled by the editor subscriber in handle_app_event.
+        event => {
+            let editor = match window.entity(cx) {
+                Ok(editor) => editor.downgrade(),
+                Err(error) => {
+                    log::error!("Could not find the editor window: {error:?}");
+                    return;
+                }
+            };
+            cx.spawn(async move |cx| handle_app_event(editor, event, cx).await)
+                .detach();
         }
     }
 }
 
-pub async fn handle_app_event(editor: WeakEntity<Editor>, event: AppEvent, cx: &mut AsyncApp) {
-    eprintln!("handle_app_event: {:?}", event);
+async fn handle_app_event(editor: WeakEntity<Editor>, event: AppEvent, cx: &mut AsyncApp) {
     match &event {
         AppEvent::Preview(event) => {
             if let Err(error) = Editor::handle_preview_event(editor.clone(), event, cx).await {

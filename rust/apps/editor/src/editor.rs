@@ -1,6 +1,6 @@
 use crate::context_menu::ContextMenu;
 use crate::editing::ClipClipboard;
-use crate::event_bus::{AppEvent, EventBus, handle_app_event};
+use crate::event_bus::{AppEvent, EventBus};
 use crate::explorer::{ExplorerState, load_explorer_expansion};
 use crate::explorer_drag::AssetBeingDragged;
 use crate::explorer_file_entry::visible_tree;
@@ -136,15 +136,6 @@ impl Editor {
         };
 
         start_updates(cx);
-        cx.subscribe(&event_bus, |_, _, event: &AppEvent, cx| {
-            let event = event.clone();
-            cx.spawn(async move |editor, cx| {
-                handle_app_event(editor, event, cx).await;
-            })
-            .detach();
-        })
-        .detach();
-
         let project_local_settings = load_project_local_settings(&project_root);
         let mut editor = Self {
             // Entities
