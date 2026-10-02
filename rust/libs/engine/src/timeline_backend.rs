@@ -199,20 +199,6 @@ impl TimelineBackend {
         })
     }
 
-    /// Frees GPU textures of frames no longer displayed. Call after changes, from any context.
-    /// Deferred so a window currently being updated is back in the app's window list.
-    pub fn release_retired_images(&mut self, cx: &mut App) {
-        if self.retired.is_empty() {
-            return;
-        }
-        let retired = std::mem::take(&mut self.retired);
-        cx.defer(move |cx| {
-            for image in retired {
-                cx.drop_image(image, None);
-            }
-        });
-    }
-
     pub fn frame_size(&self) -> (u32, u32) {
         (self.timeline.settings.width, self.timeline.settings.height)
     }

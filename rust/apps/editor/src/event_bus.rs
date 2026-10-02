@@ -327,7 +327,7 @@ async fn handle_app_event(
                     }
                     _ => {
                         let Some(timeline) = editor.timeline.as_ref() else {
-                            return Ok(());
+                            return Err(anyhow!("TimelineSeek arrived while no timeline is open"));
                         };
                         let relative_path = match timeline.path.strip_prefix(&editor.project_root) {
                             Ok(relative_path) => relative_path.to_path_buf(),
@@ -338,14 +338,14 @@ async fn handle_app_event(
                             &editor.project_root,
                         )?;
                         timeline_player.title = relative_path.display().to_string();
+                        let position = timeline_player
+                            .backend
+                            .timeline()
+                            .position_at_frame(frame_index);
+                        timeline_player.backend.seek(position)?;
                         let player = cx.new(move |_| timeline_player);
-                        player.update(cx, |player, cx| {
-                            let position = player.backend.timeline().position_at_frame(frame_index);
-                            player.seek(position, cx)
-                        })?;
-                        let task = player.update(cx, |player, cx| player.start(cx));
                         editor.preview.target = PreviewTarget::Timeline {
-                            _task: task,
+                            _task: player.update(cx, |player, cx| player.start(cx)),
                             path: relative_path,
                             player,
                         };
