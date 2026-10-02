@@ -1,50 +1,34 @@
-use crate::editor::{
-    ACCENT, BORDER, MUTED, OpenInDefaultApp, PANEL, RevealInFinder, SURFACE, SURFACE_HOVER, TEXT,
-    clip_placement::validate_clip_placement,
-    context_menu::{ContextMenu, FileContextMenu},
-    edit_action::{EditAction, apply_timeline_edit},
-    editor::Editor,
-    generic_containers::TextInput,
-    model::MediaAsset,
-    preview::PreviewTarget,
-    timeline::TimelineFrameIndex,
-    timeline_clip::{AudioClipProperties, Clip, VideoClip, VideoClipProperties},
-    timeline_document,
-    track::TrackKind,
-};
+use crate::clip_placement::validate_clip_placement;
+use crate::edit_action::{EditAction, apply_timeline_edit};
+use crate::editor::Editor;
+use crate::explorer_file_entry::{FileTreeEntry, FileTreeEntryKind, search_tree, visible_tree};
+use crate::generic_containers::TextInput;
+use crate::model::MediaAsset;
+use crate::theme::{ACCENT, BORDER, MUTED, PANEL, SURFACE, TEXT};
+use crate::timeline::TimelineFrameIndex;
+use crate::timeline_clip::{AudioClipProperties, Clip, VideoClip, VideoClipProperties};
+use crate::track::TrackKind;
 use anyhow::{Result, anyhow, bail};
+use gpui::prelude::FluentBuilder;
 use gpui::{
     AppContext as _, Context, CursorStyle, Entity, InteractiveElement, IntoElement, MouseButton,
-    MouseDownEvent, ParentElement, StatefulInteractiveElement, Styled, Window, div, px, rgb,
+    ParentElement, ScrollHandle, StatefulInteractiveElement, Styled, div, px, rgb,
 };
-use gpui::{ScrollHandle, prelude::FluentBuilder};
 use serde::{Deserialize, Serialize};
-use std::{
-    collections::HashSet,
-    fs,
-    path::{Path, PathBuf},
-    time::{Duration, Instant},
-};
+use std::collections::HashSet;
+use std::fs;
+use std::path::{Path, PathBuf};
+use std::time::{Duration, Instant};
 use ulid::Ulid;
 
-#[path = "explorer_file_entry.rs"]
-mod explorer_file_entry;
-#[path = "explorer_file_menu.rs"]
-mod explorer_file_menu;
-pub use explorer_file_entry::select_preview_file;
-pub(super) use explorer_file_entry::{
-    FileTreeEntry, FileTreeEntryKind, is_audio_path, is_image_path, is_srt_path, is_video_path,
-    search_tree, visible_tree,
-};
-
 pub(super) struct RenameDialogState {
-    relative_path: PathBuf,
-    input: Entity<TextInput>,
+    pub(crate) relative_path: PathBuf,
+    pub(crate) input: Entity<TextInput>,
 }
 
 pub(super) struct NewTimelineDialogState {
-    relative_directory: PathBuf,
-    input: Entity<TextInput>,
+    pub(crate) relative_directory: PathBuf,
+    pub(crate) input: Entity<TextInput>,
 }
 
 pub(super) struct ExplorerExpansion {
@@ -114,7 +98,11 @@ impl ExplorerState {
         Ok(())
     }
 
-    fn toggle_directory(&mut self, project_root: &Path, relative_path: PathBuf) -> Result<()> {
+    pub(crate) fn toggle_directory(
+        &mut self,
+        project_root: &Path,
+        relative_path: PathBuf,
+    ) -> Result<()> {
         if !self.expanded_directories.remove(&relative_path) {
             self.expanded_directories.insert(relative_path);
         }
@@ -464,7 +452,7 @@ fn rename_dialog_button(label: &'static str, primary: bool) -> gpui::Stateful<gp
         .child(label)
 }
 
-fn renamed_relative_path(old_path: &std::path::Path, new_name: &str) -> Option<PathBuf> {
+pub(crate) fn renamed_relative_path(old_path: &std::path::Path, new_name: &str) -> Option<PathBuf> {
     let mut components = std::path::Path::new(new_name).components();
     let component = components.next()?;
     if components.next().is_some() || !matches!(component, std::path::Component::Normal(_)) {
@@ -478,7 +466,7 @@ fn renamed_relative_path(old_path: &std::path::Path, new_name: &str) -> Option<P
     )
 }
 
-fn remap_relative_path(
+pub(crate) fn remap_relative_path(
     path: &std::path::Path,
     old_path: &std::path::Path,
     new_path: &std::path::Path,
@@ -493,7 +481,7 @@ fn remap_relative_path(
 }
 
 #[cfg(target_os = "macos")]
-fn move_path_to_trash(path: &std::path::Path) -> Result<()> {
+pub(crate) fn move_path_to_trash(path: &std::path::Path) -> Result<()> {
     use objc2_foundation::{NSFileManager, NSString, NSURL};
 
     let path = path
@@ -512,7 +500,7 @@ fn move_path_to_trash(_path: &std::path::Path) -> Result<()> {
     ))
 }
 
-fn explorer_file_badge(entry: &FileTreeEntry) -> gpui::Div {
+pub(crate) fn explorer_file_badge(entry: &FileTreeEntry) -> gpui::Div {
     let extension = entry
         .absolute_path
         .extension()

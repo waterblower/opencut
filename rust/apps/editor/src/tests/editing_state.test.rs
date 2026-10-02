@@ -1,12 +1,13 @@
-use crate::editor::edit_action::{EditAction, edit_timeline};
-use crate::editor::timeline::TimelineRuntimeState;
+use crate::edit_action::{EditAction, edit_timeline};
+use crate::timeline::TimelineRuntimeState;
 use ::timeline::{
     Clip, FrameRate, TextClip, TextClipProperties, TimelineEditingState, TimelineFrameIndex,
     TimelineSettings, Track, TrackKind,
 };
 use anyhow::Result;
 use gpui::{point, px};
-use std::{sync::Arc, time::Duration};
+use std::sync::Arc;
+use std::time::Duration;
 use ulid::Ulid;
 
 #[test]

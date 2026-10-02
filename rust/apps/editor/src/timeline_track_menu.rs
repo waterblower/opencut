@@ -1,6 +1,12 @@
-use super::*;
+use crate::edit_action::{EditAction, apply_timeline_edit};
+use crate::editor::Editor;
+use crate::timeline::TimelineFrameIndex;
+use crate::timeline_clip::{Clip, TextClip, TextClipProperties};
+use crate::track::{Track, TrackKind};
 use ::timeline::TimelineEditingState;
 use anyhow::{Result, bail};
+use gpui::prelude::*;
+use ulid::Ulid;
 
 impl Editor {
     pub(super) fn add_text(

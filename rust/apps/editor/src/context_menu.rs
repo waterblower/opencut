@@ -1,4 +1,16 @@
-use super::*;
+use crate::editor::Editor;
+use crate::event_bus::AppEvent;
+use crate::explorer_file_entry::{is_audio_path, is_video_path};
+use crate::layout::{TIMELINE_PADDING, TRACK_HEADER_WIDTH};
+use crate::theme::{BORDER, ERROR, MUTED, TEXT};
+use crate::timeline::TimelineFrameIndex;
+use crate::timeline_clip_menu::transform_targets;
+use crate::timeline_document;
+use crate::track::TrackKind;
+use gpui::prelude::*;
+use gpui::{CursorStyle, MouseButton, MouseDownEvent, div, px, rgb};
+use std::path::PathBuf;
+use ulid::Ulid;
 
 pub(super) enum ContextMenu {
     None,
@@ -49,8 +61,7 @@ impl Editor {
         let can_open_timeline_settings =
             !menu.is_directory && timeline_document::is_timeline_path(&menu.relative_path);
         let can_transcribe = !menu.is_directory
-            && (explorer::is_video_path(&menu.relative_path)
-                || explorer::is_audio_path(&menu.relative_path));
+            && (is_video_path(&menu.relative_path) || is_audio_path(&menu.relative_path));
         let can_rename = !menu.relative_path.as_os_str().is_empty();
         let can_trash = can_rename
             && !self.timeline.as_ref().is_some_and(|timeline| {

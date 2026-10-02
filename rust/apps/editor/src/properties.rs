@@ -1,23 +1,21 @@
-use crate::editor::{
-    BORDER, EventBus, MUTED, PANEL, SURFACE,
-    editor::Editor,
-    explorer::{is_audio_path, is_image_path, is_srt_path, is_video_path},
-    format_time,
-    properties_text::TextClipPropertiesView,
-    properties_transform::{properties_section_label, properties_tab},
-    timeline::{FrameRateLabel, TimelineRuntimeState},
-    timeline_clip::{AudioClip, Clip, TextClip, VideoClip},
-    timeline_document,
-};
+use crate::editor::Editor;
+use crate::event_bus::EventBus;
+use crate::explorer_file_entry::{is_audio_path, is_image_path, is_srt_path, is_video_path};
+use crate::properties_text::TextClipPropertiesView;
+use crate::properties_transform::{VideoTransformInputs, properties_section_label, properties_tab};
+use crate::theme::{BORDER, MUTED, PANEL, SURFACE};
+use crate::time_format::format_time;
+use crate::timeline::{FrameRateLabel, TimelineRuntimeState};
+use crate::timeline_clip::{AudioClip, Clip, TextClip, VideoClip};
+use crate::timeline_document;
 use gpui::prelude::FluentBuilder;
 use gpui::{
     Entity, FocusHandle, InteractiveElement, IntoElement, ObjectFit, ParentElement,
     StatefulInteractiveElement, Styled, StyledImage, div, img, px, rgb,
 };
-use std::{
-    fs,
-    path::{Path, PathBuf},
-};
+use std::fs;
+use std::path::{Path, PathBuf};
+use ulid::Ulid;
 
 pub(super) enum PropertiesPanelViewable<'a> {
     VideoClip(&'a VideoClip),
@@ -73,6 +71,12 @@ pub fn current_properties_panel_viewable(editor: &Editor) -> PropertiesPanelView
         return PropertiesPanelViewable::None;
     };
     PropertiesPanelViewable::TimelineFile(timeline)
+}
+
+pub(crate) struct PropertiesPanelState {
+    pub(crate) transform_inputs: VideoTransformInputs,
+    pub(crate) transform_input_clip_id: Option<Ulid>,
+    pub(crate) text_input_clip_id: Option<Ulid>,
 }
 
 pub(super) fn properties_panel(

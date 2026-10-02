@@ -1,13 +1,13 @@
-use crate::editor::PreviewState;
-use crate::editor::editing::validate_clips_placements;
-use crate::editor::preview::PreviewTarget;
-use crate::editor::timeline::{TimelineEditorExt, TimelineRuntimeState};
+use crate::editing::validate_clips_placements;
+use crate::preview::{PreviewState, PreviewTarget};
+use crate::timeline::{TimelineEditorExt, TimelineRuntimeState};
 use ::timeline::{
     Clip, FrameRate, MediaAsset, TextClipProperties, TimelineEditingState, TimelineFrameIndex,
     Track, VideoClipProperties,
 };
 use anyhow::{Result, anyhow, ensure};
-use std::{collections::HashSet, path::PathBuf};
+use std::collections::HashSet;
+use std::path::PathBuf;
 use ulid::Ulid;
 
 #[derive(Clone, Debug)]

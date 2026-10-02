@@ -1,9 +1,12 @@
-use super::*;
-use crate::editor::explorer::select_preview_file;
+use crate::editor::Editor;
+use crate::explorer_file_entry::select_preview_file;
+use crate::preview::PreviewTarget;
 use anyhow::Result;
+use gpui::prelude::*;
 use gpui::{AsyncApp, WeakEntity};
-use player_ui::{audio_player::AudioPlayer, video_player::VideoPlayer};
-use std::path::Path;
+use player_ui::audio_player::AudioPlayer;
+use player_ui::video_player::VideoPlayer;
+use std::path::{Path, PathBuf};
 
 #[derive(Clone, Debug)]
 pub enum PreviewEvent {

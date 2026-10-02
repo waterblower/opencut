@@ -1,8 +1,19 @@
 use super::*;
-use crate::editor::edit_action::edit_timeline;
-use crate::editor::tests::TimelineTestExt;
-use crate::editor::timeline_clip::AudioClipProperties;
+use crate::clip_placement::ClipPlacementRejection;
+use crate::edit_action::{EditAction, edit_timeline};
+use crate::model::{MediaAsset, MediaKind};
+use crate::test_support::{TimelineTestExt, ulid};
+use crate::timeline::{FrameRate, TimelineEditorExt, TimelineFrameIndex, TimelineRuntimeState};
+use crate::timeline_clip::{
+    AudioClip, AudioClipProperties, Clip, ClipEditingExt, TextClip, TextClipProperties,
+    VideoClipProperties,
+};
+use crate::track::{Track, TrackKind};
 use ::timeline::{TimelineEditingState, TimelineSerialization};
+use std::collections::HashSet;
+use std::path::{Path, PathBuf};
+use std::time::Duration;
+use ulid::Ulid;
 
 fn audio_asset(id: u64) -> MediaAsset {
     MediaAsset {

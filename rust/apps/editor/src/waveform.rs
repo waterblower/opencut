@@ -1,20 +1,18 @@
-use crate::editor::{editor::Editor, timeline_document::project_timeline_files};
+use crate::editor::Editor;
+use crate::timeline_document::project_timeline_files;
 use ::timeline::TimelineSerialization;
 use anyhow::{Result, anyhow};
-use ffmpeg::{
-    channel_layout::ChannelLayout,
-    codec, format, frame,
-    media::Type,
-    software::resampling::Context as ResamplingContext,
-    util::format::{Sample, sample::Type as SampleType},
-};
+use ffmpeg::channel_layout::ChannelLayout;
+use ffmpeg::media::Type;
+use ffmpeg::software::resampling::Context as ResamplingContext;
+use ffmpeg::util::format::Sample;
+use ffmpeg::util::format::sample::Type as SampleType;
+use ffmpeg::{codec, format, frame};
 use ffmpeg_next as ffmpeg;
 use gpui::Context;
-use std::{
-    collections::HashSet,
-    path::{Path, PathBuf},
-    sync::Arc,
-};
+use std::collections::HashSet;
+use std::path::{Path, PathBuf};
+use std::sync::Arc;
 
 const WAVEFORM_FINE_SAMPLES_PER_PEAK: u32 = 64;
 const WAVEFORM_LEVEL_REDUCTION: usize = 4;

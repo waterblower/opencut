@@ -1,6 +1,21 @@
-use super::*;
+use crate::clip_placement::{
+    ClipPlacementRejection, validate_clip_placement, validate_text_clip_placement,
+};
+use crate::edit_action::{EditAction, apply_timeline_edit};
+use crate::editor::Editor;
+use crate::model::MediaAsset;
+use crate::preview::PreviewState;
+use crate::timeline::{
+    FrameRate, TimelineEditorExt, TimelineFrameIndex, TimelineRuntimeState, timeline_ranges_overlap,
+};
+use crate::timeline_clip::{Clip, ClipEditingExt};
+use crate::track::{Track, TrackKind};
 use ::timeline::TimelineEditingState;
 use anyhow::Result;
+use gpui::prelude::*;
+use std::collections::{HashMap, HashSet};
+use std::path::PathBuf;
+use ulid::Ulid;
 
 #[derive(Clone)]
 pub(super) struct ClipClipboard {

@@ -1,20 +1,19 @@
-use crate::editor::edit_action::{EditAction, apply_timeline_edit};
-use crate::editor::editing::validate_clips_placements;
-use crate::editor::explorer_drag::AssetBeingDragged;
-use crate::editor::generic_containers::HorizontalSplitState;
-use crate::editor::model::MediaKind;
-use crate::editor::preview::PreviewTarget;
-use crate::editor::preview_events::PreviewEvent;
-use crate::editor::project_settings::{ProjectLocalSettings, save_project_local_settings};
-use crate::editor::srt::srt_text_clips;
-use crate::editor::timeline::PreviewDropAsset;
-use crate::editor::timeline_clip::Clip;
-use crate::editor::transcription::start_transcription;
-use crate::editor::write_srt;
-use crate::editor::{
-    Editor, RULER_HEIGHT, TIMELINE_PADDING, TRACK_HEIGHT, global_settings::GlobalEditorSettings,
-};
+use crate::edit_action::{EditAction, apply_timeline_edit};
+use crate::editing::validate_clips_placements;
+use crate::editor::Editor;
+use crate::explorer_drag::AssetBeingDragged;
+use crate::generic_containers::HorizontalSplitState;
+use crate::global_settings::GlobalEditorSettings;
+use crate::layout::{RULER_HEIGHT, TIMELINE_PADDING, TRACK_HEIGHT};
+use crate::model::MediaKind;
 use crate::open_editor_window;
+use crate::preview::PreviewTarget;
+use crate::preview_events::PreviewEvent;
+use crate::project_settings::{ProjectLocalSettings, save_project_local_settings};
+use crate::srt::{srt_text_clips, write_srt};
+use crate::timeline::PreviewDropAsset;
+use crate::timeline_clip::Clip;
+use crate::transcription::start_transcription;
 use anyhow::{Error, anyhow, bail};
 use gpui::{
     App, AsyncApp, Bounds, Entity, EventEmitter, MouseMoveEvent, Pixels, Subscription, WeakEntity,

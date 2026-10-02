@@ -1,11 +1,4 @@
-pub trait TimelineTestExt: Sized {
-    fn with_test_tracks() -> Self;
-}
 use super::*;
-
-pub(super) fn ulid(value: u64) -> Ulid {
-    Ulid::from(u128::from(value))
-}
 
 #[test]
 fn format_time_unpadded_when_less_than_hour() {

@@ -1,4 +1,5 @@
-use super::*;
+use gpui::prelude::*;
+use gpui::{ObjectFit, div, img, px, rgb};
 use std::path::PathBuf;
 
 pub(super) fn preview_image_file(path: PathBuf, width: f32, height: f32) -> gpui::AnyElement {

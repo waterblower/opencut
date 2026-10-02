@@ -1,0 +1,10 @@
+pub const BACKGROUND: u32 = 0x080809;
+pub const PANEL: u32 = 0x0d0d0f;
+pub const SURFACE: u32 = 0x17171a;
+pub const SURFACE_HOVER: u32 = 0x202024;
+pub const BORDER: u32 = 0x2b2b31;
+pub const TEXT: u32 = 0xf2f2f4;
+pub const MUTED: u32 = 0x777780;
+pub const ACCENT: u32 = 0xf0b75e;
+pub const ERROR: u32 = 0xff8b8b;
+pub const CLIP_BLUE: u32 = 0x294d75;

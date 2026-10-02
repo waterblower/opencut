@@ -1,5 +1,19 @@
-use super::*;
+use crate::clip_placement::ClipPlacementRejection;
+use crate::edit_action::{EditAction, apply_timeline_edit};
+use crate::editor::Editor;
+use crate::layout::{
+    MAX_TIMELINE_PIXELS_PER_SECOND, MIN_TIMELINE_PIXELS_PER_SECOND, RULER_HEIGHT, SNAP_DISTANCE_PX,
+    TIMELINE_HEADER_HEIGHT, TIMELINE_HEIGHT, TIMELINE_PADDING, TRACK_HEADER_WIDTH, TRACK_HEIGHT,
+};
+use crate::timeline::{TimelineEditorExt, TimelineFrameIndex, TimelineRuntimeState};
+use crate::timeline_clip::Clip;
 use anyhow::Result;
+use gpui::prelude::*;
+use gpui::{
+    MouseDownEvent, MouseMoveEvent, MouseUpEvent, ScrollWheelEvent, TouchPhase, Window, px,
+};
+use std::collections::HashSet;
+use ulid::Ulid;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(super) enum TimelineTool {

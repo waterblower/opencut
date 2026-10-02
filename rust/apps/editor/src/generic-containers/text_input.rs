@@ -1,10 +1,11 @@
-use super::super::{BORDER, MUTED, SURFACE, SURFACE_HOVER, TEXT};
+use crate::theme::{BORDER, MUTED, SURFACE, SURFACE_HOVER, TEXT};
+use gpui::prelude::*;
 use gpui::{
     App, Bounds, ClipboardItem, Context, CursorStyle, Element, ElementId, ElementInputHandler,
     Entity, EntityInputHandler, EventEmitter, FocusHandle, Focusable, GlobalElementId, IntoElement,
     KeyBinding, LayoutId, MouseButton, MouseDownEvent, MouseMoveEvent, MouseUpEvent, PaintQuad,
     Pixels, Point, Render, ShapedLine, SharedString, Style, TextRun, UTF16Selection,
-    UnderlineStyle, Window, actions, div, fill, point, prelude::*, px, relative, rgb, rgba, size,
+    UnderlineStyle, Window, actions, div, fill, point, px, relative, rgb, rgba, size,
 };
 use std::ops::Range;
 use unicode_segmentation::UnicodeSegmentation;

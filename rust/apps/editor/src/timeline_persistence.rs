@@ -1,8 +1,9 @@
 //! Explicit mapping between live editor state and its persisted subset.
 //! Runtime resources and editing history are never serialized.
 
-use crate::editor::timeline::TimelineRuntimeState;
-use crate::editor::{MAX_TIMELINE_PIXELS_PER_SECOND, MIN_TIMELINE_PIXELS_PER_SECOND};
+use crate::layout::MAX_TIMELINE_PIXELS_PER_SECOND;
+use crate::layout::MIN_TIMELINE_PIXELS_PER_SECOND;
+use crate::timeline::TimelineRuntimeState;
 use ::timeline::TimelineSerialization;
 use anyhow::{Result, ensure};
 use gpui::{point, px};

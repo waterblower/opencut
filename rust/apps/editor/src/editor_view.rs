@@ -1,6 +1,14 @@
-use crate::editor::properties::{current_properties_panel_viewable, properties_panel};
-
-use super::*;
+use crate::actions::EDITOR_KEY_CONTEXT;
+use crate::editor::Editor;
+use crate::generic_containers::{HorizontalSplit, HorizontalSplitConstraints};
+use crate::layout::{
+    MIN_MEDIA_PANEL_WIDTH, MIN_PREVIEW_WIDTH, MIN_PROPERTIES_PANEL_WIDTH, TIMELINE_HEIGHT,
+    TOPBAR_HEIGHT,
+};
+use crate::properties::{current_properties_panel_viewable, properties_panel};
+use crate::theme::{BACKGROUND, BORDER, MUTED, PANEL, SURFACE, SURFACE_HOVER, TEXT};
+use gpui::prelude::*;
+use gpui::{CursorStyle, MouseButton, MouseDownEvent, Window, div, px, rgb};
 
 impl Render for Editor {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {

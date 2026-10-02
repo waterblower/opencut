@@ -1,4 +1,5 @@
-use crate::editor::{Editor, preview::PreviewTarget};
+use crate::editor::Editor;
+use crate::preview::PreviewTarget;
 use anyhow::{Context as _, Result};
 use gpui::{ClipboardItem, Context};
 use serde_json::json;

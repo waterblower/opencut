@@ -1,6 +1,13 @@
-use super::*;
+use crate::context_menu::ContextMenu;
+use crate::edit_action::{EditAction, apply_timeline_edit};
+use crate::editor::Editor;
+use crate::model::MediaKind;
+use crate::timeline_clip::VideoClipProperties;
+use crate::track::TrackKind;
 use ::timeline::TimelineEditingState;
 use anyhow::Result;
+use gpui::prelude::*;
+use ulid::Ulid;
 
 pub(super) fn transform_targets(
     timeline: &TimelineEditingState,

@@ -1,11 +1,22 @@
-use super::*;
-use crate::{
-    asset::IconName,
-    editor::{srt::srt_text_clips, timeline_clip::text_clip_component},
-};
+use crate::asset::IconName;
+use crate::editor::Editor;
+use crate::explorer_drag::AssetBeingDragged;
+use crate::layout::{TIMELINE_PADDING, TRACK_HEIGHT};
+use crate::model::MediaKind;
+use crate::srt::srt_text_clips;
+use crate::theme::{ACCENT, BORDER, CLIP_BLUE, ERROR, MUTED, SURFACE, SURFACE_HOVER};
+use crate::timeline::{PreviewDropAsset, TimelineFrameIndex};
+use crate::timeline_clip::{Clip, text_clip_component};
+use crate::timeline_interactions::TimelineTool;
+use crate::track::{Track, TrackKind};
+use crate::waveform;
 use ::timeline::TimelineEditingState;
-use gpui::{Bounds, canvas, fill, point, rgba, size};
+use gpui::prelude::*;
+use gpui::{
+    Bounds, CursorStyle, MouseButton, MouseDownEvent, canvas, div, fill, point, px, rgb, rgba, size,
+};
 use std::sync::Arc;
+use ulid::Ulid;
 
 const CLIP_WAVEFORM_HEIGHT: f32 = 80.0;
 const CLIP_WAVEFORM_VISUAL_GAIN: f32 = 2.0;

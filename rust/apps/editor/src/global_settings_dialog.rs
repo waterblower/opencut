@@ -1,5 +1,9 @@
-use super::global_settings::GlobalEditorSettings;
-use super::*;
+use crate::editor::Editor;
+use crate::generic_containers::TextInput;
+use crate::global_settings::GlobalEditorSettings;
+use crate::theme::{BORDER, MUTED, PANEL, SURFACE, SURFACE_HOVER};
+use gpui::prelude::*;
+use gpui::{CursorStyle, MouseButton, Window, div, px, rgb};
 
 impl Editor {
     pub fn open_global_settings(&mut self, window: &mut Window, cx: &mut Context<Self>) {

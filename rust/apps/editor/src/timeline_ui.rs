@@ -1,7 +1,19 @@
-use crate::editor::explorer::FileTreeEntry;
-use gpui::DragMoveEvent;
-
-use super::*;
+use crate::context_menu::ContextMenu;
+use crate::editor::Editor;
+use crate::event_bus::{AppEvent, AssetDragMoveEvent};
+use crate::explorer_drag::AssetBeingDragged;
+use crate::explorer_file_entry::FileTreeEntry;
+use crate::layout::{
+    RULER_HEIGHT, TIMELINE_HEADER_HEIGHT, TIMELINE_HEIGHT, TIMELINE_PADDING, TRACK_HEADER_WIDTH,
+    TRACK_HEIGHT,
+};
+use crate::theme::{ACCENT, BORDER, ERROR, MUTED, SURFACE, SURFACE_HOVER};
+use crate::time_format::format_time;
+use crate::timeline::TimelineFrameIndex;
+use crate::timeline_interactions::{MarqueeSelection, TimelineTool};
+use crate::track::TrackKind;
+use gpui::prelude::*;
+use gpui::{CursorStyle, DragMoveEvent, MouseButton, MouseDownEvent, div, px, rgb};
 
 const MAX_RULER_TICKS: usize = 240;
 const MIN_RULER_LABEL_SPACING: f32 = 72.0;

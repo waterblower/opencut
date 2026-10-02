@@ -1,9 +1,21 @@
-use super::*;
+use crate::clip_placement::{
+    ClipPlacementRejection, validate_clip_placement, validate_text_clip_placement,
+};
+use crate::explorer_drag::AssetBeingDragged;
+use crate::layout::DEFAULT_TIMELINE_PIXELS_PER_SECOND;
+use crate::model::MediaKind;
+use crate::timeline_clip::Clip;
+use crate::timeline_interactions::{TimelineInteractionState, TimelineTool};
+use crate::track::TrackKind;
 use ::engine::timeline_backend::TimelineBackend;
 use ::timeline::TimelineEditingState;
 pub use ::timeline::{FrameRate, TimelineFrameIndex};
 use anyhow::{Result, ensure};
-use std::path::Path;
+use gpui::ScrollHandle;
+use gpui::prelude::*;
+use std::collections::HashSet;
+use std::path::{Path, PathBuf};
+use ulid::Ulid;
 
 pub(super) const FRAME_RATE_PRESETS: [(FrameRate, &str); 8] = [
     (FrameRate::new(24_000, 1_001), "23.976 fps"),

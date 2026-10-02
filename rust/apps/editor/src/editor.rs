@@ -1,10 +1,26 @@
-use crate::editor::event_bus::handle_app_event;
-use crate::editor::explorer::ExplorerState;
-use anyhow::Error;
+use crate::context_menu::ContextMenu;
+use crate::editing::ClipClipboard;
+use crate::event_bus::{AppEvent, EventBus, handle_app_event};
+use crate::explorer::{ExplorerState, load_explorer_expansion};
+use crate::explorer_drag::AssetBeingDragged;
+use crate::explorer_file_entry::visible_tree;
+use crate::generic_containers::{HorizontalSplitState, TextInput};
+use crate::preview::{PreviewState, PreviewTarget};
+use crate::project_settings::load_project_local_settings;
+use crate::properties::PropertiesPanelState;
+use crate::properties_transform::VideoTransformInputs;
+use crate::timeline::TimelineRuntimeState;
+use crate::waveform;
+use anyhow::{Error, Result};
+use gpui::prelude::*;
+use gpui::{Entity, FocusHandle, ScrollHandle};
+use std::collections::{HashMap, HashSet};
 use std::io::{Error as IoError, ErrorKind};
-use std::path::Path;
+use std::path::{Path, PathBuf};
+use std::sync::Arc;
+use std::time::{Duration, Instant};
 
-use super::*;
+const IDLE_UPDATE_INTERVAL: Duration = Duration::from_millis(16);
 
 pub(crate) struct Editor {
     // main UI sections

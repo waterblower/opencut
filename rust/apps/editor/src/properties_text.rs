@@ -1,5 +1,11 @@
-use super::properties_transform::{properties_section_label, properties_tab};
-use super::*;
+use crate::edit_action::EditAction;
+use crate::event_bus::{AppEvent, EventBus};
+use crate::generic_containers::{TextInput, TextInputEvent};
+use crate::properties_transform::{properties_section_label, properties_tab};
+use crate::theme::{BORDER, MUTED, PANEL, SURFACE};
+use crate::timeline_clip::{Clip, TextClip, TextClipProperties};
+use gpui::prelude::*;
+use gpui::{App, Entity, FocusHandle, Window, div, px, rgb};
 
 #[derive(IntoElement)]
 pub(super) struct TextClipPropertiesView {

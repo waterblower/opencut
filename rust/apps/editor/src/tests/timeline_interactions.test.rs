@@ -1,4 +1,5 @@
 use super::*;
+use crate::timeline::TimelineFrameIndex;
 
 #[test]
 fn zoom_keeps_the_playhead_at_the_same_viewport_position() {

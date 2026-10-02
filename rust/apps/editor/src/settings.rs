@@ -1,6 +1,11 @@
-use super::*;
+use crate::edit_action::{EditAction, apply_timeline_edit};
+use crate::editor::Editor;
+use crate::theme::{ACCENT, BORDER, MUTED, PANEL, SURFACE, SURFACE_HOVER, TEXT};
+use crate::timeline::{FRAME_RATE_PRESETS, FrameRate};
 use ::timeline::TimelineEditingState;
 use anyhow::Result;
+use gpui::prelude::*;
+use gpui::{CursorStyle, MouseButton, div, px, rgb};
 
 impl Editor {
     pub(super) fn settings_modal(

@@ -1,5 +1,10 @@
-use super::*;
+use crate::edit_action::{EditAction, apply_timeline_edit};
+use crate::editor::Editor;
+use crate::generic_containers::TextInput;
+use crate::theme::{ACCENT, MUTED, TEXT};
 use anyhow::Result;
+use gpui::prelude::*;
+use gpui::{Entity, FocusHandle, div, rgb};
 
 #[derive(Clone, Copy)]
 enum VideoTransformProperty {
