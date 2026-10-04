@@ -104,7 +104,10 @@ the seek bar to jump.
 
 Each timeline is saved automatically as its own JSON file with its settings,
 media metadata, tracks, clips, and view state. Media paths are relative to the
-project folder, so the folder can be moved, backed up, or committed as one unit.
+directory containing the timeline file. For example, `timelines/edit.timeline.json`
+references `media/clip.mp4` as `../media/clip.mp4`. Move or back up timelines and
+media together while preserving their relative locations. Absolute media paths
+are also supported.
 Source media is never rewritten, and waveforms are not written to the project.
 
 The last opened project is stored in `~/.opencut/editor-settings.json`. On

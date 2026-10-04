@@ -6,7 +6,7 @@ use gpui::{
 };
 use std::{cell::Cell, rc::Rc, time::Duration};
 
-/// Drag payload of a progress bar; 
+/// Drag payload of a progress bar;
 /// views seek on `on_drag_move::<ProgressBarDrag>`.
 pub(crate) struct ProgressBarDrag;
 

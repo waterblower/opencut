@@ -26,10 +26,10 @@ pub struct TimelinePlayer {
 
 impl TimelinePlayer {
     /// Validates the timeline, opens the audio device, and prepares frame zero, paused.
-    /// Media paths resolve against `project_root`. Call [`Self::start`] once the player is in an entity.
-    pub fn new(timeline: TimelineEditingState, project_root: &Path) -> Result<Self> {
+    /// Media paths resolve against `timeline_directory`, the directory containing the timeline file. Call [`Self::start`] once the player is in an entity.
+    pub fn new(timeline: TimelineEditingState, timeline_directory: &Path) -> Result<Self> {
         Ok(Self {
-            backend: TimelineBackend::new(timeline, project_root)?,
+            backend: TimelineBackend::new(timeline, timeline_directory)?,
             title: String::new(),
             audio_output: AudioOutput::open()?,
             audio_readers: HashMap::new(),
@@ -120,7 +120,7 @@ impl TimelinePlayer {
             let count = (target - self.audio_cursor) as usize;
             let mixed = mix_timeline_audio(
                 self.backend.timeline(),
-                self.backend.project_root(),
+                self.backend.timeline_directory(),
                 &mut self.audio_readers,
                 self.audio_cursor,
                 count,

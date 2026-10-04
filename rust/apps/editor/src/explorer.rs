@@ -7,8 +7,9 @@ use crate::model::MediaAsset;
 use crate::theme::{ACCENT, BORDER, MUTED, PANEL, SURFACE, TEXT};
 use crate::timeline::TimelineFrameIndex;
 use crate::timeline_clip::{AudioClipProperties, Clip, VideoClip, VideoClipProperties};
+use crate::timeline_document::relative_asset_path;
 use crate::track::TrackKind;
-use anyhow::{Result, anyhow, bail};
+use anyhow::{Context as _, Result, anyhow, bail};
 use gpui::prelude::FluentBuilder;
 use gpui::{
     AppContext as _, Context, CursorStyle, Entity, InteractiveElement, IntoElement, MouseButton,
@@ -346,7 +347,7 @@ impl Editor {
 
     pub(super) fn place_explorer_asset(
         &mut self,
-        relative_path: PathBuf,
+        media_path: PathBuf,
         track_id: Ulid,
         raw_start: TimelineFrameIndex,
         mut asset: MediaAsset,
@@ -378,18 +379,23 @@ impl Editor {
         let Some(timeline) = self.timeline.as_mut() else {
             return Ok(());
         };
+        let timeline_directory = timeline
+            .path
+            .parent()
+            .context("Timeline path has no parent directory")?;
+        let asset_path = relative_asset_path(timeline_directory, &media_path); // 素材路径相对于时间线文件所在目录。
         timeline.record_editing_history();
         let (asset_id, assets) = if let Some(asset_id) = timeline
             .editing_state
             .assets
             .iter()
-            .find(|existing| existing.path == relative_path)
+            .find(|existing| existing.path == asset_path)
             .map(|existing| existing.id)
         {
             (asset_id, Vec::new())
         } else {
             asset.id = Ulid::generate();
-            asset.path = relative_path.clone();
+            asset.path = asset_path;
             let asset_id = asset.id;
             (asset_id, vec![asset])
         };
@@ -418,7 +424,10 @@ impl Editor {
             },
         )?;
 
-        self.explorer.selected_file = Some(relative_path);
+        self.explorer.selected_file = media_path
+            .strip_prefix(&self.project_root)
+            .ok()
+            .map(Path::to_path_buf); // Explorer 的选中项仍相对于项目根目录。
         self.select_only_clip(Some(clip_id));
         let Some(timeline) = self.timeline.as_ref() else {
             return Ok(());

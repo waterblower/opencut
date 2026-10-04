@@ -19,7 +19,7 @@ use crate::{export_encoder::ExportEncoder, timeline_decoder::TimelineDecoder};
 use anyhow::{Context as _, Result, bail};
 
 pub struct ExportOption {
-    /// Relative asset paths are resolved against this project directory.
+    /// Relative asset paths are resolved against this directory, normally the timeline file's directory.
     pub project_root: PathBuf,
     /// H.264 target bitrate in bits per second.
     pub video_bitrate: u64,
@@ -181,7 +181,7 @@ pub struct ClipAudio {
 /// `start` and `count` are sample indices at `rate`; clear `readers` before a non-sequential read.
 pub fn mix_timeline_audio(
     timeline: &TimelineEditingState,
-    project_root: &Path,
+    timeline_directory: &Path,
     readers: &mut HashMap<Ulid, ClipAudio>,
     start: i64,
     count: usize,
@@ -227,7 +227,7 @@ pub fn mix_timeline_audio(
         let reader = match readers.entry(media.id) {
             Entry::Occupied(entry) => entry.into_mut(),
             Entry::Vacant(entry) => {
-                let path = project_root.join(&asset.path);
+                let path = timeline_directory.join(&asset.path);
                 let mut backend = AudioBackend::open(&path)
                     .context(format!("Opening timeline audio {}", path.display()))?;
                 backend

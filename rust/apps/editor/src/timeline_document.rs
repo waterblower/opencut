@@ -1,7 +1,7 @@
 use ::timeline::TimelineSerialization;
 use anyhow::{Context as _, Result, anyhow};
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::{Component, Path, PathBuf};
 
 const TIMELINE_SUFFIX: &str = ".timeline.json";
 
@@ -99,6 +99,48 @@ pub(super) fn create(
     let timeline = TimelineSerialization::default();
     timeline.save(&path)?;
     Ok((relative_path, timeline))
+}
+
+/// The media file for `asset_path`, which a timeline stores relative to its own directory.
+/// `..` components are resolved lexically, without touching the file system.
+pub fn resolve_asset_path(timeline_directory: &Path, asset_path: &Path) -> PathBuf {
+    let mut resolved = PathBuf::new();
+    for component in timeline_directory.join(asset_path).components() {
+        match component {
+            Component::ParentDir => {
+                resolved.pop();
+            }
+            Component::CurDir => {}
+            Component::Prefix(_) | Component::RootDir | Component::Normal(_) => {
+                resolved.push(component);
+            }
+        }
+    }
+    resolved
+}
+
+/// The asset path a timeline in `timeline_directory` stores for `media_path`; climbs with `..`
+/// when the media lies outside that directory. Both paths must be absolute.
+/// Paths on different Windows volumes remain absolute.
+pub fn relative_asset_path(timeline_directory: &Path, media_path: &Path) -> PathBuf {
+    let directory = timeline_directory.components().collect::<Vec<_>>();
+    let media = media_path.components().collect::<Vec<_>>();
+    if directory.first() != media.first() {
+        return media_path.to_path_buf();
+    }
+    let shared = directory
+        .iter()
+        .zip(&media)
+        .take_while(|(directory_component, media_component)| directory_component == media_component)
+        .count();
+    let mut relative = PathBuf::new();
+    for _ in shared..directory.len() {
+        relative.push("..");
+    }
+    for component in &media[shared..] {
+        relative.push(component);
+    }
+    relative
 }
 
 fn timeline_file_names(directory: &Path) -> Result<Vec<String>> {

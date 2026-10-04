@@ -15,7 +15,7 @@ use crate::timeline::{PreviewDropAsset, TimelineFrameIndex};
 use crate::timeline_clip::Clip;
 use crate::transcription::start_transcription;
 use crate::{OpenProject, open_editor_window, quit_after_last_window};
-use anyhow::{Result, anyhow, bail};
+use anyhow::{Context as _, Result, anyhow, bail};
 use gpui::prelude::*;
 use gpui::{AsyncApp, Bounds, Entity, EventEmitter, MouseMoveEvent, Pixels};
 use player_ui::Seeker;
@@ -301,13 +301,8 @@ async fn handle_app_event(
                         if !matches!(asset.metadata.kind, MediaKind::Video | MediaKind::Audio) {
                             return Ok(());
                         }
-                        let relative_path = asset
-                            .absolute_path
-                            .strip_prefix(&editor.project_root)
-                            .expect("dragged explorer assets are inside the project root")
-                            .to_path_buf();
                         editor.place_explorer_asset(
-                            relative_path,
+                            asset.absolute_path.clone(),
                             preview.track_id,
                             preview.start_time,
                             asset.metadata,
@@ -339,9 +334,13 @@ async fn handle_app_event(
                             Ok(relative_path) => relative_path.to_path_buf(),
                             Err(_) => timeline.path.clone(),
                         };
+                        let timeline_directory = timeline
+                            .path
+                            .parent()
+                            .context("Timeline path has no parent directory")?; // 素材路径相对于时间线文件所在目录。
                         let mut timeline_player = TimelinePlayer::new(
                             timeline.editing_state.clone(),
-                            &editor.project_root,
+                            timeline_directory,
                         )?;
                         timeline_player.title = relative_path.display().to_string();
                         let position = timeline_player
