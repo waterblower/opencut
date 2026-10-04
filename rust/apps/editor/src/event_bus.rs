@@ -126,7 +126,10 @@ pub async fn handle_event(
                 {
                     panic!("could not close editor: {error}");
                 }
-                project.window = open_editor_window(root.clone(), event_bus, cx);
+                project.window = match open_editor_window(root.clone(), event_bus, cx) {
+                    Ok(window) => window,
+                    Err(error) => panic!("could not open editor window: {error:?}"),
+                };
                 project.close_subscription = Some(cx.on_window_closed(quit_after_last_window));
                 true
             });
