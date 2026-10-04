@@ -62,7 +62,7 @@ impl Editor {
             {
                 self.select_only_clip(None);
                 let timeline = self.timeline.as_mut().expect("timeline was checked above");
-                timeline.seek_frame(timeline.playhead());
+                timeline.set_playhead(timeline.playhead());
                 if !matches!(self.preview.target, PreviewTarget::Timeline { .. }) {
                     self.preview.target = self.create_timeline_preview(cx)?;
                 }
@@ -149,7 +149,7 @@ impl Editor {
                 .refresh_file_tree(&self.project_root)
                 .context("refresh_file_tree failed")?;
             if let Some(timeline) = self.timeline.as_mut() {
-                timeline.seek_frame(timeline.playhead());
+                timeline.set_playhead(timeline.playhead());
             }
             self.preview.target = self.create_timeline_preview(cx)?;
             self.schedule_active_timeline_waveforms(cx);
@@ -163,7 +163,8 @@ impl Editor {
 impl Editor {
     /// Builds a standalone preview player on a snapshot of the active timeline, starting at
     /// its playhead. It is deliberately decoupled: later edits and playhead moves in the
-    /// editing area do not reach it.
+    /// editing area do not reach it. Edits that invalidate the snapshot's time base, such as
+    /// a frame rate change, rebuild it instead.
     pub fn create_timeline_preview(&self, cx: &mut Context<Self>) -> Result<PreviewTarget> {
         let Some(timeline) = self.timeline.as_ref() else {
             return Ok(PreviewTarget::None);

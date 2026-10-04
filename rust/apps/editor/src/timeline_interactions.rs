@@ -12,7 +12,7 @@ use crate::timeline_clip::Clip;
 use anyhow::Result;
 use gpui::prelude::*;
 use gpui::{
-    App, ClickEvent, Context, MouseDownEvent, MouseMoveEvent, MouseUpEvent, ScrollWheelEvent,
+    ClickEvent, Context, MouseDownEvent, MouseMoveEvent, MouseUpEvent, ScrollWheelEvent,
     TouchPhase, Window, px,
 };
 use std::collections::HashSet;
@@ -489,7 +489,17 @@ impl Editor {
         {
             return Ok(());
         }
-        pause_preview_timeline_player(&self.preview.target, cx)?;
+        // 时间线预览播放的是编辑前的快照，拖动开始前先暂停它；
+        // 文件预览与时间线无关，不暂停。
+        if let PreviewTarget::Timeline { player, .. } = &self.preview.target {
+            player.update(cx, |player, cx| {
+                if player.backend.is_playing() {
+                    player.toggle_playback(cx)
+                } else {
+                    Ok(())
+                }
+            })?;
+        }
         let timeline = self.timeline.as_mut().expect("timeline was checked above");
         timeline.interaction.snap_guide = None;
         timeline.interaction.clip_move_drag = Some(ClipMoveDrag {
@@ -722,7 +732,7 @@ impl Editor {
             return;
         };
         let frame_index = timeline.timeline_position_from_x(event.position().x.into());
-        timeline.seek_frame(frame_index);
+        timeline.set_playhead(frame_index);
         if let Err(error) = timeline.save() {
             log::error!("{error:?}");
         }
@@ -744,25 +754,11 @@ impl Editor {
         if target != timeline.playhead()
             || !matches!(self.preview.target, PreviewTarget::Timeline { .. })
         {
-            timeline.seek_frame(target);
+            timeline.set_playhead(target);
             timeline.save()?;
         }
         Ok(())
     }
-}
-
-/// Pauses the timeline preview while the timeline is edited;
-pub fn pause_preview_timeline_player(target: &PreviewTarget, cx: &mut App) -> Result<()> {
-    let PreviewTarget::Timeline { player, .. } = target else {
-        return Ok(());
-    };
-    player.update(cx, |player, cx| {
-        if player.backend.is_playing() {
-            player.toggle_playback(cx)
-        } else {
-            Ok(())
-        }
-    })
 }
 
 #[cfg(test)]

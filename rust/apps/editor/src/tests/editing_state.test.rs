@@ -12,7 +12,7 @@ use ulid::Ulid;
 #[test]
 fn rejected_edits_preserve_content_playhead_and_history() -> Result<()> {
     let mut timeline = runtime()?;
-    timeline.seek_frame(TimelineFrameIndex::from(10));
+    timeline.set_playhead(TimelineFrameIndex::from(10));
     for action in [
         EditAction::MoveClips {
             placements: vec![(
@@ -68,7 +68,7 @@ fn history_replacement_preserves_live_view_preferences_and_playhead() -> Result<
     timeline.v_scroll.set_offset(point(px(0.0), px(-20.0)));
     let horizontal = timeline.h_scroll.offset();
     let vertical = timeline.v_scroll.offset();
-    timeline.seek_frame(TimelineFrameIndex::from(15));
+    timeline.set_playhead(TimelineFrameIndex::from(15));
 
     for (snapshot, start) in [(undo, 0), (redo, 10)] {
         edit_timeline(
@@ -91,7 +91,7 @@ fn history_replacement_preserves_live_view_preferences_and_playhead() -> Result<
 #[test]
 fn persistence_captures_selected_state() -> Result<()> {
     let mut timeline = runtime()?;
-    timeline.seek_frame(TimelineFrameIndex::from(10));
+    timeline.set_playhead(TimelineFrameIndex::from(10));
     timeline.pixels_per_second = 180.0;
     timeline.snapping_enabled = false;
     timeline.track_magnet_enabled = false;

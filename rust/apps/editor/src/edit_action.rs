@@ -73,7 +73,7 @@ pub fn edit_timeline(timeline: &mut TimelineRuntimeState, action: EditAction) ->
     edit_content(&mut data, action)?;
     data.validate()?;
     timeline.editing_state = data;
-    timeline.seek_frame(timeline.playhead());
+    timeline.set_playhead(timeline.playhead());
     Ok(())
 }
 
