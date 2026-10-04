@@ -1,10 +1,10 @@
-use crate::progress_bar::{progress, progress_bar, seek_position};
+use crate::progress_bar::{ProgressBarDrag, progress, progress_bar, seek_position};
 use crate::timeline_player::TimelinePlayer;
 use crate::{Seeker, format_time};
 use engine::timeline_backend::TimelineBackend;
 use gpui::{
-    AnyElement, AvailableSpace, Bounds, ClickEvent, Context, CursorStyle, Window, canvas, div,
-    prelude::*, px, rgb,
+    AnyElement, AvailableSpace, Bounds, ClickEvent, Context, CursorStyle, DragMoveEvent, Window,
+    canvas, div, prelude::*, px, rgb,
 };
 use std::{cell::Cell, rc::Rc};
 
@@ -41,15 +41,27 @@ impl Render for TimelinePlayer {
                     .child(timeline_backend_picture(&self.backend)),
             )
             .child(
-                progress_bar("progress_bar", progress(position, duration), seek_bounds.clone()).on_click(
-                    cx.listener(move |player, event: &ClickEvent, _, cx| {
-                        let target = seek_position(event.position().x, seek_bounds.get(), duration);
+                progress_bar(
+                    "progress_bar",
+                    progress(position, duration),
+                    seek_bounds.clone(),
+                )
+                .on_click(cx.listener(move |player, event: &ClickEvent, _, cx| {
+                    let target = seek_position(event.position().x, seek_bounds.get(), duration);
+                    match player.seek(target) {
+                        Ok(()) => cx.notify(),
+                        Err(error) => player.fail(error, cx),
+                    }
+                }))
+                .on_drag_move(cx.listener(
+                    move |player, event: &DragMoveEvent<ProgressBarDrag>, _, cx| {
+                        let target = seek_position(event.event.position.x, event.bounds, duration);
                         match player.seek(target) {
                             Ok(()) => cx.notify(),
                             Err(error) => player.fail(error, cx),
                         }
-                    }),
-                ),
+                    },
+                )),
             )
             .child(
                 div()

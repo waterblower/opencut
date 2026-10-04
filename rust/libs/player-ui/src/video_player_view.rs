@@ -1,10 +1,11 @@
-use crate::progress_bar::{progress, progress_bar, seek_position};
+use crate::progress_bar::{ProgressBarDrag, progress, progress_bar, seek_position};
 use crate::video_player::{PlaybackState, VideoPlayer};
 use crate::{Seeker, format_time};
 #[cfg(target_os = "macos")]
 use gpui::surface;
 use gpui::{
-    Bounds, ClickEvent, Context, CursorStyle, ObjectFit, Render, Window, div, prelude::*, px, rgb,
+    Bounds, ClickEvent, Context, CursorStyle, DragMoveEvent, ObjectFit, Render, Window, div,
+    prelude::*, px, rgb,
 };
 use std::{cell::Cell, rc::Rc, time::Duration};
 
@@ -56,18 +57,27 @@ impl Render for VideoPlayer {
                     }),
             )
             .child(
-                progress_bar("progress_bar", progress(position, duration), seek_bounds.clone()).on_click(
-                    cx.listener(move |player, event: &ClickEvent, _, cx| {
-                        let target = seek_position(event.position().x, seek_bounds.get(), duration);
-                        match player.seek(target) {
-                            Ok(()) => cx.notify(),
-                            Err(error) => {
-                                eprintln!("Player seek failed: {error:?}");
-                                std::process::exit(1);
-                            }
+                progress_bar(
+                    "progress_bar",
+                    progress(position, duration),
+                    seek_bounds.clone(),
+                )
+                .on_click(cx.listener(move |player, event: &ClickEvent, _, cx| {
+                    let target = seek_position(event.position().x, seek_bounds.get(), duration);
+                    match player.seek(target) {
+                        Ok(()) => cx.notify(),
+                        Err(error) => {
+                            eprintln!("Player seek failed: {error:?}");
+                            std::process::exit(1);
                         }
-                    }),
-                ),
+                    }
+                }))
+                .on_drag_move(cx.listener(
+                    move |player, event: &DragMoveEvent<ProgressBarDrag>, window, cx| {
+                        let target = seek_position(event.event.position.x, event.bounds, duration);
+                        player.request_seek(target, window, cx);
+                    },
+                )),
             )
             .child(
                 div()

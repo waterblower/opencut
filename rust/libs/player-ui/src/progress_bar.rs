@@ -1,12 +1,17 @@
 //! The progress bar shared by the player views. Views attach their own event handlers.
 
 use gpui::{
-    Bounds, CursorStyle, Div, ElementId, Pixels, Stateful, canvas, div, prelude::*, px, relative,
-    rgb,
+    Bounds, CursorStyle, Div, ElementId, Empty, Pixels, Stateful, canvas, div, prelude::*, px,
+    relative, rgb,
 };
 use std::{cell::Cell, rc::Rc, time::Duration};
 
-/// A track filled to `progress`. Records its own window bounds into `bounds` while prepainting.
+/// Drag payload of a progress bar; 
+/// views seek on `on_drag_move::<ProgressBarDrag>`.
+pub(crate) struct ProgressBarDrag;
+
+/// A track filled to `progress`. Records its own window bounds into `bounds` while prepainting,
+/// and starts a [`ProgressBarDrag`] when the pointer is dragged from it.
 pub(crate) fn progress_bar(
     id: impl Into<ElementId>,
     progress: f32,
@@ -20,6 +25,7 @@ pub(crate) fn progress_bar(
         .flex_shrink_0()
         .bg(rgb(0x303030))
         .cursor(CursorStyle::PointingHand)
+        .on_drag(ProgressBarDrag, |_, _, _, cx| cx.new(|_| Empty)) // 拖动时不显示跟随鼠标的预览。
         .child(div().h_full().w(relative(progress)).bg(rgb(0xdba34b)))
         .child(
             canvas(

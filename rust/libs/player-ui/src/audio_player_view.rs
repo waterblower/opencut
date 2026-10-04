@@ -1,7 +1,7 @@
 use crate::audio_player::{AudioPlayer, PlaybackState};
-use crate::progress_bar::{progress, progress_bar, seek_position};
+use crate::progress_bar::{ProgressBarDrag, progress, progress_bar, seek_position};
 use crate::{Seeker, format_time};
-use gpui::{Bounds, ClickEvent, Context, Render, Window, div, prelude::*, rgb};
+use gpui::{Bounds, ClickEvent, Context, DragMoveEvent, Render, Window, div, prelude::*, rgb};
 use std::{cell::Cell, rc::Rc};
 
 impl Render for AudioPlayer {
@@ -41,7 +41,16 @@ impl Render for AudioPlayer {
                         Ok(()) => cx.notify(),
                         Err(error) => eprintln!("Seeking audio failed: {error:?}"),
                     }
-                })),
+                }))
+                .on_drag_move(cx.listener(
+                    move |player, event: &DragMoveEvent<ProgressBarDrag>, _, cx| {
+                        let target = seek_position(event.event.position.x, event.bounds, duration);
+                        match player.seek(target) {
+                            Ok(()) => cx.notify(),
+                            Err(error) => eprintln!("Seeking audio failed: {error:?}"),
+                        }
+                    },
+                )),
             )
             .child(
                 div()
