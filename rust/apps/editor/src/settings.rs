@@ -1,5 +1,6 @@
 use crate::edit_action::{EditAction, apply_timeline_edit};
 use crate::editor::Editor;
+use crate::preview_events::pause_preview;
 use crate::theme::{ACCENT, BORDER, MUTED, PANEL, SURFACE, SURFACE_HOVER, TEXT};
 use crate::timeline::{FRAME_RATE_PRESETS, FrameRate};
 use ::timeline::TimelineEditingState;
@@ -39,7 +40,7 @@ impl Editor {
                         0x45454d
                     })))
                     .on_click(cx.listener(move |editor, _, _, cx| {
-                        if let Err(error) = editor.set_timeline_frame_rate(frame_rate) {
+                        if let Err(error) = editor.set_timeline_frame_rate(frame_rate, cx) {
                             log::error!("{error:?}");
                         }
                         cx.notify();
@@ -141,7 +142,11 @@ impl Editor {
             .into_any_element()
     }
 
-    fn set_timeline_frame_rate(&mut self, frame_rate: FrameRate) -> Result<()> {
+    fn set_timeline_frame_rate(
+        &mut self,
+        frame_rate: FrameRate,
+        cx: &mut Context<Self>,
+    ) -> Result<()> {
         self.settings_open = false;
         let Some(timeline) = self.timeline.as_ref() else {
             return Ok(());
@@ -151,7 +156,7 @@ impl Editor {
             return Ok(());
         }
 
-        self.pause_preview()?;
+        pause_preview(&self.preview.target, cx)?;
         let Some(timeline) = self.timeline.as_mut() else {
             return Ok(());
         };

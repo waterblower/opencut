@@ -7,6 +7,7 @@ use crate::layout::{
     TIMELINE_HEADER_HEIGHT, TIMELINE_HEIGHT, TIMELINE_PADDING, TRACK_HEADER_WIDTH, TRACK_HEIGHT,
 };
 use crate::preview::PreviewTarget;
+use crate::preview_events::pause_preview;
 use crate::timeline::{TimelineEditorExt, TimelineFrameIndex, TimelineRuntimeState};
 use crate::timeline_clip::Clip;
 use anyhow::Result;
@@ -490,7 +491,7 @@ impl Editor {
         {
             return;
         }
-        if let Err(error) = self.pause_preview() {
+        if let Err(error) = pause_preview(&self.preview.target, cx) {
             log::error!("Could not pause preview: {error:?}");
         }
         let timeline = self.timeline.as_mut().expect("timeline was checked above");
