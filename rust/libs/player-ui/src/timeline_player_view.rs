@@ -4,7 +4,7 @@ use crate::{Seeker, format_time};
 use engine::timeline_backend::TimelineBackend;
 use gpui::{
     AnyElement, AvailableSpace, Bounds, ClickEvent, Context, CursorStyle, Window, canvas, div,
-    prelude::*, px, relative, rgb,
+    prelude::*, px, rgb,
 };
 use std::{cell::Cell, rc::Rc, sync::Arc, time::Duration};
 
