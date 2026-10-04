@@ -78,6 +78,10 @@ impl TimelineBackend {
         &self.timeline
     }
 
+    pub fn project_root(&self) -> &Path {
+        &self.project_root
+    }
+
     /// Prepares edited content at the current playback time before publishing it.
     /// Reaching the new end pauses playback. Errors preserve all existing state.
     pub fn replace_timeline(&mut self, timeline: TimelineEditingState) -> Result<()> {
