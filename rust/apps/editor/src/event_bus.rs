@@ -1,4 +1,4 @@
-use crate::edit_action::{EditAction, apply_timeline_edit};
+use crate::edit_action::{EditAction, edit_timeline};
 use crate::editing::validate_clips_placements;
 use crate::editor::Editor;
 use crate::explorer_drag::AssetBeingDragged;
@@ -16,7 +16,10 @@ use crate::timeline_clip::Clip;
 use crate::transcription::start_transcription;
 use crate::{OpenProject, open_editor_window, quit_after_last_window};
 use anyhow::{Result, anyhow, bail};
+use gpui::prelude::*;
 use gpui::{AsyncApp, Bounds, Entity, EventEmitter, MouseMoveEvent, Pixels};
+use player_ui::Seeker;
+use player_ui::timeline_player::TimelinePlayer;
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use ulid::Ulid;
@@ -204,7 +207,7 @@ async fn handle_app_event(
                     return Ok(());
                 };
                 timeline.record_editing_history();
-                apply_timeline_edit(timeline, edit_action)
+                edit_timeline(timeline, edit_action)
                     .expect("event bus edit actions cannot be rejected");
                 timeline.save()?;
                 cx.notify();
@@ -280,7 +283,7 @@ async fn handle_app_event(
                         let selected_clip_ids = clips.iter().map(Clip::id).collect::<HashSet<_>>();
                         let selected_clip_id = clips.first().map(Clip::id);
                         timeline.record_editing_history();
-                        apply_timeline_edit(
+                        edit_timeline(
                             timeline,
                             EditAction::AddClips {
                                 clips,
@@ -316,13 +319,43 @@ async fn handle_app_event(
         }
         AppEvent::TimelineSeek { frame_index } => {
             editor.update(cx, |editor, cx| -> Result<()> {
-                let PreviewTarget::Timeline { player, .. } = &editor.preview.target else {
-                    return Ok(());
-                };
-                player.update(cx, |player, cx| {
-                    let position = player.backend.timeline().position_at_frame(frame_index);
-                    player.seek(position, cx)
-                })
+                match &editor.preview.target {
+                    PreviewTarget::Timeline { player, .. } => {
+                        player.update(cx, |player, cx| {
+                            let position = player.backend.timeline().position_at_frame(frame_index);
+                            let result = player.seek(position);
+                            cx.notify();
+                            result
+                        })?;
+                    }
+                    _ => {
+                        let Some(timeline) = editor.timeline.as_ref() else {
+                            return Err(anyhow!("TimelineSeek arrived while no timeline is open"));
+                        };
+                        let relative_path = match timeline.path.strip_prefix(&editor.project_root) {
+                            Ok(relative_path) => relative_path.to_path_buf(),
+                            Err(_) => timeline.path.clone(),
+                        };
+                        let mut timeline_player = TimelinePlayer::new(
+                            timeline.editing_state.clone(),
+                            &editor.project_root,
+                        )?;
+                        timeline_player.title = relative_path.display().to_string();
+                        let position = timeline_player
+                            .backend
+                            .timeline()
+                            .position_at_frame(frame_index);
+                        timeline_player.backend.seek(position)?;
+                        let player = cx.new(move |_| timeline_player);
+                        editor.preview.target = PreviewTarget::Timeline {
+                            _task: player.update(cx, |player, cx| player.start(cx)),
+                            _subscription: cx.observe(&player, |_, _, cx| cx.notify()),
+                            path: relative_path,
+                            player,
+                        };
+                    }
+                }
+                Ok(())
             })?;
         }
         AppEvent::OpenTimeline { path } => {

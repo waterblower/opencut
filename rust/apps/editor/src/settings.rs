@@ -1,5 +1,6 @@
-use crate::edit_action::{EditAction, apply_timeline_edit};
+use crate::edit_action::{EditAction, edit_timeline};
 use crate::editor::Editor;
+use crate::preview::PreviewTarget;
 use crate::theme::{ACCENT, BORDER, MUTED, PANEL, SURFACE, SURFACE_HOVER, TEXT};
 use crate::timeline::{FRAME_RATE_PRESETS, FrameRate};
 use ::timeline::TimelineEditingState;
@@ -39,7 +40,7 @@ impl Editor {
                         0x45454d
                     })))
                     .on_click(cx.listener(move |editor, _, _, cx| {
-                        if let Err(error) = editor.set_timeline_frame_rate(frame_rate) {
+                        if let Err(error) = editor.set_timeline_frame_rate(frame_rate, cx) {
                             log::error!("{error:?}");
                         }
                         cx.notify();
@@ -141,7 +142,11 @@ impl Editor {
             .into_any_element()
     }
 
-    fn set_timeline_frame_rate(&mut self, frame_rate: FrameRate) -> Result<()> {
+    fn set_timeline_frame_rate(
+        &mut self,
+        frame_rate: FrameRate,
+        cx: &mut Context<Self>,
+    ) -> Result<()> {
         self.settings_open = false;
         let Some(timeline) = self.timeline.as_ref() else {
             return Ok(());
@@ -151,17 +156,21 @@ impl Editor {
             return Ok(());
         }
 
-        self.pause_preview()?;
         let Some(timeline) = self.timeline.as_mut() else {
             return Ok(());
         };
         timeline.record_editing_history();
-        apply_timeline_edit(timeline, EditAction::SetFrameRate { frame_rate })
+        edit_timeline(timeline, EditAction::SetFrameRate { frame_rate })
             .expect("changing the frame rate cannot be rejected");
         let has_clips = !timeline.editing_state.clips.is_empty();
-        timeline.save()?;
         if has_clips {
-            timeline.seek_frame(timeline.playhead());
+            // 播放头存的是帧号；按旧帧率换算回时间，再取新帧率下最近的帧，与片段的换算方式一致。
+            timeline.set_playhead(previous.rescale_nearest(timeline.playhead(), frame_rate));
+        }
+        timeline.save()?;
+        // 预览播放器持有旧帧率的快照；换成新快照，旧播放器随之释放并停止。
+        if matches!(self.preview.target, PreviewTarget::Timeline { .. }) {
+            self.preview.target = self.create_timeline_preview(cx)?;
         }
         Ok(())
     }

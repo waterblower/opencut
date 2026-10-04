@@ -1,5 +1,5 @@
 use crate::clip_placement::validate_clip_placement;
-use crate::edit_action::{EditAction, apply_timeline_edit};
+use crate::edit_action::{EditAction, edit_timeline};
 use crate::editor::Editor;
 use crate::explorer_file_entry::{FileTreeEntry, FileTreeEntryKind, search_tree, visible_tree};
 use crate::generic_containers::TextInput;
@@ -410,7 +410,7 @@ impl Editor {
             _ => bail!("the drop target is not a media track"),
         };
 
-        apply_timeline_edit(
+        edit_timeline(
             timeline,
             EditAction::AddClips {
                 clips: vec![media_clip],

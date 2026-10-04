@@ -1,10 +1,9 @@
 //! Timeline preview and playback state without a GPUI context. Seeks and edits prepare frames
 //! synchronously; snapshot reads never decode. Owners that play drive [`TimelineBackend::advance`]
-//! from a task, redraw when it reports a change, and release retired images.
+//! from a task and redraw when it reports a change.
 
 use crate::timeline_decoder::{TimelineDecoder, TimelineFrameComposition};
 use anyhow::{Context as _, Result, bail};
-use gpui::{App, RenderImage};
 use std::{
     path::{Path, PathBuf},
     sync::Arc,
@@ -22,7 +21,6 @@ pub struct TimelineBackend {
     displayed: Arc<TimelineFrameComposition>,    // 当前展示的合成帧；图像在准备时转换，渲染时不解码。
     clock: PlaybackClock,
     playing: bool,
-    retired: Vec<Arc<RenderImage>>,   // 不再展示的图像；GPUI 纹理需由持有者释放。
 }
 
 /// Result of one playback step.
@@ -73,7 +71,6 @@ impl TimelineBackend {
                 start_time: None,
             },
             playing: false,
-            retired: Vec::new(),
         })
     }
 
@@ -81,19 +78,29 @@ impl TimelineBackend {
         &self.timeline
     }
 
-    /// Prepares edited content at the current frame before publishing it.
-    /// Errors preserve the document and frame.
+    pub fn project_root(&self) -> &Path {
+        &self.project_root
+    }
+
+    /// Prepares edited content at the current playback time before publishing it.
+    /// Reaching the new end pauses playback. Errors preserve all existing state.
     pub fn replace_timeline(&mut self, timeline: TimelineEditingState) -> Result<()> {
         timeline.validate()?;
+        let duration = timeline.position_at_frame(timeline.content_duration());
+        let position = self.clock_position().min(duration);
+        let playing = self.playing && position < duration;
+        let frame_index = floor_frame(timeline.settings.frame_rate, position);
         // Asset IDs may now point at different media, so no cached decoder is reused.
         let mut decoder = TimelineDecoder::new(&self.project_root);
-        let frame = decoder.frame_at(&timeline, self.frame_index())?;
+        let frame = decoder.frame_at(&timeline, frame_index)?;
         self.timeline = timeline;
         self.decoder = decoder;
         self.show(frame);
-        if !self.playing {
-            self.clock.start_position = self.clock.start_position.min(self.duration());
-        }
+        self.playing = playing;
+        self.clock = PlaybackClock {
+            start_position: position,
+            start_time: if playing { Some(Instant::now()) } else { None },
+        };
         Ok(())
     }
 
@@ -199,20 +206,6 @@ impl TimelineBackend {
         })
     }
 
-    /// Frees GPU textures of frames no longer displayed. Call after changes, from any context.
-    /// Deferred so a window currently being updated is back in the app's window list.
-    pub fn release_retired_images(&mut self, cx: &mut App) {
-        if self.retired.is_empty() {
-            return;
-        }
-        let retired = std::mem::take(&mut self.retired);
-        cx.defer(move |cx| {
-            for image in retired {
-                cx.drop_image(image, None);
-            }
-        });
-    }
-
     pub fn frame_size(&self) -> (u32, u32) {
         (self.timeline.settings.width, self.timeline.settings.height)
     }
@@ -255,19 +248,8 @@ impl TimelineBackend {
             .max(TimelineFrameIndex::ZERO)
     }
 
-    /// Replaces the displayed frame and retires images the new frame no longer uses.
     fn show(&mut self, frame: TimelineFrameComposition) {
-        let previous = std::mem::replace(&mut self.displayed, Arc::new(frame));
-        for image in previous.images() {
-            if !self.displayed.images().any(|kept| Arc::ptr_eq(kept, image))
-                && !self
-                    .retired
-                    .iter()
-                    .any(|retired| Arc::ptr_eq(retired, image))
-            {
-                self.retired.push(Arc::clone(image));
-            }
-        }
+        self.displayed = Arc::new(frame);
     }
 }
 

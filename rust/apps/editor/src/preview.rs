@@ -12,6 +12,7 @@ pub enum PreviewTarget {
     None,
     Timeline {
         _task: gpui::Task<()>, // 按字段声明顺序释放：先取消播放任务，再释放播放器。
+        _subscription: gpui::Subscription, // 预览替换时取消观察；播放器通知只触发编辑器重绘。
         path: PathBuf,
         player: Entity<TimelinePlayer>,
     },

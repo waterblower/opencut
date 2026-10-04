@@ -3,7 +3,7 @@ use std::{
     fs,
     path::{Path, PathBuf},
     sync::Arc,
-    time::Instant,
+    time::{Duration, Instant},
 };
 
 use gpui::{
@@ -148,6 +148,7 @@ pub fn export_timeline(
                     &mut audio_readers,
                     audio_position,
                     count,
+                    sample_rate,
                 )?;
                 encoder.audio(&samples, audio_position, total_samples)?;
                 audio_position += count as i64;
@@ -171,21 +172,22 @@ impl Render for ExportCanvas {
     }
 }
 
-struct ClipAudio {
+pub struct ClipAudio {
     decoder: AudioDecoder,
     pending: Option<AudioSamples>, // 已解码但未完全消费的 PCM 块。
 }
 
-/// Mixes a sequential interval of timeline audio into interleaved stereo samples.
-fn mix_timeline_audio(
+/// Mixes a sequential interval of timeline audio into interleaved stereo samples at `rate`.
+/// `start` and `count` are sample indices at `rate`; clear `readers` before a non-sequential read.
+pub fn mix_timeline_audio(
     timeline: &TimelineEditingState,
     project_root: &Path,
     readers: &mut HashMap<Ulid, ClipAudio>,
     start: i64,
     count: usize,
+    rate: u32,
 ) -> Result<Vec<[f32; 2]>> {
     let mut mixed = vec![[0.0_f32; 2]; count];
-    let rate = timeline.settings.audio_sample_rate;
     let fps = timeline.settings.frame_rate;
     let end = start
         .checked_add(i64::try_from(count)?)
@@ -231,7 +233,11 @@ fn mix_timeline_audio(
                 backend
                     .audio
                     .configure_output(&PcmFormat::default_layout(rate, 2)?)?;
-                backend.audio.seek(fps.duration(media.source_in))?;
+                // 从首次读取的位置打开；预览从片段中间开始时无需从 source_in 解码。
+                let seek_nanos = source_start as u128 * 1_000_000_000 / u128::from(rate);
+                backend
+                    .audio
+                    .seek(Duration::from_nanos(seek_nanos as u64))?;
                 entry.insert(ClipAudio {
                     decoder: backend.audio,
                     pending: None,

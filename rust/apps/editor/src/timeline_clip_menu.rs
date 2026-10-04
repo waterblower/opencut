@@ -1,5 +1,5 @@
 use crate::context_menu::ContextMenu;
-use crate::edit_action::{EditAction, apply_timeline_edit};
+use crate::edit_action::{EditAction, edit_timeline};
 use crate::editor::Editor;
 use crate::model::MediaKind;
 use crate::timeline_clip::VideoClipProperties;
@@ -67,7 +67,7 @@ impl Editor {
             .into_iter()
             .map(|index| timeline.editing_state.clips[index].id())
             .collect();
-        apply_timeline_edit(
+        edit_timeline(
             timeline,
             EditAction::SetVideoProperties {
                 clip_ids,

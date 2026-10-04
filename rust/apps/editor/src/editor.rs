@@ -158,8 +158,9 @@ impl Editor {
             active_asset_drag: AssetBeingDragged::None,
         };
         if let Some(timeline) = editor.timeline.as_mut() {
-            timeline.seek_frame(timeline.playhead());
+            timeline.set_playhead(timeline.playhead());
         }
+        editor.preview.target = editor.create_timeline_preview(cx)?;
 
         // todo:
         // instead of have an async starting here
