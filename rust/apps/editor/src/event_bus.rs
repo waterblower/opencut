@@ -322,7 +322,9 @@ async fn handle_app_event(
                     PreviewTarget::Timeline { player, .. } => {
                         player.update(cx, |player, cx| {
                             let position = player.backend.timeline().position_at_frame(frame_index);
-                            player.seek(position, cx)
+                            let result = player.seek(position);
+                            cx.notify();
+                            result
                         })?;
                     }
                     _ => {

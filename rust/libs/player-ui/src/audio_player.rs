@@ -57,7 +57,8 @@ pub enum PlaybackState {
 }
 
 impl AudioPlayer {
-    pub fn seek(&mut self, position: Duration, cx: &mut Context<Self>) -> Result<()> {
+    /// The caller notifies after a successful seek.
+    pub fn seek(&mut self, position: Duration) -> Result<()> {
         let position = position.min(self.audio_backend.metadata.duration);
         self.audio_output.clear()?;
         self.audio_backend.audio.seek(position)?;
@@ -65,13 +66,12 @@ impl AudioPlayer {
         if matches!(self.playback_state, PlaybackState::Ended) {
             self.playback_state = PlaybackState::Paused;
         }
-        cx.notify();
         Ok(())
     }
 
     pub fn toggle_playback(&mut self, cx: &mut Context<Self>) -> Result<()> {
         if matches!(self.playback_state, PlaybackState::Ended) {
-            self.seek(Duration::ZERO, cx)?;
+            self.seek(Duration::ZERO)?;
         }
         let playing = !matches!(self.playback_state, PlaybackState::Playing);
         self.audio_output.set_playing(playing)?;

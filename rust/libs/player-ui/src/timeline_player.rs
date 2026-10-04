@@ -92,15 +92,12 @@ impl TimelinePlayer {
         }
     }
 
-    pub fn seek(&mut self, position: Duration, cx: &mut Context<Self>) -> Result<()> {
-        let result = (|| {
-            self.backend.seek(position)?;
-            // 停止输出；播放中时 sync_audio 从新位置清空队列并重新混音。
-            self.audio_output.set_playing(false)?;
-            self.sync_audio()
-        })();
-        cx.notify();
-        result
+    /// The caller notifies after seeking, whether or not it succeeded.
+    pub fn seek(&mut self, position: Duration) -> Result<()> {
+        self.backend.seek(position)?;
+        // 停止输出；播放中时 sync_audio 从新位置清空队列并重新混音。
+        self.audio_output.set_playing(false)?;
+        self.sync_audio()
     }
 
     /// Pauses on the last good frame and records the error for display.

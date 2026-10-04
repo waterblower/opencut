@@ -56,8 +56,9 @@ impl Render for AudioPlayer {
                         let width = f32::from(bounds.size.width).max(1.0);
                         let fraction =
                             (f32::from(event.position().x - bounds.left()) / width).clamp(0.0, 1.0);
-                        if let Err(error) = player.seek(duration.mul_f64(f64::from(fraction)), cx) {
-                            eprintln!("Seeking audio failed: {error:?}");
+                        match player.seek(duration.mul_f64(f64::from(fraction))) {
+                            Ok(()) => cx.notify(),
+                            Err(error) => eprintln!("Seeking audio failed: {error:?}"),
                         }
                     }))
                     .child(div().h_full().w(relative(progress)).bg(rgb(0xdba34b))),

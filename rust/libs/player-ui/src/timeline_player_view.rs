@@ -67,8 +67,9 @@ impl Render for TimelinePlayer {
                                 .backend
                                 .duration()
                                 .mul_f64(f64::from(fraction.clamp(0.0, 1.0)));
-                            if let Err(error) = player.seek(position, cx) {
-                                player.fail(error, cx);
+                            match player.seek(position) {
+                                Ok(()) => cx.notify(),
+                                Err(error) => player.fail(error, cx),
                             }
                         }
                     }))
