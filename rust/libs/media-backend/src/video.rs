@@ -55,6 +55,10 @@ pub struct VideoDecoder {
     /// At most two frames: the next selected frame and any decoded successor.
     lookahead: VecDeque<VideoFrame>,
     diagnostics: DecodeDiagnostics,
+    // 零大小标记
+    // 使解码器无法移到或共享给其他线程
+    // FFmpeg 解码上下文和 VideoToolbox 会话
+    // 须在同一线程打开、使用和释放
     _lane_local: PhantomData<Rc<()>>,
 }
 
