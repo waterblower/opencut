@@ -7,13 +7,12 @@ use crate::layout::{
     TIMELINE_HEADER_HEIGHT, TIMELINE_HEIGHT, TIMELINE_PADDING, TRACK_HEADER_WIDTH, TRACK_HEIGHT,
 };
 use crate::preview::PreviewTarget;
-use crate::preview_events::pause_preview;
 use crate::timeline::{TimelineEditorExt, TimelineFrameIndex, TimelineRuntimeState};
 use crate::timeline_clip::Clip;
 use anyhow::Result;
 use gpui::prelude::*;
 use gpui::{
-    ClickEvent, Context, MouseDownEvent, MouseMoveEvent, MouseUpEvent, ScrollWheelEvent,
+    App, ClickEvent, Context, MouseDownEvent, MouseMoveEvent, MouseUpEvent, ScrollWheelEvent,
     TouchPhase, Window, px,
 };
 use std::collections::HashSet;
@@ -300,27 +299,26 @@ impl Editor {
         clip_id: Ulid,
         event: &MouseDownEvent,
         cx: &mut Context<Self>,
-    ) {
+    ) -> Result<()> {
         let Some(tool) = self
             .timeline
             .as_ref()
             .map(|timeline| timeline.interaction.active_tool)
         else {
-            return;
+            return Ok(());
         };
         self.explorer.selected_file = None;
         match tool {
-            TimelineTool::Selection => self.begin_clip_move(clip_id, event, cx),
+            TimelineTool::Selection => self.begin_clip_move(clip_id, event, cx)?,
             TimelineTool::Blade => {
                 cx.stop_propagation();
                 let Some(timeline) = self.timeline.as_mut() else {
-                    return;
+                    return Ok(());
                 };
-                if let Err(error) = timeline.blade_at_playhead() {
-                    log::error!("{error:?}");
-                }
+                timeline.blade_at_playhead()?;
             }
         }
+        Ok(())
     }
 
     pub(super) fn begin_marquee_selection(
@@ -432,11 +430,11 @@ impl Editor {
         clip_id: Ulid,
         event: &MouseDownEvent,
         cx: &mut Context<Self>,
-    ) {
+    ) -> Result<()> {
         cx.stop_propagation();
         if event.modifiers.secondary() {
             self.toggle_clip_selection(clip_id);
-            return;
+            return Ok(());
         }
         if self
             .timeline
@@ -446,13 +444,13 @@ impl Editor {
             self.select_only_clip(Some(clip_id));
         }
         let Some(timeline) = self.timeline.as_ref() else {
-            return;
+            return Ok(());
         };
         if !timeline.selected_clips_editable() {
-            return;
+            return Ok(());
         }
         let Some(anchor) = timeline.editing_state.clip(clip_id).cloned() else {
-            return;
+            return Ok(());
         };
         let Some(original_anchor_track_index) = timeline
             .editing_state
@@ -460,7 +458,7 @@ impl Editor {
             .iter()
             .position(|track| track.id == anchor.track_id())
         else {
-            return;
+            return Ok(());
         };
         let items = timeline
             .selected_clip_ids_in_timeline_order()
@@ -489,11 +487,9 @@ impl Editor {
                 .selected_clip_ids
                 .len()
         {
-            return;
+            return Ok(());
         }
-        if let Err(error) = pause_preview(&self.preview.target, cx) {
-            log::error!("Could not pause preview: {error:?}");
-        }
+        pause_preview_timeline_player(&self.preview.target, cx)?;
         let timeline = self.timeline.as_mut().expect("timeline was checked above");
         timeline.interaction.snap_guide = None;
         timeline.interaction.clip_move_drag = Some(ClipMoveDrag {
@@ -516,6 +512,7 @@ impl Editor {
             invalid_reason: None,
             changed: false,
         });
+        Ok(())
     }
 
     pub(super) fn update_clip_move(
@@ -630,36 +627,6 @@ impl Editor {
             drag.changed = moved_from_origin;
         }
         timeline.interaction.snap_guide = snap_guide;
-        cx.notify();
-    }
-
-    pub(super) fn finish_clip_move(
-        &mut self,
-        _: &MouseUpEvent,
-        _: &mut Window,
-        cx: &mut Context<Self>,
-    ) {
-        let Some(timeline) = self.timeline.as_mut() else {
-            return;
-        };
-        let Some(drag) = timeline.interaction.clip_move_drag.take() else {
-            return;
-        };
-        timeline.interaction.snap_guide = None;
-        if drag.changed && drag.invalid_reason.is_none() {
-            timeline.record_editing_history();
-            apply_timeline_edit(
-                timeline,
-                EditAction::MoveClips {
-                    placements: drag.placements,
-                },
-            )
-            .expect("clip move placements were validated during the drag");
-
-            if let Err(error) = timeline.save() {
-                log::error!("{error:?}");
-            }
-        }
         cx.notify();
     }
 
@@ -782,6 +749,20 @@ impl Editor {
         }
         Ok(())
     }
+}
+
+/// Pauses the timeline preview while the timeline is edited;
+pub fn pause_preview_timeline_player(target: &PreviewTarget, cx: &mut App) -> Result<()> {
+    let PreviewTarget::Timeline { player, .. } = target else {
+        return Ok(());
+    };
+    player.update(cx, |player, cx| {
+        if player.backend.is_playing() {
+            player.toggle_playback(cx)
+        } else {
+            Ok(())
+        }
+    })
 }
 
 #[cfg(test)]

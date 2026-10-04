@@ -1,8 +1,8 @@
 use crate::edit_action::{EditAction, apply_timeline_edit};
 use crate::editor::Editor;
-use crate::preview_events::pause_preview;
 use crate::theme::{ACCENT, BORDER, MUTED, PANEL, SURFACE, SURFACE_HOVER, TEXT};
 use crate::timeline::{FRAME_RATE_PRESETS, FrameRate};
+use crate::timeline_interactions::pause_preview_timeline_player;
 use ::timeline::TimelineEditingState;
 use anyhow::Result;
 use gpui::prelude::*;
@@ -156,7 +156,7 @@ impl Editor {
             return Ok(());
         }
 
-        pause_preview(&self.preview.target, cx)?;
+        pause_preview_timeline_player(&self.preview.target, cx)?;
         let Some(timeline) = self.timeline.as_mut() else {
             return Ok(());
         };

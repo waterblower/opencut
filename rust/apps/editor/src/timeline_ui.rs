@@ -1,4 +1,5 @@
 use crate::context_menu::ContextMenu;
+use crate::edit_action::{EditAction, apply_timeline_edit};
 use crate::editor::Editor;
 use crate::event_bus::{AppEvent, AssetDragMoveEvent};
 use crate::explorer_drag::AssetBeingDragged;
@@ -14,7 +15,9 @@ use crate::timeline::TimelineFrameIndex;
 use crate::timeline_interactions::{MarqueeSelection, TimelineTool};
 use crate::track::TrackKind;
 use gpui::prelude::*;
-use gpui::{CursorStyle, DragMoveEvent, MouseButton, MouseDownEvent, div, px, rgb};
+use gpui::{
+    CursorStyle, DragMoveEvent, MouseButton, MouseDownEvent, MouseUpEvent, Window, div, px, rgb,
+};
 
 const MAX_RULER_TICKS: usize = 240;
 const MIN_RULER_LABEL_SPACING: f32 = 72.0;
@@ -78,12 +81,12 @@ impl Editor {
             .on_mouse_move(cx.listener(Self::update_clip_move))
             .on_mouse_move(cx.listener(Self::update_marquee_selection))
             .on_scroll_wheel(cx.listener(Self::finish_timeline_scroll))
-            .on_mouse_up(MouseButton::Left, cx.listener(Self::finish_clip_move))
+            .on_mouse_up(MouseButton::Left, cx.listener(finish_clip_move))
             .on_mouse_up(
                 MouseButton::Left,
                 cx.listener(Self::finish_marquee_selection),
             )
-            .on_mouse_up_out(MouseButton::Left, cx.listener(Self::finish_clip_move))
+            .on_mouse_up_out(MouseButton::Left, cx.listener(finish_clip_move))
             .on_mouse_up_out(
                 MouseButton::Left,
                 cx.listener(Self::finish_marquee_selection),
@@ -367,8 +370,7 @@ impl Editor {
             .as_ref()
             .expect("timeline view requires timeline state");
         let left = TIMELINE_PADDING
-            + self.timeline_playhead_seconds(cx) as f32
-                * timeline.pixels_per_second;
+            + self.timeline_playhead_seconds(cx) as f32 * timeline.pixels_per_second;
 
         div()
             .absolute()
@@ -525,10 +527,7 @@ impl Editor {
                             .text_sm()
                             .child(format!(
                                 "{} / {}",
-                                format_time(
-                                    self.timeline_playhead_seconds(cx),
-                                    false
-                                ),
+                                format_time(self.timeline_playhead_seconds(cx), false),
                                 format_time(
                                     timeline
                                         .editing_state
@@ -728,4 +727,34 @@ fn format_time_precise(seconds: f64) -> String {
     let minutes = (seconds / 60.0).floor() as u64;
     let seconds = seconds % 60.0;
     format!("{minutes:02}:{seconds:04.1}")
+}
+
+fn finish_clip_move(
+    editor: &mut Editor,
+    _: &MouseUpEvent,
+    _: &mut Window,
+    cx: &mut Context<Editor>,
+) {
+    let Some(timeline) = editor.timeline.as_mut() else {
+        return;
+    };
+    let Some(drag) = timeline.interaction.clip_move_drag.take() else {
+        return;
+    };
+    timeline.interaction.snap_guide = None;
+    if drag.changed && drag.invalid_reason.is_none() {
+        timeline.record_editing_history();
+        apply_timeline_edit(
+            timeline,
+            EditAction::MoveClips {
+                placements: drag.placements,
+            },
+        )
+        .expect("clip move placements were validated during the drag");
+
+        if let Err(error) = timeline.save() {
+            log::error!("{error:?}");
+        }
+    }
+    cx.notify();
 }

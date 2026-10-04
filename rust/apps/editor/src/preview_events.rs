@@ -3,43 +3,14 @@ use crate::preview::PreviewTarget;
 use anyhow::Result;
 use gpui::prelude::*;
 use gpui::{App, AsyncApp, Entity};
-use player_ui::audio_player::{AudioPlayer, PlaybackState as AudioPlaybackState};
-use player_ui::video_player::{PlaybackState as VideoPlaybackState, VideoPlayer};
+use player_ui::audio_player::AudioPlayer;
+use player_ui::video_player::VideoPlayer;
 use std::path::{Path, PathBuf};
 
 #[derive(Clone, Debug)]
 pub enum PreviewEvent {
     SelectFile(PathBuf),
     TogglePlayback,
-}
-
-/// Pauses a playing file or timeline preview.
-pub fn pause_preview(target: &PreviewTarget, cx: &mut App) -> Result<()> {
-    match target {
-        PreviewTarget::VideoFile { player, .. } => {
-            player.update(cx, |player, cx| {
-                if matches!(player.playback_state, VideoPlaybackState::Playing) {
-                    player.toggle_playback(cx);
-                }
-            });
-            Ok(())
-        }
-        PreviewTarget::AudioFile { player, .. } => player.update(cx, |player, cx| {
-            if matches!(player.playback_state, AudioPlaybackState::Playing) {
-                player.toggle_playback(cx)
-            } else {
-                Ok(())
-            }
-        }),
-        PreviewTarget::Timeline { player, .. } => player.update(cx, |player, cx| {
-            if player.backend.is_playing() {
-                player.toggle_playback(cx)
-            } else {
-                Ok(())
-            }
-        }),
-        PreviewTarget::None | PreviewTarget::ImageFile(_) => Ok(()),
-    }
 }
 
 impl Editor {
