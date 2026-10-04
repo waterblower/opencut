@@ -535,11 +535,11 @@ fn playhead_is_restored_saved_and_clamped_without_media() -> Result<()> {
     std::fs::create_dir_all(&directory)?;
     let path = directory.join("test.timeline.json");
     let mut timeline = TimelineRuntimeState::new(path.clone(), data)?;
-    timeline.seek_frame(TimelineFrameIndex::from(45));
+    timeline.set_playhead(TimelineFrameIndex::from(45));
     timeline.save()?;
     let restored = TimelineRuntimeState::load(path)?;
     assert_eq!(i64::from(restored.playhead()), 45);
-    timeline.seek_frame(TimelineFrameIndex::from(i64::MAX));
+    timeline.set_playhead(TimelineFrameIndex::from(i64::MAX));
     assert_eq!(i64::from(timeline.playhead()), 59);
     edit_timeline(
         &mut timeline,
@@ -561,7 +561,7 @@ fn replacing_history_snapshots_preserves_playhead_and_document() -> Result<()> {
     data.assets.push(audio_asset(100));
     data.clips = vec![audio_clip(10, 0, 60)];
     let mut timeline = TimelineRuntimeState::new(std::path::absolute("test.timeline.json")?, data)?;
-    timeline.seek_frame(TimelineFrameIndex::from(15));
+    timeline.set_playhead(TimelineFrameIndex::from(15));
     timeline.record_editing_history();
     edit_timeline(
         &mut timeline,

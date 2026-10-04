@@ -304,7 +304,9 @@ impl Editor {
                 .on_mouse_down(
                     MouseButton::Left,
                     cx.listener(move |editor, event, _, cx| {
-                        editor.handle_clip_mouse_down(clip_id, event, cx);
+                        if let Err(error) = editor.handle_clip_mouse_down(clip_id, event, cx) {
+                            log::error!("Could not handle clip mouse down: {error:?}");
+                        }
                         cx.notify();
                     }),
                 )
@@ -424,7 +426,9 @@ impl Editor {
             .on_mouse_down(
                 MouseButton::Left,
                 cx.listener(move |editor, event: &MouseDownEvent, _, cx| {
-                    editor.handle_clip_mouse_down(clip_id, event, cx);
+                    if let Err(error) = editor.handle_clip_mouse_down(clip_id, event, cx) {
+                        log::error!("Could not handle clip mouse down: {error:?}");
+                    }
                     cx.notify();
                 }),
             )

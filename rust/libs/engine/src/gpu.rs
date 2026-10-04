@@ -36,9 +36,9 @@ pub struct GpuResources {
 }
 
 impl GpuResources {
-    pub fn new(dimensions: (usize, usize)) -> Result<Option<Self>> {
+    pub fn new(dimensions: (usize, usize)) -> Result<Self> {
         let Some(device) = Device::system_default() else {
-            return Ok(None);
+            bail!("No Metal device is available");
         };
         let library = device
             .new_library_with_source(include_str!("convert.metal"), &CompileOptions::new())
@@ -52,22 +52,29 @@ impl GpuResources {
         let queue = device.new_command_queue();
         let cache = CVMetalTextureCache::new(None, device, None)
             .map_err(|status| anyhow!("creating player Metal texture cache: {status}"))?;
-        Ok(Some(Self {
+        Ok(Self {
             queue,
             pipeline,
             cache,
             pool: create_pool(dimensions)?,
             dimensions,
-        }))
+        })
     }
 
-    /// Return a completed surface for unmodified GPUI, or None for CPU fallback.
-    /// Conversion stays on the GPU; waiting here deliberately keeps the loop serial.
-    pub fn convert(&mut self, frame: &VideoFrame) -> Result<Option<CVPixelBuffer>> {
-        if frame.native.format() != Pixel::VIDEOTOOLBOX
-            || frame.rotation_degrees.rem_euclid(360.0) != 0.0
-        {
-            return Ok(None);
+    /// Return a completed surface for unmodified GPUI, or an error for frames the GPU path
+    /// cannot show. Conversion stays on the GPU; waiting here deliberately keeps the loop serial.
+    pub fn convert(&mut self, frame: &VideoFrame) -> Result<CVPixelBuffer> {
+        if frame.native.format() != Pixel::VIDEOTOOLBOX {
+            bail!(
+                "Video frame is not a VideoToolbox frame: {:?}",
+                frame.native.format()
+            );
+        }
+        if frame.rotation_degrees.rem_euclid(360.0) != 0.0 {
+            bail!(
+                "Rotated video is not supported: {} degrees",
+                frame.rotation_degrees
+            );
         }
         let (kr, kb) = match frame.color_space {
             color::Space::BT709 => (0.2126, 0.0722),
@@ -75,12 +82,12 @@ impl GpuResources {
             color::Space::BT2020NCL => (0.2627, 0.0593),
             color::Space::Unspecified if frame.native.height() >= 720 => (0.2126, 0.0722),
             color::Space::Unspecified => (0.299, 0.114),
-            _ => return Ok(None),
+            other => bail!("Unsupported video color space: {other:?}"),
         };
         // SAFETY: FFmpeg owns the CVPixelBuffer in data[3]. Retain it with the get rule.
         let source = unsafe { (*frame.native.as_ptr()).data[3] as CVPixelBufferRef };
         if source.is_null() {
-            return Ok(None);
+            bail!("VideoToolbox frame has no pixel buffer");
         }
         let source = unsafe { CVPixelBuffer::wrap_under_get_rule(source) };
         let (bits, full_range, y_format, uv_format) = match source.get_pixel_format() {
@@ -102,7 +109,7 @@ impl GpuResources {
                 MTLPixelFormat::R16Unorm,
                 MTLPixelFormat::RG16Unorm,
             ),
-            _ => return Ok(None),
+            format => bail!("Unsupported VideoToolbox pixel format: {format:#x}"),
         };
         let dimensions = (source.get_width(), source.get_height());
         // SAFETY: inspect a borrowed IOSurface without releasing it. The dependency's
@@ -119,7 +126,10 @@ impl GpuResources {
             || dimensions.0 % 2 != 0
             || dimensions.1 % 2 != 0
         {
-            return Ok(None);
+            bail!(
+                "Unsupported VideoToolbox surface: io_surface={has_surface}, planes={}, size={dimensions:?}",
+                source.get_plane_count()
+            );
         }
         // Already matches GPUI's fixed full-range BT.601 surface shader.
         if bits == 8
@@ -129,7 +139,7 @@ impl GpuResources {
                 color::Space::BT470BG | color::Space::SMPTE170M
             )
         {
-            return Ok(Some(source));
+            return Ok(source);
         }
         if self.dimensions != dimensions {
             self.pool = create_pool(dimensions)?;
@@ -207,7 +217,7 @@ impl GpuResources {
         }
         drop(textures);
         self.cache.flush(0);
-        Ok(Some(output))
+        Ok(output)
     }
 }
 

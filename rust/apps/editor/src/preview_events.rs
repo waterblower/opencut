@@ -2,7 +2,7 @@ use crate::editor::Editor;
 use crate::preview::PreviewTarget;
 use anyhow::Result;
 use gpui::prelude::*;
-use gpui::{AsyncApp, Entity};
+use gpui::{App, AsyncApp, Entity};
 use player_ui::audio_player::AudioPlayer;
 use player_ui::video_player::VideoPlayer;
 use std::path::{Path, PathBuf};
@@ -14,16 +14,6 @@ pub enum PreviewEvent {
 }
 
 impl Editor {
-    pub fn pause_preview(&mut self) -> Result<()> {
-        match &mut self.preview.target {
-            PreviewTarget::VideoFile { .. } | PreviewTarget::AudioFile { .. } => {
-                todo!("pause the new player")
-            }
-            _ => {}
-        }
-        Ok(())
-    }
-
     pub async fn open_file_preview(
         editor: Entity<Self>,
         project_root: PathBuf,

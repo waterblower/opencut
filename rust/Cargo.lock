@@ -4517,6 +4517,7 @@ name = "player-ui"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "core-video",
  "cpal",
  "engine",
  "ffmpeg-next",
@@ -4525,6 +4526,7 @@ dependencies = [
  "image",
  "media-backend",
  "timeline",
+ "ulid",
 ]
 
 [[package]]

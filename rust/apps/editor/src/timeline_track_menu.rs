@@ -1,4 +1,4 @@
-use crate::edit_action::{EditAction, apply_timeline_edit};
+use crate::edit_action::{EditAction, edit_timeline};
 use crate::editor::Editor;
 use crate::timeline::TimelineFrameIndex;
 use crate::timeline_clip::{Clip, TextClip, TextClipProperties};
@@ -22,7 +22,7 @@ impl Editor {
         let clip = text_clip_at(&timeline.editing_state, track_id, position)?;
         timeline.record_editing_history();
         let clip_id = clip.id();
-        apply_timeline_edit(
+        edit_timeline(
             timeline,
             EditAction::AddClips {
                 clips: vec![clip],

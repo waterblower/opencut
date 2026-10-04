@@ -1,4 +1,4 @@
-use crate::edit_action::{EditAction, apply_timeline_edit};
+use crate::edit_action::{EditAction, edit_timeline};
 use crate::editor::Editor;
 use crate::generic_containers::TextInput;
 use crate::theme::{ACCENT, MUTED, TEXT};
@@ -159,7 +159,7 @@ impl Editor {
             return Ok(());
         };
         timeline.record_editing_history();
-        apply_timeline_edit(
+        edit_timeline(
             timeline,
             EditAction::SetVideoProperties {
                 clip_ids: vec![clip_id],

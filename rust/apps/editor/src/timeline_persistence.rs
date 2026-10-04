@@ -44,7 +44,7 @@ impl TimelineRuntimeState {
     pub fn from_serialize(document: TimelineSerialization, path: PathBuf) -> Result<Self> {
         ensure!(path.is_absolute(), "Timeline path must be absolute");
         let mut runtime = Self::new(path, document.to_editing_state())?;
-        runtime.seek_frame(document.playhead());
+        runtime.set_playhead(document.playhead());
         let (horizontal, vertical) = document.scroll_offset();
         runtime.h_scroll.set_offset(point(px(-horizontal), px(0.0)));
         runtime.v_scroll.set_offset(point(px(0.0), px(-vertical)));

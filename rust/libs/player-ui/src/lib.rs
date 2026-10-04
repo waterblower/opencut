@@ -8,6 +8,14 @@ pub mod timeline_player_view;
 pub mod video_player;
 mod video_player_view;
 
+use anyhow::Result;
+use std::time::Duration;
+
+pub trait Seeker {
+    /// Moves playback to `position`. Does not notify; the caller does.
+    fn seek(&mut self, position: Duration) -> Result<()>;
+}
+
 trait WaitUntilPlaying {
     /// Waits for Playing without decoding, changing clocks, or performing device I/O.
     async fn wait_until_playing(&self, cx: &mut gpui::AsyncApp);
