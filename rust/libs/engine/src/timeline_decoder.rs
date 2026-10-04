@@ -8,8 +8,7 @@ use anyhow::{Context as _, Result, bail};
 #[cfg(target_os = "macos")]
 use core_video::pixel_buffer::CVPixelBuffer;
 use gpui::{
-    AnyElement, IntoElement, ParentElement, RenderImage, Styled, TextAlign, div, img, px, rgb,
-    rgba,
+    AnyElement, IntoElement, ParentElement, RenderImage, Styled, TextAlign, div, img, px, rgb, rgba,
 };
 use image::{Frame, RgbaImage};
 use media_backend::{VideoBackend, VideoDecoder, VideoFrame};
@@ -206,12 +205,12 @@ impl TimelineDecoder {
                                 {
                                     let reader = match self.readers.entry(media.id) {
                                         Entry::Occupied(entry) => entry.into_mut(),
-                                        Entry::Vacant(entry) => {
-                                            entry.insert(ClipReader::open(&path).context(format!(
+                                        Entry::Vacant(entry) => entry.insert(
+                                            ClipReader::open(&path).context(format!(
                                                 "Opening timeline video {}",
                                                 path.display()
-                                            ))?)
-                                        }
+                                            ))?,
+                                        ),
                                     };
                                     active_readers.insert(media.id);
                                     let source = timeline.source_position_at(clip, position);
@@ -277,7 +276,7 @@ impl TimelineDecoder {
 struct ClipReader {
     gpu: GpuResources,
     decoder: VideoDecoder,
-    next: Option<VideoFrame>,           // 已解码、尚未到展示时间的帧。
+    next: Option<VideoFrame>,            // 已解码、尚未到展示时间的帧。
     shown: Option<(i64, CVPixelBuffer)>, // (源 PTS 微秒, GPU surface)。
 }
 

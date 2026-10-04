@@ -6,7 +6,7 @@ use gpui::{
     AnyElement, AvailableSpace, Bounds, ClickEvent, Context, CursorStyle, Window, canvas, div,
     prelude::*, px, rgb,
 };
-use std::{cell::Cell, rc::Rc, sync::Arc, time::Duration};
+use std::{cell::Cell, rc::Rc};
 
 /// Standalone view: picture, seek bar, and transport controls.
 impl Render for TimelinePlayer {
