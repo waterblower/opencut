@@ -26,3 +26,4 @@ rust/vendor/ffmpeg*
 *.env
 .delta/
 rust/.testdata/
+rust/libs/media-backend/.testdata/
