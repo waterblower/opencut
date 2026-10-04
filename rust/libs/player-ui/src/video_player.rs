@@ -1,4 +1,4 @@
-use crate::{WaitUntilPlaying, audio_output::AudioOutput};
+use crate::{Seeker, WaitUntilPlaying, audio_output::AudioOutput};
 use anyhow::{Context as _, Result, bail};
 #[cfg(target_os = "macos")]
 use core_video::pixel_buffer::CVPixelBuffer;
@@ -125,8 +125,8 @@ impl PlaybackClock {
     }
 }
 
-impl VideoPlayer {
-    pub fn seek(&mut self, position: Duration) -> Result<()> {
+impl Seeker for VideoPlayer {
+    fn seek(&mut self, position: Duration) -> Result<()> {
         self.audio_output.clear_at(position)?;
         self.video_backend.video.seek(position)?;
         self.video_backend.audio.seek(position)?;
@@ -135,7 +135,9 @@ impl VideoPlayer {
         }
         Ok(())
     }
+}
 
+impl VideoPlayer {
     fn prepare_next_frame(&mut self) -> Result<Option<(CVPixelBuffer, Duration, Duration)>> {
         let started = Instant::now();
         let Some(frame) = self.video_backend.video.next_frame()? else {

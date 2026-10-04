@@ -1,3 +1,4 @@
+use crate::Seeker;
 use crate::video_player::{PlaybackState, VideoPlayer};
 #[cfg(target_os = "macos")]
 use gpui::surface;

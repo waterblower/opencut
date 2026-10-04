@@ -1,4 +1,4 @@
-use crate::{WaitUntilPlaying, audio_output::AudioOutput};
+use crate::{Seeker, WaitUntilPlaying, audio_output::AudioOutput};
 use anyhow::Result;
 use futures::{FutureExt, select};
 use gpui::{AsyncApp, Context, Entity, Task};
@@ -56,9 +56,8 @@ pub enum PlaybackState {
     Ended,
 }
 
-impl AudioPlayer {
-    /// The caller notifies after a successful seek.
-    pub fn seek(&mut self, position: Duration) -> Result<()> {
+impl Seeker for AudioPlayer {
+    fn seek(&mut self, position: Duration) -> Result<()> {
         let position = position.min(self.audio_backend.metadata.duration);
         self.audio_output.clear()?;
         self.audio_backend.audio.seek(position)?;
@@ -68,7 +67,9 @@ impl AudioPlayer {
         }
         Ok(())
     }
+}
 
+impl AudioPlayer {
     pub fn toggle_playback(&mut self, cx: &mut Context<Self>) -> Result<()> {
         if matches!(self.playback_state, PlaybackState::Ended) {
             self.seek(Duration::ZERO)?;

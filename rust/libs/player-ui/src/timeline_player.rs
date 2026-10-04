@@ -1,7 +1,7 @@
 //! Standalone timeline player entity: a [`TimelineBackend`] plus its own loop, controls, and
 //! audio output. Mixed audio is queued by timeline position against the backend's clock.
 
-use crate::audio_output::AudioOutput;
+use crate::{Seeker, audio_output::AudioOutput};
 use anyhow::Result;
 use engine::{
     export::{ClipAudio, mix_timeline_audio},
@@ -92,14 +92,6 @@ impl TimelinePlayer {
         }
     }
 
-    /// The caller notifies after seeking, whether or not it succeeded.
-    pub fn seek(&mut self, position: Duration) -> Result<()> {
-        self.backend.seek(position)?;
-        // 停止输出；播放中时 sync_audio 从新位置清空队列并重新混音。
-        self.audio_output.set_playing(false)?;
-        self.sync_audio()
-    }
-
     /// Pauses on the last good frame and records the error for display.
     /// The playback loop stops audio output on its next step.
     pub(crate) fn fail(&mut self, error: anyhow::Error, cx: &mut Context<Self>) {
@@ -159,6 +151,15 @@ impl TimelinePlayer {
             self.audio_cursor = target;
         }
         self.audio_output.set_playing(true)
+    }
+}
+
+impl Seeker for TimelinePlayer {
+    fn seek(&mut self, position: Duration) -> Result<()> {
+        self.backend.seek(position)?;
+        // 停止输出；播放中时 sync_audio 从新位置清空队列并重新混音。
+        self.audio_output.set_playing(false)?;
+        self.sync_audio()
     }
 }
 

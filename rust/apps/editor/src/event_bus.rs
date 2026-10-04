@@ -18,6 +18,7 @@ use crate::{OpenProject, open_editor_window, quit_after_last_window};
 use anyhow::{Result, anyhow, bail};
 use gpui::prelude::*;
 use gpui::{AsyncApp, Bounds, Entity, EventEmitter, MouseMoveEvent, Pixels};
+use player_ui::Seeker;
 use player_ui::timeline_player::TimelinePlayer;
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};

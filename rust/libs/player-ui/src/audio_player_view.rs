@@ -1,3 +1,4 @@
+use crate::Seeker;
 use crate::audio_player::{AudioPlayer, PlaybackState};
 use gpui::{Bounds, ClickEvent, Context, Render, Window, div, prelude::*, px, relative, rgb};
 use std::{cell::Cell, rc::Rc};

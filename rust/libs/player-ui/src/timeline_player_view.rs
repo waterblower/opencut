@@ -1,3 +1,4 @@
+use crate::Seeker;
 use crate::timeline_player::TimelinePlayer;
 use engine::timeline_backend::TimelineBackend;
 use gpui::{
