@@ -19,7 +19,6 @@ const AUDIO_LEAD: Duration = Duration::from_millis(500); // 混音领先播放�
 pub struct TimelinePlayer {
     pub backend: TimelineBackend,                 // 直接修改后需自行 notify 并释放旧图像。
     pub title: String,
-    pub error: Option<String>,                    // 最近一次播放失败；播放已暂停，保留上一帧。
     audio_output: AudioOutput,
     audio_readers: HashMap<Ulid, ClipAudio>,      // 按片段顺序读取的解码器；重新开始输出时清空。
     audio_cursor: i64,                            // 下一块待混音的起始采样位置（设备采样率），不是播放位置。
@@ -32,7 +31,6 @@ impl TimelinePlayer {
         Ok(Self {
             backend: TimelineBackend::new(timeline, project_root)?,
             title: String::new(),
-            error: None,
             audio_output: AudioOutput::open()?,
             audio_readers: HashMap::new(),
             audio_cursor: 0,
@@ -72,7 +70,6 @@ impl TimelinePlayer {
     }
 
     pub fn play(&mut self, cx: &mut Context<Self>) -> Result<()> {
-        self.error = None;
         let result = match self.backend.play() {
             Ok(()) => self.sync_audio(),
             Err(error) => Err(error),
@@ -92,12 +89,11 @@ impl TimelinePlayer {
         }
     }
 
-    /// Pauses on the last good frame and records the error for display.
+    /// Logs the error and pauses on the last good frame.
     /// The playback loop stops audio output on its next step.
     pub(crate) fn fail(&mut self, error: anyhow::Error, cx: &mut Context<Self>) {
         eprintln!("Timeline player failed: {error:?}");
         self.backend.pause();
-        self.error = Some(format!("{error:#}"));
         cx.notify();
     }
 

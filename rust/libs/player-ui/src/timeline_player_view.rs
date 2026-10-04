@@ -105,10 +105,7 @@ impl Render for TimelinePlayer {
                             .flex_1()
                             .min_w_0()
                             .text_ellipsis()
-                            .when_some(self.error.clone(), |this, error| {
-                                this.text_color(rgb(0xff6b6b)).child(error)
-                            })
-                            .when(self.error.is_none(), |this| this.child(self.title.clone())),
+                            .child(self.title.clone()),
                     ),
             )
     }
