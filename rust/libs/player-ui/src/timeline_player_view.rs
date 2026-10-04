@@ -1,3 +1,4 @@
+use crate::seek_bar::{progress, seek_bar, seek_position};
 use crate::timeline_player::TimelinePlayer;
 use crate::{Seeker, format_time};
 use engine::timeline_backend::TimelineBackend;
@@ -23,19 +24,8 @@ impl Render for TimelinePlayer {
             (_, true) => "Pause",
             (_, false) => "Play",
         };
-        let progress = if duration.is_zero() {
-            0.0
-        } else {
-            (position.as_secs_f64() / duration.as_secs_f64()).clamp(0.0, 1.0) as f32
-        };
 
         div()
-            .on_children_prepainted({
-                let seek_bounds = seek_bounds.clone();
-                move |bounds, _, _| {
-                    seek_bounds.set(bounds[1]); // 子元素依次为画面、进度条、控制栏；使用进度条的窗口坐标。
-                }
-            })
             .id("timeline-player")
             .size_full()
             .flex()
@@ -51,30 +41,15 @@ impl Render for TimelinePlayer {
                     .child(timeline_backend_picture(&self.backend)),
             )
             .child(
-                div()
-                    .id("seek")
-                    .w_full()
-                    .h(px(20.0))
-                    .flex_shrink_0()
-                    .bg(rgb(0x303030))
-                    .cursor(CursorStyle::PointingHand)
-                    .on_click(cx.listener({
-                        let seek_bounds = seek_bounds.clone();
-                        move |player, event: &ClickEvent, _, cx| {
-                            let bounds = seek_bounds.get();
-                            let width = f32::from(bounds.size.width).max(1.0);
-                            let fraction = f32::from(event.position().x - bounds.left()) / width;
-                            let position = player
-                                .backend
-                                .duration()
-                                .mul_f64(f64::from(fraction.clamp(0.0, 1.0)));
-                            match player.seek(position) {
-                                Ok(()) => cx.notify(),
-                                Err(error) => player.fail(error, cx),
-                            }
+                seek_bar("seek", progress(position, duration), seek_bounds.clone()).on_click(
+                    cx.listener(move |player, event: &ClickEvent, _, cx| {
+                        let target = seek_position(event.position().x, seek_bounds.get(), duration);
+                        match player.seek(target) {
+                            Ok(()) => cx.notify(),
+                            Err(error) => player.fail(error, cx),
                         }
-                    }))
-                    .child(div().h_full().w(relative(progress)).bg(rgb(0xdba34b))),
+                    }),
+                ),
             )
             .child(
                 div()
