@@ -68,10 +68,6 @@ pub enum EditAction {
 }
 
 /// Applies an edit to the editing timeline only; the preview player is not synced with it.
-pub fn apply_timeline_edit(timeline: &mut TimelineRuntimeState, action: EditAction) -> Result<()> {
-    edit_timeline(timeline, action)
-}
-
 pub fn edit_timeline(timeline: &mut TimelineRuntimeState, action: EditAction) -> Result<()> {
     let mut data = timeline.editing_state.clone();
     edit_content(&mut data, action)?;

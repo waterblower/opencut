@@ -1,4 +1,4 @@
-use crate::edit_action::{EditAction, apply_timeline_edit};
+use crate::edit_action::{EditAction, edit_timeline};
 use crate::editor::Editor;
 use crate::theme::{ACCENT, BORDER, MUTED, PANEL, SURFACE, SURFACE_HOVER, TEXT};
 use crate::timeline::{FRAME_RATE_PRESETS, FrameRate};
@@ -161,7 +161,7 @@ impl Editor {
             return Ok(());
         };
         timeline.record_editing_history();
-        apply_timeline_edit(timeline, EditAction::SetFrameRate { frame_rate })
+        edit_timeline(timeline, EditAction::SetFrameRate { frame_rate })
             .expect("changing the frame rate cannot be rejected");
         let has_clips = !timeline.editing_state.clips.is_empty();
         timeline.save()?;

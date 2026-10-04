@@ -1,4 +1,4 @@
-use crate::edit_action::{EditAction, apply_timeline_edit};
+use crate::edit_action::{EditAction, edit_timeline};
 use crate::editing::validate_clips_placements;
 use crate::editor::Editor;
 use crate::explorer_drag::AssetBeingDragged;
@@ -207,7 +207,7 @@ async fn handle_app_event(
                     return Ok(());
                 };
                 timeline.record_editing_history();
-                apply_timeline_edit(timeline, edit_action)
+                edit_timeline(timeline, edit_action)
                     .expect("event bus edit actions cannot be rejected");
                 timeline.save()?;
                 cx.notify();
@@ -283,7 +283,7 @@ async fn handle_app_event(
                         let selected_clip_ids = clips.iter().map(Clip::id).collect::<HashSet<_>>();
                         let selected_clip_id = clips.first().map(Clip::id);
                         timeline.record_editing_history();
-                        apply_timeline_edit(
+                        edit_timeline(
                             timeline,
                             EditAction::AddClips {
                                 clips,

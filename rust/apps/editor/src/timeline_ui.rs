@@ -1,5 +1,5 @@
 use crate::context_menu::ContextMenu;
-use crate::edit_action::{EditAction, apply_timeline_edit};
+use crate::edit_action::{EditAction, edit_timeline};
 use crate::editor::Editor;
 use crate::event_bus::{AppEvent, AssetDragMoveEvent};
 use crate::explorer_drag::AssetBeingDragged;
@@ -744,7 +744,7 @@ fn finish_clip_move(
     timeline.interaction.snap_guide = None;
     if drag.changed && drag.invalid_reason.is_none() {
         timeline.record_editing_history();
-        apply_timeline_edit(
+        edit_timeline(
             timeline,
             EditAction::MoveClips {
                 placements: drag.placements,

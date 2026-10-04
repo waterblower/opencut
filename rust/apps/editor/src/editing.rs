@@ -1,7 +1,7 @@
 use crate::clip_placement::{
     ClipPlacementRejection, validate_clip_placement, validate_text_clip_placement,
 };
-use crate::edit_action::{EditAction, apply_timeline_edit};
+use crate::edit_action::{EditAction, edit_timeline};
 use crate::editor::Editor;
 use crate::model::MediaAsset;
 use crate::timeline::{
@@ -243,7 +243,7 @@ impl TimelineRuntimeState {
             .collect();
 
         self.record_editing_history();
-        apply_timeline_edit(
+        edit_timeline(
             self,
             EditAction::SplitClips {
                 removed_clips: removed_clip_ids,
@@ -344,7 +344,7 @@ impl Editor {
             .or_else(|| clips.first())
             .map(Clip::id);
 
-        apply_timeline_edit(timeline, EditAction::AddClips { clips, assets })?;
+        edit_timeline(timeline, EditAction::AddClips { clips, assets })?;
 
         timeline.save()?;
 
@@ -356,7 +356,7 @@ impl Editor {
         let Some(timeline) = self.timeline.as_mut() else {
             return Ok(());
         };
-        apply_timeline_edit(
+        edit_timeline(
             timeline,
             EditAction::RemoveClips {
                 clip_ids: clip_ids.clone(),
@@ -455,7 +455,7 @@ impl Editor {
             .and_then(|index| duplicates.get(index))
             .or_else(|| duplicates.first())
             .map(Clip::id);
-        apply_timeline_edit(
+        edit_timeline(
             timeline,
             EditAction::AddClips {
                 clips: duplicates,
@@ -487,7 +487,7 @@ impl Editor {
             return Ok(());
         };
         timeline.record_editing_history();
-        apply_timeline_edit(
+        edit_timeline(
             timeline,
             EditAction::AddTrack {
                 track: Track {
@@ -508,7 +508,7 @@ impl Editor {
             return Ok(());
         };
         timeline.record_editing_history();
-        apply_timeline_edit(timeline, EditAction::ToggleTrackLock { track_id })?;
+        edit_timeline(timeline, EditAction::ToggleTrackLock { track_id })?;
         timeline.save()
     }
 
@@ -517,7 +517,7 @@ impl Editor {
             return Ok(());
         };
         timeline.record_editing_history();
-        apply_timeline_edit(timeline, EditAction::ToggleTrackVisibility { track_id })?;
+        edit_timeline(timeline, EditAction::ToggleTrackVisibility { track_id })?;
         timeline.save()
     }
 
@@ -526,7 +526,7 @@ impl Editor {
             return Ok(());
         };
         timeline.record_editing_history();
-        apply_timeline_edit(timeline, EditAction::ToggleTrackMute { track_id })?;
+        edit_timeline(timeline, EditAction::ToggleTrackMute { track_id })?;
         timeline.save()
     }
 
@@ -554,7 +554,7 @@ impl Editor {
         };
 
         timeline.record_editing_history();
-        apply_timeline_edit(timeline, EditAction::MoveTrack { index, target })?;
+        edit_timeline(timeline, EditAction::MoveTrack { index, target })?;
         timeline.save()
     }
 
@@ -574,7 +574,7 @@ impl Editor {
             return Ok(());
         }
         timeline.record_editing_history();
-        apply_timeline_edit(timeline, EditAction::DeleteTrack { track_id })?;
+        edit_timeline(timeline, EditAction::DeleteTrack { track_id })?;
         let remaining_clip_ids = timeline
             .editing_state
             .clips
@@ -657,7 +657,7 @@ impl Editor {
             return Ok(());
         };
         let current = timeline.editing_state.clone();
-        apply_timeline_edit(timeline, EditAction::ReplaceTimeline { timeline: snapshot })?;
+        edit_timeline(timeline, EditAction::ReplaceTimeline { timeline: snapshot })?;
         timeline.undo_stack.pop();
         timeline.redo_stack.push(current);
         self.reset_after_history_change()
@@ -671,7 +671,7 @@ impl Editor {
             return Ok(());
         };
         let current = timeline.editing_state.clone();
-        apply_timeline_edit(timeline, EditAction::ReplaceTimeline { timeline: snapshot })?;
+        edit_timeline(timeline, EditAction::ReplaceTimeline { timeline: snapshot })?;
         timeline.redo_stack.pop();
         timeline.undo_stack.push(current);
         self.reset_after_history_change()

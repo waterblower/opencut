@@ -1,6 +1,6 @@
 use crate::actions::{OpenInDefaultApp, RevealInFinder};
 use crate::context_menu::{ContextMenu, FileContextMenu};
-use crate::edit_action::{EditAction, apply_timeline_edit};
+use crate::edit_action::{EditAction, edit_timeline};
 use crate::editor::Editor;
 use crate::explorer::{
     NewTimelineDialogState, RenameDialogState, move_path_to_trash, remap_relative_path,
@@ -122,7 +122,7 @@ impl Editor {
                         .map(|path| (asset.id, path))
                 })
                 .collect();
-            apply_timeline_edit(timeline, EditAction::UpdateAssetPaths { paths })?;
+            edit_timeline(timeline, EditAction::UpdateAssetPaths { paths })?;
             for snapshot in timeline
                 .undo_stack
                 .iter_mut()

@@ -1,5 +1,5 @@
 use crate::clip_placement::ClipPlacementRejection;
-use crate::edit_action::{EditAction, apply_timeline_edit};
+use crate::edit_action::{EditAction, edit_timeline};
 use crate::editor::Editor;
 use crate::event_bus::AppEvent;
 use crate::layout::{
