@@ -35,13 +35,12 @@ pub enum DecodeMode {
     VideoToolbox,
 }
 
-#[derive(Clone, Debug)]
-pub struct DecodeDiagnostics {
-    /// Verified from received frames, not merely decoder creation.
-    pub mode: DecodeMode,
-    pub demux_time: Duration,
-    pub decode_time: Duration,
-}
+/// VideoToolbox on macOS and software decoding on other platforms, fixed at compile time.
+const DECODE_MODE: DecodeMode = if cfg!(target_os = "macos") {
+    DecodeMode::VideoToolbox
+} else {
+    DecodeMode::Software
+};
 
 /// Open, use, and drop on one execution lane. No scheduler or current UI frame.
 pub struct VideoDecoder {
@@ -54,7 +53,6 @@ pub struct VideoDecoder {
     drain: DrainState,
     /// At most two frames: the next selected frame and any decoded successor.
     lookahead: VecDeque<VideoFrame>,
-    diagnostics: DecodeDiagnostics,
     // 零大小标记
     // 使解码器无法移到或共享给其他线程
     // FFmpeg 解码上下文和 VideoToolbox 会话
@@ -66,12 +64,23 @@ impl VideoDecoder {
     /// Use VideoToolbox on macOS and software decoding on other platforms.
     /// Unsupported codecs and hardware failures are errors; there is no software fallback.
     pub fn open(path: &Path, stream_index: usize, origin_microseconds: i64) -> Result<Self> {
-        let mode = if cfg!(target_os = "macos") {
-            DecodeMode::VideoToolbox
-        } else {
-            DecodeMode::Software
+        let (input, decoder, time_base, stream_rotation) = open_decoder(path, stream_index)?;
+        let mut decoder = Self {
+            input,
+            decoder,
+            stream_index,
+            time_base,
+            origin_microseconds,
+            stream_rotation,
+            drain: DrainState::Reading,
+            lookahead: VecDeque::new(),
+            _lane_local: PhantomData,
         };
-        Self::open_mode(path, stream_index, origin_microseconds, mode)
+        let Some(first) = decoder.decode_next()? else {
+            bail!("video stream contains no decoded frames");
+        };
+        decoder.lookahead.push_back(first);
+        Ok(decoder)
     }
 
     /// None is drained EOF; packet pumping and EAGAIN remain internal.
@@ -90,58 +99,20 @@ impl VideoDecoder {
     /// The selected frame and any decoded successor stay owned by the decoder.
     pub fn seek(&mut self, position: Duration) -> Result<()> {
         let started = Instant::now();
-        let demux_before = self.diagnostics.demux_time;
-        let decode_before = self.diagnostics.decode_time;
         {
             let frame = self.seek_inner(position)?;
             self.lookahead.push_front(frame);
         }
         eprintln!(
-            "Seek to {} µs: seek={:?}, packet_read={:?}, codec_send_receive={:?}",
+            "Seek to {} µs: seek={:?}",
             position.as_micros(),
-            started.elapsed(),
-            self.diagnostics.demux_time - demux_before,
-            self.diagnostics.decode_time - decode_before,
+            started.elapsed()
         );
         Ok(())
-    }
-
-    pub fn diagnostics(&self) -> DecodeDiagnostics {
-        self.diagnostics.clone()
     }
 }
 
 impl VideoDecoder {
-    fn open_mode(
-        path: &Path,
-        stream_index: usize,
-        origin_microseconds: i64,
-        mode: DecodeMode,
-    ) -> Result<Self> {
-        let (input, decoder, time_base, stream_rotation) = open_decoder(path, stream_index, mode)?;
-        let mut decoder = Self {
-            input,
-            decoder,
-            stream_index,
-            time_base,
-            origin_microseconds,
-            stream_rotation,
-            drain: DrainState::Reading,
-            lookahead: VecDeque::new(),
-            diagnostics: DecodeDiagnostics {
-                mode,
-                demux_time: Duration::ZERO,
-                decode_time: Duration::ZERO,
-            },
-            _lane_local: PhantomData,
-        };
-        let Some(first) = decoder.decode_next()? else {
-            bail!("video stream contains no decoded frames");
-        };
-        decoder.lookahead.push_back(first);
-        Ok(decoder)
-    }
-
     /// Nearest bracketing frame, earlier on ties; clamp to first/last frame.
     /// Empty video is an error. Retain lookahead so the next pull follows the
     /// selected frame. Decode dependencies; convert only the selected result.
@@ -249,12 +220,9 @@ impl VideoDecoder {
         }
         let mut native = Video::empty();
         loop {
-            let started = Instant::now();
-            let received = self.decoder.receive_frame(&mut native);
-            self.diagnostics.decode_time += started.elapsed();
-            match received {
+            match self.decoder.receive_frame(&mut native) {
                 Ok(()) => {
-                    if self.diagnostics.mode == DecodeMode::VideoToolbox
+                    if DECODE_MODE == DecodeMode::VideoToolbox
                         && native.format() != Pixel::VIDEOTOOLBOX
                     {
                         bail!(
@@ -286,19 +254,15 @@ impl VideoDecoder {
             // for an API where None must mean drained EOF rather than failure.
             let mut packet = Packet::empty();
             loop {
-                let started = Instant::now();
-                let read = packet.read(&mut self.input);
-                self.diagnostics.demux_time += started.elapsed();
-                match read {
+                match packet.read(&mut self.input) {
                     Ok(()) => {
                         if packet.stream() != self.stream_index {
                             packet = Packet::empty();
                             continue;
                         }
-                        let started = Instant::now();
-                        let sent = self.decoder.send_packet(&packet);
-                        self.diagnostics.decode_time += started.elapsed();
-                        sent.context("sending a video packet")?;
+                        self.decoder
+                            .send_packet(&packet)
+                            .context("sending a video packet")?;
                         break;
                     }
                     Err(FfmpegError::Eof) => {
@@ -318,7 +282,6 @@ impl VideoDecoder {
 fn open_decoder(
     path: &Path,
     stream_index: usize,
-    mode: DecodeMode,
 ) -> Result<(Input, decoder::Video, Rational, f64)> {
     let input = format::input(path).context("opening video demuxer")?;
     let Some(stream) = input.stream(stream_index) else {
@@ -350,7 +313,7 @@ fn open_decoder(
     // frames anyway, and the thread pipeline would add a refill delay of one
     // frame per thread after every seek flush.
     #[rustfmt::skip]
-    let threading = match mode {
+    let threading = match DECODE_MODE {
         DecodeMode::Software => {
             codec::threading::Config::kind(codec::threading::Type::Frame)
         }
