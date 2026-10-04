@@ -1,5 +1,5 @@
-use crate::Seeker;
 use crate::video_player::{PlaybackState, VideoPlayer};
+use crate::{Seeker, format_time};
 #[cfg(target_os = "macos")]
 use gpui::surface;
 use gpui::{
@@ -121,7 +121,7 @@ impl Render for VideoPlayer {
     }
 }
 
-pub fn seek(
+fn seek(
     player: &mut VideoPlayer,
     fraction: f32,
     cx: &mut Context<VideoPlayer>,
@@ -131,9 +131,4 @@ pub fn seek(
     player.seek(position)?;
     cx.notify();
     Ok(())
-}
-
-fn format_time(time: Duration) -> String {
-    let seconds = time.as_secs();
-    format!("{}:{:02}", seconds / 60, seconds % 60)
 }

@@ -20,3 +20,8 @@ trait WaitUntilPlaying {
     /// Waits for Playing without decoding, changing clocks, or performing device I/O.
     async fn wait_until_playing(&self, cx: &mut gpui::AsyncApp);
 }
+
+pub(crate) fn format_time(time: Duration) -> String {
+    let seconds = time.as_secs();
+    format!("{}:{:02}", seconds / 60, seconds % 60)
+}

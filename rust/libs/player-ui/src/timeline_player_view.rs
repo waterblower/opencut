@@ -1,5 +1,5 @@
-use crate::Seeker;
 use crate::timeline_player::TimelinePlayer;
+use crate::{Seeker, format_time};
 use engine::timeline_backend::TimelineBackend;
 use gpui::{
     AnyElement, AvailableSpace, Bounds, ClickEvent, Context, CursorStyle, Window, canvas, div,
@@ -112,11 +112,6 @@ impl Render for TimelinePlayer {
                     ),
             )
     }
-}
-
-fn format_time(time: Duration) -> String {
-    let seconds = time.as_secs();
-    format!("{}:{:02}", seconds / 60, seconds % 60)
 }
 
 /// The composited picture alone, filling its parent.
