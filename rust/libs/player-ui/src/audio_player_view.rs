@@ -1,5 +1,5 @@
 use crate::audio_player::{AudioPlayer, PlaybackState};
-use crate::seek_bar::{progress, seek_bar, seek_position};
+use crate::progress_bar::{progress, progress_bar, seek_position};
 use crate::{Seeker, format_time};
 use gpui::{Bounds, ClickEvent, Context, Render, Window, div, prelude::*, rgb};
 use std::{cell::Cell, rc::Rc};
@@ -30,8 +30,8 @@ impl Render for AudioPlayer {
                     .child(div().mt_4().child(detail)),
             )
             .child(
-                seek_bar(
-                    "audio-seek",
+                progress_bar(
+                    "progress_bar",
                     progress(position, duration),
                     seek_bounds.clone(),
                 )

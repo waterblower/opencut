@@ -1,4 +1,4 @@
-use crate::seek_bar::{progress, seek_bar, seek_position};
+use crate::progress_bar::{progress, progress_bar, seek_position};
 use crate::video_player::{PlaybackState, VideoPlayer};
 use crate::{Seeker, format_time};
 #[cfg(target_os = "macos")]
@@ -56,7 +56,7 @@ impl Render for VideoPlayer {
                     }),
             )
             .child(
-                seek_bar("seek", progress(position, duration), seek_bounds.clone()).on_click(
+                progress_bar("progress_bar", progress(position, duration), seek_bounds.clone()).on_click(
                     cx.listener(move |player, event: &ClickEvent, _, cx| {
                         let target = seek_position(event.position().x, seek_bounds.get(), duration);
                         match player.seek(target) {

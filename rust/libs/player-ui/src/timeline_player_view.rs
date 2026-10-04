@@ -1,4 +1,4 @@
-use crate::seek_bar::{progress, seek_bar, seek_position};
+use crate::progress_bar::{progress, progress_bar, seek_position};
 use crate::timeline_player::TimelinePlayer;
 use crate::{Seeker, format_time};
 use engine::timeline_backend::TimelineBackend;
@@ -8,7 +8,7 @@ use gpui::{
 };
 use std::{cell::Cell, rc::Rc};
 
-/// Standalone view: picture, seek bar, and transport controls.
+/// Standalone view: picture, progress bar, and transport controls.
 impl Render for TimelinePlayer {
     fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let seek_bounds = Rc::new(Cell::new(Bounds::default()));
@@ -41,7 +41,7 @@ impl Render for TimelinePlayer {
                     .child(timeline_backend_picture(&self.backend)),
             )
             .child(
-                seek_bar("seek", progress(position, duration), seek_bounds.clone()).on_click(
+                progress_bar("progress_bar", progress(position, duration), seek_bounds.clone()).on_click(
                     cx.listener(move |player, event: &ClickEvent, _, cx| {
                         let target = seek_position(event.position().x, seek_bounds.get(), duration);
                         match player.seek(target) {

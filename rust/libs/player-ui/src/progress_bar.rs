@@ -1,4 +1,4 @@
-//! The seek bar shared by the player views. Views attach their own event handlers.
+//! The progress bar shared by the player views. Views attach their own event handlers.
 
 use gpui::{
     Bounds, CursorStyle, Div, ElementId, Pixels, Stateful, canvas, div, prelude::*, px, relative,
@@ -7,7 +7,7 @@ use gpui::{
 use std::{cell::Cell, rc::Rc, time::Duration};
 
 /// A track filled to `progress`. Records its own window bounds into `bounds` while prepainting.
-pub(crate) fn seek_bar(
+pub(crate) fn progress_bar(
     id: impl Into<ElementId>,
     progress: f32,
     bounds: Rc<Cell<Bounds<Pixels>>>,
