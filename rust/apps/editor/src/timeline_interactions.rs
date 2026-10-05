@@ -684,42 +684,6 @@ impl Editor {
         }
     }
 
-    pub(super) fn apply_timeline_pinch(&mut self) -> Result<bool> {
-        let Some(gesture) = crate::macos_pinch::take() else {
-            return Ok(false);
-        };
-        if !(0.0..=TIMELINE_HEIGHT as f64).contains(&gesture.location_y) {
-            log::debug!(
-                target: "opencut::timeline",
-                "trackpad-pinch magnification={:.4} location_y={:.1} action=ignored",
-                gesture.magnification,
-                gesture.location_y,
-            );
-            return Ok(false);
-        }
-
-        let Some(timeline) = self.timeline.as_mut() else {
-            return Ok(false);
-        };
-        let previous_zoom = timeline.pixels_per_second;
-        let factor = (gesture.magnification as f32).exp().clamp(0.5, 2.0);
-        timeline.zoom(factor);
-        let current_zoom = timeline.pixels_per_second;
-        log::debug!(
-            target: "opencut::timeline",
-            "trackpad-pinch magnification={:.4} location_y={:.1} ended={} action=zoom factor={factor:.4} px_per_second={previous_zoom:.2}->{:.2}",
-            gesture.magnification,
-            gesture.location_y,
-            gesture.ended,
-            current_zoom,
-        );
-        let changed = current_zoom != previous_zoom;
-        if gesture.ended {
-            timeline.save()?;
-        }
-        Ok(changed)
-    }
-
     /// Moves the editing playhead to the frame under a click on the ruler.
     pub fn seek_to_ruler_click(
         &mut self,

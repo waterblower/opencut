@@ -81,6 +81,25 @@ impl Editor {
             .on_mouse_move(cx.listener(Self::update_clip_move))
             .on_mouse_move(cx.listener(Self::update_marquee_selection))
             .on_scroll_wheel(cx.listener(Self::finish_timeline_scroll))
+            .on_pinch(cx.listener(|editor, event: &gpui::PinchEvent, _, cx| {
+                let Some(timeline) = editor.timeline.as_mut() else {
+                    return;
+                };
+                let previous_zoom = timeline.pixels_per_second;
+                timeline.zoom((1.0 + event.delta).clamp(0.5, 2.0));
+                if matches!(
+                    event.phase,
+                    gpui::TouchPhase::Ended | gpui::TouchPhase::Cancelled
+                ) {
+                    if let Err(error) = timeline.save() {
+                        log::error!("Could not save timeline zoom: {error:?}");
+                    }
+                }
+                if timeline.pixels_per_second != previous_zoom {
+                    cx.notify();
+                }
+                cx.stop_propagation();
+            }))
             .on_mouse_up(MouseButton::Left, cx.listener(finish_clip_move))
             .on_mouse_up(
                 MouseButton::Left,
