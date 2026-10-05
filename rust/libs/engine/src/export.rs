@@ -2,7 +2,10 @@ use std::{
     collections::{HashMap, HashSet, hash_map::Entry},
     fs,
     path::{Path, PathBuf},
-    sync::Arc,
+    sync::{
+        Arc,
+        atomic::{AtomicBool, AtomicI64, Ordering},
+    },
     time::{Duration, Instant},
 };
 
@@ -27,14 +30,43 @@ pub struct ExportOption {
     pub overwrite: bool,
 }
 
+#[derive(Debug, Default)]
+pub struct ExportControl {
+    completed_frames: AtomicI64,
+    stop_requested: AtomicBool,
+}
+
+impl ExportControl {
+    pub fn completed_frames(&self) -> i64 {
+        self.completed_frames.load(Ordering::Relaxed)
+    }
+
+    pub fn request_stop(&self) {
+        self.stop_requested.store(true, Ordering::Relaxed);
+    }
+
+    pub fn stop_requested(&self) -> bool {
+        self.stop_requested.load(Ordering::Relaxed)
+    }
+}
+
+pub enum ExportCompletion {
+    Completed,
+    Stopped,
+}
+
 /// The platform text system must be initialized on the main thread before exporting on a worker.
 pub fn export_timeline(
     timeline_serialization: &TimelineSerialization,
     output_path: &Path,
     option: &ExportOption,
     platform_text_system: Arc<dyn gpui::PlatformTextSystem>,
-) -> Result<()> {
+    control: &ExportControl,
+) -> Result<ExportCompletion> {
     validate_export(timeline_serialization, output_path, option)?;
+    if control.stop_requested() {
+        return Ok(ExportCompletion::Stopped);
+    }
 
     // Convenient Variables
     let editing_state = timeline_serialization.to_editing_state();
@@ -90,6 +122,11 @@ pub fn export_timeline(
     // The Render Loop //
     // --------------- //
     for i in 0..frame_count {
+        if control.stop_requested() {
+            drop(encoder);
+            fs::remove_file(output_path).context("Removing stopped export output")?;
+            return Ok(ExportCompletion::Stopped);
+        }
         let started = Instant::now();
         // Video Handling
         {
@@ -155,9 +192,15 @@ pub fn export_timeline(
                 audio_position += count as i64;
             }
         }
+        control.completed_frames.store(i + 1, Ordering::Relaxed);
+    }
+    if control.stop_requested() {
+        drop(encoder);
+        fs::remove_file(output_path).context("Removing stopped export output")?;
+        return Ok(ExportCompletion::Stopped);
     }
     encoder.finish(total_samples)?;
-    return Ok(());
+    Ok(ExportCompletion::Completed)
 }
 
 struct ExportCanvas {

@@ -3,7 +3,7 @@ use crate::editing::validate_clips_placements;
 use crate::editor::Editor;
 use crate::explorer_drag::AssetBeingDragged;
 use crate::explorer_file_entry::select_preview_file;
-use crate::export_window::ExportWindow;
+use crate::export_window::{ExportState, ExportWindow};
 use crate::generic_containers::HorizontalSplitState;
 use crate::global_settings::GlobalEditorSettings;
 use crate::layout::{RULER_HEIGHT, TIMELINE_PADDING, TRACK_HEIGHT};
@@ -17,13 +17,14 @@ use crate::timeline_clip::Clip;
 use crate::transcription::start_transcription;
 use crate::{OpenProject, open_editor_window, quit_after_last_window};
 use anyhow::{Context as _, Result, anyhow, bail};
-use engine::export::{ExportOption, export_timeline};
+use engine::export::{ExportCompletion, ExportControl, ExportOption, export_timeline};
 use gpui::prelude::*;
 use gpui::{AsyncApp, Bounds, Entity, EventEmitter, MouseMoveEvent, Pixels, WeakEntity};
 use player_ui::Seeker;
 use player_ui::timeline_player::TimelinePlayer;
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 use timeline::TimelineSerialization;
 use ulid::Ulid;
 
@@ -41,6 +42,7 @@ pub enum AppEvent {
         video_bitrate: u64,
         overwrite: bool,
         export_window: WeakEntity<ExportWindow>,
+        control: Arc<ExportControl>,
     },
     Preview(PreviewEvent),
     SwitchProject {
@@ -79,6 +81,7 @@ pub async fn handle_event(
             video_bitrate,
             overwrite,
             export_window,
+            control,
         } => {
             // macOS 平台必须在主线程创建；线程安全的文字系统交给导出线程。
             let platform_text_system =
@@ -98,14 +101,20 @@ pub async fn handle_event(
                             overwrite,
                         },
                         platform_text_system,
+                        &control,
                     )
                 })
                 .await;
-            if let Err(error) = result {
-                log::error!("Could not export timeline: {error:?}");
-            }
+            let state = match result {
+                Ok(ExportCompletion::Completed) => ExportState::Complete,
+                Ok(ExportCompletion::Stopped) => ExportState::Stopped,
+                Err(error) => {
+                    log::error!("Could not export timeline: {error:?}");
+                    ExportState::Failed
+                }
+            };
             let _ = export_window.update(cx, |view, cx| {
-                view.busy = false;
+                view.state = state;
                 cx.notify();
             });
         }
