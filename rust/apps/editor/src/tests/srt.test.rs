@@ -8,7 +8,7 @@ fn parses_cues_at_the_requested_frame_rate() {
 
     assert_eq!(clips.len(), 1);
     assert_eq!(i64::from(clips[0].timeline_start), 24);
-    assert_eq!(clips[0].length, Duration::from_millis(1_500));
+    assert_eq!(clips[0].duration, Duration::from_millis(1_500));
     assert_eq!(clips[0].properties.text, "Hello\nworld");
 }
 

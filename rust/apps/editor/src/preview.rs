@@ -30,7 +30,12 @@ pub enum PreviewTarget {
 }
 
 impl Editor {
-    pub(super) fn preview_player(&self, width: f32, height: f32) -> gpui::AnyElement {
+    pub(super) fn preview_player(
+        &self,
+        width: f32,
+        height: f32,
+        cx: &mut Context<Self>,
+    ) -> gpui::AnyElement {
         match &self.preview.target {
             PreviewTarget::None => div()
                 .w(px(width))
@@ -41,11 +46,18 @@ impl Editor {
                 .text_color(rgb(MUTED))
                 .child("No preview available")
                 .into_any_element(),
-            PreviewTarget::Timeline { player, .. } => div()
-                .w(px(width))
-                .h(px(height))
-                .child(player.clone())
-                .into_any_element(),
+            PreviewTarget::Timeline { player, .. } => {
+                let picture = self.preview_timeline_picture(player, cx);
+                let player_view =
+                    player.update(cx, |player, cx| player.render_with_picture(picture, cx));
+                div()
+                    .relative()
+                    .w(px(width))
+                    .h(px(height))
+                    .child(player_view)
+                    .child(self.preview_text_overlay(player, cx))
+                    .into_any_element()
+            }
             PreviewTarget::VideoFile { player, .. } => div()
                 .w(px(width))
                 .h(px(height))

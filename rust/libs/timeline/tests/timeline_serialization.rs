@@ -14,7 +14,7 @@ fn legacy_text_frame_lengths_use_document_rate_in_both_envelopes() {
         let Clip::Text(text) = &runtime.clips[3] else {
             panic!("expected text")
         };
-        assert_eq!(text.length, Duration::from_secs(2));
+        assert_eq!(text.duration, Duration::from_secs(2));
         assert_eq!(
             serde_json::to_value(document).unwrap()["editing_state"]["clips"][3]["data"]["length"],
             json!({"secs": 2, "nanos": 0})

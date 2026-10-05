@@ -23,9 +23,8 @@ pub struct HorizontalSplitWidths {
 pub struct HorizontalSplitState {
     left_width: f32,
     right_width: f32,
-    // it only matters during an active drag
     #[serde(skip)]
-    drag_offset: f32,
+    drag_offset: Option<f32>, // 拖动分隔条期间才有值；None：没有进行中的拖动。
 }
 
 impl HorizontalSplitState {
@@ -33,7 +32,7 @@ impl HorizontalSplitState {
         Self {
             left_width,
             right_width,
-            drag_offset: 0.0,
+            drag_offset: None,
         }
     }
 
@@ -57,7 +56,7 @@ impl HorizontalSplitState {
     }
 
     fn begin_drag(&mut self, pointer_offset: f32) {
-        self.drag_offset = pointer_offset + DIVIDER_HANDLE_LEFT;
+        self.drag_offset = Some(pointer_offset + DIVIDER_HANDLE_LEFT);
     }
 
     fn resize(
@@ -67,7 +66,10 @@ impl HorizontalSplitState {
         total_width: f32,
         constraints: HorizontalSplitConstraints,
     ) {
-        let divider_x = pointer_x - self.drag_offset;
+        let Some(drag_offset) = self.drag_offset else {
+            return;
+        };
+        let divider_x = pointer_x - drag_offset;
         let widths = self.widths(total_width, constraints);
         match divider {
             0 => {
@@ -136,6 +138,10 @@ impl RenderOnce for HorizontalSplit {
             .widths(self.total_width, self.constraints);
         let divider = |index| {
             let state = self.state.clone();
+            let release_state = self.state.clone();
+            let release_event_bus = self.event_bus.clone();
+            let release_out_state = self.state.clone();
+            let release_out_event_bus = self.event_bus.clone();
             div()
                 .id(("horizontal-split-divider", index))
                 .relative()
@@ -160,13 +166,20 @@ impl RenderOnce for HorizontalSplit {
                                 });
                                 cx.new(|_| gpui::Empty)
                             },
-                        ),
+                        )
+                        // A drag usually ends over this handle, which hides the container from
+                        // hover checks; a release elsewhere arrives as mouse-up-out.
+                        .on_mouse_up(MouseButton::Left, move |_, _, cx| {
+                            finish_drag(&release_state, &release_event_bus, cx);
+                        })
+                        .on_mouse_up_out(MouseButton::Left, move |_, _, cx| {
+                            finish_drag(&release_out_state, &release_out_event_bus, cx);
+                        }),
                 )
         };
         let state = self.state.clone();
         let constraints = self.constraints;
         let total_width = self.total_width;
-        let finish_state = self.state.clone();
 
         div()
             .id(self.id)
@@ -175,13 +188,6 @@ impl RenderOnce for HorizontalSplit {
             .min_w_0()
             .min_h_0()
             .flex()
-            .capture_any_mouse_up(move |event, _, cx| {
-                if event.button == MouseButton::Left {
-                    let state = finish_state.read(cx).clone();
-                    self.event_bus
-                        .update(cx, |_, cx| cx.emit(AppEvent::HorizontalSplitResized(state)));
-                }
-            })
             .on_drag_move::<HorizontalSplitDrag>(move |event, _, cx| {
                 let divider = event.drag(cx).divider;
                 let pointer_x: f32 = (event.event.position.x - event.bounds.left()).into();
@@ -231,6 +237,18 @@ struct HorizontalSplitDrag {
     divider: usize,
 }
 
+/// Saves the widths once when a divider drag ends. Plain clicks have no drag to finish.
+fn finish_drag(state: &Entity<HorizontalSplitState>, event_bus: &Entity<EventBus>, cx: &mut App) {
+    let finished = state.update(cx, |state, _| state.drag_offset.take().is_some());
+    if !finished {
+        return;
+    }
+    let widths = state.read(cx).clone();
+    event_bus.update(cx, |_, cx| {
+        cx.emit(AppEvent::HorizontalSplitResized(widths))
+    });
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -251,12 +269,13 @@ mod tests {
             serde_json::json!({"left_width": 410.0, "right_width": 320.0})
         );
         let restored: HorizontalSplitState = serde_json::from_value(json).unwrap();
-        assert_eq!(restored.drag_offset, 0.0);
+        assert_eq!(restored.drag_offset, None);
     }
 
     #[test]
     fn both_dividers_resize_their_outer_pane() {
         let mut state = HorizontalSplitState::new(340.0, 420.0);
+        state.begin_drag(-DIVIDER_HANDLE_LEFT); // 指针正好在分隔线上：偏移为零。
 
         state.resize(0, 400.0, 1440.0, CONSTRAINTS);
         let widths = state.widths(1440.0, CONSTRAINTS);

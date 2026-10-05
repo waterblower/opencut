@@ -1,16 +1,32 @@
-use crate::progress_bar::{ProgressBarDrag, progress, progress_bar, seek_position};
+use crate::progress_bar::{
+    PROGRESS_BAR_HEIGHT, ProgressBarDrag, progress, progress_bar, seek_position,
+};
 use crate::timeline_player::TimelinePlayer;
 use crate::{Seeker, format_time};
-use engine::timeline_backend::TimelineBackend;
 use gpui::{
-    AnyElement, AvailableSpace, Bounds, ClickEvent, Context, CursorStyle, DragMoveEvent, Window,
-    canvas, div, prelude::*, px, rgb,
+    AnyElement, AvailableSpace, Bounds, ClickEvent, Context, CursorStyle, DragMoveEvent, Entity,
+    Window, canvas, div, prelude::*, px, rgb,
 };
 use std::{cell::Cell, rc::Rc};
+
+const TRANSPORT_HEIGHT: f32 = 80.0;
+pub const TIMELINE_CONTROLS_HEIGHT: f32 = PROGRESS_BAR_HEIGHT + TRANSPORT_HEIGHT;
 
 /// Standalone view: picture, progress bar, and transport controls.
 impl Render for TimelinePlayer {
     fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        let picture = timeline_backend_picture(cx.entity());
+        self.render_with_picture(picture, cx)
+    }
+}
+
+impl TimelinePlayer {
+    /// Uses the caller's picture while retaining the player's transport controls.
+    pub fn render_with_picture(
+        &mut self,
+        picture: AnyElement,
+        cx: &mut Context<Self>,
+    ) -> AnyElement {
         let seek_bounds = Rc::new(Cell::new(Bounds::default()));
         let duration = self.backend.duration();
         let ended = self.backend.is_ended();
@@ -38,7 +54,7 @@ impl Render for TimelinePlayer {
                     .flex_1()
                     .min_h_0()
                     .overflow_hidden()
-                    .child(timeline_backend_picture(&self.backend)),
+                    .child(picture),
             )
             .child(
                 progress_bar(
@@ -62,7 +78,8 @@ impl Render for TimelinePlayer {
             )
             .child(
                 div()
-                    .h(px(80.0))
+                    .h(px(TRANSPORT_HEIGHT))
+                    .flex_shrink_0()
                     .px_4()
                     .flex()
                     .items_center()
@@ -92,16 +109,21 @@ impl Render for TimelinePlayer {
                             .child(self.title.clone()),
                     ),
             )
+            .into_any_element()
     }
 }
 
 /// The composited picture alone, filling its parent.
-pub fn timeline_backend_picture(backend: &TimelineBackend) -> AnyElement {
-    let frame = backend.preview_frame();
+fn timeline_backend_picture(player: Entity<TimelinePlayer>) -> AnyElement {
     canvas(
         move |bounds, window, cx| {
-            let mut element =
-                frame.render_frame(bounds.size.width.into(), bounds.size.height.into());
+            let backend = &player.read(cx).backend;
+            let frame = backend.preview_frame();
+            let mut element = frame.render_frame(
+                bounds.size.width.into(),
+                bounds.size.height.into(),
+                backend.timeline(),
+            );
             element.prepaint_as_root(
                 bounds.origin,
                 bounds.size.map(AvailableSpace::Definite),

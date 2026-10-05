@@ -25,7 +25,7 @@ pub fn srt_text_clips(srt: &SRT, frame_rate: FrameRate) -> Vec<TextClip> {
             id: Ulid::generate(),
             track_id: Ulid::nil(),
             timeline_start: frame_rate.frames_from_duration_nearest(subtitle.start),
-            length,
+            duration: length,
             properties: TextClipProperties {
                 text: subtitle.text.trim().to_string(),
                 ..TextClipProperties::default()

@@ -44,8 +44,8 @@ impl ClipEditingExt for Clip {
                 right.source_in = source_split;
             }
             (Self::Text(left), Self::Text(right)) => {
-                left.length = frame_rate.duration(local);
-                right.length = right.length.saturating_sub(left.length);
+                left.duration = frame_rate.duration(local);
+                right.duration = right.duration.saturating_sub(left.duration);
             }
             _ => unreachable!("a cloned clip must retain its variant"),
         }
@@ -58,7 +58,7 @@ pub(super) fn text_clip_component(
     pixels_per_second: f32,
     selected: bool,
     moving: bool,
-) -> impl StatefulInteractiveElement + IntoElement {
+) -> impl StatefulInteractiveElement + IntoElement + ParentElement {
     let clip_id = clip.id;
     let left =
         TIMELINE_PADDING + frame_rate.seconds(clip.timeline_start) as f32 * pixels_per_second;

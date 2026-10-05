@@ -384,7 +384,6 @@ impl Editor {
             .parent()
             .context("Timeline path has no parent directory")?;
         let asset_path = relative_asset_path(timeline_directory, &media_path); // 素材路径相对于时间线文件所在目录。
-        timeline.record_editing_history();
         let (asset_id, assets) = if let Some(asset_id) = timeline
             .editing_state
             .assets

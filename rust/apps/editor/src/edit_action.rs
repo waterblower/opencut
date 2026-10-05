@@ -5,12 +5,18 @@ use ::timeline::{
     Track, VideoClipProperties,
 };
 use anyhow::{Result, anyhow, ensure};
+use gpui::{Pixels, Point};
 use std::collections::HashSet;
 use std::path::PathBuf;
 use ulid::Ulid;
 
 #[derive(Clone, Debug)]
 pub enum EditAction {
+    TrimClip {
+        timeline_path: PathBuf,
+        pointer_x: f32,
+        finished: bool,
+    },
     AddClips {
         clips: Vec<Clip>,
         assets: Vec<MediaAsset>,
@@ -32,6 +38,20 @@ pub enum EditAction {
     SetVideoProperties {
         clip_ids: Vec<Ulid>,
         properties: VideoClipProperties,
+    },
+    SetTextContent {
+        clip_id: Ulid,
+        text: String,
+    },
+    UpdateTextClipPosition {
+        timeline_path: PathBuf,
+        clip_id: Ulid,
+        pointer: Point<Pixels>,
+        finished: bool, // 松开时在同一事件内应用最终坐标并保存，避免提前清除拖动状态。
+    },
+    ApplyTextStyleToTrack {
+        clip_id: Ulid,
+        project_root: PathBuf,
     },
     SetTextProperties {
         clip_id: Ulid,
@@ -67,21 +87,244 @@ pub enum EditAction {
     },
 }
 
-/// Applies an edit to the editing timeline only; the preview player is not synced with it.
-pub fn edit_timeline(timeline: &mut TimelineRuntimeState, action: EditAction) -> Result<()> {
+/// Applies an edit and returns whether the caller should save the timeline.
+/// The preview player is not synced with it.
+pub fn edit_timeline(timeline: &mut TimelineRuntimeState, action: EditAction) -> Result<bool> {
     let mut data = timeline.editing_state.clone();
-    edit_content(&mut data, action)?;
-    data.validate()?;
-    timeline.editing_state = data;
-    timeline.set_playhead(timeline.playhead());
-    Ok(())
-}
-
-fn edit_content(data: &mut TimelineEditingState, action: EditAction) -> Result<()> {
+    let mut record_history = true;
     match action {
+        EditAction::TrimClip {
+            timeline_path,
+            pointer_x,
+            finished,
+        } => {
+            if timeline.path != timeline_path {
+                return Ok(false);
+            }
+            let Some(drag) = timeline.clip_trim_drag.as_ref() else {
+                return Ok(false);
+            };
+            let original = &drag.original;
+            let id = original.id();
+            if data.clip_locked(id) {
+                if finished {
+                    let save = drag.history_recorded;
+                    timeline.clip_trim_drag = None;
+                    timeline.interaction.snap_guide = None;
+                    return Ok(save);
+                }
+                return Ok(false);
+            }
+            let frame_rate = data.settings.frame_rate;
+            let start = original.timeline_start();
+            let end = original.timeline_end(frame_rate);
+            let original_edge = if drag.start_edge { start } else { end };
+            let delta = frame_rate.delta(f64::from(
+                (pointer_x - f32::from(timeline.h_scroll.offset().x) - drag.pointer_x)
+                    / timeline.pixels_per_second,
+            ));
+            let mut minimum = if drag.start_edge {
+                TimelineFrameIndex::ZERO
+            } else {
+                start + TimelineFrameIndex::ONE_FRAME
+            };
+            let mut maximum = if drag.start_edge {
+                end - TimelineFrameIndex::ONE_FRAME
+            } else {
+                TimelineFrameIndex::from(i64::MAX / 2)
+            };
+            for neighbor in data
+                .clips_on_track(original.track_id())
+                .filter(|clip| clip.id() != id)
+            {
+                if drag.start_edge && neighbor.timeline_end(frame_rate) <= start {
+                    minimum = minimum.max(neighbor.timeline_end(frame_rate));
+                } else if !drag.start_edge && neighbor.timeline_start() >= end {
+                    maximum = maximum.min(neighbor.timeline_start());
+                }
+            }
+            let mut is_image = false;
+            if let Some(media) = original.media() {
+                let asset = data
+                    .asset(media.asset_id)
+                    .ok_or_else(|| anyhow!("Source media not found"))?;
+                is_image = asset.kind == timeline::MediaKind::Image;
+                if drag.start_edge && !is_image {
+                    minimum = minimum.max(start - media.source_in);
+                } else if !drag.start_edge && !is_image {
+                    let source_limit = TimelineFrameIndex::from(
+                        (asset.duration * frame_rate.frames_per_second()).floor() as i64,
+                    );
+                    maximum =
+                        maximum.min(end + source_limit.max(media.source_out) - media.source_out);
+                }
+            }
+            if minimum > maximum {
+                return Ok(false);
+            }
+            let mut edge = (original_edge + delta).clamp(minimum, maximum);
+            timeline.interaction.snap_guide = None;
+            if timeline.snapping_enabled && delta != TimelineFrameIndex::ZERO {
+                let mut distance =
+                    crate::layout::SNAP_DISTANCE_PX as f64 / f64::from(timeline.pixels_per_second);
+                for target in std::iter::once(TimelineFrameIndex::ZERO)
+                    .chain(std::iter::once(timeline.playhead()))
+                    .chain(
+                        data.clips
+                            .iter()
+                            .filter(|clip| clip.id() != id)
+                            .flat_map(|clip| {
+                                [clip.timeline_start(), clip.timeline_end(frame_rate)]
+                            }),
+                    )
+                {
+                    if target < minimum || target > maximum {
+                        continue;
+                    }
+                    let candidate_distance = (frame_rate.seconds(target)
+                        - frame_rate.seconds(original_edge + delta))
+                    .abs();
+                    if candidate_distance < distance {
+                        distance = candidate_distance;
+                        edge = target;
+                        timeline.interaction.snap_guide = Some(target);
+                    }
+                }
+            }
+            let mut updated = original.clone();
+            match &mut updated {
+                Clip::Text(text) => {
+                    if drag.start_edge {
+                        text.timeline_start = edge;
+                        text.duration = frame_rate.duration(end - edge);
+                    } else {
+                        text.duration = frame_rate.duration(edge - start);
+                    }
+                }
+                Clip::Video(media) | Clip::Audio(media) => {
+                    if drag.start_edge {
+                        media.timeline_start = edge;
+                        if is_image {
+                            media.source_out -= edge - start;
+                        } else {
+                            media.source_in += edge - start;
+                        }
+                    } else {
+                        media.source_out += edge - end;
+                    }
+                }
+            }
+            let index = data
+                .clip_index(id)
+                .ok_or_else(|| anyhow!("Clip {id} not found"))?;
+            let current = &data.clips[index];
+            let changed = current.timeline_start() != updated.timeline_start()
+                || current.frame_length(frame_rate) != updated.frame_length(frame_rate);
+            if changed {
+                data.clips.remove(index);
+                validate_clips_placements(&data, std::slice::from_ref(&updated))?;
+                data.clips.insert(index, updated);
+                data.validate()?;
+                if !drag.history_recorded {
+                    timeline.record_editing_history();
+                    timeline.clip_trim_drag.as_mut().unwrap().history_recorded = true;
+                }
+                timeline.editing_state = data;
+            }
+            if finished {
+                let completed = timeline.clip_trim_drag.take().unwrap();
+                timeline.interaction.snap_guide = None;
+                timeline.set_playhead(timeline.playhead());
+                return Ok(completed.history_recorded);
+            }
+            return Ok(false);
+        }
+
+        EditAction::UpdateTextClipPosition {
+            timeline_path,
+            clip_id,
+            pointer,
+            finished,
+        } => {
+            let Some(drag) = timeline.text_drag.as_ref() else {
+                return Ok(false);
+            };
+            if drag.timeline_path != timeline_path
+                || drag.clip_id != clip_id
+                || timeline.path != timeline_path
+            {
+                return Ok(false);
+            }
+            let Some(Clip::Text(clip)) = timeline.editing_state.clip(clip_id) else {
+                return Ok(false);
+            };
+            if !timeline
+                .editing_state
+                .tracks
+                .iter()
+                .any(|track| track.id == clip.track_id && !track.locked)
+            {
+                return Ok(false);
+            }
+            let mut position_x = (drag.original.x
+                + f64::from(
+                    f32::from(pointer.x - drag.start.x) / f32::from(drag.canvas_size.width),
+                ))
+            .clamp(0.0, 1.0);
+            let mut position_y = (drag.original.y
+                + f64::from(
+                    f32::from(pointer.y - drag.start.y) / f32::from(drag.canvas_size.height),
+                ))
+            .clamp(0.0, 1.0);
+            if timeline.snapping_enabled {
+                for (position, canvas_extent, text_extent) in [
+                    (
+                        &mut position_x,
+                        drag.canvas_size.width,
+                        drag.text_size.width,
+                    ),
+                    (
+                        &mut position_y,
+                        drag.canvas_size.height,
+                        drag.text_size.height,
+                    ),
+                ] {
+                    let extent = f64::from(f32::from(canvas_extent));
+                    let half_text = f64::from(f32::from(text_extent)) / (2.0 * extent);
+                    let mut nearest_distance = 8.0 / extent; // 屏幕逻辑像素阈值，不随画布缩放变化。
+                    let unsnapped = *position;
+                    for target in [0.5, half_text, 1.0 - half_text] {
+                        if !(0.0..=1.0).contains(&target) {
+                            continue;
+                        }
+                        let distance = (unsnapped - target).abs();
+                        if distance < nearest_distance {
+                            nearest_distance = distance;
+                            *position = target;
+                        }
+                    }
+                }
+            }
+            if (clip.properties.position.x, clip.properties.position.y) != (position_x, position_y)
+            {
+                if !drag.history_recorded {
+                    timeline.record_editing_history();
+                    timeline.text_drag.as_mut().unwrap().history_recorded = true;
+                }
+                if let Some(Clip::Text(clip)) = timeline.editing_state.clip_mut(clip_id) {
+                    clip.properties.position.x = position_x;
+                    clip.properties.position.y = position_y;
+                }
+            }
+            if finished {
+                let finished_drag = timeline.text_drag.take().unwrap();
+                return Ok(finished_drag.history_recorded);
+            }
+            return Ok(false);
+        }
         EditAction::AddClips { clips, assets } => {
             data.assets.extend(assets);
-            validate_clips_placements(data, &clips)?;
+            validate_clips_placements(&data, &clips)?;
             data.clips.extend(clips);
         }
         EditAction::RemoveClips {
@@ -100,7 +343,7 @@ fn edit_content(data: &mut TimelineEditingState, action: EditAction) -> Result<(
         } => {
             data.clips
                 .retain(|clip| !removed_clips.contains(&clip.id()));
-            validate_clips_placements(data, &added_clips)?;
+            validate_clips_placements(&data, &added_clips)?;
             data.clips.extend(added_clips);
         }
         EditAction::MoveClips { placements } => {
@@ -120,14 +363,14 @@ fn edit_content(data: &mut TimelineEditingState, action: EditAction) -> Result<(
             if let (Clip::Text(previous), Clip::Text(updated)) = (&data.clips[index], &clip)
                 && previous.track_id == updated.track_id
                 && previous.timeline_start == updated.timeline_start
-                && previous.length == updated.length
+                && previous.duration == updated.duration
             {
                 data.clips[index] = clip;
-                return Ok(());
+            } else {
+                data.clips.remove(index);
+                validate_clips_placements(&data, std::slice::from_ref(&clip))?;
+                data.clips.insert(index, clip);
             }
-            data.clips.remove(index);
-            validate_clips_placements(data, std::slice::from_ref(&clip))?;
-            data.clips.insert(index, clip);
         }
         EditAction::SetVideoProperties {
             clip_ids,
@@ -139,6 +382,43 @@ fn edit_content(data: &mut TimelineEditingState, action: EditAction) -> Result<(
                 {
                     media.video_properties = properties;
                 }
+            }
+        }
+        EditAction::SetTextContent { clip_id, text } => {
+            if let Some(Clip::Text(clip)) = data.clip_mut(clip_id) {
+                clip.properties.text = text;
+            }
+        }
+        EditAction::ApplyTextStyleToTrack {
+            clip_id,
+            project_root,
+        } => {
+            let Some(Clip::Text(source)) = data.clip(clip_id) else {
+                let relative_path = timeline.path.strip_prefix(&project_root)?;
+                return Err(anyhow!(
+                    "Source text clip {clip_id} not found in timeline {}",
+                    relative_path.display()
+                ));
+            };
+            let track_id = source.track_id;
+            let properties = source.properties.clone();
+            let mut changed = false;
+            for clip in &mut data.clips {
+                let Clip::Text(target) = clip else {
+                    continue;
+                };
+                if target.track_id != track_id || target.id == clip_id {
+                    continue;
+                }
+                let mut updated = properties.clone();
+                updated.text = target.properties.text.clone();
+                if target.properties != updated {
+                    target.properties = updated;
+                    changed = true;
+                }
+            }
+            if !changed {
+                return Ok(false);
             }
         }
         EditAction::SetTextProperties {
@@ -185,11 +465,18 @@ fn edit_content(data: &mut TimelineEditingState, action: EditAction) -> Result<(
             }
         }
         EditAction::ReplaceTimeline { timeline: updated } => {
-            *data = updated;
+            record_history = false; // 撤销/重做由调用方维护历史栈。
+            data = updated;
         }
     }
 
-    Ok(())
+    data.validate()?;
+    if record_history {
+        timeline.record_editing_history();
+    }
+    timeline.editing_state = data;
+    timeline.set_playhead(timeline.playhead());
+    Ok(true)
 }
 
 fn ripple_clips_after_deletion(
