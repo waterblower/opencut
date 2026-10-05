@@ -14,9 +14,11 @@ use crate::project_settings::{ProjectLocalSettings, save_project_local_settings}
 use crate::srt::{srt_text_clips, write_srt};
 use crate::timeline::{PreviewDropAsset, TimelineFrameIndex};
 use crate::timeline_clip::Clip;
-use crate::transcription::start_transcription;
+use crate::transcription::prepare_transcription;
+use crate::transcription_window;
+use crate::transcription_window::{TranscriptionStage, TranscriptionWindow};
 use crate::{OpenProject, open_editor_window, quit_after_last_window};
-use anyhow::{Context as _, Result, anyhow, bail};
+use anyhow::{Context as _, Result, anyhow};
 use engine::export::{ExportCompletion, ExportControl, ExportOption, export_timeline};
 use gpui::prelude::*;
 use gpui::{AsyncApp, Bounds, Entity, EventEmitter, MouseMoveEvent, Pixels, WeakEntity};
@@ -48,10 +50,15 @@ pub enum AppEvent {
     SwitchProject {
         project_path: PathBuf,
     },
+    OpenTranscribeWindow {
+        audio_source_path: PathBuf, // 含音轨的音频或视频文件的绝对路径。
+        project_root: PathBuf,
+    },
     /// Transcribe the audio or video file at this absolute path.
     Transcribe {
         source_path: PathBuf,
         project_root: PathBuf,
+        window: WeakEntity<TranscriptionWindow>,
     },
     HorizontalSplitResized(HorizontalSplitState),
     Edit(EditAction),
@@ -118,43 +125,113 @@ pub async fn handle_event(
                 cx.notify();
             });
         }
+        AppEvent::OpenTranscribeWindow {
+            audio_source_path: source_path,
+            project_root,
+        } => {
+            if let Err(error) =
+                cx.update(|cx| transcription_window::open(source_path, project_root, event_bus, cx))
+            {
+                log::error!("Could not open transcription window: {error:?}");
+            }
+        }
         AppEvent::Transcribe {
             source_path,
             project_root,
+            window,
         } => {
-            let settings = match GlobalEditorSettings::load() {
-                Ok(settings) => settings,
-                Err(error) => {
-                    log::error!("Could not load settings: {error:?}");
-                    return;
-                }
+            let Some(view) = window.upgrade() else {
+                return;
             };
-            let api_key = settings.minimax_api_key;
-            let task = cx.update(|cx| {
-                gpui_tokio::Tokio::spawn(cx, async move {
-                    let srt = start_transcription(source_path.clone(), api_key).await?;
-                    log::info!("Writing SRT for {}", source_path.display());
-                    let Some(stem) = source_path.file_stem() else {
-                        bail!(
-                            "transcription source has no filename: {}",
-                            source_path.display()
-                        );
-                    };
-                    let stem = stem.to_string_lossy();
-                    let path = project_root.join(format!("{stem}.srt"));
-                    write_srt(&path, &srt)?;
-                    Ok(path)
-                })
-            });
-            let result = match task.await {
-                Ok(result) => result,
-                Err(error) => Err(anyhow!("transcription task failed: {error}")),
-            };
-            match result {
-                Ok(path) => log::info!("SRT saved: {}", path.display()),
-                Err(error) => log::error!("SRT generation failed: {error:?}"),
+            if view.read_with(cx, |view, _| view.stage.is_running()) {
+                return;
             }
+            view.update(cx, |view, cx| {
+                view.stage = TranscriptionStage::Preparing;
+                view.started = std::time::Instant::now();
+                cx.notify();
+                view.task = Some(cx.spawn(async move |view, cx| {
+                    let refresh = view.update(cx, |_, cx| {
+                        cx.spawn(async move |view, cx| {
+                            loop {
+                                cx.background_executor()
+                                    .timer(std::time::Duration::from_millis(250))
+                                    .await;
+                                if view.update(cx, |_, cx| cx.notify()).is_err() {
+                                    break;
+                                }
+                            }
+                        })
+                    });
+                    let result: Result<PathBuf> = async {
+                        let (wav, api_key, source_path) = cx
+                            .update(|cx| {
+                                gpui_tokio::Tokio::spawn(cx, async move {
+                                    let settings = GlobalEditorSettings::load()?;
+                                    let wav = prepare_transcription(
+                                        source_path.clone(),
+                                        &settings.minimax_api_key,
+                                    )?;
+                                    Ok::<_, anyhow::Error>((
+                                        wav,
+                                        settings.minimax_api_key,
+                                        source_path,
+                                    ))
+                                })
+                            })
+                            .await
+                            .context("Audio preparation task failed")??;
+                        let _ = view.update(cx, |view, cx| {
+                            view.stage = TranscriptionStage::Transcribing;
+                            cx.notify();
+                        })?;
+                        let srt = cx
+                            .update(|cx| {
+                                gpui_tokio::Tokio::spawn(cx, async move {
+                                    let srt = transcribe::transcribe_wav(
+                                        wav,
+                                        &api_key,
+                                        &transcribe::Options::default(),
+                                    )
+                                    .await?;
+                                    transcribe::subtitles::merge_srt_sections(&srt)
+                                })
+                            })
+                            .await
+                            .context("Transcription task failed")??;
+                        let _ = view.update(cx, |view, cx| {
+                            view.stage = TranscriptionStage::Saving;
+                            cx.notify();
+                        })?;
+                        cx.background_executor()
+                            .spawn(async move {
+                                let stem = source_path
+                                    .file_stem()
+                                    .context("Transcription source has no filename")?;
+                                let path =
+                                    project_root.join(format!("{}.srt", stem.to_string_lossy()));
+                                write_srt(&path, &srt)?;
+                                Ok(path)
+                            })
+                            .await
+                    }
+                    .await;
+                    drop(refresh);
+                    let stage = match result {
+                        Ok(path) => TranscriptionStage::Complete(path),
+                        Err(error) => {
+                            log::error!("SRT generation failed: {error:?}");
+                            TranscriptionStage::Failed(format!("{error:#}"))
+                        }
+                    };
+                    let _ = view.update(cx, |view, cx| {
+                        view.stage = stage;
+                        cx.notify();
+                    });
+                }));
+            });
         }
+
         AppEvent::SwitchProject { project_path } => {
             let root = match std::fs::canonicalize(&project_path) {
                 Ok(root) => root,
@@ -248,6 +325,7 @@ async fn handle_app_event(
             }
         },
         AppEvent::SwitchProject { .. }
+        | AppEvent::OpenTranscribeWindow { .. }
         | AppEvent::Transcribe { .. }
         | AppEvent::ExportTimeline { .. } => {
             editor.update(cx, |_, cx| cx.notify());

@@ -2,25 +2,18 @@ use super::*;
 use crate::srt::write_srt;
 use std::fs;
 use std::path::{Path, PathBuf};
+use transcribe::SRT;
 use ulid::Ulid;
 
-#[tokio::test]
-async fn rejects_missing_key_media_and_timeline_sources() {
+#[test]
+fn rejects_missing_key_media_and_timeline_sources() {
     let directory = test_directory();
-    let error = start_transcription(directory.path.join("missing.mp4"), String::new())
-        .await
-        .unwrap_err();
+    let error = prepare_transcription(directory.path.join("missing.mp4"), "").unwrap_err();
     assert!(error.to_string().contains("MiniMax API key"));
-    let error = start_transcription(directory.path.join("missing.mp4"), "test-key".into())
-        .await
-        .unwrap_err();
+    let error = prepare_transcription(directory.path.join("missing.mp4"), "test-key").unwrap_err();
     assert!(error.to_string().contains("unreadable_media"));
-    let error = start_transcription(
-        directory.path.join("source.timeline.json"),
-        "test-key".into(),
-    )
-    .await
-    .unwrap_err();
+    let error =
+        prepare_transcription(directory.path.join("source.timeline.json"), "test-key").unwrap_err();
     assert!(
         error
             .to_string()

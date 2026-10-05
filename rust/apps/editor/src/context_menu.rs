@@ -140,8 +140,8 @@ impl Editor {
                                 cx.notify();
                                 editor.emit_event(
                                     cx,
-                                    AppEvent::Transcribe {
-                                        source_path: source_path.clone(),
+                                    AppEvent::OpenTranscribeWindow {
+                                        audio_source_path: source_path.clone(),
                                         project_root: project_root.clone(),
                                     },
                                 );

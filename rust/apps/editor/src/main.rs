@@ -52,6 +52,7 @@ mod timeline_ui;
 mod track;
 mod track_ui;
 mod transcription;
+mod transcription_window;
 mod waveform;
 
 use anyhow::{Context as _, Result};
