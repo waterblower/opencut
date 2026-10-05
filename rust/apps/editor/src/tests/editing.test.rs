@@ -562,7 +562,6 @@ fn replacing_history_snapshots_preserves_playhead_and_document() -> Result<()> {
     data.clips = vec![audio_clip(10, 0, 60)];
     let mut timeline = TimelineRuntimeState::new(std::path::absolute("test.timeline.json")?, data)?;
     timeline.set_playhead(TimelineFrameIndex::from(15));
-    timeline.record_editing_history();
     edit_timeline(
         &mut timeline,
         EditAction::MoveClips {

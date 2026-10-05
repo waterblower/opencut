@@ -184,13 +184,13 @@ impl Editor {
                     let Some((clip_id, _, canvas_size)) = hit else {
                         return;
                     };
-                    let Some(timeline) = editor.timeline.as_ref() else {
+                    let Some(timeline) = editor.timeline.as_mut() else {
                         return;
                     };
                     let Some(Clip::Text(clip)) = timeline.editing_state.clip(clip_id) else {
                         return;
                     };
-                    editor.preview.text_drag = Some(PreviewTextDrag {
+                    timeline.text_drag = Some(PreviewTextDrag {
                         timeline_path: timeline.path.clone(),
                         clip_id,
                         start: event.position,
@@ -219,7 +219,10 @@ impl Editor {
         _: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        let Some(drag) = &self.preview.text_drag else {
+        let Some(timeline) = &self.timeline else {
+            return;
+        };
+        let Some(drag) = &timeline.text_drag else {
             return;
         };
         self.emit_event(
@@ -239,7 +242,10 @@ impl Editor {
         _: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        let Some(drag) = &self.preview.text_drag else {
+        let Some(timeline) = &self.timeline else {
+            return;
+        };
+        let Some(drag) = &timeline.text_drag else {
             return;
         };
         self.emit_event(

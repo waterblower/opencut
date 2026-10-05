@@ -1,6 +1,5 @@
 use crate::editor::Editor;
 use crate::preview_image::preview_image_file;
-use crate::preview_text::PreviewTextDrag;
 use crate::theme::MUTED;
 use gpui::prelude::*;
 use gpui::{Entity, div, px, rgb};
@@ -79,5 +78,4 @@ impl Editor {
 pub(crate) struct PreviewState {
     pub(crate) target: PreviewTarget,
     pub(crate) fullscreen: bool,
-    pub text_drag: Option<PreviewTextDrag>,
 }

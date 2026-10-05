@@ -4,7 +4,7 @@ use ::timeline::{
     Clip, FrameRate, MediaAsset, TextClipProperties, TimelineEditingState, TimelineFrameIndex,
     Track, VideoClipProperties,
 };
-use anyhow::{Result, anyhow, bail, ensure};
+use anyhow::{Result, anyhow, ensure};
 use gpui::{Pixels, Point};
 use std::collections::HashSet;
 use std::path::PathBuf;
@@ -78,12 +78,64 @@ pub enum EditAction {
     },
 }
 
-/// Applies an edit to the editing timeline only; the preview player is not synced with it.
-pub fn edit_timeline(timeline: &mut TimelineRuntimeState, action: EditAction) -> Result<()> {
+/// Applies an edit and returns whether the caller should save the timeline.
+/// The preview player is not synced with it.
+pub fn edit_timeline(timeline: &mut TimelineRuntimeState, action: EditAction) -> Result<bool> {
     let mut data = timeline.editing_state.clone();
+    let mut record_history = true;
     match action {
-        EditAction::UpdateTextClipPosition { .. } => {
-            bail!("Text position dragging requires preview state and must be handled by the event bus");
+        EditAction::UpdateTextClipPosition {
+            timeline_path,
+            clip_id,
+            pointer,
+            finished,
+        } => {
+            let Some(drag) = timeline.text_drag.as_ref() else {
+                return Ok(false);
+            };
+            if drag.timeline_path != timeline_path
+                || drag.clip_id != clip_id
+                || timeline.path != timeline_path
+            {
+                return Ok(false);
+            }
+            let Some(Clip::Text(clip)) = timeline.editing_state.clip(clip_id) else {
+                return Ok(false);
+            };
+            if !timeline
+                .editing_state
+                .tracks
+                .iter()
+                .any(|track| track.id == clip.track_id && !track.locked)
+            {
+                return Ok(false);
+            }
+            let position_x = (drag.original.0
+                + f64::from(
+                    f32::from(pointer.x - drag.start.x) / f32::from(drag.canvas_size.width),
+                ))
+            .clamp(0.0, 1.0);
+            let position_y = (drag.original.1
+                + f64::from(
+                    f32::from(pointer.y - drag.start.y) / f32::from(drag.canvas_size.height),
+                ))
+            .clamp(0.0, 1.0);
+            if (clip.properties.position_x, clip.properties.position_y) != (position_x, position_y)
+            {
+                if !drag.history_recorded {
+                    timeline.record_editing_history();
+                    timeline.text_drag.as_mut().unwrap().history_recorded = true;
+                }
+                if let Some(Clip::Text(clip)) = timeline.editing_state.clip_mut(clip_id) {
+                    clip.properties.position_x = position_x;
+                    clip.properties.position_y = position_y;
+                }
+            }
+            if finished {
+                let finished_drag = timeline.text_drag.take().unwrap();
+                return Ok(finished_drag.history_recorded);
+            }
+            return Ok(false);
         }
         EditAction::AddClips { clips, assets } => {
             data.assets.extend(assets);
@@ -196,14 +248,18 @@ pub fn edit_timeline(timeline: &mut TimelineRuntimeState, action: EditAction) ->
             }
         }
         EditAction::ReplaceTimeline { timeline: updated } => {
+            record_history = false; // 撤销/重做由调用方维护历史栈。
             data = updated;
         }
     }
 
     data.validate()?;
+    if record_history {
+        timeline.record_editing_history();
+    }
     timeline.editing_state = data;
     timeline.set_playhead(timeline.playhead());
-    Ok(())
+    Ok(true)
 }
 
 fn ripple_clips_after_deletion(

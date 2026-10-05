@@ -20,7 +20,6 @@ impl Editor {
             return Ok(());
         };
         let clip = text_clip_at(&timeline.editing_state, track_id, position)?;
-        timeline.record_editing_history();
         let clip_id = clip.id();
         edit_timeline(
             timeline,

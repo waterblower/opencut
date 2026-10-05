@@ -253,7 +253,6 @@ impl TimelineRuntimeState {
             })
             .collect();
 
-        self.record_editing_history();
         edit_timeline(
             self,
             EditAction::SplitClips {
@@ -275,10 +274,6 @@ impl Editor {
         }
         let clip_ids = timeline.interaction.selected_clip_ids.clone();
         let magnet_enabled = timeline.track_magnet_enabled;
-        let Some(timeline) = self.timeline.as_mut() else {
-            return Ok(());
-        };
-        timeline.record_editing_history();
         self.remove_clips(&clip_ids, magnet_enabled)
     }
 
@@ -314,10 +309,6 @@ impl Editor {
             return Ok(());
         };
         let clip_ids = timeline.interaction.selected_clip_ids.clone();
-        let Some(timeline) = self.timeline.as_mut() else {
-            return Ok(());
-        };
-        timeline.record_editing_history();
         self.clipboard = Some(clipboard);
         self.remove_clips(&clip_ids, false)?;
         Ok(())
@@ -343,7 +334,6 @@ impl Editor {
         let Some(timeline) = self.timeline.as_mut() else {
             return Ok(());
         };
-        timeline.record_editing_history();
         for clip in &mut clips {
             clip.set_id(Ulid::generate());
         }
@@ -460,7 +450,6 @@ impl Editor {
         let Some(timeline) = self.timeline.as_mut() else {
             return Ok(());
         };
-        timeline.record_editing_history();
         timeline.interaction.selected_clip_ids = duplicates.iter().map(Clip::id).collect();
         timeline.interaction.selected_clip_id = primary_index
             .and_then(|index| duplicates.get(index))
@@ -497,7 +486,6 @@ impl Editor {
         let Some(timeline) = self.timeline.as_mut() else {
             return Ok(());
         };
-        timeline.record_editing_history();
         edit_timeline(
             timeline,
             EditAction::AddTrack {
@@ -518,7 +506,6 @@ impl Editor {
         let Some(timeline) = self.timeline.as_mut() else {
             return Ok(());
         };
-        timeline.record_editing_history();
         edit_timeline(timeline, EditAction::ToggleTrackLock { track_id })?;
         timeline.save()
     }
@@ -527,7 +514,6 @@ impl Editor {
         let Some(timeline) = self.timeline.as_mut() else {
             return Ok(());
         };
-        timeline.record_editing_history();
         edit_timeline(timeline, EditAction::ToggleTrackVisibility { track_id })?;
         timeline.save()
     }
@@ -536,7 +522,6 @@ impl Editor {
         let Some(timeline) = self.timeline.as_mut() else {
             return Ok(());
         };
-        timeline.record_editing_history();
         edit_timeline(timeline, EditAction::ToggleTrackMute { track_id })?;
         timeline.save()
     }
@@ -564,7 +549,6 @@ impl Editor {
             return Ok(());
         };
 
-        timeline.record_editing_history();
         edit_timeline(timeline, EditAction::MoveTrack { index, target })?;
         timeline.save()
     }
@@ -584,7 +568,6 @@ impl Editor {
         if timeline.editing_state.tracks[index].locked {
             return Ok(());
         }
-        timeline.record_editing_history();
         edit_timeline(timeline, EditAction::DeleteTrack { track_id })?;
         let remaining_clip_ids = timeline
             .editing_state

@@ -122,7 +122,6 @@ impl Editor {
         let preview = PreviewState {
             target: PreviewTarget::None,
             fullscreen: false,
-            text_drag: None,
         };
 
         let properties = {
