@@ -81,21 +81,13 @@ pub enum EditAction {
 /// Applies an edit to the editing timeline only; the preview player is not synced with it.
 pub fn edit_timeline(timeline: &mut TimelineRuntimeState, action: EditAction) -> Result<()> {
     let mut data = timeline.editing_state.clone();
-    edit_content(&mut data, action)?;
-    data.validate()?;
-    timeline.editing_state = data;
-    timeline.set_playhead(timeline.playhead());
-    Ok(())
-}
-
-fn edit_content(data: &mut TimelineEditingState, action: EditAction) -> Result<()> {
     match action {
         EditAction::UpdateTextClipPosition { .. } => {
             bail!("Text position dragging requires preview state and must be handled by the event bus");
         }
         EditAction::AddClips { clips, assets } => {
             data.assets.extend(assets);
-            validate_clips_placements(data, &clips)?;
+            validate_clips_placements(&data, &clips)?;
             data.clips.extend(clips);
         }
         EditAction::RemoveClips {
@@ -114,7 +106,7 @@ fn edit_content(data: &mut TimelineEditingState, action: EditAction) -> Result<(
         } => {
             data.clips
                 .retain(|clip| !removed_clips.contains(&clip.id()));
-            validate_clips_placements(data, &added_clips)?;
+            validate_clips_placements(&data, &added_clips)?;
             data.clips.extend(added_clips);
         }
         EditAction::MoveClips { placements } => {
@@ -137,11 +129,11 @@ fn edit_content(data: &mut TimelineEditingState, action: EditAction) -> Result<(
                 && previous.length == updated.length
             {
                 data.clips[index] = clip;
-                return Ok(());
+            } else {
+                data.clips.remove(index);
+                validate_clips_placements(&data, std::slice::from_ref(&clip))?;
+                data.clips.insert(index, clip);
             }
-            data.clips.remove(index);
-            validate_clips_placements(data, std::slice::from_ref(&clip))?;
-            data.clips.insert(index, clip);
         }
         EditAction::SetVideoProperties {
             clip_ids,
@@ -204,10 +196,13 @@ fn edit_content(data: &mut TimelineEditingState, action: EditAction) -> Result<(
             }
         }
         EditAction::ReplaceTimeline { timeline: updated } => {
-            *data = updated;
+            data = updated;
         }
     }
 
+    data.validate()?;
+    timeline.editing_state = data;
+    timeline.set_playhead(timeline.playhead());
     Ok(())
 }
 
