@@ -1,6 +1,4 @@
-use crate::clip_placement::{
-    ClipPlacementRejection, validate_clip_placement, validate_text_clip_placement,
-};
+use crate::clip_placement::ClipPlacementRejection;
 use crate::explorer_drag::AssetBeingDragged;
 use crate::layout::DEFAULT_TIMELINE_PIXELS_PER_SECOND;
 use crate::model::MediaKind;
@@ -13,7 +11,7 @@ pub use ::timeline::{FrameRate, TimelineFrameIndex};
 use anyhow::{Result, ensure};
 use gpui::ScrollHandle;
 use gpui::prelude::*;
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 use ulid::Ulid;
 
@@ -79,62 +77,60 @@ impl TimelineEditorExt for TimelineEditingState {
         if placements.is_empty() {
             return Err(ClipPlacementRejection::NoPlacements.into());
         }
-        for (clip_id, track_id, start) in placements {
-            let Some(clip) = self.clip(*clip_id) else {
-                return Err(ClipPlacementRejection::MissingClip.into());
-            };
-            match clip {
-                Clip::Video(media) | Clip::Audio(media) => {
-                    let Some(asset) = self.asset(media.asset_id) else {
-                        return Err(ClipPlacementRejection::MissingAsset.into());
-                    };
-                    // An audio clip may use the audio stream of a video asset.
-                    let media_kind = if matches!(clip, Clip::Audio(_)) {
-                        MediaKind::Audio
-                    } else {
-                        asset.kind
-                    };
-                    validate_clip_placement(
-                        self,
-                        *track_id,
-                        media_kind,
-                        media.source_out - media.source_in,
-                        *start,
-                        ignored_clip_ids,
-                    )?;
-                }
-                Clip::Text(clip) => validate_text_clip_placement(
-                    self,
-                    *track_id,
-                    clip.frame_length(self.settings.frame_rate),
-                    *start,
-                    ignored_clip_ids,
-                )?,
+        let clips = self.clips.iter().map(|clip| (clip.id(), clip)).collect::<HashMap<_, _>>();
+        let tracks = self.tracks.iter().map(|track| (track.id, track)).collect::<HashMap<_, _>>();
+        let assets = self.assets.iter().map(|asset| (asset.id, asset)).collect::<HashMap<_, _>>();
+        let mut proposed = Vec::with_capacity(placements.len());
+        for &(clip_id, track_id, start) in placements {
+            let clip = clips.get(&clip_id).ok_or(ClipPlacementRejection::MissingClip)?;
+            let duration = clip.frame_length(self.settings.frame_rate);
+            if start < TimelineFrameIndex::ZERO {
+                return Err(ClipPlacementRejection::BeforeTimelineStart.into());
             }
+            if duration < TimelineFrameIndex::ONE_FRAME {
+                return Err(ClipPlacementRejection::DurationTooShort.into());
+            }
+            let track = tracks.get(&track_id).ok_or(ClipPlacementRejection::MissingTrack)?;
+            if track.locked {
+                return Err(ClipPlacementRejection::LockedTrack.into());
+            }
+            let expected_kind = match clip {
+                Clip::Video(media) | Clip::Audio(media) => {
+                    let asset = assets.get(&media.asset_id).ok_or(ClipPlacementRejection::MissingAsset)?;
+                    if matches!(clip, Clip::Audio(_)) || asset.kind == MediaKind::Audio {
+                        TrackKind::Audio
+                    } else {
+                        TrackKind::Video
+                    }
+                }
+                Clip::Text(_) => TrackKind::Text,
+            };
+            if track.kind != expected_kind {
+                return Err(ClipPlacementRejection::IncompatibleTrack.into());
+            }
+            proposed.push((track_id, start, start + duration));
         }
-        for (index, (clip_id, track_id, start)) in placements.iter().enumerate() {
-            let frame_rate = self.settings.frame_rate;
-            let duration = self
-                .clip(*clip_id)
-                .map(|clip| clip.frame_length(frame_rate))
-                .ok_or(ClipPlacementRejection::MissingClip)?;
-            if placements[index + 1..]
-                .iter()
-                .any(|(other_id, other_track_id, other_start)| {
-                    let other_duration = self
-                        .clip(*other_id)
-                        .map(|clip| clip.frame_length(frame_rate))
-                        .unwrap_or(TimelineFrameIndex::ZERO);
-                    track_id == other_track_id
-                        && timeline_ranges_overlap(
-                            *start,
-                            *start + duration,
-                            *other_start,
-                            *other_start + other_duration,
-                        )
-                })
+        proposed.sort_unstable();
+        if proposed.windows(2).any(|pair| pair[0].0 == pair[1].0 && pair[1].1 < pair[0].2) {
+            return Err(ClipPlacementRejection::ProposedClipsOverlap.into());
+        }
+        let mut existing = self.clips.iter()
+            .filter(|clip| !ignored_clip_ids.contains(&clip.id()))
+            .map(|clip| (clip.track_id(), clip.timeline_start(), clip.timeline_end(self.settings.frame_rate)))
+            .collect::<Vec<_>>();
+        existing.sort_unstable();
+        let mut cursor = 0;
+        for (track_id, start, end) in proposed {
+            while cursor < existing.len()
+                && (existing[cursor].0 < track_id
+                    || (existing[cursor].0 == track_id && existing[cursor].2 <= start))
             {
-                return Err(ClipPlacementRejection::ProposedClipsOverlap.into());
+                cursor += 1;
+            }
+            if let Some(&(other_track, other_start, other_end)) = existing.get(cursor) {
+                if other_track == track_id && timeline_ranges_overlap(start, end, other_start, other_end) {
+                    return Err(ClipPlacementRejection::ExistingClipOverlap.into());
+                }
             }
         }
         Ok(())

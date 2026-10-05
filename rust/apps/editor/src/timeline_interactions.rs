@@ -509,7 +509,6 @@ impl Editor {
             placements: items
                 .iter()
                 .filter_map(|item| {
-                    timeline.editing_state.clip(item.clip_id)?;
                     Some((
                         item.clip_id,
                         item.original_track_id,
@@ -543,7 +542,7 @@ impl Editor {
         let start_x = drag.start_x;
         let original_anchor_start = drag.original_anchor_start;
         let original_anchor_track_index = drag.original_anchor_track_index;
-        let items = drag.items.clone();
+        let items = &drag.items;
         let raw_delta = timeline.editing_state.settings.frame_rate.delta(
             (f32::from(event.position.x) - f32::from(timeline.h_scroll.offset().x) - start_x)
                 as f64
@@ -597,7 +596,6 @@ impl Editor {
                 .filter_map(|item| {
                     let target_index = item.original_track_index.checked_add_signed(track_delta)?;
                     let track_id = timeline.editing_state.tracks.get(target_index)?.id;
-                    timeline.editing_state.clip(item.clip_id)?;
                     Some((
                         item.clip_id,
                         track_id,
@@ -607,6 +605,9 @@ impl Editor {
                 .collect::<Vec<_>>()
         };
         let placements = placements_for_delta(track_delta);
+        if placements == drag.placements && snap_guide == timeline.interaction.snap_guide {
+            return;
+        }
         let invalid_reason = if placements.len() != items.len() {
             Some("Destination track is unavailable")
         } else {
@@ -621,14 +622,7 @@ impl Editor {
                         .message()
                 })
         };
-        let moved_from_origin = placements.iter().any(|(clip_id, track_id, start)| {
-            items
-                .iter()
-                .find(|item| item.clip_id == *clip_id)
-                .is_some_and(|item| {
-                    *start != item.original_timeline_start || *track_id != item.original_track_id
-                })
-        });
+        let moved_from_origin = timeline_delta != TimelineFrameIndex::ZERO || track_delta != 0;
         let timeline = self.timeline.as_mut().expect("timeline was checked above");
         if let Some(drag) = &mut timeline.interaction.clip_move_drag {
             drag.placements = placements;
