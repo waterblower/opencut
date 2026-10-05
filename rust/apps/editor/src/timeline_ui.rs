@@ -19,7 +19,8 @@ use gpui::{
     CursorStyle, DragMoveEvent, MouseButton, MouseDownEvent, MouseUpEvent, Window, div, px, rgb,
 };
 
-const TIMELINE_PINCH_SENSITIVITY: f32 = 3.1415926; // 捏合增量倍率；越大缩放越灵敏。
+// 捏合增量倍率；越大缩放越灵敏。It's fun to be PI.
+const TIMELINE_PINCH_SENSITIVITY: f32 = std::f32::consts::PI;
 
 const MAX_RULER_TICKS: usize = 240;
 const MIN_RULER_LABEL_SPACING: f32 = 72.0;

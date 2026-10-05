@@ -181,19 +181,8 @@ fn start_updates(cx: &mut Context<Editor>) {
         loop {
             cx.background_executor().timer(IDLE_UPDATE_INTERVAL).await;
             let result = editor.update(cx, |editor, cx| -> Result<()> {
-                let ended_explorer_drag = !cx.has_active_drag();
-                if ended_explorer_drag && let Some(timeline) = editor.timeline.as_mut() {
-                    timeline.interaction.snap_guide = None;
-                }
-                let refresh_tree =
-                    editor.explorer.last_tree_scan.elapsed() >= Duration::from_secs(1);
-
-                let should_render = refresh_tree || ended_explorer_drag;
-
-                if refresh_tree {
+                if editor.explorer.last_tree_scan.elapsed() >= Duration::from_secs(1) {
                     editor.explorer.refresh_file_tree(&editor.project_root)?;
-                }
-                if should_render {
                     cx.notify();
                 }
                 Ok(())
