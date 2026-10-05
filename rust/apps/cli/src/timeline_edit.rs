@@ -3,7 +3,7 @@ use crate::document;
 use anyhow::{Context as _, Result, bail, ensure};
 use serde_json::{Value, json};
 use std::{fs, path::PathBuf};
-use timeline::{Clip, TimelineFrameIndex, TimelineSerialization};
+use timeline::{Clip, TimelineEditingState, TimelineFrameIndex, TimelineSerialization};
 use ulid::Ulid;
 
 pub fn keep_text_sections(options: KeepTextSectionsArgs) -> Result<Value> {
@@ -27,6 +27,59 @@ pub fn keep_text_sections(options: KeepTextSectionsArgs) -> Result<Value> {
     let original = TimelineSerialization::load(&input)?;
     let editing_state = original.to_editing_state();
     let before_frames = editing_state.content_duration();
+    let mut compacted = compact_text_sections(&editing_state)?;
+    if input_directory != output_directory {
+        for asset in &mut compacted.assets {
+            if asset.path.is_absolute() {
+                continue;
+            }
+            let absolute = input_directory.join(&asset.path);
+            let base = output_directory.components().collect::<Vec<_>>();
+            let target = absolute.components().collect::<Vec<_>>();
+            if base.first() != target.first() {
+                asset.path = absolute;
+                continue;
+            }
+            let shared = base
+                .iter()
+                .zip(&target)
+                .take_while(|(left, right)| left == right)
+                .count();
+            let mut relative = PathBuf::new();
+            for _ in shared..base.len() {
+                relative.push("..");
+            }
+            for component in &target[shared..] {
+                relative.push(component);
+            }
+            asset.path = relative;
+        }
+    }
+    let after_frames = compacted.content_duration();
+    let mut result = TimelineSerialization::from_editing_state(&compacted);
+    result.set_view_state(
+        TimelineFrameIndex::ZERO,
+        (0.0, original.scroll_offset().1),
+        original.pixels_per_second(),
+        original.snapping_enabled(),
+        original.track_magnet_enabled(),
+    );
+    result.to_editing_state().validate()?;
+    document::write_atomic(
+        &output,
+        &serde_json::to_value(&result)?,
+        options.write_inplace,
+    )?;
+    Ok(json!({
+        "path": output,
+        "before_frames": i64::from(before_frames),
+        "after_frames": i64::from(after_frames),
+        "removed_frames": i64::from(before_frames - after_frames),
+    }))
+}
+
+/// Keeps text-covered intervals and compacts all tracks without file I/O.
+fn compact_text_sections(editing_state: &TimelineEditingState) -> Result<TimelineEditingState> {
     editing_state.validate()?;
     let frame_rate = editing_state.settings.frame_rate;
     let mut intervals = editing_state
@@ -82,52 +135,5 @@ pub fn keep_text_sections(options: KeepTextSectionsArgs) -> Result<Value> {
         }
     }
     compacted.validate()?;
-    if input_directory != output_directory {
-        for asset in &mut compacted.assets {
-            if asset.path.is_absolute() {
-                continue;
-            }
-            let absolute = input_directory.join(&asset.path);
-            let base = output_directory.components().collect::<Vec<_>>();
-            let target = absolute.components().collect::<Vec<_>>();
-            if base.first() != target.first() {
-                asset.path = absolute;
-                continue;
-            }
-            let shared = base
-                .iter()
-                .zip(&target)
-                .take_while(|(left, right)| left == right)
-                .count();
-            let mut relative = PathBuf::new();
-            for _ in shared..base.len() {
-                relative.push("..");
-            }
-            for component in &target[shared..] {
-                relative.push(component);
-            }
-            asset.path = relative;
-        }
-    }
-    let after_frames = compacted.content_duration();
-    let mut result = TimelineSerialization::from_editing_state(&compacted);
-    result.set_view_state(
-        TimelineFrameIndex::ZERO,
-        (0.0, original.scroll_offset().1),
-        original.pixels_per_second(),
-        original.snapping_enabled(),
-        original.track_magnet_enabled(),
-    );
-    result.to_editing_state().validate()?;
-    document::write_atomic(
-        &output,
-        &serde_json::to_value(&result)?,
-        options.write_inplace,
-    )?;
-    Ok(json!({
-        "path": output,
-        "before_frames": i64::from(before_frames),
-        "after_frames": i64::from(after_frames),
-        "removed_frames": i64::from(before_frames - after_frames),
-    }))
+    Ok(compacted)
 }
