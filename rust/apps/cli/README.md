@@ -53,10 +53,14 @@ opencut timeline keep-text-sections input.timeline --write-inplace
 ```
 
 Exactly one of `--output` or `--write-inplace` is required. The command keeps the
-union of all text-clip intervals and removes uncovered time across every track.
+union of all text-clip intervals, padded by approximately 25ms on each side
+(rounded to timeline frames and bounded by the timeline), and removes the remaining
+uncovered time across every track. This preserves about 50ms of original audio/video
+between separated speech sections; shorter gaps are kept in full.
 Overlapping or adjacent intervals form one section. Clips crossing removed gaps
 are split and trimmed, then retained sections are joined in order, preserving
-source offsets and synchronization. Text at 2–5s and 8–10s produces a 5s timeline.
+source offsets and synchronization. Subtitle durations are unchanged; no silence
+or black frames are inserted.
 
 Hidden, muted, and locked tracks participate; track settings and clip properties
 are preserved. Timelines without nonempty text sections are rejected. Source

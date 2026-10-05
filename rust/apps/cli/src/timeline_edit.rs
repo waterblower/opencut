@@ -78,15 +78,20 @@ pub fn keep_text_sections(options: KeepTextSectionsArgs) -> Result<Value> {
     }))
 }
 
-/// Keeps text-covered intervals and compacts all tracks without file I/O.
+/// Keeps text-covered intervals with breathing room and compacts all tracks without file I/O.
 fn compact_text_sections(editing_state: &TimelineEditingState) -> Result<TimelineEditingState> {
     editing_state.validate()?;
     let frame_rate = editing_state.settings.frame_rate;
+    let padding = frame_rate.nearest(0.025); // 字幕前后各保留约 25ms 原始内容，按时间线帧率取整。
+    let content_end = editing_state.content_duration();
     let mut intervals = editing_state
         .clips
         .iter()
         .filter_map(|clip| match clip {
-            Clip::Text(_) => Some((clip.timeline_start(), clip.timeline_end(frame_rate))),
+            Clip::Text(_) => Some((
+                (clip.timeline_start() - padding).max(TimelineFrameIndex::ZERO),
+                (clip.timeline_end(frame_rate) + padding).min(content_end),
+            )),
             Clip::Video(_) | Clip::Audio(_) => None,
         })
         .collect::<Vec<_>>();

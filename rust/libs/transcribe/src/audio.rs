@@ -99,6 +99,19 @@ pub fn extract_audio_as_wav(path: &Path) -> Result<Vec<u8>> {
     write_wav_header(wav)
 }
 
+/// Split mono 16 kHz, 16-bit PCM bytes (without a WAV header), without copying samples.
+pub fn chunk(audio_samples: &[u8], max_size: Duration) -> Result<Vec<&[u8]>> {
+    if audio_samples.len() % 2 != 0 {
+        bail!("PCM data must contain complete 16-bit samples");
+    }
+    let sample_count = max_size.as_nanos() * 16_000 / 1_000_000_000;
+    let chunk_bytes = usize::try_from(sample_count * 2)?;
+    if chunk_bytes == 0 {
+        bail!("Audio chunk duration must cover at least one sample");
+    }
+    Ok(audio_samples.chunks(chunk_bytes).collect())
+}
+
 /// Complete a mono 16 kHz PCM WAV buffer with 44 reserved header bytes.
 pub fn write_wav_header(mut wav: Vec<u8>) -> Result<Vec<u8>> {
     const RATE: u32 = 16_000;

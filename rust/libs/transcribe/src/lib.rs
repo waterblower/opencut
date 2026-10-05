@@ -1,6 +1,6 @@
 //! MiniMax ASR for local media. Credentials belong to the caller, not library state.
 use self::audio::extract_audio_as_wav;
-use anyhow::{Result, anyhow, bail};
+use anyhow::{Context as _, Result, anyhow, bail};
 use reqwest::{
     Client,
     header::{AUTHORIZATION, HeaderValue},
@@ -64,15 +64,11 @@ pub struct Options {
 
 /// Transcribe into parsed SRT subtitles. The response format is always SRT.
 pub async fn transcribe(path: &Path, api_key: &str, options: &Options) -> Result<SRT> {
-    let options = Options {
-        format: Format::Srt,
-        language: options.language.clone(),
-    };
-    let response = transcribe_response(path, api_key, &options).await?;
-    let Some(text) = response.as_str() else {
-        bail!("expected SRT response at {}:{}", file!(), line!());
-    };
-    SRT::from_string(text)
+    if api_key.trim().is_empty() {
+        bail!("missing_api_key: an API key is required for transcription");
+    }
+    let wav = extract_audio_as_wav(path)?;
+    transcribe_wav(wav, api_key, options).await
 }
 
 /// Returns the provider's JSON object, or a JSON string containing SRT/VTT text.
@@ -104,17 +100,54 @@ pub async fn transcribe_response(path: &Path, api_key: &str, options: &Options) 
     transcribe_wav_response(wav, api_key, options).await
 }
 
-/// Transcribe normalized mono 16 kHz PCM WAV bytes without filesystem access.
+/// Transcribe normalized mono 16 kHz PCM WAV in sections of at most 500 seconds.
+/// Returned subtitle timestamps are relative to the complete source audio.
 pub async fn transcribe_wav(wav: Vec<u8>, api_key: &str, options: &Options) -> Result<SRT> {
-    let options = Options {
+    if api_key.trim().is_empty() {
+        bail!("missing_api_key: an API key is required for transcription");
+    }
+    if wav.len() <= 44 || wav.len() % 2 != 0 {
+        bail!("invalid WAV data");
+    }
+    let header = wav[..44].to_vec();
+    let normalized = audio::write_wav_header(wav)?;
+    if header != normalized[..44] {
+        bail!("expected mono 16 kHz 16-bit PCM WAV");
+    }
+    let srt_options = Options {
         format: Format::Srt,
         language: options.language.clone(),
     };
-    let response = transcribe_wav_response(wav, api_key, &options).await?;
-    let Some(text) = response.as_str() else {
-        bail!("expected SRT response at {}:{}", file!(), line!());
-    };
-    SRT::from_string(text)
+    let chunks = audio::chunk(&normalized[44..], MAX_TRANSCRIPTION_DURATION)?;
+    let total = chunks.len();
+    let mut combined = SRT::default();
+    let mut offset = Duration::ZERO;
+    for (index, samples) in chunks.into_iter().enumerate() {
+        let mut chunk = Vec::with_capacity(44 + samples.len());
+        chunk.resize(44, 0);
+        chunk.extend_from_slice(samples);
+        let chunk_wav = audio::write_wav_header(chunk)?;
+        let response = transcribe_wav_response(chunk_wav, api_key, &srt_options)
+            .await
+            .with_context(|| format!("Transcribing audio section {}/{total}", index + 1))?;
+        let Some(text) = response.as_str() else {
+            bail!("expected SRT response for audio section {}", index + 1);
+        };
+        let section = SRT::from_string(text)?;
+        let duration = Duration::from_secs_f64(samples.len() as f64 / 32_000.0);
+        for mut subtitle in section.subtitles {
+            subtitle.start = subtitle.start.min(duration);
+            subtitle.end = subtitle.end.min(duration);
+            if subtitle.end <= subtitle.start {
+                continue;
+            }
+            subtitle.start += offset; // 分段时间戳恢复为原始音频时间。
+            subtitle.end += offset;
+            combined.subtitles.push(subtitle);
+        }
+        offset += duration;
+    }
+    Ok(combined)
 }
 
 async fn transcribe_wav_response(wav: Vec<u8>, api_key: &str, options: &Options) -> Result<Value> {

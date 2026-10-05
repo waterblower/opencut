@@ -249,7 +249,7 @@ async fn memory_audio_rejects_invalid_and_overlong_wav_before_upload() {
     );
     let wav = audio::write_wav_header(vec![0; 44 + 500 * 32_000 + 2]).unwrap();
     assert!(
-        transcribe_wav(wav, "test-key", &options)
+        transcribe_wav_response(wav, "test-key", &options)
             .await
             .unwrap_err()
             .to_string()

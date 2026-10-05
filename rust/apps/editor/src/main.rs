@@ -52,7 +52,6 @@ mod timeline_trim;
 mod timeline_ui;
 mod track;
 mod track_ui;
-mod transcription;
 mod transcription_window;
 mod waveform;
 
