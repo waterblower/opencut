@@ -27,10 +27,12 @@ pub struct ExportOption {
     pub overwrite: bool,
 }
 
+/// The platform text system must be initialized on the main thread before exporting on a worker.
 pub fn export_timeline(
     timeline_serialization: &TimelineSerialization,
     output_path: &Path,
     option: &ExportOption,
+    platform_text_system: Arc<dyn gpui::PlatformTextSystem>,
 ) -> Result<()> {
     validate_export(timeline_serialization, output_path, option)?;
 
@@ -50,9 +52,8 @@ pub fn export_timeline(
     // ----------------------------------|
     // creating the headless GPUI window |
     // ----------------------------------|
-    let platform = gpui_platform::current_platform(true);
     let mut cx = HeadlessAppContext::with_platform(
-        platform.text_system(),
+        platform_text_system,
         Arc::new(()),
         gpui_platform::current_headless_renderer,
     );
