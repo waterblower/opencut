@@ -54,12 +54,9 @@ impl Render for TimelinePlayer {
                     }
                 }))
                 .on_drag_move(cx.listener(
-                    move |player, event: &DragMoveEvent<ProgressBarDrag>, _, cx| {
+                    move |player, event: &DragMoveEvent<ProgressBarDrag>, window, cx| {
                         let target = seek_position(event.event.position.x, event.bounds, duration);
-                        match player.seek(target) {
-                            Ok(()) => cx.notify(),
-                            Err(error) => player.fail(error, cx),
-                        }
+                        player.request_seek(target, window, cx);
                     },
                 )),
             )
