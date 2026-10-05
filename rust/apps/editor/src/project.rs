@@ -162,8 +162,8 @@ impl Editor {
 
 impl Editor {
     /// Builds a standalone preview player on a snapshot of the active timeline, starting at
-    /// its playhead. It is deliberately decoupled: later edits and playhead moves in the
-    /// editing area do not reach it. Edits that invalidate the snapshot's time base, such as
+    /// its playhead. Text rendering reads the editing timeline directly; other
+    /// edits and playhead moves stay decoupled. Edits that invalidate the snapshot's time base, such as
     /// a frame rate change, rebuild it instead.
     pub fn create_timeline_preview(&self, cx: &mut Context<Self>) -> Result<PreviewTarget> {
         let Some(timeline) = self.timeline.as_ref() else {

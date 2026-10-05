@@ -4,8 +4,8 @@ use crate::{Seeker, format_time};
 #[cfg(target_os = "macos")]
 use gpui::surface;
 use gpui::{
-    Bounds, ClickEvent, Context, CursorStyle, DragMoveEvent, ObjectFit, Render, Window, div,
-    prelude::*, px, rgb,
+    Bounds, ClickEvent, Context, CursorStyle, DragMoveEvent, MouseButton, MouseUpEvent, ObjectFit,
+    Render, Window, div, prelude::*, px, rgb,
 };
 use std::{cell::Cell, rc::Rc, time::Duration};
 
@@ -77,7 +77,10 @@ impl Render for VideoPlayer {
                         let target = seek_position(event.event.position.x, event.bounds, duration);
                         player.request_seek(target, window, cx);
                     },
-                )),
+                ))
+                // A drag can end over the bar or anywhere else in the window.
+                .on_mouse_up(MouseButton::Left, cx.listener(release_scrub))
+                .on_mouse_up_out(MouseButton::Left, cx.listener(release_scrub)),
             )
             .child(
                 div()
@@ -109,5 +112,18 @@ impl Render for VideoPlayer {
                             .child(self.title.clone()),
                     ),
             )
+    }
+}
+
+/// Mouse-up handler shared by releases over the bar and elsewhere in the window.
+fn release_scrub(
+    player: &mut VideoPlayer,
+    _: &MouseUpEvent,
+    _: &mut Window,
+    cx: &mut Context<VideoPlayer>,
+) {
+    if let Err(error) = player.finish_scrub(cx) {
+        eprintln!("Player seek failed: {error:?}");
+        std::process::exit(1);
     }
 }

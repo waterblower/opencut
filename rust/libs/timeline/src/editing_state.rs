@@ -192,8 +192,8 @@ impl TimelineEditingState {
                         bail!("Text clip {} requires a text track", text.id);
                     }
                     let properties = &text.properties;
-                    if !properties.position_x.is_finite()
-                        || !properties.position_y.is_finite()
+                    if !properties.position.x.is_finite()
+                        || !properties.position.y.is_finite()
                         || !properties.font_size.is_finite()
                         || properties.font_size <= 0.0
                     {

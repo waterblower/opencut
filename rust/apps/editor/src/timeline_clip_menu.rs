@@ -62,7 +62,6 @@ impl Editor {
         let Some(timeline) = self.timeline.as_mut() else {
             return Ok(());
         };
-        timeline.record_editing_history();
         let clip_ids = targets
             .into_iter()
             .map(|index| timeline.editing_state.clips[index].id())

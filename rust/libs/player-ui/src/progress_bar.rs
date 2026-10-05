@@ -6,6 +6,8 @@ use gpui::{
 };
 use std::{cell::Cell, rc::Rc, time::Duration};
 
+pub const PROGRESS_BAR_HEIGHT: f32 = 20.0;
+
 /// Drag payload of a progress bar;
 /// views seek on `on_drag_move::<ProgressBarDrag>`.
 pub(crate) struct ProgressBarDrag;
@@ -21,7 +23,7 @@ pub(crate) fn progress_bar(
         .id(id)
         .relative()
         .w_full()
-        .h(px(20.0))
+        .h(px(PROGRESS_BAR_HEIGHT))
         .flex_shrink_0()
         .bg(rgb(0x303030))
         .cursor(CursorStyle::PointingHand)

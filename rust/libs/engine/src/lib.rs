@@ -5,6 +5,7 @@ pub mod image;
 pub mod probe;
 pub mod timeline_backend;
 pub mod timeline_decoder;
+pub mod timeline_view;
 pub mod video_frame;
 
 #[cfg(target_os = "macos")]

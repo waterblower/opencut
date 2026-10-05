@@ -4,6 +4,7 @@ use crate::clip_placement::{
 use crate::explorer_drag::AssetBeingDragged;
 use crate::layout::DEFAULT_TIMELINE_PIXELS_PER_SECOND;
 use crate::model::MediaKind;
+use crate::preview_text::PreviewTextDrag;
 use crate::timeline_clip::Clip;
 use crate::timeline_interactions::{TimelineInteractionState, TimelineTool};
 use crate::track::TrackKind;
@@ -28,9 +29,11 @@ pub(super) const FRAME_RATE_PRESETS: [(FrameRate, &str); 8] = [
 ];
 
 pub struct TimelineRuntimeState {
+    pub clip_trim_drag: Option<crate::timeline_trim::ClipTrimDrag>,
     /// Absolute path of the timeline file.
     pub path: PathBuf,
     pub editing_state: TimelineEditingState,
+    pub text_drag: Option<PreviewTextDrag>,
     playhead: TimelineFrameIndex, // 编辑区自己的播放头；与预览播放器互不同步。
     pub h_scroll: ScrollHandle,
     pub v_scroll: ScrollHandle,
@@ -253,6 +256,7 @@ impl TimelineRuntimeState {
         let selected_clip_ids = selected_clip_id.into_iter().collect();
 
         Ok(Self {
+            clip_trim_drag: None,
             path,
             editing_state,
             playhead: TimelineFrameIndex::ZERO,
@@ -273,6 +277,7 @@ impl TimelineRuntimeState {
             undo_stack: Vec::new(),
             redo_stack: Vec::new(),
             preview_drop_asset: None,
+            text_drag: None,
         })
     }
 

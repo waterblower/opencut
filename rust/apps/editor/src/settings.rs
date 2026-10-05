@@ -159,7 +159,6 @@ impl Editor {
         let Some(timeline) = self.timeline.as_mut() else {
             return Ok(());
         };
-        timeline.record_editing_history();
         edit_timeline(timeline, EditAction::SetFrameRate { frame_rate })
             .expect("changing the frame rate cannot be rejected");
         let has_clips = !timeline.editing_state.clips.is_empty();

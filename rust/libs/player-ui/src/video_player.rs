@@ -27,9 +27,10 @@ pub struct VideoPlayer {
     pub displayed: Option<(CVPixelBuffer, Duration, Duration)>, // (图像, 帧 PTS, 该帧时长)；None：尚未呈现首帧。
     pub playback_state: PlaybackState,
     pub title: String,
-    pending_seek: Option<Duration>,                       // 拖动请求的最新目标位置，下一帧执行；Some 表示已安排执行，新请求只覆盖目标。
+    scrub: Option<Scrub>,                                 // 拖动进度条期间的状态；None：未在拖动。
 }
 
+// Public APIs only
 impl VideoPlayer {
     /// Opens the media and output devices. Call [`Self::start`] once the player is in an entity.
     pub fn new(path: PathBuf) -> Result<Self> {
@@ -53,29 +54,55 @@ impl VideoPlayer {
             displayed: None,
             playback_state: PlaybackState::Playing,
             title: path.display().to_string(),
-            pending_seek: None,
+            scrub: None,
         };
         Ok(player)
     }
 
-    /// Seeks to `position` on the next frame. Requests arriving before then only replace the
-    /// target, so a seek slower than the pointer never queues stale positions.
+    /// Seeks video to `position` on the next frame; audio waits for [`Self::finish_scrub`].
+    /// The first request of a drag pauses playback. Requests arriving before the next frame
+    /// only replace the target, so a seek slower than the pointer never queues stale positions.
     pub(crate) fn request_seek(
         &mut self,
         position: Duration,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        let scheduled = self.pending_seek.is_some();
-        self.pending_seek = Some(position);
-        if scheduled {
-            return;
+        match self.scrub.as_mut() {
+            Some(scrub) => {
+                scrub.target = position;
+                if scrub.seek_scheduled {
+                    return;
+                }
+                scrub.seek_scheduled = true;
+            }
+            None => {
+                let resume_playing = matches!(self.playback_state, PlaybackState::Playing);
+                if resume_playing {
+                    // 立即静音；播放循环下一轮按暂停处理，冻结时钟。
+                    self.playback_state = PlaybackState::Paused;
+                    if let Err(error) = self.audio_output.set_playing(false) {
+                        eprintln!("Pausing audio for dragging failed: {error:?}");
+                        std::process::exit(1);
+                    }
+                }
+                self.scrub = Some(Scrub {
+                    target: position,
+                    seek_scheduled: true,
+                    resume_playing,
+                });
+            }
         }
         cx.on_next_frame(window, |player, _, cx| {
-            let Some(position) = player.pending_seek.take() else {
-                return;
+            let Some(scrub) = player.scrub.as_mut() else {
+                return; // 已松开：finish_scrub 已完成最终定位。
             };
-            match player.seek(position) {
+            if !scrub.seek_scheduled {
+                return;
+            }
+            scrub.seek_scheduled = false;
+            let target = scrub.target;
+            match player.seek_video(target) {
                 Ok(()) => cx.notify(),
                 Err(error) => {
                     eprintln!("Player seek failed: {error:?}");
@@ -83,6 +110,26 @@ impl VideoPlayer {
                 }
             }
         });
+    }
+
+    /// Ends a progress bar drag: finishes a still-pending video seek, aligns audio once at the
+    /// final target, and resumes playback if the drag paused it. Without a drag, does nothing.
+    pub(crate) fn finish_scrub(&mut self, cx: &mut Context<Self>) -> Result<()> {
+        let Some(scrub) = self.scrub.take() else {
+            return Ok(());
+        };
+        if scrub.seek_scheduled {
+            self.seek_video(scrub.target)?;
+        }
+        self.seek_audio(scrub.target)?;
+        if scrub.resume_playing {
+            self.playback_state = PlaybackState::Playing;
+            for waker in self.play_wakers.drain(..) {
+                waker.wake();
+            }
+        }
+        cx.notify();
+        Ok(())
     }
 
     /// Starts playback once. The owner must retain the task and drop it before the player.
@@ -154,19 +201,36 @@ impl PlaybackClock {
     }
 }
 
+#[rustfmt::skip]
+struct Scrub {
+    target: Duration,     // 最新拖动目标；松开时音频对齐到这里。
+    seek_scheduled: bool, // 已安排下一帧执行视频 seek；新请求只覆盖目标。
+    resume_playing: bool, // 开始拖动时正在播放；松开后恢复播放。
+}
+
 impl Seeker for VideoPlayer {
     fn seek(&mut self, position: Duration) -> Result<()> {
-        self.audio_output.clear_at(position)?;
+        self.seek_audio(position)?;
+        self.seek_video(position)
+    }
+}
+
+// Private APIs only
+impl VideoPlayer {
+    fn seek_video(&mut self, position: Duration) -> Result<()> {
         self.video_backend.video.seek(position)?;
-        self.video_backend.audio.seek(position)?;
         if let Some(frame) = self.prepare_next_frame()? {
             self.displayed = Some(frame);
         }
         Ok(())
     }
-}
 
-impl VideoPlayer {
+    /// Rebuilds the output stream (about 11 ms) to discard queued PCM, so drags defer it.
+    fn seek_audio(&mut self, position: Duration) -> Result<()> {
+        self.audio_output.clear_at(position)?;
+        self.video_backend.audio.seek(position)
+    }
+
     fn prepare_next_frame(&mut self) -> Result<Option<(CVPixelBuffer, Duration, Duration)>> {
         let started = Instant::now();
         let Some(frame) = self.video_backend.video.next_frame()? else {

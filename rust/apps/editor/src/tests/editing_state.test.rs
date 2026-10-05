@@ -47,7 +47,6 @@ fn rejected_edits_preserve_content_playhead_and_history() -> Result<()> {
 #[test]
 fn history_replacement_preserves_live_view_preferences_and_playhead() -> Result<()> {
     let mut timeline = runtime()?;
-    timeline.record_editing_history();
     edit_timeline(
         &mut timeline,
         EditAction::MoveClips {
@@ -154,7 +153,7 @@ fn runtime() -> Result<TimelineRuntimeState> {
             id: Ulid::from(2_u128),
             track_id,
             timeline_start: TimelineFrameIndex::ZERO,
-            length: Duration::from_secs(3),
+            duration: Duration::from_secs(3),
             properties: TextClipProperties::default(),
         })],
         ..Default::default()

@@ -743,7 +743,6 @@ fn finish_clip_move(
     };
     timeline.interaction.snap_guide = None;
     if drag.changed && drag.invalid_reason.is_none() {
-        timeline.record_editing_history();
         edit_timeline(
             timeline,
             EditAction::MoveClips {

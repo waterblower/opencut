@@ -704,7 +704,7 @@ impl TextClip {
             id: value.id,
             track_id: value.track_id,
             timeline_start: value.timeline_start.into(),
-            length: value.length,
+            length: value.duration,
             properties: TextClipProperties::from_runtime(&value.properties),
         }
     }
@@ -714,7 +714,7 @@ impl TextClip {
             id: self.id,
             track_id: self.track_id,
             timeline_start: self.timeline_start.into(),
-            length: self.length,
+            duration: self.length,
             properties: self.properties.to_runtime(),
         }
     }
@@ -761,8 +761,8 @@ impl TextClipProperties {
             font: value.font.clone(),
             font_size: value.font_size,
             color: value.color,
-            position_x: value.position_x,
-            position_y: value.position_y,
+            position_x: value.position.x,
+            position_y: value.position.y,
         }
     }
 
@@ -772,8 +772,7 @@ impl TextClipProperties {
             font: self.font.clone(),
             font_size: self.font_size,
             color: self.color,
-            position_x: self.position_x,
-            position_y: self.position_y,
+            position: gpui::point(self.position_x, self.position_y),
         }
     }
 }

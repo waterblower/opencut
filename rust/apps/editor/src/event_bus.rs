@@ -3,7 +3,7 @@ use crate::editing::validate_clips_placements;
 use crate::editor::Editor;
 use crate::explorer_drag::AssetBeingDragged;
 use crate::explorer_file_entry::select_preview_file;
-use crate::export_window::ExportWindow;
+use crate::export_window::{ExportState, ExportWindow};
 use crate::generic_containers::HorizontalSplitState;
 use crate::global_settings::GlobalEditorSettings;
 use crate::layout::{RULER_HEIGHT, TIMELINE_PADDING, TRACK_HEIGHT};
@@ -14,16 +14,19 @@ use crate::project_settings::{ProjectLocalSettings, save_project_local_settings}
 use crate::srt::{srt_text_clips, write_srt};
 use crate::timeline::{PreviewDropAsset, TimelineFrameIndex};
 use crate::timeline_clip::Clip;
-use crate::transcription::start_transcription;
+use crate::transcription::prepare_transcription;
+use crate::transcription_window;
+use crate::transcription_window::{TranscriptionStage, TranscriptionWindow};
 use crate::{OpenProject, open_editor_window, quit_after_last_window};
-use anyhow::{Context as _, Result, anyhow, bail};
-use engine::export::{ExportOption, export_timeline};
+use anyhow::{Context as _, Result, anyhow};
+use engine::export::{ExportCompletion, ExportControl, ExportOption, export_timeline};
 use gpui::prelude::*;
 use gpui::{AsyncApp, Bounds, Entity, EventEmitter, MouseMoveEvent, Pixels, WeakEntity};
 use player_ui::Seeker;
 use player_ui::timeline_player::TimelinePlayer;
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 use timeline::TimelineSerialization;
 use ulid::Ulid;
 
@@ -41,15 +44,21 @@ pub enum AppEvent {
         video_bitrate: u64,
         overwrite: bool,
         export_window: WeakEntity<ExportWindow>,
+        control: Arc<ExportControl>,
     },
     Preview(PreviewEvent),
     SwitchProject {
         project_path: PathBuf,
     },
+    OpenTranscribeWindow {
+        audio_source_path: PathBuf, // 含音轨的音频或视频文件的绝对路径。
+        project_root: PathBuf,
+    },
     /// Transcribe the audio or video file at this absolute path.
     Transcribe {
         source_path: PathBuf,
         project_root: PathBuf,
+        window: WeakEntity<TranscriptionWindow>,
     },
     HorizontalSplitResized(HorizontalSplitState),
     Edit(EditAction),
@@ -79,6 +88,7 @@ pub async fn handle_event(
             video_bitrate,
             overwrite,
             export_window,
+            control,
         } => {
             // macOS 平台必须在主线程创建；线程安全的文字系统交给导出线程。
             let platform_text_system =
@@ -98,54 +108,130 @@ pub async fn handle_event(
                             overwrite,
                         },
                         platform_text_system,
+                        &control,
                     )
                 })
                 .await;
-            if let Err(error) = result {
-                log::error!("Could not export timeline: {error:?}");
-            }
+            let state = match result {
+                Ok(ExportCompletion::Completed) => ExportState::Complete,
+                Ok(ExportCompletion::Stopped) => ExportState::Stopped,
+                Err(error) => {
+                    log::error!("Could not export timeline: {error:?}");
+                    ExportState::Failed
+                }
+            };
             let _ = export_window.update(cx, |view, cx| {
-                view.busy = false;
+                view.state = state;
                 cx.notify();
             });
+        }
+        AppEvent::OpenTranscribeWindow {
+            audio_source_path: source_path,
+            project_root,
+        } => {
+            if let Err(error) =
+                cx.update(|cx| transcription_window::open(source_path, project_root, event_bus, cx))
+            {
+                log::error!("Could not open transcription window: {error:?}");
+            }
         }
         AppEvent::Transcribe {
             source_path,
             project_root,
+            window,
         } => {
-            let settings = match GlobalEditorSettings::load() {
-                Ok(settings) => settings,
-                Err(error) => {
-                    log::error!("Could not load settings: {error:?}");
-                    return;
-                }
+            let Some(view) = window.upgrade() else {
+                return;
             };
-            let api_key = settings.minimax_api_key;
-            let task = cx.update(|cx| {
-                gpui_tokio::Tokio::spawn(cx, async move {
-                    let srt = start_transcription(source_path.clone(), api_key).await?;
-                    log::info!("Writing SRT for {}", source_path.display());
-                    let Some(stem) = source_path.file_stem() else {
-                        bail!(
-                            "transcription source has no filename: {}",
-                            source_path.display()
-                        );
-                    };
-                    let stem = stem.to_string_lossy();
-                    let path = project_root.join(format!("{stem}.srt"));
-                    write_srt(&path, &srt)?;
-                    Ok(path)
-                })
-            });
-            let result = match task.await {
-                Ok(result) => result,
-                Err(error) => Err(anyhow!("transcription task failed: {error}")),
-            };
-            match result {
-                Ok(path) => log::info!("SRT saved: {}", path.display()),
-                Err(error) => log::error!("SRT generation failed: {error:?}"),
+            if view.read_with(cx, |view, _| view.stage.is_running()) {
+                return;
             }
+            view.update(cx, |view, cx| {
+                view.stage = TranscriptionStage::Preparing;
+                view.started = std::time::Instant::now();
+                cx.notify();
+                view.task = Some(cx.spawn(async move |view, cx| {
+                    let refresh = view.update(cx, |_, cx| {
+                        cx.spawn(async move |view, cx| {
+                            loop {
+                                cx.background_executor()
+                                    .timer(std::time::Duration::from_millis(250))
+                                    .await;
+                                if view.update(cx, |_, cx| cx.notify()).is_err() {
+                                    break;
+                                }
+                            }
+                        })
+                    });
+                    let result: Result<PathBuf> = async {
+                        let (wav, api_key, source_path) = cx
+                            .update(|cx| {
+                                gpui_tokio::Tokio::spawn(cx, async move {
+                                    let settings = GlobalEditorSettings::load()?;
+                                    let wav = prepare_transcription(
+                                        source_path.clone(),
+                                        &settings.minimax_api_key,
+                                    )?;
+                                    Ok::<_, anyhow::Error>((
+                                        wav,
+                                        settings.minimax_api_key,
+                                        source_path,
+                                    ))
+                                })
+                            })
+                            .await
+                            .context("Audio preparation task failed")??;
+                        let _ = view.update(cx, |view, cx| {
+                            view.stage = TranscriptionStage::Transcribing;
+                            cx.notify();
+                        })?;
+                        let srt = cx
+                            .update(|cx| {
+                                gpui_tokio::Tokio::spawn(cx, async move {
+                                    let srt = transcribe::transcribe_wav(
+                                        wav,
+                                        &api_key,
+                                        &transcribe::Options::default(),
+                                    )
+                                    .await?;
+                                    transcribe::subtitles::merge_srt_sections(&srt)
+                                })
+                            })
+                            .await
+                            .context("Transcription task failed")??;
+                        let _ = view.update(cx, |view, cx| {
+                            view.stage = TranscriptionStage::Saving;
+                            cx.notify();
+                        })?;
+                        cx.background_executor()
+                            .spawn(async move {
+                                let stem = source_path
+                                    .file_stem()
+                                    .context("Transcription source has no filename")?;
+                                let path =
+                                    project_root.join(format!("{}.srt", stem.to_string_lossy()));
+                                write_srt(&path, &srt)?;
+                                Ok(path)
+                            })
+                            .await
+                    }
+                    .await;
+                    drop(refresh);
+                    let stage = match result {
+                        Ok(path) => TranscriptionStage::Complete(path),
+                        Err(error) => {
+                            log::error!("SRT generation failed: {error:?}");
+                            TranscriptionStage::Failed(format!("{error:#}"))
+                        }
+                    };
+                    let _ = view.update(cx, |view, cx| {
+                        view.stage = stage;
+                        cx.notify();
+                    });
+                }));
+            });
         }
+
         AppEvent::SwitchProject { project_path } => {
             let root = match std::fs::canonicalize(&project_path) {
                 Ok(root) => root,
@@ -239,6 +325,7 @@ async fn handle_app_event(
             }
         },
         AppEvent::SwitchProject { .. }
+        | AppEvent::OpenTranscribeWindow { .. }
         | AppEvent::Transcribe { .. }
         | AppEvent::ExportTimeline { .. } => {
             editor.update(cx, |_, cx| cx.notify());
@@ -267,10 +354,10 @@ async fn handle_app_event(
                 let Some(timeline) = editor.timeline.as_mut() else {
                     return Ok(());
                 };
-                timeline.record_editing_history();
-                edit_timeline(timeline, edit_action)
-                    .expect("event bus edit actions cannot be rejected");
-                timeline.save()?;
+                let should_save = edit_timeline(timeline, edit_action)?;
+                if should_save {
+                    timeline.save()?;
+                }
                 cx.notify();
                 Ok(())
             })?;
@@ -343,7 +430,6 @@ async fn handle_app_event(
 
                         let selected_clip_ids = clips.iter().map(Clip::id).collect::<HashSet<_>>();
                         let selected_clip_id = clips.first().map(Clip::id);
-                        timeline.record_editing_history();
                         edit_timeline(
                             timeline,
                             EditAction::AddClips {

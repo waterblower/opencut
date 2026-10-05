@@ -1,7 +1,7 @@
 use crate::args::ExportArgs;
 use crate::document;
 use anyhow::Result;
-use engine::export::ExportOption;
+use engine::export::{ExportControl, ExportOption};
 use serde_json::{Value, json};
 use timeline::TimelineSerialization;
 
@@ -20,6 +20,7 @@ pub fn export(args: ExportArgs) -> Result<Value> {
             overwrite: args.overwrite,
         },
         gpui_platform::current_platform(true).text_system(),
+        &ExportControl::default(),
     )?;
     Ok(json!({"path": args.output, "frames": document.frame_count()}))
 }

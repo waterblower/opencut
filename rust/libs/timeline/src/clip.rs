@@ -48,8 +48,7 @@ pub struct TextClipProperties {
     pub font_size: f64,
     /// Text color as big-endian ARGB.
     pub color: u32,
-    pub position_x: f64,
-    pub position_y: f64,
+    pub position: gpui::Point<f64>,
 }
 
 impl Default for TextClipProperties {
@@ -59,8 +58,7 @@ impl Default for TextClipProperties {
             font: "Sans".to_string(),
             font_size: 64.0,
             color: 0xffffffff,
-            position_x: 0.5,
-            position_y: 0.5,
+            position: gpui::point(0.5, 0.5),
         }
     }
 }
@@ -92,13 +90,13 @@ pub struct TextClip {
     pub id: Ulid,
     pub track_id: Ulid,
     pub timeline_start: TimelineFrameIndex,
-    pub length: Duration,
+    pub duration: Duration,
     pub properties: TextClipProperties,
 }
 
 impl TextClip {
     pub fn frame_length(&self, frame_rate: FrameRate) -> TimelineFrameIndex {
-        frame_rate.frames_from_duration_nearest(self.length)
+        frame_rate.frames_from_duration_nearest(self.duration)
     }
 }
 

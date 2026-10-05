@@ -20,7 +20,6 @@ impl Editor {
             return Ok(());
         };
         let clip = text_clip_at(&timeline.editing_state, track_id, position)?;
-        timeline.record_editing_history();
         let clip_id = clip.id();
         edit_timeline(
             timeline,
@@ -73,7 +72,7 @@ fn text_clip_at(
         id: Ulid::generate(),
         track_id,
         timeline_start: position,
-        length: timeline.position_at_frame(duration),
+        duration: timeline.position_at_frame(duration),
         properties: TextClipProperties::default(),
     }))
 }

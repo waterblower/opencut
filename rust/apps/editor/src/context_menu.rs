@@ -1,9 +1,11 @@
+use crate::edit_action::EditAction;
 use crate::editor::Editor;
 use crate::event_bus::AppEvent;
 use crate::explorer_file_entry::{is_audio_path, is_video_path};
 use crate::layout::{TIMELINE_PADDING, TRACK_HEADER_WIDTH};
 use crate::theme::{BORDER, ERROR, MUTED, TEXT};
 use crate::timeline::TimelineFrameIndex;
+use crate::timeline_clip::Clip;
 use crate::timeline_clip_menu::transform_targets;
 use crate::timeline_document;
 use crate::track::TrackKind;
@@ -140,8 +142,8 @@ impl Editor {
                                 cx.notify();
                                 editor.emit_event(
                                     cx,
-                                    AppEvent::Transcribe {
-                                        source_path: source_path.clone(),
+                                    AppEvent::OpenTranscribeWindow {
+                                        audio_source_path: source_path.clone(),
                                         project_root: project_root.clone(),
                                     },
                                 );
@@ -368,8 +370,23 @@ impl Editor {
         viewport: gpui::Size<gpui::Pixels>,
         cx: &mut Context<Self>,
     ) -> gpui::AnyElement {
-        let width = 180.0;
-        let height = 56.0;
+        let source_clip_id = self.timeline.as_ref().and_then(|timeline| {
+            let data = &timeline.editing_state;
+            let track = data.track(menu.track_id)?;
+            if track.locked {
+                return None;
+            }
+            let source = data.clips_on_track(menu.track_id).find(|clip| {
+                matches!(clip, Clip::Text(_))
+                    && clip.timeline_start() <= menu.position
+                    && menu.position < clip.timeline_end(data.settings.frame_rate)
+            })?;
+            data.clips_on_track(menu.track_id)
+                .any(|clip| matches!(clip, Clip::Text(_)) && clip.id() != source.id())
+                .then_some(source.id())
+        });
+        let width = 240.0;
+        let height = if source_clip_id.is_some() { 96.0 } else { 56.0 };
         let left = menu
             .x
             .clamp(8.0, (f32::from(viewport.width) - width - 8.0).max(8.0));
@@ -433,7 +450,33 @@ impl Editor {
                                 }
                             }))
                             .child(div().text_sm().child("Add text")),
-                    ),
+                    )
+                    .when_some(source_clip_id, |menu, clip_id| {
+                        menu.child(
+                            div()
+                                .id("apply-text-style-to-track")
+                                .h(px(40.0))
+                                .px_3()
+                                .flex()
+                                .items_center()
+                                .rounded_md()
+                                .cursor(CursorStyle::PointingHand)
+                                .text_color(rgb(TEXT))
+                                .hover(|style| style.bg(rgb(0x34343a)))
+                                .on_click(cx.listener(move |editor, _, _, cx| {
+                                    editor.dismiss_context_menu();
+                                    editor.emit_event(
+                                        cx,
+                                        AppEvent::Edit(EditAction::ApplyTextStyleToTrack {
+                                            clip_id,
+                                            project_root: editor.project_root.clone(),
+                                        }),
+                                    );
+                                    cx.notify();
+                                }))
+                                .child(div().text_sm().child("Apply style to track")),
+                        )
+                    }),
             )
             .into_any_element()
     }
