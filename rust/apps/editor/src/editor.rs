@@ -20,8 +20,6 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-const IDLE_UPDATE_INTERVAL: Duration = Duration::from_millis(33);
-
 pub(crate) struct Editor {
     // main UI sections
     pub(super) explorer: ExplorerState,
@@ -177,6 +175,7 @@ impl Editor {
 }
 
 fn start_updates(cx: &mut Context<Editor>) {
+    const IDLE_UPDATE_INTERVAL: Duration = Duration::from_millis(100);
     cx.spawn(async move |editor, cx| {
         loop {
             cx.background_executor().timer(IDLE_UPDATE_INTERVAL).await;
