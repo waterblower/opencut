@@ -49,6 +49,7 @@ mod timeline_document;
 mod timeline_interactions;
 mod timeline_persistence;
 mod timeline_track_menu;
+mod timeline_trim;
 mod timeline_ui;
 mod track;
 mod track_ui;

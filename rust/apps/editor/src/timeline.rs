@@ -29,6 +29,7 @@ pub(super) const FRAME_RATE_PRESETS: [(FrameRate, &str); 8] = [
 ];
 
 pub struct TimelineRuntimeState {
+    pub clip_trim_drag: Option<crate::timeline_trim::ClipTrimDrag>,
     /// Absolute path of the timeline file.
     pub path: PathBuf,
     pub editing_state: TimelineEditingState,
@@ -255,6 +256,7 @@ impl TimelineRuntimeState {
         let selected_clip_ids = selected_clip_id.into_iter().collect();
 
         Ok(Self {
+            clip_trim_drag: None,
             path,
             editing_state,
             playhead: TimelineFrameIndex::ZERO,

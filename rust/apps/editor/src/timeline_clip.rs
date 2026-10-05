@@ -58,7 +58,7 @@ pub(super) fn text_clip_component(
     pixels_per_second: f32,
     selected: bool,
     moving: bool,
-) -> impl StatefulInteractiveElement + IntoElement {
+) -> impl StatefulInteractiveElement + IntoElement + ParentElement {
     let clip_id = clip.id;
     let left =
         TIMELINE_PADDING + frame_rate.seconds(clip.timeline_start) as f32 * pixels_per_second;

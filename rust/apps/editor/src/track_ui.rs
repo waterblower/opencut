@@ -302,6 +302,7 @@ impl Editor {
                     timeline.interaction.selected_clip_ids.contains(&clip_id),
                     moving,
                 )
+                .children(self.clip_trim_handles(clip_id, cx))
                 .on_mouse_down(
                     MouseButton::Left,
                     cx.listener(move |editor, event, _, cx| {
@@ -450,6 +451,7 @@ impl Editor {
                 }),
             )
             .child(content)
+            .children(self.clip_trim_handles(clip_id, cx))
             .into_any_element()
     }
 }

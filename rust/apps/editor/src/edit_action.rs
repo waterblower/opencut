@@ -12,6 +12,11 @@ use ulid::Ulid;
 
 #[derive(Clone, Debug)]
 pub enum EditAction {
+    TrimClip {
+        timeline_path: PathBuf,
+        pointer_x: f32,
+        finished: bool,
+    },
     AddClips {
         clips: Vec<Clip>,
         assets: Vec<MediaAsset>,
@@ -88,6 +93,153 @@ pub fn edit_timeline(timeline: &mut TimelineRuntimeState, action: EditAction) ->
     let mut data = timeline.editing_state.clone();
     let mut record_history = true;
     match action {
+        EditAction::TrimClip {
+            timeline_path,
+            pointer_x,
+            finished,
+        } => {
+            if timeline.path != timeline_path {
+                return Ok(false);
+            }
+            let Some(drag) = timeline.clip_trim_drag.as_ref() else {
+                return Ok(false);
+            };
+            let original = &drag.original;
+            let id = original.id();
+            if data.clip_locked(id) {
+                if finished {
+                    let save = drag.history_recorded;
+                    timeline.clip_trim_drag = None;
+                    timeline.interaction.snap_guide = None;
+                    return Ok(save);
+                }
+                return Ok(false);
+            }
+            let frame_rate = data.settings.frame_rate;
+            let start = original.timeline_start();
+            let end = original.timeline_end(frame_rate);
+            let original_edge = if drag.start_edge { start } else { end };
+            let delta = frame_rate.delta(f64::from(
+                (pointer_x - f32::from(timeline.h_scroll.offset().x) - drag.pointer_x)
+                    / timeline.pixels_per_second,
+            ));
+            let mut minimum = if drag.start_edge {
+                TimelineFrameIndex::ZERO
+            } else {
+                start + TimelineFrameIndex::ONE_FRAME
+            };
+            let mut maximum = if drag.start_edge {
+                end - TimelineFrameIndex::ONE_FRAME
+            } else {
+                TimelineFrameIndex::from(i64::MAX / 2)
+            };
+            for neighbor in data
+                .clips_on_track(original.track_id())
+                .filter(|clip| clip.id() != id)
+            {
+                if drag.start_edge && neighbor.timeline_end(frame_rate) <= start {
+                    minimum = minimum.max(neighbor.timeline_end(frame_rate));
+                } else if !drag.start_edge && neighbor.timeline_start() >= end {
+                    maximum = maximum.min(neighbor.timeline_start());
+                }
+            }
+            let mut is_image = false;
+            if let Some(media) = original.media() {
+                let asset = data
+                    .asset(media.asset_id)
+                    .ok_or_else(|| anyhow!("Source media not found"))?;
+                is_image = asset.kind == timeline::MediaKind::Image;
+                if drag.start_edge && !is_image {
+                    minimum = minimum.max(start - media.source_in);
+                } else if !drag.start_edge && !is_image {
+                    let source_limit = TimelineFrameIndex::from(
+                        (asset.duration * frame_rate.frames_per_second()).floor() as i64,
+                    );
+                    maximum =
+                        maximum.min(end + source_limit.max(media.source_out) - media.source_out);
+                }
+            }
+            if minimum > maximum {
+                return Ok(false);
+            }
+            let mut edge = (original_edge + delta).clamp(minimum, maximum);
+            timeline.interaction.snap_guide = None;
+            if timeline.snapping_enabled && delta != TimelineFrameIndex::ZERO {
+                let mut distance =
+                    crate::layout::SNAP_DISTANCE_PX as f64 / f64::from(timeline.pixels_per_second);
+                for target in std::iter::once(TimelineFrameIndex::ZERO)
+                    .chain(std::iter::once(timeline.playhead()))
+                    .chain(
+                        data.clips
+                            .iter()
+                            .filter(|clip| clip.id() != id)
+                            .flat_map(|clip| {
+                                [clip.timeline_start(), clip.timeline_end(frame_rate)]
+                            }),
+                    )
+                {
+                    if target < minimum || target > maximum {
+                        continue;
+                    }
+                    let candidate_distance = (frame_rate.seconds(target)
+                        - frame_rate.seconds(original_edge + delta))
+                    .abs();
+                    if candidate_distance < distance {
+                        distance = candidate_distance;
+                        edge = target;
+                        timeline.interaction.snap_guide = Some(target);
+                    }
+                }
+            }
+            let mut updated = original.clone();
+            match &mut updated {
+                Clip::Text(text) => {
+                    if drag.start_edge {
+                        text.timeline_start = edge;
+                        text.duration = frame_rate.duration(end - edge);
+                    } else {
+                        text.duration = frame_rate.duration(edge - start);
+                    }
+                }
+                Clip::Video(media) | Clip::Audio(media) => {
+                    if drag.start_edge {
+                        media.timeline_start = edge;
+                        if is_image {
+                            media.source_out -= edge - start;
+                        } else {
+                            media.source_in += edge - start;
+                        }
+                    } else {
+                        media.source_out += edge - end;
+                    }
+                }
+            }
+            let index = data
+                .clip_index(id)
+                .ok_or_else(|| anyhow!("Clip {id} not found"))?;
+            let current = &data.clips[index];
+            let changed = current.timeline_start() != updated.timeline_start()
+                || current.frame_length(frame_rate) != updated.frame_length(frame_rate);
+            if changed {
+                data.clips.remove(index);
+                validate_clips_placements(&data, std::slice::from_ref(&updated))?;
+                data.clips.insert(index, updated);
+                data.validate()?;
+                if !drag.history_recorded {
+                    timeline.record_editing_history();
+                    timeline.clip_trim_drag.as_mut().unwrap().history_recorded = true;
+                }
+                timeline.editing_state = data;
+            }
+            if finished {
+                let completed = timeline.clip_trim_drag.take().unwrap();
+                timeline.interaction.snap_guide = None;
+                timeline.set_playhead(timeline.playhead());
+                return Ok(completed.history_recorded);
+            }
+            return Ok(false);
+        }
+
         EditAction::UpdateTextClipPosition {
             timeline_path,
             clip_id,
