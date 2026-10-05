@@ -629,10 +629,12 @@ impl Editor {
                     .gap_2()
                     .child(timeline_icon_button("zoom-out", "−").on_click(cx.listener(
                         |editor, _, _, cx| {
-                            let Some(timeline) = editor.timeline.as_mut() else {
+                            if editor.timeline.is_none() {
                                 return;
-                            };
-                            timeline.zoom(0.8);
+                            }
+                            let anchor = editor.timeline_playhead_seconds(cx);
+                            let timeline = editor.timeline.as_mut().unwrap();
+                            timeline.zoom(0.8, anchor);
                             if let Err(error) = timeline.save() {
                                 log::error!("{error:?}");
                             }
@@ -659,10 +661,12 @@ impl Editor {
                     )
                     .child(timeline_icon_button("zoom-in", "+").on_click(cx.listener(
                         |editor, _, _, cx| {
-                            let Some(timeline) = editor.timeline.as_mut() else {
+                            if editor.timeline.is_none() {
                                 return;
-                            };
-                            timeline.zoom(1.25);
+                            }
+                            let anchor = editor.timeline_playhead_seconds(cx);
+                            let timeline = editor.timeline.as_mut().unwrap();
+                            timeline.zoom(1.25, anchor);
                             if let Err(error) = timeline.save() {
                                 log::error!("{error:?}");
                             }
@@ -769,14 +773,17 @@ fn pinch_timeline(
     _: &mut Window,
     cx: &mut Context<Editor>,
 ) {
-    let Some(timeline) = editor.timeline.as_mut() else {
+    if editor.timeline.is_none() {
         return;
-    };
+    }
+    let anchor = editor.timeline_playhead_seconds(cx);
+    let timeline = editor.timeline.as_mut().unwrap();
     let previous_zoom = timeline.pixels_per_second;
     timeline.zoom(
         (event.delta * TIMELINE_PINCH_SENSITIVITY)
             .exp()
             .clamp(0.5, 2.0),
+        anchor,
     );
     if matches!(
         event.phase,

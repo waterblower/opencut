@@ -185,7 +185,7 @@ impl TimelineRuntimeState {
         )
     }
 
-    pub(super) fn zoom(&mut self, factor: f32) {
+    pub(super) fn zoom(&mut self, factor: f32, playhead_seconds: f64) {
         let previous_pixels_per_second = self.pixels_per_second;
         let pixels_per_second = (self.pixels_per_second * factor).clamp(
             MIN_TIMELINE_PIXELS_PER_SECOND,
@@ -193,7 +193,6 @@ impl TimelineRuntimeState {
         );
         if pixels_per_second != previous_pixels_per_second {
             let mut scroll_offset = self.h_scroll.offset();
-            let playhead_seconds = self.editing_state.seconds(self.playhead());
             scroll_offset.x = px(zoom_scroll_offset(
                 f32::from(scroll_offset.x),
                 playhead_seconds,
