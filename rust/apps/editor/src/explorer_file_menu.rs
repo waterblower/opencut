@@ -10,7 +10,8 @@ use crate::generic_containers::TextInput;
 use crate::preview::PreviewTarget;
 use crate::project_settings::{load_project_local_settings, save_project_local_settings};
 use crate::timeline_document;
-use anyhow::{Result, anyhow, bail};
+use crate::timeline_document::{relative_asset_path, resolve_asset_path};
+use anyhow::{Context as _, Result, anyhow, bail};
 use gpui::Window;
 use gpui::prelude::*;
 use std::path::{Path, PathBuf};
@@ -113,14 +114,34 @@ impl Editor {
             .map_err(|error| anyhow!("Could not rename {}: {error}", old_relative.display()))?;
 
         if let Some(timeline) = self.timeline.as_mut() {
+            // 素材路径相对于时间线文件所在目录；重命名可能移动素材，也可能移动时间线文件本身。
+            let old_directory = timeline
+                .path
+                .parent()
+                .context("Timeline path has no parent directory")?
+                .to_path_buf();
+            let renamed_timeline = remap_relative_path(&timeline.path, &old_path, &new_path)
+                .unwrap_or_else(|| timeline.path.clone());
+            let new_directory = renamed_timeline
+                .parent()
+                .context("Timeline path has no parent directory")?
+                .to_path_buf();
+            let renamed_asset_path = |asset_path: &Path| -> Option<PathBuf> {
+                let media_path = resolve_asset_path(&old_directory, asset_path);
+                let renamed_media =
+                    remap_relative_path(&media_path, &old_path, &new_path).unwrap_or(media_path);
+                let renamed_asset = if asset_path.is_absolute() {
+                    renamed_media // 绝对路径保持绝对。
+                } else {
+                    relative_asset_path(&new_directory, &renamed_media)
+                };
+                (renamed_asset != asset_path).then_some(renamed_asset)
+            };
             let paths = timeline
                 .editing_state
                 .assets
                 .iter()
-                .filter_map(|asset| {
-                    remap_relative_path(&asset.path, &old_relative, &new_relative)
-                        .map(|path| (asset.id, path))
-                })
+                .filter_map(|asset| renamed_asset_path(&asset.path).map(|path| (asset.id, path)))
                 .collect();
             edit_timeline(timeline, EditAction::UpdateAssetPaths { paths })?;
             for snapshot in timeline
@@ -129,9 +150,7 @@ impl Editor {
                 .chain(timeline.redo_stack.iter_mut())
             {
                 for asset in &mut snapshot.assets {
-                    if let Some(path) =
-                        remap_relative_path(&asset.path, &old_relative, &new_relative)
-                    {
+                    if let Some(path) = renamed_asset_path(&asset.path) {
                         asset.path = path;
                     }
                 }

@@ -15,6 +15,7 @@ mod explorer_drag;
 mod explorer_file_entry;
 mod explorer_file_menu;
 mod explorer_view;
+mod export_window;
 #[path = "generic-containers/mod.rs"]
 mod generic_containers;
 mod global_settings;
@@ -53,6 +54,7 @@ mod track_ui;
 mod transcription;
 mod waveform;
 
+use anyhow::{Context as _, Result};
 use asset::EditorAssets;
 use editor::Editor;
 use event_bus::{EventBus, handle_event};
@@ -66,19 +68,17 @@ use std::io::Write as _;
 use std::path::PathBuf;
 
 fn main() -> anyhow::Result<()> {
-    env_logger::Builder::from_env(
-        env_logger::Env::default().default_filter_or("opencut_editor=debug"),
-    )
-    .format(|buffer, record| {
-        writeln!(
-            buffer,
-            "{}\n\t\t[{}:{}]",
-            record.args(),
-            record.file().unwrap_or("<unknown>"),
-            record.line().unwrap_or(0)
-        )
-    })
-    .init();
+    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("editor=debug"))
+        .format(|buffer, record| {
+            writeln!(
+                buffer,
+                "{}\n\t\t[{}:{}]",
+                record.args(),
+                record.file().unwrap_or("<unknown>"),
+                record.line().unwrap_or(0)
+            )
+        })
+        .init();
 
     let settings = GlobalEditorSettings::load()?;
 
@@ -112,7 +112,14 @@ struct OpenProject {
 
 fn open_project(project_root: PathBuf, cx: &mut App) {
     let event_bus = cx.new(|_| EventBus {});
-    let window = open_editor_window(project_root, event_bus.clone(), cx);
+    let window = match open_editor_window(project_root, event_bus.clone(), cx) {
+        Ok(window) => window,
+        Err(error) => {
+            log::error!("Could not open editor window: {error:?}");
+            cx.quit();
+            return;
+        }
+    };
     let close_subscription = cx.on_window_closed(quit_after_last_window);
     let project = cx.new(|_| OpenProject {
         window,
@@ -137,36 +144,26 @@ fn open_editor_window(
     root: PathBuf,
     event_bus: Entity<EventBus>,
     cx: &mut App,
-) -> WindowHandle<Editor> {
+) -> Result<WindowHandle<Editor>> {
     let bounds = Bounds::centered(None, size(px(1440.0), px(900.0)), cx);
+    // cx.new 的闭包必须返回 Editor，无法把错误带出；暂时在这里 panic。
     let editor = cx.new(|cx| match Editor::new(root.clone(), event_bus, cx) {
         Ok(editor) => editor,
-        Err(error) => panic!(
-            "could not open {}: {error:?} at {}:{}",
-            root.display(),
-            file!(),
-            line!()
-        ),
+        Err(error) => panic!("could not open {}: {error:?}", root.display()),
     });
-    let window = match cx.open_window(
-        WindowOptions {
-            window_bounds: Some(WindowBounds::Windowed(bounds)),
-            focus: true,
-            ..WindowOptions::default()
-        },
-        |window, cx| {
-            editor.read(cx).focus_handle.clone().focus(window, cx);
-            editor
-        },
-    ) {
-        Ok(window) => window,
-        Err(error) => panic!(
-            "could not create editor window for {}: {error} at {}:{}",
-            root.display(),
-            file!(),
-            line!()
-        ),
-    };
+    let window = cx
+        .open_window(
+            WindowOptions {
+                window_bounds: Some(WindowBounds::Windowed(bounds)),
+                focus: true,
+                ..WindowOptions::default()
+            },
+            |window, cx| {
+                editor.read(cx).focus_handle.clone().focus(window, cx);
+                editor
+            },
+        )
+        .context(format!("creating editor window for {}", root.display()))?;
     cx.activate(true);
-    window
+    Ok(window)
 }

@@ -2,7 +2,7 @@ use crate::editor::Editor;
 use crate::preview::PreviewTarget;
 use anyhow::Result;
 use gpui::prelude::*;
-use gpui::{App, AsyncApp, Entity};
+use gpui::{AsyncApp, Entity};
 use player_ui::audio_player::AudioPlayer;
 use player_ui::video_player::VideoPlayer;
 use std::path::{Path, PathBuf};

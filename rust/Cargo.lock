@@ -1610,6 +1610,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "block2 0.6.2",
+ "engine",
  "env_logger",
  "ffmpeg-next",
  "gpui",
@@ -4288,6 +4289,7 @@ dependencies = [
  "anyhow",
  "clap",
  "engine",
+ "gpui_platform",
  "image",
  "schemars",
  "serde_json",

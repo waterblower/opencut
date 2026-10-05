@@ -8,12 +8,13 @@ use crate::timeline::{
     FrameRate, TimelineEditorExt, TimelineFrameIndex, TimelineRuntimeState, timeline_ranges_overlap,
 };
 use crate::timeline_clip::{Clip, ClipEditingExt};
+use crate::timeline_document::{relative_asset_path, resolve_asset_path};
 use crate::track::{Track, TrackKind};
 use ::timeline::TimelineEditingState;
 use anyhow::Result;
 use gpui::prelude::*;
 use std::collections::{HashMap, HashSet};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use ulid::Ulid;
 
 #[derive(Clone)]
@@ -168,21 +169,31 @@ impl ClipClipboard {
                 return Err(ClipPlacementRejection::MissingAsset.into());
             }
         } else {
+            // 素材路径相对于各自时间线文件所在目录；两条时间线不在同一目录时需要重新换算。
+            let source_directory = self.source_timeline.parent().unwrap_or(Path::new(""));
+            let destination_directory = destination_path.parent().unwrap_or(Path::new(""));
             let mut asset_ids = HashMap::new();
             for source_asset in &self.assets {
+                let destination_asset_path = if source_asset.path.is_absolute() {
+                    source_asset.path.clone()
+                } else {
+                    let media_path = resolve_asset_path(source_directory, &source_asset.path);
+                    relative_asset_path(destination_directory, &media_path)
+                };
                 let destination_asset_id = destination
                     .assets
                     .iter()
-                    .find(|asset| asset.path == source_asset.path)
+                    .find(|asset| asset.path == destination_asset_path)
                     .or_else(|| {
                         new_assets
                             .iter()
-                            .find(|asset| asset.path == source_asset.path)
+                            .find(|asset| asset.path == destination_asset_path)
                     })
                     .map(|asset| asset.id)
                     .unwrap_or_else(|| {
                         let mut asset = source_asset.clone();
                         asset.id = Ulid::generate();
+                        asset.path = destination_asset_path.clone();
                         let id = asset.id;
                         new_assets.push(asset);
                         id

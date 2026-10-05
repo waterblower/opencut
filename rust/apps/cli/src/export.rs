@@ -19,6 +19,7 @@ pub fn export(args: ExportArgs) -> Result<Value> {
             video_bitrate: args.video_bitrate * 1_000,
             overwrite: args.overwrite,
         },
+        gpui_platform::current_platform(true).text_system(),
     )?;
     Ok(json!({"path": args.output, "frames": document.frame_count()}))
 }
