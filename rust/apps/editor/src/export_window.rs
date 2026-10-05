@@ -1,5 +1,6 @@
 use crate::editor::Editor;
 use crate::event_bus::{AppEvent, EventBus};
+use crate::generic_containers::TextInput;
 use crate::theme::{ACCENT, BACKGROUND, ERROR, MUTED, TEXT};
 use anyhow::{Result, ensure};
 use engine::export::ExportControl;
@@ -21,7 +22,7 @@ impl Editor {
         );
         let document = timeline.to_serialize();
         let event_bus = self.event_bus.clone();
-        let bounds = Bounds::centered(None, size(px(560.0), px(440.0)), cx);
+        let bounds = Bounds::centered(None, size(px(560.0), px(520.0)), cx);
         cx.open_window(
             WindowOptions {
                 window_bounds: Some(WindowBounds::Windowed(bounds)),
@@ -29,11 +30,19 @@ impl Editor {
                 ..WindowOptions::default()
             },
             |window, cx| {
-                let view = cx.new(|_| ExportWindow {
-                    event_bus,
-                    document,
-                    timeline_path,
-                    state: ExportState::Idle,
+                let view = cx.new(|cx| {
+                    let return_focus = cx.focus_handle();
+                    let bitrate_input = cx.new(|cx| {
+                        TextInput::new_field("export-bitrate", "8".into(), "Mbps", return_focus, cx)
+                    });
+                    cx.observe(&bitrate_input, |_, _, cx| cx.notify()).detach();
+                    ExportWindow {
+                        event_bus,
+                        document,
+                        timeline_path,
+                        state: ExportState::Idle,
+                        bitrate_input,
+                    }
                 });
                 let weak_view = view.downgrade();
                 window.on_window_should_close(cx, move |_, cx| match weak_view.upgrade() {
@@ -52,6 +61,7 @@ pub struct ExportWindow {
     document: TimelineSerialization, // 打开导出窗口时的时间线快照。
     timeline_path: PathBuf,
     pub state: ExportState,
+    bitrate_input: Entity<TextInput>,
 }
 
 pub enum ExportState {
@@ -64,12 +74,29 @@ pub enum ExportState {
 }
 
 impl ExportWindow {
+    fn video_bitrate(&self, cx: &Context<Self>) -> Option<u64> {
+        let mbps = self
+            .bitrate_input
+            .read(cx)
+            .text()
+            .trim()
+            .parse::<f64>()
+            .ok()?;
+        if !mbps.is_finite() || !(0.1..=1000.0).contains(&mbps) {
+            return None;
+        }
+        Some((mbps * 1_000_000.0).round() as u64)
+    }
+
     fn export(&mut self, cx: &mut Context<Self>) {
         if matches!(self.state, ExportState::Choosing | ExportState::Running(_))
             || self.document.frame_count() == 0
         {
             return;
         }
+        let Some(video_bitrate) = self.video_bitrate(cx) else {
+            return;
+        };
         let Some(directory) = self.timeline_path.parent() else {
             return;
         };
@@ -92,7 +119,7 @@ impl ExportWindow {
                             timeline_path: view.timeline_path.clone(),
                             document: view.document.clone(),
                             output_path: path.with_extension("mp4"),
-                            video_bitrate: 8_000_000,
+                            video_bitrate,
                             overwrite: false,
                             export_window: cx.entity().downgrade(),
                             control: control.clone(),
@@ -134,7 +161,9 @@ impl ExportWindow {
 impl Render for ExportWindow {
     fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let settings = self.document.editing_state.settings;
-        let enabled = !matches!(self.state, ExportState::Choosing | ExportState::Running(_))
+        let valid_bitrate = self.video_bitrate(cx).is_some();
+        let enabled = valid_bitrate
+            && !matches!(self.state, ExportState::Choosing | ExportState::Running(_))
             && self.document.frame_count() > 0;
         let timeline_name = self
             .timeline_path
@@ -142,8 +171,9 @@ impl Render for ExportWindow {
             .unwrap_or_default()
             .to_string_lossy();
         div()
+            .id("export-window")
             .size_full()
-            .overflow_hidden()
+            .overflow_y_scroll()
             .flex()
             .flex_col()
             .gap_4()
@@ -153,10 +183,20 @@ impl Render for ExportWindow {
             .child(div().text_xl().child("Export timeline"))
             .child(timeline_name.into_owned())
             .child(div().text_sm().text_color(rgb(MUTED)).child(format!(
-                "{} × {} · {}/{} fps · MP4 / H.264 · 8 Mbps",
+                "{} × {} · {}/{} fps · MP4 / H.264",
                 settings.width, settings.height,
                 settings.frame_rate.numerator, settings.frame_rate.denominator,
             )))
+            .child(div().flex().items_center().gap_4()
+                .child("Video bitrate (Mbps)")
+                .child(if matches!(self.state, ExportState::Choosing | ExportState::Running(_)) {
+                    div().child(self.bitrate_input.read(cx).text().to_string()).into_any_element()
+                } else {
+                    div().w(px(140.0)).child(self.bitrate_input.clone()).into_any_element()
+                }))
+            .when(!valid_bitrate, |view| view.child(
+                div().text_sm().text_color(rgb(ERROR)).child("Enter a bitrate between 0.1 and 1000 Mbps."),
+            ))
             .child(div().text_sm().text_color(rgb(MUTED)).child(
                 "Exports the timeline as it was when this window opened. Existing files are not replaced.",
             ))
