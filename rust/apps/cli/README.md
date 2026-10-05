@@ -45,6 +45,27 @@ paths. `--video-bitrate` is in kbps (1 kbps = 1,000 bits per second) and default
 The command requires macOS Metal and VideoToolbox services and refuses existing
 output files. On success, stdout reports the output path and frame count.
 
+## Keep text-covered sections
+
+```sh
+opencut timeline keep-text-sections input.timeline --output edited.timeline
+opencut timeline keep-text-sections input.timeline --write-inplace
+```
+
+Exactly one of `--output` or `--write-inplace` is required. The command keeps the
+union of all text-clip intervals and removes uncovered time across every track.
+Overlapping or adjacent intervals form one section. Clips crossing removed gaps
+are split and trimmed, then retained sections are joined in order, preserving
+source offsets and synchronization. Text at 2–5s and 8–10s produces a 5s timeline.
+
+Hidden, muted, and locked tracks participate; track settings and clip properties
+are preserved. Timelines without nonempty text sections are rejected. Source
+media is never modified or decoded. `--output` refuses existing destinations and
+rebases relative media paths when the output directory changes; that directory
+must exist. `--write-inplace` replaces the input atomically after validation.
+The saved playhead and horizontal scroll reset to the start. Stdout reports the
+output path and original, retained, and removed frame counts; `--json` is supported.
+
 ## Probe media and timelines
 
 `probe <file>` accepts video, audio, image, and timeline files. Media paths must

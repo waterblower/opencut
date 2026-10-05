@@ -71,7 +71,8 @@ impl Editor {
                     .path
                     .starts_with(self.project_root.join(&menu.relative_path))
             });
-        let height = 92.0
+        let absolute_path = self.project_root.join(&menu.relative_path);
+        let height = 132.0
             + if can_transcribe { 40.0 } else { 0.0 }
             + if can_create_timeline { 40.0 } else { 0.0 }
             + if can_open_timeline_settings {
@@ -181,6 +182,17 @@ impl Editor {
                         file_menu_item("Open in Default App", "⌃⇧↵").on_click(cx.listener(
                             |editor, _, _, cx| {
                                 editor.open_selected_file_in_default_app(cx);
+                                cx.notify();
+                            },
+                        )),
+                    )
+                    .child(
+                        file_menu_item("Copy Path", "").on_click(cx.listener(
+                            move |editor, _, _, cx| {
+                                cx.write_to_clipboard(gpui::ClipboardItem::new_string(
+                                    absolute_path.to_string_lossy().into_owned(),
+                                ));
+                                editor.dismiss_context_menu();
                                 cx.notify();
                             },
                         )),

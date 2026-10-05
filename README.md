@@ -49,8 +49,9 @@ cargo check --config .cargo/macos.toml -p editor   # Windows: .cargo/windows.tom
 - Open any folder as a project. Supported media appears in a live file tree
   without an import step; filter it, preview media in place, or drag media onto
   compatible tracks.
-- Timelines are `*.timeline.json` files anywhere in the project. Use
-  **New Timeline**, then click a timeline in the Explorer to open it.
+- Timelines are JSON files named `*.timeline` or `*.timeline.json` anywhere in
+  the project. **New Timeline** creates a `.timeline` file; click it in the
+  Explorer to open it.
 - A new timeline has no tracks. Video tracks accept video and still images;
   audio tracks accept audio files.
 - Select clips by clicking, Command-clicking, or drawing a selection rectangle.
@@ -58,7 +59,14 @@ cargo check --config .cargo/macos.toml -p editor   # Windows: .cargo/windows.tom
   their relative timing, and are single undo steps.
 - The selection tool moves clips within and between compatible tracks; the
   blade tool splits clips at the playhead. Invalid moves show feedback.
+- Drag either edge of a video, audio, image, or text clip to change its duration.
+  Trimming respects neighboring clips, source limits, and a one-frame minimum;
+  each drag is one undo step and saves on release.
 - Tracks can be created, deleted, reordered, hidden, muted, and locked.
+- Select and drag subtitles directly in the preview. With **Snap on**, text
+  aligns to canvas centers and edges with visible guides. Right-click a text
+  clip and choose **Apply style to track** to copy its font, size, color, and
+  position to other text clips on the same track, preserving their words and timing.
 - The frame-based timeline supports horizontal zoom (including trackpad pinch),
   scrolling, frame ticks at high zoom, and optional snapping to the playhead and
   clip edges. Click the ruler to move the playhead. Playhead, scroll, zoom, and
@@ -66,10 +74,17 @@ cargo check --config .cargo/macos.toml -p editor   # Windows: .cargo/windows.tom
 - The timeline preview plays composited video, including clip position and
   scale, with mixed audio that respects track and clip mute and clip gain. It
   plays a snapshot of the timeline; edits made after it opens are not yet
-  reflected, except for frame rate changes.
+  reflected, except for frame rate changes and live text properties.
 - Waveforms are generated in the background and kept in memory.
-- Audio and video files support **Generate SRT**. Timeline transcription is not
-  available, and timeline export is only available from the CLI.
+- **Generate SRT** on an audio or video file opens a transcription window.
+  Press **Start** to transcribe; the window shows stages and offers **Cancel**.
+- The top-right **Export** button opens a separate window for exporting a
+  snapshot of the active timeline to MP4. It shows progress and provides
+  **Stop export**; the window cannot close while exporting.
+- To remove pauses based on subtitles, use the CLI's
+  [`timeline keep-text-sections`](rust/apps/cli/README.md#keep-text-covered-sections)
+  command. It removes time without text clips across all tracks and closes gaps;
+  choose a new output file or `--write-inplace`.
 
 Supported file extensions:
 
