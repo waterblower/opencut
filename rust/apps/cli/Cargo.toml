@@ -5,6 +5,7 @@ edition.workspace = true
 publish.workspace = true
 
 [dependencies]
+gpui_platform.workspace = true
 engine.workspace = true
 anyhow.workspace = true
 clap.workspace = true

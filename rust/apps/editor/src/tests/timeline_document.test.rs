@@ -25,9 +25,9 @@ fn creates_and_discovers_multiple_root_timeline_files() {
     fs::create_dir_all(&root).unwrap();
 
     let (first_path, _) = create(&root, Path::new(""), "timeline-1").unwrap();
-    let (second_path, _) = create(&root, Path::new(""), "timeline-2").unwrap();
+    let (second_path, _) = create(&root, Path::new(""), "timeline-2.timeline.json").unwrap();
 
-    assert_eq!(first_path, Path::new("timeline-1.timeline.json"));
+    assert_eq!(first_path, Path::new("timeline-1.timeline"));
     assert_eq!(second_path, Path::new("timeline-2.timeline.json"));
     assert_eq!(
         project_timeline_files(&root).unwrap(),
@@ -43,7 +43,7 @@ fn creates_named_timelines_inside_a_subdirectory() {
 
     let (opening, _) = create(&root, Path::new("scenes"), "Opening Scene").unwrap();
 
-    assert_eq!(opening, Path::new("scenes/Opening Scene.timeline.json"));
+    assert_eq!(opening, Path::new("scenes/Opening Scene.timeline"));
     assert!(root.join(&opening).is_file());
     assert_eq!(
         project_timeline_files(&root).unwrap(),
@@ -62,6 +62,8 @@ fn suggests_the_next_unused_default_name_per_directory() {
     assert_eq!(default_timeline_name(&root, Path::new("")), "timeline-1");
     create(&root, Path::new(""), "timeline-1").unwrap();
     assert_eq!(default_timeline_name(&root, Path::new("")), "timeline-2");
+    create(&root, Path::new(""), "timeline-2.timeline.json").unwrap();
+    assert_eq!(default_timeline_name(&root, Path::new("")), "timeline-3");
     // Numbering is independent per directory.
     assert_eq!(
         default_timeline_name(&root, Path::new("scenes")),
@@ -75,17 +77,19 @@ fn suggests_the_next_unused_default_name_per_directory() {
 fn appends_the_extension_and_rejects_unusable_names() {
     assert_eq!(
         timeline_file_name("Opening Scene").unwrap(),
-        "Opening Scene.timeline.json"
+        "Opening Scene.timeline"
     );
+    assert_eq!(
+        timeline_file_name("Opening Scene.timeline").unwrap(),
+        "Opening Scene.timeline"
+    );
+    assert!(timeline_file_name(".timeline").is_none());
     // An already-suffixed name is accepted rather than doubled up.
     assert_eq!(
         timeline_file_name("Opening Scene.timeline.json").unwrap(),
         "Opening Scene.timeline.json"
     );
-    assert_eq!(
-        timeline_file_name("  spaced  ").unwrap(),
-        "spaced.timeline.json"
-    );
+    assert_eq!(timeline_file_name("  spaced  ").unwrap(), "spaced.timeline");
     assert!(timeline_file_name("").is_none());
     assert!(timeline_file_name("   ").is_none());
     assert!(timeline_file_name(".timeline.json").is_none());
@@ -94,7 +98,7 @@ fn appends_the_extension_and_rejects_unusable_names() {
     assert!(timeline_file_name("../escape").is_none());
     assert!(timeline_file_name("/absolute").is_none());
     // A bare ".." is not traversal once suffixed — it is just an odd filename.
-    assert_eq!(timeline_file_name("..").unwrap(), "...timeline.json");
+    assert_eq!(timeline_file_name("..").unwrap(), "...timeline");
 }
 
 #[test]

@@ -14,5 +14,5 @@ pub use audio::{AudioDecoder, AudioSamples, PcmFormat};
 pub use audio_backend::{AudioBackend, AudioMediaInfo};
 pub use media_info::{AudioInfo, MediaInfo, VideoInfo};
 pub use time::MediaTime;
-pub use video::{DecodeDiagnostics, DecodeMode, VideoDecoder, VideoFrame};
+pub use video::{DecodeMode, VideoDecoder, VideoFrame};
 pub use video_backend::VideoBackend;

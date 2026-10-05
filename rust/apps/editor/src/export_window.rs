@@ -1,0 +1,137 @@
+use crate::editor::Editor;
+use crate::event_bus::{AppEvent, EventBus};
+use crate::theme::{ACCENT, BACKGROUND, ERROR, MUTED, TEXT};
+use anyhow::{Result, ensure};
+use gpui::prelude::*;
+use gpui::{Bounds, Context, Entity, Window, WindowBounds, WindowOptions, div, px, rgb, size};
+use std::path::PathBuf;
+use timeline::TimelineSerialization;
+
+impl Editor {
+    pub fn open_export_window(&self, timeline_path: PathBuf, cx: &mut Context<Self>) -> Result<()> {
+        let Some(timeline) = self.timeline.as_ref() else {
+            return Ok(());
+        };
+        ensure!(
+            timeline.path == timeline_path,
+            "The active timeline changed before opening export"
+        );
+        let document = timeline.to_serialize();
+        let event_bus = self.event_bus.clone();
+        let bounds = Bounds::centered(None, size(px(560.0), px(360.0)), cx);
+        cx.open_window(
+            WindowOptions {
+                window_bounds: Some(WindowBounds::Windowed(bounds)),
+                focus: true,
+                ..WindowOptions::default()
+            },
+            |_, cx| {
+                cx.new(|_| ExportWindow {
+                    event_bus,
+                    document,
+                    timeline_path,
+                    busy: false,
+                })
+            },
+        )?;
+        Ok(())
+    }
+}
+
+pub struct ExportWindow {
+    event_bus: Entity<EventBus>,
+    document: TimelineSerialization, // 打开导出窗口时的时间线快照。
+    timeline_path: PathBuf,
+    pub busy: bool,
+}
+
+impl ExportWindow {
+    fn export(&mut self, cx: &mut Context<Self>) {
+        if self.busy || self.document.frame_count() == 0 {
+            return;
+        }
+        let Some(directory) = self.timeline_path.parent() else {
+            return;
+        };
+        let suggested_name = self.timeline_path.with_extension("mp4");
+        let selection = cx.prompt_for_new_path(
+            directory,
+            suggested_name.file_name().and_then(|name| name.to_str()),
+        );
+        self.busy = true;
+        cx.notify();
+        cx.spawn(async move |view, cx| {
+            let selection_result = selection.await;
+            let _ = view.update(cx, |view, cx| {
+                let result = (|| -> anyhow::Result<Option<PathBuf>> { Ok(selection_result??) })();
+                match result {
+                    Ok(Some(path)) => {
+                        let event = AppEvent::ExportTimeline {
+                            timeline_path: view.timeline_path.clone(),
+                            document: view.document.clone(),
+                            output_path: path.with_extension("mp4"),
+                            video_bitrate: 8_000_000,
+                            overwrite: false,
+                            export_window: cx.entity().downgrade(),
+                        };
+                        view.event_bus.update(cx, |_, cx| cx.emit(event));
+                    }
+                    Ok(None) => view.busy = false,
+                    Err(error) => {
+                        view.busy = false;
+                        log::error!("Could not choose export location: {error:?}");
+                    }
+                }
+                cx.notify();
+            });
+        })
+        .detach();
+    }
+}
+
+impl Render for ExportWindow {
+    fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        let settings = self.document.editing_state.settings;
+        let enabled = !self.busy && self.document.frame_count() > 0;
+        let timeline_name = self
+            .timeline_path
+            .file_name()
+            .unwrap_or_default()
+            .to_string_lossy();
+        div()
+            .size_full()
+            .overflow_hidden()
+            .flex()
+            .flex_col()
+            .gap_4()
+            .p_6()
+            .bg(rgb(BACKGROUND))
+            .text_color(rgb(TEXT))
+            .child(div().text_xl().child("Export timeline"))
+            .child(timeline_name.into_owned())
+            .child(div().text_sm().text_color(rgb(MUTED)).child(format!(
+                "{} × {} · {}/{} fps · MP4 / H.264 · 8 Mbps",
+                settings.width, settings.height,
+                settings.frame_rate.numerator, settings.frame_rate.denominator,
+            )))
+            .child(div().text_sm().text_color(rgb(MUTED)).child(
+                "Exports the timeline as it was when this window opened. Existing files are not replaced.",
+            ))
+            .when(self.document.frame_count() == 0, |view| {
+                view.child(div().text_color(rgb(ERROR)).child("This timeline is empty."))
+            })
+            .child(
+                div()
+                    .id("export-timeline")
+                    .px_4()
+                    .py_2()
+                    .rounded_md()
+                    .bg(rgb(if enabled { ACCENT } else { MUTED }))
+                    .text_color(rgb(BACKGROUND))
+                    .child(if self.busy { "Export pending…" } else { "Export MP4…" })
+                    .when(enabled, |button| {
+                        button.cursor_pointer().on_click(cx.listener(|view, _, _, cx| view.export(cx)))
+                    }),
+            )
+    }
+}

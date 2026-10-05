@@ -30,8 +30,8 @@ pub(crate) struct Editor {
 
     // other
     pub project_root: PathBuf,
-    pub(super) waveform_jobs: HashSet<PathBuf>,
-    pub(super) waveform_cache: HashMap<PathBuf, Arc<waveform::WaveformData>>,
+    pub(super) waveform_jobs: HashSet<PathBuf>, // 正在生成波形的素材绝对路径。
+    pub(super) waveform_cache: HashMap<PathBuf, Arc<waveform::WaveformData>>, // 键为素材的绝对路径；不同目录的时间线可能用不同相对路径指向同一文件。
     pub(super) properties: PropertiesPanelState,
     pub(super) settings_open: bool,
 

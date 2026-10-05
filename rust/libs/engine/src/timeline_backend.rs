@@ -16,7 +16,7 @@ pub const MAX_CONTROL_WAIT: Duration = Duration::from_millis(100); // 暂停时�
 #[rustfmt::skip]
 pub struct TimelineBackend {
     timeline: TimelineEditingState,
-    project_root: PathBuf,
+    timeline_directory: PathBuf,
     decoder: TimelineDecoder,
     displayed: Arc<TimelineFrameComposition>,    // 当前展示的合成帧；图像在准备时转换，渲染时不解码。
     clock: PlaybackClock,
@@ -46,24 +46,25 @@ impl PlaybackClock {
 }
 
 impl TimelineBackend {
-    /// Validates the document and prepares frame zero, paused. Media paths resolve against `project_root`.
-    pub fn new(timeline: TimelineEditingState, project_root: &Path) -> Result<Self> {
-        let metadata = project_root.metadata().context(format!(
+    /// Validates the document and prepares frame zero, paused. Media paths resolve against
+    /// `timeline_directory`, the directory containing the timeline file.
+    pub fn new(timeline: TimelineEditingState, timeline_directory: &Path) -> Result<Self> {
+        let metadata = timeline_directory.metadata().context(format!(
             "Inspecting timeline media root {}",
-            project_root.display()
+            timeline_directory.display()
         ))?;
         if !metadata.is_dir() {
             bail!(
                 "Timeline media root is not a directory: {}",
-                project_root.display()
+                timeline_directory.display()
             );
         }
         timeline.validate()?;
-        let mut decoder = TimelineDecoder::new(project_root);
+        let mut decoder = TimelineDecoder::new(timeline_directory);
         let frame = decoder.frame_at(&timeline, TimelineFrameIndex::ZERO)?;
         Ok(Self {
             timeline,
-            project_root: project_root.to_owned(),
+            timeline_directory: timeline_directory.to_owned(),
             decoder,
             displayed: Arc::new(frame),
             clock: PlaybackClock {
@@ -78,8 +79,8 @@ impl TimelineBackend {
         &self.timeline
     }
 
-    pub fn project_root(&self) -> &Path {
-        &self.project_root
+    pub fn timeline_directory(&self) -> &Path {
+        &self.timeline_directory
     }
 
     /// Prepares edited content at the current playback time before publishing it.
@@ -91,7 +92,7 @@ impl TimelineBackend {
         let playing = self.playing && position < duration;
         let frame_index = floor_frame(timeline.settings.frame_rate, position);
         // Asset IDs may now point at different media, so no cached decoder is reused.
-        let mut decoder = TimelineDecoder::new(&self.project_root);
+        let mut decoder = TimelineDecoder::new(&self.timeline_directory);
         let frame = decoder.frame_at(&timeline, frame_index)?;
         self.timeline = timeline;
         self.decoder = decoder;

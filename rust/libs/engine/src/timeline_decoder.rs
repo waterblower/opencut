@@ -8,8 +8,7 @@ use anyhow::{Context as _, Result, bail};
 #[cfg(target_os = "macos")]
 use core_video::pixel_buffer::CVPixelBuffer;
 use gpui::{
-    AnyElement, IntoElement, ParentElement, RenderImage, Styled, TextAlign, div, img, px, rgb,
-    rgba,
+    AnyElement, IntoElement, ParentElement, RenderImage, Styled, TextAlign, div, img, px, rgb, rgba,
 };
 use image::{Frame, RgbaImage};
 use media_backend::{VideoBackend, VideoDecoder, VideoFrame};
@@ -149,16 +148,16 @@ impl TimelineFrameComposition {
 }
 
 pub struct TimelineDecoder {
-    project_root: PathBuf,
+    timeline_directory: PathBuf,
     #[cfg(target_os = "macos")]
     readers: HashMap<Ulid, ClipReader>, // 按 clip 而非素材区分：同一素材的重叠 clip 各自前进。
     images: HashMap<Ulid, Arc<RenderImage>>,
 }
 
 impl TimelineDecoder {
-    pub fn new(project_root: &Path) -> Self {
+    pub fn new(timeline_directory: &Path) -> Self {
         Self {
-            project_root: project_root.to_owned(),
+            timeline_directory: timeline_directory.to_owned(),
             #[cfg(target_os = "macos")]
             readers: HashMap::new(),
             images: HashMap::new(),
@@ -199,19 +198,19 @@ impl TimelineDecoder {
                         let asset = timeline
                             .asset(media.asset_id)
                             .context("Validated clip references a missing asset")?;
-                        let path = self.project_root.join(&asset.path);
+                        let path = self.timeline_directory.join(&asset.path);
                         match asset.kind {
                             MediaKind::Video => {
                                 #[cfg(target_os = "macos")]
                                 {
                                     let reader = match self.readers.entry(media.id) {
                                         Entry::Occupied(entry) => entry.into_mut(),
-                                        Entry::Vacant(entry) => {
-                                            entry.insert(ClipReader::open(&path).context(format!(
+                                        Entry::Vacant(entry) => entry.insert(
+                                            ClipReader::open(&path).context(format!(
                                                 "Opening timeline video {}",
                                                 path.display()
-                                            ))?)
-                                        }
+                                            ))?,
+                                        ),
                                     };
                                     active_readers.insert(media.id);
                                     let source = timeline.source_position_at(clip, position);
@@ -277,7 +276,7 @@ impl TimelineDecoder {
 struct ClipReader {
     gpu: GpuResources,
     decoder: VideoDecoder,
-    next: Option<VideoFrame>,           // 已解码、尚未到展示时间的帧。
+    next: Option<VideoFrame>,            // 已解码、尚未到展示时间的帧。
     shown: Option<(i64, CVPixelBuffer)>, // (源 PTS 微秒, GPU surface)。
 }
 

@@ -5,8 +5,8 @@ use std::path::PathBuf;
 fn nested_timeline_files_are_selectable() {
     let entry = file_tree_entry(
         Path::new("/project"),
-        PathBuf::from("timelines/devlog.timeline.json"),
-        "devlog.timeline.json".to_string(),
+        PathBuf::from("timelines/devlog.timeline"),
+        "devlog.timeline".to_string(),
         1,
         false,
         Some(1024),
@@ -16,7 +16,7 @@ fn nested_timeline_files_are_selectable() {
     assert_eq!(entry.kind, FileTreeEntryKind::Timeline);
     assert_eq!(
         entry.absolute_path,
-        PathBuf::from("/project/timelines/devlog.timeline.json")
+        PathBuf::from("/project/timelines/devlog.timeline")
     );
 }
 

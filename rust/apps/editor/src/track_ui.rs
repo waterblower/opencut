@@ -7,6 +7,7 @@ use crate::srt::srt_text_clips;
 use crate::theme::{ACCENT, BORDER, CLIP_BLUE, ERROR, MUTED, SURFACE, SURFACE_HOVER};
 use crate::timeline::{PreviewDropAsset, TimelineFrameIndex};
 use crate::timeline_clip::{Clip, text_clip_component};
+use crate::timeline_document::resolve_asset_path;
 use crate::timeline_interactions::TimelineTool;
 use crate::track::{Track, TrackKind};
 use crate::waveform;
@@ -326,7 +327,12 @@ impl Editor {
             .map(|asset| asset.name.clone())
             .unwrap_or_else(|| "Missing media".to_string());
 
-        let waveform = asset.and_then(|asset| self.waveform_cache.get(&asset.path).cloned());
+        let waveform = (|| {
+            let asset = asset?;
+            let timeline_directory = timeline.path.parent()?;
+            let media_path = resolve_asset_path(timeline_directory, &asset.path); // 波形缓存以素材的绝对路径为键。
+            self.waveform_cache.get(&media_path).cloned()
+        })();
         let source_start = timeline.editing_state.seconds(media.source_in);
         let source_end = timeline.editing_state.seconds(media.source_out);
         let content = div()
@@ -351,7 +357,12 @@ impl Editor {
         let name = asset
             .map(|asset| asset.name.clone())
             .unwrap_or_else(|| "Missing media".to_string());
-        let waveform = asset.and_then(|asset| self.waveform_cache.get(&asset.path).cloned());
+        let waveform = (|| {
+            let asset = asset?;
+            let timeline_directory = timeline.path.parent()?;
+            let media_path = resolve_asset_path(timeline_directory, &asset.path); // 波形缓存以素材的绝对路径为键。
+            self.waveform_cache.get(&media_path).cloned()
+        })();
         let source_start = timeline.editing_state.seconds(media.source_in);
         let source_end = timeline.editing_state.seconds(media.source_out);
         let detail = if asset.is_some_and(|asset| asset.has_audio) {

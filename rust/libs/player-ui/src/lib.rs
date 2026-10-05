@@ -3,6 +3,7 @@
 mod audio_output;
 pub mod audio_player;
 mod audio_player_view;
+mod progress_bar;
 pub mod timeline_player;
 pub mod timeline_player_view;
 pub mod video_player;
@@ -19,4 +20,9 @@ pub trait Seeker {
 trait WaitUntilPlaying {
     /// Waits for Playing without decoding, changing clocks, or performing device I/O.
     async fn wait_until_playing(&self, cx: &mut gpui::AsyncApp);
+}
+
+pub(crate) fn format_time(time: Duration) -> String {
+    let seconds = time.as_secs();
+    format!("{}:{:02}", seconds / 60, seconds % 60)
 }

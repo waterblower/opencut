@@ -173,7 +173,11 @@ impl Editor {
             Ok(relative_path) => relative_path.to_path_buf(),
             Err(_) => timeline.path.clone(),
         };
-        let mut player = TimelinePlayer::new(timeline.editing_state.clone(), &self.project_root)?;
+        let timeline_directory = timeline
+            .path
+            .parent()
+            .context("Timeline path has no parent directory")?; // 素材路径相对于时间线文件所在目录。
+        let mut player = TimelinePlayer::new(timeline.editing_state.clone(), timeline_directory)?;
         player.title = relative_path.display().to_string();
         player.backend.seek_frame(timeline.playhead())?;
         let player = cx.new(move |_| player);

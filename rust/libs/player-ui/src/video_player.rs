@@ -5,7 +5,7 @@ use core_video::pixel_buffer::CVPixelBuffer;
 #[cfg(target_os = "macos")]
 use engine::gpu::GpuResources;
 use futures::{FutureExt, select, try_join};
-use gpui::{AsyncApp, Context, Entity, Task};
+use gpui::{AsyncApp, Context, Entity, Task, Window};
 use media_backend::VideoBackend;
 #[cfg(not(target_os = "macos"))]
 use std::convert::Infallible as CVPixelBuffer; // 不支持的平台无法构造视频 surface。
@@ -27,6 +27,7 @@ pub struct VideoPlayer {
     pub displayed: Option<(CVPixelBuffer, Duration, Duration)>, // (图像, 帧 PTS, 该帧时长)；None：尚未呈现首帧。
     pub playback_state: PlaybackState,
     pub title: String,
+    pending_seek: Option<Duration>,                       // 拖动请求的最新目标位置，下一帧执行；Some 表示已安排执行，新请求只覆盖目标。
 }
 
 impl VideoPlayer {
@@ -52,8 +53,36 @@ impl VideoPlayer {
             displayed: None,
             playback_state: PlaybackState::Playing,
             title: path.display().to_string(),
+            pending_seek: None,
         };
         Ok(player)
+    }
+
+    /// Seeks to `position` on the next frame. Requests arriving before then only replace the
+    /// target, so a seek slower than the pointer never queues stale positions.
+    pub(crate) fn request_seek(
+        &mut self,
+        position: Duration,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let scheduled = self.pending_seek.is_some();
+        self.pending_seek = Some(position);
+        if scheduled {
+            return;
+        }
+        cx.on_next_frame(window, |player, _, cx| {
+            let Some(position) = player.pending_seek.take() else {
+                return;
+            };
+            match player.seek(position) {
+                Ok(()) => cx.notify(),
+                Err(error) => {
+                    eprintln!("Player seek failed: {error:?}");
+                    std::process::exit(1);
+                }
+            }
+        });
     }
 
     /// Starts playback once. The owner must retain the task and drop it before the player.

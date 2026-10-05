@@ -1,5 +1,5 @@
 use crate::editor::Editor;
-use crate::timeline_document::project_timeline_files;
+use crate::timeline_document::{project_timeline_files, resolve_asset_path};
 use ::timeline::TimelineSerialization;
 use anyhow::{Result, anyhow};
 use ffmpeg::channel_layout::ChannelLayout;
@@ -287,14 +287,17 @@ impl Editor {
             }
         };
         for timeline_path in timeline_paths {
-            let timeline =
-                match TimelineSerialization::load(&self.project_root.join(&timeline_path)) {
-                    Ok(timeline) => timeline,
-                    Err(error) => {
-                        eprintln!("Could not scan timeline for waveforms: {error}");
-                        continue;
-                    }
-                };
+            let timeline_file = self.project_root.join(&timeline_path);
+            let timeline = match TimelineSerialization::load(&timeline_file) {
+                Ok(timeline) => timeline,
+                Err(error) => {
+                    eprintln!("Could not scan timeline for waveforms: {error}");
+                    continue;
+                }
+            };
+            let Some(timeline_directory) = timeline_file.parent() else {
+                continue;
+            };
             let timeline = timeline.to_editing_state();
             let referenced_assets = timeline
                 .clips
@@ -306,7 +309,7 @@ impl Editor {
                     .assets
                     .into_iter()
                     .filter(|asset| asset.has_audio && referenced_assets.contains(&asset.id))
-                    .map(|asset| asset.path),
+                    .map(|asset| resolve_asset_path(timeline_directory, &asset.path)),
             );
         }
         self.schedule_waveforms(paths, cx);
@@ -314,6 +317,9 @@ impl Editor {
 
     pub(super) fn schedule_active_timeline_waveforms(&mut self, cx: &mut Context<Self>) {
         let Some(timeline) = self.timeline.as_ref() else {
+            return;
+        };
+        let Some(timeline_directory) = timeline.path.parent() else {
             return;
         };
         let referenced_assets = timeline
@@ -327,7 +333,7 @@ impl Editor {
             .assets
             .iter()
             .filter(|asset| asset.has_audio && referenced_assets.contains(&asset.id))
-            .map(|asset| asset.path.clone())
+            .map(|asset| resolve_asset_path(timeline_directory, &asset.path))
             .collect::<Vec<_>>();
         self.schedule_waveforms(paths, cx);
     }
@@ -350,11 +356,11 @@ impl Editor {
         self.waveform_jobs.extend(paths.iter().cloned());
         let project_root = self.project_root.clone();
         cx.spawn(async move |editor, cx| {
-            for relative_path in paths {
+            for media_path in paths {
                 if editor.update(cx, |_, _| ()).is_err() {
                     break;
                 }
-                let source = project_root.join(&relative_path);
+                let source = media_path.clone();
                 let result = cx
                     .background_executor()
                     .spawn(async move { generate_waveform(&source) })
@@ -364,12 +370,12 @@ impl Editor {
                         if editor.project_root != project_root {
                             return false;
                         }
-                        editor.waveform_jobs.remove(&relative_path);
+                        editor.waveform_jobs.remove(&media_path);
                         match result {
                             Ok(waveform) => {
                                 editor
                                     .waveform_cache
-                                    .insert(relative_path.clone(), Arc::new(waveform));
+                                    .insert(media_path.clone(), Arc::new(waveform));
                             }
                             Err(error) => eprintln!("Waveform: {error}"),
                         }

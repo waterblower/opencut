@@ -7,7 +7,7 @@ use engine::{
     export::{ClipAudio, mix_timeline_audio},
     timeline_backend::{MAX_CONTROL_WAIT, TimelineBackend},
 };
-use gpui::{Context, Task};
+use gpui::{Context, Task, Window};
 use media_backend::{AudioSamples, MediaTime};
 use std::{collections::HashMap, path::Path, time::Duration};
 use timeline::TimelineEditingState;
@@ -19,24 +19,48 @@ const AUDIO_LEAD: Duration = Duration::from_millis(500); // 混音领先播放�
 pub struct TimelinePlayer {
     pub backend: TimelineBackend,                 // 直接修改后需自行 notify 并释放旧图像。
     pub title: String,
-    pub error: Option<String>,                    // 最近一次播放失败；播放已暂停，保留上一帧。
     audio_output: AudioOutput,
     audio_readers: HashMap<Ulid, ClipAudio>,      // 按片段顺序读取的解码器；重新开始输出时清空。
     audio_cursor: i64,                            // 下一块待混音的起始采样位置（设备采样率），不是播放位置。
+    pending_seek: Option<Duration>,               // 拖动请求的最新目标位置，下一帧执行；Some 表示已安排执行，新请求只覆盖目标。
 }
 
 impl TimelinePlayer {
     /// Validates the timeline, opens the audio device, and prepares frame zero, paused.
-    /// Media paths resolve against `project_root`. Call [`Self::start`] once the player is in an entity.
-    pub fn new(timeline: TimelineEditingState, project_root: &Path) -> Result<Self> {
+    /// Media paths resolve against `timeline_directory`, the directory containing the timeline file. Call [`Self::start`] once the player is in an entity.
+    pub fn new(timeline: TimelineEditingState, timeline_directory: &Path) -> Result<Self> {
         Ok(Self {
-            backend: TimelineBackend::new(timeline, project_root)?,
+            backend: TimelineBackend::new(timeline, timeline_directory)?,
             title: String::new(),
-            error: None,
             audio_output: AudioOutput::open()?,
             audio_readers: HashMap::new(),
             audio_cursor: 0,
+            pending_seek: None,
         })
+    }
+
+    /// Seeks to `position` on the next frame. Requests arriving before then only replace the
+    /// target, so a seek slower than the pointer never queues stale positions.
+    pub(crate) fn request_seek(
+        &mut self,
+        position: Duration,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let scheduled = self.pending_seek.is_some();
+        self.pending_seek = Some(position);
+        if scheduled {
+            return;
+        }
+        cx.on_next_frame(window, |player, _, cx| {
+            let Some(position) = player.pending_seek.take() else {
+                return;
+            };
+            match player.seek(position) {
+                Ok(()) => cx.notify(),
+                Err(error) => player.fail(error, cx),
+            }
+        });
     }
 
     /// Starts the playback loop once. The owner must retain the task and drop it before the player.
@@ -72,7 +96,6 @@ impl TimelinePlayer {
     }
 
     pub fn play(&mut self, cx: &mut Context<Self>) -> Result<()> {
-        self.error = None;
         let result = match self.backend.play() {
             Ok(()) => self.sync_audio(),
             Err(error) => Err(error),
@@ -92,12 +115,11 @@ impl TimelinePlayer {
         }
     }
 
-    /// Pauses on the last good frame and records the error for display.
+    /// Logs the error and pauses on the last good frame.
     /// The playback loop stops audio output on its next step.
     pub(crate) fn fail(&mut self, error: anyhow::Error, cx: &mut Context<Self>) {
         eprintln!("Timeline player failed: {error:?}");
         self.backend.pause();
-        self.error = Some(format!("{error:#}"));
         cx.notify();
     }
 
@@ -124,7 +146,7 @@ impl TimelinePlayer {
             let count = (target - self.audio_cursor) as usize;
             let mixed = mix_timeline_audio(
                 self.backend.timeline(),
-                self.backend.project_root(),
+                self.backend.timeline_directory(),
                 &mut self.audio_readers,
                 self.audio_cursor,
                 count,
