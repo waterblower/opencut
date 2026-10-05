@@ -184,8 +184,8 @@ impl RenderOnce for TextClipPropertiesView {
                     .child(properties_section_label("CONTENT"))
                     .child(text_input_field)
                     .child(property_field(
-                        "Length",
-                        format!("{:.3}", clip.length.as_secs_f64()),
+                        "Duration",
+                        format!("{:.2}", clip.duration.as_secs_f64()),
                         "s",
                         None,
                     ))
@@ -211,13 +211,13 @@ impl RenderOnce for TextClipPropertiesView {
                     .child(properties_section_label("POSITION"))
                     .child(property_field(
                         "Position X",
-                        format!("{:.2}", clip.properties.position_x),
+                        format!("{:.2}", clip.properties.position.x),
                         "",
                         None,
                     ))
                     .child(property_field(
                         "Position Y",
-                        format!("{:.2}", clip.properties.position_y),
+                        format!("{:.2}", clip.properties.position.y),
                         "",
                         None,
                     )),

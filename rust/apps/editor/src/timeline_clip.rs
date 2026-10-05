@@ -44,8 +44,8 @@ impl ClipEditingExt for Clip {
                 right.source_in = source_split;
             }
             (Self::Text(left), Self::Text(right)) => {
-                left.length = frame_rate.duration(local);
-                right.length = right.length.saturating_sub(left.length);
+                left.duration = frame_rate.duration(local);
+                right.duration = right.duration.saturating_sub(left.duration);
             }
             _ => unreachable!("a cloned clip must retain its variant"),
         }

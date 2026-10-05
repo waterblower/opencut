@@ -63,8 +63,8 @@ impl TimelineFrameComposition {
                     canvas = canvas.child(
                         div()
                             .absolute()
-                            .left(px(properties.position_x as f32 * canvas_width))
-                            .top(px(properties.position_y as f32 * canvas_height))
+                            .left(px(properties.position.x as f32 * canvas_width))
+                            .top(px(properties.position.y as f32 * canvas_height))
                             .w(px(0.0))
                             .h(px(0.0))
                             .flex()

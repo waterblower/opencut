@@ -485,7 +485,7 @@ fn text_edits_preserve_timing_without_a_renderer() -> Result<()> {
         id: ulid(10),
         track_id: ulid(3),
         timeline_start: TimelineFrameIndex::from(15),
-        length: Duration::from_secs(2),
+        duration: Duration::from_secs(2),
         properties: TextClipProperties::default(),
     };
     edit_timeline(
@@ -522,7 +522,7 @@ fn text_edits_preserve_timing_without_a_renderer() -> Result<()> {
     };
     assert_eq!(restored.properties, clip.properties);
     assert_eq!(restored.timeline_start, clip.timeline_start);
-    assert_eq!(restored.length, clip.length);
+    assert_eq!(restored.duration, clip.duration);
     Ok(())
 }
 

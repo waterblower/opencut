@@ -114,25 +114,54 @@ pub fn edit_timeline(timeline: &mut TimelineRuntimeState, action: EditAction) ->
             {
                 return Ok(false);
             }
-            let position_x = (drag.original.0
+            let mut position_x = (drag.original.x
                 + f64::from(
                     f32::from(pointer.x - drag.start.x) / f32::from(drag.canvas_size.width),
                 ))
             .clamp(0.0, 1.0);
-            let position_y = (drag.original.1
+            let mut position_y = (drag.original.y
                 + f64::from(
                     f32::from(pointer.y - drag.start.y) / f32::from(drag.canvas_size.height),
                 ))
             .clamp(0.0, 1.0);
-            if (clip.properties.position_x, clip.properties.position_y) != (position_x, position_y)
+            if timeline.snapping_enabled {
+                for (position, canvas_extent, text_extent) in [
+                    (
+                        &mut position_x,
+                        drag.canvas_size.width,
+                        drag.text_size.width,
+                    ),
+                    (
+                        &mut position_y,
+                        drag.canvas_size.height,
+                        drag.text_size.height,
+                    ),
+                ] {
+                    let extent = f64::from(f32::from(canvas_extent));
+                    let half_text = f64::from(f32::from(text_extent)) / (2.0 * extent);
+                    let mut nearest_distance = 8.0 / extent; // 屏幕逻辑像素阈值，不随画布缩放变化。
+                    let unsnapped = *position;
+                    for target in [0.5, half_text, 1.0 - half_text] {
+                        if !(0.0..=1.0).contains(&target) {
+                            continue;
+                        }
+                        let distance = (unsnapped - target).abs();
+                        if distance < nearest_distance {
+                            nearest_distance = distance;
+                            *position = target;
+                        }
+                    }
+                }
+            }
+            if (clip.properties.position.x, clip.properties.position.y) != (position_x, position_y)
             {
                 if !drag.history_recorded {
                     timeline.record_editing_history();
                     timeline.text_drag.as_mut().unwrap().history_recorded = true;
                 }
                 if let Some(Clip::Text(clip)) = timeline.editing_state.clip_mut(clip_id) {
-                    clip.properties.position_x = position_x;
-                    clip.properties.position_y = position_y;
+                    clip.properties.position.x = position_x;
+                    clip.properties.position.y = position_y;
                 }
             }
             if finished {
@@ -182,7 +211,7 @@ pub fn edit_timeline(timeline: &mut TimelineRuntimeState, action: EditAction) ->
             if let (Clip::Text(previous), Clip::Text(updated)) = (&data.clips[index], &clip)
                 && previous.track_id == updated.track_id
                 && previous.timeline_start == updated.timeline_start
-                && previous.length == updated.length
+                && previous.duration == updated.duration
             {
                 data.clips[index] = clip;
             } else {

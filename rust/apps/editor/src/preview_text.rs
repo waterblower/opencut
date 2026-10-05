@@ -22,7 +22,8 @@ pub struct PreviewTextDrag {
     pub clip_id: Ulid,
     pub start: Point<Pixels>,
     pub history_recorded: bool, // 首次实际移动时记录撤销，整次拖动只记录一次。
-    pub original: (f64, f64),
+    pub original: Point<f64>,
+    pub text_size: Size<Pixels>, // 拖动开始时的完整文字布局尺寸，边缘吸附不使用裁剪后的命中区域。
     pub canvas_size: Size<Pixels>, // 实际画布尺寸，不包含预览黑边和播放控件。
 }
 
@@ -87,9 +88,12 @@ impl Editor {
                 (track.visible && !track.locked).then_some(text.id)
             })
             .collect::<Vec<_>>();
-        let hit_regions = Rc::new(RefCell::new(
-            Vec::<(Ulid, Bounds<Pixels>, Size<Pixels>)>::new(),
-        ));
+        let hit_regions = Rc::new(RefCell::new(Vec::<(
+            Ulid,
+            Bounds<Pixels>,
+            Size<Pixels>,
+            Size<Pixels>,
+        )>::new()));
         let editor = cx.entity().downgrade();
         let layout_regions = hit_regions.clone();
         let paint_regions = hit_regions.clone();
@@ -106,10 +110,11 @@ impl Editor {
                     move |bounds, window, cx| {
                         let scale = (f32::from(bounds.size.width) / frame.width as f32)
                             .min(f32::from(bounds.size.height) / frame.height as f32);
+                        let mut guides = Vec::new();
                         let mut regions = layout_regions.borrow_mut();
                         regions.clear();
                         if !scale.is_finite() || scale <= 0.0 {
-                            return;
+                            return guides;
                         }
                         let canvas_size = size(
                             px(frame.width as f32 * scale),
@@ -133,12 +138,17 @@ impl Editor {
                             else {
                                 continue;
                             };
+                            let show_guides = timeline.snapping_enabled
+                                && timeline
+                                    .text_drag
+                                    .as_ref()
+                                    .is_some_and(|drag| drag.clip_id == *clip_id);
                             let properties = &clip.properties;
                             if !editable.contains(clip_id) {
                                 continue;
                             }
                             let position =
-                                (properties.position_x as f32, properties.position_y as f32);
+                                (properties.position.x as f32, properties.position.y as f32);
                             let mut text = text_layer_element(properties, scale);
                             let text_size = text.layout_as_root(
                                 size(AvailableSpace::MinContent, AvailableSpace::MinContent),
@@ -149,17 +159,59 @@ impl Editor {
                                 origin.x + canvas_size.width * position.0 - text_size.width / 2.0,
                                 origin.y + canvas_size.height * position.1 - text_size.height / 2.0,
                             );
+                            if show_guides {
+                                for (vertical, center, extent, text_extent) in [
+                                    (
+                                        true,
+                                        position.0 * f32::from(canvas_size.width),
+                                        f32::from(canvas_size.width),
+                                        f32::from(text_size.width),
+                                    ),
+                                    (
+                                        false,
+                                        position.1 * f32::from(canvas_size.height),
+                                        f32::from(canvas_size.height),
+                                        f32::from(text_size.height),
+                                    ),
+                                ] {
+                                    for (target, line) in [
+                                        (extent / 2.0, extent / 2.0),
+                                        (text_extent / 2.0, 0.0),
+                                        (extent - text_extent / 2.0, extent - 1.0),
+                                    ] {
+                                        if (center - target).abs() > 0.01 {
+                                            continue;
+                                        }
+                                        let guide = if vertical {
+                                            Bounds::new(
+                                                point(origin.x + px(line), origin.y),
+                                                size(px(1.0), canvas_size.height),
+                                            )
+                                        } else {
+                                            Bounds::new(
+                                                point(origin.x, origin.y + px(line)),
+                                                size(canvas_size.width, px(1.0)),
+                                            )
+                                        };
+                                        guides.push(guide);
+                                    }
+                                }
+                            }
                             let visible_bounds = Bounds::new(text_origin, text_size)
                                 .intersect(&Bounds::new(origin, canvas_size));
                             if visible_bounds.size.width > px(0.0)
                                 && visible_bounds.size.height > px(0.0)
                             {
-                                regions.push((*clip_id, visible_bounds, canvas_size));
+                                regions.push((*clip_id, visible_bounds, canvas_size, text_size));
                             }
                         }
+                        guides
                     },
-                    move |_, _, window, _| {
-                        for (clip_id, bounds, _) in paint_regions.borrow().iter() {
+                    move |_, guides, window, _| {
+                        for guide in guides {
+                            window.paint_quad(gpui::fill(guide, rgb(ACCENT)));
+                        }
+                        for (clip_id, bounds, _, _) in paint_regions.borrow().iter() {
                             if Some(*clip_id) == selected {
                                 window.paint_quad(outline(
                                     *bounds,
@@ -179,9 +231,9 @@ impl Editor {
                         .borrow()
                         .iter()
                         .rev()
-                        .find(|(_, bounds, _)| bounds.contains(&event.position))
+                        .find(|(_, bounds, _, _)| bounds.contains(&event.position))
                         .copied();
-                    let Some((clip_id, _, canvas_size)) = hit else {
+                    let Some((clip_id, _, canvas_size, text_size)) = hit else {
                         return;
                     };
                     let Some(timeline) = editor.timeline.as_mut() else {
@@ -195,8 +247,9 @@ impl Editor {
                         clip_id,
                         start: event.position,
                         history_recorded: false,
-                        original: (clip.properties.position_x, clip.properties.position_y),
+                        original: clip.properties.position,
                         canvas_size,
+                        text_size,
                     });
                     editor.select_only_clip(Some(clip_id));
                     if let PreviewTarget::Timeline { player, .. } = &editor.preview.target {

@@ -153,7 +153,7 @@ fn runtime() -> Result<TimelineRuntimeState> {
             id: Ulid::from(2_u128),
             track_id,
             timeline_start: TimelineFrameIndex::ZERO,
-            length: Duration::from_secs(3),
+            duration: Duration::from_secs(3),
             properties: TextClipProperties::default(),
         })],
         ..Default::default()

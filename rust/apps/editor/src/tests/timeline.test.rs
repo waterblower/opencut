@@ -210,7 +210,7 @@ fn assetless_text_clips_survive_timeline_repair() {
             id: ulid(10),
             track_id,
             timeline_start: TimelineFrameIndex::ZERO,
-            length: FrameRate::default().duration(TimelineFrameIndex::from(150)),
+            duration: FrameRate::default().duration(TimelineFrameIndex::from(150)),
             properties: TextClipProperties::default(),
         })],
         ..TimelineEditingState::default()
@@ -238,7 +238,7 @@ fn text_clips_can_move_without_a_media_asset() {
             id: clip_id,
             track_id,
             timeline_start: TimelineFrameIndex::ZERO,
-            length: FrameRate::default().duration(TimelineFrameIndex::from(150)),
+            duration: FrameRate::default().duration(TimelineFrameIndex::from(150)),
             properties: TextClipProperties::default(),
         })],
         ..TimelineEditingState::default()
@@ -274,7 +274,7 @@ fn changing_frame_rate_keeps_text_duration_and_recomputes_frame_length() {
             id: ulid(10),
             track_id,
             timeline_start: TimelineFrameIndex::ZERO,
-            length: Duration::from_secs(5),
+            duration: Duration::from_secs(5),
             properties: TextClipProperties::default(),
         })],
         ..TimelineEditingState::default()
@@ -283,7 +283,7 @@ fn changing_frame_rate_keeps_text_duration_and_recomputes_frame_length() {
     project.set_frame_rate(FrameRate::new(24, 1));
 
     let text = project.clips[0].text().unwrap();
-    assert_eq!(text.length, Duration::from_secs(5));
+    assert_eq!(text.duration, Duration::from_secs(5));
     assert_eq!(
         text.frame_length(project.settings.frame_rate),
         TimelineFrameIndex::from(120)
@@ -567,7 +567,7 @@ fn splitting_text_clip_preserves_text_and_divides_length() {
         id: ulid(10),
         track_id: ulid(3),
         timeline_start: TimelineFrameIndex::from(100),
-        length: FrameRate::default().duration(TimelineFrameIndex::from(60)),
+        duration: FrameRate::default().duration(TimelineFrameIndex::from(60)),
         properties: TextClipProperties {
             text: "Title".to_string(),
             ..TextClipProperties::default()
@@ -683,7 +683,7 @@ fn tagged_text_clip_deserializes_duration() {
     });
 
     let clip = parse_clip(value).unwrap();
-    assert_eq!(clip.text().unwrap().length, Duration::from_secs(3));
+    assert_eq!(clip.text().unwrap().duration, Duration::from_secs(3));
 }
 
 #[test]
@@ -717,7 +717,7 @@ fn timeline_load_migrates_frame_length_using_its_own_frame_rate() {
         .inspect_err(|e| eprintln!("{e:#}"))
         .unwrap();
     assert_eq!(
-        timeline.to_editing_state().clips[0].text().unwrap().length,
+        timeline.to_editing_state().clips[0].text().unwrap().duration,
         Duration::from_mins(5)
     )
 }
@@ -728,7 +728,7 @@ fn text_clip_round_trip_uses_text_specific_fields() {
         id: ulid(10),
         track_id: ulid(3),
         timeline_start: TimelineFrameIndex::from(12),
-        length: FrameRate::default().duration(TimelineFrameIndex::from(90)),
+        duration: FrameRate::default().duration(TimelineFrameIndex::from(90)),
         properties: TextClipProperties::default(),
     });
 

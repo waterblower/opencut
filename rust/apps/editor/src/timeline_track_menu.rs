@@ -72,7 +72,7 @@ fn text_clip_at(
         id: Ulid::generate(),
         track_id,
         timeline_start: position,
-        length: timeline.position_at_frame(duration),
+        duration: timeline.position_at_frame(duration),
         properties: TextClipProperties::default(),
     }))
 }
