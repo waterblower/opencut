@@ -44,6 +44,10 @@ pub enum EditAction {
         pointer: Point<Pixels>,
         finished: bool, // 松开时在同一事件内应用最终坐标并保存，避免提前清除拖动状态。
     },
+    ApplyTextStyleToTrack {
+        clip_id: Ulid,
+        project_root: PathBuf,
+    },
     SetTextProperties {
         clip_id: Ulid,
         properties: TextClipProperties,
@@ -202,6 +206,38 @@ pub fn edit_timeline(timeline: &mut TimelineRuntimeState, action: EditAction) ->
         EditAction::SetTextContent { clip_id, text } => {
             if let Some(Clip::Text(clip)) = data.clip_mut(clip_id) {
                 clip.properties.text = text;
+            }
+        }
+        EditAction::ApplyTextStyleToTrack {
+            clip_id,
+            project_root,
+        } => {
+            let Some(Clip::Text(source)) = data.clip(clip_id) else {
+                let relative_path = timeline.path.strip_prefix(&project_root)?;
+                return Err(anyhow!(
+                    "Source text clip {clip_id} not found in timeline {}",
+                    relative_path.display()
+                ));
+            };
+            let track_id = source.track_id;
+            let properties = source.properties.clone();
+            let mut changed = false;
+            for clip in &mut data.clips {
+                let Clip::Text(target) = clip else {
+                    continue;
+                };
+                if target.track_id != track_id || target.id == clip_id {
+                    continue;
+                }
+                let mut updated = properties.clone();
+                updated.text = target.properties.text.clone();
+                if target.properties != updated {
+                    target.properties = updated;
+                    changed = true;
+                }
+            }
+            if !changed {
+                return Ok(false);
             }
         }
         EditAction::SetTextProperties {
