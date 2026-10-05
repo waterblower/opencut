@@ -81,7 +81,7 @@ are relative to the OpenCut root.
 - Never include Python in the build process.
 - Do not write new tests unless the user explicitly requests them. Existing tests
   may still be updated to accommodate requested changes and run for validation.
-- Do not write tests for `rust/apps/player/` or `rust/libs/player-ui/`; they are a debug-only demo.
+- Do not write tests for `rust/apps/player/`; it is a debug-only demo.
 - Do not define custom macros. Prefer ordinary functions and explicit control
   flow so the code is easy to read. Standard and dependency-provided macros
   (such as `format!` and derives) are allowed.
@@ -206,6 +206,23 @@ are relative to the OpenCut root.
 - Do not call deprecated functions or methods.
 - Place private code at the bottom of each file, after public and
   restricted-public (`pub(...)`) code.
+- Define a type's public methods and private methods in separate inherent `impl`
+  blocks; restricted-public (`pub(...)`) methods count as public. Mark each block
+  with a comment directly above it: `// Public APIs only` or
+  `// Private APIs only`. Place the private block after the public one. Trait
+  implementations stay in their own `impl Trait for Type` blocks. For example:
+
+  ```rust
+  // Public APIs only
+  impl VideoPlayer {
+      pub fn duration(&self) -> Duration { ... }
+  }
+
+  // Private APIs only
+  impl VideoPlayer {
+      fn seek_video(&mut self, position: Duration) -> Result<()> { ... }
+  }
+  ```
 - Explain easily confused state in concise Chinese comments to the right of the
   relevant code, with clear indentation and aligned comment columns. Distinguish
   sources of truth, derived values, time positions versus durations, and decoder
