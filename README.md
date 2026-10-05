@@ -99,6 +99,7 @@ Supported file extensions:
 | `V` / `B` | Selection / blade tool |
 | `Command-click` | Add or remove a clip from the selection |
 | `Command-A` | Select all clips on unlocked tracks |
+| `]` | Select clips intersecting the mouse position and all clips to its right on unlocked tracks (pointer over timeline) |
 | `Command-B` | Split the selected clips at the playhead |
 | `Backspace` / `Delete` | Delete the selected clips |
 | `Command-D` | Duplicate the selected clips |
