@@ -15,7 +15,13 @@ fn benchmark_random_seek() -> Result<()> {
     const SEED: u64 = 0x6f70_656e_6375_7421;
     let fixture_directory = Path::new(env!("CARGO_MANIFEST_DIR")).join(".testdata");
 
-    for name in ["short.mp4", "4K.MOV", "super-long.mp4"] {
+    // fake-keyframes.mp4：容器同步样本表把非 IDR 的 I 帧标成关键帧。
+    for name in [
+        "short.mp4",
+        "4K.MOV",
+        "super-long.mp4",
+        "fake-keyframes.mp4",
+    ] {
         let path = fixture_directory.join(name);
         let metadata = VideoBackend::probe(&path)
             .with_context(|| format!("probing benchmark fixture {}", path.display()))?;

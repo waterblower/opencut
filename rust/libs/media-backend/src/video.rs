@@ -1,7 +1,7 @@
 use crate::{MediaTime, hardware, time::timestamp_microseconds};
 use anyhow::{Context, Result, bail};
 use ffmpeg_next::{
-    Error as FfmpegError, Packet, Rational, codec, decoder,
+    Discard, Error as FfmpegError, Packet, Rational, codec, decoder,
     ffi::av_display_rotation_get,
     format::{self, Pixel, context::Input},
     frame::{Video, side_data::Type as FrameSideData},
@@ -76,7 +76,7 @@ impl VideoDecoder {
             lookahead: VecDeque::new(),
             _lane_local: PhantomData,
         };
-        let Some(first) = decoder.decode_next()? else {
+        let Some(first) = decoder.decode_next(None)? else {
             bail!("video stream contains no decoded frames");
         };
         decoder.lookahead.push_back(first);
@@ -88,7 +88,7 @@ impl VideoDecoder {
         if let Some(frame) = self.lookahead.pop_front() {
             return Ok(Some(frame));
         }
-        self.decode_next()
+        self.decode_next(None)
     }
 
     pub fn is_drained(&self) -> bool {
@@ -119,6 +119,10 @@ impl VideoDecoder {
     fn seek_inner(&mut self, position: Duration) -> Result<VideoFrame> {
         // Even an out-of-range request clamps to the final available frame.
         let target = i64::try_from(position.as_micros()).unwrap_or(i64::MAX);
+        let mut scan = SeekScan {
+            target,
+            nearest_below: None,
+        };
 
         // Forward fast path: when the target is only a short distance past the
         // pending frame, continuing the current decode is cheaper than an
@@ -130,7 +134,7 @@ impl VideoDecoder {
             {
                 pending
             }
-            _ => self.indexed_seek(target)?,
+            _ => self.indexed_seek(&mut scan)?,
         };
         if earlier.timestamp.0 >= target {
             return Ok(earlier);
@@ -138,7 +142,11 @@ impl VideoDecoder {
 
         // Consume any remaining lookahead before decoding fresh frames.
         loop {
-            let Some(later) = self.next_frame()? else {
+            let next = match self.lookahead.pop_front() {
+                Some(frame) => Some(frame),
+                None => self.decode_next(Some(&mut scan))?,
+            };
+            let Some(later) = next else {
                 return Ok(earlier);
             };
             if later.timestamp < earlier.timestamp {
@@ -158,19 +166,21 @@ impl VideoDecoder {
         }
     }
 
-    /// Land on a decodable frame at or before the target through the demuxer
+    /// Land on a decodable frame at or before the scan target through the demuxer
     /// index, clamping to the first frame when the target precedes it.
-    fn indexed_seek(&mut self, target: i64) -> Result<VideoFrame> {
+    fn indexed_seek(&mut self, scan: &mut SeekScan) -> Result<VideoFrame> {
+        let target = scan.target;
         let mut seek_position = if self.input.duration() >= 0 {
             target.min(self.input.duration())
         } else {
             target
         };
 
-        // The indexed seek normally lands on the keyframe at or before the
-        // request, but reordering or index granularity can land it after the
-        // target or at EOF. Retry slightly earlier through the index instead of
-        // reopening and rescanning from the start of the file.
+        // The index can land on a sync sample the decoder cannot start from: a
+        // container may list a non-IDR I-frame as a keyframe, which FFmpeg's
+        // parser leaves unflagged, and reordering can put a real keyframe after
+        // the target. Reject unflagged landings before decoding, and retry just
+        // before the landing packet so each attempt steps back one index keyframe.
         let mut retry_step = FALLBACK_SEEK_STEP_MICROSECONDS;
         loop {
             let absolute = self.origin_microseconds.saturating_add(seek_position);
@@ -180,24 +190,48 @@ impl VideoDecoder {
             self.decoder.flush();
             self.drain = DrainState::Reading;
             self.lookahead.clear();
-            let landed = self.decode_next()?;
-            let step = match landed {
-                Some(frame) if frame.timestamp.0 <= target || seek_position <= 0 => {
-                    return Ok(frame);
+            scan.nearest_below = None; // 冲刷后此前送入的包全部作废。
+            let Some(landing) = self.read_video_packet()? else {
+                if seek_position <= 0 {
+                    bail!("video stream contains no decoded frames");
                 }
-                Some(frame) => frame_step_microseconds(&frame).unwrap_or(retry_step),
-                None if seek_position <= 0 => bail!("video stream contains no decoded frames"),
-                None => retry_step,
+                seek_position = seek_position.saturating_sub(retry_step).max(0);
+                retry_step = retry_step.saturating_mul(2);
+                continue;
             };
-            // Move the request itself earlier: the landing frame is already past
-            // the target, so its timestamp is no better anchor than the request.
-            seek_position = seek_position.saturating_sub(step).max(0);
+            if landing.is_key() || seek_position <= 0 {
+                // The decoder was just flushed, so this send cannot return EAGAIN.
+                self.send_video_packet(&landing, Some(&mut *scan))?;
+                match self.decode_next(Some(&mut *scan))? {
+                    Some(frame) if frame.timestamp.0 <= target || seek_position <= 0 => {
+                        return Ok(frame);
+                    }
+                    None if seek_position <= 0 => {
+                        bail!("video stream contains no decoded frames");
+                    }
+                    // The group of pictures starts after the target or decodes nothing.
+                    Some(_) | None => {}
+                }
+            }
+            // The step guarantees progress where the landing gives no earlier anchor.
+            let step_position = seek_position.saturating_sub(retry_step);
+            let retry_position = match landing.dts().or(landing.pts()) {
+                Some(timestamp) => {
+                    let landing_position = timestamp_microseconds(timestamp, self.time_base)?
+                        .checked_sub(self.origin_microseconds)
+                        .context("normalized video timestamp exceeds range")?;
+                    step_position.min(landing_position.saturating_sub(1)) // 落点包之前 1 µs：索引回退到上一个关键帧。
+                }
+                None => step_position,
+            };
+            seek_position = retry_position.max(0);
             retry_step = retry_step.saturating_mul(2);
         }
     }
 }
 
-/// Step used when the landing frame has no usable duration.
+/// First step back from a failed landing, doubled after each attempt. A retry
+/// goes further back when the landing packet itself lies earlier.
 const FALLBACK_SEEK_STEP_MICROSECONDS: i64 = 50_000;
 
 /// Furthest a target may lie past the pending frame to scan forward instead
@@ -205,6 +239,12 @@ const FALLBACK_SEEK_STEP_MICROSECONDS: i64 = 50_000;
 /// pictures, but a long scan would be slower than the index for intra-only
 /// or short-GOP content.
 const FORWARD_SCAN_LIMIT_MICROSECONDS: i64 = 250_000;
+
+/// Packets sent while one seek decodes toward its target.
+struct SeekScan {
+    target: i64,                // 目标时间（微秒，相对 origin）。
+    nearest_below: Option<i64>, // 已完整解码、早于目标的最大 PTS；更早的非参考帧不会被选中。
+}
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum DrainState {
@@ -214,7 +254,9 @@ enum DrainState {
 }
 
 impl VideoDecoder {
-    fn decode_next(&mut self) -> Result<Option<VideoFrame>> {
+    /// A seek scan lets packets that cannot affect the selected frame skip
+    /// non-reference decoding; None decodes every packet.
+    fn decode_next(&mut self, mut scan: Option<&mut SeekScan>) -> Result<Option<VideoFrame>> {
         if self.drain == DrainState::Drained {
             return Ok(None);
         }
@@ -249,33 +291,69 @@ impl VideoDecoder {
                 Err(error) => return Err(error).context("receiving a decoded video frame"),
             }
 
-            // Receive-first guarantees send will not return EAGAIN. Read directly:
-            // FFmpeg's packet iterator discards demux errors, which is unsuitable
-            // for an API where None must mean drained EOF rather than failure.
-            let mut packet = Packet::empty();
-            loop {
-                match packet.read(&mut self.input) {
-                    Ok(()) => {
-                        if packet.stream() != self.stream_index {
-                            packet = Packet::empty();
-                            continue;
-                        }
-                        self.decoder
-                            .send_packet(&packet)
-                            .context("sending a video packet")?;
-                        break;
-                    }
-                    Err(FfmpegError::Eof) => {
-                        self.decoder
-                            .send_eof()
-                            .context("starting video decoder drain")?;
-                        self.drain = DrainState::Draining;
-                        break;
-                    }
-                    Err(error) => return Err(error).context("reading a video packet"),
+            // Receive-first guarantees send will not return EAGAIN.
+            match self.read_video_packet()? {
+                Some(packet) => self.send_video_packet(&packet, scan.as_deref_mut())?,
+                None => {
+                    self.decoder
+                        .send_eof()
+                        .context("starting video decoder drain")?;
+                    self.drain = DrainState::Draining;
                 }
             }
         }
+    }
+
+    /// Next packet of the selected stream; None is demuxer EOF.
+    fn read_video_packet(&mut self) -> Result<Option<Packet>> {
+        // Read directly: FFmpeg's packet iterator discards demux errors, which is
+        // unsuitable for an API where None must mean drained EOF rather than failure.
+        let mut packet = Packet::empty();
+        loop {
+            match packet.read(&mut self.input) {
+                Ok(()) => {
+                    if packet.stream() == self.stream_index {
+                        return Ok(Some(packet));
+                    }
+                    packet = Packet::empty();
+                }
+                Err(FfmpegError::Eof) => return Ok(None),
+                Err(error) => return Err(error).context("reading a video packet"),
+            }
+        }
+    }
+
+    /// During a seek, a non-reference picture is skipped once a fully decoded
+    /// picture lies between it and the target: nothing depends on it, and it
+    /// cannot be the selected frame. Outside a seek, every picture decodes.
+    fn send_video_packet(&mut self, packet: &Packet, scan: Option<&mut SeekScan>) -> Result<()> {
+        let discard = match scan {
+            Some(scan) => match packet.pts() {
+                Some(timestamp) => {
+                    let position = timestamp_microseconds(timestamp, self.time_base)?
+                        .checked_sub(self.origin_microseconds)
+                        .context("normalized video timestamp exceeds range")?;
+                    if position >= scan.target {
+                        Discard::Default // 目标及之后的帧可能被选中。
+                    } else {
+                        match scan.nearest_below {
+                            Some(nearest) if position < nearest => Discard::NonReference,
+                            Some(_) | None => {
+                                scan.nearest_below = Some(position);
+                                Discard::Default
+                            }
+                        }
+                    }
+                }
+                None => Discard::Default, // 无 PTS：无法判断是否会被选中。
+            },
+            None => Discard::Default,
+        };
+        // Set per packet: the decoder applies the level current at send time.
+        self.decoder.skip_frame(discard);
+        self.decoder
+            .send_packet(packet)
+            .context("sending a video packet")
     }
 }
 
@@ -365,13 +443,6 @@ fn describe_frame(
         rotation_degrees,
         native,
     })
-}
-
-/// Positive frame duration in microseconds, if the container reported one.
-fn frame_step_microseconds(frame: &VideoFrame) -> Option<i64> {
-    let duration = frame.duration?;
-    let micros = i64::try_from(duration.as_micros()).ok()?;
-    if micros > 0 { Some(micros) } else { None }
 }
 
 fn display_rotation(data: &[u8]) -> Result<f64> {
