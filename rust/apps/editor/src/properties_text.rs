@@ -3,7 +3,7 @@ use crate::event_bus::{AppEvent, EventBus};
 use crate::generic_containers::{TextInput, TextInputEvent};
 use crate::properties_transform::{properties_section_label, properties_tab};
 use crate::theme::{BORDER, MUTED, PANEL, SURFACE};
-use crate::timeline_clip::{Clip, TextClip, TextClipProperties};
+use crate::timeline_clip::TextClip;
 use gpui::prelude::*;
 use gpui::{App, Entity, FocusHandle, Window, div, px, rgb};
 
@@ -36,8 +36,7 @@ impl RenderOnce for TextClipPropertiesView {
 
         let text_input_state = {
             let clip_id = clip.id;
-            let initial_clip = clip.clone();
-            let initial_text = initial_clip.properties.text.clone();
+            let initial_text = clip.properties.text.clone();
             window.use_keyed_state(
                 format!("text-clip-{clip_id}-text-input"),
                 cx,
@@ -55,14 +54,9 @@ impl RenderOnce for TextClipPropertiesView {
                         cx.subscribe(&input, move |_, input, _: &TextInputEvent, cx| {
                             let new_value = input.read(cx).text().to_string();
                             eprintln!("text input changed: {}", new_value);
-                            let edit_action = EditAction::UpdateClip {
-                                clip: Clip::Text(TextClip {
-                                    properties: TextClipProperties {
-                                        text: new_value,
-                                        ..initial_clip.properties.clone()
-                                    },
-                                    ..initial_clip.clone()
-                                }),
+                            let edit_action = EditAction::SetTextContent {
+                                clip_id,
+                                text: new_value,
                             };
                             event_bus.update(cx, |_, cx| {
                                 cx.emit(AppEvent::Edit(edit_action));

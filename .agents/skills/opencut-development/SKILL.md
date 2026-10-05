@@ -107,6 +107,11 @@ are relative to the OpenCut root.
 - Do not shadow variables in the same scope in our code. Give transformed values
   distinct, descriptive names, such as `rotated_pixels` instead of redeclaring
   `pixels`. This applies even when the new value has the same type.
+- Localize a feature's control flow and implementation where practical. Keep
+  related steps together in the owning event handler or module instead of
+  scattering them across files and single-use methods. Extract code when it
+  provides meaningful reuse or a clear ownership boundary, not merely to shorten
+  a handler. When inlining, preserve cleanup and finalization on early-return paths.
 - Do not introduce one-line forwarding wrappers around a helper with only one
   production caller. Put the implementation in the entry-point function, or
   call the implementation directly with the data it needs. An extra function

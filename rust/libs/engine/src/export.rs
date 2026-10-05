@@ -135,7 +135,7 @@ pub fn export_timeline(
             let decoded = Instant::now();
 
             // convert the composition to GPUI element
-            let element = frame.render_frame(logical_width, logical_height);
+            let element = frame.render_frame(logical_width, logical_height, &editing_state);
             let composed = Instant::now();
 
             // convert the GPUI element to image buffer, aka raw frame data

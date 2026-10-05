@@ -28,6 +28,7 @@ mod model;
 mod preview;
 mod preview_events;
 mod preview_image;
+mod preview_text;
 mod project;
 mod project_picker;
 mod project_settings;

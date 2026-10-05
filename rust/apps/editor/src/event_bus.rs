@@ -349,6 +349,73 @@ async fn handle_app_event(
                 Ok(())
             })?;
         }
+        AppEvent::Edit(EditAction::UpdateTextClipPosition {
+            timeline_path,
+            clip_id,
+            pointer,
+            finished,
+        }) => {
+            editor.update(cx, |editor, cx| {
+                let Some(drag) = editor.preview.text_drag.as_mut() else {
+                    return;
+                };
+                if drag.timeline_path != timeline_path || drag.clip_id != clip_id {
+                    return;
+                }
+                let Some(timeline) = editor.timeline.as_mut() else {
+                    return;
+                };
+                if timeline.path != drag.timeline_path {
+                    return;
+                }
+                let Some(Clip::Text(clip)) = timeline.editing_state.clip(drag.clip_id) else {
+                    return;
+                };
+                if !timeline
+                    .editing_state
+                    .tracks
+                    .iter()
+                    .any(|track| track.id == clip.track_id && !track.locked)
+                {
+                    return;
+                }
+                let position_x = (drag.original.0
+                    + f64::from(
+                        f32::from(pointer.x - drag.start.x) / f32::from(drag.canvas_size.width),
+                    ))
+                .clamp(0.0, 1.0);
+                let position_y = (drag.original.1
+                    + f64::from(
+                        f32::from(pointer.y - drag.start.y) / f32::from(drag.canvas_size.height),
+                    ))
+                .clamp(0.0, 1.0);
+                if (clip.properties.position_x, clip.properties.position_y)
+                    != (position_x, position_y)
+                {
+                    if !drag.history_recorded {
+                        timeline.record_editing_history();
+                        drag.history_recorded = true;
+                    }
+                    if let Some(Clip::Text(clip)) = timeline.editing_state.clip_mut(drag.clip_id) {
+                        clip.properties.position_x = position_x;
+                        clip.properties.position_y = position_y;
+                    }
+                    cx.notify();
+                }
+
+                if finished {
+                    let Some(finished_drag) = editor.preview.text_drag.take() else {
+                        return;
+                    };
+                    cx.notify();
+                    if finished_drag.history_recorded {
+                        if let Err(error) = timeline.save() {
+                            log::error!("Could not save preview subtitle position: {error:?}");
+                        }
+                    }
+                }
+            });
+        }
         AppEvent::Edit(edit_action) => {
             editor.update(cx, |editor, cx| -> Result<()> {
                 let Some(timeline) = editor.timeline.as_mut() else {

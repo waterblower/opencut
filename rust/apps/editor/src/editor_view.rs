@@ -26,6 +26,9 @@ impl Render for Editor {
             return div()
                 .id("editor-fullscreen-preview")
                 .key_context(EDITOR_KEY_CONTEXT)
+                .on_mouse_move(cx.listener(Self::move_preview_text))
+                .on_mouse_up(MouseButton::Left, cx.listener(Self::release_preview_text))
+                .on_mouse_up_out(MouseButton::Left, cx.listener(Self::release_preview_text))
                 .track_focus(&self.focus_handle)
                 .on_action(cx.listener(Self::action_toggle_playback))
                 .on_action(cx.listener(Self::action_step_backward_frame))
@@ -37,7 +40,7 @@ impl Render for Editor {
                 .overflow_hidden()
                 .bg(rgb(0x000000))
                 .text_color(rgb(TEXT))
-                .child(self.preview_player(editor_width, f32::from(viewport.height)));
+                .child(self.preview_player(editor_width, f32::from(viewport.height), cx));
         }
         let context_menu = self.context_menu_overlay(editor_viewport, cx);
         let rename_dialog = self
@@ -61,6 +64,9 @@ impl Render for Editor {
         div()
             .id("editor-root")
             .key_context(EDITOR_KEY_CONTEXT)
+            .on_mouse_move(cx.listener(Self::move_preview_text))
+            .on_mouse_up(MouseButton::Left, cx.listener(Self::release_preview_text))
+            .on_mouse_up_out(MouseButton::Left, cx.listener(Self::release_preview_text))
             .track_focus(&self.focus_handle)
             .on_action(cx.listener(Self::action_toggle_playback))
             .on_action(cx.listener(Self::action_step_backward_frame))
@@ -139,7 +145,7 @@ impl Editor {
             width,
             constraints,
             self.explorer_panel(cx),
-            self.preview_player(widths.center, preview_height),
+            self.preview_player(widths.center, preview_height, cx),
             properties_panel_view,
         )
         .into_any_element()

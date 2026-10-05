@@ -4,7 +4,8 @@ use ::timeline::{
     Clip, FrameRate, MediaAsset, TextClipProperties, TimelineEditingState, TimelineFrameIndex,
     Track, VideoClipProperties,
 };
-use anyhow::{Result, anyhow, ensure};
+use anyhow::{Result, anyhow, bail, ensure};
+use gpui::{Pixels, Point};
 use std::collections::HashSet;
 use std::path::PathBuf;
 use ulid::Ulid;
@@ -32,6 +33,16 @@ pub enum EditAction {
     SetVideoProperties {
         clip_ids: Vec<Ulid>,
         properties: VideoClipProperties,
+    },
+    SetTextContent {
+        clip_id: Ulid,
+        text: String,
+    },
+    UpdateTextClipPosition {
+        timeline_path: PathBuf,
+        clip_id: Ulid,
+        pointer: Point<Pixels>,
+        finished: bool, // 松开时在同一事件内应用最终坐标并保存，避免提前清除拖动状态。
     },
     SetTextProperties {
         clip_id: Ulid,
@@ -79,6 +90,9 @@ pub fn edit_timeline(timeline: &mut TimelineRuntimeState, action: EditAction) ->
 
 fn edit_content(data: &mut TimelineEditingState, action: EditAction) -> Result<()> {
     match action {
+        EditAction::UpdateTextClipPosition { .. } => {
+            bail!("Text position dragging requires preview state and must be handled by the event bus");
+        }
         EditAction::AddClips { clips, assets } => {
             data.assets.extend(assets);
             validate_clips_placements(data, &clips)?;
@@ -139,6 +153,11 @@ fn edit_content(data: &mut TimelineEditingState, action: EditAction) -> Result<(
                 {
                     media.video_properties = properties;
                 }
+            }
+        }
+        EditAction::SetTextContent { clip_id, text } => {
+            if let Some(Clip::Text(clip)) = data.clip_mut(clip_id) {
+                clip.properties.text = text;
             }
         }
         EditAction::SetTextProperties {
