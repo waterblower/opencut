@@ -213,9 +213,24 @@ impl Editor {
             .as_ref()
             .expect("track rows require an active timeline");
         let track_id = track.id;
+        let viewport_width = f32::from(timeline.h_scroll.bounds().size.width);
+        let visible_left = -f32::from(timeline.h_scroll.offset().x) - viewport_width;
+        let visible_right = visible_left + viewport_width * 3.0; // 两侧各预留一屏，减少滚动时元素进出视口的抖动。
         let clips = timeline
             .editing_state
             .clips_on_track(track.id)
+            .filter(|clip| {
+                if viewport_width <= 0.0 {
+                    return true; // 首次布局前尚无视口尺寸。
+                }
+                let left = TIMELINE_PADDING
+                    + timeline.editing_state.seconds(clip.timeline_start()) as f32
+                        * timeline.pixels_per_second;
+                let width = (timeline.editing_state.seconds(
+                    clip.frame_length(timeline.editing_state.settings.frame_rate),
+                ) as f32 * timeline.pixels_per_second).max(4.0);
+                left <= visible_right && left + width >= visible_left
+            })
             .map(|clip| self.timeline_clip(clip, cx))
             .collect::<Vec<_>>();
         let move_previews = timeline
@@ -227,6 +242,21 @@ impl Editor {
                 drag.placements
                     .iter()
                     .filter(|(_, track_id, _)| *track_id == track.id)
+                    .filter(|(clip_id, _, start)| {
+                        if viewport_width <= 0.0 {
+                            return true;
+                        }
+                        let Some(clip) = timeline.editing_state.clip(*clip_id) else {
+                            return false;
+                        };
+                        let left = TIMELINE_PADDING
+                            + timeline.editing_state.seconds(*start) as f32
+                                * timeline.pixels_per_second;
+                        let width = (timeline.editing_state.seconds(
+                            clip.frame_length(timeline.editing_state.settings.frame_rate),
+                        ) as f32 * timeline.pixels_per_second).max(4.0);
+                        left <= visible_right && left + width >= visible_left
+                    })
                     .map(|(clip_id, _, start)| {
                         timeline_clip_move_preview(
                             &timeline.editing_state,
