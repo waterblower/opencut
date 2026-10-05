@@ -1,5 +1,6 @@
 use crate::actions::EDITOR_KEY_CONTEXT;
 use crate::editor::Editor;
+use crate::event_bus::AppEvent;
 use crate::generic_containers::{HorizontalSplit, HorizontalSplitConstraints};
 use crate::layout::{
     MIN_MEDIA_PANEL_WIDTH, MIN_PREVIEW_WIDTH, MIN_PROPERTIES_PANEL_WIDTH, TIMELINE_HEIGHT,
@@ -197,7 +198,16 @@ impl Editor {
                         |editor, _, _, cx| {
                             editor.open_project_folder(cx);
                         },
-                    ))),
+                    )))
+                    .child(toolbar_button("Export", self.timeline.is_some()).on_click(
+                        cx.listener(|editor, _, _, cx| {
+                            let Some(timeline) = editor.timeline.as_ref() else {
+                                return;
+                            };
+                            let timeline_path = timeline.path.clone();
+                            editor.emit_event(cx, AppEvent::OpenExportWindow { timeline_path });
+                        }),
+                    )),
             )
             .into_any_element()
     }

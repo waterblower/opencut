@@ -15,6 +15,7 @@ mod explorer_drag;
 mod explorer_file_entry;
 mod explorer_file_menu;
 mod explorer_view;
+mod export_window;
 #[path = "generic-containers/mod.rs"]
 mod generic_containers;
 mod global_settings;
@@ -67,19 +68,17 @@ use std::io::Write as _;
 use std::path::PathBuf;
 
 fn main() -> anyhow::Result<()> {
-    env_logger::Builder::from_env(
-        env_logger::Env::default().default_filter_or("opencut_editor=debug"),
-    )
-    .format(|buffer, record| {
-        writeln!(
-            buffer,
-            "{}\n\t\t[{}:{}]",
-            record.args(),
-            record.file().unwrap_or("<unknown>"),
-            record.line().unwrap_or(0)
-        )
-    })
-    .init();
+    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("editor=debug"))
+        .format(|buffer, record| {
+            writeln!(
+                buffer,
+                "{}\n\t\t[{}:{}]",
+                record.args(),
+                record.file().unwrap_or("<unknown>"),
+                record.line().unwrap_or(0)
+            )
+        })
+        .init();
 
     let settings = GlobalEditorSettings::load()?;
 

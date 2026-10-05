@@ -318,7 +318,7 @@ impl Editor {
                             .text_sm()
                             .text_color(rgb(MUTED))
                             .text_ellipsis()
-                            .child(format!("In {location} · saved as .timeline.json")),
+                            .child(format!("In {location} · saved as .timeline (JSON)")),
                     )
                     .child(input)
                     .child(

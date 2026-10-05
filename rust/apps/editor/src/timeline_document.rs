@@ -3,12 +3,15 @@ use anyhow::{Context as _, Result, anyhow};
 use std::fs;
 use std::path::{Component, Path, PathBuf};
 
-const TIMELINE_SUFFIX: &str = ".timeline.json";
+const TIMELINE_SUFFIX: &str = ".timeline";
+const LEGACY_TIMELINE_SUFFIX: &str = ".timeline.json";
 
 pub(super) fn is_timeline_path(path: &Path) -> bool {
     path.file_name()
         .and_then(|name| name.to_str())
-        .is_some_and(|name| name.ends_with(TIMELINE_SUFFIX))
+        .is_some_and(|name| {
+            name.ends_with(TIMELINE_SUFFIX) || name.ends_with(LEGACY_TIMELINE_SUFFIX)
+        })
 }
 
 pub(super) fn project_timeline_files(project_root: &Path) -> Result<Vec<PathBuf>> {
@@ -51,11 +54,16 @@ fn collect_timeline_files(
 /// component, so `a/b` and `..` are rejected rather than escaping the directory.
 pub(super) fn timeline_file_name(name: &str) -> Option<String> {
     let name = name.trim();
-    let stem = name.strip_suffix(TIMELINE_SUFFIX).unwrap_or(name).trim();
+    let suffix = if name.ends_with(LEGACY_TIMELINE_SUFFIX) {
+        LEGACY_TIMELINE_SUFFIX
+    } else {
+        TIMELINE_SUFFIX
+    };
+    let stem = name.strip_suffix(suffix).unwrap_or(name).trim();
     if stem.is_empty() {
         return None;
     }
-    let file_name = format!("{stem}{TIMELINE_SUFFIX}");
+    let file_name = format!("{stem}{suffix}");
     let mut components = Path::new(&file_name).components();
     let component = components.next()?;
     if components.next().is_some() || !matches!(component, std::path::Component::Normal(_)) {
@@ -70,13 +78,16 @@ pub(super) fn default_timeline_name(project_root: &Path, relative_directory: &Pa
     let existing = timeline_file_names(&project_root.join(relative_directory)).unwrap_or_default();
     (1usize..)
         .map(|index| format!("timeline-{index}"))
-        .find(|candidate| !existing.contains(&format!("{candidate}{TIMELINE_SUFFIX}")))
+        .find(|candidate| {
+            !existing.contains(&format!("{candidate}{TIMELINE_SUFFIX}"))
+                && !existing.contains(&format!("{candidate}{LEGACY_TIMELINE_SUFFIX}"))
+        })
         .unwrap_or_else(|| "timeline".to_string())
 }
 
 /// Creates an empty timeline named `name` inside `relative_directory`, which is relative
 /// to the project root. An empty directory places the timeline at the root. The caller
-/// does not need to include the `.timeline.json` extension.
+/// does not need to include the `.timeline` extension. The file contents are JSON.
 ///
 /// The returned path is relative to the project root, so it can be handed straight to
 /// the file tree and to `Timeline::load`.

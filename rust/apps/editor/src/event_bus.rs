@@ -3,6 +3,7 @@ use crate::editing::validate_clips_placements;
 use crate::editor::Editor;
 use crate::explorer_drag::AssetBeingDragged;
 use crate::explorer_file_entry::select_preview_file;
+use crate::export_window::ExportWindow;
 use crate::generic_containers::HorizontalSplitState;
 use crate::global_settings::GlobalEditorSettings;
 use crate::layout::{RULER_HEIGHT, TIMELINE_PADDING, TRACK_HEIGHT};
@@ -16,18 +17,31 @@ use crate::timeline_clip::Clip;
 use crate::transcription::start_transcription;
 use crate::{OpenProject, open_editor_window, quit_after_last_window};
 use anyhow::{Context as _, Result, anyhow, bail};
+use engine::export::{ExportOption, export_timeline};
 use gpui::prelude::*;
-use gpui::{AsyncApp, Bounds, Entity, EventEmitter, MouseMoveEvent, Pixels};
+use gpui::{AsyncApp, Bounds, Entity, EventEmitter, MouseMoveEvent, Pixels, WeakEntity};
 use player_ui::Seeker;
 use player_ui::timeline_player::TimelinePlayer;
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
+use timeline::TimelineSerialization;
 use ulid::Ulid;
 
 pub struct EventBus;
 
 #[derive(Clone, Debug)]
 pub enum AppEvent {
+    OpenExportWindow {
+        timeline_path: PathBuf,
+    },
+    ExportTimeline {
+        timeline_path: PathBuf,
+        document: TimelineSerialization,
+        output_path: PathBuf,
+        video_bitrate: u64,
+        overwrite: bool,
+        export_window: WeakEntity<ExportWindow>,
+    },
     Preview(PreviewEvent),
     SwitchProject {
         project_path: PathBuf,
@@ -58,6 +72,43 @@ pub async fn handle_event(
 ) {
     eprintln!("handle_event: {:?}", event);
     match event {
+        AppEvent::ExportTimeline {
+            timeline_path,
+            document,
+            output_path,
+            video_bitrate,
+            overwrite,
+            export_window,
+        } => {
+            // macOS 平台必须在主线程创建；线程安全的文字系统交给导出线程。
+            let platform_text_system =
+                cx.update(|_| gpui_platform::current_platform(true).text_system());
+            let result = cx
+                .background_executor()
+                .spawn(async move {
+                    let directory = timeline_path
+                        .parent()
+                        .context("Timeline path has no parent directory")?;
+                    export_timeline(
+                        &document,
+                        &output_path,
+                        &ExportOption {
+                            project_root: directory.to_path_buf(),
+                            video_bitrate,
+                            overwrite,
+                        },
+                        platform_text_system,
+                    )
+                })
+                .await;
+            if let Err(error) = result {
+                log::error!("Could not export timeline: {error:?}");
+            }
+            let _ = export_window.update(cx, |view, cx| {
+                view.busy = false;
+                cx.notify();
+            });
+        }
         AppEvent::Transcribe {
             source_path,
             project_root,
@@ -170,6 +221,11 @@ async fn handle_app_event(
     cx: &mut AsyncApp,
 ) -> Result<()> {
     match event {
+        AppEvent::OpenExportWindow { timeline_path } => {
+            editor.update(cx, |editor, cx| {
+                editor.open_export_window(timeline_path, cx)
+            })?;
+        }
         AppEvent::Preview(preview_event) => match preview_event {
             PreviewEvent::SelectFile(path) => {
                 select_preview_file(editor, path, cx).await?;
@@ -182,7 +238,9 @@ async fn handle_app_event(
                 })?;
             }
         },
-        AppEvent::SwitchProject { .. } | AppEvent::Transcribe { .. } => {
+        AppEvent::SwitchProject { .. }
+        | AppEvent::Transcribe { .. }
+        | AppEvent::ExportTimeline { .. } => {
             editor.update(cx, |_, cx| cx.notify());
         }
         AppEvent::HorizontalSplitResized(state) => {
