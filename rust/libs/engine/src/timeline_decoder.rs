@@ -73,24 +73,24 @@ impl TimelineDecoder {
         timeline: &TimelineEditingState,
         position: TimelineFrameIndex,
     ) -> Result<TimelineFrameComposition> {
-        let last = (timeline.content_duration() - TimelineFrameIndex::ONE_FRAME)
+        let last_frame_index = (timeline.content_duration() - TimelineFrameIndex::ONE_FRAME)
             .max(TimelineFrameIndex::ZERO);
-        let position = position.clamp(TimelineFrameIndex::ZERO, last);
-        let mut layers = Vec::new();
+        let position = position.clamp(TimelineFrameIndex::ZERO, last_frame_index);
+        let mut layers: Vec<PreparedLayer> = Vec::new();
         #[cfg(target_os = "macos")]
-        let mut active_readers = HashSet::new();
+        let mut active_readers: HashSet<Ulid> = HashSet::new();
         // The first document track is the top track. Within a track, later
         // document clips paint over earlier ones.
         for track in timeline.tracks.iter().rev() {
             if !track.visible || track.kind == TrackKind::Audio {
                 continue;
             }
-            for clip in timeline.clips_on_track(track.id) {
-                if position < clip.timeline_start()
-                    || position >= clip.timeline_end(timeline.settings.frame_rate)
-                {
-                    continue;
-                }
+
+            let clips_at_position = timeline.clips_on_track(track.id).filter(|clip| {
+                clip.timeline_start() <= position
+                    && position < clip.timeline_end(timeline.settings.frame_rate)
+            });
+            for clip in clips_at_position {
                 match clip {
                     Clip::Audio(_) => {}
                     Clip::Text(clip) => layers.push(PreparedLayer::Text { clip_id: clip.id }),
@@ -98,7 +98,7 @@ impl TimelineDecoder {
                         let asset = timeline
                             .asset(media.asset_id)
                             .context("Validated clip references a missing asset")?;
-                        let path = self.timeline_directory.join(&asset.path);
+                        let asset_path = self.timeline_directory.join(&asset.path);
                         match asset.kind {
                             MediaKind::Video => {
                                 #[cfg(target_os = "macos")]
@@ -106,9 +106,9 @@ impl TimelineDecoder {
                                     let reader = match self.readers.entry(media.id) {
                                         Entry::Occupied(entry) => entry.into_mut(),
                                         Entry::Vacant(entry) => entry.insert(
-                                            ClipReader::open(&path).context(format!(
+                                            ClipReader::open(&asset_path).context(format!(
                                                 "Opening timeline video {}",
-                                                path.display()
+                                                asset_path.display()
                                             ))?,
                                         ),
                                     };
@@ -122,7 +122,7 @@ impl TimelineDecoder {
                                             return Err(error).context(format!(
                                                 "Preparing timeline clip {} from {} at {:.6}s",
                                                 media.id,
-                                                path.display(),
+                                                asset_path.display(),
                                                 source.as_secs_f64(),
                                             ));
                                         }
@@ -140,9 +140,9 @@ impl TimelineDecoder {
                                 let image = match self.images.entry(asset.id) {
                                     Entry::Occupied(entry) => Arc::clone(entry.get()),
                                     Entry::Vacant(entry) => {
-                                        let pixels = load_image(&path).context(format!(
+                                        let pixels = load_image(&asset_path).context(format!(
                                             "Loading timeline image {}",
-                                            path.display()
+                                            asset_path.display()
                                         ))?;
                                         Arc::clone(entry.insert(bgra_image(swap_red_blue(pixels))))
                                     }
