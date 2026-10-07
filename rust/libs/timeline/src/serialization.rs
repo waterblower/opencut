@@ -213,43 +213,48 @@ pub fn parse(value: &Value) -> Result<TimelineSerialization, ParseError> {
         }
     }
     match serde_path_to_error::deserialize::<_, TimelineSerialization>(&value) {
-        Ok(mut document) => {
-            for clip in &mut document.editing_state.clips {
-                let track_id = match clip {
-                    Clip::Video(clip) => clip.track_id,
-                    Clip::Audio(clip) => clip.track_id,
-                    Clip::Text(clip) => clip.track_id,
+        Ok(document) => {
+            for (index, clip) in document.editing_state.clips.iter().enumerate() {
+                if let Clip::Video(clip) = clip
+                    && document
+                        .editing_state
+                        .assets
+                        .iter()
+                        .any(|asset| asset.id == clip.asset_id && asset.kind == MediaKind::Audio)
+                {
+                    return Err(ParseError {
+                        code: "incompatible_asset",
+                        pointer: format!("/editing_state/clips/{index}/data/asset_id"),
+                        message: format!(
+                            "Video clip {} references audio asset {}; use kind Audio",
+                            clip.id, clip.asset_id,
+                        ),
+                        file: file!(),
+                        line: line!(),
+                    });
+                }
+                let (track_id, expected_kind) = match clip {
+                    Clip::Video(clip) => (clip.track_id, TrackKind::Video),
+                    Clip::Audio(clip) => (clip.track_id, TrackKind::Audio),
+                    Clip::Text(clip) => (clip.track_id, TrackKind::Text),
                 };
-                let track_kind = document
+                if let Some(track) = document
                     .editing_state
                     .tracks
                     .iter()
                     .find(|track| track.id == track_id)
-                    .map(|track| track.kind);
-                let replacement = match (track_kind, &*clip) {
-                    (Some(TrackKind::Audio), Clip::Video(data)) => Some(Clip::Audio(AudioClip {
-                        id: data.id,
-                        track_id: data.track_id,
-                        asset_id: data.asset_id,
-                        timeline_start: data.timeline_start,
-                        source_in: data.source_in,
-                        source_out: data.source_out,
-                        audio_properties: data.audio_properties.clone(),
-                    })),
-                    (Some(TrackKind::Video), Clip::Audio(data)) => Some(Clip::Video(VideoClip {
-                        id: data.id,
-                        track_id: data.track_id,
-                        asset_id: data.asset_id,
-                        timeline_start: data.timeline_start,
-                        source_in: data.source_in,
-                        source_out: data.source_out,
-                        audio_properties: data.audio_properties.clone(),
-                        video_properties: VideoClipProperties::default(),
-                    })),
-                    _ => None,
-                };
-                if let Some(replacement) = replacement {
-                    *clip = replacement;
+                    && track.kind != expected_kind
+                {
+                    return Err(ParseError {
+                        code: "incompatible_track",
+                        pointer: format!("/editing_state/clips/{index}/data/track_id"),
+                        message: format!(
+                            "{expected_kind:?} clip requires a {expected_kind:?} track, found {:?}",
+                            track.kind
+                        ),
+                        file: file!(),
+                        line: line!(),
+                    });
                 }
             }
             Ok(document)

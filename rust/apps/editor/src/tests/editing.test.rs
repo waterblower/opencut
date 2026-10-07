@@ -40,7 +40,6 @@ fn audio_clip(id: u64, start: i64, duration: i64) -> Clip {
         timeline_start: TimelineFrameIndex::from(start),
         source_in: TimelineFrameIndex::ZERO,
         source_out: TimelineFrameIndex::from(duration),
-
         audio_properties: AudioClipProperties::default(),
     })
 }
@@ -234,10 +233,19 @@ fn track_magnet_does_not_ripple_multiple_deleted_clips() -> Result<()> {
         },
     ];
 
-    let data = TimelineEditingState {
+    let mut data = TimelineEditingState {
         clips,
+        assets: vec![audio_asset(100)],
         ..TimelineEditingState::with_test_tracks()
     };
+    data.tracks.push(Track {
+        id: ulid(3),
+        name: "Audio 2".into(),
+        kind: TrackKind::Audio,
+        locked: false,
+        muted: false,
+        visible: true,
+    });
     let mut timeline = TimelineRuntimeState::new(std::path::absolute("test.timeline.json")?, data)?;
     edit_timeline(
         &mut timeline,

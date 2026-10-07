@@ -222,11 +222,7 @@ pub fn edit_timeline(timeline: &mut TimelineRuntimeState, action: EditAction) ->
                 Clip::Audio(media) => {
                     if drag.start_edge {
                         media.timeline_start = edge;
-                        if is_image {
-                            media.source_out -= edge - start;
-                        } else {
-                            media.source_in += edge - start;
-                        }
+                        media.source_in += edge - start;
                     } else {
                         media.source_out += edge - end;
                     }

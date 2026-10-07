@@ -77,7 +77,6 @@ fn validates_one_clip_placement() {
         timeline_start: TimelineFrameIndex::from(10),
         source_in: TimelineFrameIndex::ZERO,
         source_out: TimelineFrameIndex::from(10),
-
         audio_properties: AudioClipProperties::default(),
     }));
     assert_eq!(

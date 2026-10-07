@@ -111,8 +111,7 @@ impl TimelineEditingState {
 }
 
 impl TimelineEditingState {
-    /// Validates settings, unique track and asset IDs, and visual clip references,
-    /// timing, and properties. Audio clips are not validated here.
+    /// Validates settings, unique IDs, and clip references, timing, and properties.
     pub fn validate(&self) -> Result<()> {
         let settings = self.settings;
         if settings.width == 0 || settings.height == 0 {
@@ -138,15 +137,12 @@ impl TimelineEditingState {
         }
         let mut clip_ids = HashSet::new();
         for clip in &self.clips {
-            if matches!(clip, Clip::Audio(_)) {
-                continue;
-            }
             if !clip_ids.insert(clip.id()) {
-                bail!("Duplicate visual clip {}", clip.id());
+                bail!("Duplicate clip {}", clip.id());
             }
             let Some(track) = self.track(clip.track_id()) else {
                 bail!(
-                    "Visual clip {} references missing track {}",
+                    "Clip {} references missing track {}",
                     clip.id(),
                     clip.track_id()
                 );
@@ -154,7 +150,7 @@ impl TimelineEditingState {
             if clip.timeline_start() < TimelineFrameIndex::ZERO
                 || clip.frame_length(settings.frame_rate) <= TimelineFrameIndex::ZERO
             {
-                bail!("Visual clip {} has an invalid time range", clip.id());
+                bail!("Clip {} has an invalid time range", clip.id());
             }
             match clip {
                 Clip::Video(media) => {
@@ -163,20 +159,16 @@ impl TimelineEditingState {
                     }
                     let Some(asset) = self.asset(media.asset_id) else {
                         bail!(
-                            "Visual clip {} references missing asset {}",
+                            "Clip {} references missing asset {}",
                             media.id,
                             media.asset_id
                         );
                     };
                     if asset.kind == MediaKind::Audio {
-                        bail!(
-                            "Visual clip {} references audio asset {}",
-                            media.id,
-                            asset.id
-                        );
+                        bail!("Clip {} references audio asset {}", media.id, asset.id);
                     }
                     if media.source_in < TimelineFrameIndex::ZERO {
-                        bail!("Visual clip {} has a negative source trim", media.id);
+                        bail!("Clip {} has a negative source trim", media.id);
                     }
                     let properties = media.video_properties;
                     if !properties.position_x.is_finite()
@@ -184,7 +176,7 @@ impl TimelineEditingState {
                         || !properties.scale.is_finite()
                         || properties.scale < 0.0
                     {
-                        bail!("Visual clip {} has invalid transform properties", media.id);
+                        bail!("Clip {} has invalid transform properties", media.id);
                     }
                 }
                 Clip::Text(text) => {
@@ -200,7 +192,31 @@ impl TimelineEditingState {
                         bail!("Text clip {} has invalid layout properties", text.id);
                     }
                 }
-                Clip::Audio(_) => {}
+                Clip::Audio(audio) => {
+                    if track.kind != TrackKind::Audio {
+                        bail!("Audio clip {} requires an audio track", audio.id);
+                    }
+                    let Some(asset) = self.asset(audio.asset_id) else {
+                        bail!(
+                            "Audio clip {} references missing asset {}",
+                            audio.id,
+                            audio.asset_id
+                        );
+                    };
+                    if asset.kind == MediaKind::Image {
+                        bail!(
+                            "Audio clip {} references image asset {}",
+                            audio.id,
+                            asset.id
+                        );
+                    }
+                    if audio.source_in < TimelineFrameIndex::ZERO {
+                        bail!("Audio clip {} has a negative source trim", audio.id);
+                    }
+                    if !audio.audio_properties.gain_db.is_finite() {
+                        bail!("Audio clip {} has invalid audio gain", audio.id);
+                    }
+                }
             }
         }
         Ok(())

@@ -40,18 +40,30 @@ fn editor_fixture_round_trips_without_audio_visual_properties() {
 }
 
 #[test]
-fn preserves_gui_aliases_and_normalizes_media_clip_kind() {
+fn preserves_gui_aliases_without_converting_clip_types() {
     let mut raw: Value =
         serde_json::from_str(include_str!("fixtures/shared.timeline.json")).unwrap();
     raw["tracks"][2]["kind"] = json!("audio");
     raw["assets"][1]["kind"] = json!("audio");
-    raw["clips"][2]["kind"] = json!("Media");
     raw["clips"][2]["data"]["id"] = json!(99);
     let tracks = raw.as_object_mut().unwrap().remove("tracks").unwrap();
     raw["layers"] = tracks;
-    let doc = document::parse(&raw).unwrap().to_editing_state();
-    assert!(matches!(&doc.clips[2], Clip::Audio(_)));
-    assert_eq!(doc.clips[2].id(), ulid::Ulid::from(99_u128));
+    for kind in ["Media", "Video"] {
+        raw["clips"][0]["kind"] = json!(kind);
+        let doc = document::parse(&raw).unwrap().to_editing_state();
+        assert!(matches!(&doc.clips[0], Clip::Video(_)));
+        assert!(matches!(&doc.clips[2], Clip::Audio(_)));
+        assert_eq!(doc.clips[2].id(), ulid::Ulid::from(99_u128));
+        raw["clips"][2]["kind"] = json!(kind);
+        let error = document::parse(&raw).unwrap_err();
+        assert_eq!(error.code, "incompatible_asset");
+        assert_eq!(error.pointer, "/editing_state/clips/2/data/asset_id");
+        raw["clips"][2]["kind"] = json!("Audio");
+    }
+    raw["clips"][2]["data"]["track_id"] = raw["layers"][0]["id"].clone();
+    let error = document::parse(&raw).unwrap_err();
+    assert_eq!(error.code, "incompatible_track");
+    assert_eq!(error.pointer, "/editing_state/clips/2/data/track_id");
 }
 
 #[test]
@@ -72,6 +84,16 @@ fn legacy_cli_documents_are_rejected_explicitly() {
 fn validation_reports_missing_track_without_mutation() {
     let raw: Value = serde_json::from_str(include_str!("fixtures/shared.timeline.json")).unwrap();
     let mut doc = document::parse(&raw).unwrap().to_editing_state();
+    let audio_track_id = doc.clips[2].track_id();
+    let video_track_id = doc.clips[0].track_id();
+    doc.clips[2].set_track_id(video_track_id);
+    assert!(
+        doc.validate()
+            .unwrap_err()
+            .to_string()
+            .contains("requires an audio track")
+    );
+    doc.clips[2].set_track_id(audio_track_id);
     doc.clips[1].set_track_id(ulid::Ulid::from(101_u128));
     let before = serde_json::to_value(TimelineSerialization::from_editing_state(&doc)).unwrap();
     let error = doc.validate().unwrap_err();
