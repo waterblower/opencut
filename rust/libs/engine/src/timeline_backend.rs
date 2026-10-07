@@ -183,6 +183,11 @@ impl TimelineBackend {
         let rate = self.timeline.settings.frame_rate;
         let frame = floor_frame(rate, self.clock.position());
         if frame >= self.timeline.content_duration() {
+            let last_frame_index = self.last_frame();
+            if self.frame_index() != last_frame_index {
+                let picture = self.decoder.frame_at(&self.timeline, last_frame_index)?;
+                self.show(picture);
+            }
             self.playing = false;
             self.clock = PlaybackClock {
                 start_position: self.duration(),

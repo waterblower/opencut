@@ -21,3 +21,7 @@ ulid.workspace = true
 core-foundation.workspace = true
 core-video.workspace = true
 metal.workspace = true
+objc = "0.2"
+
+[dev-dependencies]
+serde_json.workspace = true

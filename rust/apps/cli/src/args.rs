@@ -16,6 +16,11 @@ pub struct Args {
 
 #[derive(Subcommand)]
 pub enum Command {
+    /// Edit timeline documents without opening the editor.
+    Timeline {
+        #[command(subcommand)]
+        command: TimelineCommand,
+    },
     /// Export a timeline to MP4 with H.264 video and stereo AAC audio (macOS).
     Export(ExportArgs),
     /// Transcribe audio/video with MiniMax (MINIMAX_API_KEY).
@@ -59,9 +64,28 @@ pub struct ExportArgs {
     #[arg(long)]
     pub project_root: Option<PathBuf>,
     /// H.264 target bitrate in kbps (1 kbps = 1,000 bits per second).
-    #[arg(long, default_value_t = 8_000, value_parser = clap::value_parser!(u64).range(1..=i64::MAX as u64 / 1_000))]
-    pub video_bitrate: u64,
+    #[arg(long, short, default_value_t = 8_000, value_parser = clap::value_parser!(u64).range(1..=i64::MAX as u64 / 1_000))]
+    pub bitrate: u64,
     /// Replace an existing output file; source media is never replaced.
     #[arg(long)]
     pub overwrite: bool,
+}
+
+#[derive(Subcommand)]
+pub enum TimelineCommand {
+    /// Keep time covered by text clips and close uncovered gaps across every track.
+    KeepTextSections(KeepTextSectionsArgs),
+}
+
+#[derive(clap::Args)]
+#[command(group(clap::ArgGroup::new("destination").required(true).multiple(false).args(["output", "write_inplace"])))]
+pub struct KeepTextSectionsArgs {
+    /// Input timeline (.timeline or .timeline.json).
+    pub timeline: PathBuf,
+    /// Write a new timeline; the destination must not already exist.
+    #[arg(short, long)]
+    pub output: Option<PathBuf>,
+    /// Atomically replace the input timeline after validation succeeds.
+    #[arg(long)]
+    pub write_inplace: bool,
 }

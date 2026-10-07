@@ -10,7 +10,9 @@ explorer and choose **Generate SRT**. Output is saved in the project root as
 `<source-stem>.srt`, replacing any existing file at that path.
 This sends the extracted audio to MiniMax; it does not insert subtitle clips.
 
-Audio must be at most 500 seconds. Files without audio are rejected.
+SRT transcription automatically splits audio into sections of at most 500 seconds,
+transcribes them sequentially, and offsets subtitle timestamps to produce one SRT.
+Files without audio are rejected. Raw JSON/VTT requests still require audio of at most 500 seconds.
 Timeline transcription is not currently supported.
 
 Call `transcribe(path, api_key, &Options).await` from a Tokio runtime. Credentials
@@ -37,6 +39,6 @@ The editor supports Generate SRT for individual audio/video files. Timeline
 transcription is unavailable until timeline audio rendering is implemented.
 
 Call `transcribe_wav(wav, api_key, &Options).await` to transcribe normalized WAV
-bytes directly. It validates the WAV format and duration before uploading and
+bytes directly. It validates the WAV format and splits long audio before uploading, then
 returns parsed SRT. The editor merges cues and writes only the final SRT to the
 project root; it creates no intermediate audio files.

@@ -14,7 +14,6 @@ use crate::project_settings::{ProjectLocalSettings, save_project_local_settings}
 use crate::srt::{srt_text_clips, write_srt};
 use crate::timeline::{PreviewDropAsset, TimelineFrameIndex};
 use crate::timeline_clip::Clip;
-use crate::transcription::prepare_transcription;
 use crate::transcription_window;
 use crate::transcription_window::{TranscriptionStage, TranscriptionWindow};
 use crate::{OpenProject, open_editor_window, quit_after_last_window};
@@ -168,10 +167,8 @@ pub async fn handle_event(
                             .update(|cx| {
                                 gpui_tokio::Tokio::spawn(cx, async move {
                                     let settings = GlobalEditorSettings::load()?;
-                                    let wav = prepare_transcription(
-                                        source_path.clone(),
-                                        &settings.minimax_api_key,
-                                    )?;
+                                    log::info!("Transcribing audio with MiniMax: {}", source_path.display());
+                                    let wav = transcribe::audio::extract_audio_as_wav(&source_path)?;
                                     Ok::<_, anyhow::Error>((
                                         wav,
                                         settings.minimax_api_key,

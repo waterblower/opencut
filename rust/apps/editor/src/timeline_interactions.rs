@@ -185,7 +185,7 @@ impl TimelineRuntimeState {
         )
     }
 
-    pub(super) fn zoom(&mut self, factor: f32) {
+    pub(super) fn zoom(&mut self, factor: f32, playhead_seconds: f64) {
         let previous_pixels_per_second = self.pixels_per_second;
         let pixels_per_second = (self.pixels_per_second * factor).clamp(
             MIN_TIMELINE_PIXELS_PER_SECOND,
@@ -193,7 +193,6 @@ impl TimelineRuntimeState {
         );
         if pixels_per_second != previous_pixels_per_second {
             let mut scroll_offset = self.h_scroll.offset();
-            let playhead_seconds = self.editing_state.seconds(self.playhead());
             scroll_offset.x = px(zoom_scroll_offset(
                 f32::from(scroll_offset.x),
                 playhead_seconds,
@@ -509,7 +508,6 @@ impl Editor {
             placements: items
                 .iter()
                 .filter_map(|item| {
-                    timeline.editing_state.clip(item.clip_id)?;
                     Some((
                         item.clip_id,
                         item.original_track_id,
@@ -543,7 +541,7 @@ impl Editor {
         let start_x = drag.start_x;
         let original_anchor_start = drag.original_anchor_start;
         let original_anchor_track_index = drag.original_anchor_track_index;
-        let items = drag.items.clone();
+        let items = &drag.items;
         let raw_delta = timeline.editing_state.settings.frame_rate.delta(
             (f32::from(event.position.x) - f32::from(timeline.h_scroll.offset().x) - start_x)
                 as f64
@@ -597,7 +595,6 @@ impl Editor {
                 .filter_map(|item| {
                     let target_index = item.original_track_index.checked_add_signed(track_delta)?;
                     let track_id = timeline.editing_state.tracks.get(target_index)?.id;
-                    timeline.editing_state.clip(item.clip_id)?;
                     Some((
                         item.clip_id,
                         track_id,
@@ -607,6 +604,9 @@ impl Editor {
                 .collect::<Vec<_>>()
         };
         let placements = placements_for_delta(track_delta);
+        if placements == drag.placements && snap_guide == timeline.interaction.snap_guide {
+            return;
+        }
         let invalid_reason = if placements.len() != items.len() {
             Some("Destination track is unavailable")
         } else {
@@ -621,14 +621,7 @@ impl Editor {
                         .message()
                 })
         };
-        let moved_from_origin = placements.iter().any(|(clip_id, track_id, start)| {
-            items
-                .iter()
-                .find(|item| item.clip_id == *clip_id)
-                .is_some_and(|item| {
-                    *start != item.original_timeline_start || *track_id != item.original_track_id
-                })
-        });
+        let moved_from_origin = timeline_delta != TimelineFrameIndex::ZERO || track_delta != 0;
         let timeline = self.timeline.as_mut().expect("timeline was checked above");
         if let Some(drag) = &mut timeline.interaction.clip_move_drag {
             drag.placements = placements;
@@ -682,42 +675,6 @@ impl Editor {
         if let Err(error) = timeline.save() {
             log::error!("{error:?}");
         }
-    }
-
-    pub(super) fn apply_timeline_pinch(&mut self) -> Result<bool> {
-        let Some(gesture) = crate::macos_pinch::take() else {
-            return Ok(false);
-        };
-        if !(0.0..=TIMELINE_HEIGHT as f64).contains(&gesture.location_y) {
-            log::debug!(
-                target: "opencut::timeline",
-                "trackpad-pinch magnification={:.4} location_y={:.1} action=ignored",
-                gesture.magnification,
-                gesture.location_y,
-            );
-            return Ok(false);
-        }
-
-        let Some(timeline) = self.timeline.as_mut() else {
-            return Ok(false);
-        };
-        let previous_zoom = timeline.pixels_per_second;
-        let factor = (gesture.magnification as f32).exp().clamp(0.5, 2.0);
-        timeline.zoom(factor);
-        let current_zoom = timeline.pixels_per_second;
-        log::debug!(
-            target: "opencut::timeline",
-            "trackpad-pinch magnification={:.4} location_y={:.1} ended={} action=zoom factor={factor:.4} px_per_second={previous_zoom:.2}->{:.2}",
-            gesture.magnification,
-            gesture.location_y,
-            gesture.ended,
-            current_zoom,
-        );
-        let changed = current_zoom != previous_zoom;
-        if gesture.ended {
-            timeline.save()?;
-        }
-        Ok(changed)
     }
 
     /// Moves the editing playhead to the frame under a click on the ruler.

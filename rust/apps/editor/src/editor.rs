@@ -20,8 +20,6 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-const IDLE_UPDATE_INTERVAL: Duration = Duration::from_millis(16);
-
 pub(crate) struct Editor {
     // main UI sections
     pub(super) explorer: ExplorerState,
@@ -177,24 +175,13 @@ impl Editor {
 }
 
 fn start_updates(cx: &mut Context<Editor>) {
+    const IDLE_UPDATE_INTERVAL: Duration = Duration::from_millis(100);
     cx.spawn(async move |editor, cx| {
         loop {
             cx.background_executor().timer(IDLE_UPDATE_INTERVAL).await;
             let result = editor.update(cx, |editor, cx| -> Result<()> {
-                let pinch_zoomed = editor.apply_timeline_pinch()?;
-                let ended_explorer_drag = !cx.has_active_drag();
-                if ended_explorer_drag && let Some(timeline) = editor.timeline.as_mut() {
-                    timeline.interaction.snap_guide = None;
-                }
-                let refresh_tree =
-                    editor.explorer.last_tree_scan.elapsed() >= Duration::from_secs(1);
-
-                let should_render = refresh_tree || pinch_zoomed || ended_explorer_drag;
-
-                if refresh_tree {
+                if editor.explorer.last_tree_scan.elapsed() >= Duration::from_secs(1) {
                     editor.explorer.refresh_file_tree(&editor.project_root)?;
-                }
-                if should_render {
                     cx.notify();
                 }
                 Ok(())

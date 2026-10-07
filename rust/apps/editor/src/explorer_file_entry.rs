@@ -356,7 +356,9 @@ fn directory_children(directory: &Path) -> Result<Vec<(String, bool, Option<u64>
                 .then(|| entry.metadata().ok().map(|metadata| metadata.len()))
                 .flatten();
             let name = entry.file_name().to_string_lossy().into_owned();
-            if matches!(name.as_str(), ".DS_Store" | ".git" | ".opencut") {
+            if name.starts_with("._")
+                || matches!(name.as_str(), ".DS_Store" | ".git" | ".opencut")
+            {
                 return None;
             }
             Some((name, file_type.is_dir(), size_bytes))
