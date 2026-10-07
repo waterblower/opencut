@@ -121,6 +121,19 @@ fn validation_reports_missing_track_without_mutation() {
 #[test]
 fn shared_time_rounding_and_text_duration_are_rational() {
     let fps = FrameRate::new(30000, 1001);
+    for frames in [i64::MIN, -1, 0] {
+        let time = TimelineFrameIndex::from(frames);
+        assert_eq!(fps.duration(time), std::time::Duration::ZERO);
+        assert_eq!(fps.audio_samples(time, 48000), 0);
+        assert_eq!(
+            fps.rescale_nearest(time, FrameRate::new(24, 1)),
+            TimelineFrameIndex::ZERO
+        );
+        assert_eq!(
+            fps.rescale_floor(time, FrameRate::new(24, 1)),
+            TimelineFrameIndex::ZERO
+        );
+    }
     let time = TimelineFrameIndex::from(30000);
     assert_eq!(fps.duration(time).as_secs(), 1001);
     assert_eq!(fps.audio_samples(time, 48000), 48_048_000);

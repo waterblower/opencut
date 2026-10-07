@@ -30,12 +30,6 @@ impl From<TimelineFrameIndex> for i64 {
     }
 }
 
-impl From<TimelineFrameIndex> for u128 {
-    fn from(value: TimelineFrameIndex) -> Self {
-        value.0 as u128
-    }
-}
-
 impl Add for TimelineFrameIndex {
     type Output = Self;
 
@@ -103,7 +97,7 @@ impl FrameRate {
     }
 
     pub fn duration(self, time: TimelineFrameIndex) -> Duration {
-        let frames = u128::from(time).max(0);
+        let frames = i64::from(time).max(0) as u128;
         let numerator = frames
             .saturating_mul(self.denominator.max(1) as u128)
             .saturating_mul(1_000_000_000);
@@ -121,7 +115,7 @@ impl FrameRate {
     }
 
     pub fn audio_samples(self, time: TimelineFrameIndex, sample_rate: u32) -> u64 {
-        let frames = u128::from(time).max(0);
+        let frames = i64::from(time).max(0) as u128;
         let numerator = frames
             .saturating_mul(self.denominator.max(1) as u128)
             .saturating_mul(sample_rate as u128);
@@ -159,8 +153,9 @@ impl FrameRate {
         if time <= TimelineFrameIndex::ZERO {
             return TimelineFrameIndex::ZERO;
         }
-        let numerator =
-            u128::from(time) * self.denominator.max(1) as u128 * target.numerator.max(1) as u128;
+        let numerator = i64::from(time) as u128
+            * self.denominator.max(1) as u128
+            * target.numerator.max(1) as u128;
         let denominator = self.numerator.max(1) as u128 * target.denominator.max(1) as u128;
         (divide_round(numerator, denominator).min(i64::MAX as u128) as i64).into()
     }
@@ -168,8 +163,9 @@ impl FrameRate {
         if time <= TimelineFrameIndex::ZERO {
             return TimelineFrameIndex::ZERO;
         }
-        let numerator =
-            u128::from(time) * self.denominator.max(1) as u128 * target.numerator.max(1) as u128;
+        let numerator = i64::from(time) as u128
+            * self.denominator.max(1) as u128
+            * target.numerator.max(1) as u128;
         let denominator = self.numerator.max(1) as u128 * target.denominator.max(1) as u128;
         ((numerator / denominator).min(i64::MAX as u128) as i64).into()
     }
