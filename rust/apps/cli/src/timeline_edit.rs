@@ -25,9 +25,9 @@ pub fn keep_text_sections(options: KeepTextSectionsArgs) -> Result<Value> {
     let output_directory =
         fs::canonicalize(output.parent().context("Output has no parent directory")?)?;
     let original = TimelineSerialization::load(&input)?;
-    let editing_state = original.to_editing_state();
+    let editing_state = &original.editing_state;
     let before_frames = editing_state.content_duration();
-    let mut compacted = compact_text_sections(&editing_state)?;
+    let mut compacted = compact_text_sections(editing_state)?;
     if input_directory != output_directory {
         for asset in &mut compacted.assets {
             if asset.path.is_absolute() {
@@ -64,7 +64,7 @@ pub fn keep_text_sections(options: KeepTextSectionsArgs) -> Result<Value> {
         original.snapping_enabled(),
         original.track_magnet_enabled(),
     );
-    result.to_editing_state().validate()?;
+    result.editing_state.validate()?;
     document::write_atomic(
         &output,
         &serde_json::to_value(&result)?,

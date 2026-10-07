@@ -2,14 +2,18 @@
 
 use crate::{Clip, MediaAsset, MediaKind, TimelineFrameIndex, TimelineSettings, Track, TrackKind};
 use anyhow::{Result, bail};
+use serde::{Deserialize, Serialize};
 use std::{collections::HashSet, time::Duration};
 use ulid::Ulid;
 
 /// Timeline content used by editing operations, rendering, and editing history.
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
+#[cfg_attr(feature = "timeline-schema", derive(schemars::JsonSchema))]
+#[serde(default)]
 pub struct TimelineEditingState {
     pub settings: TimelineSettings,
     pub assets: Vec<MediaAsset>,
+    #[serde(alias = "layers")]
     pub tracks: Vec<Track>,
     pub clips: Vec<Clip>,
 }

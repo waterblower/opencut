@@ -11,7 +11,7 @@ fn text_duration_is_independent_of_document_frame_rate() {
         value["editing_state"]["settings"]["frame_rate"] =
             json!({"numerator": rate, "denominator": 1});
         let document: TimelineSerialization = serde_json::from_value(value.clone()).unwrap();
-        let runtime = document.to_editing_state();
+        let runtime = &document.editing_state;
         let Clip::Text(text) = &runtime.clips[3] else {
             panic!("expected text")
         };
@@ -54,7 +54,7 @@ fn editing_content_survives_conversion_without_sharing_mutable_state() {
         .as_object_mut()
         .unwrap()
         .remove("video_properties");
-    let mut runtime = document.to_editing_state();
+    let mut runtime = document.editing_state.clone();
     runtime.validate().unwrap();
 
     let captured = TimelineSerialization::from_editing_state(&runtime);

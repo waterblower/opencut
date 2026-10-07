@@ -1,4 +1,6 @@
+use crate::serialization::deserialize_ulid;
 use crate::{FrameRate, TimelineFrameIndex};
+use serde::{Deserialize, Serialize};
 use std::time::Duration;
 use ulid::Ulid;
 
@@ -6,7 +8,9 @@ use ulid::Ulid;
 ///
 /// Position is an offset in timeline pixels from the clip's centered placement.
 /// Scale multiplies the aspect-ratio-preserving fit to the canvas; `1.0` shows the full image.
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, Deserialize, PartialEq, Serialize)]
+#[cfg_attr(feature = "timeline-schema", derive(schemars::JsonSchema))]
+#[serde(default)]
 pub struct VideoClipProperties {
     pub position_x: f64,
     pub position_y: f64,
@@ -26,7 +30,9 @@ impl Default for VideoClipProperties {
 /// Static audio adjustments for one timeline clip.
 ///
 /// `0 dB` is unity gain.
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, Deserialize, PartialEq, Serialize)]
+#[cfg_attr(feature = "timeline-schema", derive(schemars::JsonSchema))]
+#[serde(default)]
 pub struct AudioClipProperties {
     pub gain_db: f64,
     pub muted: bool,
@@ -41,13 +47,17 @@ impl Default for AudioClipProperties {
     }
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
+#[cfg_attr(feature = "timeline-schema", derive(schemars::JsonSchema))]
+#[serde(default)]
 pub struct TextClipProperties {
     pub text: String,
     pub font: String,
     pub font_size: f64,
     /// Text color as big-endian ARGB.
     pub color: u32,
+    #[serde(flatten, with = "TextPosition")]
+    #[cfg_attr(feature = "timeline-schema", schemars(with = "TextPosition"))]
     pub position: gpui::Point<f64>,
 }
 
@@ -63,41 +73,68 @@ impl Default for TextClipProperties {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[cfg_attr(feature = "timeline-schema", derive(schemars::JsonSchema))]
+// https://serde.rs/enum-representations.html#adjacently-tagged
+#[serde(tag = "kind", content = "data")]
 pub enum Clip {
+    #[serde(alias = "Media")]
     Video(VideoClip),
     Audio(AudioClip),
     Text(TextClip),
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[cfg_attr(feature = "timeline-schema", derive(schemars::JsonSchema))]
 pub struct VideoClip {
+    #[serde(deserialize_with = "deserialize_ulid")]
+    #[cfg_attr(feature = "timeline-schema", schemars(with = "String"))]
     pub id: Ulid,
+    #[serde(alias = "layer_id", deserialize_with = "deserialize_ulid")]
+    #[cfg_attr(feature = "timeline-schema", schemars(with = "String"))]
     pub track_id: Ulid,
+    #[serde(default = "Ulid::nil", deserialize_with = "deserialize_ulid")]
+    #[cfg_attr(feature = "timeline-schema", schemars(with = "String"))]
     pub asset_id: Ulid,
     pub timeline_start: TimelineFrameIndex,
     pub source_in: TimelineFrameIndex,
     pub source_out: TimelineFrameIndex,
+    #[serde(default)]
     pub video_properties: VideoClipProperties,
+    #[serde(default)]
     pub audio_properties: AudioClipProperties,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[cfg_attr(feature = "timeline-schema", derive(schemars::JsonSchema))]
 pub struct AudioClip {
+    #[serde(deserialize_with = "deserialize_ulid")]
+    #[cfg_attr(feature = "timeline-schema", schemars(with = "String"))]
     pub id: Ulid,
+    #[serde(alias = "layer_id", deserialize_with = "deserialize_ulid")]
+    #[cfg_attr(feature = "timeline-schema", schemars(with = "String"))]
     pub track_id: Ulid,
+    #[serde(default = "Ulid::nil", deserialize_with = "deserialize_ulid")]
+    #[cfg_attr(feature = "timeline-schema", schemars(with = "String"))]
     pub asset_id: Ulid,
     pub timeline_start: TimelineFrameIndex,
     pub source_in: TimelineFrameIndex,
     pub source_out: TimelineFrameIndex,
+    #[serde(default)]
     pub audio_properties: AudioClipProperties,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[cfg_attr(feature = "timeline-schema", derive(schemars::JsonSchema))]
 pub struct TextClip {
+    #[serde(deserialize_with = "deserialize_ulid")]
+    #[cfg_attr(feature = "timeline-schema", schemars(with = "String"))]
     pub id: Ulid,
+    #[serde(deserialize_with = "deserialize_ulid")]
+    #[cfg_attr(feature = "timeline-schema", schemars(with = "String"))]
     pub track_id: Ulid,
     pub timeline_start: TimelineFrameIndex,
+    #[serde(rename = "length")]
     pub duration: Duration,
     pub properties: TextClipProperties,
 }
@@ -242,4 +279,19 @@ impl Clip {
             .clamp(TimelineFrameIndex::ZERO, source_out - source_in);
         Some((source_in + local).min(source_out))
     }
+}
+
+// Maps GPUI coordinates to the existing flat JSON fields without duplicating clip data.
+#[derive(Deserialize, Serialize)]
+#[cfg_attr(feature = "timeline-schema", derive(schemars::JsonSchema))]
+#[serde(remote = "gpui::Point<f64>")]
+struct TextPosition {
+    #[serde(rename = "position_x", default = "default_text_position")]
+    x: f64,
+    #[serde(rename = "position_y", default = "default_text_position")]
+    y: f64,
+}
+
+fn default_text_position() -> f64 {
+    0.5
 }

@@ -13,8 +13,10 @@ use gpui::{
     AppContext as _, Context, HeadlessAppContext, IntoElement, Render, Window, div, px, size,
 };
 use media_backend::{AudioBackend, AudioDecoder, AudioSamples, PcmFormat};
-use timeline::serialization::{self, MediaKind, TrackKind};
-use timeline::{Clip, TimelineEditingState, TimelineSerialization};
+use timeline::{
+    Clip, FrameRate, MediaKind, TimelineEditingState, TimelineFrameIndex, TimelineSerialization,
+    TrackKind,
+};
 use ulid::Ulid;
 
 use crate::{
@@ -71,7 +73,7 @@ pub fn export_timeline(
     }
 
     // Convenient Variables
-    let editing_state = Arc::new(timeline_serialization.to_editing_state());
+    let editing_state = Arc::new(timeline_serialization.editing_state.clone());
     let timeline_settings = editing_state.settings;
     let frame_count = timeline_serialization.frame_count();
 
@@ -448,19 +450,21 @@ fn validate_export(
     }
     ids.clear();
     for clip in &data.clips {
-        if !ids.insert(clip_id(clip)) {
-            bail!("Duplicate export clip {}", clip_id(clip));
+        if !ids.insert(clip.id()) {
+            bail!("Duplicate export clip {}", clip.id());
         }
         let track = data
             .tracks
             .iter()
-            .find(|track| track.id == clip_track(clip))
+            .find(|track| track.id == clip.track_id())
             .context("Export clip references a missing track")?;
-        if clip_start(clip) < 0 || clip.end_frame(settings.frame_rate) <= clip_start(clip) {
-            bail!("Clip {} has an invalid timeline interval", clip_id(clip));
+        if clip.timeline_start() < TimelineFrameIndex::ZERO
+            || clip.timeline_end(settings.frame_rate) <= clip.timeline_start()
+        {
+            bail!("Clip {} has an invalid timeline interval", clip.id());
         }
         match clip {
-            serialization::Clip::Video(media) => {
+            Clip::Video(media) => {
                 let asset = data
                     .assets
                     .iter()
@@ -481,24 +485,23 @@ fn validate_export(
                 {
                     bail!("Clip {} has invalid visual properties", media.id);
                 }
-                if media.source_in < 0
+                if media.source_in < TimelineFrameIndex::ZERO
                     || media.source_out <= media.source_in
                     || !media.audio_properties.gain_db.is_finite()
                 {
                     bail!("Clip {} has an invalid trim or audio gain", media.id);
                 }
-                media
-                    .timeline_start
-                    .checked_add(media.source_out - media.source_in)
+                i64::from(media.timeline_start)
+                    .checked_add(i64::from(media.source_out - media.source_in))
                     .context("Export clip end exceeds the timeline range")?;
                 i64::try_from(frame_units(
-                    media.source_out,
+                    media.source_out.into(),
                     settings.frame_rate,
                     settings.audio_sample_rate,
                 ))
                 .context("Export source audio position is too large")?;
             }
-            serialization::Clip::Audio(media) => {
+            Clip::Audio(media) => {
                 let asset = data
                     .assets
                     .iter()
@@ -511,28 +514,27 @@ fn validate_export(
                         media.id
                     );
                 }
-                if media.source_in < 0
+                if media.source_in < TimelineFrameIndex::ZERO
                     || media.source_out <= media.source_in
                     || !media.audio_properties.gain_db.is_finite()
                 {
                     bail!("Clip {} has an invalid trim or audio gain", media.id);
                 }
-                media
-                    .timeline_start
-                    .checked_add(media.source_out - media.source_in)
+                i64::from(media.timeline_start)
+                    .checked_add(i64::from(media.source_out - media.source_in))
                     .context("Export clip end exceeds the timeline range")?;
                 i64::try_from(frame_units(
-                    media.source_out,
+                    media.source_out.into(),
                     settings.frame_rate,
                     settings.audio_sample_rate,
                 ))
                 .context("Export source audio position is too large")?;
             }
-            serialization::Clip::Text(text) => {
+            Clip::Text(text) => {
                 let properties = &text.properties;
                 if track.kind != TrackKind::Text
-                    || !properties.position_x.is_finite()
-                    || !properties.position_y.is_finite()
+                    || !properties.position.x.is_finite()
+                    || !properties.position.y.is_finite()
                     || !properties.font_size.is_finite()
                     || properties.font_size <= 0.0
                 {
@@ -544,34 +546,10 @@ fn validate_export(
     Ok(())
 }
 
-fn clip_id(clip: &serialization::Clip) -> Ulid {
-    match clip {
-        serialization::Clip::Video(media) => media.id,
-        serialization::Clip::Audio(media) => media.id,
-        serialization::Clip::Text(text) => text.id,
-    }
-}
-
-fn clip_track(clip: &serialization::Clip) -> Ulid {
-    match clip {
-        serialization::Clip::Video(media) => media.track_id,
-        serialization::Clip::Audio(media) => media.track_id,
-        serialization::Clip::Text(text) => text.track_id,
-    }
-}
-
-fn clip_start(clip: &serialization::Clip) -> i64 {
-    match clip {
-        serialization::Clip::Video(media) => media.timeline_start,
-        serialization::Clip::Audio(media) => media.timeline_start,
-        serialization::Clip::Text(text) => text.timeline_start,
-    }
-}
-
 // 用绝对帧边界换算采样数或纳秒，四舍五入；不逐帧累加误差。
-fn frame_units(frame: i64, fps: serialization::FrameRate, units_per_second: u32) -> u64 {
+fn frame_units(frame_index: i64, fps: FrameRate, units_per_second: u32) -> u64 {
     let numerator =
-        frame.max(0) as u128 * u128::from(fps.denominator) * u128::from(units_per_second);
+        frame_index.max(0) as u128 * u128::from(fps.denominator) * u128::from(units_per_second);
     let denominator = u128::from(fps.numerator);
     ((numerator + denominator / 2) / denominator).min(u64::MAX as u128) as u64
 }

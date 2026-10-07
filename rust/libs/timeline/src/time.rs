@@ -1,9 +1,12 @@
+use serde::{Deserialize, Serialize};
 use std::{
     ops::{Add, AddAssign, Sub, SubAssign},
     time::Duration,
 };
 
-#[derive(Clone, Copy, Debug, Default, Eq, Ord, PartialEq, PartialOrd)]
+#[derive(Clone, Copy, Debug, Default, Deserialize, Eq, Ord, PartialEq, PartialOrd, Serialize)]
+#[cfg_attr(feature = "timeline-schema", derive(schemars::JsonSchema))]
+#[serde(transparent)]
 pub struct TimelineFrameIndex(i64);
 
 impl TimelineFrameIndex {
@@ -61,7 +64,8 @@ impl SubAssign for TimelineFrameIndex {
     }
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[cfg_attr(feature = "timeline-schema", derive(schemars::JsonSchema))]
 pub struct FrameRate {
     pub numerator: u32,
     pub denominator: u32,

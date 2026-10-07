@@ -5,7 +5,7 @@ use timeline::*;
 fn editor_fixture_round_trips_without_audio_visual_properties() {
     let raw: Value = serde_json::from_str(include_str!("fixtures/shared.timeline.json")).unwrap();
     let serialized: TimelineSerialization = serde_json::from_value(raw.clone()).unwrap();
-    let doc = serialized.to_editing_state();
+    let doc = &serialized.editing_state;
     doc.validate().unwrap();
     let mut expected = raw.clone();
     // 兼容旧音频字段，但保存时不再写出视频属性。
@@ -48,14 +48,14 @@ fn preserves_gui_aliases_without_converting_clip_types() {
     for kind in ["Media", "Video"] {
         raw["editing_state"]["clips"][0]["kind"] = json!(kind);
         let document: TimelineSerialization = serde_json::from_value(raw.clone()).unwrap();
-        let doc = document.to_editing_state();
+        let doc = document.editing_state;
         doc.validate().unwrap();
         assert!(matches!(&doc.clips[0], Clip::Video(_)));
         assert!(matches!(&doc.clips[2], Clip::Audio(_)));
         assert_eq!(doc.clips[2].id(), ulid::Ulid::from(99_u128));
         raw["editing_state"]["clips"][2]["kind"] = json!(kind);
         let invalid: TimelineSerialization = serde_json::from_value(raw.clone()).unwrap();
-        assert!(invalid.to_editing_state().validate().is_err());
+        assert!(invalid.editing_state.validate().is_err());
         raw["editing_state"]["clips"][2]["kind"] = json!("Audio");
     }
     raw["editing_state"]["clips"][2]["data"]["track_id"] =
@@ -63,7 +63,7 @@ fn preserves_gui_aliases_without_converting_clip_types() {
     let document: TimelineSerialization = serde_json::from_value(raw).unwrap();
     assert!(
         document
-            .to_editing_state()
+            .editing_state
             .validate()
             .unwrap_err()
             .to_string()
@@ -87,7 +87,7 @@ fn legacy_cli_documents_are_rejected_explicitly() {
 fn validation_reports_missing_track_without_mutation() {
     let raw: Value = serde_json::from_str(include_str!("fixtures/shared.timeline.json")).unwrap();
     let document: TimelineSerialization = serde_json::from_value(raw).unwrap();
-    let mut doc = document.to_editing_state();
+    let mut doc = document.editing_state;
     let audio_track_id = doc.clips[2].track_id();
     let video_track_id = doc.clips[0].track_id();
     doc.clips[2].set_track_id(video_track_id);

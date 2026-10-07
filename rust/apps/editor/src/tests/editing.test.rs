@@ -529,7 +529,7 @@ fn text_edits_preserve_timing_without_a_renderer() -> Result<()> {
         },
     )?;
     let json = serde_json::to_string(&timeline.to_serialize())?;
-    let restored = serde_json::from_str::<TimelineSerialization>(&json)?.to_editing_state();
+    let restored = serde_json::from_str::<TimelineSerialization>(&json)?.editing_state;
     let Clip::Text(restored) = restored.clip(clip.id).unwrap() else {
         panic!("text clip must retain its kind");
     };

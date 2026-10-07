@@ -1,4 +1,6 @@
 //! Timeline file persistence and shared value types; no runtime-only state.
+
+use serde::{Deserialize, Serialize};
 pub mod serialization;
 pub use serialization::TimelineSerialization;
 mod asset;
@@ -12,7 +14,8 @@ pub use editing_state::TimelineEditingState;
 pub use time::*;
 pub use track::*;
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[cfg_attr(feature = "timeline-schema", derive(schemars::JsonSchema))]
 pub struct TimelineSettings {
     pub frame_rate: FrameRate,
     pub width: u32,

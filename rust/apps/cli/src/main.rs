@@ -155,7 +155,7 @@ async fn run(command: Command, api_key: Option<&str>) -> Result<Value> {
                 .extension()
                 .is_some_and(|extension| extension.eq_ignore_ascii_case("json"))
             {
-                let doc = TimelineSerialization::load(&file)?.to_editing_state();
+                let doc = TimelineSerialization::load(&file)?.editing_state;
                 return Ok(document::summary(&doc));
             }
             match serde_json::to_value(probe::probe(&file)?) {
@@ -173,7 +173,7 @@ async fn run(command: Command, api_key: Option<&str>) -> Result<Value> {
         .context(format!("serialization_error at {}:{}", file!(), line!()))?),
         Command::Doc => Ok(json!(docs::generate()?)),
         Command::Validate { timeline } => {
-            let doc = TimelineSerialization::load(&timeline)?.to_editing_state();
+            let doc = TimelineSerialization::load(&timeline)?.editing_state;
             let base = document::asset_base(&timeline)?;
             probe::assets(&doc.assets, &base)?;
             Ok(json!({"valid": true, "findings": []}))

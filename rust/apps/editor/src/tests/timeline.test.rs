@@ -779,10 +779,7 @@ fn timeline_deserialization_preserves_text_duration() {
             .inspect_err(|e| eprintln!("{e:#}"))
             .unwrap();
     assert_eq!(
-        timeline.to_editing_state().clips[0]
-            .text()
-            .unwrap()
-            .duration,
+        timeline.editing_state.clips[0].text().unwrap().duration,
         Duration::from_mins(5)
     )
 }
@@ -841,9 +838,9 @@ fn clip_properties_round_trip_through_timeline_json() {
 }
 
 fn parse_clip(value: serde_json::Value) -> anyhow::Result<Clip> {
-    let document: TimelineSerialization =
+    let mut document: TimelineSerialization =
         serde_json::from_value(serde_json::json!({"editing_state": {"clips": [value]}}))?;
-    Ok(document.to_editing_state().clips.remove(0))
+    Ok(document.editing_state.clips.remove(0))
 }
 
 fn clip_json(clip: &Clip) -> serde_json::Value {
