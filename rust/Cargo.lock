@@ -1668,6 +1668,7 @@ dependencies = [
  "image",
  "media-backend",
  "metal",
+ "objc",
  "resvg 0.45.1",
  "serde",
  "serde_json",
