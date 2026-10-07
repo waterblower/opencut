@@ -134,7 +134,7 @@ impl TimelineDecoder {
                                     });
                                 }
                                 #[cfg(not(target_os = "macos"))]
-                                bail!("Timeline video requires macOS: {}", path.display());
+                                bail!("Timeline video requires macOS: {}", asset_path.display());
                             }
                             MediaKind::Image => {
                                 let image = match self.images.entry(asset.id) {
