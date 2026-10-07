@@ -14,7 +14,7 @@ pub(super) fn transform_targets(
     source_clip_id: Ulid,
 ) -> Option<(VideoClipProperties, Vec<usize>)> {
     let source = timeline.clip(source_clip_id)?;
-    let source_media = source.media()?;
+    let source_media = source.video()?;
     let track = timeline.track(source.track_id())?;
     let source_asset = timeline.asset(source_media.asset_id)?;
     if track.locked || track.kind != TrackKind::Video || source_asset.kind == MediaKind::Audio {
@@ -27,12 +27,12 @@ pub(super) fn transform_targets(
         .enumerate()
         .filter(|(_, clip)| clip.id() != source.id() && clip.track_id() == source.track_id())
         .filter(|(_, clip)| {
-            clip.media()
+            clip.video()
                 .and_then(|clip| timeline.asset(clip.asset_id))
                 .is_some_and(|asset| asset.kind != MediaKind::Audio)
         })
         .filter(|(_, clip)| {
-            clip.media()
+            clip.video()
                 .is_some_and(|clip| clip.video_properties != properties)
         })
         .map(|(index, _)| index)

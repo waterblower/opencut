@@ -6,7 +6,6 @@ use crate::timeline_clip::{
     AudioClipProperties, Clip, ClipEditingExt, TextClip, TextClipProperties, VideoClip,
     VideoClipProperties,
 };
-use crate::timeline_document::deserialize_timeline;
 use crate::track::{Track, TrackKind};
 use ::timeline::{TimelineEditingState, TimelineSerialization, TimelineSettings};
 use std::collections::HashSet;
@@ -33,7 +32,10 @@ fn timeline_view_state_is_sanitized_at_the_persistence_boundary() {
 
 #[test]
 fn missing_timeline_view_fields_use_defaults() {
-    let document = deserialize_timeline(r#"{"view": {"horizontal_scroll":20.0}}"#).unwrap();
+    let document = serde_json::from_str::<TimelineSerialization>(
+        r#"{"editing_state": {}, "view_state": {"horizontal_scroll":20.0}}"#,
+    )
+    .unwrap();
     assert!(document.snapping_enabled() && document.track_magnet_enabled());
     assert_eq!(document.scroll_offset(), (20.0, 0.0));
     assert_eq!(document.playhead(), TimelineFrameIndex::ZERO);
@@ -47,7 +49,9 @@ fn missing_timeline_view_fields_use_defaults() {
 fn timeline_view_zoom_round_trips_through_timeline_json() {
     let mut document = TimelineSerialization::default();
     document.set_view_state(TimelineFrameIndex::ZERO, (0.0, 0.0), 144.0, true, true);
-    let restored = deserialize_timeline(&serde_json::to_string(&document).unwrap()).unwrap();
+    let restored =
+        serde_json::from_str::<TimelineSerialization>(&serde_json::to_string(&document).unwrap())
+            .unwrap();
     assert_eq!(restored.pixels_per_second(), 144.0);
 }
 
@@ -79,16 +83,16 @@ impl TimelineTestExt for TimelineEditingState {
 }
 
 fn video_clip(id: u64, start: i64, duration: i64) -> Clip {
-    Clip::Video(VideoClip {
-        id: ulid(id),
-        track_id: ulid(1),
-        asset_id: ulid(100),
-        timeline_start: TimelineFrameIndex::from(start),
-        source_in: TimelineFrameIndex::ZERO,
-        source_out: TimelineFrameIndex::from(duration),
-        video_properties: VideoClipProperties::default(),
-        audio_properties: AudioClipProperties::default(),
-    })
+    Clip::Video(VideoClip::new(
+        ulid(id),
+        ulid(1),
+        ulid(100),
+        TimelineFrameIndex::from(start),
+        TimelineFrameIndex::ZERO,
+        TimelineFrameIndex::from(duration),
+        VideoClipProperties::default(),
+        AudioClipProperties::default(),
+    ))
 }
 
 fn video_asset() -> MediaAsset {
@@ -206,13 +210,13 @@ fn assetless_text_clips_survive_timeline_repair() {
             muted: false,
             visible: true,
         }],
-        clips: vec![Clip::Text(TextClip {
-            id: ulid(10),
+        clips: vec![Clip::Text(TextClip::new(
+            ulid(10),
             track_id,
-            timeline_start: TimelineFrameIndex::ZERO,
-            duration: FrameRate::default().duration(TimelineFrameIndex::from(150)),
-            properties: TextClipProperties::default(),
-        })],
+            TimelineFrameIndex::ZERO,
+            FrameRate::default().duration(TimelineFrameIndex::from(150)),
+            TextClipProperties::default(),
+        ))],
         ..TimelineEditingState::default()
     };
 
@@ -234,13 +238,13 @@ fn text_clips_can_move_without_a_media_asset() {
             muted: false,
             visible: true,
         }],
-        clips: vec![Clip::Text(TextClip {
-            id: clip_id,
+        clips: vec![Clip::Text(TextClip::new(
+            clip_id,
             track_id,
-            timeline_start: TimelineFrameIndex::ZERO,
-            duration: FrameRate::default().duration(TimelineFrameIndex::from(150)),
-            properties: TextClipProperties::default(),
-        })],
+            TimelineFrameIndex::ZERO,
+            FrameRate::default().duration(TimelineFrameIndex::from(150)),
+            TextClipProperties::default(),
+        ))],
         ..TimelineEditingState::default()
     };
 
@@ -268,14 +272,22 @@ fn validates_a_thousand_clip_moves_within_one_frame_budget() {
     for index in 0..1_000_u64 {
         let selected = video_clip(1_000 + index, index as i64 * 120, 30);
         ignored.insert(selected.id());
-        placements.push((selected.id(), ulid(1), selected.timeline_start() + TimelineFrameIndex::from(10)));
+        placements.push((
+            selected.id(),
+            ulid(1),
+            selected.timeline_start() + TimelineFrameIndex::from(10),
+        ));
         project.clips.push(selected);
-        project.clips.push(video_clip(2_000 + index, index as i64 * 120 + 60, 30));
+        project
+            .clips
+            .push(video_clip(2_000 + index, index as i64 * 120 + 60, 30));
     }
     // 无序输入，且目标轨道含未选中片段，避免只测全选或已排序的捷径。
     project.clips.reverse();
     placements.reverse();
-    project.validate_clip_move_placements(&placements, &ignored).unwrap();
+    project
+        .validate_clip_move_placements(&placements, &ignored)
+        .unwrap();
 
     let mut timings = Vec::new();
     for _ in 0..31 {
@@ -287,15 +299,32 @@ fn validates_a_thousand_clip_moves_within_one_frame_budget() {
     }
     timings.sort_unstable();
     let median = timings[timings.len() / 2];
-    eprintln!("1,000 selected / 2,000 total clips, 31 runs: median={median:?}, min={:?}, max={:?}", timings[0], timings[timings.len() - 1]);
-    assert!(median < Duration::from_micros(16_667), "Move validation exceeded a 60 Hz frame budget: {median:?}");
+    eprintln!(
+        "1,000 selected / 2,000 total clips, 31 runs: median={median:?}, min={:?}, max={:?}",
+        timings[0],
+        timings[timings.len() - 1]
+    );
+    assert!(
+        median < Duration::from_micros(16_667),
+        "Move validation exceeded a 60 Hz frame budget: {median:?}"
+    );
 
     placements[0].2 += TimelineFrameIndex::from(50);
-    let error = project.validate_clip_move_placements(&placements, &ignored).unwrap_err();
-    assert_eq!(error.downcast_ref::<ClipPlacementRejection>(), Some(&ClipPlacementRejection::ExistingClipOverlap));
+    let error = project
+        .validate_clip_move_placements(&placements, &ignored)
+        .unwrap_err();
+    assert_eq!(
+        error.downcast_ref::<ClipPlacementRejection>(),
+        Some(&ClipPlacementRejection::ExistingClipOverlap)
+    );
     placements[0] = (placements[0].0, placements[1].1, placements[1].2);
-    let overlap_error = project.validate_clip_move_placements(&placements, &ignored).unwrap_err();
-    assert_eq!(overlap_error.downcast_ref::<ClipPlacementRejection>(), Some(&ClipPlacementRejection::ProposedClipsOverlap));
+    let overlap_error = project
+        .validate_clip_move_placements(&placements, &ignored)
+        .unwrap_err();
+    assert_eq!(
+        overlap_error.downcast_ref::<ClipPlacementRejection>(),
+        Some(&ClipPlacementRejection::ProposedClipsOverlap)
+    );
 }
 
 #[test]
@@ -314,13 +343,13 @@ fn changing_frame_rate_keeps_text_duration_and_recomputes_frame_length() {
             muted: false,
             visible: true,
         }],
-        clips: vec![Clip::Text(TextClip {
-            id: ulid(10),
+        clips: vec![Clip::Text(TextClip::new(
+            ulid(10),
             track_id,
-            timeline_start: TimelineFrameIndex::ZERO,
-            duration: Duration::from_secs(5),
-            properties: TextClipProperties::default(),
-        })],
+            TimelineFrameIndex::ZERO,
+            Duration::from_secs(5),
+            TextClipProperties::default(),
+        ))],
         ..TimelineEditingState::default()
     };
 
@@ -505,8 +534,8 @@ fn changing_timeline_rate_preserves_elapsed_edit_times() {
 #[test]
 fn clip_source_time_clamps_to_its_source_range() {
     let mut clip = video_clip(10, 100, 60);
-    clip.media_mut().unwrap().source_in = TimelineFrameIndex::from(30);
-    clip.media_mut().unwrap().source_out = TimelineFrameIndex::from(90);
+    clip.video_mut().unwrap().source_in = TimelineFrameIndex::from(30);
+    clip.video_mut().unwrap().source_out = TimelineFrameIndex::from(90);
 
     assert_eq!(
         clip.source_time_at(TimelineFrameIndex::from(50)),
@@ -533,7 +562,7 @@ fn clip_source_time_clamps_to_its_source_range() {
 #[test]
 fn splitting_clip_preserves_ranges_and_properties() {
     let mut clip = video_clip(10, 100, 60);
-    let media = clip.media_mut().unwrap();
+    let media = clip.video_mut().unwrap();
     media.source_in = TimelineFrameIndex::from(30);
     media.source_out = TimelineFrameIndex::from(90);
     media.video_properties.position_x = 42.0;
@@ -546,39 +575,27 @@ fn splitting_clip_preserves_ranges_and_properties() {
 
     assert_eq!(left.id(), ulid(10));
     assert_eq!(left.timeline_start(), TimelineFrameIndex::from(100));
-    assert_eq!(
-        left.media().unwrap().source_in,
-        TimelineFrameIndex::from(30)
-    );
-    assert_eq!(
-        left.media().unwrap().source_out,
-        TimelineFrameIndex::from(55)
-    );
+    assert_eq!(left.source_in().unwrap(), TimelineFrameIndex::from(30));
+    assert_eq!(left.source_out().unwrap(), TimelineFrameIndex::from(55));
     assert_ne!(right.id(), clip.id());
     assert_eq!(right.timeline_start(), TimelineFrameIndex::from(125));
+    assert_eq!(right.source_in().unwrap(), TimelineFrameIndex::from(55));
+    assert_eq!(right.source_out().unwrap(), TimelineFrameIndex::from(90));
     assert_eq!(
-        right.media().unwrap().source_in,
-        TimelineFrameIndex::from(55)
+        left.video().unwrap().video_properties,
+        clip.video().unwrap().video_properties
     );
     assert_eq!(
-        right.media().unwrap().source_out,
-        TimelineFrameIndex::from(90)
+        right.video().unwrap().video_properties,
+        clip.video().unwrap().video_properties
     );
     assert_eq!(
-        left.media().unwrap().video_properties,
-        clip.media().unwrap().video_properties
+        left.video().unwrap().audio_properties,
+        clip.video().unwrap().audio_properties
     );
     assert_eq!(
-        right.media().unwrap().video_properties,
-        clip.media().unwrap().video_properties
-    );
-    assert_eq!(
-        left.media().unwrap().audio_properties,
-        clip.media().unwrap().audio_properties
-    );
-    assert_eq!(
-        right.media().unwrap().audio_properties,
-        clip.media().unwrap().audio_properties
+        right.video().unwrap().audio_properties,
+        clip.video().unwrap().audio_properties
     );
 }
 
@@ -607,16 +624,16 @@ fn splitting_clip_rejects_its_outer_frames() {
 
 #[test]
 fn splitting_text_clip_preserves_text_and_divides_length() {
-    let clip = Clip::Text(TextClip {
-        id: ulid(10),
-        track_id: ulid(3),
-        timeline_start: TimelineFrameIndex::from(100),
-        duration: FrameRate::default().duration(TimelineFrameIndex::from(60)),
-        properties: TextClipProperties {
+    let clip = Clip::Text(TextClip::new(
+        ulid(10),
+        ulid(3),
+        TimelineFrameIndex::from(100),
+        FrameRate::default().duration(TimelineFrameIndex::from(60)),
+        TextClipProperties {
             text: "Title".to_string(),
             ..TextClipProperties::default()
         },
-    });
+    ));
 
     let frame_rate = FrameRate::default();
     let (left, right) = clip
@@ -731,7 +748,7 @@ fn tagged_text_clip_deserializes_duration() {
 }
 
 #[test]
-fn timeline_load_migrates_frame_length_using_its_own_frame_rate() {
+fn timeline_deserialization_preserves_text_duration() {
     let json = serde_json::json!({
         "settings": {
             "frame_rate": { "numerator": 60, "denominator": 1 },
@@ -757,24 +774,25 @@ fn timeline_load_migrates_frame_length_using_its_own_frame_rate() {
         "future_timeline_field": true
     });
 
-    let timeline = deserialize_timeline(&json.to_string())
-        .inspect_err(|e| eprintln!("{e:#}"))
-        .unwrap();
+    let timeline =
+        serde_json::from_value::<TimelineSerialization>(serde_json::json!({"editing_state": json}))
+            .inspect_err(|e| eprintln!("{e:#}"))
+            .unwrap();
     assert_eq!(
-        timeline.to_editing_state().clips[0].text().unwrap().duration,
+        timeline.editing_state.clips[0].text().unwrap().duration,
         Duration::from_mins(5)
     )
 }
 
 #[test]
 fn text_clip_round_trip_uses_text_specific_fields() {
-    let clip = Clip::Text(TextClip {
-        id: ulid(10),
-        track_id: ulid(3),
-        timeline_start: TimelineFrameIndex::from(12),
-        duration: FrameRate::default().duration(TimelineFrameIndex::from(90)),
-        properties: TextClipProperties::default(),
-    });
+    let clip = Clip::Text(TextClip::new(
+        ulid(10),
+        ulid(3),
+        TimelineFrameIndex::from(12),
+        FrameRate::default().duration(TimelineFrameIndex::from(90)),
+        TextClipProperties::default(),
+    ));
 
     let mut value = clip_json(&clip);
     assert_eq!(value["kind"], "Text");
@@ -797,12 +815,12 @@ fn text_clip_round_trip_uses_text_specific_fields() {
 #[test]
 fn clip_properties_round_trip_through_timeline_json() {
     let mut clip = video_clip(10, 0, 30);
-    clip.media_mut().unwrap().video_properties = VideoClipProperties {
+    clip.video_mut().unwrap().video_properties = VideoClipProperties {
         position_x: 120.0,
         position_y: -45.0,
         scale: 1.25,
     };
-    clip.media_mut().unwrap().audio_properties = AudioClipProperties {
+    clip.video_mut().unwrap().audio_properties = AudioClipProperties {
         gain_db: -6.0,
         muted: true,
     };
@@ -810,18 +828,19 @@ fn clip_properties_round_trip_through_timeline_json() {
     let restored = parse_clip(value).unwrap();
 
     assert_eq!(
-        restored.media().unwrap().video_properties,
-        clip.media().unwrap().video_properties
+        restored.video().unwrap().video_properties,
+        clip.video().unwrap().video_properties
     );
     assert_eq!(
-        restored.media().unwrap().audio_properties,
-        clip.media().unwrap().audio_properties
+        restored.video().unwrap().audio_properties,
+        clip.video().unwrap().audio_properties
     );
 }
 
 fn parse_clip(value: serde_json::Value) -> anyhow::Result<Clip> {
-    let document = ::timeline::parse(&serde_json::json!({"clips": [value]}))?;
-    Ok(document.to_editing_state().clips.remove(0))
+    let mut document: TimelineSerialization =
+        serde_json::from_value(serde_json::json!({"editing_state": {"clips": [value]}}))?;
+    Ok(document.editing_state.clips.remove(0))
 }
 
 fn clip_json(clip: &Clip) -> serde_json::Value {

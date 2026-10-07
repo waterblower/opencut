@@ -183,7 +183,7 @@ impl InputFileType {
 
 /// Media paths in the document resolve against its directory.
 fn open_timeline(path: &Path) -> Result<TimelinePlayer> {
-    let timeline = TimelineSerialization::load(path)?.to_editing_state();
+    let timeline = TimelineSerialization::load(path)?.editing_state;
     let project_root = std::path::absolute(path)?
         .parent()
         .context("Timeline path has no parent directory")?

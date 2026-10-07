@@ -186,17 +186,15 @@ impl Editor {
                             },
                         )),
                     )
-                    .child(
-                        file_menu_item("Copy Path", "").on_click(cx.listener(
-                            move |editor, _, _, cx| {
-                                cx.write_to_clipboard(gpui::ClipboardItem::new_string(
-                                    absolute_path.to_string_lossy().into_owned(),
-                                ));
-                                editor.dismiss_context_menu();
-                                cx.notify();
-                            },
-                        )),
-                    )
+                    .child(file_menu_item("Copy Path", "").on_click(cx.listener(
+                        move |editor, _, _, cx| {
+                            cx.write_to_clipboard(gpui::ClipboardItem::new_string(
+                                absolute_path.to_string_lossy().into_owned(),
+                            ));
+                            editor.dismiss_context_menu();
+                            cx.notify();
+                        },
+                    )))
                     .when(can_rename, |this| {
                         this.child(file_menu_item("Rename", "").on_click(cx.listener(
                             |editor, _, window, cx| {

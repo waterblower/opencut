@@ -46,7 +46,7 @@ impl ClipClipboard {
         }
         let asset_ids = clips
             .iter()
-            .filter_map(|clip| clip.media().map(|clip| clip.asset_id))
+            .filter_map(|clip| clip.asset_id())
             .collect::<HashSet<_>>();
         let assets = timeline
             .assets
@@ -105,7 +105,16 @@ impl ClipClipboard {
                             .rescale_nearest(relative_start, frame_rate),
                 );
                 match &mut clip {
-                    Clip::Video(clip) | Clip::Audio(clip) => {
+                    Clip::Video(clip) => {
+                        clip.source_in = self
+                            .source_frame_rate
+                            .rescale_nearest(clip.source_in, frame_rate);
+                        clip.source_out = self
+                            .source_frame_rate
+                            .rescale_nearest(clip.source_out, frame_rate)
+                            .max(clip.source_in + TimelineFrameIndex::ONE_FRAME);
+                    }
+                    Clip::Audio(clip) => {
                         clip.source_in = self
                             .source_frame_rate
                             .rescale_nearest(clip.source_in, frame_rate);
@@ -201,11 +210,13 @@ impl ClipClipboard {
                 asset_ids.insert(source_asset.id, destination_asset_id);
             }
             for clip in &mut clips {
-                let Some(clip) = clip.media_mut() else {
-                    continue;
+                let asset_id = match clip {
+                    Clip::Video(clip) => &mut clip.asset_id,
+                    Clip::Audio(clip) => &mut clip.asset_id,
+                    Clip::Text(_) => continue,
                 };
-                clip.asset_id = *asset_ids
-                    .get(&clip.asset_id)
+                *asset_id = *asset_ids
+                    .get(asset_id)
                     .ok_or(ClipPlacementRejection::MissingAsset)?;
             }
         }
@@ -322,7 +333,7 @@ impl Editor {
             return Ok(());
         };
         let playhead = timeline.playhead();
-        let (mut clips, assets) =
+        let (clips, assets) =
             match clipboard.prepare_paste(&timeline.path, &timeline.editing_state, playhead) {
                 Ok(paste) => paste,
                 Err(rejection) => {
@@ -334,9 +345,10 @@ impl Editor {
         let Some(timeline) = self.timeline.as_mut() else {
             return Ok(());
         };
-        for clip in &mut clips {
-            clip.set_id(Ulid::generate());
-        }
+        let clips: Vec<Clip> = clips
+            .iter()
+            .map(|clip| clip.copy(Ulid::generate()))
+            .collect();
 
         timeline.interaction.selected_clip_ids = clips.iter().map(Clip::id).collect();
         timeline.interaction.selected_clip_id = clipboard
@@ -442,8 +454,8 @@ impl Editor {
             .selected_clip_id
             .and_then(|id| clips.iter().position(|clip| clip.id() == id));
         let mut duplicates = Vec::with_capacity(clips.len());
-        for (mut clip, (_, _, start)) in clips.into_iter().zip(placements) {
-            clip.set_id(Ulid::generate());
+        for (clip, (_, _, start)) in clips.into_iter().zip(placements) {
+            let mut clip = clip.copy(Ulid::generate());
             clip.set_timeline_start(start);
             duplicates.push(clip);
         }
@@ -726,7 +738,20 @@ pub(super) fn validate_clips_placements(
     }
     for clip in clips {
         match clip {
-            Clip::Video(clip) | Clip::Audio(clip) => {
+            Clip::Video(clip) => {
+                let Some(asset) = timeline.asset(clip.asset_id) else {
+                    return Err(ClipPlacementRejection::MissingAsset.into());
+                };
+                validate_clip_placement(
+                    timeline,
+                    clip.track_id,
+                    asset.kind,
+                    clip.source_out - clip.source_in,
+                    clip.timeline_start,
+                    &HashSet::new(),
+                )?;
+            }
+            Clip::Audio(clip) => {
                 let Some(asset) = timeline.asset(clip.asset_id) else {
                     return Err(ClipPlacementRejection::MissingAsset.into());
                 };

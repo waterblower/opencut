@@ -1,10 +1,4 @@
 //! CLI-owned file I/O for the shared timeline format.
-pub use timeline::TimelineEditingState;
-use timeline::{ParseError, TrackKind};
-
-pub fn parse(value: &Value) -> std::result::Result<TimelineEditingState, ParseError> {
-    Ok(timeline::parse(value)?.to_editing_state())
-}
 use anyhow::{Context as _, Result, anyhow};
 use serde_json::{Value, json};
 use std::{
@@ -12,18 +6,9 @@ use std::{
     io::Write,
     path::{Path, PathBuf},
 };
+pub use timeline::TimelineEditingState;
+use timeline::TrackKind;
 use ulid::Ulid;
-
-pub fn load(path: &Path) -> Result<(Value, TimelineEditingState)> {
-    let contents = fs::read(path).context(format!("io_error at {}:{}", file!(), line!()))?;
-    let value: Value = serde_json::from_slice(&contents).context(format!(
-        "invalid_json at {}:{}",
-        file!(),
-        line!()
-    ))?;
-    let document = parse(&value)?;
-    Ok((value, document))
-}
 
 pub fn asset_base(timeline: &Path) -> Result<PathBuf> {
     let path = std::path::absolute(timeline).context(format!(
@@ -67,7 +52,7 @@ pub fn summary(doc: &TimelineEditingState) -> Value {
     let mut tracks = Vec::new();
     let mut assets = Vec::new();
     for clip in &doc.clips {
-        clips.push(json!({"id": clip.id(), "track_id": clip.track_id(), "start_frame": i64::from(clip.timeline_start()), "end_frame": i64::from(clip.timeline_end(fps)), "start_s": fps.seconds(clip.timeline_start()), "duration_s": fps.seconds(clip.frame_length(fps)), "asset_id": clip.media().map(|data| data.asset_id)}));
+        clips.push(json!({"id": clip.id(), "track_id": clip.track_id(), "start_frame": i64::from(clip.timeline_start()), "end_frame": i64::from(clip.timeline_end(fps)), "start_s": fps.seconds(clip.timeline_start()), "duration_s": fps.seconds(clip.frame_length(fps)), "asset_id": clip.asset_id()}));
     }
     for track in &doc.tracks {
         let mut members: Vec<_> = doc
@@ -95,7 +80,7 @@ pub fn summary(doc: &TimelineEditingState) -> Value {
         let used: Vec<_> = doc
             .clips
             .iter()
-            .filter(|c| c.media().is_some_and(|data| data.asset_id == asset.id))
+            .filter(|c| c.asset_id().is_some_and(|id| id == asset.id))
             .map(|c| c.id())
             .collect();
         assets.push(json!({"id": asset.id, "path": asset.path, "clips": used}));

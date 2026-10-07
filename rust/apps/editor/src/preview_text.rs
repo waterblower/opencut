@@ -85,7 +85,7 @@ impl Editor {
                     .tracks
                     .iter()
                     .find(|track| track.id == text.track_id)?;
-                (track.visible && !track.locked).then_some(text.id)
+                (track.visible && !track.locked).then_some(text.id())
             })
             .collect::<Vec<_>>();
         let hit_regions = Rc::new(RefCell::new(Vec::<(

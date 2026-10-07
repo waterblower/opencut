@@ -35,7 +35,7 @@ impl RenderOnce for TextClipPropertiesView {
         let return_focus = self.return_focus;
 
         let text_input_state = {
-            let clip_id = clip.id;
+            let clip_id = clip.id();
             let event_bus = event_bus.clone();
             let return_focus = return_focus.clone();
             let initial_text = clip.properties.text.clone();
@@ -72,7 +72,7 @@ impl RenderOnce for TextClipPropertiesView {
             )
         };
         let color_input_state = {
-            let clip_id = clip.id;
+            let clip_id = clip.id();
             let initial_color = format_text_color(clip.properties.color);
             let event_bus = event_bus.clone();
             let return_focus = return_focus.clone();

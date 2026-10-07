@@ -2,14 +2,18 @@
 
 use crate::{Clip, MediaAsset, MediaKind, TimelineFrameIndex, TimelineSettings, Track, TrackKind};
 use anyhow::{Result, bail};
+use serde::{Deserialize, Serialize};
 use std::{collections::HashSet, time::Duration};
 use ulid::Ulid;
 
 /// Timeline content used by editing operations, rendering, and editing history.
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
+#[cfg_attr(feature = "timeline-schema", derive(schemars::JsonSchema))]
+#[serde(default)]
 pub struct TimelineEditingState {
     pub settings: TimelineSettings,
     pub assets: Vec<MediaAsset>,
+    #[serde(alias = "layers")]
     pub tracks: Vec<Track>,
     pub clips: Vec<Clip>,
 }
@@ -56,7 +60,7 @@ impl TimelineEditingState {
         clip: &Clip,
         timeline_position: TimelineFrameIndex,
     ) -> Option<i64> {
-        let asset = self.asset(clip.media()?.asset_id)?;
+        let asset = self.asset(clip.asset_id()?)?;
         let source_rate = asset.frame_rate()?;
         let source_time = clip.source_time_at(timeline_position)?;
         Some(
@@ -71,10 +75,10 @@ impl TimelineEditingState {
         clip: &Clip,
         timeline_position: TimelineFrameIndex,
     ) -> Duration {
-        let Some(media) = clip.media() else {
+        let Some(asset_id) = clip.asset_id() else {
             return Duration::ZERO;
         };
-        let Some(asset) = self.asset(media.asset_id) else {
+        let Some(asset) = self.asset(asset_id) else {
             return Duration::ZERO;
         };
         if let (Some(source_rate), Some(source_frame)) = (
@@ -111,8 +115,7 @@ impl TimelineEditingState {
 }
 
 impl TimelineEditingState {
-    /// Validates settings, unique track and asset IDs, and visual clip references,
-    /// timing, and properties. Audio clips are not validated here.
+    /// Validates settings, unique IDs, and clip references, timing, and properties.
     pub fn validate(&self) -> Result<()> {
         let settings = self.settings;
         if settings.width == 0 || settings.height == 0 {
@@ -138,15 +141,12 @@ impl TimelineEditingState {
         }
         let mut clip_ids = HashSet::new();
         for clip in &self.clips {
-            if matches!(clip, Clip::Audio(_)) {
-                continue;
-            }
             if !clip_ids.insert(clip.id()) {
-                bail!("Duplicate visual clip {}", clip.id());
+                bail!("Duplicate clip {}", clip.id());
             }
             let Some(track) = self.track(clip.track_id()) else {
                 bail!(
-                    "Visual clip {} references missing track {}",
+                    "Clip {} references missing track {}",
                     clip.id(),
                     clip.track_id()
                 );
@@ -154,29 +154,25 @@ impl TimelineEditingState {
             if clip.timeline_start() < TimelineFrameIndex::ZERO
                 || clip.frame_length(settings.frame_rate) <= TimelineFrameIndex::ZERO
             {
-                bail!("Visual clip {} has an invalid time range", clip.id());
+                bail!("Clip {} has an invalid time range", clip.id());
             }
             match clip {
                 Clip::Video(media) => {
                     if track.kind != TrackKind::Video {
-                        bail!("Video clip {} requires a video track", media.id);
+                        bail!("Video clip {} requires a video track", media.id());
                     }
                     let Some(asset) = self.asset(media.asset_id) else {
                         bail!(
-                            "Visual clip {} references missing asset {}",
-                            media.id,
+                            "Clip {} references missing asset {}",
+                            media.id(),
                             media.asset_id
                         );
                     };
                     if asset.kind == MediaKind::Audio {
-                        bail!(
-                            "Visual clip {} references audio asset {}",
-                            media.id,
-                            asset.id
-                        );
+                        bail!("Clip {} references audio asset {}", media.id(), asset.id);
                     }
                     if media.source_in < TimelineFrameIndex::ZERO {
-                        bail!("Visual clip {} has a negative source trim", media.id);
+                        bail!("Clip {} has a negative source trim", media.id());
                     }
                     let properties = media.video_properties;
                     if !properties.position_x.is_finite()
@@ -184,12 +180,12 @@ impl TimelineEditingState {
                         || !properties.scale.is_finite()
                         || properties.scale < 0.0
                     {
-                        bail!("Visual clip {} has invalid transform properties", media.id);
+                        bail!("Clip {} has invalid transform properties", media.id());
                     }
                 }
                 Clip::Text(text) => {
                     if track.kind != TrackKind::Text {
-                        bail!("Text clip {} requires a text track", text.id);
+                        bail!("Text clip {} requires a text track", text.id());
                     }
                     let properties = &text.properties;
                     if !properties.position.x.is_finite()
@@ -197,10 +193,34 @@ impl TimelineEditingState {
                         || !properties.font_size.is_finite()
                         || properties.font_size <= 0.0
                     {
-                        bail!("Text clip {} has invalid layout properties", text.id);
+                        bail!("Text clip {} has invalid layout properties", text.id());
                     }
                 }
-                Clip::Audio(_) => {}
+                Clip::Audio(audio) => {
+                    if track.kind != TrackKind::Audio {
+                        bail!("Audio clip {} requires an audio track", audio.id());
+                    }
+                    let Some(asset) = self.asset(audio.asset_id) else {
+                        bail!(
+                            "Audio clip {} references missing asset {}",
+                            audio.id(),
+                            audio.asset_id
+                        );
+                    };
+                    if asset.kind == MediaKind::Image {
+                        bail!(
+                            "Audio clip {} references image asset {}",
+                            audio.id(),
+                            asset.id
+                        );
+                    }
+                    if audio.source_in < TimelineFrameIndex::ZERO {
+                        bail!("Audio clip {} has a negative source trim", audio.id());
+                    }
+                    if !audio.audio_properties.gain_db.is_finite() {
+                        bail!("Audio clip {} has invalid audio gain", audio.id());
+                    }
+                }
             }
         }
         Ok(())

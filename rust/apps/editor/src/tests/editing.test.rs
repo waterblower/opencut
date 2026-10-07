@@ -33,16 +33,15 @@ fn audio_asset(id: u64) -> MediaAsset {
 }
 
 fn audio_clip(id: u64, start: i64, duration: i64) -> Clip {
-    Clip::Audio(AudioClip {
-        id: ulid(id),
-        track_id: ulid(2),
-        asset_id: ulid(100),
-        timeline_start: TimelineFrameIndex::from(start),
-        source_in: TimelineFrameIndex::ZERO,
-        source_out: TimelineFrameIndex::from(duration),
-        video_properties: VideoClipProperties::default(),
-        audio_properties: AudioClipProperties::default(),
-    })
+    Clip::Audio(AudioClip::new(
+        ulid(id),
+        ulid(2),
+        ulid(100),
+        TimelineFrameIndex::from(start),
+        TimelineFrameIndex::ZERO,
+        TimelineFrameIndex::from(duration),
+        AudioClipProperties::default(),
+    ))
 }
 
 #[test]
@@ -110,8 +109,8 @@ fn clipboard_rescales_source_bounds_between_timeline_frame_rates() {
     source.settings.frame_rate = FrameRate::new(24, 1);
     source.assets.push(audio_asset(100));
     let mut clip = audio_clip(10, 12, 24);
-    clip.media_mut().unwrap().source_in = TimelineFrameIndex::from(24);
-    clip.media_mut().unwrap().source_out = TimelineFrameIndex::from(48);
+    clip.audio_mut().unwrap().source_in = TimelineFrameIndex::from(24);
+    clip.audio_mut().unwrap().source_out = TimelineFrameIndex::from(48);
     source.clips = vec![clip, audio_clip(11, 36, 24)];
     let clipboard = ClipClipboard::from_selection(
         "one.timeline.json".into(),
@@ -134,14 +133,8 @@ fn clipboard_rescales_source_bounds_between_timeline_frame_rates() {
         .unwrap();
 
     assert_eq!(clips[0].timeline_start(), TimelineFrameIndex::from(60));
-    assert_eq!(
-        clips[0].media().unwrap().source_in,
-        TimelineFrameIndex::from(30)
-    );
-    assert_eq!(
-        clips[0].media().unwrap().source_out,
-        TimelineFrameIndex::from(60)
-    );
+    assert_eq!(clips[0].source_in().unwrap(), TimelineFrameIndex::from(30));
+    assert_eq!(clips[0].source_out().unwrap(), TimelineFrameIndex::from(60));
     assert_eq!(
         clips[0].frame_length(destination.settings.frame_rate),
         TimelineFrameIndex::from(30)
@@ -178,8 +171,8 @@ fn clipboard_remaps_tracks_and_assets_between_timelines() {
     assert_ne!(assets[0].id, ulid(100));
     assert_eq!(clips[0].track_id(), ulid(202));
     assert_eq!(clips[1].track_id(), ulid(202));
-    assert_eq!(clips[0].media().unwrap().asset_id, assets[0].id);
-    assert_eq!(clips[1].media().unwrap().asset_id, assets[0].id);
+    assert_eq!(clips[0].asset_id().unwrap(), assets[0].id);
+    assert_eq!(clips[1].asset_id().unwrap(), assets[0].id);
     assert_eq!(clips[0].timeline_start(), TimelineFrameIndex::from(100));
     assert_eq!(clips[1].timeline_start(), TimelineFrameIndex::from(120));
 }
@@ -211,7 +204,7 @@ fn clipboard_reuses_existing_destination_assets() {
         .unwrap();
 
     assert!(assets.is_empty());
-    assert_eq!(clips[0].media().unwrap().asset_id, ulid(300));
+    assert_eq!(clips[0].asset_id().unwrap(), ulid(300));
 }
 
 #[test]
@@ -240,10 +233,19 @@ fn track_magnet_does_not_ripple_multiple_deleted_clips() -> Result<()> {
         },
     ];
 
-    let data = TimelineEditingState {
+    let mut data = TimelineEditingState {
         clips,
+        assets: vec![audio_asset(100)],
         ..TimelineEditingState::with_test_tracks()
     };
+    data.tracks.push(Track {
+        id: ulid(3),
+        name: "Audio 2".into(),
+        kind: TrackKind::Audio,
+        locked: false,
+        muted: false,
+        visible: true,
+    });
     let mut timeline = TimelineRuntimeState::new(std::path::absolute("test.timeline.json")?, data)?;
     edit_timeline(
         &mut timeline,
@@ -369,14 +371,14 @@ fn splitting_trimming_and_ripple_deletion_update_the_model() -> Result<()> {
                 .editing_state
                 .clip(right_id)
                 .unwrap()
-                .media()
+                .audio()
                 .unwrap()
                 .source_in
         ),
         20
     );
     let mut trimmed = timeline.editing_state.clip(right_id).unwrap().clone();
-    trimmed.media_mut().unwrap().source_out = TimelineFrameIndex::from(50);
+    trimmed.audio_mut().unwrap().source_out = TimelineFrameIndex::from(50);
     edit_timeline(&mut timeline, EditAction::UpdateClip { clip: trimmed })?;
     edit_timeline(
         &mut timeline,
@@ -399,7 +401,7 @@ fn splitting_trimming_and_ripple_deletion_update_the_model() -> Result<()> {
                 .editing_state
                 .clip(right_id)
                 .unwrap()
-                .media()
+                .audio()
                 .unwrap()
                 .source_out
         ),
@@ -421,8 +423,19 @@ fn splitting_trimming_and_ripple_deletion_update_the_model() -> Result<()> {
 #[test]
 fn track_controls_and_properties_work_without_preview() -> Result<()> {
     let mut data = TimelineEditingState::with_test_tracks();
-    data.assets.push(audio_asset(100));
-    data.clips = vec![audio_clip(10, 0, 60)];
+    let mut asset = audio_asset(100);
+    asset.kind = MediaKind::Video;
+    data.assets.push(asset);
+    data.clips = vec![Clip::Video(timeline::VideoClip::new(
+        ulid(10),
+        ulid(1),
+        ulid(100),
+        TimelineFrameIndex::ZERO,
+        TimelineFrameIndex::ZERO,
+        TimelineFrameIndex::from(60),
+        Default::default(),
+        Default::default(),
+    ))];
     let mut timeline = TimelineRuntimeState::new(std::path::absolute("test.timeline.json")?, data)?;
     let properties = VideoClipProperties {
         position_x: 25.0,
@@ -438,33 +451,33 @@ fn track_controls_and_properties_work_without_preview() -> Result<()> {
     )?;
     assert_eq!(
         timeline.editing_state.clips[0]
-            .media()
+            .video()
             .unwrap()
             .video_properties,
         properties
     );
-    let visible = timeline.editing_state.track(ulid(2)).unwrap().visible;
+    let visible = timeline.editing_state.track(ulid(1)).unwrap().visible;
     edit_timeline(
         &mut timeline,
-        EditAction::ToggleTrackVisibility { track_id: ulid(2) },
+        EditAction::ToggleTrackVisibility { track_id: ulid(1) },
     )?;
     edit_timeline(
         &mut timeline,
-        EditAction::ToggleTrackMute { track_id: ulid(2) },
+        EditAction::ToggleTrackMute { track_id: ulid(1) },
     )?;
     edit_timeline(
         &mut timeline,
-        EditAction::ToggleTrackLock { track_id: ulid(2) },
+        EditAction::ToggleTrackLock { track_id: ulid(1) },
     )?;
-    let track = timeline.editing_state.track(ulid(2)).unwrap();
+    let track = timeline.editing_state.track(ulid(1)).unwrap();
     assert_eq!(track.visible, !visible);
     assert!(track.muted && track.locked);
     timeline.snapping_enabled = false;
     timeline.track_magnet_enabled = true;
     assert!(!timeline.snapping_enabled);
     assert!(timeline.track_magnet_enabled);
-    edit_timeline(&mut timeline, EditAction::DeleteTrack { track_id: ulid(2) })?;
-    assert!(timeline.editing_state.track(ulid(2)).is_none());
+    edit_timeline(&mut timeline, EditAction::DeleteTrack { track_id: ulid(1) })?;
+    assert!(timeline.editing_state.track(ulid(1)).is_none());
     assert!(timeline.editing_state.clips.is_empty());
     Ok(())
 }
@@ -481,13 +494,13 @@ fn text_edits_preserve_timing_without_a_renderer() -> Result<()> {
         visible: true,
     });
     let mut timeline = TimelineRuntimeState::new(std::path::absolute("test.timeline.json")?, data)?;
-    let mut clip = TextClip {
-        id: ulid(10),
-        track_id: ulid(3),
-        timeline_start: TimelineFrameIndex::from(15),
-        duration: Duration::from_secs(2),
-        properties: TextClipProperties::default(),
-    };
+    let mut clip = TextClip::new(
+        ulid(10),
+        ulid(3),
+        TimelineFrameIndex::from(15),
+        Duration::from_secs(2),
+        TextClipProperties::default(),
+    );
     edit_timeline(
         &mut timeline,
         EditAction::AddClips {
@@ -511,13 +524,13 @@ fn text_edits_preserve_timing_without_a_renderer() -> Result<()> {
     edit_timeline(
         &mut timeline,
         EditAction::SetTextProperties {
-            clip_id: clip.id,
+            clip_id: clip.id(),
             properties: clip.properties.clone(),
         },
     )?;
     let json = serde_json::to_string(&timeline.to_serialize())?;
-    let restored = serde_json::from_str::<TimelineSerialization>(&json)?.to_editing_state();
-    let Clip::Text(restored) = restored.clip(clip.id).unwrap() else {
+    let restored = serde_json::from_str::<TimelineSerialization>(&json)?.editing_state;
+    let Clip::Text(restored) = restored.clip(clip.id()).unwrap() else {
         panic!("text clip must retain its kind");
     };
     assert_eq!(restored.properties, clip.properties);
