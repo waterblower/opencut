@@ -298,14 +298,14 @@ impl Editor {
             let Some(timeline_directory) = timeline_file.parent() else {
                 continue;
             };
-            let timeline = timeline.to_editing_state();
-            let referenced_assets = timeline
+            let editing_state = timeline.editing_state;
+            let referenced_assets = editing_state
                 .clips
                 .iter()
-                .filter_map(|clip| clip.media().map(|clip| clip.asset_id))
+                .filter_map(|clip| clip.asset_id())
                 .collect::<HashSet<_>>();
             paths.extend(
-                timeline
+                editing_state
                     .assets
                     .into_iter()
                     .filter(|asset| asset.has_audio && referenced_assets.contains(&asset.id))
@@ -326,7 +326,7 @@ impl Editor {
             .editing_state
             .clips
             .iter()
-            .filter_map(|clip| clip.media().map(|clip| clip.asset_id))
+            .filter_map(|clip| clip.asset_id())
             .collect::<HashSet<_>>();
         let paths = timeline
             .editing_state

@@ -43,17 +43,21 @@ impl TimelineRuntimeState {
     /// `path` must be absolute.
     pub fn from_serialize(document: TimelineSerialization, path: PathBuf) -> Result<Self> {
         ensure!(path.is_absolute(), "Timeline path must be absolute");
-        let mut runtime = Self::new(path, document.to_editing_state())?;
-        runtime.set_playhead(document.playhead());
+        let playhead = document.playhead();
         let (horizontal, vertical) = document.scroll_offset();
+        let pixels_per_second = document.pixels_per_second();
+        let snapping_enabled = document.snapping_enabled();
+        let track_magnet_enabled = document.track_magnet_enabled();
+        let mut runtime = Self::new(path, document.editing_state)?;
+        runtime.set_playhead(playhead);
         runtime.h_scroll.set_offset(point(px(-horizontal), px(0.0)));
         runtime.v_scroll.set_offset(point(px(0.0), px(-vertical)));
-        runtime.pixels_per_second = document.pixels_per_second().clamp(
+        runtime.pixels_per_second = pixels_per_second.clamp(
             MIN_TIMELINE_PIXELS_PER_SECOND,
             MAX_TIMELINE_PIXELS_PER_SECOND,
         );
-        runtime.snapping_enabled = document.snapping_enabled();
-        runtime.track_magnet_enabled = document.track_magnet_enabled();
+        runtime.snapping_enabled = snapping_enabled;
+        runtime.track_magnet_enabled = track_magnet_enabled;
         Ok(runtime)
     }
 }

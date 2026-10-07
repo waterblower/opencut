@@ -25,9 +25,9 @@ pub fn keep_text_sections(options: KeepTextSectionsArgs) -> Result<Value> {
     let output_directory =
         fs::canonicalize(output.parent().context("Output has no parent directory")?)?;
     let original = TimelineSerialization::load(&input)?;
-    let editing_state = original.to_editing_state();
+    let editing_state = &original.editing_state;
     let before_frames = editing_state.content_duration();
-    let mut compacted = compact_text_sections(&editing_state)?;
+    let mut compacted = compact_text_sections(editing_state)?;
     if input_directory != output_directory {
         for asset in &mut compacted.assets {
             if asset.path.is_absolute() {
@@ -64,7 +64,7 @@ pub fn keep_text_sections(options: KeepTextSectionsArgs) -> Result<Value> {
         original.snapping_enabled(),
         original.track_magnet_enabled(),
     );
-    result.to_editing_state().validate()?;
+    result.editing_state.validate()?;
     document::write_atomic(
         &output,
         &serde_json::to_value(&result)?,
@@ -92,7 +92,8 @@ fn compact_text_sections(editing_state: &TimelineEditingState) -> Result<Timelin
                 (clip.timeline_start() - padding).max(TimelineFrameIndex::ZERO),
                 (clip.timeline_end(frame_rate) + padding).min(content_end),
             )),
-            Clip::Video(_) | Clip::Audio(_) => None,
+            Clip::Video(_) => None,
+            Clip::Audio(_) => None,
         })
         .collect::<Vec<_>>();
     intervals.sort_unstable();
@@ -121,14 +122,19 @@ fn compact_text_sections(editing_state: &TimelineEditingState) -> Result<Timelin
             let start = clip.timeline_start().max(section_start);
             let end = clip.timeline_end(frame_rate).min(section_end);
             if start < end {
-                let mut fragment = clip.clone();
-                if kept_original_id {
-                    fragment.set_id(Ulid::generate());
-                }
+                let mut fragment = if kept_original_id {
+                    clip.copy(Ulid::generate())
+                } else {
+                    clip.clone()
+                };
                 kept_original_id = true;
                 fragment.set_timeline_start(output_start + start - section_start);
                 match &mut fragment {
-                    Clip::Video(media) | Clip::Audio(media) => {
+                    Clip::Video(media) => {
+                        media.source_in += start - clip.timeline_start();
+                        media.source_out = media.source_in + end - start;
+                    }
+                    Clip::Audio(media) => {
                         media.source_in += start - clip.timeline_start();
                         media.source_out = media.source_in + end - start;
                     }

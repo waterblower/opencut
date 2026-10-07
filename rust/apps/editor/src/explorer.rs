@@ -399,19 +399,26 @@ impl Editor {
             (asset_id, vec![asset])
         };
         let clip_id = Ulid::generate();
-        let media_clip = VideoClip {
-            id: clip_id,
-            track_id,
-            asset_id,
-            timeline_start: start,
-            source_in: TimelineFrameIndex::ZERO,
-            source_out: duration,
-            video_properties: VideoClipProperties::default(),
-            audio_properties: AudioClipProperties::default(),
-        };
         let media_clip = match track_kind {
-            Some(TrackKind::Video) => Clip::Video(media_clip),
-            Some(TrackKind::Audio) => Clip::Audio(media_clip),
+            Some(TrackKind::Video) => Clip::Video(VideoClip::new(
+                clip_id,
+                track_id,
+                asset_id,
+                start,
+                TimelineFrameIndex::ZERO,
+                duration,
+                VideoClipProperties::default(),
+                AudioClipProperties::default(),
+            )),
+            Some(TrackKind::Audio) => Clip::Audio(timeline::AudioClip::new(
+                clip_id,
+                track_id,
+                asset_id,
+                start,
+                TimelineFrameIndex::ZERO,
+                duration,
+                AudioClipProperties::default(),
+            )),
             _ => bail!("the drop target is not a media track"),
         };
 

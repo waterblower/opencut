@@ -31,8 +31,8 @@ fn timeline_clip_move_preview(
 ) -> gpui::AnyElement {
     let name = timeline
         .clip(clip_id)
-        .and_then(Clip::media)
-        .and_then(|clip| timeline.asset(clip.asset_id))
+        .and_then(Clip::asset_id)
+        .and_then(|asset_id| timeline.asset(asset_id))
         .map(|asset| asset.name.clone())
         .unwrap_or_else(|| "Missing media".to_string());
     let left = TIMELINE_PADDING + timeline.seconds(start) as f32 * pixels_per_second;
@@ -226,9 +226,12 @@ impl Editor {
                 let left = TIMELINE_PADDING
                     + timeline.editing_state.seconds(clip.timeline_start()) as f32
                         * timeline.pixels_per_second;
-                let width = (timeline.editing_state.seconds(
-                    clip.frame_length(timeline.editing_state.settings.frame_rate),
-                ) as f32 * timeline.pixels_per_second).max(4.0);
+                let width = (timeline
+                    .editing_state
+                    .seconds(clip.frame_length(timeline.editing_state.settings.frame_rate))
+                    as f32
+                    * timeline.pixels_per_second)
+                    .max(4.0);
                 left <= visible_right && left + width >= visible_left
             })
             .map(|clip| self.timeline_clip(clip, cx))
@@ -252,9 +255,12 @@ impl Editor {
                         let left = TIMELINE_PADDING
                             + timeline.editing_state.seconds(*start) as f32
                                 * timeline.pixels_per_second;
-                        let width = (timeline.editing_state.seconds(
-                            clip.frame_length(timeline.editing_state.settings.frame_rate),
-                        ) as f32 * timeline.pixels_per_second).max(4.0);
+                        let width = (timeline
+                            .editing_state
+                            .seconds(clip.frame_length(timeline.editing_state.settings.frame_rate))
+                            as f32
+                            * timeline.pixels_per_second)
+                            .max(4.0);
                         left <= visible_right && left + width >= visible_left
                     })
                     .map(|(clip_id, _, start)| {
@@ -317,7 +323,7 @@ impl Editor {
                     .timeline
                     .as_ref()
                     .expect("timeline clips require an active timeline");
-                let clip_id = clip.id;
+                let clip_id = clip.id();
                 let moving = timeline
                     .interaction
                     .clip_move_drag
@@ -352,7 +358,7 @@ impl Editor {
             .timeline
             .as_ref()
             .expect("timeline clips require an active timeline");
-        let media = clip.media().expect("video tracks contain media clips");
+        let media = clip.video().expect("video tracks contain video clips");
         let asset = timeline.editing_state.asset(media.asset_id);
         let name = asset
             .map(|asset| asset.name.clone())
@@ -383,7 +389,7 @@ impl Editor {
             .timeline
             .as_ref()
             .expect("timeline clips require an active timeline");
-        let media = clip.media().expect("audio tracks contain media clips");
+        let media = clip.audio().expect("audio tracks contain audio clips");
         let asset = timeline.editing_state.asset(media.asset_id);
         let name = asset
             .map(|asset| asset.name.clone())

@@ -10,7 +10,7 @@ use ulid::Ulid;
 fn export_source_ordered_clips() -> Result<()> {
     let document: TimelineSerialization =
         serde_json::from_str(include_str!("export_source_ordered_clips.timeline"))?;
-    let content = document.to_editing_state();
+    let content = &document.editing_state;
     let frames = document.frame_count();
     ensure!(frames > 0, "Performance fixture must not be empty");
     let duration = content.settings.frame_rate.seconds(frames.into());

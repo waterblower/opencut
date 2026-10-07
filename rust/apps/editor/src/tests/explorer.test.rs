@@ -66,16 +66,15 @@ fn explorer_drop_rejects_incompatible_tracks() {
 #[test]
 fn explorer_drop_detects_collisions_but_allows_adjacent_clips() {
     let mut project = TimelineEditingState::with_test_tracks();
-    project.clips.push(Clip::Audio(AudioClip {
-        id: ulid(20),
-        track_id: ulid(2),
-        asset_id: ulid(10),
-        timeline_start: TimelineFrameIndex::from(30),
-        source_in: TimelineFrameIndex::ZERO,
-        source_out: TimelineFrameIndex::from(30),
-        video_properties: VideoClipProperties::default(),
-        audio_properties: AudioClipProperties::default(),
-    }));
+    project.clips.push(Clip::Audio(AudioClip::new(
+        ulid(20),
+        ulid(2),
+        ulid(10),
+        TimelineFrameIndex::from(30),
+        TimelineFrameIndex::ZERO,
+        TimelineFrameIndex::from(30),
+        AudioClipProperties::default(),
+    )));
     let audio = asset(MediaKind::Audio, true);
 
     assert_eq!(

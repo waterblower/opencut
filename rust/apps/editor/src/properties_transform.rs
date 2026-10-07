@@ -92,7 +92,7 @@ impl Editor {
             self.properties.transform_input_clip_id = None;
             return;
         };
-        let Some(clip) = clip.media() else {
+        let Some(clip) = clip.video() else {
             self.properties.transform_input_clip_id = None;
             return;
         };
@@ -143,7 +143,7 @@ impl Editor {
         let Some(index) = timeline.editing_state.clip_index(clip_id) else {
             return Ok(());
         };
-        let Some(clip) = timeline.editing_state.clips[index].media() else {
+        let Some(clip) = timeline.editing_state.clips[index].video() else {
             return Ok(());
         };
         let mut properties = clip.video_properties;

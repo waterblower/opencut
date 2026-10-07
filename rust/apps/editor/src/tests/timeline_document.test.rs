@@ -119,7 +119,7 @@ fn preferred_timeline_is_loaded() {
     fs::create_dir_all(&root).unwrap();
     create(&root, Path::new(""), "timeline-0").unwrap();
     let (second_path, second) = create(&root, Path::new(""), "timeline-1").unwrap();
-    let mut content = second.to_editing_state();
+    let mut content = second.editing_state;
     content.settings.width = 1280;
     let second = TimelineSerialization::from_editing_state(&content);
     second.save(&root.join(&second_path)).unwrap();
@@ -128,6 +128,6 @@ fn preferred_timeline_is_loaded() {
     let loaded = TimelineSerialization::load(&root.join(&second_path)).unwrap();
     assert!(TimelineSerialization::load(&root.join("missing.timeline.json")).is_err());
     assert!(TimelineSerialization::load(&second_path).is_err());
-    assert_eq!(loaded.to_editing_state().settings.width, 1280);
+    assert_eq!(loaded.editing_state.settings.width, 1280);
     fs::remove_dir_all(root).unwrap();
 }

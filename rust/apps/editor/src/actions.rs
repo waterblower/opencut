@@ -55,7 +55,11 @@ pub(crate) fn bind_keys(cx: &mut App) {
             SelectAllUnlockedClips,
             Some(EDITOR_SHORTCUT_CONTEXT),
         ),
-        KeyBinding::new("]", SelectClipsRightOfPointer, Some(EDITOR_SHORTCUT_CONTEXT)),
+        KeyBinding::new(
+            "]",
+            SelectClipsRightOfPointer,
+            Some(EDITOR_SHORTCUT_CONTEXT),
+        ),
         KeyBinding::new("v", ActivateSelectionTool, Some(EDITOR_SHORTCUT_CONTEXT)),
         KeyBinding::new("b", ActivateBladeTool, Some(EDITOR_SHORTCUT_CONTEXT)),
         KeyBinding::new("f", ToggleFullscreen, Some(EDITOR_SHORTCUT_CONTEXT)),
@@ -217,14 +221,26 @@ impl Editor {
         let content_x = f32::from(pointer.x - bounds.left() - timeline.h_scroll.offset().x)
             - crate::layout::TIMELINE_PADDING;
         let cursor_seconds = content_x.max(0.0) as f64 / timeline.pixels_per_second as f64;
-        timeline.interaction.selected_clip_ids = timeline.editing_state.clips.iter()
-            .filter(|clip| timeline.editing_state.seconds(
-                clip.timeline_end(timeline.editing_state.settings.frame_rate),
-            ) > cursor_seconds
-                && timeline.editing_state.track(clip.track_id()).is_some_and(|track| !track.locked))
+        timeline.interaction.selected_clip_ids = timeline
+            .editing_state
+            .clips
+            .iter()
+            .filter(|clip| {
+                timeline
+                    .editing_state
+                    .seconds(clip.timeline_end(timeline.editing_state.settings.frame_rate))
+                    > cursor_seconds
+                    && timeline
+                        .editing_state
+                        .track(clip.track_id())
+                        .is_some_and(|track| !track.locked)
+            })
             .map(|clip| clip.id())
             .collect();
-        timeline.interaction.selected_clip_id = timeline.editing_state.clips.iter()
+        timeline.interaction.selected_clip_id = timeline
+            .editing_state
+            .clips
+            .iter()
             .filter(|clip| timeline.interaction.selected_clip_ids.contains(&clip.id()))
             .min_by_key(|clip| clip.timeline_start())
             .map(|clip| clip.id());

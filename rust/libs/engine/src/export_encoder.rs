@@ -2,7 +2,7 @@ use anyhow::{Context as _, Result, bail};
 use ffmpeg_next as ffmpeg;
 use image::RgbaImage;
 use std::path::Path;
-use timeline::serialization::TimelineSettings;
+use timeline::TimelineSettings;
 
 pub struct ExportEncoder {
     output: ffmpeg::format::context::Output,

@@ -28,7 +28,6 @@ player-ui = { path = "libs/player-ui" }
 
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "fs", "time"] }
 reqwest = { version = "=0.12.24", default-features = false, features = ["multipart", "rustls-tls"] }
-serde_path_to_error = "=0.1.20"
 clap = { version = "=4.5.49", features = ["derive"] }
 schemars = { version = "=1.2.2", features = ["derive"] }
 resvg = "=0.45.1"

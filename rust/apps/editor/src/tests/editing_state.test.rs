@@ -149,13 +149,13 @@ fn runtime() -> Result<TimelineRuntimeState> {
             muted: false,
             visible: true,
         }],
-        clips: vec![Clip::Text(TextClip {
-            id: Ulid::from(2_u128),
+        clips: vec![Clip::Text(TextClip::new(
+            Ulid::from(2_u128),
             track_id,
-            timeline_start: TimelineFrameIndex::ZERO,
-            duration: Duration::from_secs(3),
-            properties: TextClipProperties::default(),
-        })],
+            TimelineFrameIndex::ZERO,
+            Duration::from_secs(3),
+            TextClipProperties::default(),
+        ))],
         ..Default::default()
     };
     let root = std::env::temp_dir();

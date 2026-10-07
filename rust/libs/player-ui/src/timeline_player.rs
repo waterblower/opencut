@@ -130,9 +130,7 @@ impl TimelinePlayer {
     fn sync_audio(&mut self) -> Result<()> {
         if !self.backend.is_playing() {
             if self.audio_output.is_playing() {
-                if self.backend.is_ended()
-                    && !self.audio_output.remaining_duration()?.is_zero()
-                {
+                if self.backend.is_ended() && !self.audio_output.remaining_duration()?.is_zero() {
                     return Ok(()); // 自然结束时等待软件队列及设备尾音播完；暂停仍立即清空。
                 }
                 self.audio_output.clear_at(self.backend.clock_position())?; // 丢弃已排队的 PCM 并保持停止。

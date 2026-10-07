@@ -68,13 +68,13 @@ fn text_clip_at(
         .map_or(default_duration, |available| {
             available.min(default_duration)
         });
-    Ok(Clip::Text(TextClip {
-        id: Ulid::generate(),
+    Ok(Clip::Text(TextClip::new(
+        Ulid::generate(),
         track_id,
-        timeline_start: position,
-        duration: timeline.position_at_frame(duration),
-        properties: TextClipProperties::default(),
-    }))
+        position,
+        timeline.position_at_frame(duration),
+        TextClipProperties::default(),
+    )))
 }
 
 #[cfg(test)]

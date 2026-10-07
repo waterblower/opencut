@@ -167,8 +167,12 @@ pub async fn handle_event(
                             .update(|cx| {
                                 gpui_tokio::Tokio::spawn(cx, async move {
                                     let settings = GlobalEditorSettings::load()?;
-                                    log::info!("Transcribing audio with MiniMax: {}", source_path.display());
-                                    let wav = transcribe::audio::extract_audio_as_wav(&source_path)?;
+                                    log::info!(
+                                        "Transcribing audio with MiniMax: {}",
+                                        source_path.display()
+                                    );
+                                    let wav =
+                                        transcribe::audio::extract_audio_as_wav(&source_path)?;
                                     Ok::<_, anyhow::Error>((
                                         wav,
                                         settings.minimax_api_key,

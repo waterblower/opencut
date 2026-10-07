@@ -148,19 +148,21 @@ pub fn edit_timeline(timeline: &mut TimelineRuntimeState, action: EditAction) ->
                 }
             }
             let mut is_image = false;
-            if let Some(media) = original.media() {
+            if let Some(asset_id) = original.asset_id() {
                 let asset = data
-                    .asset(media.asset_id)
+                    .asset(asset_id)
                     .ok_or_else(|| anyhow!("Source media not found"))?;
                 is_image = asset.kind == timeline::MediaKind::Image;
                 if drag.start_edge && !is_image {
-                    minimum = minimum.max(start - media.source_in);
+                    minimum = minimum.max(start - original.source_in().unwrap());
                 } else if !drag.start_edge && !is_image {
                     let source_limit = TimelineFrameIndex::from(
                         (asset.duration * frame_rate.frames_per_second()).floor() as i64,
                     );
-                    maximum =
-                        maximum.min(end + source_limit.max(media.source_out) - media.source_out);
+                    maximum = maximum.min(
+                        end + source_limit.max(original.source_out().unwrap())
+                            - original.source_out().unwrap(),
+                    );
                 }
             }
             if minimum > maximum {
@@ -205,7 +207,7 @@ pub fn edit_timeline(timeline: &mut TimelineRuntimeState, action: EditAction) ->
                         text.duration = frame_rate.duration(edge - start);
                     }
                 }
-                Clip::Video(media) | Clip::Audio(media) => {
+                Clip::Video(media) => {
                     if drag.start_edge {
                         media.timeline_start = edge;
                         if is_image {
@@ -213,6 +215,14 @@ pub fn edit_timeline(timeline: &mut TimelineRuntimeState, action: EditAction) ->
                         } else {
                             media.source_in += edge - start;
                         }
+                    } else {
+                        media.source_out += edge - end;
+                    }
+                }
+                Clip::Audio(media) => {
+                    if drag.start_edge {
+                        media.timeline_start = edge;
+                        media.source_in += edge - start;
                     } else {
                         media.source_out += edge - end;
                     }
@@ -382,7 +392,7 @@ pub fn edit_timeline(timeline: &mut TimelineRuntimeState, action: EditAction) ->
         } => {
             for clip in &mut data.clips {
                 if clip_ids.contains(&clip.id())
-                    && let Some(media) = clip.media_mut()
+                    && let Some(media) = clip.video_mut()
                 {
                     media.video_properties = properties;
                 }
@@ -416,7 +426,7 @@ pub fn edit_timeline(timeline: &mut TimelineRuntimeState, action: EditAction) ->
                 let Clip::Text(target) = clip else {
                     continue;
                 };
-                if target.track_id != track_id || target.id == clip_id {
+                if target.track_id != track_id || target.id() == clip_id {
                     continue;
                 }
                 let mut updated = properties.clone();

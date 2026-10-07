@@ -77,12 +77,26 @@ impl TimelineEditorExt for TimelineEditingState {
         if placements.is_empty() {
             return Err(ClipPlacementRejection::NoPlacements.into());
         }
-        let clips = self.clips.iter().map(|clip| (clip.id(), clip)).collect::<HashMap<_, _>>();
-        let tracks = self.tracks.iter().map(|track| (track.id, track)).collect::<HashMap<_, _>>();
-        let assets = self.assets.iter().map(|asset| (asset.id, asset)).collect::<HashMap<_, _>>();
+        let clips = self
+            .clips
+            .iter()
+            .map(|clip| (clip.id(), clip))
+            .collect::<HashMap<_, _>>();
+        let tracks = self
+            .tracks
+            .iter()
+            .map(|track| (track.id, track))
+            .collect::<HashMap<_, _>>();
+        let assets = self
+            .assets
+            .iter()
+            .map(|asset| (asset.id, asset))
+            .collect::<HashMap<_, _>>();
         let mut proposed = Vec::with_capacity(placements.len());
         for &(clip_id, track_id, start) in placements {
-            let clip = clips.get(&clip_id).ok_or(ClipPlacementRejection::MissingClip)?;
+            let clip = clips
+                .get(&clip_id)
+                .ok_or(ClipPlacementRejection::MissingClip)?;
             let duration = clip.frame_length(self.settings.frame_rate);
             if start < TimelineFrameIndex::ZERO {
                 return Err(ClipPlacementRejection::BeforeTimelineStart.into());
@@ -90,18 +104,30 @@ impl TimelineEditorExt for TimelineEditingState {
             if duration < TimelineFrameIndex::ONE_FRAME {
                 return Err(ClipPlacementRejection::DurationTooShort.into());
             }
-            let track = tracks.get(&track_id).ok_or(ClipPlacementRejection::MissingTrack)?;
+            let track = tracks
+                .get(&track_id)
+                .ok_or(ClipPlacementRejection::MissingTrack)?;
             if track.locked {
                 return Err(ClipPlacementRejection::LockedTrack.into());
             }
             let expected_kind = match clip {
-                Clip::Video(media) | Clip::Audio(media) => {
-                    let asset = assets.get(&media.asset_id).ok_or(ClipPlacementRejection::MissingAsset)?;
-                    if matches!(clip, Clip::Audio(_)) || asset.kind == MediaKind::Audio {
-                        TrackKind::Audio
-                    } else {
-                        TrackKind::Video
+                Clip::Video(media) => {
+                    let asset = assets
+                        .get(&media.asset_id)
+                        .ok_or(ClipPlacementRejection::MissingAsset)?;
+                    if asset.kind == MediaKind::Audio {
+                        return Err(ClipPlacementRejection::IncompatibleAsset.into());
                     }
+                    TrackKind::Video
+                }
+                Clip::Audio(media) => {
+                    let asset = assets
+                        .get(&media.asset_id)
+                        .ok_or(ClipPlacementRejection::MissingAsset)?;
+                    if asset.kind == MediaKind::Image {
+                        return Err(ClipPlacementRejection::IncompatibleAsset.into());
+                    }
+                    TrackKind::Audio
                 }
                 Clip::Text(_) => TrackKind::Text,
             };
@@ -111,12 +137,23 @@ impl TimelineEditorExt for TimelineEditingState {
             proposed.push((track_id, start, start + duration));
         }
         proposed.sort_unstable();
-        if proposed.windows(2).any(|pair| pair[0].0 == pair[1].0 && pair[1].1 < pair[0].2) {
+        if proposed
+            .windows(2)
+            .any(|pair| pair[0].0 == pair[1].0 && pair[1].1 < pair[0].2)
+        {
             return Err(ClipPlacementRejection::ProposedClipsOverlap.into());
         }
-        let mut existing = self.clips.iter()
+        let mut existing = self
+            .clips
+            .iter()
             .filter(|clip| !ignored_clip_ids.contains(&clip.id()))
-            .map(|clip| (clip.track_id(), clip.timeline_start(), clip.timeline_end(self.settings.frame_rate)))
+            .map(|clip| {
+                (
+                    clip.track_id(),
+                    clip.timeline_start(),
+                    clip.timeline_end(self.settings.frame_rate),
+                )
+            })
             .collect::<Vec<_>>();
         existing.sort_unstable();
         let mut cursor = 0;
@@ -128,7 +165,9 @@ impl TimelineEditorExt for TimelineEditingState {
                 cursor += 1;
             }
             if let Some(&(other_track, other_start, other_end)) = existing.get(cursor) {
-                if other_track == track_id && timeline_ranges_overlap(start, end, other_start, other_end) {
+                if other_track == track_id
+                    && timeline_ranges_overlap(start, end, other_start, other_end)
+                {
                     return Err(ClipPlacementRejection::ExistingClipOverlap.into());
                 }
             }
@@ -150,7 +189,11 @@ impl TimelineEditorExt for TimelineEditingState {
             let new_duration = (previous.rescale_nearest(old_end, frame_rate) - timeline_start)
                 .max(TimelineFrameIndex::ONE_FRAME);
             match clip {
-                Clip::Video(clip) | Clip::Audio(clip) => {
+                Clip::Video(clip) => {
+                    clip.source_in = previous.rescale_nearest(clip.source_in, frame_rate);
+                    clip.source_out = clip.source_in + new_duration;
+                }
+                Clip::Audio(clip) => {
                     clip.source_in = previous.rescale_nearest(clip.source_in, frame_rate);
                     clip.source_out = clip.source_in + new_duration;
                 }
@@ -176,8 +219,10 @@ impl TimelineEditorExt for TimelineEditingState {
             let is_invalid = track.is_none()
                 || match (track.map(|track| track.kind), clip) {
                     (Some(TrackKind::Text), Clip::Text(_)) => false,
-                    (Some(TrackKind::Video), Clip::Video(clip))
-                    | (Some(TrackKind::Audio), Clip::Audio(clip)) => {
+                    (Some(TrackKind::Video), Clip::Video(clip)) => {
+                        !self.assets.iter().any(|asset| asset.id == clip.asset_id)
+                    }
+                    (Some(TrackKind::Audio), Clip::Audio(clip)) => {
                         !self.assets.iter().any(|asset| asset.id == clip.asset_id)
                     }
                     (Some(_), _) => true,
@@ -185,7 +230,11 @@ impl TimelineEditorExt for TimelineEditingState {
                 }
                 || clip.timeline_start() < TimelineFrameIndex::ZERO
                 || match clip {
-                    Clip::Video(clip) | Clip::Audio(clip) => {
+                    Clip::Video(clip) => {
+                        clip.source_in < TimelineFrameIndex::ZERO
+                            || clip.source_out - clip.source_in < TimelineFrameIndex::ONE_FRAME
+                    }
+                    Clip::Audio(clip) => {
                         clip.source_in < TimelineFrameIndex::ZERO
                             || clip.source_out - clip.source_in < TimelineFrameIndex::ONE_FRAME
                     }
@@ -196,28 +245,26 @@ impl TimelineEditorExt for TimelineEditingState {
             !is_invalid
         });
         for clip in &mut self.clips {
-            let Some(clip) = clip.media_mut() else {
-                continue;
+            let (asset_id, source_in, source_out) = match clip {
+                Clip::Video(clip) => (clip.asset_id, &mut clip.source_in, &mut clip.source_out),
+                Clip::Audio(clip) => (clip.asset_id, &mut clip.source_in, &mut clip.source_out),
+                Clip::Text(_) => continue,
             };
-            if let Some(asset) = self.assets.iter().find(|asset| asset.id == clip.asset_id) {
+            if let Some(asset) = self.assets.iter().find(|asset| asset.id == asset_id) {
                 if asset.kind == MediaKind::Image {
                     // An image has no time-based source to exhaust. Its five-second
                     // asset duration is only the initial clip length, not a maximum.
-                    clip.source_in = clip.source_in.max(TimelineFrameIndex::ZERO);
-                    clip.source_out = clip
-                        .source_out
-                        .max(clip.source_in + TimelineFrameIndex::ONE_FRAME);
+                    *source_in = (*source_in).max(TimelineFrameIndex::ZERO);
+                    *source_out = (*source_out).max(*source_in + TimelineFrameIndex::ONE_FRAME);
                 } else {
                     let asset_duration = frame_rate
                         .nearest(asset.duration)
                         .max(TimelineFrameIndex::ONE_FRAME);
                     let maximum_in = (asset_duration - TimelineFrameIndex::ONE_FRAME)
                         .max(TimelineFrameIndex::ZERO);
-                    clip.source_in = clip.source_in.clamp(TimelineFrameIndex::ZERO, maximum_in);
-                    clip.source_out = clip.source_out.clamp(
-                        clip.source_in + TimelineFrameIndex::ONE_FRAME,
-                        asset_duration,
-                    );
+                    *source_in = (*source_in).clamp(TimelineFrameIndex::ZERO, maximum_in);
+                    *source_out = (*source_out)
+                        .clamp(*source_in + TimelineFrameIndex::ONE_FRAME, asset_duration);
                 }
             }
         }
