@@ -35,13 +35,13 @@ FFmpeg or invokes Python. Timeline export uses GPUI through the shared engine.
 
 ```sh
 cargo cli export2 /project/episode.timeline.json -o episode.mp4
-cargo cli export2 /project/timelines/episode.json -o episode.mp4 --project-root /project --video-bitrate 8000 --json
+cargo cli export2 /project/timelines/episode.json -o episode.mp4 --project-root /project --bitrate 8000 --json
 ```
 
 Exports the complete timeline synchronously to MP4 with H.264 video and stereo
 AAC audio, using the timeline's dimensions, frame rate, and audio sample rate.
 `--project-root` overrides the timeline directory when resolving relative asset
-paths. `--video-bitrate` is in kbps (1 kbps = 1,000 bits per second) and defaults to 8,000.
+paths. `--bitrate` is in kbps (1 kbps = 1,000 bits per second) and defaults to 8,000.
 The command requires macOS Metal and VideoToolbox services and refuses existing
 output files. On success, stdout reports the output path and frame count.
 

@@ -43,12 +43,12 @@ opencut probe /project/episode.timeline.json --json
 
 ```sh
 opencut export2 /project/episode.timeline.json -o episode.mp4
-opencut export2 /project/timelines/episode.json -o episode.mp4 --project-root /project --video-bitrate 8000 --json
+opencut export2 /project/timelines/episode.json -o episode.mp4 --project-root /project --bitrate 8000 --json
 ```
 
 Exports the complete timeline synchronously to H.264 video and stereo AAC audio.
 Canvas size, frame rate, and audio sample rate come from the timeline settings.
-`--video-bitrate` is in kbps (1 kbps = 1,000 bits per second) and defaults to 8,000.
+`--bitrate` is in kbps (1 kbps = 1,000 bits per second) and defaults to 8,000.
 Requires macOS Metal and VideoToolbox services. Existing output files are refused
 unless `--overwrite` is given.
 On success, stdout reports the output path and frame count.

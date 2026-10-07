@@ -64,8 +64,8 @@ pub struct ExportArgs {
     #[arg(long)]
     pub project_root: Option<PathBuf>,
     /// H.264 target bitrate in kbps (1 kbps = 1,000 bits per second).
-    #[arg(long, default_value_t = 8_000, value_parser = clap::value_parser!(u64).range(1..=i64::MAX as u64 / 1_000))]
-    pub video_bitrate: u64,
+    #[arg(long, short, default_value_t = 8_000, value_parser = clap::value_parser!(u64).range(1..=i64::MAX as u64 / 1_000))]
+    pub bitrate: u64,
     /// Replace an existing output file; source media is never replaced.
     #[arg(long)]
     pub overwrite: bool,
