@@ -16,7 +16,7 @@ pub fn export(args: ExportArgs) -> Result<Value> {
         &args.output,
         &ExportOption {
             project_root,
-            video_bitrate: args.video_bitrate * 1_000,
+            video_bitrate: args.bitrate * 1_000,
             overwrite: args.overwrite,
         },
         gpui_platform::current_platform(true).text_system(),

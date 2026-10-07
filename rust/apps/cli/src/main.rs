@@ -7,6 +7,7 @@ pub mod error;
 mod export;
 pub mod subtitles;
 pub mod time;
+mod timeline_edit;
 pub mod transcribe;
 
 use args::{Args, Command};
@@ -85,6 +86,9 @@ fn print_error(error: &Error, json: bool) {
 
 async fn run(command: Command, api_key: Option<&str>) -> Result<Value> {
     match command {
+        Command::Timeline {
+            command: args::TimelineCommand::KeepTextSections(options),
+        } => timeline_edit::keep_text_sections(options),
         Command::Export(args) => export::export(args),
         Command::Transcribe {
             media_file,

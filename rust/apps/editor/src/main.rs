@@ -22,7 +22,6 @@ mod global_settings;
 mod global_settings_dialog;
 mod gpui_inspector;
 mod layout;
-mod macos_pinch;
 mod media_probe;
 mod model;
 mod preview;
@@ -53,7 +52,6 @@ mod timeline_trim;
 mod timeline_ui;
 mod track;
 mod track_ui;
-mod transcription;
 mod transcription_window;
 mod waveform;
 
@@ -85,7 +83,6 @@ fn main() -> anyhow::Result<()> {
 
     let settings = GlobalEditorSettings::load()?;
 
-    macos_pinch::install();
     application().with_assets(EditorAssets).run(move |cx| {
         run_app(cx, settings.project_root.clone());
     });

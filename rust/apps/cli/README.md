@@ -35,15 +35,40 @@ FFmpeg or invokes Python. Timeline export uses GPUI through the shared engine.
 
 ```sh
 cargo cli export2 /project/episode.timeline.json -o episode.mp4
-cargo cli export2 /project/timelines/episode.json -o episode.mp4 --project-root /project --video-bitrate 8000 --json
+cargo cli export2 /project/timelines/episode.json -o episode.mp4 --project-root /project --bitrate 8000 --json
 ```
 
 Exports the complete timeline synchronously to MP4 with H.264 video and stereo
 AAC audio, using the timeline's dimensions, frame rate, and audio sample rate.
 `--project-root` overrides the timeline directory when resolving relative asset
-paths. `--video-bitrate` is in kbps (1 kbps = 1,000 bits per second) and defaults to 8,000.
+paths. `--bitrate` is in kbps (1 kbps = 1,000 bits per second) and defaults to 8,000.
 The command requires macOS Metal and VideoToolbox services and refuses existing
 output files. On success, stdout reports the output path and frame count.
+
+## Keep text-covered sections
+
+```sh
+opencut timeline keep-text-sections input.timeline --output edited.timeline
+opencut timeline keep-text-sections input.timeline --write-inplace
+```
+
+Exactly one of `--output` or `--write-inplace` is required. The command keeps the
+union of all text-clip intervals, padded by approximately 25ms on each side
+(rounded to timeline frames and bounded by the timeline), and removes the remaining
+uncovered time across every track. This preserves about 50ms of original audio/video
+between separated speech sections; shorter gaps are kept in full.
+Overlapping or adjacent intervals form one section. Clips crossing removed gaps
+are split and trimmed, then retained sections are joined in order, preserving
+source offsets and synchronization. Subtitle durations are unchanged; no silence
+or black frames are inserted.
+
+Hidden, muted, and locked tracks participate; track settings and clip properties
+are preserved. Timelines without nonempty text sections are rejected. Source
+media is never modified or decoded. `--output` refuses existing destinations and
+rebases relative media paths when the output directory changes; that directory
+must exist. `--write-inplace` replaces the input atomically after validation.
+The saved playhead and horizontal scroll reset to the start. Stdout reports the
+output path and original, retained, and removed frame counts; `--json` is supported.
 
 ## Probe media and timelines
 

@@ -19,6 +19,9 @@ use gpui::{
     CursorStyle, DragMoveEvent, MouseButton, MouseDownEvent, MouseUpEvent, Window, div, px, rgb,
 };
 
+// 捏合增量倍率；越大缩放越灵敏。It's fun to be PI.
+const TIMELINE_PINCH_SENSITIVITY: f32 = std::f32::consts::PI;
+
 const MAX_RULER_TICKS: usize = 240;
 const MIN_RULER_LABEL_SPACING: f32 = 72.0;
 const MIN_FRAME_TICK_SPACING: f32 = 4.0;
@@ -81,6 +84,7 @@ impl Editor {
             .on_mouse_move(cx.listener(Self::update_clip_move))
             .on_mouse_move(cx.listener(Self::update_marquee_selection))
             .on_scroll_wheel(cx.listener(Self::finish_timeline_scroll))
+            .on_pinch(cx.listener(pinch_timeline))
             .on_mouse_up(MouseButton::Left, cx.listener(finish_clip_move))
             .on_mouse_up(
                 MouseButton::Left,
@@ -461,6 +465,7 @@ impl Editor {
         });
         div()
             .id("timeline-ruler")
+            .on_pinch(cx.listener(pinch_timeline))
             .on_click(cx.listener(Self::seek_to_ruler_click))
             .relative()
             .w_full()
@@ -624,10 +629,12 @@ impl Editor {
                     .gap_2()
                     .child(timeline_icon_button("zoom-out", "−").on_click(cx.listener(
                         |editor, _, _, cx| {
-                            let Some(timeline) = editor.timeline.as_mut() else {
+                            if editor.timeline.is_none() {
                                 return;
-                            };
-                            timeline.zoom(0.8);
+                            }
+                            let anchor = editor.timeline_playhead_seconds(cx);
+                            let timeline = editor.timeline.as_mut().unwrap();
+                            timeline.zoom(0.8, anchor);
                             if let Err(error) = timeline.save() {
                                 log::error!("{error:?}");
                             }
@@ -654,10 +661,12 @@ impl Editor {
                     )
                     .child(timeline_icon_button("zoom-in", "+").on_click(cx.listener(
                         |editor, _, _, cx| {
-                            let Some(timeline) = editor.timeline.as_mut() else {
+                            if editor.timeline.is_none() {
                                 return;
-                            };
-                            timeline.zoom(1.25);
+                            }
+                            let anchor = editor.timeline_playhead_seconds(cx);
+                            let timeline = editor.timeline.as_mut().unwrap();
+                            timeline.zoom(1.25, anchor);
                             if let Err(error) = timeline.save() {
                                 log::error!("{error:?}");
                             }
@@ -756,4 +765,36 @@ fn finish_clip_move(
         }
     }
     cx.notify();
+}
+
+fn pinch_timeline(
+    editor: &mut Editor,
+    event: &gpui::PinchEvent,
+    _: &mut Window,
+    cx: &mut Context<Editor>,
+) {
+    if editor.timeline.is_none() {
+        return;
+    }
+    let anchor = editor.timeline_playhead_seconds(cx);
+    let timeline = editor.timeline.as_mut().unwrap();
+    let previous_zoom = timeline.pixels_per_second;
+    timeline.zoom(
+        (event.delta * TIMELINE_PINCH_SENSITIVITY)
+            .exp()
+            .clamp(0.5, 2.0),
+        anchor,
+    );
+    if matches!(
+        event.phase,
+        gpui::TouchPhase::Ended | gpui::TouchPhase::Cancelled
+    ) {
+        if let Err(error) = timeline.save() {
+            log::error!("Could not save timeline zoom: {error:?}");
+        }
+    }
+    if timeline.pixels_per_second != previous_zoom {
+        cx.notify();
+    }
+    cx.stop_propagation();
 }

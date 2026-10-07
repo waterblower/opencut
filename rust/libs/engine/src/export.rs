@@ -10,7 +10,7 @@ use std::{
 };
 
 use gpui::{
-    AnyElement, AppContext as _, Context, HeadlessAppContext, IntoElement, Render, Window, div, px,
+    AppContext as _, Context, HeadlessAppContext, IntoElement, Render, Window, div, px,
     size,
 };
 use media_backend::{AudioBackend, AudioDecoder, AudioSamples, PcmFormat};
@@ -18,7 +18,7 @@ use timeline::serialization::{self, MediaKind, TrackKind};
 use timeline::{Clip, TimelineEditingState, TimelineSerialization};
 use ulid::Ulid;
 
-use crate::{export_encoder::ExportEncoder, timeline_decoder::TimelineDecoder};
+use crate::{export_encoder::ExportEncoder, timeline_decoder::{TimelineDecoder, TimelineFrameComposition}};
 use anyhow::{Context as _, Result, bail};
 
 pub struct ExportOption {
@@ -69,7 +69,7 @@ pub fn export_timeline(
     }
 
     // Convenient Variables
-    let editing_state = timeline_serialization.to_editing_state();
+    let editing_state = Arc::new(timeline_serialization.to_editing_state());
     let timeline_settings = editing_state.settings;
     let frame_count = timeline_serialization.frame_count();
 
@@ -95,11 +95,14 @@ pub fn export_timeline(
                 px(timeline_settings.width as f32),
                 px(timeline_settings.height as f32),
             ),
-            |_, cx| cx.new(|_| ExportCanvas { element: None }),
+            |_, cx| cx.new(|_| ExportCanvas {
+                frame: None,
+                timeline: Arc::clone(&editing_state),
+            }),
         )
         .context("Creating export canvas")?;
 
-    let (logical_width, logical_height) = window.update(&mut cx, |_, window, cx| {
+    window.update(&mut cx, |_, window, cx| {
         let scale = window.scale_factor();
         let width = timeline_settings.width as f32 / scale;
         let height = timeline_settings.height as f32 / scale;
@@ -107,7 +110,6 @@ pub fn export_timeline(
         window.resize(size(px(width), px(height)));
         window.bounds_changed(cx);
 
-        (width, height)
     })?;
 
     // variables needed by audio handling
@@ -127,71 +129,74 @@ pub fn export_timeline(
             fs::remove_file(output_path).context("Removing stopped export output")?;
             return Ok(ExportCompletion::Stopped);
         }
-        let started = Instant::now();
-        // Video Handling
-        {
-            // get frame compositions from the decoder
-            let frame = decoder.frame_at(&editing_state, i.into())?;
-            let decoded = Instant::now();
+        let mut export_frame = || -> Result<()> {
+            let started = Instant::now();
+            // Video Handling
+            {
+                // get frame compositions from the decoder
+                let frame = decoder.frame_at(&editing_state, i.into())?;
+                let decoded = Instant::now();
 
-            // convert the composition to GPUI element
-            let element = frame.render_frame(logical_width, logical_height, &editing_state);
-            let composed = Instant::now();
+                // convert the GPUI element to image buffer, aka raw frame data
+                let image = cx.update_window(window.into(), |root, window, cx| {
+                    let view = root.downcast::<ExportCanvas>().unwrap();
+                    view.update(cx, |view, _| {
+                        view.frame = Some(frame);
+                    });
 
-            // convert the GPUI element to image buffer, aka raw frame data
-            let image = cx.update_window(window.into(), |root, window, cx| {
-                let view = root.downcast::<ExportCanvas>().unwrap();
-                view.update(cx, |view, _| {
-                    view.element = Some(element);
-                });
+                    window.refresh();
+                    let arena = window.draw(cx);
+                    let capture_started = Instant::now();
+                    let image = window.render_to_image();
+                    let capture_elapsed = capture_started.elapsed();
+                    arena.clear(cx);
+                    // eprintln!("Export frame {i}: window.render_to_image={capture_elapsed:?}");
+                    image
+                })??;
+                let rendered = Instant::now();
 
-                window.refresh();
-                let arena = window.draw(cx);
-                let capture_started = Instant::now();
-                let image = window.render_to_image();
-                let capture_elapsed = capture_started.elapsed();
-                arena.clear(cx);
-                // eprintln!("Export frame {i}: window.render_to_image={capture_elapsed:?}");
-                image
-            })??;
-            let rendered = Instant::now();
-
-            // send to encoder
-            encoder.video(&image, i)?;
-            let encoded = Instant::now();
-            eprintln!(
-                "Export frame {i}: decode={:?}, compose={:?}, render_to_image={:?}, encode={:?}, total={:?}",
-                decoded.duration_since(started),
-                composed.duration_since(decoded),
-                rendered.duration_since(composed),
-                encoded.duration_since(rendered),
-                encoded.duration_since(started),
-            );
-        }
-        // Audio Handling
-        {
-            // 使用绝对帧边界计算采样位置，避免逐帧取整产生累计误差。
-            let audio_end = i64::try_from(rate.audio_samples((i + 1).into(), sample_rate))
-                .context("Audio frame boundary exceeds i64")?
-                .min(total_samples);
-
-            // 按编码器块大小提交；允许领先视频边界一个块，最后一块止于时间线末尾。
-            while audio_position < audio_end {
-                let count = i64::from(encoder.audio_frame_size())
-                    .max(1)
-                    .min(total_samples - audio_position) as usize;
-                let samples = mix_timeline_audio(
-                    &editing_state,
-                    &option.project_root,
-                    &mut audio_readers,
-                    audio_position,
-                    count,
-                    sample_rate,
-                )?;
-                encoder.audio(&samples, audio_position, total_samples)?;
-                audio_position += count as i64;
+                // send to encoder
+                encoder.video(&image, i)?;
+                let encoded = Instant::now();
+                eprintln!(
+                    "Export frame {i}: decode={:?}, render_to_image={:?}, encode={:?}, total={:?}",
+                    decoded.duration_since(started),
+                    rendered.duration_since(decoded),
+                    encoded.duration_since(rendered),
+                    encoded.duration_since(started),
+                );
             }
-        }
+            // Audio Handling
+            {
+                // 使用绝对帧边界计算采样位置，避免逐帧取整产生累计误差。
+                let audio_end = i64::try_from(rate.audio_samples((i + 1).into(), sample_rate))
+                    .context("Audio frame boundary exceeds i64")?
+                    .min(total_samples);
+
+                // 按编码器块大小提交；允许领先视频边界一个块，最后一块止于时间线末尾。
+                while audio_position < audio_end {
+                    let count = i64::from(encoder.audio_frame_size())
+                        .max(1)
+                        .min(total_samples - audio_position) as usize;
+                    let samples = mix_timeline_audio(
+                        &editing_state,
+                        &option.project_root,
+                        &mut audio_readers,
+                        audio_position,
+                        count,
+                        sample_rate,
+                    )?;
+                    encoder.audio(&samples, audio_position, total_samples)?;
+                    audio_position += count as i64;
+                }
+            }
+            Ok(())
+        };
+        // Metal 的 autoreleased command buffer 会持有纹理；每帧排空，避免长导出耗尽 surface。
+        #[cfg(target_os = "macos")]
+        objc::rc::autoreleasepool(export_frame)?;
+        #[cfg(not(target_os = "macos"))]
+        export_frame()?;
         control.completed_frames.store(i + 1, Ordering::Relaxed);
     }
     if control.stop_requested() {
@@ -204,15 +209,18 @@ pub fn export_timeline(
 }
 
 struct ExportCanvas {
-    // question: why not element: AnyElement?
-    element: Option<AnyElement>,
+    frame: Option<TimelineFrameComposition>,
+    timeline: Arc<TimelineEditingState>,
 }
 
 impl Render for ExportCanvas {
-    fn render(&mut self, _: &mut Window, _: &mut Context<Self>) -> impl IntoElement {
-        self.element
-            .take()
-            .unwrap_or_else(|| div().into_any_element())
+    fn render(&mut self, window: &mut Window, _: &mut Context<Self>) -> impl IntoElement {
+        let Some(frame) = self.frame.take() else {
+            return div().into_any_element();
+        };
+        let size = window.viewport_size();
+        // 必须在 draw 的 arena 内创建元素，才能随每帧 arena.clear 释放 surface。
+        frame.render_frame(size.width.into(), size.height.into(), &self.timeline)
     }
 }
 
@@ -236,6 +244,7 @@ pub fn mix_timeline_audio(
     let end = start
         .checked_add(i64::try_from(count)?)
         .context("Audio interval overflow")?;
+    let mut active_readers = HashSet::new();
     for clip in &timeline.clips {
         let media = match clip {
             Clip::Video(media) | Clip::Audio(media) => media,
@@ -268,6 +277,7 @@ pub fn mix_timeline_audio(
         if sample_count == 0 {
             continue;
         }
+        active_readers.insert(media.id);
         let reader = match readers.entry(media.id) {
             Entry::Occupied(entry) => entry.into_mut(),
             Entry::Vacant(entry) => {
@@ -298,6 +308,7 @@ pub fn mix_timeline_audio(
             target[1] += sample[1] * gain;
         }
     }
+    readers.retain(|id, _| active_readers.contains(id)); // 只保留当前混音区间的 reader，释放已结束片段的解码器和文件。
     for sample in &mut mixed {
         for channel in sample {
             *channel = channel.clamp(-1.0, 1.0);

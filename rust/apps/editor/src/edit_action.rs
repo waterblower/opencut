@@ -43,6 +43,10 @@ pub enum EditAction {
         clip_id: Ulid,
         text: String,
     },
+    SetTextColor {
+        clip_id: Ulid,
+        color: u32, // 大端 ARGB，与 TextClipProperties::color 相同。
+    },
     UpdateTextClipPosition {
         timeline_path: PathBuf,
         clip_id: Ulid,
@@ -387,6 +391,11 @@ pub fn edit_timeline(timeline: &mut TimelineRuntimeState, action: EditAction) ->
         EditAction::SetTextContent { clip_id, text } => {
             if let Some(Clip::Text(clip)) = data.clip_mut(clip_id) {
                 clip.properties.text = text;
+            }
+        }
+        EditAction::SetTextColor { clip_id, color } => {
+            if let Some(Clip::Text(clip)) = data.clip_mut(clip_id) {
+                clip.properties.color = color;
             }
         }
         EditAction::ApplyTextStyleToTrack {

@@ -255,6 +255,50 @@ fn text_clips_can_move_without_a_media_asset() {
 }
 
 #[test]
+fn validates_a_thousand_clip_moves_within_one_frame_budget() {
+    use std::hint::black_box;
+    use std::time::Instant;
+
+    let mut project = TimelineEditingState {
+        assets: vec![video_asset()],
+        ..TimelineEditingState::with_test_tracks()
+    };
+    let mut placements = Vec::new();
+    let mut ignored = HashSet::new();
+    for index in 0..1_000_u64 {
+        let selected = video_clip(1_000 + index, index as i64 * 120, 30);
+        ignored.insert(selected.id());
+        placements.push((selected.id(), ulid(1), selected.timeline_start() + TimelineFrameIndex::from(10)));
+        project.clips.push(selected);
+        project.clips.push(video_clip(2_000 + index, index as i64 * 120 + 60, 30));
+    }
+    // 无序输入，且目标轨道含未选中片段，避免只测全选或已排序的捷径。
+    project.clips.reverse();
+    placements.reverse();
+    project.validate_clip_move_placements(&placements, &ignored).unwrap();
+
+    let mut timings = Vec::new();
+    for _ in 0..31 {
+        let started = Instant::now();
+        black_box(&project)
+            .validate_clip_move_placements(black_box(&placements), black_box(&ignored))
+            .unwrap();
+        timings.push(started.elapsed());
+    }
+    timings.sort_unstable();
+    let median = timings[timings.len() / 2];
+    eprintln!("1,000 selected / 2,000 total clips, 31 runs: median={median:?}, min={:?}, max={:?}", timings[0], timings[timings.len() - 1]);
+    assert!(median < Duration::from_micros(16_667), "Move validation exceeded a 60 Hz frame budget: {median:?}");
+
+    placements[0].2 += TimelineFrameIndex::from(50);
+    let error = project.validate_clip_move_placements(&placements, &ignored).unwrap_err();
+    assert_eq!(error.downcast_ref::<ClipPlacementRejection>(), Some(&ClipPlacementRejection::ExistingClipOverlap));
+    placements[0] = (placements[0].0, placements[1].1, placements[1].2);
+    let overlap_error = project.validate_clip_move_placements(&placements, &ignored).unwrap_err();
+    assert_eq!(overlap_error.downcast_ref::<ClipPlacementRejection>(), Some(&ClipPlacementRejection::ProposedClipsOverlap));
+}
+
+#[test]
 fn changing_frame_rate_keeps_text_duration_and_recomputes_frame_length() {
     let track_id = ulid(3);
     let mut project = TimelineEditingState {
