@@ -34,8 +34,7 @@ impl ClipEditingExt for Clip {
         }
 
         let mut left = self.clone();
-        let mut right = self.clone();
-        right.set_id(Ulid::generate());
+        let mut right = self.copy(Ulid::generate());
         right.set_timeline_start(timeline_position);
         match (&mut left, &mut right) {
             (Self::Video(left), Self::Video(right)) => {
@@ -64,7 +63,7 @@ pub(super) fn text_clip_component(
     selected: bool,
     moving: bool,
 ) -> impl StatefulInteractiveElement + IntoElement + ParentElement {
-    let clip_id = clip.id;
+    let clip_id = clip.id();
     let left =
         TIMELINE_PADDING + frame_rate.seconds(clip.timeline_start) as f32 * pixels_per_second;
     let width =

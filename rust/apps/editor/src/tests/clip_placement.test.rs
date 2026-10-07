@@ -70,15 +70,15 @@ fn validates_one_clip_placement() {
         ClipPlacementRejection::IncompatibleTrack
     );
 
-    timeline.clips.push(Clip::Audio(AudioClip {
-        id: ulid(20),
-        track_id: ulid(2),
-        asset_id: ulid(100),
-        timeline_start: TimelineFrameIndex::from(10),
-        source_in: TimelineFrameIndex::ZERO,
-        source_out: TimelineFrameIndex::from(10),
-        audio_properties: AudioClipProperties::default(),
-    }));
+    timeline.clips.push(Clip::Audio(AudioClip::new(
+        ulid(20),
+        ulid(2),
+        ulid(100),
+        TimelineFrameIndex::from(10),
+        TimelineFrameIndex::ZERO,
+        TimelineFrameIndex::from(10),
+        AudioClipProperties::default(),
+    )));
     assert_eq!(
         placement_rejection(validate_clip_placement(
             &timeline,

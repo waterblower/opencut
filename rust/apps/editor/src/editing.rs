@@ -333,7 +333,7 @@ impl Editor {
             return Ok(());
         };
         let playhead = timeline.playhead();
-        let (mut clips, assets) =
+        let (clips, assets) =
             match clipboard.prepare_paste(&timeline.path, &timeline.editing_state, playhead) {
                 Ok(paste) => paste,
                 Err(rejection) => {
@@ -345,9 +345,10 @@ impl Editor {
         let Some(timeline) = self.timeline.as_mut() else {
             return Ok(());
         };
-        for clip in &mut clips {
-            clip.set_id(Ulid::generate());
-        }
+        let clips: Vec<Clip> = clips
+            .iter()
+            .map(|clip| clip.copy(Ulid::generate()))
+            .collect();
 
         timeline.interaction.selected_clip_ids = clips.iter().map(Clip::id).collect();
         timeline.interaction.selected_clip_id = clipboard
@@ -453,8 +454,8 @@ impl Editor {
             .selected_clip_id
             .and_then(|id| clips.iter().position(|clip| clip.id() == id));
         let mut duplicates = Vec::with_capacity(clips.len());
-        for (mut clip, (_, _, start)) in clips.into_iter().zip(placements) {
-            clip.set_id(Ulid::generate());
+        for (clip, (_, _, start)) in clips.into_iter().zip(placements) {
+            let mut clip = clip.copy(Ulid::generate());
             clip.set_timeline_start(start);
             duplicates.push(clip);
         }

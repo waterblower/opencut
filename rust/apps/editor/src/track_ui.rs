@@ -323,7 +323,7 @@ impl Editor {
                     .timeline
                     .as_ref()
                     .expect("timeline clips require an active timeline");
-                let clip_id = clip.id;
+                let clip_id = clip.id();
                 let moving = timeline
                     .interaction
                     .clip_move_drag

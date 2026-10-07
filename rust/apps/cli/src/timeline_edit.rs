@@ -122,10 +122,11 @@ fn compact_text_sections(editing_state: &TimelineEditingState) -> Result<Timelin
             let start = clip.timeline_start().max(section_start);
             let end = clip.timeline_end(frame_rate).min(section_end);
             if start < end {
-                let mut fragment = clip.clone();
-                if kept_original_id {
-                    fragment.set_id(Ulid::generate());
-                }
+                let mut fragment = if kept_original_id {
+                    clip.copy(Ulid::generate())
+                } else {
+                    clip.clone()
+                };
                 kept_original_id = true;
                 fragment.set_timeline_start(output_start + start - section_start);
                 match &mut fragment {

@@ -93,7 +93,7 @@ impl TimelineDecoder {
             for clip in clips_at_position {
                 match clip {
                     Clip::Audio(_) => {}
-                    Clip::Text(clip) => layers.push(PreparedLayer::Text { clip_id: clip.id }),
+                    Clip::Text(clip) => layers.push(PreparedLayer::Text { clip_id: clip.id() }),
                     Clip::Video(media) => {
                         let asset = timeline
                             .asset(media.asset_id)
@@ -103,7 +103,7 @@ impl TimelineDecoder {
                             MediaKind::Video => {
                                 #[cfg(target_os = "macos")]
                                 {
-                                    let reader = match self.readers.entry(media.id) {
+                                    let reader = match self.readers.entry(media.id()) {
                                         Entry::Occupied(entry) => entry.into_mut(),
                                         Entry::Vacant(entry) => entry.insert(
                                             ClipReader::open(&asset_path).context(format!(
@@ -112,23 +112,23 @@ impl TimelineDecoder {
                                             ))?,
                                         ),
                                     };
-                                    active_readers.insert(media.id);
+                                    active_readers.insert(media.id());
                                     let source = timeline.source_position_at(clip, position);
                                     let frame = match reader.picture_at(source) {
                                         Ok(frame) => frame,
                                         Err(error) => {
                                             // A failed decoder may be partially advanced; reopen on retry.
-                                            self.readers.remove(&media.id);
+                                            self.readers.remove(&media.id());
                                             return Err(error).context(format!(
                                                 "Preparing timeline clip {} from {} at {:.6}s",
-                                                media.id,
+                                                media.id(),
                                                 asset_path.display(),
                                                 source.as_secs_f64(),
                                             ));
                                         }
                                     };
                                     layers.push(PreparedLayer::VideoFrame {
-                                        clip_id: media.id,
+                                        clip_id: media.id(),
                                         frame,
                                         properties: media.video_properties,
                                     });
@@ -148,12 +148,12 @@ impl TimelineDecoder {
                                     }
                                 };
                                 layers.push(PreparedLayer::Image {
-                                    clip_id: media.id,
+                                    clip_id: media.id(),
                                     image,
                                     properties: media.video_properties,
                                 });
                             }
-                            MediaKind::Audio => bail!("Visual clip {} uses audio", media.id),
+                            MediaKind::Audio => bail!("Visual clip {} uses audio", media.id()),
                         }
                     }
                 }

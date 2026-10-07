@@ -33,15 +33,15 @@ fn audio_asset(id: u64) -> MediaAsset {
 }
 
 fn audio_clip(id: u64, start: i64, duration: i64) -> Clip {
-    Clip::Audio(AudioClip {
-        id: ulid(id),
-        track_id: ulid(2),
-        asset_id: ulid(100),
-        timeline_start: TimelineFrameIndex::from(start),
-        source_in: TimelineFrameIndex::ZERO,
-        source_out: TimelineFrameIndex::from(duration),
-        audio_properties: AudioClipProperties::default(),
-    })
+    Clip::Audio(AudioClip::new(
+        ulid(id),
+        ulid(2),
+        ulid(100),
+        TimelineFrameIndex::from(start),
+        TimelineFrameIndex::ZERO,
+        TimelineFrameIndex::from(duration),
+        AudioClipProperties::default(),
+    ))
 }
 
 #[test]
@@ -426,16 +426,16 @@ fn track_controls_and_properties_work_without_preview() -> Result<()> {
     let mut asset = audio_asset(100);
     asset.kind = MediaKind::Video;
     data.assets.push(asset);
-    data.clips = vec![Clip::Video(timeline::VideoClip {
-        id: ulid(10),
-        track_id: ulid(1),
-        asset_id: ulid(100),
-        timeline_start: TimelineFrameIndex::ZERO,
-        source_in: TimelineFrameIndex::ZERO,
-        source_out: TimelineFrameIndex::from(60),
-        video_properties: Default::default(),
-        audio_properties: Default::default(),
-    })];
+    data.clips = vec![Clip::Video(timeline::VideoClip::new(
+        ulid(10),
+        ulid(1),
+        ulid(100),
+        TimelineFrameIndex::ZERO,
+        TimelineFrameIndex::ZERO,
+        TimelineFrameIndex::from(60),
+        Default::default(),
+        Default::default(),
+    ))];
     let mut timeline = TimelineRuntimeState::new(std::path::absolute("test.timeline.json")?, data)?;
     let properties = VideoClipProperties {
         position_x: 25.0,
@@ -494,13 +494,13 @@ fn text_edits_preserve_timing_without_a_renderer() -> Result<()> {
         visible: true,
     });
     let mut timeline = TimelineRuntimeState::new(std::path::absolute("test.timeline.json")?, data)?;
-    let mut clip = TextClip {
-        id: ulid(10),
-        track_id: ulid(3),
-        timeline_start: TimelineFrameIndex::from(15),
-        duration: Duration::from_secs(2),
-        properties: TextClipProperties::default(),
-    };
+    let mut clip = TextClip::new(
+        ulid(10),
+        ulid(3),
+        TimelineFrameIndex::from(15),
+        Duration::from_secs(2),
+        TextClipProperties::default(),
+    );
     edit_timeline(
         &mut timeline,
         EditAction::AddClips {
@@ -524,13 +524,13 @@ fn text_edits_preserve_timing_without_a_renderer() -> Result<()> {
     edit_timeline(
         &mut timeline,
         EditAction::SetTextProperties {
-            clip_id: clip.id,
+            clip_id: clip.id(),
             properties: clip.properties.clone(),
         },
     )?;
     let json = serde_json::to_string(&timeline.to_serialize())?;
     let restored = serde_json::from_str::<TimelineSerialization>(&json)?.editing_state;
-    let Clip::Text(restored) = restored.clip(clip.id).unwrap() else {
+    let Clip::Text(restored) = restored.clip(clip.id()).unwrap() else {
         panic!("text clip must retain its kind");
     };
     assert_eq!(restored.properties, clip.properties);

@@ -89,7 +89,7 @@ pub enum Clip {
 pub struct VideoClip {
     #[serde(deserialize_with = "deserialize_ulid")]
     #[cfg_attr(feature = "timeline-schema", schemars(with = "String"))]
-    pub id: Ulid,
+    id: Ulid,
     #[serde(alias = "layer_id", deserialize_with = "deserialize_ulid")]
     #[cfg_attr(feature = "timeline-schema", schemars(with = "String"))]
     pub track_id: Ulid,
@@ -110,7 +110,7 @@ pub struct VideoClip {
 pub struct AudioClip {
     #[serde(deserialize_with = "deserialize_ulid")]
     #[cfg_attr(feature = "timeline-schema", schemars(with = "String"))]
-    pub id: Ulid,
+    id: Ulid,
     #[serde(alias = "layer_id", deserialize_with = "deserialize_ulid")]
     #[cfg_attr(feature = "timeline-schema", schemars(with = "String"))]
     pub track_id: Ulid,
@@ -129,7 +129,7 @@ pub struct AudioClip {
 pub struct TextClip {
     #[serde(deserialize_with = "deserialize_ulid")]
     #[cfg_attr(feature = "timeline-schema", schemars(with = "String"))]
-    pub id: Ulid,
+    id: Ulid,
     #[serde(deserialize_with = "deserialize_ulid")]
     #[cfg_attr(feature = "timeline-schema", schemars(with = "String"))]
     pub track_id: Ulid,
@@ -139,26 +139,129 @@ pub struct TextClip {
     pub properties: TextClipProperties,
 }
 
+// Public APIs only
+impl VideoClip {
+    #[allow(clippy::too_many_arguments)]
+    pub fn new(
+        id: Ulid,
+        track_id: Ulid,
+        asset_id: Ulid,
+        timeline_start: TimelineFrameIndex,
+        source_in: TimelineFrameIndex,
+        source_out: TimelineFrameIndex,
+        video_properties: VideoClipProperties,
+        audio_properties: AudioClipProperties,
+    ) -> Self {
+        Self {
+            id,
+            track_id,
+            asset_id,
+            timeline_start,
+            source_in,
+            source_out,
+            video_properties,
+            audio_properties,
+        }
+    }
+
+    pub fn id(&self) -> Ulid {
+        self.id
+    }
+
+    /// Creates a new clip with the supplied identity; cloning preserves identity.
+    pub fn copy(&self, new_id: Ulid) -> Self {
+        Self {
+            id: new_id,
+            ..self.clone()
+        }
+    }
+}
+
+// Public APIs only
+impl AudioClip {
+    pub fn new(
+        id: Ulid,
+        track_id: Ulid,
+        asset_id: Ulid,
+        timeline_start: TimelineFrameIndex,
+        source_in: TimelineFrameIndex,
+        source_out: TimelineFrameIndex,
+        audio_properties: AudioClipProperties,
+    ) -> Self {
+        Self {
+            id,
+            track_id,
+            asset_id,
+            timeline_start,
+            source_in,
+            source_out,
+            audio_properties,
+        }
+    }
+
+    pub fn id(&self) -> Ulid {
+        self.id
+    }
+
+    /// Creates a new clip with the supplied identity; cloning preserves identity.
+    pub fn copy(&self, new_id: Ulid) -> Self {
+        Self {
+            id: new_id,
+            ..self.clone()
+        }
+    }
+}
+
+// Public APIs only
 impl TextClip {
+    pub fn new(
+        id: Ulid,
+        track_id: Ulid,
+        timeline_start: TimelineFrameIndex,
+        duration: Duration,
+        properties: TextClipProperties,
+    ) -> Self {
+        Self {
+            id,
+            track_id,
+            timeline_start,
+            duration,
+            properties,
+        }
+    }
+
+    pub fn id(&self) -> Ulid {
+        self.id
+    }
+
+    /// Creates a new clip with the supplied identity; cloning preserves identity.
+    pub fn copy(&self, new_id: Ulid) -> Self {
+        Self {
+            id: new_id,
+            ..self.clone()
+        }
+    }
+
     pub fn frame_length(&self, frame_rate: FrameRate) -> TimelineFrameIndex {
         frame_rate.frames_from_duration_nearest(self.duration)
     }
 }
 
+// Public APIs only
 impl Clip {
     pub fn id(&self) -> Ulid {
         match self {
-            Self::Video(clip) => clip.id,
-            Self::Audio(clip) => clip.id,
-            Self::Text(clip) => clip.id,
+            Self::Video(clip) => clip.id(),
+            Self::Audio(clip) => clip.id(),
+            Self::Text(clip) => clip.id(),
         }
     }
 
-    pub fn set_id(&mut self, id: Ulid) {
+    pub fn copy(&self, new_id: Ulid) -> Self {
         match self {
-            Self::Video(clip) => clip.id = id,
-            Self::Audio(clip) => clip.id = id,
-            Self::Text(clip) => clip.id = id,
+            Self::Video(clip) => Self::Video(clip.copy(new_id)),
+            Self::Audio(clip) => Self::Audio(clip.copy(new_id)),
+            Self::Text(clip) => Self::Text(clip.copy(new_id)),
         }
     }
 

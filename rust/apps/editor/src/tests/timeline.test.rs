@@ -83,16 +83,16 @@ impl TimelineTestExt for TimelineEditingState {
 }
 
 fn video_clip(id: u64, start: i64, duration: i64) -> Clip {
-    Clip::Video(VideoClip {
-        id: ulid(id),
-        track_id: ulid(1),
-        asset_id: ulid(100),
-        timeline_start: TimelineFrameIndex::from(start),
-        source_in: TimelineFrameIndex::ZERO,
-        source_out: TimelineFrameIndex::from(duration),
-        video_properties: VideoClipProperties::default(),
-        audio_properties: AudioClipProperties::default(),
-    })
+    Clip::Video(VideoClip::new(
+        ulid(id),
+        ulid(1),
+        ulid(100),
+        TimelineFrameIndex::from(start),
+        TimelineFrameIndex::ZERO,
+        TimelineFrameIndex::from(duration),
+        VideoClipProperties::default(),
+        AudioClipProperties::default(),
+    ))
 }
 
 fn video_asset() -> MediaAsset {
@@ -210,13 +210,13 @@ fn assetless_text_clips_survive_timeline_repair() {
             muted: false,
             visible: true,
         }],
-        clips: vec![Clip::Text(TextClip {
-            id: ulid(10),
+        clips: vec![Clip::Text(TextClip::new(
+            ulid(10),
             track_id,
-            timeline_start: TimelineFrameIndex::ZERO,
-            duration: FrameRate::default().duration(TimelineFrameIndex::from(150)),
-            properties: TextClipProperties::default(),
-        })],
+            TimelineFrameIndex::ZERO,
+            FrameRate::default().duration(TimelineFrameIndex::from(150)),
+            TextClipProperties::default(),
+        ))],
         ..TimelineEditingState::default()
     };
 
@@ -238,13 +238,13 @@ fn text_clips_can_move_without_a_media_asset() {
             muted: false,
             visible: true,
         }],
-        clips: vec![Clip::Text(TextClip {
-            id: clip_id,
+        clips: vec![Clip::Text(TextClip::new(
+            clip_id,
             track_id,
-            timeline_start: TimelineFrameIndex::ZERO,
-            duration: FrameRate::default().duration(TimelineFrameIndex::from(150)),
-            properties: TextClipProperties::default(),
-        })],
+            TimelineFrameIndex::ZERO,
+            FrameRate::default().duration(TimelineFrameIndex::from(150)),
+            TextClipProperties::default(),
+        ))],
         ..TimelineEditingState::default()
     };
 
@@ -343,13 +343,13 @@ fn changing_frame_rate_keeps_text_duration_and_recomputes_frame_length() {
             muted: false,
             visible: true,
         }],
-        clips: vec![Clip::Text(TextClip {
-            id: ulid(10),
+        clips: vec![Clip::Text(TextClip::new(
+            ulid(10),
             track_id,
-            timeline_start: TimelineFrameIndex::ZERO,
-            duration: Duration::from_secs(5),
-            properties: TextClipProperties::default(),
-        })],
+            TimelineFrameIndex::ZERO,
+            Duration::from_secs(5),
+            TextClipProperties::default(),
+        ))],
         ..TimelineEditingState::default()
     };
 
@@ -624,16 +624,16 @@ fn splitting_clip_rejects_its_outer_frames() {
 
 #[test]
 fn splitting_text_clip_preserves_text_and_divides_length() {
-    let clip = Clip::Text(TextClip {
-        id: ulid(10),
-        track_id: ulid(3),
-        timeline_start: TimelineFrameIndex::from(100),
-        duration: FrameRate::default().duration(TimelineFrameIndex::from(60)),
-        properties: TextClipProperties {
+    let clip = Clip::Text(TextClip::new(
+        ulid(10),
+        ulid(3),
+        TimelineFrameIndex::from(100),
+        FrameRate::default().duration(TimelineFrameIndex::from(60)),
+        TextClipProperties {
             text: "Title".to_string(),
             ..TextClipProperties::default()
         },
-    });
+    ));
 
     let frame_rate = FrameRate::default();
     let (left, right) = clip
@@ -786,13 +786,13 @@ fn timeline_deserialization_preserves_text_duration() {
 
 #[test]
 fn text_clip_round_trip_uses_text_specific_fields() {
-    let clip = Clip::Text(TextClip {
-        id: ulid(10),
-        track_id: ulid(3),
-        timeline_start: TimelineFrameIndex::from(12),
-        duration: FrameRate::default().duration(TimelineFrameIndex::from(90)),
-        properties: TextClipProperties::default(),
-    });
+    let clip = Clip::Text(TextClip::new(
+        ulid(10),
+        ulid(3),
+        TimelineFrameIndex::from(12),
+        FrameRate::default().duration(TimelineFrameIndex::from(90)),
+        TextClipProperties::default(),
+    ));
 
     let mut value = clip_json(&clip);
     assert_eq!(value["kind"], "Text");

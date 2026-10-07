@@ -22,16 +22,16 @@ pub fn srt_text_clips(srt: &SRT, frame_rate: FrameRate) -> Vec<TextClip> {
     for subtitle in &srt.subtitles {
         let length =
             (subtitle.end - subtitle.start).max(frame_rate.duration(TimelineFrameIndex::ONE_FRAME)); // 极短字幕不能取整为零帧。
-        clips.push(TextClip {
-            id: Ulid::generate(),
-            track_id: Ulid::nil(),
-            timeline_start: frame_rate.frames_from_duration_nearest(subtitle.start),
-            duration: length,
-            properties: TextClipProperties {
+        clips.push(TextClip::new(
+            Ulid::generate(),
+            Ulid::nil(),
+            frame_rate.frames_from_duration_nearest(subtitle.start),
+            length,
+            TextClipProperties {
                 text: subtitle.text.trim().to_string(),
                 ..TextClipProperties::default()
             },
-        });
+        ));
     }
     clips
 }

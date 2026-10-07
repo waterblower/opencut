@@ -305,16 +305,16 @@ fn asset(id: u128, path: &str, kind: MediaKind, has_audio: bool) -> MediaAsset {
     }
 }
 fn video_clip(id: u128, track: u128, asset: u128, start: i64, input: i64, out: i64) -> VideoClip {
-    VideoClip {
-        id: Ulid::from(id),
-        track_id: Ulid::from(track),
-        asset_id: Ulid::from(asset),
-        timeline_start: TimelineFrameIndex::from(start),
-        source_in: TimelineFrameIndex::from(input),
-        source_out: TimelineFrameIndex::from(out),
-        video_properties: Default::default(),
-        audio_properties: Default::default(),
-    }
+    VideoClip::new(
+        Ulid::from(id),
+        Ulid::from(track),
+        Ulid::from(asset),
+        TimelineFrameIndex::from(start),
+        TimelineFrameIndex::from(input),
+        TimelineFrameIndex::from(out),
+        Default::default(),
+        Default::default(),
+    )
 }
 fn write_tone(path: &Path, rate: u32, seconds: u32) {
     let count = rate * seconds;

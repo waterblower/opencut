@@ -159,20 +159,20 @@ impl TimelineEditingState {
             match clip {
                 Clip::Video(media) => {
                     if track.kind != TrackKind::Video {
-                        bail!("Video clip {} requires a video track", media.id);
+                        bail!("Video clip {} requires a video track", media.id());
                     }
                     let Some(asset) = self.asset(media.asset_id) else {
                         bail!(
                             "Clip {} references missing asset {}",
-                            media.id,
+                            media.id(),
                             media.asset_id
                         );
                     };
                     if asset.kind == MediaKind::Audio {
-                        bail!("Clip {} references audio asset {}", media.id, asset.id);
+                        bail!("Clip {} references audio asset {}", media.id(), asset.id);
                     }
                     if media.source_in < TimelineFrameIndex::ZERO {
-                        bail!("Clip {} has a negative source trim", media.id);
+                        bail!("Clip {} has a negative source trim", media.id());
                     }
                     let properties = media.video_properties;
                     if !properties.position_x.is_finite()
@@ -180,12 +180,12 @@ impl TimelineEditingState {
                         || !properties.scale.is_finite()
                         || properties.scale < 0.0
                     {
-                        bail!("Clip {} has invalid transform properties", media.id);
+                        bail!("Clip {} has invalid transform properties", media.id());
                     }
                 }
                 Clip::Text(text) => {
                     if track.kind != TrackKind::Text {
-                        bail!("Text clip {} requires a text track", text.id);
+                        bail!("Text clip {} requires a text track", text.id());
                     }
                     let properties = &text.properties;
                     if !properties.position.x.is_finite()
@@ -193,32 +193,32 @@ impl TimelineEditingState {
                         || !properties.font_size.is_finite()
                         || properties.font_size <= 0.0
                     {
-                        bail!("Text clip {} has invalid layout properties", text.id);
+                        bail!("Text clip {} has invalid layout properties", text.id());
                     }
                 }
                 Clip::Audio(audio) => {
                     if track.kind != TrackKind::Audio {
-                        bail!("Audio clip {} requires an audio track", audio.id);
+                        bail!("Audio clip {} requires an audio track", audio.id());
                     }
                     let Some(asset) = self.asset(audio.asset_id) else {
                         bail!(
                             "Audio clip {} references missing asset {}",
-                            audio.id,
+                            audio.id(),
                             audio.asset_id
                         );
                     };
                     if asset.kind == MediaKind::Image {
                         bail!(
                             "Audio clip {} references image asset {}",
-                            audio.id,
+                            audio.id(),
                             asset.id
                         );
                     }
                     if audio.source_in < TimelineFrameIndex::ZERO {
-                        bail!("Audio clip {} has a negative source trim", audio.id);
+                        bail!("Audio clip {} has a negative source trim", audio.id());
                     }
                     if !audio.audio_properties.gain_db.is_finite() {
-                        bail!("Audio clip {} has invalid audio gain", audio.id);
+                        bail!("Audio clip {} has invalid audio gain", audio.id());
                     }
                 }
             }

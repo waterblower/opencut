@@ -426,7 +426,7 @@ pub fn edit_timeline(timeline: &mut TimelineRuntimeState, action: EditAction) ->
                 let Clip::Text(target) = clip else {
                     continue;
                 };
-                if target.track_id != track_id || target.id == clip_id {
+                if target.track_id != track_id || target.id() == clip_id {
                     continue;
                 }
                 let mut updated = properties.clone();

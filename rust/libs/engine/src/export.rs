@@ -474,7 +474,7 @@ fn validate_export(
                 if track.kind != TrackKind::Video || asset.kind == MediaKind::Audio {
                     bail!(
                         "Video clip {} requires a video track and visual asset",
-                        media.id
+                        media.id()
                     );
                 }
                 let properties = media.video_properties;
@@ -483,13 +483,13 @@ fn validate_export(
                     || !properties.scale.is_finite()
                     || properties.scale < 0.0
                 {
-                    bail!("Clip {} has invalid visual properties", media.id);
+                    bail!("Clip {} has invalid visual properties", media.id());
                 }
                 if media.source_in < TimelineFrameIndex::ZERO
                     || media.source_out <= media.source_in
                     || !media.audio_properties.gain_db.is_finite()
                 {
-                    bail!("Clip {} has an invalid trim or audio gain", media.id);
+                    bail!("Clip {} has an invalid trim or audio gain", media.id());
                 }
                 i64::from(media.timeline_start)
                     .checked_add(i64::from(media.source_out - media.source_in))
@@ -511,14 +511,14 @@ fn validate_export(
                 if track.kind != TrackKind::Audio || asset.kind == MediaKind::Image {
                     bail!(
                         "Audio clip {} requires an audio track and audio or video asset",
-                        media.id
+                        media.id()
                     );
                 }
                 if media.source_in < TimelineFrameIndex::ZERO
                     || media.source_out <= media.source_in
                     || !media.audio_properties.gain_db.is_finite()
                 {
-                    bail!("Clip {} has an invalid trim or audio gain", media.id);
+                    bail!("Clip {} has an invalid trim or audio gain", media.id());
                 }
                 i64::from(media.timeline_start)
                     .checked_add(i64::from(media.source_out - media.source_in))
@@ -538,7 +538,7 @@ fn validate_export(
                     || !properties.font_size.is_finite()
                     || properties.font_size <= 0.0
                 {
-                    bail!("Text clip {} has an invalid track or layout", text.id);
+                    bail!("Text clip {} has an invalid track or layout", text.id());
                 }
             }
         }
