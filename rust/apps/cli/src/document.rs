@@ -1,10 +1,4 @@
 //! CLI-owned file I/O for the shared timeline format.
-pub use timeline::TimelineEditingState;
-use timeline::{ParseError, TrackKind};
-
-pub fn parse(value: &Value) -> std::result::Result<TimelineEditingState, ParseError> {
-    Ok(timeline::parse(value)?.to_editing_state())
-}
 use anyhow::{Context as _, Result, anyhow};
 use serde_json::{Value, json};
 use std::{
@@ -12,18 +6,9 @@ use std::{
     io::Write,
     path::{Path, PathBuf},
 };
+pub use timeline::TimelineEditingState;
+use timeline::TrackKind;
 use ulid::Ulid;
-
-pub fn load(path: &Path) -> Result<(Value, TimelineEditingState)> {
-    let contents = fs::read(path).context(format!("io_error at {}:{}", file!(), line!()))?;
-    let value: Value = serde_json::from_slice(&contents).context(format!(
-        "invalid_json at {}:{}",
-        file!(),
-        line!()
-    ))?;
-    let document = parse(&value)?;
-    Ok((value, document))
-}
 
 pub fn asset_base(timeline: &Path) -> Result<PathBuf> {
     let path = std::path::absolute(timeline).context(format!(

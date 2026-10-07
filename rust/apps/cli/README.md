@@ -86,9 +86,9 @@ The authoritative schema is generated from the actual shared Rust types by
 `opencut schema`. See the [complete example](../../libs/timeline/tests/fixtures/shared.timeline.json).
 
 - Root fields are `editing_state` and `view_state`. Editing state contains
-  `settings`, `assets`, `tracks`, and `clips`. Existing flat documents remain readable.
-  There is no CLI-specific `version` field. Existing GUI defaults and deserialization aliases
-  remain supported; canonical serialization uses the GUI field names and tags.
+  `settings`, `assets`, `tracks`, and `clips`.
+  There is no CLI-specific `version` field. The `editing_state` object is required;
+  `view_state` is optional. Serde defaults and field aliases remain supported.
 - Settings include width, height, rational `frame_rate`, and `audio_sample_rate`.
 - Assets include ULID, path, media kind, display name, duration, dimensions,
   frame-rate metadata, codec, and `has_audio`.
@@ -110,10 +110,11 @@ The authoritative schema is generated from the actual shared Rust types by
 Create timelines in the editor or author JSON using the schema. Input timelines are read without rewriting them. Subtitle import is not yet available in the CLI; existing GUI import/edit
 operations remain available.
 
-**Legacy CLI timelines and the `edit` command have been removed.** Documents using
-the old `type` clip tags, root `version`, or `transitions` are rejected with
-`legacy_cli_format`. CLI-only effects, opacity, background color, and transitions
-are not part of this shared format. There is no legacy conversion layer.
+**Legacy timelines and the `edit` command are unsupported.** Root-level editing
+fields and integer subtitle lengths are not migrated. Load first deserializes the
+current document structure with Serde, then validates the timeline's data. Structural
+errors use Serde's diagnostics; semantic errors describe the invalid data.
+CLI-only effects, opacity, background color, and transitions are not part of this format.
 
 ## Transcription
 

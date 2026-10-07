@@ -167,12 +167,6 @@ fn timeline_file_names(directory: &Path) -> Result<Vec<String>> {
         .collect())
 }
 
-pub fn deserialize_timeline(contents: &str) -> Result<TimelineSerialization> {
-    let value = serde_json::from_str(contents)
-        .with_context(|| format!("could not parse timeline JSON at {}:{}", file!(), line!()))?;
-    Ok(::timeline::parse(&value)?)
-}
-
 #[cfg(test)]
 #[path = "tests/timeline_document.test.rs"]
 mod tests;

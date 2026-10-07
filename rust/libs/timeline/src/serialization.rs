@@ -2,9 +2,8 @@ use crate as runtime;
 use crate::TimelineEditingState as RuntimeTimelineEditingState;
 use anyhow::{Context as _, Result};
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
 use std::{
-    fmt, fs,
+    fs,
     path::{Path, PathBuf},
     time::Duration,
 };
@@ -13,9 +12,9 @@ use ulid::Ulid;
 /// Disk-only document. Runtime content crosses this boundary through explicit copies.
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]
 #[cfg_attr(feature = "timeline-schema", derive(schemars::JsonSchema))]
-#[serde(default)]
 pub struct TimelineSerialization {
     pub editing_state: TimelineEditingState,
+    #[serde(default)]
     view_state: TimelineViewState,
 }
 
@@ -97,9 +96,13 @@ impl TimelineSerialization {
 
     pub fn load(path: &Path) -> Result<Self> {
         let contents = fs::read(path).context(format!("Reading timeline {}", path.display()))?;
-        let value = serde_json::from_slice(&contents)
+        let document: Self = serde_json::from_slice(&contents)
             .context(format!("Parsing timeline JSON {}", path.display()))?;
-        Ok(parse(&value)?)
+        document
+            .to_editing_state()
+            .validate()
+            .context(format!("Validating timeline {}", path.display()))?;
+        Ok(document)
     }
 
     pub fn save(&self, path: &Path) -> Result<()> {
@@ -119,166 +122,6 @@ impl TimelineSerialization {
         ))?;
         fs::rename(&temporary, path).context(format!("Replacing timeline {}", path.display()))?;
         Ok(())
-    }
-}
-
-#[derive(Debug, Serialize)]
-pub struct ParseError {
-    pub code: &'static str,
-    pub pointer: String,
-    pub message: String,
-    pub file: &'static str,
-    pub line: u32,
-}
-
-impl fmt::Display for ParseError {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(
-            formatter,
-            "{}: {} ({}, {}:{})",
-            self.code, self.message, self.pointer, self.file, self.line
-        )
-    }
-}
-impl std::error::Error for ParseError {}
-
-/// Deserialize the GUI timeline representation, including its existing aliases.
-/// The input and output are in memory; callers own file I/O and validation policy.
-pub fn parse(value: &Value) -> Result<TimelineSerialization, ParseError> {
-    if value.get("version").is_some()
-        || value.get("transitions").is_some()
-        || value
-            .get("clips")
-            .and_then(Value::as_array)
-            .is_some_and(|clips| clips.iter().any(|clip| clip.get("type").is_some()))
-    {
-        return Err(ParseError {
-            code: "legacy_cli_format",
-            pointer: String::new(),
-            message:
-                "the legacy CLI timeline is unsupported; use the shared editor timeline format"
-                    .into(),
-            file: file!(),
-            line: line!(),
-        });
-    }
-    let mut value = value.clone();
-    // Existing editor files stored content and view preferences at the root.
-    if let Some(object) = value.as_object_mut()
-        && !object.contains_key("editing_state")
-    {
-        let view = object
-            .remove("view_state")
-            .or_else(|| object.remove("view"));
-        let editing = Value::Object(std::mem::take(object));
-        object.insert("editing_state".into(), editing);
-        if let Some(view) = view {
-            object.insert("view_state".into(), view);
-        }
-    }
-    let frame_rate = match value.pointer("/editing_state/settings/frame_rate") {
-        Some(rate) => match serde_json::from_value::<FrameRate>(rate.clone()) {
-            Ok(rate) => rate,
-            Err(error) => {
-                return Err(ParseError {
-                    code: "schema_error",
-                    pointer: "/editing_state/settings/frame_rate".into(),
-                    message: error.to_string(),
-                    file: file!(),
-                    line: line!(),
-                });
-            }
-        },
-        None => FrameRate::default(),
-    };
-    if let Some(clips) = value
-        .pointer_mut("/editing_state/clips")
-        .and_then(Value::as_array_mut)
-    {
-        for clip in clips {
-            if clip.get("kind").and_then(Value::as_str) != Some("Text") {
-                continue;
-            }
-            let Some(clip) = clip.get_mut("data").and_then(Value::as_object_mut) else {
-                continue;
-            };
-            let Some(frames) = clip.get("length").and_then(Value::as_i64) else {
-                continue;
-            };
-            let duration = frame_rate.to_runtime().duration(frames.into());
-            clip.insert(
-                "length".into(),
-                serde_json::json!({"secs": duration.as_secs(), "nanos": duration.subsec_nanos()}),
-            );
-        }
-    }
-    match serde_path_to_error::deserialize::<_, TimelineSerialization>(&value) {
-        Ok(document) => {
-            for (index, clip) in document.editing_state.clips.iter().enumerate() {
-                if let Clip::Video(clip) = clip
-                    && document
-                        .editing_state
-                        .assets
-                        .iter()
-                        .any(|asset| asset.id == clip.asset_id && asset.kind == MediaKind::Audio)
-                {
-                    return Err(ParseError {
-                        code: "incompatible_asset",
-                        pointer: format!("/editing_state/clips/{index}/data/asset_id"),
-                        message: format!(
-                            "Video clip {} references audio asset {}; use kind Audio",
-                            clip.id, clip.asset_id,
-                        ),
-                        file: file!(),
-                        line: line!(),
-                    });
-                }
-                let (track_id, expected_kind) = match clip {
-                    Clip::Video(clip) => (clip.track_id, TrackKind::Video),
-                    Clip::Audio(clip) => (clip.track_id, TrackKind::Audio),
-                    Clip::Text(clip) => (clip.track_id, TrackKind::Text),
-                };
-                if let Some(track) = document
-                    .editing_state
-                    .tracks
-                    .iter()
-                    .find(|track| track.id == track_id)
-                    && track.kind != expected_kind
-                {
-                    return Err(ParseError {
-                        code: "incompatible_track",
-                        pointer: format!("/editing_state/clips/{index}/data/track_id"),
-                        message: format!(
-                            "{expected_kind:?} clip requires a {expected_kind:?} track, found {:?}",
-                            track.kind
-                        ),
-                        file: file!(),
-                        line: line!(),
-                    });
-                }
-            }
-            Ok(document)
-        }
-        Err(error) => {
-            let mut pointer = String::new();
-            for segment in error.path() {
-                let token = match segment {
-                    serde_path_to_error::Segment::Seq { index } => index.to_string(),
-                    serde_path_to_error::Segment::Map { key } => key.clone(),
-                    serde_path_to_error::Segment::Enum { variant } => variant.clone(),
-                    serde_path_to_error::Segment::Unknown => continue,
-                };
-                pointer.push('/');
-                pointer.push_str(&token.replace('~', "~0").replace('/', "~1"));
-            }
-            Err(ParseError {
-                code: "schema_error",
-                pointer,
-                message: error.inner().to_string(),
-                file: file!(),
-                line: line!(),
-            })
-        }
     }
 }
 

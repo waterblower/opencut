@@ -54,7 +54,7 @@ fn schema_uses_the_gui_document_contract() {
         decode(&legacy)["error"]["message"]
             .as_str()
             .unwrap()
-            .contains("legacy_cli_format")
+            .contains("missing field `editing_state`")
     );
 }
 
@@ -134,7 +134,7 @@ fn probe_reports_invalid_timeline_and_missing_file_errors() {
         decode(&output)["error"]["message"]
             .as_str()
             .unwrap()
-            .contains("invalid_json")
+            .contains("Parsing timeline JSON")
     );
     for name in ["missing.json", "missing.mp4"] {
         let file = dir.0.join(name);
@@ -234,10 +234,10 @@ fn validation_stops_at_first_missing_asset_and_reports_schema_locations() {
     let mut raw = serde_json::to_value(TimelineSerialization::from_editing_state(&doc)).unwrap();
     raw["editing_state"]["settings"]["width"] = json!("wrong");
     assert!(
-        document::parse(&raw)
+        serde_json::from_value::<TimelineSerialization>(raw)
             .unwrap_err()
             .to_string()
-            .contains("/settings/width")
+            .contains("invalid type: string")
     );
 }
 

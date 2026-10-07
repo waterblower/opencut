@@ -6,7 +6,6 @@ use crate::timeline_clip::{
     AudioClipProperties, Clip, ClipEditingExt, TextClip, TextClipProperties, VideoClip,
     VideoClipProperties,
 };
-use crate::timeline_document::deserialize_timeline;
 use crate::track::{Track, TrackKind};
 use ::timeline::{TimelineEditingState, TimelineSerialization, TimelineSettings};
 use std::collections::HashSet;
@@ -33,7 +32,10 @@ fn timeline_view_state_is_sanitized_at_the_persistence_boundary() {
 
 #[test]
 fn missing_timeline_view_fields_use_defaults() {
-    let document = deserialize_timeline(r#"{"view": {"horizontal_scroll":20.0}}"#).unwrap();
+    let document = serde_json::from_str::<TimelineSerialization>(
+        r#"{"editing_state": {}, "view_state": {"horizontal_scroll":20.0}}"#,
+    )
+    .unwrap();
     assert!(document.snapping_enabled() && document.track_magnet_enabled());
     assert_eq!(document.scroll_offset(), (20.0, 0.0));
     assert_eq!(document.playhead(), TimelineFrameIndex::ZERO);
@@ -47,7 +49,9 @@ fn missing_timeline_view_fields_use_defaults() {
 fn timeline_view_zoom_round_trips_through_timeline_json() {
     let mut document = TimelineSerialization::default();
     document.set_view_state(TimelineFrameIndex::ZERO, (0.0, 0.0), 144.0, true, true);
-    let restored = deserialize_timeline(&serde_json::to_string(&document).unwrap()).unwrap();
+    let restored =
+        serde_json::from_str::<TimelineSerialization>(&serde_json::to_string(&document).unwrap())
+            .unwrap();
     assert_eq!(restored.pixels_per_second(), 144.0);
 }
 
@@ -744,7 +748,7 @@ fn tagged_text_clip_deserializes_duration() {
 }
 
 #[test]
-fn timeline_load_migrates_frame_length_using_its_own_frame_rate() {
+fn timeline_deserialization_preserves_text_duration() {
     let json = serde_json::json!({
         "settings": {
             "frame_rate": { "numerator": 60, "denominator": 1 },
@@ -770,9 +774,10 @@ fn timeline_load_migrates_frame_length_using_its_own_frame_rate() {
         "future_timeline_field": true
     });
 
-    let timeline = deserialize_timeline(&json.to_string())
-        .inspect_err(|e| eprintln!("{e:#}"))
-        .unwrap();
+    let timeline =
+        serde_json::from_value::<TimelineSerialization>(serde_json::json!({"editing_state": json}))
+            .inspect_err(|e| eprintln!("{e:#}"))
+            .unwrap();
     assert_eq!(
         timeline.to_editing_state().clips[0]
             .text()
@@ -836,7 +841,8 @@ fn clip_properties_round_trip_through_timeline_json() {
 }
 
 fn parse_clip(value: serde_json::Value) -> anyhow::Result<Clip> {
-    let document = ::timeline::parse(&serde_json::json!({"clips": [value]}))?;
+    let document: TimelineSerialization =
+        serde_json::from_value(serde_json::json!({"editing_state": {"clips": [value]}}))?;
     Ok(document.to_editing_state().clips.remove(0))
 }
 

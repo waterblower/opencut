@@ -1,26 +1,22 @@
 use serde_json::{Value, json};
-use timeline::{self as document, *};
+use timeline::*;
 
 #[test]
 fn editor_fixture_round_trips_without_audio_visual_properties() {
     let raw: Value = serde_json::from_str(include_str!("fixtures/shared.timeline.json")).unwrap();
-    let serialized = document::parse(&raw).unwrap();
+    let serialized: TimelineSerialization = serde_json::from_value(raw.clone()).unwrap();
     let doc = serialized.to_editing_state();
     doc.validate().unwrap();
-    let mut editing = raw.clone();
-    editing.as_object_mut().unwrap().remove("view");
+    let mut expected = raw.clone();
     // 兼容旧音频字段，但保存时不再写出视频属性。
     assert!(
-        editing["clips"][2]["data"]
+        expected["editing_state"]["clips"][2]["data"]
             .as_object_mut()
             .unwrap()
             .remove("video_properties")
             .is_some()
     );
-    assert_eq!(
-        serde_json::to_value(&serialized).unwrap(),
-        json!({"editing_state": editing, "view_state": raw["view"]})
-    );
+    assert_eq!(serde_json::to_value(&serialized).unwrap(), expected);
     assert_eq!(i64::from(doc.content_duration()), 60);
     assert_eq!(i64::from(serialized.playhead()), 20);
     assert!(doc.tracks[0].locked);
@@ -43,27 +39,36 @@ fn editor_fixture_round_trips_without_audio_visual_properties() {
 fn preserves_gui_aliases_without_converting_clip_types() {
     let mut raw: Value =
         serde_json::from_str(include_str!("fixtures/shared.timeline.json")).unwrap();
-    raw["tracks"][2]["kind"] = json!("audio");
-    raw["assets"][1]["kind"] = json!("audio");
-    raw["clips"][2]["data"]["id"] = json!(99);
-    let tracks = raw.as_object_mut().unwrap().remove("tracks").unwrap();
-    raw["layers"] = tracks;
+    let editing = &mut raw["editing_state"];
+    editing["tracks"][2]["kind"] = json!("audio");
+    editing["assets"][1]["kind"] = json!("audio");
+    editing["clips"][2]["data"]["id"] = json!(99);
+    let tracks = editing.as_object_mut().unwrap().remove("tracks").unwrap();
+    editing["layers"] = tracks;
     for kind in ["Media", "Video"] {
-        raw["clips"][0]["kind"] = json!(kind);
-        let doc = document::parse(&raw).unwrap().to_editing_state();
+        raw["editing_state"]["clips"][0]["kind"] = json!(kind);
+        let document: TimelineSerialization = serde_json::from_value(raw.clone()).unwrap();
+        let doc = document.to_editing_state();
+        doc.validate().unwrap();
         assert!(matches!(&doc.clips[0], Clip::Video(_)));
         assert!(matches!(&doc.clips[2], Clip::Audio(_)));
         assert_eq!(doc.clips[2].id(), ulid::Ulid::from(99_u128));
-        raw["clips"][2]["kind"] = json!(kind);
-        let error = document::parse(&raw).unwrap_err();
-        assert_eq!(error.code, "incompatible_asset");
-        assert_eq!(error.pointer, "/editing_state/clips/2/data/asset_id");
-        raw["clips"][2]["kind"] = json!("Audio");
+        raw["editing_state"]["clips"][2]["kind"] = json!(kind);
+        let invalid: TimelineSerialization = serde_json::from_value(raw.clone()).unwrap();
+        assert!(invalid.to_editing_state().validate().is_err());
+        raw["editing_state"]["clips"][2]["kind"] = json!("Audio");
     }
-    raw["clips"][2]["data"]["track_id"] = raw["layers"][0]["id"].clone();
-    let error = document::parse(&raw).unwrap_err();
-    assert_eq!(error.code, "incompatible_track");
-    assert_eq!(error.pointer, "/editing_state/clips/2/data/track_id");
+    raw["editing_state"]["clips"][2]["data"]["track_id"] =
+        raw["editing_state"]["layers"][0]["id"].clone();
+    let document: TimelineSerialization = serde_json::from_value(raw).unwrap();
+    assert!(
+        document
+            .to_editing_state()
+            .validate()
+            .unwrap_err()
+            .to_string()
+            .contains("requires an audio track")
+    );
 }
 
 #[test]
@@ -73,17 +78,16 @@ fn legacy_cli_documents_are_rejected_explicitly() {
         json!({"transitions":[]}),
         json!({"clips":[{"type":"media"}]}),
     ] {
-        let error = document::parse(&raw).unwrap_err();
-        assert_eq!(error.code, "legacy_cli_format");
-        assert!(!error.file.is_empty());
-        assert!(error.line > 0);
+        let error = serde_json::from_value::<TimelineSerialization>(raw).unwrap_err();
+        assert!(error.to_string().contains("missing field `editing_state`"));
     }
 }
 
 #[test]
 fn validation_reports_missing_track_without_mutation() {
     let raw: Value = serde_json::from_str(include_str!("fixtures/shared.timeline.json")).unwrap();
-    let mut doc = document::parse(&raw).unwrap().to_editing_state();
+    let document: TimelineSerialization = serde_json::from_value(raw).unwrap();
+    let mut doc = document.to_editing_state();
     let audio_track_id = doc.clips[2].track_id();
     let video_track_id = doc.clips[0].track_id();
     doc.clips[2].set_track_id(video_track_id);
@@ -102,6 +106,16 @@ fn validation_reports_missing_track_without_mutation() {
         serde_json::to_value(TimelineSerialization::from_editing_state(&doc)).unwrap(),
         before
     );
+    let path = std::env::temp_dir().join(format!(
+        "opencut-validation-{}.json",
+        ulid::Ulid::generate()
+    ));
+    TimelineSerialization::from_editing_state(&doc)
+        .save(&path)
+        .unwrap();
+    let loaded = TimelineSerialization::load(&path);
+    std::fs::remove_file(&path).unwrap();
+    assert!(format!("{:?}", loaded.unwrap_err()).contains("references missing track"));
 }
 
 #[test]
