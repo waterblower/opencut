@@ -10,15 +10,17 @@ use std::{
 };
 
 use gpui::{
-    AppContext as _, Context, HeadlessAppContext, IntoElement, Render, Window, div, px,
-    size,
+    AppContext as _, Context, HeadlessAppContext, IntoElement, Render, Window, div, px, size,
 };
 use media_backend::{AudioBackend, AudioDecoder, AudioSamples, PcmFormat};
 use timeline::serialization::{self, MediaKind, TrackKind};
 use timeline::{Clip, TimelineEditingState, TimelineSerialization};
 use ulid::Ulid;
 
-use crate::{export_encoder::ExportEncoder, timeline_decoder::{TimelineDecoder, TimelineFrameComposition}};
+use crate::{
+    export_encoder::ExportEncoder,
+    timeline_decoder::{TimelineDecoder, TimelineFrameComposition},
+};
 use anyhow::{Context as _, Result, bail};
 
 pub struct ExportOption {
@@ -95,10 +97,12 @@ pub fn export_timeline(
                 px(timeline_settings.width as f32),
                 px(timeline_settings.height as f32),
             ),
-            |_, cx| cx.new(|_| ExportCanvas {
-                frame: None,
-                timeline: Arc::clone(&editing_state),
-            }),
+            |_, cx| {
+                cx.new(|_| ExportCanvas {
+                    frame: None,
+                    timeline: Arc::clone(&editing_state),
+                })
+            },
         )
         .context("Creating export canvas")?;
 
@@ -109,7 +113,6 @@ pub fn export_timeline(
 
         window.resize(size(px(width), px(height)));
         window.bounds_changed(cx);
-
     })?;
 
     // variables needed by audio handling
@@ -177,7 +180,8 @@ pub fn export_timeline(
                 while audio_position < audio_end {
                     let count = i64::from(encoder.audio_frame_size())
                         .max(1)
-                        .min(total_samples - audio_position) as usize;
+                        .min(total_samples - audio_position)
+                        as usize;
                     let samples = mix_timeline_audio(
                         &editing_state,
                         &option.project_root,
@@ -246,39 +250,48 @@ pub fn mix_timeline_audio(
         .context("Audio interval overflow")?;
     let mut active_readers = HashSet::new();
     for clip in &timeline.clips {
-        let media = match clip {
-            Clip::Video(media) | Clip::Audio(media) => media,
+        let (asset_id, source_in, source_out, audio_properties) = match clip {
+            Clip::Video(media) => (
+                media.asset_id,
+                media.source_in,
+                media.source_out,
+                media.audio_properties,
+            ),
+            Clip::Audio(media) => (
+                media.asset_id,
+                media.source_in,
+                media.source_out,
+                media.audio_properties,
+            ),
             Clip::Text(_) => continue,
         };
         let track = timeline
             .tracks
             .iter()
-            .find(|track| track.id == media.track_id)
+            .find(|track| track.id == clip.track_id())
             .context("Missing audio track")?;
-        let asset = timeline
-            .asset(media.asset_id)
-            .context("Missing audio asset")?;
-        if track.muted || media.audio_properties.muted || !asset.has_audio {
+        let asset = timeline.asset(asset_id).context("Missing audio asset")?;
+        if track.muted || audio_properties.muted || !asset.has_audio {
             continue;
         }
-        let clip_start = i64::try_from(fps.audio_samples(media.timeline_start, rate))?;
+        let clip_start = i64::try_from(fps.audio_samples(clip.timeline_start(), rate))?;
         let clip_end = i64::try_from(fps.audio_samples(clip.timeline_end(fps), rate))?;
         let from = start.max(clip_start);
         let to = end.min(clip_end);
         if from >= to {
             continue;
         }
-        let source_start = i64::try_from(fps.audio_samples(media.source_in, rate))?
+        let source_start = i64::try_from(fps.audio_samples(source_in, rate))?
             .checked_add(from - clip_start)
             .context("Audio source interval overflow")?;
-        let source_end = i64::try_from(fps.audio_samples(media.source_out, rate))?;
+        let source_end = i64::try_from(fps.audio_samples(source_out, rate))?;
         // 两端独立取整可能相差一个采样，不读取 source_out 之后的声音。
         let sample_count = (to - from).min(source_end - source_start).max(0) as usize;
         if sample_count == 0 {
             continue;
         }
-        active_readers.insert(media.id);
-        let reader = match readers.entry(media.id) {
+        active_readers.insert(clip.id());
+        let reader = match readers.entry(clip.id()) {
             Entry::Occupied(entry) => entry.into_mut(),
             Entry::Vacant(entry) => {
                 let path = timeline_directory.join(&asset.path);
@@ -300,8 +313,8 @@ pub fn mix_timeline_audio(
         };
         let samples = reader
             .read(source_start, sample_count, rate)
-            .context(format!("Reading audio for clip {}", media.id))?;
-        let gain = 10.0_f32.powf(media.audio_properties.gain_db.clamp(-96.0, 24.0) as f32 / 20.0);
+            .context(format!("Reading audio for clip {}", clip.id()))?;
+        let gain = 10.0_f32.powf(audio_properties.gain_db.clamp(-96.0, 24.0) as f32 / 20.0);
         for (index, sample) in samples.iter().enumerate() {
             let target = &mut mixed[(from - start) as usize + index];
             target[0] += sample[0] * gain;
@@ -447,38 +460,56 @@ fn validate_export(
             bail!("Clip {} has an invalid timeline interval", clip_id(clip));
         }
         match clip {
-            serialization::Clip::Video(media) | serialization::Clip::Audio(media) => {
+            serialization::Clip::Video(media) => {
                 let asset = data
                     .assets
                     .iter()
                     .find(|asset| asset.id == media.asset_id)
                     .context("Export clip references a missing asset")?;
-                match clip {
-                    serialization::Clip::Video(_) => {
-                        if track.kind != TrackKind::Video || asset.kind == MediaKind::Audio {
-                            bail!(
-                                "Video clip {} requires a video track and visual asset",
-                                media.id
-                            );
-                        }
-                        let properties = media.video_properties;
-                        if !properties.position_x.is_finite()
-                            || !properties.position_y.is_finite()
-                            || !properties.scale.is_finite()
-                            || properties.scale < 0.0
-                        {
-                            bail!("Clip {} has invalid visual properties", media.id);
-                        }
-                    }
-                    serialization::Clip::Audio(_) => {
-                        if track.kind != TrackKind::Audio || asset.kind == MediaKind::Image {
-                            bail!(
-                                "Audio clip {} requires an audio track and audio or video asset",
-                                media.id
-                            );
-                        }
-                    }
-                    serialization::Clip::Text(_) => unreachable!(),
+
+                if track.kind != TrackKind::Video || asset.kind == MediaKind::Audio {
+                    bail!(
+                        "Video clip {} requires a video track and visual asset",
+                        media.id
+                    );
+                }
+                let properties = media.video_properties;
+                if !properties.position_x.is_finite()
+                    || !properties.position_y.is_finite()
+                    || !properties.scale.is_finite()
+                    || properties.scale < 0.0
+                {
+                    bail!("Clip {} has invalid visual properties", media.id);
+                }
+                if media.source_in < 0
+                    || media.source_out <= media.source_in
+                    || !media.audio_properties.gain_db.is_finite()
+                {
+                    bail!("Clip {} has an invalid trim or audio gain", media.id);
+                }
+                media
+                    .timeline_start
+                    .checked_add(media.source_out - media.source_in)
+                    .context("Export clip end exceeds the timeline range")?;
+                i64::try_from(frame_units(
+                    media.source_out,
+                    settings.frame_rate,
+                    settings.audio_sample_rate,
+                ))
+                .context("Export source audio position is too large")?;
+            }
+            serialization::Clip::Audio(media) => {
+                let asset = data
+                    .assets
+                    .iter()
+                    .find(|asset| asset.id == media.asset_id)
+                    .context("Export clip references a missing asset")?;
+
+                if track.kind != TrackKind::Audio || asset.kind == MediaKind::Image {
+                    bail!(
+                        "Audio clip {} requires an audio track and audio or video asset",
+                        media.id
+                    );
                 }
                 if media.source_in < 0
                     || media.source_out <= media.source_in
@@ -515,23 +546,24 @@ fn validate_export(
 
 fn clip_id(clip: &serialization::Clip) -> Ulid {
     match clip {
-        serialization::Clip::Video(media) | serialization::Clip::Audio(media) => media.id,
+        serialization::Clip::Video(media) => media.id,
+        serialization::Clip::Audio(media) => media.id,
         serialization::Clip::Text(text) => text.id,
     }
 }
 
 fn clip_track(clip: &serialization::Clip) -> Ulid {
     match clip {
-        serialization::Clip::Video(media) | serialization::Clip::Audio(media) => media.track_id,
+        serialization::Clip::Video(media) => media.track_id,
+        serialization::Clip::Audio(media) => media.track_id,
         serialization::Clip::Text(text) => text.track_id,
     }
 }
 
 fn clip_start(clip: &serialization::Clip) -> i64 {
     match clip {
-        serialization::Clip::Video(media) | serialization::Clip::Audio(media) => {
-            media.timeline_start
-        }
+        serialization::Clip::Video(media) => media.timeline_start,
+        serialization::Clip::Audio(media) => media.timeline_start,
         serialization::Clip::Text(text) => text.timeline_start,
     }
 }

@@ -65,7 +65,7 @@ fn probe_summarizes_timelines_without_opening_referenced_media() {
     doc.assets
         .push(asset(100, "missing.mp4", MediaKind::Video, false));
     doc.clips
-        .push(Clip::Video(media_clip(200, 1, 100, 15, 0, 30)));
+        .push(Clip::Video(video_clip(200, 1, 100, 15, 0, 30)));
     let expected = document::summary(&doc);
     for name in ["project.timeline.json", "project.json", "uppercase.JSON"] {
         let file = dir.0.join(name);
@@ -158,7 +158,7 @@ fn timeline_assets_resolve_from_timeline_directory() {
     doc.assets
         .push(asset(100, "image.png", MediaKind::Image, false));
     doc.clips
-        .push(Clip::Video(media_clip(200, 1, 100, 0, 0, 30)));
+        .push(Clip::Video(video_clip(200, 1, 100, 0, 0, 30)));
     let file = dir.0.join("scenes/intro.timeline.json");
     document::write_atomic(
         &file,
@@ -304,15 +304,8 @@ fn asset(id: u128, path: &str, kind: MediaKind, has_audio: bool) -> MediaAsset {
         has_audio,
     }
 }
-fn media_clip(
-    id: u128,
-    track: u128,
-    asset: u128,
-    start: i64,
-    input: i64,
-    out: i64,
-) -> MediaClipData {
-    MediaClipData {
+fn video_clip(id: u128, track: u128, asset: u128, start: i64, input: i64, out: i64) -> VideoClip {
+    VideoClip {
         id: Ulid::from(id),
         track_id: Ulid::from(track),
         asset_id: Ulid::from(asset),

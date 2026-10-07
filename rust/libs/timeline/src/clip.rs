@@ -71,7 +71,7 @@ pub enum Clip {
 }
 
 #[derive(Clone, Debug)]
-pub struct MediaClipData {
+pub struct VideoClip {
     pub id: Ulid,
     pub track_id: Ulid,
     pub asset_id: Ulid,
@@ -82,8 +82,16 @@ pub struct MediaClipData {
     pub audio_properties: AudioClipProperties,
 }
 
-pub type VideoClip = MediaClipData;
-pub type AudioClip = MediaClipData;
+#[derive(Clone, Debug)]
+pub struct AudioClip {
+    pub id: Ulid,
+    pub track_id: Ulid,
+    pub asset_id: Ulid,
+    pub timeline_start: TimelineFrameIndex,
+    pub source_in: TimelineFrameIndex,
+    pub source_out: TimelineFrameIndex,
+    pub audio_properties: AudioClipProperties,
+}
 
 #[derive(Clone, Debug)]
 pub struct TextClip {
@@ -103,56 +111,104 @@ impl TextClip {
 impl Clip {
     pub fn id(&self) -> Ulid {
         match self {
-            Self::Video(clip) | Self::Audio(clip) => clip.id,
+            Self::Video(clip) => clip.id,
+            Self::Audio(clip) => clip.id,
             Self::Text(clip) => clip.id,
         }
     }
 
     pub fn set_id(&mut self, id: Ulid) {
         match self {
-            Self::Video(clip) | Self::Audio(clip) => clip.id = id,
+            Self::Video(clip) => clip.id = id,
+            Self::Audio(clip) => clip.id = id,
             Self::Text(clip) => clip.id = id,
         }
     }
 
     pub fn track_id(&self) -> Ulid {
         match self {
-            Self::Video(clip) | Self::Audio(clip) => clip.track_id,
+            Self::Video(clip) => clip.track_id,
+            Self::Audio(clip) => clip.track_id,
             Self::Text(clip) => clip.track_id,
         }
     }
 
     pub fn set_track_id(&mut self, track_id: Ulid) {
         match self {
-            Self::Video(clip) | Self::Audio(clip) => clip.track_id = track_id,
+            Self::Video(clip) => clip.track_id = track_id,
+            Self::Audio(clip) => clip.track_id = track_id,
             Self::Text(clip) => clip.track_id = track_id,
         }
     }
 
     pub fn timeline_start(&self) -> TimelineFrameIndex {
         match self {
-            Self::Video(clip) | Self::Audio(clip) => clip.timeline_start,
+            Self::Video(clip) => clip.timeline_start,
+            Self::Audio(clip) => clip.timeline_start,
             Self::Text(clip) => clip.timeline_start,
         }
     }
 
     pub fn set_timeline_start(&mut self, timeline_start: TimelineFrameIndex) {
         match self {
-            Self::Video(clip) | Self::Audio(clip) => clip.timeline_start = timeline_start,
+            Self::Video(clip) => clip.timeline_start = timeline_start,
+            Self::Audio(clip) => clip.timeline_start = timeline_start,
             Self::Text(clip) => clip.timeline_start = timeline_start,
         }
     }
 
-    pub fn media(&self) -> Option<&MediaClipData> {
+    pub fn video(&self) -> Option<&VideoClip> {
+        if let Self::Video(clip) = self {
+            Some(clip)
+        } else {
+            None
+        }
+    }
+
+    pub fn video_mut(&mut self) -> Option<&mut VideoClip> {
+        if let Self::Video(clip) = self {
+            Some(clip)
+        } else {
+            None
+        }
+    }
+
+    pub fn audio(&self) -> Option<&AudioClip> {
+        if let Self::Audio(clip) = self {
+            Some(clip)
+        } else {
+            None
+        }
+    }
+
+    pub fn audio_mut(&mut self) -> Option<&mut AudioClip> {
+        if let Self::Audio(clip) = self {
+            Some(clip)
+        } else {
+            None
+        }
+    }
+
+    pub fn asset_id(&self) -> Option<Ulid> {
         match self {
-            Self::Video(clip) | Self::Audio(clip) => Some(clip),
+            Self::Video(clip) => Some(clip.asset_id),
+            Self::Audio(clip) => Some(clip.asset_id),
             Self::Text(_) => None,
         }
     }
 
-    pub fn media_mut(&mut self) -> Option<&mut MediaClipData> {
+    pub fn source_in(&self) -> Option<TimelineFrameIndex> {
         match self {
-            Self::Video(clip) | Self::Audio(clip) => Some(clip),
+            Self::Video(clip) => Some(clip.source_in),
+            Self::Audio(clip) => Some(clip.source_in),
+            Self::Text(_) => None,
+        }
+    }
+
+    pub fn source_out(&self) -> Option<TimelineFrameIndex> {
+        match self {
+            Self::Video(clip) => Some(clip.source_out),
+            Self::Audio(clip) => Some(clip.source_out),
             Self::Text(_) => None,
         }
     }
@@ -166,9 +222,8 @@ impl Clip {
 
     pub fn frame_length(&self, frame_rate: FrameRate) -> TimelineFrameIndex {
         match self {
-            Self::Video(clip) | Self::Audio(clip) => {
-                (clip.source_out - clip.source_in).max(TimelineFrameIndex::ZERO)
-            }
+            Self::Video(clip) => (clip.source_out - clip.source_in).max(TimelineFrameIndex::ZERO),
+            Self::Audio(clip) => (clip.source_out - clip.source_in).max(TimelineFrameIndex::ZERO),
             Self::Text(clip) => clip.frame_length(frame_rate).max(TimelineFrameIndex::ZERO),
         }
     }
@@ -181,9 +236,10 @@ impl Clip {
         &self,
         timeline_position: TimelineFrameIndex,
     ) -> Option<TimelineFrameIndex> {
-        let clip = self.media()?;
-        let local = (timeline_position - clip.timeline_start)
-            .clamp(TimelineFrameIndex::ZERO, clip.source_out - clip.source_in);
-        Some((clip.source_in + local).min(clip.source_out))
+        let source_in = self.source_in()?;
+        let source_out = self.source_out()?;
+        let local = (timeline_position - self.timeline_start())
+            .clamp(TimelineFrameIndex::ZERO, source_out - source_in);
+        Some((source_in + local).min(source_out))
     }
 }

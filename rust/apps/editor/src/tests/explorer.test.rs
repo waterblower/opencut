@@ -73,7 +73,7 @@ fn explorer_drop_detects_collisions_but_allows_adjacent_clips() {
         timeline_start: TimelineFrameIndex::from(30),
         source_in: TimelineFrameIndex::ZERO,
         source_out: TimelineFrameIndex::from(30),
-        video_properties: VideoClipProperties::default(),
+
         audio_properties: AudioClipProperties::default(),
     }));
     let audio = asset(MediaKind::Audio, true);

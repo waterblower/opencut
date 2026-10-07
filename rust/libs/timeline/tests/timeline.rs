@@ -2,13 +2,21 @@ use serde_json::{Value, json};
 use timeline::{self as document, *};
 
 #[test]
-fn editor_fixture_round_trips_without_losing_document_fields() {
+fn editor_fixture_round_trips_without_audio_visual_properties() {
     let raw: Value = serde_json::from_str(include_str!("fixtures/shared.timeline.json")).unwrap();
     let serialized = document::parse(&raw).unwrap();
     let doc = serialized.to_editing_state();
     doc.validate().unwrap();
     let mut editing = raw.clone();
     editing.as_object_mut().unwrap().remove("view");
+    // 兼容旧音频字段，但保存时不再写出视频属性。
+    assert!(
+        editing["clips"][2]["data"]
+            .as_object_mut()
+            .unwrap()
+            .remove("video_properties")
+            .is_some()
+    );
     assert_eq!(
         serde_json::to_value(&serialized).unwrap(),
         json!({"editing_state": editing, "view_state": raw["view"]})

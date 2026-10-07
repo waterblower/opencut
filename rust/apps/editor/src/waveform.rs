@@ -302,7 +302,7 @@ impl Editor {
             let referenced_assets = timeline
                 .clips
                 .iter()
-                .filter_map(|clip| clip.media().map(|clip| clip.asset_id))
+                .filter_map(|clip| clip.asset_id())
                 .collect::<HashSet<_>>();
             paths.extend(
                 timeline
@@ -326,7 +326,7 @@ impl Editor {
             .editing_state
             .clips
             .iter()
-            .filter_map(|clip| clip.media().map(|clip| clip.asset_id))
+            .filter_map(|clip| clip.asset_id())
             .collect::<HashSet<_>>();
         let paths = timeline
             .editing_state

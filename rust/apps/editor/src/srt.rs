@@ -20,8 +20,8 @@ pub fn write_srt(path: &Path, srt: &SRT) -> Result<()> {
 pub fn srt_text_clips(srt: &SRT, frame_rate: FrameRate) -> Vec<TextClip> {
     let mut clips = Vec::with_capacity(srt.subtitles.len());
     for subtitle in &srt.subtitles {
-        let length = (subtitle.end - subtitle.start)
-            .max(frame_rate.duration(TimelineFrameIndex::ONE_FRAME)); // 极短字幕不能取整为零帧。
+        let length =
+            (subtitle.end - subtitle.start).max(frame_rate.duration(TimelineFrameIndex::ONE_FRAME)); // 极短字幕不能取整为零帧。
         clips.push(TextClip {
             id: Ulid::generate(),
             track_id: Ulid::nil(),

@@ -92,7 +92,8 @@ fn compact_text_sections(editing_state: &TimelineEditingState) -> Result<Timelin
                 (clip.timeline_start() - padding).max(TimelineFrameIndex::ZERO),
                 (clip.timeline_end(frame_rate) + padding).min(content_end),
             )),
-            Clip::Video(_) | Clip::Audio(_) => None,
+            Clip::Video(_) => None,
+            Clip::Audio(_) => None,
         })
         .collect::<Vec<_>>();
     intervals.sort_unstable();
@@ -128,7 +129,11 @@ fn compact_text_sections(editing_state: &TimelineEditingState) -> Result<Timelin
                 kept_original_id = true;
                 fragment.set_timeline_start(output_start + start - section_start);
                 match &mut fragment {
-                    Clip::Video(media) | Clip::Audio(media) => {
+                    Clip::Video(media) => {
+                        media.source_in += start - clip.timeline_start();
+                        media.source_out = media.source_in + end - start;
+                    }
+                    Clip::Audio(media) => {
                         media.source_in += start - clip.timeline_start();
                         media.source_out = media.source_in + end - start;
                     }

@@ -216,7 +216,8 @@ pub fn parse(value: &Value) -> Result<TimelineSerialization, ParseError> {
         Ok(mut document) => {
             for clip in &mut document.editing_state.clips {
                 let track_id = match clip {
-                    Clip::Video(clip) | Clip::Audio(clip) => clip.track_id,
+                    Clip::Video(clip) => clip.track_id,
+                    Clip::Audio(clip) => clip.track_id,
                     Clip::Text(clip) => clip.track_id,
                 };
                 let track_kind = document
@@ -226,8 +227,25 @@ pub fn parse(value: &Value) -> Result<TimelineSerialization, ParseError> {
                     .find(|track| track.id == track_id)
                     .map(|track| track.kind);
                 let replacement = match (track_kind, &*clip) {
-                    (Some(TrackKind::Audio), Clip::Video(data)) => Some(Clip::Audio(data.clone())),
-                    (Some(TrackKind::Video), Clip::Audio(data)) => Some(Clip::Video(data.clone())),
+                    (Some(TrackKind::Audio), Clip::Video(data)) => Some(Clip::Audio(AudioClip {
+                        id: data.id,
+                        track_id: data.track_id,
+                        asset_id: data.asset_id,
+                        timeline_start: data.timeline_start,
+                        source_in: data.source_in,
+                        source_out: data.source_out,
+                        audio_properties: data.audio_properties.clone(),
+                    })),
+                    (Some(TrackKind::Video), Clip::Audio(data)) => Some(Clip::Video(VideoClip {
+                        id: data.id,
+                        track_id: data.track_id,
+                        asset_id: data.asset_id,
+                        timeline_start: data.timeline_start,
+                        source_in: data.source_in,
+                        source_out: data.source_out,
+                        audio_properties: data.audio_properties.clone(),
+                        video_properties: VideoClipProperties::default(),
+                    })),
                     _ => None,
                 };
                 if let Some(replacement) = replacement {
@@ -461,8 +479,8 @@ impl Default for TextClipProperties {
 #[serde(tag = "kind", content = "data")]
 pub enum Clip {
     #[serde(alias = "Media")]
-    Video(MediaClipData),
-    Audio(MediaClipData),
+    Video(VideoClip),
+    Audio(AudioClip),
     Text(TextClip),
 }
 
@@ -470,7 +488,11 @@ impl Clip {
     /// Exclusive end frame on the timeline, using its frame rate.
     pub fn end_frame(&self, fps: FrameRate) -> i64 {
         let (start, length) = match self {
-            Self::Video(media) | Self::Audio(media) => (
+            Self::Video(media) => (
+                media.timeline_start,
+                media.source_out.saturating_sub(media.source_in).max(0),
+            ),
+            Self::Audio(media) => (
                 media.timeline_start,
                 media.source_out.saturating_sub(media.source_in).max(0),
             ),
@@ -488,7 +510,7 @@ impl Clip {
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[cfg_attr(feature = "timeline-schema", derive(schemars::JsonSchema))]
-pub struct MediaClipData {
+pub struct VideoClip {
     #[serde(deserialize_with = "deserialize_ulid")]
     #[cfg_attr(feature = "timeline-schema", schemars(with = "String"))]
     pub id: Ulid,
@@ -503,6 +525,25 @@ pub struct MediaClipData {
     pub source_out: i64,
     #[serde(default)]
     pub video_properties: VideoClipProperties,
+    #[serde(default)]
+    pub audio_properties: AudioClipProperties,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[cfg_attr(feature = "timeline-schema", derive(schemars::JsonSchema))]
+pub struct AudioClip {
+    #[serde(deserialize_with = "deserialize_ulid")]
+    #[cfg_attr(feature = "timeline-schema", schemars(with = "String"))]
+    pub id: Ulid,
+    #[serde(alias = "layer_id", deserialize_with = "deserialize_ulid")]
+    #[cfg_attr(feature = "timeline-schema", schemars(with = "String"))]
+    pub track_id: Ulid,
+    #[serde(default = "Ulid::nil", deserialize_with = "deserialize_ulid")]
+    #[cfg_attr(feature = "timeline-schema", schemars(with = "String"))]
+    pub asset_id: Ulid,
+    pub timeline_start: i64,
+    pub source_in: i64,
+    pub source_out: i64,
     #[serde(default)]
     pub audio_properties: AudioClipProperties,
 }
@@ -670,8 +711,8 @@ impl Track {
     }
 }
 
-impl MediaClipData {
-    fn from_runtime(value: &runtime::MediaClipData) -> Self {
+impl VideoClip {
+    fn from_runtime(value: &runtime::VideoClip) -> Self {
         Self {
             id: value.id,
             track_id: value.track_id,
@@ -684,8 +725,8 @@ impl MediaClipData {
         }
     }
 
-    fn to_runtime(&self) -> runtime::MediaClipData {
-        runtime::MediaClipData {
+    fn to_runtime(&self) -> runtime::VideoClip {
+        runtime::VideoClip {
             id: self.id,
             track_id: self.track_id,
             asset_id: self.asset_id,
@@ -693,6 +734,32 @@ impl MediaClipData {
             source_in: self.source_in.into(),
             source_out: self.source_out.into(),
             video_properties: self.video_properties.to_runtime(),
+            audio_properties: self.audio_properties.to_runtime(),
+        }
+    }
+}
+
+impl AudioClip {
+    fn from_runtime(value: &runtime::AudioClip) -> Self {
+        Self {
+            id: value.id,
+            track_id: value.track_id,
+            asset_id: value.asset_id,
+            timeline_start: value.timeline_start.into(),
+            source_in: value.source_in.into(),
+            source_out: value.source_out.into(),
+            audio_properties: AudioClipProperties::from_runtime(&value.audio_properties),
+        }
+    }
+
+    fn to_runtime(&self) -> runtime::AudioClip {
+        runtime::AudioClip {
+            id: self.id,
+            track_id: self.track_id,
+            asset_id: self.asset_id,
+            timeline_start: self.timeline_start.into(),
+            source_in: self.source_in.into(),
+            source_out: self.source_out.into(),
             audio_properties: self.audio_properties.to_runtime(),
         }
     }
@@ -816,8 +883,8 @@ impl TrackKind {
 impl Clip {
     fn from_runtime(value: &runtime::Clip) -> Self {
         match value {
-            runtime::Clip::Video(clip) => Self::Video(MediaClipData::from_runtime(clip)),
-            runtime::Clip::Audio(clip) => Self::Audio(MediaClipData::from_runtime(clip)),
+            runtime::Clip::Video(clip) => Self::Video(VideoClip::from_runtime(clip)),
+            runtime::Clip::Audio(clip) => Self::Audio(AudioClip::from_runtime(clip)),
             runtime::Clip::Text(clip) => Self::Text(TextClip::from_runtime(clip)),
         }
     }

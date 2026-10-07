@@ -268,14 +268,22 @@ fn validates_a_thousand_clip_moves_within_one_frame_budget() {
     for index in 0..1_000_u64 {
         let selected = video_clip(1_000 + index, index as i64 * 120, 30);
         ignored.insert(selected.id());
-        placements.push((selected.id(), ulid(1), selected.timeline_start() + TimelineFrameIndex::from(10)));
+        placements.push((
+            selected.id(),
+            ulid(1),
+            selected.timeline_start() + TimelineFrameIndex::from(10),
+        ));
         project.clips.push(selected);
-        project.clips.push(video_clip(2_000 + index, index as i64 * 120 + 60, 30));
+        project
+            .clips
+            .push(video_clip(2_000 + index, index as i64 * 120 + 60, 30));
     }
     // 无序输入，且目标轨道含未选中片段，避免只测全选或已排序的捷径。
     project.clips.reverse();
     placements.reverse();
-    project.validate_clip_move_placements(&placements, &ignored).unwrap();
+    project
+        .validate_clip_move_placements(&placements, &ignored)
+        .unwrap();
 
     let mut timings = Vec::new();
     for _ in 0..31 {
@@ -287,15 +295,32 @@ fn validates_a_thousand_clip_moves_within_one_frame_budget() {
     }
     timings.sort_unstable();
     let median = timings[timings.len() / 2];
-    eprintln!("1,000 selected / 2,000 total clips, 31 runs: median={median:?}, min={:?}, max={:?}", timings[0], timings[timings.len() - 1]);
-    assert!(median < Duration::from_micros(16_667), "Move validation exceeded a 60 Hz frame budget: {median:?}");
+    eprintln!(
+        "1,000 selected / 2,000 total clips, 31 runs: median={median:?}, min={:?}, max={:?}",
+        timings[0],
+        timings[timings.len() - 1]
+    );
+    assert!(
+        median < Duration::from_micros(16_667),
+        "Move validation exceeded a 60 Hz frame budget: {median:?}"
+    );
 
     placements[0].2 += TimelineFrameIndex::from(50);
-    let error = project.validate_clip_move_placements(&placements, &ignored).unwrap_err();
-    assert_eq!(error.downcast_ref::<ClipPlacementRejection>(), Some(&ClipPlacementRejection::ExistingClipOverlap));
+    let error = project
+        .validate_clip_move_placements(&placements, &ignored)
+        .unwrap_err();
+    assert_eq!(
+        error.downcast_ref::<ClipPlacementRejection>(),
+        Some(&ClipPlacementRejection::ExistingClipOverlap)
+    );
     placements[0] = (placements[0].0, placements[1].1, placements[1].2);
-    let overlap_error = project.validate_clip_move_placements(&placements, &ignored).unwrap_err();
-    assert_eq!(overlap_error.downcast_ref::<ClipPlacementRejection>(), Some(&ClipPlacementRejection::ProposedClipsOverlap));
+    let overlap_error = project
+        .validate_clip_move_placements(&placements, &ignored)
+        .unwrap_err();
+    assert_eq!(
+        overlap_error.downcast_ref::<ClipPlacementRejection>(),
+        Some(&ClipPlacementRejection::ProposedClipsOverlap)
+    );
 }
 
 #[test]
@@ -505,8 +530,8 @@ fn changing_timeline_rate_preserves_elapsed_edit_times() {
 #[test]
 fn clip_source_time_clamps_to_its_source_range() {
     let mut clip = video_clip(10, 100, 60);
-    clip.media_mut().unwrap().source_in = TimelineFrameIndex::from(30);
-    clip.media_mut().unwrap().source_out = TimelineFrameIndex::from(90);
+    clip.video_mut().unwrap().source_in = TimelineFrameIndex::from(30);
+    clip.video_mut().unwrap().source_out = TimelineFrameIndex::from(90);
 
     assert_eq!(
         clip.source_time_at(TimelineFrameIndex::from(50)),
@@ -533,7 +558,7 @@ fn clip_source_time_clamps_to_its_source_range() {
 #[test]
 fn splitting_clip_preserves_ranges_and_properties() {
     let mut clip = video_clip(10, 100, 60);
-    let media = clip.media_mut().unwrap();
+    let media = clip.video_mut().unwrap();
     media.source_in = TimelineFrameIndex::from(30);
     media.source_out = TimelineFrameIndex::from(90);
     media.video_properties.position_x = 42.0;
@@ -546,39 +571,27 @@ fn splitting_clip_preserves_ranges_and_properties() {
 
     assert_eq!(left.id(), ulid(10));
     assert_eq!(left.timeline_start(), TimelineFrameIndex::from(100));
-    assert_eq!(
-        left.media().unwrap().source_in,
-        TimelineFrameIndex::from(30)
-    );
-    assert_eq!(
-        left.media().unwrap().source_out,
-        TimelineFrameIndex::from(55)
-    );
+    assert_eq!(left.source_in().unwrap(), TimelineFrameIndex::from(30));
+    assert_eq!(left.source_out().unwrap(), TimelineFrameIndex::from(55));
     assert_ne!(right.id(), clip.id());
     assert_eq!(right.timeline_start(), TimelineFrameIndex::from(125));
+    assert_eq!(right.source_in().unwrap(), TimelineFrameIndex::from(55));
+    assert_eq!(right.source_out().unwrap(), TimelineFrameIndex::from(90));
     assert_eq!(
-        right.media().unwrap().source_in,
-        TimelineFrameIndex::from(55)
+        left.video().unwrap().video_properties,
+        clip.video().unwrap().video_properties
     );
     assert_eq!(
-        right.media().unwrap().source_out,
-        TimelineFrameIndex::from(90)
+        right.video().unwrap().video_properties,
+        clip.video().unwrap().video_properties
     );
     assert_eq!(
-        left.media().unwrap().video_properties,
-        clip.media().unwrap().video_properties
+        left.video().unwrap().audio_properties,
+        clip.video().unwrap().audio_properties
     );
     assert_eq!(
-        right.media().unwrap().video_properties,
-        clip.media().unwrap().video_properties
-    );
-    assert_eq!(
-        left.media().unwrap().audio_properties,
-        clip.media().unwrap().audio_properties
-    );
-    assert_eq!(
-        right.media().unwrap().audio_properties,
-        clip.media().unwrap().audio_properties
+        right.video().unwrap().audio_properties,
+        clip.video().unwrap().audio_properties
     );
 }
 
@@ -761,7 +774,10 @@ fn timeline_load_migrates_frame_length_using_its_own_frame_rate() {
         .inspect_err(|e| eprintln!("{e:#}"))
         .unwrap();
     assert_eq!(
-        timeline.to_editing_state().clips[0].text().unwrap().duration,
+        timeline.to_editing_state().clips[0]
+            .text()
+            .unwrap()
+            .duration,
         Duration::from_mins(5)
     )
 }
@@ -797,12 +813,12 @@ fn text_clip_round_trip_uses_text_specific_fields() {
 #[test]
 fn clip_properties_round_trip_through_timeline_json() {
     let mut clip = video_clip(10, 0, 30);
-    clip.media_mut().unwrap().video_properties = VideoClipProperties {
+    clip.video_mut().unwrap().video_properties = VideoClipProperties {
         position_x: 120.0,
         position_y: -45.0,
         scale: 1.25,
     };
-    clip.media_mut().unwrap().audio_properties = AudioClipProperties {
+    clip.video_mut().unwrap().audio_properties = AudioClipProperties {
         gain_db: -6.0,
         muted: true,
     };
@@ -810,12 +826,12 @@ fn clip_properties_round_trip_through_timeline_json() {
     let restored = parse_clip(value).unwrap();
 
     assert_eq!(
-        restored.media().unwrap().video_properties,
-        clip.media().unwrap().video_properties
+        restored.video().unwrap().video_properties,
+        clip.video().unwrap().video_properties
     );
     assert_eq!(
-        restored.media().unwrap().audio_properties,
-        clip.media().unwrap().audio_properties
+        restored.video().unwrap().audio_properties,
+        clip.video().unwrap().audio_properties
     );
 }
 

@@ -56,7 +56,7 @@ impl TimelineEditingState {
         clip: &Clip,
         timeline_position: TimelineFrameIndex,
     ) -> Option<i64> {
-        let asset = self.asset(clip.media()?.asset_id)?;
+        let asset = self.asset(clip.asset_id()?)?;
         let source_rate = asset.frame_rate()?;
         let source_time = clip.source_time_at(timeline_position)?;
         Some(
@@ -71,10 +71,10 @@ impl TimelineEditingState {
         clip: &Clip,
         timeline_position: TimelineFrameIndex,
     ) -> Duration {
-        let Some(media) = clip.media() else {
+        let Some(asset_id) = clip.asset_id() else {
             return Duration::ZERO;
         };
-        let Some(asset) = self.asset(media.asset_id) else {
+        let Some(asset) = self.asset(asset_id) else {
             return Duration::ZERO;
         };
         if let (Some(source_rate), Some(source_frame)) = (

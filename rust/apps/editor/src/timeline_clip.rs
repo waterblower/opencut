@@ -38,7 +38,12 @@ impl ClipEditingExt for Clip {
         right.set_id(Ulid::generate());
         right.set_timeline_start(timeline_position);
         match (&mut left, &mut right) {
-            (Self::Video(left), Self::Video(right)) | (Self::Audio(left), Self::Audio(right)) => {
+            (Self::Video(left), Self::Video(right)) => {
+                let source_split = left.source_in + local;
+                left.source_out = source_split;
+                right.source_in = source_split;
+            }
+            (Self::Audio(left), Self::Audio(right)) => {
                 let source_split = left.source_in + local;
                 left.source_out = source_split;
                 right.source_in = source_split;

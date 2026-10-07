@@ -45,6 +45,10 @@ fn editing_content_survives_conversion_without_sharing_mutable_state() {
         serde_json::from_str(include_str!("fixtures/shared.timeline.json")).unwrap();
     editing.as_object_mut().unwrap().remove("view");
     let document = parse(&json!({"editing_state": editing})).unwrap();
+    editing["clips"][2]["data"]
+        .as_object_mut()
+        .unwrap()
+        .remove("video_properties");
     let mut runtime = document.to_editing_state();
     runtime.validate().unwrap();
 
