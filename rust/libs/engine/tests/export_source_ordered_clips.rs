@@ -10,7 +10,6 @@ use ulid::Ulid;
 fn export_source_ordered_clips() -> Result<()> {
     let document: TimelineSerialization =
         serde_json::from_str(include_str!("export_source_ordered_clips.timeline"))?;
-    let runs = 3_usize;
     let content = document.to_editing_state();
     let frames = document.frame_count();
     ensure!(frames > 0, "Performance fixture must not be empty");
@@ -31,56 +30,32 @@ fn export_source_ordered_clips() -> Result<()> {
         overwrite: false,
     };
     println!(
-        "Fixture: {}\n{} clips, {frames} frames, {duration:.3}s, {}x{}, {} runs, 8 Mbps",
+        "Fixture: {}\n{} clips, {frames} frames, {duration:.3}s, {}x{}, 8 Mbps",
         "export_source_ordered_clips.timeline",
         content.clips.len(),
         content.settings.width,
         content.settings.height,
-        runs
     );
-    let result = (|| -> Result<()> {
-        let mut elapsed_runs = Vec::with_capacity(runs);
-        for run in 1..=runs {
-            let control = ExportControl::default();
-            let started = Instant::now();
-            let completion =
-                export_timeline(&document, &output, &options, text_system.clone(), &control)?;
-            let elapsed = started.elapsed().as_secs_f64();
-            ensure!(
-                matches!(completion, ExportCompletion::Completed),
-                "Export stopped unexpectedly"
-            );
-            ensure!(
-                control.completed_frames() == frames,
-                "Export did not process every frame"
-            );
-            ensure!(fs::metadata(&output)?.len() > 0, "Export output is empty");
-            println!(
-                "Run {run}: {elapsed:.3}s, {:.2} fps, {:.3} ms/frame, {:.2}x realtime",
-                frames as f64 / elapsed,
-                elapsed * 1000.0 / frames as f64,
-                duration / elapsed
-            );
-            elapsed_runs.push(elapsed);
-            fs::remove_file(&output)?;
-        }
-        elapsed_runs.sort_by(f64::total_cmp);
-        let middle = runs / 2;
-        let median = if runs % 2 == 0 {
-            (elapsed_runs[middle - 1] + elapsed_runs[middle]) / 2.0
-        } else {
-            elapsed_runs[middle]
-        };
-        println!(
-            "Summary: min={:.3}s median={median:.3}s max={:.3}s; median throughput={:.2} fps",
-            elapsed_runs[0],
-            elapsed_runs[runs - 1],
-            frames as f64 / median
-        );
-        Ok(())
-    })();
-    if output.exists() {
-        fs::remove_file(&output).context("Removing performance-test output")?;
-    }
-    result
+
+    let control = ExportControl::default();
+    let started = Instant::now();
+    let completion = export_timeline(&document, &output, &options, text_system.clone(), &control)?;
+    let elapsed = started.elapsed().as_secs_f64();
+    ensure!(
+        matches!(completion, ExportCompletion::Completed),
+        "Export stopped unexpectedly"
+    );
+    ensure!(
+        control.completed_frames() == frames,
+        "Export did not process every frame"
+    );
+    ensure!(fs::metadata(&output)?.len() > 0, "Export output is empty");
+    println!(
+        "Time spend: {elapsed:.3}s, {:.2} fps, {:.3} ms/frame, {:.2}x realtime",
+        frames as f64 / elapsed,
+        elapsed * 1000.0 / frames as f64,
+        duration / elapsed
+    );
+    fs::remove_file(&output)?;
+    return Ok(());
 }
