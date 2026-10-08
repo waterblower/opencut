@@ -207,8 +207,6 @@ are relative to the OpenCut root.
 - Functions and methods should accept only the data they use. Prefer passing the
   smallest required values over accepting a broader type such as `&self` when
   the function does not depend on the rest of that type's state.
-- If a function's first argument is a mutable reference, prefer a method on that
-  type using `&mut self` instead of a free function.
 - Prefer a functional style: helpers and lower-level functions should return
   data or proposed state changes instead of mutating `self` or application state.
   Apply mutations as high in the call stack as possible, ideally at the outermost
