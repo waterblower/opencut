@@ -483,11 +483,16 @@ async fn handle_app_event(
                             .path
                             .parent()
                             .context("Timeline path has no parent directory")?; // 素材路径相对于时间线文件所在目录。
-                        let mut timeline_player = TimelinePlayer::new(
+                        let mut timeline_player = TimelinePlayer::from_editing_state(
                             timeline.editing_state.clone(),
                             timeline_directory,
                         )?;
-                        timeline_player.title = relative_path.display().to_string();
+                        timeline_player.title = timeline
+                            .path
+                            .file_name()
+                            .context("Timeline path has no file name")?
+                            .to_string_lossy()
+                            .into_owned();
                         let position = timeline_player
                             .backend
                             .timeline()

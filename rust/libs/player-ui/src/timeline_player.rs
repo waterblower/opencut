@@ -25,10 +25,14 @@ pub struct TimelinePlayer {
     pending_seek: Option<Duration>,               // 拖动请求的最新目标位置，下一帧执行；Some 表示已安排执行，新请求只覆盖目标。
 }
 
+// Public APIs only
 impl TimelinePlayer {
     /// Validates the timeline, opens the audio device, and prepares frame zero, paused.
     /// Media paths resolve against `timeline_directory`, the directory containing the timeline file. Call [`Self::start`] once the player is in an entity.
-    pub fn new(timeline: TimelineEditingState, timeline_directory: &Path) -> Result<Self> {
+    pub fn from_editing_state(
+        timeline: TimelineEditingState,
+        timeline_directory: &Path,
+    ) -> Result<Self> {
         Ok(Self {
             backend: TimelineBackend::new(timeline, timeline_directory)?,
             title: String::new(),
@@ -125,7 +129,10 @@ impl TimelinePlayer {
         self.backend.pause();
         cx.notify();
     }
+}
 
+// Private APIs only
+impl TimelinePlayer {
     /// Starts, refills, or stops the audio output to match the backend's playback state.
     fn sync_audio(&mut self) -> Result<()> {
         if !self.backend.is_playing() {

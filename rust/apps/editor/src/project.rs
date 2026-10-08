@@ -2,7 +2,7 @@ use crate::editor::Editor;
 use crate::event_bus::AppEvent;
 use crate::preview::PreviewTarget;
 use crate::project_settings::{load_project_local_settings, save_project_local_settings};
-use crate::timeline::TimelineRuntimeState;
+use crate::timeline::{TimelinePlayerExt, TimelineRuntimeState};
 use ::timeline::TimelineSerialization;
 use anyhow::{Context as _, Result};
 use gpui::PathPromptOptions;
@@ -169,23 +169,18 @@ impl Editor {
         let Some(timeline) = self.timeline.as_ref() else {
             return Ok(PreviewTarget::None);
         };
-        let relative_path = match timeline.path.strip_prefix(&self.project_root) {
-            Ok(relative_path) => relative_path.to_path_buf(),
-            Err(_) => timeline.path.clone(),
-        };
-        let timeline_directory = timeline
-            .path
-            .parent()
-            .context("Timeline path has no parent directory")?; // 素材路径相对于时间线文件所在目录。
-        let mut player = TimelinePlayer::new(timeline.editing_state.clone(), timeline_directory)?;
-        player.title = relative_path.display().to_string();
-        player.backend.seek_frame(timeline.playhead())?;
-        let player = cx.new(move |_| player);
+
+        let timeline_player = TimelinePlayer::from_runtime_state(timeline)?;
+        let player = cx.new(move |_| timeline_player);
         let task = player.update(cx, |player, cx| player.start(cx));
+
         Ok(PreviewTarget::Timeline {
             _task: task,
             _subscription: cx.observe(&player, |_, _, cx| cx.notify()),
-            path: relative_path,
+            path: timeline
+                .path
+                .strip_prefix(&self.project_root)?
+                .to_path_buf(),
             player,
         })
     }
