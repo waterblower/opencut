@@ -1,4 +1,4 @@
-use crate::args::KeepTextSectionsArgs;
+use crate::args::TimelineCommand;
 use crate::document;
 use anyhow::{Context as _, Result, bail, ensure};
 use serde_json::{Value, json};
@@ -6,14 +6,24 @@ use std::{fs, path::PathBuf};
 use timeline::{Clip, TimelineEditingState, TimelineFrameIndex, TimelineSerialization};
 use ulid::Ulid;
 
-pub fn keep_text_sections(options: KeepTextSectionsArgs) -> Result<Value> {
+pub fn edit(command: TimelineCommand) -> Result<Value> {
+    let options = match &command {
+        TimelineCommand::KeepTextSections(options) | TimelineCommand::RemoveGaps(options) => {
+            options
+        }
+    };
     let input = std::path::absolute(&options.timeline)?;
     let input_directory =
         fs::canonicalize(input.parent().context("Input has no parent directory")?)?;
     let output = if options.write_inplace {
         fs::canonicalize(&input)?
     } else {
-        std::path::absolute(options.output.context("An output path is required")?)?
+        std::path::absolute(
+            options
+                .output
+                .as_ref()
+                .context("An output path is required")?,
+        )?
     };
     if !options.write_inplace {
         ensure!(
@@ -27,7 +37,26 @@ pub fn keep_text_sections(options: KeepTextSectionsArgs) -> Result<Value> {
     let original = TimelineSerialization::load(&input)?;
     let editing_state = &original.editing_state;
     let before_frames = editing_state.content_duration();
-    let mut compacted = compact_text_sections(editing_state)?;
+    let mut compacted = match &command {
+        TimelineCommand::KeepTextSections(_) => compact_text_sections(editing_state)?,
+        TimelineCommand::RemoveGaps(_) => {
+            let frame_rate = editing_state.settings.frame_rate;
+            let mut ordered_clips = editing_state.clips.iter().enumerate().collect::<Vec<_>>();
+            ordered_clips.sort_unstable_by_key(|(_, clip)| clip.timeline_start());
+            let mut result = editing_state.clone();
+            let mut covered_end = TimelineFrameIndex::ZERO; // 原时间线已遍历片段的最远终点。
+            let mut removed_frames = TimelineFrameIndex::ZERO; // 当前片段之前累计删除的空隙长度。
+            for (index, clip) in ordered_clips {
+                let start = clip.timeline_start();
+                if start > covered_end {
+                    removed_frames += start - covered_end;
+                }
+                result.clips[index].set_timeline_start(start - removed_frames);
+                covered_end = covered_end.max(clip.timeline_end(frame_rate));
+            }
+            result
+        }
+    };
     if input_directory != output_directory {
         for asset in &mut compacted.assets {
             if asset.path.is_absolute() {

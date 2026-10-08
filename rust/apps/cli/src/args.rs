@@ -74,12 +74,14 @@ pub struct ExportArgs {
 #[derive(Subcommand)]
 pub enum TimelineCommand {
     /// Keep time covered by text clips and close uncovered gaps across every track.
-    KeepTextSections(KeepTextSectionsArgs),
+    KeepTextSections(TimelineEditArgs),
+    /// Remove leading and internal gaps unoccupied by clips across every track.
+    RemoveGaps(TimelineEditArgs),
 }
 
 #[derive(clap::Args)]
 #[command(group(clap::ArgGroup::new("destination").required(true).multiple(false).args(["output", "write_inplace"])))]
-pub struct KeepTextSectionsArgs {
+pub struct TimelineEditArgs {
     /// Input timeline (.timeline or .timeline.json).
     pub timeline: PathBuf,
     /// Write a new timeline; the destination must not already exist.
