@@ -101,6 +101,13 @@ are relative to the OpenCut root.
   emitting an event alone does not move work off the UI thread. An explicitly
   synchronous implementation remains synchronous even when its cost blocks the
   UI; optimize that cost before changing the execution model.
+- Use `action_` for GPUI action handlers that accept an action argument and can
+  be registered with `.on_action(cx.listener(Self::action_xxx))`.
+- Use `ui_callback_` for functions or methods intended to be called only from
+  UI callbacks, such as `ui_callback_set_timeline_frame_rate`. A callback may
+  capture option-specific values and pass them to this helper. Do not add an
+  `action_` wrapper merely to rename a UI callback helper; reserve that prefix
+  for GPUI action handlers. General-purpose business logic uses neither prefix.
 - State should live in the narrowest scope that needs it. Prefer a local variable
   over a struct field unless the value actually needs to be shared across methods
   or control flows.
