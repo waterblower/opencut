@@ -108,6 +108,11 @@ are relative to the OpenCut root.
   capture option-specific values and pass them to this helper. Do not add an
   `action_` wrapper merely to rename a UI callback helper; reserve that prefix
   for GPUI action handlers. General-purpose business logic uses neither prefix.
+- Name new functions and methods that return GPUI elements with a `_view`
+  suffix, including those returning concrete element types, `AnyElement`, or
+  `impl IntoElement`. Apply this convention to future code; do not rename
+  existing functions solely to conform unless the user explicitly requests it.
+  Required trait method names are exempt.
 - State should live in the narrowest scope that needs it. Prefer a local variable
   over a struct field unless the value actually needs to be shared across methods
   or control flows.
