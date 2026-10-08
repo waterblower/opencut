@@ -465,7 +465,8 @@ async fn handle_app_event(
                 match &editor.preview.target {
                     PreviewTarget::Timeline { player, .. } => {
                         player.update(cx, |player, cx| {
-                            let position = player.backend.timeline().position_at_frame(frame_index);
+                            let position =
+                                player.backend().timeline().position_at_frame(frame_index);
                             let result = player.seek(position);
                             cx.notify();
                             result
@@ -494,10 +495,10 @@ async fn handle_app_event(
                             .to_string_lossy()
                             .into_owned();
                         let position = timeline_player
-                            .backend
+                            .backend()
                             .timeline()
                             .position_at_frame(frame_index);
-                        timeline_player.backend.seek(position)?;
+                        timeline_player.backend_mut().seek(position)?;
                         let player = cx.new(move |_| timeline_player);
                         editor.preview.target = PreviewTarget::Timeline {
                             _task: player.update(cx, |player, cx| player.start(cx)),

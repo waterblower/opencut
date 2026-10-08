@@ -11,8 +11,8 @@ pub use ::timeline::{FrameRate, TimelineFrameIndex};
 use anyhow::{Context as _, Result, ensure};
 use gpui::ScrollHandle;
 use gpui::prelude::*;
-use std::collections::{HashMap, HashSet};
 use player_ui::timeline_player::TimelinePlayer;
+use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 use ulid::Ulid;
 
@@ -56,14 +56,15 @@ impl TimelinePlayerExt for TimelinePlayer {
             .path
             .parent()
             .context("Timeline path has no parent directory")?;
-        let mut player = Self::from_editing_state(timeline.editing_state.clone(), timeline_directory)?;
+        let mut player =
+            Self::from_editing_state(timeline.editing_state.clone(), timeline_directory)?;
         player.title = timeline
             .path
             .file_name()
             .context("Timeline path has no file name")?
             .to_string_lossy()
             .into_owned();
-        player.backend.seek_frame(timeline.playhead())?;
+        player.backend_mut().seek_frame(timeline.playhead())?;
         Ok(player)
     }
 }

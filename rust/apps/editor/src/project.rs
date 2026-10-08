@@ -63,7 +63,8 @@ impl Editor {
                 let timeline = self.timeline.as_mut().expect("timeline was checked above");
                 timeline.set_playhead(timeline.playhead());
                 if !matches!(self.preview.target, PreviewTarget::Timeline { .. }) {
-                    self.preview.target = timeline_preview_target(timeline, &self.project_root, cx)?;
+                    self.preview.target =
+                        timeline_preview_target(timeline, &self.project_root, cx)?;
                 }
                 self.explorer.selected_file = Some(relative_path);
                 cx.notify();

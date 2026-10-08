@@ -17,8 +17,8 @@ const AUDIO_LEAD: Duration = Duration::from_millis(500); // 混音领先播放�
 
 #[rustfmt::skip]
 pub struct TimelinePlayer {
-    pub backend: TimelineBackend,                 // 直接修改后需自行 notify 并释放旧图像。
     pub title: String,
+    backend: TimelineBackend,                     // 直接修改后需自行 notify 并释放旧图像。
     audio_output: AudioOutput,
     audio_readers: HashMap<Ulid, ClipAudio>,      // 按片段顺序读取的解码器；重新开始输出时清空。
     audio_cursor: i64,                            // 下一块待混音的起始采样位置（设备采样率），不是播放位置。
@@ -41,6 +41,14 @@ impl TimelinePlayer {
             audio_cursor: 0,
             pending_seek: None,
         })
+    }
+
+    pub fn backend(&self) -> &TimelineBackend {
+        &self.backend
+    }
+
+    pub fn backend_mut(&mut self) -> &mut TimelineBackend {
+        &mut self.backend
     }
 
     /// Seeks to `position` on the next frame. Requests arriving before then only replace the

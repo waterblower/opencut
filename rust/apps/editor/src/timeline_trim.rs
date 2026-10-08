@@ -80,7 +80,7 @@ impl Editor {
                             timeline.interaction.snap_guide = None;
                             if let PreviewTarget::Timeline { player, .. } = &editor.preview.target {
                                 player.update(cx, |player, cx| {
-                                    player.backend.pause();
+                                    player.backend_mut().pause();
                                     cx.notify();
                                 });
                             }
