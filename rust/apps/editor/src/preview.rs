@@ -1,12 +1,14 @@
 use crate::editor::Editor;
 use crate::preview_image::preview_image_file;
 use crate::theme::MUTED;
+use crate::timeline::{TimelinePlayerExt, TimelineRuntimeState};
+use anyhow::Result;
 use gpui::prelude::*;
 use gpui::{Entity, div, px, rgb};
 use player_ui::audio_player::AudioPlayer;
 use player_ui::timeline_player::TimelinePlayer;
 use player_ui::video_player::VideoPlayer;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 pub enum PreviewTarget {
     None,
@@ -27,6 +29,25 @@ pub enum PreviewTarget {
         player: Entity<AudioPlayer>,
     },
     ImageFile(PathBuf),
+}
+
+/// Builds a paused player snapshot at the timeline's playhead and observes it for redraws.
+/// Rebuild the preview when edits invalidate the snapshot's time base, such as frame rate changes.
+pub fn timeline_preview_target<T: 'static>(
+    timeline: &TimelineRuntimeState,
+    project_root: &Path,
+    cx: &mut Context<T>,
+) -> Result<PreviewTarget> {
+    let path = timeline.path.strip_prefix(project_root)?.to_path_buf();
+    let timeline_player = TimelinePlayer::from_runtime_state(timeline)?;
+    let player = cx.new(move |_| timeline_player);
+    let task = player.update(cx, |player, cx| player.start(cx));
+    Ok(PreviewTarget::Timeline {
+        _task: task,
+        _subscription: cx.observe(&player, |_, _, cx| cx.notify()),
+        path,
+        player,
+    })
 }
 
 impl Editor {
