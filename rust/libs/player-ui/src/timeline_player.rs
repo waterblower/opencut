@@ -19,7 +19,7 @@ pub struct TimelinePlayer {
     pub title: String,
     backend: TimelineBackend,                            // 直接修改后需自行 notify 并释放旧图像。
     audio_output: AudioOutput,
-    audio_readers: HashMap<AudioReaderKey, AudioReader>, // 按轨道和素材缓存的解码器；重新开始输出时清空。
+    audio_readers: HashMap<AudioReaderKey, AudioReader>, // 按轨道和素材缓存的解码器；不释放，读取时自行接续或 seek。
     audio_cursor: i64,                                   // 下一块待混音的起始采样位置（设备采样率），不是播放位置。
     pending_seek: Option<Duration>,                      // 拖动请求的最新目标位置，下一帧执行；Some 表示已安排执行，新请求只覆盖目标。
 }
@@ -153,10 +153,9 @@ impl TimelinePlayer {
         }
         let rate = self.audio_output.format.sample_rate;
         if !self.audio_output.is_playing() {
-            // 开始播放或 seek 后：输出队列从时钟位置重新开始，解码器按新位置重新打开。
+            // 开始播放或 seek 后：输出队列从时钟位置重新开始；读取器保留，由其按新位置接续或 seek。
             let position = self.backend.clock_position();
             self.audio_output.clear_at(position)?;
-            self.audio_readers.clear();
             self.audio_cursor = sample_index(position, rate);
         }
         let duration_end = sample_index(self.backend.duration(), rate);
