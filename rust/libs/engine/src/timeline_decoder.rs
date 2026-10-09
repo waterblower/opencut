@@ -103,14 +103,19 @@ impl TimelineDecoder {
                             MediaKind::Video => {
                                 #[cfg(target_os = "macos")]
                                 {
+                                    #[rustfmt::skip]
                                     let reader = match self.readers.entry(media.id()) {
-                                        Entry::Occupied(entry) => entry.into_mut(),
-                                        Entry::Vacant(entry) => entry.insert(
-                                            ClipReader::open(&asset_path).context(format!(
-                                                "Opening timeline video {}",
-                                                asset_path.display()
-                                            ))?,
-                                        ),
+                                        Entry::Occupied(entry) => {
+                                            entry.into_mut()
+                                        },
+                                        Entry::Vacant(entry) => {
+                                            entry.insert(
+                                                ClipReader::open(&asset_path).context(format!(
+                                                    "Opening timeline video {}",
+                                                    asset_path.display()
+                                                ))?,
+                                            )
+                                        },
                                     };
                                     active_readers.insert(media.id());
                                     let source = timeline.source_position_at(clip, position);

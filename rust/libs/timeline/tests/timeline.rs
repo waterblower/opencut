@@ -84,10 +84,10 @@ fn legacy_cli_documents_are_rejected_explicitly() {
 }
 
 #[test]
-fn validation_reports_missing_track_without_mutation() {
+fn validation_reports_invalid_data_without_mutation() {
     let raw: Value = serde_json::from_str(include_str!("fixtures/shared.timeline.json")).unwrap();
     let document: TimelineSerialization = serde_json::from_value(raw).unwrap();
-    let mut doc = document.editing_state;
+    let mut doc = document.editing_state.clone();
     let audio_track_id = doc.clips[2].track_id();
     let video_track_id = doc.clips[0].track_id();
     doc.clips[2].set_track_id(video_track_id);
@@ -116,6 +116,41 @@ fn validation_reports_missing_track_without_mutation() {
     let loaded = TimelineSerialization::load(&path);
     std::fs::remove_file(&path).unwrap();
     assert!(format!("{:?}", loaded.unwrap_err()).contains("references missing track"));
+
+    document.editing_state.validate().unwrap(); // 不同轨道上的重叠仍然合法。
+    for original in &document.editing_state.clips {
+        let mut with_copy = document.editing_state.clone();
+        let copy_id = ulid::Ulid::generate();
+        let mut adjacent = original.copy(copy_id);
+        let end = original.timeline_end(with_copy.settings.frame_rate);
+        adjacent.set_timeline_start(end);
+        with_copy.clips.push(adjacent);
+        with_copy.clips.reverse(); // 校验不能依赖输入顺序，也不能改变文档顺序。
+        with_copy.validate().unwrap();
+
+        for start in [
+            original.timeline_start(),
+            end - TimelineFrameIndex::ONE_FRAME,
+        ] {
+            with_copy
+                .clip_mut(copy_id)
+                .unwrap()
+                .set_timeline_start(start);
+            let before_overlap =
+                serde_json::to_value(TimelineSerialization::from_editing_state(&with_copy))
+                    .unwrap();
+            let overlap_error = with_copy.validate().unwrap_err().to_string();
+            assert!(overlap_error.contains("overlap on track"));
+            assert!(overlap_error.contains(&original.id().to_string()));
+            assert!(overlap_error.contains(&copy_id.to_string()));
+            assert!(overlap_error.contains(&original.track_id().to_string()));
+            assert_eq!(
+                serde_json::to_value(TimelineSerialization::from_editing_state(&with_copy))
+                    .unwrap(),
+                before_overlap
+            );
+        }
+    }
 }
 
 #[test]
