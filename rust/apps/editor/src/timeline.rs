@@ -8,9 +8,10 @@ use crate::timeline_interactions::{TimelineInteractionState, TimelineTool};
 use crate::track::TrackKind;
 use ::timeline::TimelineEditingState;
 pub use ::timeline::{FrameRate, TimelineFrameIndex};
-use anyhow::{Result, ensure};
+use anyhow::{Context as _, Result, ensure};
 use gpui::ScrollHandle;
 use gpui::prelude::*;
+use player_ui::timeline_player::TimelinePlayer;
 use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 use ulid::Ulid;
@@ -42,6 +43,30 @@ pub struct TimelineRuntimeState {
     pub(super) undo_stack: Vec<TimelineEditingState>,
     pub(super) redo_stack: Vec<TimelineEditingState>,
     pub(super) preview_drop_asset: Option<PreviewDropAsset>,
+}
+
+pub trait TimelinePlayerExt: Sized {
+    /// Creates a paused snapshot with the runtime timeline's title and playhead.
+    fn from_runtime_state(timeline: &TimelineRuntimeState) -> Result<Self>;
+}
+
+impl TimelinePlayerExt for TimelinePlayer {
+    fn from_runtime_state(timeline: &TimelineRuntimeState) -> Result<Self> {
+        let timeline_directory = timeline
+            .path
+            .parent()
+            .context("Timeline path has no parent directory")?;
+        let mut player =
+            Self::from_editing_state(timeline.editing_state.clone(), timeline_directory)?;
+        player.title = timeline
+            .path
+            .file_name()
+            .context("Timeline path has no file name")?
+            .to_string_lossy()
+            .into_owned();
+        player.backend_mut().seek_frame(timeline.playhead())?;
+        Ok(player)
+    }
 }
 
 #[derive(Debug)]

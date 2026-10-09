@@ -2,7 +2,8 @@
 //! cargo test --config .cargo/macos.toml -p media-backend --test random_seek -- --ignored --nocapture
 
 use anyhow::{Context, Result, ensure};
-use media_backend::{VideoBackend, VideoDecoder};
+use ffmpeg_next::format;
+use media_backend::{MediaInfo, VideoDecoder};
 use std::{
     path::Path,
     time::{Duration, Instant},
@@ -23,14 +24,16 @@ fn benchmark_random_seek() -> Result<()> {
         "fake-keyframes.mp4",
     ] {
         let path = fixture_directory.join(name);
-        let metadata = VideoBackend::probe(&path)
+        let input = format::input(&path)
+            .with_context(|| format!("opening benchmark fixture {}", path.display()))?;
+        let metadata = MediaInfo::from_av_input(&input, &path)
             .with_context(|| format!("probing benchmark fixture {}", path.display()))?;
         ensure!(
             !metadata.duration.is_zero(),
             "empty benchmark fixture {name}"
         );
-        let mut decoder = VideoDecoder::open(
-            &path,
+        let mut decoder = VideoDecoder::from_av_input(
+            input,
             metadata.video.stream_index,
             metadata.origin_microseconds,
         )?;

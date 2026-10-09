@@ -362,7 +362,7 @@ impl Editor {
             .expect("timeline view requires timeline state");
         if let PreviewTarget::Timeline { path, player, .. } = &self.preview.target {
             if self.project_root.join(path) == timeline.path {
-                return player.read(cx).backend.position().as_secs_f64();
+                return player.read(cx).backend().position().as_secs_f64();
             }
         }
         timeline.editing_state.seconds(timeline.playhead())

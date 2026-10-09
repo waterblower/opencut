@@ -39,7 +39,7 @@ impl Editor {
             move |bounds, window, cx| {
                 let mut element = match editor.upgrade() {
                     Some(editor) => match editor.read(cx).timeline.as_ref() {
-                        Some(timeline) => preview.read(cx).backend.preview_frame().render_frame(
+                        Some(timeline) => preview.read(cx).backend().preview_frame().render_frame(
                             bounds.size.width.into(),
                             bounds.size.height.into(),
                             &timeline.editing_state,
@@ -70,7 +70,7 @@ impl Editor {
         let Some(timeline) = self.timeline.as_ref() else {
             return div().into_any_element();
         };
-        let frame = player.read(cx).backend.preview_frame();
+        let frame = player.read(cx).backend().preview_frame();
         let selected = timeline.interaction.selected_clip_id;
         let editable = timeline
             .editing_state
@@ -254,7 +254,7 @@ impl Editor {
                     editor.select_only_clip(Some(clip_id));
                     if let PreviewTarget::Timeline { player, .. } = &editor.preview.target {
                         player.update(cx, |player, cx| {
-                            player.backend.pause();
+                            player.backend_mut().pause();
                             cx.notify();
                         });
                     }

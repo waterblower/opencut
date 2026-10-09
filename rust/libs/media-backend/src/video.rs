@@ -3,7 +3,7 @@ use anyhow::{Context, Result, bail};
 use ffmpeg_next::{
     Discard, Error as FfmpegError, Packet, Rational, codec, decoder,
     ffi::av_display_rotation_get,
-    format::{self, Pixel, context::Input},
+    format::{Pixel, context::Input},
     frame::{Video, side_data::Type as FrameSideData},
     media::Type as MediaType,
     packet::side_data::Type as PacketSideData,
@@ -12,7 +12,6 @@ use ffmpeg_next::{
 use std::{
     collections::VecDeque,
     marker::PhantomData,
-    path::Path,
     rc::Rc,
     time::{Duration, Instant},
 };
@@ -61,10 +60,16 @@ pub struct VideoDecoder {
 }
 
 impl VideoDecoder {
+    /// Decodes from an already open demuxer, which this decoder then owns. The input must
+    /// not be shared with another decoder: each needs its own read position.
     /// Use VideoToolbox on macOS and software decoding on other platforms.
     /// Unsupported codecs and hardware failures are errors; there is no software fallback.
-    pub fn open(path: &Path, stream_index: usize, origin_microseconds: i64) -> Result<Self> {
-        let (input, decoder, time_base, stream_rotation) = open_decoder(path, stream_index)?;
+    pub fn from_av_input(
+        input: Input,
+        stream_index: usize,
+        origin_microseconds: i64,
+    ) -> Result<Self> {
+        let (input, decoder, time_base, stream_rotation) = open_decoder(input, stream_index)?;
         let mut decoder = Self {
             input,
             decoder,
@@ -99,14 +104,27 @@ impl VideoDecoder {
     /// The selected frame and any decoded successor stay owned by the decoder.
     pub fn seek(&mut self, position: Duration) -> Result<()> {
         let started = Instant::now();
+        // Even an out-of-range request clamps to the final available frame.
+        let mut scan = SeekScan {
+            target: i64::try_from(position.as_micros()).unwrap_or(i64::MAX),
+            nearest_below: None,
+            index_seeks: 0,
+            sent_packets: 0,
+            discarded_packets: 0,
+            decoded_frames: 0,
+        };
         {
-            let frame = self.seek_inner(position)?;
+            let frame = self.seek_inner(&mut scan)?;
             self.lookahead.push_front(frame);
         }
         eprintln!(
-            "Seek to {} µs: seek={:?}",
+            "[clip-switch] seek to {} µs: total={:?}, index_seeks={}, sent_packets={}, discarded_packets={}, decoded_frames={}",
             position.as_micros(),
-            started.elapsed()
+            started.elapsed(),
+            scan.index_seeks,
+            scan.sent_packets,
+            scan.discarded_packets,
+            scan.decoded_frames,
         );
         Ok(())
     }
@@ -116,13 +134,8 @@ impl VideoDecoder {
     /// Nearest bracketing frame, earlier on ties; clamp to first/last frame.
     /// Empty video is an error. Retain lookahead so the next pull follows the
     /// selected frame. Decode dependencies; convert only the selected result.
-    fn seek_inner(&mut self, position: Duration) -> Result<VideoFrame> {
-        // Even an out-of-range request clamps to the final available frame.
-        let target = i64::try_from(position.as_micros()).unwrap_or(i64::MAX);
-        let mut scan = SeekScan {
-            target,
-            nearest_below: None,
-        };
+    fn seek_inner(&mut self, scan: &mut SeekScan) -> Result<VideoFrame> {
+        let target = scan.target;
 
         // Forward fast path: when the target is only a short distance past the
         // pending frame, continuing the current decode is cheaper than an
@@ -134,7 +147,7 @@ impl VideoDecoder {
             {
                 pending
             }
-            _ => self.indexed_seek(&mut scan)?,
+            _ => self.indexed_seek(scan)?,
         };
         if earlier.timestamp.0 >= target {
             return Ok(earlier);
@@ -144,7 +157,7 @@ impl VideoDecoder {
         loop {
             let next = match self.lookahead.pop_front() {
                 Some(frame) => Some(frame),
-                None => self.decode_next(Some(&mut scan))?,
+                None => self.decode_next(Some(&mut *scan))?,
             };
             let Some(later) = next else {
                 return Ok(earlier);
@@ -183,6 +196,7 @@ impl VideoDecoder {
         // before the landing packet so each attempt steps back one index keyframe.
         let mut retry_step = FALLBACK_SEEK_STEP_MICROSECONDS;
         loop {
+            scan.index_seeks += 1;
             let absolute = self.origin_microseconds.saturating_add(seek_position);
             self.input
                 .seek(absolute, ..absolute)
@@ -244,6 +258,10 @@ const FORWARD_SCAN_LIMIT_MICROSECONDS: i64 = 250_000;
 struct SeekScan {
     target: i64,                // 目标时间（微秒，相对 origin）。
     nearest_below: Option<i64>, // 已完整解码、早于目标的最大 PTS；更早的非参考帧不会被选中。
+    index_seeks: u32,           // 临时测量：索引 seek 次数（含回退重试）。
+    sent_packets: u32,          // 临时测量：送入解码器的包数。
+    discarded_packets: u32,     // 临时测量：以非参考帧方式跳过的包数。
+    decoded_frames: u32,        // 临时测量：解码输出的帧数。
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -264,6 +282,9 @@ impl VideoDecoder {
         loop {
             match self.decoder.receive_frame(&mut native) {
                 Ok(()) => {
+                    if let Some(scan) = scan.as_deref_mut() {
+                        scan.decoded_frames += 1;
+                    }
                     if DECODE_MODE == DecodeMode::VideoToolbox
                         && native.format() != Pixel::VIDEOTOOLBOX
                     {
@@ -328,25 +349,32 @@ impl VideoDecoder {
     /// cannot be the selected frame. Outside a seek, every picture decodes.
     fn send_video_packet(&mut self, packet: &Packet, scan: Option<&mut SeekScan>) -> Result<()> {
         let discard = match scan {
-            Some(scan) => match packet.pts() {
-                Some(timestamp) => {
-                    let position = timestamp_microseconds(timestamp, self.time_base)?
-                        .checked_sub(self.origin_microseconds)
-                        .context("normalized video timestamp exceeds range")?;
-                    if position >= scan.target {
-                        Discard::Default // 目标及之后的帧可能被选中。
-                    } else {
-                        match scan.nearest_below {
-                            Some(nearest) if position < nearest => Discard::NonReference,
-                            Some(_) | None => {
-                                scan.nearest_below = Some(position);
-                                Discard::Default
+            Some(scan) => {
+                scan.sent_packets += 1;
+                let discard = match packet.pts() {
+                    Some(timestamp) => {
+                        let position = timestamp_microseconds(timestamp, self.time_base)?
+                            .checked_sub(self.origin_microseconds)
+                            .context("normalized video timestamp exceeds range")?;
+                        if position >= scan.target {
+                            Discard::Default // 目标及之后的帧可能被选中。
+                        } else {
+                            match scan.nearest_below {
+                                Some(nearest) if position < nearest => Discard::NonReference,
+                                Some(_) | None => {
+                                    scan.nearest_below = Some(position);
+                                    Discard::Default
+                                }
                             }
                         }
                     }
+                    None => Discard::Default, // 无 PTS：无法判断是否会被选中。
+                };
+                if discard == Discard::NonReference {
+                    scan.discarded_packets += 1;
                 }
-                None => Discard::Default, // 无 PTS：无法判断是否会被选中。
-            },
+                discard
+            }
             None => Discard::Default,
         };
         // Set per packet: the decoder applies the level current at send time.
@@ -358,10 +386,9 @@ impl VideoDecoder {
 }
 
 fn open_decoder(
-    path: &Path,
+    input: Input,
     stream_index: usize,
 ) -> Result<(Input, decoder::Video, Rational, f64)> {
-    let input = format::input(path).context("opening video demuxer")?;
     let Some(stream) = input.stream(stream_index) else {
         bail!("video stream {stream_index} is no longer present");
     };

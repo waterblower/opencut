@@ -188,7 +188,7 @@ fn open_timeline(path: &Path) -> Result<TimelinePlayer> {
         .parent()
         .context("Timeline path has no parent directory")?
         .to_path_buf();
-    let mut player = TimelinePlayer::new(timeline, &project_root)?;
+    let mut player = TimelinePlayer::from_editing_state(timeline, &project_root)?;
     player.title = path.display().to_string();
     Ok(player)
 }

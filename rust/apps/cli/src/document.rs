@@ -1,5 +1,5 @@
 //! CLI-owned file I/O for the shared timeline format.
-use anyhow::{Context as _, Result, anyhow};
+use anyhow::{Context as _, Result, anyhow, ensure};
 use serde_json::{Value, json};
 use std::{
     fs::{self, OpenOptions},
@@ -8,7 +8,6 @@ use std::{
 };
 pub use timeline::TimelineEditingState;
 use timeline::TrackKind;
-use ulid::Ulid;
 
 pub fn asset_base(timeline: &Path) -> Result<PathBuf> {
     let path = std::path::absolute(timeline).context(format!(
@@ -89,27 +88,39 @@ pub fn summary(doc: &TimelineEditingState) -> Value {
 }
 
 fn write_bytes(path: &Path, bytes: &[u8], overwrite: bool) -> Result<()> {
-    let parent = path.parent().unwrap_or(Path::new("."));
-    let temp = parent.join(format!(".opencut-{}.tmp", Ulid::generate()));
+    let mut temporary_name = path.as_os_str().to_os_string();
+    temporary_name.push(".tmp");
+    let temporary_path = PathBuf::from(temporary_name);
+    let mut file = OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(&temporary_path)
+        .with_context(|| format!("Creating temporary file {}", temporary_path.display()))?;
     let result = (|| {
-        let mut file = OpenOptions::new()
-            .write(true)
-            .create_new(true)
-            .open(&temp)
-            .context(format!("io_error at {}:{}", file!(), line!()))?;
         file.write_all(bytes)
-            .context(format!("io_error at {}:{}", file!(), line!()))?;
+            .with_context(|| format!("Writing temporary file {}", temporary_path.display()))?;
         file.sync_all()
-            .context(format!("io_error at {}:{}", file!(), line!()))?;
-        if overwrite {
-            fs::rename(&temp, path).context(format!("io_error at {}:{}", file!(), line!()))?;
-        } else {
-            fs::hard_link(&temp, path).context(format!("io_error at {}:{}", file!(), line!()))?;
+            .with_context(|| format!("Syncing temporary file {}", temporary_path.display()))?;
+        drop(file);
+        if !overwrite {
+            ensure!(
+                !path.try_exists()? && !path.is_symlink(),
+                "Output already exists: {}",
+                path.display()
+            );
         }
+        // 临时文件与目标同目录，普通重命名兼容不支持排他重命名的外置磁盘。
+        fs::rename(&temporary_path, path).with_context(|| {
+            format!(
+                "Renaming {} to {}",
+                temporary_path.display(),
+                path.display()
+            )
+        })?;
         Ok(())
     })();
-    if temp.exists() {
-        fs::remove_file(&temp).context(format!("io_error at {}:{}", file!(), line!()))?;
+    if result.is_err() {
+        let _ = fs::remove_file(&temporary_path);
     }
     result
 }

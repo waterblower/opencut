@@ -7,6 +7,7 @@ use crate::layout::{
     TOPBAR_HEIGHT,
 };
 use crate::properties::{current_properties_panel_viewable, properties_panel};
+use crate::settings::settings_modal_view;
 use crate::theme::{BACKGROUND, BORDER, MUTED, PANEL, SURFACE, SURFACE_HOVER, TEXT};
 use gpui::prelude::*;
 use gpui::{CursorStyle, MouseButton, MouseDownEvent, Window, div, px, rgb};
@@ -59,7 +60,7 @@ impl Render for Editor {
         let settings_modal = if self.settings_open
             && let Some(timeline) = self.timeline.as_ref()
         {
-            Some(self.settings_modal(&timeline.editing_state, cx))
+            Some(settings_modal_view(&timeline.editing_state, cx))
         } else {
             None
         };

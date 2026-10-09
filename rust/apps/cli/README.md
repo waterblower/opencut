@@ -22,6 +22,11 @@ Timeline and output arguments resolve from the working directory. Relative media
 paths inside a timeline resolve from the directory containing that timeline file,
 including `..` references. Absolute asset paths are unchanged.
 
+Document writes use `<output filename>.tmp` in the output directory, sync it,
+then rename it to the destination. An existing temporary file is rejected.
+New destinations are checked before renaming; do not concurrently write the same
+destination from another process, because ordinary rename is not exclusive.
+
 From the repository root:
 
 ```sh
@@ -44,6 +49,26 @@ AAC audio, using the timeline's dimensions, frame rate, and audio sample rate.
 paths. `--bitrate` is in kbps (1 kbps = 1,000 bits per second) and defaults to 8,000.
 The command requires macOS Metal and VideoToolbox services and refuses existing
 output files. On success, stdout reports the output path and frame count.
+
+## Remove timeline gaps
+
+```sh
+opencut timeline remove-gaps input.timeline --output compacted.timeline
+opencut timeline remove-gaps input.timeline --write-inplace --json
+```
+
+Removes leading and internal time ranges with no clips on any track. Video,
+audio, image, and text clips all count, including hidden, muted, and locked tracks.
+Overlapping or adjacent clips keep their relative timing; only clip start positions
+change. Clip IDs, order, durations, source trims, properties, and track settings
+are preserved. Empty timelines succeed with zero removed frames.
+
+Exactly one of `--output` or `--write-inplace` is required. `--output` refuses
+existing files and rebases relative asset paths when the destination directory
+changes; the directory must exist. `--write-inplace` saves atomically after
+validation. Source media is never decoded or modified. The saved playhead and
+horizontal scroll reset to the start. Stdout reports `path`, `before_frames`,
+`after_frames`, and `removed_frames`; `--json` is supported.
 
 ## Keep text-covered sections
 

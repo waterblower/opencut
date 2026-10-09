@@ -101,6 +101,18 @@ are relative to the OpenCut root.
   emitting an event alone does not move work off the UI thread. An explicitly
   synchronous implementation remains synchronous even when its cost blocks the
   UI; optimize that cost before changing the execution model.
+- Use `action_` for GPUI action handlers that accept an action argument and can
+  be registered with `.on_action(cx.listener(Self::action_xxx))`.
+- Use `ui_callback_` for functions or methods intended to be called only from
+  UI callbacks, such as `ui_callback_set_timeline_frame_rate`. A callback may
+  capture option-specific values and pass them to this helper. Do not add an
+  `action_` wrapper merely to rename a UI callback helper; reserve that prefix
+  for GPUI action handlers. General-purpose business logic uses neither prefix.
+- Name new functions and methods that return GPUI elements with a `_view`
+  suffix, including those returning concrete element types, `AnyElement`, or
+  `impl IntoElement`. Apply this convention to future code; do not rename
+  existing functions solely to conform unless the user explicitly requests it.
+  Required trait method names are exempt.
 - State should live in the narrowest scope that needs it. Prefer a local variable
   over a struct field unless the value actually needs to be shared across methods
   or control flows.
@@ -195,8 +207,6 @@ are relative to the OpenCut root.
 - Functions and methods should accept only the data they use. Prefer passing the
   smallest required values over accepting a broader type such as `&self` when
   the function does not depend on the rest of that type's state.
-- If a function's first argument is a mutable reference, prefer a method on that
-  type using `&mut self` instead of a free function.
 - Prefer a functional style: helpers and lower-level functions should return
   data or proposed state changes instead of mutating `self` or application state.
   Apply mutations as high in the call stack as possible, ideally at the outermost

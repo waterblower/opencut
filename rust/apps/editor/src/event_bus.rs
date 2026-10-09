@@ -465,7 +465,8 @@ async fn handle_app_event(
                 match &editor.preview.target {
                     PreviewTarget::Timeline { player, .. } => {
                         player.update(cx, |player, cx| {
-                            let position = player.backend.timeline().position_at_frame(frame_index);
+                            let position =
+                                player.backend().timeline().position_at_frame(frame_index);
                             let result = player.seek(position);
                             cx.notify();
                             result
@@ -483,16 +484,21 @@ async fn handle_app_event(
                             .path
                             .parent()
                             .context("Timeline path has no parent directory")?; // 素材路径相对于时间线文件所在目录。
-                        let mut timeline_player = TimelinePlayer::new(
+                        let mut timeline_player = TimelinePlayer::from_editing_state(
                             timeline.editing_state.clone(),
                             timeline_directory,
                         )?;
-                        timeline_player.title = relative_path.display().to_string();
+                        timeline_player.title = timeline
+                            .path
+                            .file_name()
+                            .context("Timeline path has no file name")?
+                            .to_string_lossy()
+                            .into_owned();
                         let position = timeline_player
-                            .backend
+                            .backend()
                             .timeline()
                             .position_at_frame(frame_index);
-                        timeline_player.backend.seek(position)?;
+                        timeline_player.backend_mut().seek(position)?;
                         let player = cx.new(move |_| timeline_player);
                         editor.preview.target = PreviewTarget::Timeline {
                             _task: player.update(cx, |player, cx| player.start(cx)),

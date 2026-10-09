@@ -115,7 +115,7 @@ impl TimelineEditingState {
 }
 
 impl TimelineEditingState {
-    /// Validates settings, unique IDs, and clip references, timing, and properties.
+    /// Validates settings, unique IDs, clip references, timing, properties, and no overlaps within tracks.
     pub fn validate(&self) -> Result<()> {
         let settings = self.settings;
         if settings.width == 0 || settings.height == 0 {
@@ -221,6 +221,27 @@ impl TimelineEditingState {
                         bail!("Audio clip {} has invalid audio gain", audio.id());
                     }
                 }
+            }
+        }
+        let mut intervals = self
+            .clips
+            .iter()
+            .map(|clip| {
+                (
+                    clip.track_id(),
+                    clip.timeline_start(),
+                    clip.timeline_end(settings.frame_rate),
+                    clip.id(),
+                )
+            })
+            .collect::<Vec<_>>();
+        intervals.sort_unstable();
+        for pair in intervals.windows(2) {
+            let (track_id, _, previous_end, previous_id) = pair[0];
+            let (next_track_id, next_start, _, next_id) = pair[1];
+            if track_id == next_track_id && next_start < previous_end {
+                // 区间为 [start, end)，首尾相接不算重叠。
+                bail!("Clips {previous_id} and {next_id} overlap on track {track_id}");
             }
         }
         Ok(())
