@@ -28,14 +28,14 @@ impl TimelinePlayer {
         cx: &mut Context<Self>,
     ) -> AnyElement {
         let seek_bounds = Rc::new(Cell::new(Bounds::default()));
-        let duration = self.backend.duration();
-        let ended = self.backend.is_ended();
+        let duration = self.backend().duration();
+        let ended = self.backend().is_ended();
         let position = if ended {
             duration
         } else {
-            self.backend.clock_position() // 帧起点会把进度条拉到点击位置左侧，最多一帧。
+            self.backend().clock_position() // 帧起点会把进度条拉到点击位置左侧，最多一帧。
         };
-        let playback_label = match (ended, self.backend.is_playing()) {
+        let playback_label = match (ended, self.backend().is_playing()) {
             (true, _) => "Ended",
             (_, true) => "Pause",
             (_, false) => "Play",
@@ -117,7 +117,7 @@ impl TimelinePlayer {
 fn timeline_backend_picture(player: Entity<TimelinePlayer>) -> AnyElement {
     canvas(
         move |bounds, window, cx| {
-            let backend = &player.read(cx).backend;
+            let backend = player.read(cx).backend();
             let frame = backend.preview_frame();
             let mut element = frame.render_frame(
                 bounds.size.width.into(),

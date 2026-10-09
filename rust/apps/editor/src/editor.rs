@@ -5,7 +5,7 @@ use crate::explorer::{ExplorerState, load_explorer_expansion};
 use crate::explorer_drag::AssetBeingDragged;
 use crate::explorer_file_entry::visible_tree;
 use crate::generic_containers::{HorizontalSplitState, TextInput};
-use crate::preview::{PreviewState, PreviewTarget};
+use crate::preview::{PreviewState, PreviewTarget, timeline_preview_target};
 use crate::project_settings::load_project_local_settings;
 use crate::properties::PropertiesPanelState;
 use crate::properties_transform::VideoTransformInputs;
@@ -158,7 +158,10 @@ impl Editor {
         if let Some(timeline) = editor.timeline.as_mut() {
             timeline.set_playhead(timeline.playhead());
         }
-        editor.preview.target = editor.create_timeline_preview(cx)?;
+        editor.preview.target = match editor.timeline.as_ref() {
+            Some(timeline) => timeline_preview_target(timeline, &editor.project_root, cx)?,
+            None => PreviewTarget::None,
+        };
 
         // todo:
         // instead of have an async starting here

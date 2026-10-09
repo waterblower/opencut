@@ -1,13 +1,12 @@
 use crate::editor::Editor;
 use crate::event_bus::AppEvent;
-use crate::preview::PreviewTarget;
+use crate::preview::{PreviewTarget, timeline_preview_target};
 use crate::project_settings::{load_project_local_settings, save_project_local_settings};
 use crate::timeline::TimelineRuntimeState;
 use ::timeline::TimelineSerialization;
 use anyhow::{Context as _, Result};
 use gpui::PathPromptOptions;
 use gpui::prelude::*;
-use player_ui::timeline_player::TimelinePlayer;
 use std::path::{Path, PathBuf};
 use std::time::Instant;
 
@@ -64,7 +63,8 @@ impl Editor {
                 let timeline = self.timeline.as_mut().expect("timeline was checked above");
                 timeline.set_playhead(timeline.playhead());
                 if !matches!(self.preview.target, PreviewTarget::Timeline { .. }) {
-                    self.preview.target = self.create_timeline_preview(cx)?;
+                    self.preview.target =
+                        timeline_preview_target(timeline, &self.project_root, cx)?;
                 }
                 self.explorer.selected_file = Some(relative_path);
                 cx.notify();
@@ -151,42 +151,14 @@ impl Editor {
             if let Some(timeline) = self.timeline.as_mut() {
                 timeline.set_playhead(timeline.playhead());
             }
-            self.preview.target = self.create_timeline_preview(cx)?;
+            self.preview.target = match self.timeline.as_ref() {
+                Some(timeline) => timeline_preview_target(timeline, &self.project_root, cx)?,
+                None => PreviewTarget::None,
+            };
             self.schedule_active_timeline_waveforms(cx);
             Ok(())
         })();
         log::debug!("activate_timeline: {}", t.elapsed().as_millis());
         res.context("activate_timeline failed")
-    }
-}
-
-impl Editor {
-    /// Builds a standalone preview player on a snapshot of the active timeline, starting at
-    /// its playhead. Text rendering reads the editing timeline directly; other
-    /// edits and playhead moves stay decoupled. Edits that invalidate the snapshot's time base, such as
-    /// a frame rate change, rebuild it instead.
-    pub fn create_timeline_preview(&self, cx: &mut Context<Self>) -> Result<PreviewTarget> {
-        let Some(timeline) = self.timeline.as_ref() else {
-            return Ok(PreviewTarget::None);
-        };
-        let relative_path = match timeline.path.strip_prefix(&self.project_root) {
-            Ok(relative_path) => relative_path.to_path_buf(),
-            Err(_) => timeline.path.clone(),
-        };
-        let timeline_directory = timeline
-            .path
-            .parent()
-            .context("Timeline path has no parent directory")?; // 素材路径相对于时间线文件所在目录。
-        let mut player = TimelinePlayer::new(timeline.editing_state.clone(), timeline_directory)?;
-        player.title = relative_path.display().to_string();
-        player.backend.seek_frame(timeline.playhead())?;
-        let player = cx.new(move |_| player);
-        let task = player.update(cx, |player, cx| player.start(cx));
-        Ok(PreviewTarget::Timeline {
-            _task: task,
-            _subscription: cx.observe(&player, |_, _, cx| cx.notify()),
-            path: relative_path,
-            player,
-        })
     }
 }

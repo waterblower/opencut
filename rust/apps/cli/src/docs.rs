@@ -33,6 +33,7 @@ opencut probe /project/episode.timeline.json --json
 - Relative timeline asset paths resolve from the timeline file's directory. Absolute asset paths are unchanged.
 - For export, `--project-root` overrides the base directory for relative assets.
 - Keep original media available; the timeline references it.
+- Document writes use `<output filename>.tmp` in the same directory, sync it, then rename it to the destination. Existing temporary files are rejected. Do not concurrently write the same destination from another process: the existence check and ordinary rename are separate operations.
 - Use `--json` for machine-readable stdout. Diagnostics go to stderr.
 - Every executed command reports `elapsed_seconds` on stderr, excluding Cargo
   build time. This also applies to failed commands.
@@ -52,6 +53,26 @@ Canvas size, frame rate, and audio sample rate come from the timeline settings.
 Requires macOS Metal and VideoToolbox services. Existing output files are refused
 unless `--overwrite` is given.
 On success, stdout reports the output path and frame count.
+
+## Remove timeline gaps
+
+```sh
+opencut timeline remove-gaps input.timeline --output compacted.timeline
+opencut timeline remove-gaps input.timeline --write-inplace --json
+```
+
+Removes leading and internal gaps unoccupied by clips across all tracks, including
+hidden, muted, and locked tracks. Video, audio, image, and text clips all count.
+Only clip start positions change; IDs, order, durations, source trims, properties,
+and synchronization within overlapping sections are preserved. Empty timelines
+succeed with zero removed frames.
+
+Exactly one of `--output` or `--write-inplace` is required. New outputs must not
+exist; their parent directory must exist. Relative asset paths are rebased when
+the output directory changes. In-place writes are atomic and follow validation.
+Source media is never decoded or modified. The saved playhead and horizontal
+scroll reset to the start. Results contain `path`, `before_frames`, `after_frames`,
+and `removed_frames`; `--json` is supported.
 
 ## Keep text-covered sections
 

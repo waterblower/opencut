@@ -64,11 +64,16 @@ impl AudioDecoder {
             .audio
             .as_ref()
             .context("media has no audio stream")?;
-        Self::open_stream(path, info.stream_index, metadata.origin_microseconds)
+        let input = format::input(path).context("opening independent audio demuxer")?;
+        Self::from_av_input(input, info.stream_index, metadata.origin_microseconds)
     }
 
-    pub fn open_stream(path: &Path, stream_index: usize, origin_microseconds: i64) -> Result<Self> {
-        let input = format::input(path).context("opening independent audio demuxer")?;
+    /// Decodes from an already open demuxer, which this decoder then owns.
+    pub(crate) fn from_av_input(
+        input: format::context::Input,
+        stream_index: usize,
+        origin_microseconds: i64,
+    ) -> Result<Self> {
         let stream = input
             .stream(stream_index)
             .context("audio stream is missing")?;

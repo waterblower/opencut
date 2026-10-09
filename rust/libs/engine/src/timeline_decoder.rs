@@ -1,5 +1,6 @@
-//! Timeline frame preparation for playback and scrubbing. Each video clip keeps decoding
-//! forward and only seeks on backward or distant jumps.
+//! Timeline frame preparation for playback and scrubbing. Clips of the same asset on the
+//! same track share one video reader, which keeps decoding forward and only seeks on
+//! backward or distant jumps.
 
 #[cfg(target_os = "macos")]
 use crate::gpu::GpuResources;
@@ -7,12 +8,14 @@ use crate::image::load_image;
 use anyhow::{Context as _, Result, bail};
 #[cfg(target_os = "macos")]
 use core_video::pixel_buffer::CVPixelBuffer;
+#[cfg(target_os = "macos")]
+use ffmpeg_next::format;
 use gpui::RenderImage;
 use image::{Frame, RgbaImage};
-use media_backend::{VideoBackend, VideoDecoder, VideoFrame};
+use media_backend::{MediaInfo, VideoDecoder, VideoFrame};
 use smallvec::smallvec;
 use std::{
-    collections::{HashMap, HashSet, hash_map::Entry},
+    collections::{HashMap, hash_map::Entry},
     path::{Path, PathBuf},
     sync::Arc,
     time::{Duration, Instant},
@@ -53,7 +56,7 @@ pub enum PreparedLayer {
 pub struct TimelineDecoder {
     timeline_directory: PathBuf,
     #[cfg(target_os = "macos")]
-    readers: HashMap<Ulid, ClipReader>, // 按 clip 而非素材区分：同一素材的重叠 clip 各自前进。
+    readers: HashMap<ReaderKey, VideoReader>, // 同轨道同素材的片段共用一个读取器并顺序前进；不释放。
     images: HashMap<Ulid, Arc<RenderImage>>,
 }
 
@@ -67,7 +70,9 @@ impl TimelineDecoder {
         }
     }
 
-    /// The caller validates the timeline. Positions past the end clamp to the last frame.
+    /// The caller validates the timeline, so clips on one track never overlap. Every call on
+    /// one decoder must pass the same timeline: readers are cached by track and asset ID.
+    /// Positions past the end clamp to the last frame.
     pub fn frame_at(
         &mut self,
         timeline: &TimelineEditingState,
@@ -77,8 +82,6 @@ impl TimelineDecoder {
             .max(TimelineFrameIndex::ZERO);
         let position = position.clamp(TimelineFrameIndex::ZERO, last_frame_index);
         let mut layers: Vec<PreparedLayer> = Vec::new();
-        #[cfg(target_os = "macos")]
-        let mut active_readers: HashSet<Ulid> = HashSet::new();
         // The first document track is the top track. Within a track, later
         // document clips paint over earlier ones.
         for track in timeline.tracks.iter().rev() {
@@ -103,30 +106,31 @@ impl TimelineDecoder {
                             MediaKind::Video => {
                                 #[cfg(target_os = "macos")]
                                 {
-                                    let reader = match self.readers.entry(media.id()) {
-                                        Entry::Occupied(entry) => entry.into_mut(),
-                                        Entry::Vacant(entry) => entry.insert(
-                                            ClipReader::open(&asset_path).context(format!(
-                                                "Opening timeline video {}",
-                                                asset_path.display()
-                                            ))?,
-                                        ),
+                                    let key = ReaderKey {
+                                        track_id: track.id,
+                                        asset_id: asset.id,
                                     };
-                                    active_readers.insert(media.id());
+                                    #[rustfmt::skip]
+                                    let reader = match self.readers.entry(key) {
+                                        Entry::Occupied(entry) => {
+                                            entry.into_mut()
+                                        },
+                                        Entry::Vacant(entry) => {
+                                            entry.insert(
+                                                VideoReader::open(&asset_path).context(format!(
+                                                    "Opening timeline video {}",
+                                                    asset_path.display()
+                                                ))?,
+                                            )
+                                        },
+                                    };
                                     let source = timeline.source_position_at(clip, position);
-                                    let frame = match reader.picture_at(source) {
-                                        Ok(frame) => frame,
-                                        Err(error) => {
-                                            // A failed decoder may be partially advanced; reopen on retry.
-                                            self.readers.remove(&media.id());
-                                            return Err(error).context(format!(
-                                                "Preparing timeline clip {} from {} at {:.6}s",
-                                                media.id(),
-                                                asset_path.display(),
-                                                source.as_secs_f64(),
-                                            ));
-                                        }
-                                    };
+                                    let frame = reader.picture_at(source).context(format!(
+                                        "Preparing timeline clip {} from {} at {:.6}s",
+                                        media.id(),
+                                        asset_path.display(),
+                                        source.as_secs_f64(),
+                                    ))?;
                                     layers.push(PreparedLayer::VideoFrame {
                                         clip_id: media.id(),
                                         frame,
@@ -134,17 +138,26 @@ impl TimelineDecoder {
                                     });
                                 }
                                 #[cfg(not(target_os = "macos"))]
-                                bail!("Timeline video requires macOS: {}", path.display());
+                                bail!("Timeline video requires macOS: {}", asset_path.display());
                             }
                             MediaKind::Image => {
                                 let image = match self.images.entry(asset.id) {
                                     Entry::Occupied(entry) => Arc::clone(entry.get()),
                                     Entry::Vacant(entry) => {
+                                        let load_started = Instant::now();
                                         let pixels = load_image(&asset_path).context(format!(
                                             "Loading timeline image {}",
                                             asset_path.display()
                                         ))?;
-                                        Arc::clone(entry.insert(bgra_image(swap_red_blue(pixels))))
+                                        let image = Arc::clone(
+                                            entry.insert(bgra_image(swap_red_blue(pixels))),
+                                        );
+                                        eprintln!(
+                                            "[clip-switch] load image {}: {:?}",
+                                            asset_path.display(),
+                                            load_started.elapsed(),
+                                        );
+                                        image
                                     }
                                 };
                                 layers.push(PreparedLayer::Image {
@@ -159,9 +172,6 @@ impl TimelineDecoder {
                 }
             }
         }
-        // Clips outside the current frame release their decoders.
-        #[cfg(target_os = "macos")]
-        self.readers.retain(|id, _| active_readers.contains(id));
         Ok(TimelineFrameComposition {
             frame_index: position,
             timestamp: timeline.position_at_frame(position),
@@ -172,8 +182,17 @@ impl TimelineDecoder {
     }
 }
 
+/// One reader per track and asset: a track shows at most one clip at a time, so clips
+/// sharing a key never need two source positions in the same frame.
 #[cfg(target_os = "macos")]
-struct ClipReader {
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+struct ReaderKey {
+    track_id: Ulid,
+    asset_id: Ulid,
+}
+
+#[cfg(target_os = "macos")]
+struct VideoReader {
     gpu: GpuResources,
     decoder: VideoDecoder,
     next: Option<VideoFrame>,            // 已解码、尚未到展示时间的帧。
@@ -181,19 +200,34 @@ struct ClipReader {
 }
 
 #[cfg(target_os = "macos")]
-impl ClipReader {
+impl VideoReader {
     fn open(path: &Path) -> Result<Self> {
-        let metadata = VideoBackend::probe(path)?;
-        let decoder = VideoDecoder::open(
-            path,
+        let started = Instant::now();
+        // 只打开一次：读取元数据后，同一个 demuxer 交给解码器。
+        let input = format::input(path).context("opening timeline video demuxer")?;
+        let metadata = MediaInfo::from_av_input(&input, path)?;
+        let probed = Instant::now();
+        let decoder = VideoDecoder::from_av_input(
+            input,
             metadata.video.stream_index,
             metadata.origin_microseconds,
         )?;
+        let decoder_opened = Instant::now();
+        let gpu = GpuResources::new((
+            metadata.video.width as usize,
+            metadata.video.height as usize,
+        ))?;
+        let gpu_created = Instant::now();
+        eprintln!(
+            "[clip-switch] open reader {}: probe={:?}, decoder_open={:?}, gpu_resources={:?}, total={:?}",
+            path.display(),
+            probed.duration_since(started),
+            decoder_opened.duration_since(probed),
+            gpu_created.duration_since(decoder_opened),
+            gpu_created.duration_since(started),
+        );
         Ok(Self {
-            gpu: GpuResources::new((
-                metadata.video.width as usize,
-                metadata.video.height as usize,
-            ))?,
+            gpu,
             decoder,
             next: None,
             shown: None,
@@ -208,6 +242,7 @@ impl ClipReader {
             *shown <= target.saturating_add(TIMESTAMP_TOLERANCE)
                 && target - *shown <= FORWARD_DECODE_LIMIT
         });
+        let started = Instant::now();
         if !continues {
             self.decoder.seek(source)?;
             self.next = None;
@@ -217,6 +252,8 @@ impl ClipReader {
                     .context("Video has no frame after seeking")?,
             );
         }
+        let sought = Instant::now();
+        let mut forward_frames = 0_u32;
         loop {
             if self.next.is_none() {
                 self.next = self.decoder.next_frame()?; // None：EOF，保留最后一帧。
@@ -224,13 +261,28 @@ impl ClipReader {
             match &self.next {
                 Some(frame) if frame.timestamp.0 <= target.saturating_add(TIMESTAMP_TOLERANCE) => {
                     selected = self.next.take(); // 落后时跳过中间帧，不做转换。
+                    forward_frames += 1;
                 }
                 _ => break,
             }
         }
+        let decoded = Instant::now();
         if let Some(frame) = selected {
             let surface = self.gpu.convert(&frame)?;
             self.shown = Some((frame.timestamp.0, surface));
+        }
+        let converted = Instant::now();
+        // 只在 seek 或追帧时打印，片段内逐帧播放不刷屏。
+        if !continues || forward_frames > 1 {
+            eprintln!(
+                "[clip-switch] picture_at {} µs: seeked={}, seek={:?}, forward_frames={}, forward_decode={:?}, convert={:?}",
+                target,
+                !continues,
+                sought.duration_since(started),
+                forward_frames,
+                decoded.duration_since(sought),
+                converted.duration_since(decoded),
+            );
         }
         let (_, surface) = self.shown.as_ref().context("Video has no decoded frame")?;
         Ok(surface.clone())

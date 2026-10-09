@@ -491,7 +491,7 @@ impl Editor {
         // 文件预览与时间线无关，不暂停。
         if let PreviewTarget::Timeline { player, .. } = &self.preview.target {
             player.update(cx, |player, cx| {
-                if player.backend.is_playing() {
+                if player.backend().is_playing() {
                     player.toggle_playback(cx)
                 } else {
                     Ok(())

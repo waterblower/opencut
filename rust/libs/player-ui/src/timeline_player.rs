@@ -4,31 +4,34 @@
 use crate::{Seeker, audio_output::AudioOutput};
 use anyhow::Result;
 use engine::{
-    export::{ClipAudio, mix_timeline_audio},
+    export::{AudioReader, AudioReaderKey, mix_timeline_audio},
     timeline_backend::{MAX_CONTROL_WAIT, TimelineBackend},
 };
 use gpui::{Context, Task, Window};
 use media_backend::{AudioSamples, MediaTime};
 use std::{collections::HashMap, path::Path, time::Duration};
 use timeline::TimelineEditingState;
-use ulid::Ulid;
 
 const AUDIO_LEAD: Duration = Duration::from_millis(500); // 混音领先播放时钟的时长；低于输出队列的 1 秒上限。
 
 #[rustfmt::skip]
 pub struct TimelinePlayer {
-    pub backend: TimelineBackend,                 // 直接修改后需自行 notify 并释放旧图像。
     pub title: String,
+    backend: TimelineBackend,                            // 直接修改后需自行 notify 并释放旧图像。
     audio_output: AudioOutput,
-    audio_readers: HashMap<Ulid, ClipAudio>,      // 按片段顺序读取的解码器；重新开始输出时清空。
-    audio_cursor: i64,                            // 下一块待混音的起始采样位置（设备采样率），不是播放位置。
-    pending_seek: Option<Duration>,               // 拖动请求的最新目标位置，下一帧执行；Some 表示已安排执行，新请求只覆盖目标。
+    audio_readers: HashMap<AudioReaderKey, AudioReader>, // 按轨道和素材缓存的解码器；不释放，读取时自行接续或 seek。
+    audio_cursor: i64,                                   // 下一块待混音的起始采样位置（设备采样率），不是播放位置。
+    pending_seek: Option<Duration>,                      // 拖动请求的最新目标位置，下一帧执行；Some 表示已安排执行，新请求只覆盖目标。
 }
 
+// Public APIs only
 impl TimelinePlayer {
     /// Validates the timeline, opens the audio device, and prepares frame zero, paused.
     /// Media paths resolve against `timeline_directory`, the directory containing the timeline file. Call [`Self::start`] once the player is in an entity.
-    pub fn new(timeline: TimelineEditingState, timeline_directory: &Path) -> Result<Self> {
+    pub fn from_editing_state(
+        timeline: TimelineEditingState,
+        timeline_directory: &Path,
+    ) -> Result<Self> {
         Ok(Self {
             backend: TimelineBackend::new(timeline, timeline_directory)?,
             title: String::new(),
@@ -37,6 +40,14 @@ impl TimelinePlayer {
             audio_cursor: 0,
             pending_seek: None,
         })
+    }
+
+    pub fn backend(&self) -> &TimelineBackend {
+        &self.backend
+    }
+
+    pub fn backend_mut(&mut self) -> &mut TimelineBackend {
+        &mut self.backend
     }
 
     /// Seeks to `position` on the next frame. Requests arriving before then only replace the
@@ -125,7 +136,10 @@ impl TimelinePlayer {
         self.backend.pause();
         cx.notify();
     }
+}
 
+// Private APIs only
+impl TimelinePlayer {
     /// Starts, refills, or stops the audio output to match the backend's playback state.
     fn sync_audio(&mut self) -> Result<()> {
         if !self.backend.is_playing() {
@@ -139,10 +153,9 @@ impl TimelinePlayer {
         }
         let rate = self.audio_output.format.sample_rate;
         if !self.audio_output.is_playing() {
-            // 开始播放或 seek 后：输出队列从时钟位置重新开始，解码器按新位置重新打开。
+            // 开始播放或 seek 后：输出队列从时钟位置重新开始；读取器保留，由其按新位置接续或 seek。
             let position = self.backend.clock_position();
             self.audio_output.clear_at(position)?;
-            self.audio_readers.clear();
             self.audio_cursor = sample_index(position, rate);
         }
         let duration_end = sample_index(self.backend.duration(), rate);
