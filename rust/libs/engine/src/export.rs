@@ -293,29 +293,47 @@ pub fn mix_timeline_audio(
             continue;
         }
         active_readers.insert(clip.id());
+        let opened_reader = !readers.contains_key(&clip.id()); // 临时测量：仅在新开 reader 时打印。
         let reader = match readers.entry(clip.id()) {
             Entry::Occupied(entry) => entry.into_mut(),
             Entry::Vacant(entry) => {
+                let open_started = Instant::now();
                 let path = timeline_directory.join(&asset.path);
                 let mut backend = AudioBackend::open(&path)
                     .context(format!("Opening timeline audio {}", path.display()))?;
                 backend
                     .audio
                     .configure_output(&PcmFormat::default_layout(rate, 2)?)?;
+                let opened = Instant::now();
                 // 从首次读取的位置打开；预览从片段中间开始时无需从 source_in 解码。
                 let seek_nanos = source_start as u128 * 1_000_000_000 / u128::from(rate);
                 backend
                     .audio
                     .seek(Duration::from_nanos(seek_nanos as u64))?;
+                eprintln!(
+                    "[clip-switch] open audio {}: open={:?}, seek={:?}",
+                    path.display(),
+                    opened.duration_since(open_started),
+                    opened.elapsed(),
+                );
                 entry.insert(ClipAudio {
                     decoder: backend.audio,
                     pending: None,
                 })
             }
         };
+        let read_started = Instant::now();
         let samples = reader
             .read(source_start, sample_count, rate)
             .context(format!("Reading audio for clip {}", clip.id()))?;
+        if opened_reader {
+            eprintln!(
+                "[clip-switch] first audio read for clip {}: {} samples in {:?}",
+                clip.id(),
+                sample_count,
+                read_started.elapsed(),
+            );
+        }
         let gain = 10.0_f32.powf(audio_properties.gain_db.clamp(-96.0, 24.0) as f32 / 20.0);
         for (index, sample) in samples.iter().enumerate() {
             let target = &mut mixed[(from - start) as usize + index];

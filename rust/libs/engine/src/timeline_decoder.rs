@@ -7,9 +7,11 @@ use crate::image::load_image;
 use anyhow::{Context as _, Result, bail};
 #[cfg(target_os = "macos")]
 use core_video::pixel_buffer::CVPixelBuffer;
+#[cfg(target_os = "macos")]
+use ffmpeg_next::format;
 use gpui::RenderImage;
 use image::{Frame, RgbaImage};
-use media_backend::{VideoBackend, VideoDecoder, VideoFrame};
+use media_backend::{MediaInfo, VideoDecoder, VideoFrame};
 use smallvec::smallvec;
 use std::{
     collections::{HashMap, HashSet, hash_map::Entry},
@@ -145,11 +147,20 @@ impl TimelineDecoder {
                                 let image = match self.images.entry(asset.id) {
                                     Entry::Occupied(entry) => Arc::clone(entry.get()),
                                     Entry::Vacant(entry) => {
+                                        let load_started = Instant::now();
                                         let pixels = load_image(&asset_path).context(format!(
                                             "Loading timeline image {}",
                                             asset_path.display()
                                         ))?;
-                                        Arc::clone(entry.insert(bgra_image(swap_red_blue(pixels))))
+                                        let image = Arc::clone(
+                                            entry.insert(bgra_image(swap_red_blue(pixels))),
+                                        );
+                                        eprintln!(
+                                            "[clip-switch] load image {}: {:?}",
+                                            asset_path.display(),
+                                            load_started.elapsed(),
+                                        );
+                                        image
                                     }
                                 };
                                 layers.push(PreparedLayer::Image {
@@ -166,7 +177,19 @@ impl TimelineDecoder {
         }
         // Clips outside the current frame release their decoders.
         #[cfg(target_os = "macos")]
-        self.readers.retain(|id, _| active_readers.contains(id));
+        {
+            let readers_before = self.readers.len();
+            let release_started = Instant::now();
+            self.readers.retain(|id, _| active_readers.contains(id));
+            if self.readers.len() != readers_before {
+                eprintln!(
+                    "[clip-switch] release {} reader(s) at frame {}: {:?}",
+                    readers_before - self.readers.len(),
+                    i64::from(position),
+                    release_started.elapsed(),
+                );
+            }
+        }
         Ok(TimelineFrameComposition {
             frame_index: position,
             timestamp: timeline.position_at_frame(position),
@@ -188,17 +211,32 @@ struct ClipReader {
 #[cfg(target_os = "macos")]
 impl ClipReader {
     fn open(path: &Path) -> Result<Self> {
-        let metadata = VideoBackend::probe(path)?;
-        let decoder = VideoDecoder::open(
-            path,
+        let started = Instant::now();
+        // 只打开一次：读取元数据后，同一个 demuxer 交给解码器。
+        let input = format::input(path).context("opening timeline video demuxer")?;
+        let metadata = MediaInfo::from_av_input(&input, path)?;
+        let probed = Instant::now();
+        let decoder = VideoDecoder::from_av_input(
+            input,
             metadata.video.stream_index,
             metadata.origin_microseconds,
         )?;
+        let decoder_opened = Instant::now();
+        let gpu = GpuResources::new((
+            metadata.video.width as usize,
+            metadata.video.height as usize,
+        ))?;
+        let gpu_created = Instant::now();
+        eprintln!(
+            "[clip-switch] open reader {}: probe={:?}, decoder_open={:?}, gpu_resources={:?}, total={:?}",
+            path.display(),
+            probed.duration_since(started),
+            decoder_opened.duration_since(probed),
+            gpu_created.duration_since(decoder_opened),
+            gpu_created.duration_since(started),
+        );
         Ok(Self {
-            gpu: GpuResources::new((
-                metadata.video.width as usize,
-                metadata.video.height as usize,
-            ))?,
+            gpu,
             decoder,
             next: None,
             shown: None,
@@ -213,6 +251,7 @@ impl ClipReader {
             *shown <= target.saturating_add(TIMESTAMP_TOLERANCE)
                 && target - *shown <= FORWARD_DECODE_LIMIT
         });
+        let started = Instant::now();
         if !continues {
             self.decoder.seek(source)?;
             self.next = None;
@@ -222,6 +261,8 @@ impl ClipReader {
                     .context("Video has no frame after seeking")?,
             );
         }
+        let sought = Instant::now();
+        let mut forward_frames = 0_u32;
         loop {
             if self.next.is_none() {
                 self.next = self.decoder.next_frame()?; // None：EOF，保留最后一帧。
@@ -229,13 +270,28 @@ impl ClipReader {
             match &self.next {
                 Some(frame) if frame.timestamp.0 <= target.saturating_add(TIMESTAMP_TOLERANCE) => {
                     selected = self.next.take(); // 落后时跳过中间帧，不做转换。
+                    forward_frames += 1;
                 }
                 _ => break,
             }
         }
+        let decoded = Instant::now();
         if let Some(frame) = selected {
             let surface = self.gpu.convert(&frame)?;
             self.shown = Some((frame.timestamp.0, surface));
+        }
+        let converted = Instant::now();
+        // 只在 seek 或追帧时打印，片段内逐帧播放不刷屏。
+        if !continues || forward_frames > 1 {
+            eprintln!(
+                "[clip-switch] picture_at {} µs: seeked={}, seek={:?}, forward_frames={}, forward_decode={:?}, convert={:?}",
+                target,
+                !continues,
+                sought.duration_since(started),
+                forward_frames,
+                decoded.duration_since(sought),
+                converted.duration_since(decoded),
+            );
         }
         let (_, surface) = self.shown.as_ref().context("Video has no decoded frame")?;
         Ok(surface.clone())
