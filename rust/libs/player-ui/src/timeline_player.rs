@@ -4,25 +4,24 @@
 use crate::{Seeker, audio_output::AudioOutput};
 use anyhow::Result;
 use engine::{
-    export::{ClipAudio, mix_timeline_audio},
+    export::{AudioReader, AudioReaderKey, mix_timeline_audio},
     timeline_backend::{MAX_CONTROL_WAIT, TimelineBackend},
 };
 use gpui::{Context, Task, Window};
 use media_backend::{AudioSamples, MediaTime};
 use std::{collections::HashMap, path::Path, time::Duration};
 use timeline::TimelineEditingState;
-use ulid::Ulid;
 
 const AUDIO_LEAD: Duration = Duration::from_millis(500); // 混音领先播放时钟的时长；低于输出队列的 1 秒上限。
 
 #[rustfmt::skip]
 pub struct TimelinePlayer {
     pub title: String,
-    backend: TimelineBackend,                     // 直接修改后需自行 notify 并释放旧图像。
+    backend: TimelineBackend,                            // 直接修改后需自行 notify 并释放旧图像。
     audio_output: AudioOutput,
-    audio_readers: HashMap<Ulid, ClipAudio>,      // 按片段顺序读取的解码器；重新开始输出时清空。
-    audio_cursor: i64,                            // 下一块待混音的起始采样位置（设备采样率），不是播放位置。
-    pending_seek: Option<Duration>,               // 拖动请求的最新目标位置，下一帧执行；Some 表示已安排执行，新请求只覆盖目标。
+    audio_readers: HashMap<AudioReaderKey, AudioReader>, // 按轨道和素材缓存的解码器；重新开始输出时清空。
+    audio_cursor: i64,                                   // 下一块待混音的起始采样位置（设备采样率），不是播放位置。
+    pending_seek: Option<Duration>,                      // 拖动请求的最新目标位置，下一帧执行；Some 表示已安排执行，新请求只覆盖目标。
 }
 
 // Public APIs only

@@ -230,17 +230,27 @@ impl Render for ExportCanvas {
     }
 }
 
-pub struct ClipAudio {
+/// One audio reader per track and asset, as for video: a track plays at most one clip at a time.
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+pub struct AudioReaderKey {
+    track_id: Ulid,
+    asset_id: Ulid,
+}
+
+pub struct AudioReader {
     decoder: AudioDecoder,
     pending: Option<AudioSamples>, // 已解码但未完全消费的 PCM 块。
 }
 
-/// Mixes a sequential interval of timeline audio into interleaved stereo samples at `rate`.
-/// `start` and `count` are sample indices at `rate`; clear `readers` before a non-sequential read.
+/// Mixes an interval of timeline audio into interleaved stereo samples at `rate`.
+/// `start` and `count` are sample indices at `rate`. Readers are cached by track and asset and
+/// are never released; each read continues decoding or seeks, so intervals need not be
+/// sequential, though sequential intervals avoid seeks. Every call with the same `readers`
+/// must pass the same timeline.
 pub fn mix_timeline_audio(
     timeline: &TimelineEditingState,
     timeline_directory: &Path,
-    readers: &mut HashMap<Ulid, ClipAudio>,
+    readers: &mut HashMap<AudioReaderKey, AudioReader>,
     start: i64,
     count: usize,
     rate: u32,
@@ -250,7 +260,6 @@ pub fn mix_timeline_audio(
     let end = start
         .checked_add(i64::try_from(count)?)
         .context("Audio interval overflow")?;
-    let mut active_readers = HashSet::new();
     for clip in &timeline.clips {
         let (asset_id, source_in, source_out, audio_properties) = match clip {
             Clip::Video(media) => (
@@ -292,9 +301,11 @@ pub fn mix_timeline_audio(
         if sample_count == 0 {
             continue;
         }
-        active_readers.insert(clip.id());
-        let opened_reader = !readers.contains_key(&clip.id()); // 临时测量：仅在新开 reader 时打印。
-        let reader = match readers.entry(clip.id()) {
+        let key = AudioReaderKey {
+            track_id: track.id,
+            asset_id: asset.id,
+        };
+        let reader = match readers.entry(key) {
             Entry::Occupied(entry) => entry.into_mut(),
             Entry::Vacant(entry) => {
                 let open_started = Instant::now();
@@ -304,36 +315,21 @@ pub fn mix_timeline_audio(
                 backend
                     .audio
                     .configure_output(&PcmFormat::default_layout(rate, 2)?)?;
-                let opened = Instant::now();
-                // 从首次读取的位置打开；预览从片段中间开始时无需从 source_in 解码。
-                let seek_nanos = source_start as u128 * 1_000_000_000 / u128::from(rate);
-                backend
-                    .audio
-                    .seek(Duration::from_nanos(seek_nanos as u64))?;
                 eprintln!(
-                    "[clip-switch] open audio {}: open={:?}, seek={:?}",
+                    "[clip-switch] open audio {}: open={:?}",
                     path.display(),
-                    opened.duration_since(open_started),
-                    opened.elapsed(),
+                    open_started.elapsed(),
                 );
-                entry.insert(ClipAudio {
+                // 不在此 seek：首次 read 没有待用的块，会从请求位置 seek。
+                entry.insert(AudioReader {
                     decoder: backend.audio,
                     pending: None,
                 })
             }
         };
-        let read_started = Instant::now();
         let samples = reader
             .read(source_start, sample_count, rate)
             .context(format!("Reading audio for clip {}", clip.id()))?;
-        if opened_reader {
-            eprintln!(
-                "[clip-switch] first audio read for clip {}: {} samples in {:?}",
-                clip.id(),
-                sample_count,
-                read_started.elapsed(),
-            );
-        }
         let gain = 10.0_f32.powf(audio_properties.gain_db.clamp(-96.0, 24.0) as f32 / 20.0);
         for (index, sample) in samples.iter().enumerate() {
             let target = &mut mixed[(from - start) as usize + index];
@@ -341,7 +337,6 @@ pub fn mix_timeline_audio(
             target[1] += sample[1] * gain;
         }
     }
-    readers.retain(|id, _| active_readers.contains(id)); // 只保留当前混音区间的 reader，释放已结束片段的解码器和文件。
     for sample in &mut mixed {
         for channel in sample {
             *channel = channel.clamp(-1.0, 1.0);
@@ -350,11 +345,26 @@ pub fn mix_timeline_audio(
     Ok(mixed)
 }
 
-impl ClipAudio {
+impl AudioReader {
+    /// Reads source samples `start..start + count` at `rate`. Continues decoding when `start`
+    /// lies at most one second past the pending block, as video readers do; otherwise seeks.
     fn read(&mut self, start: i64, count: usize, rate: u32) -> Result<Vec<[f32; 2]>> {
         let end = start
             .checked_add(count as i64)
             .context("Audio source interval overflow")?;
+        let continues = match &self.pending {
+            Some(block) => {
+                let pending_start = block_start_sample(block, rate)?;
+                pending_start <= start.saturating_add(i64::from(rate) / 1_000) // 1 ms：吸收块时间戳取整。
+                    && start - pending_start <= i64::from(rate) // 1 s：更远的前跳改为 seek。
+            }
+            None => false, // 新开或已到 EOF：没有可接续的位置。
+        };
+        if !continues {
+            let seek_nanos = start.max(0) as u128 * 1_000_000_000 / u128::from(rate);
+            self.decoder.seek(Duration::from_nanos(seek_nanos as u64))?;
+            self.pending = None;
+        }
         let mut result = vec![[0.0; 2]; count];
         loop {
             if self.pending.is_none() {
@@ -363,14 +373,7 @@ impl ClipAudio {
             let Some(block) = &self.pending else {
                 break;
             };
-            let numerator = i128::from(block.timestamp.0) * i128::from(rate);
-            let rounded = if numerator < 0 {
-                numerator - 500_000
-            } else {
-                numerator + 500_000
-            };
-            let block_start =
-                i64::try_from(rounded / 1_000_000).context("Decoded audio timestamp overflow")?;
+            let block_start = block_start_sample(block, rate)?;
             let block_end = block_start
                 .checked_add(block.frame_count as i64)
                 .context("Decoded audio interval overflow")?;
@@ -570,4 +573,15 @@ fn frame_units(frame_index: i64, fps: FrameRate, units_per_second: u32) -> u64 {
         frame_index.max(0) as u128 * u128::from(fps.denominator) * u128::from(units_per_second);
     let denominator = u128::from(fps.numerator);
     ((numerator + denominator / 2) / denominator).min(u64::MAX as u128) as u64
+}
+
+/// The decoded block's first sample index at `rate`, rounding its microsecond timestamp.
+fn block_start_sample(block: &AudioSamples, rate: u32) -> Result<i64> {
+    let numerator = i128::from(block.timestamp.0) * i128::from(rate);
+    let rounded = if numerator < 0 {
+        numerator - 500_000
+    } else {
+        numerator + 500_000
+    };
+    i64::try_from(rounded / 1_000_000).context("Decoded audio timestamp overflow")
 }
