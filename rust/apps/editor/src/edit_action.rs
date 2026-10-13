@@ -94,7 +94,13 @@ pub enum EditAction {
 /// Applies an edit and returns whether the caller should save the timeline.
 /// The preview player is not synced with it.
 pub fn edit_timeline(timeline: &mut TimelineRuntimeState, action: EditAction) -> Result<bool> {
-    let (new_state, record_history, should_save) =
+    struct Outcome {
+        new_state: TimelineEditingState,
+        record_history: bool,
+        should_save: bool,
+    }
+
+    let outcome =
         match action {
             EditAction::TrimClip {
                 timeline_path,
@@ -349,32 +355,48 @@ pub fn edit_timeline(timeline: &mut TimelineRuntimeState, action: EditAction) ->
                         clip_id,
                         project_root,
                     })?;
-                (new_state, true, true)
+                Outcome {
+                    new_state,
+                    record_history: true,
+                    should_save: true,
+                }
             }
             action @ EditAction::ReplaceTimeline { .. } => {
                 let new_state = timeline.editing_state.edit(action)?;
-                (new_state, false, true) // 撤销/重做由调用方维护历史栈。
+                Outcome {
+                    new_state,
+                    record_history: false, // 撤销/重做由调用方维护历史栈。
+                    should_save: true,
+                }
             }
             action @ EditAction::RemoveClips { .. } => {
                 let new_state = timeline.editing_state.edit(action)?;
                 // 后处理：删除的就是当前选中的片段，清空选择。
                 timeline.interaction.selected_clip_ids.clear();
                 timeline.interaction.selected_clip_id = None;
-                (new_state, true, true)
+                Outcome {
+                    new_state,
+                    record_history: true,
+                    should_save: true,
+                }
             }
             action => {
                 // 其余编辑不需要前处理与后处理：只修改 editing state，记录历史并保存。
                 let new_state = timeline.editing_state.edit(action)?;
-                (new_state, true, true)
+                Outcome {
+                    new_state,
+                    record_history: true,
+                    should_save: true,
+                }
             }
         };
 
-    if record_history {
+    if outcome.record_history {
         timeline.record_editing_history();
     }
-    timeline.editing_state = new_state;
+    timeline.editing_state = outcome.new_state;
     timeline.set_playhead(timeline.playhead());
-    Ok(should_save)
+    Ok(outcome.should_save)
 }
 
 pub trait TimelineEditExt {
