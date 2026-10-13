@@ -143,10 +143,14 @@ fn open_editor_window(
     cx: &mut App,
 ) -> Result<WindowHandle<Editor>> {
     let bounds = Bounds::centered(None, size(px(1440.0), px(900.0)), cx);
+
     // cx.new 的闭包必须返回 Editor，无法把错误带出；暂时在这里 panic。
-    let editor = cx.new(|cx| match Editor::new(root.clone(), event_bus, cx) {
-        Ok(editor) => editor,
-        Err(error) => panic!("could not open {}: {error:?}", root.display()),
+    #[rustfmt::skip]
+    let editor = cx.new(|cx| {
+        match Editor::new(root.clone(), event_bus, cx) {
+            Ok(editor) => editor,
+            Err(error) => panic!("could not open {}: {error:?}", root.display()),
+        }
     });
     let window = cx
         .open_window(
