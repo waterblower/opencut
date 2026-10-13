@@ -1,5 +1,5 @@
 use crate::context_menu::ContextMenu;
-use crate::edit_action::{EditAction, edit_timeline};
+use crate::edit_action::EditAction;
 use crate::editor::Editor;
 use crate::event_bus::{AppEvent, AssetDragMoveEvent};
 use crate::explorer_drag::AssetBeingDragged;
@@ -752,17 +752,12 @@ fn finish_clip_move(
     };
     timeline.interaction.snap_guide = None;
     if drag.changed && drag.invalid_reason.is_none() {
-        edit_timeline(
-            timeline,
-            EditAction::MoveClips {
+        editor.emit_event(
+            cx,
+            AppEvent::Edit(EditAction::MoveClips {
                 placements: drag.placements,
-            },
-        )
-        .expect("clip move placements were validated during the drag");
-
-        if let Err(error) = timeline.save() {
-            log::error!("{error:?}");
-        }
+            }),
+        );
     }
     cx.notify();
 }
