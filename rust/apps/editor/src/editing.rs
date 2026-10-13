@@ -276,18 +276,6 @@ impl TimelineRuntimeState {
 }
 
 impl Editor {
-    pub(super) fn delete_selected(&mut self) -> Result<()> {
-        let Some(timeline) = self.timeline.as_ref() else {
-            return Ok(());
-        };
-        if !timeline.selected_clips_editable() {
-            return Ok(());
-        }
-        let clip_ids = timeline.interaction.selected_clip_ids.clone();
-        let magnet_enabled = timeline.track_magnet_enabled;
-        self.remove_clips(&clip_ids, magnet_enabled)
-    }
-
     pub(super) fn copy_selected_clips(&mut self) {
         let Some(timeline) = self.timeline.as_ref() else {
             return;
@@ -365,7 +353,7 @@ impl Editor {
         Ok(())
     }
 
-    fn remove_clips(&mut self, clip_ids: &HashSet<Ulid>, close_track_gaps: bool) -> Result<()> {
+    pub fn remove_clips(&mut self, clip_ids: &HashSet<Ulid>, close_track_gaps: bool) -> Result<()> {
         let Some(timeline) = self.timeline.as_mut() else {
             return Ok(());
         };

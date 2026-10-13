@@ -123,7 +123,15 @@ impl Editor {
         _: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        if let Err(error) = self.delete_selected() {
+        let Some(timeline) = self.timeline.as_ref() else {
+            return;
+        };
+        if !timeline.selected_clips_editable() {
+            return;
+        }
+        let clip_ids = timeline.interaction.selected_clip_ids.clone();
+        let magnet_enabled = timeline.track_magnet_enabled;
+        if let Err(error) = self.remove_clips(&clip_ids, magnet_enabled) {
             log::error!("{error:?}");
         }
         cx.notify();
