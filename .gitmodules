@@ -1,9 +1,3 @@
-[submodule "zig/vendor/zaudio"]
-	path = zig/vendor/zaudio
-	url = https://github.com/zig-gamedev/zaudio.git
-[submodule "zig/vendor/dvui"]
-	path = zig/vendor/dvui
-	url = https://github.com/david-vanderson/dvui.git
 [submodule "rust/vendor/zed"]
 	path = rust/vendor/zed
 	url = https://github.com/zed-industries/zed.git
