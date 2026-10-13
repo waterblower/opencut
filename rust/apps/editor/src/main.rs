@@ -95,7 +95,7 @@ fn main() -> anyhow::Result<()> {
         // If a project has been openned before
         if settings.project_root.is_dir() {
             if let Err(error) = open_project(cx, settings.project_root, event_bus) {
-                log::error!("Could not open project: {error:?}");
+                log::error!("{error:?}");
                 cx.quit();
             }
             return;
@@ -153,7 +153,12 @@ fn open_editor_window(
     // 预览需要 Context<Editor> 而且可能失败，所以在实体创建之后设置
     editor.update(cx, |editor, cx| -> Result<()> {
         editor.preview.target = match editor.timeline.as_ref() {
-            Some(timeline) => timeline_preview_target(timeline, &editor.project_root, cx)?,
+            Some(timeline) => {
+                timeline_preview_target(timeline, &editor.project_root, cx).context(format!(
+                    "creating preview for timeline '{}'",
+                    timeline.path.display()
+                ))?
+            }
             None => PreviewTarget::None,
         };
         Ok(())

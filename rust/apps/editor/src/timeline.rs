@@ -57,14 +57,21 @@ impl TimelinePlayerExt for TimelinePlayer {
             .parent()
             .context("Timeline path has no parent directory")?;
         let mut player =
-            Self::from_editing_state(timeline.editing_state.clone(), timeline_directory)?;
+            Self::from_editing_state(timeline.editing_state.clone(), timeline_directory)
+                .context("building timeline player from editing state")?;
         player.title = timeline
             .path
             .file_name()
             .context("Timeline path has no file name")?
             .to_string_lossy()
             .into_owned();
-        player.backend_mut().seek_frame(timeline.playhead())?;
+        player
+            .backend_mut()
+            .seek_frame(timeline.playhead())
+            .context(format!(
+                "seeking to saved playhead frame {:?}",
+                timeline.playhead()
+            ))?;
         Ok(player)
     }
 }

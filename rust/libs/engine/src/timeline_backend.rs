@@ -59,9 +59,11 @@ impl TimelineBackend {
                 timeline_directory.display()
             );
         }
-        timeline.validate()?;
+        timeline.validate().context("validating timeline")?;
         let mut decoder = TimelineDecoder::new(timeline_directory);
-        let frame = decoder.frame_at(&timeline, TimelineFrameIndex::ZERO)?;
+        let frame = decoder
+            .frame_at(&timeline, TimelineFrameIndex::ZERO)
+            .context("decoding first timeline frame")?;
         Ok(Self {
             timeline,
             timeline_directory: timeline_directory.to_owned(),
