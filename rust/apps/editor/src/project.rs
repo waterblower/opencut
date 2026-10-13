@@ -114,7 +114,6 @@ impl Editor {
         active_timeline: TimelineSerialization,
         cx: &mut Context<Self>,
     ) -> Result<()> {
-        let t = Instant::now();
         let res = (|| -> Result<()> {
             self.properties.transform_input_clip_id = None;
             self.properties.text_input_clip_id = None;
@@ -158,7 +157,6 @@ impl Editor {
             self.schedule_active_timeline_waveforms(cx);
             Ok(())
         })();
-        log::debug!("activate_timeline: {}", t.elapsed().as_millis());
         res.context("activate_timeline failed")
     }
 }
