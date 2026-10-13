@@ -89,6 +89,7 @@ pub enum EditAction {
     ReplaceTimeline {
         timeline: TimelineEditingState,
     },
+    Undo,
     Redo,
 }
 
@@ -371,6 +372,39 @@ pub fn edit_timeline(timeline: &mut TimelineRuntimeState, action: EditAction) ->
                     should_save: true,
                 }
             }
+            EditAction::Undo => {
+                let Some(snapshot) = timeline.undo_stack.last().cloned() else {
+                    return Ok(false);
+                };
+                let current = timeline.editing_state.clone();
+                let new_state = timeline
+                    .editing_state
+                    .edit(EditAction::ReplaceTimeline { timeline: snapshot })?;
+                // 后处理：移动历史栈，并从选择中去掉撤销后已不存在的片段。
+                timeline.undo_stack.pop();
+                timeline.redo_stack.push(current);
+                let available_clip_ids = new_state.clips.iter().map(Clip::id).collect::<HashSet<_>>();
+                timeline
+                    .interaction
+                    .selected_clip_ids
+                    .retain(|clip_id| available_clip_ids.contains(clip_id));
+                timeline.interaction.selected_clip_id = timeline
+                    .interaction
+                    .selected_clip_id
+                    .filter(|clip_id| timeline.interaction.selected_clip_ids.contains(clip_id))
+                    .or_else(|| {
+                        new_state
+                            .clips
+                            .iter()
+                            .find(|clip| timeline.interaction.selected_clip_ids.contains(&clip.id()))
+                            .map(Clip::id)
+                    });
+                Outcome {
+                    new_state,
+                    record_history: false, // 历史栈已在上面移动，不再记录。
+                    should_save: true,
+                }
+            }
             EditAction::Redo => {
                 let Some(snapshot) = timeline.redo_stack.last().cloned() else {
                     return Ok(false);
@@ -446,7 +480,7 @@ impl TimelineEditExt for TimelineEditingState {
             EditAction::TrimClip { .. } | EditAction::UpdateTextClipPosition { .. } => {
                 // do nothing: 拖动依赖视图状态，由 edit_timeline 处理。
             }
-            EditAction::Redo => {
+            EditAction::Undo | EditAction::Redo => {
                 // do nothing: 历史栈属于 TimelineRuntimeState，由 edit_timeline 处理。
             }
             EditAction::AddClips { clips, assets } => {

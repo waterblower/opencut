@@ -599,44 +599,6 @@ impl Editor {
         self.properties.text_input_clip_id = None;
     }
 
-    pub(super) fn reset_after_history_change(&mut self) -> Result<()> {
-        let Some(timeline) = self.timeline.as_mut() else {
-            return Ok(());
-        };
-
-        let available_clip_ids = timeline
-            .editing_state
-            .clips
-            .iter()
-            .map(Clip::id)
-            .collect::<HashSet<_>>();
-        timeline
-            .interaction
-            .selected_clip_ids
-            .retain(|clip_id| available_clip_ids.contains(clip_id));
-        timeline.interaction.selected_clip_id = timeline
-            .interaction
-            .selected_clip_id
-            .filter(|clip_id| timeline.interaction.selected_clip_ids.contains(clip_id))
-            .or_else(|| {
-                timeline
-                    .editing_state
-                    .clips
-                    .iter()
-                    .find(|clip| timeline.interaction.selected_clip_ids.contains(&clip.id()))
-                    .map(Clip::id)
-            });
-        self.properties.transform_input_clip_id = None;
-        self.properties.text_input_clip_id = None;
-        if !timeline.editing_state.clips.is_empty() {
-            timeline.set_playhead(timeline.playhead());
-        }
-        let Some(timeline) = self.timeline.as_ref() else {
-            return Ok(());
-        };
-        timeline.save()
-    }
-
     pub(super) fn toggle_track_magnet(&mut self) {
         let Some(timeline) = self.timeline.as_mut() else {
             return;
