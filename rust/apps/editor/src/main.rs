@@ -57,7 +57,7 @@ mod waveform;
 
 use anyhow::{Context as _, Result};
 use asset::EditorAssets;
-use editor::Editor;
+use editor::{Editor, load_active_timeline};
 use event_bus::{EventBus, handle_event};
 use global_settings::GlobalEditorSettings;
 use gpui::{
@@ -65,6 +65,7 @@ use gpui::{
     size,
 };
 use gpui_platform::application;
+use preview::{PreviewTarget, timeline_preview_target};
 use std::io::Write as _;
 use std::path::PathBuf;
 
@@ -144,14 +145,20 @@ fn open_editor_window(
 ) -> Result<WindowHandle<Editor>> {
     let bounds = Bounds::centered(None, size(px(1440.0), px(900.0)), cx);
 
-    // cx.new 的闭包必须返回 Editor，无法把错误带出；暂时在这里 panic。
-    #[rustfmt::skip]
-    let editor = cx.new(|cx| {
-        match Editor::new(root.clone(), event_bus, cx) {
-            Ok(editor) => editor,
-            Err(error) => panic!("could not open {}: {error:?}", root.display()),
-        }
-    });
+    // 可能失败、且不需要 cx 的准备工作，放在 cx.new 之前
+    let project_root = std::path::absolute(&root)?;
+    let timeline = load_active_timeline(&project_root)?;
+    let editor = cx.new(|cx| Editor::new(project_root, timeline, event_bus, cx));
+
+    // 预览需要 Context<Editor> 而且可能失败，所以在实体创建之后设置
+    editor.update(cx, |editor, cx| -> Result<()> {
+        editor.preview.target = match editor.timeline.as_ref() {
+            Some(timeline) => timeline_preview_target(timeline, &editor.project_root, cx)?,
+            None => PreviewTarget::None,
+        };
+        Ok(())
+    })?;
+
     let window = cx
         .open_window(
             WindowOptions {
