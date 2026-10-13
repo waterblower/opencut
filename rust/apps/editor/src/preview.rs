@@ -2,7 +2,7 @@ use crate::editor::Editor;
 use crate::preview_image::preview_image_file;
 use crate::theme::MUTED;
 use crate::timeline::{TimelinePlayerExt, TimelineRuntimeState};
-use anyhow::Result;
+use anyhow::{Context as _, Result};
 use gpui::prelude::*;
 use gpui::{Entity, div, px, rgb};
 use player_ui::audio_player::AudioPlayer;
@@ -39,7 +39,8 @@ pub fn timeline_preview_target<T: 'static>(
     cx: &mut Context<T>,
 ) -> Result<PreviewTarget> {
     let path = timeline.path.strip_prefix(project_root)?.to_path_buf();
-    let timeline_player = TimelinePlayer::from_runtime_state(timeline)?;
+    let timeline_player =
+        TimelinePlayer::from_runtime_state(timeline).context("creating timeline player")?;
     let player = cx.new(move |_| timeline_player);
     let task = player.update(cx, |player, cx| player.start(cx));
     Ok(PreviewTarget::Timeline {

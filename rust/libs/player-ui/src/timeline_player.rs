@@ -2,7 +2,7 @@
 //! audio output. Mixed audio is queued by timeline position against the backend's clock.
 
 use crate::{Seeker, audio_output::AudioOutput};
-use anyhow::Result;
+use anyhow::{Context as _, Result};
 use engine::{
     export::{AudioReader, AudioReaderKey, mix_timeline_audio},
     timeline_backend::{MAX_CONTROL_WAIT, TimelineBackend},
@@ -33,9 +33,10 @@ impl TimelinePlayer {
         timeline_directory: &Path,
     ) -> Result<Self> {
         Ok(Self {
-            backend: TimelineBackend::new(timeline, timeline_directory)?,
+            backend: TimelineBackend::new(timeline, timeline_directory)
+                .context("creating timeline backend")?,
             title: String::new(),
-            audio_output: AudioOutput::open()?,
+            audio_output: AudioOutput::open().context("opening audio output")?,
             audio_readers: HashMap::new(),
             audio_cursor: 0,
             pending_seek: None,

@@ -57,7 +57,7 @@ mod waveform;
 
 use anyhow::{Context as _, Result};
 use asset::EditorAssets;
-use editor::Editor;
+use editor::{Editor, load_active_timeline};
 use event_bus::{EventBus, handle_event};
 use global_settings::GlobalEditorSettings;
 use gpui::{
@@ -65,6 +65,7 @@ use gpui::{
     size,
 };
 use gpui_platform::application;
+use preview::{PreviewTarget, timeline_preview_target};
 use std::io::Write as _;
 use std::path::PathBuf;
 
@@ -84,24 +85,27 @@ fn main() -> anyhow::Result<()> {
     let settings = GlobalEditorSettings::load()?;
 
     application().with_assets(EditorAssets).run(move |cx| {
-        run_app(cx, settings.project_root.clone());
+        gpui_tokio::init(cx);
+        gpui_inspector::init(cx);
+        actions::bind_keys(cx);
+        cx.set_quit_mode(gpui::QuitMode::Explicit);
+
+        let event_bus = cx.new(|_| EventBus {});
+
+        // If a project has been openned before
+        if settings.project_root.is_dir() {
+            if let Err(error) = open_project(cx, settings.project_root, event_bus) {
+                log::error!("{error:?}");
+                cx.quit();
+            }
+            return;
+        }
+        if let Err(error) = project_picker::open(cx, event_bus) {
+            log::error!("Could not open project picker: {error:?}");
+            cx.quit();
+        }
     });
     Ok(())
-}
-
-fn run_app(cx: &mut App, project_root: PathBuf) {
-    gpui_tokio::init(cx);
-    gpui_inspector::init(cx);
-    actions::bind_keys(cx);
-    cx.set_quit_mode(gpui::QuitMode::Explicit);
-    if project_root.is_dir() {
-        open_project(project_root, cx);
-        return;
-    }
-    if let Err(error) = project_picker::open(cx) {
-        log::error!("Could not open project picker: {error:?}");
-        cx.quit();
-    }
 }
 
 /// The open editor window, and the subscription that quits the app when its last window closes.
@@ -110,16 +114,9 @@ struct OpenProject {
     close_subscription: Option<Subscription>,
 }
 
-fn open_project(project_root: PathBuf, cx: &mut App) {
-    let event_bus = cx.new(|_| EventBus {});
-    let window = match open_editor_window(project_root, event_bus.clone(), cx) {
-        Ok(window) => window,
-        Err(error) => {
-            log::error!("Could not open editor window: {error:?}");
-            cx.quit();
-            return;
-        }
-    };
+fn open_project(cx: &mut App, project_root: PathBuf, event_bus: Entity<EventBus>) -> Result<()> {
+    let window = open_editor_window(project_root, event_bus.clone(), cx)?;
+
     let close_subscription = cx.on_window_closed(quit_after_last_window);
     let project = cx.new(|_| OpenProject {
         window,
@@ -132,6 +129,7 @@ fn open_project(project_root: PathBuf, cx: &mut App) {
             .detach();
     })
     .detach();
+    return Ok(());
 }
 
 fn quit_after_last_window(cx: &mut App, _: gpui::WindowId) {
@@ -146,11 +144,26 @@ fn open_editor_window(
     cx: &mut App,
 ) -> Result<WindowHandle<Editor>> {
     let bounds = Bounds::centered(None, size(px(1440.0), px(900.0)), cx);
-    // cx.new 的闭包必须返回 Editor，无法把错误带出；暂时在这里 panic。
-    let editor = cx.new(|cx| match Editor::new(root.clone(), event_bus, cx) {
-        Ok(editor) => editor,
-        Err(error) => panic!("could not open {}: {error:?}", root.display()),
-    });
+
+    // 可能失败、且不需要 cx 的准备工作，放在 cx.new 之前
+    let project_root = std::path::absolute(&root)?;
+    let timeline = load_active_timeline(&project_root)?;
+    let editor = cx.new(|cx| Editor::new(project_root, timeline, event_bus, cx));
+
+    // 预览需要 Context<Editor> 而且可能失败，所以在实体创建之后设置
+    editor.update(cx, |editor, cx| -> Result<()> {
+        editor.preview.target = match editor.timeline.as_ref() {
+            Some(timeline) => {
+                timeline_preview_target(timeline, &editor.project_root, cx).context(format!(
+                    "creating preview for timeline '{}'",
+                    timeline.path.display()
+                ))?
+            }
+            None => PreviewTarget::None,
+        };
+        Ok(())
+    })?;
+
     let window = cx
         .open_window(
             WindowOptions {
