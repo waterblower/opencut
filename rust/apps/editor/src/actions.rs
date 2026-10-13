@@ -1,4 +1,4 @@
-use crate::editing::remove_clips;
+use crate::edit_action::EditAction;
 use crate::editor::Editor;
 use crate::event_bus::AppEvent;
 use crate::generic_containers;
@@ -124,7 +124,7 @@ impl Editor {
         _: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        let Some(timeline) = self.timeline.as_mut() else {
+        let Some(timeline) = self.timeline.as_ref() else {
             return;
         };
         if !timeline.selected_clips_editable() {
@@ -132,9 +132,13 @@ impl Editor {
         }
         let clip_ids = timeline.interaction.selected_clip_ids.clone();
         let magnet_enabled = timeline.track_magnet_enabled;
-        if let Err(error) = remove_clips(timeline, &clip_ids, magnet_enabled) {
-            log::error!("{error:?}");
-        }
+        self.emit_event(
+            cx,
+            AppEvent::Edit(EditAction::RemoveClips {
+                clip_ids,
+                close_track_gaps: magnet_enabled,
+            }),
+        );
         self.properties.transform_input_clip_id = None;
         self.properties.text_input_clip_id = None;
         cx.notify();

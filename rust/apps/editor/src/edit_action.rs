@@ -350,6 +350,7 @@ pub fn edit_timeline(timeline: &mut TimelineRuntimeState, action: EditAction) ->
                 ripple_clips_after_deletion(&mut data.clips, &clip_ids, frame_rate);
             }
             data.clips.retain(|clip| !clip_ids.contains(&clip.id()));
+            //
         }
         EditAction::SplitClips {
             removed_clips,
