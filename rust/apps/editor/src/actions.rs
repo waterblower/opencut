@@ -168,6 +168,8 @@ impl Editor {
 
     pub(crate) fn action_redo(&mut self, _: &Redo, _: &mut Window, cx: &mut Context<Self>) {
         self.emit_event(cx, AppEvent::Edit(EditAction::Redo));
+        self.properties.transform_input_clip_id = None;
+        self.properties.text_input_clip_id = None;
     }
 
     pub(crate) fn action_duplicate_selected(
