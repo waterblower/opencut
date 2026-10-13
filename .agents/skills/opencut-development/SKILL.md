@@ -195,6 +195,26 @@ are relative to the OpenCut root.
   users or rendered in the UI. Keep user-facing error messages, error status
   updates, and UI notifications in the application or event handling layer.
 - Always use debug formatting (`{error:?}`) when logging errors.
+- A method that can fail must leave `self` unchanged when it returns an error.
+  Do all fallible work first, keeping the results in local variables, and
+  modify `self` only after every fallible step has succeeded. The commit phase
+  should contain no `?`. Order external side effects such as saving files last
+  among the fallible steps. Achieve this by ordering the code, not by adding
+  rollback or recovery logic. Name the locals that will replace existing state
+  with a `new_` prefix so the commit phase is easy to read. For example:
+
+  ```rust
+  let new_timeline = TimelineRuntimeState::from_serialize(data, path)?;
+  let new_preview_target = timeline_preview_target(&new_timeline, &self.project_root, cx)?;
+  save_project_local_settings(&self.project_root, &new_settings)?;
+
+  self.timeline = Some(new_timeline);
+  self.preview.target = new_preview_target;
+  ```
+
+  instead of assigning `self.timeline` first and then failing while building
+  the preview, which leaves the editor showing the new timeline with the old
+  preview.
 - Do not use `super::` paths. Import items explicitly using full paths at the
   beginning of the file, and use unqualified names in the code. Use an import
   alias or qualified name only when needed to resolve a name conflict.

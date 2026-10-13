@@ -1,5 +1,6 @@
 use crate::editor::Editor;
 use crate::event_bus::AppEvent;
+use crate::explorer_file_entry::visible_tree;
 use crate::preview::{PreviewTarget, timeline_preview_target};
 use crate::project_settings::{load_project_local_settings, save_project_local_settings};
 use crate::timeline::TimelineRuntimeState;
@@ -115,45 +116,40 @@ impl Editor {
         cx: &mut Context<Self>,
     ) -> Result<()> {
         let res = (|| -> Result<()> {
-            self.properties.transform_input_clip_id = None;
-            self.properties.text_input_clip_id = None;
-            self.timeline = Some(TimelineRuntimeState::from_serialize(
+            // 先完成所有可能失败的工作，全部成功后才修改 self；失败时编辑器保持原状。
+            let mut new_timeline = TimelineRuntimeState::from_serialize(
                 active_timeline,
                 self.project_root.join(timeline_path),
-            )?);
-            let mut settings = load_project_local_settings(&self.project_root);
-            settings.active_timeline = self.timeline.as_ref().and_then(|timeline| {
-                timeline
-                    .path
-                    .strip_prefix(&self.project_root)
-                    .ok()
-                    .map(Path::to_path_buf)
-            });
-            save_project_local_settings(&self.project_root, &settings)?;
+            )?;
+            new_timeline.set_playhead(new_timeline.playhead());
+            let new_preview_target =
+                timeline_preview_target(&new_timeline, &self.project_root, cx)?;
+            let new_relative_timeline_path = new_timeline
+                .path
+                .strip_prefix(&self.project_root)
+                .ok()
+                .map(Path::to_path_buf);
+            let new_file_tree =
+                visible_tree(&self.project_root, &self.explorer.expanded_directories)
+                    .context("scanning project file tree")?;
+            let mut new_settings = load_project_local_settings(&self.project_root);
+            new_settings.active_timeline = new_relative_timeline_path.clone();
+            save_project_local_settings(&self.project_root, &new_settings)?;
+
+            self.properties.transform_input_clip_id = None;
+            self.properties.text_input_clip_id = None;
+            self.timeline = Some(new_timeline);
+            self.preview.target = new_preview_target;
             self.explorer.search_query = None;
             self.explorer.search_results.clear();
             self.explorer.search_pending = false;
             self.explorer
                 .filter
                 .update(cx, |filter, cx| filter.clear(cx));
-            self.explorer.selected_file = self.timeline.as_ref().and_then(|timeline| {
-                timeline
-                    .path
-                    .strip_prefix(&self.project_root)
-                    .ok()
-                    .map(Path::to_path_buf)
-            });
+            self.explorer.selected_file = new_relative_timeline_path;
             self.dismiss_context_menu();
-            self.explorer
-                .refresh_file_tree(&self.project_root)
-                .context("refresh_file_tree failed")?;
-            if let Some(timeline) = self.timeline.as_mut() {
-                timeline.set_playhead(timeline.playhead());
-            }
-            self.preview.target = match self.timeline.as_ref() {
-                Some(timeline) => timeline_preview_target(timeline, &self.project_root, cx)?,
-                None => PreviewTarget::None,
-            };
+            self.explorer.file_tree = new_file_tree;
+            self.explorer.last_tree_scan = Instant::now();
             self.schedule_active_timeline_waveforms(cx);
             Ok(())
         })();
