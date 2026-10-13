@@ -355,6 +355,13 @@ pub fn edit_timeline(timeline: &mut TimelineRuntimeState, action: EditAction) ->
                 let new_state = timeline.editing_state.edit(action)?;
                 (new_state, false, true) // 撤销/重做由调用方维护历史栈。
             }
+            action @ EditAction::RemoveClips { .. } => {
+                let new_state = timeline.editing_state.edit(action)?;
+                // 后处理：删除的就是当前选中的片段，清空选择。
+                timeline.interaction.selected_clip_ids.clear();
+                timeline.interaction.selected_clip_id = None;
+                (new_state, true, true)
+            }
             action => {
                 // 其余编辑不需要前处理与后处理：只修改 editing state，记录历史并保存。
                 let new_state = timeline.editing_state.edit(action)?;
