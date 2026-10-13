@@ -1,4 +1,5 @@
 use crate::edit_action::EditAction;
+use crate::editing::ClipClipboard;
 use crate::editor::Editor;
 use crate::event_bus::AppEvent;
 use crate::generic_containers;
@@ -201,9 +202,32 @@ impl Editor {
         _: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        if let Err(error) = self.cut_selected_clips() {
-            log::error!("{error:?}");
+        let Some(timeline) = self.timeline.as_ref() else {
+            return;
+        };
+        if !timeline.selected_clips_editable() {
+            eprintln!("Cannot cut clips from a locked track.");
+            return;
         }
+        let Some(clipboard) = ClipClipboard::from_selection(
+            timeline.path.clone(),
+            &timeline.editing_state,
+            &timeline.interaction.selected_clip_ids,
+            timeline.interaction.selected_clip_id,
+        ) else {
+            return;
+        };
+        let clip_ids = timeline.interaction.selected_clip_ids.clone();
+        self.clipboard = Some(clipboard);
+        self.emit_event(
+            cx,
+            AppEvent::Edit(EditAction::RemoveClips {
+                clip_ids,
+                close_track_gaps: false,
+            }),
+        );
+        self.properties.transform_input_clip_id = None;
+        self.properties.text_input_clip_id = None;
         cx.notify();
     }
 

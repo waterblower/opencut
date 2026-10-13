@@ -29,7 +29,7 @@ pub(super) struct ClipClipboard {
 }
 
 impl ClipClipboard {
-    fn from_selection(
+    pub fn from_selection(
         source_timeline: PathBuf,
         timeline: &TimelineEditingState,
         selected_clip_ids: &HashSet<Ulid>,
@@ -289,33 +289,6 @@ impl Editor {
             return;
         };
         self.clipboard = Some(clipboard);
-    }
-
-    pub(super) fn cut_selected_clips(&mut self) -> Result<()> {
-        let Some(timeline) = self.timeline.as_ref() else {
-            return Ok(());
-        };
-        if !timeline.selected_clips_editable() {
-            eprintln!("Cannot cut clips from a locked track.");
-            return Ok(());
-        }
-        let Some(clipboard) = ClipClipboard::from_selection(
-            timeline.path.clone(),
-            &timeline.editing_state,
-            &timeline.interaction.selected_clip_ids,
-            timeline.interaction.selected_clip_id,
-        ) else {
-            return Ok(());
-        };
-        let clip_ids = timeline.interaction.selected_clip_ids.clone();
-        self.clipboard = Some(clipboard);
-        let Some(timeline) = self.timeline.as_mut() else {
-            return Ok(());
-        };
-        remove_clips(timeline, &clip_ids, false)?;
-        self.properties.transform_input_clip_id = None;
-        self.properties.text_input_clip_id = None;
-        Ok(())
     }
 
     pub(super) fn paste_clips(&mut self, cx: &mut Context<Self>) -> Result<()> {
@@ -698,23 +671,6 @@ impl Editor {
         };
         timeline.track_magnet_enabled = !timeline.track_magnet_enabled;
     }
-}
-
-pub fn remove_clips(
-    timeline: &mut TimelineRuntimeState,
-    clip_ids: &HashSet<Ulid>,
-    close_track_gaps: bool,
-) -> Result<()> {
-    edit_timeline(
-        timeline,
-        EditAction::RemoveClips {
-            clip_ids: clip_ids.clone(),
-            close_track_gaps,
-        },
-    )?;
-    timeline.interaction.selected_clip_ids.clear();
-    timeline.interaction.selected_clip_id = None;
-    timeline.save()
 }
 
 pub(super) fn validate_clips_placements(
