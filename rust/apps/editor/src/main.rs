@@ -89,12 +89,17 @@ fn main() -> anyhow::Result<()> {
         actions::bind_keys(cx);
         cx.set_quit_mode(gpui::QuitMode::Explicit);
 
+        let event_bus = cx.new(|_| EventBus {});
+
         // If a project has been openned before
         if settings.project_root.is_dir() {
-            open_project(settings.project_root, cx);
+            if let Err(error) = open_project(cx, settings.project_root, event_bus) {
+                log::error!("Could not open project: {error:?}");
+                cx.quit();
+            }
             return;
         }
-        if let Err(error) = project_picker::open(cx) {
+        if let Err(error) = project_picker::open(cx, event_bus) {
             log::error!("Could not open project picker: {error:?}");
             cx.quit();
         }
@@ -108,16 +113,9 @@ struct OpenProject {
     close_subscription: Option<Subscription>,
 }
 
-fn open_project(project_root: PathBuf, cx: &mut App) {
-    let event_bus = cx.new(|_| EventBus {});
-    let window = match open_editor_window(project_root, event_bus.clone(), cx) {
-        Ok(window) => window,
-        Err(error) => {
-            log::error!("Could not open editor window: {error:?}");
-            cx.quit();
-            return;
-        }
-    };
+fn open_project(cx: &mut App, project_root: PathBuf, event_bus: Entity<EventBus>) -> Result<()> {
+    let window = open_editor_window(project_root, event_bus.clone(), cx)?;
+
     let close_subscription = cx.on_window_closed(quit_after_last_window);
     let project = cx.new(|_| OpenProject {
         window,
@@ -130,6 +128,7 @@ fn open_project(project_root: PathBuf, cx: &mut App) {
             .detach();
     })
     .detach();
+    return Ok(());
 }
 
 fn quit_after_last_window(cx: &mut App, _: gpui::WindowId) {

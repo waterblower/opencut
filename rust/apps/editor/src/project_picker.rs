@@ -1,14 +1,15 @@
+use crate::event_bus::{self, EventBus};
 use crate::global_settings::GlobalEditorSettings;
 use crate::{open_project, quit_after_last_window};
 use anyhow::{Result, bail};
-use gpui::prelude::*;
 use gpui::{
     App, Bounds, Context, IntoElement, PathPromptOptions, Render, Window, WindowBounds,
     WindowOptions, div, px, rgb, size,
 };
+use gpui::{Entity, prelude::*};
 use std::path::PathBuf;
 
-pub fn open(cx: &mut App) -> Result<()> {
+pub fn open(cx: &mut App, event_bus: Entity<EventBus>) -> Result<()> {
     let bounds = Bounds::centered(None, size(px(480.0), px(260.0)), cx);
     cx.open_window(
         WindowOptions {
@@ -18,6 +19,7 @@ pub fn open(cx: &mut App) -> Result<()> {
         },
         |_, cx| {
             cx.new(|_| ProjectPicker {
+                event_bus,
                 choosing: false,
                 error: None,
             })
@@ -31,6 +33,7 @@ pub fn open(cx: &mut App) -> Result<()> {
 struct ProjectPicker {
     choosing: bool,
     error: Option<String>,
+    event_bus: Entity<EventBus>,
 }
 
 impl ProjectPicker {
@@ -48,6 +51,7 @@ impl ProjectPicker {
             multiple: false,
             prompt: Some("Choose project folder".into()),
         });
+        let event_bus = self.event_bus.clone();
         cx.spawn(async move |picker, cx| {
             let result: Result<Option<PathBuf>> = async {
                 let paths = selection.await??;
@@ -73,7 +77,7 @@ impl ProjectPicker {
             match result {
                 Ok(Some(root)) => {
                     let _ = cx.update(|cx| {
-                        open_project(root, cx);
+                        open_project(cx, root, event_bus);
                         let _ = picker_window.update(cx, |_, window, _| window.remove_window());
                     });
                 }
