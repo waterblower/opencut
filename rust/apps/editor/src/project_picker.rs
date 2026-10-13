@@ -1,4 +1,4 @@
-use crate::event_bus::{self, EventBus};
+use crate::event_bus::EventBus;
 use crate::global_settings::GlobalEditorSettings;
 use crate::{open_project, quit_after_last_window};
 use anyhow::{Result, bail};
@@ -77,7 +77,16 @@ impl ProjectPicker {
             match result {
                 Ok(Some(root)) => {
                     let _ = cx.update(|cx| {
-                        open_project(cx, root, event_bus);
+                        if let Err(error) = open_project(cx, root, event_bus) {
+                            log::error!("Could not open project folder: {error:?}");
+                            let _ = picker.update(cx, |picker, cx| {
+                                picker.choosing = false;
+                                picker.error =
+                                    Some(format!("Could not open project folder: {error}"));
+                                cx.notify();
+                            });
+                            return;
+                        }
                         let _ = picker_window.update(cx, |_, window, _| window.remove_window());
                     });
                 }
