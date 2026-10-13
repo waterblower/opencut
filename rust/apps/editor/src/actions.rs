@@ -183,7 +183,22 @@ impl Editor {
     }
 
     pub(crate) fn action_redo(&mut self, _: &Redo, _: &mut Window, cx: &mut Context<Self>) {
-        if let Err(error) = self.redo() {
+        let Some(timeline) = self.timeline.as_mut() else {
+            return;
+        };
+        let Some(snapshot) = timeline.redo_stack.last().cloned() else {
+            return;
+        };
+        let current = timeline.editing_state.clone();
+        if let Err(error) =
+            edit_timeline(timeline, EditAction::ReplaceTimeline { timeline: snapshot })
+        {
+            log::error!("{error:?}");
+            return;
+        }
+        timeline.redo_stack.pop();
+        timeline.undo_stack.push(current);
+        if let Err(error) = self.reset_after_history_change() {
             log::error!("{error:?}");
         }
         cx.notify();
