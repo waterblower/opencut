@@ -89,6 +89,7 @@ pub enum EditAction {
     ReplaceTimeline {
         timeline: TimelineEditingState,
     },
+    Redo,
 }
 
 /// Applies an edit and returns whether the caller should save the timeline.
@@ -100,6 +101,7 @@ pub fn edit_timeline(timeline: &mut TimelineRuntimeState, action: EditAction) ->
         should_save: bool,
     }
 
+    #[rustfmt::skip]
     let outcome =
         match action {
             EditAction::TrimClip {
@@ -369,6 +371,39 @@ pub fn edit_timeline(timeline: &mut TimelineRuntimeState, action: EditAction) ->
                     should_save: true,
                 }
             }
+            EditAction::Redo => {
+                let Some(snapshot) = timeline.redo_stack.last().cloned() else {
+                    return Ok(false);
+                };
+                let current = timeline.editing_state.clone();
+                let new_state = timeline
+                    .editing_state
+                    .edit(EditAction::ReplaceTimeline { timeline: snapshot })?;
+                // 后处理：移动历史栈，并从选择中去掉重做后已不存在的片段。
+                timeline.redo_stack.pop();
+                timeline.undo_stack.push(current);
+                let available_clip_ids = new_state.clips.iter().map(Clip::id).collect::<HashSet<_>>();
+                timeline
+                    .interaction
+                    .selected_clip_ids
+                    .retain(|clip_id| available_clip_ids.contains(clip_id));
+                timeline.interaction.selected_clip_id = timeline
+                    .interaction
+                    .selected_clip_id
+                    .filter(|clip_id| timeline.interaction.selected_clip_ids.contains(clip_id))
+                    .or_else(|| {
+                        new_state
+                            .clips
+                            .iter()
+                            .find(|clip| timeline.interaction.selected_clip_ids.contains(&clip.id()))
+                            .map(Clip::id)
+                    });
+                Outcome {
+                    new_state,
+                    record_history: false, // 历史栈已在上面移动，不再记录。
+                    should_save: true,
+                }
+            }
             action @ EditAction::RemoveClips { .. } => {
                 let new_state = timeline.editing_state.edit(action)?;
                 // 后处理：删除的就是当前选中的片段，清空选择。
@@ -410,6 +445,9 @@ impl TimelineEditExt for TimelineEditingState {
         match action {
             EditAction::TrimClip { .. } | EditAction::UpdateTextClipPosition { .. } => {
                 // do nothing: 拖动依赖视图状态，由 edit_timeline 处理。
+            }
+            EditAction::Redo => {
+                // do nothing: 历史栈属于 TimelineRuntimeState，由 edit_timeline 处理。
             }
             EditAction::AddClips { clips, assets } => {
                 data.assets.extend(assets);
