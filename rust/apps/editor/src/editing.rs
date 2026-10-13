@@ -309,7 +309,12 @@ impl Editor {
         };
         let clip_ids = timeline.interaction.selected_clip_ids.clone();
         self.clipboard = Some(clipboard);
-        self.remove_clips(&clip_ids, false)?;
+        let Some(timeline) = self.timeline.as_mut() else {
+            return Ok(());
+        };
+        remove_clips(timeline, &clip_ids, false)?;
+        self.properties.transform_input_clip_id = None;
+        self.properties.text_input_clip_id = None;
         Ok(())
     }
 
@@ -351,28 +356,6 @@ impl Editor {
 
         self.schedule_active_timeline_waveforms(cx);
         Ok(())
-    }
-
-    pub fn remove_clips(&mut self, clip_ids: &HashSet<Ulid>, close_track_gaps: bool) -> Result<()> {
-        let Some(timeline) = self.timeline.as_mut() else {
-            return Ok(());
-        };
-        edit_timeline(
-            timeline,
-            EditAction::RemoveClips {
-                clip_ids: clip_ids.clone(),
-                close_track_gaps,
-            },
-        )?;
-        timeline.interaction.selected_clip_ids.clear();
-        timeline.interaction.selected_clip_id = None;
-        self.properties.transform_input_clip_id = None;
-        self.properties.text_input_clip_id = None;
-
-        let Some(timeline) = self.timeline.as_ref() else {
-            return Ok(());
-        };
-        timeline.save()
     }
 
     pub(super) fn duplicate_selected(&mut self) -> Result<()> {
@@ -715,6 +698,23 @@ impl Editor {
         };
         timeline.track_magnet_enabled = !timeline.track_magnet_enabled;
     }
+}
+
+pub fn remove_clips(
+    timeline: &mut TimelineRuntimeState,
+    clip_ids: &HashSet<Ulid>,
+    close_track_gaps: bool,
+) -> Result<()> {
+    edit_timeline(
+        timeline,
+        EditAction::RemoveClips {
+            clip_ids: clip_ids.clone(),
+            close_track_gaps,
+        },
+    )?;
+    timeline.interaction.selected_clip_ids.clear();
+    timeline.interaction.selected_clip_id = None;
+    timeline.save()
 }
 
 pub(super) fn validate_clips_placements(
