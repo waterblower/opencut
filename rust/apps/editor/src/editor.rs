@@ -5,7 +5,7 @@ use crate::explorer::{ExplorerState, load_explorer_expansion};
 use crate::explorer_drag::AssetBeingDragged;
 use crate::explorer_file_entry::visible_tree;
 use crate::generic_containers::{HorizontalSplitState, TextInput};
-use crate::preview::{PreviewState, PreviewTarget, timeline_preview_target};
+use crate::preview::{PreviewState, PreviewTarget};
 use crate::project_settings::load_project_local_settings;
 use crate::properties::PropertiesPanelState;
 use crate::properties_transform::VideoTransformInputs;
@@ -45,41 +45,11 @@ pub(crate) struct Editor {
 
 impl Editor {
     pub(crate) fn new(
-        project_root: PathBuf,
+        project_root: PathBuf,                  // 调用方已转成绝对路径
+        timeline: Option<TimelineRuntimeState>, // 调用方已加载好
         event_bus: Entity<EventBus>,
         cx: &mut Context<Self>,
-    ) -> Result<Self> {
-        let project_root = std::path::absolute(project_root)?;
-        //
-        // Load the active timeline
-        //
-        let timeline = {
-            let project_settings = load_project_local_settings(&project_root);
-
-            (|| -> Result<Option<TimelineRuntimeState>> {
-                let Some(timeline_path) = project_settings.active_timeline else {
-                    return Ok(None);
-                };
-                let timeline = match TimelineRuntimeState::load(project_root.join(&timeline_path)) {
-                    Ok(timeline) => timeline,
-                    Err(error) => {
-                        // The saved timeline may have been moved or deleted; open
-                        // the editor without an active timeline in that case.
-                        if error
-                            .downcast_ref::<IoError>()
-                            .is_some_and(|error| error.kind() == ErrorKind::NotFound)
-                        {
-                            return Ok(None);
-                        }
-                        // We still error out for other kinds of errors.
-                        return Err(error);
-                    }
-                };
-                Ok(Some(timeline))
-            })()?
-        };
-        // load timeline end
-
+    ) -> Self {
         let focus_handle = cx.focus_handle();
         let explorer = {
             let explorer_filter = cx.new(|cx| {
@@ -118,7 +88,7 @@ impl Editor {
         };
 
         let preview = PreviewState {
-            target: PreviewTarget::None,
+            target: PreviewTarget::None, // 实体创建后由调用方设置
             fullscreen: false,
         };
 
@@ -158,10 +128,6 @@ impl Editor {
         if let Some(timeline) = editor.timeline.as_mut() {
             timeline.set_playhead(timeline.playhead());
         }
-        editor.preview.target = match editor.timeline.as_ref() {
-            Some(timeline) => timeline_preview_target(timeline, &editor.project_root, cx)?,
-            None => PreviewTarget::None,
-        };
 
         // todo:
         // instead of have an async starting here
@@ -169,11 +135,34 @@ impl Editor {
         // we should submit an event to compute waveforms
         // and update the UI using real async functions
         editor.schedule_project_waveforms(cx);
-        Ok(editor)
+        editor
     }
 
     pub fn emit_event(&mut self, cx: &mut Context<Self>, event: AppEvent) {
         self.event_bus.update(cx, |_, cx| cx.emit(event));
+    }
+}
+
+/// 读取项目设置中的 active timeline；文件已被移走或删除时返回 None。
+pub(crate) fn load_active_timeline(project_root: &Path) -> Result<Option<TimelineRuntimeState>> {
+    let project_settings = load_project_local_settings(project_root);
+    let Some(timeline_path) = project_settings.active_timeline else {
+        return Ok(None);
+    };
+    match TimelineRuntimeState::load(project_root.join(&timeline_path)) {
+        Ok(timeline) => Ok(Some(timeline)),
+        Err(error) => {
+            // The saved timeline may have been moved or deleted; open
+            // the editor without an active timeline in that case.
+            if error
+                .downcast_ref::<IoError>()
+                .is_some_and(|error| error.kind() == ErrorKind::NotFound)
+            {
+                return Ok(None);
+            }
+            // We still error out for other kinds of errors.
+            Err(error)
+        }
     }
 }
 

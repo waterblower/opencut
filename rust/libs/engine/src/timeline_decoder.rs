@@ -118,7 +118,7 @@ impl TimelineDecoder {
                                         Entry::Vacant(entry) => {
                                             entry.insert(
                                                 VideoReader::open(&asset_path).context(format!(
-                                                    "Opening timeline video {}",
+                                                    "Opening timeline video '{}'",
                                                     asset_path.display()
                                                 ))?,
                                             )
