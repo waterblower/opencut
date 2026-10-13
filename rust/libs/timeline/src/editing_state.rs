@@ -112,9 +112,7 @@ impl TimelineEditingState {
             .iter()
             .filter(move |clip| clip.track_id() == track_id)
     }
-}
 
-impl TimelineEditingState {
     /// Validates settings, unique IDs, clip references, timing, properties, and no overlaps within tracks.
     pub fn validate(&self) -> Result<()> {
         let settings = self.settings;
