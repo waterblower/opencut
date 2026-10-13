@@ -84,24 +84,22 @@ fn main() -> anyhow::Result<()> {
     let settings = GlobalEditorSettings::load()?;
 
     application().with_assets(EditorAssets).run(move |cx| {
-        run_app(cx, settings.project_root.clone());
+        gpui_tokio::init(cx);
+        gpui_inspector::init(cx);
+        actions::bind_keys(cx);
+        cx.set_quit_mode(gpui::QuitMode::Explicit);
+
+        // If a project has been openned before
+        if settings.project_root.is_dir() {
+            open_project(settings.project_root, cx);
+            return;
+        }
+        if let Err(error) = project_picker::open(cx) {
+            log::error!("Could not open project picker: {error:?}");
+            cx.quit();
+        }
     });
     Ok(())
-}
-
-fn run_app(cx: &mut App, project_root: PathBuf) {
-    gpui_tokio::init(cx);
-    gpui_inspector::init(cx);
-    actions::bind_keys(cx);
-    cx.set_quit_mode(gpui::QuitMode::Explicit);
-    if project_root.is_dir() {
-        open_project(project_root, cx);
-        return;
-    }
-    if let Err(error) = project_picker::open(cx) {
-        log::error!("Could not open project picker: {error:?}");
-        cx.quit();
-    }
 }
 
 /// The open editor window, and the subscription that quits the app when its last window closes.
