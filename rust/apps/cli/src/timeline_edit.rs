@@ -109,6 +109,14 @@ pub fn edit(command: TimelineCommand) -> Result<Value> {
 
 /// Keeps text-covered intervals with breathing room and compacts all tracks without file I/O.
 fn compact_text_sections(editing_state: &TimelineEditingState) -> Result<TimelineEditingState> {
+    let sections = text_sections(editing_state)?;
+    compact_to_sections(editing_state, &sections)
+}
+
+/// Text-covered intervals with breathing room, sorted and merged so they do not overlap.
+fn text_sections(
+    editing_state: &TimelineEditingState,
+) -> Result<Vec<(TimelineFrameIndex, TimelineFrameIndex)>> {
     editing_state.validate()?;
     let frame_rate = editing_state.settings.frame_rate;
     let padding = frame_rate.nearest(0.025); // 字幕前后各保留约 25ms 原始内容，按时间线帧率取整。
@@ -142,12 +150,22 @@ fn compact_text_sections(editing_state: &TimelineEditingState) -> Result<Timelin
     if sections.is_empty() {
         bail!("Timeline has no text sections to keep");
     }
+    Ok(sections)
+}
+
+/// Keeps only `sections` (sorted, non-overlapping) on every track and closes the gaps between
+/// them, without file I/O.
+fn compact_to_sections(
+    editing_state: &TimelineEditingState,
+    sections: &[(TimelineFrameIndex, TimelineFrameIndex)],
+) -> Result<TimelineEditingState> {
+    let frame_rate = editing_state.settings.frame_rate;
     let mut compacted = editing_state.clone();
     compacted.clips.clear();
     for clip in &editing_state.clips {
         let mut output_start = TimelineFrameIndex::ZERO;
         let mut kept_original_id = false;
-        for &(section_start, section_end) in &sections {
+        for &(section_start, section_end) in sections {
             let start = clip.timeline_start().max(section_start);
             let end = clip.timeline_end(frame_rate).min(section_end);
             if start < end {

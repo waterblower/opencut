@@ -8,7 +8,7 @@ use crate::generic_containers::HorizontalSplitState;
 use crate::global_settings::GlobalEditorSettings;
 use crate::layout::{RULER_HEIGHT, TIMELINE_PADDING, TRACK_HEIGHT};
 use crate::model::MediaKind;
-use crate::preview::PreviewTarget;
+use crate::preview::{PreviewTarget, timeline_preview_target};
 use crate::preview_events::PreviewEvent;
 use crate::project_settings::{ProjectLocalSettings, save_project_local_settings};
 use crate::srt::{srt_text_clips, write_srt};
@@ -358,6 +358,16 @@ async fn handle_app_event(
                 let should_save = edit_timeline(timeline, edit_action)?;
                 if should_save {
                     timeline.save()?;
+                    // 预览播放器持有编辑前的快照；编辑提交后按新状态重建。
+                    match editor.preview.target {
+                        PreviewTarget::Timeline { .. } => {
+                            editor.preview.target =
+                                timeline_preview_target(timeline, &editor.project_root, cx)?;
+                        }
+                        _ => {
+                            // do nothing
+                        }
+                    }
                 }
                 cx.notify();
                 Ok(())
