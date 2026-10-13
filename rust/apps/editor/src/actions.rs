@@ -1,4 +1,4 @@
-use crate::edit_action::EditAction;
+use crate::edit_action::{EditAction, edit_timeline};
 use crate::editing::ClipClipboard;
 use crate::editor::Editor;
 use crate::event_bus::AppEvent;
@@ -161,7 +161,22 @@ impl Editor {
     }
 
     pub(crate) fn action_undo(&mut self, _: &Undo, _: &mut Window, cx: &mut Context<Self>) {
-        if let Err(error) = self.undo() {
+        let Some(timeline) = self.timeline.as_mut() else {
+            return;
+        };
+        let Some(snapshot) = timeline.undo_stack.last().cloned() else {
+            return;
+        };
+        let current = timeline.editing_state.clone();
+        if let Err(error) =
+            edit_timeline(timeline, EditAction::ReplaceTimeline { timeline: snapshot })
+        {
+            log::error!("{error:?}");
+            return;
+        }
+        timeline.undo_stack.pop();
+        timeline.redo_stack.push(current);
+        if let Err(error) = self.reset_after_history_change() {
             log::error!("{error:?}");
         }
         cx.notify();

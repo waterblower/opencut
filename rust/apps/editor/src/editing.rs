@@ -599,20 +599,6 @@ impl Editor {
         self.properties.text_input_clip_id = None;
     }
 
-    pub(super) fn undo(&mut self) -> Result<()> {
-        let Some(timeline) = self.timeline.as_mut() else {
-            return Ok(());
-        };
-        let Some(snapshot) = timeline.undo_stack.last().cloned() else {
-            return Ok(());
-        };
-        let current = timeline.editing_state.clone();
-        edit_timeline(timeline, EditAction::ReplaceTimeline { timeline: snapshot })?;
-        timeline.undo_stack.pop();
-        timeline.redo_stack.push(current);
-        self.reset_after_history_change()
-    }
-
     pub(super) fn redo(&mut self) -> Result<()> {
         let Some(timeline) = self.timeline.as_mut() else {
             return Ok(());
