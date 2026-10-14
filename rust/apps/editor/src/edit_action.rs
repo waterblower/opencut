@@ -2,7 +2,7 @@ use crate::editing::validate_clips_placements;
 use crate::timeline::{TimelineEditorExt, TimelineRuntimeState};
 use ::timeline::{
     Clip, FrameRate, MediaAsset, TextClipProperties, TimelineEditingState, TimelineFrameIndex,
-    Track, VideoClipProperties,
+    Track, VideoClipProperties, compact_text_sections,
 };
 use anyhow::{Result, anyhow, ensure};
 use gpui::{Pixels, Point};
@@ -485,7 +485,7 @@ impl TimelineEditExt for TimelineEditingState {
                 // do nothing: 历史栈属于 TimelineRuntimeState，由 edit_timeline 处理。
             }
             EditAction::KeepTextSections => {
-                data = ::timeline::compact_text_sections(self)?;
+                data = compact_text_sections(self)?;
             }
             EditAction::AddClips { clips, assets } => {
                 data.assets.extend(assets);

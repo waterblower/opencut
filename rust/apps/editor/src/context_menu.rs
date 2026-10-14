@@ -60,7 +60,7 @@ impl Editor {
     ) -> gpui::AnyElement {
         let width = 268.0;
         let can_create_timeline = menu.is_directory;
-        let can_open_timeline_settings =
+        let is_timeline_file =
             !menu.is_directory && timeline_document::is_timeline_path(&menu.relative_path);
         let can_transcribe = !menu.is_directory
             && (is_video_path(&menu.relative_path) || is_audio_path(&menu.relative_path));
@@ -75,11 +75,7 @@ impl Editor {
         let height = 132.0
             + if can_transcribe { 40.0 } else { 0.0 }
             + if can_create_timeline { 40.0 } else { 0.0 }
-            + if can_open_timeline_settings {
-                80.0
-            } else {
-                0.0
-            }
+            + if is_timeline_file { 80.0 } else { 0.0 }
             + if can_rename { 40.0 } else { 0.0 }
             + if can_trash { 40.0 } else { 0.0 };
         let left = menu
@@ -151,7 +147,7 @@ impl Editor {
                             },
                         )))
                     })
-                    .when(can_open_timeline_settings, |this| {
+                    .when(is_timeline_file, |this| {
                         let timeline_path = menu.relative_path.clone();
                         this.child(file_menu_item("Settings", "").on_click(cx.listener(
                             move |editor, _, _, cx| {
@@ -170,7 +166,7 @@ impl Editor {
                             },
                         )))
                     })
-                    .when(can_open_timeline_settings, |this| {
+                    .when(is_timeline_file, |this| {
                         let timeline_path = menu.relative_path.clone();
                         this.child(
                             file_menu_item("Keep Text Sections", "").on_click(cx.listener(

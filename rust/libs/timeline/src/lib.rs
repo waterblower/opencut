@@ -8,11 +8,11 @@ mod clip;
 mod editing_state;
 mod text_sections;
 mod time;
-pub use text_sections::compact_text_sections;
 mod track;
 pub use asset::*;
 pub use clip::*;
 pub use editing_state::TimelineEditingState;
+pub use text_sections::compact_text_sections;
 pub use time::*;
 pub use track::*;
 
