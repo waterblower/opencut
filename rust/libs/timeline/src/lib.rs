@@ -7,6 +7,8 @@ mod asset;
 mod clip;
 mod editing_state;
 mod time;
+mod text_sections;
+pub use text_sections::compact_text_sections;
 mod track;
 pub use asset::*;
 pub use clip::*;

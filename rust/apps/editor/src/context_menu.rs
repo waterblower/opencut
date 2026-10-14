@@ -76,7 +76,7 @@ impl Editor {
             + if can_transcribe { 40.0 } else { 0.0 }
             + if can_create_timeline { 40.0 } else { 0.0 }
             + if can_open_timeline_settings {
-                40.0
+                80.0
             } else {
                 0.0
             }
@@ -167,6 +167,20 @@ impl Editor {
                                     editor.settings_open = true;
                                 }
                                 cx.notify();
+                            },
+                        )))
+                    })
+                    .when(can_open_timeline_settings, |this| {
+                        let timeline_path = menu.relative_path.clone();
+                        this.child(file_menu_item("Keep Text Sections", "").on_click(cx.listener(
+                            move |editor, _, _, cx| {
+                                editor.dismiss_context_menu();
+                                cx.notify();
+                                if let Err(error) = editor.open_timeline(timeline_path.clone(), cx) {
+                                    log::error!("Could not open timeline: {error:?}");
+                                    return;
+                                }
+                                editor.emit_event(cx, AppEvent::Edit(EditAction::KeepTextSections));
                             },
                         )))
                     })

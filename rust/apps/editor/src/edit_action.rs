@@ -89,6 +89,7 @@ pub enum EditAction {
     ReplaceTimeline {
         timeline: TimelineEditingState,
     },
+    KeepTextSections,
     Undo,
     Redo,
 }
@@ -438,9 +439,9 @@ pub fn edit_timeline(timeline: &mut TimelineRuntimeState, action: EditAction) ->
                     should_save: true,
                 }
             }
-            action @ EditAction::RemoveClips { .. } => {
+            action @ (EditAction::RemoveClips { .. } | EditAction::KeepTextSections) => {
                 let new_state = timeline.editing_state.edit(action)?;
-                // 后处理：删除的就是当前选中的片段，清空选择。
+                // 后处理：片段可能已删除或裁剪，清空选择。
                 timeline.interaction.selected_clip_ids.clear();
                 timeline.interaction.selected_clip_id = None;
                 Outcome {
@@ -482,6 +483,9 @@ impl TimelineEditExt for TimelineEditingState {
             }
             EditAction::Undo | EditAction::Redo => {
                 // do nothing: 历史栈属于 TimelineRuntimeState，由 edit_timeline 处理。
+            }
+            EditAction::KeepTextSections => {
+                data = ::timeline::compact_text_sections(self)?;
             }
             EditAction::AddClips { clips, assets } => {
                 data.assets.extend(assets);
