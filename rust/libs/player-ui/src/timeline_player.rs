@@ -80,34 +80,26 @@ impl TimelinePlayer {
         cx.spawn(async move |player, cx| {
             loop {
                 let Ok(wait) = player.update(cx, |player, cx| {
-                    match player.audio_output.take_default_device_change() {
-                        Ok(Some(change)) => {
-                            let previous = match &change.previous {
-                                Some(id) => id.to_string(),
-                                None => "none".to_string(),
-                            };
-                            let current = match &change.current {
-                                Some((id, name)) => format!("{name} [{id}]"),
-                                None => "none".to_string(),
-                            };
-                            eprintln!("Audio output device changed: {previous} -> {current}");
-                            // 旧流可能已被 cpal 随断开的设备停止且不再消费 PCM。
-                            if let Err(error) = player.restart_audio_output() {
-                                player.fail(error, cx);
+                    let result: Result<_> = (|| {
+                        let advance = player.backend.advance()?; // 先推进：到达结尾时本拍即更新播放状态。
+                        player.sync_audio()?; // 先于设备检查：设备查询出错时，暂停后的输出仍已停止。
+                        if player.backend.is_playing() {
+                            match player.audio_output.default_device_changed()? {
+                                Some((id, name)) => {
+                                    eprintln!("Audio output device changed to {name} [{id}]");
+                                    // 旧流可能已被 cpal 随断开的设备停止且不再消费 PCM；重建后流即在新设备上。
+                                    player.restart_audio_output()?;
+                                }
+                                None => {
+                                    // do nothing: 流已在默认输出设备上。
+                                }
                             }
+                        } else {
+                            // do nothing: 暂停时下次 play 会在当前默认设备上重建流；
+                            // 自然结束时保留旧流，让尾音播完。
                         }
-                        Ok(None) => {
-                            // do nothing: 默认输出设备未变化。
-                        }
-                        Err(error) => player.fail(error, cx),
-                    }
-                    let result = match player.backend.advance() {
-                        Ok(advance) => match player.sync_audio() {
-                            Ok(()) => Ok(advance),
-                            Err(error) => Err(error),
-                        },
-                        Err(error) => Err(error),
-                    };
+                        Ok(advance)
+                    })();
                     match result {
                         Ok(advance) => {
                             if advance.changed {
