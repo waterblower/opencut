@@ -19,7 +19,6 @@ pub struct AudioOutput {
     error_sender: Arc<Mutex<Option<oneshot::Sender<cpal::StreamError>>>>,
     device_error: Shared<oneshot::Receiver<cpal::StreamError>>,
     stream: cpal::Stream,
-}
     device_id: cpal::DeviceId, // 建流时的默认输出设备，即当前流所在的设备；系统默认设备之后可能已变化。
 }
 
