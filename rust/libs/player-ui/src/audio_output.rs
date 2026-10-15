@@ -19,6 +19,7 @@ pub struct AudioOutput {
     error_sender: Arc<Mutex<Option<oneshot::Sender<cpal::StreamError>>>>,
     device_error: Shared<oneshot::Receiver<cpal::StreamError>>,
     stream: cpal::Stream,
+    device_id: cpal::DeviceId, // 建流时的默认输出设备，即当前流所在的设备；系统默认设备之后可能已变化。
 }
 
 impl AudioOutput {
@@ -30,6 +31,7 @@ impl AudioOutput {
         let device = cpal::default_host()
             .default_output_device()
             .context("no audio output device")?;
+        let device_id = device.id().context("reading audio output device id")?;
         let default = device
             .default_output_config()
             .context("reading audio output configuration")?;
@@ -102,7 +104,26 @@ impl AudioOutput {
             error_sender,
             device_error,
             stream,
+            device_id,
         })
+    }
+
+    /// The system default output device's ID and name, when it is not the device this stream
+    /// plays on. [`Self::clear_at`] rebuilds the stream on the default device.
+    pub fn default_device_changed(&self) -> Result<Option<(cpal::DeviceId, String)>> {
+        let device = cpal::default_host()
+            .default_output_device()
+            .context("no audio output device")?;
+        let id = device.id().context("reading audio output device id")?;
+        if id == self.device_id {
+            return Ok(None);
+        }
+        let name = device
+            .description()
+            .context("reading audio output device name")?
+            .name()
+            .to_string();
+        Ok(Some((id, name)))
     }
 
     /// 等待设备错误；设备错误和通知通道关闭错误都向调用方传播。
@@ -237,25 +258,19 @@ impl AudioOutput {
         let output = {
             let error_sender = self.error_sender.clone();
             let device_error = self.device_error.clone();
+            // 默认设备可能已换成耳机等；macOS 的默认输出流会自行转换采样率，
+            // 因此沿用 open() 时选定的格式，混音与已入队格式都不受设备变化影响。
             let device = cpal::default_host()
                 .default_output_device()
                 .context("no audio output device")?;
-            let default = device
-                .default_output_config()
-                .context("reading audio output configuration")?;
-            let config = if default.sample_format() == cpal::SampleFormat::F32 {
-                default.config()
-            } else {
-                let mut selected = None;
-                for range in device.supported_output_configs()? {
-                    if range.sample_format() == cpal::SampleFormat::F32 {
-                        selected = Some(range.with_max_sample_rate().config());
-                        break;
-                    }
-                }
-                selected.context("audio device has no f32 output configuration")?
+            let device_id = device.id().context("reading audio output device id")?;
+            let format = self.format.clone();
+            let config = cpal::StreamConfig {
+                channels: u16::try_from(format.channel_layout.len())
+                    .context("audio output channel count is too large")?,
+                sample_rate: format.sample_rate,
+                buffer_size: cpal::BufferSize::Default,
             };
-            let format = PcmFormat::default_layout(config.sample_rate, config.channels)?;
             // Bound decode-ahead to one second of interleaved PCM. Submission never
             // grows the buffer, and the device callback never allocates or waits.
             let capacity = (config.sample_rate as usize)
@@ -312,14 +327,12 @@ impl AudioOutput {
                 error_sender,
                 device_error,
                 stream,
+                device_id,
             }
         };
-        if output.format != self.format {
-            bail!("audio output format changed while clearing playback");
-        }
         output.set_playing(false)?;
         // Prepare the replacement before stopping the current stream so an open
-        // or format error leaves the current playback untouched.
+        // error leaves the current playback untouched.
         self.set_playing(false)?;
         *self = output;
         Ok(())

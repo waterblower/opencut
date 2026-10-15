@@ -4,7 +4,7 @@ use crate::editor::Editor;
 use crate::explorer_drag::AssetBeingDragged;
 use crate::explorer_file_entry::select_preview_file;
 use crate::export_window::{ExportState, ExportWindow};
-use crate::generic_containers::HorizontalSplitState;
+use crate::generic_containers::{HorizontalSplitState, VerticalSplitState};
 use crate::global_settings::GlobalEditorSettings;
 use crate::layout::{RULER_HEIGHT, TIMELINE_PADDING, TRACK_HEIGHT};
 use crate::model::MediaKind;
@@ -60,6 +60,7 @@ pub enum AppEvent {
         window: WeakEntity<TranscriptionWindow>,
     },
     HorizontalSplitResized(HorizontalSplitState),
+    VerticalSplitResized(VerticalSplitState),
     Edit(EditAction),
     DragStarted(AssetBeingDragged),
     DragMove(AssetDragMoveEvent),
@@ -344,6 +345,27 @@ async fn handle_app_event(
                                 .map(Path::to_path_buf)
                         }),
                         upper_space_split_state: state,
+                        workspace_split_state: editor.workspace_split_state.read(cx).clone(),
+                    },
+                )?;
+                cx.notify();
+                Ok(())
+            })?;
+        }
+        AppEvent::VerticalSplitResized(state) => {
+            editor.update(cx, |editor, cx| -> Result<()> {
+                save_project_local_settings(
+                    &editor.project_root,
+                    &ProjectLocalSettings {
+                        active_timeline: editor.timeline.as_ref().and_then(|timeline| {
+                            timeline
+                                .path
+                                .strip_prefix(&editor.project_root)
+                                .ok()
+                                .map(Path::to_path_buf)
+                        }),
+                        upper_space_split_state: editor.upper_split_state.read(cx).clone(),
+                        workspace_split_state: state,
                     },
                 )?;
                 cx.notify();
