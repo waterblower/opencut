@@ -19,6 +19,14 @@ pub struct AudioOutput {
     error_sender: Arc<Mutex<Option<oneshot::Sender<cpal::StreamError>>>>,
     device_error: Shared<oneshot::Receiver<cpal::StreamError>>,
     stream: cpal::Stream,
+    default_device_id: Option<cpal::DeviceId>, // 最近一次观察到的系统默认输出设备，不一定是当前流所在的设备；None：当时没有默认设备。
+}
+
+/// The system default output device changed since the last observation.
+#[rustfmt::skip]
+pub struct DefaultDeviceChange {
+    pub previous: Option<cpal::DeviceId>,         // None：之前没有默认输出设备。
+    pub current: Option<(cpal::DeviceId, String)>, // (ID, 名称)；None：现在没有默认输出设备。
 }
 
 impl AudioOutput {
@@ -30,6 +38,7 @@ impl AudioOutput {
         let device = cpal::default_host()
             .default_output_device()
             .context("no audio output device")?;
+        let default_device_id = device.id().context("reading audio output device id")?;
         let default = device
             .default_output_config()
             .context("reading audio output configuration")?;
@@ -102,7 +111,38 @@ impl AudioOutput {
             error_sender,
             device_error,
             stream,
+            default_device_id: Some(default_device_id),
         })
+    }
+
+    /// Reports a change of the system default output device since the last observation, and
+    /// remembers the new one. Only observes; the current stream is not moved to the new device.
+    pub fn take_default_device_change(&mut self) -> Result<Option<DefaultDeviceChange>> {
+        let Some(device) = cpal::default_host().default_output_device() else {
+            if self.default_device_id.is_none() {
+                return Ok(None);
+            }
+            let previous = self.default_device_id.take();
+            return Ok(Some(DefaultDeviceChange {
+                previous,
+                current: None,
+            }));
+        };
+        let id = device.id().context("reading audio output device id")?;
+        if self.default_device_id.as_ref() == Some(&id) {
+            return Ok(None);
+        }
+        let name = device
+            .description()
+            .context("reading audio output device name")?
+            .name()
+            .to_string();
+
+        let previous = std::mem::replace(&mut self.default_device_id, Some(id.clone()));
+        Ok(Some(DefaultDeviceChange {
+            previous,
+            current: Some((id, name)),
+        }))
     }
 
     /// 等待设备错误；设备错误和通知通道关闭错误都向调用方传播。
@@ -237,25 +277,18 @@ impl AudioOutput {
         let output = {
             let error_sender = self.error_sender.clone();
             let device_error = self.device_error.clone();
+            // 默认设备可能已换成耳机等；macOS 的默认输出流会自行转换采样率，
+            // 因此沿用 open() 时选定的格式，混音与已入队格式都不受设备变化影响。
             let device = cpal::default_host()
                 .default_output_device()
                 .context("no audio output device")?;
-            let default = device
-                .default_output_config()
-                .context("reading audio output configuration")?;
-            let config = if default.sample_format() == cpal::SampleFormat::F32 {
-                default.config()
-            } else {
-                let mut selected = None;
-                for range in device.supported_output_configs()? {
-                    if range.sample_format() == cpal::SampleFormat::F32 {
-                        selected = Some(range.with_max_sample_rate().config());
-                        break;
-                    }
-                }
-                selected.context("audio device has no f32 output configuration")?
+            let format = self.format.clone();
+            let config = cpal::StreamConfig {
+                channels: u16::try_from(format.channel_layout.len())
+                    .context("audio output channel count is too large")?,
+                sample_rate: format.sample_rate,
+                buffer_size: cpal::BufferSize::Default,
             };
-            let format = PcmFormat::default_layout(config.sample_rate, config.channels)?;
             // Bound decode-ahead to one second of interleaved PCM. Submission never
             // grows the buffer, and the device callback never allocates or waits.
             let capacity = (config.sample_rate as usize)
@@ -312,14 +345,12 @@ impl AudioOutput {
                 error_sender,
                 device_error,
                 stream,
+                default_device_id: self.default_device_id.clone(), // 沿用上次观察结果，重建流不吞掉尚未报告的设备变化。
             }
         };
-        if output.format != self.format {
-            bail!("audio output format changed while clearing playback");
-        }
         output.set_playing(false)?;
         // Prepare the replacement before stopping the current stream so an open
-        // or format error leaves the current playback untouched.
+        // error leaves the current playback untouched.
         self.set_playing(false)?;
         *self = output;
         Ok(())
