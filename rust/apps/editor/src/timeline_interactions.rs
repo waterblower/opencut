@@ -3,7 +3,7 @@ use crate::editor::Editor;
 use crate::event_bus::AppEvent;
 use crate::layout::{
     MAX_TIMELINE_PIXELS_PER_SECOND, MIN_TIMELINE_PIXELS_PER_SECOND, RULER_HEIGHT, SNAP_DISTANCE_PX,
-    TIMELINE_HEADER_HEIGHT, TIMELINE_HEIGHT, TIMELINE_PADDING, TRACK_HEADER_WIDTH, TRACK_HEIGHT,
+    TIMELINE_HEADER_HEIGHT, TIMELINE_PADDING, TRACK_HEADER_WIDTH, TRACK_HEIGHT,
 };
 use crate::preview::PreviewTarget;
 use crate::timeline::{TimelineEditorExt, TimelineFrameIndex, TimelineRuntimeState};
@@ -337,6 +337,7 @@ impl Editor {
         let (x, y) = Self::timeline_pointer_position(
             event.position.x.into(),
             event.position.y.into(),
+            self.timeline_height(window, cx),
             window,
         );
         let initial_selection = if event.modifiers.secondary() {
@@ -374,6 +375,7 @@ impl Editor {
         let (x, y) = Self::timeline_pointer_position(
             event.position.x.into(),
             event.position.y.into(),
+            self.timeline_height(window, cx),
             window,
         );
         let Some(timeline) = self.timeline.as_mut() else {
@@ -397,6 +399,7 @@ impl Editor {
         let (x, y) = Self::timeline_pointer_position(
             event.position.x.into(),
             event.position.y.into(),
+            self.timeline_height(window, cx),
             window,
         );
         let Some(timeline) = self.timeline.as_mut() else {
@@ -412,14 +415,19 @@ impl Editor {
         cx.notify();
     }
 
-    pub(super) fn timeline_pointer_position(x: f32, y: f32, window: &Window) -> (f32, f32) {
+    pub(super) fn timeline_pointer_position(
+        x: f32,
+        y: f32,
+        timeline_height: f32,
+        window: &Window,
+    ) -> (f32, f32) {
         let viewport = window.viewport_size();
         let viewport_width = f32::from(viewport.width);
         let viewport_height = f32::from(viewport.height);
-        let timeline_top = (viewport_height - TIMELINE_HEIGHT).max(0.0);
+        let timeline_top = (viewport_height - timeline_height).max(0.0); // 时间线面板贴底，顶部由分割后的高度推出。
         (
             x.clamp(TRACK_HEADER_WIDTH, viewport_width),
-            (y - timeline_top).clamp(TIMELINE_HEADER_HEIGHT + RULER_HEIGHT, TIMELINE_HEIGHT),
+            (y - timeline_top).clamp(TIMELINE_HEADER_HEIGHT + RULER_HEIGHT, timeline_height),
         )
     }
 
@@ -566,7 +574,9 @@ impl Editor {
         );
         let timeline_delta = snapped_start - original_anchor_start;
         let viewport_height = f32::from(window.viewport_size().height);
-        let track_top = viewport_height - TIMELINE_HEIGHT + TIMELINE_HEADER_HEIGHT + RULER_HEIGHT;
+        let track_top = viewport_height - self.timeline_height(window, cx)
+            + TIMELINE_HEADER_HEIGHT
+            + RULER_HEIGHT;
         let scroll_y: f32 = timeline.v_scroll.offset().y.into();
         let track_index =
             ((f32::from(event.position.y) - track_top - scroll_y) / TRACK_HEIGHT).floor() as isize;

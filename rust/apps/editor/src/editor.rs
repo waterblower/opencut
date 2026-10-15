@@ -4,7 +4,7 @@ use crate::event_bus::{AppEvent, EventBus};
 use crate::explorer::{ExplorerState, load_explorer_expansion};
 use crate::explorer_drag::AssetBeingDragged;
 use crate::explorer_file_entry::visible_tree;
-use crate::generic_containers::{HorizontalSplitState, TextInput};
+use crate::generic_containers::{HorizontalSplitState, TextInput, VerticalSplitState};
 use crate::preview::{PreviewState, PreviewTarget};
 use crate::project_settings::load_project_local_settings;
 use crate::properties::PropertiesPanelState;
@@ -40,6 +40,7 @@ pub(crate) struct Editor {
     // entities
     pub(super) event_bus: Entity<EventBus>,
     pub(super) upper_split_state: Entity<HorizontalSplitState>,
+    pub(super) workspace_split_state: Entity<VerticalSplitState>,
     pub global_settings_input: Option<Entity<TextInput>>,
 }
 
@@ -109,6 +110,7 @@ impl Editor {
             // Entities
             event_bus,
             upper_split_state: cx.new(|_| project_local_settings.upper_space_split_state),
+            workspace_split_state: cx.new(|_| project_local_settings.workspace_split_state),
             //
             project_root,
             explorer,

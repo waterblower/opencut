@@ -5,8 +5,7 @@ use crate::event_bus::{AppEvent, AssetDragMoveEvent};
 use crate::explorer_drag::AssetBeingDragged;
 use crate::explorer_file_entry::FileTreeEntry;
 use crate::layout::{
-    RULER_HEIGHT, TIMELINE_HEADER_HEIGHT, TIMELINE_HEIGHT, TIMELINE_PADDING, TRACK_HEADER_WIDTH,
-    TRACK_HEIGHT,
+    RULER_HEIGHT, TIMELINE_HEADER_HEIGHT, TIMELINE_PADDING, TRACK_HEADER_WIDTH, TRACK_HEIGHT,
 };
 use crate::preview::PreviewTarget;
 use crate::theme::{ACCENT, BORDER, ERROR, MUTED, SURFACE, SURFACE_HOVER};
@@ -53,13 +52,10 @@ impl Editor {
         let Some(timeline) = self.timeline.as_ref() else {
             return div()
                 .id("editor-timeline-empty")
-                .h(px(TIMELINE_HEIGHT))
-                .flex_shrink_0()
+                .h_full()
                 .flex()
                 .items_center()
                 .justify_center()
-                .border_t_1()
-                .border_color(rgb(BORDER))
                 .bg(rgb(0x0a0a0c))
                 .text_color(rgb(MUTED))
                 .child("Create or select a timeline to begin editing")
@@ -74,12 +70,9 @@ impl Editor {
         div()
             .id("editor-timeline")
             .relative()
-            .h(px(TIMELINE_HEIGHT))
-            .flex_shrink_0()
+            .h_full()
             .flex()
             .flex_col()
-            .border_t_1()
-            .border_color(rgb(BORDER))
             .bg(rgb(0x0a0a0c))
             .on_mouse_move(cx.listener(Self::update_clip_move))
             .on_mouse_move(cx.listener(Self::update_marquee_selection))

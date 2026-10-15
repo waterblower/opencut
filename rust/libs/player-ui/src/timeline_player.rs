@@ -80,13 +80,26 @@ impl TimelinePlayer {
         cx.spawn(async move |player, cx| {
             loop {
                 let Ok(wait) = player.update(cx, |player, cx| {
-                    let result = match player.backend.advance() {
-                        Ok(advance) => match player.sync_audio() {
-                            Ok(()) => Ok(advance),
-                            Err(error) => Err(error),
-                        },
-                        Err(error) => Err(error),
-                    };
+                    let result: Result<_> = (|| {
+                        let advance = player.backend.advance()?; // 先推进：到达结尾时本拍即更新播放状态。
+                        player.sync_audio()?; // 先于设备检查：设备查询出错时，暂停后的输出仍已停止。
+                        if player.backend.is_playing() {
+                            match player.audio_output.default_device_changed()? {
+                                Some((id, name)) => {
+                                    eprintln!("Audio output device changed to {name} [{id}]");
+                                    // 旧流可能已被 cpal 随断开的设备停止且不再消费 PCM；重建后流即在新设备上。
+                                    player.restart_audio_output()?;
+                                }
+                                None => {
+                                    // do nothing: 流已在默认输出设备上。
+                                }
+                            }
+                        } else {
+                            // do nothing: 暂停时下次 play 会在当前默认设备上重建流；
+                            // 自然结束时保留旧流，让尾音播完。
+                        }
+                        Ok(advance)
+                    })();
                     match result {
                         Ok(advance) => {
                             if advance.changed {
@@ -194,14 +207,19 @@ impl TimelinePlayer {
         }
         self.audio_output.set_playing(true)
     }
+
+    /// Stops the output. When playing, also rebuilds the stream on the current default device,
+    /// discarding queued audio, and re-mixes from the clock position.
+    fn restart_audio_output(&mut self) -> Result<()> {
+        self.audio_output.set_playing(false)?; // 输出停止后，播放中的 sync_audio 会经 clear_at 重建流并重置混音位置。
+        self.sync_audio()
+    }
 }
 
 impl Seeker for TimelinePlayer {
     fn seek(&mut self, position: Duration) -> Result<()> {
         self.backend.seek(position)?;
-        // 停止输出；播放中时 sync_audio 从新位置清空队列并重新混音。
-        self.audio_output.set_playing(false)?;
-        self.sync_audio()
+        self.restart_audio_output() // 播放中时从新位置清空队列并重新混音。
     }
 }
 
