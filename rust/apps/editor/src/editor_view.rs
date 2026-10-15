@@ -1,16 +1,18 @@
 use crate::actions::EDITOR_KEY_CONTEXT;
 use crate::editor::Editor;
 use crate::event_bus::AppEvent;
-use crate::generic_containers::{HorizontalSplit, HorizontalSplitConstraints};
+use crate::generic_containers::{
+    HorizontalSplit, HorizontalSplitConstraints, VerticalSplit, VerticalSplitConstraints,
+};
 use crate::layout::{
-    MIN_MEDIA_PANEL_WIDTH, MIN_PREVIEW_WIDTH, MIN_PROPERTIES_PANEL_WIDTH, TIMELINE_HEIGHT,
-    TOPBAR_HEIGHT,
+    MIN_MEDIA_PANEL_WIDTH, MIN_PREVIEW_WIDTH, MIN_PROPERTIES_PANEL_WIDTH, MIN_TIMELINE_HEIGHT,
+    MIN_UPPER_WORKSPACE_HEIGHT, TOPBAR_HEIGHT,
 };
 use crate::properties::{current_properties_panel_viewable, properties_panel};
 use crate::settings::settings_modal_view;
 use crate::theme::{BACKGROUND, BORDER, MUTED, PANEL, SURFACE, SURFACE_HOVER, TEXT};
 use gpui::prelude::*;
-use gpui::{CursorStyle, MouseButton, MouseDownEvent, Window, div, px, rgb};
+use gpui::{App, CursorStyle, MouseButton, MouseDownEvent, Window, div, px, rgb};
 
 impl Render for Editor {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
@@ -20,8 +22,11 @@ impl Render for Editor {
         let editor_width =
             (f32::from(viewport.width) - crate::gpui_inspector::docked_width(window)).max(0.0);
         let editor_viewport = gpui::size(px(editor_width), viewport.height);
-        let preview_height =
-            (f32::from(viewport.height) - TOPBAR_HEIGHT - TIMELINE_HEIGHT).max(240.0);
+        let workspace_height = (f32::from(viewport.height) - TOPBAR_HEIGHT).max(0.0); // 顶栏以下、上半区与时间线共用的高度。
+        let workspace_heights = self
+            .workspace_split_state
+            .read(cx)
+            .heights(workspace_height, WORKSPACE_SPLIT_CONSTRAINTS);
 
         if self.preview.fullscreen {
             return div()
@@ -108,16 +113,15 @@ impl Render for Editor {
             .bg(rgb(BACKGROUND))
             .text_color(rgb(TEXT))
             .child(self.topbar(cx))
-            .child(
-                div()
-                    .id("editor-workspace")
-                    .flex_1()
-                    .min_h_0()
-                    .flex()
-                    .flex_col()
-                    .child(self.upper_workspace(editor_width, preview_height, cx))
-                    .child(self.timeline_view(cx)),
-            )
+            .child(VerticalSplit::new(
+                "editor-workspace",
+                self.workspace_split_state.clone(),
+                self.event_bus.clone(),
+                workspace_height,
+                WORKSPACE_SPLIT_CONSTRAINTS,
+                self.upper_workspace(editor_width, workspace_heights.top, cx),
+                self.timeline_view(cx),
+            ))
             .when_some(context_menu, |this, menu| this.child(menu))
             .when_some(rename_dialog, |this, dialog| this.child(dialog))
             .when_some(new_timeline_dialog, |this, dialog| this.child(dialog))
@@ -125,6 +129,18 @@ impl Render for Editor {
             .when(self.global_settings_input.is_some(), |this| {
                 this.child(self.global_settings_dialog(cx))
             })
+    }
+}
+
+// Public APIs only
+impl Editor {
+    /// The height of the timeline panel at the bottom of the window, as laid out by `render`.
+    pub(super) fn timeline_height(&self, window: &Window, cx: &App) -> f32 {
+        let workspace_height = (f32::from(window.viewport_size().height) - TOPBAR_HEIGHT).max(0.0);
+        self.workspace_split_state
+            .read(cx)
+            .heights(workspace_height, WORKSPACE_SPLIT_CONSTRAINTS)
+            .bottom
     }
 }
 
@@ -251,3 +267,8 @@ fn toolbar_button(label: &'static str, enabled: bool) -> gpui::Stateful<gpui::Di
         })
         .child(label.to_string())
 }
+
+const WORKSPACE_SPLIT_CONSTRAINTS: VerticalSplitConstraints = VerticalSplitConstraints {
+    min_top: MIN_UPPER_WORKSPACE_HEIGHT,
+    min_bottom: MIN_TIMELINE_HEIGHT,
+};

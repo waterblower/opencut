@@ -1,4 +1,4 @@
-use crate::generic_containers::HorizontalSplitState;
+use crate::generic_containers::{HorizontalSplitState, VerticalSplitState};
 use anyhow::{Context as _, Result, bail};
 use serde::{Deserialize, Serialize};
 use std::fs;
@@ -9,6 +9,7 @@ use std::path::{Path, PathBuf};
 pub struct ProjectLocalSettings {
     pub active_timeline: Option<PathBuf>,
     pub upper_space_split_state: HorizontalSplitState,
+    pub workspace_split_state: VerticalSplitState, // 上半区与时间线之间的分割；只保存时间线高度。
 }
 
 impl Default for ProjectLocalSettings {
@@ -19,6 +20,7 @@ impl Default for ProjectLocalSettings {
                 crate::layout::DEFAULT_MEDIA_PANEL_WIDTH,
                 crate::layout::DEFAULT_PROPERTIES_PANEL_WIDTH,
             ),
+            workspace_split_state: VerticalSplitState::new(crate::layout::DEFAULT_TIMELINE_HEIGHT),
         }
     }
 }
