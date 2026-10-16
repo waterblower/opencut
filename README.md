@@ -46,15 +46,11 @@ cargo check --config .cargo/macos.toml -p editor   # Windows: .cargo/windows.tom
 
 ## Documentation
 
-- [Design spec](design-spec.md): user stories and acceptance criteria for the
+- [Design spec](design/spec.md): user stories and acceptance criteria for the
   editor, including supported files, shortcuts, and project data.
-- [CLI](rust/apps/cli/README.md): probing, validating, editing, and exporting
-  timelines from the command line.
-- [Transcription library](rust/libs/transcribe/src/README.md): MiniMax speech
-  recognition used by the CLI and editor.
-- [Development guidelines](.agents/skills/opencut-development/SKILL.md):
+- [Agent Skill](.agents/skills/opencut-development/SKILL.md):
   implementation and code review conventions.
-- [Thoughts](thoughts/): notes and essays on the project.
+- [Thoughts](thoughts/): essays on the project.
 
 ## Development
 
