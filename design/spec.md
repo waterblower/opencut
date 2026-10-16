@@ -8,14 +8,15 @@ development tools and are not specified here.
 Review status (2026-10-16):
 
 - `[x]` (☑ in tables): passed source review and applicable existing tests.
-- `[ ]` (☐): a known defect or not yet implemented, explained below.
+- `[ ]` (☐): a known defect, missing implementation, or blocked existing test,
+  explained below.
 
 These checks do not represent full end-to-end acceptance: GUI interactions,
 actual MP4 exports, and live MiniMax transcription have not been exercised.
 
 ```text
-█ passed   ░ defect or not implemented
-Counts: passed / defect; each block pair is one criterion.
+█ passed   ░ open (defect, missing implementation, or blocked test)
+Counts: passed / open; each block pair is one criterion.
 
 Projects and media            ████████████████░░░░░░           8 / 3
 Timelines                     ████████░░                       4 / 1
@@ -46,9 +47,9 @@ already in it, so that I don't have to import or copy media.
 - [ ] Waveforms are generated in the background and kept in memory only.
 - [x] Source media is never rewritten.
 
-Review: images cannot be dropped yet because image tracks do not exist (see
-[Tracks](#3-tracks)). Background waveform generation and memory caching are
-implemented, but the waveform test cannot complete because its media fixture
+Review: the drop handler rejects images, and the planned image tracks do not
+exist yet (see [Tracks](#3-tracks)). Background waveform generation and memory
+caching are implemented, but the waveform test cannot complete because its media fixture
 `rust/data/tests/super long.mp4` is missing.
 
 Supported file extensions:
@@ -102,8 +103,9 @@ that restructuring an edit doesn't take one clip at a time.
 
 - [x] Clips are selected by clicking, Command-clicking to add or remove, or drawing
   a selection rectangle.
-- [x] Move, duplicate, copy, cut, paste, and delete work on multiple clips, keep
-  their relative timing, and are each a single undo step.
+- [x] Move, duplicate, copy, cut, paste, and delete work on multiple clips and
+  keep their relative timing. Each operation that changes the timeline is a
+  single undo step.
 - [x] The selection tool moves clips within and between compatible tracks.
 - [x] The blade tool splits clips at the playhead.
 - [x] Invalid moves are rejected with visible feedback.
@@ -117,6 +119,10 @@ so that I can tighten cuts directly on the timeline.
 - [x] Trimming respects neighboring clips, the source media's length, and a
   one-frame minimum.
 - [x] Each drag is one undo step and saves on release.
+
+Review: image trimming works for existing timeline files that represent images
+as video clips. Dedicated image tracks and Explorer image drops remain open in
+[Tracks](#3-tracks).
 
 ## 6. Timeline navigation
 
@@ -156,9 +162,10 @@ that I can judge the edit without exporting.
 Review: mixing handles mute and gain in the player's snapshot, but changing
 track mute does not refresh that snapshot. These edits also save without
 refreshing the preview: track controls, paste, duplicate, splitting, Explorer
-drops, position and scale changes in the properties panel, applying a transform
-to a track, adding a text clip from the track menu, and renaming media. Undo
-and redo use the refresh path.
+drops, applying a transform to a track, adding a text clip from the track menu,
+and renaming media. The video-properties setter also bypasses refresh, but the
+current video properties panel displays position and scale as read-only values.
+Undo and redo use the refresh path.
 
 ## 9. Subtitles and text
 
@@ -191,7 +198,8 @@ a live transcription and cancellation run is still pending.
 ### Keep only the spoken parts
 
 - [x] Right-clicking a timeline file and choosing **Keep Text Sections** removes
-  time not covered by text clips, across all tracks, and closes the gaps.
+  time outside text-covered sections and their padding, across all tracks, and
+  closes the gaps.
 - [x] About 25 ms of padding, rounded to timeline frames, is kept on each side of
   each text section.
 - [x] The operation is one undo step.

@@ -26,14 +26,17 @@ Run commands from `rust`. Each command selects a platform explicitly:
 
 ```sh
 cargo editor-mac                 # Windows: cargo editor-win
-cargo player-mac -- <file>       # Windows: cargo player-win -- <file>
+cargo player-mac <file>          # Windows: cargo player-win <file>
 cargo build-editor-mac
 cargo build-player-mac
 cargo test-mac                   # Windows: cargo test-win
 ```
 
-Extra Cargo flags such as `--release` are forwarded; application arguments
-follow `--`. These are native host commands, not cross-compilation commands.
+Editor, build, and test aliases accept extra Cargo flags such as `--release`.
+Player aliases already include Cargo's `--` separator, so pass the file directly.
+For a release player run, use
+`cargo run --config .cargo/cli.toml -p player --release -- <file>` on macOS.
+These are native host commands, not cross-compilation commands.
 Editor aliases load `.cargo/macos.toml` or `.cargo/windows.toml`; player aliases
 use the FFmpeg-only `.cargo/cli.toml` or `.cargo/ffmpeg-windows.toml`. Small
 shell runners set the runtime library paths for the vendored FFmpeg.

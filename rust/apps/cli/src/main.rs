@@ -1,7 +1,6 @@
 use anyhow::{Context as _, Error, Result, anyhow};
 use timeline::TimelineSerialization;
 mod args;
-mod docs;
 pub mod document;
 pub mod error;
 mod export;
@@ -169,7 +168,6 @@ async fn run(command: Command, api_key: Option<&str>) -> Result<Value> {
             TimelineSerialization
         ))
         .context(format!("serialization_error at {}:{}", file!(), line!()))?),
-        Command::Doc => Ok(json!(docs::generate()?)),
         Command::Validate { timeline } => {
             let doc = TimelineSerialization::load(&timeline)?.editing_state;
             let base = document::asset_base(&timeline)?;
