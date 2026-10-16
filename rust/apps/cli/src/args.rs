@@ -48,9 +48,6 @@ pub enum Command {
         #[arg(long, default_value = "json-schema", value_parser = ["json-schema"])]
         format: String,
     },
-    /// Print an agent-friendly Markdown guide to using the CLI.
-    #[command(alias = "docs")]
-    Doc,
 }
 
 #[derive(clap::Args)]
