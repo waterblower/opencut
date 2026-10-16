@@ -9,10 +9,28 @@ Review status (2026-10-16):
 
 - `[x]` (☑ in tables): passed source review and applicable existing tests.
 - `[ ]` (☐): a known defect or not yet implemented, explained below.
-- `[?]` (? in tables): implemented, but verification is still pending.
 
 These checks do not represent full end-to-end acceptance: GUI interactions,
 actual MP4 exports, and live MiniMax transcription have not been exercised.
+
+```text
+█ passed   ░ defect or not implemented
+Counts: passed / defect; each block pair is one criterion.
+
+Projects and media            ████████████████░░░░░░           8 / 3
+Timelines                     ████████░░                       4 / 1
+Tracks                        ████████░░░░                     4 / 2
+Selecting and editing clips   ██████████                       5 / 0
+Trimming                      ██████                           3 / 0
+Timeline navigation           ████████░░                       4 / 1
+Workspace layout              ██████                           3 / 0
+Preview                       ████░░░░                         2 / 2
+Subtitles and text            ████████████████████            10 / 0
+Export                        ██████████                       5 / 0
+Keyboard shortcuts            ████████████████████████████░░  14 / 1
+Project data and persistence  ████████████░░                   6 / 1
+Total                                                         68 / 11
+```
 
 ## 1. Projects and media
 
@@ -25,7 +43,7 @@ already in it, so that I don't have to import or copy media.
 - [x] The Explorer can be filtered.
 - [x] Selecting a media file previews it in place.
 - [ ] Media can be dragged from the Explorer onto a compatible track.
-- [?] Waveforms are generated in the background and kept in memory only.
+- [ ] Waveforms are generated in the background and kept in memory only.
 - [x] Source media is never rewritten.
 
 Review: images cannot be dropped yet because image tracks do not exist (see
@@ -152,7 +170,7 @@ recording into a tight, captioned edit.
 
 - [x] Right-clicking an audio or video file and choosing **Generate SRT** opens a
   transcription window.
-- [?] **Start** begins transcription. The window shows the current stage
+- [x] **Start** begins transcription. The window shows the current stage
   (preparing, transcribing, saving) and offers **Cancel**.
 - [x] The result is written to `<source name>.srt` in the project root.
 - [x] Transcription uses MiniMax. The API key is entered under **Settings** in the
@@ -188,7 +206,7 @@ I can publish it.
 - [x] The export uses a snapshot of the timeline taken when the export window
   opens.
 - [x] The output format is MP4.
-- [?] The window shows progress and provides **Stop export**.
+- [x] The window shows progress and provides **Stop export**.
 - [x] The window cannot be closed while an export is running.
 
 Review: progress and stop handling are implemented, but an actual export and
