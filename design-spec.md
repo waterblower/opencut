@@ -5,28 +5,42 @@ view. Each feature is written as a user story followed by acceptance criteria.
 The editor is OpenCut's only end-user product; the `player` and `cli` apps are
 development tools and are not specified here.
 
+Review status (2026-10-16):
+
+- `[x]` (☑ in tables): passed source review and applicable existing tests.
+- `[ ]` (☐): a known defect or not yet implemented, explained below.
+- `[?]` (? in tables): implemented, but verification is still pending.
+
+These checks do not represent full end-to-end acceptance: GUI interactions,
+actual MP4 exports, and live MiniMax transcription have not been exercised.
+
 ## 1. Projects and media
 
 **Story:** As a creator, I want to open a folder as a project and use the files
 already in it, so that I don't have to import or copy media.
 
-- Any folder can be opened as a project.
-- Supported media appears in a live file tree (the Explorer) without an import
+- [x] Any folder can be opened as a project.
+- [x] Supported media appears in a live file tree (the Explorer) without an import
   step.
-- The Explorer can be filtered.
-- Selecting a media file previews it in place.
-- Media can be dragged from the Explorer onto a compatible track.
-- Waveforms are generated in the background and kept in memory only.
-- Source media is never rewritten.
+- [x] The Explorer can be filtered.
+- [x] Selecting a media file previews it in place.
+- [ ] Media can be dragged from the Explorer onto a compatible track.
+- [?] Waveforms are generated in the background and kept in memory only.
+- [x] Source media is never rewritten.
+
+Review: images cannot be dropped yet because image tracks do not exist (see
+[Tracks](#3-tracks)). Background waveform generation and memory caching are
+implemented, but the waveform test cannot complete because its media fixture
+`rust/data/tests/super long.mp4` is missing.
 
 Supported file extensions:
 
-| Kind | Extensions | Notes |
-| --- | --- | --- |
-| Video | `.mp4`, `.mov`, `.m4v`, `.mkv`, `.webm`, `.avi` | |
-| Image | `.png`, `.jpg`, `.jpeg`, `.gif`, `.webp`, `.bmp`, `.ico` | Added as five-second still clips |
-| Audio | `.aac`, `.flac`, `.m4a`, `.mp3`, `.ogg`, `.wav` | |
-| Subtitles | `.srt` | Added as text clips |
+| Status | Kind | Extensions | Notes |
+| --- | --- | --- | --- |
+| ☑ | Video | `.mp4`, `.mov`, `.m4v`, `.mkv`, `.webm`, `.avi` | |
+| ☐ | Image | `.png`, `.jpg`, `.jpeg`, `.gif`, `.webp`, `.bmp`, `.ico` | Added to image tracks as five-second still clips |
+| ☑ | Audio | `.aac`, `.flac`, `.m4a`, `.mp3`, `.ogg`, `.wav` | |
+| ☑ | Subtitles | `.srt` | Added as text clips |
 
 ## 2. Timelines
 
@@ -34,81 +48,99 @@ Supported file extensions:
 that I can keep several versions, move them, and back them up like any other
 file.
 
-- A timeline is a JSON file named `*.timeline` or `*.timeline.json`, anywhere in
+- [x] A timeline is a JSON file named `*.timeline` or `*.timeline.json`, anywhere in
   the project.
-- Right-clicking a folder and choosing **Create New Timeline** creates a
+- [x] Right-clicking a folder and choosing **Create New Timeline** creates a
   `.timeline` file there. Clicking a timeline file in the Explorer opens it.
-- Right-clicking a timeline file and choosing **Settings** changes its frame
+- [ ] Right-clicking a timeline file and choosing **Settings** changes its frame
   rate. The playhead is rescaled to the new rate.
-- A new timeline has no tracks.
-- Every committed edit saves the timeline automatically.
+- [x] A new timeline has no tracks.
+- [x] Every committed edit saves the timeline automatically.
+
+Review: decreasing the frame rate can clamp the old playhead before rescaling
+it, producing the wrong position.
 
 ## 3. Tracks
 
-**Story:** As a creator, I want separate video, audio, and text tracks that I
-can organize, so that I can layer footage, sound, and subtitles.
+**Story:** As a creator, I want separate video, image, audio, and text tracks
+that I can organize, so that I can layer footage, stills, sound, and subtitles.
 
-- Tracks can be created, deleted, reordered, hidden, muted, and locked.
-- Video tracks accept video and still images.
-- Audio tracks accept audio files.
-- Text tracks accept `.srt` files. Dropping one adds one text clip per subtitle,
+- [ ] Tracks can be created, deleted, reordered, hidden, muted, and locked.
+- [x] Video tracks accept video files only.
+- [ ] Image tracks accept still images.
+- [x] Audio tracks accept audio files.
+- [x] Text tracks accept `.srt` files. Dropping one adds one text clip per subtitle,
   offset by the drop position.
-- Locked tracks are excluded from selection shortcuts.
+- [x] Locked tracks are excluded from selection shortcuts.
+
+Review: track controls update the document, but visibility, mute, reordering,
+and deletion do not refresh the open preview. Image tracks are not implemented;
+the drop handler currently rejects image files on every track.
 
 ## 4. Selecting and editing clips
 
 **Story:** As a creator, I want to select and rearrange many clips at once, so
 that restructuring an edit doesn't take one clip at a time.
 
-- Clips are selected by clicking, Command-clicking to add or remove, or drawing
+- [x] Clips are selected by clicking, Command-clicking to add or remove, or drawing
   a selection rectangle.
-- Move, duplicate, copy, cut, paste, and delete work on multiple clips, keep
+- [x] Move, duplicate, copy, cut, paste, and delete work on multiple clips, keep
   their relative timing, and are each a single undo step.
-- The selection tool moves clips within and between compatible tracks.
-- The blade tool splits clips at the playhead.
-- Invalid moves are rejected with visible feedback.
+- [x] The selection tool moves clips within and between compatible tracks.
+- [x] The blade tool splits clips at the playhead.
+- [x] Invalid moves are rejected with visible feedback.
 
 ## 5. Trimming
 
 **Story:** As a creator, I want to drag a clip's edges to change its duration,
 so that I can tighten cuts directly on the timeline.
 
-- Either edge of a video, audio, image, or text clip can be dragged.
-- Trimming respects neighboring clips, the source media's length, and a
+- [x] Either edge of a video, audio, image, or text clip can be dragged.
+- [x] Trimming respects neighboring clips, the source media's length, and a
   one-frame minimum.
-- Each drag is one undo step and saves on release.
+- [x] Each drag is one undo step and saves on release.
 
 ## 6. Timeline navigation
 
 **Story:** As a creator, I want to zoom, scroll, and snap precisely, so that I
 can make frame-accurate edits.
 
-- The timeline is frame-based.
-- The timeline supports horizontal zoom, including trackpad pinch, and
+- [x] The timeline is frame-based.
+- [x] The timeline supports horizontal zoom, including trackpad pinch, and
   scrolling. Frame ticks appear at high zoom.
-- Clicking the ruler moves the playhead.
-- Optional snapping (**Snap on** / **Snap off**) aligns to the playhead and clip
+- [x] Clicking the ruler moves the playhead.
+- [x] Optional snapping (**Snap on** / **Snap off**) aligns to the playhead and clip
   edges.
-- Playhead, scroll, zoom, and snapping are saved per timeline.
+- [ ] Playhead, scroll, zoom, and snapping are saved per timeline.
+
+Review: toggling snapping does not save the timeline. Exiting before another
+save loses that change. Empty timelines also have a playhead-clamping defect.
 
 ## 7. Workspace layout
 
 **Story:** As a creator, I want to size the panels to my task, so that I can
 give more room to the timeline or the preview as needed.
 
-- The media and properties panels beside the preview can be resized.
-- Dragging the divider above the timeline resizes the timeline panel.
-- Panel sizes are saved per project.
+- [x] The media and properties panels beside the preview can be resized.
+- [x] Dragging the divider above the timeline resizes the timeline panel.
+- [x] Panel sizes are saved per project.
 
 ## 8. Preview
 
 **Story:** As a creator, I want to play the timeline as it will be exported, so
 that I can judge the edit without exporting.
 
-- The preview composites video, including each clip's position and scale.
-- Audio is mixed and respects track mute, clip mute, and clip gain.
-- Each saved edit, including undo and redo, refreshes the preview.
-- The preview can be shown fullscreen.
+- [x] The preview composites video, including each clip's position and scale.
+- [ ] Audio is mixed and respects track mute, clip mute, and clip gain.
+- [ ] Each saved edit, including undo and redo, refreshes the preview.
+- [x] The preview can be shown fullscreen.
+
+Review: mixing handles mute and gain in the player's snapshot, but changing
+track mute does not refresh that snapshot. These edits also save without
+refreshing the preview: track controls, paste, duplicate, splitting, Explorer
+drops, position and scale changes in the properties panel, applying a transform
+to a track, adding a text clip from the track menu, and renaming media. Undo
+and redo use the refresh path.
 
 ## 9. Subtitles and text
 
@@ -118,60 +150,73 @@ recording into a tight, captioned edit.
 
 ### Generate subtitles
 
-- Right-clicking an audio or video file and choosing **Generate SRT** opens a
+- [x] Right-clicking an audio or video file and choosing **Generate SRT** opens a
   transcription window.
-- **Start** begins transcription. The window shows the current stage
+- [?] **Start** begins transcription. The window shows the current stage
   (preparing, transcribing, saving) and offers **Cancel**.
-- The result is written to `<source name>.srt` in the project root.
-- Transcription uses MiniMax. The API key is entered under **Settings** in the
+- [x] The result is written to `<source name>.srt` in the project root.
+- [x] Transcription uses MiniMax. The API key is entered under **Settings** in the
   top bar.
+
+Review: the request, stage updates, and cancellation controls are implemented;
+a live transcription and cancellation run is still pending.
 
 ### Position and style subtitles
 
-- Text clips can be selected and dragged directly in the preview.
-- With **Snap on**, dragged text aligns to canvas centers and edges, with
+- [x] Text clips can be selected and dragged directly in the preview.
+- [x] With **Snap on**, dragged text aligns to canvas centers and edges, with
   visible guides.
-- Right-clicking a text clip and choosing **Apply style to track** copies its
+- [x] Right-clicking a text clip and choosing **Apply style to track** copies its
   font, size, color, and position to every other text clip on the same track,
   preserving their words and timing.
 
 ### Keep only the spoken parts
 
-- Right-clicking a timeline file and choosing **Keep Text Sections** removes
+- [x] Right-clicking a timeline file and choosing **Keep Text Sections** removes
   time not covered by text clips, across all tracks, and closes the gaps.
-- The operation is one undo step.
+- [x] About 25 ms of padding, rounded to timeline frames, is kept on each side of
+  each text section.
+- [x] The operation is one undo step.
 
 ## 10. Export
 
 **Story:** As a creator, I want to export my timeline to a video file, so that
 I can publish it.
 
-- The top-right **Export** button opens a separate export window for the active
+- [x] The top-right **Export** button opens a separate export window for the active
   timeline.
-- The export uses a snapshot of the timeline taken when it starts.
-- The output format is MP4.
-- The window shows progress and provides **Stop export**.
-- The window cannot be closed while an export is running.
+- [x] The export uses a snapshot of the timeline taken when the export window
+  opens.
+- [x] The output format is MP4.
+- [?] The window shows progress and provides **Stop export**.
+- [x] The window cannot be closed while an export is running.
+
+Review: progress and stop handling are implemented, but an actual export and
+stop run is still pending.
 
 ## 11. Keyboard shortcuts
 
-| Shortcut | Action |
-| --- | --- |
-| `Space` | Play or pause the preview |
-| `Left` / `Right` | Move the playhead one frame |
-| `V` / `B` | Selection / blade tool |
-| `Command-click` | Add or remove a clip from the selection |
-| `Command-A` | Select all clips on unlocked tracks |
-| `]` | Select clips intersecting the mouse position and all clips to its right on unlocked tracks (pointer over timeline) |
-| `Command-B` | Split the selected clips at the playhead |
-| `Backspace` / `Delete` | Delete the selected clips |
-| `Command-D` | Duplicate the selected clips |
-| `Command-C` / `Command-X` / `Command-V` | Copy / cut / paste clips |
-| `Command-Z` / `Command-Shift-Z` | Undo / redo |
-| `F` / `Esc` | Enter / exit fullscreen preview |
-| `Option-Command-I` | Toggle the GPUI inspector |
-| `Option-Command-R` | Reveal the selected entry in Finder |
-| `Control-Shift-Enter` | Open the selected entry in its default app |
+| Status | Shortcut | Action |
+| --- | --- | --- |
+| ☑ | `Space` | Play or pause the preview |
+| ☑ | `Left` / `Right` | Move the playhead one frame |
+| ☑ | `V` / `B` | Selection / blade tool |
+| ☑ | `Command-click` | Add or remove a clip from the selection |
+| ☑ | `Command-A` | Select all clips on unlocked tracks |
+| ☑ | `]` | Select clips intersecting the mouse position and all clips to its right on unlocked tracks (pointer over timeline) |
+| ☐ | `Command-B` | Split at the playhead: the selected clips, or every clip crossing the playhead when nothing is selected. Clips on locked tracks are never split. |
+| ☑ | `Backspace` / `Delete` | Delete the selected clips |
+| ☑ | `Command-D` | Duplicate the selected clips |
+| ☑ | `Command-C` / `Command-X` / `Command-V` | Copy / cut / paste clips |
+| ☑ | `Command-Z` / `Command-Shift-Z` | Undo / redo |
+| ☑ | `F` / `Esc` | Enter / exit fullscreen preview |
+| ☑ | `Option-Command-I` | Toggle the GPUI inspector |
+| ☑ | `Option-Command-R` | Reveal the selected entry in Finder |
+| ☑ | `Control-Shift-Enter` | Open the selected entry in its default app |
+
+Review: Command-B ignores the selection and always splits every clip crossing
+the playhead on unlocked tracks. Left and Right move the editing playhead; they do
+not seek the preview player.
 
 ## 12. Project data and persistence
 
@@ -179,22 +224,22 @@ I can publish it.
 restored, so that I can move work between machines and pick up where I left
 off.
 
-- Each timeline file stores its settings, media metadata, tracks, clips, and
+- [x] Each timeline file stores its settings, media metadata, tracks, clips, and
   view state.
-- Media paths are relative to the directory containing the timeline file. For
+- [x] Media paths are relative to the directory containing the timeline file. For
   example, `timelines/edit.timeline.json` references `media/clip.mp4` as
   `../media/clip.mp4`. Absolute media paths are also supported.
-- Timelines and media can be moved or backed up together as long as their
+- [x] Timelines and media can be moved or backed up together as long as their
   relative locations are preserved.
-- Waveforms are not written to the project.
-- Global settings, including the last opened project and the MiniMax API key,
+- [x] Waveforms are not written to the project.
+- [x] Global settings, including the last opened project and the MiniMax API key,
   are stored in `~/.opencut/editor-settings.json`.
-- Each project keeps its active timeline and panel sizes in
+- [x] Each project keeps its active timeline and panel sizes in
   `.opencut/project.json` and its Explorer state in
   `.opencut/file-explorer.json`.
-- On startup, the editor restores the active timeline and its playhead.
+- [ ] On startup, the editor restores the active timeline and its playhead.
 
-## Known limitations
-
-- Clips dropped from the Explorer are not reflected in the preview until the
-  next edit.
+Review: normal restoration is implemented and tested, but empty-timeline
+playhead clamping can produce frame index -1. The editor test run had 85 passes
+and 2 failures (playhead clamping and the missing waveform fixture); the
+timeline library's 8 tests passed.
