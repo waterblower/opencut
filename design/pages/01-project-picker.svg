@@ -7,6 +7,8 @@
 <clipPath id="w1"><rect x="648" y="172" width="560" height="408" rx="10"/></clipPath>
 <clipPath id="w2"><rect x="48" y="672" width="560" height="408" rx="10"/></clipPath>
 <clipPath id="w3"><rect x="648" y="672" width="560" height="408" rx="10"/></clipPath>
+<!-- Copied from rust/apps/editor/icons/app-icon.svg (gradient ids prefixed with "app-icon-").
+     Keep in sync: update this symbol when the app icon changes. -->
 <symbol id="app-icon" viewBox="0 0 1024 1024">
 <defs>
     <linearGradient id="app-icon-tile" x1="192" y1="64" x2="832" y2="960" gradientUnits="userSpaceOnUse">
