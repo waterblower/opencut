@@ -1,0 +1,344 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1336" height="1444" viewBox="0 0 1336 1444">
+<style>.s{font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","Helvetica Neue",Arial,sans-serif}.m{font-family:"SF Mono",Menlo,Monaco,Consolas,monospace}</style>
+<defs>
+<pattern id="checker" width="16" height="16" patternUnits="userSpaceOnUse"><rect width="16" height="16" fill="#1a1a1e"/><rect width="8" height="8" fill="#222227"/><rect x="8" y="8" width="8" height="8" fill="#222227"/></pattern>
+<clipPath id="c1"><rect x="48" y="198" width="280" height="555" rx="10"/></clipPath>
+<clipPath id="c2"><rect x="48" y="198" width="280" height="555" rx="0"/></clipPath>
+<clipPath id="c3"><rect x="368" y="198" width="280" height="555" rx="10"/></clipPath>
+<clipPath id="c4"><rect x="368" y="198" width="280" height="555" rx="0"/></clipPath>
+<clipPath id="c5"><rect x="688" y="198" width="280" height="555" rx="10"/></clipPath>
+<clipPath id="c6"><rect x="688" y="198" width="280" height="555" rx="0"/></clipPath>
+<clipPath id="c7"><rect x="1008" y="198" width="280" height="555" rx="10"/></clipPath>
+<clipPath id="c8"><rect x="1008" y="198" width="280" height="555" rx="0"/></clipPath>
+<clipPath id="c9"><rect x="48" y="841" width="280" height="555" rx="10"/></clipPath>
+<clipPath id="c10"><rect x="48" y="841" width="280" height="555" rx="0"/></clipPath>
+<clipPath id="c11"><rect x="368" y="841" width="280" height="555" rx="10"/></clipPath>
+<clipPath id="c12"><rect x="368" y="841" width="280" height="555" rx="0"/></clipPath>
+<clipPath id="c13"><rect x="688" y="841" width="280" height="555" rx="10"/></clipPath>
+<clipPath id="c14"><rect x="688" y="841" width="280" height="555" rx="0"/></clipPath>
+<clipPath id="c15"><rect x="1008" y="841" width="280" height="555" rx="10"/></clipPath>
+<clipPath id="c16"><rect x="1008" y="841" width="280" height="555" rx="0"/></clipPath>
+</defs>
+<rect x="0" y="0" width="1336" height="1444" fill="#151518"/>
+<text class="s" x="48" y="60.64" font-size="24" fill="#f2f2f4" font-weight="700">Properties panel</text>
+<text class="s" x="48" y="87.04" font-size="14" fill="#777780">One panel per selection. Header identifies the object; sections group related values.</text>
+<rect x="48.5" y="104.5" width="95" height="29" rx="6" fill="#17171a" stroke="#2b2b31" stroke-width="1"/>
+<text class="s" x="58" y="123.32" font-size="12" fill="#777780" font-weight="600">X</text>
+<text class="m" x="73.68" y="123.68" font-size="13" fill="#f2f2f4">0.50</text>
+<text class="s" x="154" y="123.68" font-size="13" fill="#b4b4bc">Editable input</text>
+<rect x="266.86" y="104" width="96" height="30" rx="6" fill="#131316"/>
+<text class="m" x="276.86" y="123.68" font-size="13" fill="#f2f2f4">0:08.00</text>
+<text class="s" x="372.86" y="123.68" font-size="13" fill="#b4b4bc">Read-only value</text>
+<text class="s" x="501.71" y="123.68" font-size="13" fill="#f0b75e">Change…</text>
+<text class="s" x="562.15" y="123.68" font-size="13" fill="#b4b4bc">Action</text>
+<text class="s" x="48" y="163.04" font-size="14" fill="#f2f2f4" font-weight="600">Text clip</text>
+<text class="s" x="48" y="182.32" font-size="12" fill="#777780">Text, duration, style and position editable</text>
+<rect x="47.5" y="197.5" width="281" height="556" rx="10" fill="#000" opacity="0.35" transform="translate(0 6)"/>
+<g clip-path="url(#c1)">
+<rect x="48" y="198" width="280" height="555" fill="#0d0d0f"/>
+<g clip-path="url(#c2)">
+<rect x="64.5" y="214.5" width="31" height="31" rx="8" fill="#7251a3" stroke="#8261b3" stroke-width="1"/>
+<text class="s" x="80" y="234.32" font-size="12" fill="#ffffff" font-weight="700" text-anchor="middle">T</text>
+<text class="s" x="108" y="227.04" font-size="14" fill="#f2f2f4" font-weight="600">Let's get started</text>
+<text class="s" x="108" y="243.32" font-size="12" fill="#777780">Text clip · Text 1</text>
+<rect x="48" y="261" width="280" height="1" fill="#2b2b31"/>
+<text class="s" x="64" y="285.96" font-size="11" fill="#777780" font-weight="600" letter-spacing="0.6">CONTENT</text>
+<rect x="64.5" y="298.5" width="247" height="57" rx="6" fill="#17171a" stroke="#f0b75e" stroke-width="1"/>
+<text class="s" x="74" y="319.68" font-size="13" fill="#f2f2f4">Let's get started</text>
+<rect x="173.02" y="307" width="1.5" height="16" fill="#f0b75e"/>
+<rect x="64" y="372" width="248" height="1" fill="#1f1f24"/>
+<text class="s" x="64" y="395.96" font-size="11" fill="#777780" font-weight="600" letter-spacing="0.6">TIMING</text>
+<text class="s" x="64" y="418.96" font-size="11" fill="#777780">Start</text>
+<text class="s" x="192" y="418.96" font-size="11" fill="#777780">Duration</text>
+<rect x="64" y="424" width="120" height="30" rx="6" fill="#131316"/>
+<text class="m" x="74" y="443.68" font-size="13" fill="#f2f2f4">0:10.03</text>
+<text class="m" x="174" y="442.96" font-size="11" fill="#55555e" text-anchor="end">303 f</text>
+<rect x="192.5" y="424.5" width="119" height="29" rx="6" fill="#17171a" stroke="#2b2b31" stroke-width="1"/>
+<text class="m" x="202" y="443.68" font-size="13" fill="#f2f2f4">2.90</text>
+<text class="s" x="302" y="443.32" font-size="12" fill="#777780" text-anchor="end">s</text>
+<rect x="64" y="470" width="248" height="1" fill="#1f1f24"/>
+<text class="s" x="64" y="493.96" font-size="11" fill="#777780" font-weight="600" letter-spacing="0.6">STYLE</text>
+<rect x="64.5" y="506.5" width="247" height="29" rx="6" fill="#17171a" stroke="#2b2b31" stroke-width="1"/>
+<text class="s" x="74" y="525.68" font-size="13" fill="#f2f2f4">Sans</text>
+<path d="M294 519.0 l4 4 l4 -4" fill="none" stroke="#777780" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+<rect x="64.5" y="544.5" width="119" height="29" rx="6" fill="#17171a" stroke="#2b2b31" stroke-width="1"/>
+<text class="m" x="74" y="563.68" font-size="13" fill="#f2f2f4">64</text>
+<text class="s" x="174" y="563.32" font-size="12" fill="#777780" text-anchor="end">px</text>
+<rect x="192.5" y="544.5" width="119" height="29" rx="6" fill="#17171a" stroke="#2b2b31" stroke-width="1"/>
+<rect x="200.5" y="551.5" width="15" height="15" rx="4" fill="#ffffff" stroke="#2b2b31" stroke-width="1"/>
+<text class="m" x="224" y="563.68" font-size="13" fill="#f2f2f4">#FFFFFF</text>
+<rect x="64" y="590" width="248" height="1" fill="#1f1f24"/>
+<text class="s" x="64" y="613.96" font-size="11" fill="#777780" font-weight="600" letter-spacing="0.6">POSITION</text>
+<text class="s" x="312" y="614.32" font-size="12" fill="#777780" text-anchor="end">Drag in preview</text>
+<rect x="64.5" y="626.5" width="119" height="67" rx="4" fill="#131316" stroke="#2b2b31" stroke-width="1"/>
+<path d="M124.0 629 V691 M67 660.0 H181" stroke="#2b2b31" stroke-width="1" stroke-dasharray="2 3"/>
+<rect x="98" y="679.8" width="52" height="8" rx="2" fill="#e8e8ec" opacity="0.9"/>
+<rect x="95.5" y="677.3" width="57" height="13" rx="3" fill="none" stroke="#f0b75e" stroke-width="1"/>
+<rect x="192.5" y="626.5" width="119" height="29" rx="6" fill="#17171a" stroke="#2b2b31" stroke-width="1"/>
+<text class="s" x="202" y="645.32" font-size="12" fill="#777780" font-weight="600">X</text>
+<text class="m" x="217.68" y="645.68" font-size="13" fill="#f2f2f4">0.50</text>
+<rect x="192.5" y="664.5" width="119" height="29" rx="6" fill="#17171a" stroke="#2b2b31" stroke-width="1"/>
+<text class="s" x="202" y="683.32" font-size="12" fill="#777780" font-weight="600">Y</text>
+<text class="m" x="217.68" y="683.68" font-size="13" fill="#f2f2f4">0.85</text>
+</g>
+</g>
+<rect x="48.5" y="198.5" width="279" height="554" rx="10" fill="none" stroke="#2b2b31" stroke-width="1"/>
+<text class="s" x="368" y="163.04" font-size="14" fill="#f2f2f4" font-weight="600">Video clip</text>
+<text class="s" x="368" y="182.32" font-size="12" fill="#777780">Transform editable; timing read-only</text>
+<rect x="367.5" y="197.5" width="281" height="556" rx="10" fill="#000" opacity="0.35" transform="translate(0 6)"/>
+<g clip-path="url(#c3)">
+<rect x="368" y="198" width="280" height="555" fill="#0d0d0f"/>
+<g clip-path="url(#c4)">
+<rect x="384.5" y="214.5" width="31" height="31" rx="8" fill="#294d75" stroke="#395d85" stroke-width="1"/>
+<text class="s" x="400" y="234.32" font-size="12" fill="#ffffff" font-weight="700" text-anchor="middle">V</text>
+<text class="s" x="428" y="227.04" font-size="14" fill="#f2f2f4" font-weight="600">broll-street.mov</text>
+<text class="s" x="428" y="243.32" font-size="12" fill="#777780">Video clip · Video 1</text>
+<rect x="368" y="261" width="280" height="1" fill="#2b2b31"/>
+<text class="s" x="384" y="285.96" font-size="11" fill="#777780" font-weight="600" letter-spacing="0.6">TIMING</text>
+<rect x="384" y="298" width="120" height="50" rx="6" fill="#131316"/>
+<text class="s" x="394" y="316.96" font-size="11" fill="#777780">Start</text>
+<text class="m" x="394" y="336.68" font-size="13" fill="#f2f2f4">0:08.00</text>
+<text class="m" x="494" y="335.96" font-size="11" fill="#55555e" text-anchor="end">240 f</text>
+<rect x="512" y="298" width="120" height="50" rx="6" fill="#131316"/>
+<text class="s" x="522" y="316.96" font-size="11" fill="#777780">Duration</text>
+<text class="m" x="522" y="336.68" font-size="13" fill="#f2f2f4">0:09.50</text>
+<text class="m" x="622" y="335.96" font-size="11" fill="#55555e" text-anchor="end">285 f</text>
+<rect x="384" y="356" width="120" height="50" rx="6" fill="#131316"/>
+<text class="s" x="394" y="374.96" font-size="11" fill="#777780">Source in</text>
+<text class="m" x="394" y="394.68" font-size="13" fill="#f2f2f4">0:44.00</text>
+<text class="m" x="494" y="393.96" font-size="11" fill="#55555e" text-anchor="end">1320 f</text>
+<rect x="512" y="356" width="120" height="50" rx="6" fill="#131316"/>
+<text class="s" x="522" y="374.96" font-size="11" fill="#777780">Source out</text>
+<text class="m" x="522" y="394.68" font-size="13" fill="#f2f2f4">0:53.50</text>
+<text class="m" x="622" y="393.96" font-size="11" fill="#55555e" text-anchor="end">1605 f</text>
+<rect x="384" y="422" width="248" height="1" fill="#1f1f24"/>
+<text class="s" x="384" y="445.96" font-size="11" fill="#777780" font-weight="600" letter-spacing="0.6">TRANSFORM</text>
+<text class="s" x="632" y="446.32" font-size="12" fill="#f0b75e" text-anchor="end">Reset</text>
+<rect x="384.5" y="458.5" width="119" height="67" rx="4" fill="#131316" stroke="#2b2b31" stroke-width="1"/>
+<path d="M444.0 461 V523 M387 492.0 H501" stroke="#2b2b31" stroke-width="1" stroke-dasharray="2 3"/>
+<rect x="390" y="464" width="108" height="56" rx="2" fill="#294d75" opacity="0.6"/>
+<rect x="390.5" y="464.5" width="107" height="55" rx="2" fill="none" stroke="#f0b75e" stroke-width="1"/>
+<circle cx="444.0" cy="492.0" r="3" fill="#f0b75e"/>
+<rect x="512.5" y="458.5" width="119" height="29" rx="6" fill="#17171a" stroke="#2b2b31" stroke-width="1"/>
+<text class="s" x="522" y="477.32" font-size="12" fill="#777780" font-weight="600">X</text>
+<text class="m" x="537.68" y="477.68" font-size="13" fill="#f2f2f4">0</text>
+<text class="s" x="622" y="477.32" font-size="12" fill="#777780" text-anchor="end">px</text>
+<rect x="512.5" y="496.5" width="119" height="29" rx="6" fill="#17171a" stroke="#2b2b31" stroke-width="1"/>
+<text class="s" x="522" y="515.32" font-size="12" fill="#777780" font-weight="600">Y</text>
+<text class="m" x="537.68" y="515.68" font-size="13" fill="#f2f2f4">0</text>
+<text class="s" x="622" y="515.32" font-size="12" fill="#777780" text-anchor="end">px</text>
+<text class="s" x="384" y="561.68" font-size="13" fill="#777780">Scale</text>
+<rect x="432" y="555" width="104" height="4" rx="2" fill="#2b2b31"/>
+<rect x="483.5" y="552" width="1" height="10" fill="#55555e"/>
+<rect x="432" y="555" width="52" height="4" rx="2" fill="#f0b75e"/>
+<circle cx="484" cy="557" r="7" fill="#f2f2f4" stroke="#0d0d0f" stroke-width="2"/>
+<rect x="548.5" y="542.5" width="83" height="29" rx="6" fill="#17171a" stroke="#2b2b31" stroke-width="1"/>
+<text class="m" x="558" y="561.68" font-size="13" fill="#f2f2f4">100</text>
+<text class="s" x="622" y="561.32" font-size="12" fill="#777780" text-anchor="end">%</text>
+</g>
+</g>
+<rect x="368.5" y="198.5" width="279" height="554" rx="10" fill="none" stroke="#2b2b31" stroke-width="1"/>
+<text class="s" x="688" y="163.04" font-size="14" fill="#f2f2f4" font-weight="600">Audio clip</text>
+<text class="s" x="688" y="182.32" font-size="12" fill="#777780">Gain and mute editable</text>
+<rect x="687.5" y="197.5" width="281" height="556" rx="10" fill="#000" opacity="0.35" transform="translate(0 6)"/>
+<g clip-path="url(#c5)">
+<rect x="688" y="198" width="280" height="555" fill="#0d0d0f"/>
+<g clip-path="url(#c6)">
+<rect x="704.5" y="214.5" width="31" height="31" rx="8" fill="#24656b" stroke="#34757b" stroke-width="1"/>
+<text class="s" x="720" y="234.32" font-size="12" fill="#ffffff" font-weight="700" text-anchor="middle">A</text>
+<text class="s" x="748" y="227.04" font-size="14" fill="#f2f2f4" font-weight="600">voice-over.m4a</text>
+<text class="s" x="748" y="243.32" font-size="12" fill="#777780">Audio clip · Audio 1</text>
+<rect x="688" y="261" width="280" height="1" fill="#2b2b31"/>
+<text class="s" x="704" y="285.96" font-size="11" fill="#777780" font-weight="600" letter-spacing="0.6">TIMING</text>
+<rect x="704" y="298" width="120" height="50" rx="6" fill="#131316"/>
+<text class="s" x="714" y="316.96" font-size="11" fill="#777780">Start</text>
+<text class="m" x="714" y="336.68" font-size="13" fill="#f2f2f4">0:00.00</text>
+<text class="m" x="814" y="335.96" font-size="11" fill="#55555e" text-anchor="end">0 f</text>
+<rect x="832" y="298" width="120" height="50" rx="6" fill="#131316"/>
+<text class="s" x="842" y="316.96" font-size="11" fill="#777780">Duration</text>
+<text class="m" x="842" y="336.68" font-size="13" fill="#f2f2f4">0:15.00</text>
+<text class="m" x="942" y="335.96" font-size="11" fill="#55555e" text-anchor="end">450 f</text>
+<rect x="704" y="356" width="120" height="50" rx="6" fill="#131316"/>
+<text class="s" x="714" y="374.96" font-size="11" fill="#777780">Source in</text>
+<text class="m" x="714" y="394.68" font-size="13" fill="#f2f2f4">0:00.00</text>
+<text class="m" x="814" y="393.96" font-size="11" fill="#55555e" text-anchor="end">0 f</text>
+<rect x="832" y="356" width="120" height="50" rx="6" fill="#131316"/>
+<text class="s" x="842" y="374.96" font-size="11" fill="#777780">Source out</text>
+<text class="m" x="842" y="394.68" font-size="13" fill="#f2f2f4">0:15.00</text>
+<text class="m" x="942" y="393.96" font-size="11" fill="#55555e" text-anchor="end">450 f</text>
+<rect x="704" y="422" width="248" height="1" fill="#1f1f24"/>
+<text class="s" x="704" y="445.96" font-size="11" fill="#777780" font-weight="600" letter-spacing="0.6">AUDIO</text>
+<rect x="704" y="458" width="248" height="44" rx="6" fill="#131316"/>
+<path d="M704.0 471.7v16.6h2v-16.6zM707.0 472.1v15.8h2v-15.8zM710.0 473.0v14.1h2v-14.1zM713.0 474.0v12.0h2v-12.0zM716.0 474.8v10.4h2v-10.4zM719.0 475.0v10.1h2v-10.1zM722.0 474.3v11.4h2v-11.4zM725.0 472.8v14.4h2v-14.4zM728.0 470.7v18.6h2v-18.6zM731.0 468.5v23.0h2v-23.0zM734.0 466.5v26.9h2v-26.9zM737.0 465.3v29.3h2v-29.3zM740.0 465.1v29.8h2v-29.8zM743.0 465.8v28.3h2v-28.3zM746.0 467.3v25.3h2v-25.3zM749.0 469.2v21.6h2v-21.6zM752.0 471.0v18.0h2v-18.0zM755.0 472.2v15.6h2v-15.6zM758.0 472.7v14.6h2v-14.6zM761.0 472.3v15.3h2v-15.3zM764.0 471.4v17.2h2v-17.2zM767.0 470.2v19.5h2v-19.5zM770.0 469.3v21.4h2v-21.4zM773.0 469.0v22.0h2v-22.0zM776.0 469.5v20.9h2v-20.9zM779.0 470.9v18.1h2v-18.1zM782.0 472.9v14.1h2v-14.1zM785.0 475.1v9.8h2v-9.8zM788.0 477.0v6.0h2v-6.0zM791.0 478.2v3.6h2v-3.6zM794.0 478.4v3.2h2v-3.2zM797.0 477.7v4.7h2v-4.7zM800.0 476.1v7.7h2v-7.7zM803.0 474.3v11.5h2v-11.5zM806.0 472.5v15.1h2v-15.1zM809.0 471.2v17.7h2v-17.7zM812.0 470.6v18.8h2v-18.8zM815.0 470.9v18.2h2v-18.2zM818.0 471.7v16.5h2v-16.5zM821.0 472.9v14.3h2v-14.3zM824.0 473.8v12.4h2v-12.4zM827.0 474.3v11.5h2v-11.5zM830.0 474.0v12.1h2v-12.1zM833.0 472.9v14.1h2v-14.1zM836.0 471.4v17.3h2v-17.3zM839.0 469.6v20.8h2v-20.8zM842.0 468.1v23.8h2v-23.8zM845.0 467.2v25.5h2v-25.5zM848.0 467.2v25.7h2v-25.7zM851.0 468.0v24.1h2v-24.1zM854.0 469.4v21.2h2v-21.2zM857.0 471.2v17.6h2v-17.6zM860.0 472.9v14.1h2v-14.1zM863.0 474.3v11.4h2v-11.4zM866.0 475.0v10.0h2v-10.0zM869.0 475.0v10.0h2v-10.0zM872.0 474.5v11.0h2v-11.0zM875.0 473.7v12.5h2v-12.5zM878.0 473.1v13.9h2v-13.9zM881.0 472.8v14.4h2v-14.4zM884.0 473.1v13.9h2v-13.9zM887.0 473.9v12.2h2v-12.2zM890.0 475.2v9.6h2v-9.6zM893.0 476.7v6.7h2v-6.7zM896.0 477.9v4.1h2v-4.1zM899.0 478.8v2.5h2v-2.5zM902.0 478.8v2.4h2v-2.4zM905.0 478.5v3.0h2v-3.0zM908.0 477.5v4.9h2v-4.9zM911.0 476.3v7.4h2v-7.4zM914.0 475.1v9.9h2v-9.9zM917.0 474.1v11.7h2v-11.7zM920.0 473.7v12.6h2v-12.6zM923.0 473.7v12.5h2v-12.5zM926.0 474.2v11.5h2v-11.5zM929.0 475.0v10.1h2v-10.1zM932.0 475.6v8.7h2v-8.7zM935.0 476.1v7.9h2v-7.9zM938.0 476.1v7.8h2v-7.8zM941.0 475.7v8.6h2v-8.6zM944.0 475.0v10.0h2v-10.0zM947.0 474.1v11.8h2v-11.8z" fill="#69c5cf" fill-opacity="0.8"/>
+<text class="s" x="704" y="537.68" font-size="13" fill="#777780">Gain</text>
+<rect x="752" y="531" width="104" height="4" rx="2" fill="#2b2b31"/>
+<rect x="829.5" y="528" width="1" height="10" fill="#55555e"/>
+<rect x="752" y="531" width="78" height="4" rx="2" fill="#f0b75e"/>
+<circle cx="830" cy="533" r="7" fill="#f2f2f4" stroke="#0d0d0f" stroke-width="2"/>
+<rect x="868.5" y="518.5" width="83" height="29" rx="6" fill="#17171a" stroke="#2b2b31" stroke-width="1"/>
+<text class="m" x="878" y="537.68" font-size="13" fill="#f2f2f4">0.00</text>
+<text class="s" x="942" y="537.32" font-size="12" fill="#777780" text-anchor="end">dB</text>
+<text class="s" x="704" y="576.68" font-size="13" fill="#777780">Mute clip</text>
+<rect x="918" y="562" width="34" height="20" rx="10" fill="#2b2b31"/>
+<circle cx="928" cy="572" r="7" fill="#777780"/>
+</g>
+</g>
+<rect x="688.5" y="198.5" width="279" height="554" rx="10" fill="none" stroke="#2b2b31" stroke-width="1"/>
+<text class="s" x="1008" y="163.04" font-size="14" fill="#f2f2f4" font-weight="600">Timeline file</text>
+<text class="s" x="1008" y="182.32" font-size="12" fill="#777780">Active timeline, nothing selected</text>
+<rect x="1007.5" y="197.5" width="281" height="556" rx="10" fill="#000" opacity="0.35" transform="translate(0 6)"/>
+<g clip-path="url(#c7)">
+<rect x="1008" y="198" width="280" height="555" fill="#0d0d0f"/>
+<g clip-path="url(#c8)">
+<rect x="1024.5" y="214.5" width="31" height="31" rx="8" fill="#f0b75e" stroke="#f0b75e" stroke-width="1"/>
+<text class="s" x="1040" y="233.96" font-size="11" fill="#17120a" font-weight="700" text-anchor="middle">TL</text>
+<text class="s" x="1068" y="227.04" font-size="14" fill="#f2f2f4" font-weight="600">edit.timeline</text>
+<text class="s" x="1068" y="243.32" font-size="12" fill="#777780">timelines/edit.timeline</text>
+<rect x="1008" y="261" width="280" height="1" fill="#2b2b31"/>
+<text class="s" x="1024" y="285.96" font-size="11" fill="#777780" font-weight="600" letter-spacing="0.6">PLAYBACK</text>
+<text class="m" x="1024" y="318.64" font-size="24" fill="#f2f2f4" font-weight="600">0:12</text>
+<text class="m" x="1087.6" y="317.68" font-size="13" fill="#777780">/ 0:18</text>
+<text class="s" x="1272" y="317.32" font-size="12" fill="#777780" text-anchor="end">Playhead</text>
+<rect x="1024" y="336" width="248" height="4" rx="2" fill="#2b2b31"/>
+<rect x="1024" y="336" width="165.333" height="4" rx="2" fill="#f0b75e"/>
+<rect x="1188.33" y="332" width="2" height="12" fill="#f0b75e"/>
+<rect x="1024" y="358" width="248" height="1" fill="#1f1f24"/>
+<text class="s" x="1024" y="381.96" font-size="11" fill="#777780" font-weight="600" letter-spacing="0.6">FORMAT</text>
+<text class="s" x="1272" y="382.32" font-size="12" fill="#f0b75e" text-anchor="end">Change…</text>
+<text class="s" x="1024" y="412.68" font-size="13" fill="#777780">Frame rate</text>
+<text class="m" x="1272" y="412.68" font-size="13" fill="#f2f2f4" text-anchor="end">30 fps</text>
+<text class="s" x="1024" y="440.68" font-size="13" fill="#777780">Resolution</text>
+<text class="m" x="1272" y="440.68" font-size="13" fill="#f2f2f4" text-anchor="end">1920 × 1080</text>
+<text class="s" x="1024" y="468.68" font-size="13" fill="#777780">Audio rate</text>
+<text class="m" x="1272" y="468.68" font-size="13" fill="#f2f2f4" text-anchor="end">48 kHz</text>
+<rect x="1024" y="486" width="248" height="1" fill="#1f1f24"/>
+<text class="s" x="1024" y="509.96" font-size="11" fill="#777780" font-weight="600" letter-spacing="0.6">CONTENTS</text>
+<text class="s" x="1024" y="540.68" font-size="13" fill="#777780">Clips</text>
+<text class="m" x="1272" y="540.68" font-size="13" fill="#f2f2f4" text-anchor="end">9</text>
+<text class="s" x="1024" y="568.68" font-size="13" fill="#777780">Tracks</text>
+<rect x="1238.5" y="554.5" width="33" height="19" rx="4" fill="#24656b" stroke="#34757b" stroke-width="1"/>
+<text class="s" x="1255" y="567.96" font-size="11" fill="#ffffff" font-weight="600" text-anchor="middle">A 1</text>
+<rect x="1198.5" y="554.5" width="33" height="19" rx="4" fill="#294d75" stroke="#395d85" stroke-width="1"/>
+<text class="s" x="1215" y="567.96" font-size="11" fill="#ffffff" font-weight="600" text-anchor="middle">V 1</text>
+<rect x="1158.5" y="554.5" width="33" height="19" rx="4" fill="#7251a3" stroke="#8261b3" stroke-width="1"/>
+<text class="s" x="1175" y="567.96" font-size="11" fill="#ffffff" font-weight="600" text-anchor="middle">T 1</text>
+<rect x="1024" y="586" width="248" height="1" fill="#1f1f24"/>
+<text class="s" x="1024" y="609.96" font-size="11" fill="#777780" font-weight="600" letter-spacing="0.6">LOCATION</text>
+<text class="m" x="1024" y="632.32" font-size="12" fill="#b4b4bc">/Users/me/market-vlog/</text>
+<text class="m" x="1024" y="650.32" font-size="12" fill="#b4b4bc">timelines/edit.timeline</text>
+</g>
+</g>
+<rect x="1008.5" y="198.5" width="279" height="554" rx="10" fill="none" stroke="#2b2b31" stroke-width="1"/>
+<text class="s" x="48" y="806.04" font-size="14" fill="#f2f2f4" font-weight="600">Video / audio file</text>
+<text class="s" x="48" y="825.32" font-size="12" fill="#777780">Selected in the Explorer</text>
+<rect x="47.5" y="840.5" width="281" height="556" rx="10" fill="#000" opacity="0.35" transform="translate(0 6)"/>
+<g clip-path="url(#c9)">
+<rect x="48" y="841" width="280" height="555" fill="#0d0d0f"/>
+<g clip-path="url(#c10)">
+<rect x="64.5" y="857.5" width="31" height="31" rx="8" fill="#131316" stroke="#355b78" stroke-width="1"/>
+<text class="m" x="80" y="876.24" font-size="9" fill="#8fb9dd" font-weight="600" text-anchor="middle">MP4</text>
+<text class="s" x="108" y="870.04" font-size="14" fill="#f2f2f4" font-weight="600">interview.mp4</text>
+<text class="s" x="108" y="886.32" font-size="12" fill="#777780">Video file</text>
+<rect x="48" y="904" width="280" height="1" fill="#2b2b31"/>
+<text class="s" x="64" y="928.96" font-size="11" fill="#777780" font-weight="600" letter-spacing="0.6">FILE</text>
+<text class="s" x="64" y="959.68" font-size="13" fill="#777780">Format</text>
+<text class="m" x="312" y="959.68" font-size="13" fill="#f2f2f4" text-anchor="end">MP4</text>
+<text class="s" x="64" y="987.68" font-size="13" fill="#777780">Size</text>
+<text class="m" x="312" y="987.68" font-size="13" fill="#f2f2f4" text-anchor="end">1.2 GB</text>
+<text class="s" x="64" y="1015.68" font-size="13" fill="#777780">Folder</text>
+<text class="m" x="312" y="1015.68" font-size="13" fill="#f2f2f4" text-anchor="end">media</text>
+<rect x="64" y="1033" width="248" height="1" fill="#1f1f24"/>
+<text class="s" x="64" y="1056.96" font-size="11" fill="#777780" font-weight="600" letter-spacing="0.6">LOCATION</text>
+<text class="m" x="64" y="1079.32" font-size="12" fill="#b4b4bc">/Users/me/market-vlog/</text>
+<text class="m" x="64" y="1097.32" font-size="12" fill="#b4b4bc">media/interview.mp4</text>
+<rect x="64" y="1119" width="248" height="1" fill="#1f1f24"/>
+<text class="s" x="64" y="1142.96" font-size="11" fill="#777780" font-weight="600" letter-spacing="0.6">ACTIONS</text>
+<rect x="64.5" y="1155.5" width="119" height="31" rx="6" fill="#17171a" stroke="#2b2b31" stroke-width="1"/>
+<text class="s" x="124" y="1175.68" font-size="13" fill="#f2f2f4" text-anchor="middle">Generate SRT</text>
+<rect x="192.5" y="1155.5" width="119" height="31" rx="6" fill="#17171a" stroke="#2b2b31" stroke-width="1"/>
+<text class="s" x="252" y="1175.68" font-size="13" fill="#f2f2f4" text-anchor="middle">Reveal in Finder</text>
+<text class="s" x="64" y="1213.32" font-size="12" fill="#777780">Drag onto a video track to add it</text>
+<text class="s" x="64" y="1230.32" font-size="12" fill="#777780">to the timeline.</text>
+</g>
+</g>
+<rect x="48.5" y="841.5" width="279" height="554" rx="10" fill="none" stroke="#2b2b31" stroke-width="1"/>
+<text class="s" x="368" y="806.04" font-size="14" fill="#f2f2f4" font-weight="600">Image file</text>
+<text class="s" x="368" y="825.32" font-size="12" fill="#777780">Selected in the Explorer</text>
+<rect x="367.5" y="840.5" width="281" height="556" rx="10" fill="#000" opacity="0.35" transform="translate(0 6)"/>
+<g clip-path="url(#c11)">
+<rect x="368" y="841" width="280" height="555" fill="#0d0d0f"/>
+<g clip-path="url(#c12)">
+<rect x="384.5" y="857.5" width="31" height="31" rx="8" fill="#131316" stroke="#665184" stroke-width="1"/>
+<text class="m" x="400" y="876.24" font-size="9" fill="#c3a9e8" font-weight="600" text-anchor="middle">PNG</text>
+<text class="s" x="428" y="870.04" font-size="14" fill="#f2f2f4" font-weight="600">logo.png</text>
+<text class="s" x="428" y="886.32" font-size="12" fill="#777780">Image file</text>
+<rect x="368" y="904" width="280" height="1" fill="#2b2b31"/>
+<rect x="384" y="921" width="248" height="150" rx="6" fill="url(#checker)"/>
+<rect x="384.5" y="921.5" width="247" height="149" rx="6" fill="none" stroke="#2b2b31" stroke-width="1"/>
+<rect x="462.0" y="950.0" width="92" height="92" rx="22" fill="#f0b75e"/>
+<path d="M494.0 974.0 L530.0 996.0 L494.0 1018.0Z" fill="#17120a"/>
+<text class="s" x="384" y="1110.96" font-size="11" fill="#777780" font-weight="600" letter-spacing="0.6">FILE</text>
+<text class="s" x="384" y="1141.68" font-size="13" fill="#777780">Format</text>
+<text class="m" x="632" y="1141.68" font-size="13" fill="#f2f2f4" text-anchor="end">PNG</text>
+<text class="s" x="384" y="1169.68" font-size="13" fill="#777780">Size</text>
+<text class="m" x="632" y="1169.68" font-size="13" fill="#f2f2f4" text-anchor="end">84 KB</text>
+<text class="s" x="384" y="1197.68" font-size="13" fill="#777780">Folder</text>
+<text class="m" x="632" y="1197.68" font-size="13" fill="#f2f2f4" text-anchor="end">media</text>
+<rect x="384" y="1215" width="248" height="1" fill="#1f1f24"/>
+<text class="s" x="384" y="1238.96" font-size="11" fill="#777780" font-weight="600" letter-spacing="0.6">LOCATION</text>
+<text class="m" x="384" y="1261.32" font-size="12" fill="#b4b4bc">/Users/me/market-vlog/</text>
+<text class="m" x="384" y="1279.32" font-size="12" fill="#b4b4bc">media/logo.png</text>
+</g>
+</g>
+<rect x="368.5" y="841.5" width="279" height="554" rx="10" fill="none" stroke="#2b2b31" stroke-width="1"/>
+<text class="s" x="688" y="806.04" font-size="14" fill="#f2f2f4" font-weight="600">Subtitle file</text>
+<text class="s" x="688" y="825.32" font-size="12" fill="#777780">.srt parsed into cues</text>
+<rect x="687.5" y="840.5" width="281" height="556" rx="10" fill="#000" opacity="0.35" transform="translate(0 6)"/>
+<g clip-path="url(#c13)">
+<rect x="688" y="841" width="280" height="555" fill="#0d0d0f"/>
+<g clip-path="url(#c14)">
+<rect x="704.5" y="857.5" width="31" height="31" rx="8" fill="#131316" stroke="#46464e" stroke-width="1"/>
+<text class="m" x="720" y="876.24" font-size="9" fill="#8b8b94" font-weight="600" text-anchor="middle">SRT</text>
+<text class="s" x="748" y="870.04" font-size="14" fill="#f2f2f4" font-weight="600">interview.srt</text>
+<text class="s" x="748" y="886.32" font-size="12" fill="#777780">Subtitles · 5 cues · 0:16</text>
+<rect x="688" y="904" width="280" height="1" fill="#2b2b31"/>
+<text class="s" x="704" y="928.96" font-size="11" fill="#777780" font-weight="600" letter-spacing="0.6">CUES</text>
+<text class="m" x="704" y="956.96" font-size="11" fill="#55555e">01</text>
+<text class="m" x="730" y="956.96" font-size="11" fill="#777780">0:00.5 → 0:03.2</text>
+<text class="s" x="730" y="976.68" font-size="13" fill="#f2f2f4">Welcome back to the channel</text>
+<rect x="730" y="990" width="222" height="1" fill="#1f1f24"/>
+<text class="m" x="704" y="1014.96" font-size="11" fill="#55555e">02</text>
+<text class="m" x="730" y="1014.96" font-size="11" fill="#777780">0:03.4 → 0:06.8</text>
+<text class="s" x="730" y="1034.68" font-size="13" fill="#f2f2f4">Today we're walking through</text>
+<rect x="730" y="1048" width="222" height="1" fill="#1f1f24"/>
+<text class="m" x="704" y="1072.96" font-size="11" fill="#55555e">03</text>
+<text class="m" x="730" y="1072.96" font-size="11" fill="#777780">0:07.0 → 0:09.6</text>
+<text class="s" x="730" y="1092.68" font-size="13" fill="#f2f2f4">the old town market</text>
+<rect x="730" y="1106" width="222" height="1" fill="#1f1f24"/>
+<text class="m" x="704" y="1130.96" font-size="11" fill="#55555e">04</text>
+<text class="m" x="730" y="1130.96" font-size="11" fill="#777780">0:10.1 → 0:13.0</text>
+<text class="s" x="730" y="1150.68" font-size="13" fill="#f2f2f4">Let's get started</text>
+<rect x="730" y="1164" width="222" height="1" fill="#1f1f24"/>
+<text class="m" x="704" y="1188.96" font-size="11" fill="#55555e">05</text>
+<text class="m" x="730" y="1188.96" font-size="11" fill="#777780">0:13.4 → 0:16.0</text>
+<text class="s" x="730" y="1208.68" font-size="13" fill="#f2f2f4">First stop: coffee</text>
+<text class="s" x="704" y="1247.32" font-size="12" fill="#777780">Drag onto a text track to add one</text>
+<text class="s" x="704" y="1264.32" font-size="12" fill="#777780">text clip per cue.</text>
+</g>
+</g>
+<rect x="688.5" y="841.5" width="279" height="554" rx="10" fill="none" stroke="#2b2b31" stroke-width="1"/>
+<text class="s" x="1008" y="806.04" font-size="14" fill="#f2f2f4" font-weight="600">Nothing selected</text>
+<text class="s" x="1008" y="825.32" font-size="12" fill="#777780">No timeline open</text>
+<rect x="1007.5" y="840.5" width="281" height="556" rx="10" fill="#000" opacity="0.35" transform="translate(0 6)"/>
+<g clip-path="url(#c15)">
+<rect x="1008" y="841" width="280" height="555" fill="#0d0d0f"/>
+<g clip-path="url(#c16)">
+<rect x="1124.5" y="1065" width="47" height="47" rx="12" fill="#131316" stroke="#2b2b31" stroke-width="1"/>
+<path d="M1141.0 1079.5 v17 l4.5 -4 l2.8 6.2 l2.6 -1.2 l-2.8 -6 l6 -0.2Z" fill="none" stroke="#777780" stroke-width="1.5" stroke-linejoin="round"/>
+<text class="s" x="1148" y="1139.54" font-size="14" fill="#f2f2f4" font-weight="600" text-anchor="middle">Nothing selected</text>
+<text class="s" x="1148" y="1162.82" font-size="12" fill="#777780" text-anchor="middle">Select a clip on the timeline or a</text>
+<text class="s" x="1148" y="1179.82" font-size="12" fill="#777780" text-anchor="middle">file in the Explorer.</text>
+</g>
+</g>
+<rect x="1008.5" y="841.5" width="279" height="554" rx="10" fill="none" stroke="#2b2b31" stroke-width="1"/>
+</svg>
