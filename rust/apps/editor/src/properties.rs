@@ -739,48 +739,6 @@ fn video_clip_view(panel: &VideoClipPanel) -> gpui::AnyElement {
     let duration = clip.source_out - clip.source_in;
     let scale_percent = clip.video_properties.scale * 100.0;
     let scale_fraction = (scale_percent / 200.0).clamp(0.0, 1.0) as f32;
-    let position_diagram = div()
-        .relative()
-        .h(px(68.0))
-        .min_w_0()
-        .overflow_hidden()
-        .rounded(px(4.0))
-        .border_1()
-        .border_color(rgb(BORDER))
-        .bg(rgb(0x131316))
-        .child(
-            div()
-                .absolute()
-                .left(relative(0.5))
-                .top(px(3.0))
-                .bottom(px(3.0))
-                .border_l_1()
-                .border_dashed()
-                .border_color(rgb(BORDER)),
-        )
-        .child(
-            div()
-                .absolute()
-                .top(relative(0.5))
-                .left(px(3.0))
-                .right(px(3.0))
-                .border_t_1()
-                .border_dashed()
-                .border_color(rgb(BORDER)),
-        )
-        .child(
-            div()
-                .absolute()
-                .inset(px(5.0))
-                .rounded(px(2.0))
-                .bg(rgba(0x294d7599))
-                .border_1()
-                .border_color(rgb(ACCENT))
-                .flex()
-                .items_center()
-                .justify_center()
-                .child(div().size(px(6.0)).rounded_full().bg(rgb(ACCENT))),
-        );
 
     div()
         .id("video-clip-properties-v3")
@@ -878,27 +836,26 @@ fn video_clip_view(panel: &VideoClipPanel) -> gpui::AnyElement {
                 .child(
                     div()
                         .mt(px(12.0))
+                        .text_size(px(13.0))
+                        .text_color(rgb(MUTED))
+                        .child("Position"),
+                )
+                .child(
+                    div()
+                        .mt(px(8.0))
                         .grid()
                         .grid_cols(2)
                         .gap(px(8.0))
-                        .child(position_diagram)
-                        .child(
-                            div()
-                                .min_w_0()
-                                .flex()
-                                .flex_col()
-                                .gap(px(8.0))
-                                .child(value_field_view(
-                                    "X",
-                                    trimmed_number(clip.video_properties.position_x),
-                                    "px",
-                                ))
-                                .child(value_field_view(
-                                    "Y",
-                                    trimmed_number(clip.video_properties.position_y),
-                                    "px",
-                                )),
-                        ),
+                        .child(value_field_view(
+                            "X",
+                            trimmed_number(clip.video_properties.position_x),
+                            "px",
+                        ))
+                        .child(value_field_view(
+                            "Y",
+                            trimmed_number(clip.video_properties.position_y),
+                            "px",
+                        )),
                 )
                 .child(
                     div()
