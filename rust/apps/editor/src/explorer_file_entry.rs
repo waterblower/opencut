@@ -93,6 +93,7 @@ impl Editor {
                         }
                         FileTreeEntryKind::Timeline => {
                             editor.emit_event(cx, AppEvent::OpenTimeline { path: path.clone() });
+                            editor.emit_event(cx, AppEvent::RefreshPropertiesPanel);
                         }
                         FileTreeEntryKind::Video
                         | FileTreeEntryKind::Image
@@ -102,6 +103,7 @@ impl Editor {
                                 cx,
                                 AppEvent::Preview(PreviewEvent::SelectFile(path.clone())),
                             );
+                            editor.emit_event(cx, AppEvent::RefreshPropertiesPanel);
                         }
                     }
                     cx.notify();

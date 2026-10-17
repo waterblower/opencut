@@ -306,6 +306,7 @@ impl Editor {
             return Ok(());
         };
         self.explorer.selected_file = None;
+        self.emit_event(cx, AppEvent::RefreshPropertiesPanel); // 事件在本回调返回后处理，届时下面的选中已生效。
         match tool {
             TimelineTool::Selection => self.begin_clip_move(clip_id, event, cx)?,
             TimelineTool::Blade => {

@@ -10,6 +10,7 @@ use crate::layout::{RULER_HEIGHT, TIMELINE_PADDING, TRACK_HEIGHT};
 use crate::model::MediaKind;
 use crate::preview::{PreviewTarget, timeline_preview_target};
 use crate::preview_events::PreviewEvent;
+use crate::properties::current_properties_panel;
 use crate::project_settings::{ProjectLocalSettings, save_project_local_settings};
 use crate::srt::{srt_text_clips, write_srt};
 use crate::timeline::{PreviewDropAsset, TimelineFrameIndex};
@@ -71,6 +72,7 @@ pub enum AppEvent {
     TimelineSeek {
         frame_index: TimelineFrameIndex,
     },
+    RefreshPropertiesPanel,
 }
 
 pub async fn handle_event(
@@ -398,6 +400,12 @@ async fn handle_app_event(
         AppEvent::DragStarted(asset) => {
             editor.update(cx, |editor, cx| {
                 editor.active_asset_drag = asset;
+                cx.notify();
+            });
+        }
+        AppEvent::RefreshPropertiesPanel => {
+            editor.update(cx, |editor, cx| {
+                editor.properties_panel = current_properties_panel(editor);
                 cx.notify();
             });
         }
