@@ -1,20 +1,20 @@
 use crate::editor::Editor;
-use crate::event_bus::EventBus;
 use crate::explorer_file_entry::{is_audio_path, is_image_path, is_srt_path, is_video_path};
-use crate::properties_text::TextClipPropertiesView;
+use crate::properties_text::text_clip_view;
 use crate::properties_transform::{VideoTransformInputs, properties_section_label, properties_tab};
-use crate::theme::{ACCENT, BORDER, CLIP_BLUE, MUTED, PANEL, SURFACE, TEXT};
+use crate::theme::{ACCENT, BORDER, CLIP_BLUE, ERROR, MUTED, PANEL, SURFACE, TEXT};
 use crate::time_format::format_time;
 use crate::timeline::{FrameRate, FrameRateLabel, TimelineFrameIndex, TimelineRuntimeState};
 use crate::timeline_clip::{AudioClip, Clip, TextClip, VideoClip};
 use crate::timeline_document;
 use gpui::prelude::FluentBuilder;
 use gpui::{
-    Entity, FocusHandle, FontWeight, InteractiveElement, IntoElement, ObjectFit, ParentElement,
+    FontWeight, InteractiveElement, IntoElement, ObjectFit, ParentElement,
     StatefulInteractiveElement, Styled, StyledImage, div, img, px, relative, rgb, rgba,
 };
 use std::fs;
 use std::path::{Path, PathBuf};
+use transcribe::SRT;
 use ulid::Ulid;
 
 pub(super) enum PropertiesPanelViewable<'a> {
@@ -25,8 +25,12 @@ pub(super) enum PropertiesPanelViewable<'a> {
         frame_rate: FrameRate,
     },
     AudioClip(&'a AudioClip),
-    TextClip(&'a TextClip),
-    VideoFile(&'a Path),
+    TextClip {
+        clip: &'a TextClip,
+        track_name: &'a str,
+        frame_rate: FrameRate,
+    },
+    VideoFile(PathBuf),
     AudioFile(&'a Path),
     ImageFile(PathBuf),
     SrtFile(PathBuf),
@@ -64,13 +68,28 @@ pub fn current_properties_panel_viewable(editor: &Editor) -> PropertiesPanelView
                 }
             }
             Clip::Audio(clip) => PropertiesPanelViewable::AudioClip(clip),
-            Clip::Text(clip) => PropertiesPanelViewable::TextClip(clip),
+            Clip::Text(clip) => {
+                let track_name = match timeline
+                    .editing_state
+                    .tracks
+                    .iter()
+                    .find(|track| track.id == clip.track_id)
+                {
+                    Some(track) => track.name.as_str(),
+                    None => "Unknown track",
+                };
+                PropertiesPanelViewable::TextClip {
+                    clip,
+                    track_name,
+                    frame_rate: timeline.editing_state.settings.frame_rate,
+                }
+            }
         };
     }
 
     if let Some(path) = editor.explorer.selected_file.as_deref() {
         if is_video_path(path) {
-            return PropertiesPanelViewable::VideoFile(path);
+            return PropertiesPanelViewable::VideoFile(editor.project_root.join(path));
         }
         if is_audio_path(path) {
             return PropertiesPanelViewable::AudioFile(path);
@@ -104,15 +123,13 @@ pub(crate) struct PropertiesPanelState {
     pub(crate) text_input_clip_id: Option<Ulid>,
 }
 
-pub(super) fn properties_panel(
-    data: PropertiesPanelViewable<'_>,
-    event_bus: Entity<EventBus>,
-    return_focus: FocusHandle,
-) -> gpui::AnyElement {
+pub(super) fn properties_panel(data: PropertiesPanelViewable<'_>) -> gpui::AnyElement {
     match data {
-        PropertiesPanelViewable::TextClip(clip) => {
-            TextClipPropertiesView::new(clip.clone(), event_bus, return_focus).into_any_element()
-        }
+        PropertiesPanelViewable::TextClip {
+            clip,
+            track_name,
+            frame_rate,
+        } => text_clip_view(clip, track_name, frame_rate),
         PropertiesPanelViewable::VideoClip {
             clip,
             asset_name,
@@ -120,7 +137,7 @@ pub(super) fn properties_panel(
             frame_rate,
         } => video_clip_view(clip, asset_name, track_name, frame_rate),
         PropertiesPanelViewable::AudioClip(clip) => audio_clip(clip),
-        PropertiesPanelViewable::VideoFile(file) => media_file(file, "Video"),
+        PropertiesPanelViewable::VideoFile(path) => video_file_view(&path),
         PropertiesPanelViewable::TimelineFile(timeline) => timeline_file(timeline),
         PropertiesPanelViewable::ImageFile(path) => image_file(path),
         PropertiesPanelViewable::AudioFile(path) => media_file(path, "Audio"),
@@ -131,6 +148,92 @@ pub(super) fn properties_panel(
             .child("No properties available")
             .into_any_element(),
     }
+}
+
+pub fn properties_header_view(badge: gpui::Div, title: String, subtitle: String) -> gpui::Div {
+    div()
+        .h(px(64.0))
+        .flex_shrink_0()
+        .flex()
+        .items_center()
+        .gap(px(12.0))
+        .px(px(16.0))
+        .border_b_1()
+        .border_color(rgb(BORDER))
+        .child(badge)
+        .child(
+            div()
+                .min_w_0()
+                .flex_1()
+                .flex()
+                .flex_col()
+                .child(
+                    div()
+                        .text_size(px(14.0))
+                        .line_height(px(20.0))
+                        .font_weight(FontWeight::SEMIBOLD)
+                        .text_ellipsis()
+                        .child(title),
+                )
+                .child(
+                    div()
+                        .text_size(px(12.0))
+                        .line_height(px(16.0))
+                        .text_color(rgb(MUTED))
+                        .text_ellipsis()
+                        .child(subtitle),
+                ),
+        )
+}
+
+pub fn readonly_properties_panel_view(
+    id: &'static str,
+    header: gpui::Div,
+    content: gpui::Div,
+) -> gpui::AnyElement {
+    div()
+        .id(id)
+        .h_full()
+        .min_h_0()
+        .flex()
+        .flex_col()
+        .overflow_hidden()
+        .bg(rgb(PANEL))
+        .text_color(rgb(TEXT))
+        .child(header)
+        .child(
+            div()
+                .id(format!("{id}-scroll"))
+                .flex_1()
+                .min_h_0()
+                .overflow_y_scroll()
+                .p(px(16.0))
+                .child(content),
+        )
+        .into_any_element()
+}
+
+pub fn properties_heading_view(label: &'static str) -> gpui::Div {
+    div()
+        .text_size(px(11.0))
+        .line_height(px(16.0))
+        .font_weight(FontWeight::SEMIBOLD)
+        .text_color(rgb(MUTED))
+        .child(label)
+}
+
+pub fn properties_divider_view() -> gpui::Div {
+    div().h(px(1.0)).my(px(16.0)).bg(rgb(0x1f1f24))
+}
+
+pub fn format_properties_time(seconds: f64) -> String {
+    let centiseconds = (seconds.max(0.0) * 100.0).round() as u64;
+    format!(
+        "{}:{:02}.{:02}",
+        centiseconds / 6000,
+        (centiseconds / 100) % 60,
+        centiseconds % 100,
+    )
 }
 
 fn image_file(path: PathBuf) -> gpui::AnyElement {
@@ -629,7 +732,7 @@ fn video_clip_view(
                 .min_h_0()
                 .overflow_y_scroll()
                 .p(px(16.0))
-                .child(video_clip_section_heading_view("TIMING"))
+                .child(properties_heading_view("TIMING"))
                 .child(
                     div()
                         .mt(px(12.0))
@@ -661,7 +764,7 @@ fn video_clip_view(
                         .flex()
                         .items_center()
                         .justify_between()
-                        .child(video_clip_section_heading_view("TRANSFORM"))
+                        .child(properties_heading_view("TRANSFORM"))
                         .child(
                             div()
                                 .text_size(px(12.0))
@@ -756,27 +859,12 @@ fn video_clip_view(
         .into_any_element()
 }
 
-fn video_clip_section_heading_view(label: &'static str) -> gpui::Div {
-    div()
-        .text_size(px(11.0))
-        .line_height(px(16.0))
-        .font_weight(FontWeight::SEMIBOLD)
-        .text_color(rgb(MUTED))
-        .child(label)
-}
-
 fn video_clip_timing_card_view(
     label: &'static str,
     frame_index: TimelineFrameIndex,
     frame_rate: FrameRate,
 ) -> gpui::Div {
-    let centiseconds = (frame_rate.seconds(frame_index).max(0.0) * 100.0).round() as u64;
-    let time = format!(
-        "{}:{:02}.{:02}",
-        centiseconds / 6000,
-        (centiseconds / 100) % 60,
-        centiseconds % 100,
-    );
+    let time = format_properties_time(frame_rate.seconds(frame_index));
     div()
         .min_w_0()
         .min_h(px(50.0))
@@ -862,46 +950,220 @@ fn video_clip_transform_value_view(
         .child(div().flex_shrink_0().text_color(rgb(MUTED)).child(unit))
 }
 
-fn srt_file_view(path: &Path) -> gpui::AnyElement {
-    let content = match fs::read_to_string(path) {
-        Ok(content) => content,
-        Err(error) => format!("Could not read {}: {error}", path.display()),
+fn video_file_view(path: &Path) -> gpui::AnyElement {
+    let name = match path.file_name() {
+        Some(name) => name.to_string_lossy().into_owned(),
+        None => path.display().to_string(),
     };
+    let format = match path.extension() {
+        Some(extension) => extension.to_string_lossy().to_ascii_uppercase(),
+        None => "Unknown".to_owned(),
+    };
+    let folder = match path.parent().and_then(Path::file_name) {
+        Some(folder) => folder.to_string_lossy().into_owned(),
+        None => "/".to_owned(),
+    };
+    let (size, metadata_error) = match fs::metadata(path) {
+        Ok(metadata) => {
+            let bytes = metadata.len();
+            let size_text = if bytes >= 1_000_000_000 {
+                format!("{:.1} GB", bytes as f64 / 1_000_000_000.0)
+            } else if bytes >= 1_000_000 {
+                format!("{:.1} MB", bytes as f64 / 1_000_000.0)
+            } else if bytes >= 1_000 {
+                format!("{:.1} KB", bytes as f64 / 1_000.0)
+            } else {
+                format!("{bytes} B")
+            };
+            (size_text, None)
+        }
+        Err(error) => ("Unavailable".to_owned(), Some(error.to_string())),
+    };
+    let header = properties_header_view(
+        file_badge_view(&format, 0x355b78, 0x8fb9dd),
+        name,
+        "Video file".to_owned(),
+    );
+    let content = div()
+        .child(properties_heading_view("FILE"))
+        .child(
+            div()
+                .mt(px(12.0))
+                .child(file_property_row_view("Format", format))
+                .child(file_property_row_view("Size", size))
+                .child(file_property_row_view("Folder", folder)),
+        )
+        .when_some(metadata_error, |content, error| {
+            content.child(
+                div()
+                    .mt(px(8.0))
+                    .text_size(px(12.0))
+                    .text_color(rgb(ERROR))
+                    .child(format!("Could not read file information: {error}")),
+            )
+        })
+        .child(properties_divider_view())
+        .child(properties_heading_view("LOCATION"))
+        .child(
+            div()
+                .mt(px(8.0))
+                .font_family("monospace")
+                .text_size(px(12.0))
+                .line_height(px(18.0))
+                .text_color(rgb(0xb4b4bc))
+                .whitespace_normal()
+                .child(path.display().to_string().replace('/', "/\u{200b}")),
+        )
+        .child(
+            div()
+                .mt(px(20.0))
+                .text_size(px(12.0))
+                .line_height(px(17.0))
+                .text_color(rgb(MUTED))
+                .child("Drag onto a video track to add it to the timeline."),
+        );
+    readonly_properties_panel_view("video-file-properties", header, content)
+}
 
+fn file_badge_view(label: &str, border: u32, foreground: u32) -> gpui::Div {
     div()
-        .id("srt-file-properties")
-        .h_full()
-        .min_h_0()
+        .size(px(32.0))
+        .flex_shrink_0()
+        .rounded(px(8.0))
+        .border_1()
+        .border_color(rgb(border))
+        .bg(rgb(0x131316))
         .flex()
-        .flex_col()
-        .overflow_hidden()
-        .bg(rgb(PANEL))
+        .items_center()
+        .justify_center()
+        .font_family("monospace")
+        .text_size(px(9.0))
+        .font_weight(FontWeight::SEMIBOLD)
+        .text_color(rgb(foreground))
+        .child(label.to_owned())
+}
+
+fn file_property_row_view(label: &'static str, value: String) -> gpui::Div {
+    div()
+        .min_h(px(28.0))
+        .flex()
+        .items_center()
+        .gap(px(8.0))
+        .text_size(px(13.0))
+        .child(div().flex_shrink_0().text_color(rgb(MUTED)).child(label))
         .child(
             div()
-                .h(px(58.0))
-                .flex_shrink_0()
-                .flex()
-                .items_center()
-                .px_5()
-                .border_b_1()
-                .border_color(rgb(BORDER))
-                .child(properties_tab("Subtitles", true)),
-        )
-        .child(
-            div()
-                .id("srt-file-properties-scroll")
+                .min_w_0()
                 .flex_1()
-                .min_h_0()
-                .overflow_y_scroll()
-                .px_5()
-                .py_5()
-                .child(
-                    div()
-                        .w_full()
-                        .font_family("monospace")
-                        .text_sm()
-                        .child(content),
-                ),
+                .text_right()
+                .font_family("monospace")
+                .text_ellipsis()
+                .child(value),
         )
-        .into_any_element()
+}
+
+fn srt_file_view(path: &Path) -> gpui::AnyElement {
+    let name = match path.file_name() {
+        Some(name) => name.to_string_lossy().into_owned(),
+        None => path.display().to_string(),
+    };
+    let parsed = (|| -> anyhow::Result<SRT> {
+        let text = fs::read_to_string(path)?;
+        SRT::from_string(&text)
+    })();
+    let mut content = div().child(properties_heading_view("CUES"));
+    let subtitle = match parsed {
+        Ok(srt) => {
+            let end = srt
+                .subtitles
+                .iter()
+                .map(|cue| cue.end)
+                .max()
+                .unwrap_or_default();
+            let summary = format!(
+                "Subtitles · {} cues · {}",
+                srt.subtitles.len(),
+                format_time(end.as_secs_f64(), false),
+            );
+            if srt.subtitles.is_empty() {
+                content = content.child(
+                    div()
+                        .mt(px(12.0))
+                        .text_size(px(13.0))
+                        .text_color(rgb(MUTED))
+                        .child("No subtitle cues."),
+                );
+            }
+            for (index, cue) in srt.subtitles.iter().enumerate() {
+                content = content.child(
+                    div()
+                        .mt(px(12.0))
+                        .flex()
+                        .items_start()
+                        .gap(px(8.0))
+                        .child(
+                            div()
+                                .min_w(px(18.0))
+                                .flex_shrink_0()
+                                .font_family("monospace")
+                                .text_size(px(11.0))
+                                .line_height(px(16.0))
+                                .text_color(rgb(0x55555e))
+                                .child(format!("{:02}", index + 1)),
+                        )
+                        .child(
+                            div()
+                                .min_w_0()
+                                .flex_1()
+                                .pb(px(12.0))
+                                .border_b_1()
+                                .border_color(rgb(0x1f1f24))
+                                .child(
+                                    div()
+                                        .font_family("monospace")
+                                        .text_size(px(11.0))
+                                        .line_height(px(16.0))
+                                        .text_color(rgb(MUTED))
+                                        .child(format!(
+                                            "{} → {}",
+                                            format_properties_time(cue.start.as_secs_f64()),
+                                            format_properties_time(cue.end.as_secs_f64()),
+                                        )),
+                                )
+                                .child(
+                                    div()
+                                        .mt(px(4.0))
+                                        .text_size(px(13.0))
+                                        .line_height(px(19.0))
+                                        .children(cue.text.lines().map(|line| {
+                                            div().min_h(px(19.0)).child(line.to_owned())
+                                        })),
+                                ),
+                        ),
+                );
+            }
+            content = content.child(
+                div()
+                    .mt(px(20.0))
+                    .text_size(px(12.0))
+                    .line_height(px(17.0))
+                    .text_color(rgb(MUTED))
+                    .child("Drag onto a text track to add one text clip per cue."),
+            );
+            summary
+        }
+        Err(_error) => {
+            content = content.child(
+                div()
+                    .mt(px(12.0))
+                    .text_size(px(13.0))
+                    .line_height(px(19.0))
+                    .text_color(rgb(ERROR))
+                    .child("Could not load subtitles. Check that the file is readable and contains valid SRT cues."),
+            );
+            "Subtitles · Unavailable".to_owned()
+        }
+    };
+    let header = properties_header_view(file_badge_view("SRT", 0x46464e, 0x8b8b94), name, subtitle);
+    readonly_properties_panel_view("srt-file-properties", header, content)
 }
