@@ -93,15 +93,39 @@ impl Editor {
                         }
                         FileTreeEntryKind::Timeline => {
                             editor.emit_event(cx, AppEvent::OpenTimeline { path: path.clone() });
+                            editor.emit_event(cx, AppEvent::RefreshPropertiesPanel);
                         }
-                        FileTreeEntryKind::Video
-                        | FileTreeEntryKind::Image
+                        FileTreeEntryKind::Video => {
+                            editor.emit_event(
+                                cx,
+                                AppEvent::Preview(PreviewEvent::SelectFile(path.clone())),
+                            );
+                            editor.emit_event(
+                                cx,
+                                AppEvent::VideoFileSelected {
+                                    path: path.clone(),
+                                    size_bytes: entry.size_bytes,
+                                },
+                            );
+                        }
+                        FileTreeEntryKind::Other if is_srt_path(&path) => {
+                            editor.emit_event(
+                                cx,
+                                AppEvent::Preview(PreviewEvent::SelectFile(path.clone())),
+                            );
+                            editor.emit_event(
+                                cx,
+                                AppEvent::SrtFileSelected { path: path.clone() },
+                            );
+                        }
+                        FileTreeEntryKind::Image
                         | FileTreeEntryKind::Audio
                         | FileTreeEntryKind::Other => {
                             editor.emit_event(
                                 cx,
                                 AppEvent::Preview(PreviewEvent::SelectFile(path.clone())),
                             );
+                            editor.emit_event(cx, AppEvent::RefreshPropertiesPanel);
                         }
                     }
                     cx.notify();

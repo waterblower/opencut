@@ -35,6 +35,38 @@ are relative to the OpenCut root.
   data in messages rather than adding fields to a broader owner solely so event
   handlers can access it. This is not a reason to introduce message passing.
 
+## Elm-style architecture: user actions as events, panels as view models
+
+The editor is moving toward an Elm architecture. Apply it to new and touched
+user actions; migrate the existing code incrementally.
+
+- Express a user action as one `AppEvent` that describes what happened, such as
+  `TextClipSelected { clip_id }` or `VideoFileSelected { path, size_bytes }`,
+  not an imperative command such as "refresh the panel". The event carries the
+  data that is known at the call site and that the handler needs.
+- One user action emits one event. Do not split an action into several events
+  whose handlers must run in a particular order.
+- The event handler is the update step. It owns the consequences of the action:
+  modifying `Editor` state, performing the necessary IO (for example, reading
+  and parsing an SRT file), and rebuilding the affected view models. Errors are
+  propagated or logged there, at the event boundary.
+- Model each panel's view model as an enum with one variant per kind of content.
+  Each variant wraps a dedicated `XxxPanel` struct that holds everything the UI
+  displays, as owned data. For example, `PropertiesPanel::TextClip(TextClipPanel)`.
+  The view model is stored on `Editor` and replaced by event handlers.
+- Render functions take only their `XxxPanel`, such as
+  `fn text_clip_view(panel: &TextClipPanel)`. They must not take `&Editor`,
+  derive data from other state, or perform IO.
+- A stored view model is a deliberate snapshot for rendering and is the one
+  exception to deriving values instead of storing them. Rebuild it from event
+  handlers; do not add per-call-site synchronization code to keep it current.
+- Events are handled asynchronously, after the UI callback returns. State that
+  the callback itself needs immediately (for example, the selection that a
+  drag starts from) is still set synchronously in the callback. Never place
+  code after an emit that depends on that event's effects.
+- Non-user mutations, such as playback updates and periodic file-tree scans,
+  are not routed through `AppEvent` for now. Leave playback as it is.
+
 ## Repository workflow and coding rules
 
 - Never call `mcp.cua_repl.js` (also exposed as `mcp__cua_repl.js`).
@@ -95,7 +127,9 @@ are relative to the OpenCut root.
   concurrency. Do not add workers, channels, request/reply protocols, or future
   wrappers unless the user's chosen architecture calls for them.
 - Perform quick synchronous work, such as small UI state changes and cheap
-  backend commands, directly in UI callbacks without emitting events. When
+  backend commands, directly in UI callbacks without emitting events. User
+  actions that change what a panel displays are the exception: follow the
+  Elm-style architecture section and emit an event. When
   asynchronous execution is part of the authorized architecture, use event
   handlers to coordinate it and run CPU-heavy work on background workers;
   emitting an event alone does not move work off the UI thread. An explicitly

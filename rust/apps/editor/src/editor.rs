@@ -7,7 +7,7 @@ use crate::explorer_file_entry::visible_tree;
 use crate::generic_containers::{HorizontalSplitState, TextInput, VerticalSplitState};
 use crate::preview::{PreviewState, PreviewTarget};
 use crate::project_settings::load_project_local_settings;
-use crate::properties::PropertiesPanelState;
+use crate::properties::{PropertiesPanel, PropertiesPanelState, current_properties_panel};
 use crate::properties_transform::VideoTransformInputs;
 use crate::timeline::TimelineRuntimeState;
 use crate::waveform;
@@ -31,6 +31,7 @@ pub(crate) struct Editor {
     pub(super) waveform_jobs: HashSet<PathBuf>, // 正在生成波形的素材绝对路径。
     pub(super) waveform_cache: HashMap<PathBuf, Arc<waveform::WaveformData>>, // 键为素材的绝对路径；不同目录的时间线可能用不同相对路径指向同一文件。
     pub(super) properties: PropertiesPanelState,
+    pub(super) properties_panel: PropertiesPanel, // 点击文件或片段后由事件重建，render 只读它。
     pub(super) settings_open: bool,
 
     pub(super) focus_handle: FocusHandle,
@@ -118,6 +119,7 @@ impl Editor {
             waveform_jobs: HashSet::new(),
             waveform_cache: HashMap::new(),
             properties,
+            properties_panel: PropertiesPanel::None,
             settings_open: false,
             global_settings_input: None,
             timeline,
@@ -130,6 +132,7 @@ impl Editor {
         if let Some(timeline) = editor.timeline.as_mut() {
             timeline.set_playhead(timeline.playhead());
         }
+        editor.properties_panel = current_properties_panel(&editor);
 
         // todo:
         // instead of have an async starting here

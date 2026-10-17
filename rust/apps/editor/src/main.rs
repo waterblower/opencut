@@ -104,7 +104,7 @@ fn main() -> anyhow::Result<()> {
 
         let event_bus = cx.new(|_| EventBus {});
 
-        // If a project has been openned before
+        // Restore the previous project when its folder is still available.
         if settings.project_root.is_dir() {
             if let Err(error) = open_project(cx, settings.project_root, event_bus) {
                 log::error!("{error:?}");
@@ -112,7 +112,12 @@ fn main() -> anyhow::Result<()> {
             }
             return;
         }
-        if let Err(error) = project_picker::open(cx, event_bus) {
+        let missing_project = if settings.project_root.as_os_str().is_empty() {
+            None
+        } else {
+            Some(settings.project_root)
+        };
+        if let Err(error) = project_picker::open(cx, event_bus, missing_project) {
             log::error!("Could not open project picker: {error:?}");
             cx.quit();
         }
