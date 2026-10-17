@@ -179,23 +179,3 @@ fn format_transform_value(value: f64) -> String {
         .trim_end_matches('.')
         .to_string()
 }
-
-pub(super) fn properties_tab(label: &'static str, active: bool) -> gpui::Div {
-    div()
-        .h_full()
-        .flex()
-        .items_center()
-        .border_b_2()
-        .border_color(if active { rgb(ACCENT) } else { rgb(0x00000000) })
-        .text_sm()
-        .text_color(rgb(if active { TEXT } else { MUTED }))
-        .child(label)
-}
-
-pub(super) fn properties_section_label(label: &'static str) -> gpui::Div {
-    div()
-        .text_xs()
-        .font_weight(gpui::FontWeight::SEMIBOLD)
-        .text_color(rgb(MUTED))
-        .child(label)
-}

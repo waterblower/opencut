@@ -22,6 +22,7 @@ impl Editor {
 fn debug_state(editor: &Editor) -> Result<String> {
     let target = match &editor.preview.target {
         PreviewTarget::None => "None",
+        PreviewTarget::Error { .. } => "Error",
         PreviewTarget::Timeline { .. } => "Timeline",
         PreviewTarget::VideoFile { .. } => "VideoFile",
         PreviewTarget::AudioFile { .. } => "AudioFile",
