@@ -14,9 +14,8 @@ use crate::waveform::WaveformData;
 use anyhow::Result;
 use gpui::prelude::FluentBuilder;
 use gpui::{
-    Bounds, FontWeight, InteractiveElement, IntoElement, ObjectFit, ParentElement,
-    StatefulInteractiveElement, Styled, StyledImage, canvas, div, fill, img, point, px, relative,
-    rgb, rgba, size, svg,
+    Bounds, FontWeight, InteractiveElement, IntoElement, ParentElement, StatefulInteractiveElement,
+    Styled, canvas, div, fill, point, px, relative, rgb, rgba, size, svg,
 };
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -362,51 +361,8 @@ fn image_file_view(panel: &ImageFilePanel) -> gpui::AnyElement {
         name,
         "Image file".to_owned(),
     );
-    let preview = div()
-        .relative()
-        .h(px(150.0))
-        .overflow_hidden()
-        .rounded(px(6.0))
-        .border_1()
-        .border_color(rgb(BORDER))
-        .child(
-            canvas(
-                |_, _, _| {},
-                |bounds, _, window, _| {
-                    let columns = (f32::from(bounds.size.width) / 8.0).ceil() as usize;
-                    let rows = (f32::from(bounds.size.height) / 8.0).ceil() as usize;
-                    for row in 0..rows {
-                        for column in 0..columns {
-                            window.paint_quad(fill(
-                                Bounds::new(
-                                    point(
-                                        bounds.left() + px(column as f32 * 8.0),
-                                        bounds.top() + px(row as f32 * 8.0),
-                                    ),
-                                    size(px(8.0), px(8.0)),
-                                ),
-                                rgb(if (row + column) % 2 == 0 {
-                                    0x1a1a1e
-                                } else {
-                                    0x222227
-                                }),
-                            ));
-                        }
-                    }
-                },
-            )
-            .absolute()
-            .size_full(),
-        )
-        .child(
-            img(panel.path.clone())
-                .absolute()
-                .size_full()
-                .object_fit(ObjectFit::Contain),
-        );
     let content = div()
-        .child(preview)
-        .child(div().mt(px(28.0)).child(properties_heading_view("FILE")))
+        .child(properties_heading_view("FILE"))
         .child(file_details_view(path, panel.size_bytes))
         .child(properties_divider_view())
         .child(properties_heading_view("LOCATION"))
@@ -1124,7 +1080,7 @@ fn video_file_view(panel: &VideoFilePanel) -> gpui::AnyElement {
     readonly_properties_panel_view("video-file-properties", header, content)
 }
 
-/// Format, size and folder rows shared by the file panels.
+/// Format and size rows shared by the file panels.
 fn file_details_view(path: &Path, size_bytes: Option<u64>) -> gpui::Div {
     let format = match path.extension() {
         Some(extension) => extension.to_string_lossy().to_ascii_uppercase(),
@@ -1144,15 +1100,10 @@ fn file_details_view(path: &Path, size_bytes: Option<u64>) -> gpui::Div {
         }
         None => "Unavailable".to_owned(),
     };
-    let folder = match path.parent().and_then(Path::file_name) {
-        Some(folder) => folder.to_string_lossy().into_owned(),
-        None => "/".to_owned(),
-    };
     div()
         .mt(px(12.0))
         .child(file_property_row_view("Format", format))
         .child(file_property_row_view("Size", size))
-        .child(file_property_row_view("Folder", folder))
 }
 
 fn file_location_view(path: &Path) -> gpui::Div {
