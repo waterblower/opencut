@@ -68,6 +68,11 @@ use gpui_platform::application;
 use preview::{PreviewTarget, timeline_preview_target};
 use std::io::Write as _;
 use std::path::PathBuf;
+#[cfg(target_os = "macos")]
+use {
+    objc2_app_kit::{NSApplication, NSImage},
+    objc2_foundation::{MainThreadMarker, NSData},
+};
 
 fn main() -> anyhow::Result<()> {
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("editor=debug"))
@@ -85,6 +90,13 @@ fn main() -> anyhow::Result<()> {
     let settings = GlobalEditorSettings::load()?;
 
     application().with_assets(EditorAssets).run(move |cx| {
+        #[cfg(target_os = "macos")]
+        if let Err(error) = set_dock_icon() {
+            log::error!("Could not set Dock icon: {error:?}");
+            cx.quit();
+            return;
+        }
+
         gpui_tokio::init(cx);
         gpui_inspector::init(cx);
         actions::bind_keys(cx);
@@ -179,4 +191,32 @@ fn open_editor_window(
         .context(format!("creating editor window for {}", root.display()))?;
     cx.activate(true);
     Ok(window)
+}
+
+#[cfg(target_os = "macos")]
+fn set_dock_icon() -> Result<()> {
+    let main_thread = MainThreadMarker::new().context("Dock icon requires the main thread")?;
+    let tree = resvg::usvg::Tree::from_data(
+        include_bytes!("../icons/app-icon.svg"),
+        &resvg::usvg::Options::default(),
+    )
+    .context("parsing the application icon SVG")?;
+    let size = tree.size().to_int_size();
+    let mut pixmap = resvg::tiny_skia::Pixmap::new(size.width(), size.height())
+        .context("allocating the application icon pixels")?;
+    resvg::render(
+        &tree,
+        resvg::tiny_skia::Transform::identity(),
+        &mut pixmap.as_mut(),
+    );
+    let png = pixmap
+        .encode_png()
+        .context("encoding the application icon")?;
+    let data = NSData::from_vec(png);
+    let image = NSImage::initWithData(main_thread.alloc(), &data)
+        .context("creating the application icon image")?;
+    let application = NSApplication::sharedApplication(main_thread);
+    // SAFETY: 在主线程传入有效的非空 NSImage；AppKit 持有设置后的图标。
+    unsafe { application.setApplicationIconImage(Some(&image)) };
+    Ok(())
 }
