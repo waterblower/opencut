@@ -15,7 +15,7 @@ use gpui::{
 };
 use std::fs;
 use std::path::{Path, PathBuf};
-use timeline::TimelineSettings;
+use timeline::{TimelineEditingState, TimelineSettings};
 use transcribe::SRT;
 use ulid::Ulid;
 
@@ -32,8 +32,8 @@ pub enum PropertiesPanel {
 }
 
 pub struct VideoFilePanel {
-    path: PathBuf,           // 绝对路径
-    size_bytes: Option<u64>, // 取自 Explorer 条目，不在 render 里读磁盘
+    pub path: PathBuf,           // 绝对路径
+    pub size_bytes: Option<u64>, // 取自 Explorer 条目，不在 render 里读磁盘
 }
 
 pub struct AudioFilePanel {
@@ -82,45 +82,13 @@ pub fn current_properties_panel(editor: &Editor) -> PropertiesPanel {
         let Some(clip) = timeline.editing_state.clip(clip_id) else {
             return PropertiesPanel::None;
         };
-        let frame_rate = timeline.editing_state.settings.frame_rate;
         return match clip {
             Clip::Video(clip) => {
-                let asset_name = match timeline.editing_state.asset(clip.asset_id) {
-                    Some(asset) => asset.name.as_str(),
-                    None => "Missing media",
-                };
-                let track_name = match timeline
-                    .editing_state
-                    .tracks
-                    .iter()
-                    .find(|track| track.id == clip.track_id)
-                {
-                    Some(track) => track.name.as_str(),
-                    None => "Unknown track",
-                };
-                PropertiesPanel::VideoClip(VideoClipPanel {
-                    clip: clip.clone(),
-                    asset_name: asset_name.to_owned(),
-                    track_name: track_name.to_owned(),
-                    frame_rate,
-                })
+                PropertiesPanel::VideoClip(video_clip_panel(&timeline.editing_state, clip))
             }
             Clip::Audio(clip) => PropertiesPanel::AudioClip(AudioClipPanel { clip: clip.clone() }),
             Clip::Text(clip) => {
-                let track_name = match timeline
-                    .editing_state
-                    .tracks
-                    .iter()
-                    .find(|track| track.id == clip.track_id)
-                {
-                    Some(track) => track.name.as_str(),
-                    None => "Unknown track",
-                };
-                PropertiesPanel::TextClip(TextClipPanel {
-                    clip: clip.clone(),
-                    track_name: track_name.to_owned(),
-                    frame_rate,
-                })
+                PropertiesPanel::TextClip(text_clip_panel(&timeline.editing_state, clip))
             }
         };
     }
@@ -154,14 +122,7 @@ pub fn current_properties_panel(editor: &Editor) -> PropertiesPanel {
             });
         }
         if is_srt_path(path) {
-            let subtitles = (|| -> Result<SRT> {
-                let text = fs::read_to_string(&absolute_path)?;
-                SRT::from_string(&text)
-            })();
-            return PropertiesPanel::SrtFile(SrtFilePanel {
-                path: absolute_path,
-                subtitles,
-            });
+            return PropertiesPanel::SrtFile(srt_file_panel(absolute_path));
         }
         if timeline_document::is_timeline_path(path) {
             let timeline = editor
@@ -178,6 +139,58 @@ pub fn current_properties_panel(editor: &Editor) -> PropertiesPanel {
         return PropertiesPanel::None;
     };
     PropertiesPanel::Timeline(timeline_panel(timeline))
+}
+
+pub fn video_clip_panel(editing_state: &TimelineEditingState, clip: &VideoClip) -> VideoClipPanel {
+    let asset_name = match editing_state.asset(clip.asset_id) {
+        Some(asset) => asset.name.as_str(),
+        None => "Missing media",
+    };
+    let track_name = match editing_state
+        .tracks
+        .iter()
+        .find(|track| track.id == clip.track_id)
+    {
+        Some(track) => track.name.as_str(),
+        None => "Unknown track",
+    };
+    VideoClipPanel {
+        clip: clip.clone(),
+        asset_name: asset_name.to_owned(),
+        track_name: track_name.to_owned(),
+        frame_rate: editing_state.settings.frame_rate,
+    }
+}
+
+pub fn text_clip_panel(editing_state: &TimelineEditingState, clip: &TextClip) -> TextClipPanel {
+    let track_name = match editing_state
+        .tracks
+        .iter()
+        .find(|track| track.id == clip.track_id)
+    {
+        Some(track) => track.name.as_str(),
+        None => "Unknown track",
+    };
+    TextClipPanel {
+        clip: clip.clone(),
+        track_name: track_name.to_owned(),
+        frame_rate: editing_state.settings.frame_rate,
+    }
+}
+
+/// Reads and parses the subtitles; failures are logged here and shown by the panel.
+pub fn srt_file_panel(path: PathBuf) -> SrtFilePanel {
+    let subtitles = (|| -> Result<SRT> {
+        let text = fs::read_to_string(&path)?;
+        SRT::from_string(&text)
+    })();
+    match &subtitles {
+        Ok(_) => {
+            // do nothing
+        }
+        Err(error) => log::error!("Could not load subtitles {}: {error:?}", path.display()),
+    }
+    SrtFilePanel { path, subtitles }
 }
 
 pub(crate) struct PropertiesPanelState {
