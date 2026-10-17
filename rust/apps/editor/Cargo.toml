@@ -28,4 +28,5 @@ unicode-segmentation.workspace = true
 gpui = { workspace = true, features = ["inspector"] }
 
 [target.'cfg(target_os = "macos")'.dependencies]
-objc2-foundation.workspace = true
+objc2-app-kit = { workspace = true, features = ["NSApplication", "NSImage"] }
+objc2-foundation = { workspace = true, features = ["NSData"] }
