@@ -113,10 +113,7 @@ impl Editor {
                                 cx,
                                 AppEvent::Preview(PreviewEvent::SelectFile(path.clone())),
                             );
-                            editor.emit_event(
-                                cx,
-                                AppEvent::SrtFileSelected { path: path.clone() },
-                            );
+                            editor.emit_event(cx, AppEvent::SrtFileSelected { path: path.clone() });
                         }
                         FileTreeEntryKind::Image
                         | FileTreeEntryKind::Audio

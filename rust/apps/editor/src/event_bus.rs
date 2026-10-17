@@ -10,11 +10,11 @@ use crate::layout::{RULER_HEIGHT, TIMELINE_PADDING, TRACK_HEIGHT};
 use crate::model::MediaKind;
 use crate::preview::{PreviewTarget, timeline_preview_target};
 use crate::preview_events::PreviewEvent;
+use crate::project_settings::{ProjectLocalSettings, save_project_local_settings};
 use crate::properties::{
     PropertiesPanel, VideoFilePanel, current_properties_panel, srt_file_panel, text_clip_panel,
     video_clip_panel,
 };
-use crate::project_settings::{ProjectLocalSettings, save_project_local_settings};
 use crate::srt::{srt_text_clips, write_srt};
 use crate::timeline::{PreviewDropAsset, TimelineFrameIndex};
 use crate::timeline_clip::Clip;

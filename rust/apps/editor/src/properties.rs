@@ -1,20 +1,26 @@
+use crate::asset::IconName;
 use crate::editor::Editor;
 use crate::explorer_file_entry::{is_audio_path, is_image_path, is_srt_path, is_video_path};
 use crate::properties_text::text_clip_view;
-use crate::properties_transform::{VideoTransformInputs, properties_section_label, properties_tab};
+use crate::properties_transform::VideoTransformInputs;
 use crate::theme::{ACCENT, BORDER, CLIP_BLUE, ERROR, MUTED, PANEL, SURFACE, TEXT};
 use crate::time_format::format_time;
 use crate::timeline::{FrameRate, FrameRateLabel, TimelineFrameIndex, TimelineRuntimeState};
 use crate::timeline_clip::{AudioClip, Clip, TextClip, VideoClip};
 use crate::timeline_document;
+use crate::timeline_document::resolve_asset_path;
+use crate::track::TrackKind;
+use crate::waveform::WaveformData;
 use anyhow::Result;
 use gpui::prelude::FluentBuilder;
 use gpui::{
-    FontWeight, InteractiveElement, IntoElement, ObjectFit, ParentElement,
-    StatefulInteractiveElement, Styled, StyledImage, div, img, px, relative, rgb, rgba,
+    Bounds, FontWeight, InteractiveElement, IntoElement, ObjectFit, ParentElement,
+    StatefulInteractiveElement, Styled, StyledImage, canvas, div, fill, img, point, px, relative,
+    rgb, rgba, size, svg,
 };
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 use timeline::{TimelineEditingState, TimelineSettings};
 use transcribe::SRT;
 use ulid::Ulid;
@@ -37,11 +43,13 @@ pub struct VideoFilePanel {
 }
 
 pub struct AudioFilePanel {
-    path: PathBuf, // 相对于项目根目录
+    path: PathBuf,           // 绝对路径
+    size_bytes: Option<u64>, // 取自 Explorer 条目
 }
 
 pub struct ImageFilePanel {
-    path: PathBuf, // 绝对路径
+    path: PathBuf,           // 绝对路径
+    size_bytes: Option<u64>, // 取自 Explorer 条目
 }
 
 pub struct SrtFilePanel {
@@ -58,6 +66,10 @@ pub struct VideoClipPanel {
 
 pub struct AudioClipPanel {
     clip: AudioClip,
+    asset_name: String,
+    track_name: String,
+    frame_rate: FrameRate,
+    waveform: Option<Arc<WaveformData>>, // 构造面板时缓存里还没有波形则为 None
 }
 
 pub struct TextClipPanel {
@@ -67,11 +79,14 @@ pub struct TextClipPanel {
 }
 
 pub struct TimelinePanel {
-    path: PathBuf,
+    path: PathBuf,         // 绝对路径
+    project_root: PathBuf, // 用于显示相对路径
     settings: TimelineSettings,
     duration_seconds: f64,
     playhead_seconds: f64, // 播放时每帧变化
-    track_count: usize,
+    text_track_count: usize,
+    video_track_count: usize,
+    audio_track_count: usize,
     clip_count: usize,
 }
 
@@ -86,7 +101,39 @@ pub fn current_properties_panel(editor: &Editor) -> PropertiesPanel {
             Clip::Video(clip) => {
                 PropertiesPanel::VideoClip(video_clip_panel(&timeline.editing_state, clip))
             }
-            Clip::Audio(clip) => PropertiesPanel::AudioClip(AudioClipPanel { clip: clip.clone() }),
+            Clip::Audio(clip) => {
+                let asset = timeline.editing_state.asset(clip.asset_id);
+                let asset_name = match asset {
+                    Some(asset) => asset.name.clone(),
+                    None => "Missing media".to_owned(),
+                };
+                let track_name = match timeline
+                    .editing_state
+                    .tracks
+                    .iter()
+                    .find(|track| track.id == clip.track_id)
+                {
+                    Some(track) => track.name.clone(),
+                    None => "Unknown track".to_owned(),
+                };
+                let waveform = (|| {
+                    let Some(asset) = asset else {
+                        return None;
+                    };
+                    let Some(timeline_directory) = timeline.path.parent() else {
+                        return None;
+                    };
+                    let media_path = resolve_asset_path(timeline_directory, &asset.path); // 波形缓存以素材的绝对路径为键。
+                    editor.waveform_cache.get(&media_path).cloned()
+                })();
+                PropertiesPanel::AudioClip(AudioClipPanel {
+                    clip: clip.clone(),
+                    asset_name,
+                    track_name,
+                    frame_rate: timeline.editing_state.settings.frame_rate,
+                    waveform,
+                })
+            }
             Clip::Text(clip) => {
                 PropertiesPanel::TextClip(text_clip_panel(&timeline.editing_state, clip))
             }
@@ -95,17 +142,17 @@ pub fn current_properties_panel(editor: &Editor) -> PropertiesPanel {
 
     if let Some(path) = editor.explorer.selected_file.as_deref() {
         let absolute_path = editor.project_root.join(path);
+        let size_bytes = match editor
+            .explorer
+            .file_tree
+            .iter()
+            .chain(editor.explorer.search_results.iter())
+            .find(|entry| entry.absolute_path == absolute_path)
+        {
+            Some(entry) => entry.size_bytes,
+            None => None,
+        };
         if is_video_path(path) {
-            let size_bytes = match editor
-                .explorer
-                .file_tree
-                .iter()
-                .chain(editor.explorer.search_results.iter())
-                .find(|entry| entry.absolute_path == absolute_path)
-            {
-                Some(entry) => entry.size_bytes,
-                None => None,
-            };
             return PropertiesPanel::VideoFile(VideoFilePanel {
                 path: absolute_path,
                 size_bytes,
@@ -113,12 +160,14 @@ pub fn current_properties_panel(editor: &Editor) -> PropertiesPanel {
         }
         if is_audio_path(path) {
             return PropertiesPanel::AudioFile(AudioFilePanel {
-                path: path.to_path_buf(),
+                path: absolute_path,
+                size_bytes,
             });
         }
         if is_image_path(path) {
             return PropertiesPanel::ImageFile(ImageFilePanel {
                 path: absolute_path,
+                size_bytes,
             });
         }
         if is_srt_path(path) {
@@ -130,7 +179,7 @@ pub fn current_properties_panel(editor: &Editor) -> PropertiesPanel {
                 .as_ref()
                 .filter(|timeline| timeline.path == absolute_path)
                 .expect("should have the timeline");
-            return PropertiesPanel::Timeline(timeline_panel(timeline));
+            return PropertiesPanel::Timeline(timeline_panel(timeline, &editor.project_root));
         }
         return PropertiesPanel::None;
     }
@@ -138,7 +187,7 @@ pub fn current_properties_panel(editor: &Editor) -> PropertiesPanel {
     let Some(timeline) = editor.timeline.as_ref() else {
         return PropertiesPanel::None;
     };
-    PropertiesPanel::Timeline(timeline_panel(timeline))
+    PropertiesPanel::Timeline(timeline_panel(timeline, &editor.project_root))
 }
 
 pub fn video_clip_panel(editing_state: &TimelineEditingState, clip: &VideoClip) -> VideoClipPanel {
@@ -203,17 +252,13 @@ pub(super) fn properties_panel(panel: &PropertiesPanel) -> gpui::AnyElement {
     match panel {
         PropertiesPanel::TextClip(panel) => text_clip_view(panel),
         PropertiesPanel::VideoClip(panel) => video_clip_view(panel),
-        PropertiesPanel::AudioClip(panel) => audio_clip(panel),
+        PropertiesPanel::AudioClip(panel) => audio_clip_view(panel),
         PropertiesPanel::VideoFile(panel) => video_file_view(panel),
-        PropertiesPanel::Timeline(panel) => timeline_file(panel),
-        PropertiesPanel::ImageFile(panel) => image_file(panel),
-        PropertiesPanel::AudioFile(panel) => media_file(&panel.path, "Audio"),
+        PropertiesPanel::Timeline(panel) => timeline_view(panel),
+        PropertiesPanel::ImageFile(panel) => image_file_view(panel),
+        PropertiesPanel::AudioFile(panel) => audio_file_view(panel),
         PropertiesPanel::SrtFile(panel) => srt_file_view(panel),
-        PropertiesPanel::None => div()
-            .p_4()
-            .text_color(rgb(MUTED))
-            .child("No properties available")
-            .into_any_element(),
+        PropertiesPanel::None => empty_panel_view(),
     }
 }
 
@@ -303,374 +348,482 @@ pub fn format_properties_time(seconds: f64) -> String {
     )
 }
 
-fn image_file(panel: &ImageFilePanel) -> gpui::AnyElement {
-    let path = &panel.path;
-    let name = path
-        .file_name()
-        .unwrap_or(path.as_os_str())
-        .to_string_lossy()
-        .into_owned();
-
-    div()
-        .id("image-file-properties")
-        .h_full()
-        .min_h_0()
-        .flex()
-        .flex_col()
+fn image_file_view(panel: &ImageFilePanel) -> gpui::AnyElement {
+    let path = panel.path.as_path();
+    let name = match path.file_name() {
+        Some(name) => name.to_string_lossy().into_owned(),
+        None => path.display().to_string(),
+    };
+    let format = match path.extension() {
+        Some(extension) => extension.to_string_lossy().to_ascii_uppercase(),
+        None => "Unknown".to_owned(),
+    };
+    let header = properties_header_view(
+        file_badge_view(&format, 0x665184, 0xc3a9e8),
+        name,
+        "Image file".to_owned(),
+    );
+    let preview = div()
+        .relative()
+        .h(px(150.0))
         .overflow_hidden()
-        .bg(rgb(PANEL))
+        .rounded(px(6.0))
+        .border_1()
+        .border_color(rgb(BORDER))
         .child(
-            div()
-                .h(px(58.0))
-                .flex_shrink_0()
-                .flex()
-                .items_center()
-                .px_5()
-                .border_b_1()
-                .border_color(rgb(BORDER))
-                .child(properties_tab("Image", true)),
+            canvas(
+                |_, _, _| {},
+                |bounds, _, window, _| {
+                    let columns = (f32::from(bounds.size.width) / 8.0).ceil() as usize;
+                    let rows = (f32::from(bounds.size.height) / 8.0).ceil() as usize;
+                    for row in 0..rows {
+                        for column in 0..columns {
+                            window.paint_quad(fill(
+                                Bounds::new(
+                                    point(
+                                        bounds.left() + px(column as f32 * 8.0),
+                                        bounds.top() + px(row as f32 * 8.0),
+                                    ),
+                                    size(px(8.0), px(8.0)),
+                                ),
+                                rgb(if (row + column) % 2 == 0 {
+                                    0x1a1a1e
+                                } else {
+                                    0x222227
+                                }),
+                            ));
+                        }
+                    }
+                },
+            )
+            .absolute()
+            .size_full(),
         )
         .child(
-            div()
-                .px_5()
-                .py_3()
-                .flex_shrink_0()
-                .text_sm()
-                .text_ellipsis()
-                .child(name),
-        )
-        .child(
-            div()
-                .relative()
-                .flex_1()
-                .min_h_0()
-                .overflow_hidden()
-                .bg(rgb(SURFACE))
-                .child(
-                    img(path.clone())
-                        .absolute()
-                        .size_full()
-                        .object_fit(ObjectFit::Contain),
-                ),
-        )
-        .into_any_element()
+            img(panel.path.clone())
+                .absolute()
+                .size_full()
+                .object_fit(ObjectFit::Contain),
+        );
+    let content = div()
+        .child(preview)
+        .child(div().mt(px(28.0)).child(properties_heading_view("FILE")))
+        .child(file_details_view(path, panel.size_bytes))
+        .child(properties_divider_view())
+        .child(properties_heading_view("LOCATION"))
+        .child(file_location_view(path));
+    readonly_properties_panel_view("image-file-properties", header, content)
 }
 
-fn timeline_panel(timeline: &TimelineRuntimeState) -> TimelinePanel {
+fn timeline_panel(timeline: &TimelineRuntimeState, project_root: &Path) -> TimelinePanel {
     let settings = timeline.editing_state.settings;
+    let track_count = |kind: TrackKind| {
+        timeline
+            .editing_state
+            .tracks
+            .iter()
+            .filter(|track| track.kind == kind)
+            .count()
+    };
     TimelinePanel {
         path: timeline.path.clone(),
+        project_root: project_root.to_path_buf(),
         settings,
         duration_seconds: settings
             .frame_rate
             .seconds(timeline.editing_state.content_duration()),
         playhead_seconds: settings.frame_rate.seconds(timeline.playhead()),
-        track_count: timeline.editing_state.tracks.len(),
+        text_track_count: track_count(TrackKind::Text),
+        video_track_count: track_count(TrackKind::Video),
+        audio_track_count: track_count(TrackKind::Audio),
         clip_count: timeline.editing_state.clips.len(),
     }
 }
 
-fn timeline_file(panel: &TimelinePanel) -> gpui::AnyElement {
-    let property_field = |label: &'static str, value: String, unit: &'static str| {
-        div()
-            .h(px(48.0))
-            .flex()
-            .items_center()
-            .gap_2()
-            .child(
-                div()
-                    .w(px(112.0))
-                    .flex_shrink_0()
-                    .text_sm()
-                    .text_color(rgb(MUTED))
-                    .child(label),
-            )
-            .child(
-                div()
-                    .h(px(48.0))
-                    .min_w_0()
-                    .flex_1()
-                    .flex()
-                    .items_center()
-                    .gap_1()
-                    .px_3()
-                    .rounded_md()
-                    .border_1()
-                    .border_color(rgb(BORDER))
-                    .bg(rgb(SURFACE))
-                    .child(
-                        div()
-                            .min_w_0()
-                            .flex_1()
-                            .text_sm()
-                            .text_ellipsis()
-                            .child(value),
-                    )
-                    .when(!unit.is_empty(), |field| {
-                        field.child(div().text_sm().text_color(rgb(MUTED)).child(unit))
-                    }),
-            )
+fn timeline_view(panel: &TimelinePanel) -> gpui::AnyElement {
+    let name = match panel.path.file_name() {
+        Some(name) => name.to_string_lossy().into_owned(),
+        None => panel.path.display().to_string(),
     };
-    let name = panel
-        .path
-        .file_name()
-        .map(|name| name.to_string_lossy().into_owned())
-        .unwrap_or_else(|| panel.path.display().to_string());
-
-    div()
-        .id("timeline-file-properties-v2")
-        .h_full()
-        .min_h_0()
+    let relative_path = match panel.path.strip_prefix(&panel.project_root) {
+        Ok(relative_path) => relative_path.display().to_string(),
+        Err(_) => panel.path.display().to_string(),
+    };
+    let progress = if panel.duration_seconds > 0.0 {
+        (panel.playhead_seconds / panel.duration_seconds).clamp(0.0, 1.0) as f32
+    } else {
+        0.0
+    };
+    let badge = div()
+        .size(px(32.0))
+        .flex_shrink_0()
+        .rounded(px(8.0))
+        .border_1()
+        .border_color(rgb(ACCENT))
+        .bg(rgb(ACCENT))
         .flex()
-        .flex_col()
-        .overflow_hidden()
-        .bg(rgb(PANEL))
+        .items_center()
+        .justify_center()
+        .text_size(px(11.0))
+        .font_weight(FontWeight::BOLD)
+        .text_color(rgb(0x17120a))
+        .child("TL");
+    let header = properties_header_view(badge, name, relative_path);
+    let content = div()
+        .child(properties_heading_view("PLAYBACK"))
         .child(
             div()
-                .h(px(58.0))
-                .flex_shrink_0()
+                .mt(px(6.0))
                 .flex()
-                .items_center()
-                .gap_5()
-                .px_5()
-                .border_b_1()
-                .border_color(rgb(BORDER))
-                .child(properties_tab("Timeline", true)),
+                .items_baseline()
+                .gap(px(6.0))
+                .child(
+                    div()
+                        .font_family("monospace")
+                        .text_size(px(24.0))
+                        .line_height(px(30.0))
+                        .font_weight(FontWeight::SEMIBOLD)
+                        .child(format_time(panel.playhead_seconds, false)),
+                )
+                .child(
+                    div()
+                        .font_family("monospace")
+                        .text_size(px(13.0))
+                        .text_color(rgb(MUTED))
+                        .child(format!("/ {}", format_time(panel.duration_seconds, false))),
+                )
+                .child(
+                    div()
+                        .flex_1()
+                        .text_right()
+                        .text_size(px(12.0))
+                        .text_color(rgb(MUTED))
+                        .child("Playhead"),
+                ),
         )
         .child(
             div()
-                .id("timeline-file-properties-scroll")
-                .flex_1()
-                .min_h_0()
-                .overflow_y_scroll()
-                .flex()
-                .flex_col()
-                .gap_3()
-                .px_5()
-                .py_2()
-                .child(property_field("Name", name, ""))
-                .child(property_field("Path", panel.path.display().to_string(), ""))
-                .child(property_field(
-                    "Duration",
-                    format_time(panel.duration_seconds, false),
-                    "",
-                ))
-                .child(property_field(
-                    "Playhead",
-                    format_time(panel.playhead_seconds, false),
-                    "",
-                ))
-                .child(property_field(
+                .mt(px(10.0))
+                .relative()
+                .h(px(4.0))
+                .rounded_full()
+                .bg(rgb(BORDER))
+                .child(
+                    div()
+                        .h_full()
+                        .w(relative(progress))
+                        .rounded_full()
+                        .bg(rgb(ACCENT)),
+                )
+                .child(
+                    div()
+                        .absolute()
+                        .left(relative(progress))
+                        .ml(px(-1.0))
+                        .top(px(-4.0))
+                        .w(px(2.0))
+                        .h(px(12.0))
+                        .bg(rgb(ACCENT)),
+                ),
+        )
+        .child(properties_divider_view())
+        .child(properties_heading_view("FORMAT"))
+        .child(
+            div()
+                .mt(px(12.0))
+                .child(file_property_row_view(
                     "Frame rate",
                     panel.settings.frame_rate.label(),
-                    "",
                 ))
-                .child(property_field(
+                .child(file_property_row_view(
                     "Resolution",
                     format!("{} × {}", panel.settings.width, panel.settings.height),
-                    "px",
                 ))
-                .child(property_field(
+                .child(file_property_row_view(
                     "Audio rate",
-                    panel.settings.audio_sample_rate.to_string(),
-                    "Hz",
-                ))
-                .child(property_field("Tracks", panel.track_count.to_string(), ""))
-                .child(property_field("Clips", panel.clip_count.to_string(), "")),
-        )
-        .into_any_element()
-}
-
-fn audio_clip(panel: &AudioClipPanel) -> gpui::AnyElement {
-    let clip = &panel.clip;
-    let property_field = |label: &'static str, value: String, unit: &'static str| {
-        div()
-            .h(px(48.0))
-            .flex()
-            .items_center()
-            .gap_4()
-            .child(
-                div()
-                    .w(px(112.0))
-                    .flex_shrink_0()
-                    .text_sm()
-                    .text_color(rgb(MUTED))
-                    .child(label),
-            )
-            .child(
-                div()
-                    .h(px(48.0))
-                    .min_w_0()
-                    .flex_1()
-                    .flex()
-                    .items_center()
-                    .gap_2()
-                    .px_3()
-                    .rounded_md()
-                    .border_1()
-                    .border_color(rgb(BORDER))
-                    .bg(rgb(SURFACE))
-                    .child(
-                        div()
-                            .min_w_0()
-                            .flex_1()
-                            .text_sm()
-                            .text_ellipsis()
-                            .child(value),
-                    )
-                    .when(!unit.is_empty(), |field| {
-                        field.child(div().text_sm().text_color(rgb(MUTED)).child(unit))
-                    }),
-            )
-    };
-    let duration = clip.source_out - clip.source_in;
-
-    div()
-        .id("audio-clip-properties-v2")
-        .flex()
-        .flex_col()
-        .overflow_hidden()
-        .bg(rgb(PANEL))
-        .child(
-            div()
-                .h(px(58.0))
-                .flex_shrink_0()
-                .flex()
-                .items_center()
-                .gap_5()
-                .px_5()
-                .border_b_1()
-                .border_color(rgb(BORDER))
-                .child(properties_tab("Audio", true)),
-        )
-        .child(
-            div()
-                .flex()
-                .flex_col()
-                .gap_3()
-                .px_5()
-                .py_5()
-                .child(properties_section_label("CLIP"))
-                .child(property_field(
-                    "Timeline start",
-                    i64::from(clip.timeline_start).to_string(),
-                    "frames",
-                ))
-                .child(property_field(
-                    "Source in",
-                    i64::from(clip.source_in).to_string(),
-                    "frames",
-                ))
-                .child(property_field(
-                    "Source out",
-                    i64::from(clip.source_out).to_string(),
-                    "frames",
-                ))
-                .child(property_field(
-                    "Duration",
-                    i64::from(duration).to_string(),
-                    "frames",
-                ))
-                .child(properties_section_label("AUDIO"))
-                .child(property_field(
-                    "Gain",
-                    format!("{:.2}", clip.audio_properties.gain_db),
-                    "dB",
-                ))
-                .child(property_field(
-                    "Muted",
-                    if clip.audio_properties.muted {
-                        "Yes".to_string()
-                    } else {
-                        "No".to_string()
-                    },
-                    "",
+                    format!("{} kHz", panel.settings.audio_sample_rate as f64 / 1000.0),
                 )),
         )
-        .into_any_element()
-}
-
-fn media_file(path: &Path, tab: &'static str) -> gpui::AnyElement {
-    let property_field = |label: &'static str, value: String| {
-        div()
-            .h(px(48.0))
-            .flex()
-            .items_center()
-            .gap_4()
-            .child(
-                div()
-                    .w(px(112.0))
-                    .flex_shrink_0()
-                    .text_sm()
-                    .text_color(rgb(MUTED))
-                    .child(label),
-            )
-            .child(
-                div()
-                    .h(px(48.0))
-                    .min_w_0()
-                    .flex_1()
-                    .flex()
-                    .items_center()
-                    .px_3()
-                    .rounded_md()
-                    .border_1()
-                    .border_color(rgb(BORDER))
-                    .bg(rgb(SURFACE))
-                    .child(
-                        div()
-                            .min_w_0()
-                            .flex_1()
-                            .text_sm()
-                            .text_ellipsis()
-                            .child(value),
-                    ),
-            )
-    };
-    let name = path
-        .file_name()
-        .map(|name| name.to_string_lossy().into_owned())
-        .unwrap_or_else(|| path.display().to_string());
-    let format = path
-        .extension()
-        .map(|extension| extension.to_string_lossy().to_ascii_uppercase())
-        .unwrap_or_else(|| "Unknown".to_string());
-    let directory = path
-        .parent()
-        .filter(|directory| !directory.as_os_str().is_empty())
-        .map(|directory| directory.display().to_string())
-        .unwrap_or_else(|| ".".to_string());
-
-    div()
-        .id("media-file-properties")
-        .flex()
-        .flex_col()
-        .overflow_hidden()
-        .bg(rgb(PANEL))
+        .child(properties_divider_view())
+        .child(properties_heading_view("CONTENTS"))
         .child(
             div()
-                .h(px(58.0))
-                .flex_shrink_0()
+                .mt(px(12.0))
+                .child(file_property_row_view(
+                    "Clips",
+                    panel.clip_count.to_string(),
+                ))
+                .child(
+                    div()
+                        .min_h(px(28.0))
+                        .flex()
+                        .items_center()
+                        .gap(px(8.0))
+                        .text_size(px(13.0))
+                        .child(div().flex_1().text_color(rgb(MUTED)).child("Tracks"))
+                        .child(track_count_badge_view(
+                            "T",
+                            panel.text_track_count,
+                            0x7251a3,
+                            0x8261b3,
+                        ))
+                        .child(track_count_badge_view(
+                            "V",
+                            panel.video_track_count,
+                            CLIP_BLUE,
+                            0x395d85,
+                        ))
+                        .child(track_count_badge_view(
+                            "A",
+                            panel.audio_track_count,
+                            0x24656b,
+                            0x34757b,
+                        )),
+                ),
+        )
+        .child(properties_divider_view())
+        .child(properties_heading_view("LOCATION"))
+        .child(file_location_view(&panel.path));
+    readonly_properties_panel_view("timeline-properties", header, content)
+}
+
+fn track_count_badge_view(
+    label: &'static str,
+    count: usize,
+    background: u32,
+    border: u32,
+) -> gpui::Div {
+    div()
+        .h(px(19.0))
+        .min_w(px(33.0))
+        .px(px(5.0))
+        .flex()
+        .items_center()
+        .justify_center()
+        .rounded(px(4.0))
+        .border_1()
+        .border_color(rgb(border))
+        .bg(rgb(background))
+        .text_size(px(11.0))
+        .font_weight(FontWeight::SEMIBOLD)
+        .text_color(rgb(0xffffff))
+        .child(format!("{label} {count}"))
+}
+
+fn audio_clip_view(panel: &AudioClipPanel) -> gpui::AnyElement {
+    let clip = &panel.clip;
+    let frame_rate = panel.frame_rate;
+    let duration = clip.source_out - clip.source_in;
+    let gain_db = clip.audio_properties.gain_db;
+    let muted = clip.audio_properties.muted;
+    let badge = div()
+        .size(px(32.0))
+        .flex_shrink_0()
+        .rounded(px(8.0))
+        .border_1()
+        .border_color(rgb(0x34757b))
+        .bg(rgb(0x24656b))
+        .flex()
+        .items_center()
+        .justify_center()
+        .text_size(px(12.0))
+        .font_weight(FontWeight::BOLD)
+        .text_color(rgb(0xffffff))
+        .child("A");
+    let header = properties_header_view(
+        badge,
+        panel.asset_name.clone(),
+        format!("Audio clip · {}", panel.track_name),
+    );
+    let content = div()
+        .child(properties_heading_view("TIMING"))
+        .child(
+            div()
+                .mt(px(12.0))
+                .grid()
+                .grid_cols(2)
+                .gap(px(8.0))
+                .child(timing_card_view("Start", clip.timeline_start, frame_rate))
+                .child(timing_card_view("Duration", duration, frame_rate))
+                .child(timing_card_view("Source in", clip.source_in, frame_rate))
+                .child(timing_card_view("Source out", clip.source_out, frame_rate)),
+        )
+        .child(properties_divider_view())
+        .child(properties_heading_view("AUDIO"))
+        .child(div().mt(px(12.0)).child(audio_waveform_view(
+            panel.waveform.clone(),
+            frame_rate.seconds(clip.source_in),
+            frame_rate.seconds(clip.source_out),
+        )))
+        .child(
+            div()
+                .mt(px(16.0))
                 .flex()
                 .items_center()
-                .gap_5()
-                .px_5()
-                .border_b_1()
-                .border_color(rgb(BORDER))
-                .child(properties_tab(tab, true)),
+                .gap(px(12.0))
+                .child(
+                    div()
+                        .flex_shrink_0()
+                        .text_size(px(13.0))
+                        .text_color(rgb(MUTED))
+                        .child("Gain"),
+                )
+                .child(slider_view(
+                    ((gain_db + 60.0) / 80.0).clamp(0.0, 1.0) as f32,
+                    0.75, // 0 dB 在 −60…+20 dB 范围中的位置
+                ))
+                .child(div().w(px(84.0)).flex_shrink_0().child(value_field_view(
+                    "",
+                    format!("{gain_db:.2}"),
+                    "dB",
+                ))),
         )
         .child(
             div()
+                .mt(px(14.0))
                 .flex()
-                .flex_col()
-                .gap_3()
-                .px_5()
-                .py_5()
-                .child(properties_section_label("FILE"))
-                .child(property_field("Name", name))
-                .child(property_field("Format", format))
-                .child(property_field("Folder", directory))
-                .child(property_field("Path", path.display().to_string())),
+                .items_center()
+                .justify_between()
+                .child(
+                    div()
+                        .text_size(px(13.0))
+                        .text_color(rgb(MUTED))
+                        .child("Mute clip"),
+                )
+                .child(
+                    div()
+                        .relative()
+                        .w(px(34.0))
+                        .h(px(20.0))
+                        .rounded_full()
+                        .bg(rgb(if muted { ACCENT } else { BORDER }))
+                        .child(
+                            div()
+                                .absolute()
+                                .top(px(3.0))
+                                .left(px(if muted { 17.0 } else { 3.0 }))
+                                .size(px(14.0))
+                                .rounded_full()
+                                .bg(rgb(if muted { PANEL } else { MUTED })),
+                        ),
+                ),
+        );
+    readonly_properties_panel_view("audio-clip-properties", header, content)
+}
+
+fn audio_waveform_view(
+    waveform: Option<Arc<WaveformData>>,
+    source_start_seconds: f64,
+    source_end_seconds: f64,
+) -> gpui::Div {
+    div()
+        .h(px(44.0))
+        .overflow_hidden()
+        .rounded(px(6.0))
+        .bg(rgb(0x131316))
+        .child(
+            canvas(
+                move |bounds, _, _| match &waveform {
+                    Some(waveform) => waveform.columns(
+                        source_start_seconds,
+                        source_end_seconds,
+                        (f32::from(bounds.size.width) / 3.0).floor().max(1.0) as usize, // 每根柱 2px 宽、间隔 1px
+                    ),
+                    None => Vec::new(),
+                },
+                |bounds, columns, window, _| {
+                    let height = f32::from(bounds.size.height);
+                    for (index, peak) in columns.iter().enumerate() {
+                        let bar_height =
+                            (peak.max.abs().max(peak.min.abs()) * height).clamp(1.0, height);
+                        window.paint_quad(fill(
+                            Bounds::new(
+                                point(
+                                    bounds.left() + px(index as f32 * 3.0),
+                                    bounds.top() + px((height - bar_height) / 2.0),
+                                ),
+                                size(px(2.0), px(bar_height)),
+                            ),
+                            rgba(0x69c5cfcc),
+                        ));
+                    }
+                },
+            )
+            .size_full(),
+        )
+}
+
+fn audio_file_view(panel: &AudioFilePanel) -> gpui::AnyElement {
+    let path = panel.path.as_path();
+    let name = match path.file_name() {
+        Some(name) => name.to_string_lossy().into_owned(),
+        None => path.display().to_string(),
+    };
+    let format = match path.extension() {
+        Some(extension) => extension.to_string_lossy().to_ascii_uppercase(),
+        None => "Unknown".to_owned(),
+    };
+    let header = properties_header_view(
+        file_badge_view(&format, 0x32725a, 0x7fd0ae),
+        name,
+        "Audio file".to_owned(),
+    );
+    let content = div()
+        .child(properties_heading_view("FILE"))
+        .child(file_details_view(path, panel.size_bytes))
+        .child(properties_divider_view())
+        .child(properties_heading_view("LOCATION"))
+        .child(file_location_view(path))
+        .child(properties_divider_view())
+        .child(file_hint_view(
+            "Drag onto an audio track to add it to the timeline.",
+        ));
+    readonly_properties_panel_view("audio-file-properties", header, content)
+}
+
+fn empty_panel_view() -> gpui::AnyElement {
+    div()
+        .size_full()
+        .flex()
+        .flex_col()
+        .items_center()
+        .justify_center()
+        .px(px(16.0))
+        .bg(rgb(PANEL))
+        .text_color(rgb(TEXT))
+        .child(
+            div()
+                .size(px(48.0))
+                .rounded(px(12.0))
+                .border_1()
+                .border_color(rgb(BORDER))
+                .bg(rgb(0x131316))
+                .flex()
+                .items_center()
+                .justify_center()
+                .child(
+                    svg()
+                        .path(IconName::Pointer.path())
+                        .size(px(24.0))
+                        .text_color(rgb(MUTED)),
+                ),
+        )
+        .child(
+            div()
+                .mt(px(14.0))
+                .text_size(px(14.0))
+                .line_height(px(20.0))
+                .font_weight(FontWeight::SEMIBOLD)
+                .child("Nothing selected"),
+        )
+        .child(
+            div()
+                .mt(px(5.0))
+                .text_center()
+                .text_size(px(12.0))
+                .line_height(px(17.0))
+                .text_color(rgb(MUTED))
+                .child("Select a clip on the timeline or a file in the Explorer."),
         )
         .into_any_element()
 }
@@ -799,24 +952,10 @@ fn video_clip_view(panel: &VideoClipPanel) -> gpui::AnyElement {
                         .grid()
                         .grid_cols(2)
                         .gap(px(8.0))
-                        .child(video_clip_timing_card_view(
-                            "Start",
-                            clip.timeline_start,
-                            frame_rate,
-                        ))
-                        .child(video_clip_timing_card_view(
-                            "Duration", duration, frame_rate,
-                        ))
-                        .child(video_clip_timing_card_view(
-                            "Source in",
-                            clip.source_in,
-                            frame_rate,
-                        ))
-                        .child(video_clip_timing_card_view(
-                            "Source out",
-                            clip.source_out,
-                            frame_rate,
-                        )),
+                        .child(timing_card_view("Start", clip.timeline_start, frame_rate))
+                        .child(timing_card_view("Duration", duration, frame_rate))
+                        .child(timing_card_view("Source in", clip.source_in, frame_rate))
+                        .child(timing_card_view("Source out", clip.source_out, frame_rate)),
                 )
                 .child(div().h(px(1.0)).my(px(16.0)).bg(rgb(0x1f1f24)))
                 .child(
@@ -846,14 +985,14 @@ fn video_clip_view(panel: &VideoClipPanel) -> gpui::AnyElement {
                                 .flex()
                                 .flex_col()
                                 .gap(px(8.0))
-                                .child(video_clip_transform_value_view(
+                                .child(value_field_view(
                                     "X",
-                                    clip.video_properties.position_x,
+                                    trimmed_number(clip.video_properties.position_x),
                                     "px",
                                 ))
-                                .child(video_clip_transform_value_view(
+                                .child(value_field_view(
                                     "Y",
-                                    clip.video_properties.position_y,
+                                    trimmed_number(clip.video_properties.position_y),
                                     "px",
                                 )),
                         ),
@@ -871,55 +1010,18 @@ fn video_clip_view(panel: &VideoClipPanel) -> gpui::AnyElement {
                                 .text_color(rgb(MUTED))
                                 .child("Scale"),
                         )
-                        .child(
-                            div()
-                                .relative()
-                                .flex_1()
-                                .min_w_0()
-                                .h(px(4.0))
-                                .rounded_full()
-                                .bg(rgb(BORDER))
-                                .child(
-                                    div()
-                                        .h_full()
-                                        .w(relative(scale_fraction))
-                                        .rounded_full()
-                                        .bg(rgb(ACCENT)),
-                                )
-                                .child(
-                                    div()
-                                        .absolute()
-                                        .left(relative(0.5))
-                                        .top(px(-3.0))
-                                        .w(px(1.0))
-                                        .h(px(10.0))
-                                        .bg(rgb(0x55555e)),
-                                )
-                                .child(
-                                    div()
-                                        .absolute()
-                                        .left(relative(scale_fraction))
-                                        .ml(px(-7.0))
-                                        .top(px(-5.0))
-                                        .size(px(14.0))
-                                        .rounded_full()
-                                        .bg(rgb(TEXT))
-                                        .border_2()
-                                        .border_color(rgb(PANEL)),
-                                ),
-                        )
-                        .child(
-                            div()
-                                .w(px(84.0))
-                                .flex_shrink_0()
-                                .child(video_clip_transform_value_view("", scale_percent, "%")),
-                        ),
+                        .child(slider_view(scale_fraction, 0.5))
+                        .child(div().w(px(84.0)).flex_shrink_0().child(value_field_view(
+                            "",
+                            trimmed_number(scale_percent),
+                            "%",
+                        ))),
                 ),
         )
         .into_any_element()
 }
 
-fn video_clip_timing_card_view(
+fn timing_card_view(
     label: &'static str,
     frame_index: TimelineFrameIndex,
     frame_rate: FrameRate,
@@ -967,16 +1069,53 @@ fn video_clip_timing_card_view(
         )
 }
 
-fn video_clip_transform_value_view(
-    label: &'static str,
-    value: f64,
-    unit: &'static str,
-) -> gpui::Div {
+fn slider_view(fraction: f32, reference_fraction: f32) -> gpui::Div {
+    div()
+        .relative()
+        .flex_1()
+        .min_w_0()
+        .h(px(4.0))
+        .rounded_full()
+        .bg(rgb(BORDER))
+        .child(
+            div()
+                .h_full()
+                .w(relative(fraction))
+                .rounded_full()
+                .bg(rgb(ACCENT)),
+        )
+        .child(
+            div()
+                .absolute()
+                .left(relative(reference_fraction))
+                .top(px(-3.0))
+                .w(px(1.0))
+                .h(px(10.0))
+                .bg(rgb(0x55555e)),
+        )
+        .child(
+            div()
+                .absolute()
+                .left(relative(fraction))
+                .ml(px(-7.0))
+                .top(px(-5.0))
+                .size(px(14.0))
+                .rounded_full()
+                .bg(rgb(TEXT))
+                .border_2()
+                .border_color(rgb(PANEL)),
+        )
+}
+
+fn trimmed_number(value: f64) -> String {
     let formatted = format!("{value:.2}");
-    let value_text = formatted
+    formatted
         .trim_end_matches('0')
         .trim_end_matches('.')
-        .to_owned();
+        .to_owned()
+}
+
+fn value_field_view(label: &'static str, value: String, unit: &'static str) -> gpui::Div {
     div()
         .h(px(30.0))
         .min_w_0()
@@ -1005,7 +1144,7 @@ fn video_clip_transform_value_view(
                 .font_family("monospace")
                 .text_size(px(13.0))
                 .text_ellipsis()
-                .child(value_text),
+                .child(value),
         )
         .child(div().flex_shrink_0().text_color(rgb(MUTED)).child(unit))
 }
@@ -1020,11 +1159,31 @@ fn video_file_view(panel: &VideoFilePanel) -> gpui::AnyElement {
         Some(extension) => extension.to_string_lossy().to_ascii_uppercase(),
         None => "Unknown".to_owned(),
     };
-    let folder = match path.parent().and_then(Path::file_name) {
-        Some(folder) => folder.to_string_lossy().into_owned(),
-        None => "/".to_owned(),
+    let header = properties_header_view(
+        file_badge_view(&format, 0x355b78, 0x8fb9dd),
+        name,
+        "Video file".to_owned(),
+    );
+    let content = div()
+        .child(properties_heading_view("FILE"))
+        .child(file_details_view(path, panel.size_bytes))
+        .child(properties_divider_view())
+        .child(properties_heading_view("LOCATION"))
+        .child(file_location_view(path))
+        .child(properties_divider_view())
+        .child(file_hint_view(
+            "Drag onto a video track to add it to the timeline.",
+        ));
+    readonly_properties_panel_view("video-file-properties", header, content)
+}
+
+/// Format, size and folder rows shared by the file panels.
+fn file_details_view(path: &Path, size_bytes: Option<u64>) -> gpui::Div {
+    let format = match path.extension() {
+        Some(extension) => extension.to_string_lossy().to_ascii_uppercase(),
+        None => "Unknown".to_owned(),
     };
-    let size = match panel.size_bytes {
+    let size = match size_bytes {
         Some(bytes) => {
             if bytes >= 1_000_000_000 {
                 format!("{:.1} GB", bytes as f64 / 1_000_000_000.0)
@@ -1038,41 +1197,34 @@ fn video_file_view(panel: &VideoFilePanel) -> gpui::AnyElement {
         }
         None => "Unavailable".to_owned(),
     };
-    let header = properties_header_view(
-        file_badge_view(&format, 0x355b78, 0x8fb9dd),
-        name,
-        "Video file".to_owned(),
-    );
-    let content = div()
-        .child(properties_heading_view("FILE"))
-        .child(
-            div()
-                .mt(px(12.0))
-                .child(file_property_row_view("Format", format))
-                .child(file_property_row_view("Size", size))
-                .child(file_property_row_view("Folder", folder)),
-        )
-        .child(properties_divider_view())
-        .child(properties_heading_view("LOCATION"))
-        .child(
-            div()
-                .mt(px(8.0))
-                .font_family("monospace")
-                .text_size(px(12.0))
-                .line_height(px(18.0))
-                .text_color(rgb(0xb4b4bc))
-                .whitespace_normal()
-                .child(path.display().to_string().replace('/', "/\u{200b}")),
-        )
-        .child(
-            div()
-                .mt(px(20.0))
-                .text_size(px(12.0))
-                .line_height(px(17.0))
-                .text_color(rgb(MUTED))
-                .child("Drag onto a video track to add it to the timeline."),
-        );
-    readonly_properties_panel_view("video-file-properties", header, content)
+    let folder = match path.parent().and_then(Path::file_name) {
+        Some(folder) => folder.to_string_lossy().into_owned(),
+        None => "/".to_owned(),
+    };
+    div()
+        .mt(px(12.0))
+        .child(file_property_row_view("Format", format))
+        .child(file_property_row_view("Size", size))
+        .child(file_property_row_view("Folder", folder))
+}
+
+fn file_location_view(path: &Path) -> gpui::Div {
+    div()
+        .mt(px(8.0))
+        .font_family("monospace")
+        .text_size(px(12.0))
+        .line_height(px(18.0))
+        .text_color(rgb(0xb4b4bc))
+        .whitespace_normal()
+        .child(path.display().to_string().replace('/', "/\u{200b}")) // 零宽空格让长路径在斜杠处换行
+}
+
+fn file_hint_view(text: &'static str) -> gpui::Div {
+    div()
+        .text_size(px(12.0))
+        .line_height(px(17.0))
+        .text_color(rgb(MUTED))
+        .child(text)
 }
 
 fn file_badge_view(label: &str, border: u32, foreground: u32) -> gpui::Div {

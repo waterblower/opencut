@@ -9,6 +9,7 @@ pub enum IconName {
     Lock,
     Mute,
     PickerGlow,
+    Pointer,
     Spinner,
     Trash,
     Unmute,
@@ -25,6 +26,7 @@ impl IconName {
             Self::Lock => "icons/lock.svg",
             Self::Mute => "icons/mute.svg",
             Self::PickerGlow => "icons/picker-glow.svg",
+            Self::Pointer => "icons/pointer.svg",
             Self::Spinner => "icons/spinner.svg",
             Self::Trash => "icons/trash.svg",
             Self::Unmute => "icons/unmute.svg",
@@ -56,13 +58,14 @@ impl AssetSource for EditorAssets {
 
 // Private APIs only
 impl IconName {
-    const ALL: [Self; 10] = [
+    const ALL: [Self; 11] = [
         Self::App,
         Self::Eye,
         Self::Folder,
         Self::Lock,
         Self::Mute,
         Self::PickerGlow,
+        Self::Pointer,
         Self::Spinner,
         Self::Trash,
         Self::Unmute,
@@ -77,6 +80,7 @@ impl IconName {
             Self::Lock => include_bytes!("../icons/lock.svg"),
             Self::Mute => include_bytes!("../icons/mute.svg"),
             Self::PickerGlow => include_bytes!("../icons/picker-glow.svg"),
+            Self::Pointer => include_bytes!("../icons/pointer.svg"),
             Self::Spinner => include_bytes!("../icons/spinner.svg"),
             Self::Trash => include_bytes!("../icons/trash.svg"),
             Self::Unmute => include_bytes!("../icons/unmute.svg"),
