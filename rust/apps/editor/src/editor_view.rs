@@ -9,7 +9,7 @@ use crate::layout::{
     MIN_UPPER_WORKSPACE_HEIGHT, TOPBAR_HEIGHT,
 };
 use crate::project_picker;
-use crate::properties::{current_properties_panel_viewable, properties_panel};
+use crate::properties::{current_properties_panel, properties_panel};
 use crate::settings::settings_modal_view;
 use crate::theme::{BACKGROUND, BORDER, MUTED, PANEL, SURFACE, SURFACE_HOVER, TEXT};
 use gpui::prelude::*;
@@ -158,7 +158,7 @@ impl Editor {
             min_right: MIN_PROPERTIES_PANEL_WIDTH,
         };
         let widths = self.upper_split_state.read(cx).widths(width, constraints);
-        let properties_panel_view = properties_panel(current_properties_panel_viewable(self));
+        let properties_panel_view = properties_panel(&current_properties_panel(self));
         HorizontalSplit::new(
             "editor-upper-workspace",
             self.upper_split_state.clone(),

@@ -1,18 +1,15 @@
 use crate::properties::{
-    format_properties_time, properties_divider_view, properties_header_view,
+    TextClipPanel, format_properties_time, properties_divider_view, properties_header_view,
     properties_heading_view, readonly_properties_panel_view,
 };
 use crate::theme::{ACCENT, BORDER, MUTED, SURFACE};
-use crate::timeline::FrameRate;
-use crate::timeline_clip::TextClip;
 use gpui::prelude::*;
 use gpui::{FontWeight, div, px, relative, rgb, rgba};
 
-pub fn text_clip_view(
-    clip: &TextClip,
-    track_name: &str,
-    frame_rate: FrameRate,
-) -> gpui::AnyElement {
+pub fn text_clip_view(panel: &TextClipPanel) -> gpui::AnyElement {
+    let clip = &panel.clip;
+    let track_name = panel.track_name.as_str();
+    let frame_rate = panel.frame_rate;
     let title = match clip
         .properties
         .text

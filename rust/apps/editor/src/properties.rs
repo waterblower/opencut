@@ -7,6 +7,7 @@ use crate::time_format::format_time;
 use crate::timeline::{FrameRate, FrameRateLabel, TimelineFrameIndex, TimelineRuntimeState};
 use crate::timeline_clip::{AudioClip, Clip, TextClip, VideoClip};
 use crate::timeline_document;
+use anyhow::Result;
 use gpui::prelude::FluentBuilder;
 use gpui::{
     FontWeight, InteractiveElement, IntoElement, ObjectFit, ParentElement,
@@ -14,37 +15,74 @@ use gpui::{
 };
 use std::fs;
 use std::path::{Path, PathBuf};
+use timeline::TimelineSettings;
 use transcribe::SRT;
 use ulid::Ulid;
 
-pub(super) enum PropertiesPanelViewable<'a> {
-    VideoClip {
-        clip: &'a VideoClip,
-        asset_name: &'a str,
-        track_name: &'a str,
-        frame_rate: FrameRate,
-    },
-    AudioClip(&'a AudioClip),
-    TextClip {
-        clip: &'a TextClip,
-        track_name: &'a str,
-        frame_rate: FrameRate,
-    },
-    VideoFile(PathBuf),
-    AudioFile(&'a Path),
-    ImageFile(PathBuf),
-    SrtFile(PathBuf),
-    TimelineFile(&'a TimelineRuntimeState),
+pub enum PropertiesPanel {
+    VideoFile(VideoFilePanel),
+    AudioFile(AudioFilePanel),
+    ImageFile(ImageFilePanel),
+    SrtFile(SrtFilePanel),
+    VideoClip(VideoClipPanel),
+    AudioClip(AudioClipPanel),
+    TextClip(TextClipPanel),
+    Timeline(TimelinePanel),
     None,
 }
 
-pub fn current_properties_panel_viewable(editor: &Editor) -> PropertiesPanelViewable<'_> {
+pub struct VideoFilePanel {
+    path: PathBuf,           // 绝对路径
+    size_bytes: Option<u64>, // 取自 Explorer 条目，不在 render 里读磁盘
+}
+
+pub struct AudioFilePanel {
+    path: PathBuf, // 相对于项目根目录
+}
+
+pub struct ImageFilePanel {
+    path: PathBuf, // 绝对路径
+}
+
+pub struct SrtFilePanel {
+    path: PathBuf,          // 绝对路径
+    subtitles: Result<SRT>, // 构造面板时读取并解析
+}
+
+pub struct VideoClipPanel {
+    clip: VideoClip,
+    asset_name: String,
+    track_name: String,
+    frame_rate: FrameRate,
+}
+
+pub struct AudioClipPanel {
+    clip: AudioClip,
+}
+
+pub struct TextClipPanel {
+    pub clip: TextClip,
+    pub track_name: String,
+    pub frame_rate: FrameRate,
+}
+
+pub struct TimelinePanel {
+    path: PathBuf,
+    settings: TimelineSettings,
+    duration_seconds: f64,
+    playhead_seconds: f64, // 播放时每帧变化
+    track_count: usize,
+    clip_count: usize,
+}
+
+pub fn current_properties_panel(editor: &Editor) -> PropertiesPanel {
     if let Some(timeline) = editor.timeline.as_ref()
         && let Some(clip_id) = timeline.interaction.selected_clip_id
     {
         let Some(clip) = timeline.editing_state.clip(clip_id) else {
-            return PropertiesPanelViewable::None;
+            return PropertiesPanel::None;
         };
+        let frame_rate = timeline.editing_state.settings.frame_rate;
         return match clip {
             Clip::Video(clip) => {
                 let asset_name = match timeline.editing_state.asset(clip.asset_id) {
@@ -60,14 +98,14 @@ pub fn current_properties_panel_viewable(editor: &Editor) -> PropertiesPanelView
                     Some(track) => track.name.as_str(),
                     None => "Unknown track",
                 };
-                PropertiesPanelViewable::VideoClip {
-                    clip,
-                    asset_name,
-                    track_name,
-                    frame_rate: timeline.editing_state.settings.frame_rate,
-                }
+                PropertiesPanel::VideoClip(VideoClipPanel {
+                    clip: clip.clone(),
+                    asset_name: asset_name.to_owned(),
+                    track_name: track_name.to_owned(),
+                    frame_rate,
+                })
             }
-            Clip::Audio(clip) => PropertiesPanelViewable::AudioClip(clip),
+            Clip::Audio(clip) => PropertiesPanel::AudioClip(AudioClipPanel { clip: clip.clone() }),
             Clip::Text(clip) => {
                 let track_name = match timeline
                     .editing_state
@@ -78,43 +116,68 @@ pub fn current_properties_panel_viewable(editor: &Editor) -> PropertiesPanelView
                     Some(track) => track.name.as_str(),
                     None => "Unknown track",
                 };
-                PropertiesPanelViewable::TextClip {
-                    clip,
-                    track_name,
-                    frame_rate: timeline.editing_state.settings.frame_rate,
-                }
+                PropertiesPanel::TextClip(TextClipPanel {
+                    clip: clip.clone(),
+                    track_name: track_name.to_owned(),
+                    frame_rate,
+                })
             }
         };
     }
 
     if let Some(path) = editor.explorer.selected_file.as_deref() {
+        let absolute_path = editor.project_root.join(path);
         if is_video_path(path) {
-            return PropertiesPanelViewable::VideoFile(editor.project_root.join(path));
+            let size_bytes = match editor
+                .explorer
+                .file_tree
+                .iter()
+                .chain(editor.explorer.search_results.iter())
+                .find(|entry| entry.absolute_path == absolute_path)
+            {
+                Some(entry) => entry.size_bytes,
+                None => None,
+            };
+            return PropertiesPanel::VideoFile(VideoFilePanel {
+                path: absolute_path,
+                size_bytes,
+            });
         }
         if is_audio_path(path) {
-            return PropertiesPanelViewable::AudioFile(path);
+            return PropertiesPanel::AudioFile(AudioFilePanel {
+                path: path.to_path_buf(),
+            });
         }
         if is_image_path(path) {
-            return PropertiesPanelViewable::ImageFile(editor.project_root.join(path));
+            return PropertiesPanel::ImageFile(ImageFilePanel {
+                path: absolute_path,
+            });
         }
         if is_srt_path(path) {
-            return PropertiesPanelViewable::SrtFile(editor.project_root.join(path));
+            let subtitles = (|| -> Result<SRT> {
+                let text = fs::read_to_string(&absolute_path)?;
+                SRT::from_string(&text)
+            })();
+            return PropertiesPanel::SrtFile(SrtFilePanel {
+                path: absolute_path,
+                subtitles,
+            });
         }
         if timeline_document::is_timeline_path(path) {
             let timeline = editor
                 .timeline
                 .as_ref()
-                .filter(|timeline| timeline.path == editor.project_root.join(path))
+                .filter(|timeline| timeline.path == absolute_path)
                 .expect("should have the timeline");
-            return PropertiesPanelViewable::TimelineFile(timeline);
+            return PropertiesPanel::Timeline(timeline_panel(timeline));
         }
-        return PropertiesPanelViewable::None;
+        return PropertiesPanel::None;
     }
 
     let Some(timeline) = editor.timeline.as_ref() else {
-        return PropertiesPanelViewable::None;
+        return PropertiesPanel::None;
     };
-    PropertiesPanelViewable::TimelineFile(timeline)
+    PropertiesPanel::Timeline(timeline_panel(timeline))
 }
 
 pub(crate) struct PropertiesPanelState {
@@ -123,26 +186,17 @@ pub(crate) struct PropertiesPanelState {
     pub(crate) text_input_clip_id: Option<Ulid>,
 }
 
-pub(super) fn properties_panel(data: PropertiesPanelViewable<'_>) -> gpui::AnyElement {
-    match data {
-        PropertiesPanelViewable::TextClip {
-            clip,
-            track_name,
-            frame_rate,
-        } => text_clip_view(clip, track_name, frame_rate),
-        PropertiesPanelViewable::VideoClip {
-            clip,
-            asset_name,
-            track_name,
-            frame_rate,
-        } => video_clip_view(clip, asset_name, track_name, frame_rate),
-        PropertiesPanelViewable::AudioClip(clip) => audio_clip(clip),
-        PropertiesPanelViewable::VideoFile(path) => video_file_view(&path),
-        PropertiesPanelViewable::TimelineFile(timeline) => timeline_file(timeline),
-        PropertiesPanelViewable::ImageFile(path) => image_file(path),
-        PropertiesPanelViewable::AudioFile(path) => media_file(path, "Audio"),
-        PropertiesPanelViewable::SrtFile(path) => srt_file_view(&path),
-        PropertiesPanelViewable::None => div()
+pub(super) fn properties_panel(panel: &PropertiesPanel) -> gpui::AnyElement {
+    match panel {
+        PropertiesPanel::TextClip(panel) => text_clip_view(panel),
+        PropertiesPanel::VideoClip(panel) => video_clip_view(panel),
+        PropertiesPanel::AudioClip(panel) => audio_clip(panel),
+        PropertiesPanel::VideoFile(panel) => video_file_view(panel),
+        PropertiesPanel::Timeline(panel) => timeline_file(panel),
+        PropertiesPanel::ImageFile(panel) => image_file(panel),
+        PropertiesPanel::AudioFile(panel) => media_file(&panel.path, "Audio"),
+        PropertiesPanel::SrtFile(panel) => srt_file_view(panel),
+        PropertiesPanel::None => div()
             .p_4()
             .text_color(rgb(MUTED))
             .child("No properties available")
@@ -236,7 +290,8 @@ pub fn format_properties_time(seconds: f64) -> String {
     )
 }
 
-fn image_file(path: PathBuf) -> gpui::AnyElement {
+fn image_file(panel: &ImageFilePanel) -> gpui::AnyElement {
+    let path = &panel.path;
     let name = path
         .file_name()
         .unwrap_or(path.as_os_str())
@@ -279,7 +334,7 @@ fn image_file(path: PathBuf) -> gpui::AnyElement {
                 .overflow_hidden()
                 .bg(rgb(SURFACE))
                 .child(
-                    img(path)
+                    img(path.clone())
                         .absolute()
                         .size_full()
                         .object_fit(ObjectFit::Contain),
@@ -288,7 +343,21 @@ fn image_file(path: PathBuf) -> gpui::AnyElement {
         .into_any_element()
 }
 
-fn timeline_file(timeline: &TimelineRuntimeState) -> gpui::AnyElement {
+fn timeline_panel(timeline: &TimelineRuntimeState) -> TimelinePanel {
+    let settings = timeline.editing_state.settings;
+    TimelinePanel {
+        path: timeline.path.clone(),
+        settings,
+        duration_seconds: settings
+            .frame_rate
+            .seconds(timeline.editing_state.content_duration()),
+        playhead_seconds: settings.frame_rate.seconds(timeline.playhead()),
+        track_count: timeline.editing_state.tracks.len(),
+        clip_count: timeline.editing_state.clips.len(),
+    }
+}
+
+fn timeline_file(panel: &TimelinePanel) -> gpui::AnyElement {
     let property_field = |label: &'static str, value: String, unit: &'static str| {
         div()
             .h(px(48.0))
@@ -329,21 +398,11 @@ fn timeline_file(timeline: &TimelineRuntimeState) -> gpui::AnyElement {
                     }),
             )
     };
-    let name = timeline
+    let name = panel
         .path
         .file_name()
         .map(|name| name.to_string_lossy().into_owned())
-        .unwrap_or_else(|| timeline.path.display().to_string());
-    let duration = timeline
-        .editing_state
-        .settings
-        .frame_rate
-        .seconds(timeline.editing_state.content_duration());
-    let playhead = timeline
-        .editing_state
-        .settings
-        .frame_rate
-        .seconds(timeline.playhead());
+        .unwrap_or_else(|| panel.path.display().to_string());
 
     div()
         .id("timeline-file-properties-v2")
@@ -377,51 +436,40 @@ fn timeline_file(timeline: &TimelineRuntimeState) -> gpui::AnyElement {
                 .px_5()
                 .py_2()
                 .child(property_field("Name", name, ""))
+                .child(property_field("Path", panel.path.display().to_string(), ""))
                 .child(property_field(
-                    "Path",
-                    timeline.path.display().to_string(),
+                    "Duration",
+                    format_time(panel.duration_seconds, false),
                     "",
                 ))
-                .child(property_field("Duration", format_time(duration, false), ""))
-                .child(property_field("Playhead", format_time(playhead, false), ""))
+                .child(property_field(
+                    "Playhead",
+                    format_time(panel.playhead_seconds, false),
+                    "",
+                ))
                 .child(property_field(
                     "Frame rate",
-                    timeline.editing_state.settings.frame_rate.label(),
+                    panel.settings.frame_rate.label(),
                     "",
                 ))
                 .child(property_field(
                     "Resolution",
-                    format!(
-                        "{} × {}",
-                        timeline.editing_state.settings.width,
-                        timeline.editing_state.settings.height
-                    ),
+                    format!("{} × {}", panel.settings.width, panel.settings.height),
                     "px",
                 ))
                 .child(property_field(
                     "Audio rate",
-                    timeline
-                        .editing_state
-                        .settings
-                        .audio_sample_rate
-                        .to_string(),
+                    panel.settings.audio_sample_rate.to_string(),
                     "Hz",
                 ))
-                .child(property_field(
-                    "Tracks",
-                    timeline.editing_state.tracks.len().to_string(),
-                    "",
-                ))
-                .child(property_field(
-                    "Clips",
-                    timeline.editing_state.clips.len().to_string(),
-                    "",
-                )),
+                .child(property_field("Tracks", panel.track_count.to_string(), ""))
+                .child(property_field("Clips", panel.clip_count.to_string(), "")),
         )
         .into_any_element()
 }
 
-fn audio_clip(clip: &AudioClip) -> gpui::AnyElement {
+fn audio_clip(panel: &AudioClipPanel) -> gpui::AnyElement {
+    let clip = &panel.clip;
     let property_field = |label: &'static str, value: String, unit: &'static str| {
         div()
             .h(px(48.0))
@@ -614,12 +662,11 @@ fn media_file(path: &Path, tab: &'static str) -> gpui::AnyElement {
         .into_any_element()
 }
 
-fn video_clip_view(
-    clip: &VideoClip,
-    asset_name: &str,
-    track_name: &str,
-    frame_rate: FrameRate,
-) -> gpui::AnyElement {
+fn video_clip_view(panel: &VideoClipPanel) -> gpui::AnyElement {
+    let clip = &panel.clip;
+    let asset_name = panel.asset_name.as_str();
+    let track_name = panel.track_name.as_str();
+    let frame_rate = panel.frame_rate;
     let duration = clip.source_out - clip.source_in;
     let scale_percent = clip.video_properties.scale * 100.0;
     let scale_fraction = (scale_percent / 200.0).clamp(0.0, 1.0) as f32;
@@ -950,7 +997,8 @@ fn video_clip_transform_value_view(
         .child(div().flex_shrink_0().text_color(rgb(MUTED)).child(unit))
 }
 
-fn video_file_view(path: &Path) -> gpui::AnyElement {
+fn video_file_view(panel: &VideoFilePanel) -> gpui::AnyElement {
+    let path = panel.path.as_path();
     let name = match path.file_name() {
         Some(name) => name.to_string_lossy().into_owned(),
         None => path.display().to_string(),
@@ -963,10 +1011,9 @@ fn video_file_view(path: &Path) -> gpui::AnyElement {
         Some(folder) => folder.to_string_lossy().into_owned(),
         None => "/".to_owned(),
     };
-    let (size, metadata_error) = match fs::metadata(path) {
-        Ok(metadata) => {
-            let bytes = metadata.len();
-            let size_text = if bytes >= 1_000_000_000 {
+    let size = match panel.size_bytes {
+        Some(bytes) => {
+            if bytes >= 1_000_000_000 {
                 format!("{:.1} GB", bytes as f64 / 1_000_000_000.0)
             } else if bytes >= 1_000_000 {
                 format!("{:.1} MB", bytes as f64 / 1_000_000.0)
@@ -974,10 +1021,9 @@ fn video_file_view(path: &Path) -> gpui::AnyElement {
                 format!("{:.1} KB", bytes as f64 / 1_000.0)
             } else {
                 format!("{bytes} B")
-            };
-            (size_text, None)
+            }
         }
-        Err(error) => ("Unavailable".to_owned(), Some(error.to_string())),
+        None => "Unavailable".to_owned(),
     };
     let header = properties_header_view(
         file_badge_view(&format, 0x355b78, 0x8fb9dd),
@@ -993,15 +1039,6 @@ fn video_file_view(path: &Path) -> gpui::AnyElement {
                 .child(file_property_row_view("Size", size))
                 .child(file_property_row_view("Folder", folder)),
         )
-        .when_some(metadata_error, |content, error| {
-            content.child(
-                div()
-                    .mt(px(8.0))
-                    .text_size(px(12.0))
-                    .text_color(rgb(ERROR))
-                    .child(format!("Could not read file information: {error}")),
-            )
-        })
         .child(properties_divider_view())
         .child(properties_heading_view("LOCATION"))
         .child(
@@ -1062,17 +1099,13 @@ fn file_property_row_view(label: &'static str, value: String) -> gpui::Div {
         )
 }
 
-fn srt_file_view(path: &Path) -> gpui::AnyElement {
-    let name = match path.file_name() {
+fn srt_file_view(panel: &SrtFilePanel) -> gpui::AnyElement {
+    let name = match panel.path.file_name() {
         Some(name) => name.to_string_lossy().into_owned(),
-        None => path.display().to_string(),
+        None => panel.path.display().to_string(),
     };
-    let parsed = (|| -> anyhow::Result<SRT> {
-        let text = fs::read_to_string(path)?;
-        SRT::from_string(&text)
-    })();
     let mut content = div().child(properties_heading_view("CUES"));
-    let subtitle = match parsed {
+    let subtitle = match &panel.subtitles {
         Ok(srt) => {
             let end = srt
                 .subtitles
