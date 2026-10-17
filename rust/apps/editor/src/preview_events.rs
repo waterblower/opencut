@@ -84,7 +84,9 @@ impl Editor {
             PreviewTarget::Timeline { player, .. } => {
                 player.update(cx, |player, cx| player.toggle_playback(cx))
             }
-            PreviewTarget::None | PreviewTarget::ImageFile(_) => Ok(()),
+            PreviewTarget::None | PreviewTarget::Error { .. } | PreviewTarget::ImageFile(_) => {
+                Ok(())
+            }
         }
     }
 }

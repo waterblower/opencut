@@ -92,6 +92,7 @@ impl Editor {
         let preview = PreviewState {
             target: PreviewTarget::None, // 实体创建后由调用方设置
             fullscreen: false,
+            error_scroll: ScrollHandle::new(),
         };
 
         let properties = {
