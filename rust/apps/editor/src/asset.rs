@@ -3,6 +3,7 @@ use std::borrow::Cow;
 
 #[derive(Clone, Copy)]
 pub enum IconName {
+    AlertTriangle,
     App,
     Eye,
     Folder,
@@ -20,6 +21,7 @@ pub enum IconName {
 impl IconName {
     pub(crate) const fn path(self) -> &'static str {
         match self {
+            Self::AlertTriangle => "icons/alert-triangle.svg",
             Self::App => "icons/app-icon.svg",
             Self::Eye => "icons/eye.svg",
             Self::Folder => "icons/folder.svg",
@@ -58,7 +60,8 @@ impl AssetSource for EditorAssets {
 
 // Private APIs only
 impl IconName {
-    const ALL: [Self; 11] = [
+    const ALL: [Self; 12] = [
+        Self::AlertTriangle,
         Self::App,
         Self::Eye,
         Self::Folder,
@@ -74,6 +77,7 @@ impl IconName {
 
     const fn bytes(self) -> &'static [u8] {
         match self {
+            Self::AlertTriangle => include_bytes!("../icons/alert-triangle.svg"),
             Self::App => include_bytes!("../icons/app-icon.svg"),
             Self::Eye => include_bytes!("../icons/eye.svg"),
             Self::Folder => include_bytes!("../icons/folder.svg"),

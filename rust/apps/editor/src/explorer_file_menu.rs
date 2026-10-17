@@ -173,6 +173,7 @@ impl Editor {
         match &mut self.preview.target {
             PreviewTarget::VideoFile { path, .. }
             | PreviewTarget::AudioFile { path, .. }
+            | PreviewTarget::Error { path, .. }
             | PreviewTarget::ImageFile(path) => {
                 if let Some(new_path) = remap_relative_path(path, &old_relative, &new_relative) {
                     *path = new_path;
