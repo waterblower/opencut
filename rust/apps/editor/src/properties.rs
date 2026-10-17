@@ -83,7 +83,6 @@ pub struct TimelinePanel {
     project_root: PathBuf, // 用于显示相对路径
     settings: TimelineSettings,
     duration_seconds: f64,
-    playhead_seconds: f64, // 播放时每帧变化
     text_track_count: usize,
     video_track_count: usize,
     audio_track_count: usize,
@@ -432,7 +431,6 @@ fn timeline_panel(timeline: &TimelineRuntimeState, project_root: &Path) -> Timel
         duration_seconds: settings
             .frame_rate
             .seconds(timeline.editing_state.content_duration()),
-        playhead_seconds: settings.frame_rate.seconds(timeline.playhead()),
         text_track_count: track_count(TrackKind::Text),
         video_track_count: track_count(TrackKind::Video),
         audio_track_count: track_count(TrackKind::Audio),
@@ -448,11 +446,6 @@ fn timeline_view(panel: &TimelinePanel) -> gpui::AnyElement {
     let relative_path = match panel.path.strip_prefix(&panel.project_root) {
         Ok(relative_path) => relative_path.display().to_string(),
         Err(_) => panel.path.display().to_string(),
-    };
-    let progress = if panel.duration_seconds > 0.0 {
-        (panel.playhead_seconds / panel.duration_seconds).clamp(0.0, 1.0) as f32
-    } else {
-        0.0
     };
     let badge = div()
         .size(px(32.0))
@@ -470,61 +463,15 @@ fn timeline_view(panel: &TimelinePanel) -> gpui::AnyElement {
         .child("TL");
     let header = properties_header_view(badge, name, relative_path);
     let content = div()
-        .child(properties_heading_view("PLAYBACK"))
+        .child(properties_heading_view("DURATION"))
         .child(
             div()
                 .mt(px(6.0))
-                .flex()
-                .items_baseline()
-                .gap(px(6.0))
-                .child(
-                    div()
-                        .font_family("monospace")
-                        .text_size(px(24.0))
-                        .line_height(px(30.0))
-                        .font_weight(FontWeight::SEMIBOLD)
-                        .child(format_time(panel.playhead_seconds, false)),
-                )
-                .child(
-                    div()
-                        .font_family("monospace")
-                        .text_size(px(13.0))
-                        .text_color(rgb(MUTED))
-                        .child(format!("/ {}", format_time(panel.duration_seconds, false))),
-                )
-                .child(
-                    div()
-                        .flex_1()
-                        .text_right()
-                        .text_size(px(12.0))
-                        .text_color(rgb(MUTED))
-                        .child("Playhead"),
-                ),
-        )
-        .child(
-            div()
-                .mt(px(10.0))
-                .relative()
-                .h(px(4.0))
-                .rounded_full()
-                .bg(rgb(BORDER))
-                .child(
-                    div()
-                        .h_full()
-                        .w(relative(progress))
-                        .rounded_full()
-                        .bg(rgb(ACCENT)),
-                )
-                .child(
-                    div()
-                        .absolute()
-                        .left(relative(progress))
-                        .ml(px(-1.0))
-                        .top(px(-4.0))
-                        .w(px(2.0))
-                        .h(px(12.0))
-                        .bg(rgb(ACCENT)),
-                ),
+                .font_family("monospace")
+                .text_size(px(24.0))
+                .line_height(px(30.0))
+                .font_weight(FontWeight::SEMIBOLD)
+                .child(format_time(panel.duration_seconds, false)),
         )
         .child(properties_divider_view())
         .child(properties_heading_view("FORMAT"))
