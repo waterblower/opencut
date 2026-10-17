@@ -610,12 +610,11 @@ async fn handle_app_event(
         AppEvent::OpenTimeline { path } => {
             editor.update(cx, |editor, cx| -> Result<()> {
                 if let Err(error) = editor.open_timeline(path.clone(), cx) {
+                    log::error!("Could not open timeline: {error:?}");
                     editor.preview.target = PreviewTarget::Error {
                         path,
                         error: format!("{error:?}"),
                     };
-                    cx.notify();
-                    return Err(error);
                 }
                 cx.notify();
                 Ok(())
