@@ -1,7 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1016" height="2087" viewBox="0 0 1016 2087">
 <style>.s{font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","Helvetica Neue",Arial,sans-serif}.m{font-family:"SF Mono",Menlo,Monaco,Consolas,monospace}</style>
 <defs>
-<pattern id="checker" width="16" height="16" patternUnits="userSpaceOnUse"><rect width="16" height="16" fill="#1a1a1e"/><rect width="8" height="8" fill="#222227"/><rect x="8" y="8" width="8" height="8" fill="#222227"/></pattern>
 <clipPath id="c1"><rect x="48" y="198" width="280" height="555" rx="10"/></clipPath>
 <clipPath id="c2"><rect x="48" y="198" width="280" height="555" rx="0"/></clipPath>
 <clipPath id="c3"><rect x="368" y="198" width="280" height="555" rx="10"/></clipPath>
@@ -256,15 +255,13 @@
 <text class="m" x="312" y="959.68" font-size="13" fill="#f2f2f4" text-anchor="end">MP4</text>
 <text class="s" x="64" y="987.68" font-size="13" fill="#777780">Size</text>
 <text class="m" x="312" y="987.68" font-size="13" fill="#f2f2f4" text-anchor="end">1.2 GB</text>
-<text class="s" x="64" y="1015.68" font-size="13" fill="#777780">Folder</text>
-<text class="m" x="312" y="1015.68" font-size="13" fill="#f2f2f4" text-anchor="end">media</text>
-<rect x="64" y="1033" width="248" height="1" fill="#1f1f24"/>
-<text class="s" x="64" y="1056.96" font-size="11" fill="#777780" font-weight="600" letter-spacing="0.6">LOCATION</text>
-<text class="m" x="64" y="1079.32" font-size="12" fill="#b4b4bc">/Users/me/market-vlog/</text>
-<text class="m" x="64" y="1097.32" font-size="12" fill="#b4b4bc">media/interview.mp4</text>
-<rect x="64" y="1119" width="248" height="1" fill="#1f1f24"/>
-<text class="s" x="64" y="1149.32" font-size="12" fill="#777780">Drag onto a video track to add it</text>
-<text class="s" x="64" y="1166.32" font-size="12" fill="#777780">to the timeline.</text>
+<rect x="64" y="1005" width="248" height="1" fill="#1f1f24"/>
+<text class="s" x="64" y="1028.96" font-size="11" fill="#777780" font-weight="600" letter-spacing="0.6">LOCATION</text>
+<text class="m" x="64" y="1051.32" font-size="12" fill="#b4b4bc">/Users/me/market-vlog/</text>
+<text class="m" x="64" y="1069.32" font-size="12" fill="#b4b4bc">media/interview.mp4</text>
+<rect x="64" y="1091" width="248" height="1" fill="#1f1f24"/>
+<text class="s" x="64" y="1121.32" font-size="12" fill="#777780">Drag onto a video track to add it</text>
+<text class="s" x="64" y="1138.32" font-size="12" fill="#777780">to the timeline.</text>
 </g>
 </g>
 <rect x="48.5" y="841.5" width="279" height="554" rx="10" fill="none" stroke="#2b2b31" stroke-width="1"/>
@@ -286,15 +283,13 @@
 <text class="m" x="312" y="959.68" font-size="13" fill="#f2f2f4" text-anchor="end">M4A</text>
 <text class="s" x="64" y="987.68" font-size="13" fill="#777780">Size</text>
 <text class="m" x="312" y="987.68" font-size="13" fill="#f2f2f4" text-anchor="end">12.4 MB</text>
-<text class="s" x="64" y="1015.68" font-size="13" fill="#777780">Folder</text>
-<text class="m" x="312" y="1015.68" font-size="13" fill="#f2f2f4" text-anchor="end">media</text>
-<rect x="64" y="1033" width="248" height="1" fill="#1f1f24"/>
-<text class="s" x="64" y="1056.96" font-size="11" fill="#777780" font-weight="600" letter-spacing="0.6">LOCATION</text>
-<text class="m" x="64" y="1079.32" font-size="12" fill="#b4b4bc">/Users/me/market-vlog/</text>
-<text class="m" x="64" y="1097.32" font-size="12" fill="#b4b4bc">media/voice-over.m4a</text>
-<rect x="64" y="1119" width="248" height="1" fill="#1f1f24"/>
-<text class="s" x="64" y="1149.32" font-size="12" fill="#777780">Drag onto an audio track to add it</text>
-<text class="s" x="64" y="1166.32" font-size="12" fill="#777780">to the timeline.</text>
+<rect x="64" y="1005" width="248" height="1" fill="#1f1f24"/>
+<text class="s" x="64" y="1028.96" font-size="11" fill="#777780" font-weight="600" letter-spacing="0.6">LOCATION</text>
+<text class="m" x="64" y="1051.32" font-size="12" fill="#b4b4bc">/Users/me/market-vlog/</text>
+<text class="m" x="64" y="1069.32" font-size="12" fill="#b4b4bc">media/voice-over.m4a</text>
+<rect x="64" y="1091" width="248" height="1" fill="#1f1f24"/>
+<text class="s" x="64" y="1121.32" font-size="12" fill="#777780">Drag onto an audio track to add it</text>
+<text class="s" x="64" y="1138.32" font-size="12" fill="#777780">to the timeline.</text>
 </g>
 </g>
 <rect x="48.5" y="841.5" width="279" height="554" rx="10" fill="none" stroke="#2b2b31" stroke-width="1"/>
@@ -311,21 +306,15 @@
 <text class="s" x="428" y="870.04" font-size="14" fill="#f2f2f4" font-weight="600">logo.png</text>
 <text class="s" x="428" y="886.32" font-size="12" fill="#777780">Image file</text>
 <rect x="368" y="904" width="280" height="1" fill="#2b2b31"/>
-<rect x="384" y="921" width="248" height="150" rx="6" fill="url(#checker)"/>
-<rect x="384.5" y="921.5" width="247" height="149" rx="6" fill="none" stroke="#2b2b31" stroke-width="1"/>
-<rect x="462.0" y="950.0" width="92" height="92" rx="22" fill="#f0b75e"/>
-<path d="M494.0 974.0 L530.0 996.0 L494.0 1018.0Z" fill="#17120a"/>
-<text class="s" x="384" y="1110.96" font-size="11" fill="#777780" font-weight="600" letter-spacing="0.6">FILE</text>
-<text class="s" x="384" y="1141.68" font-size="13" fill="#777780">Format</text>
-<text class="m" x="632" y="1141.68" font-size="13" fill="#f2f2f4" text-anchor="end">PNG</text>
-<text class="s" x="384" y="1169.68" font-size="13" fill="#777780">Size</text>
-<text class="m" x="632" y="1169.68" font-size="13" fill="#f2f2f4" text-anchor="end">84 KB</text>
-<text class="s" x="384" y="1197.68" font-size="13" fill="#777780">Folder</text>
-<text class="m" x="632" y="1197.68" font-size="13" fill="#f2f2f4" text-anchor="end">media</text>
-<rect x="384" y="1215" width="248" height="1" fill="#1f1f24"/>
-<text class="s" x="384" y="1238.96" font-size="11" fill="#777780" font-weight="600" letter-spacing="0.6">LOCATION</text>
-<text class="m" x="384" y="1261.32" font-size="12" fill="#b4b4bc">/Users/me/market-vlog/</text>
-<text class="m" x="384" y="1279.32" font-size="12" fill="#b4b4bc">media/logo.png</text>
+<text class="s" x="384" y="928.96" font-size="11" fill="#777780" font-weight="600" letter-spacing="0.6">FILE</text>
+<text class="s" x="384" y="959.68" font-size="13" fill="#777780">Format</text>
+<text class="m" x="632" y="959.68" font-size="13" fill="#f2f2f4" text-anchor="end">PNG</text>
+<text class="s" x="384" y="987.68" font-size="13" fill="#777780">Size</text>
+<text class="m" x="632" y="987.68" font-size="13" fill="#f2f2f4" text-anchor="end">84 KB</text>
+<rect x="384" y="1005" width="248" height="1" fill="#1f1f24"/>
+<text class="s" x="384" y="1028.96" font-size="11" fill="#777780" font-weight="600" letter-spacing="0.6">LOCATION</text>
+<text class="m" x="384" y="1051.32" font-size="12" fill="#b4b4bc">/Users/me/market-vlog/</text>
+<text class="m" x="384" y="1069.32" font-size="12" fill="#b4b4bc">media/logo.png</text>
 </g>
 </g>
 <rect x="368.5" y="841.5" width="279" height="554" rx="10" fill="none" stroke="#2b2b31" stroke-width="1"/>
