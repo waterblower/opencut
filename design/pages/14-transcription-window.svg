@@ -1,0 +1,93 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1320" height="1086" viewBox="0 0 1320 1086">
+<style>.s{font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","Helvetica Neue",Arial,sans-serif}.m{font-family:"SF Mono",Menlo,Monaco,Consolas,monospace}</style>
+<defs>
+<filter id="shadow" x="-20%" y="-20%" width="140%" height="160%"><feDropShadow dx="0" dy="8" stdDeviation="10" flood-color="#000" flood-opacity="0.55"/></filter>
+<linearGradient id="sky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#1b2745"/><stop offset="0.55" stop-color="#7a4a62"/><stop offset="1" stop-color="#e2905c"/></linearGradient>
+<radialGradient id="sun"><stop offset="0" stop-color="#ffe2a8"/><stop offset="0.45" stop-color="#ffc77a" stop-opacity="0.9"/><stop offset="1" stop-color="#ffb066" stop-opacity="0"/></radialGradient>
+<linearGradient id="street" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#3a4256"/><stop offset="0.6" stop-color="#8a5a4c"/><stop offset="1" stop-color="#d48a56"/></linearGradient>
+<clipPath id="c1"><rect x="40" y="80" width="600" height="428" rx="10"/></clipPath>
+<clipPath id="c2"><rect x="680" y="80" width="600" height="428" rx="10"/></clipPath>
+<clipPath id="c3"><rect x="40" y="598" width="600" height="428" rx="10"/></clipPath>
+<clipPath id="c4"><rect x="680" y="598" width="600" height="428" rx="10"/></clipPath>
+</defs>
+<rect x="0" y="0" width="1320" height="1086" fill="#1e1e22"/>
+<text class="s" x="40" y="44" font-size="15" fill="#c9c9cf" font-weight="600">Ready</text>
+<text class="s" x="40" y="64" font-size="12" fill="#8a8a93">Opened from Generate SRT</text>
+<rect x="40" y="80" width="600" height="428" rx="10" fill="#080809" filter="url(#shadow)"/>
+<g clip-path="url(#c1)">
+<rect x="40" y="80" width="600" height="28" fill="#232326"/>
+<rect x="40" y="107" width="600" height="1" fill="#000000"/>
+<circle cx="54" cy="94" r="6" fill="#ff5f57"/>
+<circle cx="74" cy="94" r="6" fill="#febc2e"/>
+<circle cx="94" cy="94" r="6" fill="#28c840"/>
+<rect x="40" y="108" width="600" height="400" fill="#080809"/>
+<text class="s" x="64" y="151.2" font-size="20" fill="#f2f2f4">Generate SRT</text>
+<text class="s" x="64" y="188.76" font-size="16" fill="#f2f2f4">interview.mp4</text>
+<text class="s" x="64" y="226.76" font-size="16" fill="#f0b75e">Ready</text>
+<rect x="64" y="248" width="66.72" height="40" rx="6" fill="#f0b75e"/>
+<text class="s" x="80" y="273.76" font-size="16" fill="#080809">Start</text>
+<rect x="142.72" y="248" width="81.12" height="40" rx="6" fill="#777780"/>
+<text class="s" x="158.72" y="273.76" font-size="16" fill="#f2f2f4">Cancel</text>
+</g>
+<text class="s" x="680" y="44" font-size="15" fill="#c9c9cf" font-weight="600">Running</text>
+<text class="s" x="680" y="64" font-size="12" fill="#8a8a93">Preparing / transcribing / saving</text>
+<rect x="680" y="80" width="600" height="428" rx="10" fill="#080809" filter="url(#shadow)"/>
+<g clip-path="url(#c2)">
+<rect x="680" y="80" width="600" height="28" fill="#232326"/>
+<rect x="680" y="107" width="600" height="1" fill="#000000"/>
+<circle cx="694" cy="94" r="6" fill="#ff5f57"/>
+<circle cx="714" cy="94" r="6" fill="#febc2e"/>
+<circle cx="734" cy="94" r="6" fill="#28c840"/>
+<rect x="680" y="108" width="600" height="400" fill="#080809"/>
+<text class="s" x="704" y="151.2" font-size="20" fill="#f2f2f4">Generate SRT</text>
+<text class="s" x="704" y="188.76" font-size="16" fill="#f2f2f4">interview.mp4</text>
+<text class="s" x="704" y="226.76" font-size="16" fill="#f0b75e">Uploading and transcribing..</text>
+<text class="s" x="704" y="264.76" font-size="16" fill="#f2f2f4">Elapsed: 0:47</text>
+<text class="s" x="704" y="300" font-size="14" fill="#777780">Cancel stops this local request. A request already sent may continue</text>
+<text class="s" x="704" y="320" font-size="14" fill="#777780">processing on the server.</text>
+<rect x="704" y="342" width="66.72" height="40" rx="6" fill="#777780"/>
+<text class="s" x="720" y="367.76" font-size="16" fill="#080809">Start</text>
+<rect x="782.72" y="342" width="81.12" height="40" rx="6" fill="#777780"/>
+<text class="s" x="798.72" y="367.76" font-size="16" fill="#f2f2f4">Cancel</text>
+</g>
+<text class="s" x="40" y="562" font-size="15" fill="#c9c9cf" font-weight="600">Complete</text>
+<text class="s" x="40" y="582" font-size="12" fill="#8a8a93">Written to &lt;source name&gt;.srt in the project root</text>
+<rect x="40" y="598" width="600" height="428" rx="10" fill="#080809" filter="url(#shadow)"/>
+<g clip-path="url(#c3)">
+<rect x="40" y="598" width="600" height="28" fill="#232326"/>
+<rect x="40" y="625" width="600" height="1" fill="#000000"/>
+<circle cx="54" cy="612" r="6" fill="#ff5f57"/>
+<circle cx="74" cy="612" r="6" fill="#febc2e"/>
+<circle cx="94" cy="612" r="6" fill="#28c840"/>
+<rect x="40" y="626" width="600" height="400" fill="#080809"/>
+<text class="s" x="64" y="669.2" font-size="20" fill="#f2f2f4">Generate SRT</text>
+<text class="s" x="64" y="706.76" font-size="16" fill="#f2f2f4">interview.mp4</text>
+<text class="s" x="64" y="744.76" font-size="16" fill="#f0b75e">Subtitles saved</text>
+<text class="s" x="64" y="782.76" font-size="16" fill="#f2f2f4">/Users/me/market-vlog/interview.srt</text>
+<rect x="64" y="800" width="150.4" height="40" rx="6" fill="#f0b75e"/>
+<text class="s" x="80" y="825.76" font-size="16" fill="#080809">Reveal in Finder</text>
+<rect x="64" y="856" width="66.72" height="40" rx="6" fill="#f0b75e"/>
+<text class="s" x="80" y="881.76" font-size="16" fill="#080809">Start</text>
+<rect x="142.72" y="856" width="81.12" height="40" rx="6" fill="#777780"/>
+<text class="s" x="158.72" y="881.76" font-size="16" fill="#f2f2f4">Cancel</text>
+</g>
+<text class="s" x="680" y="562" font-size="15" fill="#c9c9cf" font-weight="600">Failed</text>
+<text class="s" x="680" y="582" font-size="12" fill="#8a8a93">Error message from the request</text>
+<rect x="680" y="598" width="600" height="428" rx="10" fill="#080809" filter="url(#shadow)"/>
+<g clip-path="url(#c4)">
+<rect x="680" y="598" width="600" height="28" fill="#232326"/>
+<rect x="680" y="625" width="600" height="1" fill="#000000"/>
+<circle cx="694" cy="612" r="6" fill="#ff5f57"/>
+<circle cx="714" cy="612" r="6" fill="#febc2e"/>
+<circle cx="734" cy="612" r="6" fill="#28c840"/>
+<rect x="680" y="626" width="600" height="400" fill="#080809"/>
+<text class="s" x="704" y="669.2" font-size="20" fill="#f2f2f4">Generate SRT</text>
+<text class="s" x="704" y="706.76" font-size="16" fill="#f2f2f4">interview.mp4</text>
+<text class="s" x="704" y="744.76" font-size="16" fill="#f0b75e">Transcription failed</text>
+<text class="s" x="704" y="781.04" font-size="14" fill="#ff8b8b">MiniMax API key is not set. Add it under Settings.</text>
+<rect x="704" y="802" width="66.72" height="40" rx="6" fill="#f0b75e"/>
+<text class="s" x="720" y="827.76" font-size="16" fill="#080809">Start</text>
+<rect x="782.72" y="802" width="81.12" height="40" rx="6" fill="#777780"/>
+<text class="s" x="798.72" y="827.76" font-size="16" fill="#f2f2f4">Cancel</text>
+</g>
+</svg>

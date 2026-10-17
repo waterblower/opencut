@@ -5,6 +5,9 @@ view. Each feature is written as a user story followed by acceptance criteria.
 The editor is OpenCut's only end-user product; the `player` and `cli` apps are
 development tools and are not specified here.
 
+UI mockups are in [pages/](pages/) and are linked from the sections they
+illustrate.
+
 Review status (2026-10-16):
 
 - `[x]` (☑ in tables): passed source review and applicable existing tests.
@@ -38,6 +41,12 @@ Total                                                         68 / 11
 **Story:** As a creator, I want to open a folder as a project and use the files
 already in it, so that I don't have to import or copy media.
 
+Mockups: [project picker](pages/01-project-picker.svg),
+[editor without a timeline](pages/02-editor-empty.svg),
+[media preview](pages/04-editor-media-preview.svg),
+[rename dialog](pages/08-dialog-rename.svg),
+[context menus](pages/11-context-menus.svg).
+
 - [x] Any folder can be opened as a project.
 - [x] Supported media appears in a live file tree (the Explorer) without an import
   step.
@@ -67,6 +76,10 @@ Supported file extensions:
 that I can keep several versions, move them, and back them up like any other
 file.
 
+Mockups: [new timeline dialog](pages/07-dialog-new-timeline.svg),
+[timeline settings dialog](pages/09-dialog-timeline-settings.svg),
+[context menus](pages/11-context-menus.svg).
+
 - [x] A timeline is a JSON file named `*.timeline` or `*.timeline.json`, anywhere in
   the project.
 - [x] Right-clicking a folder and choosing **Create New Timeline** creates a
@@ -84,6 +97,8 @@ it, producing the wrong position.
 **Story:** As a creator, I want separate video, image, audio, and text tracks
 that I can organize, so that I can layer footage, stills, sound, and subtitles.
 
+Mockup: [editor with a timeline](pages/03-editor-timeline.svg).
+
 - [ ] Tracks can be created, deleted, reordered, hidden, muted, and locked.
 - [x] Video tracks accept video files only.
 - [ ] Image tracks accept still images.
@@ -100,6 +115,10 @@ the drop handler currently rejects image files on every track.
 
 **Story:** As a creator, I want to select and rearrange many clips at once, so
 that restructuring an edit doesn't take one clip at a time.
+
+Mockups: [editor with a timeline](pages/03-editor-timeline.svg),
+[blade tool](pages/06-editor-blade-tool.svg),
+[context menus](pages/11-context-menus.svg).
 
 - [x] Clips are selected by clicking, Command-clicking to add or remove, or drawing
   a selection rectangle.
@@ -129,6 +148,8 @@ as video clips. Dedicated image tracks and Explorer image drops remain open in
 **Story:** As a creator, I want to zoom, scroll, and snap precisely, so that I
 can make frame-accurate edits.
 
+Mockup: [editor with a timeline](pages/03-editor-timeline.svg).
+
 - [x] The timeline is frame-based.
 - [x] The timeline supports horizontal zoom, including trackpad pinch, and
   scrolling. Frame ticks appear at high zoom.
@@ -145,6 +166,9 @@ save loses that change. Empty timelines also have a playhead-clamping defect.
 **Story:** As a creator, I want to size the panels to my task, so that I can
 give more room to the timeline or the preview as needed.
 
+Mockups: [editor with a timeline](pages/03-editor-timeline.svg),
+[properties panel](pages/15-properties-panel.svg).
+
 - [x] The media and properties panels beside the preview can be resized.
 - [x] Dragging the divider above the timeline resizes the timeline panel.
 - [x] Panel sizes are saved per project.
@@ -153,6 +177,8 @@ give more room to the timeline or the preview as needed.
 
 **Story:** As a creator, I want to play the timeline as it will be exported, so
 that I can judge the edit without exporting.
+
+Mockup: [fullscreen preview](pages/12-fullscreen-preview.svg).
 
 - [x] The preview composites video, including each clip's position and scale.
 - [ ] Audio is mixed and respects track mute, clip mute, and clip gain.
@@ -175,6 +201,10 @@ recording into a tight, captioned edit.
 
 ### Generate subtitles
 
+Mockups: [transcription window](pages/14-transcription-window.svg),
+[settings dialog](pages/10-dialog-settings.svg),
+[context menus](pages/11-context-menus.svg).
+
 - [x] Right-clicking an audio or video file and choosing **Generate SRT** opens a
   transcription window.
 - [x] **Start** begins transcription. The window shows the current stage
@@ -187,6 +217,9 @@ Review: the request, stage updates, and cancellation controls are implemented;
 a live transcription and cancellation run is still pending.
 
 ### Position and style subtitles
+
+Mockups: [text positioning](pages/05-editor-text-positioning.svg),
+[context menus](pages/11-context-menus.svg).
 
 - [x] Text clips can be selected and dragged directly in the preview.
 - [x] With **Snap on**, dragged text aligns to canvas centers and edges, with
@@ -208,6 +241,8 @@ a live transcription and cancellation run is still pending.
 
 **Story:** As a creator, I want to export my timeline to a video file, so that
 I can publish it.
+
+Mockup: [export window](pages/13-export-window.svg).
 
 - [x] The top-right **Export** button opens a separate export window for the active
   timeline.
