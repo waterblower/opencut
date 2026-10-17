@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="520" height="300" viewBox="0 0 520 300">
+  <defs>
+    <radialGradient id="glow">
+      <stop stop-color="#f0b75e" stop-opacity="0.10"/>
+      <stop offset="1" stop-color="#f0b75e" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <ellipse cx="260" cy="150" rx="260" ry="150" fill="url(#glow)"/>
+</svg>

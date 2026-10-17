@@ -10,6 +10,10 @@ use crate::layout::{RULER_HEIGHT, TIMELINE_PADDING, TRACK_HEIGHT};
 use crate::model::MediaKind;
 use crate::preview::{PreviewTarget, timeline_preview_target};
 use crate::preview_events::PreviewEvent;
+use crate::properties::{
+    PropertiesPanel, VideoFilePanel, current_properties_panel, srt_file_panel, text_clip_panel,
+    video_clip_panel,
+};
 use crate::project_settings::{ProjectLocalSettings, save_project_local_settings};
 use crate::srt::{srt_text_clips, write_srt};
 use crate::timeline::{PreviewDropAsset, TimelineFrameIndex};
@@ -17,7 +21,7 @@ use crate::timeline_clip::Clip;
 use crate::transcription_window;
 use crate::transcription_window::{TranscriptionStage, TranscriptionWindow};
 use crate::{OpenProject, open_editor_window, quit_after_last_window};
-use anyhow::{Context as _, Result, anyhow};
+use anyhow::{Context as _, Result, anyhow, bail};
 use engine::export::{ExportCompletion, ExportControl, ExportOption, export_timeline};
 use gpui::prelude::*;
 use gpui::{AsyncApp, Bounds, Entity, EventEmitter, MouseMoveEvent, Pixels, WeakEntity};
@@ -70,6 +74,20 @@ pub enum AppEvent {
     },
     TimelineSeek {
         frame_index: TimelineFrameIndex,
+    },
+    RefreshPropertiesPanel,
+    TextClipSelected {
+        clip_id: Ulid,
+    },
+    VideoClipSelected {
+        clip_id: Ulid,
+    },
+    VideoFileSelected {
+        path: PathBuf, // 相对于项目根目录
+        size_bytes: Option<u64>,
+    },
+    SrtFileSelected {
+        path: PathBuf, // 相对于项目根目录
     },
 }
 
@@ -398,6 +416,52 @@ async fn handle_app_event(
         AppEvent::DragStarted(asset) => {
             editor.update(cx, |editor, cx| {
                 editor.active_asset_drag = asset;
+                cx.notify();
+            });
+        }
+        AppEvent::RefreshPropertiesPanel => {
+            editor.update(cx, |editor, cx| {
+                editor.properties_panel = current_properties_panel(editor);
+                cx.notify();
+            });
+        }
+        AppEvent::TextClipSelected { clip_id } => {
+            editor.update(cx, |editor, cx| -> Result<()> {
+                let timeline = editor.timeline.as_ref().context("No timeline is open")?;
+                let Some(Clip::Text(clip)) = timeline.editing_state.clip(clip_id) else {
+                    bail!("Text clip {clip_id} no longer exists");
+                };
+                editor.properties_panel =
+                    PropertiesPanel::TextClip(text_clip_panel(&timeline.editing_state, clip));
+                cx.notify();
+                Ok(())
+            })?;
+        }
+        AppEvent::VideoClipSelected { clip_id } => {
+            editor.update(cx, |editor, cx| -> Result<()> {
+                let timeline = editor.timeline.as_ref().context("No timeline is open")?;
+                let Some(Clip::Video(clip)) = timeline.editing_state.clip(clip_id) else {
+                    bail!("Video clip {clip_id} no longer exists");
+                };
+                editor.properties_panel =
+                    PropertiesPanel::VideoClip(video_clip_panel(&timeline.editing_state, clip));
+                cx.notify();
+                Ok(())
+            })?;
+        }
+        AppEvent::VideoFileSelected { path, size_bytes } => {
+            editor.update(cx, |editor, cx| {
+                editor.properties_panel = PropertiesPanel::VideoFile(VideoFilePanel {
+                    path: editor.project_root.join(path),
+                    size_bytes,
+                });
+                cx.notify();
+            });
+        }
+        AppEvent::SrtFileSelected { path } => {
+            editor.update(cx, |editor, cx| {
+                editor.properties_panel =
+                    PropertiesPanel::SrtFile(srt_file_panel(editor.project_root.join(path)));
                 cx.notify();
             });
         }

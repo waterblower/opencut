@@ -1,6 +1,6 @@
 use crate::actions::EDITOR_KEY_CONTEXT;
 use crate::editor::Editor;
-use crate::event_bus::AppEvent;
+use crate::event_bus::{AppEvent, EventBus};
 use crate::generic_containers::{
     HorizontalSplit, HorizontalSplitConstraints, VerticalSplit, VerticalSplitConstraints,
 };
@@ -8,7 +8,8 @@ use crate::layout::{
     MIN_MEDIA_PANEL_WIDTH, MIN_PREVIEW_WIDTH, MIN_PROPERTIES_PANEL_WIDTH, MIN_TIMELINE_HEIGHT,
     MIN_UPPER_WORKSPACE_HEIGHT, TOPBAR_HEIGHT,
 };
-use crate::properties::{current_properties_panel_viewable, properties_panel};
+use crate::project_picker;
+use crate::properties::properties_panel;
 use crate::settings::settings_modal_view;
 use crate::theme::{BACKGROUND, BORDER, MUTED, PANEL, SURFACE, SURFACE_HOVER, TEXT};
 use gpui::prelude::*;
@@ -157,11 +158,7 @@ impl Editor {
             min_right: MIN_PROPERTIES_PANEL_WIDTH,
         };
         let widths = self.upper_split_state.read(cx).widths(width, constraints);
-        let properties_panel_view = properties_panel(
-            current_properties_panel_viewable(self),
-            self.event_bus.clone(),
-            self.focus_handle.clone(),
-        );
+        let properties_panel_view = properties_panel(&self.properties_panel);
         HorizontalSplit::new(
             "editor-upper-workspace",
             self.upper_split_state.clone(),
@@ -229,6 +226,14 @@ impl Editor {
                             editor.open_project_folder(cx);
                         },
                     )))
+                    .child(
+                        toolbar_button("Projects", true).on_click(cx.listener(|_, _, _, cx| {
+                            let event_bus = cx.new(|_| EventBus {});
+                            if let Err(error) = project_picker::open(cx, event_bus, None) {
+                                log::error!("Could not open project picker: {error:?}");
+                            }
+                        })),
+                    )
                     .child(toolbar_button("Export", self.timeline.is_some()).on_click(
                         cx.listener(|editor, _, _, cx| {
                             let Some(timeline) = editor.timeline.as_ref() else {
