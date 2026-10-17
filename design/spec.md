@@ -178,7 +178,14 @@ Mockups: [editor with a timeline](pages/03-editor-timeline.svg),
 **Story:** As a creator, I want to play the timeline as it will be exported, so
 that I can judge the edit without exporting.
 
-Mockup: [fullscreen preview](pages/12-fullscreen-preview.svg).
+Mockups: [preview variants](pages/16-preview-panel.svg),
+[fullscreen preview](pages/12-fullscreen-preview.svg).
+
+The preview design has five states: image, audio, video, error, and none.
+Video covers media playback and rendered timelines. A single error state serves
+all preview sources: it shows which selected file failed and an error string.
+The error string preserves line breaks, wraps long lines, and scrolls when it
+exceeds the available space.
 
 - [x] The preview composites video, including each clip's position and scale.
 - [ ] Audio is mixed and respects track mute, clip mute, and clip gain.
