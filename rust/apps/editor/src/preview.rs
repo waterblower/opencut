@@ -5,7 +5,10 @@ use crate::theme::MUTED;
 use crate::timeline::{TimelinePlayerExt, TimelineRuntimeState};
 use anyhow::{Context as _, Result};
 use gpui::prelude::*;
-use gpui::{Entity, FontWeight, div, px, rgb, svg};
+use gpui::{
+    BorderStyle, Bounds, DragMoveEvent, Empty, Entity, FontWeight, MouseButton, Pixels,
+    ScrollHandle, canvas, div, point, px, quad, rgb, size, svg,
+};
 use player_ui::audio_player::AudioPlayer;
 use player_ui::timeline_player::TimelinePlayer;
 use player_ui::video_player::VideoPlayer;
@@ -73,7 +76,7 @@ impl Editor {
                 .flex_col()
                 .gap(px(32.0))
                 .bg(rgb(0x080808))
-                .overflow_y_scroll()
+                .overflow_hidden()
                 .child(
                     div()
                         .flex()
@@ -124,23 +127,105 @@ impl Editor {
                 )
                 .child(
                     div()
-                        .id("preview-error-message")
-                        .h(px(192.0))
-                        .flex_shrink_0()
-                        .p(px(16.0))
+                        .relative()
+                        .flex_1()
+                        .min_h_0()
                         .rounded(px(6.0))
                         .border_1()
                         .border_color(rgb(0x463033))
                         .bg(rgb(0x151113))
-                        .overflow_y_scroll()
-                        .font_family("monospace")
-                        .text_size(px(13.0))
-                        .line_height(px(24.0))
-                        .text_color(rgb(0xe6b3b3))
-                        .whitespace_normal()
-                        .children(error.split('\n').map(|line| {
-                            div().min_h(px(24.0)).child(line.replace('/', "/\u{200b}"))
-                        })),
+                        .overflow_hidden()
+                        .child(
+                            div()
+                                .id("preview-error-message")
+                                .size_full()
+                                .p(px(16.0))
+                                .pr(px(28.0))
+                                .overflow_y_scroll()
+                                .track_scroll(&self.preview.error_scroll)
+                                .font_family("monospace")
+                                .text_size(px(13.0))
+                                .line_height(px(24.0))
+                                .text_color(rgb(0xe6b3b3))
+                                .whitespace_normal()
+                                .children(error.split('\n').map(|line| {
+                                    div().min_h(px(24.0)).child(line.replace('/', "/\u{200b}"))
+                                })),
+                        )
+                        .child(
+                            div()
+                                .id("preview-error-scrollbar")
+                                .absolute()
+                                .top(px(4.0))
+                                .bottom(px(4.0))
+                                .right(px(4.0))
+                                .w(px(8.0))
+                                .cursor_pointer()
+                                .on_mouse_down(MouseButton::Left, {
+                                    let scroll = self.preview.error_scroll.clone();
+                                    move |event, _, cx| {
+                                        scroll_error_to_pointer(&scroll, event.position.y);
+                                        cx.stop_propagation();
+                                        cx.refresh_windows();
+                                    }
+                                })
+                                .on_drag(self.preview.error_scroll.clone(), |_, _, _, cx| {
+                                    cx.new(|_| Empty)
+                                })
+                                .on_drag_move::<ScrollHandle>({
+                                    let scroll = self.preview.error_scroll.clone();
+                                    move |event: &DragMoveEvent<ScrollHandle>, _, cx| {
+                                        scroll_error_to_pointer(&scroll, event.event.position.y);
+                                        cx.refresh_windows();
+                                    }
+                                })
+                                .child(
+                                    canvas(|_, _, _| (), {
+                                        let scroll = self.preview.error_scroll.clone();
+                                        move |bounds, _, window, _| {
+                                            let track_height = f32::from(bounds.size.height);
+                                            if track_height <= 0.0 {
+                                                return;
+                                            }
+                                            let thumb_height =
+                                                error_scroll_thumb_height(&scroll, track_height);
+                                            let maximum = f32::from(scroll.max_offset().y);
+                                            let fraction = if maximum > 0.0 {
+                                                (-f32::from(scroll.offset().y) / maximum)
+                                                    .clamp(0.0, 1.0)
+                                            } else {
+                                                0.0
+                                            };
+                                            window.paint_quad(quad(
+                                                bounds,
+                                                px(4.0),
+                                                rgb(0x2b2023),
+                                                px(0.0),
+                                                rgb(0x2b2023),
+                                                BorderStyle::Solid,
+                                            ));
+                                            let thumb = Bounds::new(
+                                                point(
+                                                    bounds.left(),
+                                                    bounds.top()
+                                                        + px(fraction
+                                                            * (track_height - thumb_height)),
+                                                ),
+                                                size(bounds.size.width, px(thumb_height)),
+                                            );
+                                            window.paint_quad(quad(
+                                                thumb,
+                                                px(4.0),
+                                                rgb(0x88676b),
+                                                px(0.0),
+                                                rgb(0x88676b),
+                                                BorderStyle::Solid,
+                                            ));
+                                        }
+                                    })
+                                    .size_full(),
+                                ),
+                        ),
                 )
                 .into_any_element(),
             PreviewTarget::None => div()
@@ -184,4 +269,29 @@ impl Editor {
 pub(crate) struct PreviewState {
     pub(crate) target: PreviewTarget,
     pub(crate) fullscreen: bool,
+    pub(crate) error_scroll: ScrollHandle,
+}
+
+fn error_scroll_thumb_height(scroll: &ScrollHandle, track_height: f32) -> f32 {
+    let viewport = f32::from(scroll.bounds().size.height);
+    let content = viewport + f32::from(scroll.max_offset().y);
+    if content <= 0.0 {
+        return track_height;
+    }
+    (track_height * viewport / content)
+        .max(24.0)
+        .min(track_height)
+}
+
+fn scroll_error_to_pointer(scroll: &ScrollHandle, pointer_y: Pixels) {
+    let bounds = scroll.bounds();
+    let track_height = (f32::from(bounds.size.height) - 8.0).max(0.0);
+    let thumb_height = error_scroll_thumb_height(scroll, track_height);
+    let travel = track_height - thumb_height;
+    if travel <= 0.0 {
+        return;
+    }
+    let position = f32::from(pointer_y - bounds.top()) - 4.0 - thumb_height / 2.0;
+    let fraction = (position / travel).clamp(0.0, 1.0);
+    scroll.set_offset(point(scroll.offset().x, -scroll.max_offset().y * fraction));
 }
