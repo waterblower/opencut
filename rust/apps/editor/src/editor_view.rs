@@ -158,11 +158,7 @@ impl Editor {
             min_right: MIN_PROPERTIES_PANEL_WIDTH,
         };
         let widths = self.upper_split_state.read(cx).widths(width, constraints);
-        let properties_panel_view = properties_panel(
-            current_properties_panel_viewable(self),
-            self.event_bus.clone(),
-            self.focus_handle.clone(),
-        );
+        let properties_panel_view = properties_panel(current_properties_panel_viewable(self));
         HorizontalSplit::new(
             "editor-upper-workspace",
             self.upper_split_state.clone(),
