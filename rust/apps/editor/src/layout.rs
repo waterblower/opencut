@@ -16,3 +16,9 @@ pub const SNAP_DISTANCE_PX: f32 = 8.0;
 pub const MIN_TIMELINE_PIXELS_PER_SECOND: f32 = 0.1;
 pub const MAX_TIMELINE_PIXELS_PER_SECOND: f32 = 1000.0;
 pub const DEFAULT_TIMELINE_PIXELS_PER_SECOND: f32 = 72.0;
+
+/// 将指针纵坐标换算为从 0 开始的轨道索引；两个坐标须使用同一坐标系，
+/// 第一条轨道的顶部坐标须包含滚动偏移，轨道高度须大于 0。
+pub fn track_index_at_y(pointer_y: f32, first_track_top: f32, track_height: f32) -> isize {
+    ((pointer_y - first_track_top) / track_height).floor() as isize
+}
