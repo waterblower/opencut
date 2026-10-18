@@ -249,6 +249,9 @@ user actions; migrate the existing code incrementally.
   instead of assigning `self.timeline` first and then failing while building
   the preview, which leaves the editor showing the new timeline with the old
   preview.
+- For timeline updates, keep computation and validation read-only and commit
+  mutations together at the end, after all fallible operations have succeeded.
+  Do not clear or partially update timeline state before computing its replacement.
 - Do not use `super::` paths. Import items explicitly using full paths at the
   beginning of the file, and use unqualified names in the code. Use an import
   alias or qualified name only when needed to resolve a name conflict.
