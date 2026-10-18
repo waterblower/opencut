@@ -118,7 +118,7 @@ impl VideoDecoder {
             self.lookahead.push_front(frame);
         }
         eprintln!(
-            "[clip-switch] seek to {} µs: total={:?}, index_seeks={}, sent_packets={}, discarded_packets={}, decoded_frames={}",
+            "seek to {} µs: total={:?}, index_seeks={}, sent_packets={}, discarded_packets={}, decoded_frames={}",
             position.as_micros(),
             started.elapsed(),
             scan.index_seeks,
