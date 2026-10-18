@@ -15,8 +15,18 @@ use std::{
     rc::Rc,
     time::{Duration, Instant},
 };
+#[cfg(target_os = "macos")]
+use {
+    crate::videotoolbox::{DecodedPicture, Received, VideoToolboxDecoder},
+    core_foundation::base::TCFType,
+    core_video::pixel_buffer::{CVPixelBuffer, CVPixelBufferRef},
+};
 
 pub struct VideoFrame {
+    /// The decoded picture. Both macOS decoding paths produce VideoToolbox buffers.
+    #[cfg(target_os = "macos")]
+    pub pixel_buffer: CVPixelBuffer,
+    #[cfg(not(target_os = "macos"))]
     pub native: Video,
     pub timestamp: MediaTime,
     pub duration: Option<Duration>,
@@ -44,7 +54,7 @@ const DECODE_MODE: DecodeMode = if cfg!(target_os = "macos") {
 /// Open, use, and drop on one execution lane. No scheduler or current UI frame.
 pub struct VideoDecoder {
     input: Input,
-    decoder: decoder::Video,
+    codec: Codec,
     stream_index: usize,
     time_base: Rational,
     origin_microseconds: i64,
@@ -69,10 +79,10 @@ impl VideoDecoder {
         stream_index: usize,
         origin_microseconds: i64,
     ) -> Result<Self> {
-        let (input, decoder, time_base, stream_rotation) = open_decoder(input, stream_index)?;
+        let (input, codec, time_base, stream_rotation) = open_decoder(input, stream_index)?;
         let mut decoder = Self {
             input,
-            decoder,
+            codec,
             stream_index,
             time_base,
             origin_microseconds,
@@ -201,7 +211,7 @@ impl VideoDecoder {
             self.input
                 .seek(absolute, ..absolute)
                 .context("seeking video demuxer")?;
-            self.decoder.flush();
+            self.flush_codec()?;
             self.drain = DrainState::Reading;
             self.lookahead.clear();
             scan.nearest_below = None; // 冲刷后此前送入的包全部作废。
@@ -264,6 +274,29 @@ struct SeekScan {
     decoded_frames: u32,        // 临时测量：解码输出的帧数。
 }
 
+enum Codec {
+    Ffmpeg(decoder::Video),
+    #[cfg(target_os = "macos")]
+    VideoToolbox {
+        decoder: VideoToolboxDecoder,
+        colors: StreamColors, // 流参数里的色彩标签；直接解码的帧不带 FFmpeg 帧属性。
+    },
+}
+
+enum Receive {
+    Frame(VideoFrame),
+    NeedInput,
+    Eof,
+}
+
+#[cfg(target_os = "macos")]
+struct StreamColors {
+    range: color::Range,
+    space: color::Space,
+    primaries: color::Primaries,
+    transfer: color::TransferCharacteristic,
+}
+
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum DrainState {
     Reading,
@@ -278,51 +311,92 @@ impl VideoDecoder {
         if self.drain == DrainState::Drained {
             return Ok(None);
         }
-        let mut native = Video::empty();
         loop {
-            match self.decoder.receive_frame(&mut native) {
-                Ok(()) => {
+            match self.receive_frame()? {
+                Receive::Frame(frame) => {
                     if let Some(scan) = scan.as_deref_mut() {
                         scan.decoded_frames += 1;
                     }
-                    if DECODE_MODE == DecodeMode::VideoToolbox
-                        && native.format() != Pixel::VIDEOTOOLBOX
-                    {
-                        bail!(
-                            "VideoToolbox produced unexpected frame format {:?}",
-                            native.format()
-                        );
-                    }
-                    return Ok(Some(describe_frame(
-                        native,
-                        self.time_base,
-                        self.origin_microseconds,
-                        self.stream_rotation,
-                    )?));
+                    return Ok(Some(frame));
                 }
-                Err(FfmpegError::Eof) => {
+                Receive::Eof => {
                     self.drain = DrainState::Drained;
                     return Ok(None);
                 }
-                Err(FfmpegError::Other { errno: EAGAIN }) => {
+                Receive::NeedInput => {
                     if self.drain == DrainState::Draining {
                         bail!("video decoder requested input after draining began");
                     }
                 }
-                Err(error) => return Err(error).context("receiving a decoded video frame"),
             }
 
             // Receive-first guarantees send will not return EAGAIN.
             match self.read_video_packet()? {
                 Some(packet) => self.send_video_packet(&packet, scan.as_deref_mut())?,
                 None => {
-                    self.decoder
-                        .send_eof()
-                        .context("starting video decoder drain")?;
+                    match &mut self.codec {
+                        Codec::Ffmpeg(decoder) => {
+                            decoder.send_eof().context("starting video decoder drain")?
+                        }
+                        #[cfg(target_os = "macos")]
+                        Codec::VideoToolbox { decoder, .. } => decoder.send_eof(),
+                    }
                     self.drain = DrainState::Draining;
                 }
             }
         }
+    }
+
+    /// One decoded frame in presentation order, or what the codec needs next.
+    fn receive_frame(&mut self) -> Result<Receive> {
+        match &mut self.codec {
+            Codec::Ffmpeg(decoder) => {
+                let mut native = Video::empty();
+                match decoder.receive_frame(&mut native) {
+                    Ok(()) => {
+                        if DECODE_MODE == DecodeMode::VideoToolbox
+                            && native.format() != Pixel::VIDEOTOOLBOX
+                        {
+                            bail!(
+                                "VideoToolbox produced unexpected frame format {:?}",
+                                native.format()
+                            );
+                        }
+                        Ok(Receive::Frame(describe_frame(
+                            native,
+                            self.time_base,
+                            self.origin_microseconds,
+                            self.stream_rotation,
+                        )?))
+                    }
+                    Err(FfmpegError::Eof) => Ok(Receive::Eof),
+                    Err(FfmpegError::Other { errno: EAGAIN }) => Ok(Receive::NeedInput),
+                    Err(error) => Err(error).context("receiving a decoded video frame"),
+                }
+            }
+            #[cfg(target_os = "macos")]
+            Codec::VideoToolbox { decoder, colors } => match decoder.receive()? {
+                Received::Picture(picture) => Ok(Receive::Frame(describe_picture(
+                    picture,
+                    colors,
+                    self.time_base,
+                    self.origin_microseconds,
+                    self.stream_rotation,
+                )?)),
+                Received::NeedInput => Ok(Receive::NeedInput),
+                Received::Eof => Ok(Receive::Eof),
+            },
+        }
+    }
+
+    /// Drops pending frames before decoding from a new position.
+    fn flush_codec(&mut self) -> Result<()> {
+        match &mut self.codec {
+            Codec::Ffmpeg(decoder) => decoder.flush(),
+            #[cfg(target_os = "macos")]
+            Codec::VideoToolbox { decoder, .. } => decoder.flush()?,
+        }
+        Ok(())
     }
 
     /// Next packet of the selected stream; None is demuxer EOF.
@@ -377,18 +451,25 @@ impl VideoDecoder {
             }
             None => Discard::Default,
         };
-        // Set per packet: the decoder applies the level current at send time.
-        self.decoder.skip_frame(discard);
-        self.decoder
-            .send_packet(packet)
-            .context("sending a video packet")
+        match &mut self.codec {
+            Codec::Ffmpeg(decoder) => {
+                // Set per packet: the decoder applies the level current at send time.
+                decoder.skip_frame(discard);
+                decoder
+                    .send_packet(packet)
+                    .context("sending a video packet")
+            }
+            // VideoToolbox still decodes a skipped picture as a reference; it only
+            // suppresses the output, which is what keeps it from being selected.
+            #[cfg(target_os = "macos")]
+            Codec::VideoToolbox { decoder, .. } => {
+                decoder.send_packet(packet, discard != Discard::NonReference)
+            }
+        }
     }
 }
 
-fn open_decoder(
-    input: Input,
-    stream_index: usize,
-) -> Result<(Input, decoder::Video, Rational, f64)> {
+fn open_decoder(input: Input, stream_index: usize) -> Result<(Input, Codec, Rational, f64)> {
     let Some(stream) = input.stream(stream_index) else {
         bail!("video stream {stream_index} is no longer present");
     };
@@ -410,6 +491,31 @@ fn open_decoder(
         if side_data.kind() == PacketSideData::DisplayMatrix {
             rotation = display_rotation(side_data.data())?;
             break;
+        }
+    }
+    // H.264 and HEVC in MP4-style framing decode through a pipelined session;
+    // anything else keeps FFmpeg's VideoToolbox hwaccel.
+    #[cfg(target_os = "macos")]
+    {
+        // SAFETY: the parameters belong to the open stream and outlive this block.
+        let parameters = unsafe { stream.parameters().as_ptr() };
+        if let Some(decoder) = VideoToolboxDecoder::open(parameters, time_base)? {
+            // SAFETY: as above.
+            let colors = unsafe {
+                let parameters = &*parameters;
+                StreamColors {
+                    range: color::Range::from(parameters.color_range),
+                    space: color::Space::from(parameters.color_space),
+                    primaries: color::Primaries::from(parameters.color_primaries),
+                    transfer: color::TransferCharacteristic::from(parameters.color_trc),
+                }
+            };
+            return Ok((
+                input,
+                Codec::VideoToolbox { decoder, colors },
+                time_base,
+                rotation,
+            ));
         }
     }
     let mut context = codec::context::Context::from_parameters(stream.parameters())
@@ -434,7 +540,7 @@ fn open_decoder(
     let mut decoder = context.decoder();
     decoder.set_packet_time_base(time_base);
     let decoder = decoder.video().context("opening video decoder")?;
-    Ok((input, decoder, time_base, rotation))
+    Ok((input, Codec::Ffmpeg(decoder), time_base, rotation))
 }
 
 fn describe_frame(
@@ -460,6 +566,16 @@ fn describe_frame(
         Some(data) => display_rotation(data.data())?,
         None => stream_rotation,
     };
+    #[cfg(target_os = "macos")]
+    let pixel_buffer = {
+        // SAFETY: a VideoToolbox frame keeps its CVPixelBuffer in data[3]. Retain it
+        // with the get rule so the picture outlives the FFmpeg frame.
+        let source = unsafe { (*native.as_ptr()).data[3] as CVPixelBufferRef };
+        if source.is_null() {
+            bail!("VideoToolbox frame has no pixel buffer");
+        }
+        unsafe { CVPixelBuffer::wrap_under_get_rule(source) }
+    };
     Ok(VideoFrame {
         timestamp: MediaTime(timestamp),
         duration,
@@ -468,7 +584,41 @@ fn describe_frame(
         color_primaries: native.color_primaries(),
         color_transfer: native.color_transfer_characteristic(),
         rotation_degrees,
+        #[cfg(target_os = "macos")]
+        pixel_buffer,
+        #[cfg(not(target_os = "macos"))]
         native,
+    })
+}
+
+/// A picture from the pipelined session. Color tags come from the stream; the
+/// rotation is the stream's, since VideoToolbox carries no per-frame side data.
+#[cfg(target_os = "macos")]
+fn describe_picture(
+    picture: DecodedPicture,
+    colors: &StreamColors,
+    time_base: Rational,
+    origin: i64,
+    stream_rotation: f64,
+) -> Result<VideoFrame> {
+    let timestamp = timestamp_microseconds(picture.pts, time_base)?
+        .checked_sub(origin)
+        .context("normalized video timestamp exceeds range")?;
+    let duration = if picture.duration > 0 {
+        let micros = timestamp_microseconds(picture.duration, time_base)?;
+        Some(Duration::from_micros(micros as u64))
+    } else {
+        None
+    };
+    Ok(VideoFrame {
+        pixel_buffer: picture.pixel_buffer,
+        timestamp: MediaTime(timestamp),
+        duration,
+        color_range: colors.range,
+        color_space: colors.space,
+        color_primaries: colors.primaries,
+        color_transfer: colors.transfer,
+        rotation_degrees: stream_rotation,
     })
 }
 

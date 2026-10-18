@@ -22,6 +22,8 @@ fn benchmark_random_seek() -> Result<()> {
         "4K.MOV",
         "super-long.mp4",
         "fake-keyframes.mp4",
+        // long-gop-hevc.mp4：约 10 秒一个关键帧，且全部为参考帧，无法跳过任何解码。
+        "long-gop-hevc.mp4",
     ] {
         let path = fixture_directory.join(name);
         let input = format::input(&path)

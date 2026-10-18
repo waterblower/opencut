@@ -7,3 +7,7 @@ publish.workspace = true
 [dependencies]
 anyhow.workspace = true
 ffmpeg-next.workspace = true
+
+[target.'cfg(target_os = "macos")'.dependencies]
+core-foundation.workspace = true
+core-video.workspace = true

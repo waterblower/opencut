@@ -9,6 +9,8 @@ mod media_info;
 mod time;
 mod video;
 mod video_backend;
+#[cfg(target_os = "macos")]
+mod videotoolbox;
 
 pub use audio::{AudioDecoder, AudioSamples, PcmFormat};
 pub use audio_backend::{AudioBackend, AudioMediaInfo};
