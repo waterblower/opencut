@@ -3,7 +3,7 @@ use crate::editor::Editor;
 use crate::event_bus::AppEvent;
 use crate::layout::{
     MAX_TIMELINE_PIXELS_PER_SECOND, MIN_TIMELINE_PIXELS_PER_SECOND, RULER_HEIGHT, SNAP_DISTANCE_PX,
-    TIMELINE_HEADER_HEIGHT, TIMELINE_PADDING, TRACK_HEADER_WIDTH, TRACK_HEIGHT,
+    TIMELINE_HEADER_HEIGHT, TIMELINE_PADDING, TRACK_HEADER_WIDTH, TRACK_HEIGHT, track_index_at_y,
 };
 use crate::preview::PreviewTarget;
 use crate::timeline::{TimelineEditorExt, TimelineFrameIndex, TimelineRuntimeState};
@@ -586,8 +586,11 @@ impl Editor {
             + TIMELINE_HEADER_HEIGHT
             + RULER_HEIGHT;
         let scroll_y: f32 = timeline.v_scroll.offset().y.into();
-        let track_index =
-            ((f32::from(event.position.y) - track_top - scroll_y) / TRACK_HEIGHT).floor() as isize;
+        let track_index = track_index_at_y(
+            f32::from(event.position.y),
+            track_top + scroll_y,
+            TRACK_HEIGHT,
+        );
         let requested_track_delta = usize::try_from(track_index)
             .ok()
             .map(|target| target as isize - original_anchor_track_index as isize)
