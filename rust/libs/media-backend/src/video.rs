@@ -114,16 +114,16 @@ impl VideoDecoder {
     /// The selected frame and any decoded successor stay owned by the decoder.
     pub fn seek(&mut self, position: Duration) -> Result<()> {
         let started = Instant::now();
-        let (frame, debug_stats) = self.seek_inner(position)?;
+        let (frame, debug) = self.seek_inner(position)?;
         self.lookahead.push_front(frame);
         eprintln!(
             "seek to {} µs: total={:?}, index_seeks={}, sent_packets={}, discarded_packets={}, decoded_frames={}",
             position.as_micros(),
             started.elapsed(),
-            debug_stats.index_seeks,
-            debug_stats.sent_packets,
-            debug_stats.discarded_packets,
-            debug_stats.decoded_frames,
+            debug.index_seeks,
+            debug.sent_packets,
+            debug.discarded_packets,
+            debug.decoded_frames,
         );
         Ok(())
     }
@@ -133,13 +133,16 @@ impl VideoDecoder {
     /// Nearest bracketing frame, earlier on ties; clamp to first/last frame.
     /// Empty video is an error. Retain lookahead so the next pull follows the
     /// selected frame. Decode dependencies; convert only the selected result.
-    fn seek_inner(&mut self, position: Duration) -> Result<(VideoFrame, SeekDebugStats)> {
+    fn seek_inner(&mut self, position: Duration) -> Result<(VideoFrame, SeekDebug)> {
         // Even an out-of-range request clamps to the final available frame.
         let target = i64::try_from(position.as_micros()).unwrap_or(i64::MAX);
-        let mut scan = SeekScan {
+        let mut scan = SeekDebug {
             target,
             nearest_below: None,
-            debug_stats: SeekDebugStats::default(),
+            index_seeks: 0,
+            sent_packets: 0,
+            discarded_packets: 0,
+            decoded_frames: 0,
         };
 
         // Forward fast path: when the target is only a short distance past the
@@ -155,7 +158,7 @@ impl VideoDecoder {
             _ => self.indexed_seek(&mut scan)?,
         };
         if earlier.timestamp.0 >= target {
-            return Ok((earlier, scan.debug_stats));
+            return Ok((earlier, scan));
         }
 
         // Consume any remaining lookahead before decoding fresh frames.
@@ -165,7 +168,7 @@ impl VideoDecoder {
                 None => self.decode_next(Some(&mut scan))?,
             };
             let Some(later) = next else {
-                return Ok((earlier, scan.debug_stats));
+                return Ok((earlier, scan));
             };
             if later.timestamp < earlier.timestamp {
                 bail!("video presentation timestamps moved backwards while seeking");
@@ -178,15 +181,15 @@ impl VideoDecoder {
             let after = i128::from(later.timestamp.0) - i128::from(target);
             if before <= after {
                 self.lookahead.push_back(later);
-                return Ok((earlier, scan.debug_stats));
+                return Ok((earlier, scan));
             }
-            return Ok((later, scan.debug_stats));
+            return Ok((later, scan));
         }
     }
 
     /// Land on a decodable frame at or before the scan target through the demuxer
     /// index, clamping to the first frame when the target precedes it.
-    fn indexed_seek(&mut self, scan: &mut SeekScan) -> Result<VideoFrame> {
+    fn indexed_seek(&mut self, scan: &mut SeekDebug) -> Result<VideoFrame> {
         let target = scan.target;
         let mut seek_position = if self.input.duration() >= 0 {
             target.min(self.input.duration())
@@ -201,7 +204,7 @@ impl VideoDecoder {
         // before the landing packet so each attempt steps back one index keyframe.
         let mut retry_step = FALLBACK_SEEK_STEP_MICROSECONDS;
         loop {
-            scan.debug_stats.index_seeks += 1;
+            scan.index_seeks += 1;
             let absolute = self.origin_microseconds.saturating_add(seek_position);
             self.input
                 .seek(absolute, ..absolute)
@@ -260,19 +263,13 @@ const FALLBACK_SEEK_STEP_MICROSECONDS: i64 = 50_000;
 const FORWARD_SCAN_LIMIT_MICROSECONDS: i64 = 250_000;
 
 /// Packets sent while one seek decodes toward its target.
-struct SeekScan {
+struct SeekDebug {
     target: i64,                // 目标时间（微秒，相对 origin）。
     nearest_below: Option<i64>, // 已完整解码、早于目标的最大 PTS；更早的非参考帧不会被选中。
-    debug_stats: SeekDebugStats,
-}
-
-/// 临时测量：一次 seek 的开销计数，仅用于调试输出，不影响选帧。
-#[derive(Default)]
-struct SeekDebugStats {
-    index_seeks: u32,       // 索引 seek 次数（含回退重试）。
-    sent_packets: u32,      // 送入解码器的包数。
-    discarded_packets: u32, // 以非参考帧方式跳过的包数。
-    decoded_frames: u32,    // 解码输出的帧数。
+    index_seeks: u32,           // 临时测量：索引 seek 次数（含回退重试）。
+    sent_packets: u32,          // 临时测量：送入解码器的包数。
+    discarded_packets: u32,     // 临时测量：以非参考帧方式跳过的包数。
+    decoded_frames: u32,        // 临时测量：解码输出的帧数。
 }
 
 enum Codec {
@@ -308,7 +305,7 @@ enum DrainState {
 impl VideoDecoder {
     /// A seek scan lets packets that cannot affect the selected frame skip
     /// non-reference decoding; None decodes every packet.
-    fn decode_next(&mut self, mut scan: Option<&mut SeekScan>) -> Result<Option<VideoFrame>> {
+    fn decode_next(&mut self, mut scan: Option<&mut SeekDebug>) -> Result<Option<VideoFrame>> {
         if self.drain == DrainState::Drained {
             return Ok(None);
         }
@@ -316,7 +313,7 @@ impl VideoDecoder {
             match self.receive_frame()? {
                 Receive::Frame(frame) => {
                     if let Some(scan) = scan.as_deref_mut() {
-                        scan.debug_stats.decoded_frames += 1;
+                        scan.decoded_frames += 1;
                     }
                     return Ok(Some(frame));
                 }
@@ -422,10 +419,10 @@ impl VideoDecoder {
     /// During a seek, a non-reference picture is skipped once a fully decoded
     /// picture lies between it and the target: nothing depends on it, and it
     /// cannot be the selected frame. Outside a seek, every picture decodes.
-    fn send_video_packet(&mut self, packet: &Packet, scan: Option<&mut SeekScan>) -> Result<()> {
+    fn send_video_packet(&mut self, packet: &Packet, scan: Option<&mut SeekDebug>) -> Result<()> {
         let discard = match scan {
             Some(scan) => {
-                scan.debug_stats.sent_packets += 1;
+                scan.sent_packets += 1;
                 let discard = match packet.pts() {
                     Some(timestamp) => {
                         let position = timestamp_microseconds(timestamp, self.time_base)?
@@ -446,7 +443,7 @@ impl VideoDecoder {
                     None => Discard::Default, // 无 PTS：无法判断是否会被选中。
                 };
                 if discard == Discard::NonReference {
-                    scan.debug_stats.discarded_packets += 1;
+                    scan.discarded_packets += 1;
                 }
                 discard
             }
