@@ -1,3 +1,4 @@
+use crate::asset::IconName;
 use crate::context_menu::ContextMenu;
 use crate::edit_action::EditAction;
 use crate::editor::Editor;
@@ -8,7 +9,7 @@ use crate::layout::{
     RULER_HEIGHT, TIMELINE_HEADER_HEIGHT, TIMELINE_PADDING, TRACK_HEADER_WIDTH, TRACK_HEIGHT,
 };
 use crate::preview::PreviewTarget;
-use crate::theme::{ACCENT, BORDER, ERROR, MUTED, SURFACE, SURFACE_HOVER};
+use crate::theme::{ACCENT, BORDER, ERROR, MUTED, SURFACE, SURFACE_HOVER, TEXT};
 use crate::time_format::format_time;
 use crate::timeline::TimelineFrameIndex;
 use crate::timeline_interactions::{MarqueeSelection, TimelineTool};
@@ -16,6 +17,7 @@ use crate::track::TrackKind;
 use gpui::prelude::*;
 use gpui::{
     CursorStyle, DragMoveEvent, MouseButton, MouseDownEvent, MouseUpEvent, Window, div, px, rgb,
+    rgba, svg,
 };
 
 // 捏合增量倍率；越大缩放越灵敏。It's fun to be PI.
@@ -369,20 +371,39 @@ impl Editor {
         let left = TIMELINE_PADDING
             + self.timeline_playhead_seconds(cx) as f32 * timeline.pixels_per_second;
 
+        // 同一元素既画在标尺浮层里，也画在轨道滚动内容里；后者顶部 RULER_HEIGHT 被标尺浮层遮住。
         div()
             .absolute()
             .top_0()
             .bottom_0()
             .left(px(left))
-            .w(px(1.0))
-            .bg(rgb(ACCENT))
             .child(
                 div()
                     .absolute()
-                    .top_0()
-                    .left(px(-4.0))
-                    .size_2()
+                    .top(px(RULER_HEIGHT)) // 光晕只在轨道区，不压标尺文字。
+                    .bottom_0()
+                    .left(px(-1.0))
+                    .w(px(3.0))
+                    .bg(rgba(0xf0b75e2e)),
+            )
+            .child(
+                div()
+                    .absolute()
+                    .top(px(26.0)) // 从标记尖端开始，标记以上不画线。
+                    .bottom_0()
+                    .left_0()
+                    .w(px(1.0))
                     .bg(rgb(ACCENT)),
+            )
+            .child(
+                svg()
+                    .path(IconName::Playhead.path())
+                    .absolute()
+                    .top(px(14.0)) // 位于标尺下半部，避开时间标签。
+                    .left(px(-5.5))
+                    .w(px(12.0))
+                    .h(px(13.0))
+                    .text_color(rgb(ACCENT)),
             )
             .into_any_element()
     }
@@ -475,6 +496,8 @@ impl Editor {
             .timeline
             .as_ref()
             .expect("timeline view requires timeline state");
+        let selection_active = timeline.interaction.active_tool == TimelineTool::Selection;
+        let blade_active = timeline.interaction.active_tool == TimelineTool::Blade;
         div()
             .id("timeline-toolbar")
             .h(px(TIMELINE_HEADER_HEIGHT))
@@ -489,183 +512,195 @@ impl Editor {
                 div()
                     .flex()
                     .items_center()
-                    .gap_2()
+                    .gap_3()
                     .child(
-                        timeline_tool_button(
-                            "timeline-selection-tool",
-                            "V Select",
-                            timeline.interaction.active_tool == TimelineTool::Selection,
-                        )
-                        .on_click(cx.listener(|editor, _, _, cx| {
-                            let Some(timeline) = editor.timeline.as_mut() else {
-                                return;
-                            };
-                            timeline.activate_timeline_tool(TimelineTool::Selection);
-                            cx.notify();
-                        })),
+                        toolbar_segment_view()
+                            .child(
+                                toolbar_segment_item_view(
+                                    "timeline-selection-tool",
+                                    IconName::Pointer,
+                                    selection_active,
+                                )
+                                .child("Select")
+                                .child(toolbar_shortcut_view("V", selection_active))
+                                .on_click(cx.listener(
+                                    |editor, _, _, cx| {
+                                        let Some(timeline) = editor.timeline.as_mut() else {
+                                            return;
+                                        };
+                                        timeline.activate_timeline_tool(TimelineTool::Selection);
+                                        cx.notify();
+                                    },
+                                )),
+                            )
+                            .child(
+                                toolbar_segment_item_view(
+                                    "timeline-blade-tool",
+                                    IconName::Scissors,
+                                    blade_active,
+                                )
+                                .child("Blade")
+                                .child(toolbar_shortcut_view("B", blade_active))
+                                .on_click(cx.listener(
+                                    |editor, _, _, cx| {
+                                        let Some(timeline) = editor.timeline.as_mut() else {
+                                            return;
+                                        };
+                                        timeline.activate_timeline_tool(TimelineTool::Blade);
+                                        cx.notify();
+                                    },
+                                )),
+                            ),
                     )
-                    .child(
-                        timeline_tool_button(
-                            "timeline-blade-tool",
-                            "B Blade",
-                            timeline.interaction.active_tool == TimelineTool::Blade,
-                        )
-                        .on_click(cx.listener(|editor, _, _, cx| {
-                            let Some(timeline) = editor.timeline.as_mut() else {
-                                return;
-                            };
-                            timeline.activate_timeline_tool(TimelineTool::Blade);
-                            cx.notify();
-                        })),
-                    )
+                    .child(toolbar_divider_view(16.0))
                     .child(
                         div()
-                            .w(px(108.0))
+                            .flex()
                             .font_family("monospace")
                             .text_sm()
-                            .child(format!(
-                                "{} / {}",
-                                format_time(self.timeline_playhead_seconds(cx), false),
+                            .child(format_time(self.timeline_playhead_seconds(cx), false))
+                            .child(div().text_color(rgb(MUTED)).child(format!(
+                                " / {}",
                                 format_time(
                                     timeline
                                         .editing_state
                                         .seconds(timeline.editing_state.content_duration()),
                                     false
                                 )
-                            )),
+                            ))),
                     )
+                    .child(toolbar_divider_view(16.0))
                     .child(
-                        timeline_icon_button("add-video-track", "+V").on_click(cx.listener(
-                            |editor, _, _, cx| {
-                                if let Err(error) = editor.add_track(TrackKind::Video) {
-                                    log::error!("{error:?}");
-                                }
-                                cx.notify();
-                            },
-                        )),
+                        toolbar_segment_view()
+                            .child(
+                                toolbar_segment_item_view("add-video-track", IconName::Plus, false)
+                                    .child(div().text_color(rgb(TEXT)).child("Video"))
+                                    .on_click(cx.listener(|editor, _, _, cx| {
+                                        if let Err(error) = editor.add_track(TrackKind::Video) {
+                                            log::error!("{error:?}");
+                                        }
+                                        cx.notify();
+                                    })),
+                            )
+                            .child(toolbar_divider_view(14.0))
+                            .child(
+                                toolbar_segment_item_view("add-audio-track", IconName::Plus, false)
+                                    .child(div().text_color(rgb(TEXT)).child("Audio"))
+                                    .on_click(cx.listener(|editor, _, _, cx| {
+                                        if let Err(error) = editor.add_track(TrackKind::Audio) {
+                                            log::error!("{error:?}");
+                                        }
+                                        cx.notify();
+                                    })),
+                            )
+                            .child(toolbar_divider_view(14.0))
+                            .child(
+                                toolbar_segment_item_view("add-text-track", IconName::Plus, false)
+                                    .child(div().text_color(rgb(TEXT)).child("Text"))
+                                    .on_click(cx.listener(|editor, _, _, cx| {
+                                        if let Err(error) = editor.add_track(TrackKind::Text) {
+                                            log::error!("{error:?}");
+                                        }
+                                        cx.notify();
+                                    })),
+                            ),
                     )
+                    .child(toolbar_divider_view(16.0))
                     .child(
-                        timeline_icon_button("add-audio-track", "+A").on_click(cx.listener(
-                            |editor, _, _, cx| {
-                                if let Err(error) = editor.add_track(TrackKind::Audio) {
-                                    log::error!("{error:?}");
-                                }
-                                cx.notify();
-                            },
-                        )),
-                    )
-                    .child(
-                        timeline_icon_button("add-text-track", "+T").on_click(cx.listener(
-                            |editor, _, _, cx| {
-                                if let Err(error) = editor.add_track(TrackKind::Text) {
-                                    log::error!("{error:?}");
-                                }
-                                cx.notify();
-                            },
-                        )),
-                    )
-                    .child(
-                        timeline_icon_button(
-                            "toggle-timeline-snapping",
-                            if timeline.snapping_enabled {
-                                "Snap on"
-                            } else {
-                                "Snap off"
-                            },
-                        )
-                        .border_1()
-                        .border_color(rgb(if timeline.snapping_enabled {
-                            ACCENT
-                        } else {
-                            BORDER
-                        }))
-                        .text_color(rgb(if timeline.snapping_enabled {
-                            ACCENT
-                        } else {
-                            MUTED
-                        }))
-                        .on_click(cx.listener(|editor, _, _, cx| {
-                            editor.toggle_snapping();
-                            cx.notify();
-                        })),
-                    )
-                    .child(
-                        timeline_icon_button(
-                            "toggle-track-magnet",
-                            if timeline.track_magnet_enabled {
-                                "Magnet on"
-                            } else {
-                                "Magnet off"
-                            },
-                        )
-                        .border_1()
-                        .border_color(rgb(if timeline.track_magnet_enabled {
-                            ACCENT
-                        } else {
-                            BORDER
-                        }))
-                        .text_color(rgb(if timeline.track_magnet_enabled {
-                            ACCENT
-                        } else {
-                            MUTED
-                        }))
-                        .on_click(cx.listener(|editor, _, _, cx| {
-                            editor.toggle_track_magnet();
-                            cx.notify();
-                        })),
+                        div()
+                            .flex()
+                            .items_center()
+                            .gap_2()
+                            .child(
+                                toolbar_segment_view().child(
+                                    toolbar_segment_item_view(
+                                        "toggle-timeline-snapping",
+                                        IconName::Snap,
+                                        timeline.snapping_enabled,
+                                    )
+                                    .child("Snap")
+                                    .on_click(cx.listener(
+                                        |editor, _, _, cx| {
+                                            editor.toggle_snapping();
+                                            cx.notify();
+                                        },
+                                    )),
+                                ),
+                            )
+                            .child(
+                                toolbar_segment_view().child(
+                                    toolbar_segment_item_view(
+                                        "toggle-track-magnet",
+                                        IconName::Magnet,
+                                        timeline.track_magnet_enabled,
+                                    )
+                                    .child("Magnet")
+                                    .on_click(cx.listener(
+                                        |editor, _, _, cx| {
+                                            editor.toggle_track_magnet();
+                                            cx.notify();
+                                        },
+                                    )),
+                                ),
+                            ),
                     ),
             )
             .child(
                 div()
                     .flex()
                     .items_center()
-                    .gap_2()
-                    .child(timeline_icon_button("zoom-out", "−").on_click(cx.listener(
-                        |editor, _, _, cx| {
-                            if editor.timeline.is_none() {
-                                return;
-                            }
-                            let anchor = editor.timeline_playhead_seconds(cx);
-                            let timeline = editor.timeline.as_mut().unwrap();
-                            timeline.zoom(0.8, anchor);
-                            if let Err(error) = timeline.save() {
-                                log::error!("{error:?}");
-                            }
-                            cx.notify();
-                        },
-                    )))
+                    .gap_3()
                     .child(
                         div()
-                            .w(px(58.0))
-                            .text_center()
-                            .font_family("monospace")
-                            .text_xs()
-                            .text_color(rgb(MUTED))
-                            .child(format!("{:.1}px/s", timeline.pixels_per_second)),
-                    )
-                    .child(
-                        div()
-                            .w(px(66.0))
-                            .text_center()
                             .font_family("monospace")
                             .text_xs()
                             .text_color(rgb(MUTED))
                             .child(format!("{frames_per_second:.2} fps")),
                     )
-                    .child(timeline_icon_button("zoom-in", "+").on_click(cx.listener(
-                        |editor, _, _, cx| {
-                            if editor.timeline.is_none() {
-                                return;
-                            }
-                            let anchor = editor.timeline_playhead_seconds(cx);
-                            let timeline = editor.timeline.as_mut().unwrap();
-                            timeline.zoom(1.25, anchor);
-                            if let Err(error) = timeline.save() {
-                                log::error!("{error:?}");
-                            }
-                            cx.notify();
-                        },
-                    ))),
+                    .child(
+                        toolbar_segment_view()
+                            .child(
+                                toolbar_segment_item_view("zoom-out", IconName::Minus, false)
+                                    .on_click(cx.listener(|editor, _, _, cx| {
+                                        if editor.timeline.is_none() {
+                                            return;
+                                        }
+                                        let anchor = editor.timeline_playhead_seconds(cx);
+                                        let timeline = editor.timeline.as_mut().unwrap();
+                                        timeline.zoom(0.8, anchor);
+                                        if let Err(error) = timeline.save() {
+                                            log::error!("{error:?}");
+                                        }
+                                        cx.notify();
+                                    })),
+                            )
+                            .child(toolbar_divider_view(14.0))
+                            .child(
+                                div()
+                                    .w(px(58.0))
+                                    .text_center()
+                                    .font_family("monospace")
+                                    .text_xs()
+                                    .text_color(rgb(MUTED))
+                                    .child(format!("{:.1}px/s", timeline.pixels_per_second)),
+                            )
+                            .child(toolbar_divider_view(14.0))
+                            .child(
+                                toolbar_segment_item_view("zoom-in", IconName::Plus, false)
+                                    .on_click(cx.listener(|editor, _, _, cx| {
+                                        if editor.timeline.is_none() {
+                                            return;
+                                        }
+                                        let anchor = editor.timeline_playhead_seconds(cx);
+                                        let timeline = editor.timeline.as_mut().unwrap();
+                                        timeline.zoom(1.25, anchor);
+                                        if let Err(error) = timeline.save() {
+                                            log::error!("{error:?}");
+                                        }
+                                        cx.notify();
+                                    })),
+                            ),
+                    ),
             )
             .into_any_element()
     }
@@ -694,35 +729,64 @@ fn ruler_tick_step(duration: f64, pixels_per_second: f32) -> f64 {
         })
 }
 
-fn timeline_icon_button(
+fn toolbar_segment_view() -> gpui::Div {
+    div()
+        .h_7()
+        .p(px(1.0))
+        .flex()
+        .items_center()
+        .gap_1()
+        .rounded(px(7.0))
+        .border_1()
+        .border_color(rgb(BORDER))
+        .bg(rgb(SURFACE))
+}
+
+fn toolbar_segment_item_view(
     id: impl Into<gpui::ElementId>,
-    label: &'static str,
+    icon: IconName,
+    active: bool,
 ) -> gpui::Stateful<gpui::Div> {
+    let color = if active { ACCENT } else { MUTED };
     div()
         .id(id)
-        .h_7()
-        .min_w(px(28.0))
+        .h(px(24.0))
+        .min_w(px(24.0))
         .px_2()
         .flex()
         .items_center()
         .justify_center()
-        .rounded_md()
-        .bg(rgb(SURFACE))
+        .gap(px(6.0))
+        .rounded(px(5.0))
         .cursor(CursorStyle::PointingHand)
         .text_xs()
-        .hover(|style| style.bg(rgb(SURFACE_HOVER)))
-        .child(label)
+        .text_color(rgb(color))
+        .when(active, |item| item.bg(rgba(0xf0b75e29)))
+        .when(!active, |item| {
+            item.hover(|style| style.bg(rgb(SURFACE_HOVER)))
+        })
+        .child(
+            svg()
+                .path(icon.path())
+                .size(px(14.0))
+                .text_color(rgb(color)),
+        )
 }
 
-fn timeline_tool_button(
-    id: impl Into<gpui::ElementId>,
-    label: &'static str,
-    active: bool,
-) -> gpui::Stateful<gpui::Div> {
-    timeline_icon_button(id, label)
-        .border_1()
-        .border_color(rgb(if active { ACCENT } else { BORDER }))
-        .text_color(rgb(if active { ACCENT } else { MUTED }))
+fn toolbar_shortcut_view(key: &'static str, active: bool) -> gpui::Div {
+    div()
+        .font_family("monospace")
+        .text_size(px(11.0))
+        .text_color(if active {
+            rgba(0xf0b75e99)
+        } else {
+            rgba(0x55555eff)
+        })
+        .child(key)
+}
+
+fn toolbar_divider_view(height: f32) -> gpui::Div {
+    div().w(px(1.0)).h(px(height)).bg(rgb(BORDER))
 }
 
 fn format_time_precise(seconds: f64) -> String {

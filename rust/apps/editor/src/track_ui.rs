@@ -4,7 +4,7 @@ use crate::explorer_drag::AssetBeingDragged;
 use crate::layout::{TIMELINE_PADDING, TRACK_HEIGHT};
 use crate::model::MediaKind;
 use crate::srt::srt_text_clips;
-use crate::theme::{ACCENT, BORDER, CLIP_BLUE, ERROR, MUTED, SURFACE, SURFACE_HOVER};
+use crate::theme::{ACCENT, BORDER, CLIP_BLUE, ERROR, MUTED, SURFACE, SURFACE_HOVER, TEXT};
 use crate::timeline::{PreviewDropAsset, TimelineFrameIndex};
 use crate::timeline_clip::{Clip, text_clip_component};
 use crate::timeline_document::resolve_asset_path;
@@ -97,7 +97,19 @@ impl Editor {
         track: &Track,
         cx: &mut Context<Self>,
     ) -> gpui::AnyElement {
+        let timeline = self
+            .timeline
+            .as_ref()
+            .expect("track headers require an active timeline");
         let track_id = track.id;
+        let is_first_track = index == 0;
+        let is_last_track = index + 1 == timeline.editing_state.tracks.len();
+        let hidden = !track.visible;
+        let badge_color = match track.kind {
+            TrackKind::Video => CLIP_BLUE,
+            TrackKind::Audio => 0x24656b,
+            TrackKind::Text => 0x7251a3,
+        };
         div()
             .id(("track-header", index))
             .h(px(TRACK_HEIGHT))
@@ -113,90 +125,151 @@ impl Editor {
                 div()
                     .flex()
                     .items_center()
-                    .justify_between()
+                    .gap_2()
                     .child(
                         div()
-                            .text_sm()
+                            .size(px(18.0))
+                            .flex_shrink_0()
+                            .flex()
+                            .items_center()
+                            .justify_center()
+                            .rounded(px(5.0))
+                            .border_1()
+                            .border_color(rgb(badge_color + 0x101010))
+                            .bg(rgb(badge_color))
+                            .text_size(px(10.0))
+                            .font_weight(gpui::FontWeight::BOLD)
+                            .child(track_kind_label(track.kind)),
+                    )
+                    .child(
+                        div()
+                            .flex_1()
+                            .min_w_0()
+                            .overflow_hidden()
+                            .whitespace_nowrap()
+                            .text_ellipsis()
+                            .text_size(px(13.0))
                             .font_weight(gpui::FontWeight::SEMIBOLD)
                             .child(track.name.clone()),
                     )
                     .child(
                         div()
-                            .text_xs()
-                            .text_color(rgb(MUTED))
-                            .child(track_kind_label(track.kind)),
+                            .flex()
+                            .flex_shrink_0()
+                            .gap(px(2.0))
+                            .child(
+                                track_action_view(
+                                    ("track-up", index),
+                                    IconName::ArrowUp,
+                                    !is_first_track,
+                                    TEXT,
+                                )
+                                .on_click(cx.listener(
+                                    move |editor, _, _, cx| {
+                                        if let Err(error) = editor.move_track(track_id, -1) {
+                                            log::error!("{error:?}");
+                                        }
+                                        cx.notify();
+                                    },
+                                )),
+                            )
+                            .child(
+                                track_action_view(
+                                    ("track-down", index),
+                                    IconName::ArrowDown,
+                                    !is_last_track,
+                                    TEXT,
+                                )
+                                .on_click(cx.listener(
+                                    move |editor, _, _, cx| {
+                                        if let Err(error) = editor.move_track(track_id, 1) {
+                                            log::error!("{error:?}");
+                                        }
+                                        cx.notify();
+                                    },
+                                )),
+                            )
+                            .child(
+                                track_action_view(
+                                    ("track-delete", index),
+                                    IconName::Trash,
+                                    true,
+                                    ERROR,
+                                )
+                                .on_click(cx.listener(
+                                    move |editor, _, _, cx| {
+                                        if let Err(error) = editor.delete_track(track_id) {
+                                            log::error!("{error:?}");
+                                        }
+                                        cx.notify();
+                                    },
+                                )),
+                            ),
                     ),
             )
             .child(
-                div()
-                    .flex()
-                    .gap_1()
-                    .child(
-                        track_icon_button(("track-lock", index), IconName::Lock, track.locked)
-                            .on_click(cx.listener(move |editor, _, _, cx| {
-                                if let Err(error) = editor.toggle_track_lock(track_id) {
-                                    log::error!("{error:?}");
-                                }
-                                cx.notify();
-                            })),
-                    )
-                    .child(
-                        track_icon_button(("track-visible", index), IconName::Eye, track.visible)
-                            .on_click(cx.listener(move |editor, _, _, cx| {
-                                if let Err(error) = editor.toggle_track_visibility(track_id) {
-                                    log::error!("{error:?}");
-                                }
-                                cx.notify();
-                            })),
-                    )
-                    .when(track.kind != TrackKind::Text, |this| {
-                        this.child(
-                            track_icon_button(
-                                ("track-mute", index),
-                                if track.muted {
-                                    IconName::Mute
+                div().flex().child(
+                    div()
+                        .h(px(24.0))
+                        .p(px(1.0))
+                        .flex()
+                        .items_center()
+                        .rounded(px(6.0))
+                        .border_1()
+                        .border_color(rgb(BORDER))
+                        .bg(rgb(SURFACE))
+                        .child(
+                            track_toggle_view(("track-lock", index), IconName::Lock, track.locked)
+                                .on_click(cx.listener(move |editor, _, _, cx| {
+                                    if let Err(error) = editor.toggle_track_lock(track_id) {
+                                        log::error!("{error:?}");
+                                    }
+                                    cx.notify();
+                                })),
+                        )
+                        .child(track_toggle_divider_view(!track.locked && !hidden))
+                        .child(
+                            track_toggle_view(
+                                ("track-visible", index),
+                                if hidden {
+                                    IconName::EyeOff
                                 } else {
-                                    IconName::Unmute
+                                    IconName::Eye
                                 },
-                                track.muted,
+                                hidden,
                             )
                             .on_click(cx.listener(
                                 move |editor, _, _, cx| {
-                                    if let Err(error) = editor.toggle_track_mute(track_id) {
+                                    if let Err(error) = editor.toggle_track_visibility(track_id) {
                                         log::error!("{error:?}");
                                     }
                                     cx.notify();
                                 },
                             )),
                         )
-                    })
-                    .child(track_button(("track-up", index), "↑").on_click(cx.listener(
-                        move |editor, _, _, cx| {
-                            if let Err(error) = editor.move_track(track_id, -1) {
-                                log::error!("{error:?}");
-                            }
-                            cx.notify();
-                        },
-                    )))
-                    .child(
-                        track_button(("track-down", index), "↓").on_click(cx.listener(
-                            move |editor, _, _, cx| {
-                                if let Err(error) = editor.move_track(track_id, 1) {
-                                    log::error!("{error:?}");
-                                }
-                                cx.notify();
-                            },
-                        )),
-                    )
-                    .child(
-                        track_icon_button(("track-delete", index), IconName::Trash, false)
-                            .on_click(cx.listener(move |editor, _, _, cx| {
-                                if let Err(error) = editor.delete_track(track_id) {
-                                    log::error!("{error:?}");
-                                }
-                                cx.notify();
-                            })),
-                    ),
+                        .when(track.kind != TrackKind::Text, |this| {
+                            this.child(track_toggle_divider_view(!hidden && !track.muted))
+                                .child(
+                                    track_toggle_view(
+                                        ("track-mute", index),
+                                        if track.muted {
+                                            IconName::Mute
+                                        } else {
+                                            IconName::Unmute
+                                        },
+                                        track.muted,
+                                    )
+                                    .on_click(cx.listener(
+                                        move |editor, _, _, cx| {
+                                            if let Err(error) = editor.toggle_track_mute(track_id) {
+                                                log::error!("{error:?}");
+                                            }
+                                            cx.notify();
+                                        },
+                                    )),
+                                )
+                        }),
+                ),
             )
             .into_any_element()
     }
@@ -592,36 +665,75 @@ fn video_timeline_clip_label(name: String) -> gpui::Div {
         .child(name)
 }
 
-fn track_button(id: impl Into<gpui::ElementId>, label: &'static str) -> gpui::Stateful<gpui::Div> {
-    track_button_base(id).text_xs().child(label)
+fn track_action_view(
+    id: impl Into<gpui::ElementId>,
+    icon: IconName,
+    enabled: bool,
+    hover_color: u32,
+) -> gpui::Stateful<gpui::Div> {
+    div()
+        .id(id)
+        .group("track-action")
+        .size(px(20.0))
+        .flex()
+        .items_center()
+        .justify_center()
+        .rounded(px(4.0))
+        .when(enabled, |button| {
+            button
+                .cursor(CursorStyle::PointingHand)
+                .hover(|style| style.bg(rgb(SURFACE_HOVER)))
+        })
+        .child(
+            gpui::svg()
+                .path(icon.path())
+                .size(px(14.0))
+                .text_color(rgb(if enabled { MUTED } else { 0x3a3a40 }))
+                .when(enabled, |svg| {
+                    svg.group_hover("track-action", |style| style.text_color(rgb(hover_color)))
+                }),
+        )
 }
 
-fn track_icon_button(
+fn track_toggle_view(
     id: impl Into<gpui::ElementId>,
     icon: IconName,
     active: bool,
 ) -> gpui::Stateful<gpui::Div> {
-    track_button_base(id).child(
-        gpui::svg()
-            .path(icon.path())
-            .size_4()
-            .text_color(rgb(if active { ACCENT } else { MUTED })),
-    )
-}
-
-fn track_button_base(id: impl Into<gpui::ElementId>) -> gpui::Stateful<gpui::Div> {
     div()
         .id(id)
-        .h_5()
-        .min_w(px(24.0))
-        .px_1()
+        .group("track-toggle")
+        .w(px(28.0))
+        .h(px(20.0))
         .flex()
         .items_center()
         .justify_center()
-        .rounded_sm()
-        .bg(rgb(SURFACE))
+        .rounded(px(4.0))
         .cursor(CursorStyle::PointingHand)
-        .hover(|style| style.bg(rgb(SURFACE_HOVER)))
+        .when(active, |toggle| {
+            toggle
+                .bg(rgba(0xf0b75e29))
+                .hover(|style| style.bg(rgba(0xf0b75e42)))
+        })
+        .when(!active, |toggle| {
+            toggle.hover(|style| style.bg(rgb(SURFACE_HOVER)))
+        })
+        .child(
+            gpui::svg()
+                .path(icon.path())
+                .size(px(14.0))
+                .text_color(rgb(if active { ACCENT } else { MUTED }))
+                .when(!active, |svg| {
+                    svg.group_hover("track-toggle", |style| style.text_color(rgb(TEXT)))
+                }),
+        )
+}
+
+fn track_toggle_divider_view(visible: bool) -> gpui::Div {
+    div()
+        .w(px(1.0))
+        .h(px(12.0))
+        .when(visible, |divider| divider.bg(rgb(BORDER)))
 }
 
 fn track_kind_label(kind: TrackKind) -> &'static str {
