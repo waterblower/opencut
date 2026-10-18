@@ -12,27 +12,42 @@
 <g clip-path="url(#p0)">
 <rect x="48" y="170" width="1144" height="296" fill="#0a0a0c"/>
 <rect x="48" y="215" width="1144" height="1" fill="#2b2b31"/>
-<rect x="60.5" y="179.5" width="67.8" height="27" rx="6" fill="#17171a" stroke="#f0b75e"/>
-<text class="s" x="94.4" y="197" font-size="12" fill="#f0b75e" text-anchor="middle">V Select</text>
-<rect x="137.3" y="179.5" width="61.2" height="27" rx="6" fill="#17171a" stroke="#2b2b31"/>
-<text class="s" x="167.9" y="197" font-size="12" fill="#777780" text-anchor="middle">B Blade</text>
-<text class="m" x="207.0" y="198" font-size="14" fill="#f2f2f4">0:21 / 0:34</text>
-<rect x="323.0" y="179" width="29.2" height="28" rx="6" fill="#17171a"/>
-<text class="s" x="337.6" y="197" font-size="12" fill="#f2f2f4" text-anchor="middle">+V</text>
-<rect x="360.2" y="179" width="29.2" height="28" rx="6" fill="#17171a"/>
-<text class="s" x="374.8" y="197" font-size="12" fill="#f2f2f4" text-anchor="middle">+A</text>
-<rect x="397.4" y="179" width="29.2" height="28" rx="6" fill="#17171a"/>
-<text class="s" x="412.0" y="197" font-size="12" fill="#f2f2f4" text-anchor="middle">+T</text>
-<rect x="435.1" y="179.5" width="61.2" height="27" rx="6" fill="#17171a" stroke="#f0b75e"/>
-<text class="s" x="465.7" y="197" font-size="12" fill="#f0b75e" text-anchor="middle">Snap on</text>
-<rect x="505.3" y="179.5" width="74.4" height="27" rx="6" fill="#17171a" stroke="#f0b75e"/>
-<text class="s" x="542.5" y="197" font-size="12" fill="#f0b75e" text-anchor="middle">Magnet on</text>
-<rect x="1152.0" y="179" width="28.0" height="28" rx="6" fill="#17171a"/>
-<text class="s" x="1166.0" y="197" font-size="12" fill="#f2f2f4" text-anchor="middle">+</text>
-<text class="m" x="1111" y="197" font-size="12" fill="#777780" text-anchor="middle">30.00 fps</text>
-<text class="m" x="1041" y="197" font-size="12" fill="#777780" text-anchor="middle">24.0px/s</text>
-<rect x="976.0" y="179" width="28.0" height="28" rx="6" fill="#17171a"/>
-<text class="s" x="990.0" y="197" font-size="12" fill="#f2f2f4" text-anchor="middle">−</text>
+<rect x="60.5" y="179.5" width="177.6" height="27" rx="7" fill="#17171a" stroke="#2b2b31"/>
+<rect x="62.0" y="181" width="88.6" height="24" rx="5" fill="#f0b75e" fill-opacity="0.16"/>
+<g transform="translate(70.0 186) scale(0.5833)" fill="none" stroke="#f0b75e" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4.037 4.688a.495.495 0 0 1 .651-.651l16 6.5a.5.5 0 0 1-.063.947l-6.124 1.58a2 2 0 0 0-1.438 1.435l-1.579 6.126a.5.5 0 0 1-.947.063z"/></g>
+<text class="s" x="90.0" y="197" font-size="12" fill="#f0b75e">Select</text>
+<text class="m" x="135.6" y="197" font-size="11" fill="#f0b75e" fill-opacity="0.6">V</text>
+<g transform="translate(162.6 186) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="6" r="3"/><path d="M8.12 8.12 12 12"/><path d="M20 4 8.12 15.88"/><circle cx="6" cy="18" r="3"/><path d="M14.8 14.8 20 20"/></g>
+<text class="s" x="182.6" y="197" font-size="12" fill="#777780">Blade</text>
+<text class="m" x="221.6" y="197" font-size="11" fill="#55555e" fill-opacity="1">B</text>
+<rect x="250.6" y="185" width="1" height="16" fill="#2b2b31"/>
+<text class="m" x="263.6" y="198" font-size="14" fill="#f2f2f4">0:21<tspan fill="#777780"> / 0:34</tspan></text>
+<rect x="368.0" y="185" width="1" height="16" fill="#2b2b31"/>
+<rect x="381.5" y="179.5" width="211.4" height="27" rx="7" fill="#17171a" stroke="#2b2b31"/>
+<g transform="translate(391.0 186) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M12 5v14"/></g>
+<text class="s" x="411.0" y="197" font-size="12" fill="#f2f2f4">Video</text>
+<rect x="454.0" y="186" width="1" height="14" fill="#2b2b31"/>
+<g transform="translate(464.0 186) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M12 5v14"/></g>
+<text class="s" x="484.0" y="197" font-size="12" fill="#f2f2f4">Audio</text>
+<rect x="527.0" y="186" width="1" height="14" fill="#2b2b31"/>
+<g transform="translate(537.0 186) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M12 5v14"/></g>
+<text class="s" x="557.0" y="197" font-size="12" fill="#f2f2f4">Text</text>
+<rect x="605.4" y="185" width="1" height="16" fill="#2b2b31"/>
+<rect x="618.9" y="179.5" width="65.4" height="27" rx="7" fill="#17171a" stroke="#2b2b31"/>
+<rect x="620.4" y="181" width="62.4" height="24" rx="5" fill="#f0b75e" fill-opacity="0.16"/>
+<g transform="translate(628.4 186) scale(0.5833)" fill="none" stroke="#f0b75e" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v18"/><rect x="3" y="8" width="6" height="8" rx="1"/><rect x="15" y="8" width="6" height="8" rx="1"/></g>
+<text class="s" x="648.4" y="197" font-size="12" fill="#f0b75e">Snap</text>
+<rect x="693.3" y="179.5" width="78.6" height="27" rx="7" fill="#17171a" stroke="#2b2b31"/>
+<rect x="694.8" y="181" width="75.6" height="24" rx="5" fill="#f0b75e" fill-opacity="0.16"/>
+<g transform="translate(702.8 186) scale(0.5833)" fill="none" stroke="#f0b75e" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 15-4-4 6.75-6.77a7.79 7.79 0 0 1 11 11L13 22l-4-4 6.39-6.36a2.14 2.14 0 0 0-3-3L6 15"/><path d="m5 8 4 4"/><path d="m12 15 4 4"/></g>
+<text class="s" x="722.8" y="197" font-size="12" fill="#f0b75e">Magnet</text>
+<rect x="1034.9" y="179.5" width="144.6" height="27" rx="7" fill="#17171a" stroke="#2b2b31"/>
+<g transform="translate(1044.4 186) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/></g>
+<rect x="1068.4" y="186" width="1" height="14" fill="#2b2b31"/>
+<text class="m" x="1078.4" y="197" font-size="12" fill="#777780">24.0px/s</text>
+<rect x="1146.0" y="186" width="1" height="14" fill="#2b2b31"/>
+<g transform="translate(1156.0 186) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M12 5v14"/></g>
+<text class="m" x="1022.4" y="197" font-size="12" fill="#777780" text-anchor="end">30.00 fps</text>
 <rect x="237" y="216" width="1" height="296" fill="#2b2b31"/>
 <rect x="238" y="244" width="954" height="73" fill="#101012"/>
 <rect x="238" y="317" width="954" height="1" fill="#2b2b31"/>
@@ -209,6 +224,7 @@
 </g>
 <rect x="258.5" y="397.5" width="719.0" height="63" rx="6" fill="none" stroke="#34757b"/>
 </g>
+<rect x="761.0" y="244" width="3" height="296" fill="#f0b75e" fill-opacity="0.18"/>
 <rect x="762.0" y="244" width="1" height="296" fill="#f0b75e"/>
 </g>
 <path d="M262.5 235v8M266.5 235v8M270.5 235v8M274.5 235v8M278.5 235v8M286.5 235v8M290.5 235v8M294.5 235v8M298.5 235v8M302.5 235v8M310.5 235v8M314.5 235v8M318.5 235v8M322.5 235v8M326.5 235v8M334.5 235v8M338.5 235v8M342.5 235v8M346.5 235v8M350.5 235v8M358.5 235v8M362.5 235v8M366.5 235v8M370.5 235v8M374.5 235v8M382.5 235v8M386.5 235v8M390.5 235v8M394.5 235v8M398.5 235v8M406.5 235v8M410.5 235v8M414.5 235v8M418.5 235v8M422.5 235v8M430.5 235v8M434.5 235v8M438.5 235v8M442.5 235v8M446.5 235v8M454.5 235v8M458.5 235v8M462.5 235v8M466.5 235v8M470.5 235v8M478.5 235v8M482.5 235v8M486.5 235v8M490.5 235v8M494.5 235v8M502.5 235v8M506.5 235v8M510.5 235v8M514.5 235v8M518.5 235v8M526.5 235v8M530.5 235v8M534.5 235v8M538.5 235v8M542.5 235v8M550.5 235v8M554.5 235v8M558.5 235v8M562.5 235v8M566.5 235v8M574.5 235v8M578.5 235v8M582.5 235v8M586.5 235v8M590.5 235v8M598.5 235v8M602.5 235v8M606.5 235v8M610.5 235v8M614.5 235v8M622.5 235v8M626.5 235v8M630.5 235v8M634.5 235v8M638.5 235v8M646.5 235v8M650.5 235v8M654.5 235v8M658.5 235v8M662.5 235v8M670.5 235v8M674.5 235v8M678.5 235v8M682.5 235v8M686.5 235v8M694.5 235v8M698.5 235v8M702.5 235v8M706.5 235v8M710.5 235v8M718.5 235v8M722.5 235v8M726.5 235v8M730.5 235v8M734.5 235v8M742.5 235v8M746.5 235v8M750.5 235v8M754.5 235v8M758.5 235v8M766.5 235v8M770.5 235v8M774.5 235v8M778.5 235v8M782.5 235v8M790.5 235v8M794.5 235v8M798.5 235v8M802.5 235v8M806.5 235v8M814.5 235v8M818.5 235v8M822.5 235v8M826.5 235v8M830.5 235v8M838.5 235v8M842.5 235v8M846.5 235v8M850.5 235v8M854.5 235v8M862.5 235v8M866.5 235v8M870.5 235v8M874.5 235v8M878.5 235v8M886.5 235v8M890.5 235v8M894.5 235v8M898.5 235v8M902.5 235v8M910.5 235v8M914.5 235v8M918.5 235v8M922.5 235v8M926.5 235v8M934.5 235v8M938.5 235v8M942.5 235v8M946.5 235v8M950.5 235v8M958.5 235v8M962.5 235v8M966.5 235v8M970.5 235v8M974.5 235v8M982.5 235v8M986.5 235v8M990.5 235v8M994.5 235v8M998.5 235v8M1006.5 235v8M1010.5 235v8M1014.5 235v8M1018.5 235v8M1022.5 235v8M1030.5 235v8M1034.5 235v8M1038.5 235v8M1042.5 235v8M1046.5 235v8M1054.5 235v8M1058.5 235v8M1062.5 235v8M1066.5 235v8M1070.5 235v8M1078.5 235v8M1082.5 235v8M1086.5 235v8M1090.5 235v8M1094.5 235v8M1102.5 235v8M1106.5 235v8M1110.5 235v8M1114.5 235v8M1118.5 235v8M1126.5 235v8M1130.5 235v8M1134.5 235v8M1138.5 235v8M1142.5 235v8M1150.5 235v8M1154.5 235v8M1158.5 235v8M1162.5 235v8M1166.5 235v8M1174.5 235v8M1178.5 235v8M1182.5 235v8M1186.5 235v8M1190.5 235v8" stroke="#3a3a40" stroke-width="1"/>
@@ -230,8 +246,8 @@
 <rect x="1098.0" y="216" width="1" height="27" fill="#333338"/>
 <text class="m" x="1103.0" y="230" font-size="12" fill="#777780">00:35.0</text>
 <rect x="48" y="243" width="1144" height="1" fill="#2b2b31"/>
-<rect x="762.0" y="216" width="1" height="28" fill="#f0b75e"/>
-<rect x="758.0" y="216" width="8" height="8" fill="#f0b75e"/>
+<path d="M756.5 232 q0 -2 2 -2 h8 q2 0 2 2 v5 l-6 5.5 l-6 -5.5 Z" fill="#f0b75e" stroke="#0a0a0c" stroke-width="1" stroke-linejoin="round"/>
+<rect x="762.0" y="242" width="1" height="2" fill="#f0b75e"/>
 </g>
 <rect x="48.5" y="170.5" width="1143" height="295" rx="10" fill="none" stroke="#2b2b31"/>
 <text class="s" x="48" y="542" font-size="14" fill="#f2f2f4" font-weight="600">No timeline</text>
@@ -357,6 +373,7 @@
 </g>
 <rect x="870.5" y="757.5" width="271.0" height="63" rx="6" fill="none" stroke="#34757b"/>
 </g>
+<rect x="965.0" y="604" width="3" height="250" fill="#f0b75e" fill-opacity="0.18"/>
 <rect x="966.0" y="604" width="1" height="250" fill="#f0b75e"/>
 </g>
 <path d="M850.5 598v5M854.5 598v5M858.5 598v5M862.5 598v5M866.5 595v8M870.5 598v5M874.5 598v5M878.5 598v5M882.5 598v5M890.5 598v5M894.5 598v5M898.5 598v5M902.5 598v5M906.5 595v8M910.5 598v5M914.5 598v5M918.5 598v5M922.5 598v5M930.5 598v5M934.5 598v5M938.5 598v5M942.5 598v5M946.5 595v8M950.5 598v5M954.5 598v5M958.5 598v5M962.5 598v5M970.5 598v5M974.5 598v5M978.5 598v5M982.5 598v5M986.5 595v8M990.5 598v5M994.5 598v5M998.5 598v5M1002.5 598v5M1010.5 598v5M1014.5 598v5M1018.5 598v5M1022.5 598v5M1026.5 595v8M1030.5 598v5M1034.5 598v5M1038.5 598v5M1042.5 598v5M1050.5 598v5M1054.5 598v5M1058.5 598v5M1062.5 598v5M1066.5 595v8M1070.5 598v5M1074.5 598v5M1078.5 598v5M1082.5 598v5M1090.5 598v5M1094.5 598v5M1098.5 598v5M1102.5 598v5M1106.5 595v8M1110.5 598v5M1114.5 598v5M1118.5 598v5M1122.5 598v5M1130.5 598v5M1134.5 598v5M1138.5 598v5M1142.5 598v5M1146.5 595v8M1150.5 598v5M1154.5 598v5M1158.5 598v5M1162.5 598v5M1170.5 598v5M1174.5 598v5M1178.5 598v5M1182.5 598v5M1186.5 595v8M1190.5 598v5" stroke="#3a3a40" stroke-width="1"/>
@@ -372,8 +389,8 @@
 <rect x="1166.0" y="576" width="1" height="27" fill="#333338"/>
 <text class="m" x="1171.0" y="590" font-size="12" fill="#777780">00:08.0</text>
 <rect x="636" y="603" width="556" height="1" fill="#2b2b31"/>
-<rect x="966.0" y="576" width="1" height="28" fill="#f0b75e"/>
-<rect x="962.0" y="576" width="8" height="8" fill="#f0b75e"/>
+<path d="M960.5 592 q0 -2 2 -2 h8 q2 0 2 2 v5 l-6 5.5 l-6 -5.5 Z" fill="#f0b75e" stroke="#0a0a0c" stroke-width="1" stroke-linejoin="round"/>
+<rect x="966.0" y="602" width="1" height="2" fill="#f0b75e"/>
 </g>
 <rect x="636.5" y="576.5" width="555" height="249" rx="10" fill="none" stroke="#2b2b31"/>
 <text class="s" x="48" y="892" font-size="14" fill="#f2f2f4" font-weight="600">Move</text>
@@ -493,6 +510,7 @@
 <rect x="356.5" y="1107.5" width="215.0" height="63" rx="6" fill="none" stroke="#f0b75e"/>
 </g>
 <rect x="356.0" y="954" width="2" height="250" fill="#63c8ff"/>
+<rect x="557.0" y="954" width="3" height="250" fill="#f0b75e" fill-opacity="0.18"/>
 <rect x="558.0" y="954" width="1" height="250" fill="#f0b75e"/>
 </g>
 <path d="M262.5 948v5M266.5 948v5M270.5 948v5M274.5 948v5M278.5 945v8M282.5 948v5M286.5 948v5M290.5 948v5M294.5 948v5M302.5 948v5M306.5 948v5M310.5 948v5M314.5 948v5M318.5 945v8M322.5 948v5M326.5 948v5M330.5 948v5M334.5 948v5M342.5 948v5M346.5 948v5M350.5 948v5M354.5 948v5M358.5 945v8M362.5 948v5M366.5 948v5M370.5 948v5M374.5 948v5M382.5 948v5M386.5 948v5M390.5 948v5M394.5 948v5M398.5 945v8M402.5 948v5M406.5 948v5M410.5 948v5M414.5 948v5M422.5 948v5M426.5 948v5M430.5 948v5M434.5 948v5M438.5 945v8M442.5 948v5M446.5 948v5M450.5 948v5M454.5 948v5M462.5 948v5M466.5 948v5M470.5 948v5M474.5 948v5M478.5 945v8M482.5 948v5M486.5 948v5M490.5 948v5M494.5 948v5M502.5 948v5M506.5 948v5M510.5 948v5M514.5 948v5M518.5 945v8M522.5 948v5M526.5 948v5M530.5 948v5M534.5 948v5M542.5 948v5M546.5 948v5M550.5 948v5M554.5 948v5M558.5 945v8M562.5 948v5M566.5 948v5M570.5 948v5M574.5 948v5M582.5 948v5M586.5 948v5M590.5 948v5M594.5 948v5M598.5 945v8M602.5 948v5" stroke="#3a3a40" stroke-width="1"/>
@@ -508,8 +526,8 @@
 <rect x="578.0" y="926" width="1" height="27" fill="#333338"/>
 <text class="m" x="583.0" y="940" font-size="12" fill="#777780">00:08.0</text>
 <rect x="48" y="953" width="556" height="1" fill="#2b2b31"/>
-<rect x="558.0" y="926" width="1" height="28" fill="#f0b75e"/>
-<rect x="554.0" y="926" width="8" height="8" fill="#f0b75e"/>
+<path d="M552.5 942 q0 -2 2 -2 h8 q2 0 2 2 v5 l-6 5.5 l-6 -5.5 Z" fill="#f0b75e" stroke="#0a0a0c" stroke-width="1" stroke-linejoin="round"/>
+<rect x="558.0" y="952" width="1" height="2" fill="#f0b75e"/>
 <path d="M442.0 1132 v16 l4 -4 l3 6 l2.5 -1 l-3 -6 h6 Z" fill="#fff" stroke="#000" stroke-width="1" stroke-linejoin="round"/>
 </g>
 <rect x="48.5" y="926.5" width="555" height="249" rx="10" fill="none" stroke="#2b2b31"/>
@@ -629,6 +647,7 @@
 </g>
 <rect x="886.5" y="1107.5" width="215.0" height="63" rx="6" fill="none" stroke="#ff8b8b"/>
 </g>
+<rect x="1145.0" y="954" width="3" height="250" fill="#f0b75e" fill-opacity="0.18"/>
 <rect x="1146.0" y="954" width="1" height="250" fill="#f0b75e"/>
 </g>
 <path d="M850.5 948v5M854.5 948v5M858.5 948v5M862.5 948v5M866.5 945v8M870.5 948v5M874.5 948v5M878.5 948v5M882.5 948v5M890.5 948v5M894.5 948v5M898.5 948v5M902.5 948v5M906.5 945v8M910.5 948v5M914.5 948v5M918.5 948v5M922.5 948v5M930.5 948v5M934.5 948v5M938.5 948v5M942.5 948v5M946.5 945v8M950.5 948v5M954.5 948v5M958.5 948v5M962.5 948v5M970.5 948v5M974.5 948v5M978.5 948v5M982.5 948v5M986.5 945v8M990.5 948v5M994.5 948v5M998.5 948v5M1002.5 948v5M1010.5 948v5M1014.5 948v5M1018.5 948v5M1022.5 948v5M1026.5 945v8M1030.5 948v5M1034.5 948v5M1038.5 948v5M1042.5 948v5M1050.5 948v5M1054.5 948v5M1058.5 948v5M1062.5 948v5M1066.5 945v8M1070.5 948v5M1074.5 948v5M1078.5 948v5M1082.5 948v5M1090.5 948v5M1094.5 948v5M1098.5 948v5M1102.5 948v5M1106.5 945v8M1110.5 948v5M1114.5 948v5M1118.5 948v5M1122.5 948v5M1130.5 948v5M1134.5 948v5M1138.5 948v5M1142.5 948v5M1146.5 945v8M1150.5 948v5M1154.5 948v5M1158.5 948v5M1162.5 948v5M1170.5 948v5M1174.5 948v5M1178.5 948v5M1182.5 948v5M1186.5 945v8M1190.5 948v5" stroke="#3a3a40" stroke-width="1"/>
@@ -644,14 +663,14 @@
 <rect x="1166.0" y="926" width="1" height="27" fill="#333338"/>
 <text class="m" x="1171.0" y="940" font-size="12" fill="#777780">00:08.0</text>
 <rect x="636" y="953" width="556" height="1" fill="#2b2b31"/>
-<rect x="1146.0" y="926" width="1" height="28" fill="#f0b75e"/>
-<rect x="1142.0" y="926" width="8" height="8" fill="#f0b75e"/>
+<path d="M1140.5 942 q0 -2 2 -2 h8 q2 0 2 2 v5 l-6 5.5 l-6 -5.5 Z" fill="#f0b75e" stroke="#0a0a0c" stroke-width="1" stroke-linejoin="round"/>
+<rect x="1146.0" y="952" width="1" height="2" fill="#f0b75e"/>
 <path d="M1070.0 1110 v16 l4 -4 l3 6 l2.5 -1 l-3 -6 h6 Z" fill="#fff" stroke="#000" stroke-width="1" stroke-linejoin="round"/>
 <circle cx="1084.0" cy="1128" r="6" fill="#fff" stroke="#c22" stroke-width="2"/><path d="M1080.0 1124 l8 8" stroke="#c22" stroke-width="2"/>
 </g>
 <rect x="636.5" y="926.5" width="555" height="249" rx="10" fill="none" stroke="#2b2b31"/>
 <text class="s" x="48" y="1242" font-size="14" fill="#f2f2f4" font-weight="600">Blade</text>
-<text class="s" x="48" y="1262" font-size="12" fill="#777780">B Blade active. Red line follows the pointer; a click splits clips at the playhead.</text>
+<text class="s" x="48" y="1262" font-size="12" fill="#777780">Blade tool active. Red line follows the pointer; a click splits clips at the playhead.</text>
 <clipPath id="p5"><rect x="48" y="1276" width="556" height="250" rx="10"/></clipPath>
 <rect x="48" y="1282" width="556" height="250" rx="10" fill="#000" opacity="0.35"/>
 <g clip-path="url(#p5)">
@@ -768,6 +787,7 @@
 <rect x="282.5" y="1457.5" width="271.0" height="63" rx="6" fill="none" stroke="#34757b"/>
 </g>
 <rect x="502.0" y="1304" width="2" height="250" fill="#ff8b8b"/>
+<rect x="377.0" y="1304" width="3" height="250" fill="#f0b75e" fill-opacity="0.18"/>
 <rect x="378.0" y="1304" width="1" height="250" fill="#f0b75e"/>
 </g>
 <path d="M262.5 1298v5M266.5 1298v5M270.5 1298v5M274.5 1298v5M278.5 1295v8M282.5 1298v5M286.5 1298v5M290.5 1298v5M294.5 1298v5M302.5 1298v5M306.5 1298v5M310.5 1298v5M314.5 1298v5M318.5 1295v8M322.5 1298v5M326.5 1298v5M330.5 1298v5M334.5 1298v5M342.5 1298v5M346.5 1298v5M350.5 1298v5M354.5 1298v5M358.5 1295v8M362.5 1298v5M366.5 1298v5M370.5 1298v5M374.5 1298v5M382.5 1298v5M386.5 1298v5M390.5 1298v5M394.5 1298v5M398.5 1295v8M402.5 1298v5M406.5 1298v5M410.5 1298v5M414.5 1298v5M422.5 1298v5M426.5 1298v5M430.5 1298v5M434.5 1298v5M438.5 1295v8M442.5 1298v5M446.5 1298v5M450.5 1298v5M454.5 1298v5M462.5 1298v5M466.5 1298v5M470.5 1298v5M474.5 1298v5M478.5 1295v8M482.5 1298v5M486.5 1298v5M490.5 1298v5M494.5 1298v5M502.5 1298v5M506.5 1298v5M510.5 1298v5M514.5 1298v5M518.5 1295v8M522.5 1298v5M526.5 1298v5M530.5 1298v5M534.5 1298v5M542.5 1298v5M546.5 1298v5M550.5 1298v5M554.5 1298v5M558.5 1295v8M562.5 1298v5M566.5 1298v5M570.5 1298v5M574.5 1298v5M582.5 1298v5M586.5 1298v5M590.5 1298v5M594.5 1298v5M598.5 1295v8M602.5 1298v5" stroke="#3a3a40" stroke-width="1"/>
@@ -783,8 +803,8 @@
 <rect x="578.0" y="1276" width="1" height="27" fill="#333338"/>
 <text class="m" x="583.0" y="1290" font-size="12" fill="#777780">00:08.0</text>
 <rect x="48" y="1303" width="556" height="1" fill="#2b2b31"/>
-<rect x="378.0" y="1276" width="1" height="28" fill="#f0b75e"/>
-<rect x="374.0" y="1276" width="8" height="8" fill="#f0b75e"/>
+<path d="M372.5 1292 q0 -2 2 -2 h8 q2 0 2 2 v5 l-6 5.5 l-6 -5.5 Z" fill="#f0b75e" stroke="#0a0a0c" stroke-width="1" stroke-linejoin="round"/>
+<rect x="378.0" y="1302" width="1" height="2" fill="#f0b75e"/>
 <path d="M493.0 1415h18M502.0 1406v18" stroke="#000" stroke-width="3"/><path d="M494.0 1415h16M502.0 1407v16" stroke="#fff" stroke-width="1"/>
 </g>
 <rect x="48.5" y="1276.5" width="555" height="249" rx="10" fill="none" stroke="#2b2b31"/>
@@ -906,6 +926,7 @@
 </g>
 <rect x="870.5" y="1457.5" width="271.0" height="63" rx="6" fill="none" stroke="#34757b"/>
 </g>
+<rect x="965.0" y="1304" width="3" height="250" fill="#f0b75e" fill-opacity="0.18"/>
 <rect x="966.0" y="1304" width="1" height="250" fill="#f0b75e"/>
 </g>
 <path d="M850.5 1298v5M854.5 1298v5M858.5 1298v5M862.5 1298v5M866.5 1295v8M870.5 1298v5M874.5 1298v5M878.5 1298v5M882.5 1298v5M890.5 1298v5M894.5 1298v5M898.5 1298v5M902.5 1298v5M906.5 1295v8M910.5 1298v5M914.5 1298v5M918.5 1298v5M922.5 1298v5M930.5 1298v5M934.5 1298v5M938.5 1298v5M942.5 1298v5M946.5 1295v8M950.5 1298v5M954.5 1298v5M958.5 1298v5M962.5 1298v5M970.5 1298v5M974.5 1298v5M978.5 1298v5M982.5 1298v5M986.5 1295v8M990.5 1298v5M994.5 1298v5M998.5 1298v5M1002.5 1298v5M1010.5 1298v5M1014.5 1298v5M1018.5 1298v5M1022.5 1298v5M1026.5 1295v8M1030.5 1298v5M1034.5 1298v5M1038.5 1298v5M1042.5 1298v5M1050.5 1298v5M1054.5 1298v5M1058.5 1298v5M1062.5 1298v5M1066.5 1295v8M1070.5 1298v5M1074.5 1298v5M1078.5 1298v5M1082.5 1298v5M1090.5 1298v5M1094.5 1298v5M1098.5 1298v5M1102.5 1298v5M1106.5 1295v8M1110.5 1298v5M1114.5 1298v5M1118.5 1298v5M1122.5 1298v5M1130.5 1298v5M1134.5 1298v5M1138.5 1298v5M1142.5 1298v5M1146.5 1295v8M1150.5 1298v5M1154.5 1298v5M1158.5 1298v5M1162.5 1298v5M1170.5 1298v5M1174.5 1298v5M1178.5 1298v5M1182.5 1298v5M1186.5 1295v8M1190.5 1298v5" stroke="#3a3a40" stroke-width="1"/>
@@ -921,8 +942,8 @@
 <rect x="1166.0" y="1276" width="1" height="27" fill="#333338"/>
 <text class="m" x="1171.0" y="1290" font-size="12" fill="#777780">00:08.0</text>
 <rect x="636" y="1303" width="556" height="1" fill="#2b2b31"/>
-<rect x="966.0" y="1276" width="1" height="28" fill="#f0b75e"/>
-<rect x="962.0" y="1276" width="8" height="8" fill="#f0b75e"/>
+<path d="M960.5 1292 q0 -2 2 -2 h8 q2 0 2 2 v5 l-6 5.5 l-6 -5.5 Z" fill="#f0b75e" stroke="#0a0a0c" stroke-width="1" stroke-linejoin="round"/>
+<rect x="966.0" y="1302" width="1" height="2" fill="#f0b75e"/>
 <rect x="1050.7" y="1405" width="1" height="20" fill="#fff" stroke="#000" stroke-width="0.5"/><path d="M1041.2 1415 l5 -5 v3 h10 v-3 l5 5 l-5 5 v-3 h-10 v3 Z" fill="#fff" stroke="#000" stroke-width="1" stroke-linejoin="round"/>
 </g>
 <rect x="636.5" y="1276.5" width="555" height="249" rx="10" fill="none" stroke="#2b2b31"/>
@@ -1052,6 +1073,7 @@
 </g>
 <rect x="458.5" y="1807.5" width="279.0" height="63" rx="6" fill="none" stroke="#f0b75e"/>
 </g>
+<rect x="377.0" y="1654" width="3" height="250" fill="#f0b75e" fill-opacity="0.18"/>
 <rect x="378.0" y="1654" width="1" height="250" fill="#f0b75e"/>
 </g>
 <path d="M262.5 1648v5M266.5 1648v5M270.5 1648v5M274.5 1648v5M278.5 1645v8M282.5 1648v5M286.5 1648v5M290.5 1648v5M294.5 1648v5M302.5 1648v5M306.5 1648v5M310.5 1648v5M314.5 1648v5M318.5 1645v8M322.5 1648v5M326.5 1648v5M330.5 1648v5M334.5 1648v5M342.5 1648v5M346.5 1648v5M350.5 1648v5M354.5 1648v5M358.5 1645v8M362.5 1648v5M366.5 1648v5M370.5 1648v5M374.5 1648v5M382.5 1648v5M386.5 1648v5M390.5 1648v5M394.5 1648v5M398.5 1645v8M402.5 1648v5M406.5 1648v5M410.5 1648v5M414.5 1648v5M422.5 1648v5M426.5 1648v5M430.5 1648v5M434.5 1648v5M438.5 1645v8M442.5 1648v5M446.5 1648v5M450.5 1648v5M454.5 1648v5M462.5 1648v5M466.5 1648v5M470.5 1648v5M474.5 1648v5M478.5 1645v8M482.5 1648v5M486.5 1648v5M490.5 1648v5M494.5 1648v5M502.5 1648v5M506.5 1648v5M510.5 1648v5M514.5 1648v5M518.5 1645v8M522.5 1648v5M526.5 1648v5M530.5 1648v5M534.5 1648v5M542.5 1648v5M546.5 1648v5M550.5 1648v5M554.5 1648v5M558.5 1645v8M562.5 1648v5M566.5 1648v5M570.5 1648v5M574.5 1648v5M582.5 1648v5M586.5 1648v5M590.5 1648v5M594.5 1648v5M598.5 1645v8M602.5 1648v5" stroke="#3a3a40" stroke-width="1"/>
@@ -1067,8 +1089,8 @@
 <rect x="578.0" y="1626" width="1" height="27" fill="#333338"/>
 <text class="m" x="583.0" y="1640" font-size="12" fill="#777780">00:08.0</text>
 <rect x="48" y="1653" width="556" height="1" fill="#2b2b31"/>
-<rect x="378.0" y="1626" width="1" height="28" fill="#f0b75e"/>
-<rect x="374.0" y="1626" width="8" height="8" fill="#f0b75e"/>
+<path d="M372.5 1642 q0 -2 2 -2 h8 q2 0 2 2 v5 l-6 5.5 l-6 -5.5 Z" fill="#f0b75e" stroke="#0a0a0c" stroke-width="1" stroke-linejoin="round"/>
+<rect x="378.0" y="1652" width="1" height="2" fill="#f0b75e"/>
 <path d="M506.0 1832 v16 l4 -4 l3 6 l2.5 -1 l-3 -6 h6 Z" fill="#fff" stroke="#000" stroke-width="1" stroke-linejoin="round"/>
 <circle cx="520.0" cy="1850" r="6" fill="#2a9d3a" stroke="#fff" stroke-width="1"/><path d="M516.5 1850h7M520.0 1846.5v7" stroke="#fff" stroke-width="1.5"/>
 </g>
@@ -1190,6 +1212,7 @@
 </g>
 <rect x="870.5" y="1807.5" width="271.0" height="63" rx="6" fill="none" stroke="#34757b"/>
 </g>
+<rect x="885.0" y="1654" width="3" height="250" fill="#f0b75e" fill-opacity="0.18"/>
 <rect x="886.0" y="1654" width="1" height="250" fill="#f0b75e"/>
 </g>
 <path d="M850.5 1648v5M854.5 1648v5M858.5 1648v5M862.5 1648v5M866.5 1645v8M870.5 1648v5M874.5 1648v5M878.5 1648v5M882.5 1648v5M890.5 1648v5M894.5 1648v5M898.5 1648v5M902.5 1648v5M906.5 1645v8M910.5 1648v5M914.5 1648v5M918.5 1648v5M922.5 1648v5M930.5 1648v5M934.5 1648v5M938.5 1648v5M942.5 1648v5M946.5 1645v8M950.5 1648v5M954.5 1648v5M958.5 1648v5M962.5 1648v5M970.5 1648v5M974.5 1648v5M978.5 1648v5M982.5 1648v5M986.5 1645v8M990.5 1648v5M994.5 1648v5M998.5 1648v5M1002.5 1648v5M1010.5 1648v5M1014.5 1648v5M1018.5 1648v5M1022.5 1648v5M1026.5 1645v8M1030.5 1648v5M1034.5 1648v5M1038.5 1648v5M1042.5 1648v5M1050.5 1648v5M1054.5 1648v5M1058.5 1648v5M1062.5 1648v5M1066.5 1645v8M1070.5 1648v5M1074.5 1648v5M1078.5 1648v5M1082.5 1648v5M1090.5 1648v5M1094.5 1648v5M1098.5 1648v5M1102.5 1648v5M1106.5 1645v8M1110.5 1648v5M1114.5 1648v5M1118.5 1648v5M1122.5 1648v5M1130.5 1648v5M1134.5 1648v5M1138.5 1648v5M1142.5 1648v5M1146.5 1645v8M1150.5 1648v5M1154.5 1648v5M1158.5 1648v5M1162.5 1648v5M1170.5 1648v5M1174.5 1648v5M1178.5 1648v5M1182.5 1648v5M1186.5 1645v8M1190.5 1648v5" stroke="#3a3a40" stroke-width="1"/>
@@ -1205,8 +1228,8 @@
 <rect x="1166.0" y="1626" width="1" height="27" fill="#333338"/>
 <text class="m" x="1171.0" y="1640" font-size="12" fill="#777780">00:08.0</text>
 <rect x="636" y="1653" width="556" height="1" fill="#2b2b31"/>
-<rect x="886.0" y="1626" width="1" height="28" fill="#f0b75e"/>
-<rect x="882.0" y="1626" width="8" height="8" fill="#f0b75e"/>
+<path d="M880.5 1642 q0 -2 2 -2 h8 q2 0 2 2 v5 l-6 5.5 l-6 -5.5 Z" fill="#f0b75e" stroke="#0a0a0c" stroke-width="1" stroke-linejoin="round"/>
+<rect x="886.0" y="1652" width="1" height="2" fill="#f0b75e"/>
 <rect x="974.5" y="1656.5" width="71.0" height="103" fill="#f0b75e" fill-opacity="0.14" stroke="#f0b75e"/>
 <path d="M1046.0 1760 v16 l4 -4 l3 6 l2.5 -1 l-3 -6 h6 Z" fill="#fff" stroke="#000" stroke-width="1" stroke-linejoin="round"/>
 </g>
