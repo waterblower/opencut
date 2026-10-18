@@ -79,8 +79,76 @@ impl VideoDecoder {
         stream_index: usize,
         origin_microseconds: i64,
     ) -> Result<Self> {
-        let (input, decoder, time_base, stream_rotation) = open_decoder(input, stream_index)?;
-        let mut decoder = Self {
+        let Some(stream) = input.stream(stream_index) else {
+            bail!("video stream {stream_index} is no longer present");
+        };
+        if stream.parameters().medium() != MediaType::Video {
+            bail!("stream {stream_index} is not video");
+        }
+        let time_base = stream.time_base();
+        timestamp_microseconds(0, time_base)?;
+        let mut stream_rotation = 0.0;
+        if let Some(value) = stream.metadata().get("rotate") {
+            stream_rotation = value
+                .parse::<f64>()
+                .context("reading video rotation metadata")?;
+            if !stream_rotation.is_finite() {
+                bail!("non-finite video rotation metadata");
+            }
+        }
+        for side_data in stream.side_data() {
+            if side_data.kind() == PacketSideData::DisplayMatrix {
+                stream_rotation = display_rotation(side_data.data())?;
+                break;
+            }
+        }
+        let decoder = (|| -> Result<DecoderType> {
+            // H.264 and HEVC in MP4-style framing decode through a pipelined session;
+            // anything else keeps FFmpeg's VideoToolbox hwaccel.
+            #[cfg(target_os = "macos")]
+            {
+                // SAFETY: the parameters belong to the open stream and outlive this block.
+                let parameters = unsafe { stream.parameters().as_ptr() };
+                if let Some(decoder) = VideoToolboxDecoder::open(parameters, time_base)? {
+                    // SAFETY: as above.
+                    let colors = unsafe {
+                        let parameters = &*parameters;
+                        StreamColors {
+                            range: color::Range::from(parameters.color_range),
+                            space: color::Space::from(parameters.color_space),
+                            primaries: color::Primaries::from(parameters.color_primaries),
+                            transfer: color::TransferCharacteristic::from(parameters.color_trc),
+                        }
+                    };
+                    return Ok(DecoderType::VideoToolbox { decoder, colors });
+                }
+            }
+            let mut context = codec::context::Context::from_parameters(stream.parameters())
+                .context("copying video codec parameters")?;
+            // Frame threads only help software decoding. VideoToolbox serializes its
+            // frames anyway, and the thread pipeline would add a refill delay of one
+            // frame per thread after every seek flush.
+            #[rustfmt::skip]
+            let threading = match DECODE_MODE {
+                DecodeMode::Software => {
+                    codec::threading::Config::kind(codec::threading::Type::Frame)
+                }
+                DecodeMode::VideoToolbox => {
+                    hardware::use_videotoolbox(&mut context)?;
+                    codec::threading::Config {
+                        kind: codec::threading::Type::None,
+                        count: 1,
+                    }
+                }
+            };
+            context.set_threading(threading);
+            let mut opened = context.decoder();
+            opened.set_packet_time_base(time_base);
+            Ok(DecoderType::Ffmpeg(
+                opened.video().context("opening video decoder")?,
+            ))
+        })()?;
+        let mut video_decoder = Self {
             input,
             decoder,
             stream_index,
@@ -91,11 +159,11 @@ impl VideoDecoder {
             lookahead: VecDeque::new(),
             _lane_local: PhantomData,
         };
-        let Some(first) = decoder.decode_next(None)? else {
+        let Some(first) = video_decoder.decode_next(None)? else {
             bail!("video stream contains no decoded frames");
         };
-        decoder.lookahead.push_back(first);
-        Ok(decoder)
+        video_decoder.lookahead.push_back(first);
+        Ok(video_decoder)
     }
 
     /// None is drained EOF; packet pumping and EAGAIN remain internal.
@@ -465,80 +533,6 @@ impl VideoDecoder {
             }
         }
     }
-}
-
-fn open_decoder(input: Input, stream_index: usize) -> Result<(Input, DecoderType, Rational, f64)> {
-    let Some(stream) = input.stream(stream_index) else {
-        bail!("video stream {stream_index} is no longer present");
-    };
-    if stream.parameters().medium() != MediaType::Video {
-        bail!("stream {stream_index} is not video");
-    }
-    let time_base = stream.time_base();
-    timestamp_microseconds(0, time_base)?;
-    let mut rotation = 0.0;
-    if let Some(value) = stream.metadata().get("rotate") {
-        rotation = value
-            .parse::<f64>()
-            .context("reading video rotation metadata")?;
-        if !rotation.is_finite() {
-            bail!("non-finite video rotation metadata");
-        }
-    }
-    for side_data in stream.side_data() {
-        if side_data.kind() == PacketSideData::DisplayMatrix {
-            rotation = display_rotation(side_data.data())?;
-            break;
-        }
-    }
-    // H.264 and HEVC in MP4-style framing decode through a pipelined session;
-    // anything else keeps FFmpeg's VideoToolbox hwaccel.
-    #[cfg(target_os = "macos")]
-    {
-        // SAFETY: the parameters belong to the open stream and outlive this block.
-        let parameters = unsafe { stream.parameters().as_ptr() };
-        if let Some(decoder) = VideoToolboxDecoder::open(parameters, time_base)? {
-            // SAFETY: as above.
-            let colors = unsafe {
-                let parameters = &*parameters;
-                StreamColors {
-                    range: color::Range::from(parameters.color_range),
-                    space: color::Space::from(parameters.color_space),
-                    primaries: color::Primaries::from(parameters.color_primaries),
-                    transfer: color::TransferCharacteristic::from(parameters.color_trc),
-                }
-            };
-            return Ok((
-                input,
-                DecoderType::VideoToolbox { decoder, colors },
-                time_base,
-                rotation,
-            ));
-        }
-    }
-    let mut context = codec::context::Context::from_parameters(stream.parameters())
-        .context("copying video codec parameters")?;
-    // Frame threads only help software decoding. VideoToolbox serializes its
-    // frames anyway, and the thread pipeline would add a refill delay of one
-    // frame per thread after every seek flush.
-    #[rustfmt::skip]
-    let threading = match DECODE_MODE {
-        DecodeMode::Software => {
-            codec::threading::Config::kind(codec::threading::Type::Frame)
-        }
-        DecodeMode::VideoToolbox => {
-            hardware::use_videotoolbox(&mut context)?;
-            codec::threading::Config {
-                kind: codec::threading::Type::None,
-                count: 1,
-            }
-        }
-    };
-    context.set_threading(threading);
-    let mut decoder = context.decoder();
-    decoder.set_packet_time_base(time_base);
-    let decoder = decoder.video().context("opening video decoder")?;
-    Ok((input, DecoderType::Ffmpeg(decoder), time_base, rotation))
 }
 
 fn describe_frame(
