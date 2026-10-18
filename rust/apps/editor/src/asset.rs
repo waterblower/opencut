@@ -5,7 +5,10 @@ use std::borrow::Cow;
 pub enum IconName {
     AlertTriangle,
     App,
+    ArrowDown,
+    ArrowUp,
     Eye,
+    EyeOff,
     Folder,
     Lock,
     Magnet,
@@ -29,7 +32,10 @@ impl IconName {
         match self {
             Self::AlertTriangle => "icons/alert-triangle.svg",
             Self::App => "icons/app-icon.svg",
+            Self::ArrowDown => "icons/arrow-down.svg",
+            Self::ArrowUp => "icons/arrow-up.svg",
             Self::Eye => "icons/eye.svg",
+            Self::EyeOff => "icons/eye-off.svg",
             Self::Folder => "icons/folder.svg",
             Self::Lock => "icons/lock.svg",
             Self::Magnet => "icons/magnet.svg",
@@ -72,10 +78,13 @@ impl AssetSource for EditorAssets {
 
 // Private APIs only
 impl IconName {
-    const ALL: [Self; 18] = [
+    const ALL: [Self; 21] = [
         Self::AlertTriangle,
         Self::App,
+        Self::ArrowDown,
+        Self::ArrowUp,
         Self::Eye,
+        Self::EyeOff,
         Self::Folder,
         Self::Lock,
         Self::Magnet,
@@ -97,7 +106,10 @@ impl IconName {
         match self {
             Self::AlertTriangle => include_bytes!("../icons/alert-triangle.svg"),
             Self::App => include_bytes!("../icons/app-icon.svg"),
+            Self::ArrowDown => include_bytes!("../icons/arrow-down.svg"),
+            Self::ArrowUp => include_bytes!("../icons/arrow-up.svg"),
             Self::Eye => include_bytes!("../icons/eye.svg"),
+            Self::EyeOff => include_bytes!("../icons/eye-off.svg"),
             Self::Folder => include_bytes!("../icons/folder.svg"),
             Self::Lock => include_bytes!("../icons/lock.svg"),
             Self::Magnet => include_bytes!("../icons/magnet.svg"),
