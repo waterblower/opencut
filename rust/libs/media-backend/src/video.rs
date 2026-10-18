@@ -54,7 +54,7 @@ const DECODE_MODE: DecodeMode = if cfg!(target_os = "macos") {
 /// Open, use, and drop on one execution lane. No scheduler or current UI frame.
 pub struct VideoDecoder {
     input: Input,
-    codec: Codec,
+    decoder: DecoderType,
     stream_index: usize,
     time_base: Rational,
     origin_microseconds: i64,
@@ -79,10 +79,10 @@ impl VideoDecoder {
         stream_index: usize,
         origin_microseconds: i64,
     ) -> Result<Self> {
-        let (input, codec, time_base, stream_rotation) = open_decoder(input, stream_index)?;
+        let (input, decoder, time_base, stream_rotation) = open_decoder(input, stream_index)?;
         let mut decoder = Self {
             input,
-            codec,
+            decoder,
             stream_index,
             time_base,
             origin_microseconds,
@@ -209,7 +209,7 @@ impl VideoDecoder {
             self.input
                 .seek(absolute, ..absolute)
                 .context("seeking video demuxer")?;
-            self.flush_codec()?;
+            self.flush_decoder()?;
             self.drain = DrainState::Reading;
             self.lookahead.clear();
             scan.nearest_below = None; // 冲刷后此前送入的包全部作废。
@@ -272,7 +272,7 @@ struct SeekDebug {
     decoded_frames: u32,        // 临时测量：解码输出的帧数。
 }
 
-enum Codec {
+enum DecoderType {
     Ffmpeg(decoder::Video),
     #[cfg(target_os = "macos")]
     VideoToolbox {
@@ -332,12 +332,12 @@ impl VideoDecoder {
             match self.read_video_packet()? {
                 Some(packet) => self.send_video_packet(&packet, scan.as_deref_mut())?,
                 None => {
-                    match &mut self.codec {
-                        Codec::Ffmpeg(decoder) => {
+                    match &mut self.decoder {
+                        DecoderType::Ffmpeg(decoder) => {
                             decoder.send_eof().context("starting video decoder drain")?
                         }
                         #[cfg(target_os = "macos")]
-                        Codec::VideoToolbox { decoder, .. } => decoder.send_eof(),
+                        DecoderType::VideoToolbox { decoder, .. } => decoder.send_eof(),
                     }
                     self.drain = DrainState::Draining;
                 }
@@ -345,10 +345,10 @@ impl VideoDecoder {
         }
     }
 
-    /// One decoded frame in presentation order, or what the codec needs next.
+    /// One decoded frame in presentation order, or what the decoder needs next.
     fn receive_frame(&mut self) -> Result<Receive> {
-        match &mut self.codec {
-            Codec::Ffmpeg(decoder) => {
+        match &mut self.decoder {
+            DecoderType::Ffmpeg(decoder) => {
                 let mut native = Video::empty();
                 match decoder.receive_frame(&mut native) {
                     Ok(()) => {
@@ -373,7 +373,7 @@ impl VideoDecoder {
                 }
             }
             #[cfg(target_os = "macos")]
-            Codec::VideoToolbox { decoder, colors } => match decoder.receive()? {
+            DecoderType::VideoToolbox { decoder, colors } => match decoder.receive()? {
                 Received::Picture(picture) => Ok(Receive::Frame(describe_picture(
                     picture,
                     colors,
@@ -388,11 +388,11 @@ impl VideoDecoder {
     }
 
     /// Drops pending frames before decoding from a new position.
-    fn flush_codec(&mut self) -> Result<()> {
-        match &mut self.codec {
-            Codec::Ffmpeg(decoder) => decoder.flush(),
+    fn flush_decoder(&mut self) -> Result<()> {
+        match &mut self.decoder {
+            DecoderType::Ffmpeg(decoder) => decoder.flush(),
             #[cfg(target_os = "macos")]
-            Codec::VideoToolbox { decoder, .. } => decoder.flush()?,
+            DecoderType::VideoToolbox { decoder, .. } => decoder.flush()?,
         }
         Ok(())
     }
@@ -449,8 +449,8 @@ impl VideoDecoder {
             }
             None => Discard::Default,
         };
-        match &mut self.codec {
-            Codec::Ffmpeg(decoder) => {
+        match &mut self.decoder {
+            DecoderType::Ffmpeg(decoder) => {
                 // Set per packet: the decoder applies the level current at send time.
                 decoder.skip_frame(discard);
                 decoder
@@ -460,14 +460,14 @@ impl VideoDecoder {
             // VideoToolbox still decodes a skipped picture as a reference; it only
             // suppresses the output, which is what keeps it from being selected.
             #[cfg(target_os = "macos")]
-            Codec::VideoToolbox { decoder, .. } => {
+            DecoderType::VideoToolbox { decoder, .. } => {
                 decoder.send_packet(packet, discard != Discard::NonReference)
             }
         }
     }
 }
 
-fn open_decoder(input: Input, stream_index: usize) -> Result<(Input, Codec, Rational, f64)> {
+fn open_decoder(input: Input, stream_index: usize) -> Result<(Input, DecoderType, Rational, f64)> {
     let Some(stream) = input.stream(stream_index) else {
         bail!("video stream {stream_index} is no longer present");
     };
@@ -510,7 +510,7 @@ fn open_decoder(input: Input, stream_index: usize) -> Result<(Input, Codec, Rati
             };
             return Ok((
                 input,
-                Codec::VideoToolbox { decoder, colors },
+                DecoderType::VideoToolbox { decoder, colors },
                 time_base,
                 rotation,
             ));
@@ -538,7 +538,7 @@ fn open_decoder(input: Input, stream_index: usize) -> Result<(Input, Codec, Rati
     let mut decoder = context.decoder();
     decoder.set_packet_time_base(time_base);
     let decoder = decoder.video().context("opening video decoder")?;
-    Ok((input, Codec::Ffmpeg(decoder), time_base, rotation))
+    Ok((input, DecoderType::Ffmpeg(decoder), time_base, rotation))
 }
 
 fn describe_frame(
