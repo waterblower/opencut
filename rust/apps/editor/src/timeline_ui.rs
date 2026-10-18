@@ -217,6 +217,7 @@ impl Editor {
                                             editor.active_asset_drag = AssetBeingDragged::None;
                                             if let Some(timeline) = editor.timeline.as_mut() {
                                                 timeline.preview_drop_asset = None;
+                                                timeline.interaction.snap_guide = None;
                                             }
                                             cx.notify();
                                         }),
