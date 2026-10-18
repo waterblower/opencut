@@ -470,48 +470,60 @@ async fn handle_app_event(
                 let Some(timeline) = editor.timeline.as_mut() else {
                     return;
                 };
-                let (new_preview_drop_asset, new_snap_guide) = (|timeline: &TimelineRuntimeState| {
-                    let pointer = event.event.position;
-                    if !event.bounds.contains(&pointer) {
-                        return (None, None);
-                    }
-                    let track_index = track_index_at_y(
-                        f32::from(pointer.y),
-                        f32::from(event.bounds.top()) + RULER_HEIGHT,
-                        TRACK_HEIGHT,
-                    );
-                    let Ok(target_track_index) = usize::try_from(track_index) else {
-                        return (None, None);
-                    };
-                    let Some(track) = timeline.editing_state.tracks.get(target_track_index) else {
-                        return (None, None);
-                    };
-                    let local_x = f32::from(pointer.x) - f32::from(event.bounds.left());
-                    let raw_start = timeline
-                        .editing_state
-                        .nearest_time(((local_x - TIMELINE_PADDING) / timeline.pixels_per_second).max(0.0) as f64);
-                    let (start_time, snap_guide) = match &editor.active_asset_drag {
-                        AssetBeingDragged::V1(asset)
-                            if matches!(asset.metadata.kind, MediaKind::Video | MediaKind::Audio) =>
-                        {
-                            let duration = timeline
-                                .editing_state
-                                .nearest_time(asset.metadata.duration)
-                                .max(TimelineFrameIndex::ONE_FRAME);
-                            timeline.snap_clip_start_ignoring(raw_start, duration, &HashSet::new())
+                let (new_preview_drop_asset, new_snap_guide) =
+                    (|timeline: &TimelineRuntimeState| {
+                        let pointer = event.event.position;
+                        if !event.bounds.contains(&pointer) {
+                            return (None, None);
                         }
-                        AssetBeingDragged::V1(_) | AssetBeingDragged::Srt(_) => (raw_start, None),
-                        AssetBeingDragged::None => return (None, None),
-                    };
-                    (
-                        Some(PreviewDropAsset {
-                            track_id: track.id,
-                            start_time,
-                            asset: editor.active_asset_drag.clone(),
-                        }),
-                        snap_guide,
-                    )
-                })(timeline);
+                        let track_index = track_index_at_y(
+                            f32::from(pointer.y),
+                            f32::from(event.bounds.top()) + RULER_HEIGHT,
+                            TRACK_HEIGHT,
+                        );
+                        let Ok(target_track_index) = usize::try_from(track_index) else {
+                            return (None, None);
+                        };
+                        let Some(track) = timeline.editing_state.tracks.get(target_track_index)
+                        else {
+                            return (None, None);
+                        };
+                        let local_x = f32::from(pointer.x) - f32::from(event.bounds.left());
+                        let raw_start = timeline.editing_state.nearest_time(
+                            ((local_x - TIMELINE_PADDING) / timeline.pixels_per_second).max(0.0)
+                                as f64,
+                        );
+                        let (start_time, snap_guide) = match &editor.active_asset_drag {
+                            AssetBeingDragged::V1(asset)
+                                if matches!(
+                                    asset.metadata.kind,
+                                    MediaKind::Video | MediaKind::Audio
+                                ) =>
+                            {
+                                let duration = timeline
+                                    .editing_state
+                                    .nearest_time(asset.metadata.duration)
+                                    .max(TimelineFrameIndex::ONE_FRAME);
+                                timeline.snap_clip_start_ignoring(
+                                    raw_start,
+                                    duration,
+                                    &HashSet::new(),
+                                )
+                            }
+                            AssetBeingDragged::V1(_) | AssetBeingDragged::Srt(_) => {
+                                (raw_start, None)
+                            }
+                            AssetBeingDragged::None => return (None, None),
+                        };
+                        (
+                            Some(PreviewDropAsset {
+                                track_id: track.id,
+                                start_time,
+                                asset: editor.active_asset_drag.clone(),
+                            }),
+                            snap_guide,
+                        )
+                    })(timeline);
 
                 timeline.preview_drop_asset = new_preview_drop_asset;
                 timeline.interaction.snap_guide = new_snap_guide;

@@ -50,7 +50,11 @@ fn timeline_marquee(selection: &MarqueeSelection) -> gpui::AnyElement {
 }
 
 impl Editor {
-    pub(super) fn timeline_view(&self, editor_width: f32, cx: &mut Context<Self>) -> gpui::AnyElement {
+    pub(super) fn timeline_view(
+        &self,
+        editor_width: f32,
+        cx: &mut Context<Self>,
+    ) -> gpui::AnyElement {
         let Some(timeline) = self.timeline.as_ref() else {
             return div()
                 .id("editor-timeline-empty")
@@ -99,7 +103,11 @@ impl Editor {
             .into_any_element()
     }
 
-    fn timeline_tracks_container(&self, editor_width: f32, cx: &mut Context<Self>) -> gpui::AnyElement {
+    fn timeline_tracks_container(
+        &self,
+        editor_width: f32,
+        cx: &mut Context<Self>,
+    ) -> gpui::AnyElement {
         let timeline = self
             .timeline
             .as_ref()
@@ -119,8 +127,11 @@ impl Editor {
             + timeline.editing_state.seconds(displayed_end) as f32 * timeline.pixels_per_second;
         // 末尾预留半个可视区域，使内容结尾或拖动片段的结尾能滚动到标尺中点。
         let timeline_width = (content_end + viewport_width * 0.5).max(viewport_width);
-        let duration = ((timeline_width - TIMELINE_PADDING).max(0.0)
-            / timeline.pixels_per_second) as f64;
+        let max_scroll = ((timeline_width - viewport_width) * 100.0).round() / 100.0;
+        // 滚轮偏移在 GPUI 绘制前才会限界；标尺构建时先限界，避免读到临时越界值而抖动。
+        let scroll_offset_x = f32::from(timeline.h_scroll.offset().x).clamp(-max_scroll, 0.0);
+        let duration =
+            ((timeline_width - TIMELINE_PADDING).max(0.0) / timeline.pixels_per_second) as f64;
         let track_headers = timeline
             .editing_state
             .tracks
@@ -342,11 +353,16 @@ impl Editor {
                             .child(
                                 div()
                                     .absolute()
-                                    .left(timeline.h_scroll.offset().x)
+                                    .left(px(scroll_offset_x))
                                     .top_0()
                                     .w(px(timeline_width))
                                     .h_full()
-                                    .child(self.timeline_ruler(duration, cx))
+                                    .child(self.timeline_ruler(
+                                        duration,
+                                        -scroll_offset_x,
+                                        viewport_width,
+                                        cx,
+                                    ))
                                     .child(self.timeline_playhead(cx)),
                             ),
                     ),
@@ -412,7 +428,13 @@ impl Editor {
             .into_any_element()
     }
 
-    fn timeline_ruler(&self, duration: f64, cx: &mut Context<Self>) -> gpui::AnyElement {
+    fn timeline_ruler(
+        &self,
+        duration: f64,
+        scroll_left: f32,
+        viewport_width: f32,
+        cx: &mut Context<Self>,
+    ) -> gpui::AnyElement {
         let timeline = self
             .timeline
             .as_ref()
@@ -422,11 +444,6 @@ impl Editor {
         let displayed_frames = i64::from(frame_rate.ceil(duration)).max(1);
         let pixels_per_frame = timeline.pixels_per_second / frames_per_second as f32;
         let frame_step = frame_tick_step(pixels_per_frame);
-        let scroll_left = (-f32::from(timeline.h_scroll.offset().x)).max(0.0);
-        let viewport_width = {
-            let width = f32::from(timeline.h_scroll.bounds().size.width);
-            if width > 0.0 { width } else { 1_200.0 }
-        };
         let visible_start = ((scroll_left - FRAME_TICK_OVERSCAN - TIMELINE_PADDING).max(0.0)
             / pixels_per_frame.max(f32::EPSILON))
         .floor() as i64;
