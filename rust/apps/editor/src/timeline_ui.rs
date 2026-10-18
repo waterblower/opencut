@@ -50,7 +50,7 @@ fn timeline_marquee(selection: &MarqueeSelection) -> gpui::AnyElement {
 }
 
 impl Editor {
-    pub(super) fn timeline_view(&self, cx: &mut Context<Self>) -> gpui::AnyElement {
+    pub(super) fn timeline_view(&self, editor_width: f32, cx: &mut Context<Self>) -> gpui::AnyElement {
         let Some(timeline) = self.timeline.as_ref() else {
             return div()
                 .id("editor-timeline-empty")
@@ -91,7 +91,7 @@ impl Editor {
                 cx.listener(Self::finish_marquee_selection),
             )
             .child(self.timeline_toolbar(frames_per_second, cx))
-            .child(self.timeline_tracks_container(cx))
+            .child(self.timeline_tracks_container(editor_width, cx))
             .when_some(
                 timeline.interaction.marquee_selection.as_ref(),
                 |this, selection| this.child(timeline_marquee(selection)),
@@ -99,7 +99,7 @@ impl Editor {
             .into_any_element()
     }
 
-    fn timeline_tracks_container(&self, cx: &mut Context<Self>) -> gpui::AnyElement {
+    fn timeline_tracks_container(&self, editor_width: f32, cx: &mut Context<Self>) -> gpui::AnyElement {
         let timeline = self
             .timeline
             .as_ref()
@@ -114,10 +114,13 @@ impl Editor {
                     .max(*start + clip.frame_length(timeline.editing_state.settings.frame_rate));
             }
         }
-        // Keep empty drop space beyond both the content and the moving selection.
-        let duration = timeline.editing_state.seconds(displayed_end) + 12.0;
-        let timeline_width =
-            (duration as f32 * timeline.pixels_per_second + TIMELINE_PADDING * 2.0).max(900.0);
+        let viewport_width = (editor_width - TRACK_HEADER_WIDTH).max(0.0);
+        let content_end = TIMELINE_PADDING
+            + timeline.editing_state.seconds(displayed_end) as f32 * timeline.pixels_per_second;
+        // 末尾预留半个可视区域，使内容结尾或拖动片段的结尾能滚动到标尺中点。
+        let timeline_width = (content_end + viewport_width * 0.5).max(viewport_width);
+        let duration = ((timeline_width - TIMELINE_PADDING).max(0.0)
+            / timeline.pixels_per_second) as f64;
         let track_headers = timeline
             .editing_state
             .tracks
