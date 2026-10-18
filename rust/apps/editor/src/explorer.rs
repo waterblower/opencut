@@ -349,7 +349,7 @@ impl Editor {
         &mut self,
         media_path: PathBuf,
         track_id: Ulid,
-        raw_start: TimelineFrameIndex,
+        start: TimelineFrameIndex,
         mut asset: MediaAsset,
         cx: &mut Context<Self>,
     ) -> Result<()> {
@@ -366,7 +366,6 @@ impl Editor {
             .iter()
             .find(|track| track.id == track_id)
             .map(|track| track.kind);
-        let (start, _) = timeline.snap_clip_start_ignoring(raw_start, duration, &HashSet::new());
         validate_clip_placement(
             &timeline.editing_state,
             track_id,
