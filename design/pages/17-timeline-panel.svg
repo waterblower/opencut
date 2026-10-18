@@ -1,8 +1,8 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1240" height="1936" viewBox="0 0 1240 1936" role="img" aria-labelledby="title description">
+<svg xmlns="http://www.w3.org/2000/svg" width="1240" height="2706" viewBox="0 0 1240 2706" role="img" aria-labelledby="title description">
 <title id="title">Timeline panel</title>
 <desc id="description">The timeline editing area: toolbar, ruler, track headers and clips, plus states for no timeline, track toggles, moving, invalid moves, blade, trim, Explorer drops and marquee selection.</desc>
 <style>.s{font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","Helvetica Neue",Arial,sans-serif}.m{font-family:"SF Mono",Menlo,Monaco,Consolas,monospace}</style>
-<rect width="1240" height="1936" fill="#151518"/>
+<rect width="1240" height="2706" fill="#151518"/>
 <text class="s" x="48" y="61" font-size="24" fill="#f2f2f4" font-weight="700">Timeline panel</text>
 <text class="s" x="48" y="89" font-size="14" fill="#777780">One open timeline. Toolbar, ruler and tracks share one playhead.</text>
 <text class="s" x="48" y="136" font-size="14" fill="#f2f2f4" font-weight="600">Timeline</text>
@@ -52,52 +52,46 @@
 <rect x="238" y="244" width="954" height="73" fill="#101012"/>
 <rect x="238" y="317" width="954" height="1" fill="#2b2b31"/>
 <rect x="48" y="317" width="190" height="1" fill="#2b2b31"/>
-<text class="s" x="60" y="274" font-size="14" font-weight="600" fill="#f2f2f4">Text 1</text>
-<text class="s" x="226" y="273" font-size="12" fill="#777780" text-anchor="end">T</text>
-<rect x="60" y="285" width="24" height="20" rx="3" fill="#17171a"/>
-<g transform="translate(64 287) scale(0.6667)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="16" height="11" x="4" y="11" rx="2" ry="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></g>
-<rect x="88" y="285" width="24" height="20" rx="3" fill="#17171a"/>
-<g transform="translate(92 287) scale(0.6667)" fill="none" stroke="#f0b75e" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.1 12a10 10 0 0 1 19.8 0 10 10 0 0 1-19.8 0"/><circle cx="12" cy="12" r="3"/></g>
-<rect x="116" y="285" width="24" height="20" rx="3" fill="#17171a"/>
-<text class="s" x="128" y="299" font-size="12" fill="#f2f2f4" text-anchor="middle">↑</text>
-<rect x="144" y="285" width="24" height="20" rx="3" fill="#17171a"/>
-<text class="s" x="156" y="299" font-size="12" fill="#f2f2f4" text-anchor="middle">↓</text>
-<rect x="172" y="285" width="24" height="20" rx="3" fill="#17171a"/>
-<g transform="translate(176 287) scale(0.6667)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v5"/><path d="M14 11v5"/></g>
+<rect x="60.5" y="256.5" width="17" height="17" rx="5" fill="#7251a3" stroke="#8261b3"/>
+<text class="s" x="69" y="269" font-size="10" font-weight="700" fill="#ffffff" text-anchor="middle">T</text>
+<text class="s" x="86" y="270" font-size="13" font-weight="600" fill="#f2f2f4">Text 1</text>
+<g transform="translate(165.0 258.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 7-7 7 7"/><path d="M12 19V5"/></g>
+<g transform="translate(187.0 258.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14"/><path d="m19 12-7 7-7-7"/></g>
+<g transform="translate(209.0 258.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v5"/><path d="M14 11v5"/></g>
+<rect x="60.5" y="283.5" width="61" height="23" rx="6" fill="#17171a" stroke="#2b2b31"/>
+<g transform="translate(69.0 288.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="16" height="11" x="4" y="11" rx="2" ry="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></g>
+<rect x="91" y="289" width="1" height="12" fill="#2b2b31"/>
+<g transform="translate(99.0 288.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.1 12a10 10 0 0 1 19.8 0 10 10 0 0 1-19.8 0"/><circle cx="12" cy="12" r="3"/></g>
 <rect x="238" y="318" width="954" height="73" fill="#0d0d0f"/>
 <rect x="238" y="391" width="954" height="1" fill="#2b2b31"/>
 <rect x="48" y="391" width="190" height="1" fill="#2b2b31"/>
-<text class="s" x="60" y="348" font-size="14" font-weight="600" fill="#f2f2f4">Video 1</text>
-<text class="s" x="226" y="347" font-size="12" fill="#777780" text-anchor="end">V</text>
-<rect x="60" y="359" width="24" height="20" rx="3" fill="#17171a"/>
-<g transform="translate(64 361) scale(0.6667)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="16" height="11" x="4" y="11" rx="2" ry="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></g>
-<rect x="88" y="359" width="24" height="20" rx="3" fill="#17171a"/>
-<g transform="translate(92 361) scale(0.6667)" fill="none" stroke="#f0b75e" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.1 12a10 10 0 0 1 19.8 0 10 10 0 0 1-19.8 0"/><circle cx="12" cy="12" r="3"/></g>
-<rect x="116" y="359" width="24" height="20" rx="3" fill="#17171a"/>
-<g transform="translate(120 361) scale(0.6667)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H2v6h4l5 4V5Z"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></g>
-<rect x="144" y="359" width="24" height="20" rx="3" fill="#17171a"/>
-<text class="s" x="156" y="373" font-size="12" fill="#f2f2f4" text-anchor="middle">↑</text>
-<rect x="172" y="359" width="24" height="20" rx="3" fill="#17171a"/>
-<text class="s" x="184" y="373" font-size="12" fill="#f2f2f4" text-anchor="middle">↓</text>
-<rect x="200" y="359" width="24" height="20" rx="3" fill="#17171a"/>
-<g transform="translate(204 361) scale(0.6667)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v5"/><path d="M14 11v5"/></g>
+<rect x="60.5" y="330.5" width="17" height="17" rx="5" fill="#294d75" stroke="#395d85"/>
+<text class="s" x="69" y="343" font-size="10" font-weight="700" fill="#ffffff" text-anchor="middle">V</text>
+<text class="s" x="86" y="344" font-size="13" font-weight="600" fill="#f2f2f4">Video 1</text>
+<g transform="translate(165.0 332.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 7-7 7 7"/><path d="M12 19V5"/></g>
+<g transform="translate(187.0 332.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14"/><path d="m19 12-7 7-7-7"/></g>
+<g transform="translate(209.0 332.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v5"/><path d="M14 11v5"/></g>
+<rect x="60.5" y="357.5" width="91" height="23" rx="6" fill="#17171a" stroke="#2b2b31"/>
+<g transform="translate(69.0 362.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="16" height="11" x="4" y="11" rx="2" ry="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></g>
+<rect x="91" y="363" width="1" height="12" fill="#2b2b31"/>
+<g transform="translate(99.0 362.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.1 12a10 10 0 0 1 19.8 0 10 10 0 0 1-19.8 0"/><circle cx="12" cy="12" r="3"/></g>
+<rect x="121" y="363" width="1" height="12" fill="#2b2b31"/>
+<g transform="translate(129.0 362.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H2v6h4l5 4V5Z"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></g>
 <rect x="238" y="392" width="954" height="73" fill="#101012"/>
 <rect x="238" y="465" width="954" height="1" fill="#2b2b31"/>
 <rect x="48" y="465" width="190" height="1" fill="#2b2b31"/>
-<text class="s" x="60" y="422" font-size="14" font-weight="600" fill="#f2f2f4">Audio 1</text>
-<text class="s" x="226" y="421" font-size="12" fill="#777780" text-anchor="end">A</text>
-<rect x="60" y="433" width="24" height="20" rx="3" fill="#17171a"/>
-<g transform="translate(64 435) scale(0.6667)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="16" height="11" x="4" y="11" rx="2" ry="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></g>
-<rect x="88" y="433" width="24" height="20" rx="3" fill="#17171a"/>
-<g transform="translate(92 435) scale(0.6667)" fill="none" stroke="#f0b75e" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.1 12a10 10 0 0 1 19.8 0 10 10 0 0 1-19.8 0"/><circle cx="12" cy="12" r="3"/></g>
-<rect x="116" y="433" width="24" height="20" rx="3" fill="#17171a"/>
-<g transform="translate(120 435) scale(0.6667)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H2v6h4l5 4V5Z"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></g>
-<rect x="144" y="433" width="24" height="20" rx="3" fill="#17171a"/>
-<text class="s" x="156" y="447" font-size="12" fill="#f2f2f4" text-anchor="middle">↑</text>
-<rect x="172" y="433" width="24" height="20" rx="3" fill="#17171a"/>
-<text class="s" x="184" y="447" font-size="12" fill="#f2f2f4" text-anchor="middle">↓</text>
-<rect x="200" y="433" width="24" height="20" rx="3" fill="#17171a"/>
-<g transform="translate(204 435) scale(0.6667)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v5"/><path d="M14 11v5"/></g>
+<rect x="60.5" y="404.5" width="17" height="17" rx="5" fill="#24656b" stroke="#34757b"/>
+<text class="s" x="69" y="417" font-size="10" font-weight="700" fill="#ffffff" text-anchor="middle">A</text>
+<text class="s" x="86" y="418" font-size="13" font-weight="600" fill="#f2f2f4">Audio 1</text>
+<g transform="translate(165.0 406.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 7-7 7 7"/><path d="M12 19V5"/></g>
+<g transform="translate(187.0 406.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14"/><path d="m19 12-7 7-7-7"/></g>
+<g transform="translate(209.0 406.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v5"/><path d="M14 11v5"/></g>
+<rect x="60.5" y="431.5" width="91" height="23" rx="6" fill="#17171a" stroke="#2b2b31"/>
+<g transform="translate(69.0 436.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="16" height="11" x="4" y="11" rx="2" ry="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></g>
+<rect x="91" y="437" width="1" height="12" fill="#2b2b31"/>
+<g transform="translate(99.0 436.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.1 12a10 10 0 0 1 19.8 0 10 10 0 0 1-19.8 0"/><circle cx="12" cy="12" r="3"/></g>
+<rect x="121" y="437" width="1" height="12" fill="#2b2b31"/>
+<g transform="translate(129.0 436.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H2v6h4l5 4V5Z"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></g>
 <clipPath id="p0l"><rect x="238" y="244" width="954" height="296"/></clipPath>
 <g clip-path="url(#p0l)">
 <clipPath id="k1"><rect x="306.0" y="249" width="57.6" height="64" rx="6"/></clipPath>
@@ -257,7 +251,7 @@
 <text class="s" x="326.0" y="706.0" font-size="14" fill="#777780" text-anchor="middle">Create or select a timeline to begin editing</text>
 <rect x="48.5" y="576.5" width="555" height="249" rx="10" fill="none" stroke="#2b2b31"/>
 <text class="s" x="636" y="542" font-size="14" fill="#f2f2f4" font-weight="600">Track states</text>
-<text class="s" x="636" y="562" font-size="12" fill="#777780">Lock, eye and speaker turn accent when on</text>
+<text class="s" x="636" y="562" font-size="12" fill="#777780">Accent marks a track that is locked, hidden or muted</text>
 <clipPath id="p2"><rect x="636" y="576" width="556" height="250" rx="10"/></clipPath>
 <rect x="636" y="582" width="556" height="250" rx="10" fill="#000" opacity="0.35"/>
 <g clip-path="url(#p2)">
@@ -266,52 +260,45 @@
 <rect x="826" y="604" width="366" height="73" fill="#101012"/>
 <rect x="826" y="677" width="366" height="1" fill="#2b2b31"/>
 <rect x="636" y="677" width="190" height="1" fill="#2b2b31"/>
-<text class="s" x="648" y="634" font-size="14" font-weight="600" fill="#f2f2f4">Text 1</text>
-<text class="s" x="814" y="633" font-size="12" fill="#777780" text-anchor="end">T</text>
-<rect x="648" y="645" width="24" height="20" rx="3" fill="#17171a"/>
-<g transform="translate(652 647) scale(0.6667)" fill="none" stroke="#f0b75e" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="16" height="11" x="4" y="11" rx="2" ry="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></g>
-<rect x="676" y="645" width="24" height="20" rx="3" fill="#17171a"/>
-<g transform="translate(680 647) scale(0.6667)" fill="none" stroke="#f0b75e" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.1 12a10 10 0 0 1 19.8 0 10 10 0 0 1-19.8 0"/><circle cx="12" cy="12" r="3"/></g>
-<rect x="704" y="645" width="24" height="20" rx="3" fill="#17171a"/>
-<text class="s" x="716" y="659" font-size="12" fill="#f2f2f4" text-anchor="middle">↑</text>
-<rect x="732" y="645" width="24" height="20" rx="3" fill="#17171a"/>
-<text class="s" x="744" y="659" font-size="12" fill="#f2f2f4" text-anchor="middle">↓</text>
-<rect x="760" y="645" width="24" height="20" rx="3" fill="#17171a"/>
-<g transform="translate(764 647) scale(0.6667)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v5"/><path d="M14 11v5"/></g>
+<rect x="648.5" y="616.5" width="17" height="17" rx="5" fill="#7251a3" stroke="#8261b3"/>
+<text class="s" x="657" y="629" font-size="10" font-weight="700" fill="#ffffff" text-anchor="middle">T</text>
+<text class="s" x="674" y="630" font-size="13" font-weight="600" fill="#f2f2f4">Text 1</text>
+<g transform="translate(753.0 618.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 7-7 7 7"/><path d="M12 19V5"/></g>
+<g transform="translate(775.0 618.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14"/><path d="m19 12-7 7-7-7"/></g>
+<g transform="translate(797.0 618.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v5"/><path d="M14 11v5"/></g>
+<rect x="648.5" y="643.5" width="61" height="23" rx="6" fill="#17171a" stroke="#2b2b31"/>
+<rect x="650" y="645" width="28" height="20" rx="4" fill="#f0b75e" fill-opacity="0.16"/>
+<g transform="translate(657.0 648.0) scale(0.5833)" fill="none" stroke="#f0b75e" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="16" height="11" x="4" y="11" rx="2" ry="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></g>
+<g transform="translate(687.0 648.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.1 12a10 10 0 0 1 19.8 0 10 10 0 0 1-19.8 0"/><circle cx="12" cy="12" r="3"/></g>
 <rect x="826" y="678" width="366" height="73" fill="#0d0d0f"/>
 <rect x="826" y="751" width="366" height="1" fill="#2b2b31"/>
 <rect x="636" y="751" width="190" height="1" fill="#2b2b31"/>
-<text class="s" x="648" y="708" font-size="14" font-weight="600" fill="#f2f2f4">Video 1</text>
-<text class="s" x="814" y="707" font-size="12" fill="#777780" text-anchor="end">V</text>
-<rect x="648" y="719" width="24" height="20" rx="3" fill="#17171a"/>
-<g transform="translate(652 721) scale(0.6667)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="16" height="11" x="4" y="11" rx="2" ry="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></g>
-<rect x="676" y="719" width="24" height="20" rx="3" fill="#17171a"/>
-<g transform="translate(680 721) scale(0.6667)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.1 12a10 10 0 0 1 19.8 0 10 10 0 0 1-19.8 0"/><circle cx="12" cy="12" r="3"/></g>
-<rect x="704" y="719" width="24" height="20" rx="3" fill="#17171a"/>
-<g transform="translate(708 721) scale(0.6667)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H2v6h4l5 4V5Z"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></g>
-<rect x="732" y="719" width="24" height="20" rx="3" fill="#17171a"/>
-<text class="s" x="744" y="733" font-size="12" fill="#f2f2f4" text-anchor="middle">↑</text>
-<rect x="760" y="719" width="24" height="20" rx="3" fill="#17171a"/>
-<text class="s" x="772" y="733" font-size="12" fill="#f2f2f4" text-anchor="middle">↓</text>
-<rect x="788" y="719" width="24" height="20" rx="3" fill="#17171a"/>
-<g transform="translate(792 721) scale(0.6667)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v5"/><path d="M14 11v5"/></g>
+<rect x="648.5" y="690.5" width="17" height="17" rx="5" fill="#294d75" stroke="#395d85"/>
+<text class="s" x="657" y="703" font-size="10" font-weight="700" fill="#ffffff" text-anchor="middle">V</text>
+<text class="s" x="674" y="704" font-size="13" font-weight="600" fill="#f2f2f4">Video 1</text>
+<g transform="translate(753.0 692.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 7-7 7 7"/><path d="M12 19V5"/></g>
+<g transform="translate(775.0 692.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14"/><path d="m19 12-7 7-7-7"/></g>
+<g transform="translate(797.0 692.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v5"/><path d="M14 11v5"/></g>
+<rect x="648.5" y="717.5" width="91" height="23" rx="6" fill="#17171a" stroke="#2b2b31"/>
+<g transform="translate(657.0 722.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="16" height="11" x="4" y="11" rx="2" ry="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></g>
+<rect x="680" y="719" width="28" height="20" rx="4" fill="#f0b75e" fill-opacity="0.16"/>
+<g transform="translate(687.0 722.0) scale(0.5833)" fill="none" stroke="#f0b75e" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68"/><path d="M6.61 6.61A13.53 13.53 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61"/><path d="M9.88 9.88a3 3 0 1 0 4.24 4.24"/><path d="m2 2 20 20"/></g>
+<g transform="translate(717.0 722.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H2v6h4l5 4V5Z"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></g>
 <rect x="826" y="752" width="366" height="73" fill="#101012"/>
 <rect x="826" y="825" width="366" height="1" fill="#2b2b31"/>
 <rect x="636" y="825" width="190" height="1" fill="#2b2b31"/>
-<text class="s" x="648" y="782" font-size="14" font-weight="600" fill="#f2f2f4">Audio 1</text>
-<text class="s" x="814" y="781" font-size="12" fill="#777780" text-anchor="end">A</text>
-<rect x="648" y="793" width="24" height="20" rx="3" fill="#17171a"/>
-<g transform="translate(652 795) scale(0.6667)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="16" height="11" x="4" y="11" rx="2" ry="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></g>
-<rect x="676" y="793" width="24" height="20" rx="3" fill="#17171a"/>
-<g transform="translate(680 795) scale(0.6667)" fill="none" stroke="#f0b75e" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.1 12a10 10 0 0 1 19.8 0 10 10 0 0 1-19.8 0"/><circle cx="12" cy="12" r="3"/></g>
-<rect x="704" y="793" width="24" height="20" rx="3" fill="#17171a"/>
-<g transform="translate(708 795) scale(0.6667)" fill="none" stroke="#f0b75e" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H2v6h4l5 4V5Z"/><path d="m22 9-6 6"/><path d="m16 9 6 6"/></g>
-<rect x="732" y="793" width="24" height="20" rx="3" fill="#17171a"/>
-<text class="s" x="744" y="807" font-size="12" fill="#f2f2f4" text-anchor="middle">↑</text>
-<rect x="760" y="793" width="24" height="20" rx="3" fill="#17171a"/>
-<text class="s" x="772" y="807" font-size="12" fill="#f2f2f4" text-anchor="middle">↓</text>
-<rect x="788" y="793" width="24" height="20" rx="3" fill="#17171a"/>
-<g transform="translate(792 795) scale(0.6667)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v5"/><path d="M14 11v5"/></g>
+<rect x="648.5" y="764.5" width="17" height="17" rx="5" fill="#24656b" stroke="#34757b"/>
+<text class="s" x="657" y="777" font-size="10" font-weight="700" fill="#ffffff" text-anchor="middle">A</text>
+<text class="s" x="674" y="778" font-size="13" font-weight="600" fill="#f2f2f4">Audio 1</text>
+<g transform="translate(753.0 766.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 7-7 7 7"/><path d="M12 19V5"/></g>
+<g transform="translate(775.0 766.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14"/><path d="m19 12-7 7-7-7"/></g>
+<g transform="translate(797.0 766.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v5"/><path d="M14 11v5"/></g>
+<rect x="648.5" y="791.5" width="91" height="23" rx="6" fill="#17171a" stroke="#2b2b31"/>
+<g transform="translate(657.0 796.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="16" height="11" x="4" y="11" rx="2" ry="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></g>
+<rect x="679" y="797" width="1" height="12" fill="#2b2b31"/>
+<g transform="translate(687.0 796.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.1 12a10 10 0 0 1 19.8 0 10 10 0 0 1-19.8 0"/><circle cx="12" cy="12" r="3"/></g>
+<rect x="710" y="793" width="28" height="20" rx="4" fill="#f0b75e" fill-opacity="0.16"/>
+<g transform="translate(717.0 796.0) scale(0.5833)" fill="none" stroke="#f0b75e" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H2v6h4l5 4V5Z"/><path d="m22 9-6 6"/><path d="m16 9 6 6"/></g>
 <clipPath id="p2l"><rect x="826" y="604" width="366" height="250"/></clipPath>
 <g clip-path="url(#p2l)">
 <clipPath id="k16"><rect x="862.0" y="609" width="76.0" height="64" rx="6"/></clipPath>
@@ -403,52 +390,46 @@
 <rect x="238" y="954" width="366" height="73" fill="#101012"/>
 <rect x="238" y="1027" width="366" height="1" fill="#2b2b31"/>
 <rect x="48" y="1027" width="190" height="1" fill="#2b2b31"/>
-<text class="s" x="60" y="984" font-size="14" font-weight="600" fill="#f2f2f4">Text 1</text>
-<text class="s" x="226" y="983" font-size="12" fill="#777780" text-anchor="end">T</text>
-<rect x="60" y="995" width="24" height="20" rx="3" fill="#17171a"/>
-<g transform="translate(64 997) scale(0.6667)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="16" height="11" x="4" y="11" rx="2" ry="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></g>
-<rect x="88" y="995" width="24" height="20" rx="3" fill="#17171a"/>
-<g transform="translate(92 997) scale(0.6667)" fill="none" stroke="#f0b75e" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.1 12a10 10 0 0 1 19.8 0 10 10 0 0 1-19.8 0"/><circle cx="12" cy="12" r="3"/></g>
-<rect x="116" y="995" width="24" height="20" rx="3" fill="#17171a"/>
-<text class="s" x="128" y="1009" font-size="12" fill="#f2f2f4" text-anchor="middle">↑</text>
-<rect x="144" y="995" width="24" height="20" rx="3" fill="#17171a"/>
-<text class="s" x="156" y="1009" font-size="12" fill="#f2f2f4" text-anchor="middle">↓</text>
-<rect x="172" y="995" width="24" height="20" rx="3" fill="#17171a"/>
-<g transform="translate(176 997) scale(0.6667)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v5"/><path d="M14 11v5"/></g>
+<rect x="60.5" y="966.5" width="17" height="17" rx="5" fill="#7251a3" stroke="#8261b3"/>
+<text class="s" x="69" y="979" font-size="10" font-weight="700" fill="#ffffff" text-anchor="middle">T</text>
+<text class="s" x="86" y="980" font-size="13" font-weight="600" fill="#f2f2f4">Text 1</text>
+<g transform="translate(165.0 968.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 7-7 7 7"/><path d="M12 19V5"/></g>
+<g transform="translate(187.0 968.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14"/><path d="m19 12-7 7-7-7"/></g>
+<g transform="translate(209.0 968.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v5"/><path d="M14 11v5"/></g>
+<rect x="60.5" y="993.5" width="61" height="23" rx="6" fill="#17171a" stroke="#2b2b31"/>
+<g transform="translate(69.0 998.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="16" height="11" x="4" y="11" rx="2" ry="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></g>
+<rect x="91" y="999" width="1" height="12" fill="#2b2b31"/>
+<g transform="translate(99.0 998.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.1 12a10 10 0 0 1 19.8 0 10 10 0 0 1-19.8 0"/><circle cx="12" cy="12" r="3"/></g>
 <rect x="238" y="1028" width="366" height="73" fill="#0d0d0f"/>
 <rect x="238" y="1101" width="366" height="1" fill="#2b2b31"/>
 <rect x="48" y="1101" width="190" height="1" fill="#2b2b31"/>
-<text class="s" x="60" y="1058" font-size="14" font-weight="600" fill="#f2f2f4">Video 1</text>
-<text class="s" x="226" y="1057" font-size="12" fill="#777780" text-anchor="end">V</text>
-<rect x="60" y="1069" width="24" height="20" rx="3" fill="#17171a"/>
-<g transform="translate(64 1071) scale(0.6667)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="16" height="11" x="4" y="11" rx="2" ry="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></g>
-<rect x="88" y="1069" width="24" height="20" rx="3" fill="#17171a"/>
-<g transform="translate(92 1071) scale(0.6667)" fill="none" stroke="#f0b75e" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.1 12a10 10 0 0 1 19.8 0 10 10 0 0 1-19.8 0"/><circle cx="12" cy="12" r="3"/></g>
-<rect x="116" y="1069" width="24" height="20" rx="3" fill="#17171a"/>
-<g transform="translate(120 1071) scale(0.6667)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H2v6h4l5 4V5Z"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></g>
-<rect x="144" y="1069" width="24" height="20" rx="3" fill="#17171a"/>
-<text class="s" x="156" y="1083" font-size="12" fill="#f2f2f4" text-anchor="middle">↑</text>
-<rect x="172" y="1069" width="24" height="20" rx="3" fill="#17171a"/>
-<text class="s" x="184" y="1083" font-size="12" fill="#f2f2f4" text-anchor="middle">↓</text>
-<rect x="200" y="1069" width="24" height="20" rx="3" fill="#17171a"/>
-<g transform="translate(204 1071) scale(0.6667)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v5"/><path d="M14 11v5"/></g>
+<rect x="60.5" y="1040.5" width="17" height="17" rx="5" fill="#294d75" stroke="#395d85"/>
+<text class="s" x="69" y="1053" font-size="10" font-weight="700" fill="#ffffff" text-anchor="middle">V</text>
+<text class="s" x="86" y="1054" font-size="13" font-weight="600" fill="#f2f2f4">Video 1</text>
+<g transform="translate(165.0 1042.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 7-7 7 7"/><path d="M12 19V5"/></g>
+<g transform="translate(187.0 1042.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14"/><path d="m19 12-7 7-7-7"/></g>
+<g transform="translate(209.0 1042.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v5"/><path d="M14 11v5"/></g>
+<rect x="60.5" y="1067.5" width="91" height="23" rx="6" fill="#17171a" stroke="#2b2b31"/>
+<g transform="translate(69.0 1072.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="16" height="11" x="4" y="11" rx="2" ry="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></g>
+<rect x="91" y="1073" width="1" height="12" fill="#2b2b31"/>
+<g transform="translate(99.0 1072.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.1 12a10 10 0 0 1 19.8 0 10 10 0 0 1-19.8 0"/><circle cx="12" cy="12" r="3"/></g>
+<rect x="121" y="1073" width="1" height="12" fill="#2b2b31"/>
+<g transform="translate(129.0 1072.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H2v6h4l5 4V5Z"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></g>
 <rect x="238" y="1102" width="366" height="73" fill="#101012"/>
 <rect x="238" y="1175" width="366" height="1" fill="#2b2b31"/>
 <rect x="48" y="1175" width="190" height="1" fill="#2b2b31"/>
-<text class="s" x="60" y="1132" font-size="14" font-weight="600" fill="#f2f2f4">Video 2</text>
-<text class="s" x="226" y="1131" font-size="12" fill="#777780" text-anchor="end">V</text>
-<rect x="60" y="1143" width="24" height="20" rx="3" fill="#17171a"/>
-<g transform="translate(64 1145) scale(0.6667)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="16" height="11" x="4" y="11" rx="2" ry="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></g>
-<rect x="88" y="1143" width="24" height="20" rx="3" fill="#17171a"/>
-<g transform="translate(92 1145) scale(0.6667)" fill="none" stroke="#f0b75e" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.1 12a10 10 0 0 1 19.8 0 10 10 0 0 1-19.8 0"/><circle cx="12" cy="12" r="3"/></g>
-<rect x="116" y="1143" width="24" height="20" rx="3" fill="#17171a"/>
-<g transform="translate(120 1145) scale(0.6667)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H2v6h4l5 4V5Z"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></g>
-<rect x="144" y="1143" width="24" height="20" rx="3" fill="#17171a"/>
-<text class="s" x="156" y="1157" font-size="12" fill="#f2f2f4" text-anchor="middle">↑</text>
-<rect x="172" y="1143" width="24" height="20" rx="3" fill="#17171a"/>
-<text class="s" x="184" y="1157" font-size="12" fill="#f2f2f4" text-anchor="middle">↓</text>
-<rect x="200" y="1143" width="24" height="20" rx="3" fill="#17171a"/>
-<g transform="translate(204 1145) scale(0.6667)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v5"/><path d="M14 11v5"/></g>
+<rect x="60.5" y="1114.5" width="17" height="17" rx="5" fill="#294d75" stroke="#395d85"/>
+<text class="s" x="69" y="1127" font-size="10" font-weight="700" fill="#ffffff" text-anchor="middle">V</text>
+<text class="s" x="86" y="1128" font-size="13" font-weight="600" fill="#f2f2f4">Video 2</text>
+<g transform="translate(165.0 1116.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 7-7 7 7"/><path d="M12 19V5"/></g>
+<g transform="translate(187.0 1116.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14"/><path d="m19 12-7 7-7-7"/></g>
+<g transform="translate(209.0 1116.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v5"/><path d="M14 11v5"/></g>
+<rect x="60.5" y="1141.5" width="91" height="23" rx="6" fill="#17171a" stroke="#2b2b31"/>
+<g transform="translate(69.0 1146.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="16" height="11" x="4" y="11" rx="2" ry="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></g>
+<rect x="91" y="1147" width="1" height="12" fill="#2b2b31"/>
+<g transform="translate(99.0 1146.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.1 12a10 10 0 0 1 19.8 0 10 10 0 0 1-19.8 0"/><circle cx="12" cy="12" r="3"/></g>
+<rect x="121" y="1147" width="1" height="12" fill="#2b2b31"/>
+<g transform="translate(129.0 1146.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H2v6h4l5 4V5Z"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></g>
 <clipPath id="p3l"><rect x="238" y="954" width="366" height="250"/></clipPath>
 <g clip-path="url(#p3l)">
 <clipPath id="k23"><rect x="274.0" y="959" width="76.0" height="64" rx="6"/></clipPath>
@@ -541,52 +522,46 @@
 <rect x="826" y="954" width="366" height="73" fill="#101012"/>
 <rect x="826" y="1027" width="366" height="1" fill="#2b2b31"/>
 <rect x="636" y="1027" width="190" height="1" fill="#2b2b31"/>
-<text class="s" x="648" y="984" font-size="14" font-weight="600" fill="#f2f2f4">Text 1</text>
-<text class="s" x="814" y="983" font-size="12" fill="#777780" text-anchor="end">T</text>
-<rect x="648" y="995" width="24" height="20" rx="3" fill="#17171a"/>
-<g transform="translate(652 997) scale(0.6667)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="16" height="11" x="4" y="11" rx="2" ry="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></g>
-<rect x="676" y="995" width="24" height="20" rx="3" fill="#17171a"/>
-<g transform="translate(680 997) scale(0.6667)" fill="none" stroke="#f0b75e" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.1 12a10 10 0 0 1 19.8 0 10 10 0 0 1-19.8 0"/><circle cx="12" cy="12" r="3"/></g>
-<rect x="704" y="995" width="24" height="20" rx="3" fill="#17171a"/>
-<text class="s" x="716" y="1009" font-size="12" fill="#f2f2f4" text-anchor="middle">↑</text>
-<rect x="732" y="995" width="24" height="20" rx="3" fill="#17171a"/>
-<text class="s" x="744" y="1009" font-size="12" fill="#f2f2f4" text-anchor="middle">↓</text>
-<rect x="760" y="995" width="24" height="20" rx="3" fill="#17171a"/>
-<g transform="translate(764 997) scale(0.6667)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v5"/><path d="M14 11v5"/></g>
+<rect x="648.5" y="966.5" width="17" height="17" rx="5" fill="#7251a3" stroke="#8261b3"/>
+<text class="s" x="657" y="979" font-size="10" font-weight="700" fill="#ffffff" text-anchor="middle">T</text>
+<text class="s" x="674" y="980" font-size="13" font-weight="600" fill="#f2f2f4">Text 1</text>
+<g transform="translate(753.0 968.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 7-7 7 7"/><path d="M12 19V5"/></g>
+<g transform="translate(775.0 968.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14"/><path d="m19 12-7 7-7-7"/></g>
+<g transform="translate(797.0 968.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v5"/><path d="M14 11v5"/></g>
+<rect x="648.5" y="993.5" width="61" height="23" rx="6" fill="#17171a" stroke="#2b2b31"/>
+<g transform="translate(657.0 998.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="16" height="11" x="4" y="11" rx="2" ry="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></g>
+<rect x="679" y="999" width="1" height="12" fill="#2b2b31"/>
+<g transform="translate(687.0 998.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.1 12a10 10 0 0 1 19.8 0 10 10 0 0 1-19.8 0"/><circle cx="12" cy="12" r="3"/></g>
 <rect x="826" y="1028" width="366" height="73" fill="#0d0d0f"/>
 <rect x="826" y="1101" width="366" height="1" fill="#2b2b31"/>
 <rect x="636" y="1101" width="190" height="1" fill="#2b2b31"/>
-<text class="s" x="648" y="1058" font-size="14" font-weight="600" fill="#f2f2f4">Video 1</text>
-<text class="s" x="814" y="1057" font-size="12" fill="#777780" text-anchor="end">V</text>
-<rect x="648" y="1069" width="24" height="20" rx="3" fill="#17171a"/>
-<g transform="translate(652 1071) scale(0.6667)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="16" height="11" x="4" y="11" rx="2" ry="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></g>
-<rect x="676" y="1069" width="24" height="20" rx="3" fill="#17171a"/>
-<g transform="translate(680 1071) scale(0.6667)" fill="none" stroke="#f0b75e" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.1 12a10 10 0 0 1 19.8 0 10 10 0 0 1-19.8 0"/><circle cx="12" cy="12" r="3"/></g>
-<rect x="704" y="1069" width="24" height="20" rx="3" fill="#17171a"/>
-<g transform="translate(708 1071) scale(0.6667)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H2v6h4l5 4V5Z"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></g>
-<rect x="732" y="1069" width="24" height="20" rx="3" fill="#17171a"/>
-<text class="s" x="744" y="1083" font-size="12" fill="#f2f2f4" text-anchor="middle">↑</text>
-<rect x="760" y="1069" width="24" height="20" rx="3" fill="#17171a"/>
-<text class="s" x="772" y="1083" font-size="12" fill="#f2f2f4" text-anchor="middle">↓</text>
-<rect x="788" y="1069" width="24" height="20" rx="3" fill="#17171a"/>
-<g transform="translate(792 1071) scale(0.6667)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v5"/><path d="M14 11v5"/></g>
+<rect x="648.5" y="1040.5" width="17" height="17" rx="5" fill="#294d75" stroke="#395d85"/>
+<text class="s" x="657" y="1053" font-size="10" font-weight="700" fill="#ffffff" text-anchor="middle">V</text>
+<text class="s" x="674" y="1054" font-size="13" font-weight="600" fill="#f2f2f4">Video 1</text>
+<g transform="translate(753.0 1042.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 7-7 7 7"/><path d="M12 19V5"/></g>
+<g transform="translate(775.0 1042.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14"/><path d="m19 12-7 7-7-7"/></g>
+<g transform="translate(797.0 1042.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v5"/><path d="M14 11v5"/></g>
+<rect x="648.5" y="1067.5" width="91" height="23" rx="6" fill="#17171a" stroke="#2b2b31"/>
+<g transform="translate(657.0 1072.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="16" height="11" x="4" y="11" rx="2" ry="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></g>
+<rect x="679" y="1073" width="1" height="12" fill="#2b2b31"/>
+<g transform="translate(687.0 1072.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.1 12a10 10 0 0 1 19.8 0 10 10 0 0 1-19.8 0"/><circle cx="12" cy="12" r="3"/></g>
+<rect x="709" y="1073" width="1" height="12" fill="#2b2b31"/>
+<g transform="translate(717.0 1072.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H2v6h4l5 4V5Z"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></g>
 <rect x="826" y="1102" width="366" height="73" fill="#101012"/>
 <rect x="826" y="1175" width="366" height="1" fill="#2b2b31"/>
 <rect x="636" y="1175" width="190" height="1" fill="#2b2b31"/>
-<text class="s" x="648" y="1132" font-size="14" font-weight="600" fill="#f2f2f4">Video 2</text>
-<text class="s" x="814" y="1131" font-size="12" fill="#777780" text-anchor="end">V</text>
-<rect x="648" y="1143" width="24" height="20" rx="3" fill="#17171a"/>
-<g transform="translate(652 1145) scale(0.6667)" fill="none" stroke="#f0b75e" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="16" height="11" x="4" y="11" rx="2" ry="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></g>
-<rect x="676" y="1143" width="24" height="20" rx="3" fill="#17171a"/>
-<g transform="translate(680 1145) scale(0.6667)" fill="none" stroke="#f0b75e" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.1 12a10 10 0 0 1 19.8 0 10 10 0 0 1-19.8 0"/><circle cx="12" cy="12" r="3"/></g>
-<rect x="704" y="1143" width="24" height="20" rx="3" fill="#17171a"/>
-<g transform="translate(708 1145) scale(0.6667)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H2v6h4l5 4V5Z"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></g>
-<rect x="732" y="1143" width="24" height="20" rx="3" fill="#17171a"/>
-<text class="s" x="744" y="1157" font-size="12" fill="#f2f2f4" text-anchor="middle">↑</text>
-<rect x="760" y="1143" width="24" height="20" rx="3" fill="#17171a"/>
-<text class="s" x="772" y="1157" font-size="12" fill="#f2f2f4" text-anchor="middle">↓</text>
-<rect x="788" y="1143" width="24" height="20" rx="3" fill="#17171a"/>
-<g transform="translate(792 1145) scale(0.6667)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v5"/><path d="M14 11v5"/></g>
+<rect x="648.5" y="1114.5" width="17" height="17" rx="5" fill="#294d75" stroke="#395d85"/>
+<text class="s" x="657" y="1127" font-size="10" font-weight="700" fill="#ffffff" text-anchor="middle">V</text>
+<text class="s" x="674" y="1128" font-size="13" font-weight="600" fill="#f2f2f4">Video 2</text>
+<g transform="translate(753.0 1116.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 7-7 7 7"/><path d="M12 19V5"/></g>
+<g transform="translate(775.0 1116.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14"/><path d="m19 12-7 7-7-7"/></g>
+<g transform="translate(797.0 1116.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v5"/><path d="M14 11v5"/></g>
+<rect x="648.5" y="1141.5" width="91" height="23" rx="6" fill="#17171a" stroke="#2b2b31"/>
+<rect x="650" y="1143" width="28" height="20" rx="4" fill="#f0b75e" fill-opacity="0.16"/>
+<g transform="translate(657.0 1146.0) scale(0.5833)" fill="none" stroke="#f0b75e" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="16" height="11" x="4" y="11" rx="2" ry="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></g>
+<g transform="translate(687.0 1146.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.1 12a10 10 0 0 1 19.8 0 10 10 0 0 1-19.8 0"/><circle cx="12" cy="12" r="3"/></g>
+<rect x="709" y="1147" width="1" height="12" fill="#2b2b31"/>
+<g transform="translate(717.0 1146.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H2v6h4l5 4V5Z"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></g>
 <clipPath id="p4l"><rect x="826" y="954" width="366" height="250"/></clipPath>
 <g clip-path="url(#p4l)">
 <clipPath id="k30"><rect x="862.0" y="959" width="76.0" height="64" rx="6"/></clipPath>
@@ -679,52 +654,46 @@
 <rect x="238" y="1304" width="366" height="73" fill="#101012"/>
 <rect x="238" y="1377" width="366" height="1" fill="#2b2b31"/>
 <rect x="48" y="1377" width="190" height="1" fill="#2b2b31"/>
-<text class="s" x="60" y="1334" font-size="14" font-weight="600" fill="#f2f2f4">Text 1</text>
-<text class="s" x="226" y="1333" font-size="12" fill="#777780" text-anchor="end">T</text>
-<rect x="60" y="1345" width="24" height="20" rx="3" fill="#17171a"/>
-<g transform="translate(64 1347) scale(0.6667)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="16" height="11" x="4" y="11" rx="2" ry="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></g>
-<rect x="88" y="1345" width="24" height="20" rx="3" fill="#17171a"/>
-<g transform="translate(92 1347) scale(0.6667)" fill="none" stroke="#f0b75e" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.1 12a10 10 0 0 1 19.8 0 10 10 0 0 1-19.8 0"/><circle cx="12" cy="12" r="3"/></g>
-<rect x="116" y="1345" width="24" height="20" rx="3" fill="#17171a"/>
-<text class="s" x="128" y="1359" font-size="12" fill="#f2f2f4" text-anchor="middle">↑</text>
-<rect x="144" y="1345" width="24" height="20" rx="3" fill="#17171a"/>
-<text class="s" x="156" y="1359" font-size="12" fill="#f2f2f4" text-anchor="middle">↓</text>
-<rect x="172" y="1345" width="24" height="20" rx="3" fill="#17171a"/>
-<g transform="translate(176 1347) scale(0.6667)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v5"/><path d="M14 11v5"/></g>
+<rect x="60.5" y="1316.5" width="17" height="17" rx="5" fill="#7251a3" stroke="#8261b3"/>
+<text class="s" x="69" y="1329" font-size="10" font-weight="700" fill="#ffffff" text-anchor="middle">T</text>
+<text class="s" x="86" y="1330" font-size="13" font-weight="600" fill="#f2f2f4">Text 1</text>
+<g transform="translate(165.0 1318.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 7-7 7 7"/><path d="M12 19V5"/></g>
+<g transform="translate(187.0 1318.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14"/><path d="m19 12-7 7-7-7"/></g>
+<g transform="translate(209.0 1318.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v5"/><path d="M14 11v5"/></g>
+<rect x="60.5" y="1343.5" width="61" height="23" rx="6" fill="#17171a" stroke="#2b2b31"/>
+<g transform="translate(69.0 1348.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="16" height="11" x="4" y="11" rx="2" ry="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></g>
+<rect x="91" y="1349" width="1" height="12" fill="#2b2b31"/>
+<g transform="translate(99.0 1348.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.1 12a10 10 0 0 1 19.8 0 10 10 0 0 1-19.8 0"/><circle cx="12" cy="12" r="3"/></g>
 <rect x="238" y="1378" width="366" height="73" fill="#0d0d0f"/>
 <rect x="238" y="1451" width="366" height="1" fill="#2b2b31"/>
 <rect x="48" y="1451" width="190" height="1" fill="#2b2b31"/>
-<text class="s" x="60" y="1408" font-size="14" font-weight="600" fill="#f2f2f4">Video 1</text>
-<text class="s" x="226" y="1407" font-size="12" fill="#777780" text-anchor="end">V</text>
-<rect x="60" y="1419" width="24" height="20" rx="3" fill="#17171a"/>
-<g transform="translate(64 1421) scale(0.6667)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="16" height="11" x="4" y="11" rx="2" ry="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></g>
-<rect x="88" y="1419" width="24" height="20" rx="3" fill="#17171a"/>
-<g transform="translate(92 1421) scale(0.6667)" fill="none" stroke="#f0b75e" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.1 12a10 10 0 0 1 19.8 0 10 10 0 0 1-19.8 0"/><circle cx="12" cy="12" r="3"/></g>
-<rect x="116" y="1419" width="24" height="20" rx="3" fill="#17171a"/>
-<g transform="translate(120 1421) scale(0.6667)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H2v6h4l5 4V5Z"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></g>
-<rect x="144" y="1419" width="24" height="20" rx="3" fill="#17171a"/>
-<text class="s" x="156" y="1433" font-size="12" fill="#f2f2f4" text-anchor="middle">↑</text>
-<rect x="172" y="1419" width="24" height="20" rx="3" fill="#17171a"/>
-<text class="s" x="184" y="1433" font-size="12" fill="#f2f2f4" text-anchor="middle">↓</text>
-<rect x="200" y="1419" width="24" height="20" rx="3" fill="#17171a"/>
-<g transform="translate(204 1421) scale(0.6667)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v5"/><path d="M14 11v5"/></g>
+<rect x="60.5" y="1390.5" width="17" height="17" rx="5" fill="#294d75" stroke="#395d85"/>
+<text class="s" x="69" y="1403" font-size="10" font-weight="700" fill="#ffffff" text-anchor="middle">V</text>
+<text class="s" x="86" y="1404" font-size="13" font-weight="600" fill="#f2f2f4">Video 1</text>
+<g transform="translate(165.0 1392.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 7-7 7 7"/><path d="M12 19V5"/></g>
+<g transform="translate(187.0 1392.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14"/><path d="m19 12-7 7-7-7"/></g>
+<g transform="translate(209.0 1392.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v5"/><path d="M14 11v5"/></g>
+<rect x="60.5" y="1417.5" width="91" height="23" rx="6" fill="#17171a" stroke="#2b2b31"/>
+<g transform="translate(69.0 1422.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="16" height="11" x="4" y="11" rx="2" ry="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></g>
+<rect x="91" y="1423" width="1" height="12" fill="#2b2b31"/>
+<g transform="translate(99.0 1422.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.1 12a10 10 0 0 1 19.8 0 10 10 0 0 1-19.8 0"/><circle cx="12" cy="12" r="3"/></g>
+<rect x="121" y="1423" width="1" height="12" fill="#2b2b31"/>
+<g transform="translate(129.0 1422.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H2v6h4l5 4V5Z"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></g>
 <rect x="238" y="1452" width="366" height="73" fill="#101012"/>
 <rect x="238" y="1525" width="366" height="1" fill="#2b2b31"/>
 <rect x="48" y="1525" width="190" height="1" fill="#2b2b31"/>
-<text class="s" x="60" y="1482" font-size="14" font-weight="600" fill="#f2f2f4">Audio 1</text>
-<text class="s" x="226" y="1481" font-size="12" fill="#777780" text-anchor="end">A</text>
-<rect x="60" y="1493" width="24" height="20" rx="3" fill="#17171a"/>
-<g transform="translate(64 1495) scale(0.6667)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="16" height="11" x="4" y="11" rx="2" ry="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></g>
-<rect x="88" y="1493" width="24" height="20" rx="3" fill="#17171a"/>
-<g transform="translate(92 1495) scale(0.6667)" fill="none" stroke="#f0b75e" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.1 12a10 10 0 0 1 19.8 0 10 10 0 0 1-19.8 0"/><circle cx="12" cy="12" r="3"/></g>
-<rect x="116" y="1493" width="24" height="20" rx="3" fill="#17171a"/>
-<g transform="translate(120 1495) scale(0.6667)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H2v6h4l5 4V5Z"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></g>
-<rect x="144" y="1493" width="24" height="20" rx="3" fill="#17171a"/>
-<text class="s" x="156" y="1507" font-size="12" fill="#f2f2f4" text-anchor="middle">↑</text>
-<rect x="172" y="1493" width="24" height="20" rx="3" fill="#17171a"/>
-<text class="s" x="184" y="1507" font-size="12" fill="#f2f2f4" text-anchor="middle">↓</text>
-<rect x="200" y="1493" width="24" height="20" rx="3" fill="#17171a"/>
-<g transform="translate(204 1495) scale(0.6667)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v5"/><path d="M14 11v5"/></g>
+<rect x="60.5" y="1464.5" width="17" height="17" rx="5" fill="#24656b" stroke="#34757b"/>
+<text class="s" x="69" y="1477" font-size="10" font-weight="700" fill="#ffffff" text-anchor="middle">A</text>
+<text class="s" x="86" y="1478" font-size="13" font-weight="600" fill="#f2f2f4">Audio 1</text>
+<g transform="translate(165.0 1466.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 7-7 7 7"/><path d="M12 19V5"/></g>
+<g transform="translate(187.0 1466.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14"/><path d="m19 12-7 7-7-7"/></g>
+<g transform="translate(209.0 1466.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v5"/><path d="M14 11v5"/></g>
+<rect x="60.5" y="1491.5" width="91" height="23" rx="6" fill="#17171a" stroke="#2b2b31"/>
+<g transform="translate(69.0 1496.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="16" height="11" x="4" y="11" rx="2" ry="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></g>
+<rect x="91" y="1497" width="1" height="12" fill="#2b2b31"/>
+<g transform="translate(99.0 1496.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.1 12a10 10 0 0 1 19.8 0 10 10 0 0 1-19.8 0"/><circle cx="12" cy="12" r="3"/></g>
+<rect x="121" y="1497" width="1" height="12" fill="#2b2b31"/>
+<g transform="translate(129.0 1496.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H2v6h4l5 4V5Z"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></g>
 <clipPath id="p5l"><rect x="238" y="1304" width="366" height="250"/></clipPath>
 <g clip-path="url(#p5l)">
 <clipPath id="k37"><rect x="274.0" y="1309" width="76.0" height="64" rx="6"/></clipPath>
@@ -818,52 +787,46 @@
 <rect x="826" y="1304" width="366" height="73" fill="#101012"/>
 <rect x="826" y="1377" width="366" height="1" fill="#2b2b31"/>
 <rect x="636" y="1377" width="190" height="1" fill="#2b2b31"/>
-<text class="s" x="648" y="1334" font-size="14" font-weight="600" fill="#f2f2f4">Text 1</text>
-<text class="s" x="814" y="1333" font-size="12" fill="#777780" text-anchor="end">T</text>
-<rect x="648" y="1345" width="24" height="20" rx="3" fill="#17171a"/>
-<g transform="translate(652 1347) scale(0.6667)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="16" height="11" x="4" y="11" rx="2" ry="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></g>
-<rect x="676" y="1345" width="24" height="20" rx="3" fill="#17171a"/>
-<g transform="translate(680 1347) scale(0.6667)" fill="none" stroke="#f0b75e" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.1 12a10 10 0 0 1 19.8 0 10 10 0 0 1-19.8 0"/><circle cx="12" cy="12" r="3"/></g>
-<rect x="704" y="1345" width="24" height="20" rx="3" fill="#17171a"/>
-<text class="s" x="716" y="1359" font-size="12" fill="#f2f2f4" text-anchor="middle">↑</text>
-<rect x="732" y="1345" width="24" height="20" rx="3" fill="#17171a"/>
-<text class="s" x="744" y="1359" font-size="12" fill="#f2f2f4" text-anchor="middle">↓</text>
-<rect x="760" y="1345" width="24" height="20" rx="3" fill="#17171a"/>
-<g transform="translate(764 1347) scale(0.6667)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v5"/><path d="M14 11v5"/></g>
+<rect x="648.5" y="1316.5" width="17" height="17" rx="5" fill="#7251a3" stroke="#8261b3"/>
+<text class="s" x="657" y="1329" font-size="10" font-weight="700" fill="#ffffff" text-anchor="middle">T</text>
+<text class="s" x="674" y="1330" font-size="13" font-weight="600" fill="#f2f2f4">Text 1</text>
+<g transform="translate(753.0 1318.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 7-7 7 7"/><path d="M12 19V5"/></g>
+<g transform="translate(775.0 1318.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14"/><path d="m19 12-7 7-7-7"/></g>
+<g transform="translate(797.0 1318.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v5"/><path d="M14 11v5"/></g>
+<rect x="648.5" y="1343.5" width="61" height="23" rx="6" fill="#17171a" stroke="#2b2b31"/>
+<g transform="translate(657.0 1348.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="16" height="11" x="4" y="11" rx="2" ry="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></g>
+<rect x="679" y="1349" width="1" height="12" fill="#2b2b31"/>
+<g transform="translate(687.0 1348.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.1 12a10 10 0 0 1 19.8 0 10 10 0 0 1-19.8 0"/><circle cx="12" cy="12" r="3"/></g>
 <rect x="826" y="1378" width="366" height="73" fill="#0d0d0f"/>
 <rect x="826" y="1451" width="366" height="1" fill="#2b2b31"/>
 <rect x="636" y="1451" width="190" height="1" fill="#2b2b31"/>
-<text class="s" x="648" y="1408" font-size="14" font-weight="600" fill="#f2f2f4">Video 1</text>
-<text class="s" x="814" y="1407" font-size="12" fill="#777780" text-anchor="end">V</text>
-<rect x="648" y="1419" width="24" height="20" rx="3" fill="#17171a"/>
-<g transform="translate(652 1421) scale(0.6667)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="16" height="11" x="4" y="11" rx="2" ry="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></g>
-<rect x="676" y="1419" width="24" height="20" rx="3" fill="#17171a"/>
-<g transform="translate(680 1421) scale(0.6667)" fill="none" stroke="#f0b75e" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.1 12a10 10 0 0 1 19.8 0 10 10 0 0 1-19.8 0"/><circle cx="12" cy="12" r="3"/></g>
-<rect x="704" y="1419" width="24" height="20" rx="3" fill="#17171a"/>
-<g transform="translate(708 1421) scale(0.6667)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H2v6h4l5 4V5Z"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></g>
-<rect x="732" y="1419" width="24" height="20" rx="3" fill="#17171a"/>
-<text class="s" x="744" y="1433" font-size="12" fill="#f2f2f4" text-anchor="middle">↑</text>
-<rect x="760" y="1419" width="24" height="20" rx="3" fill="#17171a"/>
-<text class="s" x="772" y="1433" font-size="12" fill="#f2f2f4" text-anchor="middle">↓</text>
-<rect x="788" y="1419" width="24" height="20" rx="3" fill="#17171a"/>
-<g transform="translate(792 1421) scale(0.6667)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v5"/><path d="M14 11v5"/></g>
+<rect x="648.5" y="1390.5" width="17" height="17" rx="5" fill="#294d75" stroke="#395d85"/>
+<text class="s" x="657" y="1403" font-size="10" font-weight="700" fill="#ffffff" text-anchor="middle">V</text>
+<text class="s" x="674" y="1404" font-size="13" font-weight="600" fill="#f2f2f4">Video 1</text>
+<g transform="translate(753.0 1392.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 7-7 7 7"/><path d="M12 19V5"/></g>
+<g transform="translate(775.0 1392.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14"/><path d="m19 12-7 7-7-7"/></g>
+<g transform="translate(797.0 1392.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v5"/><path d="M14 11v5"/></g>
+<rect x="648.5" y="1417.5" width="91" height="23" rx="6" fill="#17171a" stroke="#2b2b31"/>
+<g transform="translate(657.0 1422.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="16" height="11" x="4" y="11" rx="2" ry="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></g>
+<rect x="679" y="1423" width="1" height="12" fill="#2b2b31"/>
+<g transform="translate(687.0 1422.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.1 12a10 10 0 0 1 19.8 0 10 10 0 0 1-19.8 0"/><circle cx="12" cy="12" r="3"/></g>
+<rect x="709" y="1423" width="1" height="12" fill="#2b2b31"/>
+<g transform="translate(717.0 1422.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H2v6h4l5 4V5Z"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></g>
 <rect x="826" y="1452" width="366" height="73" fill="#101012"/>
 <rect x="826" y="1525" width="366" height="1" fill="#2b2b31"/>
 <rect x="636" y="1525" width="190" height="1" fill="#2b2b31"/>
-<text class="s" x="648" y="1482" font-size="14" font-weight="600" fill="#f2f2f4">Audio 1</text>
-<text class="s" x="814" y="1481" font-size="12" fill="#777780" text-anchor="end">A</text>
-<rect x="648" y="1493" width="24" height="20" rx="3" fill="#17171a"/>
-<g transform="translate(652 1495) scale(0.6667)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="16" height="11" x="4" y="11" rx="2" ry="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></g>
-<rect x="676" y="1493" width="24" height="20" rx="3" fill="#17171a"/>
-<g transform="translate(680 1495) scale(0.6667)" fill="none" stroke="#f0b75e" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.1 12a10 10 0 0 1 19.8 0 10 10 0 0 1-19.8 0"/><circle cx="12" cy="12" r="3"/></g>
-<rect x="704" y="1493" width="24" height="20" rx="3" fill="#17171a"/>
-<g transform="translate(708 1495) scale(0.6667)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H2v6h4l5 4V5Z"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></g>
-<rect x="732" y="1493" width="24" height="20" rx="3" fill="#17171a"/>
-<text class="s" x="744" y="1507" font-size="12" fill="#f2f2f4" text-anchor="middle">↑</text>
-<rect x="760" y="1493" width="24" height="20" rx="3" fill="#17171a"/>
-<text class="s" x="772" y="1507" font-size="12" fill="#f2f2f4" text-anchor="middle">↓</text>
-<rect x="788" y="1493" width="24" height="20" rx="3" fill="#17171a"/>
-<g transform="translate(792 1495) scale(0.6667)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v5"/><path d="M14 11v5"/></g>
+<rect x="648.5" y="1464.5" width="17" height="17" rx="5" fill="#24656b" stroke="#34757b"/>
+<text class="s" x="657" y="1477" font-size="10" font-weight="700" fill="#ffffff" text-anchor="middle">A</text>
+<text class="s" x="674" y="1478" font-size="13" font-weight="600" fill="#f2f2f4">Audio 1</text>
+<g transform="translate(753.0 1466.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 7-7 7 7"/><path d="M12 19V5"/></g>
+<g transform="translate(775.0 1466.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14"/><path d="m19 12-7 7-7-7"/></g>
+<g transform="translate(797.0 1466.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v5"/><path d="M14 11v5"/></g>
+<rect x="648.5" y="1491.5" width="91" height="23" rx="6" fill="#17171a" stroke="#2b2b31"/>
+<g transform="translate(657.0 1496.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="16" height="11" x="4" y="11" rx="2" ry="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></g>
+<rect x="679" y="1497" width="1" height="12" fill="#2b2b31"/>
+<g transform="translate(687.0 1496.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.1 12a10 10 0 0 1 19.8 0 10 10 0 0 1-19.8 0"/><circle cx="12" cy="12" r="3"/></g>
+<rect x="709" y="1497" width="1" height="12" fill="#2b2b31"/>
+<g transform="translate(717.0 1496.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H2v6h4l5 4V5Z"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></g>
 <clipPath id="p6l"><rect x="826" y="1304" width="366" height="250"/></clipPath>
 <g clip-path="url(#p6l)">
 <clipPath id="k44"><rect x="862.0" y="1309" width="76.0" height="64" rx="6"/></clipPath>
@@ -957,52 +920,46 @@
 <rect x="238" y="1654" width="366" height="73" fill="#101012"/>
 <rect x="238" y="1727" width="366" height="1" fill="#2b2b31"/>
 <rect x="48" y="1727" width="190" height="1" fill="#2b2b31"/>
-<text class="s" x="60" y="1684" font-size="14" font-weight="600" fill="#f2f2f4">Text 1</text>
-<text class="s" x="226" y="1683" font-size="12" fill="#777780" text-anchor="end">T</text>
-<rect x="60" y="1695" width="24" height="20" rx="3" fill="#17171a"/>
-<g transform="translate(64 1697) scale(0.6667)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="16" height="11" x="4" y="11" rx="2" ry="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></g>
-<rect x="88" y="1695" width="24" height="20" rx="3" fill="#17171a"/>
-<g transform="translate(92 1697) scale(0.6667)" fill="none" stroke="#f0b75e" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.1 12a10 10 0 0 1 19.8 0 10 10 0 0 1-19.8 0"/><circle cx="12" cy="12" r="3"/></g>
-<rect x="116" y="1695" width="24" height="20" rx="3" fill="#17171a"/>
-<text class="s" x="128" y="1709" font-size="12" fill="#f2f2f4" text-anchor="middle">↑</text>
-<rect x="144" y="1695" width="24" height="20" rx="3" fill="#17171a"/>
-<text class="s" x="156" y="1709" font-size="12" fill="#f2f2f4" text-anchor="middle">↓</text>
-<rect x="172" y="1695" width="24" height="20" rx="3" fill="#17171a"/>
-<g transform="translate(176 1697) scale(0.6667)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v5"/><path d="M14 11v5"/></g>
+<rect x="60.5" y="1666.5" width="17" height="17" rx="5" fill="#7251a3" stroke="#8261b3"/>
+<text class="s" x="69" y="1679" font-size="10" font-weight="700" fill="#ffffff" text-anchor="middle">T</text>
+<text class="s" x="86" y="1680" font-size="13" font-weight="600" fill="#f2f2f4">Text 1</text>
+<g transform="translate(165.0 1668.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 7-7 7 7"/><path d="M12 19V5"/></g>
+<g transform="translate(187.0 1668.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14"/><path d="m19 12-7 7-7-7"/></g>
+<g transform="translate(209.0 1668.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v5"/><path d="M14 11v5"/></g>
+<rect x="60.5" y="1693.5" width="61" height="23" rx="6" fill="#17171a" stroke="#2b2b31"/>
+<g transform="translate(69.0 1698.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="16" height="11" x="4" y="11" rx="2" ry="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></g>
+<rect x="91" y="1699" width="1" height="12" fill="#2b2b31"/>
+<g transform="translate(99.0 1698.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.1 12a10 10 0 0 1 19.8 0 10 10 0 0 1-19.8 0"/><circle cx="12" cy="12" r="3"/></g>
 <rect x="238" y="1728" width="366" height="73" fill="#0d0d0f"/>
 <rect x="238" y="1801" width="366" height="1" fill="#2b2b31"/>
 <rect x="48" y="1801" width="190" height="1" fill="#2b2b31"/>
-<text class="s" x="60" y="1758" font-size="14" font-weight="600" fill="#f2f2f4">Video 1</text>
-<text class="s" x="226" y="1757" font-size="12" fill="#777780" text-anchor="end">V</text>
-<rect x="60" y="1769" width="24" height="20" rx="3" fill="#17171a"/>
-<g transform="translate(64 1771) scale(0.6667)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="16" height="11" x="4" y="11" rx="2" ry="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></g>
-<rect x="88" y="1769" width="24" height="20" rx="3" fill="#17171a"/>
-<g transform="translate(92 1771) scale(0.6667)" fill="none" stroke="#f0b75e" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.1 12a10 10 0 0 1 19.8 0 10 10 0 0 1-19.8 0"/><circle cx="12" cy="12" r="3"/></g>
-<rect x="116" y="1769" width="24" height="20" rx="3" fill="#17171a"/>
-<g transform="translate(120 1771) scale(0.6667)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H2v6h4l5 4V5Z"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></g>
-<rect x="144" y="1769" width="24" height="20" rx="3" fill="#17171a"/>
-<text class="s" x="156" y="1783" font-size="12" fill="#f2f2f4" text-anchor="middle">↑</text>
-<rect x="172" y="1769" width="24" height="20" rx="3" fill="#17171a"/>
-<text class="s" x="184" y="1783" font-size="12" fill="#f2f2f4" text-anchor="middle">↓</text>
-<rect x="200" y="1769" width="24" height="20" rx="3" fill="#17171a"/>
-<g transform="translate(204 1771) scale(0.6667)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v5"/><path d="M14 11v5"/></g>
+<rect x="60.5" y="1740.5" width="17" height="17" rx="5" fill="#294d75" stroke="#395d85"/>
+<text class="s" x="69" y="1753" font-size="10" font-weight="700" fill="#ffffff" text-anchor="middle">V</text>
+<text class="s" x="86" y="1754" font-size="13" font-weight="600" fill="#f2f2f4">Video 1</text>
+<g transform="translate(165.0 1742.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 7-7 7 7"/><path d="M12 19V5"/></g>
+<g transform="translate(187.0 1742.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14"/><path d="m19 12-7 7-7-7"/></g>
+<g transform="translate(209.0 1742.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v5"/><path d="M14 11v5"/></g>
+<rect x="60.5" y="1767.5" width="91" height="23" rx="6" fill="#17171a" stroke="#2b2b31"/>
+<g transform="translate(69.0 1772.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="16" height="11" x="4" y="11" rx="2" ry="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></g>
+<rect x="91" y="1773" width="1" height="12" fill="#2b2b31"/>
+<g transform="translate(99.0 1772.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.1 12a10 10 0 0 1 19.8 0 10 10 0 0 1-19.8 0"/><circle cx="12" cy="12" r="3"/></g>
+<rect x="121" y="1773" width="1" height="12" fill="#2b2b31"/>
+<g transform="translate(129.0 1772.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H2v6h4l5 4V5Z"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></g>
 <rect x="238" y="1802" width="366" height="73" fill="#101012"/>
 <rect x="238" y="1875" width="366" height="1" fill="#2b2b31"/>
 <rect x="48" y="1875" width="190" height="1" fill="#2b2b31"/>
-<text class="s" x="60" y="1832" font-size="14" font-weight="600" fill="#f2f2f4">Audio 1</text>
-<text class="s" x="226" y="1831" font-size="12" fill="#777780" text-anchor="end">A</text>
-<rect x="60" y="1843" width="24" height="20" rx="3" fill="#17171a"/>
-<g transform="translate(64 1845) scale(0.6667)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="16" height="11" x="4" y="11" rx="2" ry="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></g>
-<rect x="88" y="1843" width="24" height="20" rx="3" fill="#17171a"/>
-<g transform="translate(92 1845) scale(0.6667)" fill="none" stroke="#f0b75e" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.1 12a10 10 0 0 1 19.8 0 10 10 0 0 1-19.8 0"/><circle cx="12" cy="12" r="3"/></g>
-<rect x="116" y="1843" width="24" height="20" rx="3" fill="#17171a"/>
-<g transform="translate(120 1845) scale(0.6667)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H2v6h4l5 4V5Z"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></g>
-<rect x="144" y="1843" width="24" height="20" rx="3" fill="#17171a"/>
-<text class="s" x="156" y="1857" font-size="12" fill="#f2f2f4" text-anchor="middle">↑</text>
-<rect x="172" y="1843" width="24" height="20" rx="3" fill="#17171a"/>
-<text class="s" x="184" y="1857" font-size="12" fill="#f2f2f4" text-anchor="middle">↓</text>
-<rect x="200" y="1843" width="24" height="20" rx="3" fill="#17171a"/>
-<g transform="translate(204 1845) scale(0.6667)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v5"/><path d="M14 11v5"/></g>
+<rect x="60.5" y="1814.5" width="17" height="17" rx="5" fill="#24656b" stroke="#34757b"/>
+<text class="s" x="69" y="1827" font-size="10" font-weight="700" fill="#ffffff" text-anchor="middle">A</text>
+<text class="s" x="86" y="1828" font-size="13" font-weight="600" fill="#f2f2f4">Audio 1</text>
+<g transform="translate(165.0 1816.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 7-7 7 7"/><path d="M12 19V5"/></g>
+<g transform="translate(187.0 1816.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14"/><path d="m19 12-7 7-7-7"/></g>
+<g transform="translate(209.0 1816.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v5"/><path d="M14 11v5"/></g>
+<rect x="60.5" y="1841.5" width="91" height="23" rx="6" fill="#17171a" stroke="#2b2b31"/>
+<g transform="translate(69.0 1846.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="16" height="11" x="4" y="11" rx="2" ry="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></g>
+<rect x="91" y="1847" width="1" height="12" fill="#2b2b31"/>
+<g transform="translate(99.0 1846.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.1 12a10 10 0 0 1 19.8 0 10 10 0 0 1-19.8 0"/><circle cx="12" cy="12" r="3"/></g>
+<rect x="121" y="1847" width="1" height="12" fill="#2b2b31"/>
+<g transform="translate(129.0 1846.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H2v6h4l5 4V5Z"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></g>
 <clipPath id="p7l"><rect x="238" y="1654" width="366" height="250"/></clipPath>
 <g clip-path="url(#p7l)">
 <clipPath id="k51"><rect x="274.0" y="1659" width="76.0" height="64" rx="6"/></clipPath>
@@ -1105,52 +1062,46 @@
 <rect x="826" y="1654" width="366" height="73" fill="#101012"/>
 <rect x="826" y="1727" width="366" height="1" fill="#2b2b31"/>
 <rect x="636" y="1727" width="190" height="1" fill="#2b2b31"/>
-<text class="s" x="648" y="1684" font-size="14" font-weight="600" fill="#f2f2f4">Text 1</text>
-<text class="s" x="814" y="1683" font-size="12" fill="#777780" text-anchor="end">T</text>
-<rect x="648" y="1695" width="24" height="20" rx="3" fill="#17171a"/>
-<g transform="translate(652 1697) scale(0.6667)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="16" height="11" x="4" y="11" rx="2" ry="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></g>
-<rect x="676" y="1695" width="24" height="20" rx="3" fill="#17171a"/>
-<g transform="translate(680 1697) scale(0.6667)" fill="none" stroke="#f0b75e" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.1 12a10 10 0 0 1 19.8 0 10 10 0 0 1-19.8 0"/><circle cx="12" cy="12" r="3"/></g>
-<rect x="704" y="1695" width="24" height="20" rx="3" fill="#17171a"/>
-<text class="s" x="716" y="1709" font-size="12" fill="#f2f2f4" text-anchor="middle">↑</text>
-<rect x="732" y="1695" width="24" height="20" rx="3" fill="#17171a"/>
-<text class="s" x="744" y="1709" font-size="12" fill="#f2f2f4" text-anchor="middle">↓</text>
-<rect x="760" y="1695" width="24" height="20" rx="3" fill="#17171a"/>
-<g transform="translate(764 1697) scale(0.6667)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v5"/><path d="M14 11v5"/></g>
+<rect x="648.5" y="1666.5" width="17" height="17" rx="5" fill="#7251a3" stroke="#8261b3"/>
+<text class="s" x="657" y="1679" font-size="10" font-weight="700" fill="#ffffff" text-anchor="middle">T</text>
+<text class="s" x="674" y="1680" font-size="13" font-weight="600" fill="#f2f2f4">Text 1</text>
+<g transform="translate(753.0 1668.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 7-7 7 7"/><path d="M12 19V5"/></g>
+<g transform="translate(775.0 1668.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14"/><path d="m19 12-7 7-7-7"/></g>
+<g transform="translate(797.0 1668.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v5"/><path d="M14 11v5"/></g>
+<rect x="648.5" y="1693.5" width="61" height="23" rx="6" fill="#17171a" stroke="#2b2b31"/>
+<g transform="translate(657.0 1698.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="16" height="11" x="4" y="11" rx="2" ry="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></g>
+<rect x="679" y="1699" width="1" height="12" fill="#2b2b31"/>
+<g transform="translate(687.0 1698.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.1 12a10 10 0 0 1 19.8 0 10 10 0 0 1-19.8 0"/><circle cx="12" cy="12" r="3"/></g>
 <rect x="826" y="1728" width="366" height="73" fill="#0d0d0f"/>
 <rect x="826" y="1801" width="366" height="1" fill="#2b2b31"/>
 <rect x="636" y="1801" width="190" height="1" fill="#2b2b31"/>
-<text class="s" x="648" y="1758" font-size="14" font-weight="600" fill="#f2f2f4">Video 1</text>
-<text class="s" x="814" y="1757" font-size="12" fill="#777780" text-anchor="end">V</text>
-<rect x="648" y="1769" width="24" height="20" rx="3" fill="#17171a"/>
-<g transform="translate(652 1771) scale(0.6667)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="16" height="11" x="4" y="11" rx="2" ry="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></g>
-<rect x="676" y="1769" width="24" height="20" rx="3" fill="#17171a"/>
-<g transform="translate(680 1771) scale(0.6667)" fill="none" stroke="#f0b75e" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.1 12a10 10 0 0 1 19.8 0 10 10 0 0 1-19.8 0"/><circle cx="12" cy="12" r="3"/></g>
-<rect x="704" y="1769" width="24" height="20" rx="3" fill="#17171a"/>
-<g transform="translate(708 1771) scale(0.6667)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H2v6h4l5 4V5Z"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></g>
-<rect x="732" y="1769" width="24" height="20" rx="3" fill="#17171a"/>
-<text class="s" x="744" y="1783" font-size="12" fill="#f2f2f4" text-anchor="middle">↑</text>
-<rect x="760" y="1769" width="24" height="20" rx="3" fill="#17171a"/>
-<text class="s" x="772" y="1783" font-size="12" fill="#f2f2f4" text-anchor="middle">↓</text>
-<rect x="788" y="1769" width="24" height="20" rx="3" fill="#17171a"/>
-<g transform="translate(792 1771) scale(0.6667)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v5"/><path d="M14 11v5"/></g>
+<rect x="648.5" y="1740.5" width="17" height="17" rx="5" fill="#294d75" stroke="#395d85"/>
+<text class="s" x="657" y="1753" font-size="10" font-weight="700" fill="#ffffff" text-anchor="middle">V</text>
+<text class="s" x="674" y="1754" font-size="13" font-weight="600" fill="#f2f2f4">Video 1</text>
+<g transform="translate(753.0 1742.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 7-7 7 7"/><path d="M12 19V5"/></g>
+<g transform="translate(775.0 1742.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14"/><path d="m19 12-7 7-7-7"/></g>
+<g transform="translate(797.0 1742.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v5"/><path d="M14 11v5"/></g>
+<rect x="648.5" y="1767.5" width="91" height="23" rx="6" fill="#17171a" stroke="#2b2b31"/>
+<g transform="translate(657.0 1772.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="16" height="11" x="4" y="11" rx="2" ry="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></g>
+<rect x="679" y="1773" width="1" height="12" fill="#2b2b31"/>
+<g transform="translate(687.0 1772.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.1 12a10 10 0 0 1 19.8 0 10 10 0 0 1-19.8 0"/><circle cx="12" cy="12" r="3"/></g>
+<rect x="709" y="1773" width="1" height="12" fill="#2b2b31"/>
+<g transform="translate(717.0 1772.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H2v6h4l5 4V5Z"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></g>
 <rect x="826" y="1802" width="366" height="73" fill="#101012"/>
 <rect x="826" y="1875" width="366" height="1" fill="#2b2b31"/>
 <rect x="636" y="1875" width="190" height="1" fill="#2b2b31"/>
-<text class="s" x="648" y="1832" font-size="14" font-weight="600" fill="#f2f2f4">Audio 1</text>
-<text class="s" x="814" y="1831" font-size="12" fill="#777780" text-anchor="end">A</text>
-<rect x="648" y="1843" width="24" height="20" rx="3" fill="#17171a"/>
-<g transform="translate(652 1845) scale(0.6667)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="16" height="11" x="4" y="11" rx="2" ry="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></g>
-<rect x="676" y="1843" width="24" height="20" rx="3" fill="#17171a"/>
-<g transform="translate(680 1845) scale(0.6667)" fill="none" stroke="#f0b75e" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.1 12a10 10 0 0 1 19.8 0 10 10 0 0 1-19.8 0"/><circle cx="12" cy="12" r="3"/></g>
-<rect x="704" y="1843" width="24" height="20" rx="3" fill="#17171a"/>
-<g transform="translate(708 1845) scale(0.6667)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H2v6h4l5 4V5Z"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></g>
-<rect x="732" y="1843" width="24" height="20" rx="3" fill="#17171a"/>
-<text class="s" x="744" y="1857" font-size="12" fill="#f2f2f4" text-anchor="middle">↑</text>
-<rect x="760" y="1843" width="24" height="20" rx="3" fill="#17171a"/>
-<text class="s" x="772" y="1857" font-size="12" fill="#f2f2f4" text-anchor="middle">↓</text>
-<rect x="788" y="1843" width="24" height="20" rx="3" fill="#17171a"/>
-<g transform="translate(792 1845) scale(0.6667)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v5"/><path d="M14 11v5"/></g>
+<rect x="648.5" y="1814.5" width="17" height="17" rx="5" fill="#24656b" stroke="#34757b"/>
+<text class="s" x="657" y="1827" font-size="10" font-weight="700" fill="#ffffff" text-anchor="middle">A</text>
+<text class="s" x="674" y="1828" font-size="13" font-weight="600" fill="#f2f2f4">Audio 1</text>
+<g transform="translate(753.0 1816.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 7-7 7 7"/><path d="M12 19V5"/></g>
+<g transform="translate(775.0 1816.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14"/><path d="m19 12-7 7-7-7"/></g>
+<g transform="translate(797.0 1816.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v5"/><path d="M14 11v5"/></g>
+<rect x="648.5" y="1841.5" width="91" height="23" rx="6" fill="#17171a" stroke="#2b2b31"/>
+<g transform="translate(657.0 1846.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="16" height="11" x="4" y="11" rx="2" ry="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></g>
+<rect x="679" y="1847" width="1" height="12" fill="#2b2b31"/>
+<g transform="translate(687.0 1846.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.1 12a10 10 0 0 1 19.8 0 10 10 0 0 1-19.8 0"/><circle cx="12" cy="12" r="3"/></g>
+<rect x="709" y="1847" width="1" height="12" fill="#2b2b31"/>
+<g transform="translate(717.0 1846.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H2v6h4l5 4V5Z"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></g>
 <clipPath id="p8l"><rect x="826" y="1654" width="366" height="250"/></clipPath>
 <g clip-path="url(#p8l)">
 <clipPath id="k59"><rect x="862.0" y="1659" width="76.0" height="64" rx="6"/></clipPath>
@@ -1234,4 +1185,255 @@
 <path d="M1046.0 1760 v16 l4 -4 l3 6 l2.5 -1 l-3 -6 h6 Z" fill="#fff" stroke="#000" stroke-width="1" stroke-linejoin="round"/>
 </g>
 <rect x="636.5" y="1626.5" width="555" height="249" rx="10" fill="none" stroke="#2b2b31"/>
+<rect x="48" y="1976" width="1144" height="1" fill="#2b2b31"/>
+<text class="s" x="48" y="2034" font-size="20" fill="#f2f2f4" font-weight="700">Track header</text>
+<text class="s" x="48" y="2060" font-size="14" fill="#777780">Kind badge and name, then reorder and delete. State toggles below.</text>
+<text class="s" x="48.0" y="2118" font-size="14" fill="#f2f2f4" font-weight="600">Video track</text>
+<text class="s" x="48.0" y="2138" font-size="12" fill="#777780">Default state</text>
+<rect x="48.0" y="2158" width="266.0" height="103.6" rx="10" fill="#000" opacity="0.35"/>
+<rect x="48.0" y="2152" width="266.0" height="103.6" rx="10" fill="#0a0a0c"/>
+<clipPath id="h0"><rect x="48.0" y="2152" width="266.0" height="103.6" rx="10"/></clipPath>
+<g clip-path="url(#h0)"><g transform="translate(48.0 2152) scale(1.4)">
+<rect x="0" y="73" width="190" height="1" fill="#2b2b31"/>
+<rect x="12.5" y="12.5" width="17" height="17" rx="5" fill="#294d75" stroke="#395d85"/>
+<text class="s" x="21" y="25" font-size="10" font-weight="700" fill="#ffffff" text-anchor="middle">V</text>
+<text class="s" x="38" y="26" font-size="13" font-weight="600" fill="#f2f2f4">Video 1</text>
+<g transform="translate(117.0 14.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 7-7 7 7"/><path d="M12 19V5"/></g>
+<g transform="translate(139.0 14.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14"/><path d="m19 12-7 7-7-7"/></g>
+<g transform="translate(161.0 14.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v5"/><path d="M14 11v5"/></g>
+<rect x="12.5" y="39.5" width="91" height="23" rx="6" fill="#17171a" stroke="#2b2b31"/>
+<g transform="translate(21.0 44.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="16" height="11" x="4" y="11" rx="2" ry="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></g>
+<rect x="43" y="45" width="1" height="12" fill="#2b2b31"/>
+<g transform="translate(51.0 44.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.1 12a10 10 0 0 1 19.8 0 10 10 0 0 1-19.8 0"/><circle cx="12" cy="12" r="3"/></g>
+<rect x="73" y="45" width="1" height="12" fill="#2b2b31"/>
+<g transform="translate(81.0 44.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H2v6h4l5 4V5Z"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></g>
+</g></g>
+<rect x="48.5" y="2152.5" width="265.0" height="102.6" rx="10" fill="none" stroke="#2b2b31"/>
+<text class="s" x="340.6666666666667" y="2118" font-size="14" fill="#f2f2f4" font-weight="600">Audio track</text>
+<text class="s" x="340.6666666666667" y="2138" font-size="12" fill="#777780">Default state</text>
+<rect x="340.7" y="2158" width="266.0" height="103.6" rx="10" fill="#000" opacity="0.35"/>
+<rect x="340.7" y="2152" width="266.0" height="103.6" rx="10" fill="#0a0a0c"/>
+<clipPath id="h1"><rect x="340.7" y="2152" width="266.0" height="103.6" rx="10"/></clipPath>
+<g clip-path="url(#h1)"><g transform="translate(340.7 2152) scale(1.4)">
+<rect x="0" y="73" width="190" height="1" fill="#2b2b31"/>
+<rect x="12.5" y="12.5" width="17" height="17" rx="5" fill="#24656b" stroke="#34757b"/>
+<text class="s" x="21" y="25" font-size="10" font-weight="700" fill="#ffffff" text-anchor="middle">A</text>
+<text class="s" x="38" y="26" font-size="13" font-weight="600" fill="#f2f2f4">Audio 1</text>
+<g transform="translate(117.0 14.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 7-7 7 7"/><path d="M12 19V5"/></g>
+<g transform="translate(139.0 14.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14"/><path d="m19 12-7 7-7-7"/></g>
+<g transform="translate(161.0 14.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v5"/><path d="M14 11v5"/></g>
+<rect x="12.5" y="39.5" width="91" height="23" rx="6" fill="#17171a" stroke="#2b2b31"/>
+<g transform="translate(21.0 44.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="16" height="11" x="4" y="11" rx="2" ry="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></g>
+<rect x="43" y="45" width="1" height="12" fill="#2b2b31"/>
+<g transform="translate(51.0 44.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.1 12a10 10 0 0 1 19.8 0 10 10 0 0 1-19.8 0"/><circle cx="12" cy="12" r="3"/></g>
+<rect x="73" y="45" width="1" height="12" fill="#2b2b31"/>
+<g transform="translate(81.0 44.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H2v6h4l5 4V5Z"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></g>
+</g></g>
+<rect x="341.2" y="2152.5" width="265.0" height="102.6" rx="10" fill="none" stroke="#2b2b31"/>
+<text class="s" x="633.3333333333334" y="2118" font-size="14" fill="#f2f2f4" font-weight="600">Text track</text>
+<text class="s" x="633.3333333333334" y="2138" font-size="12" fill="#777780">No speaker toggle</text>
+<rect x="633.3" y="2158" width="266.0" height="103.6" rx="10" fill="#000" opacity="0.35"/>
+<rect x="633.3" y="2152" width="266.0" height="103.6" rx="10" fill="#0a0a0c"/>
+<clipPath id="h2"><rect x="633.3" y="2152" width="266.0" height="103.6" rx="10"/></clipPath>
+<g clip-path="url(#h2)"><g transform="translate(633.3 2152) scale(1.4)">
+<rect x="0" y="73" width="190" height="1" fill="#2b2b31"/>
+<rect x="12.5" y="12.5" width="17" height="17" rx="5" fill="#7251a3" stroke="#8261b3"/>
+<text class="s" x="21" y="25" font-size="10" font-weight="700" fill="#ffffff" text-anchor="middle">T</text>
+<text class="s" x="38" y="26" font-size="13" font-weight="600" fill="#f2f2f4">Text 1</text>
+<g transform="translate(117.0 14.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 7-7 7 7"/><path d="M12 19V5"/></g>
+<g transform="translate(139.0 14.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14"/><path d="m19 12-7 7-7-7"/></g>
+<g transform="translate(161.0 14.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v5"/><path d="M14 11v5"/></g>
+<rect x="12.5" y="39.5" width="61" height="23" rx="6" fill="#17171a" stroke="#2b2b31"/>
+<g transform="translate(21.0 44.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="16" height="11" x="4" y="11" rx="2" ry="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></g>
+<rect x="43" y="45" width="1" height="12" fill="#2b2b31"/>
+<g transform="translate(51.0 44.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.1 12a10 10 0 0 1 19.8 0 10 10 0 0 1-19.8 0"/><circle cx="12" cy="12" r="3"/></g>
+</g></g>
+<rect x="633.8" y="2152.5" width="265.0" height="102.6" rx="10" fill="none" stroke="#2b2b31"/>
+<text class="s" x="926.0" y="2118" font-size="14" fill="#f2f2f4" font-weight="600">Long name</text>
+<text class="s" x="926.0" y="2138" font-size="12" fill="#777780">Truncated before the actions</text>
+<rect x="926.0" y="2158" width="266.0" height="103.6" rx="10" fill="#000" opacity="0.35"/>
+<rect x="926.0" y="2152" width="266.0" height="103.6" rx="10" fill="#0a0a0c"/>
+<clipPath id="h3"><rect x="926.0" y="2152" width="266.0" height="103.6" rx="10"/></clipPath>
+<g clip-path="url(#h3)"><g transform="translate(926.0 2152) scale(1.4)">
+<rect x="0" y="73" width="190" height="1" fill="#2b2b31"/>
+<rect x="12.5" y="12.5" width="17" height="17" rx="5" fill="#294d75" stroke="#395d85"/>
+<text class="s" x="21" y="25" font-size="10" font-weight="700" fill="#ffffff" text-anchor="middle">V</text>
+<text class="s" x="38" y="26" font-size="13" font-weight="600" fill="#f2f2f4">Intervie…</text>
+<g transform="translate(117.0 14.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 7-7 7 7"/><path d="M12 19V5"/></g>
+<g transform="translate(139.0 14.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14"/><path d="m19 12-7 7-7-7"/></g>
+<g transform="translate(161.0 14.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v5"/><path d="M14 11v5"/></g>
+<rect x="12.5" y="39.5" width="91" height="23" rx="6" fill="#17171a" stroke="#2b2b31"/>
+<g transform="translate(21.0 44.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="16" height="11" x="4" y="11" rx="2" ry="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></g>
+<rect x="43" y="45" width="1" height="12" fill="#2b2b31"/>
+<g transform="translate(51.0 44.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.1 12a10 10 0 0 1 19.8 0 10 10 0 0 1-19.8 0"/><circle cx="12" cy="12" r="3"/></g>
+<rect x="73" y="45" width="1" height="12" fill="#2b2b31"/>
+<g transform="translate(81.0 44.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H2v6h4l5 4V5Z"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></g>
+</g></g>
+<rect x="926.5" y="2152.5" width="265.0" height="102.6" rx="10" fill="none" stroke="#2b2b31"/>
+<text class="s" x="48.0" y="2313.6" font-size="14" fill="#f2f2f4" font-weight="600">Locked</text>
+<text class="s" x="48.0" y="2333.6" font-size="12" fill="#777780">Lock turns accent</text>
+<rect x="48.0" y="2353.6" width="266.0" height="103.6" rx="10" fill="#000" opacity="0.35"/>
+<rect x="48.0" y="2347.6" width="266.0" height="103.6" rx="10" fill="#0a0a0c"/>
+<clipPath id="h4"><rect x="48.0" y="2347.6" width="266.0" height="103.6" rx="10"/></clipPath>
+<g clip-path="url(#h4)"><g transform="translate(48.0 2347.6) scale(1.4)">
+<rect x="0" y="73" width="190" height="1" fill="#2b2b31"/>
+<rect x="12.5" y="12.5" width="17" height="17" rx="5" fill="#294d75" stroke="#395d85"/>
+<text class="s" x="21" y="25" font-size="10" font-weight="700" fill="#ffffff" text-anchor="middle">V</text>
+<text class="s" x="38" y="26" font-size="13" font-weight="600" fill="#f2f2f4">Video 1</text>
+<g transform="translate(117.0 14.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 7-7 7 7"/><path d="M12 19V5"/></g>
+<g transform="translate(139.0 14.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14"/><path d="m19 12-7 7-7-7"/></g>
+<g transform="translate(161.0 14.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v5"/><path d="M14 11v5"/></g>
+<rect x="12.5" y="39.5" width="91" height="23" rx="6" fill="#17171a" stroke="#2b2b31"/>
+<rect x="14" y="41" width="28" height="20" rx="4" fill="#f0b75e" fill-opacity="0.16"/>
+<g transform="translate(21.0 44.0) scale(0.5833)" fill="none" stroke="#f0b75e" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="16" height="11" x="4" y="11" rx="2" ry="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></g>
+<g transform="translate(51.0 44.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.1 12a10 10 0 0 1 19.8 0 10 10 0 0 1-19.8 0"/><circle cx="12" cy="12" r="3"/></g>
+<rect x="73" y="45" width="1" height="12" fill="#2b2b31"/>
+<g transform="translate(81.0 44.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H2v6h4l5 4V5Z"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></g>
+</g></g>
+<rect x="48.5" y="2348.1" width="265.0" height="102.6" rx="10" fill="none" stroke="#2b2b31"/>
+<text class="s" x="340.6666666666667" y="2313.6" font-size="14" fill="#f2f2f4" font-weight="600">Hidden</text>
+<text class="s" x="340.6666666666667" y="2333.6" font-size="12" fill="#777780">Eye crossed out, accent</text>
+<rect x="340.7" y="2353.6" width="266.0" height="103.6" rx="10" fill="#000" opacity="0.35"/>
+<rect x="340.7" y="2347.6" width="266.0" height="103.6" rx="10" fill="#0a0a0c"/>
+<clipPath id="h5"><rect x="340.7" y="2347.6" width="266.0" height="103.6" rx="10"/></clipPath>
+<g clip-path="url(#h5)"><g transform="translate(340.7 2347.6) scale(1.4)">
+<rect x="0" y="73" width="190" height="1" fill="#2b2b31"/>
+<rect x="12.5" y="12.5" width="17" height="17" rx="5" fill="#294d75" stroke="#395d85"/>
+<text class="s" x="21" y="25" font-size="10" font-weight="700" fill="#ffffff" text-anchor="middle">V</text>
+<text class="s" x="38" y="26" font-size="13" font-weight="600" fill="#f2f2f4">Video 1</text>
+<g transform="translate(117.0 14.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 7-7 7 7"/><path d="M12 19V5"/></g>
+<g transform="translate(139.0 14.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14"/><path d="m19 12-7 7-7-7"/></g>
+<g transform="translate(161.0 14.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v5"/><path d="M14 11v5"/></g>
+<rect x="12.5" y="39.5" width="91" height="23" rx="6" fill="#17171a" stroke="#2b2b31"/>
+<g transform="translate(21.0 44.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="16" height="11" x="4" y="11" rx="2" ry="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></g>
+<rect x="44" y="41" width="28" height="20" rx="4" fill="#f0b75e" fill-opacity="0.16"/>
+<g transform="translate(51.0 44.0) scale(0.5833)" fill="none" stroke="#f0b75e" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68"/><path d="M6.61 6.61A13.53 13.53 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61"/><path d="M9.88 9.88a3 3 0 1 0 4.24 4.24"/><path d="m2 2 20 20"/></g>
+<g transform="translate(81.0 44.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H2v6h4l5 4V5Z"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></g>
+</g></g>
+<rect x="341.2" y="2348.1" width="265.0" height="102.6" rx="10" fill="none" stroke="#2b2b31"/>
+<text class="s" x="633.3333333333334" y="2313.6" font-size="14" fill="#f2f2f4" font-weight="600">Muted</text>
+<text class="s" x="633.3333333333334" y="2333.6" font-size="12" fill="#777780">Speaker crossed out, accent</text>
+<rect x="633.3" y="2353.6" width="266.0" height="103.6" rx="10" fill="#000" opacity="0.35"/>
+<rect x="633.3" y="2347.6" width="266.0" height="103.6" rx="10" fill="#0a0a0c"/>
+<clipPath id="h6"><rect x="633.3" y="2347.6" width="266.0" height="103.6" rx="10"/></clipPath>
+<g clip-path="url(#h6)"><g transform="translate(633.3 2347.6) scale(1.4)">
+<rect x="0" y="73" width="190" height="1" fill="#2b2b31"/>
+<rect x="12.5" y="12.5" width="17" height="17" rx="5" fill="#24656b" stroke="#34757b"/>
+<text class="s" x="21" y="25" font-size="10" font-weight="700" fill="#ffffff" text-anchor="middle">A</text>
+<text class="s" x="38" y="26" font-size="13" font-weight="600" fill="#f2f2f4">Audio 1</text>
+<g transform="translate(117.0 14.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 7-7 7 7"/><path d="M12 19V5"/></g>
+<g transform="translate(139.0 14.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14"/><path d="m19 12-7 7-7-7"/></g>
+<g transform="translate(161.0 14.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v5"/><path d="M14 11v5"/></g>
+<rect x="12.5" y="39.5" width="91" height="23" rx="6" fill="#17171a" stroke="#2b2b31"/>
+<g transform="translate(21.0 44.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="16" height="11" x="4" y="11" rx="2" ry="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></g>
+<rect x="43" y="45" width="1" height="12" fill="#2b2b31"/>
+<g transform="translate(51.0 44.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.1 12a10 10 0 0 1 19.8 0 10 10 0 0 1-19.8 0"/><circle cx="12" cy="12" r="3"/></g>
+<rect x="74" y="41" width="28" height="20" rx="4" fill="#f0b75e" fill-opacity="0.16"/>
+<g transform="translate(81.0 44.0) scale(0.5833)" fill="none" stroke="#f0b75e" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H2v6h4l5 4V5Z"/><path d="m22 9-6 6"/><path d="m16 9 6 6"/></g>
+</g></g>
+<rect x="633.8" y="2348.1" width="265.0" height="102.6" rx="10" fill="none" stroke="#2b2b31"/>
+<text class="s" x="926.0" y="2313.6" font-size="14" fill="#f2f2f4" font-weight="600">Locked, hidden and muted</text>
+<text class="s" x="926.0" y="2333.6" font-size="12" fill="#777780">All three toggles active</text>
+<rect x="926.0" y="2353.6" width="266.0" height="103.6" rx="10" fill="#000" opacity="0.35"/>
+<rect x="926.0" y="2347.6" width="266.0" height="103.6" rx="10" fill="#0a0a0c"/>
+<clipPath id="h7"><rect x="926.0" y="2347.6" width="266.0" height="103.6" rx="10"/></clipPath>
+<g clip-path="url(#h7)"><g transform="translate(926.0 2347.6) scale(1.4)">
+<rect x="0" y="73" width="190" height="1" fill="#2b2b31"/>
+<rect x="12.5" y="12.5" width="17" height="17" rx="5" fill="#294d75" stroke="#395d85"/>
+<text class="s" x="21" y="25" font-size="10" font-weight="700" fill="#ffffff" text-anchor="middle">V</text>
+<text class="s" x="38" y="26" font-size="13" font-weight="600" fill="#f2f2f4">Video 1</text>
+<g transform="translate(117.0 14.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 7-7 7 7"/><path d="M12 19V5"/></g>
+<g transform="translate(139.0 14.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14"/><path d="m19 12-7 7-7-7"/></g>
+<g transform="translate(161.0 14.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v5"/><path d="M14 11v5"/></g>
+<rect x="12.5" y="39.5" width="91" height="23" rx="6" fill="#17171a" stroke="#2b2b31"/>
+<rect x="14" y="41" width="28" height="20" rx="4" fill="#f0b75e" fill-opacity="0.16"/>
+<g transform="translate(21.0 44.0) scale(0.5833)" fill="none" stroke="#f0b75e" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="16" height="11" x="4" y="11" rx="2" ry="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></g>
+<rect x="44" y="41" width="28" height="20" rx="4" fill="#f0b75e" fill-opacity="0.16"/>
+<g transform="translate(51.0 44.0) scale(0.5833)" fill="none" stroke="#f0b75e" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68"/><path d="M6.61 6.61A13.53 13.53 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61"/><path d="M9.88 9.88a3 3 0 1 0 4.24 4.24"/><path d="m2 2 20 20"/></g>
+<rect x="74" y="41" width="28" height="20" rx="4" fill="#f0b75e" fill-opacity="0.16"/>
+<g transform="translate(81.0 44.0) scale(0.5833)" fill="none" stroke="#f0b75e" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H2v6h4l5 4V5Z"/><path d="m22 9-6 6"/><path d="m16 9 6 6"/></g>
+</g></g>
+<rect x="926.5" y="2348.1" width="265.0" height="102.6" rx="10" fill="none" stroke="#2b2b31"/>
+<text class="s" x="48.0" y="2509.2" font-size="14" fill="#f2f2f4" font-weight="600">Hover: toggle</text>
+<text class="s" x="48.0" y="2529.2" font-size="12" fill="#777780">Gray fill; icon brightens</text>
+<rect x="48.0" y="2549.2" width="266.0" height="103.6" rx="10" fill="#000" opacity="0.35"/>
+<rect x="48.0" y="2543.2" width="266.0" height="103.6" rx="10" fill="#0a0a0c"/>
+<clipPath id="h8"><rect x="48.0" y="2543.2" width="266.0" height="103.6" rx="10"/></clipPath>
+<g clip-path="url(#h8)"><g transform="translate(48.0 2543.2) scale(1.4)">
+<rect x="0" y="73" width="190" height="1" fill="#2b2b31"/>
+<rect x="12.5" y="12.5" width="17" height="17" rx="5" fill="#294d75" stroke="#395d85"/>
+<text class="s" x="21" y="25" font-size="10" font-weight="700" fill="#ffffff" text-anchor="middle">V</text>
+<text class="s" x="38" y="26" font-size="13" font-weight="600" fill="#f2f2f4">Video 1</text>
+<g transform="translate(117.0 14.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 7-7 7 7"/><path d="M12 19V5"/></g>
+<g transform="translate(139.0 14.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14"/><path d="m19 12-7 7-7-7"/></g>
+<g transform="translate(161.0 14.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v5"/><path d="M14 11v5"/></g>
+<rect x="12.5" y="39.5" width="91" height="23" rx="6" fill="#17171a" stroke="#2b2b31"/>
+<g transform="translate(21.0 44.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="16" height="11" x="4" y="11" rx="2" ry="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></g>
+<rect x="44" y="41" width="28" height="20" rx="4" fill="#202024"/>
+<g transform="translate(51.0 44.0) scale(0.5833)" fill="none" stroke="#f2f2f4" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.1 12a10 10 0 0 1 19.8 0 10 10 0 0 1-19.8 0"/><circle cx="12" cy="12" r="3"/></g>
+<g transform="translate(81.0 44.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H2v6h4l5 4V5Z"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></g>
+</g></g>
+<rect x="48.5" y="2543.7" width="265.0" height="102.6" rx="10" fill="none" stroke="#2b2b31"/>
+<text class="s" x="340.6666666666667" y="2509.2" font-size="14" fill="#f2f2f4" font-weight="600">Hover: delete</text>
+<text class="s" x="340.6666666666667" y="2529.2" font-size="12" fill="#777780">Icon turns red</text>
+<rect x="340.7" y="2549.2" width="266.0" height="103.6" rx="10" fill="#000" opacity="0.35"/>
+<rect x="340.7" y="2543.2" width="266.0" height="103.6" rx="10" fill="#0a0a0c"/>
+<clipPath id="h9"><rect x="340.7" y="2543.2" width="266.0" height="103.6" rx="10"/></clipPath>
+<g clip-path="url(#h9)"><g transform="translate(340.7 2543.2) scale(1.4)">
+<rect x="0" y="73" width="190" height="1" fill="#2b2b31"/>
+<rect x="12.5" y="12.5" width="17" height="17" rx="5" fill="#294d75" stroke="#395d85"/>
+<text class="s" x="21" y="25" font-size="10" font-weight="700" fill="#ffffff" text-anchor="middle">V</text>
+<text class="s" x="38" y="26" font-size="13" font-weight="600" fill="#f2f2f4">Video 1</text>
+<g transform="translate(117.0 14.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 7-7 7 7"/><path d="M12 19V5"/></g>
+<g transform="translate(139.0 14.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14"/><path d="m19 12-7 7-7-7"/></g>
+<rect x="158" y="11" width="20" height="20" rx="4" fill="#202024"/>
+<g transform="translate(161.0 14.0) scale(0.5833)" fill="none" stroke="#ff8b8b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v5"/><path d="M14 11v5"/></g>
+<rect x="12.5" y="39.5" width="91" height="23" rx="6" fill="#17171a" stroke="#2b2b31"/>
+<g transform="translate(21.0 44.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="16" height="11" x="4" y="11" rx="2" ry="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></g>
+<rect x="43" y="45" width="1" height="12" fill="#2b2b31"/>
+<g transform="translate(51.0 44.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.1 12a10 10 0 0 1 19.8 0 10 10 0 0 1-19.8 0"/><circle cx="12" cy="12" r="3"/></g>
+<rect x="73" y="45" width="1" height="12" fill="#2b2b31"/>
+<g transform="translate(81.0 44.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H2v6h4l5 4V5Z"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></g>
+</g></g>
+<rect x="341.2" y="2543.7" width="265.0" height="102.6" rx="10" fill="none" stroke="#2b2b31"/>
+<text class="s" x="633.3333333333334" y="2509.2" font-size="14" fill="#f2f2f4" font-weight="600">First track</text>
+<text class="s" x="633.3333333333334" y="2529.2" font-size="12" fill="#777780">Move up is disabled</text>
+<rect x="633.3" y="2549.2" width="266.0" height="103.6" rx="10" fill="#000" opacity="0.35"/>
+<rect x="633.3" y="2543.2" width="266.0" height="103.6" rx="10" fill="#0a0a0c"/>
+<clipPath id="h10"><rect x="633.3" y="2543.2" width="266.0" height="103.6" rx="10"/></clipPath>
+<g clip-path="url(#h10)"><g transform="translate(633.3 2543.2) scale(1.4)">
+<rect x="0" y="73" width="190" height="1" fill="#2b2b31"/>
+<rect x="12.5" y="12.5" width="17" height="17" rx="5" fill="#7251a3" stroke="#8261b3"/>
+<text class="s" x="21" y="25" font-size="10" font-weight="700" fill="#ffffff" text-anchor="middle">T</text>
+<text class="s" x="38" y="26" font-size="13" font-weight="600" fill="#f2f2f4">Text 1</text>
+<g transform="translate(117.0 14.0) scale(0.5833)" fill="none" stroke="#3a3a40" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 7-7 7 7"/><path d="M12 19V5"/></g>
+<g transform="translate(139.0 14.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14"/><path d="m19 12-7 7-7-7"/></g>
+<g transform="translate(161.0 14.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v5"/><path d="M14 11v5"/></g>
+<rect x="12.5" y="39.5" width="61" height="23" rx="6" fill="#17171a" stroke="#2b2b31"/>
+<g transform="translate(21.0 44.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="16" height="11" x="4" y="11" rx="2" ry="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></g>
+<rect x="43" y="45" width="1" height="12" fill="#2b2b31"/>
+<g transform="translate(51.0 44.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.1 12a10 10 0 0 1 19.8 0 10 10 0 0 1-19.8 0"/><circle cx="12" cy="12" r="3"/></g>
+</g></g>
+<rect x="633.8" y="2543.7" width="265.0" height="102.6" rx="10" fill="none" stroke="#2b2b31"/>
+<text class="s" x="926.0" y="2509.2" font-size="14" fill="#f2f2f4" font-weight="600">Last track</text>
+<text class="s" x="926.0" y="2529.2" font-size="12" fill="#777780">Move down is disabled</text>
+<rect x="926.0" y="2549.2" width="266.0" height="103.6" rx="10" fill="#000" opacity="0.35"/>
+<rect x="926.0" y="2543.2" width="266.0" height="103.6" rx="10" fill="#0a0a0c"/>
+<clipPath id="h11"><rect x="926.0" y="2543.2" width="266.0" height="103.6" rx="10"/></clipPath>
+<g clip-path="url(#h11)"><g transform="translate(926.0 2543.2) scale(1.4)">
+<rect x="0" y="73" width="190" height="1" fill="#2b2b31"/>
+<rect x="12.5" y="12.5" width="17" height="17" rx="5" fill="#24656b" stroke="#34757b"/>
+<text class="s" x="21" y="25" font-size="10" font-weight="700" fill="#ffffff" text-anchor="middle">A</text>
+<text class="s" x="38" y="26" font-size="13" font-weight="600" fill="#f2f2f4">Audio 1</text>
+<g transform="translate(117.0 14.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 7-7 7 7"/><path d="M12 19V5"/></g>
+<g transform="translate(139.0 14.0) scale(0.5833)" fill="none" stroke="#3a3a40" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14"/><path d="m19 12-7 7-7-7"/></g>
+<g transform="translate(161.0 14.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v5"/><path d="M14 11v5"/></g>
+<rect x="12.5" y="39.5" width="91" height="23" rx="6" fill="#17171a" stroke="#2b2b31"/>
+<g transform="translate(21.0 44.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="16" height="11" x="4" y="11" rx="2" ry="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></g>
+<rect x="43" y="45" width="1" height="12" fill="#2b2b31"/>
+<g transform="translate(51.0 44.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.1 12a10 10 0 0 1 19.8 0 10 10 0 0 1-19.8 0"/><circle cx="12" cy="12" r="3"/></g>
+<rect x="73" y="45" width="1" height="12" fill="#2b2b31"/>
+<g transform="translate(81.0 44.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H2v6h4l5 4V5Z"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></g>
+</g></g>
+<rect x="926.5" y="2543.7" width="265.0" height="102.6" rx="10" fill="none" stroke="#2b2b31"/>
 </svg>
