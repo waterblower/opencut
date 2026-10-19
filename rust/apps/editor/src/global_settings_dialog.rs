@@ -1,7 +1,7 @@
 use crate::editor::Editor;
-use crate::ui_components::TextInput;
 use crate::global_settings::GlobalEditorSettings;
 use crate::theme::{BORDER, MUTED, PANEL, SURFACE, SURFACE_HOVER};
+use crate::ui_components::TextInput;
 use gpui::prelude::*;
 use gpui::{CursorStyle, MouseButton, Window, div, px, rgb};
 
