@@ -1,8 +1,9 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1240" height="2706" viewBox="0 0 1240 2706" role="img" aria-labelledby="title description">
+<svg xmlns="http://www.w3.org/2000/svg" width="1240" height="3506" viewBox="0 0 1240 3506" role="img" aria-labelledby="title description">
 <title id="title">Timeline editing area</title>
-<desc id="description">The timeline editing area: toolbar, ruler, track headers and clips, plus states for no timeline, track toggles, moving, invalid moves, blade, trim, Explorer drops and marquee selection.</desc>
+<desc id="description">The timeline editing area: toolbar, ruler, track headers and clips, plus states for no timeline, track toggles, moving, invalid moves, blade, trim, Explorer drops and marquee selection. Dedicated clip previews distinguish compatible placement, incompatible tracks, locked tracks and overlaps using color, hatching, cursors and explicit reasons.</desc>
 <style>.s{font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","Helvetica Neue",Arial,sans-serif}.m{font-family:"SF Mono",Menlo,Monaco,Consolas,monospace}</style>
-<rect width="1240" height="2706" fill="#151518"/>
+<defs><pattern id="preview-rejected-hatch" width="8" height="8" patternUnits="userSpaceOnUse"><path d="M-2 2L2 -2M0 8L8 0M6 10L10 6" stroke="#ff8b8b" stroke-opacity=".22" stroke-width="1"/></pattern></defs>
+<rect width="1240" height="3506" fill="#151518"/>
 <text class="s" x="48" y="61" font-size="24" fill="#f2f2f4" font-weight="700">Timeline editing area</text>
 <text class="s" x="48" y="89" font-size="14" fill="#777780">One open timeline. Toolbar, ruler and tracks share one playhead.</text>
 <text class="s" x="48" y="136" font-size="14" fill="#f2f2f4" font-weight="600">Timeline</text>
@@ -1185,6 +1186,326 @@
 <path d="M1046.0 1760 v16 l4 -4 l3 6 l2.5 -1 l-3 -6 h6 Z" fill="#fff" stroke="#000" stroke-width="1" stroke-linejoin="round"/>
 </g>
 <rect x="636.5" y="1626.5" width="555" height="249" rx="10" fill="none" stroke="#2b2b31"/>
+<g id="clip-previews">
+<rect x="48" y="1976" width="1144" height="1" fill="#2b2b31" />
+<text class="s" x="48" y="2034" font-size="20" fill="#f2f2f4" font-weight="700">Clip previews</text>
+<text class="s" x="48" y="2060" font-size="14" fill="#777780" font-weight="400">While dragging, show the proposed position and whether the clip can be placed there.</text>
+<text class="s" x="48" y="2118" font-size="14" fill="#f2f2f4" font-weight="600">Compatible track</text>
+<text class="s" x="48" y="2138" font-size="12" fill="#777780" font-weight="400">Audio asset → audio track. Amber preview and an add cursor.</text>
+<rect x="48" y="2158" width="556" height="176" fill="#000" rx="10" opacity=".35"/>
+<clipPath id="preview-compatible"><rect x="48" y="2152" width="556" height="176" rx="10"/></clipPath><g clip-path="url(#preview-compatible)">
+<rect x="48" y="2152" width="556" height="176" fill="#0a0a0c" />
+<rect x="238" y="2180" width="366" height="74" fill="#101012" />
+<g transform="translate(48 2180)"><g xmlns="http://www.w3.org/2000/svg">
+<rect x="0" y="73" width="190" height="1" fill="#2b2b31" />
+<rect x="12.5" y="12.5" width="17" height="17" rx="5" fill="#294d75" stroke="#395d85" />
+<text class="s" x="21" y="25" font-size="10" font-weight="700" fill="#ffffff" text-anchor="middle">V</text>
+<text class="s" x="38" y="26" font-size="13" font-weight="600" fill="#f2f2f4">Video 1</text>
+<g transform="translate(117.0 14.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 7-7 7 7" /><path d="M12 19V5" /></g>
+<g transform="translate(139.0 14.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14" /><path d="m19 12-7 7-7-7" /></g>
+<g transform="translate(161.0 14.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18" /><path d="M8 6V4h8v2" /><path d="M19 6l-1 14H6L5 6" /><path d="M10 11v5" /><path d="M14 11v5" /></g>
+<rect x="12.5" y="39.5" width="91" height="23" rx="6" fill="#17171a" stroke="#2b2b31" />
+<g transform="translate(21.0 44.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="16" height="11" x="4" y="11" rx="2" ry="2" /><path d="M8 11V7a4 4 0 0 1 8 0v4" /></g>
+<rect x="43" y="45" width="1" height="12" fill="#2b2b31" />
+<g transform="translate(51.0 44.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.1 12a10 10 0 0 1 19.8 0 10 10 0 0 1-19.8 0" /><circle cx="12" cy="12" r="3" /></g>
+<rect x="73" y="45" width="1" height="12" fill="#2b2b31" />
+<g transform="translate(81.0 44.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H2v6h4l5 4V5Z" /><path d="M15.54 8.46a5 5 0 0 1 0 7.07" /><path d="M19.07 4.93a10 10 0 0 1 0 14.14" /></g>
+</g></g>
+<rect x="238" y="2253" width="366" height="1" fill="#2b2b31" />
+<rect x="238" y="2254" width="366" height="74" fill="#0d0d0f" />
+<g transform="translate(48 2254)"><g xmlns="http://www.w3.org/2000/svg">
+<rect x="0" y="73" width="190" height="1" fill="#2b2b31" />
+<rect x="12.5" y="12.5" width="17" height="17" rx="5" fill="#24656b" stroke="#34757b" />
+<text class="s" x="21" y="25" font-size="10" font-weight="700" fill="#ffffff" text-anchor="middle">A</text>
+<text class="s" x="38" y="26" font-size="13" font-weight="600" fill="#f2f2f4">Audio 1</text>
+<g transform="translate(117.0 14.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 7-7 7 7" /><path d="M12 19V5" /></g>
+<g transform="translate(139.0 14.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14" /><path d="m19 12-7 7-7-7" /></g>
+<g transform="translate(161.0 14.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18" /><path d="M8 6V4h8v2" /><path d="M19 6l-1 14H6L5 6" /><path d="M10 11v5" /><path d="M14 11v5" /></g>
+<rect x="12.5" y="39.5" width="91" height="23" rx="6" fill="#17171a" stroke="#2b2b31" />
+<g transform="translate(21.0 44.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="16" height="11" x="4" y="11" rx="2" ry="2" /><path d="M8 11V7a4 4 0 0 1 8 0v4" /></g>
+<rect x="43" y="45" width="1" height="12" fill="#2b2b31" />
+<g transform="translate(51.0 44.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.1 12a10 10 0 0 1 19.8 0 10 10 0 0 1-19.8 0" /><circle cx="12" cy="12" r="3" /></g>
+<rect x="73" y="45" width="1" height="12" fill="#2b2b31" />
+<g transform="translate(81.0 44.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H2v6h4l5 4V5Z" /><path d="M15.54 8.46a5 5 0 0 1 0 7.07" /><path d="M19.07 4.93a10 10 0 0 1 0 14.14" /></g>
+</g></g>
+<rect x="238" y="2327" width="366" height="1" fill="#2b2b31" />
+<rect x="237" y="2152" width="1" height="176" fill="#2b2b31" />
+<rect x="48" y="2179" width="556" height="1" fill="#2b2b31" />
+<text class="m" x="263" y="2168" font-size="11" fill="#777780" font-weight="400">00:00</text>
+<rect x="258" y="2172" width="1" height="7" fill="#5a5a62" />
+<rect x="277" y="2176" width="1" height="3" fill="#3a3a40" />
+<rect x="296" y="2176" width="1" height="3" fill="#3a3a40" />
+<rect x="315" y="2176" width="1" height="3" fill="#3a3a40" />
+<text class="m" x="339" y="2168" font-size="11" fill="#777780" font-weight="400">00:02</text>
+<rect x="334" y="2172" width="1" height="7" fill="#5a5a62" />
+<rect x="353" y="2176" width="1" height="3" fill="#3a3a40" />
+<rect x="372" y="2176" width="1" height="3" fill="#3a3a40" />
+<rect x="391" y="2176" width="1" height="3" fill="#3a3a40" />
+<text class="m" x="415" y="2168" font-size="11" fill="#777780" font-weight="400">00:04</text>
+<rect x="410" y="2172" width="1" height="7" fill="#5a5a62" />
+<rect x="429" y="2176" width="1" height="3" fill="#3a3a40" />
+<rect x="448" y="2176" width="1" height="3" fill="#3a3a40" />
+<rect x="467" y="2176" width="1" height="3" fill="#3a3a40" />
+<text class="m" x="491" y="2168" font-size="11" fill="#777780" font-weight="400">00:06</text>
+<rect x="486" y="2172" width="1" height="7" fill="#5a5a62" />
+<rect x="505" y="2176" width="1" height="3" fill="#3a3a40" />
+<rect x="524" y="2176" width="1" height="3" fill="#3a3a40" />
+<rect x="543" y="2176" width="1" height="3" fill="#3a3a40" />
+<text class="m" x="567" y="2168" font-size="11" fill="#777780" font-weight="400">00:08</text>
+<rect x="562" y="2172" width="1" height="7" fill="#5a5a62" />
+<rect x="581" y="2176" width="1" height="3" fill="#3a3a40" />
+<rect x="600" y="2176" width="1" height="3" fill="#3a3a40" />
+<rect x="619" y="2176" width="1" height="3" fill="#3a3a40" />
+<rect x="266" y="2259" width="280" height="64" fill="#f0b75e" rx="6" fill-opacity="0.14"/>
+<rect x="266.75" y="2259.75" width="278.5" height="62.5" fill="none" rx="6" stroke="#f0b75e" stroke-width="1.5"/>
+<text class="s" x="276" y="2279" font-size="12" fill="#f0b75e" font-weight="600">ambience-park.wav</text>
+<text class="s" x="276" y="2305" font-size="12" fill="#f0b75e" font-weight="400">Release to add · Audio</text>
+<rect x="266" y="2180" width="1" height="148" fill="#f0b75e" fill-opacity=".7"/>
+<path transform="translate(514 2298)" d="M0 0V18L5 14 9 23 12 21 8 12H15Z" fill="#fff" stroke="#080809" stroke-width="1.5" stroke-linejoin="round"/>
+<circle cx="532" cy="2318" r="7" fill="#2a9d3a" stroke="#fff"/>
+<path d="M528 2318h8M532 2314v8" stroke="#fff" stroke-width="1.5"/>
+</g>
+<rect x="48.5" y="2152.5" width="555" height="175" fill="none" rx="10" stroke="#2b2b31"/>
+<text class="s" x="636" y="2118" font-size="14" fill="#f2f2f4" font-weight="600">Incompatible track</text>
+<text class="s" x="636" y="2138" font-size="12" fill="#777780" font-weight="400">Audio asset → video track. Keep the preview visible; block the drop.</text>
+<rect x="636" y="2158" width="556" height="176" fill="#000" rx="10" opacity=".35"/>
+<clipPath id="preview-incompatible"><rect x="636" y="2152" width="556" height="176" rx="10"/></clipPath><g clip-path="url(#preview-incompatible)">
+<rect x="636" y="2152" width="556" height="176" fill="#0a0a0c" />
+<rect x="826" y="2180" width="366" height="74" fill="#101012" />
+<g transform="translate(636 2180)"><g xmlns="http://www.w3.org/2000/svg">
+<rect x="0" y="73" width="190" height="1" fill="#2b2b31" />
+<rect x="12.5" y="12.5" width="17" height="17" rx="5" fill="#294d75" stroke="#395d85" />
+<text class="s" x="21" y="25" font-size="10" font-weight="700" fill="#ffffff" text-anchor="middle">V</text>
+<text class="s" x="38" y="26" font-size="13" font-weight="600" fill="#f2f2f4">Video 1</text>
+<g transform="translate(117.0 14.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 7-7 7 7" /><path d="M12 19V5" /></g>
+<g transform="translate(139.0 14.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14" /><path d="m19 12-7 7-7-7" /></g>
+<g transform="translate(161.0 14.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18" /><path d="M8 6V4h8v2" /><path d="M19 6l-1 14H6L5 6" /><path d="M10 11v5" /><path d="M14 11v5" /></g>
+<rect x="12.5" y="39.5" width="91" height="23" rx="6" fill="#17171a" stroke="#2b2b31" />
+<g transform="translate(21.0 44.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="16" height="11" x="4" y="11" rx="2" ry="2" /><path d="M8 11V7a4 4 0 0 1 8 0v4" /></g>
+<rect x="43" y="45" width="1" height="12" fill="#2b2b31" />
+<g transform="translate(51.0 44.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.1 12a10 10 0 0 1 19.8 0 10 10 0 0 1-19.8 0" /><circle cx="12" cy="12" r="3" /></g>
+<rect x="73" y="45" width="1" height="12" fill="#2b2b31" />
+<g transform="translate(81.0 44.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H2v6h4l5 4V5Z" /><path d="M15.54 8.46a5 5 0 0 1 0 7.07" /><path d="M19.07 4.93a10 10 0 0 1 0 14.14" /></g>
+</g></g>
+<rect x="826" y="2253" width="366" height="1" fill="#2b2b31" />
+<rect x="826" y="2254" width="366" height="74" fill="#0d0d0f" />
+<g transform="translate(636 2254)"><g xmlns="http://www.w3.org/2000/svg">
+<rect x="0" y="73" width="190" height="1" fill="#2b2b31" />
+<rect x="12.5" y="12.5" width="17" height="17" rx="5" fill="#24656b" stroke="#34757b" />
+<text class="s" x="21" y="25" font-size="10" font-weight="700" fill="#ffffff" text-anchor="middle">A</text>
+<text class="s" x="38" y="26" font-size="13" font-weight="600" fill="#f2f2f4">Audio 1</text>
+<g transform="translate(117.0 14.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 7-7 7 7" /><path d="M12 19V5" /></g>
+<g transform="translate(139.0 14.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14" /><path d="m19 12-7 7-7-7" /></g>
+<g transform="translate(161.0 14.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18" /><path d="M8 6V4h8v2" /><path d="M19 6l-1 14H6L5 6" /><path d="M10 11v5" /><path d="M14 11v5" /></g>
+<rect x="12.5" y="39.5" width="91" height="23" rx="6" fill="#17171a" stroke="#2b2b31" />
+<g transform="translate(21.0 44.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="16" height="11" x="4" y="11" rx="2" ry="2" /><path d="M8 11V7a4 4 0 0 1 8 0v4" /></g>
+<rect x="43" y="45" width="1" height="12" fill="#2b2b31" />
+<g transform="translate(51.0 44.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.1 12a10 10 0 0 1 19.8 0 10 10 0 0 1-19.8 0" /><circle cx="12" cy="12" r="3" /></g>
+<rect x="73" y="45" width="1" height="12" fill="#2b2b31" />
+<g transform="translate(81.0 44.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H2v6h4l5 4V5Z" /><path d="M15.54 8.46a5 5 0 0 1 0 7.07" /><path d="M19.07 4.93a10 10 0 0 1 0 14.14" /></g>
+</g></g>
+<rect x="826" y="2327" width="366" height="1" fill="#2b2b31" />
+<rect x="825" y="2152" width="1" height="176" fill="#2b2b31" />
+<rect x="636" y="2179" width="556" height="1" fill="#2b2b31" />
+<text class="m" x="851" y="2168" font-size="11" fill="#777780" font-weight="400">00:00</text>
+<rect x="846" y="2172" width="1" height="7" fill="#5a5a62" />
+<rect x="865" y="2176" width="1" height="3" fill="#3a3a40" />
+<rect x="884" y="2176" width="1" height="3" fill="#3a3a40" />
+<rect x="903" y="2176" width="1" height="3" fill="#3a3a40" />
+<text class="m" x="927" y="2168" font-size="11" fill="#777780" font-weight="400">00:02</text>
+<rect x="922" y="2172" width="1" height="7" fill="#5a5a62" />
+<rect x="941" y="2176" width="1" height="3" fill="#3a3a40" />
+<rect x="960" y="2176" width="1" height="3" fill="#3a3a40" />
+<rect x="979" y="2176" width="1" height="3" fill="#3a3a40" />
+<text class="m" x="1003" y="2168" font-size="11" fill="#777780" font-weight="400">00:04</text>
+<rect x="998" y="2172" width="1" height="7" fill="#5a5a62" />
+<rect x="1017" y="2176" width="1" height="3" fill="#3a3a40" />
+<rect x="1036" y="2176" width="1" height="3" fill="#3a3a40" />
+<rect x="1055" y="2176" width="1" height="3" fill="#3a3a40" />
+<text class="m" x="1079" y="2168" font-size="11" fill="#777780" font-weight="400">00:06</text>
+<rect x="1074" y="2172" width="1" height="7" fill="#5a5a62" />
+<rect x="1093" y="2176" width="1" height="3" fill="#3a3a40" />
+<rect x="1112" y="2176" width="1" height="3" fill="#3a3a40" />
+<rect x="1131" y="2176" width="1" height="3" fill="#3a3a40" />
+<text class="m" x="1155" y="2168" font-size="11" fill="#777780" font-weight="400">00:08</text>
+<rect x="1150" y="2172" width="1" height="7" fill="#5a5a62" />
+<rect x="1169" y="2176" width="1" height="3" fill="#3a3a40" />
+<rect x="1188" y="2176" width="1" height="3" fill="#3a3a40" />
+<rect x="1207" y="2176" width="1" height="3" fill="#3a3a40" />
+<rect x="854" y="2185" width="280" height="64" fill="#321b20" rx="6" fill-opacity="0.9"/>
+<rect x="854" y="2185" width="280" height="64" fill="url(#preview-rejected-hatch)" rx="6"/>
+<rect x="854.75" y="2185.75" width="278.5" height="62.5" fill="none" rx="6" stroke="#ff8b8b" stroke-width="1.5"/>
+<text class="s" x="864" y="2205" font-size="12" fill="#ff8b8b" font-weight="600">ambience-park.wav</text>
+<text class="s" x="864" y="2231" font-size="12" fill="#ff8b8b" font-weight="400">Audio requires an audio track</text>
+<rect x="854" y="2180" width="1" height="148" fill="#ff8b8b" fill-opacity=".7"/>
+<path transform="translate(1102 2224)" d="M0 0V18L5 14 9 23 12 21 8 12H15Z" fill="#fff" stroke="#080809" stroke-width="1.5" stroke-linejoin="round"/>
+<circle cx="1120" cy="2244" r="7" fill="#b73b49" stroke="#fff"/>
+<path d="M1115 2249l10 -10" stroke="#fff" stroke-width="1.5"/>
+</g>
+<rect x="636.5" y="2152.5" width="555" height="175" fill="none" rx="10" stroke="#2b2b31"/>
+<text class="s" x="48" y="2420" font-size="14" fill="#f2f2f4" font-weight="600">Locked track</text>
+<text class="s" x="48" y="2440" font-size="12" fill="#777780" font-weight="400">Matching media type, but the destination track is locked.</text>
+<rect x="48" y="2460" width="556" height="176" fill="#000" rx="10" opacity=".35"/>
+<clipPath id="preview-locked"><rect x="48" y="2454" width="556" height="176" rx="10"/></clipPath><g clip-path="url(#preview-locked)">
+<rect x="48" y="2454" width="556" height="176" fill="#0a0a0c" />
+<rect x="238" y="2482" width="366" height="74" fill="#101012" />
+<g transform="translate(48 2482)"><g xmlns="http://www.w3.org/2000/svg">
+<rect x="0" y="73" width="190" height="1" fill="#2b2b31" />
+<rect x="12.5" y="12.5" width="17" height="17" rx="5" fill="#294d75" stroke="#395d85" />
+<text class="s" x="21" y="25" font-size="10" font-weight="700" fill="#ffffff" text-anchor="middle">V</text>
+<text class="s" x="38" y="26" font-size="13" font-weight="600" fill="#f2f2f4">Video 1</text>
+<g transform="translate(117.0 14.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 7-7 7 7" /><path d="M12 19V5" /></g>
+<g transform="translate(139.0 14.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14" /><path d="m19 12-7 7-7-7" /></g>
+<g transform="translate(161.0 14.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18" /><path d="M8 6V4h8v2" /><path d="M19 6l-1 14H6L5 6" /><path d="M10 11v5" /><path d="M14 11v5" /></g>
+<rect x="12.5" y="39.5" width="91" height="23" rx="6" fill="#17171a" stroke="#2b2b31" />
+<g transform="translate(21.0 44.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="16" height="11" x="4" y="11" rx="2" ry="2" /><path d="M8 11V7a4 4 0 0 1 8 0v4" /></g>
+<rect x="43" y="45" width="1" height="12" fill="#2b2b31" />
+<g transform="translate(51.0 44.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.1 12a10 10 0 0 1 19.8 0 10 10 0 0 1-19.8 0" /><circle cx="12" cy="12" r="3" /></g>
+<rect x="73" y="45" width="1" height="12" fill="#2b2b31" />
+<g transform="translate(81.0 44.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H2v6h4l5 4V5Z" /><path d="M15.54 8.46a5 5 0 0 1 0 7.07" /><path d="M19.07 4.93a10 10 0 0 1 0 14.14" /></g>
+</g></g>
+<rect x="238" y="2555" width="366" height="1" fill="#2b2b31" />
+<rect x="238" y="2556" width="366" height="74" fill="#0d0d0f" />
+<g transform="translate(48 2556)"><g xmlns="http://www.w3.org/2000/svg">
+<rect x="0" y="73" width="190" height="1" fill="#2b2b31" />
+<rect x="12.5" y="12.5" width="17" height="17" rx="5" fill="#24656b" stroke="#34757b" />
+<text class="s" x="21" y="25" font-size="10" font-weight="700" fill="#ffffff" text-anchor="middle">A</text>
+<text class="s" x="38" y="26" font-size="13" font-weight="600" fill="#f2f2f4">Audio 1</text>
+<g transform="translate(117.0 14.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 7-7 7 7" /><path d="M12 19V5" /></g>
+<g transform="translate(139.0 14.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14" /><path d="m19 12-7 7-7-7" /></g>
+<g transform="translate(161.0 14.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18" /><path d="M8 6V4h8v2" /><path d="M19 6l-1 14H6L5 6" /><path d="M10 11v5" /><path d="M14 11v5" /></g>
+<rect x="12.5" y="39.5" width="91" height="23" rx="6" fill="#17171a" stroke="#2b2b31" />
+<g transform="translate(21.0 44.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="16" height="11" x="4" y="11" rx="2" ry="2" /><path d="M8 11V7a4 4 0 0 1 8 0v4" /></g>
+<rect x="43" y="45" width="1" height="12" fill="#2b2b31" />
+<g transform="translate(51.0 44.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.1 12a10 10 0 0 1 19.8 0 10 10 0 0 1-19.8 0" /><circle cx="12" cy="12" r="3" /></g>
+<rect x="73" y="45" width="1" height="12" fill="#2b2b31" />
+<g transform="translate(81.0 44.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H2v6h4l5 4V5Z" /><path d="M15.54 8.46a5 5 0 0 1 0 7.07" /><path d="M19.07 4.93a10 10 0 0 1 0 14.14" /></g>
+</g></g>
+<rect x="238" y="2629" width="366" height="1" fill="#2b2b31" />
+<rect x="237" y="2454" width="1" height="176" fill="#2b2b31" />
+<rect x="48" y="2481" width="556" height="1" fill="#2b2b31" />
+<text class="m" x="263" y="2470" font-size="11" fill="#777780" font-weight="400">00:00</text>
+<rect x="258" y="2474" width="1" height="7" fill="#5a5a62" />
+<rect x="277" y="2478" width="1" height="3" fill="#3a3a40" />
+<rect x="296" y="2478" width="1" height="3" fill="#3a3a40" />
+<rect x="315" y="2478" width="1" height="3" fill="#3a3a40" />
+<text class="m" x="339" y="2470" font-size="11" fill="#777780" font-weight="400">00:02</text>
+<rect x="334" y="2474" width="1" height="7" fill="#5a5a62" />
+<rect x="353" y="2478" width="1" height="3" fill="#3a3a40" />
+<rect x="372" y="2478" width="1" height="3" fill="#3a3a40" />
+<rect x="391" y="2478" width="1" height="3" fill="#3a3a40" />
+<text class="m" x="415" y="2470" font-size="11" fill="#777780" font-weight="400">00:04</text>
+<rect x="410" y="2474" width="1" height="7" fill="#5a5a62" />
+<rect x="429" y="2478" width="1" height="3" fill="#3a3a40" />
+<rect x="448" y="2478" width="1" height="3" fill="#3a3a40" />
+<rect x="467" y="2478" width="1" height="3" fill="#3a3a40" />
+<text class="m" x="491" y="2470" font-size="11" fill="#777780" font-weight="400">00:06</text>
+<rect x="486" y="2474" width="1" height="7" fill="#5a5a62" />
+<rect x="505" y="2478" width="1" height="3" fill="#3a3a40" />
+<rect x="524" y="2478" width="1" height="3" fill="#3a3a40" />
+<rect x="543" y="2478" width="1" height="3" fill="#3a3a40" />
+<text class="m" x="567" y="2470" font-size="11" fill="#777780" font-weight="400">00:08</text>
+<rect x="562" y="2474" width="1" height="7" fill="#5a5a62" />
+<rect x="581" y="2478" width="1" height="3" fill="#3a3a40" />
+<rect x="600" y="2478" width="1" height="3" fill="#3a3a40" />
+<rect x="619" y="2478" width="1" height="3" fill="#3a3a40" />
+<rect x="62" y="2597" width="28" height="20" fill="#f0b75e" rx="4" fill-opacity=".16"/>
+<g transform="translate(69 2600) scale(.5833)" fill="none" stroke="#f0b75e" stroke-width="2"><rect x="4" y="11" width="16" height="11" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></g>
+<rect x="266" y="2561" width="280" height="64" fill="#321b20" rx="6" fill-opacity="0.9"/>
+<rect x="266" y="2561" width="280" height="64" fill="url(#preview-rejected-hatch)" rx="6"/>
+<rect x="266.75" y="2561.75" width="278.5" height="62.5" fill="none" rx="6" stroke="#ff8b8b" stroke-width="1.5"/>
+<text class="s" x="276" y="2581" font-size="12" fill="#ff8b8b" font-weight="600">ambience-park.wav</text>
+<text class="s" x="276" y="2607" font-size="12" fill="#ff8b8b" font-weight="400">Destination track is locked</text>
+<rect x="266" y="2482" width="1" height="148" fill="#ff8b8b" fill-opacity=".7"/>
+<path transform="translate(514 2600)" d="M0 0V18L5 14 9 23 12 21 8 12H15Z" fill="#fff" stroke="#080809" stroke-width="1.5" stroke-linejoin="round"/>
+<circle cx="532" cy="2620" r="7" fill="#b73b49" stroke="#fff"/>
+<path d="M527 2625l10 -10" stroke="#fff" stroke-width="1.5"/>
+</g>
+<rect x="48.5" y="2454.5" width="555" height="175" fill="none" rx="10" stroke="#2b2b31"/>
+<text class="s" x="636" y="2420" font-size="14" fill="#f2f2f4" font-weight="600">Occupied position</text>
+<text class="s" x="636" y="2440" font-size="12" fill="#777780" font-weight="400">The proposed clip overlaps an existing clip on this track.</text>
+<rect x="636" y="2460" width="556" height="176" fill="#000" rx="10" opacity=".35"/>
+<clipPath id="preview-overlap"><rect x="636" y="2454" width="556" height="176" rx="10"/></clipPath><g clip-path="url(#preview-overlap)">
+<rect x="636" y="2454" width="556" height="176" fill="#0a0a0c" />
+<rect x="826" y="2482" width="366" height="74" fill="#101012" />
+<g transform="translate(636 2482)"><g xmlns="http://www.w3.org/2000/svg">
+<rect x="0" y="73" width="190" height="1" fill="#2b2b31" />
+<rect x="12.5" y="12.5" width="17" height="17" rx="5" fill="#294d75" stroke="#395d85" />
+<text class="s" x="21" y="25" font-size="10" font-weight="700" fill="#ffffff" text-anchor="middle">V</text>
+<text class="s" x="38" y="26" font-size="13" font-weight="600" fill="#f2f2f4">Video 1</text>
+<g transform="translate(117.0 14.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 7-7 7 7" /><path d="M12 19V5" /></g>
+<g transform="translate(139.0 14.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14" /><path d="m19 12-7 7-7-7" /></g>
+<g transform="translate(161.0 14.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18" /><path d="M8 6V4h8v2" /><path d="M19 6l-1 14H6L5 6" /><path d="M10 11v5" /><path d="M14 11v5" /></g>
+<rect x="12.5" y="39.5" width="91" height="23" rx="6" fill="#17171a" stroke="#2b2b31" />
+<g transform="translate(21.0 44.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="16" height="11" x="4" y="11" rx="2" ry="2" /><path d="M8 11V7a4 4 0 0 1 8 0v4" /></g>
+<rect x="43" y="45" width="1" height="12" fill="#2b2b31" />
+<g transform="translate(51.0 44.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.1 12a10 10 0 0 1 19.8 0 10 10 0 0 1-19.8 0" /><circle cx="12" cy="12" r="3" /></g>
+<rect x="73" y="45" width="1" height="12" fill="#2b2b31" />
+<g transform="translate(81.0 44.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H2v6h4l5 4V5Z" /><path d="M15.54 8.46a5 5 0 0 1 0 7.07" /><path d="M19.07 4.93a10 10 0 0 1 0 14.14" /></g>
+</g></g>
+<rect x="826" y="2555" width="366" height="1" fill="#2b2b31" />
+<rect x="826" y="2556" width="366" height="74" fill="#0d0d0f" />
+<g transform="translate(636 2556)"><g xmlns="http://www.w3.org/2000/svg">
+<rect x="0" y="73" width="190" height="1" fill="#2b2b31" />
+<rect x="12.5" y="12.5" width="17" height="17" rx="5" fill="#24656b" stroke="#34757b" />
+<text class="s" x="21" y="25" font-size="10" font-weight="700" fill="#ffffff" text-anchor="middle">A</text>
+<text class="s" x="38" y="26" font-size="13" font-weight="600" fill="#f2f2f4">Audio 1</text>
+<g transform="translate(117.0 14.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 7-7 7 7" /><path d="M12 19V5" /></g>
+<g transform="translate(139.0 14.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14" /><path d="m19 12-7 7-7-7" /></g>
+<g transform="translate(161.0 14.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18" /><path d="M8 6V4h8v2" /><path d="M19 6l-1 14H6L5 6" /><path d="M10 11v5" /><path d="M14 11v5" /></g>
+<rect x="12.5" y="39.5" width="91" height="23" rx="6" fill="#17171a" stroke="#2b2b31" />
+<g transform="translate(21.0 44.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="16" height="11" x="4" y="11" rx="2" ry="2" /><path d="M8 11V7a4 4 0 0 1 8 0v4" /></g>
+<rect x="43" y="45" width="1" height="12" fill="#2b2b31" />
+<g transform="translate(51.0 44.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.1 12a10 10 0 0 1 19.8 0 10 10 0 0 1-19.8 0" /><circle cx="12" cy="12" r="3" /></g>
+<rect x="73" y="45" width="1" height="12" fill="#2b2b31" />
+<g transform="translate(81.0 44.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H2v6h4l5 4V5Z" /><path d="M15.54 8.46a5 5 0 0 1 0 7.07" /><path d="M19.07 4.93a10 10 0 0 1 0 14.14" /></g>
+</g></g>
+<rect x="826" y="2629" width="366" height="1" fill="#2b2b31" />
+<rect x="825" y="2454" width="1" height="176" fill="#2b2b31" />
+<rect x="636" y="2481" width="556" height="1" fill="#2b2b31" />
+<text class="m" x="851" y="2470" font-size="11" fill="#777780" font-weight="400">00:00</text>
+<rect x="846" y="2474" width="1" height="7" fill="#5a5a62" />
+<rect x="865" y="2478" width="1" height="3" fill="#3a3a40" />
+<rect x="884" y="2478" width="1" height="3" fill="#3a3a40" />
+<rect x="903" y="2478" width="1" height="3" fill="#3a3a40" />
+<text class="m" x="927" y="2470" font-size="11" fill="#777780" font-weight="400">00:02</text>
+<rect x="922" y="2474" width="1" height="7" fill="#5a5a62" />
+<rect x="941" y="2478" width="1" height="3" fill="#3a3a40" />
+<rect x="960" y="2478" width="1" height="3" fill="#3a3a40" />
+<rect x="979" y="2478" width="1" height="3" fill="#3a3a40" />
+<text class="m" x="1003" y="2470" font-size="11" fill="#777780" font-weight="400">00:04</text>
+<rect x="998" y="2474" width="1" height="7" fill="#5a5a62" />
+<rect x="1017" y="2478" width="1" height="3" fill="#3a3a40" />
+<rect x="1036" y="2478" width="1" height="3" fill="#3a3a40" />
+<rect x="1055" y="2478" width="1" height="3" fill="#3a3a40" />
+<text class="m" x="1079" y="2470" font-size="11" fill="#777780" font-weight="400">00:06</text>
+<rect x="1074" y="2474" width="1" height="7" fill="#5a5a62" />
+<rect x="1093" y="2478" width="1" height="3" fill="#3a3a40" />
+<rect x="1112" y="2478" width="1" height="3" fill="#3a3a40" />
+<rect x="1131" y="2478" width="1" height="3" fill="#3a3a40" />
+<text class="m" x="1155" y="2470" font-size="11" fill="#777780" font-weight="400">00:08</text>
+<rect x="1150" y="2474" width="1" height="7" fill="#5a5a62" />
+<rect x="1169" y="2478" width="1" height="3" fill="#3a3a40" />
+<rect x="1188" y="2478" width="1" height="3" fill="#3a3a40" />
+<rect x="1207" y="2478" width="1" height="3" fill="#3a3a40" />
+<rect x="946" y="2561" width="235" height="64" fill="#24656b" rx="6" stroke="#34757b"/>
+<text class="s" x="958" y="2614" font-size="12" fill="#c8d8e8" font-weight="400">voice-over.m4a</text>
+<rect x="854" y="2561" width="280" height="64" fill="#321b20" rx="6" fill-opacity="0.9"/>
+<rect x="854" y="2561" width="280" height="64" fill="url(#preview-rejected-hatch)" rx="6"/>
+<rect x="854.75" y="2561.75" width="278.5" height="62.5" fill="none" rx="6" stroke="#ff8b8b" stroke-width="1.5"/>
+<text class="s" x="864" y="2581" font-size="12" fill="#ff8b8b" font-weight="600">ambience-park.wav</text>
+<text class="s" x="864" y="2607" font-size="12" fill="#ff8b8b" font-weight="400">Overlaps an existing clip</text>
+<rect x="854" y="2482" width="1" height="148" fill="#ff8b8b" fill-opacity=".7"/>
+<path transform="translate(1102 2600)" d="M0 0V18L5 14 9 23 12 21 8 12H15Z" fill="#fff" stroke="#080809" stroke-width="1.5" stroke-linejoin="round"/>
+<circle cx="1120" cy="2620" r="7" fill="#b73b49" stroke="#fff"/>
+<path d="M1115 2625l10 -10" stroke="#fff" stroke-width="1.5"/>
+</g>
+<rect x="636.5" y="2454.5" width="555" height="175" fill="none" rx="10" stroke="#2b2b31"/>
+<text class="s" x="48" y="2682" font-size="13" fill="#f2f2f4" font-weight="600">Rejected placement</text>
+<text class="s" x="48" y="2706" font-size="13" fill="#777780" font-weight="400">Red outline + diagonal hatching + blocked cursor + reason. Releasing here makes no change.</text>
+<text class="s" x="48" y="2730" font-size="13" fill="#777780" font-weight="400">Update the preview immediately as the pointer crosses tracks. Use the same treatment when moving existing clips.</text>
+</g>
+<g id="track-header-states" transform="translate(0 800)">
 <rect x="48" y="1976" width="1144" height="1" fill="#2b2b31"/>
 <text class="s" x="48" y="2034" font-size="20" fill="#f2f2f4" font-weight="700">Track header</text>
 <text class="s" x="48" y="2060" font-size="14" fill="#777780">Kind badge and name, then reorder and delete. State toggles below.</text>
@@ -1436,4 +1757,5 @@
 <g transform="translate(81.0 44.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H2v6h4l5 4V5Z"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></g>
 </g></g>
 <rect x="926.5" y="2543.7" width="265.0" height="102.6" rx="10" fill="none" stroke="#2b2b31"/>
+</g>
 </svg>
