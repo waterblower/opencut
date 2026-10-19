@@ -21,7 +21,7 @@
 <clipPath id="c18"><rect x="48" y="841" width="280" height="555" rx="0"/></clipPath>
 </defs>
 <rect x="0" y="0" width="1016" height="2087" fill="#151518"/>
-<text class="s" x="48" y="60.64" font-size="24" fill="#f2f2f4" font-weight="700">Properties panel</text>
+<text class="s" x="48" y="60.64" font-size="24" fill="#f2f2f4" font-weight="700">Property Panel</text>
 <text class="s" x="48" y="87.04" font-size="14" fill="#777780">One panel per selection. Header identifies the object; sections group related values.</text>
 <rect x="48.5" y="104.5" width="95" height="29" rx="6" fill="#17171a" stroke="#2b2b31" stroke-width="1"/>
 <text class="s" x="58" y="123.32" font-size="12" fill="#777780" font-weight="600">X</text>
