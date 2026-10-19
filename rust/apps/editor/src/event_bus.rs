@@ -11,10 +11,11 @@ use crate::model::MediaKind;
 use crate::preview::{PreviewTarget, timeline_preview_target};
 use crate::preview_events::PreviewEvent;
 use crate::project_settings::{ProjectLocalSettings, save_project_local_settings};
-use crate::property_panel::{
-    PropertyPanel, VideoFilePanel, current_property_panel, srt_file_panel, text_clip_panel,
-    video_clip_panel,
-};
+use crate::property_panel::{PropertyPanel, current_property_panel};
+use crate::property_panel_srt_file::srt_file_panel;
+use crate::property_panel_text::text_clip_panel;
+use crate::property_panel_video_clip::video_clip_panel;
+use crate::property_panel_video_file::VideoFilePanel;
 use crate::srt::{srt_text_clips, write_srt};
 use crate::timeline::{PreviewDropAsset, TimelineFrameIndex, TimelineRuntimeState};
 use crate::timeline_clip::Clip;

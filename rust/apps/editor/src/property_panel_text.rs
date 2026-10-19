@@ -1,12 +1,39 @@
 use crate::property_panel::{
-    TextClipPanel, clip_track_subtitle_view, format_property_panel_time,
-    property_panel_divider_view, property_panel_header_view, property_panel_heading_view,
-    readonly_property_panel_view,
+    clip_track_subtitle_view, format_property_panel_time, property_panel_divider_view,
+    property_panel_header_view, property_panel_heading_view, readonly_property_panel_view,
 };
 use crate::theme::{BORDER, MUTED, SURFACE};
+use crate::timeline::FrameRate;
+use crate::timeline_clip::TextClip;
 use crate::track::TrackKind;
 use gpui::prelude::*;
 use gpui::{FontWeight, PathBuilder, canvas, div, point, px, rgb, rgba};
+use timeline::TimelineEditingState;
+
+pub(crate) struct TextClipPanel {
+    clip: TextClip,
+    track_name: String,
+    frame_rate: FrameRate,
+}
+
+pub(crate) fn text_clip_panel(
+    editing_state: &TimelineEditingState,
+    clip: &TextClip,
+) -> TextClipPanel {
+    let track_name = match editing_state
+        .tracks
+        .iter()
+        .find(|track| track.id == clip.track_id)
+    {
+        Some(track) => track.name.as_str(),
+        None => "Unknown track",
+    };
+    TextClipPanel {
+        clip: clip.clone(),
+        track_name: track_name.to_owned(),
+        frame_rate: editing_state.settings.frame_rate,
+    }
+}
 
 pub(crate) fn text_clip_view(panel: &TextClipPanel) -> gpui::AnyElement {
     let clip = &panel.clip;

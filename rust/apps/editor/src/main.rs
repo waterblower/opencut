@@ -30,8 +30,16 @@ mod project;
 mod project_picker;
 mod project_settings;
 mod property_panel;
+mod property_panel_audio_clip;
+mod property_panel_audio_file;
+mod property_panel_empty;
+mod property_panel_image_file;
+mod property_panel_srt_file;
 mod property_panel_text;
+mod property_panel_timeline;
 mod property_panel_transform;
+mod property_panel_video_clip;
+mod property_panel_video_file;
 mod settings;
 mod srt;
 #[cfg(test)]
