@@ -4,7 +4,6 @@ use crate::editor::Editor;
 use crate::explorer_drag::AssetBeingDragged;
 use crate::explorer_file_entry::select_preview_file;
 use crate::export_window::{ExportState, ExportWindow};
-use crate::ui_components::{HorizontalSplitState, VerticalSplitState};
 use crate::global_settings::GlobalEditorSettings;
 use crate::layout::{RULER_HEIGHT, TIMELINE_PADDING, TRACK_HEIGHT, track_index_at_y};
 use crate::model::MediaKind;
@@ -20,6 +19,7 @@ use crate::timeline::{PreviewDropAsset, TimelineFrameIndex, TimelineRuntimeState
 use crate::timeline_clip::Clip;
 use crate::transcription_window;
 use crate::transcription_window::{TranscriptionStage, TranscriptionWindow};
+use crate::ui_components::{HorizontalSplitState, VerticalSplitState};
 use crate::{OpenProject, open_editor_window, quit_after_last_window};
 use anyhow::{Context as _, Result, anyhow, bail};
 use engine::export::{ExportCompletion, ExportControl, ExportOption, export_timeline};
