@@ -39,7 +39,7 @@ Subtitles and text            ████████████████�
 Export                        ████████████                     6 / 0
 Keyboard shortcuts            ████████████████████████████░░  14 / 1
 Project data and persistence  ████████████░░                   6 / 1
-Properties                    ████░░░░░░                       2 / 3
+Property Panel                ████░░░░░░                       2 / 3
 Total                                                         85 / 22
 ```
 
@@ -221,9 +221,9 @@ give more room to the timeline or the preview as needed.
 
 Mockups: [timeline editing area](pages/17-timeline-editing-area.svg),
 [top bar](pages/20-top-bar.svg),
-[properties panel](pages/15-properties-panel.svg).
+[property panel](pages/15-property-panel.svg).
 
-- [x] The media and properties panels beside the preview can be resized.
+- [x] The media and property panels beside the preview can be resized.
 - [x] Dragging the divider above the timeline resizes the timeline editing area.
 - [x] Panel sizes are saved per project.
 
@@ -278,7 +278,7 @@ track mute does not refresh that snapshot. These edits also save without
 refreshing the preview: track controls, paste, duplicate, splitting, Explorer
 drops, applying a transform to a track, adding a text clip from the track menu,
 and renaming media. The video-properties setter also bypasses refresh, but the
-current video properties panel displays position and scale as read-only values.
+current video property panel displays position and scale as read-only values.
 Undo and redo use the refresh path.
 The shared error view is currently entered for timeline-open failures only.
 Unsupported-file selections retain the previous preview; audio and None layouts
@@ -415,12 +415,12 @@ playhead clamping can produce frame index -1. The editor test run had 85 passes
 and 2 failures (playhead clamping and the missing waveform fixture); the
 timeline library's 8 tests passed. These are the 2026-10-16 review results.
 
-## 13. Properties
+## 13. Property Panel
 
 **Story:** As a creator, I want properties for the selected object so that I can
 inspect media and adjust a clip without leaving the editor.
 
-Mockup: [properties panel](pages/15-properties-panel.svg).
+Mockup: [property panel](pages/15-property-panel.svg).
 
 - [x] The header identifies the selected object. Panels cover text, video, and
   audio clips; timeline, video, audio, image, and subtitle files; and no selection.
