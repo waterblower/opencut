@@ -1,3 +1,4 @@
+use crate::context_menu::ContextMenu;
 use crate::editor::Editor;
 use crate::theme::{MUTED, PANEL, SURFACE_HOVER};
 use gpui::prelude::FluentBuilder;
@@ -19,6 +20,10 @@ impl Editor {
         let show_root_contents = self.explorer.root_expanded || !filter.is_empty();
 
         let root_context_path = PathBuf::new();
+        let root_context_menu_target = matches!(
+            &self.context_menu,
+            ContextMenu::File(menu) if menu.relative_path == root_context_path
+        );
         let root_row = div()
             .id("project-root")
             .h(px(38.0))
@@ -27,6 +32,7 @@ impl Editor {
             .items_center()
             .gap_2()
             .px_3()
+            .when(root_context_menu_target, |this| this.bg(rgb(SURFACE_HOVER)))
             .cursor(CursorStyle::PointingHand)
             .hover(|style| style.bg(rgb(SURFACE_HOVER)))
             .on_click(cx.listener(|editor, _, _, cx| {

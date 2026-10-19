@@ -1,3 +1,4 @@
+use crate::context_menu::ContextMenu;
 use crate::editor::Editor;
 use crate::event_bus::AppEvent;
 use crate::explorer::explorer_file_badge;
@@ -31,6 +32,8 @@ impl Editor {
             .to_path_buf();
 
         let selected = self.explorer.selected_file.as_ref() == Some(&path);
+        let context_menu_target =
+            matches!(&self.context_menu, ContextMenu::File(menu) if menu.relative_path == path);
         let active_timeline = matches!(entry.kind, FileTreeEntryKind::Timeline)
             && self
                 .timeline
@@ -50,7 +53,9 @@ impl Editor {
             .gap_2()
             .pr_2()
             .pl(px(10.0 + (entry.depth + 1) as f32 * 16.0))
-            .bg(rgb(if active_timeline {
+            .bg(rgb(if context_menu_target {
+                SURFACE_HOVER
+            } else if active_timeline {
                 0x211a0f
             } else if selected {
                 0x1e1b13
