@@ -48,3 +48,6 @@ Call `transcribe_wav(wav, api_key, &Options).await` to transcribe normalized WAV
 bytes directly. It validates the WAV format and splits long audio before uploading, then
 returns parsed SRT. The editor merges cues and writes only the final SRT to the
 project root; it creates no intermediate audio files.
+
+`estimated_price_cny(duration)` estimates the MiniMax charge in CNY for that much
+audio, prorated by the second from the China platform's per-hour price.
