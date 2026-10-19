@@ -16,8 +16,6 @@ mod explorer_file_entry;
 mod explorer_file_menu;
 mod explorer_view;
 mod export_window;
-#[path = "generic-containers/mod.rs"]
-mod generic_containers;
 mod global_settings;
 mod global_settings_dialog;
 mod gpui_inspector;
@@ -53,6 +51,8 @@ mod timeline_ui;
 mod track;
 mod track_ui;
 mod transcription_window;
+#[path = "ui-components/mod.rs"]
+mod ui_components;
 mod waveform;
 
 use anyhow::{Context as _, Result};

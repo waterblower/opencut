@@ -1,0 +1,77 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="726" viewBox="0 0 1080 726">
+<style>.s{font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","Helvetica Neue",Arial,sans-serif}.m{font-family:"SF Mono",Menlo,Monaco,Consolas,monospace}</style>
+<defs>
+<filter id="shadow" x="-20%" y="-20%" width="140%" height="160%"><feDropShadow dx="0" dy="8" stdDeviation="10" flood-color="#000" flood-opacity="0.55"/></filter>
+</defs>
+<g transform="translate(-440 -324)">
+<rect x="480.5" y="364.5" width="479" height="227" rx="12" fill="#0d0d0f" stroke="#2b2b31" stroke-width="1" filter="url(#shadow)"/>
+<text class="s" x="500" y="403.48" font-size="18" fill="#f2f2f4" font-weight="600">New timeline</text>
+<text class="s" x="500" y="441.04" font-size="14" fill="#777780">In timelines · saved as .timeline (JSON)</text>
+<rect x="500.5" y="462.5" width="439" height="53" rx="8" fill="#17171a" stroke="#2b2b31" stroke-width="1"/>
+<text class="m" x="516" y="494.76" font-size="16" fill="#f2f2f4">final-cut</text>
+<rect x="603.4" y="479" width="1.5" height="20" fill="#f0b75e"/>
+<rect x="861.78" y="532.5" width="77.72" height="39" rx="8" fill="#f0b75e" stroke="#f0b75e" stroke-width="1"/>
+<text class="s" x="900.64" y="557.76" font-size="16" fill="#17120a" text-anchor="middle">Create</text>
+<rect x="772.66" y="532.5" width="80.12" height="39" rx="8" fill="#17171a" stroke="#2b2b31" stroke-width="1"/>
+<text class="s" x="812.72" y="557.76" font-size="16" fill="#f2f2f4" text-anchor="middle">Cancel</text>
+</g>
+<g transform="translate(80 -342)">
+<rect x="480.5" y="382.5" width="479" height="191" rx="12" fill="#0d0d0f" stroke="#2b2b31" stroke-width="1" filter="url(#shadow)"/>
+<text class="s" x="500" y="421.48" font-size="18" fill="#f2f2f4" font-weight="600">Rename broll-street.mov</text>
+<rect x="500.5" y="444.5" width="439" height="53" rx="8" fill="#17171a" stroke="#2b2b31" stroke-width="1"/>
+<text class="m" x="516" y="476.76" font-size="16" fill="#f2f2f4">broll-old-town.mov</text>
+<rect x="689.8" y="461" width="1.5" height="20" fill="#f0b75e"/>
+<rect x="850.1" y="514.5" width="89.4" height="39" rx="8" fill="#f0b75e" stroke="#f0b75e" stroke-width="1"/>
+<text class="s" x="894.8" y="539.76" font-size="16" fill="#17120a" text-anchor="middle">Rename</text>
+<rect x="760.98" y="514.5" width="80.12" height="39" rx="8" fill="#17171a" stroke="#2b2b31" stroke-width="1"/>
+<text class="s" x="801.04" y="539.76" font-size="16" fill="#f2f2f4" text-anchor="middle">Cancel</text>
+</g>
+<g transform="translate(-450 19)">
+<rect x="490.5" y="289.5" width="459" height="377" rx="12" fill="#0d0d0f" stroke="#2b2b31" stroke-width="1" filter="url(#shadow)"/>
+<rect x="491" y="346" width="458" height="1" fill="#2b2b31"/>
+<text class="s" x="510" y="324.48" font-size="18" fill="#f2f2f4" font-weight="600">Timeline Settings</text>
+<rect x="898" y="302" width="32" height="32" rx="6" fill="#202024"/>
+<text class="s" x="914" y="323.76" font-size="16" fill="#f2f2f4" text-anchor="middle">×</text>
+<text class="s" x="510" y="379" font-size="12" fill="#777780" font-weight="600">TIMELINE FRAME RATE</text>
+<rect x="510.5" y="399.5" width="205" height="43" rx="8" fill="#17171a" stroke="#2b2b31" stroke-width="1"/>
+<text class="s" x="522" y="426.76" font-size="16" fill="#f2f2f4">23.976 fps</text>
+<circle cx="700.0" cy="421.0" r="4" fill="#45454d"/>
+<rect x="724.5" y="399.5" width="205" height="43" rx="8" fill="#17171a" stroke="#2b2b31" stroke-width="1"/>
+<text class="s" x="736" y="426.76" font-size="16" fill="#f2f2f4">24 fps</text>
+<circle cx="914.0" cy="421.0" r="4" fill="#45454d"/>
+<rect x="510.5" y="451.5" width="205" height="43" rx="8" fill="#17171a" stroke="#2b2b31" stroke-width="1"/>
+<text class="s" x="522" y="478.76" font-size="16" fill="#f2f2f4">25 fps</text>
+<circle cx="700.0" cy="473.0" r="4" fill="#45454d"/>
+<rect x="724.5" y="451.5" width="205" height="43" rx="8" fill="#17171a" stroke="#2b2b31" stroke-width="1"/>
+<text class="s" x="736" y="478.76" font-size="16" fill="#f2f2f4">29.97 fps</text>
+<circle cx="914.0" cy="473.0" r="4" fill="#45454d"/>
+<rect x="510.5" y="503.5" width="205" height="43" rx="8" fill="#2a241b" stroke="#f0b75e" stroke-width="1"/>
+<text class="s" x="522" y="530.76" font-size="16" fill="#f2f2f4">30 fps</text>
+<circle cx="700.0" cy="525.0" r="4" fill="#f0b75e"/>
+<rect x="724.5" y="503.5" width="205" height="43" rx="8" fill="#17171a" stroke="#2b2b31" stroke-width="1"/>
+<text class="s" x="736" y="530.76" font-size="16" fill="#f2f2f4">50 fps</text>
+<circle cx="914.0" cy="525.0" r="4" fill="#45454d"/>
+<rect x="510.5" y="555.5" width="205" height="43" rx="8" fill="#17171a" stroke="#2b2b31" stroke-width="1"/>
+<text class="s" x="522" y="582.76" font-size="16" fill="#f2f2f4">59.94 fps</text>
+<circle cx="700.0" cy="577.0" r="4" fill="#45454d"/>
+<rect x="724.5" y="555.5" width="205" height="43" rx="8" fill="#17171a" stroke="#2b2b31" stroke-width="1"/>
+<text class="s" x="736" y="582.76" font-size="16" fill="#f2f2f4">60 fps</text>
+<circle cx="914.0" cy="577.0" r="4" fill="#45454d"/>
+<text class="s" x="510" y="627" font-size="12" fill="#777780">Existing edit points keep their elapsed time and snap to the nearest</text>
+<text class="s" x="510" y="643" font-size="12" fill="#777780">frame in the new rate.</text>
+</g>
+<g transform="translate(70 -35)">
+<rect x="490.5" y="343.5" width="459" height="269" rx="12" fill="#0d0d0f" stroke="#2b2b31" stroke-width="1" filter="url(#shadow)"/>
+<text class="s" x="510" y="381.48" font-size="18" fill="#f2f2f4">Settings</text>
+<text class="s" x="510" y="418.04" font-size="14" fill="#f2f2f4">MiniMax API key</text>
+<rect x="510.5" y="439.5" width="419" height="53" rx="8" fill="#17171a" stroke="#2b2b31" stroke-width="1"/>
+<rect x="526" y="455" width="220.8" height="22" fill="#3a5a8c" opacity="0.9"/>
+<text class="m" x="526" y="471.76" font-size="16" fill="#f2f2f4">•••••••••••••••••••••••</text>
+<text class="s" x="510" y="521" font-size="12" fill="#777780">Saved in global settings for all projects. Used to send audio to MiniMax</text>
+<text class="s" x="510" y="537" font-size="12" fill="#777780">for SRT generation.</text>
+<rect x="869.84" y="557" width="60.16" height="36" rx="6" fill="#17171a"/>
+<text class="s" x="899.92" y="580.76" font-size="16" fill="#f2f2f4" text-anchor="middle">Save</text>
+<rect x="788.72" y="557" width="73.12" height="36" rx="6" fill="#17171a"/>
+<text class="s" x="825.28" y="580.76" font-size="16" fill="#f2f2f4" text-anchor="middle">Cancel</text>
+</g>
+</svg>

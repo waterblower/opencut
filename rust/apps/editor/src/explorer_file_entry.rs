@@ -1,7 +1,8 @@
+use crate::context_menu::ContextMenu;
 use crate::editor::Editor;
 use crate::event_bus::AppEvent;
 use crate::explorer::explorer_file_badge;
-use crate::explorer_drag::AssetBeingDragged;
+use crate::explorer_drag::{AssetBeingDragged, ExplorerDragView};
 use crate::preview::PreviewTarget;
 use crate::preview_events::PreviewEvent;
 use crate::theme::{ACCENT, MUTED, PANEL, SURFACE_HOVER, TEXT};
@@ -31,6 +32,8 @@ impl Editor {
             .to_path_buf();
 
         let selected = self.explorer.selected_file.as_ref() == Some(&path);
+        let context_menu_target =
+            matches!(&self.context_menu, ContextMenu::File(menu) if menu.relative_path == path);
         let active_timeline = matches!(entry.kind, FileTreeEntryKind::Timeline)
             && self
                 .timeline
@@ -38,8 +41,14 @@ impl Editor {
                 .is_some_and(|timeline| timeline.path == entry.absolute_path);
 
         let metadata = file_entry_metadata(entry, active_timeline);
+        let draggable = match entry.kind {
+            FileTreeEntryKind::Video | FileTreeEntryKind::Image | FileTreeEntryKind::Audio => true,
+            FileTreeEntryKind::Other => is_srt_path(&entry.absolute_path),
+            FileTreeEntryKind::Directory { .. } | FileTreeEntryKind::Timeline => false,
+        };
 
         let event_bus = self.event_bus.clone();
+        let drag_editor = cx.entity().downgrade();
         div()
             .id(("project-file", index))
             .relative()
@@ -50,31 +59,44 @@ impl Editor {
             .gap_2()
             .pr_2()
             .pl(px(10.0 + (entry.depth + 1) as f32 * 16.0))
-            .bg(rgb(if active_timeline {
+            .bg(rgb(if context_menu_target {
+                SURFACE_HOVER
+            } else if active_timeline {
                 0x211a0f
             } else if selected {
                 0x1e1b13
             } else {
                 PANEL
             }))
-            .cursor(CursorStyle::PointingHand)
+            .cursor(if draggable {
+                CursorStyle::OpenHand
+            } else {
+                CursorStyle::Arrow
+            })
             .hover(|style| style.bg(rgb(SURFACE_HOVER)))
-            .cursor(CursorStyle::OpenHand)
-            .on_drag(entry.clone(), move |entry, _, _, app_cx| {
-                let asset = match AssetBeingDragged::from_file_entry(entry) {
-                    Ok(asset) => asset,
-                    Err(error) => {
-                        log::error!(
-                            "could not drag {}: {error:?}",
-                            entry.absolute_path.display()
-                        );
-                        return app_cx.new(|_| AssetBeingDragged::None);
-                    }
-                };
-                event_bus.update(app_cx, |_, cx| {
-                    cx.emit(AppEvent::DragStarted(asset.clone()));
-                });
-                app_cx.new(|_| asset)
+            .when(draggable, |this| {
+                this.on_drag(entry.clone(), move |entry, _, _, app_cx| {
+                    let asset = match AssetBeingDragged::from_file_entry(entry) {
+                        Ok(asset) => asset,
+                        Err(error) => {
+                            log::error!(
+                                "could not drag {}: {error:?}",
+                                entry.absolute_path.display()
+                            );
+                            return app_cx.new(|_| ExplorerDragView {
+                                asset: AssetBeingDragged::None,
+                                editor: drag_editor.clone(),
+                            });
+                        }
+                    };
+                    event_bus.update(app_cx, |_, cx| {
+                        cx.emit(AppEvent::DragStarted(asset.clone()));
+                    });
+                    app_cx.new(|_| ExplorerDragView {
+                        asset,
+                        editor: drag_editor.clone(),
+                    })
+                })
             })
             .on_click(cx.listener({
                 let entry = entry.clone();

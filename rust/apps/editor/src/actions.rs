@@ -2,9 +2,9 @@ use crate::edit_action::EditAction;
 use crate::editing::ClipClipboard;
 use crate::editor::Editor;
 use crate::event_bus::AppEvent;
-use crate::generic_containers;
 use crate::preview_events::PreviewEvent;
 use crate::timeline_interactions::TimelineTool;
+use crate::ui_components;
 use gpui::prelude::*;
 use gpui::{App, KeyBinding, Window, actions};
 
@@ -38,7 +38,7 @@ actions!(
 );
 
 pub(crate) fn bind_keys(cx: &mut App) {
-    generic_containers::text_input::bind_keys(cx);
+    ui_components::text_input::bind_keys(cx);
     cx.bind_keys([
         KeyBinding::new("space", TogglePlayback, Some(EDITOR_SHORTCUT_CONTEXT)),
         KeyBinding::new("left", StepBackwardFrame, Some(EDITOR_SHORTCUT_CONTEXT)),

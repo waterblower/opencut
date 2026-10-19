@@ -8,7 +8,9 @@ use crate::timeline::TimelineFrameIndex;
 use crate::timeline_clip::Clip;
 use crate::timeline_clip_menu::transform_targets;
 use crate::timeline_document;
+use crate::timeline_document::resolve_asset_path;
 use crate::track::TrackKind;
+use crate::transcription_window::ClipRange;
 use gpui::prelude::*;
 use gpui::{CursorStyle, MouseButton, MouseDownEvent, div, px, rgb};
 use std::path::PathBuf;
@@ -141,6 +143,7 @@ impl Editor {
                                     cx,
                                     AppEvent::OpenTranscribeWindow {
                                         audio_source_path: source_path.clone(),
+                                        clip: None,
                                         project_root: project_root.clone(),
                                     },
                                 );
@@ -286,7 +289,7 @@ impl Editor {
         cx: &mut Context<Self>,
     ) -> gpui::AnyElement {
         let width = 292.0;
-        let height = 56.0;
+        let height = 96.0;
         let left = menu
             .x
             .clamp(8.0, (f32::from(viewport.width) - width - 8.0).max(8.0));
@@ -298,6 +301,7 @@ impl Editor {
             .as_ref()
             .and_then(|timeline| transform_targets(&timeline.editing_state, menu.clip_id))
             .is_some_and(|(_, targets)| !targets.is_empty());
+        let clip_id = menu.clip_id;
 
         div()
             .id("timeline-clip-context-menu-overlay")
@@ -332,6 +336,45 @@ impl Editor {
                     .bg(rgb(0x1b1b1e))
                     .shadow_lg()
                     .occlude()
+                    .child(
+                        file_menu_item("Transcribe the Clip", "").on_click(cx.listener(
+                            move |editor, _, _, cx| {
+                                editor.dismiss_context_menu();
+                                cx.notify();
+                                let Some(timeline) = editor.timeline.as_ref() else {
+                                    return;
+                                };
+                                let state = &timeline.editing_state;
+                                let Some(clip) = state.clip(clip_id) else {
+                                    return;
+                                };
+                                let (Some(asset_id), Some(source_in), Some(source_out)) =
+                                    (clip.asset_id(), clip.source_in(), clip.source_out())
+                                else {
+                                    return;
+                                };
+                                let Some(asset) = state.asset(asset_id) else {
+                                    return;
+                                };
+                                let Some(timeline_directory) = timeline.path.parent() else {
+                                    return;
+                                };
+                                let event = AppEvent::OpenTranscribeWindow {
+                                    audio_source_path: resolve_asset_path(
+                                        timeline_directory,
+                                        &asset.path,
+                                    ),
+                                    clip: Some(ClipRange {
+                                        clip_id,
+                                        start: state.position_at_frame(source_in),
+                                        end: state.position_at_frame(source_out),
+                                    }),
+                                    project_root: editor.project_root.clone(),
+                                };
+                                editor.emit_event(cx, event);
+                            },
+                        )),
+                    )
                     .child(
                         div()
                             .id("apply-transform-to-track-clips")

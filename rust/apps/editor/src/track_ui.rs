@@ -14,81 +14,14 @@ use crate::waveform;
 use ::timeline::TimelineEditingState;
 use gpui::prelude::*;
 use gpui::{
-    Bounds, CursorStyle, MouseButton, MouseDownEvent, canvas, div, fill, point, px, rgb, rgba, size,
+    Bounds, CursorStyle, ElementId, MouseButton, MouseDownEvent, PathBuilder, SharedString, canvas,
+    div, fill, point, px, rgb, rgba, size,
 };
 use std::sync::Arc;
 use ulid::Ulid;
 
 const CLIP_WAVEFORM_HEIGHT: f32 = 80.0;
 const CLIP_WAVEFORM_VISUAL_GAIN: f32 = 2.0;
-
-fn timeline_clip_move_preview(
-    timeline: &TimelineEditingState,
-    pixels_per_second: f32,
-    clip_id: Ulid,
-    start: TimelineFrameIndex,
-    invalid_reason: Option<&'static str>,
-) -> gpui::AnyElement {
-    let name = timeline
-        .clip(clip_id)
-        .and_then(Clip::asset_id)
-        .and_then(|asset_id| timeline.asset(asset_id))
-        .map(|asset| asset.name.clone())
-        .unwrap_or_else(|| "Missing media".to_string());
-    let left = TIMELINE_PADDING + timeline.seconds(start) as f32 * pixels_per_second;
-    let duration = timeline
-        .clip(clip_id)
-        .map(|clip| clip.frame_length(timeline.settings.frame_rate))
-        .unwrap_or(TimelineFrameIndex::ZERO);
-    let width = (timeline.seconds(duration) as f32 * pixels_per_second).max(4.0);
-    let valid = invalid_reason.is_none();
-    let feedback_color = if valid { ACCENT } else { ERROR };
-
-    div()
-        .id(gpui::SharedString::from(format!(
-            "timeline-clip-move-preview-{clip_id}"
-        )))
-        .absolute()
-        .left(px(left))
-        .top(px(5.0))
-        .w(px(width))
-        .h(px(TRACK_HEIGHT - 10.0))
-        .overflow_hidden()
-        .rounded_md()
-        .border_1()
-        .border_color(rgb(feedback_color))
-        .bg(gpui::rgba(if valid { 0xf0b75e38 } else { 0xff8b8b38 }))
-        .cursor(if valid {
-            CursorStyle::ClosedHand
-        } else {
-            CursorStyle::OperationNotAllowed
-        })
-        .child(
-            div()
-                .absolute()
-                .inset_0()
-                .p_2()
-                .flex()
-                .flex_col()
-                .justify_between()
-                .text_color(rgb(feedback_color))
-                .child(
-                    div()
-                        .text_xs()
-                        .font_weight(gpui::FontWeight::SEMIBOLD)
-                        .text_ellipsis()
-                        .child(name),
-                )
-                .child(
-                    div()
-                        .font_family("monospace")
-                        .text_xs()
-                        .text_ellipsis()
-                        .child(invalid_reason.unwrap_or("Move")),
-                ),
-        )
-        .into_any_element()
-}
 
 impl Editor {
     pub(super) fn track_header(
@@ -309,45 +242,81 @@ impl Editor {
             })
             .map(|clip| self.timeline_clip(clip, cx))
             .collect::<Vec<_>>();
-        let move_previews = timeline
-            .interaction
-            .clip_move_drag
-            .as_ref()
-            .filter(|drag| drag.changed)
-            .map(|drag| {
-                drag.placements
-                    .iter()
-                    .filter(|(_, track_id, _)| *track_id == track.id)
-                    .filter(|(clip_id, _, start)| {
-                        if viewport_width <= 0.0 {
-                            return true;
-                        }
-                        let Some(clip) = timeline.editing_state.clip(*clip_id) else {
-                            return false;
-                        };
-                        let left = TIMELINE_PADDING
-                            + timeline.editing_state.seconds(*start) as f32
-                                * timeline.pixels_per_second;
-                        let width = (timeline
-                            .editing_state
-                            .seconds(clip.frame_length(timeline.editing_state.settings.frame_rate))
-                            as f32
-                            * timeline.pixels_per_second)
-                            .max(4.0);
-                        left <= visible_right && left + width >= visible_left
-                    })
-                    .map(|(clip_id, _, start)| {
-                        timeline_clip_move_preview(
-                            &timeline.editing_state,
-                            timeline.pixels_per_second,
-                            *clip_id,
-                            *start,
-                            drag.invalid_reason,
-                        )
-                    })
-                    .collect::<Vec<_>>()
-            })
-            .unwrap_or_default();
+        let move_previews =
+            timeline
+                .interaction
+                .clip_move_drag
+                .as_ref()
+                .filter(|drag| drag.changed)
+                .map(|drag| {
+                    drag.placements
+                        .iter()
+                        .filter(|(_, track_id, _)| *track_id == track.id)
+                        .filter(|(clip_id, _, start)| {
+                            if viewport_width <= 0.0 {
+                                return true;
+                            }
+                            let Some(clip) = timeline.editing_state.clip(*clip_id) else {
+                                return false;
+                            };
+                            let left = TIMELINE_PADDING
+                                + timeline.editing_state.seconds(*start) as f32
+                                    * timeline.pixels_per_second;
+                            let width = (timeline.editing_state.seconds(
+                                clip.frame_length(timeline.editing_state.settings.frame_rate),
+                            ) as f32
+                                * timeline.pixels_per_second)
+                                .max(4.0);
+                            left <= visible_right && left + width >= visible_left
+                        })
+                        .map(|(clip_id, _, start)| {
+                            let clip = timeline
+                                .editing_state
+                                .clip(*clip_id)
+                                .expect("moving clip exists");
+                            let (name, kind) = match clip {
+                                Clip::Text(text) => (
+                                    SharedString::from(text.properties.text.clone()),
+                                    PlacementKind::Text,
+                                ),
+                                Clip::Video(_) | Clip::Audio(_) => {
+                                    let name = match clip
+                                        .asset_id()
+                                        .and_then(|id| timeline.editing_state.asset(id))
+                                    {
+                                        Some(asset) => SharedString::from(asset.name.clone()),
+                                        None => SharedString::from("Missing media"),
+                                    };
+                                    (
+                                        name,
+                                        if matches!(clip, Clip::Audio(_)) {
+                                            PlacementKind::Media(MediaKind::Audio)
+                                        } else {
+                                            PlacementKind::Media(MediaKind::Video)
+                                        },
+                                    )
+                                }
+                            };
+                            let left = TIMELINE_PADDING
+                                + timeline.editing_state.seconds(*start) as f32
+                                    * timeline.pixels_per_second;
+                            let width = (timeline.editing_state.seconds(
+                                clip.frame_length(timeline.editing_state.settings.frame_rate),
+                            ) as f32
+                                * timeline.pixels_per_second)
+                                .max(4.0);
+                            clip_placement_preview_view(
+                                SharedString::from(format!("clip-placement-{clip_id}")),
+                                name,
+                                kind,
+                                left,
+                                width,
+                                drag.invalid_reason,
+                            )
+                        })
+                        .collect::<Vec<_>>()
+                })
+                .unwrap_or_default();
         let drop_preview = (|| {
             let preview = timeline.preview_drop_asset.as_ref()?;
             if preview.track_id != track.id {
@@ -749,29 +718,37 @@ fn preview_drop_asset(
     timeline: &TimelineEditingState,
     pixels_per_second: f32,
 ) -> Option<gpui::AnyElement> {
-    return match &preview.asset {
+    let invalid_reason = match preview.validate_placement(timeline) {
+        Ok(()) => None,
+        Err(error) => Some(error.to_string()),
+    };
+    match &preview.asset {
         AssetBeingDragged::None => None,
         AssetBeingDragged::Srt(srt) => {
             let clips = srt_text_clips(&srt.srt, timeline.settings.frame_rate);
             let previews = clips
                 .into_iter()
-                .map(|mut clip| {
-                    clip.track_id = preview.track_id;
-                    clip.timeline_start += preview.start_time;
-                    text_clip_component(
-                        clip,
-                        timeline.settings.frame_rate,
-                        pixels_per_second,
-                        false,
-                        true,
+                .enumerate()
+                .map(|(index, clip)| {
+                    let left = TIMELINE_PADDING
+                        + timeline.seconds(clip.timeline_start + preview.start_time) as f32
+                            * pixels_per_second;
+                    let width = (timeline.seconds(clip.frame_length(timeline.settings.frame_rate))
+                        as f32
+                        * pixels_per_second)
+                        .max(4.0);
+                    clip_placement_preview_view(
+                        ("srt-placement", index),
+                        SharedString::from(clip.properties.text),
+                        PlacementKind::Text,
+                        left,
+                        width,
+                        invalid_reason.as_deref(),
                     )
-                    .into_any_element()
                 })
                 .collect::<Vec<_>>();
-
             Some(
                 div()
-                    .id("explorer-srt-drop-preview")
                     .absolute()
                     .inset_0()
                     .children(previews)
@@ -779,58 +756,131 @@ fn preview_drop_asset(
             )
         }
         AssetBeingDragged::V1(asset) => {
-            let kind = match asset.metadata.kind {
-                MediaKind::Video => "Video",
-                MediaKind::Audio => "Audio",
-                MediaKind::Image => return None,
-            };
             let left =
                 TIMELINE_PADDING + timeline.seconds(preview.start_time) as f32 * pixels_per_second;
             let duration = timeline
                 .nearest_time(asset.metadata.duration)
                 .max(TimelineFrameIndex::ONE_FRAME);
             let width = (timeline.seconds(duration) as f32 * pixels_per_second).max(4.0);
-
-            Some(
-                div()
-                    .id("explorer-media-drop-preview")
-                    .absolute()
-                    .left(px(left))
-                    .top(px(5.0))
-                    .w(px(width))
-                    .h(px(TRACK_HEIGHT - 10.0))
-                    .overflow_hidden()
-                    .rounded_md()
-                    .border_1()
-                    .border_color(rgb(ACCENT))
-                    .bg(gpui::rgba(0xf0b75e38))
-                    .cursor(CursorStyle::DragCopy)
-                    .child(
-                        div()
-                            .absolute()
-                            .inset_0()
-                            .p_2()
-                            .flex()
-                            .flex_col()
-                            .justify_between()
-                            .text_color(rgb(ACCENT))
-                            .child(
-                                div()
-                                    .text_xs()
-                                    .font_weight(gpui::FontWeight::SEMIBOLD)
-                                    .text_ellipsis()
-                                    .child(asset.name()),
-                            )
-                            .child(
-                                div()
-                                    .font_family("monospace")
-                                    .text_xs()
-                                    .text_ellipsis()
-                                    .child(kind),
-                            ),
-                    )
-                    .into_any_element(),
-            )
+            Some(clip_placement_preview_view(
+                "asset-placement",
+                asset.name(),
+                PlacementKind::Media(asset.metadata.kind),
+                left,
+                width,
+                invalid_reason.as_deref(),
+            ))
         }
+    }
+}
+
+enum PlacementKind {
+    Media(MediaKind),
+    Text,
+}
+
+// Private APIs only
+impl PlacementKind {
+    fn label(&self) -> &'static str {
+        match self {
+            Self::Media(MediaKind::Video) => "Video",
+            Self::Media(MediaKind::Audio) => "Audio",
+            Self::Media(MediaKind::Image) => "Image",
+            Self::Text => "Text",
+        }
+    }
+}
+
+/// Both asset drops and clip moves use the destination's placement feedback.
+fn clip_placement_preview_view(
+    id: impl Into<ElementId>,
+    name: SharedString,
+    kind: PlacementKind,
+    left: f32,
+    width: f32,
+    invalid_reason: Option<&str>,
+) -> gpui::AnyElement {
+    let valid = invalid_reason.is_none();
+    let feedback_color = if valid { ACCENT } else { ERROR };
+    let detail = match invalid_reason {
+        Some(reason) => reason.to_string(),
+        None => format!("Release to place · {}", kind.label()),
     };
+    div()
+        .id(id)
+        .absolute()
+        .left(px(left))
+        .top(px(5.0))
+        .w(px(width))
+        .h(px(TRACK_HEIGHT - 10.0))
+        .overflow_hidden()
+        .rounded_md()
+        .border_1()
+        .border_color(rgb(feedback_color))
+        .bg(rgba(if valid { 0xf0b75e24 } else { 0x321b20e6 }))
+        .cursor(if valid {
+            CursorStyle::ClosedHand
+        } else {
+            CursorStyle::OperationNotAllowed
+        })
+        .when(!valid, |view| {
+            view.child(
+                canvas(
+                    |_, _, _| {},
+                    |bounds, (), window, _| {
+                        let height = f32::from(bounds.size.height);
+                        let width = f32::from(bounds.size.width);
+                        let mut hatch = PathBuilder::stroke(px(1.0));
+                        // 只绘制可见区域的斜纹，长素材不会按整段时长生成路径。
+                        let mask = window.content_mask();
+                        let visible_start = f32::from(mask.bounds.left() - bounds.left()).max(0.0);
+                        let visible_end = f32::from(mask.bounds.right() - bounds.left()).min(width);
+                        if visible_end <= visible_start {
+                            return;
+                        }
+                        let mut x = ((visible_start - height) / 8.0).floor() * 8.0;
+                        while x < visible_end {
+                            let from_x = x.max(0.0);
+                            let from_y = height - (from_x - x);
+                            let to_x = (x + height).min(width);
+                            let to_y = height - (to_x - x);
+                            hatch.move_to(point(
+                                bounds.left() + px(from_x),
+                                bounds.top() + px(from_y),
+                            ));
+                            hatch.line_to(point(bounds.left() + px(to_x), bounds.top() + px(to_y)));
+                            x += 8.0;
+                        }
+                        match hatch.build() {
+                            Ok(path) => window.paint_path(path, rgba(0xff8b8b38)),
+                            Err(error) => {
+                                log::error!("Could not draw placement feedback: {error:?}")
+                            }
+                        }
+                    },
+                )
+                .absolute()
+                .inset_0()
+                .size_full(),
+            )
+        })
+        .child(
+            div()
+                .absolute()
+                .inset_0()
+                .p_2()
+                .flex()
+                .flex_col()
+                .justify_between()
+                .text_color(rgb(feedback_color))
+                .child(
+                    div()
+                        .text_xs()
+                        .font_weight(gpui::FontWeight::SEMIBOLD)
+                        .text_ellipsis()
+                        .child(name),
+                )
+                .child(div().text_xs().text_ellipsis().child(detail)),
+        )
+        .into_any_element()
 }

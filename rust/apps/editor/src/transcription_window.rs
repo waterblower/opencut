@@ -1,16 +1,23 @@
 use crate::event_bus::{AppEvent, EventBus};
-use crate::theme::{ACCENT, BACKGROUND, ERROR, MUTED, TEXT};
+use crate::theme::{ACCENT, BACKGROUND, ERROR, LINK, MUTED, TEXT};
+use crate::time_format::format_time;
+use crate::ui_components::cyberpunk_button::{
+    button_cyberpunk_primary, button_cyberpunk_secondary,
+};
 use anyhow::Result;
 use gpui::prelude::*;
 use gpui::{
     App, Bounds, Context, Entity, Task, Window, WindowBounds, WindowOptions, div, px, rgb, size,
 };
 use std::path::PathBuf;
-use std::time::Instant;
+use std::time::{Duration, Instant};
+use ulid::Ulid;
 
-/// An existing running job is focused instead of submitting the file again.
+/// An existing window for the same file and clip is focused instead of opening another.
 pub(crate) fn open(
     source_path: PathBuf,
+    clip: Option<ClipRange>,
+    audio_duration: f64,
     project_root: PathBuf,
     event_bus: Entity<EventBus>,
     cx: &mut App,
@@ -20,12 +27,18 @@ pub(crate) fn open(
             continue;
         };
         let view = window.entity(cx)?;
-        if view.read(cx).source_path != source_path {
+        let existing = view.read(cx);
+        let existing_clip_id = existing.clip.map(|range| range.clip_id);
+        if existing.source_path != source_path
+            || existing_clip_id != clip.map(|range| range.clip_id)
+        {
             continue;
         }
         window.update(cx, |_, window, _| window.activate_window())?;
         view.update(cx, |view, _| {
             if !view.stage.is_running() {
+                view.clip = clip;
+                view.audio_duration = audio_duration;
                 view.project_root = project_root;
                 view.event_bus = event_bus;
             }
@@ -42,6 +55,8 @@ pub(crate) fn open(
         |window, cx| {
             let view = cx.new(|_| TranscriptionWindow {
                 source_path,
+                clip,
+                audio_duration,
                 project_root,
                 event_bus,
                 stage: TranscriptionStage::Idle,
@@ -59,8 +74,18 @@ pub(crate) fn open(
     handle.entity(cx)
 }
 
+/// The part of a source file that one timeline clip uses.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct ClipRange {
+    pub(crate) clip_id: Ulid,
+    pub(crate) start: Duration, // 源文件内的入点
+    pub(crate) end: Duration,   // 源文件内的出点
+}
+
 pub(crate) struct TranscriptionWindow {
     source_path: PathBuf,
+    clip: Option<ClipRange>, // None 表示转写整个源文件
+    audio_duration: f64,     // 要转写的音频时长（秒），用于估算费用
     project_root: PathBuf,
     event_bus: Entity<EventBus>,
     pub(crate) stage: TranscriptionStage,
@@ -86,26 +111,49 @@ impl TranscriptionStage {
 }
 
 impl Render for TranscriptionWindow {
-    fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let stage = self.stage.clone();
         let running = stage.is_running();
+        let cancellable = !matches!(stage, TranscriptionStage::Saving);
         let elapsed = self.started.elapsed();
+        let file_name = self
+            .source_path
+            .file_name()
+            .unwrap_or_default()
+            .to_string_lossy()
+            .into_owned();
         let status = match &stage {
-            TranscriptionStage::Idle => "Ready",
-            TranscriptionStage::Cancelled => "Cancelled",
-            TranscriptionStage::Preparing => "Preparing audio",
-            TranscriptionStage::Transcribing => "Uploading and transcribing",
-            TranscriptionStage::Saving => "Saving subtitles",
-            TranscriptionStage::Complete(_) => "Subtitles saved",
-            TranscriptionStage::Failed(_) => "Transcription failed",
+            TranscriptionStage::Idle => match self.clip {
+                Some(range) => format!(
+                    "Generate the SRT transcription for {}–{} of {file_name}",
+                    format_time(range.start.as_secs_f64(), false),
+                    format_time(range.end.as_secs_f64(), false),
+                ),
+                None => format!("Generate the SRT transcription for {file_name}"),
+            },
+            TranscriptionStage::Cancelled => "Cancelled".to_string(),
+            TranscriptionStage::Preparing => "Preparing audio".to_string(),
+            TranscriptionStage::Transcribing => "Uploading and transcribing".to_string(),
+            TranscriptionStage::Saving => "Saving subtitles".to_string(),
+            TranscriptionStage::Complete(_) => "Subtitles saved".to_string(),
+            TranscriptionStage::Failed(_) => "Transcription failed".to_string(),
         };
         div().id("transcription-window").size_full().overflow_y_scroll()
             .flex().flex_col().gap_4().p_6().bg(rgb(BACKGROUND)).text_color(rgb(TEXT))
             .child(div().text_xl().child("Generate SRT"))
-            .child(self.source_path.file_name().unwrap_or_default().to_string_lossy().into_owned())
+            .child(file_name)
             .child(div().text_color(rgb(ACCENT)).child(if running {
                 format!("{status}{}", ".".repeat((elapsed.as_millis() / 500 % 4) as usize))
-            } else { status.to_string() }))
+            } else { status }))
+            .when(matches!(stage, TranscriptionStage::Idle), |view| {
+                let cost = transcribe::estimated_price_cny(Duration::from_secs_f64(self.audio_duration));
+                let cost_text = if cost < 0.01 { "less than ¥0.01".to_string() } else { format!("¥{cost:.2}") };
+                view.child(div().flex().gap_1()
+                    .child(format!("Estimated cost: {cost_text} for {} of audio ·", format_time(self.audio_duration, false)))
+                    .child(div().id("minimax-pricing").text_color(rgb(LINK)).underline().cursor_pointer()
+                        .child("MiniMax pricing")
+                        .on_click(|_, _, cx| cx.open_url(transcribe::PRICING_URL))))
+            })
             .when(running, |view| view
                 .child(format!("Elapsed: {}:{:02}", elapsed.as_secs() / 60, elapsed.as_secs() % 60))
                 .child(div().text_sm().text_color(rgb(MUTED)).child(
@@ -114,28 +162,25 @@ impl Render for TranscriptionWindow {
             .child(match stage {
                 TranscriptionStage::Complete(path) => div().flex().flex_col().gap_3()
                     .child(path.display().to_string())
-                    .child(div().id("reveal-srt").px_4().py_2().rounded_md().bg(rgb(ACCENT))
-                        .text_color(rgb(BACKGROUND)).cursor_pointer().child("Reveal in Finder")
-                        .on_click(move |_, _, cx| cx.reveal_path(&path))),
+                    .child(div().flex().child(button_cyberpunk_primary("reveal-srt", "Reveal in Finder", true, window, cx)
+                        .on_click(move |_, _, cx| cx.reveal_path(&path)))),
                 TranscriptionStage::Failed(error) => div().text_sm().text_color(rgb(ERROR)).child(error),
                 TranscriptionStage::Idle | TranscriptionStage::Cancelled | TranscriptionStage::Preparing | TranscriptionStage::Transcribing | TranscriptionStage::Saving => div(),
             })
             .child(div().flex().gap_3()
-                .child(div().id("start-transcription").px_4().py_2().rounded_md()
-                    .bg(rgb(if running { MUTED } else { ACCENT })).text_color(rgb(BACKGROUND))
-                    .child("Start")
-                    .when(!running, |button| button.cursor_pointer().on_click(cx.listener(|view, _, _, cx| {
+                .child(button_cyberpunk_primary("start-transcription", "Start", !running, window, cx)
+                    .when(!running, |button| button.on_click(cx.listener(|view, _, _, cx| {
                         let event = AppEvent::Transcribe {
                             source_path: view.source_path.clone(),
+                            clip: view.clip,
                             project_root: view.project_root.clone(),
                             window: cx.entity().downgrade(),
                         };
                         view.event_bus.update(cx, |_, cx| cx.emit(event));
                     }))))
-                .child(div().id("cancel-transcription").px_4().py_2().rounded_md()
-                    .bg(rgb(MUTED)).child("Cancel")
-                    .when(!matches!(self.stage, TranscriptionStage::Saving), |button| {
-                        button.cursor_pointer().on_click(cx.listener(|view, _, window, cx| {
+                .child(button_cyberpunk_secondary("cancel-transcription", "Cancel", cancellable, window, cx)
+                    .when(cancellable, |button| {
+                        button.on_click(cx.listener(|view, _, window, cx| {
                             if view.stage.is_running() {
                                 view.task.take();
                                 view.stage = TranscriptionStage::Cancelled;

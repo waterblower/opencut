@@ -13,7 +13,12 @@ pub mod audio;
 pub mod subtitles;
 pub use subtitles::{SRT, Subtitle};
 
+/// MiniMax's price list for the China platform, the source of `estimated_price_cny`.
+pub const PRICING_URL: &str = "https://platform.minimax.cn/docs/guides/pricing";
+
 const MAX_TRANSCRIPTION_DURATION: Duration = Duration::from_secs(500);
+/// asr-1.0 on the China platform (api.minimaxi.com), in CNY per hour of audio, from `PRICING_URL`.
+const PRICE_CNY_PER_HOUR: f64 = 2.5;
 
 /// Detects Latin, Greek, or Cyrillic writing, not the actual language.
 /// Requires at least one such letter and rejects letters from other scripts.
@@ -148,6 +153,12 @@ pub async fn transcribe_wav(wav: Vec<u8>, api_key: &str, options: &Options) -> R
         offset += duration;
     }
     Ok(combined)
+}
+
+/// Estimated MiniMax charge in CNY for transcribing `duration` of audio.
+/// MiniMax prices per hour of audio; this prorates by the second.
+pub fn estimated_price_cny(duration: Duration) -> f64 {
+    duration.as_secs_f64() / 3600.0 * PRICE_CNY_PER_HOUR
 }
 
 async fn transcribe_wav_response(wav: Vec<u8>, api_key: &str, options: &Options) -> Result<Value> {

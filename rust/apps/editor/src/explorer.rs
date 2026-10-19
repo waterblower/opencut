@@ -2,13 +2,13 @@ use crate::clip_placement::validate_clip_placement;
 use crate::edit_action::{EditAction, edit_timeline};
 use crate::editor::Editor;
 use crate::explorer_file_entry::{FileTreeEntry, FileTreeEntryKind, search_tree, visible_tree};
-use crate::generic_containers::TextInput;
 use crate::model::MediaAsset;
 use crate::theme::{ACCENT, BORDER, MUTED, PANEL, SURFACE, TEXT};
 use crate::timeline::TimelineFrameIndex;
 use crate::timeline_clip::{AudioClipProperties, Clip, VideoClip, VideoClipProperties};
 use crate::timeline_document::relative_asset_path;
 use crate::track::TrackKind;
+use crate::ui_components::TextInput;
 use anyhow::{Context as _, Result, anyhow, bail};
 use gpui::prelude::FluentBuilder;
 use gpui::{

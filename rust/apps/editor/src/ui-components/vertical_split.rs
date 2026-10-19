@@ -107,42 +107,42 @@ impl RenderOnce for VerticalSplit {
         let release_out_state = self.state.clone();
         let release_out_event_bus = self.event_bus.clone();
         let divider = div()
-            .id("vertical-split-divider")
-            .relative()
             .w_full()
             .h(px(DIVIDER_HEIGHT))
             .flex_shrink_0()
-            .bg(rgb(DIVIDER_COLOR))
-            .child(
-                div()
-                    .id("vertical-split-divider-handle")
-                    .absolute()
-                    .top(px(DIVIDER_HANDLE_TOP))
-                    .w_full()
-                    .h(px(DIVIDER_HANDLE_HEIGHT))
-                    .cursor_row_resize()
-                    .block_mouse_except_scroll()
-                    .on_drag(VerticalSplitDrag, move |_, offset, _, cx| {
-                        drag_state.update(cx, |state, _| {
-                            state.begin_drag(offset.y.into());
-                        });
-                        cx.new(|_| gpui::Empty)
-                    })
-                    // A drag usually ends over this handle, which hides the container from
-                    // hover checks; a release elsewhere arrives as mouse-up-out.
-                    .on_mouse_up(MouseButton::Left, move |_, _, cx| {
-                        finish_drag(&release_state, &release_event_bus, cx);
-                    })
-                    .on_mouse_up_out(MouseButton::Left, move |_, _, cx| {
-                        finish_drag(&release_out_state, &release_out_event_bus, cx);
-                    }),
-            );
+            .bg(rgb(DIVIDER_COLOR));
+        // The handle is the container's last child so it is drawn above both panes;
+        // otherwise the bottom pane covers half of it and its cursor.
+        let handle = div()
+            .id("vertical-split-divider-handle")
+            .absolute()
+            .left_0()
+            .top(px(heights.top + DIVIDER_HANDLE_TOP))
+            .w_full()
+            .h(px(DIVIDER_HANDLE_HEIGHT))
+            .cursor_row_resize()
+            .block_mouse_except_scroll()
+            .on_drag(VerticalSplitDrag, move |_, offset, _, cx| {
+                drag_state.update(cx, |state, _| {
+                    state.begin_drag(offset.y.into());
+                });
+                cx.new(|_| gpui::Empty)
+            })
+            // A drag usually ends over this handle, which hides the container from
+            // hover checks; a release elsewhere arrives as mouse-up-out.
+            .on_mouse_up(MouseButton::Left, move |_, _, cx| {
+                finish_drag(&release_state, &release_event_bus, cx);
+            })
+            .on_mouse_up_out(MouseButton::Left, move |_, _, cx| {
+                finish_drag(&release_out_state, &release_out_event_bus, cx);
+            });
         let state = self.state.clone();
         let constraints = self.constraints;
         let total_height = self.total_height;
 
         div()
             .id(self.id)
+            .relative()
             .w_full()
             .flex_1()
             .min_w_0()
@@ -179,6 +179,7 @@ impl RenderOnce for VerticalSplit {
                     .overflow_hidden()
                     .child(self.bottom),
             )
+            .child(handle)
     }
 }
 

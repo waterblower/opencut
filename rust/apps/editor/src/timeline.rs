@@ -1,14 +1,16 @@
-use crate::clip_placement::ClipPlacementRejection;
+use crate::clip_placement::{ClipPlacementRejection, validate_clip_placement};
+use crate::editing::validate_clips_placements;
 use crate::explorer_drag::AssetBeingDragged;
 use crate::layout::DEFAULT_TIMELINE_PIXELS_PER_SECOND;
 use crate::model::MediaKind;
 use crate::preview_text::PreviewTextDrag;
+use crate::srt::srt_text_clips;
 use crate::timeline_clip::Clip;
 use crate::timeline_interactions::{TimelineInteractionState, TimelineTool};
 use crate::track::TrackKind;
 use ::timeline::TimelineEditingState;
 pub(crate) use ::timeline::{FrameRate, TimelineFrameIndex};
-use anyhow::{Context as _, Result, ensure};
+use anyhow::{Context as _, Result, bail, ensure};
 use gpui::ScrollHandle;
 use gpui::prelude::*;
 use player_ui::timeline_player::TimelinePlayer;
@@ -81,6 +83,42 @@ pub(crate) struct PreviewDropAsset {
     pub(crate) track_id: Ulid,
     pub(crate) start_time: TimelineFrameIndex,
     pub(crate) asset: AssetBeingDragged,
+}
+
+// Public APIs only
+impl PreviewDropAsset {
+    pub(super) fn validate_placement(&self, timeline: &TimelineEditingState) -> Result<()> {
+        match &self.asset {
+            AssetBeingDragged::None => Err(ClipPlacementRejection::NoPlacements.into()),
+            AssetBeingDragged::V1(asset) => {
+                if asset.metadata.kind == MediaKind::Image {
+                    bail!("Image placement is not supported");
+                }
+                let duration = timeline
+                    .nearest_time(asset.metadata.duration)
+                    .max(TimelineFrameIndex::ONE_FRAME);
+                validate_clip_placement(
+                    timeline,
+                    self.track_id,
+                    asset.metadata.kind,
+                    duration,
+                    self.start_time,
+                    &HashSet::new(),
+                )
+            }
+            AssetBeingDragged::Srt(srt) => {
+                let clips = srt_text_clips(&srt.srt, timeline.settings.frame_rate)
+                    .into_iter()
+                    .map(|mut clip| {
+                        clip.track_id = self.track_id;
+                        clip.timeline_start += self.start_time;
+                        Clip::Text(clip)
+                    })
+                    .collect::<Vec<_>>();
+                validate_clips_placements(timeline, &clips)
+            }
+        }
+    }
 }
 
 pub(crate) fn timeline_ranges_overlap(
