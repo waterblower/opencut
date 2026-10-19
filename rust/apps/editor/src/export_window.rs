@@ -1,7 +1,7 @@
 use crate::editor::Editor;
 use crate::event_bus::{AppEvent, EventBus};
-use crate::generic_containers::TextInput;
 use crate::theme::{ACCENT, BACKGROUND, ERROR, MUTED, TEXT};
+use crate::ui_components::TextInput;
 use anyhow::{Result, ensure};
 use engine::export::ExportControl;
 use gpui::prelude::*;
@@ -37,7 +37,7 @@ impl Editor {
                 let view = cx.new(|cx| {
                     let return_focus = cx.focus_handle();
                     let bitrate_input = cx.new(|cx| {
-                        TextInput::new_field("export-bitrate", "8".into(), "Mbps", return_focus, cx)
+                        TextInput::new_field("export-bitrate", "2".into(), "Mbps", return_focus, cx)
                     });
                     cx.observe(&bitrate_input, |_, _, cx| cx.notify()).detach();
                     ExportWindow {

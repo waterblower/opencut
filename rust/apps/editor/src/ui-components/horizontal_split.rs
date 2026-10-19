@@ -136,46 +136,47 @@ impl RenderOnce for HorizontalSplit {
             .state
             .read(cx)
             .widths(self.total_width, self.constraints);
-        let divider = |index| {
+        let divider = || {
+            div()
+                .w(px(HORIZONTAL_SPLIT_DIVIDER_WIDTH))
+                .h_full()
+                .flex_shrink_0()
+                .bg(rgb(DIVIDER_COLOR))
+        };
+        // Handles are the container's last children so they are drawn above both panes;
+        // otherwise the pane after a divider covers half of its handle and its cursor.
+        let handle = |index, divider_x: f32| {
             let state = self.state.clone();
             let release_state = self.state.clone();
             let release_event_bus = self.event_bus.clone();
             let release_out_state = self.state.clone();
             let release_out_event_bus = self.event_bus.clone();
             div()
-                .id(("horizontal-split-divider", index))
-                .relative()
-                .w(px(HORIZONTAL_SPLIT_DIVIDER_WIDTH))
+                .id(("horizontal-split-divider-handle", index))
+                .absolute()
+                .top_0()
+                .left(px(divider_x + DIVIDER_HANDLE_LEFT))
+                .w(px(DIVIDER_HANDLE_WIDTH))
                 .h_full()
-                .flex_shrink_0()
-                .bg(rgb(DIVIDER_COLOR))
-                .child(
-                    div()
-                        .id(("horizontal-split-divider-handle", index))
-                        .absolute()
-                        .left(px(DIVIDER_HANDLE_LEFT))
-                        .w(px(DIVIDER_HANDLE_WIDTH))
-                        .h_full()
-                        .cursor_col_resize()
-                        .block_mouse_except_scroll()
-                        .on_drag(
-                            HorizontalSplitDrag { divider: index },
-                            move |_, offset, _, cx| {
-                                state.update(cx, |state, _| {
-                                    state.begin_drag(offset.x.into());
-                                });
-                                cx.new(|_| gpui::Empty)
-                            },
-                        )
-                        // A drag usually ends over this handle, which hides the container from
-                        // hover checks; a release elsewhere arrives as mouse-up-out.
-                        .on_mouse_up(MouseButton::Left, move |_, _, cx| {
-                            finish_drag(&release_state, &release_event_bus, cx);
-                        })
-                        .on_mouse_up_out(MouseButton::Left, move |_, _, cx| {
-                            finish_drag(&release_out_state, &release_out_event_bus, cx);
-                        }),
+                .cursor_col_resize()
+                .block_mouse_except_scroll()
+                .on_drag(
+                    HorizontalSplitDrag { divider: index },
+                    move |_, offset, _, cx| {
+                        state.update(cx, |state, _| {
+                            state.begin_drag(offset.x.into());
+                        });
+                        cx.new(|_| gpui::Empty)
+                    },
                 )
+                // A drag usually ends over this handle, which hides the container from
+                // hover checks; a release elsewhere arrives as mouse-up-out.
+                .on_mouse_up(MouseButton::Left, move |_, _, cx| {
+                    finish_drag(&release_state, &release_event_bus, cx);
+                })
+                .on_mouse_up_out(MouseButton::Left, move |_, _, cx| {
+                    finish_drag(&release_out_state, &release_out_event_bus, cx);
+                })
         };
         let state = self.state.clone();
         let constraints = self.constraints;
@@ -183,6 +184,7 @@ impl RenderOnce for HorizontalSplit {
 
         div()
             .id(self.id)
+            .relative()
             .w_full()
             .flex_1()
             .min_w_0()
@@ -205,7 +207,7 @@ impl RenderOnce for HorizontalSplit {
                     .overflow_hidden()
                     .child(self.left),
             )
-            .child(divider(0))
+            .child(divider())
             .child(
                 div()
                     .w(px(widths.center))
@@ -215,7 +217,7 @@ impl RenderOnce for HorizontalSplit {
                     .overflow_hidden()
                     .child(self.center),
             )
-            .child(divider(1))
+            .child(divider())
             .child(
                 div()
                     .w(px(widths.right))
@@ -225,6 +227,11 @@ impl RenderOnce for HorizontalSplit {
                     .overflow_hidden()
                     .child(self.right),
             )
+            .child(handle(0, widths.left))
+            .child(handle(
+                1,
+                widths.left + HORIZONTAL_SPLIT_DIVIDER_WIDTH + widths.center,
+            ))
     }
 }
 

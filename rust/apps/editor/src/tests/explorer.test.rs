@@ -1,7 +1,9 @@
 use super::*;
 use crate::clip_placement::ClipPlacementRejection;
+use crate::explorer_drag::{AssetBeingDragged, AssetBeingDraggedV1};
 use crate::model::MediaKind;
 use crate::test_support::{TimelineTestExt, ulid};
+use crate::timeline::PreviewDropAsset;
 use crate::timeline_clip::AudioClip;
 use ::timeline::TimelineEditingState;
 use std::path::Path;
@@ -26,17 +28,17 @@ fn asset(kind: MediaKind, has_audio: bool) -> MediaAsset {
 #[test]
 fn explorer_drop_rejects_incompatible_tracks() {
     let project = TimelineEditingState::with_test_tracks();
-    let audio = asset(MediaKind::Audio, true);
-    let audio_rejection = validate_clip_placement(
-        &project,
-        ulid(1),
-        audio.kind,
-        TimelineFrameIndex::from(30),
-        TimelineFrameIndex::ZERO,
-        &HashSet::new(),
-    )
-    .unwrap_err();
-    let audio_rejection = audio_rejection
+    let mut audio_preview = PreviewDropAsset {
+        track_id: ulid(1),
+        start_time: TimelineFrameIndex::ZERO,
+        asset: AssetBeingDragged::V1(AssetBeingDraggedV1 {
+            absolute_path: PathBuf::from("audio.wav"),
+            metadata: asset(MediaKind::Audio, true),
+        }),
+    };
+    let audio_rejection = audio_preview
+        .validate_placement(&project)
+        .unwrap_err()
         .downcast::<ClipPlacementRejection>()
         .unwrap();
     assert_eq!(
@@ -44,22 +46,41 @@ fn explorer_drop_rejects_incompatible_tracks() {
         "Media is incompatible with the destination track"
     );
 
-    let silent_video = asset(MediaKind::Video, false);
-    let video_rejection = validate_clip_placement(
-        &project,
-        ulid(2),
-        silent_video.kind,
-        TimelineFrameIndex::from(30),
-        TimelineFrameIndex::ZERO,
-        &HashSet::new(),
-    )
-    .unwrap_err();
-    let video_rejection = video_rejection
+    let video_preview = PreviewDropAsset {
+        track_id: ulid(2),
+        start_time: TimelineFrameIndex::ZERO,
+        asset: AssetBeingDragged::V1(AssetBeingDraggedV1 {
+            absolute_path: PathBuf::from("silent.mp4"),
+            metadata: asset(MediaKind::Video, false),
+        }),
+    };
+    let video_rejection = video_preview
+        .validate_placement(&project)
+        .unwrap_err()
         .downcast::<ClipPlacementRejection>()
         .unwrap();
     assert_eq!(
         video_rejection.message(),
         "Media is incompatible with the destination track"
+    );
+
+    // The same preview becomes valid as soon as its destination is compatible.
+    audio_preview.track_id = ulid(2);
+    assert!(audio_preview.validate_placement(&project).is_ok());
+    let mut locked_project = project.clone();
+    locked_project
+        .tracks
+        .iter_mut()
+        .find(|track| track.id == ulid(2))
+        .unwrap()
+        .locked = true;
+    assert_eq!(
+        audio_preview
+            .validate_placement(&locked_project)
+            .unwrap_err()
+            .downcast::<ClipPlacementRejection>()
+            .unwrap(),
+        ClipPlacementRejection::LockedTrack,
     );
 }
 
@@ -75,33 +96,27 @@ fn explorer_drop_detects_collisions_but_allows_adjacent_clips() {
         TimelineFrameIndex::from(30),
         AudioClipProperties::default(),
     )));
-    let audio = asset(MediaKind::Audio, true);
-
+    let mut preview = PreviewDropAsset {
+        track_id: ulid(2),
+        start_time: TimelineFrameIndex::from(15),
+        asset: AssetBeingDragged::V1(AssetBeingDraggedV1 {
+            absolute_path: PathBuf::from("audio.wav"),
+            metadata: MediaAsset {
+                duration: 1.0,
+                ..asset(MediaKind::Audio, true)
+            },
+        }),
+    };
     assert_eq!(
-        validate_clip_placement(
-            &project,
-            ulid(2),
-            audio.kind,
-            TimelineFrameIndex::from(30),
-            TimelineFrameIndex::from(15),
-            &HashSet::new(),
-        )
-        .unwrap_err()
-        .downcast::<ClipPlacementRejection>()
-        .unwrap(),
-        ClipPlacementRejection::ExistingClipOverlap
+        preview
+            .validate_placement(&project)
+            .unwrap_err()
+            .downcast::<ClipPlacementRejection>()
+            .unwrap(),
+        ClipPlacementRejection::ExistingClipOverlap,
     );
-    assert!(
-        validate_clip_placement(
-            &project,
-            ulid(2),
-            audio.kind,
-            TimelineFrameIndex::from(30),
-            TimelineFrameIndex::ZERO,
-            &HashSet::new(),
-        )
-        .is_ok()
-    );
+    preview.start_time = TimelineFrameIndex::ZERO;
+    assert!(preview.validate_placement(&project).is_ok());
 }
 
 #[test]

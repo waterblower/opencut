@@ -44,7 +44,7 @@ already in it, so that I don't have to import or copy media.
 Mockups: [project picker](pages/01-project-picker.svg),
 [editor without a timeline](pages/02-editor-empty.svg),
 [media preview](pages/04-editor-media-preview.svg),
-[rename dialog](pages/08-dialog-rename.svg),
+[rename dialog](pages/07-dialogs.svg),
 [context menus](pages/11-context-menus.svg).
 
 - [x] Any folder can be opened as a project.
@@ -76,8 +76,8 @@ Supported file extensions:
 that I can keep several versions, move them, and back them up like any other
 file.
 
-Mockups: [new timeline dialog](pages/07-dialog-new-timeline.svg),
-[timeline settings dialog](pages/09-dialog-timeline-settings.svg),
+Mockups: [new timeline dialog](pages/07-dialogs.svg),
+[timeline settings dialog](pages/07-dialogs.svg),
 [context menus](pages/11-context-menus.svg).
 
 - [x] A timeline is a JSON file named `*.timeline` or `*.timeline.json`, anywhere in
@@ -98,7 +98,7 @@ it, producing the wrong position.
 that I can organize, so that I can layer footage, stills, sound, and subtitles.
 
 Mockups: [editor with a timeline](pages/03-editor-timeline.svg),
-[timeline panel](pages/17-timeline-panel.svg).
+[timeline editing area](pages/17-timeline-editing-area.svg).
 
 - [ ] Tracks can be created, deleted, reordered, hidden, muted, and locked.
 - [x] Video tracks accept video files only.
@@ -119,7 +119,7 @@ that restructuring an edit doesn't take one clip at a time.
 
 Mockups: [editor with a timeline](pages/03-editor-timeline.svg),
 [blade tool](pages/06-editor-blade-tool.svg),
-[timeline panel](pages/17-timeline-panel.svg),
+[timeline editing area](pages/17-timeline-editing-area.svg),
 [context menus](pages/11-context-menus.svg).
 
 - [x] Clips are selected by clicking, Command-clicking to add or remove, or drawing
@@ -136,7 +136,7 @@ Mockups: [editor with a timeline](pages/03-editor-timeline.svg),
 **Story:** As a creator, I want to drag a clip's edges to change its duration,
 so that I can tighten cuts directly on the timeline.
 
-Mockup: [timeline panel](pages/17-timeline-panel.svg).
+Mockup: [timeline editing area](pages/17-timeline-editing-area.svg).
 
 - [x] Either edge of a video, audio, image, or text clip can be dragged.
 - [x] Trimming respects neighboring clips, the source media's length, and a
@@ -153,7 +153,7 @@ as video clips. Dedicated image tracks and Explorer image drops remain open in
 can make frame-accurate edits.
 
 Mockups: [editor with a timeline](pages/03-editor-timeline.svg),
-[timeline panel](pages/17-timeline-panel.svg).
+[timeline editing area](pages/17-timeline-editing-area.svg).
 
 - [x] The timeline is frame-based.
 - [x] The timeline supports horizontal zoom, including trackpad pinch, and
@@ -172,10 +172,11 @@ save loses that change. Empty timelines also have a playhead-clamping defect.
 give more room to the timeline or the preview as needed.
 
 Mockups: [editor with a timeline](pages/03-editor-timeline.svg),
+[top bar](pages/20-top-bar.svg),
 [properties panel](pages/15-properties-panel.svg).
 
 - [x] The media and properties panels beside the preview can be resized.
-- [x] Dragging the divider above the timeline resizes the timeline panel.
+- [x] Dragging the divider above the timeline resizes the timeline editing area.
 - [x] Panel sizes are saved per project.
 
 ## 8. Preview
@@ -215,7 +216,7 @@ recording into a tight, captioned edit.
 ### Generate subtitles
 
 Mockups: [transcription window](pages/14-transcription-window.svg),
-[settings dialog](pages/10-dialog-settings.svg),
+[settings dialog](pages/07-dialogs.svg),
 [context menus](pages/11-context-menus.svg).
 
 - [x] Right-clicking an audio or video file and choosing **Generate SRT** opens a

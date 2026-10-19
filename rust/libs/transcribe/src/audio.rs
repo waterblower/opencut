@@ -99,6 +99,23 @@ pub fn extract_audio_as_wav(path: &Path) -> Result<Vec<u8>> {
     write_wav_header(wav)
 }
 
+/// Decode the audio between the source-relative `start` and `end` into a mono 16 kHz PCM WAV.
+/// The WAV begins at `start`, so transcription timestamps are relative to the range.
+/// Decodes the whole stream and then cuts the range out.
+pub fn extract_audio_range_as_wav(path: &Path, start: Duration, end: Duration) -> Result<Vec<u8>> {
+    let wav = extract_audio_as_wav(path)?;
+    let sample_count = (wav.len() - 44) / 2;
+    let first_sample =
+        usize::try_from(start.as_nanos() * 16_000 / 1_000_000_000)?.min(sample_count);
+    let end_sample = usize::try_from(end.as_nanos() * 16_000 / 1_000_000_000)?.min(sample_count);
+    if end_sample <= first_sample {
+        bail!("audio range {start:?}..{end:?} contains no samples");
+    }
+    let mut range_wav = vec![0_u8; 44];
+    range_wav.extend_from_slice(&wav[44 + first_sample * 2..44 + end_sample * 2]);
+    write_wav_header(range_wav)
+}
+
 /// Split mono 16 kHz, 16-bit PCM bytes (without a WAV header), without copying samples.
 pub(crate) fn chunk(audio_samples: &[u8], max_size: Duration) -> Result<Vec<&[u8]>> {
     if audio_samples.len() % 2 != 0 {

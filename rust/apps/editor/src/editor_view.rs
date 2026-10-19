@@ -1,9 +1,7 @@
 use crate::actions::EDITOR_KEY_CONTEXT;
+use crate::asset::IconName;
 use crate::editor::Editor;
 use crate::event_bus::{AppEvent, EventBus};
-use crate::generic_containers::{
-    HorizontalSplit, HorizontalSplitConstraints, VerticalSplit, VerticalSplitConstraints,
-};
 use crate::layout::{
     MIN_MEDIA_PANEL_WIDTH, MIN_PREVIEW_WIDTH, MIN_PROPERTIES_PANEL_WIDTH, MIN_TIMELINE_HEIGHT,
     MIN_UPPER_WORKSPACE_HEIGHT, TOPBAR_HEIGHT,
@@ -11,9 +9,15 @@ use crate::layout::{
 use crate::project_picker;
 use crate::properties::properties_panel;
 use crate::settings::settings_modal_view;
-use crate::theme::{BACKGROUND, BORDER, MUTED, PANEL, SURFACE, SURFACE_HOVER, TEXT};
+use crate::theme::{BACKGROUND, BORDER, MUTED, PANEL, TEXT};
+use crate::ui_components::cyberpunk_button::{
+    button_cyberpunk_primary, button_cyberpunk_secondary,
+};
+use crate::ui_components::{
+    HorizontalSplit, HorizontalSplitConstraints, VerticalSplit, VerticalSplitConstraints,
+};
 use gpui::prelude::*;
-use gpui::{App, CursorStyle, MouseButton, MouseDownEvent, Window, div, px, rgb};
+use gpui::{App, CursorStyle, MouseButton, MouseDownEvent, Window, canvas, div, img, px, rgb};
 
 impl Render for Editor {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
@@ -52,6 +56,18 @@ impl Render for Editor {
                 .text_color(rgb(TEXT))
                 .child(self.preview_player(editor_width, f32::from(viewport.height), cx));
         }
+        let placement_cursor = self
+            .timeline
+            .as_ref()
+            .and_then(|timeline| timeline.interaction.clip_move_drag.as_ref())
+            .filter(|drag| drag.changed)
+            .map(|drag| {
+                if drag.invalid_reason.is_some() {
+                    CursorStyle::OperationNotAllowed
+                } else {
+                    CursorStyle::ClosedHand
+                }
+            });
         let context_menu = self.context_menu_overlay(editor_viewport, cx);
         let rename_dialog = self
             .explorer
@@ -113,7 +129,7 @@ impl Render for Editor {
             .overflow_hidden()
             .bg(rgb(BACKGROUND))
             .text_color(rgb(TEXT))
-            .child(self.topbar(cx))
+            .child(self.topbar(window, cx))
             .child(VerticalSplit::new(
                 "editor-workspace",
                 self.workspace_split_state.clone(),
@@ -129,6 +145,19 @@ impl Render for Editor {
             .when_some(settings_modal, |this, modal| this.child(modal))
             .when(self.global_settings_input.is_some(), |this| {
                 this.child(self.global_settings_dialog(cx))
+            })
+            .when_some(placement_cursor, |this, cursor| {
+                this.child(
+                    canvas(
+                        |_, _, _| {},
+                        move |_, (), window, _| {
+                            window.set_window_cursor_style(cursor);
+                        },
+                    )
+                    .absolute()
+                    .inset_0()
+                    .size_full(),
+                )
             })
     }
 }
@@ -172,7 +201,7 @@ impl Editor {
         .into_any_element()
     }
 
-    fn topbar(&self, cx: &mut Context<Self>) -> gpui::AnyElement {
+    fn topbar(&self, window: &mut Window, cx: &mut Context<Self>) -> gpui::AnyElement {
         let timeline_name = self
             .timeline
             .as_ref()
@@ -181,6 +210,8 @@ impl Editor {
             .map(|name| name.to_string_lossy().into_owned())
             .unwrap_or_else(|| "No timeline".to_string());
 
+        let export_enabled = self.timeline.is_some();
+
         div()
             .id("editor-topbar")
             .h(px(TOPBAR_HEIGHT))
@@ -188,6 +219,7 @@ impl Editor {
             .flex()
             .items_center()
             .justify_between()
+            .gap_4()
             .px_5()
             .border_b_1()
             .border_color(rgb(BORDER))
@@ -195,16 +227,28 @@ impl Editor {
             .child(
                 div()
                     .flex()
+                    .flex_1()
+                    .min_w_0()
                     .items_center()
                     .gap_4()
                     .child(
                         div()
-                            .text_xl()
-                            .font_weight(gpui::FontWeight::BOLD)
-                            .child("OpenCut"),
+                            .flex()
+                            .flex_shrink_0()
+                            .items_center()
+                            .gap_1()
+                            .child(img(IconName::App.path()).size(px(40.0)).flex_shrink_0())
+                            .child(
+                                div()
+                                    .text_xl()
+                                    .font_weight(gpui::FontWeight::BOLD)
+                                    .child("OpenCut"),
+                            ),
                     )
                     .child(
                         div()
+                            .min_w_0()
+                            .text_ellipsis()
                             .text_xs()
                             .font_family("monospace")
                             .text_color(rgb(MUTED))
@@ -214,63 +258,67 @@ impl Editor {
             .child(
                 div()
                     .flex()
+                    .flex_shrink_0()
                     .items_center()
-                    .gap_2()
-                    .child(toolbar_button("Settings", true).on_click(
-                        cx.listener(|editor, _, window, cx| {
-                            editor.open_global_settings(window, cx)
-                        }),
-                    ))
-                    .child(toolbar_button("Open Folder", true).on_click(cx.listener(
-                        |editor, _, _, cx| {
-                            editor.open_project_folder(cx);
-                        },
-                    )))
+                    .gap_3()
                     .child(
-                        toolbar_button("Projects", true).on_click(cx.listener(|_, _, _, cx| {
-                            let event_bus = cx.new(|_| EventBus {});
-                            if let Err(error) = project_picker::open(cx, event_bus, None) {
-                                log::error!("Could not open project picker: {error:?}");
-                            }
+                        button_cyberpunk_secondary("topbar-settings", "Settings", true, window, cx)
+                            .w(px(128.0))
+                            .px_0()
+                            .on_click(cx.listener(|editor, _, window, cx| {
+                                editor.open_global_settings(window, cx)
+                            })),
+                    )
+                    .child(
+                        button_cyberpunk_secondary(
+                            "topbar-open-folder",
+                            "Open Folder",
+                            true,
+                            window,
+                            cx,
+                        )
+                        .w(px(152.0))
+                        .px_0()
+                        .on_click(cx.listener(|editor, _, _, cx| {
+                            editor.open_project_folder(cx);
                         })),
                     )
-                    .child(toolbar_button("Export", self.timeline.is_some()).on_click(
-                        cx.listener(|editor, _, _, cx| {
-                            let Some(timeline) = editor.timeline.as_ref() else {
-                                return;
-                            };
-                            let timeline_path = timeline.path.clone();
-                            editor.emit_event(cx, AppEvent::OpenExportWindow { timeline_path });
+                    .child(
+                        button_cyberpunk_secondary("topbar-projects", "Projects", true, window, cx)
+                            .w(px(128.0))
+                            .px_0()
+                            .on_click(cx.listener(|_, _, _, cx| {
+                                let event_bus = cx.new(|_| EventBus {});
+                                if let Err(error) = project_picker::open(cx, event_bus, None) {
+                                    log::error!("Could not open project picker: {error:?}");
+                                }
+                            })),
+                    )
+                    .child(
+                        button_cyberpunk_primary(
+                            "topbar-export",
+                            "Export",
+                            export_enabled,
+                            window,
+                            cx,
+                        )
+                        .w(px(128.0))
+                        .pl(px(20.0))
+                        .pr(px(34.0))
+                        .justify_center()
+                        .when(export_enabled, |button| {
+                            button.on_click(cx.listener(|editor, _, _, cx| {
+                                let Some(timeline) = editor.timeline.as_ref() else {
+                                    return;
+                                };
+                                let timeline_path = timeline.path.clone();
+                                editor.emit_event(cx, AppEvent::OpenExportWindow { timeline_path });
+                            }))
                         }),
-                    )),
+                    ),
             )
             .into_any_element()
     }
-}
-
-fn toolbar_button(label: &'static str, enabled: bool) -> gpui::Stateful<gpui::Div> {
-    div()
-        .id(label)
-        .h_9()
-        .px_3()
-        .flex()
-        .items_center()
-        .justify_center()
-        .rounded_lg()
-        .border_1()
-        .border_color(rgb(BORDER))
-        .bg(rgb(SURFACE))
-        .cursor(if enabled {
-            CursorStyle::PointingHand
-        } else {
-            CursorStyle::Arrow
-        })
-        .text_sm()
-        .text_color(rgb(if enabled { TEXT } else { 0x55555d }))
-        .when(enabled, |this| {
-            this.hover(|style| style.bg(rgb(SURFACE_HOVER)))
-        })
-        .child(label.to_string())
 }
 
 const WORKSPACE_SPLIT_CONSTRAINTS: VerticalSplitConstraints = VerticalSplitConstraints {
