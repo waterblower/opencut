@@ -1,9 +1,6 @@
 use crate::actions::EDITOR_KEY_CONTEXT;
 use crate::editor::Editor;
 use crate::event_bus::{AppEvent, EventBus};
-use crate::ui_components::{
-    HorizontalSplit, HorizontalSplitConstraints, VerticalSplit, VerticalSplitConstraints,
-};
 use crate::layout::{
     MIN_MEDIA_PANEL_WIDTH, MIN_PREVIEW_WIDTH, MIN_PROPERTIES_PANEL_WIDTH, MIN_TIMELINE_HEIGHT,
     MIN_UPPER_WORKSPACE_HEIGHT, TOPBAR_HEIGHT,
@@ -12,6 +9,9 @@ use crate::project_picker;
 use crate::properties::properties_panel;
 use crate::settings::settings_modal_view;
 use crate::theme::{BACKGROUND, BORDER, MUTED, PANEL, SURFACE, SURFACE_HOVER, TEXT};
+use crate::ui_components::{
+    HorizontalSplit, HorizontalSplitConstraints, VerticalSplit, VerticalSplitConstraints,
+};
 use gpui::prelude::*;
 use gpui::{App, CursorStyle, MouseButton, MouseDownEvent, Window, div, px, rgb};
 

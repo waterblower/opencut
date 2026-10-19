@@ -1,7 +1,7 @@
 use crate::edit_action::{EditAction, edit_timeline};
 use crate::editor::Editor;
-use crate::ui_components::TextInput;
 use crate::theme::{ACCENT, MUTED, TEXT};
+use crate::ui_components::TextInput;
 use anyhow::Result;
 use gpui::prelude::*;
 use gpui::{Entity, FocusHandle, div, rgb};
