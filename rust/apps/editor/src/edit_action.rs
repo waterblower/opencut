@@ -11,7 +11,7 @@ use std::path::PathBuf;
 use ulid::Ulid;
 
 #[derive(Clone, Debug)]
-pub enum EditAction {
+pub(crate) enum EditAction {
     TrimClip {
         timeline_path: PathBuf,
         pointer_x: f32,
@@ -96,7 +96,10 @@ pub enum EditAction {
 
 /// Applies an edit and returns whether the caller should save the timeline.
 /// The preview player is not synced with it.
-pub fn edit_timeline(timeline: &mut TimelineRuntimeState, action: EditAction) -> Result<bool> {
+pub(crate) fn edit_timeline(
+    timeline: &mut TimelineRuntimeState,
+    action: EditAction,
+) -> Result<bool> {
     struct Outcome {
         new_state: TimelineEditingState,
         record_history: bool,
@@ -469,7 +472,7 @@ pub fn edit_timeline(timeline: &mut TimelineRuntimeState, action: EditAction) ->
     Ok(outcome.should_save)
 }
 
-pub trait TimelineEditExt {
+trait TimelineEditExt {
     /// Returns an edited copy of the editing state.
     fn edit(&self, action: EditAction) -> Result<TimelineEditingState>;
 }

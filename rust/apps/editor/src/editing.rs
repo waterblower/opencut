@@ -29,7 +29,7 @@ pub(super) struct ClipClipboard {
 }
 
 impl ClipClipboard {
-    pub fn from_selection(
+    pub(crate) fn from_selection(
         source_timeline: PathBuf,
         timeline: &TimelineEditingState,
         selected_clip_ids: &HashSet<Ulid>,

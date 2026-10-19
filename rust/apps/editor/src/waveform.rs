@@ -26,7 +26,7 @@ pub(super) struct WaveformPeak {
 }
 
 #[derive(Debug)]
-pub(super) struct WaveformLevel {
+struct WaveformLevel {
     samples_per_peak: u32,
     peaks: Vec<WaveformPeak>,
 }
@@ -90,7 +90,7 @@ impl WaveformData {
     }
 }
 
-pub(super) fn generate_waveform(source: &Path) -> Result<WaveformData> {
+fn generate_waveform(source: &Path) -> Result<WaveformData> {
     ffmpeg::init().map_err(|error| anyhow!("could not initialize FFmpeg: {error}"))?;
     let mut input = format::input(source)
         .map_err(|error| anyhow!("could not open {}: {error}", source.display()))?;

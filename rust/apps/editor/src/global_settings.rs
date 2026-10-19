@@ -4,19 +4,19 @@ use std::fs;
 use std::path::PathBuf;
 
 #[derive(Default, Deserialize, Serialize)]
-pub struct GlobalEditorSettings {
+pub(crate) struct GlobalEditorSettings {
     #[serde(default)]
-    pub project_root: PathBuf,
+    pub(crate) project_root: PathBuf,
     #[serde(default)]
-    pub minimax_api_key: String,
+    pub(crate) minimax_api_key: String,
 }
 
 impl GlobalEditorSettings {
-    pub fn load() -> Result<Self> {
+    pub(crate) fn load() -> Result<Self> {
         load_settings(&settings_path())
     }
 
-    pub fn save(&self) -> Result<()> {
+    pub(crate) fn save(&self) -> Result<()> {
         save_settings(&settings_path(), self)
     }
 }

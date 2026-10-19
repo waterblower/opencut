@@ -5,7 +5,7 @@ use engine::export::{ExportControl, ExportOption};
 use serde_json::{Value, json};
 use timeline::TimelineSerialization;
 
-pub fn export(args: ExportArgs) -> Result<Value> {
+pub(crate) fn export(args: ExportArgs) -> Result<Value> {
     let document = TimelineSerialization::load(&args.timeline)?;
     let project_root = match args.project_root {
         Some(root) => root,

@@ -48,7 +48,7 @@ impl TimelineEditingState {
     pub fn nearest_time(&self, seconds: f64) -> TimelineFrameIndex {
         self.settings.frame_rate.nearest(seconds)
     }
-    pub fn audio_duration(&self, time: TimelineFrameIndex) -> Duration {
+    fn audio_duration(&self, time: TimelineFrameIndex) -> Duration {
         let samples = self
             .settings
             .frame_rate
@@ -89,7 +89,7 @@ impl TimelineEditingState {
         }
         self.audio_duration(clip.source_time_at(timeline_position).unwrap_or_default())
     }
-    pub fn source_start_seconds(&self, clip: &Clip) -> f64 {
+    fn source_start_seconds(&self, clip: &Clip) -> f64 {
         self.source_position_at(clip, clip.timeline_start())
             .as_secs_f64()
     }

@@ -6,7 +6,7 @@ use crate::theme::{BORDER, MUTED, SURFACE};
 use gpui::prelude::*;
 use gpui::{FontWeight, div, px, rgb, rgba};
 
-pub fn text_clip_view(panel: &TextClipPanel) -> gpui::AnyElement {
+pub(crate) fn text_clip_view(panel: &TextClipPanel) -> gpui::AnyElement {
     let clip = &panel.clip;
     let track_name = panel.track_name.as_str();
     let frame_rate = panel.frame_rate;

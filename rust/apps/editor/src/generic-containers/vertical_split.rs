@@ -4,19 +4,19 @@ use gpui::{App, Entity, MouseButton, Window, div, px, rgb};
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Copy)]
-pub struct VerticalSplitConstraints {
-    pub min_top: f32,
-    pub min_bottom: f32,
+pub(crate) struct VerticalSplitConstraints {
+    pub(crate) min_top: f32,
+    pub(crate) min_bottom: f32,
 }
 
 #[derive(Clone, Copy)]
-pub struct VerticalSplitHeights {
-    pub top: f32,
-    pub bottom: f32,
+pub(crate) struct VerticalSplitHeights {
+    pub(crate) top: f32,
+    pub(crate) bottom: f32,
 }
 
 #[derive(Clone, Serialize, Deserialize, Debug)]
-pub struct VerticalSplitState {
+pub(crate) struct VerticalSplitState {
     bottom_height: f32, // 用户期望的下方区域高度；实际高度由 heights() 按约束和总高度推导。
     #[serde(skip)]
     drag_offset: Option<f32>, // 拖动分隔条期间才有值；None：没有进行中的拖动。
@@ -24,14 +24,14 @@ pub struct VerticalSplitState {
 
 // Public APIs only
 impl VerticalSplitState {
-    pub fn new(bottom_height: f32) -> Self {
+    pub(crate) fn new(bottom_height: f32) -> Self {
         Self {
             bottom_height,
             drag_offset: None,
         }
     }
 
-    pub fn heights(
+    pub(crate) fn heights(
         &self,
         total_height: f32,
         constraints: VerticalSplitConstraints,
@@ -62,7 +62,7 @@ impl VerticalSplitState {
 }
 
 #[derive(IntoElement)]
-pub struct VerticalSplit {
+pub(crate) struct VerticalSplit {
     id: &'static str,
     state: Entity<VerticalSplitState>,
     event_bus: Entity<EventBus>,
@@ -74,7 +74,7 @@ pub struct VerticalSplit {
 
 // Public APIs only
 impl VerticalSplit {
-    pub fn new(
+    pub(crate) fn new(
         id: &'static str,
         state: Entity<VerticalSplitState>,
         event_bus: Entity<EventBus>,

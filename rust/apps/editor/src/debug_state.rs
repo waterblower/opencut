@@ -6,7 +6,7 @@ use serde_json::json;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 impl Editor {
-    pub fn copy_debug_state(&mut self, cx: &mut Context<Self>) {
+    pub(crate) fn copy_debug_state(&mut self, cx: &mut Context<Self>) {
         match debug_state(self) {
             Ok(report) => {
                 cx.write_to_clipboard(ClipboardItem::new_string(report));

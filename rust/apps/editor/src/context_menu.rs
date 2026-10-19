@@ -52,7 +52,7 @@ impl Editor {
         }
     }
 
-    pub(crate) fn file_menu_overlay(
+    fn file_menu_overlay(
         &self,
         menu: &FileContextMenu,
         viewport: gpui::Size<gpui::Pixels>,
@@ -252,7 +252,7 @@ impl Editor {
         cx.notify();
     }
 
-    pub fn dismiss_context_menu(&mut self) {
+    pub(crate) fn dismiss_context_menu(&mut self) {
         self.context_menu = ContextMenu::None;
     }
 }
@@ -279,7 +279,7 @@ fn file_menu_item(label: &'static str, shortcut: &'static str) -> gpui::Stateful
 }
 
 impl Editor {
-    pub(super) fn timeline_clip_menu_overlay(
+    fn timeline_clip_menu_overlay(
         &self,
         menu: &TimelineClipContextMenu,
         viewport: gpui::Size<gpui::Pixels>,
@@ -384,14 +384,14 @@ impl Editor {
 }
 
 pub(super) struct TextTrackContextMenu {
-    pub(super) track_id: Ulid,
+    track_id: Ulid,
     pub(super) position: TimelineFrameIndex,
-    pub(super) x: f32,
-    pub(super) y: f32,
+    x: f32,
+    y: f32,
 }
 
 impl Editor {
-    pub(super) fn text_track_menu_overlay(
+    fn text_track_menu_overlay(
         &self,
         menu: &TextTrackContextMenu,
         viewport: gpui::Size<gpui::Pixels>,

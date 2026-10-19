@@ -15,6 +15,7 @@ impl Render for AudioPlayer {
             PlaybackState::Ended => "Replay",
         };
         let detail = format!("{} / {}", format_time(position), format_time(duration));
+        let drag_seek_bounds = seek_bounds.clone();
         div()
             .id("audio-player")
             .size_full()
@@ -44,7 +45,8 @@ impl Render for AudioPlayer {
                 }))
                 .on_drag_move(cx.listener(
                     move |player, event: &DragMoveEvent<ProgressBarDrag>, _, cx| {
-                        let target = seek_position(event.event.position.x, event.bounds, duration);
+                        let target =
+                            seek_position(event.event.position.x, drag_seek_bounds.get(), duration);
                         match player.seek(target) {
                             Ok(()) => cx.notify(),
                             Err(error) => eprintln!("Seeking audio failed: {error:?}"),

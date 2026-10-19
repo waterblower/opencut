@@ -24,9 +24,9 @@ pub struct VideoPlayer {
     #[cfg(target_os = "macos")]
     gpu: GpuResources,
     play_wakers: Vec<Waker>,                              // 分别唤醒视频、音频循环；只保存等待者，不保存播放进度。
-    pub displayed: Option<(CVPixelBuffer, Duration, Duration)>, // (图像, 帧 PTS, 该帧时长)；None：尚未呈现首帧。
-    pub playback_state: PlaybackState,
-    pub title: String,
+    pub(crate) displayed: Option<(CVPixelBuffer, Duration, Duration)>, // (图像, 帧 PTS, 该帧时长)；None：尚未呈现首帧。
+    pub(crate) playback_state: PlaybackState,
+    pub(crate) title: String,
     scrub: Option<Scrub>,                                 // 拖动进度条期间的状态；None：未在拖动。
 }
 
@@ -145,11 +145,11 @@ impl VideoPlayer {
         })
     }
 
-    pub fn duration(&self) -> Duration {
+    pub(crate) fn duration(&self) -> Duration {
         self.video_backend.metadata.duration
     }
 
-    pub fn is_ended(&self) -> Result<bool> {
+    pub(crate) fn is_ended(&self) -> Result<bool> {
         Ok(matches!(self.playback_state, PlaybackState::Paused)
             && self.video_backend.video.is_drained()
             && self.video_backend.audio.is_drained()
@@ -172,7 +172,7 @@ impl VideoPlayer {
     }
 }
 
-pub enum PlaybackState {
+pub(crate) enum PlaybackState {
     Playing, // 两个循环继续推进，共用同一个媒体时间基准。
     Paused,  // 用户暂停、时钟冻结；seek 直接更新画面。
 }

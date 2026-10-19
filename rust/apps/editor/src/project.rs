@@ -42,7 +42,7 @@ impl Editor {
         .detach();
     }
 
-    pub fn prepare_project_switch(&mut self) -> Result<()> {
+    pub(crate) fn prepare_project_switch(&mut self) -> Result<()> {
         if let Some(timeline) = self.timeline.as_ref() {
             timeline.save()?;
         }

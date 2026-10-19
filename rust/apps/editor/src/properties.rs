@@ -24,7 +24,7 @@ use timeline::{TimelineEditingState, TimelineSettings};
 use transcribe::SRT;
 use ulid::Ulid;
 
-pub enum PropertiesPanel {
+pub(crate) enum PropertiesPanel {
     VideoFile(VideoFilePanel),
     AudioFile(AudioFilePanel),
     ImageFile(ImageFilePanel),
@@ -36,34 +36,34 @@ pub enum PropertiesPanel {
     None,
 }
 
-pub struct VideoFilePanel {
-    pub path: PathBuf,           // 绝对路径
-    pub size_bytes: Option<u64>, // 取自 Explorer 条目，不在 render 里读磁盘
+pub(crate) struct VideoFilePanel {
+    pub(crate) path: PathBuf,           // 绝对路径
+    pub(crate) size_bytes: Option<u64>, // 取自 Explorer 条目，不在 render 里读磁盘
 }
 
-pub struct AudioFilePanel {
+pub(crate) struct AudioFilePanel {
     path: PathBuf,           // 绝对路径
     size_bytes: Option<u64>, // 取自 Explorer 条目
 }
 
-pub struct ImageFilePanel {
+pub(crate) struct ImageFilePanel {
     path: PathBuf,           // 绝对路径
     size_bytes: Option<u64>, // 取自 Explorer 条目
 }
 
-pub struct SrtFilePanel {
+pub(crate) struct SrtFilePanel {
     path: PathBuf,          // 绝对路径
     subtitles: Result<SRT>, // 构造面板时读取并解析
 }
 
-pub struct VideoClipPanel {
+pub(crate) struct VideoClipPanel {
     clip: VideoClip,
     asset_name: String,
     track_name: String,
     frame_rate: FrameRate,
 }
 
-pub struct AudioClipPanel {
+pub(crate) struct AudioClipPanel {
     clip: AudioClip,
     asset_name: String,
     track_name: String,
@@ -71,13 +71,13 @@ pub struct AudioClipPanel {
     waveform: Option<Arc<WaveformData>>, // 构造面板时缓存里还没有波形则为 None
 }
 
-pub struct TextClipPanel {
-    pub clip: TextClip,
-    pub track_name: String,
-    pub frame_rate: FrameRate,
+pub(crate) struct TextClipPanel {
+    pub(crate) clip: TextClip,
+    pub(crate) track_name: String,
+    pub(crate) frame_rate: FrameRate,
 }
 
-pub struct TimelinePanel {
+pub(crate) struct TimelinePanel {
     path: PathBuf,         // 绝对路径
     project_root: PathBuf, // 用于显示相对路径
     settings: TimelineSettings,
@@ -88,7 +88,7 @@ pub struct TimelinePanel {
     clip_count: usize,
 }
 
-pub fn current_properties_panel(editor: &Editor) -> PropertiesPanel {
+pub(crate) fn current_properties_panel(editor: &Editor) -> PropertiesPanel {
     if let Some(timeline) = editor.timeline.as_ref()
         && let Some(clip_id) = timeline.interaction.selected_clip_id
     {
@@ -188,7 +188,10 @@ pub fn current_properties_panel(editor: &Editor) -> PropertiesPanel {
     PropertiesPanel::Timeline(timeline_panel(timeline, &editor.project_root))
 }
 
-pub fn video_clip_panel(editing_state: &TimelineEditingState, clip: &VideoClip) -> VideoClipPanel {
+pub(crate) fn video_clip_panel(
+    editing_state: &TimelineEditingState,
+    clip: &VideoClip,
+) -> VideoClipPanel {
     let asset_name = match editing_state.asset(clip.asset_id) {
         Some(asset) => asset.name.as_str(),
         None => "Missing media",
@@ -209,7 +212,10 @@ pub fn video_clip_panel(editing_state: &TimelineEditingState, clip: &VideoClip) 
     }
 }
 
-pub fn text_clip_panel(editing_state: &TimelineEditingState, clip: &TextClip) -> TextClipPanel {
+pub(crate) fn text_clip_panel(
+    editing_state: &TimelineEditingState,
+    clip: &TextClip,
+) -> TextClipPanel {
     let track_name = match editing_state
         .tracks
         .iter()
@@ -226,7 +232,7 @@ pub fn text_clip_panel(editing_state: &TimelineEditingState, clip: &TextClip) ->
 }
 
 /// Reads and parses the subtitles; failures are logged here and shown by the panel.
-pub fn srt_file_panel(path: PathBuf) -> SrtFilePanel {
+pub(crate) fn srt_file_panel(path: PathBuf) -> SrtFilePanel {
     let subtitles = (|| -> Result<SRT> {
         let text = fs::read_to_string(&path)?;
         SRT::from_string(&text)
@@ -260,7 +266,11 @@ pub(super) fn properties_panel(panel: &PropertiesPanel) -> gpui::AnyElement {
     }
 }
 
-pub fn properties_header_view(badge: gpui::Div, title: String, subtitle: String) -> gpui::Div {
+pub(crate) fn properties_header_view(
+    badge: gpui::Div,
+    title: String,
+    subtitle: String,
+) -> gpui::Div {
     div()
         .h(px(64.0))
         .flex_shrink_0()
@@ -296,7 +306,7 @@ pub fn properties_header_view(badge: gpui::Div, title: String, subtitle: String)
         )
 }
 
-pub fn readonly_properties_panel_view(
+pub(crate) fn readonly_properties_panel_view(
     id: &'static str,
     header: gpui::Div,
     content: gpui::Div,
@@ -323,7 +333,7 @@ pub fn readonly_properties_panel_view(
         .into_any_element()
 }
 
-pub fn properties_heading_view(label: &'static str) -> gpui::Div {
+pub(crate) fn properties_heading_view(label: &'static str) -> gpui::Div {
     div()
         .text_size(px(11.0))
         .line_height(px(16.0))
@@ -332,11 +342,11 @@ pub fn properties_heading_view(label: &'static str) -> gpui::Div {
         .child(label)
 }
 
-pub fn properties_divider_view() -> gpui::Div {
+pub(crate) fn properties_divider_view() -> gpui::Div {
     div().h(px(1.0)).my(px(16.0)).bg(rgb(0x1f1f24))
 }
 
-pub fn format_properties_time(seconds: f64) -> String {
+pub(crate) fn format_properties_time(seconds: f64) -> String {
     let centiseconds = (seconds.max(0.0) * 100.0).round() as u64;
     format!(
         "{}:{:02}.{:02}",

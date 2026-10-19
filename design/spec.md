@@ -184,6 +184,7 @@ Mockups: [editor with a timeline](pages/03-editor-timeline.svg),
 that I can judge the edit without exporting.
 
 Mockups: [preview variants](pages/16-preview-panel.svg),
+[video player](pages/18-video-player.svg),
 [fullscreen preview](pages/12-fullscreen-preview.svg).
 
 The preview design has five states: image, audio, video, error, and none.

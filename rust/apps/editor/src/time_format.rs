@@ -1,4 +1,4 @@
-pub fn format_time(seconds: f64, padded_minutes: bool) -> String {
+pub(crate) fn format_time(seconds: f64, padded_minutes: bool) -> String {
     let total = seconds.max(0.0).round() as u64;
     let hours = total / 3600;
     let minutes = (total % 3600) / 60;

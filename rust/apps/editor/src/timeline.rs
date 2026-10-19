@@ -7,7 +7,7 @@ use crate::timeline_clip::Clip;
 use crate::timeline_interactions::{TimelineInteractionState, TimelineTool};
 use crate::track::TrackKind;
 use ::timeline::TimelineEditingState;
-pub use ::timeline::{FrameRate, TimelineFrameIndex};
+pub(crate) use ::timeline::{FrameRate, TimelineFrameIndex};
 use anyhow::{Context as _, Result, ensure};
 use gpui::ScrollHandle;
 use gpui::prelude::*;
@@ -27,25 +27,25 @@ pub(super) const FRAME_RATE_PRESETS: [(FrameRate, &str); 8] = [
     (FrameRate::new(60, 1), "60 fps"),
 ];
 
-pub struct TimelineRuntimeState {
-    pub clip_trim_drag: Option<crate::timeline_trim::ClipTrimDrag>,
+pub(crate) struct TimelineRuntimeState {
+    pub(crate) clip_trim_drag: Option<crate::timeline_trim::ClipTrimDrag>,
     /// Absolute path of the timeline file.
-    pub path: PathBuf,
-    pub editing_state: TimelineEditingState,
-    pub text_drag: Option<PreviewTextDrag>,
+    pub(crate) path: PathBuf,
+    pub(crate) editing_state: TimelineEditingState,
+    pub(crate) text_drag: Option<PreviewTextDrag>,
     playhead: TimelineFrameIndex, // 编辑区自己的播放头；与预览播放器互不同步。
-    pub h_scroll: ScrollHandle,
-    pub v_scroll: ScrollHandle,
-    pub pixels_per_second: f32,
-    pub snapping_enabled: bool,
-    pub track_magnet_enabled: bool,
+    pub(crate) h_scroll: ScrollHandle,
+    pub(crate) v_scroll: ScrollHandle,
+    pub(crate) pixels_per_second: f32,
+    pub(crate) snapping_enabled: bool,
+    pub(crate) track_magnet_enabled: bool,
     pub(super) interaction: TimelineInteractionState,
     pub(super) undo_stack: Vec<TimelineEditingState>,
     pub(super) redo_stack: Vec<TimelineEditingState>,
     pub(super) preview_drop_asset: Option<PreviewDropAsset>,
 }
 
-pub trait TimelinePlayerExt: Sized {
+pub(crate) trait TimelinePlayerExt: Sized {
     /// Creates a paused snapshot with the runtime timeline's title and playhead.
     fn from_runtime_state(timeline: &TimelineRuntimeState) -> Result<Self>;
 }
@@ -77,13 +77,13 @@ impl TimelinePlayerExt for TimelinePlayer {
 }
 
 #[derive(Debug)]
-pub struct PreviewDropAsset {
-    pub track_id: Ulid,
-    pub start_time: TimelineFrameIndex,
-    pub asset: AssetBeingDragged,
+pub(crate) struct PreviewDropAsset {
+    pub(crate) track_id: Ulid,
+    pub(crate) start_time: TimelineFrameIndex,
+    pub(crate) asset: AssetBeingDragged,
 }
 
-pub fn timeline_ranges_overlap(
+pub(crate) fn timeline_ranges_overlap(
     left_start: TimelineFrameIndex,
     left_end: TimelineFrameIndex,
     right_start: TimelineFrameIndex,
@@ -91,7 +91,7 @@ pub fn timeline_ranges_overlap(
 ) -> bool {
     left_start < right_end && right_start < left_end
 }
-pub trait TimelineEditorExt: Sized {
+pub(crate) trait TimelineEditorExt: Sized {
     fn validate_clip_move_placements(
         &self,
         placements: &[(Ulid, Ulid, TimelineFrameIndex)],
@@ -356,12 +356,12 @@ impl TimelineRuntimeState {
         })
     }
 
-    pub fn playhead(&self) -> TimelineFrameIndex {
+    pub(crate) fn playhead(&self) -> TimelineFrameIndex {
         self.playhead
     }
 
     /// Moves the editing playhead to `frame_index`, clamped to the last frame of the content.
-    pub fn set_playhead(&mut self, frame_index: TimelineFrameIndex) {
+    pub(crate) fn set_playhead(&mut self, frame_index: TimelineFrameIndex) {
         let last_frame_index =
             self.editing_state.content_duration() - TimelineFrameIndex::ONE_FRAME;
         if frame_index < TimelineFrameIndex::ZERO {
@@ -381,7 +381,7 @@ impl TimelineRuntimeState {
         self.redo_stack.clear();
     }
 }
-pub trait FrameRateLabel {
+pub(crate) trait FrameRateLabel {
     fn label(self) -> String;
 }
 impl FrameRateLabel for FrameRate {

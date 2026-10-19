@@ -24,10 +24,10 @@ pub(crate) struct Editor {
     // main UI sections
     pub(super) explorer: ExplorerState,
     pub(super) preview: PreviewState,
-    pub timeline: Option<TimelineRuntimeState>,
+    pub(crate) timeline: Option<TimelineRuntimeState>,
 
     // other
-    pub project_root: PathBuf,
+    pub(crate) project_root: PathBuf,
     pub(super) waveform_jobs: HashSet<PathBuf>, // 正在生成波形的素材绝对路径。
     pub(super) waveform_cache: HashMap<PathBuf, Arc<waveform::WaveformData>>, // 键为素材的绝对路径；不同目录的时间线可能用不同相对路径指向同一文件。
     pub(super) properties: PropertiesPanelState,
@@ -37,12 +37,12 @@ pub(crate) struct Editor {
     pub(super) focus_handle: FocusHandle,
     pub(super) clipboard: Option<ClipClipboard>,
     pub(super) context_menu: ContextMenu,
-    pub active_asset_drag: AssetBeingDragged,
+    pub(crate) active_asset_drag: AssetBeingDragged,
     // entities
     pub(super) event_bus: Entity<EventBus>,
     pub(super) upper_split_state: Entity<HorizontalSplitState>,
     pub(super) workspace_split_state: Entity<VerticalSplitState>,
-    pub global_settings_input: Option<Entity<TextInput>>,
+    pub(crate) global_settings_input: Option<Entity<TextInput>>,
 }
 
 impl Editor {
@@ -144,7 +144,7 @@ impl Editor {
         editor
     }
 
-    pub fn emit_event(&mut self, cx: &mut Context<Self>, event: AppEvent) {
+    pub(crate) fn emit_event(&mut self, cx: &mut Context<Self>, event: AppEvent) {
         self.event_bus.update(cx, |_, cx| cx.emit(event));
     }
 }

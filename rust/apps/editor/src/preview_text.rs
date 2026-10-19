@@ -17,18 +17,18 @@ use std::{cell::RefCell, path::PathBuf, rc::Rc};
 use timeline::Clip;
 use ulid::Ulid;
 
-pub struct PreviewTextDrag {
-    pub timeline_path: PathBuf,
-    pub clip_id: Ulid,
-    pub start: Point<Pixels>,
-    pub history_recorded: bool, // 首次实际移动时记录撤销，整次拖动只记录一次。
-    pub original: Point<f64>,
-    pub text_size: Size<Pixels>, // 拖动开始时的完整文字布局尺寸，边缘吸附不使用裁剪后的命中区域。
-    pub canvas_size: Size<Pixels>, // 实际画布尺寸，不包含预览黑边和播放控件。
+pub(crate) struct PreviewTextDrag {
+    pub(crate) timeline_path: PathBuf,
+    pub(crate) clip_id: Ulid,
+    pub(crate) start: Point<Pixels>,
+    pub(crate) history_recorded: bool, // 首次实际移动时记录撤销，整次拖动只记录一次。
+    pub(crate) original: Point<f64>,
+    pub(crate) text_size: Size<Pixels>, // 拖动开始时的完整文字布局尺寸，边缘吸附不使用裁剪后的命中区域。
+    pub(crate) canvas_size: Size<Pixels>, // 实际画布尺寸，不包含预览黑边和播放控件。
 }
 
 impl Editor {
-    pub fn preview_timeline_picture(
+    pub(crate) fn preview_timeline_picture(
         &self,
         player: &Entity<TimelinePlayer>,
         cx: &mut Context<Self>,
@@ -62,7 +62,7 @@ impl Editor {
         .into_any_element()
     }
 
-    pub fn preview_text_overlay(
+    pub(crate) fn preview_text_overlay(
         &self,
         player: &Entity<TimelinePlayer>,
         cx: &mut Context<Self>,
@@ -266,7 +266,7 @@ impl Editor {
             .into_any_element()
     }
 
-    pub fn move_preview_text(
+    pub(crate) fn move_preview_text(
         &mut self,
         event: &MouseMoveEvent,
         _: &mut Window,
@@ -289,7 +289,7 @@ impl Editor {
         );
     }
 
-    pub fn release_preview_text(
+    pub(crate) fn release_preview_text(
         &mut self,
         event: &MouseUpEvent,
         _: &mut Window,

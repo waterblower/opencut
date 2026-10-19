@@ -22,7 +22,7 @@ pub(super) fn probe_asset(path: &Path) -> Result<MediaAsset> {
     Ok(asset)
 }
 
-pub(super) fn probe_video(path: &Path, id: Ulid) -> Result<MediaAsset> {
+fn probe_video(path: &Path, id: Ulid) -> Result<MediaAsset> {
     ffmpeg::init().context("could not initialize FFmpeg")?;
     let input =
         format::input(path).with_context(|| format!("could not inspect {}", path.display()))?;
@@ -60,7 +60,7 @@ pub(super) fn probe_video(path: &Path, id: Ulid) -> Result<MediaAsset> {
     })
 }
 
-pub(super) fn probe_image(path: &Path, id: Ulid) -> Result<MediaAsset> {
+fn probe_image(path: &Path, id: Ulid) -> Result<MediaAsset> {
     let (width, height) = image::image_dimensions(path)
         .with_context(|| format!("could not inspect {}", path.display()))?;
     let codec = path
@@ -85,7 +85,7 @@ pub(super) fn probe_image(path: &Path, id: Ulid) -> Result<MediaAsset> {
     })
 }
 
-pub(super) fn probe_audio(path: &Path, id: Ulid) -> Result<MediaAsset> {
+fn probe_audio(path: &Path, id: Ulid) -> Result<MediaAsset> {
     ffmpeg::init().context("could not initialize FFmpeg")?;
     let input =
         format::input(path).with_context(|| format!("could not inspect {}", path.display()))?;

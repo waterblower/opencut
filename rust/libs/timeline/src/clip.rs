@@ -169,7 +169,7 @@ impl VideoClip {
     }
 
     /// Creates a new clip with the supplied identity; cloning preserves identity.
-    pub fn copy(&self, new_id: Ulid) -> Self {
+    fn copy(&self, new_id: Ulid) -> Self {
         Self {
             id: new_id,
             ..self.clone()
@@ -204,7 +204,7 @@ impl AudioClip {
     }
 
     /// Creates a new clip with the supplied identity; cloning preserves identity.
-    pub fn copy(&self, new_id: Ulid) -> Self {
+    fn copy(&self, new_id: Ulid) -> Self {
         Self {
             id: new_id,
             ..self.clone()
@@ -235,7 +235,7 @@ impl TextClip {
     }
 
     /// Creates a new clip with the supplied identity; cloning preserves identity.
-    pub fn copy(&self, new_id: Ulid) -> Self {
+    fn copy(&self, new_id: Ulid) -> Self {
         Self {
             id: new_id,
             ..self.clone()

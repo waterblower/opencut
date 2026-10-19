@@ -49,7 +49,7 @@ pub struct MediaAsset {
 }
 
 impl MediaAsset {
-    pub fn frame_rate(&self) -> Option<FrameRate> {
+    pub(crate) fn frame_rate(&self) -> Option<FrameRate> {
         if self.kind != MediaKind::Video {
             return None;
         }

@@ -64,12 +64,7 @@ impl GpuResources {
     /// Return a completed surface for unmodified GPUI, or an error for frames the GPU path
     /// cannot show. Conversion stays on the GPU; waiting here deliberately keeps the loop serial.
     pub fn convert(&mut self, frame: &VideoFrame) -> Result<CVPixelBuffer> {
-        if frame.native.format() != Pixel::VIDEOTOOLBOX {
-            bail!(
-                "Video frame is not a VideoToolbox frame: {:?}",
-                frame.native.format()
-            );
-        }
+        let source = frame.pixel_buffer.clone();
         if frame.rotation_degrees.rem_euclid(360.0) != 0.0 {
             bail!(
                 "Rotated video is not supported: {} degrees",
@@ -80,16 +75,10 @@ impl GpuResources {
             color::Space::BT709 => (0.2126, 0.0722),
             color::Space::BT470BG | color::Space::SMPTE170M => (0.299, 0.114),
             color::Space::BT2020NCL => (0.2627, 0.0593),
-            color::Space::Unspecified if frame.native.height() >= 720 => (0.2126, 0.0722),
+            color::Space::Unspecified if source.get_height() >= 720 => (0.2126, 0.0722),
             color::Space::Unspecified => (0.299, 0.114),
             other => bail!("Unsupported video color space: {other:?}"),
         };
-        // SAFETY: FFmpeg owns the CVPixelBuffer in data[3]. Retain it with the get rule.
-        let source = unsafe { (*frame.native.as_ptr()).data[3] as CVPixelBufferRef };
-        if source.is_null() {
-            bail!("VideoToolbox frame has no pixel buffer");
-        }
-        let source = unsafe { CVPixelBuffer::wrap_under_get_rule(source) };
         let (bits, full_range, y_format, uv_format) = match source.get_pixel_format() {
             f if f == kCVPixelFormatType_420YpCbCr8BiPlanarFullRange => {
                 (8, true, MTLPixelFormat::R8Unorm, MTLPixelFormat::RG8Unorm)
@@ -118,11 +107,6 @@ impl GpuResources {
             unsafe { !CVPixelBufferGetIOSurface(source.as_concrete_TypeRef()).is_null() };
         if !has_surface
             || source.get_plane_count() != 2
-            || dimensions
-                != (
-                    frame.native.width() as usize,
-                    frame.native.height() as usize,
-                )
             || dimensions.0 % 2 != 0
             || dimensions.1 % 2 != 0
         {

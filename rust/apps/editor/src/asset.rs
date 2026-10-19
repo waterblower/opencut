@@ -2,7 +2,7 @@ use gpui::{AssetSource, SharedString};
 use std::borrow::Cow;
 
 #[derive(Clone, Copy)]
-pub enum IconName {
+pub(crate) enum IconName {
     AlertTriangle,
     App,
     ArrowDown,
@@ -55,7 +55,7 @@ impl IconName {
     }
 }
 
-pub struct EditorAssets;
+pub(crate) struct EditorAssets;
 
 impl AssetSource for EditorAssets {
     fn load(&self, path: &str) -> gpui::Result<Option<Cow<'static, [u8]>>> {

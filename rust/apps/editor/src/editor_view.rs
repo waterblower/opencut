@@ -121,7 +121,7 @@ impl Render for Editor {
                 workspace_height,
                 WORKSPACE_SPLIT_CONSTRAINTS,
                 self.upper_workspace(editor_width, workspace_heights.top, cx),
-                self.timeline_view(cx),
+                self.timeline_view(editor_width, cx),
             ))
             .when_some(context_menu, |this, menu| this.child(menu))
             .when_some(rename_dialog, |this, dialog| this.child(dialog))

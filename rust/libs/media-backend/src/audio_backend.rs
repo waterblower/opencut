@@ -1,13 +1,13 @@
-use crate::{AudioDecoder, AudioInfo, time::timestamp_microseconds};
+use crate::{AudioDecoder, media_info::AudioInfo, time::timestamp_microseconds};
 use anyhow::{Context, Result, bail};
 use ffmpeg_next::{ffi::AV_NOPTS_VALUE, format, media::Type};
 use std::{path::Path, time::Duration};
 
 /// Audio-only metadata; opening audio never requires a video stream.
 pub struct AudioMediaInfo {
-    pub origin_microseconds: i64,
+    origin_microseconds: i64,
     pub duration: Duration,
-    pub audio: AudioInfo,
+    audio: AudioInfo,
 }
 
 /// Synchronous decoding owner. The caller controls scheduling and output.

@@ -1,13 +1,15 @@
-use crate::{MediaTime, hardware, time::timestamp_microseconds};
+use crate::{MediaTime, time::timestamp_microseconds};
 use anyhow::{Context, Result, bail};
 use ffmpeg_next::{
-    Discard, Error as FfmpegError, Packet, Rational, codec, decoder,
-    ffi::av_display_rotation_get,
-    format::{Pixel, context::Input},
+    Discard, Error as FfmpegError, Packet, Rational, ffi::av_display_rotation_get,
+    format::context::Input, media::Type as MediaType, packet::side_data::Type as PacketSideData,
+    util::color,
+};
+#[cfg(not(target_os = "macos"))]
+use ffmpeg_next::{
+    codec, decoder,
     frame::{Video, side_data::Type as FrameSideData},
-    media::Type as MediaType,
-    packet::side_data::Type as PacketSideData,
-    util::{color, error::EAGAIN},
+    util::error::EAGAIN,
 };
 use std::{
     collections::VecDeque,
@@ -15,36 +17,30 @@ use std::{
     rc::Rc,
     time::{Duration, Instant},
 };
+#[cfg(target_os = "macos")]
+use {
+    crate::videotoolbox::{DecodedPicture, Received, VideoToolboxDecoder},
+    core_video::pixel_buffer::CVPixelBuffer,
+};
 
 pub struct VideoFrame {
-    pub native: Video,
+    /// The picture VideoToolbox decoded.
+    #[cfg(target_os = "macos")]
+    pub pixel_buffer: CVPixelBuffer,
+    #[cfg(not(target_os = "macos"))]
+    native: Video,
     pub timestamp: MediaTime,
     pub duration: Option<Duration>,
-    pub color_range: color::Range,
+    /// YUV-to-RGB matrix the picture was encoded with.
     pub color_space: color::Space,
-    pub color_primaries: color::Primaries,
-    pub color_transfer: color::TransferCharacteristic,
     /// Counterclockwise display rotation, in degrees.
     pub rotation_degrees: f64,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum DecodeMode {
-    Software,
-    VideoToolbox,
-}
-
-/// VideoToolbox on macOS and software decoding on other platforms, fixed at compile time.
-const DECODE_MODE: DecodeMode = if cfg!(target_os = "macos") {
-    DecodeMode::VideoToolbox
-} else {
-    DecodeMode::Software
-};
-
 /// Open, use, and drop on one execution lane. No scheduler or current UI frame.
 pub struct VideoDecoder {
     input: Input,
-    decoder: decoder::Video,
+    decoder: DecoderType,
     stream_index: usize,
     time_base: Rational,
     origin_microseconds: i64,
@@ -62,15 +58,55 @@ pub struct VideoDecoder {
 impl VideoDecoder {
     /// Decodes from an already open demuxer, which this decoder then owns. The input must
     /// not be shared with another decoder: each needs its own read position.
-    /// Use VideoToolbox on macOS and software decoding on other platforms.
-    /// Unsupported codecs and hardware failures are errors; there is no software fallback.
+    /// macOS decodes MP4-style H.264 and HEVC through VideoToolbox; other platforms
+    /// use FFmpeg software decoding. Unsupported streams and hardware failures are
+    /// errors; there is no software fallback.
     pub fn from_av_input(
         input: Input,
         stream_index: usize,
         origin_microseconds: i64,
     ) -> Result<Self> {
-        let (input, decoder, time_base, stream_rotation) = open_decoder(input, stream_index)?;
-        let mut decoder = Self {
+        let Some(stream) = input.stream(stream_index) else {
+            bail!("video stream {stream_index} is no longer present");
+        };
+        if stream.parameters().medium() != MediaType::Video {
+            bail!("stream {stream_index} is not video");
+        }
+        let time_base = stream.time_base();
+        timestamp_microseconds(0, time_base)?;
+        let mut stream_rotation = 0.0;
+        if let Some(value) = stream.metadata().get("rotate") {
+            stream_rotation = value
+                .parse::<f64>()
+                .context("reading video rotation metadata")?;
+            if !stream_rotation.is_finite() {
+                bail!("non-finite video rotation metadata");
+            }
+        }
+        for side_data in stream.side_data() {
+            if side_data.kind() == PacketSideData::DisplayMatrix {
+                stream_rotation = display_rotation(side_data.data())?;
+                break;
+            }
+        }
+        #[cfg(target_os = "macos")]
+        let decoder = DecoderType::VideoToolbox(VideoToolboxDecoder::open(
+            // SAFETY: the parameters belong to the open stream and outlive the call.
+            unsafe { stream.parameters().as_ptr() },
+            time_base,
+        )?);
+        #[cfg(not(target_os = "macos"))]
+        let decoder = {
+            let mut context = codec::context::Context::from_parameters(stream.parameters())
+                .context("copying video codec parameters")?;
+            context.set_threading(codec::threading::Config::kind(
+                codec::threading::Type::Frame,
+            ));
+            let mut opened = context.decoder();
+            opened.set_packet_time_base(time_base);
+            DecoderType::Ffmpeg(opened.video().context("opening video decoder")?)
+        };
+        let mut video_decoder = Self {
             input,
             decoder,
             stream_index,
@@ -81,11 +117,11 @@ impl VideoDecoder {
             lookahead: VecDeque::new(),
             _lane_local: PhantomData,
         };
-        let Some(first) = decoder.decode_next(None)? else {
+        let Some(first) = video_decoder.decode_next(None)? else {
             bail!("video stream contains no decoded frames");
         };
-        decoder.lookahead.push_back(first);
-        Ok(decoder)
+        video_decoder.lookahead.push_back(first);
+        Ok(video_decoder)
     }
 
     /// None is drained EOF; packet pumping and EAGAIN remain internal.
@@ -104,27 +140,16 @@ impl VideoDecoder {
     /// The selected frame and any decoded successor stay owned by the decoder.
     pub fn seek(&mut self, position: Duration) -> Result<()> {
         let started = Instant::now();
-        // Even an out-of-range request clamps to the final available frame.
-        let mut scan = SeekScan {
-            target: i64::try_from(position.as_micros()).unwrap_or(i64::MAX),
-            nearest_below: None,
-            index_seeks: 0,
-            sent_packets: 0,
-            discarded_packets: 0,
-            decoded_frames: 0,
-        };
-        {
-            let frame = self.seek_inner(&mut scan)?;
-            self.lookahead.push_front(frame);
-        }
+        let (frame, debug) = self.seek_inner(position)?;
+        self.lookahead.push_front(frame);
         eprintln!(
-            "[clip-switch] seek to {} µs: total={:?}, index_seeks={}, sent_packets={}, discarded_packets={}, decoded_frames={}",
+            "seek to {} µs: total={:?}, index_seeks={}, sent_packets={}, discarded_packets={}, decoded_frames={}",
             position.as_micros(),
             started.elapsed(),
-            scan.index_seeks,
-            scan.sent_packets,
-            scan.discarded_packets,
-            scan.decoded_frames,
+            debug.index_seeks,
+            debug.sent_packets,
+            debug.discarded_packets,
+            debug.decoded_frames,
         );
         Ok(())
     }
@@ -134,8 +159,17 @@ impl VideoDecoder {
     /// Nearest bracketing frame, earlier on ties; clamp to first/last frame.
     /// Empty video is an error. Retain lookahead so the next pull follows the
     /// selected frame. Decode dependencies; convert only the selected result.
-    fn seek_inner(&mut self, scan: &mut SeekScan) -> Result<VideoFrame> {
-        let target = scan.target;
+    fn seek_inner(&mut self, position: Duration) -> Result<(VideoFrame, SeekDebug)> {
+        // Even an out-of-range request clamps to the final available frame.
+        let target = i64::try_from(position.as_micros()).unwrap_or(i64::MAX);
+        let mut scan = SeekDebug {
+            target,
+            nearest_below: None,
+            index_seeks: 0,
+            sent_packets: 0,
+            discarded_packets: 0,
+            decoded_frames: 0,
+        };
 
         // Forward fast path: when the target is only a short distance past the
         // pending frame, continuing the current decode is cheaper than an
@@ -147,20 +181,20 @@ impl VideoDecoder {
             {
                 pending
             }
-            _ => self.indexed_seek(scan)?,
+            _ => self.indexed_seek(&mut scan)?,
         };
         if earlier.timestamp.0 >= target {
-            return Ok(earlier);
+            return Ok((earlier, scan));
         }
 
         // Consume any remaining lookahead before decoding fresh frames.
         loop {
             let next = match self.lookahead.pop_front() {
                 Some(frame) => Some(frame),
-                None => self.decode_next(Some(&mut *scan))?,
+                None => self.decode_next(Some(&mut scan))?,
             };
             let Some(later) = next else {
-                return Ok(earlier);
+                return Ok((earlier, scan));
             };
             if later.timestamp < earlier.timestamp {
                 bail!("video presentation timestamps moved backwards while seeking");
@@ -173,15 +207,15 @@ impl VideoDecoder {
             let after = i128::from(later.timestamp.0) - i128::from(target);
             if before <= after {
                 self.lookahead.push_back(later);
-                return Ok(earlier);
+                return Ok((earlier, scan));
             }
-            return Ok(later);
+            return Ok((later, scan));
         }
     }
 
     /// Land on a decodable frame at or before the scan target through the demuxer
     /// index, clamping to the first frame when the target precedes it.
-    fn indexed_seek(&mut self, scan: &mut SeekScan) -> Result<VideoFrame> {
+    fn indexed_seek(&mut self, scan: &mut SeekDebug) -> Result<VideoFrame> {
         let target = scan.target;
         let mut seek_position = if self.input.duration() >= 0 {
             target.min(self.input.duration())
@@ -201,7 +235,7 @@ impl VideoDecoder {
             self.input
                 .seek(absolute, ..absolute)
                 .context("seeking video demuxer")?;
-            self.decoder.flush();
+            self.flush_decoder()?;
             self.drain = DrainState::Reading;
             self.lookahead.clear();
             scan.nearest_below = None; // 冲刷后此前送入的包全部作废。
@@ -255,13 +289,29 @@ const FALLBACK_SEEK_STEP_MICROSECONDS: i64 = 50_000;
 const FORWARD_SCAN_LIMIT_MICROSECONDS: i64 = 250_000;
 
 /// Packets sent while one seek decodes toward its target.
-struct SeekScan {
+struct SeekDebug {
     target: i64,                // 目标时间（微秒，相对 origin）。
     nearest_below: Option<i64>, // 已完整解码、早于目标的最大 PTS；更早的非参考帧不会被选中。
     index_seeks: u32,           // 临时测量：索引 seek 次数（含回退重试）。
     sent_packets: u32,          // 临时测量：送入解码器的包数。
     discarded_packets: u32,     // 临时测量：以非参考帧方式跳过的包数。
     decoded_frames: u32,        // 临时测量：解码输出的帧数。
+}
+
+/// Each platform's video decoder. A new platform adds its variant here.
+enum DecoderType {
+    /// Pipelined VideoToolbox session for MP4-style H.264 and HEVC.
+    #[cfg(target_os = "macos")]
+    VideoToolbox(VideoToolboxDecoder),
+    /// FFmpeg software decoding with frame threads.
+    #[cfg(not(target_os = "macos"))]
+    Ffmpeg(decoder::Video),
+}
+
+enum Receive {
+    Frame(VideoFrame),
+    NeedInput,
+    Eof,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -274,53 +324,88 @@ enum DrainState {
 impl VideoDecoder {
     /// A seek scan lets packets that cannot affect the selected frame skip
     /// non-reference decoding; None decodes every packet.
-    fn decode_next(&mut self, mut scan: Option<&mut SeekScan>) -> Result<Option<VideoFrame>> {
+    fn decode_next(&mut self, mut scan: Option<&mut SeekDebug>) -> Result<Option<VideoFrame>> {
         if self.drain == DrainState::Drained {
             return Ok(None);
         }
-        let mut native = Video::empty();
         loop {
-            match self.decoder.receive_frame(&mut native) {
-                Ok(()) => {
+            match self.receive_frame()? {
+                Receive::Frame(frame) => {
                     if let Some(scan) = scan.as_deref_mut() {
                         scan.decoded_frames += 1;
                     }
-                    if DECODE_MODE == DecodeMode::VideoToolbox
-                        && native.format() != Pixel::VIDEOTOOLBOX
-                    {
-                        bail!(
-                            "VideoToolbox produced unexpected frame format {:?}",
-                            native.format()
-                        );
-                    }
-                    return Ok(Some(describe_frame(
-                        native,
-                        self.time_base,
-                        self.origin_microseconds,
-                        self.stream_rotation,
-                    )?));
+                    return Ok(Some(frame));
                 }
-                Err(FfmpegError::Eof) => {
+                Receive::Eof => {
                     self.drain = DrainState::Drained;
                     return Ok(None);
                 }
-                Err(FfmpegError::Other { errno: EAGAIN }) => {
+                Receive::NeedInput => {
                     if self.drain == DrainState::Draining {
                         bail!("video decoder requested input after draining began");
                     }
                 }
-                Err(error) => return Err(error).context("receiving a decoded video frame"),
             }
 
             // Receive-first guarantees send will not return EAGAIN.
             match self.read_video_packet()? {
                 Some(packet) => self.send_video_packet(&packet, scan.as_deref_mut())?,
                 None => {
-                    self.decoder
-                        .send_eof()
-                        .context("starting video decoder drain")?;
+                    match &mut self.decoder {
+                        #[cfg(target_os = "macos")]
+                        DecoderType::VideoToolbox(decoder) => decoder.send_eof(),
+                        #[cfg(not(target_os = "macos"))]
+                        DecoderType::Ffmpeg(decoder) => {
+                            decoder.send_eof().context("starting video decoder drain")?
+                        }
+                    }
                     self.drain = DrainState::Draining;
                 }
+            }
+        }
+    }
+
+    /// One decoded frame in presentation order, or what the decoder needs next.
+    fn receive_frame(&mut self) -> Result<Receive> {
+        match &mut self.decoder {
+            #[cfg(target_os = "macos")]
+            DecoderType::VideoToolbox(decoder) => match decoder.receive()? {
+                Received::Picture(picture) => Ok(Receive::Frame(describe_picture(
+                    picture,
+                    self.time_base,
+                    self.origin_microseconds,
+                    self.stream_rotation,
+                )?)),
+                Received::NeedInput => Ok(Receive::NeedInput),
+                Received::Eof => Ok(Receive::Eof),
+            },
+            #[cfg(not(target_os = "macos"))]
+            DecoderType::Ffmpeg(decoder) => {
+                let mut native = Video::empty();
+                match decoder.receive_frame(&mut native) {
+                    Ok(()) => Ok(Receive::Frame(describe_frame(
+                        native,
+                        self.time_base,
+                        self.origin_microseconds,
+                        self.stream_rotation,
+                    )?)),
+                    Err(FfmpegError::Eof) => Ok(Receive::Eof),
+                    Err(FfmpegError::Other { errno: EAGAIN }) => Ok(Receive::NeedInput),
+                    Err(error) => Err(error).context("receiving a decoded video frame"),
+                }
+            }
+        }
+    }
+
+    /// Drops pending frames before decoding from a new position.
+    fn flush_decoder(&mut self) -> Result<()> {
+        match &mut self.decoder {
+            #[cfg(target_os = "macos")]
+            DecoderType::VideoToolbox(decoder) => decoder.flush(),
+            #[cfg(not(target_os = "macos"))]
+            DecoderType::Ffmpeg(decoder) => {
+                decoder.flush();
+                Ok(())
             }
         }
     }
@@ -347,7 +432,7 @@ impl VideoDecoder {
     /// During a seek, a non-reference picture is skipped once a fully decoded
     /// picture lies between it and the target: nothing depends on it, and it
     /// cannot be the selected frame. Outside a seek, every picture decodes.
-    fn send_video_packet(&mut self, packet: &Packet, scan: Option<&mut SeekScan>) -> Result<()> {
+    fn send_video_packet(&mut self, packet: &Packet, scan: Option<&mut SeekDebug>) -> Result<()> {
         let discard = match scan {
             Some(scan) => {
                 scan.sent_packets += 1;
@@ -377,66 +462,26 @@ impl VideoDecoder {
             }
             None => Discard::Default,
         };
-        // Set per packet: the decoder applies the level current at send time.
-        self.decoder.skip_frame(discard);
-        self.decoder
-            .send_packet(packet)
-            .context("sending a video packet")
-    }
-}
-
-fn open_decoder(
-    input: Input,
-    stream_index: usize,
-) -> Result<(Input, decoder::Video, Rational, f64)> {
-    let Some(stream) = input.stream(stream_index) else {
-        bail!("video stream {stream_index} is no longer present");
-    };
-    if stream.parameters().medium() != MediaType::Video {
-        bail!("stream {stream_index} is not video");
-    }
-    let time_base = stream.time_base();
-    timestamp_microseconds(0, time_base)?;
-    let mut rotation = 0.0;
-    if let Some(value) = stream.metadata().get("rotate") {
-        rotation = value
-            .parse::<f64>()
-            .context("reading video rotation metadata")?;
-        if !rotation.is_finite() {
-            bail!("non-finite video rotation metadata");
-        }
-    }
-    for side_data in stream.side_data() {
-        if side_data.kind() == PacketSideData::DisplayMatrix {
-            rotation = display_rotation(side_data.data())?;
-            break;
-        }
-    }
-    let mut context = codec::context::Context::from_parameters(stream.parameters())
-        .context("copying video codec parameters")?;
-    // Frame threads only help software decoding. VideoToolbox serializes its
-    // frames anyway, and the thread pipeline would add a refill delay of one
-    // frame per thread after every seek flush.
-    #[rustfmt::skip]
-    let threading = match DECODE_MODE {
-        DecodeMode::Software => {
-            codec::threading::Config::kind(codec::threading::Type::Frame)
-        }
-        DecodeMode::VideoToolbox => {
-            hardware::use_videotoolbox(&mut context)?;
-            codec::threading::Config {
-                kind: codec::threading::Type::None,
-                count: 1,
+        match &mut self.decoder {
+            // VideoToolbox still decodes a skipped picture as a reference; it only
+            // suppresses the output, which is what keeps it from being selected.
+            #[cfg(target_os = "macos")]
+            DecoderType::VideoToolbox(decoder) => {
+                decoder.send_packet(packet, discard != Discard::NonReference)
+            }
+            #[cfg(not(target_os = "macos"))]
+            DecoderType::Ffmpeg(decoder) => {
+                // Set per packet: the decoder applies the level current at send time.
+                decoder.skip_frame(discard);
+                decoder
+                    .send_packet(packet)
+                    .context("sending a video packet")
             }
         }
-    };
-    context.set_threading(threading);
-    let mut decoder = context.decoder();
-    decoder.set_packet_time_base(time_base);
-    let decoder = decoder.video().context("opening video decoder")?;
-    Ok((input, decoder, time_base, rotation))
+    }
 }
 
+#[cfg(not(target_os = "macos"))]
 fn describe_frame(
     native: Video,
     time_base: Rational,
@@ -463,12 +508,36 @@ fn describe_frame(
     Ok(VideoFrame {
         timestamp: MediaTime(timestamp),
         duration,
-        color_range: native.color_range(),
         color_space: native.color_space(),
-        color_primaries: native.color_primaries(),
-        color_transfer: native.color_transfer_characteristic(),
         rotation_degrees,
         native,
+    })
+}
+
+/// A picture from the pipelined session. The rotation is the stream's, since
+/// VideoToolbox carries no per-frame side data.
+#[cfg(target_os = "macos")]
+fn describe_picture(
+    picture: DecodedPicture,
+    time_base: Rational,
+    origin: i64,
+    stream_rotation: f64,
+) -> Result<VideoFrame> {
+    let timestamp = timestamp_microseconds(picture.pts, time_base)?
+        .checked_sub(origin)
+        .context("normalized video timestamp exceeds range")?;
+    let duration = if picture.duration > 0 {
+        let micros = timestamp_microseconds(picture.duration, time_base)?;
+        Some(Duration::from_micros(micros as u64))
+    } else {
+        None
+    };
+    Ok(VideoFrame {
+        pixel_buffer: picture.pixel_buffer,
+        timestamp: MediaTime(timestamp),
+        duration,
+        color_space: picture.color_space,
+        rotation_degrees: stream_rotation,
     })
 }
 

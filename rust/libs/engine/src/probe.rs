@@ -7,30 +7,30 @@ use timeline::MediaAsset;
 
 #[derive(Debug, Serialize)]
 pub struct Probe {
-    pub container: String,
-    pub duration: f64,
-    pub streams: Vec<Stream>,
-    pub keyframe_interval_s: Option<f64>,
+    container: String,
+    duration: f64,
+    streams: Vec<Stream>,
+    keyframe_interval_s: Option<f64>,
 }
 
 #[derive(Debug, Serialize)]
-pub struct Stream {
-    pub index: usize,
+struct Stream {
+    index: usize,
     /// Stream duration in seconds, when supplied by the container.
-    pub duration: Option<f64>,
-    pub kind: String,
-    pub codec: String,
-    pub codec_tag: String,
-    pub bitrate: Option<u64>,
-    pub width: u32,
-    pub height: u32,
-    pub fps: Option<[i32; 2]>,
-    pub sample_rate: u32,
-    pub channels: u16,
-    pub rotation: f64,
+    duration: Option<f64>,
+    kind: String,
+    codec: String,
+    codec_tag: String,
+    bitrate: Option<u64>,
+    width: u32,
+    height: u32,
+    fps: Option<[i32; 2]>,
+    sample_rate: u32,
+    channels: u16,
+    rotation: f64,
 }
 
-pub fn init() -> Result<()> {
+fn init() -> Result<()> {
     ffmpeg::init().context(format!("ffmpeg_init at {}:{}", file!(), line!()))?;
     ffmpeg::log::set_level(ffmpeg::log::Level::Quiet);
     Ok(())

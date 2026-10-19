@@ -52,7 +52,7 @@ fn collect_timeline_files(
 ///
 /// Returns `None` when the name is empty or is anything other than a single path
 /// component, so `a/b` and `..` are rejected rather than escaping the directory.
-pub(super) fn timeline_file_name(name: &str) -> Option<String> {
+fn timeline_file_name(name: &str) -> Option<String> {
     let name = name.trim();
     let suffix = if name.ends_with(LEGACY_TIMELINE_SUFFIX) {
         LEGACY_TIMELINE_SUFFIX
@@ -114,7 +114,7 @@ pub(super) fn create(
 
 /// The media file for `asset_path`, which a timeline stores relative to its own directory.
 /// `..` components are resolved lexically, without touching the file system.
-pub fn resolve_asset_path(timeline_directory: &Path, asset_path: &Path) -> PathBuf {
+pub(crate) fn resolve_asset_path(timeline_directory: &Path, asset_path: &Path) -> PathBuf {
     let mut resolved = PathBuf::new();
     for component in timeline_directory.join(asset_path).components() {
         match component {
@@ -133,7 +133,7 @@ pub fn resolve_asset_path(timeline_directory: &Path, asset_path: &Path) -> PathB
 /// The asset path a timeline in `timeline_directory` stores for `media_path`; climbs with `..`
 /// when the media lies outside that directory. Both paths must be absolute.
 /// Paths on different Windows volumes remain absolute.
-pub fn relative_asset_path(timeline_directory: &Path, media_path: &Path) -> PathBuf {
+pub(crate) fn relative_asset_path(timeline_directory: &Path, media_path: &Path) -> PathBuf {
     let directory = timeline_directory.components().collect::<Vec<_>>();
     let media = media_path.components().collect::<Vec<_>>();
     if directory.first() != media.first() {

@@ -13,26 +13,26 @@ use std::path::PathBuf;
 use ulid::Ulid;
 
 #[derive(Clone, Debug)]
-pub(super) struct ExplorerDropPreview {
-    pub(super) kind: MediaKind,
-    pub(super) absolute_path: PathBuf,
-    pub(super) name: String,
-    pub(super) track_id: Ulid,
-    pub(super) raw_start: TimelineFrameIndex,
-    pub(super) start: TimelineFrameIndex,
-    pub(super) duration: TimelineFrameIndex,
-    pub(super) invalid_reason: Option<String>,
+struct ExplorerDropPreview {
+    kind: MediaKind,
+    absolute_path: PathBuf,
+    name: String,
+    track_id: Ulid,
+    raw_start: TimelineFrameIndex,
+    start: TimelineFrameIndex,
+    duration: TimelineFrameIndex,
+    invalid_reason: Option<String>,
 }
 
 #[derive(Clone, Debug)]
-pub enum AssetBeingDragged {
+pub(crate) enum AssetBeingDragged {
     V1(AssetBeingDraggedV1),
     Srt(DraggedSRT),
     None,
 }
 
 impl AssetBeingDragged {
-    pub fn from_file_entry(entry: &FileTreeEntry) -> Result<Self> {
+    pub(crate) fn from_file_entry(entry: &FileTreeEntry) -> Result<Self> {
         let x = match entry.kind {
             FileTreeEntryKind::Video | FileTreeEntryKind::Image | FileTreeEntryKind::Audio => {
                 let metadata = probe_asset(&entry.absolute_path)?;
@@ -59,13 +59,13 @@ impl AssetBeingDragged {
 }
 
 #[derive(Clone, Debug)]
-pub struct AssetBeingDraggedV1 {
+pub(crate) struct AssetBeingDraggedV1 {
     pub(super) absolute_path: PathBuf,
     pub(super) metadata: MediaAsset,
 }
 
 impl AssetBeingDraggedV1 {
-    pub fn name(&self) -> SharedString {
+    pub(crate) fn name(&self) -> SharedString {
         self.absolute_path
             .file_name()
             .map(|name| name.to_string_lossy().into_owned())
@@ -75,13 +75,13 @@ impl AssetBeingDraggedV1 {
 }
 
 #[derive(Clone, Debug)]
-pub struct DraggedSRT {
-    pub absolute_path: PathBuf,
-    pub srt: SRT,
+pub(crate) struct DraggedSRT {
+    absolute_path: PathBuf,
+    pub(crate) srt: SRT,
 }
 
 impl DraggedSRT {
-    pub fn name(&self) -> SharedString {
+    fn name(&self) -> SharedString {
         self.absolute_path
             .file_name()
             .map(|name| name.to_string_lossy().into_owned())

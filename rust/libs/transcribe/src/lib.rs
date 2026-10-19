@@ -13,12 +13,12 @@ pub mod audio;
 pub mod subtitles;
 pub use subtitles::{SRT, Subtitle};
 
-pub const MAX_TRANSCRIPTION_DURATION: Duration = Duration::from_secs(500);
+const MAX_TRANSCRIPTION_DURATION: Duration = Duration::from_secs(500);
 
 /// Detects Latin, Greek, or Cyrillic writing, not the actual language.
 /// Requires at least one such letter and rejects letters from other scripts.
 /// Non-alphabetic characters and common/inherited characters are ignored.
-pub fn is_western_language(word: &str) -> bool {
+fn is_western_language(word: &str) -> bool {
     let mut has_western_letter = false;
     for character in word.chars() {
         if !character.is_alphabetic() {

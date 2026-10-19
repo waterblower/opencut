@@ -12,7 +12,11 @@ use std::time::Duration;
 use timeline::TimelineSerialization;
 
 impl Editor {
-    pub fn open_export_window(&self, timeline_path: PathBuf, cx: &mut Context<Self>) -> Result<()> {
+    pub(crate) fn open_export_window(
+        &self,
+        timeline_path: PathBuf,
+        cx: &mut Context<Self>,
+    ) -> Result<()> {
         let Some(timeline) = self.timeline.as_ref() else {
             return Ok(());
         };
@@ -56,15 +60,15 @@ impl Editor {
     }
 }
 
-pub struct ExportWindow {
+pub(crate) struct ExportWindow {
     event_bus: Entity<EventBus>,
     document: TimelineSerialization, // 打开导出窗口时的时间线快照。
     timeline_path: PathBuf,
-    pub state: ExportState,
+    pub(crate) state: ExportState,
     bitrate_input: Entity<TextInput>,
 }
 
-pub enum ExportState {
+pub(crate) enum ExportState {
     Idle,
     Choosing,
     Running(Arc<ExportControl>),

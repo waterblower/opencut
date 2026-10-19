@@ -5,7 +5,7 @@ use anyhow::{Result, bail};
 use std::path::Path;
 use ulid::Ulid;
 
-pub fn write_srt(path: &Path, srt: &SRT) -> Result<()> {
+pub(crate) fn write_srt(path: &Path, srt: &SRT) -> Result<()> {
     if !path.is_absolute() {
         bail!(
             "SRT output path must be absolute at {}:{}",
@@ -17,7 +17,7 @@ pub fn write_srt(path: &Path, srt: &SRT) -> Result<()> {
     Ok(())
 }
 
-pub fn srt_text_clips(srt: &SRT, frame_rate: FrameRate) -> Vec<TextClip> {
+pub(crate) fn srt_text_clips(srt: &SRT, frame_rate: FrameRate) -> Vec<TextClip> {
     let mut clips = Vec::with_capacity(srt.subtitles.len());
     for subtitle in &srt.subtitles {
         let length =
