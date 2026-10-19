@@ -26,7 +26,7 @@
 <rect x="40" y="108" width="600" height="400" fill="#080809"/>
 <text class="s" x="64" y="151.2" font-size="20" fill="#f2f2f4">Generate SRT</text>
 <text class="s" x="64" y="188.76" font-size="16" fill="#f2f2f4">interview.mp4</text>
-<text class="s" x="64" y="226.76" font-size="16" fill="#f0b75e">Ready</text>
+<text class="s" x="64" y="226.76" font-size="16" fill="#f0b75e">Generate the SRT transcription for interview.mp4</text>
 <polygon points="74,248 171,248 171,278 161,288 64,288 64,258" fill="#fcee0a" filter="url(#dGlowY)"/>
 <path d="M141 282 L149 254 H152 L144 282Z M148 282 L156 254 H159 L151 282Z M155 282 L163 254 H166 L158 282Z" fill="#0a0a0b"/>
 <text class="m" x="88" y="272.5" font-size="13" font-weight="800" fill="#0a0a0b">START</text>

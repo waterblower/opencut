@@ -94,22 +94,23 @@ impl Render for TranscriptionWindow {
         let running = stage.is_running();
         let cancellable = !matches!(stage, TranscriptionStage::Saving);
         let elapsed = self.started.elapsed();
+        let file_name = self.source_path.file_name().unwrap_or_default().to_string_lossy().into_owned();
         let status = match &stage {
-            TranscriptionStage::Idle => "Ready",
-            TranscriptionStage::Cancelled => "Cancelled",
-            TranscriptionStage::Preparing => "Preparing audio",
-            TranscriptionStage::Transcribing => "Uploading and transcribing",
-            TranscriptionStage::Saving => "Saving subtitles",
-            TranscriptionStage::Complete(_) => "Subtitles saved",
-            TranscriptionStage::Failed(_) => "Transcription failed",
+            TranscriptionStage::Idle => format!("Generate the SRT transcription for {file_name}"),
+            TranscriptionStage::Cancelled => "Cancelled".to_string(),
+            TranscriptionStage::Preparing => "Preparing audio".to_string(),
+            TranscriptionStage::Transcribing => "Uploading and transcribing".to_string(),
+            TranscriptionStage::Saving => "Saving subtitles".to_string(),
+            TranscriptionStage::Complete(_) => "Subtitles saved".to_string(),
+            TranscriptionStage::Failed(_) => "Transcription failed".to_string(),
         };
         div().id("transcription-window").size_full().overflow_y_scroll()
             .flex().flex_col().gap_4().p_6().bg(rgb(BACKGROUND)).text_color(rgb(TEXT))
             .child(div().text_xl().child("Generate SRT"))
-            .child(self.source_path.file_name().unwrap_or_default().to_string_lossy().into_owned())
+            .child(file_name)
             .child(div().text_color(rgb(ACCENT)).child(if running {
                 format!("{status}{}", ".".repeat((elapsed.as_millis() / 500 % 4) as usize))
-            } else { status.to_string() }))
+            } else { status }))
             .when(running, |view| view
                 .child(format!("Elapsed: {}:{:02}", elapsed.as_secs() / 60, elapsed.as_secs() % 60))
                 .child(div().text_sm().text_color(rgb(MUTED)).child(
