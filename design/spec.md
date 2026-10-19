@@ -98,7 +98,7 @@ it, producing the wrong position.
 that I can organize, so that I can layer footage, stills, sound, and subtitles.
 
 Mockups: [editor with a timeline](pages/03-editor-timeline.svg),
-[timeline panel](pages/17-timeline-panel.svg).
+[timeline editing area](pages/17-timeline-editing-area.svg).
 
 - [ ] Tracks can be created, deleted, reordered, hidden, muted, and locked.
 - [x] Video tracks accept video files only.
@@ -119,7 +119,7 @@ that restructuring an edit doesn't take one clip at a time.
 
 Mockups: [editor with a timeline](pages/03-editor-timeline.svg),
 [blade tool](pages/06-editor-blade-tool.svg),
-[timeline panel](pages/17-timeline-panel.svg),
+[timeline editing area](pages/17-timeline-editing-area.svg),
 [context menus](pages/11-context-menus.svg).
 
 - [x] Clips are selected by clicking, Command-clicking to add or remove, or drawing
@@ -136,7 +136,7 @@ Mockups: [editor with a timeline](pages/03-editor-timeline.svg),
 **Story:** As a creator, I want to drag a clip's edges to change its duration,
 so that I can tighten cuts directly on the timeline.
 
-Mockup: [timeline panel](pages/17-timeline-panel.svg).
+Mockup: [timeline editing area](pages/17-timeline-editing-area.svg).
 
 - [x] Either edge of a video, audio, image, or text clip can be dragged.
 - [x] Trimming respects neighboring clips, the source media's length, and a
@@ -153,7 +153,7 @@ as video clips. Dedicated image tracks and Explorer image drops remain open in
 can make frame-accurate edits.
 
 Mockups: [editor with a timeline](pages/03-editor-timeline.svg),
-[timeline panel](pages/17-timeline-panel.svg).
+[timeline editing area](pages/17-timeline-editing-area.svg).
 
 - [x] The timeline is frame-based.
 - [x] The timeline supports horizontal zoom, including trackpad pinch, and
@@ -176,7 +176,7 @@ Mockups: [editor with a timeline](pages/03-editor-timeline.svg),
 [properties panel](pages/15-properties-panel.svg).
 
 - [x] The media and properties panels beside the preview can be resized.
-- [x] Dragging the divider above the timeline resizes the timeline panel.
+- [x] Dragging the divider above the timeline resizes the timeline editing area.
 - [x] Panel sizes are saved per project.
 
 ## 8. Preview

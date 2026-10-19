@@ -1,9 +1,9 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1240" height="2706" viewBox="0 0 1240 2706" role="img" aria-labelledby="title description">
-<title id="title">Timeline panel</title>
+<title id="title">Timeline editing area</title>
 <desc id="description">The timeline editing area: toolbar, ruler, track headers and clips, plus states for no timeline, track toggles, moving, invalid moves, blade, trim, Explorer drops and marquee selection.</desc>
 <style>.s{font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","Helvetica Neue",Arial,sans-serif}.m{font-family:"SF Mono",Menlo,Monaco,Consolas,monospace}</style>
 <rect width="1240" height="2706" fill="#151518"/>
-<text class="s" x="48" y="61" font-size="24" fill="#f2f2f4" font-weight="700">Timeline panel</text>
+<text class="s" x="48" y="61" font-size="24" fill="#f2f2f4" font-weight="700">Timeline editing area</text>
 <text class="s" x="48" y="89" font-size="14" fill="#777780">One open timeline. Toolbar, ruler and tracks share one playhead.</text>
 <text class="s" x="48" y="136" font-size="14" fill="#f2f2f4" font-weight="600">Timeline</text>
 <text class="s" x="48" y="156" font-size="12" fill="#777780">Selection tool · one selected clip</text>
