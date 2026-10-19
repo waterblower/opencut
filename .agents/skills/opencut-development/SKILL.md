@@ -272,9 +272,9 @@ user actions; migrate the existing code incrementally.
   or converter requires mutation, limit mutable access to that resource; do not
   use it as a reason to mutate broader application state inside the helper.
 - Never use `#[serde(rename_all = "snake_case")]`.
-- Keep functions, methods, and other items private by default. Expose them only
-  when they are used outside their defining module.
-- When visibility outside the module is needed, prefer `pub` over `pub(super)`.
+- Always use the smallest visibility that works: private, then `pub(super)`,
+  then `pub(crate)`, then `pub`. Use `pub` only for items another crate uses.
+  This applies to fields, enum variants, and re-exports as well as functions.
 - Do not call deprecated functions or methods.
 - Place private code at the bottom of each file, after public and
   restricted-public (`pub(...)`) code.
