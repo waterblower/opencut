@@ -1,8 +1,8 @@
 use crate::asset::IconName;
 use crate::editor::Editor;
 use crate::explorer_file_entry::{is_audio_path, is_image_path, is_srt_path, is_video_path};
-use crate::properties_text::text_clip_view;
-use crate::properties_transform::VideoTransformInputs;
+use crate::property_panel_text::text_clip_view;
+use crate::property_panel_transform::VideoTransformInputs;
 use crate::theme::{ACCENT, BORDER, CLIP_BLUE, ERROR, MUTED, PANEL, SURFACE, TEXT};
 use crate::time_format::format_time;
 use crate::timeline::{FrameRate, FrameRateLabel, TimelineFrameIndex, TimelineRuntimeState};
@@ -24,7 +24,7 @@ use timeline::{TimelineEditingState, TimelineSettings};
 use transcribe::SRT;
 use ulid::Ulid;
 
-pub(crate) enum PropertiesPanel {
+pub(crate) enum PropertyPanel {
     VideoFile(VideoFilePanel),
     AudioFile(AudioFilePanel),
     ImageFile(ImageFilePanel),
@@ -88,16 +88,16 @@ pub(crate) struct TimelinePanel {
     clip_count: usize,
 }
 
-pub(crate) fn current_properties_panel(editor: &Editor) -> PropertiesPanel {
+pub(crate) fn current_property_panel(editor: &Editor) -> PropertyPanel {
     if let Some(timeline) = editor.timeline.as_ref()
         && let Some(clip_id) = timeline.interaction.selected_clip_id
     {
         let Some(clip) = timeline.editing_state.clip(clip_id) else {
-            return PropertiesPanel::None;
+            return PropertyPanel::None;
         };
         return match clip {
             Clip::Video(clip) => {
-                PropertiesPanel::VideoClip(video_clip_panel(&timeline.editing_state, clip))
+                PropertyPanel::VideoClip(video_clip_panel(&timeline.editing_state, clip))
             }
             Clip::Audio(clip) => {
                 let asset = timeline.editing_state.asset(clip.asset_id);
@@ -124,7 +124,7 @@ pub(crate) fn current_properties_panel(editor: &Editor) -> PropertiesPanel {
                     let media_path = resolve_asset_path(timeline_directory, &asset.path); // 波形缓存以素材的绝对路径为键。
                     editor.waveform_cache.get(&media_path).cloned()
                 })();
-                PropertiesPanel::AudioClip(AudioClipPanel {
+                PropertyPanel::AudioClip(AudioClipPanel {
                     clip: clip.clone(),
                     asset_name,
                     track_name,
@@ -133,7 +133,7 @@ pub(crate) fn current_properties_panel(editor: &Editor) -> PropertiesPanel {
                 })
             }
             Clip::Text(clip) => {
-                PropertiesPanel::TextClip(text_clip_panel(&timeline.editing_state, clip))
+                PropertyPanel::TextClip(text_clip_panel(&timeline.editing_state, clip))
             }
         };
     }
@@ -151,25 +151,25 @@ pub(crate) fn current_properties_panel(editor: &Editor) -> PropertiesPanel {
             None => None,
         };
         if is_video_path(path) {
-            return PropertiesPanel::VideoFile(VideoFilePanel {
+            return PropertyPanel::VideoFile(VideoFilePanel {
                 path: absolute_path,
                 size_bytes,
             });
         }
         if is_audio_path(path) {
-            return PropertiesPanel::AudioFile(AudioFilePanel {
+            return PropertyPanel::AudioFile(AudioFilePanel {
                 path: absolute_path,
                 size_bytes,
             });
         }
         if is_image_path(path) {
-            return PropertiesPanel::ImageFile(ImageFilePanel {
+            return PropertyPanel::ImageFile(ImageFilePanel {
                 path: absolute_path,
                 size_bytes,
             });
         }
         if is_srt_path(path) {
-            return PropertiesPanel::SrtFile(srt_file_panel(absolute_path));
+            return PropertyPanel::SrtFile(srt_file_panel(absolute_path));
         }
         if timeline_document::is_timeline_path(path) {
             let timeline = editor
@@ -177,15 +177,15 @@ pub(crate) fn current_properties_panel(editor: &Editor) -> PropertiesPanel {
                 .as_ref()
                 .filter(|timeline| timeline.path == absolute_path)
                 .expect("should have the timeline");
-            return PropertiesPanel::Timeline(timeline_panel(timeline, &editor.project_root));
+            return PropertyPanel::Timeline(timeline_panel(timeline, &editor.project_root));
         }
-        return PropertiesPanel::None;
+        return PropertyPanel::None;
     }
 
     let Some(timeline) = editor.timeline.as_ref() else {
-        return PropertiesPanel::None;
+        return PropertyPanel::None;
     };
-    PropertiesPanel::Timeline(timeline_panel(timeline, &editor.project_root))
+    PropertyPanel::Timeline(timeline_panel(timeline, &editor.project_root))
 }
 
 pub(crate) fn video_clip_panel(
@@ -246,27 +246,27 @@ pub(crate) fn srt_file_panel(path: PathBuf) -> SrtFilePanel {
     SrtFilePanel { path, subtitles }
 }
 
-pub(crate) struct PropertiesPanelState {
+pub(crate) struct PropertyPanelState {
     pub(crate) transform_inputs: VideoTransformInputs,
     pub(crate) transform_input_clip_id: Option<Ulid>,
     pub(crate) text_input_clip_id: Option<Ulid>,
 }
 
-pub(super) fn properties_panel(panel: &PropertiesPanel) -> gpui::AnyElement {
+pub(super) fn property_panel_view(panel: &PropertyPanel) -> gpui::AnyElement {
     match panel {
-        PropertiesPanel::TextClip(panel) => text_clip_view(panel),
-        PropertiesPanel::VideoClip(panel) => video_clip_view(panel),
-        PropertiesPanel::AudioClip(panel) => audio_clip_view(panel),
-        PropertiesPanel::VideoFile(panel) => video_file_view(panel),
-        PropertiesPanel::Timeline(panel) => timeline_view(panel),
-        PropertiesPanel::ImageFile(panel) => image_file_view(panel),
-        PropertiesPanel::AudioFile(panel) => audio_file_view(panel),
-        PropertiesPanel::SrtFile(panel) => srt_file_view(panel),
-        PropertiesPanel::None => empty_panel_view(),
+        PropertyPanel::TextClip(panel) => text_clip_view(panel),
+        PropertyPanel::VideoClip(panel) => video_clip_view(panel),
+        PropertyPanel::AudioClip(panel) => audio_clip_view(panel),
+        PropertyPanel::VideoFile(panel) => video_file_view(panel),
+        PropertyPanel::Timeline(panel) => timeline_view(panel),
+        PropertyPanel::ImageFile(panel) => image_file_view(panel),
+        PropertyPanel::AudioFile(panel) => audio_file_view(panel),
+        PropertyPanel::SrtFile(panel) => srt_file_view(panel),
+        PropertyPanel::None => empty_panel_view(),
     }
 }
 
-pub(crate) fn properties_header_view(
+pub(crate) fn property_panel_header_view(
     badge: gpui::Div,
     title: String,
     subtitle: impl IntoElement,
@@ -328,7 +328,7 @@ pub(crate) fn clip_track_subtitle_view(kind: TrackKind, track_name: &str) -> gpu
         )
 }
 
-pub(crate) fn readonly_properties_panel_view(
+pub(crate) fn readonly_property_panel_view(
     id: &'static str,
     header: gpui::Div,
     content: gpui::Div,
@@ -355,7 +355,7 @@ pub(crate) fn readonly_properties_panel_view(
         .into_any_element()
 }
 
-pub(crate) fn properties_heading_view(label: &'static str) -> gpui::Div {
+pub(crate) fn property_panel_heading_view(label: &'static str) -> gpui::Div {
     div()
         .text_size(px(11.0))
         .line_height(px(16.0))
@@ -364,11 +364,11 @@ pub(crate) fn properties_heading_view(label: &'static str) -> gpui::Div {
         .child(label)
 }
 
-pub(crate) fn properties_divider_view() -> gpui::Div {
+pub(crate) fn property_panel_divider_view() -> gpui::Div {
     div().h(px(1.0)).my(px(16.0)).bg(rgb(0x1f1f24))
 }
 
-pub(crate) fn format_properties_time(seconds: f64) -> String {
+pub(crate) fn format_property_panel_time(seconds: f64) -> String {
     let centiseconds = (seconds.max(0.0) * 100.0).round() as u64;
     format!(
         "{}:{:02}.{:02}",
@@ -388,18 +388,18 @@ fn image_file_view(panel: &ImageFilePanel) -> gpui::AnyElement {
         Some(extension) => extension.to_string_lossy().to_ascii_uppercase(),
         None => "Unknown".to_owned(),
     };
-    let header = properties_header_view(
+    let header = property_panel_header_view(
         file_badge_view(&format, 0x665184, 0xc3a9e8),
         name,
         "Image file".to_owned(),
     );
     let content = div()
-        .child(properties_heading_view("FILE"))
+        .child(property_panel_heading_view("FILE"))
         .child(file_details_view(path, panel.size_bytes))
-        .child(properties_divider_view())
-        .child(properties_heading_view("LOCATION"))
+        .child(property_panel_divider_view())
+        .child(property_panel_heading_view("LOCATION"))
         .child(file_location_view(path));
-    readonly_properties_panel_view("image-file-properties", header, content)
+    readonly_property_panel_view("image-file-property-panel", header, content)
 }
 
 fn timeline_panel(timeline: &TimelineRuntimeState, project_root: &Path) -> TimelinePanel {
@@ -449,9 +449,9 @@ fn timeline_view(panel: &TimelinePanel) -> gpui::AnyElement {
         .font_weight(FontWeight::BOLD)
         .text_color(rgb(0x17120a))
         .child("TL");
-    let header = properties_header_view(badge, name, relative_path);
+    let header = property_panel_header_view(badge, name, relative_path);
     let content = div()
-        .child(properties_heading_view("DURATION"))
+        .child(property_panel_heading_view("DURATION"))
         .child(
             div()
                 .mt(px(6.0))
@@ -461,8 +461,8 @@ fn timeline_view(panel: &TimelinePanel) -> gpui::AnyElement {
                 .font_weight(FontWeight::SEMIBOLD)
                 .child(format_time(panel.duration_seconds, false)),
         )
-        .child(properties_divider_view())
-        .child(properties_heading_view("FORMAT"))
+        .child(property_panel_divider_view())
+        .child(property_panel_heading_view("FORMAT"))
         .child(
             div()
                 .mt(px(12.0))
@@ -479,8 +479,8 @@ fn timeline_view(panel: &TimelinePanel) -> gpui::AnyElement {
                     format!("{} kHz", panel.settings.audio_sample_rate as f64 / 1000.0),
                 )),
         )
-        .child(properties_divider_view())
-        .child(properties_heading_view("CONTENTS"))
+        .child(property_panel_divider_view())
+        .child(property_panel_heading_view("CONTENTS"))
         .child(
             div()
                 .mt(px(12.0))
@@ -516,10 +516,10 @@ fn timeline_view(panel: &TimelinePanel) -> gpui::AnyElement {
                         )),
                 ),
         )
-        .child(properties_divider_view())
-        .child(properties_heading_view("LOCATION"))
+        .child(property_panel_divider_view())
+        .child(property_panel_heading_view("LOCATION"))
         .child(file_location_view(&panel.path));
-    readonly_properties_panel_view("timeline-properties", header, content)
+    readonly_property_panel_view("timeline-property-panel", header, content)
 }
 
 fn track_count_badge_view(
@@ -565,13 +565,13 @@ fn audio_clip_view(panel: &AudioClipPanel) -> gpui::AnyElement {
         .font_weight(FontWeight::BOLD)
         .text_color(rgb(0xffffff))
         .child("A");
-    let header = properties_header_view(
+    let header = property_panel_header_view(
         badge,
         panel.asset_name.clone(),
         clip_track_subtitle_view(TrackKind::Audio, &panel.track_name),
     );
     let content = div()
-        .child(properties_heading_view("TIMING"))
+        .child(property_panel_heading_view("TIMING"))
         .child(
             div()
                 .mt(px(12.0))
@@ -583,8 +583,8 @@ fn audio_clip_view(panel: &AudioClipPanel) -> gpui::AnyElement {
                 .child(timing_card_view("Source in", clip.source_in, frame_rate))
                 .child(timing_card_view("Source out", clip.source_out, frame_rate)),
         )
-        .child(properties_divider_view())
-        .child(properties_heading_view("AUDIO"))
+        .child(property_panel_divider_view())
+        .child(property_panel_heading_view("AUDIO"))
         .child(div().mt(px(12.0)).child(audio_waveform_view(
             panel.waveform.clone(),
             frame_rate.seconds(clip.source_in),
@@ -643,7 +643,7 @@ fn audio_clip_view(panel: &AudioClipPanel) -> gpui::AnyElement {
                         ),
                 ),
         );
-    readonly_properties_panel_view("audio-clip-properties", header, content)
+    readonly_property_panel_view("audio-clip-property-panel", header, content)
 }
 
 fn audio_waveform_view(
@@ -698,22 +698,22 @@ fn audio_file_view(panel: &AudioFilePanel) -> gpui::AnyElement {
         Some(extension) => extension.to_string_lossy().to_ascii_uppercase(),
         None => "Unknown".to_owned(),
     };
-    let header = properties_header_view(
+    let header = property_panel_header_view(
         file_badge_view(&format, 0x32725a, 0x7fd0ae),
         name,
         "Audio file".to_owned(),
     );
     let content = div()
-        .child(properties_heading_view("FILE"))
+        .child(property_panel_heading_view("FILE"))
         .child(file_details_view(path, panel.size_bytes))
-        .child(properties_divider_view())
-        .child(properties_heading_view("LOCATION"))
+        .child(property_panel_divider_view())
+        .child(property_panel_heading_view("LOCATION"))
         .child(file_location_view(path))
-        .child(properties_divider_view())
+        .child(property_panel_divider_view())
         .child(file_hint_view(
             "Drag onto an audio track to add it to the timeline.",
         ));
-    readonly_properties_panel_view("audio-file-properties", header, content)
+    readonly_property_panel_view("audio-file-property-panel", header, content)
 }
 
 fn empty_panel_view() -> gpui::AnyElement {
@@ -773,7 +773,7 @@ fn video_clip_view(panel: &VideoClipPanel) -> gpui::AnyElement {
     let scale_fraction = (scale_percent / 200.0).clamp(0.0, 1.0) as f32;
 
     div()
-        .id("video-clip-properties-v3")
+        .id("video-clip-property-panel-v3")
         .h_full()
         .min_h_0()
         .flex()
@@ -826,12 +826,12 @@ fn video_clip_view(panel: &VideoClipPanel) -> gpui::AnyElement {
         )
         .child(
             div()
-                .id("video-clip-properties-scroll")
+                .id("video-clip-property-panel-scroll")
                 .flex_1()
                 .min_h_0()
                 .overflow_y_scroll()
                 .p(px(16.0))
-                .child(properties_heading_view("TIMING"))
+                .child(property_panel_heading_view("TIMING"))
                 .child(
                     div()
                         .mt(px(12.0))
@@ -849,7 +849,7 @@ fn video_clip_view(panel: &VideoClipPanel) -> gpui::AnyElement {
                         .flex()
                         .items_center()
                         .justify_between()
-                        .child(properties_heading_view("TRANSFORM"))
+                        .child(property_panel_heading_view("TRANSFORM"))
                         .child(
                             div()
                                 .text_size(px(12.0))
@@ -911,7 +911,7 @@ fn timing_card_view(
     frame_index: TimelineFrameIndex,
     frame_rate: FrameRate,
 ) -> gpui::Div {
-    let time = format_properties_time(frame_rate.seconds(frame_index));
+    let time = format_property_panel_time(frame_rate.seconds(frame_index));
     div()
         .min_w_0()
         .min_h(px(50.0))
@@ -1044,22 +1044,22 @@ fn video_file_view(panel: &VideoFilePanel) -> gpui::AnyElement {
         Some(extension) => extension.to_string_lossy().to_ascii_uppercase(),
         None => "Unknown".to_owned(),
     };
-    let header = properties_header_view(
+    let header = property_panel_header_view(
         file_badge_view(&format, 0x355b78, 0x8fb9dd),
         name,
         "Video file".to_owned(),
     );
     let content = div()
-        .child(properties_heading_view("FILE"))
+        .child(property_panel_heading_view("FILE"))
         .child(file_details_view(path, panel.size_bytes))
-        .child(properties_divider_view())
-        .child(properties_heading_view("LOCATION"))
+        .child(property_panel_divider_view())
+        .child(property_panel_heading_view("LOCATION"))
         .child(file_location_view(path))
-        .child(properties_divider_view())
+        .child(property_panel_divider_view())
         .child(file_hint_view(
             "Drag onto a video track to add it to the timeline.",
         ));
-    readonly_properties_panel_view("video-file-properties", header, content)
+    readonly_property_panel_view("video-file-property-panel", header, content)
 }
 
 /// Format and size rows shared by the file panels.
@@ -1149,7 +1149,7 @@ fn srt_file_view(panel: &SrtFilePanel) -> gpui::AnyElement {
         Some(name) => name.to_string_lossy().into_owned(),
         None => panel.path.display().to_string(),
     };
-    let mut content = div().child(properties_heading_view("CUES"));
+    let mut content = div().child(property_panel_heading_view("CUES"));
     let subtitle = match &panel.subtitles {
         Ok(srt) => {
             let end = srt
@@ -1204,8 +1204,8 @@ fn srt_file_view(panel: &SrtFilePanel) -> gpui::AnyElement {
                                         .text_color(rgb(MUTED))
                                         .child(format!(
                                             "{} → {}",
-                                            format_properties_time(cue.start.as_secs_f64()),
-                                            format_properties_time(cue.end.as_secs_f64()),
+                                            format_property_panel_time(cue.start.as_secs_f64()),
+                                            format_property_panel_time(cue.end.as_secs_f64()),
                                         )),
                                 )
                                 .child(
@@ -1242,6 +1242,7 @@ fn srt_file_view(panel: &SrtFilePanel) -> gpui::AnyElement {
             "Subtitles · Unavailable".to_owned()
         }
     };
-    let header = properties_header_view(file_badge_view("SRT", 0x46464e, 0x8b8b94), name, subtitle);
-    readonly_properties_panel_view("srt-file-properties", header, content)
+    let header =
+        property_panel_header_view(file_badge_view("SRT", 0x46464e, 0x8b8b94), name, subtitle);
+    readonly_property_panel_view("srt-file-property-panel", header, content)
 }

@@ -140,8 +140,8 @@ impl Editor {
                 close_track_gaps: magnet_enabled,
             }),
         );
-        self.properties.transform_input_clip_id = None;
-        self.properties.text_input_clip_id = None;
+        self.property_panel_state.transform_input_clip_id = None;
+        self.property_panel_state.text_input_clip_id = None;
         cx.notify();
     }
 
@@ -162,14 +162,14 @@ impl Editor {
 
     pub(crate) fn action_undo(&mut self, _: &Undo, _: &mut Window, cx: &mut Context<Self>) {
         self.emit_event(cx, AppEvent::Edit(EditAction::Undo));
-        self.properties.transform_input_clip_id = None;
-        self.properties.text_input_clip_id = None;
+        self.property_panel_state.transform_input_clip_id = None;
+        self.property_panel_state.text_input_clip_id = None;
     }
 
     pub(crate) fn action_redo(&mut self, _: &Redo, _: &mut Window, cx: &mut Context<Self>) {
         self.emit_event(cx, AppEvent::Edit(EditAction::Redo));
-        self.properties.transform_input_clip_id = None;
-        self.properties.text_input_clip_id = None;
+        self.property_panel_state.transform_input_clip_id = None;
+        self.property_panel_state.text_input_clip_id = None;
     }
 
     pub(crate) fn action_duplicate_selected(
@@ -224,8 +224,8 @@ impl Editor {
                 close_track_gaps: false,
             }),
         );
-        self.properties.transform_input_clip_id = None;
-        self.properties.text_input_clip_id = None;
+        self.property_panel_state.transform_input_clip_id = None;
+        self.property_panel_state.text_input_clip_id = None;
         cx.notify();
     }
 
@@ -281,8 +281,8 @@ impl Editor {
             .filter(|clip| timeline.interaction.selected_clip_ids.contains(&clip.id()))
             .min_by_key(|clip| clip.timeline_start())
             .map(|clip| clip.id());
-        self.properties.transform_input_clip_id = None;
-        self.properties.text_input_clip_id = None;
+        self.property_panel_state.transform_input_clip_id = None;
+        self.property_panel_state.text_input_clip_id = None;
         cx.notify();
     }
 

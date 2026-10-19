@@ -18,7 +18,7 @@ impl Default for ProjectLocalSettings {
             active_timeline: None,
             upper_space_split_state: HorizontalSplitState::new(
                 crate::layout::DEFAULT_MEDIA_PANEL_WIDTH,
-                crate::layout::DEFAULT_PROPERTIES_PANEL_WIDTH,
+                crate::layout::DEFAULT_PROPERTY_PANEL_WIDTH,
             ),
             workspace_split_state: VerticalSplitState::new(crate::layout::DEFAULT_TIMELINE_HEIGHT),
         }

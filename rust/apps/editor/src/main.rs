@@ -29,9 +29,9 @@ mod preview_text;
 mod project;
 mod project_picker;
 mod project_settings;
-mod properties;
-mod properties_text;
-mod properties_transform;
+mod property_panel;
+mod property_panel_text;
+mod property_panel_transform;
 mod settings;
 mod srt;
 #[cfg(test)]

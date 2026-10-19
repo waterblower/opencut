@@ -11,8 +11,8 @@ use crate::model::MediaKind;
 use crate::preview::{PreviewTarget, timeline_preview_target};
 use crate::preview_events::PreviewEvent;
 use crate::project_settings::{ProjectLocalSettings, save_project_local_settings};
-use crate::properties::{
-    PropertiesPanel, VideoFilePanel, current_properties_panel, srt_file_panel, text_clip_panel,
+use crate::property_panel::{
+    PropertyPanel, VideoFilePanel, current_property_panel, srt_file_panel, text_clip_panel,
     video_clip_panel,
 };
 use crate::srt::{srt_text_clips, write_srt};
@@ -78,7 +78,7 @@ pub(crate) enum AppEvent {
     TimelineSeek {
         frame_index: TimelineFrameIndex,
     },
-    RefreshPropertiesPanel,
+    RefreshPropertyPanel,
     TextClipSelected {
         clip_id: Ulid,
     },
@@ -452,9 +452,9 @@ async fn handle_app_event(
                 cx.notify();
             });
         }
-        AppEvent::RefreshPropertiesPanel => {
+        AppEvent::RefreshPropertyPanel => {
             editor.update(cx, |editor, cx| {
-                editor.properties_panel = current_properties_panel(editor);
+                editor.property_panel = current_property_panel(editor);
                 cx.notify();
             });
         }
@@ -464,8 +464,8 @@ async fn handle_app_event(
                 let Some(Clip::Text(clip)) = timeline.editing_state.clip(clip_id) else {
                     bail!("Text clip {clip_id} no longer exists");
                 };
-                editor.properties_panel =
-                    PropertiesPanel::TextClip(text_clip_panel(&timeline.editing_state, clip));
+                editor.property_panel =
+                    PropertyPanel::TextClip(text_clip_panel(&timeline.editing_state, clip));
                 cx.notify();
                 Ok(())
             })?;
@@ -476,15 +476,15 @@ async fn handle_app_event(
                 let Some(Clip::Video(clip)) = timeline.editing_state.clip(clip_id) else {
                     bail!("Video clip {clip_id} no longer exists");
                 };
-                editor.properties_panel =
-                    PropertiesPanel::VideoClip(video_clip_panel(&timeline.editing_state, clip));
+                editor.property_panel =
+                    PropertyPanel::VideoClip(video_clip_panel(&timeline.editing_state, clip));
                 cx.notify();
                 Ok(())
             })?;
         }
         AppEvent::VideoFileSelected { path, size_bytes } => {
             editor.update(cx, |editor, cx| {
-                editor.properties_panel = PropertiesPanel::VideoFile(VideoFilePanel {
+                editor.property_panel = PropertyPanel::VideoFile(VideoFilePanel {
                     path: editor.project_root.join(path),
                     size_bytes,
                 });
@@ -493,8 +493,8 @@ async fn handle_app_event(
         }
         AppEvent::SrtFileSelected { path } => {
             editor.update(cx, |editor, cx| {
-                editor.properties_panel =
-                    PropertiesPanel::SrtFile(srt_file_panel(editor.project_root.join(path)));
+                editor.property_panel =
+                    PropertyPanel::SrtFile(srt_file_panel(editor.project_root.join(path)));
                 cx.notify();
             });
         }

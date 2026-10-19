@@ -76,28 +76,28 @@ impl Editor {
 
     pub(super) fn sync_video_transform_inputs(&mut self, cx: &mut Context<Self>) {
         let Some(timeline) = self.timeline.as_ref() else {
-            self.properties.transform_input_clip_id = None;
+            self.property_panel_state.transform_input_clip_id = None;
             return;
         };
         let Some(clip_id) = timeline.interaction.selected_clip_id else {
-            self.properties.transform_input_clip_id = None;
+            self.property_panel_state.transform_input_clip_id = None;
             return;
         };
         if timeline.interaction.selected_clip_ids.len() != 1
-            || self.properties.transform_input_clip_id == Some(clip_id)
+            || self.property_panel_state.transform_input_clip_id == Some(clip_id)
         {
             return;
         }
         let Some(clip) = timeline.editing_state.clip(clip_id) else {
-            self.properties.transform_input_clip_id = None;
+            self.property_panel_state.transform_input_clip_id = None;
             return;
         };
         let Some(clip) = clip.video() else {
-            self.properties.transform_input_clip_id = None;
+            self.property_panel_state.transform_input_clip_id = None;
             return;
         };
         let properties = clip.video_properties;
-        self.properties.transform_input_clip_id = Some(clip_id);
+        self.property_panel_state.transform_input_clip_id = Some(clip_id);
         let values = [
             (VideoTransformProperty::PositionX, properties.position_x),
             (VideoTransformProperty::PositionY, properties.position_y),
@@ -105,7 +105,7 @@ impl Editor {
         ];
         for (property, value) in values {
             let text = format_transform_value(value);
-            let input = self.properties.transform_inputs.input(property);
+            let input = self.property_panel_state.transform_inputs.input(property);
             if input.read(cx).text() != text {
                 input.update(cx, |input, _| input.set_text_silently(text));
             }
@@ -119,7 +119,7 @@ impl Editor {
         property: VideoTransformProperty,
         text: &str,
     ) -> Result<()> {
-        let Some(clip_id) = self.properties.transform_input_clip_id else {
+        let Some(clip_id) = self.property_panel_state.transform_input_clip_id else {
             return Ok(());
         };
         let Some(timeline) = self.timeline.as_ref() else {

@@ -1,6 +1,7 @@
-use crate::properties::{
-    TextClipPanel, clip_track_subtitle_view, format_properties_time, properties_divider_view,
-    properties_header_view, properties_heading_view, readonly_properties_panel_view,
+use crate::property_panel::{
+    TextClipPanel, clip_track_subtitle_view, format_property_panel_time,
+    property_panel_divider_view, property_panel_header_view, property_panel_heading_view,
+    readonly_property_panel_view,
 };
 use crate::theme::{BORDER, MUTED, SURFACE};
 use crate::track::TrackKind;
@@ -34,7 +35,7 @@ pub(crate) fn text_clip_view(panel: &TextClipPanel) -> gpui::AnyElement {
         .font_weight(FontWeight::BOLD)
         .text_color(rgb(0xffffff))
         .child("T");
-    let header = properties_header_view(
+    let header = property_panel_header_view(
         badge,
         title,
         clip_track_subtitle_view(TrackKind::Text, track_name),
@@ -47,7 +48,7 @@ pub(crate) fn text_clip_view(panel: &TextClipPanel) -> gpui::AnyElement {
         format!("#{color_rgb:06X}{alpha:02X}")
     };
     let content = div()
-        .child(properties_heading_view("CONTENT"))
+        .child(property_panel_heading_view("CONTENT"))
         .child(
             div()
                 .mt(px(12.0))
@@ -67,8 +68,8 @@ pub(crate) fn text_clip_view(panel: &TextClipPanel) -> gpui::AnyElement {
                         .map(|line| div().min_h(px(19.0)).child(line.to_owned())),
                 ),
         )
-        .child(properties_divider_view())
-        .child(properties_heading_view("TIMING"))
+        .child(property_panel_divider_view())
+        .child(property_panel_heading_view("TIMING"))
         .child(
             div()
                 .mt(px(8.0))
@@ -105,7 +106,7 @@ pub(crate) fn text_clip_view(panel: &TextClipPanel) -> gpui::AnyElement {
                                         .text_size(px(13.0))
                                         .line_height(px(18.0))
                                         .text_ellipsis()
-                                        .child(format_properties_time(
+                                        .child(format_property_panel_time(
                                             frame_rate.seconds(clip.timeline_start),
                                         )),
                                 )
@@ -137,8 +138,8 @@ pub(crate) fn text_clip_view(panel: &TextClipPanel) -> gpui::AnyElement {
                         ))),
                 ),
         )
-        .child(properties_divider_view())
-        .child(properties_heading_view("STYLE"))
+        .child(property_panel_divider_view())
+        .child(property_panel_heading_view("STYLE"))
         .child(
             div().mt(px(12.0)).child(style_field_view(
                 "Font",
@@ -221,8 +222,8 @@ pub(crate) fn text_clip_view(panel: &TextClipPanel) -> gpui::AnyElement {
                         ),
                 )),
         )
-        .child(properties_divider_view())
-        .child(properties_heading_view("POSITION"))
+        .child(property_panel_divider_view())
+        .child(property_panel_heading_view("POSITION"))
         .child(
             div()
                 .mt(px(12.0))
@@ -240,7 +241,7 @@ pub(crate) fn text_clip_view(panel: &TextClipPanel) -> gpui::AnyElement {
                     "",
                 )),
         );
-    readonly_properties_panel_view("text-clip-properties", header, content)
+    readonly_property_panel_view("text-clip-property-panel", header, content)
 }
 
 fn style_field_view(label: &'static str, value: gpui::Div) -> gpui::Div {
