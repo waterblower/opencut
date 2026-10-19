@@ -143,15 +143,6 @@ impl TimelineBackend {
         self.playing = false;
     }
 
-    pub fn toggle_playback(&mut self) -> Result<()> {
-        if self.playing {
-            self.pause();
-            Ok(())
-        } else {
-            self.play()
-        }
-    }
-
     /// Shows the frame under the clock, skipping frames when preparation falls behind.
     pub fn advance(&mut self) -> Result<Advance> {
         if !self.playing {
@@ -192,12 +183,8 @@ impl TimelineBackend {
         })
     }
 
-    pub fn frame_size(&self) -> (u32, u32) {
+    fn frame_size(&self) -> (u32, u32) {
         (self.timeline.settings.width, self.timeline.settings.height)
-    }
-
-    pub fn framerate(&self) -> Option<f64> {
-        Some(self.timeline.settings.frame_rate.frames_per_second())
     }
 
     pub fn duration(&self) -> Duration {
@@ -206,7 +193,7 @@ impl TimelineBackend {
     }
 
     /// The index of the displayed timeline frame.
-    pub fn frame_index(&self) -> TimelineFrameIndex {
+    fn frame_index(&self) -> TimelineFrameIndex {
         self.displayed.frame_index
     }
 
@@ -223,10 +210,6 @@ impl TimelineBackend {
     /// The displayed frame. Older snapshots remain valid after seeking or dropping this backend.
     pub fn preview_frame(&self) -> Arc<TimelineFrameComposition> {
         Arc::clone(&self.displayed)
-    }
-
-    pub fn get_current_frame(&self) -> Result<Arc<TimelineFrameComposition>> {
-        Ok(self.preview_frame())
     }
 
     fn last_frame(&self) -> TimelineFrameIndex {

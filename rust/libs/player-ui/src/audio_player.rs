@@ -11,12 +11,12 @@ use std::{
 };
 
 pub struct AudioPlayer {
-    pub audio_backend: AudioBackend,
+    pub(crate) audio_backend: AudioBackend,
     audio_output: AudioOutput,
-    pub playback_state: PlaybackState,
+    pub(crate) playback_state: PlaybackState,
     play_waker: Option<Waker>,
-    pub position: Duration,
-    pub title: String,
+    pub(crate) position: Duration,
+    pub(crate) title: String,
 }
 
 impl AudioPlayer {
@@ -50,7 +50,7 @@ impl AudioPlayer {
     }
 }
 
-pub enum PlaybackState {
+pub(crate) enum PlaybackState {
     Playing,
     Paused,
     Ended,

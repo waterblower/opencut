@@ -8,13 +8,13 @@ use player_ui::video_player::VideoPlayer;
 use std::path::{Path, PathBuf};
 
 #[derive(Clone, Debug)]
-pub enum PreviewEvent {
+pub(crate) enum PreviewEvent {
     SelectFile(PathBuf),
     TogglePlayback,
 }
 
 impl Editor {
-    pub async fn open_file_preview(
+    pub(crate) async fn open_file_preview(
         editor: Entity<Self>,
         project_root: PathBuf,
         relative_path: PathBuf,
@@ -59,7 +59,7 @@ impl Editor {
     }
 }
 
-pub fn file_preview_requested(
+fn file_preview_requested(
     project_root: &Path,
     selected_file: Option<&Path>,
     target: &PreviewTarget,
@@ -72,7 +72,7 @@ pub fn file_preview_requested(
 }
 
 impl Editor {
-    pub fn toggle_preview_playback(&mut self, cx: &mut Context<Self>) -> Result<()> {
+    pub(crate) fn toggle_preview_playback(&mut self, cx: &mut Context<Self>) -> Result<()> {
         match &self.preview.target {
             PreviewTarget::VideoFile { player, .. } => {
                 player.update(cx, |player, cx| player.toggle_playback(cx));

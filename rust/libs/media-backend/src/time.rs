@@ -7,7 +7,7 @@ pub struct MediaTime(pub i64);
 
 // Round to the closest microsecond, with ties away from zero. i128 arithmetic
 // avoids intermediate overflow and keeps large/nonzero stream origins exact.
-pub fn timestamp_microseconds(value: i64, time_base: Rational) -> Result<i64> {
+pub(crate) fn timestamp_microseconds(value: i64, time_base: Rational) -> Result<i64> {
     if time_base.numerator() <= 0 || time_base.denominator() <= 0 {
         bail!("invalid stream time base: {time_base:?}");
     }

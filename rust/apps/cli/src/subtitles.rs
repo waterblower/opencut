@@ -1,1 +1,1 @@
-pub use ::transcribe::subtitles::merge_srt_sections;
+pub(crate) use ::transcribe::subtitles::merge_srt_sections;

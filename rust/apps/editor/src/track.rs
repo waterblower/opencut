@@ -1,1 +1,1 @@
-pub use ::timeline::{Track, TrackKind};
+pub(crate) use ::timeline::{Track, TrackKind};

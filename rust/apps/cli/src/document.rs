@@ -6,10 +6,10 @@ use std::{
     io::Write,
     path::{Path, PathBuf},
 };
-pub use timeline::TimelineEditingState;
+use timeline::TimelineEditingState;
 use timeline::TrackKind;
 
-pub fn asset_base(timeline: &Path) -> Result<PathBuf> {
+pub(crate) fn asset_base(timeline: &Path) -> Result<PathBuf> {
     let path = std::path::absolute(timeline).context(format!(
         "could not resolve timeline path {} at {}:{}",
         timeline.display(),
@@ -27,7 +27,7 @@ pub fn asset_base(timeline: &Path) -> Result<PathBuf> {
     Ok(parent.to_path_buf())
 }
 
-pub fn write_atomic(path: &Path, value: &Value, overwrite: bool) -> Result<()> {
+pub(crate) fn write_atomic(path: &Path, value: &Value, overwrite: bool) -> Result<()> {
     let bytes = serde_json::to_vec_pretty(value).context(format!(
         "invalid_json at {}:{}",
         file!(),
@@ -38,14 +38,14 @@ pub fn write_atomic(path: &Path, value: &Value, overwrite: bool) -> Result<()> {
 
 /// Publish transcript bytes without blocking the async runtime. Reuses the same
 /// atomic publication and cleanup as synchronous document writes.
-pub async fn write_atomic_bytes(path: &Path, bytes: Vec<u8>, overwrite: bool) -> Result<()> {
+pub(crate) async fn write_atomic_bytes(path: &Path, bytes: Vec<u8>, overwrite: bool) -> Result<()> {
     let path = path.to_path_buf();
     tokio::task::spawn_blocking(move || write_bytes(&path, &bytes, overwrite))
         .await
         .context(format!("io_error at {}:{}", file!(), line!()))?
 }
 
-pub fn summary(doc: &TimelineEditingState) -> Value {
+pub(crate) fn summary(doc: &TimelineEditingState) -> Value {
     let fps = doc.settings.frame_rate;
     let mut clips = Vec::new();
     let mut tracks = Vec::new();

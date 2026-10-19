@@ -62,7 +62,7 @@ pub(crate) fn toggle(window: &mut Window, cx: &mut App) {
     window.toggle_inspector(cx);
 }
 
-pub(crate) fn close(window: &mut Window, cx: &mut App) {
+fn close(window: &mut Window, cx: &mut App) {
     INSPECTOR_OPEN.store(false, Ordering::Relaxed);
     window.toggle_inspector(cx);
 }

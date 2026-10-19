@@ -11,20 +11,20 @@ use std::path::PathBuf;
 
 impl TimelineRuntimeState {
     /// Loads an absolute timeline file path.
-    pub fn load(path: PathBuf) -> Result<Self> {
+    pub(crate) fn load(path: PathBuf) -> Result<Self> {
         ensure!(path.is_absolute(), "Timeline path must be absolute");
         let document = TimelineSerialization::load(&path)?;
         Self::from_serialize(document, path)
     }
 
-    pub fn save(&self) -> Result<()> {
+    pub(crate) fn save(&self) -> Result<()> {
         ensure!(self.path.is_absolute(), "Timeline path must be absolute");
         self.to_serialize().save(&self.path)
     }
 
     /// Selects content, playhead, scroll offsets, zoom, and UI preferences.
     /// Excludes worker state, caches, tasks, history, and transient interactions.
-    pub fn to_serialize(&self) -> TimelineSerialization {
+    pub(crate) fn to_serialize(&self) -> TimelineSerialization {
         let mut document = TimelineSerialization::from_editing_state(&self.editing_state);
         document.set_view_state(
             self.playhead(),
@@ -41,7 +41,7 @@ impl TimelineRuntimeState {
 
     /// Rebuilds runtime resources and restores only persisted content/preferences.
     /// `path` must be absolute.
-    pub fn from_serialize(document: TimelineSerialization, path: PathBuf) -> Result<Self> {
+    pub(crate) fn from_serialize(document: TimelineSerialization, path: PathBuf) -> Result<Self> {
         ensure!(path.is_absolute(), "Timeline path must be absolute");
         let playhead = document.playhead();
         let (horizontal, vertical) = document.scroll_offset();

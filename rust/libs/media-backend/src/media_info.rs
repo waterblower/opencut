@@ -10,7 +10,7 @@ pub struct MediaInfo {
     pub origin_microseconds: i64,
     pub duration: Duration,
     pub video: VideoInfo,
-    pub audio: Option<AudioInfo>,
+    pub(crate) audio: Option<AudioInfo>,
 }
 
 #[derive(Clone, Debug)]
@@ -22,10 +22,10 @@ pub struct VideoInfo {
 }
 
 #[derive(Clone, Debug)]
-pub struct AudioInfo {
-    pub stream_index: usize,
-    pub sample_rate: u32,
-    pub channels: u16,
+pub(crate) struct AudioInfo {
+    pub(crate) stream_index: usize,
+    pub(crate) sample_rate: u32,
+    pub(crate) channels: u16,
 }
 
 impl MediaInfo {

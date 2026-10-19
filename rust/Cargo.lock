@@ -1824,6 +1824,7 @@ name = "examples"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "core-foundation 0.10.0",
  "cpal",
  "env_logger",
  "ffmpeg-next",
@@ -3517,6 +3518,8 @@ name = "media-backend"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "core-foundation 0.10.0",
+ "core-video",
  "ffmpeg-next",
 ]
 

@@ -1,18 +1,20 @@
+use crate::Seeker;
+use crate::playback_row::{
+    PLAYBACK_ROW_HEIGHT, PlaybackIcon, playback_button_view, playback_row_view,
+};
 use crate::progress_bar::{
     PROGRESS_BAR_HEIGHT, ProgressBarDrag, progress, progress_bar, seek_position,
 };
 use crate::timeline_player::TimelinePlayer;
-use crate::{Seeker, format_time};
 use gpui::{
     AnyElement, AvailableSpace, Bounds, ClickEvent, Context, CursorStyle, DragMoveEvent, Entity,
     Window, canvas, div, prelude::*, px, rgb,
 };
 use std::{cell::Cell, rc::Rc};
 
-const TRANSPORT_HEIGHT: f32 = 80.0;
-pub const TIMELINE_CONTROLS_HEIGHT: f32 = PROGRESS_BAR_HEIGHT + TRANSPORT_HEIGHT;
+pub const TIMELINE_CONTROLS_HEIGHT: f32 = 1.0 + PROGRESS_BAR_HEIGHT + PLAYBACK_ROW_HEIGHT; // 1：控制栏顶部分隔线。
 
-/// Standalone view: picture, progress bar, and transport controls.
+/// Standalone view: picture, progress bar, and playback controls.
 impl Render for TimelinePlayer {
     fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let picture = timeline_backend_picture(cx.entity());
@@ -21,7 +23,7 @@ impl Render for TimelinePlayer {
 }
 
 impl TimelinePlayer {
-    /// Uses the caller's picture while retaining the player's transport controls.
+    /// Uses the caller's picture while retaining the player's playback controls.
     pub fn render_with_picture(
         &mut self,
         picture: AnyElement,
@@ -35,11 +37,12 @@ impl TimelinePlayer {
         } else {
             self.backend().clock_position() // 帧起点会把进度条拉到点击位置左侧，最多一帧。
         };
-        let playback_label = match (ended, self.backend().is_playing()) {
-            (true, _) => "Ended",
-            (_, true) => "Pause",
-            (_, false) => "Play",
+        let playback_icon = match (ended, self.backend().is_playing()) {
+            (true, _) => PlaybackIcon::Replay,
+            (_, true) => PlaybackIcon::Pause,
+            (_, false) => PlaybackIcon::Play,
         };
+        let drag_seek_bounds = seek_bounds.clone();
 
         div()
             .id("timeline-player")
@@ -57,57 +60,48 @@ impl TimelinePlayer {
                     .child(picture),
             )
             .child(
-                progress_bar(
-                    "progress_bar",
-                    progress(position, duration),
-                    seek_bounds.clone(),
-                )
-                .on_click(cx.listener(move |player, event: &ClickEvent, _, cx| {
-                    let target = seek_position(event.position().x, seek_bounds.get(), duration);
-                    match player.seek(target) {
-                        Ok(()) => cx.notify(),
-                        Err(error) => player.fail(error, cx),
-                    }
-                }))
-                .on_drag_move(cx.listener(
-                    move |player, event: &DragMoveEvent<ProgressBarDrag>, window, cx| {
-                        let target = seek_position(event.event.position.x, event.bounds, duration);
-                        player.request_seek(target, window, cx);
-                    },
-                )),
-            )
-            .child(
                 div()
-                    .h(px(TRANSPORT_HEIGHT))
                     .flex_shrink_0()
-                    .px_4()
-                    .flex()
-                    .items_center()
-                    .gap_4()
+                    .border_t_1()
+                    .border_color(rgb(0x1f1f24))
+                    .bg(rgb(0x0d0d0f))
                     .child(
-                        div()
-                            .id("play-pause")
-                            .cursor(CursorStyle::PointingHand)
-                            .p_2()
-                            .on_click(cx.listener(|player, _, _, cx| {
+                        progress_bar(
+                            "progress_bar",
+                            progress(position, duration),
+                            seek_bounds.clone(),
+                        )
+                        .on_click(cx.listener(move |player, event: &ClickEvent, _, cx| {
+                            let target =
+                                seek_position(event.position().x, seek_bounds.get(), duration);
+                            match player.seek(target) {
+                                Ok(()) => cx.notify(),
+                                Err(error) => player.fail(error, cx),
+                            }
+                        }))
+                        .on_drag_move(cx.listener(
+                            move |player, event: &DragMoveEvent<ProgressBarDrag>, window, cx| {
+                                let target = seek_position(
+                                    event.event.position.x,
+                                    drag_seek_bounds.get(),
+                                    duration,
+                                );
+                                player.request_seek(target, window, cx);
+                            },
+                        )),
+                    )
+                    .child(playback_row_view(
+                        playback_button_view("play-pause", playback_icon).on_click(cx.listener(
+                            |player, _, _, cx| {
                                 if let Err(error) = player.toggle_playback(cx) {
                                     player.fail(error, cx);
                                 }
-                            }))
-                            .child(playback_label),
-                    )
-                    .child(format!(
-                        "{} / {}",
-                        format_time(position),
-                        format_time(duration)
-                    ))
-                    .child(
-                        div()
-                            .flex_1()
-                            .min_w_0()
-                            .text_ellipsis()
-                            .child(self.title.clone()),
-                    ),
+                            },
+                        )),
+                        position,
+                        duration,
+                        self.title.clone(),
+                    )),
             )
             .into_any_element()
     }

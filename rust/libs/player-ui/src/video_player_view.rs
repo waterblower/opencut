@@ -1,6 +1,7 @@
+use crate::Seeker;
+use crate::playback_row::{PlaybackIcon, playback_button_view, playback_row_view};
 use crate::progress_bar::{ProgressBarDrag, progress, progress_bar, seek_position};
 use crate::video_player::{PlaybackState, VideoPlayer};
-use crate::{Seeker, format_time};
 #[cfg(target_os = "macos")]
 use gpui::surface;
 use gpui::{
@@ -25,11 +26,12 @@ impl Render for VideoPlayer {
             (_, Some((_, pts, _))) => (*pts).min(duration), // 播放中和暂停时，UI 进度使用当前展示帧的 PTS。
             (_, None) => Duration::ZERO,
         };
-        let playback_label = match (ended, &self.playback_state) {
-            (true, _) => "Ended",
-            (_, PlaybackState::Playing) => "Pause",
-            (_, PlaybackState::Paused) => "Play",
+        let playback_icon = match (ended, &self.playback_state) {
+            (true, _) => PlaybackIcon::Replay,
+            (_, PlaybackState::Playing) => PlaybackIcon::Pause,
+            (_, PlaybackState::Paused) => PlaybackIcon::Play,
         };
+        let drag_seek_bounds = seek_bounds.clone();
 
         div()
             .id("player")
@@ -57,60 +59,52 @@ impl Render for VideoPlayer {
                     }),
             )
             .child(
-                progress_bar(
-                    "progress_bar",
-                    progress(position, duration),
-                    seek_bounds.clone(),
-                )
-                .on_click(cx.listener(move |player, event: &ClickEvent, _, cx| {
-                    let target = seek_position(event.position().x, seek_bounds.get(), duration);
-                    match player.seek(target) {
-                        Ok(()) => cx.notify(),
-                        Err(error) => {
-                            eprintln!("Player seek failed: {error:?}");
-                            std::process::exit(1);
-                        }
-                    }
-                }))
-                .on_drag_move(cx.listener(
-                    move |player, event: &DragMoveEvent<ProgressBarDrag>, window, cx| {
-                        let target = seek_position(event.event.position.x, event.bounds, duration);
-                        player.request_seek(target, window, cx);
-                    },
-                ))
-                // A drag can end over the bar or anywhere else in the window.
-                .on_mouse_up(MouseButton::Left, cx.listener(release_scrub))
-                .on_mouse_up_out(MouseButton::Left, cx.listener(release_scrub)),
-            )
-            .child(
                 div()
-                    .h(px(80.0))
-                    .px_4()
-                    .flex()
-                    .items_center()
-                    .gap_4()
+                    .flex_shrink_0()
+                    .border_t_1()
+                    .border_color(rgb(0x1f1f24))
+                    .bg(rgb(0x0d0d0f))
                     .child(
-                        div()
-                            .id("play-pause")
-                            .cursor(CursorStyle::PointingHand)
-                            .p_2()
-                            .on_click(cx.listener(|player, _, _, cx| {
-                                player.toggle_playback(cx);
-                            }))
-                            .child(playback_label),
+                        progress_bar(
+                            "progress_bar",
+                            progress(position, duration),
+                            seek_bounds.clone(),
+                        )
+                        .on_click(cx.listener(move |player, event: &ClickEvent, _, cx| {
+                            let target =
+                                seek_position(event.position().x, seek_bounds.get(), duration);
+                            match player.seek(target) {
+                                Ok(()) => cx.notify(),
+                                Err(error) => {
+                                    eprintln!("Player seek failed: {error:?}");
+                                    std::process::exit(1);
+                                }
+                            }
+                        }))
+                        .on_drag_move(cx.listener(
+                            move |player, event: &DragMoveEvent<ProgressBarDrag>, window, cx| {
+                                let target = seek_position(
+                                    event.event.position.x,
+                                    drag_seek_bounds.get(),
+                                    duration,
+                                );
+                                player.request_seek(target, window, cx);
+                            },
+                        ))
+                        // A drag can end over the bar or anywhere else in the window.
+                        .on_mouse_up(MouseButton::Left, cx.listener(release_scrub))
+                        .on_mouse_up_out(MouseButton::Left, cx.listener(release_scrub)),
                     )
-                    .child(format!(
-                        "{} / {}",
-                        format_time(position),
-                        format_time(duration)
-                    ))
-                    .child(
-                        div()
-                            .flex_1()
-                            .min_w_0()
-                            .text_ellipsis()
-                            .child(self.title.clone()),
-                    ),
+                    .child(playback_row_view(
+                        playback_button_view("play-pause", playback_icon).on_click(cx.listener(
+                            |player, _, _, cx| {
+                                player.toggle_playback(cx);
+                            },
+                        )),
+                        position,
+                        duration,
+                        self.title.clone(),
+                    )),
             )
     }
 }

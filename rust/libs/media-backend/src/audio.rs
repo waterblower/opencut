@@ -59,7 +59,7 @@ pub struct AudioDecoder {
 }
 
 impl AudioDecoder {
-    pub fn open(path: &Path, metadata: &MediaInfo) -> Result<Self> {
+    pub(crate) fn open(path: &Path, metadata: &MediaInfo) -> Result<Self> {
         let info = metadata
             .audio
             .as_ref()

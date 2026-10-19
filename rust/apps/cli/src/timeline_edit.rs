@@ -5,7 +5,7 @@ use serde_json::{Value, json};
 use std::{fs, path::PathBuf};
 use timeline::{TimelineFrameIndex, TimelineSerialization, compact_text_sections};
 
-pub fn edit(command: TimelineCommand) -> Result<Value> {
+pub(crate) fn edit(command: TimelineCommand) -> Result<Value> {
     let options = match &command {
         TimelineCommand::KeepTextSections(options) | TimelineCommand::RemoveGaps(options) => {
             options

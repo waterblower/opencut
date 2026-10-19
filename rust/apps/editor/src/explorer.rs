@@ -37,19 +37,19 @@ pub(super) struct ExplorerExpansion {
     pub(super) root_expanded: bool,
 }
 
-pub struct ExplorerState {
-    pub file_tree: Vec<FileTreeEntry>,
-    pub expanded_directories: HashSet<PathBuf>,
-    pub root_expanded: bool,
-    pub filter: Entity<TextInput>,
-    pub search_query: Option<String>,
-    pub search_results: Vec<FileTreeEntry>,
-    pub search_pending: bool,
-    pub scroll: ScrollHandle,
-    pub selected_file: Option<PathBuf>,
-    pub rename_dialog: Option<RenameDialogState>,
-    pub new_timeline_dialog: Option<NewTimelineDialogState>,
-    pub last_tree_scan: Instant,
+pub(crate) struct ExplorerState {
+    pub(crate) file_tree: Vec<FileTreeEntry>,
+    pub(crate) expanded_directories: HashSet<PathBuf>,
+    pub(crate) root_expanded: bool,
+    pub(crate) filter: Entity<TextInput>,
+    pub(crate) search_query: Option<String>,
+    pub(crate) search_results: Vec<FileTreeEntry>,
+    pub(crate) search_pending: bool,
+    pub(crate) scroll: ScrollHandle,
+    pub(crate) selected_file: Option<PathBuf>,
+    pub(crate) rename_dialog: Option<RenameDialogState>,
+    pub(crate) new_timeline_dialog: Option<NewTimelineDialogState>,
+    pub(crate) last_tree_scan: Instant,
 }
 
 pub(super) fn load_explorer_expansion(project_root: &Path) -> ExplorerExpansion {
@@ -349,7 +349,7 @@ impl Editor {
         &mut self,
         media_path: PathBuf,
         track_id: Ulid,
-        raw_start: TimelineFrameIndex,
+        start: TimelineFrameIndex,
         mut asset: MediaAsset,
         cx: &mut Context<Self>,
     ) -> Result<()> {
@@ -366,7 +366,6 @@ impl Editor {
             .iter()
             .find(|track| track.id == track_id)
             .map(|track| track.kind);
-        let (start, _) = timeline.snap_clip_start_ignoring(raw_start, duration, &HashSet::new());
         validate_clip_placement(
             &timeline.editing_state,
             track_id,

@@ -6,10 +6,10 @@ use std::path::{Path, PathBuf};
 
 #[derive(Deserialize, Serialize)]
 #[serde(default)]
-pub struct ProjectLocalSettings {
-    pub active_timeline: Option<PathBuf>,
-    pub upper_space_split_state: HorizontalSplitState,
-    pub workspace_split_state: VerticalSplitState, // 上半区与时间线之间的分割；只保存时间线高度。
+pub(crate) struct ProjectLocalSettings {
+    pub(crate) active_timeline: Option<PathBuf>,
+    pub(crate) upper_space_split_state: HorizontalSplitState,
+    pub(crate) workspace_split_state: VerticalSplitState, // 上半区与时间线之间的分割；只保存时间线高度。
 }
 
 impl Default for ProjectLocalSettings {
@@ -26,14 +26,14 @@ impl Default for ProjectLocalSettings {
 }
 
 // This function does IO, avoid it during render pass / render tree construction
-pub fn load_project_local_settings(project_root: &Path) -> ProjectLocalSettings {
+pub(crate) fn load_project_local_settings(project_root: &Path) -> ProjectLocalSettings {
     let Ok(contents) = fs::read_to_string(project_local_settings_path(project_root)) else {
         return ProjectLocalSettings::default();
     };
     serde_json::from_str(&contents).unwrap_or_default()
 }
 
-pub fn save_project_local_settings(
+pub(crate) fn save_project_local_settings(
     project_root: &Path,
     settings: &ProjectLocalSettings,
 ) -> Result<()> {

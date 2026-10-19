@@ -33,13 +33,13 @@ actions!(
 const MASK_CHARACTER: char = '•';
 
 /// Emitted when the text changes through editing, not through `set_text_silently`.
-pub enum TextInputEvent {
+pub(crate) enum TextInputEvent {
     Change,
 }
 
 impl EventEmitter<TextInputEvent> for TextInput {}
 
-pub fn bind_keys(cx: &mut App) {
+pub(crate) fn bind_keys(cx: &mut App) {
     let context = Some("TextInput");
     cx.bind_keys([
         KeyBinding::new("backspace", Backspace, context),
@@ -59,7 +59,7 @@ pub fn bind_keys(cx: &mut App) {
     ]);
 }
 
-pub struct TextInput {
+pub(crate) struct TextInput {
     focus_handle: FocusHandle,
     return_focus: FocusHandle,
     element_id: SharedString,
@@ -91,7 +91,7 @@ enum InputConstraint {
 }
 
 impl TextInput {
-    pub fn new_search(
+    pub(crate) fn new_search(
         element_id: &'static str,
         placeholder: &'static str,
         return_focus: FocusHandle,
@@ -108,7 +108,7 @@ impl TextInput {
         )
     }
 
-    pub fn new_field(
+    pub(crate) fn new_field(
         element_id: &'static str,
         content: String,
         placeholder: &'static str,
@@ -126,7 +126,7 @@ impl TextInput {
         )
     }
 
-    pub fn new_secret_field(
+    pub(crate) fn new_secret_field(
         element_id: &'static str,
         content: String,
         placeholder: &'static str,
@@ -146,7 +146,7 @@ impl TextInput {
         field
     }
 
-    pub fn new_integer_field(
+    fn new_integer_field(
         element_id: &'static str,
         content: String,
         placeholder: &'static str,
@@ -164,7 +164,7 @@ impl TextInput {
         )
     }
 
-    pub fn new_inline_field(
+    fn new_inline_field(
         element_id: &'static str,
         content: String,
         placeholder: &'static str,
@@ -182,7 +182,7 @@ impl TextInput {
         )
     }
 
-    pub fn new_inline_number_field(
+    pub(crate) fn new_inline_number_field(
         element_id: &'static str,
         content: String,
         placeholder: &'static str,
@@ -227,11 +227,11 @@ impl TextInput {
         }
     }
 
-    pub fn text(&self) -> &str {
+    pub(crate) fn text(&self) -> &str {
         self.content.as_ref()
     }
 
-    pub fn clear(&mut self, cx: &mut Context<Self>) {
+    pub(crate) fn clear(&mut self, cx: &mut Context<Self>) {
         self.content = "".into();
         self.selected_range = 0..0;
         self.selection_reversed = false;
@@ -240,13 +240,13 @@ impl TextInput {
         cx.notify();
     }
 
-    pub fn set_text(&mut self, text: String, cx: &mut Context<Self>) {
+    fn set_text(&mut self, text: String, cx: &mut Context<Self>) {
         self.set_text_silently(text);
         cx.emit(TextInputEvent::Change);
         cx.notify();
     }
 
-    pub fn set_text_silently(&mut self, text: String) {
+    pub(crate) fn set_text_silently(&mut self, text: String) {
         let cursor = text.len();
         self.content = text.into();
         self.selected_range = cursor..cursor;
@@ -254,7 +254,7 @@ impl TextInput {
         self.marked_range = None;
     }
 
-    pub fn focus_and_select_all(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+    pub(crate) fn focus_and_select_all(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         self.selected_range = 0..self.content.len();
         self.selection_reversed = false;
         self.marked_range = None;

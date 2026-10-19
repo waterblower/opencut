@@ -112,7 +112,7 @@ impl TimelineSerialization {
     }
 }
 
-pub fn deserialize_ulid<'de, D>(deserializer: D) -> Result<Ulid, D::Error>
+pub(crate) fn deserialize_ulid<'de, D>(deserializer: D) -> Result<Ulid, D::Error>
 where
     D: serde::Deserializer<'de>,
 {

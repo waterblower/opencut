@@ -1,7 +1,7 @@
 //! Timeline file persistence and shared value types; no runtime-only state.
 
 use serde::{Deserialize, Serialize};
-pub mod serialization;
+mod serialization;
 pub use serialization::TimelineSerialization;
 mod asset;
 mod clip;
