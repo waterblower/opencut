@@ -9,7 +9,7 @@ use std::path::PathBuf;
 use std::time::Instant;
 
 /// An existing running job is focused instead of submitting the file again.
-pub fn open(
+pub(crate) fn open(
     source_path: PathBuf,
     project_root: PathBuf,
     event_bus: Entity<EventBus>,
@@ -59,17 +59,17 @@ pub fn open(
     handle.entity(cx)
 }
 
-pub struct TranscriptionWindow {
+pub(crate) struct TranscriptionWindow {
     source_path: PathBuf,
     project_root: PathBuf,
     event_bus: Entity<EventBus>,
-    pub stage: TranscriptionStage,
-    pub started: Instant,
-    pub task: Option<Task<()>>,
+    pub(crate) stage: TranscriptionStage,
+    pub(crate) started: Instant,
+    pub(crate) task: Option<Task<()>>,
 }
 
 #[derive(Clone)]
-pub enum TranscriptionStage {
+pub(crate) enum TranscriptionStage {
     Idle,
     Cancelled,
     Preparing,
@@ -80,7 +80,7 @@ pub enum TranscriptionStage {
 }
 
 impl TranscriptionStage {
-    pub fn is_running(&self) -> bool {
+    pub(crate) fn is_running(&self) -> bool {
         matches!(self, Self::Preparing | Self::Transcribing | Self::Saving)
     }
 }

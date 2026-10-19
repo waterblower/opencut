@@ -6,7 +6,7 @@ use gpui::prelude::*;
 use gpui::{CursorStyle, MouseButton, Window, div, px, rgb};
 
 impl Editor {
-    pub fn open_global_settings(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+    pub(crate) fn open_global_settings(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         let settings = match GlobalEditorSettings::load() {
             Ok(settings) => settings,
             Err(error) => {
@@ -30,7 +30,7 @@ impl Editor {
         cx.notify();
     }
 
-    pub fn global_settings_dialog(&self, cx: &mut Context<Self>) -> gpui::AnyElement {
+    pub(crate) fn global_settings_dialog(&self, cx: &mut Context<Self>) -> gpui::AnyElement {
         let Some(input) = self.global_settings_input.as_ref() else {
             return div().into_any_element();
         };

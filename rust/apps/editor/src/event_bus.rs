@@ -33,10 +33,10 @@ use std::sync::Arc;
 use timeline::TimelineSerialization;
 use ulid::Ulid;
 
-pub struct EventBus;
+pub(crate) struct EventBus;
 
 #[derive(Clone, Debug)]
-pub enum AppEvent {
+pub(crate) enum AppEvent {
     OpenExportWindow {
         timeline_path: PathBuf,
     },
@@ -91,7 +91,7 @@ pub enum AppEvent {
     },
 }
 
-pub async fn handle_event(
+pub(crate) async fn handle_event(
     cx: &mut AsyncApp,
     project: Entity<OpenProject>,
     event_bus: Entity<EventBus>,
@@ -653,9 +653,9 @@ async fn handle_app_event(
 }
 
 #[derive(Clone, Debug)]
-pub struct AssetDragMoveEvent {
-    pub event: MouseMoveEvent,
-    pub bounds: Bounds<Pixels>,
+pub(crate) struct AssetDragMoveEvent {
+    pub(crate) event: MouseMoveEvent,
+    pub(crate) bounds: Bounds<Pixels>,
 }
 
 impl EventEmitter<AppEvent> for EventBus {}

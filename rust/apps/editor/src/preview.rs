@@ -14,7 +14,7 @@ use player_ui::timeline_player::TimelinePlayer;
 use player_ui::video_player::VideoPlayer;
 use std::path::{Path, PathBuf};
 
-pub enum PreviewTarget {
+pub(crate) enum PreviewTarget {
     None,
     Error {
         path: PathBuf, // 本次选择失败的文件，相对于项目根目录。
@@ -41,7 +41,7 @@ pub enum PreviewTarget {
 
 /// Builds a paused player snapshot at the timeline's playhead and observes it for redraws.
 /// Rebuild the preview when edits invalidate the snapshot's time base, such as frame rate changes.
-pub fn timeline_preview_target<T: 'static>(
+pub(crate) fn timeline_preview_target<T: 'static>(
     timeline: &TimelineRuntimeState,
     project_root: &Path,
     cx: &mut Context<T>,

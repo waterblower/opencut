@@ -1,8 +1,8 @@
 use anyhow::{Context as _, Result, anyhow};
-pub use timeline::FrameRate;
+use timeline::FrameRate;
 
 /// CLI time parsing; a trait because `FrameRate` is defined in the `timeline` crate.
-pub trait ParseTime {
+pub(crate) trait ParseTime {
     fn parse_time(self, input: &str, total: Option<i64>) -> Result<i64>;
 }
 
@@ -94,7 +94,7 @@ impl ParseTime for FrameRate {
     }
 }
 
-pub fn parse_rate(input: &str) -> Result<FrameRate> {
+pub(crate) fn parse_rate(input: &str) -> Result<FrameRate> {
     let (n, d) = if let Some((n, d)) = input.split_once('/') {
         (
             n.parse::<i128>()

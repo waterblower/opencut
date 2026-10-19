@@ -8,8 +8,8 @@ use crate::timeline_interactions::TimelineTool;
 use gpui::prelude::*;
 use gpui::{App, KeyBinding, Window, actions};
 
-pub const EDITOR_KEY_CONTEXT: &str = "Editor";
-pub const EDITOR_SHORTCUT_CONTEXT: &str = "Editor && !TextInput";
+pub(crate) const EDITOR_KEY_CONTEXT: &str = "Editor";
+const EDITOR_SHORTCUT_CONTEXT: &str = "Editor && !TextInput";
 
 actions!(
     opencut_editor,

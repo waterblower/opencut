@@ -13,7 +13,7 @@ use gpui::{Entity, prelude::*};
 use std::path::PathBuf;
 use std::time::Duration;
 
-pub fn open(
+pub(crate) fn open(
     cx: &mut App,
     event_bus: Entity<EventBus>,
     missing_project: Option<PathBuf>,

@@ -1,13 +1,13 @@
 use anyhow::{Context as _, Error, Result, anyhow};
 use timeline::TimelineSerialization;
 mod args;
-pub mod document;
-pub mod error;
+mod document;
+mod error;
 mod export;
-pub mod subtitles;
-pub mod time;
+mod subtitles;
+mod time;
 mod timeline_edit;
-pub mod transcribe;
+mod transcribe;
 
 use args::{Args, Command};
 use clap::Parser;

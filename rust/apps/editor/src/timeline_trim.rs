@@ -9,16 +9,16 @@ use gpui::prelude::*;
 use gpui::{Context, CursorStyle, MouseButton, MouseMoveEvent, MouseUpEvent, Window, div, px, rgb};
 use ulid::Ulid;
 
-pub struct ClipTrimDrag {
-    pub original: Clip, // 拖动起点快照；每次移动都从这里计算，避免累计误差。
-    pub start_edge: bool,
-    pub pointer_x: f32,
-    pub history_recorded: bool,
+pub(crate) struct ClipTrimDrag {
+    pub(crate) original: Clip, // 拖动起点快照；每次移动都从这里计算，避免累计误差。
+    pub(crate) start_edge: bool,
+    pub(crate) pointer_x: f32,
+    pub(crate) history_recorded: bool,
 }
 
 // Public APIs only
 impl Editor {
-    pub fn clip_trim_handles(
+    pub(crate) fn clip_trim_handles(
         &self,
         clip_id: Ulid,
         cx: &mut Context<Self>,
@@ -92,7 +92,7 @@ impl Editor {
             .collect()
     }
 
-    pub fn move_clip_trim(
+    pub(crate) fn move_clip_trim(
         &mut self,
         event: &MouseMoveEvent,
         _: &mut Window,
@@ -114,7 +114,7 @@ impl Editor {
         );
     }
 
-    pub fn release_clip_trim(
+    pub(crate) fn release_clip_trim(
         &mut self,
         event: &MouseUpEvent,
         _: &mut Window,

@@ -1,7 +1,7 @@
 use crate::layout::{TIMELINE_PADDING, TRACK_HEIGHT};
 use crate::theme::ACCENT;
 use crate::timeline::{FrameRate, TimelineFrameIndex};
-pub use ::timeline::{
+pub(crate) use ::timeline::{
     AudioClip, AudioClipProperties, Clip, TextClip, TextClipProperties, VideoClip,
     VideoClipProperties,
 };
@@ -11,7 +11,7 @@ use gpui::{
 };
 use ulid::Ulid;
 
-pub trait ClipEditingExt {
+pub(crate) trait ClipEditingExt {
     fn split_at(
         &self,
         timeline_position: TimelineFrameIndex,

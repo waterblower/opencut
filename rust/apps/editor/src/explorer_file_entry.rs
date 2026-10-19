@@ -13,7 +13,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 impl Editor {
-    pub fn explorer_file_entry(
+    pub(crate) fn explorer_file_entry(
         &self,
         index: usize,
         entry: &FileTreeEntry,
@@ -229,16 +229,16 @@ impl Editor {
 }
 
 #[derive(Clone, PartialEq)]
-pub struct FileTreeEntry {
-    pub absolute_path: PathBuf,
-    pub name: String,
-    pub depth: usize,
-    pub kind: FileTreeEntryKind,
-    pub size_bytes: Option<u64>,
+pub(crate) struct FileTreeEntry {
+    pub(crate) absolute_path: PathBuf,
+    name: String,
+    depth: usize,
+    pub(crate) kind: FileTreeEntryKind,
+    pub(crate) size_bytes: Option<u64>,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum FileTreeEntryKind {
+pub(crate) enum FileTreeEntryKind {
     Directory { expanded: bool },
     Video,
     Image,
@@ -247,7 +247,7 @@ pub enum FileTreeEntryKind {
     Other,
 }
 
-pub fn visible_tree(
+pub(crate) fn visible_tree(
     project_root: &Path,
     expanded_directories: &HashSet<PathBuf>,
 ) -> Result<Vec<FileTreeEntry>> {
@@ -264,7 +264,7 @@ pub fn visible_tree(
 
 /// Searches the complete project tree, independently of which folders are expanded.
 /// Matching ancestor directories are included so results retain their hierarchy.
-pub fn search_tree(project_root: &Path, query: &str) -> Result<Vec<FileTreeEntry>> {
+pub(crate) fn search_tree(project_root: &Path, query: &str) -> Result<Vec<FileTreeEntry>> {
     let query = query.trim().to_lowercase();
     if query.is_empty() {
         return Ok(Vec::new());
@@ -423,7 +423,7 @@ fn file_tree_entry(
     }
 }
 
-pub fn is_image_path(path: &Path) -> bool {
+pub(crate) fn is_image_path(path: &Path) -> bool {
     path.extension()
         .and_then(|extension| extension.to_str())
         .is_some_and(|extension| {
@@ -434,7 +434,7 @@ pub fn is_image_path(path: &Path) -> bool {
         })
 }
 
-pub fn is_video_path(path: &Path) -> bool {
+pub(crate) fn is_video_path(path: &Path) -> bool {
     path.extension()
         .and_then(|extension| extension.to_str())
         .is_some_and(|extension| {
@@ -445,7 +445,7 @@ pub fn is_video_path(path: &Path) -> bool {
         })
 }
 
-pub fn is_audio_path(path: &Path) -> bool {
+pub(crate) fn is_audio_path(path: &Path) -> bool {
     path.extension()
         .and_then(|extension| extension.to_str())
         .is_some_and(|extension| {
@@ -456,13 +456,13 @@ pub fn is_audio_path(path: &Path) -> bool {
         })
 }
 
-pub fn is_srt_path(path: &Path) -> bool {
+pub(crate) fn is_srt_path(path: &Path) -> bool {
     path.extension()
         .and_then(|extension| extension.to_str())
         .is_some_and(|extension| matches!(extension.to_ascii_lowercase().as_str(), "srt"))
 }
 
-pub async fn select_preview_file(
+pub(crate) async fn select_preview_file(
     editor: Entity<Editor>,
     relative_path: PathBuf,
     cx: &mut AsyncApp,

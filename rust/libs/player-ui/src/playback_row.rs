@@ -7,7 +7,7 @@ use gpui::{
 };
 use std::time::Duration;
 
-pub const PLAYBACK_ROW_HEIGHT: f32 = 44.0;
+pub(crate) const PLAYBACK_ROW_HEIGHT: f32 = 44.0;
 
 pub(crate) enum PlaybackIcon {
     Play,

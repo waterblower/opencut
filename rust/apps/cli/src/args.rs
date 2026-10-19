@@ -7,15 +7,15 @@ use std::path::PathBuf;
     version,
     about = "Headless declarative video editing"
 )]
-pub struct Args {
+pub(crate) struct Args {
     #[arg(long, global = true)]
-    pub json: bool,
+    pub(crate) json: bool,
     #[command(subcommand)]
-    pub command: Command,
+    pub(crate) command: Command,
 }
 
 #[derive(Subcommand)]
-pub enum Command {
+pub(crate) enum Command {
     /// Edit timeline documents without opening the editor.
     Timeline {
         #[command(subcommand)]
@@ -51,25 +51,25 @@ pub enum Command {
 }
 
 #[derive(clap::Args)]
-pub struct ExportArgs {
+pub(crate) struct ExportArgs {
     /// Timeline JSON file.
-    pub timeline: PathBuf,
+    pub(crate) timeline: PathBuf,
     /// Output MP4 file; must not already exist unless --overwrite is given.
     #[arg(short, long)]
-    pub output: PathBuf,
+    pub(crate) output: PathBuf,
     /// Base directory for relative assets; defaults to the timeline's directory.
     #[arg(long)]
-    pub project_root: Option<PathBuf>,
+    pub(crate) project_root: Option<PathBuf>,
     /// H.264 target bitrate in kbps (1 kbps = 1,000 bits per second).
     #[arg(long, short, default_value_t = 8_000, value_parser = clap::value_parser!(u64).range(1..=i64::MAX as u64 / 1_000))]
-    pub bitrate: u64,
+    pub(crate) bitrate: u64,
     /// Replace an existing output file; source media is never replaced.
     #[arg(long)]
-    pub overwrite: bool,
+    pub(crate) overwrite: bool,
 }
 
 #[derive(Subcommand)]
-pub enum TimelineCommand {
+pub(crate) enum TimelineCommand {
     /// Keep time covered by text clips and close uncovered gaps across every track.
     KeepTextSections(TimelineEditArgs),
     /// Remove leading and internal gaps unoccupied by clips across every track.
@@ -78,13 +78,13 @@ pub enum TimelineCommand {
 
 #[derive(clap::Args)]
 #[command(group(clap::ArgGroup::new("destination").required(true).multiple(false).args(["output", "write_inplace"])))]
-pub struct TimelineEditArgs {
+pub(crate) struct TimelineEditArgs {
     /// Input timeline (.timeline or .timeline.json).
-    pub timeline: PathBuf,
+    pub(crate) timeline: PathBuf,
     /// Write a new timeline; the destination must not already exist.
     #[arg(short, long)]
-    pub output: Option<PathBuf>,
+    pub(crate) output: Option<PathBuf>,
     /// Atomically replace the input timeline after validation succeeds.
     #[arg(long)]
-    pub write_inplace: bool,
+    pub(crate) write_inplace: bool,
 }

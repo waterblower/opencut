@@ -4,7 +4,7 @@ use std::{collections::VecDeque, path::Path, time::Duration};
 
 /// Probe the audio's source-relative end time without decoding its samples.
 /// Unknown duration is left to the caller's decoded-audio validation.
-pub fn audio_duration(path: &Path) -> Result<Option<Duration>> {
+pub(crate) fn audio_duration(path: &Path) -> Result<Option<Duration>> {
     if let Err(error) = ffmpeg::init() {
         return Err(anyhow!("ffmpeg_init: {} at {}:{}", error, file!(), line!()));
     }
@@ -100,7 +100,7 @@ pub fn extract_audio_as_wav(path: &Path) -> Result<Vec<u8>> {
 }
 
 /// Split mono 16 kHz, 16-bit PCM bytes (without a WAV header), without copying samples.
-pub fn chunk(audio_samples: &[u8], max_size: Duration) -> Result<Vec<&[u8]>> {
+pub(crate) fn chunk(audio_samples: &[u8], max_size: Duration) -> Result<Vec<&[u8]>> {
     if audio_samples.len() % 2 != 0 {
         bail!("PCM data must contain complete 16-bit samples");
     }
@@ -113,7 +113,7 @@ pub fn chunk(audio_samples: &[u8], max_size: Duration) -> Result<Vec<&[u8]>> {
 }
 
 /// Complete a mono 16 kHz PCM WAV buffer with 44 reserved header bytes.
-pub fn write_wav_header(mut wav: Vec<u8>) -> Result<Vec<u8>> {
+pub(crate) fn write_wav_header(mut wav: Vec<u8>) -> Result<Vec<u8>> {
     const RATE: u32 = 16_000;
     if wav.len() < 44 || wav.len() - 44 > (u32::MAX - 36) as usize || (wav.len() - 44) % 2 != 0 {
         bail!("invalid PCM WAV buffer at {}:{}", file!(), line!());
@@ -142,7 +142,7 @@ pub fn write_wav_header(mut wav: Vec<u8>) -> Result<Vec<u8>> {
     Ok(wav)
 }
 
-pub struct AudioReader {
+struct AudioReader {
     input: ffmpeg::format::context::Input,
     decoder: ffmpeg::decoder::Audio,
     resampler: ffmpeg::software::resampling::Context,
@@ -158,7 +158,7 @@ pub struct AudioReader {
 }
 
 impl AudioReader {
-    pub fn open(path: &Path, rate: u32) -> Result<Self> {
+    fn open(path: &Path, rate: u32) -> Result<Self> {
         let input = match ffmpeg::format::input(path) {
             Ok(value) => value,
             Err(error) => {
@@ -244,7 +244,7 @@ impl AudioReader {
         })
     }
 
-    pub fn read(&mut self, start: i64, count: usize) -> Result<Vec<[f32; 2]>> {
+    fn read(&mut self, start: i64, count: usize) -> Result<Vec<[f32; 2]>> {
         if self.next_sample.is_none() && start > self.rate as i64 {
             let seek = ((start as f64 / self.rate as f64 - 1.0 + self.origin)
                 * ffmpeg::ffi::AV_TIME_BASE as f64) as i64;

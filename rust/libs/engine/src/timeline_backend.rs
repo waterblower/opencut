@@ -183,7 +183,7 @@ impl TimelineBackend {
         })
     }
 
-    pub fn frame_size(&self) -> (u32, u32) {
+    fn frame_size(&self) -> (u32, u32) {
         (self.timeline.settings.width, self.timeline.settings.height)
     }
 
@@ -193,7 +193,7 @@ impl TimelineBackend {
     }
 
     /// The index of the displayed timeline frame.
-    pub fn frame_index(&self) -> TimelineFrameIndex {
+    fn frame_index(&self) -> TimelineFrameIndex {
         self.displayed.frame_index
     }
 

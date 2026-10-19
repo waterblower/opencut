@@ -12,8 +12,8 @@ use std::{
     time::{Duration, Instant},
 };
 
-pub struct AudioOutput {
-    pub format: PcmFormat,
+pub(crate) struct AudioOutput {
+    pub(crate) format: PcmFormat,
     buffer: Arc<Mutex<OutputBuffer>>,
     playing: Arc<AtomicBool>, // 输出流的控制状态；回调只读取，不属于 PCM 队列。
     error_sender: Arc<Mutex<Option<oneshot::Sender<cpal::StreamError>>>>,
@@ -23,7 +23,7 @@ pub struct AudioOutput {
 }
 
 impl AudioOutput {
-    pub fn open() -> Result<Self> {
+    pub(crate) fn open() -> Result<Self> {
         let position = Duration::ZERO;
         let (error_sender, error_receiver) = oneshot::channel();
         let error_sender = Arc::new(Mutex::new(Some(error_sender)));
@@ -110,7 +110,7 @@ impl AudioOutput {
 
     /// The system default output device's ID and name, when it is not the device this stream
     /// plays on. [`Self::clear_at`] rebuilds the stream on the default device.
-    pub fn default_device_changed(&self) -> Result<Option<(cpal::DeviceId, String)>> {
+    pub(crate) fn default_device_changed(&self) -> Result<Option<(cpal::DeviceId, String)>> {
         let device = cpal::default_host()
             .default_output_device()
             .context("no audio output device")?;
@@ -127,7 +127,7 @@ impl AudioOutput {
     }
 
     /// 等待设备错误；设备错误和通知通道关闭错误都向调用方传播。
-    pub fn detect_error(&self) -> impl Future<Output = Result<()>> + use<> {
+    pub(crate) fn detect_error(&self) -> impl Future<Output = Result<()>> + use<> {
         // 等待期间不借用 AudioOutput，允许播放循环继续提交数据或重建流。
         let device_error = self.device_error.clone();
         async move {
@@ -138,11 +138,11 @@ impl AudioOutput {
         }
     }
 
-    pub fn is_playing(&self) -> bool {
+    pub(crate) fn is_playing(&self) -> bool {
         self.playing.load(Ordering::Relaxed)
     }
 
-    pub fn set_playing(&self, playing: bool) -> Result<()> {
+    pub(crate) fn set_playing(&self, playing: bool) -> Result<()> {
         if self.playing.swap(playing, Ordering::Relaxed) == playing {
             return Ok(());
         }
@@ -159,7 +159,7 @@ impl AudioOutput {
 
     /// 按提交顺序加入 PCM 并启动输出，保留独立音频播放器的原有语义。
     /// 返回成功只表示入队和启动成功；播放完成仍需等待队列及设备尾部耗尽。
-    pub fn push_samples(&mut self, samples: AudioSamples) -> Result<()> {
+    pub(crate) fn push_samples(&mut self, samples: AudioSamples) -> Result<()> {
         validate_samples(&samples, &self.format)?;
         {
             let mut buffer = self
@@ -179,7 +179,7 @@ impl AudioOutput {
 
     /// 仅把 PCM 放入软件队列，不启动设备，更不表示音频已经播放完。
     /// 回调随后按 PTS 取走 samples；设备仍需等待输出延迟并逐个播放它们。
-    pub fn enqueue_samples(&mut self, samples: AudioSamples) -> Result<()> {
+    pub(crate) fn enqueue_samples(&mut self, samples: AudioSamples) -> Result<()> {
         validate_samples(&samples, &self.format)?;
         if samples.frame_count == 0 {
             return Ok(());
@@ -208,7 +208,7 @@ impl AudioOutput {
     }
 
     /// 为回调和调度抖动保留 50 ms；这个值与视频帧时长无关。
-    pub fn compute_time_to_wait(&self, cycle_elapsed: Duration) -> Result<Duration> {
+    pub(crate) fn compute_time_to_wait(&self, cycle_elapsed: Duration) -> Result<Duration> {
         const MIN_REFILL_RESERVE: Duration = Duration::from_millis(50);
         let buffer = self
             .buffer
@@ -224,7 +224,7 @@ impl AudioOutput {
     }
 
     /// 软件队列和已经送往设备的真实音频都播完，才返回零。
-    pub fn remaining_duration(&self) -> Result<Duration> {
+    pub(crate) fn remaining_duration(&self) -> Result<Duration> {
         let buffer = self
             .buffer
             .lock()
@@ -242,12 +242,12 @@ impl AudioOutput {
     }
 
     /// 清空输出并保持停止，保留独立音频播放器的无参数接口。
-    pub fn clear(&mut self) -> Result<()> {
+    pub(crate) fn clear(&mut self) -> Result<()> {
         self.clear_at(Duration::ZERO)
     }
 
     /// Replace the stream to discard queued PCM and leave output stopped for a seek.
-    pub fn clear_at(&mut self, position: Duration) -> Result<()> {
+    pub(crate) fn clear_at(&mut self, position: Duration) -> Result<()> {
         // Design decision pending playback testing: keep stream replacement for
         // now. If the short tail of old audio after a seek is acceptable, clear
         // only the software PCM queue and let device-submitted samples finish.

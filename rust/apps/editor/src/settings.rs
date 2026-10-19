@@ -8,7 +8,7 @@ use anyhow::{Result, bail};
 use gpui::prelude::*;
 use gpui::{CursorStyle, MouseButton, div, px, rgb};
 
-pub fn settings_modal_view(
+pub(crate) fn settings_modal_view(
     timeline: &TimelineEditingState,
     cx: &mut Context<Editor>,
 ) -> gpui::AnyElement {

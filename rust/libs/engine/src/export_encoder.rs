@@ -4,7 +4,7 @@ use image::RgbaImage;
 use std::path::Path;
 use timeline::TimelineSettings;
 
-pub struct ExportEncoder {
+pub(crate) struct ExportEncoder {
     output: ffmpeg::format::context::Output,
     video: ffmpeg::encoder::Video,
     audio: ffmpeg::encoder::Audio,
@@ -12,7 +12,7 @@ pub struct ExportEncoder {
 }
 
 impl ExportEncoder {
-    pub fn open(path: &Path, settings: TimelineSettings, bitrate: u64) -> Result<Self> {
+    pub(crate) fn open(path: &Path, settings: TimelineSettings, bitrate: u64) -> Result<Self> {
         let mut output = ffmpeg::format::output(path).context("Opening export container")?;
         let global = output
             .format()
@@ -117,7 +117,7 @@ impl ExportEncoder {
         })
     }
 
-    pub fn video(&mut self, image: &RgbaImage, index: i64) -> Result<()> {
+    pub(crate) fn video(&mut self, image: &RgbaImage, index: i64) -> Result<()> {
         if image.dimensions() != (self.video.width(), self.video.height()) {
             bail!(
                 "Export renderer returned {}x{} pixels; expected {}x{}",
@@ -150,7 +150,12 @@ impl ExportEncoder {
         self.drain_video(false)
     }
 
-    pub fn audio(&mut self, samples: &[[f32; 2]], start: i64, total_samples: i64) -> Result<()> {
+    pub(crate) fn audio(
+        &mut self,
+        samples: &[[f32; 2]],
+        start: i64,
+        total_samples: i64,
+    ) -> Result<()> {
         let mut frame = ffmpeg::frame::Audio::new(
             self.audio.format(),
             samples.len(),
@@ -169,7 +174,7 @@ impl ExportEncoder {
         self.drain_audio(false, total_samples)
     }
 
-    pub fn finish(mut self, total_samples: i64) -> Result<()> {
+    pub(crate) fn finish(mut self, total_samples: i64) -> Result<()> {
         self.video.send_eof().context("Finishing video encoder")?;
         self.drain_video(true)?;
         self.audio.send_eof().context("Finishing audio encoder")?;
@@ -180,7 +185,7 @@ impl ExportEncoder {
         Ok(())
     }
 
-    pub fn audio_frame_size(&self) -> u32 {
+    pub(crate) fn audio_frame_size(&self) -> u32 {
         self.audio.frame_size()
     }
 

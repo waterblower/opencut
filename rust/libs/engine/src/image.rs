@@ -2,7 +2,7 @@ use anyhow::{Context as _, Result, anyhow};
 use image::RgbaImage;
 use std::path::Path;
 
-pub fn load_image(path: &Path) -> Result<RgbaImage> {
+pub(crate) fn load_image(path: &Path) -> Result<RgbaImage> {
     if path
         .extension()
         .unwrap_or_default()

@@ -29,8 +29,8 @@ const FORWARD_DECODE_LIMIT: i64 = 1_000_000; // 目标超出当前帧 1 秒以�
 const TIMESTAMP_TOLERANCE: i64 = 1_000; // 吸收源帧 PTS 与目标时间的微秒取整误差。
 
 pub struct TimelineFrameComposition {
-    pub frame_index: TimelineFrameIndex, // 限制在时间线有效帧范围内。
-    pub timestamp: Duration,
+    pub(crate) frame_index: TimelineFrameIndex, // 限制在时间线有效帧范围内。
+    pub(crate) timestamp: Duration,
     pub width: u32,
     pub height: u32,
     pub layers: Vec<PreparedLayer>, // 按绘制顺序排列：底层在前，顶层在后。
@@ -53,7 +53,7 @@ pub enum PreparedLayer {
     },
 }
 
-pub struct TimelineDecoder {
+pub(crate) struct TimelineDecoder {
     timeline_directory: PathBuf,
     #[cfg(target_os = "macos")]
     readers: HashMap<ReaderKey, VideoReader>, // 同轨道同素材的片段共用一个读取器并顺序前进；不释放。
@@ -61,7 +61,7 @@ pub struct TimelineDecoder {
 }
 
 impl TimelineDecoder {
-    pub fn new(timeline_directory: &Path) -> Self {
+    pub(crate) fn new(timeline_directory: &Path) -> Self {
         Self {
             timeline_directory: timeline_directory.to_owned(),
             #[cfg(target_os = "macos")]
@@ -73,7 +73,7 @@ impl TimelineDecoder {
     /// The caller validates the timeline, so clips on one track never overlap. Every call on
     /// one decoder must pass the same timeline: readers are cached by track and asset ID.
     /// Positions past the end clamp to the last frame.
-    pub fn frame_at(
+    pub(crate) fn frame_at(
         &mut self,
         timeline: &TimelineEditingState,
         position: TimelineFrameIndex,

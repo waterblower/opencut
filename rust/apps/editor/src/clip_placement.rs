@@ -23,7 +23,7 @@ pub(super) enum ClipPlacementRejection {
 }
 
 impl ClipPlacementRejection {
-    pub fn message(self) -> &'static str {
+    pub(crate) fn message(self) -> &'static str {
         match self {
             Self::NoPlacements => "No clips were provided",
             Self::BeforeTimelineStart => "Placement starts before the timeline",

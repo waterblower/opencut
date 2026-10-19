@@ -3,24 +3,24 @@ use gpui::prelude::*;
 use gpui::{App, Entity, MouseButton, Window, div, px, rgb};
 use serde::{Deserialize, Serialize};
 
-pub const HORIZONTAL_SPLIT_DIVIDER_WIDTH: f32 = 1.0;
+const HORIZONTAL_SPLIT_DIVIDER_WIDTH: f32 = 1.0;
 
 #[derive(Clone, Copy)]
-pub struct HorizontalSplitConstraints {
-    pub min_left: f32,
-    pub min_center: f32,
-    pub min_right: f32,
+pub(crate) struct HorizontalSplitConstraints {
+    pub(crate) min_left: f32,
+    pub(crate) min_center: f32,
+    pub(crate) min_right: f32,
 }
 
 #[derive(Clone, Copy)]
-pub struct HorizontalSplitWidths {
-    pub left: f32,
-    pub center: f32,
-    pub right: f32,
+pub(crate) struct HorizontalSplitWidths {
+    left: f32,
+    pub(crate) center: f32,
+    right: f32,
 }
 
 #[derive(Clone, Serialize, Deserialize, Debug)]
-pub struct HorizontalSplitState {
+pub(crate) struct HorizontalSplitState {
     left_width: f32,
     right_width: f32,
     #[serde(skip)]
@@ -28,7 +28,7 @@ pub struct HorizontalSplitState {
 }
 
 impl HorizontalSplitState {
-    pub fn new(left_width: f32, right_width: f32) -> Self {
+    pub(crate) fn new(left_width: f32, right_width: f32) -> Self {
         Self {
             left_width,
             right_width,
@@ -36,7 +36,7 @@ impl HorizontalSplitState {
         }
     }
 
-    pub fn widths(
+    pub(crate) fn widths(
         &self,
         total_width: f32,
         constraints: HorizontalSplitConstraints,
@@ -95,7 +95,7 @@ impl HorizontalSplitState {
 }
 
 #[derive(IntoElement)]
-pub struct HorizontalSplit {
+pub(crate) struct HorizontalSplit {
     id: &'static str,
     state: Entity<HorizontalSplitState>,
     event_bus: Entity<EventBus>,
@@ -107,7 +107,7 @@ pub struct HorizontalSplit {
 }
 
 impl HorizontalSplit {
-    pub fn new(
+    pub(crate) fn new(
         id: &'static str,
         state: Entity<HorizontalSplitState>,
         event_bus: Entity<EventBus>,

@@ -26,16 +26,16 @@ pub(super) enum TimelineTool {
 #[derive(Clone)]
 pub(super) struct ClipMoveItem {
     pub(super) clip_id: Ulid,
-    pub(super) original_timeline_start: TimelineFrameIndex,
-    pub(super) original_track_id: Ulid,
-    pub(super) original_track_index: usize,
+    original_timeline_start: TimelineFrameIndex,
+    original_track_id: Ulid,
+    original_track_index: usize,
 }
 
 pub(super) struct ClipMoveDrag {
-    pub(super) anchor_clip_id: Ulid,
-    pub(super) start_x: f32,
-    pub(super) original_anchor_start: TimelineFrameIndex,
-    pub(super) original_anchor_track_index: usize,
+    anchor_clip_id: Ulid,
+    start_x: f32,
+    original_anchor_start: TimelineFrameIndex,
+    original_anchor_track_index: usize,
     pub(super) items: Vec<ClipMoveItem>,
     pub(super) placements: Vec<(Ulid, Ulid, TimelineFrameIndex)>,
     pub(super) invalid_reason: Option<&'static str>,
@@ -48,7 +48,7 @@ pub(super) struct MarqueeSelection {
     pub(super) start_y: f32,
     pub(super) current_x: f32,
     pub(super) current_y: f32,
-    pub(super) initial_selection: HashSet<Ulid>,
+    initial_selection: HashSet<Ulid>,
 }
 
 pub(super) struct TimelineInteractionState {
@@ -87,7 +87,7 @@ impl TimelineRuntimeState {
         self.interaction.snap_guide = None;
     }
 
-    pub(super) fn select_clips_in_marquee(&mut self) {
+    fn select_clips_in_marquee(&mut self) {
         let Some(selection) = self.interaction.marquee_selection.as_ref() else {
             return;
         };
@@ -137,7 +137,7 @@ impl TimelineRuntimeState {
         self.interaction.selected_clip_ids = selected;
     }
 
-    pub(super) fn snap_time_ignoring(
+    fn snap_time_ignoring(
         &self,
         time: TimelineFrameIndex,
         ignored_clip_ids: &HashSet<Ulid>,
@@ -204,7 +204,7 @@ impl TimelineRuntimeState {
         }
     }
 
-    pub(super) fn timeline_position_from_x(&self, x: f32) -> TimelineFrameIndex {
+    fn timeline_position_from_x(&self, x: f32) -> TimelineFrameIndex {
         let scroll_x: f32 = self.h_scroll.offset().x.into();
         let content_x = x - TRACK_HEADER_WIDTH - scroll_x - TIMELINE_PADDING;
         self.editing_state
@@ -216,7 +216,7 @@ impl TimelineRuntimeState {
     }
 }
 
-pub(super) fn choose_clip_snap(
+fn choose_clip_snap(
     original_start: TimelineFrameIndex,
     start_candidate: TimelineFrameIndex,
     start_guide: Option<TimelineFrameIndex>,
@@ -240,7 +240,7 @@ pub(super) fn choose_clip_snap(
     }
 }
 
-pub(super) fn zoom_scroll_offset(
+fn zoom_scroll_offset(
     previous_offset: f32,
     anchor_seconds: f64,
     previous_pixels_per_second: f32,
@@ -423,7 +423,7 @@ impl Editor {
         cx.notify();
     }
 
-    pub(super) fn timeline_pointer_position(
+    fn timeline_pointer_position(
         x: f32,
         y: f32,
         timeline_height: f32,
@@ -439,7 +439,7 @@ impl Editor {
         )
     }
 
-    pub(super) fn begin_clip_move(
+    fn begin_clip_move(
         &mut self,
         clip_id: Ulid,
         event: &MouseDownEvent,
@@ -699,7 +699,7 @@ impl Editor {
     }
 
     /// Moves the editing playhead to the frame under a click on the ruler.
-    pub fn seek_to_ruler_click(
+    pub(crate) fn seek_to_ruler_click(
         &mut self,
         event: &ClickEvent,
         _: &mut Window,
