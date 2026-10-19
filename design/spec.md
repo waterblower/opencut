@@ -6,34 +6,41 @@ The editor is OpenCut's only end-user product; the `player` and `cli` apps are
 development tools and are not specified here.
 
 UI mockups are in [pages/](pages/) and are linked from the sections they
-illustrate.
+illustrate. Dedicated component pages define their component's appearance and
+states; older full-editor scenes provide context. Known conflicts between pages
+and implementation are tracked in [Code and design differences](code-design-differences.md).
+An explicit product decision takes precedence over an older mockup, including
+the current 2 Mbps export default.
 
-Review status (2026-10-16):
+Review status: original source/test review on 2026-10-16; design/source comparison
+updated on 2026-10-19. Existing test results below are historical, not a fresh
+full-suite run.
 
-- `[x]` (☑ in tables): passed source review and applicable existing tests.
-- `[ ]` (☐): a known defect, missing implementation, or blocked existing test,
-  explained below.
+- `[x]` (☑ in tables): supported by source review and, where run, existing tests.
+- `[ ]` (☐): a known defect, missing implementation, unresolved design detail,
+  or blocked existing test, explained below.
 
 These checks do not represent full end-to-end acceptance: GUI interactions,
 actual MP4 exports, and live MiniMax transcription have not been exercised.
 
 ```text
-█ passed   ░ open (defect, missing implementation, or blocked test)
-Counts: passed / open; each block pair is one criterion.
+█ supported   ░ open (defect, missing implementation, design decision, or blocked test)
+Counts: supported / open; each block pair is one criterion.
 
-Projects and media            ████████████████░░░░░░           8 / 3
+Projects and media            ████████████████████░░░░░░      10 / 3
 Timelines                     ████████░░                       4 / 1
-Tracks                        ████████░░░░                     4 / 2
-Selecting and editing clips   ██████████                       5 / 0
+Tracks                        ████████████░░░░                 6 / 2
+Selecting and editing clips   ████████████████░░               8 / 1
 Trimming                      ██████                           3 / 0
-Timeline navigation           ████████░░                       4 / 1
-Workspace layout              ██████                           3 / 0
-Preview                       ████░░░░                         2 / 2
-Subtitles and text            ████████████████████            10 / 0
-Export                        ██████████                       5 / 0
+Timeline navigation           ██████████░░░░                   5 / 2
+Workspace layout              ██████████░░                     5 / 1
+Preview                       ██████░░░░░░░░░░░░               3 / 6
+Subtitles and text            ██████████████████████████░░    13 / 1
+Export                        ████████████                     6 / 0
 Keyboard shortcuts            ████████████████████████████░░  14 / 1
 Project data and persistence  ████████████░░                   6 / 1
-Total                                                         68 / 11
+Properties                    ████░░░░░░                       2 / 3
+Total                                                         85 / 22
 ```
 
 ## 1. Projects and media
@@ -43,7 +50,8 @@ already in it, so that I don't have to import or copy media.
 
 Mockups: [project picker](pages/01-project-picker.svg),
 [editor without a timeline](pages/02-editor-empty.svg),
-[media preview](pages/04-editor-media-preview.svg),
+[file Explorer](pages/21-file-explorer.svg),
+[media preview](pages/16-preview-panel.svg),
 [rename dialog](pages/07-dialogs.svg),
 [context menus](pages/11-context-menus.svg).
 
@@ -52,12 +60,20 @@ Mockups: [project picker](pages/01-project-picker.svg),
   step.
 - [x] The Explorer can be filtered.
 - [x] Selecting a media file previews it in place.
+- [x] Video, audio, image, and SRT entries use an open-hand cursor and can start
+  a drag. Timeline files, folders, the project root, and unsupported files use
+  the standard arrow. Both variants have a full-row hover highlight.
+- [x] Opening a file context menu retains the source row's hover highlight until
+  dismissal, independently of selection and the active timeline. Opening the
+  menu does not select the entry or change the active timeline. After dismissal,
+  normal hover, selection, and active-timeline styling apply.
 - [ ] Media can be dragged from the Explorer onto a compatible track.
 - [ ] Waveforms are generated in the background and kept in memory only.
 - [x] Source media is never rewritten.
 
-Review: the drop handler rejects images, and the planned image tracks do not
-exist yet (see [Tracks](#3-tracks)). Background waveform generation and memory
+Review: starting an image drag is implemented, but accepting that image on a
+track is not. The current track design does not define image placement (see
+[Tracks](#3-tracks)). Background waveform generation and memory
 caching are implemented, but the waveform test cannot complete because its media fixture
 `rust/data/tests/super long.mp4` is missing.
 
@@ -66,7 +82,7 @@ Supported file extensions:
 | Status | Kind | Extensions | Notes |
 | --- | --- | --- | --- |
 | ☑ | Video | `.mp4`, `.mov`, `.m4v`, `.mkv`, `.webm`, `.avi` | |
-| ☐ | Image | `.png`, `.jpg`, `.jpeg`, `.gif`, `.webp`, `.bmp`, `.ico` | Added to image tracks as five-second still clips |
+| ☐ | Image | `.png`, `.jpg`, `.jpeg`, `.gif`, `.webp`, `.bmp`, `.ico` | Preview and drag affordance exist; track placement remains unresolved. The earlier proposal was five-second still clips on image tracks. |
 | ☑ | Audio | `.aac`, `.flac`, `.m4a`, `.mp3`, `.ogg`, `.wav` | |
 | ☑ | Subtitles | `.srt` | Added as text clips |
 
@@ -97,8 +113,7 @@ it, producing the wrong position.
 **Story:** As a creator, I want separate video, image, audio, and text tracks
 that I can organize, so that I can layer footage, stills, sound, and subtitles.
 
-Mockups: [editor with a timeline](pages/03-editor-timeline.svg),
-[timeline editing area](pages/17-timeline-editing-area.svg).
+Mockup: [timeline editing area](pages/17-timeline-editing-area.svg).
 
 - [ ] Tracks can be created, deleted, reordered, hidden, muted, and locked.
 - [x] Video tracks accept video files only.
@@ -107,18 +122,25 @@ Mockups: [editor with a timeline](pages/03-editor-timeline.svg),
 - [x] Text tracks accept `.srt` files. Dropping one adds one text clip per subtitle,
   offset by the drop position.
 - [x] Locked tracks are excluded from selection shortcuts.
+- [x] Each track header shows its kind badge and name, reorder arrows, and delete
+  action. Long names truncate before the actions. The first track's up arrow
+  and the last track's down arrow are disabled.
+- [x] Lock, visibility, and mute controls use accent styling when active; hidden
+  and muted states use crossed-out icons. Text tracks have no speaker toggle.
+  Toggle hover brightens the icon on a gray fill; delete hover turns the icon red.
 
 Review: track controls update the document, but visibility, mute, reordering,
-and deletion do not refresh the open preview. Image tracks are not implemented;
-the drop handler currently rejects image files on every track.
+and deletion do not refresh the open preview. The current design shows Video,
+Audio, and Text tracks only. Image tracks and five-second still placement are
+retained as an unresolved earlier requirement, not an approved fourth track
+variant. The drop handler currently rejects image files on every track.
 
 ## 4. Selecting and editing clips
 
 **Story:** As a creator, I want to select and rearrange many clips at once, so
 that restructuring an edit doesn't take one clip at a time.
 
-Mockups: [editor with a timeline](pages/03-editor-timeline.svg),
-[blade tool](pages/06-editor-blade-tool.svg),
+Mockups: [blade tool](pages/06-editor-blade-tool.svg),
 [timeline editing area](pages/17-timeline-editing-area.svg),
 [context menus](pages/11-context-menus.svg).
 
@@ -130,6 +152,26 @@ Mockups: [editor with a timeline](pages/03-editor-timeline.svg),
 - [x] The selection tool moves clips within and between compatible tracks.
 - [x] The blade tool splits clips at the playhead.
 - [x] Invalid moves are rejected with visible feedback.
+
+### Clip placement
+
+Moving an existing clip and dropping an Explorer asset use the same destination
+preview, as shown in the **Clip Placement** section of the timeline design.
+
+- [x] A valid placement shows an amber translucent preview and a closed-hand
+  drag cursor, with the clip name and **Release to place · <kind>**.
+- [ ] With Snap enabled, placements can align to clip edges or the playhead and
+  show a blue snap guide for both moves and Explorer drops, including subtitles.
+- [x] Incompatible tracks, locked tracks, and overlaps show a dark red preview
+  with diagonal hatching, a red border, a blocked cursor, and a rejection reason.
+  Invalid placements do not show a snap guide; releasing them makes no edit.
+- [x] Feedback updates when the destination changes. Moving clips dim at their
+  original positions until release; Explorer drops have no original to dim.
+
+The design also says cancellation restores the original. The cancellation
+gesture is not specified; it needs a design decision before it can be accepted.
+Review: SRT drops do not snap, and rejection wording differs from the examples.
+See [placement differences](code-design-differences.md#d04-subtitle-drop-snapping).
 
 ## 5. Trimming
 
@@ -152,32 +194,53 @@ as video clips. Dedicated image tracks and Explorer image drops remain open in
 **Story:** As a creator, I want to zoom, scroll, and snap precisely, so that I
 can make frame-accurate edits.
 
-Mockups: [editor with a timeline](pages/03-editor-timeline.svg),
-[timeline editing area](pages/17-timeline-editing-area.svg).
+Mockup: [timeline editing area](pages/17-timeline-editing-area.svg).
 
 - [x] The timeline is frame-based.
 - [x] The timeline supports horizontal zoom, including trackpad pinch, and
   scrolling. Frame ticks appear at high zoom.
 - [x] Clicking the ruler moves the playhead.
-- [x] Optional snapping (**Snap on** / **Snap off**) aligns to the playhead and clip
-  edges.
+- [x] The **Snap** toggle indicates enabled/disabled state and aligns supported
+  operations to the playhead and clip edges. SRT drop coverage is tracked under
+  [Clip placement](#clip-placement).
+- [ ] The timeline toolbar, ruler, tracks, and timeline preview agree on one
+  playhead, including after keyboard stepping.
+- [x] The toolbar provides a **Magnet** toggle. Its current behavior closes gaps
+  on affected tracks when deleting clips; the mockup shows the control but does
+  not explain that behavior.
 - [ ] Playhead, scroll, zoom, and snapping are saved per timeline.
 
 Review: toggling snapping does not save the timeline. Exiting before another
 save loses that change. Empty timelines also have a playhead-clamping defect.
+Left/Right update the editing playhead without seeking the preview player.
 
 ## 7. Workspace layout
 
 **Story:** As a creator, I want to size the panels to my task, so that I can
 give more room to the timeline or the preview as needed.
 
-Mockups: [editor with a timeline](pages/03-editor-timeline.svg),
+Mockups: [timeline editing area](pages/17-timeline-editing-area.svg),
 [top bar](pages/20-top-bar.svg),
 [properties panel](pages/15-properties-panel.svg).
 
 - [x] The media and properties panels beside the preview can be resized.
 - [x] Dragging the divider above the timeline resizes the timeline editing area.
 - [x] Panel sizes are saved per project.
+
+### Top bar
+
+- [x] A fixed 64-point top bar shows the app icon to the left of **OpenCut**,
+  followed by the timeline filename (or **No timeline**) and autosave label.
+- [x] **Settings**, **Open Folder**, and **Projects** are always available.
+  **Export** is enabled only when a timeline is open.
+- [ ] Actions match the cyberpunk design: cyan secondary buttons, a neon-yellow
+  primary Export button, cut corners, primary hazard slashes, and the specified
+  label typography. Disabled Export uses the dimmed variant.
+
+Review: the icon, actions, button shapes, colors, and disabled state are present;
+label weight and spacing still differ. The two top-bar cases are **Timeline open**
+and **No timeline**. Button interaction variants are defined in the
+[design system](pages/00-design-system.svg).
 
 ## 8. Preview
 
@@ -198,6 +261,17 @@ exceeds the available space.
 - [ ] Audio is mixed and respects track mute, clip mute, and clip gain.
 - [ ] Each saved edit, including undo and redo, refreshes the preview.
 - [x] The preview can be shown fullscreen.
+- [ ] Selecting a file with no preview clears the previous preview and shows the
+  None state: illustration, **No preview available**, and guidance to select an
+  image, audio, video, or timeline file.
+- [ ] Every source type uses the shared error state when opening fails.
+- [ ] Audio preview shows a centered music icon, filename and path, with playback
+  controls and time below the content.
+- [x] Video and timeline playback controls sit below the picture. A 24-point
+  circular button shows Play, Pause, or Replay; the filename truncates before
+  the time or button shrinks. Before a video frame is decoded, its picture is black.
+- [ ] Scrub-bar hover thickens the track, reveals a knob, and previews the seek
+  target with a light fill. Dragging updates the picture and time.
 
 Review: mixing handles mute and gain in the player's snapshot, but changing
 track mute does not refresh that snapshot. These edits also save without
@@ -206,6 +280,10 @@ drops, applying a transform to a track, adding a text clip from the track menu,
 and renaming media. The video-properties setter also bypasses refresh, but the
 current video properties panel displays position and scale as read-only values.
 Undo and redo use the refresh path.
+The shared error view is currently entered for timeline-open failures only.
+Unsupported-file selections retain the previous preview; audio and None layouts
+are incomplete, and scrub hover has no seek-target fill. See the
+[difference register](code-design-differences.md).
 
 ## 9. Subtitles and text
 
@@ -221,14 +299,27 @@ Mockups: [transcription window](pages/14-transcription-window.svg),
 
 - [x] Right-clicking an audio or video file and choosing **Generate SRT** opens a
   transcription window.
+- [x] Right-clicking a video or audio clip and choosing **Transcribe the Clip**
+  opens transcription for that clip's source in/out range. The ready state names
+  the file and range rather than only saying **Ready**.
+- [x] Before starting, the window shows the audio duration, estimated MiniMax
+  cost in CNY, and a **MiniMax pricing** link that opens the provider's price list.
 - [x] **Start** begins transcription. The window shows the current stage
-  (preparing, transcribing, saving) and offers **Cancel**.
-- [x] The result is written to `<source name>.srt` in the project root.
+  (preparing, transcribing, saving) and elapsed time; Start is disabled while running.
+- [ ] The Running design offers **Cancel** across its preparing/transcribing/saving
+  states. It explains that cancellation stops the local request and a submitted
+  request may continue on the server.
+- [x] Whole-file transcription writes `<source stem>.srt` in the project root.
+  Clip transcription writes `<source stem>_<clip id>.srt`, with subtitle timestamps
+  relative to the beginning of the extracted clip range.
+- [x] Completion shows the output path and **Reveal in Finder**. Failure shows
+  the request error. Start and Cancel use the cyberpunk button variants.
 - [x] Transcription uses MiniMax. The API key is entered under **Settings** in the
   top bar.
 
-Review: the request, stage updates, and cancellation controls are implemented;
-a live transcription and cancellation run is still pending.
+Review: Cancel is disabled during Saving, unlike the shared Running design; this
+needs a distinct design state or a behavior decision. A live transcription and
+cancellation run is still pending.
 
 ### Position and style subtitles
 
@@ -263,11 +354,16 @@ Mockup: [export window](pages/13-export-window.svg).
 - [x] The export uses a snapshot of the timeline taken when the export window
   opens.
 - [x] The output format is MP4.
+- [x] The initial video bitrate is **2 Mbps**. Users can enter a value from 0.1
+  through 1000 Mbps; an invalid value shows an explanation and disables export.
 - [x] The window shows progress and provides **Stop export**.
 - [x] The window cannot be closed while an export is running.
 
 Review: progress and stop handling are implemented, but an actual export and
-stop run is still pending.
+stop run is still pending. The mockup still shows 8 Mbps; the explicit 2 Mbps
+product decision supersedes that example. Choosing a destination, an empty
+timeline, stopping, stopped, finalizing, and failed states exist in code but are
+not illustrated on the export page.
 
 ## 11. Keyboard shortcuts
 
@@ -317,4 +413,27 @@ off.
 Review: normal restoration is implemented and tested, but empty-timeline
 playhead clamping can produce frame index -1. The editor test run had 85 passes
 and 2 failures (playhead clamping and the missing waveform fixture); the
-timeline library's 8 tests passed.
+timeline library's 8 tests passed. These are the 2026-10-16 review results.
+
+## 13. Properties
+
+**Story:** As a creator, I want properties for the selected object so that I can
+inspect media and adjust a clip without leaving the editor.
+
+Mockup: [properties panel](pages/15-properties-panel.svg).
+
+- [x] The header identifies the selected object. Panels cover text, video, and
+  audio clips; timeline, video, audio, image, and subtitle files; and no selection.
+- [ ] Text clips expose editable content, duration, font, font size, color, and
+  normalized X/Y position. Timeline start remains read-only.
+- [ ] Video clips expose editable X/Y position and scale, including a scale
+  slider and **Reset** action. Start, duration, source in, and source out are read-only.
+- [ ] Audio clips expose editable gain and a **Mute clip** toggle. Timing is read-only.
+- [x] Timeline properties show duration, format, clip/track counts, and location.
+  Media-file panels show file details and location; subtitle files show parsed cues
+  and guidance for adding them to a text track.
+
+Review: the rendered clip-property controls are static values, including controls
+that visually resemble inputs, sliders, and buttons. The editing interactions
+promised by the design are missing. See
+[properties differences](code-design-differences.md#d01-clip-properties-are-not-editable).
