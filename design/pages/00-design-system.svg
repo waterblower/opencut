@@ -1,0 +1,97 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="900" height="580" viewBox="0 0 900 580">
+<style>.s{font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","Helvetica Neue",Arial,sans-serif}.m{font-family:"SF Mono",Menlo,Monaco,Consolas,monospace}</style>
+<defs>
+<!-- D · Cyberpunk -->
+<polygon id="dPrimaryShape" points="10,0 128,0 128,30 118,40 0,40 0,10"/>
+<polygon id="dSecondaryShape" points="0,0 118,0 128,10 128,40 10,40 0,30"/>
+<path id="dSlashes" d="M98 34 L106 6 H109 L101 34Z M105 34 L113 6 H116 L108 34Z M112 34 L120 6 H123 L115 34Z"/>
+<pattern id="dScan" width="4" height="3" patternUnits="userSpaceOnUse"><rect width="4" height="1" fill="#fcee0a" fill-opacity="0.2"/></pattern>
+<pattern id="dScanDim" width="4" height="3" patternUnits="userSpaceOnUse"><rect width="4" height="1" fill="#ffffff" fill-opacity="0.05"/></pattern>
+<filter id="dGlowY" x="-30%" y="-80%" width="160%" height="260%"><feDropShadow dx="0" dy="0" stdDeviation="6" flood-color="#fcee0a" flood-opacity="0.45"/></filter>
+<filter id="dGlowYHover" x="-30%" y="-80%" width="160%" height="260%"><feDropShadow dx="0" dy="0" stdDeviation="12" flood-color="#fcee0a" flood-opacity="0.75"/></filter>
+<filter id="dGlowC" x="-30%" y="-80%" width="160%" height="260%"><feDropShadow dx="0" dy="0" stdDeviation="5" flood-color="#00f0ff" flood-opacity="0.35"/></filter>
+<filter id="dGlowCHover" x="-30%" y="-80%" width="160%" height="260%"><feDropShadow dx="0" dy="0" stdDeviation="10" flood-color="#00f0ff" flood-opacity="0.7"/></filter>
+</defs>
+<rect x="0" y="0" width="900" height="580" fill="#1e1e22"/>
+<g transform="translate(0 -540)">
+
+<!-- ============ C · Line ============ -->
+<text class="s" x="40" y="584" font-size="15" fill="#c9c9cf" font-weight="600">C · Line</text>
+<text class="s" x="40" y="604" font-size="12" fill="#8a8a93">A square frame drawn by corner brackets, with mono uppercase labels. Hover opens the brackets; pressing fills the button solid. Secondary is underlined text.</text>
+<rect x="40" y="620" width="820" height="190" rx="10" fill="#0b0b0d"/>
+<text class="s" x="280" y="656" font-size="12" fill="#8a8a93" text-anchor="middle">Default</text>
+<text class="s" x="440" y="656" font-size="12" fill="#8a8a93" text-anchor="middle">Hover</text>
+<text class="s" x="600" y="656" font-size="12" fill="#8a8a93" text-anchor="middle">Pressed</text>
+<text class="s" x="760" y="656" font-size="12" fill="#8a8a93" text-anchor="middle">Disabled</text>
+<text class="s" x="64" y="707" font-size="14" fill="#c9c9cf">Primary</text>
+<text class="s" x="64" y="771" font-size="14" fill="#c9c9cf">Secondary</text>
+<!-- primary -->
+<rect x="216" y="682" width="128" height="40" fill="#c8f25a" fill-opacity="0.05"/>
+<path d="M216.75 692 V682.75 H226 M334 682.75 H343.25 V692 M343.25 712 V721.25 H334 M226 721.25 H216.75 V712" fill="none" stroke="#c8f25a" stroke-width="1.5"/>
+<text class="m" x="300" y="706.5" font-size="13" font-weight="700" letter-spacing="2" fill="#c8f25a" text-anchor="end">EXPORT</text>
+<text class="m" x="306" y="706.5" font-size="13" font-weight="700" fill="#c8f25a">→</text>
+<rect x="376" y="682" width="128" height="40" fill="#c8f25a" fill-opacity="0.12"/>
+<path d="M373.75 689 V679.75 H383 M497 679.75 H506.25 V689 M506.25 715 V724.25 H497 M383 724.25 H373.75 V715" fill="none" stroke="#c8f25a" stroke-width="1.5"/>
+<text class="m" x="460" y="706.5" font-size="13" font-weight="700" letter-spacing="2" fill="#d9ff7a" text-anchor="end">EXPORT</text>
+<text class="m" x="470" y="706.5" font-size="13" font-weight="700" fill="#d9ff7a">→</text>
+<rect x="536" y="682" width="128" height="40" fill="#c8f25a"/>
+<text class="m" x="620" y="706.5" font-size="13" font-weight="700" letter-spacing="2" fill="#0b0b0d" text-anchor="end">EXPORT</text>
+<text class="m" x="630" y="706.5" font-size="13" font-weight="700" fill="#0b0b0d">→</text>
+<path d="M696.75 692 V682.75 H706 M814 682.75 H823.25 V692 M823.25 712 V721.25 H814 M706 721.25 H696.75 V712" fill="none" stroke="#3a3a40" stroke-width="1.5"/>
+<text class="m" x="780" y="706.5" font-size="13" font-weight="700" letter-spacing="2" fill="#4f4f56" text-anchor="end">EXPORT</text>
+<text class="m" x="786" y="706.5" font-size="13" font-weight="700" fill="#4f4f56">→</text>
+<!-- secondary -->
+<text class="m" x="281" y="770.5" font-size="13" font-weight="700" letter-spacing="2" fill="#a0a0a8" text-anchor="middle">CANCEL</text>
+<rect x="250" y="778" width="60" height="1" fill="#4a4a52"/>
+<text class="m" x="441" y="770.5" font-size="13" font-weight="700" letter-spacing="2" fill="#f2f2f4" text-anchor="middle">CANCEL</text>
+<rect x="392" y="778" width="96" height="1" fill="#f2f2f4"/>
+<rect x="536" y="746" width="128" height="40" fill="#ffffff" fill-opacity="0.07"/>
+<text class="m" x="601" y="770.5" font-size="13" font-weight="700" letter-spacing="2" fill="#ffffff" text-anchor="middle">CANCEL</text>
+<rect x="552" y="777.5" width="96" height="2" fill="#ffffff"/>
+<text class="m" x="761" y="770.5" font-size="13" font-weight="700" letter-spacing="2" fill="#46464c" text-anchor="middle">CANCEL</text>
+
+<!-- ============ D · Cyberpunk ============ -->
+<text class="s" x="40" y="854" font-size="15" fill="#c9c9cf" font-weight="600">D · Cyberpunk</text>
+<text class="s" x="40" y="874" font-size="12" fill="#8a8a93">Cut corners, neon yellow and cyan, hazard slashes. Hover splits the colors and glitches; pressing turns the button inside out with scanlines.</text>
+<rect x="40" y="890" width="820" height="190" rx="10" fill="#0b0b0d"/>
+<text class="s" x="280" y="926" font-size="12" fill="#8a8a93" text-anchor="middle">Default</text>
+<text class="s" x="440" y="926" font-size="12" fill="#8a8a93" text-anchor="middle">Hover</text>
+<text class="s" x="600" y="926" font-size="12" fill="#8a8a93" text-anchor="middle">Pressed</text>
+<text class="s" x="760" y="926" font-size="12" fill="#8a8a93" text-anchor="middle">Disabled</text>
+<text class="s" x="64" y="977" font-size="14" fill="#c9c9cf">Primary</text>
+<text class="s" x="64" y="1041" font-size="14" fill="#c9c9cf">Secondary</text>
+<!-- primary -->
+<use xlink:href="#dPrimaryShape" x="216" y="952" fill="#fcee0a" filter="url(#dGlowY)"/>
+<use xlink:href="#dSlashes" x="216" y="952" fill="#0a0a0b"/>
+<text class="m" x="273" y="976.5" font-size="13" font-weight="800" letter-spacing="2" fill="#0a0a0b" text-anchor="middle">EXPORT</text>
+<use xlink:href="#dPrimaryShape" x="373" y="952" fill="#00f0ff" opacity="0.85"/>
+<use xlink:href="#dPrimaryShape" x="379" y="952" fill="#ff2a6d" opacity="0.85"/>
+<use xlink:href="#dPrimaryShape" x="376" y="952" fill="#fcee0a" filter="url(#dGlowYHover)"/>
+<rect x="470" y="977" width="42" height="3" fill="#fcee0a"/>
+<rect x="369" y="960" width="34" height="2" fill="#00f0ff"/>
+<use xlink:href="#dSlashes" x="376" y="952" fill="#0a0a0b"/>
+<text class="m" x="431.5" y="976.5" font-size="13" font-weight="800" letter-spacing="2" fill="#00a8b3" text-anchor="middle">EXPORT</text>
+<text class="m" x="434.5" y="976.5" font-size="13" font-weight="800" letter-spacing="2" fill="#d4145a" text-anchor="middle">EXPORT</text>
+<text class="m" x="433" y="976.5" font-size="13" font-weight="800" letter-spacing="2" fill="#0a0a0b" text-anchor="middle">EXPORT</text>
+<g transform="translate(2 2)">
+<use xlink:href="#dPrimaryShape" x="536" y="952" fill="#0a0a0b" stroke="#fcee0a" stroke-width="1.5" filter="url(#dGlowYHover)"/>
+<use xlink:href="#dPrimaryShape" x="536" y="952" fill="url(#dScan)"/>
+<use xlink:href="#dSlashes" x="536" y="952" fill="#fcee0a"/>
+<text class="m" x="593" y="976.5" font-size="13" font-weight="800" letter-spacing="2" fill="#fcee0a" text-anchor="middle" filter="url(#dGlowY)">EXPORT</text>
+</g>
+<use xlink:href="#dPrimaryShape" x="696" y="952" fill="url(#dScanDim)" stroke="#3a3926"/>
+<use xlink:href="#dSlashes" x="696" y="952" fill="#3a3926"/>
+<text class="m" x="753" y="976.5" font-size="13" font-weight="800" letter-spacing="2" fill="#57563f" text-anchor="middle">EXPORT</text>
+<!-- secondary -->
+<use xlink:href="#dSecondaryShape" x="216" y="1016" fill="#00f0ff" fill-opacity="0.06" stroke="#00f0ff" filter="url(#dGlowC)"/>
+<text class="m" x="281" y="1040.5" font-size="13" font-weight="800" letter-spacing="2" fill="#00f0ff" text-anchor="middle">CANCEL</text>
+<use xlink:href="#dSecondaryShape" x="376" y="1016" fill="#00f0ff" fill-opacity="0.16" stroke="#7ffbff" filter="url(#dGlowCHover)"/>
+<rect x="376" y="1016" width="4" height="30" fill="#00f0ff"/>
+<text class="m" x="441" y="1040.5" font-size="13" font-weight="800" letter-spacing="2" fill="#b5fcff" text-anchor="middle">CANCEL</text>
+<use xlink:href="#dSecondaryShape" x="539" y="1019" fill="#ff2a6d"/>
+<use xlink:href="#dSecondaryShape" x="536" y="1016" fill="#00f0ff" filter="url(#dGlowCHover)"/>
+<text class="m" x="601" y="1040.5" font-size="13" font-weight="800" letter-spacing="2" fill="#050506" text-anchor="middle">CANCEL</text>
+<use xlink:href="#dSecondaryShape" x="696" y="1016" fill="url(#dScanDim)" stroke="#1f3337"/>
+<text class="m" x="761" y="1040.5" font-size="13" font-weight="800" letter-spacing="2" fill="#34494d" text-anchor="middle">CANCEL</text>
+</g>
+</svg>
