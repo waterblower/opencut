@@ -42,7 +42,7 @@
 <rect x="64.5" y="214.5" width="31" height="31" rx="8" fill="#7251a3" stroke="#8261b3" stroke-width="1"/>
 <text class="s" x="80" y="234.32" font-size="12" fill="#ffffff" font-weight="700" text-anchor="middle">T</text>
 <text class="s" x="108" y="227.04" font-size="14" fill="#f2f2f4" font-weight="600">Let's get started</text>
-<text class="s" x="108" y="243.32" font-size="12" fill="#777780">Text clip · Text 1</text>
+<text class="s" x="108" y="243.32" font-size="11"><tspan fill="#8a8a93">Text clip · Track: </tspan><tspan fill="#b69bdc">Text 1</tspan></text>
 <rect x="48" y="261" width="280" height="1" fill="#2b2b31"/>
 <text class="s" x="64" y="285.96" font-size="11" fill="#777780" font-weight="600" letter-spacing="0.6">CONTENT</text>
 <rect x="64.5" y="298.5" width="247" height="57" rx="6" fill="#17171a" stroke="#f0b75e" stroke-width="1"/>
@@ -97,7 +97,7 @@
 <rect x="384.5" y="214.5" width="31" height="31" rx="8" fill="#294d75" stroke="#395d85" stroke-width="1"/>
 <text class="s" x="400" y="234.32" font-size="12" fill="#ffffff" font-weight="700" text-anchor="middle">V</text>
 <text class="s" x="428" y="227.04" font-size="14" fill="#f2f2f4" font-weight="600">broll-street.mov</text>
-<text class="s" x="428" y="243.32" font-size="12" fill="#777780">Video clip · Video 1</text>
+<text class="s" x="428" y="243.32" font-size="11"><tspan fill="#8a8a93">Video clip · Track: </tspan><tspan fill="#91b8df">Video 1</tspan></text>
 <rect x="368" y="261" width="280" height="1" fill="#2b2b31"/>
 <text class="s" x="384" y="285.96" font-size="11" fill="#777780" font-weight="600" letter-spacing="0.6">TIMING</text>
 <rect x="384" y="298" width="120" height="50" rx="6" fill="#131316"/>
@@ -150,7 +150,7 @@
 <rect x="704.5" y="214.5" width="31" height="31" rx="8" fill="#24656b" stroke="#34757b" stroke-width="1"/>
 <text class="s" x="720" y="234.32" font-size="12" fill="#ffffff" font-weight="700" text-anchor="middle">A</text>
 <text class="s" x="748" y="227.04" font-size="14" fill="#f2f2f4" font-weight="600">voice-over.m4a</text>
-<text class="s" x="748" y="243.32" font-size="12" fill="#777780">Audio clip · Audio 1</text>
+<text class="s" x="748" y="243.32" font-size="11"><tspan fill="#8a8a93">Audio clip · Track: </tspan><tspan fill="#69c5cf">Audio 1</tspan></text>
 <rect x="688" y="261" width="280" height="1" fill="#2b2b31"/>
 <text class="s" x="704" y="285.96" font-size="11" fill="#777780" font-weight="600" letter-spacing="0.6">TIMING</text>
 <rect x="704" y="298" width="120" height="50" rx="6" fill="#131316"/>
