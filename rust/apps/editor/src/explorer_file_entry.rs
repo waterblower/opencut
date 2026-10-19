@@ -2,7 +2,7 @@ use crate::context_menu::ContextMenu;
 use crate::editor::Editor;
 use crate::event_bus::AppEvent;
 use crate::explorer::explorer_file_badge;
-use crate::explorer_drag::AssetBeingDragged;
+use crate::explorer_drag::{AssetBeingDragged, ExplorerDragView};
 use crate::preview::PreviewTarget;
 use crate::preview_events::PreviewEvent;
 use crate::theme::{ACCENT, MUTED, PANEL, SURFACE_HOVER, TEXT};
@@ -48,6 +48,7 @@ impl Editor {
         };
 
         let event_bus = self.event_bus.clone();
+        let drag_editor = cx.entity().downgrade();
         div()
             .id(("project-file", index))
             .relative()
@@ -82,13 +83,19 @@ impl Editor {
                                 "could not drag {}: {error:?}",
                                 entry.absolute_path.display()
                             );
-                            return app_cx.new(|_| AssetBeingDragged::None);
+                            return app_cx.new(|_| ExplorerDragView {
+                                asset: AssetBeingDragged::None,
+                                editor: drag_editor.clone(),
+                            });
                         }
                     };
                     event_bus.update(app_cx, |_, cx| {
                         cx.emit(AppEvent::DragStarted(asset.clone()));
                     });
-                    app_cx.new(|_| asset)
+                    app_cx.new(|_| ExplorerDragView {
+                        asset,
+                        editor: drag_editor.clone(),
+                    })
                 })
             })
             .on_click(cx.listener({

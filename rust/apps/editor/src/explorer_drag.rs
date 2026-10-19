@@ -1,3 +1,4 @@
+use crate::editor::Editor;
 use crate::explorer_file_entry::{FileTreeEntry, FileTreeEntryKind, is_srt_path};
 use crate::media_probe::probe_asset;
 use crate::model::{MediaAsset, MediaKind};
@@ -6,7 +7,8 @@ use crate::timeline::TimelineFrameIndex;
 use ::transcribe::SRT;
 use anyhow::Result;
 use gpui::{
-    Context, IntoElement, ParentElement, Render, SharedString, Styled, Window, div, px, rgb,
+    Context, CursorStyle, IntoElement, ParentElement, Render, SharedString, Styled, WeakEntity,
+    Window, canvas, div, px, rgb,
 };
 use std::fs::read_to_string;
 use std::path::PathBuf;
@@ -90,15 +92,45 @@ impl DraggedSRT {
     }
 }
 
-impl Render for AssetBeingDragged {
-    fn render(&mut self, _: &mut Window, _: &mut Context<Self>) -> impl IntoElement {
-        let (kind, name) = match self {
-            Self::V1(asset) => (asset.metadata.kind.label(), asset.name()),
-            Self::Srt(asset) => ("SRT", asset.name()),
-            Self::None => return gpui::Empty.into_any_element(),
+pub(super) struct ExplorerDragView {
+    pub(super) asset: AssetBeingDragged,
+    pub(super) editor: WeakEntity<Editor>,
+}
+
+impl Render for ExplorerDragView {
+    fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        let (kind, name) = match &self.asset {
+            AssetBeingDragged::V1(asset) => (asset.metadata.kind.label(), asset.name()),
+            AssetBeingDragged::Srt(asset) => ("SRT", asset.name()),
+            AssetBeingDragged::None => return gpui::Empty.into_any_element(),
         };
 
+        let placement_cursor = (|| {
+            let editor = self.editor.upgrade()?;
+            let timeline = editor.read(cx).timeline.as_ref()?;
+            let preview = timeline.preview_drop_asset.as_ref()?;
+            Some(
+                if preview.validate_placement(&timeline.editing_state).is_err() {
+                    CursorStyle::OperationNotAllowed
+                } else {
+                    CursorStyle::ClosedHand
+                },
+            )
+        })();
+        if let Some(cursor) = placement_cursor {
+            // 轨道内只显示共用的落点预览，避免素材浮层挡住错误原因。
+            return canvas(
+                |_, _, _| {},
+                move |_, (), window, _| {
+                    window.set_window_cursor_style(cursor);
+                },
+            )
+            .size(px(1.0))
+            .into_any_element();
+        }
+
         div()
+            .relative()
             .max_w(px(280.0))
             .h_9()
             .px_3()
@@ -118,6 +150,18 @@ impl Render for AssetBeingDragged {
                     .child(kind),
             )
             .child(div().min_w_0().text_sm().text_ellipsis().child(name))
+            // GPUI 会沿用拖拽起点的光标；在拖拽浮层最后绘制时覆盖它。
+            .child(
+                canvas(
+                    |_, _, _| {},
+                    move |_, (), window, _| {
+                        window.set_window_cursor_style(CursorStyle::ClosedHand);
+                    },
+                )
+                .absolute()
+                .inset_0()
+                .size_full(),
+            )
             .into_any_element()
     }
 }

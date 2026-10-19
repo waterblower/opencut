@@ -548,14 +548,18 @@ async fn handle_app_event(
                             }
                             AssetBeingDragged::None => return (None, None),
                         };
-                        (
-                            Some(PreviewDropAsset {
-                                track_id: track.id,
-                                start_time,
-                                asset: editor.active_asset_drag.clone(),
-                            }),
-                            snap_guide,
-                        )
+                        let preview = PreviewDropAsset {
+                            track_id: track.id,
+                            start_time,
+                            asset: editor.active_asset_drag.clone(),
+                        };
+                        let valid_snap_guide =
+                            if preview.validate_placement(&timeline.editing_state).is_ok() {
+                                snap_guide
+                            } else {
+                                None
+                            };
+                        (Some(preview), valid_snap_guide)
                     })(timeline);
 
                 timeline.preview_drop_asset = new_preview_drop_asset;
@@ -574,6 +578,10 @@ async fn handle_app_event(
                 let Some(preview) = timeline.preview_drop_asset.take() else {
                     return Ok(());
                 };
+
+                if preview.validate_placement(&timeline.editing_state).is_err() {
+                    return Ok(());
+                }
 
                 match preview.asset {
                     AssetBeingDragged::Srt(srt) => {

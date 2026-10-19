@@ -17,7 +17,7 @@ use crate::ui_components::{
     HorizontalSplit, HorizontalSplitConstraints, VerticalSplit, VerticalSplitConstraints,
 };
 use gpui::prelude::*;
-use gpui::{App, MouseButton, MouseDownEvent, Window, div, img, px, rgb};
+use gpui::{App, CursorStyle, MouseButton, MouseDownEvent, Window, canvas, div, img, px, rgb};
 
 impl Render for Editor {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
@@ -56,6 +56,18 @@ impl Render for Editor {
                 .text_color(rgb(TEXT))
                 .child(self.preview_player(editor_width, f32::from(viewport.height), cx));
         }
+        let placement_cursor = self
+            .timeline
+            .as_ref()
+            .and_then(|timeline| timeline.interaction.clip_move_drag.as_ref())
+            .filter(|drag| drag.changed)
+            .map(|drag| {
+                if drag.invalid_reason.is_some() {
+                    CursorStyle::OperationNotAllowed
+                } else {
+                    CursorStyle::ClosedHand
+                }
+            });
         let context_menu = self.context_menu_overlay(editor_viewport, cx);
         let rename_dialog = self
             .explorer
@@ -133,6 +145,19 @@ impl Render for Editor {
             .when_some(settings_modal, |this, modal| this.child(modal))
             .when(self.global_settings_input.is_some(), |this| {
                 this.child(self.global_settings_dialog(cx))
+            })
+            .when_some(placement_cursor, |this, cursor| {
+                this.child(
+                    canvas(
+                        |_, _, _| {},
+                        move |_, (), window, _| {
+                            window.set_window_cursor_style(cursor);
+                        },
+                    )
+                    .absolute()
+                    .inset_0()
+                    .size_full(),
+                )
             })
     }
 }

@@ -649,7 +649,11 @@ impl Editor {
             drag.invalid_reason = invalid_reason;
             drag.changed = moved_from_origin;
         }
-        timeline.interaction.snap_guide = snap_guide;
+        timeline.interaction.snap_guide = if invalid_reason.is_none() {
+            snap_guide
+        } else {
+            None
+        };
         cx.notify();
     }
 
