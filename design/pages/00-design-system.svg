@@ -3,7 +3,7 @@
 <defs>
 <!-- D · Cyberpunk -->
 <polygon id="dPrimaryShape" points="10,0 128,0 128,30 118,40 0,40 0,10"/>
-<polygon id="dSecondaryShape" points="0,0 118,0 128,10 128,40 10,40 0,30"/>
+<polygon id="dSecondaryShape" points="10,0 128,0 128,30 118,40 0,40 0,10"/>
 <path id="dSlashes" d="M98 34 L106 6 H109 L101 34Z M105 34 L113 6 H116 L108 34Z M112 34 L120 6 H123 L115 34Z"/>
 <pattern id="dScan" width="4" height="3" patternUnits="userSpaceOnUse"><rect width="4" height="1" fill="#fcee0a" fill-opacity="0.2"/></pattern>
 <pattern id="dScanDim" width="4" height="3" patternUnits="userSpaceOnUse"><rect width="4" height="1" fill="#ffffff" fill-opacity="0.05"/></pattern>
@@ -52,7 +52,7 @@
 
 <!-- ============ D · Cyberpunk ============ -->
 <text class="s" x="40" y="854" font-size="15" fill="#c9c9cf" font-weight="600">D · Cyberpunk</text>
-<text class="s" x="40" y="874" font-size="12" fill="#8a8a93">Cut corners, neon yellow and cyan, hazard slashes. Hover splits the colors and glitches; pressing turns the button inside out with scanlines.</text>
+<text class="s" x="40" y="874" font-size="12" fill="#8a8a93">Cut top-left and bottom-right corners, neon yellow and cyan, hazard slashes. Hover brightens the border and glow; pressing inverts.</text>
 <rect x="40" y="890" width="820" height="190" rx="10" fill="#0b0b0d"/>
 <text class="s" x="280" y="926" font-size="12" fill="#8a8a93" text-anchor="middle">Default</text>
 <text class="s" x="440" y="926" font-size="12" fill="#8a8a93" text-anchor="middle">Hover</text>
@@ -64,14 +64,8 @@
 <use xlink:href="#dPrimaryShape" x="216" y="952" fill="#fcee0a" filter="url(#dGlowY)"/>
 <use xlink:href="#dSlashes" x="216" y="952" fill="#0a0a0b"/>
 <text class="m" x="273" y="976.5" font-size="13" font-weight="800" letter-spacing="2" fill="#0a0a0b" text-anchor="middle">EXPORT</text>
-<use xlink:href="#dPrimaryShape" x="373" y="952" fill="#00f0ff" opacity="0.85"/>
-<use xlink:href="#dPrimaryShape" x="379" y="952" fill="#ff2a6d" opacity="0.85"/>
-<use xlink:href="#dPrimaryShape" x="376" y="952" fill="#fcee0a" filter="url(#dGlowYHover)"/>
-<rect x="470" y="977" width="42" height="3" fill="#fcee0a"/>
-<rect x="369" y="960" width="34" height="2" fill="#00f0ff"/>
+<use xlink:href="#dPrimaryShape" x="376" y="952" fill="#fcee0a" stroke="#fff9b8" stroke-width="1.5" filter="url(#dGlowYHover)"/>
 <use xlink:href="#dSlashes" x="376" y="952" fill="#0a0a0b"/>
-<text class="m" x="431.5" y="976.5" font-size="13" font-weight="800" letter-spacing="2" fill="#00a8b3" text-anchor="middle">EXPORT</text>
-<text class="m" x="434.5" y="976.5" font-size="13" font-weight="800" letter-spacing="2" fill="#d4145a" text-anchor="middle">EXPORT</text>
 <text class="m" x="433" y="976.5" font-size="13" font-weight="800" letter-spacing="2" fill="#0a0a0b" text-anchor="middle">EXPORT</text>
 <g transform="translate(2 2)">
 <use xlink:href="#dPrimaryShape" x="536" y="952" fill="#0a0a0b" stroke="#fcee0a" stroke-width="1.5" filter="url(#dGlowYHover)"/>
@@ -86,7 +80,7 @@
 <use xlink:href="#dSecondaryShape" x="216" y="1016" fill="#00f0ff" fill-opacity="0.06" stroke="#00f0ff" filter="url(#dGlowC)"/>
 <text class="m" x="281" y="1040.5" font-size="13" font-weight="800" letter-spacing="2" fill="#00f0ff" text-anchor="middle">CANCEL</text>
 <use xlink:href="#dSecondaryShape" x="376" y="1016" fill="#00f0ff" fill-opacity="0.16" stroke="#7ffbff" filter="url(#dGlowCHover)"/>
-<rect x="376" y="1016" width="4" height="30" fill="#00f0ff"/>
+<rect x="376" y="1026" width="4" height="30" fill="#00f0ff"/>
 <text class="m" x="441" y="1040.5" font-size="13" font-weight="800" letter-spacing="2" fill="#b5fcff" text-anchor="middle">CANCEL</text>
 <use xlink:href="#dSecondaryShape" x="539" y="1019" fill="#ff2a6d"/>
 <use xlink:href="#dSecondaryShape" x="536" y="1016" fill="#00f0ff" filter="url(#dGlowCHover)"/>
