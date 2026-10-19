@@ -2,9 +2,9 @@ use crate::edit_action::EditAction;
 use crate::editing::ClipClipboard;
 use crate::editor::Editor;
 use crate::event_bus::AppEvent;
-use crate::ui_components;
 use crate::preview_events::PreviewEvent;
 use crate::timeline_interactions::TimelineTool;
+use crate::ui_components;
 use gpui::prelude::*;
 use gpui::{App, KeyBinding, Window, actions};
 
