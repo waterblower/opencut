@@ -1,5 +1,6 @@
 use crate::event_bus::{AppEvent, EventBus};
 use crate::theme::{ACCENT, BACKGROUND, ERROR, MUTED, TEXT};
+use crate::time_format::format_time;
 use crate::ui_components::cyberpunk_button::{
     button_cyberpunk_primary, button_cyberpunk_secondary,
 };
@@ -9,11 +10,12 @@ use gpui::{
     App, Bounds, Context, Entity, Task, Window, WindowBounds, WindowOptions, div, px, rgb, size,
 };
 use std::path::PathBuf;
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 /// An existing running job is focused instead of submitting the file again.
 pub(crate) fn open(
     source_path: PathBuf,
+    source_duration: f64,
     project_root: PathBuf,
     event_bus: Entity<EventBus>,
     cx: &mut App,
@@ -29,6 +31,7 @@ pub(crate) fn open(
         window.update(cx, |_, window, _| window.activate_window())?;
         view.update(cx, |view, _| {
             if !view.stage.is_running() {
+                view.source_duration = source_duration;
                 view.project_root = project_root;
                 view.event_bus = event_bus;
             }
@@ -45,6 +48,7 @@ pub(crate) fn open(
         |window, cx| {
             let view = cx.new(|_| TranscriptionWindow {
                 source_path,
+                source_duration,
                 project_root,
                 event_bus,
                 stage: TranscriptionStage::Idle,
@@ -64,6 +68,7 @@ pub(crate) fn open(
 
 pub(crate) struct TranscriptionWindow {
     source_path: PathBuf,
+    source_duration: f64, // 打开窗口时探测到的源文件时长（秒），用于估算费用
     project_root: PathBuf,
     event_bus: Entity<EventBus>,
     pub(crate) stage: TranscriptionStage,
@@ -94,7 +99,12 @@ impl Render for TranscriptionWindow {
         let running = stage.is_running();
         let cancellable = !matches!(stage, TranscriptionStage::Saving);
         let elapsed = self.started.elapsed();
-        let file_name = self.source_path.file_name().unwrap_or_default().to_string_lossy().into_owned();
+        let file_name = self
+            .source_path
+            .file_name()
+            .unwrap_or_default()
+            .to_string_lossy()
+            .into_owned();
         let status = match &stage {
             TranscriptionStage::Idle => format!("Generate the SRT transcription for {file_name}"),
             TranscriptionStage::Cancelled => "Cancelled".to_string(),
@@ -111,6 +121,11 @@ impl Render for TranscriptionWindow {
             .child(div().text_color(rgb(ACCENT)).child(if running {
                 format!("{status}{}", ".".repeat((elapsed.as_millis() / 500 % 4) as usize))
             } else { status }))
+            .when(matches!(stage, TranscriptionStage::Idle), |view| {
+                let cost = transcribe::estimated_price_cny(Duration::from_secs_f64(self.source_duration));
+                let cost_text = if cost < 0.01 { "less than ¥0.01".to_string() } else { format!("¥{cost:.2}") };
+                view.child(format!("Estimated cost: {cost_text} for {} of audio", format_time(self.source_duration, false)))
+            })
             .when(running, |view| view
                 .child(format!("Elapsed: {}:{:02}", elapsed.as_secs() / 60, elapsed.as_secs() % 60))
                 .child(div().text_sm().text_color(rgb(MUTED)).child(

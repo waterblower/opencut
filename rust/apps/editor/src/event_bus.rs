@@ -6,6 +6,7 @@ use crate::explorer_file_entry::select_preview_file;
 use crate::export_window::{ExportState, ExportWindow};
 use crate::global_settings::GlobalEditorSettings;
 use crate::layout::{RULER_HEIGHT, TIMELINE_PADDING, TRACK_HEIGHT, track_index_at_y};
+use crate::media_probe::probe_asset;
 use crate::model::MediaKind;
 use crate::preview::{PreviewTarget, timeline_preview_target};
 use crate::preview_events::PreviewEvent;
@@ -147,9 +148,22 @@ pub(crate) async fn handle_event(
             audio_source_path: source_path,
             project_root,
         } => {
-            if let Err(error) =
-                cx.update(|cx| transcription_window::open(source_path, project_root, event_bus, cx))
-            {
+            let source_duration = match probe_asset(&source_path) {
+                Ok(asset) => asset.duration,
+                Err(error) => {
+                    log::error!("Could not open transcription window: {error:?}");
+                    return;
+                }
+            };
+            if let Err(error) = cx.update(|cx| {
+                transcription_window::open(
+                    source_path,
+                    source_duration,
+                    project_root,
+                    event_bus,
+                    cx,
+                )
+            }) {
                 log::error!("Could not open transcription window: {error:?}");
             }
         }
