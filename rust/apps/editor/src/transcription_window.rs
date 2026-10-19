@@ -1,5 +1,8 @@
 use crate::event_bus::{AppEvent, EventBus};
 use crate::theme::{ACCENT, BACKGROUND, ERROR, MUTED, TEXT};
+use crate::ui_components::cyberpunk_button::{
+    cyberpunk_primary_button_view, cyberpunk_secondary_button_view,
+};
 use anyhow::Result;
 use gpui::prelude::*;
 use gpui::{
@@ -86,9 +89,10 @@ impl TranscriptionStage {
 }
 
 impl Render for TranscriptionWindow {
-    fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let stage = self.stage.clone();
         let running = stage.is_running();
+        let cancellable = !matches!(stage, TranscriptionStage::Saving);
         let elapsed = self.started.elapsed();
         let status = match &stage {
             TranscriptionStage::Idle => "Ready",
@@ -114,17 +118,14 @@ impl Render for TranscriptionWindow {
             .child(match stage {
                 TranscriptionStage::Complete(path) => div().flex().flex_col().gap_3()
                     .child(path.display().to_string())
-                    .child(div().id("reveal-srt").px_4().py_2().rounded_md().bg(rgb(ACCENT))
-                        .text_color(rgb(BACKGROUND)).cursor_pointer().child("Reveal in Finder")
-                        .on_click(move |_, _, cx| cx.reveal_path(&path))),
+                    .child(div().flex().child(cyberpunk_primary_button_view("reveal-srt", "Reveal in Finder", true, window, cx)
+                        .on_click(move |_, _, cx| cx.reveal_path(&path)))),
                 TranscriptionStage::Failed(error) => div().text_sm().text_color(rgb(ERROR)).child(error),
                 TranscriptionStage::Idle | TranscriptionStage::Cancelled | TranscriptionStage::Preparing | TranscriptionStage::Transcribing | TranscriptionStage::Saving => div(),
             })
             .child(div().flex().gap_3()
-                .child(div().id("start-transcription").px_4().py_2().rounded_md()
-                    .bg(rgb(if running { MUTED } else { ACCENT })).text_color(rgb(BACKGROUND))
-                    .child("Start")
-                    .when(!running, |button| button.cursor_pointer().on_click(cx.listener(|view, _, _, cx| {
+                .child(cyberpunk_primary_button_view("start-transcription", "Start", !running, window, cx)
+                    .when(!running, |button| button.on_click(cx.listener(|view, _, _, cx| {
                         let event = AppEvent::Transcribe {
                             source_path: view.source_path.clone(),
                             project_root: view.project_root.clone(),
@@ -132,10 +133,9 @@ impl Render for TranscriptionWindow {
                         };
                         view.event_bus.update(cx, |_, cx| cx.emit(event));
                     }))))
-                .child(div().id("cancel-transcription").px_4().py_2().rounded_md()
-                    .bg(rgb(MUTED)).child("Cancel")
-                    .when(!matches!(self.stage, TranscriptionStage::Saving), |button| {
-                        button.cursor_pointer().on_click(cx.listener(|view, _, window, cx| {
+                .child(cyberpunk_secondary_button_view("cancel-transcription", "Cancel", cancellable, window, cx)
+                    .when(cancellable, |button| {
+                        button.on_click(cx.listener(|view, _, window, cx| {
                             if view.stage.is_running() {
                                 view.task.take();
                                 view.stage = TranscriptionStage::Cancelled;

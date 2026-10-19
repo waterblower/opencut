@@ -9,6 +9,9 @@
 <clipPath id="c2"><rect x="680" y="80" width="600" height="428" rx="10"/></clipPath>
 <clipPath id="c3"><rect x="40" y="598" width="600" height="428" rx="10"/></clipPath>
 <clipPath id="c4"><rect x="680" y="598" width="600" height="428" rx="10"/></clipPath>
+<pattern id="dScanDim" width="4" height="3" patternUnits="userSpaceOnUse"><rect width="4" height="1" fill="#ffffff" fill-opacity="0.05"/></pattern>
+<filter id="dGlowY" x="-30%" y="-80%" width="160%" height="260%"><feDropShadow dx="0" dy="0" stdDeviation="6" flood-color="#fcee0a" flood-opacity="0.45"/></filter>
+<filter id="dGlowC" x="-30%" y="-80%" width="160%" height="260%"><feDropShadow dx="0" dy="0" stdDeviation="5" flood-color="#00f0ff" flood-opacity="0.35"/></filter>
 </defs>
 <rect x="0" y="0" width="1320" height="1086" fill="#1e1e22"/>
 <text class="s" x="40" y="44" font-size="15" fill="#c9c9cf" font-weight="600">Ready</text>
@@ -24,10 +27,11 @@
 <text class="s" x="64" y="151.2" font-size="20" fill="#f2f2f4">Generate SRT</text>
 <text class="s" x="64" y="188.76" font-size="16" fill="#f2f2f4">interview.mp4</text>
 <text class="s" x="64" y="226.76" font-size="16" fill="#f0b75e">Ready</text>
-<rect x="64" y="248" width="66.72" height="40" rx="6" fill="#f0b75e"/>
-<text class="s" x="80" y="273.76" font-size="16" fill="#080809">Start</text>
-<rect x="142.72" y="248" width="81.12" height="40" rx="6" fill="#777780"/>
-<text class="s" x="158.72" y="273.76" font-size="16" fill="#f2f2f4">Cancel</text>
+<polygon points="74,248 171,248 171,278 161,288 64,288 64,258" fill="#fcee0a" filter="url(#dGlowY)"/>
+<path d="M141 282 L149 254 H152 L144 282Z M148 282 L156 254 H159 L151 282Z M155 282 L163 254 H166 L158 282Z" fill="#0a0a0b"/>
+<text class="m" x="88" y="272.5" font-size="13" font-weight="800" fill="#0a0a0b">START</text>
+<polygon points="193,248 294,248 294,278 284,288 183,288 183,258" fill="#00f0ff" fill-opacity="0.06" stroke="#00f0ff" filter="url(#dGlowC)"/>
+<text class="m" x="238.5" y="272.5" font-size="13" font-weight="800" fill="#00f0ff" text-anchor="middle">CANCEL</text>
 </g>
 <text class="s" x="680" y="44" font-size="15" fill="#c9c9cf" font-weight="600">Running</text>
 <text class="s" x="680" y="64" font-size="12" fill="#8a8a93">Preparing / transcribing / saving</text>
@@ -45,10 +49,11 @@
 <text class="s" x="704" y="264.76" font-size="16" fill="#f2f2f4">Elapsed: 0:47</text>
 <text class="s" x="704" y="300" font-size="14" fill="#777780">Cancel stops this local request. A request already sent may continue</text>
 <text class="s" x="704" y="320" font-size="14" fill="#777780">processing on the server.</text>
-<rect x="704" y="342" width="66.72" height="40" rx="6" fill="#777780"/>
-<text class="s" x="720" y="367.76" font-size="16" fill="#080809">Start</text>
-<rect x="782.72" y="342" width="81.12" height="40" rx="6" fill="#777780"/>
-<text class="s" x="798.72" y="367.76" font-size="16" fill="#f2f2f4">Cancel</text>
+<polygon points="714,342 811,342 811,372 801,382 704,382 704,352" fill="url(#dScanDim)" stroke="#3a3926"/>
+<path d="M781 376 L789 348 H792 L784 376Z M788 376 L796 348 H799 L791 376Z M795 376 L803 348 H806 L798 376Z" fill="#3a3926"/>
+<text class="m" x="728" y="366.5" font-size="13" font-weight="800" fill="#57563f">START</text>
+<polygon points="833,342 934,342 934,372 924,382 823,382 823,352" fill="#00f0ff" fill-opacity="0.06" stroke="#00f0ff" filter="url(#dGlowC)"/>
+<text class="m" x="878.5" y="366.5" font-size="13" font-weight="800" fill="#00f0ff" text-anchor="middle">CANCEL</text>
 </g>
 <text class="s" x="40" y="562" font-size="15" fill="#c9c9cf" font-weight="600">Complete</text>
 <text class="s" x="40" y="582" font-size="12" fill="#8a8a93">Written to &lt;source name&gt;.srt in the project root</text>
@@ -64,12 +69,14 @@
 <text class="s" x="64" y="706.76" font-size="16" fill="#f2f2f4">interview.mp4</text>
 <text class="s" x="64" y="744.76" font-size="16" fill="#f0b75e">Subtitles saved</text>
 <text class="s" x="64" y="782.76" font-size="16" fill="#f2f2f4">/Users/me/market-vlog/interview.srt</text>
-<rect x="64" y="800" width="150.4" height="40" rx="6" fill="#f0b75e"/>
-<text class="s" x="80" y="825.76" font-size="16" fill="#080809">Reveal in Finder</text>
-<rect x="64" y="856" width="66.72" height="40" rx="6" fill="#f0b75e"/>
-<text class="s" x="80" y="881.76" font-size="16" fill="#080809">Start</text>
-<rect x="142.72" y="856" width="81.12" height="40" rx="6" fill="#777780"/>
-<text class="s" x="158.72" y="881.76" font-size="16" fill="#f2f2f4">Cancel</text>
+<polygon points="74,800 257,800 257,830 247,840 64,840 64,810" fill="#fcee0a" filter="url(#dGlowY)"/>
+<path d="M227 834 L235 806 H238 L230 834Z M234 834 L242 806 H245 L237 834Z M241 834 L249 806 H252 L244 834Z" fill="#0a0a0b"/>
+<text class="m" x="88" y="824.5" font-size="13" font-weight="800" fill="#0a0a0b">REVEAL IN FINDER</text>
+<polygon points="74,856 171,856 171,886 161,896 64,896 64,866" fill="#fcee0a" filter="url(#dGlowY)"/>
+<path d="M141 890 L149 862 H152 L144 890Z M148 890 L156 862 H159 L151 890Z M155 890 L163 862 H166 L158 890Z" fill="#0a0a0b"/>
+<text class="m" x="88" y="880.5" font-size="13" font-weight="800" fill="#0a0a0b">START</text>
+<polygon points="193,856 294,856 294,886 284,896 183,896 183,866" fill="#00f0ff" fill-opacity="0.06" stroke="#00f0ff" filter="url(#dGlowC)"/>
+<text class="m" x="238.5" y="880.5" font-size="13" font-weight="800" fill="#00f0ff" text-anchor="middle">CANCEL</text>
 </g>
 <text class="s" x="680" y="562" font-size="15" fill="#c9c9cf" font-weight="600">Failed</text>
 <text class="s" x="680" y="582" font-size="12" fill="#8a8a93">Error message from the request</text>
@@ -85,9 +92,10 @@
 <text class="s" x="704" y="706.76" font-size="16" fill="#f2f2f4">interview.mp4</text>
 <text class="s" x="704" y="744.76" font-size="16" fill="#f0b75e">Transcription failed</text>
 <text class="s" x="704" y="781.04" font-size="14" fill="#ff8b8b">MiniMax API key is not set. Add it under Settings.</text>
-<rect x="704" y="802" width="66.72" height="40" rx="6" fill="#f0b75e"/>
-<text class="s" x="720" y="827.76" font-size="16" fill="#080809">Start</text>
-<rect x="782.72" y="802" width="81.12" height="40" rx="6" fill="#777780"/>
-<text class="s" x="798.72" y="827.76" font-size="16" fill="#f2f2f4">Cancel</text>
+<polygon points="714,802 811,802 811,832 801,842 704,842 704,812" fill="#fcee0a" filter="url(#dGlowY)"/>
+<path d="M781 836 L789 808 H792 L784 836Z M788 836 L796 808 H799 L791 836Z M795 836 L803 808 H806 L798 836Z" fill="#0a0a0b"/>
+<text class="m" x="728" y="826.5" font-size="13" font-weight="800" fill="#0a0a0b">START</text>
+<polygon points="833,802 934,802 934,832 924,842 823,842 823,812" fill="#00f0ff" fill-opacity="0.06" stroke="#00f0ff" filter="url(#dGlowC)"/>
+<text class="m" x="878.5" y="826.5" font-size="13" font-weight="800" fill="#00f0ff" text-anchor="middle">CANCEL</text>
 </g>
 </svg>

@@ -1,4 +1,3 @@
-#[expect(dead_code, reason = "not used until screens adopt the design system")]
 pub(crate) mod cyberpunk_button;
 mod horizontal_split;
 #[expect(dead_code, reason = "not used until screens adopt the design system")]
