@@ -12,8 +12,8 @@ mod video_backend;
 mod videotoolbox;
 
 pub use audio::{AudioDecoder, AudioSamples, PcmFormat};
-pub use audio_backend::{AudioBackend, AudioMediaInfo};
-pub use media_info::{AudioInfo, MediaInfo, VideoInfo};
+pub use audio_backend::AudioBackend;
+pub use media_info::MediaInfo;
 pub use time::MediaTime;
 pub use video::{VideoDecoder, VideoFrame};
 pub use video_backend::VideoBackend;

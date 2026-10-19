@@ -28,7 +28,7 @@ pub struct VideoFrame {
     #[cfg(target_os = "macos")]
     pub pixel_buffer: CVPixelBuffer,
     #[cfg(not(target_os = "macos"))]
-    pub native: Video,
+    native: Video,
     pub timestamp: MediaTime,
     pub duration: Option<Duration>,
     /// YUV-to-RGB matrix the picture was encoded with.

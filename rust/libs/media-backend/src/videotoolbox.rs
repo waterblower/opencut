@@ -20,14 +20,14 @@ use std::ptr::{null, null_mut};
 use std::sync::{Arc, Condvar, Mutex};
 
 /// A decoded picture in stream time-base ticks.
-pub struct DecodedPicture {
-    pub pixel_buffer: CVPixelBuffer,
-    pub pts: i64,
-    pub duration: i64,
-    pub color_space: color::Space,
+pub(crate) struct DecodedPicture {
+    pub(crate) pixel_buffer: CVPixelBuffer,
+    pub(crate) pts: i64,
+    pub(crate) duration: i64,
+    pub(crate) color_space: color::Space,
 }
 
-pub enum Received {
+pub(crate) enum Received {
     Picture(DecodedPicture),
     NeedInput,
     Eof,
@@ -35,7 +35,7 @@ pub enum Received {
 
 /// Open, use, and drop on one execution lane, like the FFmpeg decoder it replaces.
 /// Only the output callback runs on VideoToolbox's thread; it touches `shared` alone.
-pub struct VideoToolboxDecoder {
+pub(crate) struct VideoToolboxDecoder {
     session: VTDecompressionSessionRef,
     format_description: CMFormatDescriptionRef,
     shared: Arc<Shared>,
@@ -60,7 +60,10 @@ struct LeadingPictures {
 impl VideoToolboxDecoder {
     /// Errors for streams it cannot decode: other codecs, Annex B framing, or
     /// pixel layouts other than 4:2:0 at 8 or 10 bits.
-    pub fn open(parameters: *const ffi::AVCodecParameters, time_base: Rational) -> Result<Self> {
+    pub(crate) fn open(
+        parameters: *const ffi::AVCodecParameters,
+        time_base: Rational,
+    ) -> Result<Self> {
         // SAFETY: the caller passes parameters owned by an open stream.
         let parameters = unsafe { &*parameters };
         let (codec_type, atom) = match parameters.codec_id {
@@ -129,7 +132,7 @@ impl VideoToolboxDecoder {
 
     /// Starts decoding without waiting. `output` false decodes the picture as a
     /// reference only; it never comes back from [`Self::receive`].
-    pub fn send_packet(&mut self, packet: &Packet, output: bool) -> Result<()> {
+    pub(crate) fn send_packet(&mut self, packet: &Packet, output: bool) -> Result<()> {
         if self.draining {
             bail!("video decoder received a packet after draining began");
         }
@@ -170,7 +173,7 @@ impl VideoToolboxDecoder {
 
     /// The next picture in presentation order, once no later-decoded frame can
     /// precede it. Blocks while enough frames are in flight to keep the decoder busy.
-    pub fn receive(&mut self) -> Result<Received> {
+    pub(crate) fn receive(&mut self) -> Result<Received> {
         let mut outputs = self.lock_outputs()?;
         loop {
             if let Some(status) = outputs.error {
@@ -212,13 +215,13 @@ impl VideoToolboxDecoder {
     }
 
     /// No more packets: remaining pictures come out once every frame completes.
-    pub fn send_eof(&mut self) {
+    pub(crate) fn send_eof(&mut self) {
         self.draining = true;
     }
 
     /// Discards pending pictures before a seek. The next packet must start a
     /// group of pictures.
-    pub fn flush(&mut self) -> Result<()> {
+    pub(crate) fn flush(&mut self) -> Result<()> {
         // SAFETY: session is valid for the decoder's lifetime.
         let status = unsafe { VTDecompressionSessionWaitForAsynchronousFrames(self.session) };
         if status != 0 {
