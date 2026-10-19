@@ -6,11 +6,11 @@ use crate::explorer::{
     NewTimelineDialogState, RenameDialogState, move_path_to_trash, remap_relative_path,
     renamed_relative_path,
 };
-use crate::ui_components::TextInput;
 use crate::preview::PreviewTarget;
 use crate::project_settings::{load_project_local_settings, save_project_local_settings};
 use crate::timeline_document;
 use crate::timeline_document::{relative_asset_path, resolve_asset_path};
+use crate::ui_components::TextInput;
 use anyhow::{Context as _, Result, anyhow, bail};
 use gpui::Window;
 use gpui::prelude::*;
