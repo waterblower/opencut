@@ -1,9 +1,10 @@
-//! Pipelined VideoToolbox decoding for H.264 and HEVC.
+//! Pipelined VideoToolbox decoding for H.264 and HEVC, the macOS video decoder.
 //!
 //! FFmpeg's VideoToolbox hwaccel waits for every frame before sending the
 //! next one. Driving the session directly keeps several frames in flight, which
 //! decodes a group of pictures several times faster after a seek. FFmpeg still
-//! demuxes; packets go to VideoToolbox unchanged.
+//! demuxes; packets go to VideoToolbox unchanged. Streams outside MP4-style
+//! H.264/HEVC in 4:2:0 at 8 or 10 bits are errors.
 
 use anyhow::{Result, bail};
 use core_foundation::base::{CFType, CFTypeRef, TCFType};
@@ -13,7 +14,7 @@ use core_foundation::dictionary::{CFDictionary, CFDictionaryRef};
 use core_foundation::number::CFNumber;
 use core_foundation::string::{CFString, CFStringRef};
 use core_video::pixel_buffer::{CVPixelBuffer, CVPixelBufferRef};
-use ffmpeg_next::{Packet, Rational, ffi};
+use ffmpeg_next::{Packet, Rational, ffi, util::color};
 use std::ffi::c_void;
 use std::ptr::{null, null_mut};
 use std::sync::{Arc, Condvar, Mutex};
@@ -23,6 +24,7 @@ pub struct DecodedPicture {
     pub pixel_buffer: CVPixelBuffer,
     pub pts: i64,
     pub duration: i64,
+    pub color_space: color::Space,
 }
 
 pub enum Received {
@@ -38,8 +40,9 @@ pub struct VideoToolboxDecoder {
     format_description: CMFormatDescriptionRef,
     shared: Arc<Shared>,
     time_base: Rational,
-    reorder_depth: usize, // 展示顺序最多落后解码顺序的帧数（流的 video_delay）。
-    draining: bool,       // 已送出 EOF；剩余帧全部完成后按展示顺序吐出。
+    color_space: color::Space, // 流参数里的 YUV→RGB 矩阵标签；会话输出的图像不带 FFmpeg 帧属性。
+    reorder_depth: usize,      // 展示顺序最多落后解码顺序的帧数（流的 video_delay）。
+    draining: bool,            // 已送出 EOF；剩余帧全部完成后按展示顺序吐出。
     leading: LeadingPictures,
 }
 
@@ -55,32 +58,28 @@ struct LeadingPictures {
 
 // Public APIs only
 impl VideoToolboxDecoder {
-    /// None when the stream needs FFmpeg's path: another codec, Annex B extradata,
-    /// or a pixel layout VideoToolbox would have to convert.
-    pub fn open(
-        parameters: *const ffi::AVCodecParameters,
-        time_base: Rational,
-    ) -> Result<Option<Self>> {
+    /// Errors for streams it cannot decode: other codecs, Annex B framing, or
+    /// pixel layouts other than 4:2:0 at 8 or 10 bits.
+    pub fn open(parameters: *const ffi::AVCodecParameters, time_base: Rational) -> Result<Self> {
         // SAFETY: the caller passes parameters owned by an open stream.
         let parameters = unsafe { &*parameters };
         let (codec_type, atom) = match parameters.codec_id {
             ffi::AVCodecID::AV_CODEC_ID_H264 => (u32::from_be_bytes(*b"avc1"), "avcC"),
             ffi::AVCodecID::AV_CODEC_ID_HEVC => (u32::from_be_bytes(*b"hvc1"), "hvcC"),
-            _ => return Ok(None),
+            other => bail!("unsupported video codec {other:?}: macOS decodes H.264 and HEVC"),
         };
         if parameters.extradata.is_null() || parameters.extradata_size <= 0 {
-            return Ok(None);
+            bail!("video stream has no {atom} codec configuration");
         }
         // SAFETY: FFmpeg owns extradata_size bytes at extradata for the stream's lifetime.
         let extradata = unsafe {
             std::slice::from_raw_parts(parameters.extradata, parameters.extradata_size as usize)
         };
         if extradata[0] != 1 {
-            return Ok(None); // 不是 avcC/hvcC（版本号 1），而是 Annex B 起始码：包也不是长度前缀格式。
+            // 不是 avcC/hvcC（版本号 1），而是 Annex B 起始码：包也不是长度前缀格式。
+            bail!("video stream uses Annex B framing; only MP4-style {atom} streams are supported");
         }
-        let Some(pixel_format) = output_pixel_format(parameters) else {
-            return Ok(None);
-        };
+        let pixel_format = output_pixel_format(parameters)?;
         // lengthSizeMinusOne: low two bits of byte 4 (avcC) or byte 21 (hvcC).
         let hevc = parameters.codec_id == ffi::AVCodecID::AV_CODEC_ID_HEVC;
         let length_offset = if hevc { 21 } else { 4 };
@@ -111,11 +110,12 @@ impl VideoToolboxDecoder {
                 return Err(error);
             }
         };
-        Ok(Some(Self {
+        Ok(Self {
             session,
             format_description,
             shared,
             time_base,
+            color_space: color::Space::from(parameters.color_space),
             reorder_depth: usize::try_from(parameters.video_delay).unwrap_or(0),
             draining: false,
             leading: LeadingPictures {
@@ -124,7 +124,7 @@ impl VideoToolboxDecoder {
                 at_random_access: true,
                 skip_rasl: false,
             },
-        }))
+        })
     }
 
     /// Starts decoding without waiting. `output` false decodes the picture as a
@@ -195,6 +195,7 @@ impl VideoToolboxDecoder {
                     pixel_buffer,
                     pts: picture.pts,
                     duration: picture.duration,
+                    color_space: self.color_space,
                 }));
             }
             if settled {
@@ -356,20 +357,19 @@ fn first_picture_nal_type(data: &[u8], length_size: usize) -> Result<Option<u8>>
     Ok(None)
 }
 
-/// NV12 or its 10-bit form, matching what FFmpeg's hwaccel requested. Other
-/// layouts stay on FFmpeg's path.
-fn output_pixel_format(parameters: &ffi::AVCodecParameters) -> Option<i32> {
+/// NV12 or its 10-bit form, in the stream's range. Other layouts are errors.
+fn output_pixel_format(parameters: &ffi::AVCodecParameters) -> Result<i32> {
     // SAFETY: format holds an AVPixelFormat for video parameters.
     let format: ffi::AVPixelFormat = unsafe { std::mem::transmute(parameters.format) };
     // SAFETY: returns a static descriptor or null.
     let descriptor = unsafe { ffi::av_pix_fmt_desc_get(format) };
     if descriptor.is_null() {
-        return None;
+        bail!("unknown video pixel format {format:?}");
     }
     // SAFETY: non-null descriptors are static.
     let descriptor = unsafe { &*descriptor };
     if descriptor.log2_chroma_w != 1 || descriptor.log2_chroma_h != 1 {
-        return None; // 只处理 4:2:0。
+        bail!("unsupported video pixel format {format:?}: only 4:2:0 is supported");
     }
     let full_range = parameters.color_range == ffi::AVColorRange::AVCOL_RANGE_JPEG;
     let fourcc = match (descriptor.comp[0].depth, full_range) {
@@ -377,9 +377,13 @@ fn output_pixel_format(parameters: &ffi::AVCodecParameters) -> Option<i32> {
         (8, true) => *b"420f",
         (10, false) => *b"x420",
         (10, true) => *b"xf20",
-        _ => return None,
+        (depth, _) => {
+            bail!(
+                "unsupported video pixel format {format:?}: {depth}-bit; only 8 and 10 are supported"
+            )
+        }
     };
-    Some(i32::from_be_bytes(fourcc))
+    Ok(i32::from_be_bytes(fourcc))
 }
 
 fn create_format_description(
