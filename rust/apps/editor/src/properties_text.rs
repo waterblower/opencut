@@ -1,10 +1,11 @@
 use crate::properties::{
-    TextClipPanel, format_properties_time, properties_divider_view, properties_header_view,
-    properties_heading_view, readonly_properties_panel_view,
+    TextClipPanel, clip_track_subtitle_view, format_properties_time, properties_divider_view,
+    properties_header_view, properties_heading_view, readonly_properties_panel_view,
 };
 use crate::theme::{BORDER, MUTED, SURFACE};
+use crate::track::TrackKind;
 use gpui::prelude::*;
-use gpui::{FontWeight, div, px, rgb, rgba};
+use gpui::{FontWeight, PathBuilder, canvas, div, point, px, rgb, rgba};
 
 pub(crate) fn text_clip_view(panel: &TextClipPanel) -> gpui::AnyElement {
     let clip = &panel.clip;
@@ -33,7 +34,11 @@ pub(crate) fn text_clip_view(panel: &TextClipPanel) -> gpui::AnyElement {
         .font_weight(FontWeight::BOLD)
         .text_color(rgb(0xffffff))
         .child("T");
-    let header = properties_header_view(badge, title, format!("Text clip · {track_name}"));
+    let header = properties_header_view(
+        badge,
+        title,
+        clip_track_subtitle_view(TrackKind::Text, track_name),
+    );
     let alpha = clip.properties.color >> 24;
     let color_rgb = clip.properties.color & 0x00ff_ffff;
     let color_text = if alpha == 0xff {
@@ -135,24 +140,59 @@ pub(crate) fn text_clip_view(panel: &TextClipPanel) -> gpui::AnyElement {
         .child(properties_divider_view())
         .child(properties_heading_view("STYLE"))
         .child(
-            div()
-                .mt(px(12.0))
-                .child(text_value_view("", clip.properties.font.clone(), "")),
+            div().mt(px(12.0)).child(style_field_view(
+                "Font",
+                div()
+                    .h(px(34.0))
+                    .min_w_0()
+                    .flex()
+                    .items_center()
+                    .gap(px(8.0))
+                    .px(px(10.0))
+                    .rounded(px(6.0))
+                    .border_1()
+                    .border_color(rgb(BORDER))
+                    .bg(rgb(SURFACE))
+                    .child(
+                        div()
+                            .flex_1()
+                            .min_w_0()
+                            .text_size(px(13.0))
+                            .text_ellipsis()
+                            .child(clip.properties.font.clone()),
+                    )
+                    .child(
+                        canvas(
+                            |_, _, _| (),
+                            |bounds, (), window, _| {
+                                let mut chevron = PathBuilder::stroke(px(1.5));
+                                chevron.move_to(bounds.origin + point(px(2.0), px(4.0)));
+                                chevron.line_to(bounds.origin + point(px(6.0), px(8.0)));
+                                chevron.line_to(bounds.origin + point(px(10.0), px(4.0)));
+                                if let Ok(path) = chevron.build() {
+                                    window.paint_path(path, rgb(0xb4b4bc));
+                                }
+                            },
+                        )
+                        .size(px(12.0))
+                        .flex_shrink_0(),
+                    ),
+            )),
         )
         .child(
             div()
-                .mt(px(8.0))
+                .mt(px(12.0))
                 .grid()
                 .grid_cols(2)
                 .gap(px(8.0))
-                .child(text_value_view(
-                    "",
-                    clip.properties.font_size.to_string(),
-                    "px",
+                .child(style_field_view(
+                    "Font size",
+                    text_value_view("", clip.properties.font_size.to_string(), "px").h(px(34.0)),
                 ))
-                .child(
+                .child(style_field_view(
+                    "Font color",
                     div()
-                        .h(px(30.0))
+                        .h(px(34.0))
                         .min_w_0()
                         .flex()
                         .items_center()
@@ -175,11 +215,11 @@ pub(crate) fn text_clip_view(panel: &TextClipPanel) -> gpui::AnyElement {
                             div()
                                 .min_w_0()
                                 .font_family("monospace")
-                                .text_size(px(11.0))
+                                .text_size(px(13.0))
                                 .text_ellipsis()
                                 .child(color_text),
                         ),
-                ),
+                )),
         )
         .child(properties_divider_view())
         .child(properties_heading_view("POSITION"))
@@ -201,6 +241,19 @@ pub(crate) fn text_clip_view(panel: &TextClipPanel) -> gpui::AnyElement {
                 )),
         );
     readonly_properties_panel_view("text-clip-properties", header, content)
+}
+
+fn style_field_view(label: &'static str, value: gpui::Div) -> gpui::Div {
+    div()
+        .min_w_0()
+        .child(
+            div()
+                .text_size(px(12.0))
+                .line_height(px(16.0))
+                .text_color(rgb(0xb4b4bc))
+                .child(label),
+        )
+        .child(div().mt(px(8.0)).child(value))
 }
 
 fn text_value_view(label: &'static str, value: String, unit: &'static str) -> gpui::Div {

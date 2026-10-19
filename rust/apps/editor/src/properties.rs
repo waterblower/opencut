@@ -269,7 +269,7 @@ pub(super) fn properties_panel(panel: &PropertiesPanel) -> gpui::AnyElement {
 pub(crate) fn properties_header_view(
     badge: gpui::Div,
     title: String,
-    subtitle: String,
+    subtitle: impl IntoElement,
 ) -> gpui::Div {
     div()
         .h(px(64.0))
@@ -303,6 +303,28 @@ pub(crate) fn properties_header_view(
                         .text_ellipsis()
                         .child(subtitle),
                 ),
+        )
+}
+
+pub(crate) fn clip_track_subtitle_view(kind: TrackKind, track_name: &str) -> gpui::Div {
+    let (label, color) = match kind {
+        TrackKind::Text => ("Text clip · Track:", 0xb69bdc),
+        TrackKind::Video => ("Video clip · Track:", 0x91b8df),
+        TrackKind::Audio => ("Audio clip · Track:", 0x69c5cf),
+    };
+    div()
+        .min_w_0()
+        .flex()
+        .gap(px(3.0))
+        .text_size(px(11.0))
+        .line_height(px(16.0))
+        .child(div().flex_shrink_0().text_color(rgb(0x8a8a93)).child(label))
+        .child(
+            div()
+                .min_w_0()
+                .text_ellipsis()
+                .text_color(rgb(color))
+                .child(track_name.to_owned()),
         )
 }
 
@@ -546,7 +568,7 @@ fn audio_clip_view(panel: &AudioClipPanel) -> gpui::AnyElement {
     let header = properties_header_view(
         badge,
         panel.asset_name.clone(),
-        format!("Audio clip · {}", panel.track_name),
+        clip_track_subtitle_view(TrackKind::Audio, &panel.track_name),
     );
     let content = div()
         .child(properties_heading_view("TIMING"))
@@ -799,14 +821,7 @@ fn video_clip_view(panel: &VideoClipPanel) -> gpui::AnyElement {
                                 .text_ellipsis()
                                 .child(asset_name.to_owned()),
                         )
-                        .child(
-                            div()
-                                .text_size(px(12.0))
-                                .line_height(px(16.0))
-                                .text_color(rgb(MUTED))
-                                .text_ellipsis()
-                                .child(format!("Video clip · {track_name}")),
-                        ),
+                        .child(clip_track_subtitle_view(TrackKind::Video, track_name)),
                 ),
         )
         .child(
