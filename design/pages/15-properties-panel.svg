@@ -59,24 +59,30 @@
 <text class="m" x="202" y="443.68" font-size="13" fill="#f2f2f4">2.90</text>
 <text class="s" x="302" y="443.32" font-size="12" fill="#777780" text-anchor="end">s</text>
 <rect x="64" y="470" width="248" height="1" fill="#1f1f24"/>
+<g id="text-clip-style">
+<title>Text style: font, font size, and font color</title>
 <text class="s" x="64" y="493.96" font-size="11" fill="#777780" font-weight="600" letter-spacing="0.6">STYLE</text>
-<rect x="64.5" y="506.5" width="247" height="29" rx="6" fill="#17171a" stroke="#2b2b31" stroke-width="1"/>
-<text class="s" x="74" y="525.68" font-size="13" fill="#f2f2f4">Sans</text>
-<path d="M294 519.0 l4 4 l4 -4" fill="none" stroke="#777780" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-<rect x="64.5" y="544.5" width="119" height="29" rx="6" fill="#17171a" stroke="#2b2b31" stroke-width="1"/>
-<text class="m" x="74" y="563.68" font-size="13" fill="#f2f2f4">64</text>
-<text class="s" x="174" y="563.32" font-size="12" fill="#777780" text-anchor="end">px</text>
-<rect x="192.5" y="544.5" width="119" height="29" rx="6" fill="#17171a" stroke="#2b2b31" stroke-width="1"/>
-<rect x="200.5" y="551.5" width="15" height="15" rx="4" fill="#ffffff" stroke="#2b2b31" stroke-width="1"/>
-<text class="m" x="224" y="563.68" font-size="13" fill="#f2f2f4">#FFFFFF</text>
-<rect x="64" y="590" width="248" height="1" fill="#1f1f24"/>
-<text class="s" x="64" y="613.96" font-size="11" fill="#777780" font-weight="600" letter-spacing="0.6">POSITION</text>
-<rect x="64.5" y="626.5" width="119" height="29" rx="6" fill="#17171a" stroke="#2b2b31" stroke-width="1"/>
-<text class="s" x="74" y="645.32" font-size="12" fill="#777780" font-weight="600">X</text>
-<text class="m" x="89.68" y="645.68" font-size="13" fill="#f2f2f4">0.50</text>
-<rect x="192.5" y="626.5" width="119" height="29" rx="6" fill="#17171a" stroke="#2b2b31" stroke-width="1"/>
-<text class="s" x="202" y="645.32" font-size="12" fill="#777780" font-weight="600">Y</text>
-<text class="m" x="217.68" y="645.68" font-size="13" fill="#f2f2f4">0.85</text>
+<text class="s" x="64" y="517" font-size="12" fill="#b4b4bc">Font</text>
+<rect x="64.5" y="526.5" width="247" height="33" rx="6" fill="#17171a" stroke="#2b2b31" stroke-width="1"/>
+<text class="s" x="74" y="548" font-size="13" fill="#f2f2f4">Sans</text>
+<path d="M294 541 l4 4 l4 -4" fill="none" stroke="#b4b4bc" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+<text class="s" x="64" y="581" font-size="12" fill="#b4b4bc">Font size</text>
+<text class="s" x="192" y="581" font-size="12" fill="#b4b4bc">Font color</text>
+<rect x="64.5" y="590.5" width="119" height="33" rx="6" fill="#17171a" stroke="#2b2b31" stroke-width="1"/>
+<text class="m" x="74" y="612" font-size="13" fill="#f2f2f4">64</text>
+<text class="s" x="174" y="612" font-size="12" fill="#777780" text-anchor="end">px</text>
+<rect x="192.5" y="590.5" width="119" height="33" rx="6" fill="#17171a" stroke="#2b2b31" stroke-width="1"/>
+<rect x="200.5" y="599.5" width="15" height="15" rx="4" fill="#ffffff" stroke="#2b2b31" stroke-width="1"/>
+<text class="m" x="224" y="612" font-size="13" fill="#f2f2f4">#FFFFFF</text>
+</g>
+<rect x="64" y="640" width="248" height="1" fill="#1f1f24"/>
+<text class="s" x="64" y="663.96" font-size="11" fill="#777780" font-weight="600" letter-spacing="0.6">POSITION</text>
+<rect x="64.5" y="676.5" width="119" height="29" rx="6" fill="#17171a" stroke="#2b2b31" stroke-width="1"/>
+<text class="s" x="74" y="695.32" font-size="12" fill="#777780" font-weight="600">X</text>
+<text class="m" x="89.68" y="695.68" font-size="13" fill="#f2f2f4">0.50</text>
+<rect x="192.5" y="676.5" width="119" height="29" rx="6" fill="#17171a" stroke="#2b2b31" stroke-width="1"/>
+<text class="s" x="202" y="695.32" font-size="12" fill="#777780" font-weight="600">Y</text>
+<text class="m" x="217.68" y="695.68" font-size="13" fill="#f2f2f4">0.85</text>
 </g>
 </g>
 <rect x="48.5" y="198.5" width="279" height="554" rx="10" fill="none" stroke="#2b2b31" stroke-width="1"/>
