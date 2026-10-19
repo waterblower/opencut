@@ -44,7 +44,7 @@ already in it, so that I don't have to import or copy media.
 Mockups: [project picker](pages/01-project-picker.svg),
 [editor without a timeline](pages/02-editor-empty.svg),
 [media preview](pages/04-editor-media-preview.svg),
-[rename dialog](pages/08-dialog-rename.svg),
+[rename dialog](pages/07-dialogs.svg),
 [context menus](pages/11-context-menus.svg).
 
 - [x] Any folder can be opened as a project.
@@ -76,8 +76,8 @@ Supported file extensions:
 that I can keep several versions, move them, and back them up like any other
 file.
 
-Mockups: [new timeline dialog](pages/07-dialog-new-timeline.svg),
-[timeline settings dialog](pages/09-dialog-timeline-settings.svg),
+Mockups: [new timeline dialog](pages/07-dialogs.svg),
+[timeline settings dialog](pages/07-dialogs.svg),
 [context menus](pages/11-context-menus.svg).
 
 - [x] A timeline is a JSON file named `*.timeline` or `*.timeline.json`, anywhere in
@@ -172,6 +172,7 @@ save loses that change. Empty timelines also have a playhead-clamping defect.
 give more room to the timeline or the preview as needed.
 
 Mockups: [editor with a timeline](pages/03-editor-timeline.svg),
+[top bar](pages/20-top-bar.svg),
 [properties panel](pages/15-properties-panel.svg).
 
 - [x] The media and properties panels beside the preview can be resized.
@@ -215,7 +216,7 @@ recording into a tight, captioned edit.
 ### Generate subtitles
 
 Mockups: [transcription window](pages/14-transcription-window.svg),
-[settings dialog](pages/10-dialog-settings.svg),
+[settings dialog](pages/07-dialogs.svg),
 [context menus](pages/11-context-menus.svg).
 
 - [x] Right-clicking an audio or video file and choosing **Generate SRT** opens a
