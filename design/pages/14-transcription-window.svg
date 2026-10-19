@@ -15,7 +15,7 @@
 </defs>
 <rect x="0" y="0" width="1320" height="1086" fill="#1e1e22"/>
 <text class="s" x="40" y="44" font-size="15" fill="#c9c9cf" font-weight="600">Ready</text>
-<text class="s" x="40" y="64" font-size="12" fill="#8a8a93">Opened from Generate SRT</text>
+<text class="s" x="40" y="64" font-size="12" fill="#8a8a93">Opened from Generate SRT. “MiniMax pricing” opens https://platform.minimax.cn/docs/guides/pricing in the browser</text>
 <rect x="40" y="80" width="600" height="428" rx="10" fill="#080809" filter="url(#shadow)"/>
 <g clip-path="url(#c1)">
 <rect x="40" y="80" width="600" height="28" fill="#232326"/>
@@ -27,11 +27,12 @@
 <text class="s" x="64" y="151.2" font-size="20" fill="#f2f2f4">Generate SRT</text>
 <text class="s" x="64" y="188.76" font-size="16" fill="#f2f2f4">interview.mp4</text>
 <text class="s" x="64" y="226.76" font-size="16" fill="#f0b75e">Generate the SRT transcription for interview.mp4</text>
-<polygon points="74,248 171,248 171,278 161,288 64,288 64,258" fill="#fcee0a" filter="url(#dGlowY)"/>
-<path d="M141 282 L149 254 H152 L144 282Z M148 282 L156 254 H159 L151 282Z M155 282 L163 254 H166 L158 282Z" fill="#0a0a0b"/>
-<text class="m" x="88" y="272.5" font-size="13" font-weight="800" fill="#0a0a0b">START</text>
-<polygon points="193,248 294,248 294,278 284,288 183,288 183,258" fill="#00f0ff" fill-opacity="0.06" stroke="#00f0ff" filter="url(#dGlowC)"/>
-<text class="m" x="238.5" y="272.5" font-size="13" font-weight="800" fill="#00f0ff" text-anchor="middle">CANCEL</text>
+<text class="s" x="64" y="264.76" font-size="16" fill="#f2f2f4">Estimated cost: ¥0.52 for 12:34 of audio · <tspan fill="#00f0ff" text-decoration="underline">MiniMax pricing</tspan></text>
+<polygon points="74,286 171,286 171,316 161,326 64,326 64,296" fill="#fcee0a" filter="url(#dGlowY)"/>
+<path d="M141 320 L149 292 H152 L144 320Z M148 320 L156 292 H159 L151 320Z M155 320 L163 292 H166 L158 320Z" fill="#0a0a0b"/>
+<text class="m" x="88" y="310.5" font-size="13" font-weight="800" fill="#0a0a0b">START</text>
+<polygon points="193,286 294,286 294,316 284,326 183,326 183,296" fill="#00f0ff" fill-opacity="0.06" stroke="#00f0ff" filter="url(#dGlowC)"/>
+<text class="m" x="238.5" y="310.5" font-size="13" font-weight="800" fill="#00f0ff" text-anchor="middle">CANCEL</text>
 </g>
 <text class="s" x="680" y="44" font-size="15" fill="#c9c9cf" font-weight="600">Running</text>
 <text class="s" x="680" y="64" font-size="12" fill="#8a8a93">Preparing / transcribing / saving</text>
