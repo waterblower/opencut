@@ -5,7 +5,7 @@ use gpui::prelude::*;
 use gpui::{Div, ElementId, FontWeight, Stateful, div, px, rgb, rgba};
 
 /// A frame drawn by corner brackets. Hover opens the brackets; pressing fills the button solid.
-pub(crate) fn line_primary_button_view(
+pub(crate) fn button_line_primary(
     id: impl Into<ElementId>,
     label: &str,
     enabled: bool,
@@ -49,7 +49,7 @@ pub(crate) fn line_primary_button_view(
 }
 
 /// Underlined text. Hover widens the underline; pressing tints the background.
-pub(crate) fn line_secondary_button_view(
+pub(crate) fn button_line_secondary(
     id: impl Into<ElementId>,
     label: &str,
     enabled: bool,

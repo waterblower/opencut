@@ -13,7 +13,7 @@ use gpui::{
 
 /// Neon yellow with cut top-left and bottom-right corners and hazard slashes.
 /// Hover brightens the border and glow; pressing turns the button inside out.
-pub(crate) fn cyberpunk_primary_button_view(
+pub(crate) fn button_cyberpunk_primary(
     id: impl Into<ElementId>,
     label: &str,
     enabled: bool,
@@ -60,7 +60,7 @@ pub(crate) fn cyberpunk_primary_button_view(
 
 /// Cyan outline with the same cut corners as the primary button.
 /// Hover brightens it; pressing fills it solid over a magenta offset.
-pub(crate) fn cyberpunk_secondary_button_view(
+pub(crate) fn button_cyberpunk_secondary(
     id: impl Into<ElementId>,
     label: &str,
     enabled: bool,

@@ -1,7 +1,7 @@
 use crate::event_bus::{AppEvent, EventBus};
 use crate::theme::{ACCENT, BACKGROUND, ERROR, MUTED, TEXT};
 use crate::ui_components::cyberpunk_button::{
-    cyberpunk_primary_button_view, cyberpunk_secondary_button_view,
+    button_cyberpunk_primary, button_cyberpunk_secondary,
 };
 use anyhow::Result;
 use gpui::prelude::*;
@@ -118,13 +118,13 @@ impl Render for TranscriptionWindow {
             .child(match stage {
                 TranscriptionStage::Complete(path) => div().flex().flex_col().gap_3()
                     .child(path.display().to_string())
-                    .child(div().flex().child(cyberpunk_primary_button_view("reveal-srt", "Reveal in Finder", true, window, cx)
+                    .child(div().flex().child(button_cyberpunk_primary("reveal-srt", "Reveal in Finder", true, window, cx)
                         .on_click(move |_, _, cx| cx.reveal_path(&path)))),
                 TranscriptionStage::Failed(error) => div().text_sm().text_color(rgb(ERROR)).child(error),
                 TranscriptionStage::Idle | TranscriptionStage::Cancelled | TranscriptionStage::Preparing | TranscriptionStage::Transcribing | TranscriptionStage::Saving => div(),
             })
             .child(div().flex().gap_3()
-                .child(cyberpunk_primary_button_view("start-transcription", "Start", !running, window, cx)
+                .child(button_cyberpunk_primary("start-transcription", "Start", !running, window, cx)
                     .when(!running, |button| button.on_click(cx.listener(|view, _, _, cx| {
                         let event = AppEvent::Transcribe {
                             source_path: view.source_path.clone(),
@@ -133,7 +133,7 @@ impl Render for TranscriptionWindow {
                         };
                         view.event_bus.update(cx, |_, cx| cx.emit(event));
                     }))))
-                .child(cyberpunk_secondary_button_view("cancel-transcription", "Cancel", cancellable, window, cx)
+                .child(button_cyberpunk_secondary("cancel-transcription", "Cancel", cancellable, window, cx)
                     .when(cancellable, |button| {
                         button.on_click(cx.listener(|view, _, window, cx| {
                             if view.stage.is_running() {
