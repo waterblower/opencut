@@ -98,8 +98,8 @@ const FONT_FAMILY: &str = "Menlo";
 const PRIMARY_GROUP: &str = "line-primary-button";
 const SECONDARY_GROUP: &str = "line-secondary-button";
 const BRACKET_LENGTH: f32 = 8.0;
-const BRACKET_OPEN: f32 = 3.0;                  // 悬停时括角向外移动的距离
-const ARROW_SHIFT: f32 = 4.0;                   // 悬停和按下时箭头向右移动的距离
+const BRACKET_OPEN: f32 = 3.0; // 悬停时括角向外移动的距离
+const ARROW_SHIFT: f32 = 4.0; // 悬停和按下时箭头向右移动的距离
 
 const LIME: u32 = 0xc8f25a;
 const LIME_HOVER: u32 = 0xd9ff7a;
