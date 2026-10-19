@@ -41,6 +41,11 @@ impl Editor {
                 .is_some_and(|timeline| timeline.path == entry.absolute_path);
 
         let metadata = file_entry_metadata(entry, active_timeline);
+        let draggable = match entry.kind {
+            FileTreeEntryKind::Video | FileTreeEntryKind::Image | FileTreeEntryKind::Audio => true,
+            FileTreeEntryKind::Other => is_srt_path(&entry.absolute_path),
+            FileTreeEntryKind::Directory { .. } | FileTreeEntryKind::Timeline => false,
+        };
 
         let event_bus = self.event_bus.clone();
         div()
@@ -62,24 +67,29 @@ impl Editor {
             } else {
                 PANEL
             }))
-            .cursor(CursorStyle::PointingHand)
+            .cursor(if draggable {
+                CursorStyle::OpenHand
+            } else {
+                CursorStyle::Arrow
+            })
             .hover(|style| style.bg(rgb(SURFACE_HOVER)))
-            .cursor(CursorStyle::OpenHand)
-            .on_drag(entry.clone(), move |entry, _, _, app_cx| {
-                let asset = match AssetBeingDragged::from_file_entry(entry) {
-                    Ok(asset) => asset,
-                    Err(error) => {
-                        log::error!(
-                            "could not drag {}: {error:?}",
-                            entry.absolute_path.display()
-                        );
-                        return app_cx.new(|_| AssetBeingDragged::None);
-                    }
-                };
-                event_bus.update(app_cx, |_, cx| {
-                    cx.emit(AppEvent::DragStarted(asset.clone()));
-                });
-                app_cx.new(|_| asset)
+            .when(draggable, |this| {
+                this.on_drag(entry.clone(), move |entry, _, _, app_cx| {
+                    let asset = match AssetBeingDragged::from_file_entry(entry) {
+                        Ok(asset) => asset,
+                        Err(error) => {
+                            log::error!(
+                                "could not drag {}: {error:?}",
+                                entry.absolute_path.display()
+                            );
+                            return app_cx.new(|_| AssetBeingDragged::None);
+                        }
+                    };
+                    event_bus.update(app_cx, |_, cx| {
+                        cx.emit(AppEvent::DragStarted(asset.clone()));
+                    });
+                    app_cx.new(|_| asset)
+                })
             })
             .on_click(cx.listener({
                 let entry = entry.clone();

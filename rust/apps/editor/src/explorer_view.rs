@@ -33,7 +33,7 @@ impl Editor {
             .gap_2()
             .px_3()
             .when(root_context_menu_target, |this| this.bg(rgb(SURFACE_HOVER)))
-            .cursor(CursorStyle::PointingHand)
+            .cursor(CursorStyle::Arrow)
             .hover(|style| style.bg(rgb(SURFACE_HOVER)))
             .on_click(cx.listener(|editor, _, _, cx| {
                 editor.explorer.root_expanded = !editor.explorer.root_expanded;
