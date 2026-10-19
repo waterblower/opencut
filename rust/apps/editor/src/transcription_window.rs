@@ -11,11 +11,13 @@ use gpui::{
 };
 use std::path::PathBuf;
 use std::time::{Duration, Instant};
+use ulid::Ulid;
 
-/// An existing running job is focused instead of submitting the file again.
+/// An existing window for the same file and clip is focused instead of opening another.
 pub(crate) fn open(
     source_path: PathBuf,
-    source_duration: f64,
+    clip: Option<ClipRange>,
+    audio_duration: f64,
     project_root: PathBuf,
     event_bus: Entity<EventBus>,
     cx: &mut App,
@@ -25,13 +27,18 @@ pub(crate) fn open(
             continue;
         };
         let view = window.entity(cx)?;
-        if view.read(cx).source_path != source_path {
+        let existing = view.read(cx);
+        let existing_clip_id = existing.clip.map(|range| range.clip_id);
+        if existing.source_path != source_path
+            || existing_clip_id != clip.map(|range| range.clip_id)
+        {
             continue;
         }
         window.update(cx, |_, window, _| window.activate_window())?;
         view.update(cx, |view, _| {
             if !view.stage.is_running() {
-                view.source_duration = source_duration;
+                view.clip = clip;
+                view.audio_duration = audio_duration;
                 view.project_root = project_root;
                 view.event_bus = event_bus;
             }
@@ -48,7 +55,8 @@ pub(crate) fn open(
         |window, cx| {
             let view = cx.new(|_| TranscriptionWindow {
                 source_path,
-                source_duration,
+                clip,
+                audio_duration,
                 project_root,
                 event_bus,
                 stage: TranscriptionStage::Idle,
@@ -66,9 +74,18 @@ pub(crate) fn open(
     handle.entity(cx)
 }
 
+/// The part of a source file that one timeline clip uses.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct ClipRange {
+    pub(crate) clip_id: Ulid,
+    pub(crate) start: Duration, // 源文件内的入点
+    pub(crate) end: Duration,   // 源文件内的出点
+}
+
 pub(crate) struct TranscriptionWindow {
     source_path: PathBuf,
-    source_duration: f64, // 打开窗口时探测到的源文件时长（秒），用于估算费用
+    clip: Option<ClipRange>, // None 表示转写整个源文件
+    audio_duration: f64,     // 要转写的音频时长（秒），用于估算费用
     project_root: PathBuf,
     event_bus: Entity<EventBus>,
     pub(crate) stage: TranscriptionStage,
@@ -106,7 +123,14 @@ impl Render for TranscriptionWindow {
             .to_string_lossy()
             .into_owned();
         let status = match &stage {
-            TranscriptionStage::Idle => format!("Generate the SRT transcription for {file_name}"),
+            TranscriptionStage::Idle => match self.clip {
+                Some(range) => format!(
+                    "Generate the SRT transcription for {}–{} of {file_name}",
+                    format_time(range.start.as_secs_f64(), false),
+                    format_time(range.end.as_secs_f64(), false),
+                ),
+                None => format!("Generate the SRT transcription for {file_name}"),
+            },
             TranscriptionStage::Cancelled => "Cancelled".to_string(),
             TranscriptionStage::Preparing => "Preparing audio".to_string(),
             TranscriptionStage::Transcribing => "Uploading and transcribing".to_string(),
@@ -122,10 +146,10 @@ impl Render for TranscriptionWindow {
                 format!("{status}{}", ".".repeat((elapsed.as_millis() / 500 % 4) as usize))
             } else { status }))
             .when(matches!(stage, TranscriptionStage::Idle), |view| {
-                let cost = transcribe::estimated_price_cny(Duration::from_secs_f64(self.source_duration));
+                let cost = transcribe::estimated_price_cny(Duration::from_secs_f64(self.audio_duration));
                 let cost_text = if cost < 0.01 { "less than ¥0.01".to_string() } else { format!("¥{cost:.2}") };
                 view.child(div().flex().gap_1()
-                    .child(format!("Estimated cost: {cost_text} for {} of audio ·", format_time(self.source_duration, false)))
+                    .child(format!("Estimated cost: {cost_text} for {} of audio ·", format_time(self.audio_duration, false)))
                     .child(div().id("minimax-pricing").text_color(rgb(LINK)).underline().cursor_pointer()
                         .child("MiniMax pricing")
                         .on_click(|_, _, cx| cx.open_url(transcribe::PRICING_URL))))
@@ -148,6 +172,7 @@ impl Render for TranscriptionWindow {
                     .when(!running, |button| button.on_click(cx.listener(|view, _, _, cx| {
                         let event = AppEvent::Transcribe {
                             source_path: view.source_path.clone(),
+                            clip: view.clip,
                             project_root: view.project_root.clone(),
                             window: cx.entity().downgrade(),
                         };

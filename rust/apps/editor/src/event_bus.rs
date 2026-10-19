@@ -19,7 +19,7 @@ use crate::srt::{srt_text_clips, write_srt};
 use crate::timeline::{PreviewDropAsset, TimelineFrameIndex, TimelineRuntimeState};
 use crate::timeline_clip::Clip;
 use crate::transcription_window;
-use crate::transcription_window::{TranscriptionStage, TranscriptionWindow};
+use crate::transcription_window::{ClipRange, TranscriptionStage, TranscriptionWindow};
 use crate::ui_components::{HorizontalSplitState, VerticalSplitState};
 use crate::{OpenProject, open_editor_window, quit_after_last_window};
 use anyhow::{Context as _, Result, anyhow, bail};
@@ -56,11 +56,13 @@ pub(crate) enum AppEvent {
     },
     OpenTranscribeWindow {
         audio_source_path: PathBuf, // 含音轨的音频或视频文件的绝对路径。
+        clip: Option<ClipRange>,    // 从时间线片段打开时只转写该片段的源区间。
         project_root: PathBuf,
     },
-    /// Transcribe the audio or video file at this absolute path.
+    /// Transcribe the audio or video file at this absolute path, or only `clip`'s part of it.
     Transcribe {
         source_path: PathBuf,
+        clip: Option<ClipRange>,
         project_root: PathBuf,
         window: WeakEntity<TranscriptionWindow>,
     },
@@ -146,19 +148,24 @@ pub(crate) async fn handle_event(
         }
         AppEvent::OpenTranscribeWindow {
             audio_source_path: source_path,
+            clip,
             project_root,
         } => {
-            let source_duration = match probe_asset(&source_path) {
-                Ok(asset) => asset.duration,
-                Err(error) => {
-                    log::error!("Could not open transcription window: {error:?}");
-                    return;
-                }
+            let audio_duration = match clip {
+                Some(range) => range.end.saturating_sub(range.start).as_secs_f64(),
+                None => match probe_asset(&source_path) {
+                    Ok(asset) => asset.duration,
+                    Err(error) => {
+                        log::error!("Could not open transcription window: {error:?}");
+                        return;
+                    }
+                },
             };
             if let Err(error) = cx.update(|cx| {
                 transcription_window::open(
                     source_path,
-                    source_duration,
+                    clip,
+                    audio_duration,
                     project_root,
                     event_bus,
                     cx,
@@ -169,6 +176,7 @@ pub(crate) async fn handle_event(
         }
         AppEvent::Transcribe {
             source_path,
+            clip,
             project_root,
             window,
         } => {
@@ -196,7 +204,17 @@ pub(crate) async fn handle_event(
                         })
                     });
                     let result: Result<PathBuf> = async {
-                        let (wav, api_key, source_path) = cx
+                        // 先确定输出路径，避免解码和付费请求之后才失败。
+                        let stem = source_path
+                            .file_stem()
+                            .context("Transcription source has no filename")?
+                            .to_string_lossy();
+                        let file_name = match clip {
+                            Some(range) => format!("{stem}_{}.srt", range.clip_id),
+                            None => format!("{stem}.srt"),
+                        };
+                        let srt_path = project_root.join(file_name);
+                        let (wav, api_key) = cx
                             .update(|cx| {
                                 gpui_tokio::Tokio::spawn(cx, async move {
                                     let settings = GlobalEditorSettings::load()?;
@@ -204,13 +222,19 @@ pub(crate) async fn handle_event(
                                         "Transcribing audio with MiniMax: {}",
                                         source_path.display()
                                     );
-                                    let wav =
-                                        transcribe::audio::extract_audio_as_wav(&source_path)?;
-                                    Ok::<_, anyhow::Error>((
-                                        wav,
-                                        settings.minimax_api_key,
-                                        source_path,
-                                    ))
+                                    let wav = match clip {
+                                        Some(range) => {
+                                            transcribe::audio::extract_audio_range_as_wav(
+                                                &source_path,
+                                                range.start,
+                                                range.end,
+                                            )?
+                                        }
+                                        None => {
+                                            transcribe::audio::extract_audio_as_wav(&source_path)?
+                                        }
+                                    };
+                                    Ok::<_, anyhow::Error>((wav, settings.minimax_api_key))
                                 })
                             })
                             .await
@@ -239,13 +263,8 @@ pub(crate) async fn handle_event(
                         })?;
                         cx.background_executor()
                             .spawn(async move {
-                                let stem = source_path
-                                    .file_stem()
-                                    .context("Transcription source has no filename")?;
-                                let path =
-                                    project_root.join(format!("{}.srt", stem.to_string_lossy()));
-                                write_srt(&path, &srt)?;
-                                Ok(path)
+                                write_srt(&srt_path, &srt)?;
+                                Ok(srt_path)
                             })
                             .await
                     }
