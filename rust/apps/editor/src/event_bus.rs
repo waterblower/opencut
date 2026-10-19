@@ -4,7 +4,7 @@ use crate::editor::Editor;
 use crate::explorer_drag::AssetBeingDragged;
 use crate::explorer_file_entry::select_preview_file;
 use crate::export_window::{ExportState, ExportWindow};
-use crate::generic_containers::{HorizontalSplitState, VerticalSplitState};
+use crate::ui_components::{HorizontalSplitState, VerticalSplitState};
 use crate::global_settings::GlobalEditorSettings;
 use crate::layout::{RULER_HEIGHT, TIMELINE_PADDING, TRACK_HEIGHT, track_index_at_y};
 use crate::model::MediaKind;

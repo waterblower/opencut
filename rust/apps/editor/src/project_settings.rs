@@ -1,4 +1,4 @@
-use crate::generic_containers::{HorizontalSplitState, VerticalSplitState};
+use crate::ui_components::{HorizontalSplitState, VerticalSplitState};
 use anyhow::{Context as _, Result, bail};
 use serde::{Deserialize, Serialize};
 use std::fs;

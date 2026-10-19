@@ -1,6 +1,6 @@
 use crate::editor::Editor;
 use crate::event_bus::{AppEvent, EventBus};
-use crate::generic_containers::TextInput;
+use crate::ui_components::TextInput;
 use crate::theme::{ACCENT, BACKGROUND, ERROR, MUTED, TEXT};
 use anyhow::{Result, ensure};
 use engine::export::ExportControl;

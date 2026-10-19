@@ -4,7 +4,7 @@ use crate::event_bus::{AppEvent, EventBus};
 use crate::explorer::{ExplorerState, load_explorer_expansion};
 use crate::explorer_drag::AssetBeingDragged;
 use crate::explorer_file_entry::visible_tree;
-use crate::generic_containers::{HorizontalSplitState, TextInput, VerticalSplitState};
+use crate::ui_components::{HorizontalSplitState, TextInput, VerticalSplitState};
 use crate::preview::{PreviewState, PreviewTarget};
 use crate::project_settings::load_project_local_settings;
 use crate::properties::{PropertiesPanel, PropertiesPanelState, current_properties_panel};

@@ -1,7 +1,7 @@
 use crate::actions::EDITOR_KEY_CONTEXT;
 use crate::editor::Editor;
 use crate::event_bus::{AppEvent, EventBus};
-use crate::generic_containers::{
+use crate::ui_components::{
     HorizontalSplit, HorizontalSplitConstraints, VerticalSplit, VerticalSplitConstraints,
 };
 use crate::layout::{

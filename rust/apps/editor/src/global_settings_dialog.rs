@@ -1,5 +1,5 @@
 use crate::editor::Editor;
-use crate::generic_containers::TextInput;
+use crate::ui_components::TextInput;
 use crate::global_settings::GlobalEditorSettings;
 use crate::theme::{BORDER, MUTED, PANEL, SURFACE, SURFACE_HOVER};
 use gpui::prelude::*;
