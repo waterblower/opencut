@@ -104,13 +104,13 @@ pub(crate) fn button_cyberpunk_secondary(
 }
 
 const FONT_FAMILY: &str = "Menlo";
-const CUT: f32 = 10.0;                          // 切角的边长
-const PRIMARY_RIGHT_PADDING: f32 = 44.0;        // 给右侧三条斜纹留出的空间
-const PRESS_OFFSET: f32 = 2.0;                  // 按下时整个按钮向右下移动
-const MAGENTA_OFFSET: f32 = 3.0;                // 次按钮按下时洋红色底影的偏移
+const CUT: f32 = 10.0; // 切角的边长
+const PRIMARY_RIGHT_PADDING: f32 = 44.0; // 给右侧三条斜纹留出的空间
+const PRESS_OFFSET: f32 = 2.0; // 按下时整个按钮向右下移动
+const MAGENTA_OFFSET: f32 = 3.0; // 次按钮按下时洋红色底影的偏移
 const SCANLINE_SPACING: f32 = 3.0;
 const GLOW_LAYERS: usize = 6;
-const GLOW_STEP: f32 = 1.5;                     // 每层光晕描边加宽的像素
+const GLOW_STEP: f32 = 1.5; // 每层光晕描边加宽的像素
 
 const YELLOW: u32 = 0xfcee0a;
 const CYAN: u32 = 0x00f0ff;
@@ -128,7 +128,7 @@ const WHITE: u32 = 0xffffff;
 #[derive(Clone, Copy, Default)]
 struct PointerState {
     hovered: bool,
-    pressed: bool,                              // 左键在按钮上按下且尚未松开
+    pressed: bool, // 左键在按钮上按下且尚未松开
 }
 
 #[derive(Clone, Copy, PartialEq)]
