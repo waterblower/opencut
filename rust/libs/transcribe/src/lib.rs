@@ -13,9 +13,11 @@ pub mod audio;
 pub mod subtitles;
 pub use subtitles::{SRT, Subtitle};
 
+/// MiniMax's price list for the China platform, the source of `estimated_price_cny`.
+pub const PRICING_URL: &str = "https://platform.minimax.cn/docs/guides/pricing";
+
 const MAX_TRANSCRIPTION_DURATION: Duration = Duration::from_secs(500);
-/// asr-1.0 on the China platform (api.minimaxi.com), in CNY per hour of audio.
-/// Source: https://platform.minimax.cn/docs/guides/pricing
+/// asr-1.0 on the China platform (api.minimaxi.com), in CNY per hour of audio, from `PRICING_URL`.
 const PRICE_CNY_PER_HOUR: f64 = 2.5;
 
 /// Detects Latin, Greek, or Cyrillic writing, not the actual language.
