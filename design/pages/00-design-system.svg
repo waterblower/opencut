@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="900" height="918" viewBox="0 0 900 918">
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="900" height="1342" viewBox="0 0 900 1342">
 <style>.s{font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","Helvetica Neue",Arial,sans-serif}.m{font-family:"SF Mono",Menlo,Monaco,Consolas,monospace}</style>
 <defs>
 <!-- D · Cyberpunk -->
@@ -12,7 +12,7 @@
 <filter id="dGlowC" x="-30%" y="-80%" width="160%" height="260%"><feDropShadow dx="0" dy="0" stdDeviation="5" flood-color="#00f0ff" flood-opacity="0.35"/></filter>
 <filter id="dGlowCHover" x="-30%" y="-80%" width="160%" height="260%"><feDropShadow dx="0" dy="0" stdDeviation="10" flood-color="#00f0ff" flood-opacity="0.7"/></filter>
 </defs>
-<rect x="0" y="0" width="900" height="918" fill="#1e1e22"/>
+<rect x="0" y="0" width="900" height="1342" fill="#1e1e22"/>
 <g transform="translate(0 -540)">
 
 <!-- ============ C · Line ============ -->
@@ -109,5 +109,43 @@
 <path d="M767 973l5 5 5 -5" fill="none" stroke="#46464e" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
 </g>
 <text class="s" x="40" y="878" font-size="12" fill="#8a8a93">The entire field is clickable · no size change on hover · disabled fields do not respond.</text>
+</g>
+<g id="text-input-default"><title>Text input: primary and secondary states</title>
+<text class="s" x="40" y="966" font-size="22" fill="#f2f2f4">Text Input</text>
+<text class="s" x="40" y="994" font-size="12" fill="#8a8a93">Primary uses a bordered field. Secondary uses an underline for a quieter appearance.</text>
+<rect x="40" y="1018" width="820" height="222" rx="10" fill="#0b0b0d"/>
+<text class="s" x="242" y="1048" text-anchor="middle" font-size="12" fill="#8a8a93">Placeholder</text>
+<text class="s" x="378" y="1048" text-anchor="middle" font-size="12" fill="#8a8a93">Default</text>
+<text class="s" x="514" y="1048" text-anchor="middle" font-size="12" fill="#8a8a93">Focused</text>
+<text class="s" x="650" y="1048" text-anchor="middle" font-size="12" fill="#8a8a93">Selected</text>
+<text class="s" x="786" y="1048" text-anchor="middle" font-size="12" fill="#8a8a93">Disabled</text>
+<text class="s" x="60" y="1095" font-size="14" fill="#c9c9cf">Primary</text>
+<rect x="180" y="1070" width="124" height="40" rx="6" fill="#17171a" stroke="#2b2b31"/>
+<text class="m" x="192" y="1095" font-size="13" fill="#777780">Enter…</text>
+<rect x="316" y="1070" width="124" height="40" rx="6" fill="#17171a" stroke="#2b2b31"/>
+<text class="m" x="328" y="1095" font-size="13" fill="#f2f2f4">Sample</text>
+<rect x="452" y="1070" width="124" height="40" rx="6" fill="#17171a" stroke="#f0b75e"/>
+<text class="m" x="464" y="1095" font-size="13" fill="#f2f2f4">Sample</text>
+<rect x="511" y="1080" width="1" height="20" fill="#d8d8dc"/>
+<rect x="588" y="1070" width="124" height="40" rx="6" fill="#17171a" stroke="#2b2b31"/>
+<rect x="600" y="1080" width="47" height="20" rx="2" fill="#52779a" fill-opacity="0.4"/>
+<text class="m" x="600" y="1095" font-size="13" fill="#f2f2f4">Sample</text>
+<rect x="724" y="1070" width="124" height="40" rx="6" fill="#131316" stroke="#222226"/>
+<text class="m" x="736" y="1095" font-size="13" fill="#55555e">Sample</text>
+<text class="s" x="60" y="1187" font-size="14" fill="#c9c9cf">Secondary</text>
+<rect x="180" y="1201" width="124" height="1" fill="#2b2b31"/>
+<text class="m" x="192" y="1187" font-size="13" fill="#777780">Enter…</text>
+<rect x="316" y="1201" width="124" height="1" fill="#2b2b31"/>
+<text class="m" x="328" y="1187" font-size="13" fill="#f2f2f4">Sample</text>
+<rect x="452" y="1201" width="124" height="1" fill="#f0b75e"/>
+<text class="m" x="464" y="1187" font-size="13" fill="#f2f2f4">Sample</text>
+<rect x="511" y="1172" width="1" height="20" fill="#d8d8dc"/>
+<rect x="588" y="1201" width="124" height="1" fill="#2b2b31"/>
+<rect x="600" y="1172" width="47" height="20" rx="2" fill="#52779a" fill-opacity="0.4"/>
+<text class="m" x="600" y="1187" font-size="13" fill="#f2f2f4">Sample</text>
+<rect x="724" y="1201" width="124" height="1" fill="#222226"/>
+<text class="m" x="736" y="1187" font-size="13" fill="#55555e">Sample</text>
+<text class="s" x="40" y="1278" font-size="12" fill="#8a8a93">40 px height · 12 px horizontal padding · 13 px monospace text · gold focus accent · blue selection</text>
+<text class="s" x="40" y="1302" font-size="12" fill="#8a8a93">Disabled inputs have no editing, focus, caret or hover response.</text>
 </g>
 </svg>
