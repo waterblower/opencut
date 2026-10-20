@@ -225,6 +225,13 @@ user actions; migrate the existing code incrementally.
 - When a function call returns an error, propagate it through intermediate
   functions instead of logging it there. Log the error only at the highest-level
   application, event, or task boundary.
+- Never silently ignore abnormal situations. If an operation requires an object
+  to exist or have a particular type or state, return an explicit error when that
+  requirement is not met. Use explicit `if` or `let ... else` checks with early
+  error returns; do not hide failures behind `if let`, `continue`, fallback values,
+  or `Ok(())`. For example, editing a clip must fail if the clip is missing or is
+  the wrong kind. Optional absence and no-ops are valid only when they are part of
+  the operation's intended behavior, not a way to suppress an unexpected failure.
 - Business logic must return errors without deciding how they are reported to
   users or rendered in the UI. Keep user-facing error messages, error status
   updates, and UI notifications in the application or event handling layer.
