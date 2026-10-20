@@ -429,12 +429,13 @@ async fn handle_app_event(
                 let Some(timeline) = editor.timeline.as_mut() else {
                     return Ok(());
                 };
+                let track_lock_changed = matches!(edit_action, EditAction::ToggleTrackLock { .. });
                 let should_save = edit_timeline(timeline, edit_action)?;
                 if should_save {
                     timeline.save()?;
                     // 预览播放器持有编辑前的快照；编辑提交后按新状态重建。
                     match editor.preview.target {
-                        PreviewTarget::Timeline { .. } => {
+                        PreviewTarget::Timeline { .. } if !track_lock_changed => {
                             editor.preview.target =
                                 timeline_preview_target(timeline, &editor.project_root, cx)?;
                         }

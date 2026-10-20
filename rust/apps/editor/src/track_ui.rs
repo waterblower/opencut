@@ -1,5 +1,7 @@
 use crate::asset::IconName;
+use crate::edit_action::EditAction;
 use crate::editor::Editor;
+use crate::event_bus::AppEvent;
 use crate::explorer_drag::AssetBeingDragged;
 use crate::layout::{TIMELINE_PADDING, TRACK_HEIGHT};
 use crate::model::MediaKind;
@@ -154,10 +156,10 @@ impl Editor {
                         .child(
                             track_toggle_view(("track-lock", index), IconName::Lock, track.locked)
                                 .on_click(cx.listener(move |editor, _, _, cx| {
-                                    if let Err(error) = editor.toggle_track_lock(track_id) {
-                                        log::error!("{error:?}");
-                                    }
-                                    cx.notify();
+                                    editor.emit_event(
+                                        cx,
+                                        AppEvent::Edit(EditAction::ToggleTrackLock { track_id }),
+                                    );
                                 })),
                         )
                         .child(track_toggle_divider_view(!track.locked && !hidden))

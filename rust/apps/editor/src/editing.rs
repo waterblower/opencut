@@ -458,14 +458,6 @@ impl Editor {
         timeline.save()
     }
 
-    pub(super) fn toggle_track_lock(&mut self, track_id: Ulid) -> Result<()> {
-        let Some(timeline) = self.timeline.as_mut() else {
-            return Ok(());
-        };
-        edit_timeline(timeline, EditAction::ToggleTrackLock { track_id })?;
-        timeline.save()
-    }
-
     pub(super) fn toggle_track_visibility(&mut self, track_id: Ulid) -> Result<()> {
         let Some(timeline) = self.timeline.as_mut() else {
             return Ok(());

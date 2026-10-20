@@ -1,3 +1,4 @@
+use crate::asset::IconName;
 use crate::editor::Editor;
 use crate::explorer_file_entry::{is_audio_path, is_image_path, is_srt_path, is_video_path};
 use crate::property_panel_audio_clip::{AudioClipPanel, audio_clip_panel, audio_clip_view};
@@ -17,8 +18,8 @@ use crate::timeline_document;
 use crate::track::TrackKind;
 use gpui::prelude::FluentBuilder;
 use gpui::{
-    FontWeight, InteractiveElement, IntoElement, ParentElement, StatefulInteractiveElement, Styled,
-    div, px, relative, rgb,
+    Bounds, ContentMask, FontWeight, InteractiveElement, IntoElement, ParentElement, PathBuilder,
+    StatefulInteractiveElement, Styled, canvas, div, point, px, relative, rgb, size, svg,
 };
 use std::path::Path;
 use ulid::Ulid;
@@ -167,26 +168,124 @@ pub(crate) fn property_panel_header_view(
         )
 }
 
-pub(crate) fn clip_track_subtitle_view(kind: TrackKind, track_name: &str) -> gpui::Div {
-    let (label, color) = match kind {
-        TrackKind::Text => ("Text clip · Track:", 0xb69bdc),
-        TrackKind::Video => ("Video clip · Track:", 0x91b8df),
-        TrackKind::Audio => ("Audio clip · Track:", 0x69c5cf),
+pub(crate) fn clip_property_panel_header_view(
+    kind: TrackKind,
+    title: String,
+    track_name: &str,
+    locked: bool,
+) -> gpui::Div {
+    let (label, background, border) = match kind {
+        TrackKind::Text => ("T", 0x7251a3, 0x8261b3),
+        TrackKind::Video => ("V", 0x294d75, 0x395d85),
+        TrackKind::Audio => ("A", 0x24656b, 0x34757b),
     };
-    div()
-        .min_w_0()
+    let badge = div()
+        .size(px(32.0))
+        .flex_shrink_0()
+        .rounded(px(8.0))
+        .border_1()
+        .border_color(rgb(if locked { 0x62626e } else { border }))
+        .bg(rgb(if locked { 0x33333b } else { background }))
         .flex()
-        .gap(px(3.0))
-        .text_size(px(11.0))
-        .line_height(px(16.0))
-        .child(div().flex_shrink_0().text_color(rgb(0x8a8a93)).child(label))
-        .child(
-            div()
-                .min_w_0()
-                .text_ellipsis()
-                .text_color(rgb(color))
-                .child(track_name.to_owned()),
+        .items_center()
+        .justify_center()
+        .text_size(px(12.0))
+        .font_weight(FontWeight::BOLD)
+        .text_color(rgb(0xffffff));
+    let badge_content = if locked {
+        badge.child(
+            svg()
+                .path(IconName::Lock.path())
+                .size(px(20.0))
+                .text_color(rgb(0xc9c9cf)),
         )
+    } else {
+        badge.child(label)
+    };
+    property_panel_header_view(
+        badge_content,
+        title,
+        clip_track_subtitle_view(kind, track_name, locked),
+    )
+    .when(locked, |header| {
+        header.bg(rgb(0x242429)).border_color(rgb(0x62626e))
+    })
+}
+
+pub(crate) fn clip_property_panel_frame_view(
+    content: gpui::AnyElement,
+    locked: bool,
+) -> gpui::AnyElement {
+    div()
+        .size_full()
+        .min_h_0()
+        .relative()
+        .overflow_hidden()
+        .child(content)
+        .when(locked, |panel| {
+            panel.child(
+                canvas(
+                    |_, _, _| (),
+                    |bounds, (), window, _| {
+                        // 装饰层不注册命中区域，保持内容滚动与分隔线拖动正常。
+                        let width = f32::from(bounds.size.width);
+                        let height = f32::from(bounds.size.height);
+                        for (strip_width, strip_height) in [(width, 5.0), (5.0, height)] {
+                            let strip_bounds =
+                                Bounds::new(bounds.origin, size(px(strip_width), px(strip_height)));
+                            window.with_content_mask(
+                                Some(ContentMask {
+                                    bounds: strip_bounds,
+                                }),
+                                |window| {
+                                    let mut stripes = PathBuilder::stroke(px(2.0));
+                                    let mut offset = -8.0;
+                                    while offset < strip_width + strip_height {
+                                        stripes.move_to(bounds.origin + point(px(offset), px(0.0)));
+                                        stripes.line_to(
+                                            bounds.origin
+                                                + point(
+                                                    px(offset - strip_height),
+                                                    px(strip_height),
+                                                ),
+                                        );
+                                        offset += 8.0;
+                                    }
+                                    if let Ok(path) = stripes.build() {
+                                        window.paint_path(path, rgb(0x676773));
+                                    }
+                                },
+                            );
+                        }
+                        let mut border = PathBuilder::stroke(px(1.0));
+                        for (index, (x, y)) in [
+                            (0.5, 0.5),
+                            (width - 0.5, 0.5),
+                            (width - 0.5, height - 0.5),
+                            (0.5, height - 0.5),
+                            (0.5, 0.5),
+                        ]
+                        .into_iter()
+                        .enumerate()
+                        {
+                            let position = bounds.origin + point(px(x), px(y));
+                            if index == 0 {
+                                border.move_to(position);
+                            } else {
+                                border.line_to(position);
+                            }
+                        }
+                        if let Ok(path) = border.build() {
+                            window.paint_path(path, rgb(0x62626e));
+                        }
+                    },
+                )
+                .absolute()
+                .inset_0()
+                .size_full(),
+            )
+        })
+        .into_any_element()
 }
 
 pub(crate) fn readonly_property_panel_view(
@@ -243,6 +342,7 @@ pub(super) fn timing_card_view(
     label: &'static str,
     frame_index: TimelineFrameIndex,
     frame_rate: FrameRate,
+    locked: bool,
 ) -> gpui::Div {
     let time = format_property_panel_time(frame_rate.seconds(frame_index));
     div()
@@ -251,7 +351,7 @@ pub(super) fn timing_card_view(
         .px(px(10.0))
         .py(px(8.0))
         .rounded(px(6.0))
-        .bg(rgb(0x131316))
+        .bg(rgb(if locked { 0x19191d } else { 0x131316 }))
         .child(
             div()
                 .text_size(px(11.0))
@@ -287,7 +387,7 @@ pub(super) fn timing_card_view(
         )
 }
 
-pub(super) fn slider_view(fraction: f32, reference_fraction: f32) -> gpui::Div {
+pub(super) fn slider_view(fraction: f32, reference_fraction: f32, locked: bool) -> gpui::Div {
     div()
         .relative()
         .flex_1()
@@ -300,7 +400,7 @@ pub(super) fn slider_view(fraction: f32, reference_fraction: f32) -> gpui::Div {
                 .h_full()
                 .w(relative(fraction))
                 .rounded_full()
-                .bg(rgb(ACCENT)),
+                .bg(rgb(if locked { 0x55555e } else { ACCENT })),
         )
         .child(
             div()
@@ -315,13 +415,12 @@ pub(super) fn slider_view(fraction: f32, reference_fraction: f32) -> gpui::Div {
             div()
                 .absolute()
                 .left(relative(fraction))
-                .ml(px(-7.0))
-                .top(px(-5.0))
-                .size(px(14.0))
+                .ml(px(if locked { -5.0 } else { -7.0 }))
+                .top(px(if locked { -3.0 } else { -5.0 }))
+                .size(px(if locked { 10.0 } else { 14.0 }))
                 .rounded_full()
-                .bg(rgb(TEXT))
-                .border_2()
-                .border_color(rgb(PANEL)),
+                .bg(rgb(if locked { 0x55555e } else { TEXT }))
+                .when(!locked, |knob| knob.border_2().border_color(rgb(PANEL))),
         )
 }
 
@@ -329,6 +428,7 @@ pub(super) fn value_field_view(
     label: &'static str,
     value: String,
     unit: &'static str,
+    locked: bool,
 ) -> gpui::Div {
     div()
         .h(px(30.0))
@@ -338,9 +438,8 @@ pub(super) fn value_field_view(
         .gap(px(6.0))
         .px(px(10.0))
         .rounded(px(6.0))
-        .border_1()
-        .border_color(rgb(BORDER))
-        .bg(rgb(SURFACE))
+        .when(!locked, |field| field.border_1().border_color(rgb(BORDER)))
+        .bg(rgb(if locked { 0x19191d } else { SURFACE }))
         .text_size(px(12.0))
         .when(!label.is_empty(), |field| {
             field.child(
@@ -442,4 +541,34 @@ pub(super) fn file_property_row_view(label: &'static str, value: String) -> gpui
                 .text_ellipsis()
                 .child(value),
         )
+}
+
+fn clip_track_subtitle_view(kind: TrackKind, track_name: &str, locked: bool) -> gpui::Div {
+    let (label, color) = match kind {
+        TrackKind::Text => ("Text clip · Track:", 0xb69bdc),
+        TrackKind::Video => ("Video clip · Track:", 0x91b8df),
+        TrackKind::Audio => ("Audio clip · Track:", 0x69c5cf),
+    };
+    div()
+        .min_w_0()
+        .flex()
+        .gap(px(3.0))
+        .text_size(px(11.0))
+        .line_height(px(16.0))
+        .child(div().flex_shrink_0().text_color(rgb(0x8a8a93)).child(label))
+        .child(
+            div()
+                .min_w_0()
+                .text_ellipsis()
+                .text_color(rgb(color))
+                .child(track_name.to_owned()),
+        )
+        .when(locked, |subtitle| {
+            subtitle.child(
+                div()
+                    .flex_shrink_0()
+                    .text_color(rgb(0xc9c9cf))
+                    .child("· Locked"),
+            )
+        })
 }

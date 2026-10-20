@@ -1,8 +1,8 @@
 use crate::edit_action::EditAction;
 use crate::event_bus::{AppEvent, EventBus};
 use crate::property_panel::{
-    clip_track_subtitle_view, format_property_panel_time, property_panel_divider_view,
-    property_panel_header_view, property_panel_heading_view, readonly_property_panel_view,
+    clip_property_panel_frame_view, clip_property_panel_header_view, format_property_panel_time,
+    property_panel_divider_view, property_panel_heading_view, readonly_property_panel_view,
 };
 use crate::theme::{BORDER, MUTED, SURFACE};
 use crate::timeline::FrameRate;
@@ -56,25 +56,7 @@ pub(crate) fn text_clip_view(panel: &TextClipPanel) -> gpui::AnyElement {
         Some(line) => line.to_owned(),
         None => "Text clip".to_owned(),
     };
-    let badge = div()
-        .size(px(32.0))
-        .flex_shrink_0()
-        .rounded(px(8.0))
-        .border_1()
-        .border_color(rgb(0x8261b3))
-        .bg(rgb(0x7251a3))
-        .flex()
-        .items_center()
-        .justify_center()
-        .text_size(px(12.0))
-        .font_weight(FontWeight::BOLD)
-        .text_color(rgb(0xffffff))
-        .child("T");
-    let header = property_panel_header_view(
-        badge,
-        title,
-        clip_track_subtitle_view(TrackKind::Text, track_name),
-    );
+    let header = clip_property_panel_header_view(TrackKind::Text, title, track_name, panel.locked);
     let alpha = clip.properties.color >> 24;
     let color_rgb = clip.properties.color & 0x00ff_ffff;
     let color_text = if alpha == 0xff {
@@ -88,9 +70,7 @@ pub(crate) fn text_clip_view(panel: &TextClipPanel) -> gpui::AnyElement {
             .px(px(10.0))
             .py(px(8.0))
             .rounded(px(6.0))
-            .border_1()
-            .border_color(rgb(BORDER))
-            .bg(rgb(SURFACE))
+            .bg(rgb(if panel.locked { 0x19191d } else { 0x131316 }))
             .text_size(px(13.0))
             .line_height(px(19.0))
             .children(
@@ -142,7 +122,7 @@ pub(crate) fn text_clip_view(panel: &TextClipPanel) -> gpui::AnyElement {
                                 .px(px(10.0))
                                 .py(px(6.0))
                                 .rounded(px(6.0))
-                                .bg(rgb(0x131316))
+                                .bg(rgb(if panel.locked { 0x19191d } else { 0x131316 }))
                                 .flex()
                                 .flex_wrap()
                                 .items_baseline()
@@ -184,6 +164,7 @@ pub(crate) fn text_clip_view(panel: &TextClipPanel) -> gpui::AnyElement {
                             "",
                             format!("{:.2}", clip.duration.as_secs_f64()),
                             "s",
+                            panel.locked,
                         ))),
                 ),
         )
@@ -200,9 +181,10 @@ pub(crate) fn text_clip_view(panel: &TextClipPanel) -> gpui::AnyElement {
                     .gap(px(8.0))
                     .px(px(10.0))
                     .rounded(px(6.0))
-                    .border_1()
-                    .border_color(rgb(BORDER))
-                    .bg(rgb(SURFACE))
+                    .when(!panel.locked, |field| {
+                        field.border_1().border_color(rgb(BORDER))
+                    })
+                    .bg(rgb(if panel.locked { 0x19191d } else { SURFACE }))
                     .child(
                         div()
                             .flex_1()
@@ -211,22 +193,24 @@ pub(crate) fn text_clip_view(panel: &TextClipPanel) -> gpui::AnyElement {
                             .text_ellipsis()
                             .child(clip.properties.font.clone()),
                     )
-                    .child(
-                        canvas(
-                            |_, _, _| (),
-                            |bounds, (), window, _| {
-                                let mut chevron = PathBuilder::stroke(px(1.5));
-                                chevron.move_to(bounds.origin + point(px(2.0), px(4.0)));
-                                chevron.line_to(bounds.origin + point(px(6.0), px(8.0)));
-                                chevron.line_to(bounds.origin + point(px(10.0), px(4.0)));
-                                if let Ok(path) = chevron.build() {
-                                    window.paint_path(path, rgb(0xb4b4bc));
-                                }
-                            },
+                    .when(!panel.locked, |field| {
+                        field.child(
+                            canvas(
+                                |_, _, _| (),
+                                |bounds, (), window, _| {
+                                    let mut chevron = PathBuilder::stroke(px(1.5));
+                                    chevron.move_to(bounds.origin + point(px(2.0), px(4.0)));
+                                    chevron.line_to(bounds.origin + point(px(6.0), px(8.0)));
+                                    chevron.line_to(bounds.origin + point(px(10.0), px(4.0)));
+                                    if let Ok(path) = chevron.build() {
+                                        window.paint_path(path, rgb(0xb4b4bc));
+                                    }
+                                },
+                            )
+                            .size(px(12.0))
+                            .flex_shrink_0(),
                         )
-                        .size(px(12.0))
-                        .flex_shrink_0(),
-                    ),
+                    }),
             )),
         )
         .child(
@@ -237,7 +221,13 @@ pub(crate) fn text_clip_view(panel: &TextClipPanel) -> gpui::AnyElement {
                 .gap(px(8.0))
                 .child(style_field_view(
                     "Font size",
-                    text_value_view("", clip.properties.font_size.to_string(), "px").h(px(34.0)),
+                    text_value_view(
+                        "",
+                        clip.properties.font_size.to_string(),
+                        "px",
+                        panel.locked,
+                    )
+                    .h(px(34.0)),
                 ))
                 .child(style_field_view(
                     "Font color",
@@ -249,9 +239,10 @@ pub(crate) fn text_clip_view(panel: &TextClipPanel) -> gpui::AnyElement {
                         .gap(px(6.0))
                         .px(px(8.0))
                         .rounded(px(6.0))
-                        .border_1()
-                        .border_color(rgb(BORDER))
-                        .bg(rgb(SURFACE))
+                        .when(!panel.locked, |field| {
+                            field.border_1().border_color(rgb(BORDER))
+                        })
+                        .bg(rgb(if panel.locked { 0x19191d } else { SURFACE }))
                         .child(
                             div()
                                 .size(px(16.0))
@@ -283,14 +274,19 @@ pub(crate) fn text_clip_view(panel: &TextClipPanel) -> gpui::AnyElement {
                     "X",
                     format!("{:.2}", clip.properties.position.x),
                     "",
+                    panel.locked,
                 ))
                 .child(text_value_view(
                     "Y",
                     format!("{:.2}", clip.properties.position.y),
                     "",
+                    panel.locked,
                 )),
         );
-    readonly_property_panel_view("text-clip-property-panel", header, content)
+    clip_property_panel_frame_view(
+        readonly_property_panel_view("text-clip-property-panel", header, content),
+        panel.locked,
+    )
 }
 
 fn style_field_view(label: &'static str, value: gpui::Div) -> gpui::Div {
@@ -306,7 +302,12 @@ fn style_field_view(label: &'static str, value: gpui::Div) -> gpui::Div {
         .child(div().mt(px(8.0)).child(value))
 }
 
-fn text_value_view(label: &'static str, value: String, unit: &'static str) -> gpui::Div {
+fn text_value_view(
+    label: &'static str,
+    value: String,
+    unit: &'static str,
+    locked: bool,
+) -> gpui::Div {
     div()
         .h(px(30.0))
         .min_w_0()
@@ -315,9 +316,8 @@ fn text_value_view(label: &'static str, value: String, unit: &'static str) -> gp
         .gap(px(6.0))
         .px(px(10.0))
         .rounded(px(6.0))
-        .border_1()
-        .border_color(rgb(BORDER))
-        .bg(rgb(SURFACE))
+        .when(!locked, |field| field.border_1().border_color(rgb(BORDER)))
+        .bg(rgb(if locked { 0x19191d } else { SURFACE }))
         .text_size(px(12.0))
         .when(!label.is_empty(), |field| {
             field.child(

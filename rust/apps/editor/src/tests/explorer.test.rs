@@ -41,10 +41,7 @@ fn explorer_drop_rejects_incompatible_tracks() {
         .unwrap_err()
         .downcast::<ClipPlacementRejection>()
         .unwrap();
-    assert_eq!(
-        audio_rejection.message(),
-        "Incompatible track"
-    );
+    assert_eq!(audio_rejection.message(), "Incompatible track");
 
     let video_preview = PreviewDropAsset {
         track_id: ulid(2),
@@ -59,10 +56,7 @@ fn explorer_drop_rejects_incompatible_tracks() {
         .unwrap_err()
         .downcast::<ClipPlacementRejection>()
         .unwrap();
-    assert_eq!(
-        video_rejection.message(),
-        "Incompatible track"
-    );
+    assert_eq!(video_rejection.message(), "Incompatible track");
 
     // The same preview becomes valid as soon as its destination is compatible.
     audio_preview.track_id = ulid(2);

@@ -1,5 +1,5 @@
 use crate::property_panel::{
-    clip_track_subtitle_view, property_panel_divider_view, property_panel_header_view,
+    clip_property_panel_frame_view, clip_property_panel_header_view, property_panel_divider_view,
     property_panel_heading_view, readonly_property_panel_view, slider_view, timing_card_view,
     value_field_view,
 };
@@ -9,9 +9,7 @@ use crate::timeline_clip::AudioClip;
 use crate::timeline_document::resolve_asset_path;
 use crate::track::TrackKind;
 use crate::waveform::WaveformData;
-use gpui::{
-    Bounds, FontWeight, ParentElement, Styled, canvas, div, fill, point, px, rgb, rgba, size,
-};
+use gpui::{Bounds, ParentElement, Styled, canvas, div, fill, point, px, rgb, rgba, size};
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -21,6 +19,7 @@ pub(crate) struct AudioClipPanel {
     asset_name: String,
     track_name: String,
     frame_rate: FrameRate,
+    locked: bool,                        // 所在轨道的锁定状态，构造面板时读取。
     waveform: Option<Arc<WaveformData>>, // 构造面板时缓存里还没有波形则为 None
 }
 
@@ -58,6 +57,7 @@ pub(super) fn audio_clip_panel(
         asset_name,
         track_name,
         frame_rate: timeline.editing_state.settings.frame_rate,
+        locked: timeline.editing_state.clip_locked(clip.id()),
         waveform,
     }
 }
@@ -68,24 +68,11 @@ pub(super) fn audio_clip_view(panel: &AudioClipPanel) -> gpui::AnyElement {
     let duration = clip.source_out - clip.source_in;
     let gain_db = clip.audio_properties.gain_db;
     let muted = clip.audio_properties.muted;
-    let badge = div()
-        .size(px(32.0))
-        .flex_shrink_0()
-        .rounded(px(8.0))
-        .border_1()
-        .border_color(rgb(0x34757b))
-        .bg(rgb(0x24656b))
-        .flex()
-        .items_center()
-        .justify_center()
-        .text_size(px(12.0))
-        .font_weight(FontWeight::BOLD)
-        .text_color(rgb(0xffffff))
-        .child("A");
-    let header = property_panel_header_view(
-        badge,
+    let header = clip_property_panel_header_view(
+        TrackKind::Audio,
         panel.asset_name.clone(),
-        clip_track_subtitle_view(TrackKind::Audio, &panel.track_name),
+        &panel.track_name,
+        panel.locked,
     );
     let content = div()
         .child(property_panel_heading_view("TIMING"))
@@ -95,10 +82,30 @@ pub(super) fn audio_clip_view(panel: &AudioClipPanel) -> gpui::AnyElement {
                 .grid()
                 .grid_cols(2)
                 .gap(px(8.0))
-                .child(timing_card_view("Start", clip.timeline_start, frame_rate))
-                .child(timing_card_view("Duration", duration, frame_rate))
-                .child(timing_card_view("Source in", clip.source_in, frame_rate))
-                .child(timing_card_view("Source out", clip.source_out, frame_rate)),
+                .child(timing_card_view(
+                    "Start",
+                    clip.timeline_start,
+                    frame_rate,
+                    panel.locked,
+                ))
+                .child(timing_card_view(
+                    "Duration",
+                    duration,
+                    frame_rate,
+                    panel.locked,
+                ))
+                .child(timing_card_view(
+                    "Source in",
+                    clip.source_in,
+                    frame_rate,
+                    panel.locked,
+                ))
+                .child(timing_card_view(
+                    "Source out",
+                    clip.source_out,
+                    frame_rate,
+                    panel.locked,
+                )),
         )
         .child(property_panel_divider_view())
         .child(property_panel_heading_view("AUDIO"))
@@ -106,6 +113,7 @@ pub(super) fn audio_clip_view(panel: &AudioClipPanel) -> gpui::AnyElement {
             panel.waveform.clone(),
             frame_rate.seconds(clip.source_in),
             frame_rate.seconds(clip.source_out),
+            panel.locked,
         )))
         .child(
             div()
@@ -123,11 +131,13 @@ pub(super) fn audio_clip_view(panel: &AudioClipPanel) -> gpui::AnyElement {
                 .child(slider_view(
                     ((gain_db + 60.0) / 80.0).clamp(0.0, 1.0) as f32,
                     0.75, // 0 dB 在 −60…+20 dB 范围中的位置
+                    panel.locked,
                 ))
                 .child(div().w(px(84.0)).flex_shrink_0().child(value_field_view(
                     "",
                     format!("{gain_db:.2}"),
                     "dB",
+                    panel.locked,
                 ))),
         )
         .child(
@@ -149,6 +159,7 @@ pub(super) fn audio_clip_view(panel: &AudioClipPanel) -> gpui::AnyElement {
                         .h(px(20.0))
                         .rounded_full()
                         .bg(rgb(if muted { ACCENT } else { BORDER }))
+                        .opacity(if panel.locked { 0.5 } else { 1.0 })
                         .child(
                             div()
                                 .absolute()
@@ -160,19 +171,23 @@ pub(super) fn audio_clip_view(panel: &AudioClipPanel) -> gpui::AnyElement {
                         ),
                 ),
         );
-    readonly_property_panel_view("audio-clip-property-panel", header, content)
+    clip_property_panel_frame_view(
+        readonly_property_panel_view("audio-clip-property-panel", header, content),
+        panel.locked,
+    )
 }
 
 fn audio_waveform_view(
     waveform: Option<Arc<WaveformData>>,
     source_start_seconds: f64,
     source_end_seconds: f64,
+    locked: bool,
 ) -> gpui::Div {
     div()
         .h(px(44.0))
         .overflow_hidden()
         .rounded(px(6.0))
-        .bg(rgb(0x131316))
+        .bg(rgb(if locked { 0x19191d } else { 0x131316 }))
         .child(
             canvas(
                 move |bounds, _, _| match &waveform {
