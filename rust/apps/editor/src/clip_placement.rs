@@ -30,12 +30,12 @@ impl ClipPlacementRejection {
             Self::DurationTooShort => "Clip duration is too short",
             Self::MissingClip => "Clip is unavailable",
             Self::MissingTrack => "Destination track is unavailable",
-            Self::LockedTrack => "Destination track is locked",
+            Self::LockedTrack => "Track is locked",
             Self::MissingAsset => "Source media is unavailable",
             Self::IncompatibleAsset => "Source media is incompatible with the clip type",
-            Self::IncompatibleTrack => "Media is incompatible with the destination track",
+            Self::IncompatibleTrack => "Incompatible track",
             Self::ProposedClipsOverlap => "Proposed clips overlap each other",
-            Self::ExistingClipOverlap => "Placement overlaps an existing clip",
+            Self::ExistingClipOverlap => "Clip overlapped",
         }
     }
 }

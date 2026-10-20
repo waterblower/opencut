@@ -303,17 +303,17 @@ impl Editor {
         };
         let tool = timeline.interaction.active_tool;
         // 修饰键点击是切换多选、Blade 是切割，这两种情况按选中状态整体重建面板。
-        let properties_event = match (tool, timeline.editing_state.clip(clip_id)) {
+        let property_panel_event = match (tool, timeline.editing_state.clip(clip_id)) {
             (TimelineTool::Selection, Some(Clip::Text(_))) if !event.modifiers.secondary() => {
                 AppEvent::TextClipSelected { clip_id }
             }
             (TimelineTool::Selection, Some(Clip::Video(_))) if !event.modifiers.secondary() => {
                 AppEvent::VideoClipSelected { clip_id }
             }
-            _ => AppEvent::RefreshPropertiesPanel,
+            _ => AppEvent::RefreshPropertyPanel,
         };
         self.explorer.selected_file = None;
-        self.emit_event(cx, properties_event); // 事件在本回调返回后处理，届时下面的选中已生效。
+        self.emit_event(cx, property_panel_event); // 事件在本回调返回后处理，届时下面的选中已生效。
         match tool {
             TimelineTool::Selection => self.begin_clip_move(clip_id, event, cx)?,
             TimelineTool::Blade => {

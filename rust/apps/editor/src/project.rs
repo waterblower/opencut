@@ -136,8 +136,8 @@ impl Editor {
             new_settings.active_timeline = new_relative_timeline_path.clone();
             save_project_local_settings(&self.project_root, &new_settings)?;
 
-            self.properties.transform_input_clip_id = None;
-            self.properties.text_input_clip_id = None;
+            self.property_panel_state.transform_input_clip_id = None;
+            self.property_panel_state.text_input_clip_id = None;
             self.timeline = Some(new_timeline);
             self.preview.target = new_preview_target;
             self.explorer.search_query = None;

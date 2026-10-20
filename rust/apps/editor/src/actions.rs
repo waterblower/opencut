@@ -9,7 +9,7 @@ use gpui::prelude::*;
 use gpui::{App, KeyBinding, Window, actions};
 
 pub(crate) const EDITOR_KEY_CONTEXT: &str = "Editor";
-const EDITOR_SHORTCUT_CONTEXT: &str = "Editor && !TextInput";
+const EDITOR_SHORTCUT_CONTEXT: &str = "Editor && !TextInput && !TextArea";
 
 actions!(
     opencut_editor,
@@ -39,6 +39,7 @@ actions!(
 
 pub(crate) fn bind_keys(cx: &mut App) {
     ui_components::text_input::bind_keys(cx);
+    ui_components::text_area::bind_keys(cx);
     cx.bind_keys([
         KeyBinding::new("space", TogglePlayback, Some(EDITOR_SHORTCUT_CONTEXT)),
         KeyBinding::new("left", StepBackwardFrame, Some(EDITOR_SHORTCUT_CONTEXT)),
@@ -46,8 +47,8 @@ pub(crate) fn bind_keys(cx: &mut App) {
         KeyBinding::new("backspace", DeleteSelected, Some(EDITOR_SHORTCUT_CONTEXT)),
         KeyBinding::new("delete", DeleteSelected, Some(EDITOR_SHORTCUT_CONTEXT)),
         KeyBinding::new("cmd-b", SplitClip, Some(EDITOR_SHORTCUT_CONTEXT)),
-        KeyBinding::new("cmd-z", Undo, Some(EDITOR_SHORTCUT_CONTEXT)),
-        KeyBinding::new("cmd-shift-z", Redo, Some(EDITOR_SHORTCUT_CONTEXT)),
+        KeyBinding::new("cmd-z", Undo, Some("Editor && !TextInput")),
+        KeyBinding::new("cmd-shift-z", Redo, Some("Editor && !TextInput")),
         KeyBinding::new("cmd-d", DuplicateSelected, Some(EDITOR_SHORTCUT_CONTEXT)),
         KeyBinding::new("cmd-c", CopySelectedClips, Some(EDITOR_SHORTCUT_CONTEXT)),
         KeyBinding::new("cmd-x", CutSelectedClips, Some(EDITOR_SHORTCUT_CONTEXT)),
@@ -140,8 +141,8 @@ impl Editor {
                 close_track_gaps: magnet_enabled,
             }),
         );
-        self.properties.transform_input_clip_id = None;
-        self.properties.text_input_clip_id = None;
+        self.property_panel_state.transform_input_clip_id = None;
+        self.property_panel_state.text_input_clip_id = None;
         cx.notify();
     }
 
@@ -162,14 +163,14 @@ impl Editor {
 
     pub(crate) fn action_undo(&mut self, _: &Undo, _: &mut Window, cx: &mut Context<Self>) {
         self.emit_event(cx, AppEvent::Edit(EditAction::Undo));
-        self.properties.transform_input_clip_id = None;
-        self.properties.text_input_clip_id = None;
+        self.property_panel_state.transform_input_clip_id = None;
+        self.property_panel_state.text_input_clip_id = None;
     }
 
     pub(crate) fn action_redo(&mut self, _: &Redo, _: &mut Window, cx: &mut Context<Self>) {
         self.emit_event(cx, AppEvent::Edit(EditAction::Redo));
-        self.properties.transform_input_clip_id = None;
-        self.properties.text_input_clip_id = None;
+        self.property_panel_state.transform_input_clip_id = None;
+        self.property_panel_state.text_input_clip_id = None;
     }
 
     pub(crate) fn action_duplicate_selected(
@@ -224,8 +225,8 @@ impl Editor {
                 close_track_gaps: false,
             }),
         );
-        self.properties.transform_input_clip_id = None;
-        self.properties.text_input_clip_id = None;
+        self.property_panel_state.transform_input_clip_id = None;
+        self.property_panel_state.text_input_clip_id = None;
         cx.notify();
     }
 
@@ -281,8 +282,8 @@ impl Editor {
             .filter(|clip| timeline.interaction.selected_clip_ids.contains(&clip.id()))
             .min_by_key(|clip| clip.timeline_start())
             .map(|clip| clip.id());
-        self.properties.transform_input_clip_id = None;
-        self.properties.text_input_clip_id = None;
+        self.property_panel_state.transform_input_clip_id = None;
+        self.property_panel_state.text_input_clip_id = None;
         cx.notify();
     }
 

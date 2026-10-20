@@ -217,7 +217,7 @@ fn clipboard_paste_rejects_the_complete_selection_on_collision() {
     let rejection = rejection.downcast::<ClipPlacementRejection>().unwrap();
 
     assert_eq!(rejection, ClipPlacementRejection::ExistingClipOverlap);
-    assert_eq!(rejection.message(), "Placement overlaps an existing clip");
+    assert_eq!(rejection.message(), "Clip overlapped");
 }
 
 #[test]
@@ -536,6 +536,259 @@ fn text_edits_preserve_timing_without_a_renderer() -> Result<()> {
     assert_eq!(restored.properties, clip.properties);
     assert_eq!(restored.timeline_start, clip.timeline_start);
     assert_eq!(restored.duration, clip.duration);
+
+    // Font-size edits reject locked tracks and invalid values without changing the document.
+    assert!(
+        edit_timeline(
+            &mut timeline,
+            EditAction::SetTextFontSize {
+                clip_id: clip.id(),
+                font_size: 80.0,
+            }
+        )
+        .is_err()
+    );
+    edit_timeline(
+        &mut timeline,
+        EditAction::ToggleTrackLock { track_id: ulid(3) },
+    )?;
+    let before_size_edit = serde_json::to_string(&timeline.to_serialize())?;
+    for font_size in [0.0, -1.0, f64::NAN, f64::INFINITY] {
+        assert!(
+            edit_timeline(
+                &mut timeline,
+                EditAction::SetTextFontSize {
+                    clip_id: clip.id(),
+                    font_size,
+                }
+            )
+            .is_err()
+        );
+        assert_eq!(
+            serde_json::to_string(&timeline.to_serialize())?,
+            before_size_edit
+        );
+    }
+    edit_timeline(
+        &mut timeline,
+        EditAction::SetTextFontSize {
+            clip_id: clip.id(),
+            font_size: 72.5,
+        },
+    )?;
+    let resized = timeline
+        .editing_state
+        .clip(clip.id())
+        .unwrap()
+        .text()
+        .unwrap();
+    assert_eq!(resized.properties.font_size, 72.5);
+    assert_eq!(resized.properties.text, clip.properties.text);
+    assert_eq!(resized.properties.font, clip.properties.font);
+    assert_eq!(resized.properties.color, clip.properties.color);
+    assert_eq!(resized.properties.position, clip.properties.position);
+    assert_eq!(resized.timeline_start, clip.timeline_start);
+    assert_eq!(resized.duration, clip.duration);
+    edit_timeline(&mut timeline, EditAction::Undo)?;
+    assert_eq!(
+        timeline
+            .editing_state
+            .clip(clip.id())
+            .unwrap()
+            .text()
+            .unwrap()
+            .properties
+            .font_size,
+        72.0
+    );
+    edit_timeline(&mut timeline, EditAction::Redo)?;
+    let resized_json = serde_json::to_string(&timeline.to_serialize())?;
+    let resized_document =
+        serde_json::from_str::<TimelineSerialization>(&resized_json)?.editing_state;
+    assert_eq!(
+        resized_document
+            .clip(clip.id())
+            .unwrap()
+            .text()
+            .unwrap()
+            .properties
+            .font_size,
+        72.5
+    );
+    let before_font = timeline
+        .editing_state
+        .clip(clip.id())
+        .unwrap()
+        .text()
+        .unwrap()
+        .clone();
+    let before_font_json = serde_json::to_string(&timeline.to_serialize())?;
+    for font in ["", "   "] {
+        assert!(
+            edit_timeline(
+                &mut timeline,
+                EditAction::SetTextFont {
+                    clip_id: clip.id(),
+                    font: font.into()
+                }
+            )
+            .is_err()
+        );
+    }
+    assert!(
+        edit_timeline(
+            &mut timeline,
+            EditAction::SetTextFont {
+                clip_id: ulid(999),
+                font: "Helvetica".into()
+            }
+        )
+        .is_err()
+    );
+    assert_eq!(
+        serde_json::to_string(&timeline.to_serialize())?,
+        before_font_json
+    );
+    edit_timeline(
+        &mut timeline,
+        EditAction::SetTextFont {
+            clip_id: clip.id(),
+            font: "Helvetica".into(),
+        },
+    )?;
+    let changed_font = timeline
+        .editing_state
+        .clip(clip.id())
+        .unwrap()
+        .text()
+        .unwrap();
+    assert_eq!(changed_font.properties.font, "Helvetica");
+    assert_eq!(
+        changed_font.properties.font_size,
+        before_font.properties.font_size
+    );
+    assert_eq!(changed_font.properties.color, before_font.properties.color);
+    assert_eq!(changed_font.properties.text, before_font.properties.text);
+    assert_eq!(changed_font.timeline_start, before_font.timeline_start);
+    assert_eq!(changed_font.duration, before_font.duration);
+    edit_timeline(&mut timeline, EditAction::Undo)?;
+    assert_eq!(
+        timeline
+            .editing_state
+            .clip(clip.id())
+            .unwrap()
+            .text()
+            .unwrap()
+            .properties
+            .font,
+        before_font.properties.font
+    );
+    edit_timeline(&mut timeline, EditAction::Redo)?;
+    let font_json = serde_json::to_string(&timeline.to_serialize())?;
+    let font_document = serde_json::from_str::<TimelineSerialization>(&font_json)?.editing_state;
+    assert_eq!(
+        font_document
+            .clip(clip.id())
+            .unwrap()
+            .text()
+            .unwrap()
+            .properties
+            .font,
+        "Helvetica"
+    );
+    let before_color = timeline
+        .editing_state
+        .clip(clip.id())
+        .unwrap()
+        .text()
+        .unwrap()
+        .clone();
+    edit_timeline(
+        &mut timeline,
+        EditAction::SetTextColor {
+            clip_id: clip.id(),
+            color: 0x80f0b75e,
+        },
+    )?;
+    let recolored = timeline
+        .editing_state
+        .clip(clip.id())
+        .unwrap()
+        .text()
+        .unwrap();
+    assert_eq!(recolored.properties.color, 0x80f0b75e);
+    assert_eq!(recolored.timeline_start, before_color.timeline_start);
+    assert_eq!(recolored.duration, before_color.duration);
+    assert_eq!(
+        recolored.properties.font_size,
+        before_color.properties.font_size
+    );
+    assert_eq!(recolored.properties.text, before_color.properties.text);
+    edit_timeline(&mut timeline, EditAction::Undo)?;
+    assert_eq!(
+        timeline
+            .editing_state
+            .clip(clip.id())
+            .unwrap()
+            .text()
+            .unwrap()
+            .properties
+            .color,
+        before_color.properties.color
+    );
+    edit_timeline(&mut timeline, EditAction::Redo)?;
+    let color_json = serde_json::to_string(&timeline.to_serialize())?;
+    let color_document = serde_json::from_str::<TimelineSerialization>(&color_json)?.editing_state;
+    assert_eq!(
+        color_document
+            .clip(clip.id())
+            .unwrap()
+            .text()
+            .unwrap()
+            .properties
+            .color,
+        0x80f0b75e
+    );
+    assert!(
+        edit_timeline(
+            &mut timeline,
+            EditAction::SetTextColor {
+                clip_id: ulid(999),
+                color: 0xffffffff
+            }
+        )
+        .is_err()
+    );
+    assert_eq!(serde_json::to_string(&timeline.to_serialize())?, color_json);
+    edit_timeline(
+        &mut timeline,
+        EditAction::ToggleTrackLock { track_id: ulid(3) },
+    )?;
+    let locked_json = serde_json::to_string(&timeline.to_serialize())?;
+    assert!(
+        edit_timeline(
+            &mut timeline,
+            EditAction::SetTextFont {
+                clip_id: clip.id(),
+                font: "Arial".into()
+            }
+        )
+        .is_err()
+    );
+    assert!(
+        edit_timeline(
+            &mut timeline,
+            EditAction::SetTextColor {
+                clip_id: clip.id(),
+                color: 0xffffffff
+            }
+        )
+        .is_err()
+    );
+    assert_eq!(
+        serde_json::to_string(&timeline.to_serialize())?,
+        locked_json
+    );
     Ok(())
 }
 
