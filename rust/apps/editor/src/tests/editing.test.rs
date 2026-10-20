@@ -536,6 +536,85 @@ fn text_edits_preserve_timing_without_a_renderer() -> Result<()> {
     assert_eq!(restored.properties, clip.properties);
     assert_eq!(restored.timeline_start, clip.timeline_start);
     assert_eq!(restored.duration, clip.duration);
+
+    // Font-size edits reject locked tracks and invalid values without changing the document.
+    assert!(
+        edit_timeline(
+            &mut timeline,
+            EditAction::SetTextFontSize {
+                clip_id: clip.id(),
+                font_size: 80.0,
+            }
+        )
+        .is_err()
+    );
+    edit_timeline(
+        &mut timeline,
+        EditAction::ToggleTrackLock { track_id: ulid(3) },
+    )?;
+    let before_size_edit = serde_json::to_string(&timeline.to_serialize())?;
+    for font_size in [0.0, -1.0, f64::NAN, f64::INFINITY] {
+        assert!(
+            edit_timeline(
+                &mut timeline,
+                EditAction::SetTextFontSize {
+                    clip_id: clip.id(),
+                    font_size,
+                }
+            )
+            .is_err()
+        );
+        assert_eq!(
+            serde_json::to_string(&timeline.to_serialize())?,
+            before_size_edit
+        );
+    }
+    edit_timeline(
+        &mut timeline,
+        EditAction::SetTextFontSize {
+            clip_id: clip.id(),
+            font_size: 72.5,
+        },
+    )?;
+    let resized = timeline
+        .editing_state
+        .clip(clip.id())
+        .unwrap()
+        .text()
+        .unwrap();
+    assert_eq!(resized.properties.font_size, 72.5);
+    assert_eq!(resized.properties.text, clip.properties.text);
+    assert_eq!(resized.properties.font, clip.properties.font);
+    assert_eq!(resized.properties.color, clip.properties.color);
+    assert_eq!(resized.properties.position, clip.properties.position);
+    assert_eq!(resized.timeline_start, clip.timeline_start);
+    assert_eq!(resized.duration, clip.duration);
+    edit_timeline(&mut timeline, EditAction::Undo)?;
+    assert_eq!(
+        timeline
+            .editing_state
+            .clip(clip.id())
+            .unwrap()
+            .text()
+            .unwrap()
+            .properties
+            .font_size,
+        72.0
+    );
+    edit_timeline(&mut timeline, EditAction::Redo)?;
+    let resized_json = serde_json::to_string(&timeline.to_serialize())?;
+    let resized_document =
+        serde_json::from_str::<TimelineSerialization>(&resized_json)?.editing_state;
+    assert_eq!(
+        resized_document
+            .clip(clip.id())
+            .unwrap()
+            .text()
+            .unwrap()
+            .properties
+            .font_size,
+        72.5
+    );
     Ok(())
 }
 

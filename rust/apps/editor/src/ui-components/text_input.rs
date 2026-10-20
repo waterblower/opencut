@@ -81,6 +81,7 @@ enum InputAppearance {
     Search,
     Field,
     InlineField,
+    PropertyField,
 }
 
 #[derive(Clone, Copy, Eq, PartialEq)]
@@ -194,6 +195,22 @@ impl TextInput {
             &content,
             placeholder,
             InputAppearance::InlineField,
+            InputConstraint::Number,
+            return_focus,
+            cx,
+        )
+    }
+
+    pub(crate) fn new_property_number_field(
+        content: String,
+        return_focus: FocusHandle,
+        cx: &mut Context<Self>,
+    ) -> Self {
+        Self::new_with_appearance(
+            "property-number-input",
+            &content,
+            "",
+            InputAppearance::PropertyField,
             InputConstraint::Number,
             return_focus,
             cx,
@@ -853,9 +870,12 @@ impl Element for TextInputElement {
 impl Render for TextInput {
     fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let is_field = self.appearance == InputAppearance::Field;
-        let is_inline_field = self.appearance == InputAppearance::InlineField;
+        let is_property_field = self.appearance == InputAppearance::PropertyField;
+        let is_inline_field = self.appearance == InputAppearance::InlineField || is_property_field;
         div()
-            .h(px(if is_field {
+            .h(px(if is_property_field {
+                32.0
+            } else if is_field {
                 54.0
             } else if is_inline_field {
                 46.0
@@ -906,31 +926,35 @@ impl Render for TextInput {
                             .overflow_hidden()
                             .font_family("monospace")
                             .when(is_field || is_inline_field, |this| this.text_base())
+                            .when(is_property_field, |this| this.text_size(px(13.0)))
                             .when(!is_field && !is_inline_field, |this| this.text_sm())
                             .text_color(rgb(TEXT))
                             .child(TextInputElement { input: cx.entity() }),
                     )
-                    .when(!is_field && !self.content.is_empty(), |this| {
-                        this.child(
-                            div()
-                                .id("clear-text-input")
-                                .size_5()
-                                .flex_shrink_0()
-                                .flex()
-                                .items_center()
-                                .justify_center()
-                                .rounded_md()
-                                .occlude()
-                                .cursor(CursorStyle::PointingHand)
-                                .text_color(rgb(MUTED))
-                                .hover(|style| style.bg(rgb(SURFACE_HOVER)))
-                                .child("×")
-                                .on_mouse_down(
-                                    MouseButton::Left,
-                                    cx.listener(Self::clear_on_mouse_down),
-                                ),
-                        )
-                    }),
+                    .when(
+                        !is_field && !is_property_field && !self.content.is_empty(),
+                        |this| {
+                            this.child(
+                                div()
+                                    .id("clear-text-input")
+                                    .size_5()
+                                    .flex_shrink_0()
+                                    .flex()
+                                    .items_center()
+                                    .justify_center()
+                                    .rounded_md()
+                                    .occlude()
+                                    .cursor(CursorStyle::PointingHand)
+                                    .text_color(rgb(MUTED))
+                                    .hover(|style| style.bg(rgb(SURFACE_HOVER)))
+                                    .child("×")
+                                    .on_mouse_down(
+                                        MouseButton::Left,
+                                        cx.listener(Self::clear_on_mouse_down),
+                                    ),
+                            )
+                        },
+                    ),
             )
     }
 }

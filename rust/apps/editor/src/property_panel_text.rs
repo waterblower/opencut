@@ -9,9 +9,13 @@ use crate::timeline::FrameRate;
 use crate::timeline_clip::TextClip;
 use crate::track::TrackKind;
 use crate::ui_components::text_area::TextArea;
+use crate::ui_components::text_input::{TextInput, TextInputEvent};
 use gpui::prelude::*;
-use gpui::{Entity, FontWeight, PathBuilder, canvas, div, point, px, rgb, rgba};
+use gpui::{
+    App, Entity, Focusable, FontWeight, PathBuilder, Window, canvas, div, point, px, rgb, rgba,
+};
 use timeline::TimelineEditingState;
+use ulid::Ulid;
 
 pub(crate) struct TextClipPanel {
     clip: TextClip,
@@ -93,6 +97,15 @@ pub(crate) fn text_clip_view(panel: &TextClipPanel) -> gpui::AnyElement {
                 event_bus.update(cx, |_, cx| cx.emit(event));
             })
             .into_any_element()
+    };
+    let font_size = if panel.locked {
+        text_value_view("", clip.properties.font_size.to_string(), "px", true).h(px(34.0))
+    } else {
+        div().child(FontSizeInput {
+            clip_id: clip.id(),
+            value: clip.properties.font_size,
+            event_bus: panel.event_bus.clone(),
+        })
     };
     let content = div()
         .child(property_panel_heading_view("CONTENT"))
@@ -219,16 +232,7 @@ pub(crate) fn text_clip_view(panel: &TextClipPanel) -> gpui::AnyElement {
                 .grid()
                 .grid_cols(2)
                 .gap(px(8.0))
-                .child(style_field_view(
-                    "Font size",
-                    text_value_view(
-                        "",
-                        clip.properties.font_size.to_string(),
-                        "px",
-                        panel.locked,
-                    )
-                    .h(px(34.0)),
-                ))
+                .child(style_field_view("Font size", font_size))
                 .child(style_field_view(
                     "Font color",
                     div()
@@ -340,4 +344,75 @@ fn text_value_view(
         .when(!unit.is_empty(), |field| {
             field.child(div().flex_shrink_0().text_color(rgb(MUTED)).child(unit))
         })
+}
+
+#[derive(IntoElement)]
+struct FontSizeInput {
+    clip_id: Ulid,
+    value: f64,
+    event_bus: Entity<EventBus>,
+}
+
+impl RenderOnce for FontSizeInput {
+    fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
+        let return_focus = match window.focused(cx) {
+            Some(handle) => handle,
+            None => cx.focus_handle(),
+        };
+        let clip_id = self.clip_id;
+        let value = self.value;
+        let event_bus = self.event_bus;
+        let input =
+            window.use_keyed_state(format!("text-font-size-{clip_id}"), cx, |window, cx| {
+                let field =
+                    TextInput::new_property_number_field(value.to_string(), return_focus, cx);
+                cx.subscribe(&cx.entity(), move |input, _, _: &TextInputEvent, cx| {
+                    let Ok(font_size) = input.text().parse::<f64>() else {
+                        return;
+                    };
+                    if !font_size.is_finite() || font_size <= 0.0 {
+                        return;
+                    }
+                    event_bus.update(cx, |_, cx| {
+                        cx.emit(AppEvent::Edit(EditAction::SetTextFontSize {
+                            clip_id,
+                            font_size,
+                        }))
+                    });
+                })
+                .detach();
+                cx.on_blur(&field.focus_handle(cx), window, |_, _, cx| cx.notify())
+                    .detach();
+                field
+            });
+        input.update(cx, |field, cx| {
+            let focused = field.focus_handle(cx).is_focused(window);
+            let parsed = field.text().parse::<f64>();
+            let valid = matches!(parsed, Ok(number) if number.is_finite() && number > 0.0);
+            // 保留输入中的空值或小数点；失焦时恢复模型值，撤销/重做也同步有效数值。
+            if (!focused || valid) && parsed.ok() != Some(value) {
+                field.set_text_silently(value.to_string());
+            }
+        });
+        let valid = matches!(input.read(cx).text().parse::<f64>(), Ok(number) if number.is_finite() && number > 0.0);
+        div()
+            .h(px(34.0))
+            .min_w_0()
+            .flex()
+            .items_center()
+            .gap(px(6.0))
+            .px(px(10.0))
+            .rounded(px(6.0))
+            .border_1()
+            .border_color(rgb(if valid { BORDER } else { 0xff8b8b }))
+            .bg(rgb(SURFACE))
+            .child(div().min_w_0().flex_1().child(input))
+            .child(
+                div()
+                    .flex_shrink_0()
+                    .text_size(px(12.0))
+                    .text_color(rgb(MUTED))
+                    .child("px"),
+            )
+    }
 }
