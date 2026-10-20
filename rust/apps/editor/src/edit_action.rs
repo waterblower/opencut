@@ -553,6 +553,10 @@ impl TimelineEditExt for TimelineEditingState {
                 }
             }
             EditAction::SetTextContent { clip_id, text } => {
+                ensure!(
+                    !data.clip_locked(clip_id),
+                    "Text clip {clip_id} is on a locked track"
+                );
                 if let Some(Clip::Text(clip)) = data.clip_mut(clip_id) {
                     clip.properties.text = text;
                 }
