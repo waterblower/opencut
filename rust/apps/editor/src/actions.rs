@@ -9,7 +9,7 @@ use gpui::prelude::*;
 use gpui::{App, KeyBinding, Window, actions};
 
 pub(crate) const EDITOR_KEY_CONTEXT: &str = "Editor";
-const EDITOR_SHORTCUT_CONTEXT: &str = "Editor && !TextInput";
+const EDITOR_SHORTCUT_CONTEXT: &str = "Editor && !TextInput && !TextArea";
 
 actions!(
     opencut_editor,
@@ -39,6 +39,7 @@ actions!(
 
 pub(crate) fn bind_keys(cx: &mut App) {
     ui_components::text_input::bind_keys(cx);
+    ui_components::text_area::bind_keys(cx);
     cx.bind_keys([
         KeyBinding::new("space", TogglePlayback, Some(EDITOR_SHORTCUT_CONTEXT)),
         KeyBinding::new("left", StepBackwardFrame, Some(EDITOR_SHORTCUT_CONTEXT)),
