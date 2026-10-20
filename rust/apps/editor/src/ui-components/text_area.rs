@@ -1,16 +1,20 @@
-//! A multiline, wrapping text editor. Enter inserts a newline; Escape returns focus.
+//! A multiline, wrapping text editor. Enter inserts a newline; Escape gives up focus.
+//!
+//! The caller owns the text: it draws `TextArea::new(id, text)` every frame and receives
+//! each edit through `on_text_change`. Caret, selection, IME and focus are kept in gpui's
+//! per-element state under `id`, so they survive between frames without the caller.
 
 use crate::theme::{BORDER, MUTED, SURFACE, TEXT};
 use gpui::prelude::*;
 use gpui::{
     App, AvailableSpace, Bounds, ClipboardItem, Context, CursorStyle, Element, ElementId,
-    ElementInputHandler, Entity, EntityInputHandler, EventEmitter, FocusHandle, Focusable,
-    GlobalElementId, IntoElement, KeyBinding, LayoutId, MouseButton, MouseDownEvent,
-    MouseMoveEvent, MouseUpEvent, PaintQuad, Pixels, Point, Render, SharedString, Size, Style,
-    TextRun, UTF16Selection, UnderlineStyle, Window, WrappedLine, actions, div, fill, point, px,
-    rgb, rgba, size,
+    ElementInputHandler, Entity, EntityInputHandler, FocusHandle, GlobalElementId, IntoElement,
+    KeyBinding, LayoutId, MouseButton, MouseDownEvent, MouseMoveEvent, MouseUpEvent, PaintQuad,
+    Pixels, Point, SharedString, Size, Style, TextRun, UTF16Selection, UnderlineStyle, Window,
+    WrappedLine, actions, div, fill, point, px, rgb, rgba, size,
 };
 use std::ops::Range;
+use std::rc::Rc;
 use unicode_segmentation::UnicodeSegmentation;
 
 actions!(
@@ -39,13 +43,6 @@ actions!(
 
 pub(crate) const TEXT_AREA_KEY_CONTEXT: &str = "TextArea";
 
-/// Emitted when the text changes through editing, not through `set_text_silently`.
-pub(crate) enum TextAreaEvent {
-    Change,
-}
-
-impl EventEmitter<TextAreaEvent> for TextArea {}
-
 pub(crate) fn bind_keys(cx: &mut App) {
     let context = Some(TEXT_AREA_KEY_CONTEXT);
     cx.bind_keys([
@@ -72,12 +69,49 @@ pub(crate) fn bind_keys(cx: &mut App) {
     ]);
 }
 
+/// Draws an editor for `text`, which the caller owns.
+#[derive(IntoElement)]
 pub(crate) struct TextArea {
-    focus_handle: FocusHandle,
-    return_focus: FocusHandle,
-    element_id: SharedString,
+    id: ElementId,
+    text: SharedString,
     placeholder: SharedString,
-    content: SharedString,
+    on_text_change: Option<OnTextChange>,
+}
+
+// Public APIs only
+impl TextArea {
+    /// `id` keys the caret, selection and focus kept between frames; it must be unique
+    /// among its siblings.
+    pub(crate) fn new(id: impl Into<ElementId>, text: impl Into<SharedString>) -> Self {
+        Self {
+            id: id.into(),
+            text: text.into(),
+            placeholder: SharedString::default(),
+            on_text_change: None,
+        }
+    }
+
+    pub(crate) fn placeholder(mut self, placeholder: impl Into<SharedString>) -> Self {
+        self.placeholder = placeholder.into();
+        self
+    }
+
+    /// Called with the full text after every edit.
+    pub(crate) fn on_text_change(
+        mut self,
+        handler: impl Fn(&String, &mut Window, &mut App) + 'static,
+    ) -> Self {
+        self.on_text_change = Some(Rc::new(handler));
+        self
+    }
+}
+
+type OnTextChange = Rc<dyn Fn(&String, &mut Window, &mut App)>;
+
+struct TextAreaState {
+    focus_handle: FocusHandle,
+    text: SharedString, // 获得焦点时是正在输入的文本；失去焦点时跟随调用方传入的文本
+    on_text_change: Option<OnTextChange>, // 每帧由 TextArea 重新设置
     selected_range: Range<usize>,
     selection_reversed: bool,
     marked_range: Option<Range<usize>>,
@@ -86,20 +120,13 @@ pub(crate) struct TextArea {
     is_selecting: bool,
 }
 
-// Public APIs only
-impl TextArea {
-    pub(crate) fn new(
-        element_id: &'static str,
-        placeholder: &'static str,
-        return_focus: FocusHandle,
-        cx: &mut Context<Self>,
-    ) -> Self {
+// Private APIs only
+impl TextAreaState {
+    fn new(cx: &mut Context<Self>) -> Self {
         Self {
             focus_handle: cx.focus_handle().tab_stop(true),
-            return_focus,
-            element_id: element_id.into(),
-            placeholder: placeholder.into(),
-            content: "".into(),
+            text: "".into(),
+            on_text_change: None,
             selected_range: 0..0,
             selection_reversed: false,
             marked_range: None,
@@ -109,21 +136,18 @@ impl TextArea {
         }
     }
 
-    pub(crate) fn text(&self) -> &str {
-        self.content.as_ref()
-    }
-
-    pub(crate) fn set_text_silently(&mut self, text: String) {
-        let cursor = text.len();
-        self.content = text.into();
-        self.selected_range = cursor..cursor;
-        self.selection_reversed = false;
+    /// Takes the text the caller is drawing. When it differs from the last one (an edit
+    /// elsewhere, or a rejected edit), the selection is clamped to the new text.
+    fn set_drawn_text(&mut self, text: SharedString) {
+        if self.text == text {
+            return;
+        }
+        self.selected_range = char_boundary_at_or_before(&text, self.selected_range.start)
+            ..char_boundary_at_or_before(&text, self.selected_range.end);
         self.marked_range = None;
+        self.text = text;
     }
-}
 
-// Private APIs only
-impl TextArea {
     fn cursor_offset(&self) -> usize {
         if self.selection_reversed {
             self.selected_range.start
@@ -152,7 +176,7 @@ impl TextArea {
     }
 
     fn previous_boundary(&self, offset: usize) -> usize {
-        self.content
+        self.text
             .grapheme_indices(true)
             .rev()
             .find_map(|(index, _)| (index < offset).then_some(index))
@@ -160,10 +184,10 @@ impl TextArea {
     }
 
     fn next_boundary(&self, offset: usize) -> usize {
-        self.content
+        self.text
             .grapheme_indices(true)
             .find_map(|(index, _)| (index > offset).then_some(index))
-            .unwrap_or(self.content.len())
+            .unwrap_or(self.text.len())
     }
 
     /// The offset one visual row above (`rows = -1`) or below (`rows = 1`) the caret,
@@ -177,19 +201,19 @@ impl TextArea {
         if target.y < px(0.0) {
             return 0;
         }
-        layout.offset_for_point(target, self.content.len())
+        layout.offset_for_point(target, self.text.len())
     }
 
     /// The start or end of the paragraph that contains the caret.
     fn paragraph_bounds(&self) -> Range<usize> {
         let cursor = self.cursor_offset();
-        let start = match self.content[..cursor].rfind('\n') {
+        let start = match self.text[..cursor].rfind('\n') {
             Some(index) => index + 1,
             None => 0,
         };
-        let end = match self.content[cursor..].find('\n') {
+        let end = match self.text[cursor..].find('\n') {
             Some(index) => cursor + index,
-            None => self.content.len(),
+            None => self.text.len(),
         };
         start..end
     }
@@ -198,14 +222,14 @@ impl TextArea {
         let (Some(bounds), Some(layout)) = (self.last_bounds, self.last_layout.as_ref()) else {
             return 0;
         };
-        if self.content.is_empty() {
+        if self.text.is_empty() {
             return 0;
         }
         let local = point(position.x - bounds.left(), position.y - bounds.top());
         if local.y < px(0.0) {
             return 0;
         }
-        layout.offset_for_point(local, self.content.len())
+        layout.offset_for_point(local, self.text.len())
     }
 
     fn on_mouse_down(
@@ -276,7 +300,7 @@ impl TextArea {
 
     fn select_all(&mut self, _: &SelectAll, _: &mut Window, cx: &mut Context<Self>) {
         self.move_to(0, cx);
-        self.select_to(self.content.len(), cx);
+        self.select_to(self.text.len(), cx);
     }
 
     fn home(&mut self, _: &Home, _: &mut Window, cx: &mut Context<Self>) {
@@ -308,7 +332,7 @@ impl TextArea {
     fn copy(&mut self, _: &Copy, _: &mut Window, cx: &mut Context<Self>) {
         if !self.selected_range.is_empty() {
             cx.write_to_clipboard(ClipboardItem::new_string(
-                self.content[self.selected_range.clone()].to_string(),
+                self.text[self.selected_range.clone()].to_string(),
             ));
         }
     }
@@ -316,7 +340,7 @@ impl TextArea {
     fn cut(&mut self, _: &Cut, window: &mut Window, cx: &mut Context<Self>) {
         if !self.selected_range.is_empty() {
             cx.write_to_clipboard(ClipboardItem::new_string(
-                self.content[self.selected_range.clone()].to_string(),
+                self.text[self.selected_range.clone()].to_string(),
             ));
             self.replace_text_in_range(None, "", window, cx);
         }
@@ -334,15 +358,21 @@ impl TextArea {
     }
 
     fn dismiss(&mut self, _: &Dismiss, window: &mut Window, cx: &mut Context<Self>) {
-        self.return_focus.focus(window, cx);
+        window.blur(cx);
+    }
+
+    fn notify_text_change(&self, window: &mut Window, cx: &mut Context<Self>) {
+        if let Some(on_text_change) = self.on_text_change.clone() {
+            on_text_change(&self.text.to_string(), window, cx);
+        }
     }
 
     fn offset_from_utf16(&self, offset: usize) -> usize {
-        utf8_offset_from_utf16(&self.content, offset)
+        utf8_offset_from_utf16(&self.text, offset)
     }
 
     fn offset_to_utf16(&self, offset: usize) -> usize {
-        utf16_offset_from_utf8(&self.content, offset)
+        utf16_offset_from_utf8(&self.text, offset)
     }
 
     fn range_to_utf16(&self, range: &Range<usize>) -> Range<usize> {
@@ -354,7 +384,7 @@ impl TextArea {
     }
 }
 
-impl EntityInputHandler for TextArea {
+impl EntityInputHandler for TextAreaState {
     fn text_for_range(
         &mut self,
         range_utf16: Range<usize>,
@@ -364,7 +394,7 @@ impl EntityInputHandler for TextArea {
     ) -> Option<String> {
         let range = self.range_from_utf16(&range_utf16);
         actual_range.replace(self.range_to_utf16(&range));
-        Some(self.content[range].to_string())
+        Some(self.text[range].to_string())
     }
 
     fn selected_text_range(
@@ -393,7 +423,7 @@ impl EntityInputHandler for TextArea {
         &mut self,
         range_utf16: Option<Range<usize>>,
         new_text: &str,
-        _: &mut Window,
+        window: &mut Window,
         cx: &mut Context<Self>,
     ) {
         let range = match range_utf16.as_ref() {
@@ -403,18 +433,18 @@ impl EntityInputHandler for TextArea {
                 None => self.selected_range.clone(),
             },
         };
-        self.content = format!(
+        self.text = format!(
             "{}{}{}",
-            &self.content[..range.start],
+            &self.text[..range.start],
             new_text,
-            &self.content[range.end..]
+            &self.text[range.end..]
         )
         .into();
         let cursor = range.start + new_text.len();
         self.selected_range = cursor..cursor;
         self.selection_reversed = false;
         self.marked_range = None;
-        cx.emit(TextAreaEvent::Change);
+        self.notify_text_change(window, cx);
         cx.notify();
     }
 
@@ -423,7 +453,7 @@ impl EntityInputHandler for TextArea {
         range_utf16: Option<Range<usize>>,
         new_text: &str,
         new_selected_range_utf16: Option<Range<usize>>,
-        _: &mut Window,
+        window: &mut Window,
         cx: &mut Context<Self>,
     ) {
         let range = match range_utf16.as_ref() {
@@ -433,11 +463,11 @@ impl EntityInputHandler for TextArea {
                 None => self.selected_range.clone(),
             },
         };
-        self.content = format!(
+        self.text = format!(
             "{}{}{}",
-            &self.content[..range.start],
+            &self.text[..range.start],
             new_text,
-            &self.content[range.end..]
+            &self.text[range.end..]
         )
         .into();
         self.marked_range =
@@ -453,7 +483,7 @@ impl EntityInputHandler for TextArea {
             }
         };
         self.selection_reversed = false;
-        cx.emit(TextAreaEvent::Change);
+        self.notify_text_change(window, cx);
         cx.notify();
     }
 
@@ -486,17 +516,19 @@ impl EntityInputHandler for TextArea {
         let bounds = self.last_bounds?;
         let layout = self.last_layout.as_ref()?;
         let local = bounds.localize(&point)?;
-        let index = layout.offset_for_point(local, self.content.len());
+        let index = layout.offset_for_point(local, self.text.len());
         Some(self.offset_to_utf16(index))
     }
 }
 
-impl Render for TextArea {
-    fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+impl RenderOnce for TextArea {
+    fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
+        let state = window.use_keyed_state(self.id.clone(), cx, |_, cx| TextAreaState::new(cx));
+        let focus_handle = state.read(cx).focus_handle.clone();
         div()
-            .id(self.element_id.clone())
+            .id(self.id)
             .key_context(TEXT_AREA_KEY_CONTEXT)
-            .track_focus(&self.focus_handle(cx))
+            .track_focus(&focus_handle)
             .w_full()
             .min_h(px(58.0))
             .px(px(10.0))
@@ -509,35 +541,43 @@ impl Render for TextArea {
             .line_height(px(19.0))
             .text_color(rgb(TEXT))
             .cursor(CursorStyle::IBeam)
-            .on_action(cx.listener(Self::backspace))
-            .on_action(cx.listener(Self::delete))
-            .on_action(cx.listener(Self::left))
-            .on_action(cx.listener(Self::right))
-            .on_action(cx.listener(Self::up))
-            .on_action(cx.listener(Self::down))
-            .on_action(cx.listener(Self::select_left))
-            .on_action(cx.listener(Self::select_right))
-            .on_action(cx.listener(Self::select_up))
-            .on_action(cx.listener(Self::select_down))
-            .on_action(cx.listener(Self::select_all))
-            .on_action(cx.listener(Self::home))
-            .on_action(cx.listener(Self::end))
-            .on_action(cx.listener(Self::paste))
-            .on_action(cx.listener(Self::cut))
-            .on_action(cx.listener(Self::copy))
-            .on_action(cx.listener(Self::dismiss))
-            .on_action(cx.listener(Self::newline))
-            .on_mouse_down(MouseButton::Left, cx.listener(Self::on_mouse_down))
-            .on_mouse_up(MouseButton::Left, cx.listener(Self::on_mouse_up))
-            .on_mouse_up_out(MouseButton::Left, cx.listener(Self::on_mouse_up))
-            .on_mouse_move(cx.listener(Self::on_mouse_move))
-            .child(TextAreaElement { area: cx.entity() })
-    }
-}
-
-impl Focusable for TextArea {
-    fn focus_handle(&self, _: &App) -> FocusHandle {
-        self.focus_handle.clone()
+            .on_action(window.listener_for(&state, TextAreaState::backspace))
+            .on_action(window.listener_for(&state, TextAreaState::delete))
+            .on_action(window.listener_for(&state, TextAreaState::left))
+            .on_action(window.listener_for(&state, TextAreaState::right))
+            .on_action(window.listener_for(&state, TextAreaState::up))
+            .on_action(window.listener_for(&state, TextAreaState::down))
+            .on_action(window.listener_for(&state, TextAreaState::select_left))
+            .on_action(window.listener_for(&state, TextAreaState::select_right))
+            .on_action(window.listener_for(&state, TextAreaState::select_up))
+            .on_action(window.listener_for(&state, TextAreaState::select_down))
+            .on_action(window.listener_for(&state, TextAreaState::select_all))
+            .on_action(window.listener_for(&state, TextAreaState::home))
+            .on_action(window.listener_for(&state, TextAreaState::end))
+            .on_action(window.listener_for(&state, TextAreaState::paste))
+            .on_action(window.listener_for(&state, TextAreaState::cut))
+            .on_action(window.listener_for(&state, TextAreaState::copy))
+            .on_action(window.listener_for(&state, TextAreaState::dismiss))
+            .on_action(window.listener_for(&state, TextAreaState::newline))
+            .on_mouse_down(
+                MouseButton::Left,
+                window.listener_for(&state, TextAreaState::on_mouse_down),
+            )
+            .on_mouse_up(
+                MouseButton::Left,
+                window.listener_for(&state, TextAreaState::on_mouse_up),
+            )
+            .on_mouse_up_out(
+                MouseButton::Left,
+                window.listener_for(&state, TextAreaState::on_mouse_up),
+            )
+            .on_mouse_move(window.listener_for(&state, TextAreaState::on_mouse_move))
+            .child(TextAreaElement {
+                state,
+                text: self.text,
+                placeholder: self.placeholder,
+                on_text_change: self.on_text_change,
+            })
     }
 }
 
@@ -605,7 +645,10 @@ impl TextAreaLayout {
 }
 
 struct TextAreaElement {
-    area: Entity<TextArea>,
+    state: Entity<TextAreaState>,
+    text: SharedString,
+    placeholder: SharedString,
+    on_text_change: Option<OnTextChange>,
 }
 
 struct TextAreaPrepaintState {
@@ -641,7 +684,17 @@ impl Element for TextAreaElement {
         window: &mut Window,
         cx: &mut App,
     ) -> (LayoutId, Self::RequestLayoutState) {
-        let (text, runs) = shaping_input(self.area.read(cx), window);
+        // 获得焦点时保留正在输入的文本：调用方的更新可能晚一帧到达，不能用旧文本覆盖它。
+        let focused = self.state.read(cx).focus_handle.is_focused(window);
+        let drawn_text = self.text.clone();
+        let on_text_change = self.on_text_change.clone();
+        self.state.update(cx, |state, _| {
+            state.on_text_change = on_text_change;
+            if !focused {
+                state.set_drawn_text(drawn_text);
+            }
+        });
+        let (text, runs) = shaping_input(self.state.read(cx), &self.placeholder, window);
         let font_size = window.text_style().font_size.to_pixels(window.rem_size());
         let line_height = window.line_height();
         let mut style = Style::default();
@@ -671,8 +724,8 @@ impl Element for TextAreaElement {
         window: &mut Window,
         cx: &mut App,
     ) -> Self::PrepaintState {
-        let area = self.area.read(cx);
-        let (text, runs) = shaping_input(area, window);
+        let area = self.state.read(cx);
+        let (text, runs) = shaping_input(area, &self.placeholder, window);
         let font_size = window.text_style().font_size.to_pixels(window.rem_size());
         let line_height = window.line_height();
         let layout = layout_paragraphs(
@@ -687,7 +740,7 @@ impl Element for TextAreaElement {
         let caret_offset = area.cursor_offset();
         // 内容为空时显示占位文字，但光标仍在开头。
         let (caret, selection) = if selected_range.is_empty() {
-            let position = if area.content.is_empty() {
+            let position = if area.text.is_empty() {
                 point(px(0.0), px(0.0))
             } else {
                 layout.position_for_offset(caret_offset)
@@ -722,10 +775,10 @@ impl Element for TextAreaElement {
         window: &mut Window,
         cx: &mut App,
     ) {
-        let focus_handle = self.area.read(cx).focus_handle.clone();
+        let focus_handle = self.state.read(cx).focus_handle.clone();
         window.handle_input(
             &focus_handle,
-            ElementInputHandler::new(bounds, self.area.clone()),
+            ElementInputHandler::new(bounds, self.state.clone()),
             cx,
         );
         for quad in prepaint.selection.drain(..) {
@@ -750,7 +803,7 @@ impl Element for TextAreaElement {
         {
             window.paint_quad(caret);
         }
-        self.area.update(cx, |area, _| {
+        self.state.update(cx, |area, _| {
             area.last_layout = Some(layout);
             area.last_bounds = Some(bounds);
         });
@@ -759,12 +812,16 @@ impl Element for TextAreaElement {
 
 /// The text to shape and its runs: the content with the IME-marked range underlined,
 /// or the muted placeholder when the content is empty.
-fn shaping_input(area: &TextArea, window: &Window) -> (SharedString, Vec<TextRun>) {
+fn shaping_input(
+    area: &TextAreaState,
+    placeholder: &SharedString,
+    window: &Window,
+) -> (SharedString, Vec<TextRun>) {
     let style = window.text_style();
-    let (text, color) = if area.content.is_empty() {
-        (area.placeholder.clone(), rgb(MUTED).into())
+    let (text, color) = if area.text.is_empty() {
+        (placeholder.clone(), rgb(MUTED).into())
     } else {
-        (area.content.clone(), style.color)
+        (area.text.clone(), style.color)
     };
     let base_run = TextRun {
         len: text.len(),
@@ -775,7 +832,7 @@ fn shaping_input(area: &TextArea, window: &Window) -> (SharedString, Vec<TextRun
         strikethrough: None,
     };
     let runs = match area.marked_range.as_ref() {
-        Some(marked) if !area.content.is_empty() => vec![
+        Some(marked) if !area.text.is_empty() => vec![
             TextRun {
                 len: marked.start,
                 ..base_run.clone()
@@ -860,6 +917,15 @@ fn selection_quads(
     }
     quads.push(quad(px(0.0), end.y, end.x, end.y + line_height));
     quads
+}
+
+/// The largest char boundary in `text` that is not after `offset`.
+fn char_boundary_at_or_before(text: &str, offset: usize) -> usize {
+    let mut boundary = offset.min(text.len());
+    while !text.is_char_boundary(boundary) {
+        boundary -= 1;
+    }
+    boundary
 }
 
 fn utf8_offset_from_utf16(text: &str, offset: usize) -> usize {
