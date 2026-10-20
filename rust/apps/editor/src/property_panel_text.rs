@@ -188,42 +188,37 @@ pub(crate) fn text_clip_view(panel: &TextClipPanel) -> gpui::AnyElement {
             div().mt(px(12.0)).child(style_field_view(
                 "Font",
                 div()
-                    .h(px(34.0))
-                    .min_w_0()
-                    .flex()
-                    .items_center()
-                    .gap(px(8.0))
-                    .px(px(10.0))
-                    .rounded(px(6.0))
-                    .when(!panel.locked, |field| {
-                        field.border_1().border_color(rgb(BORDER))
-                    })
-                    .bg(rgb(if panel.locked { 0x19191d } else { SURFACE }))
-                    .child(
-                        div()
-                            .flex_1()
-                            .min_w_0()
-                            .text_size(px(13.0))
-                            .text_ellipsis()
-                            .child(clip.properties.font.clone()),
-                    )
-                    .when(!panel.locked, |field| {
+                    .when(panel.locked, |field| {
                         field.child(
-                            canvas(
-                                |_, _, _| (),
-                                |bounds, (), window, _| {
-                                    let mut chevron = PathBuilder::stroke(px(1.5));
-                                    chevron.move_to(bounds.origin + point(px(2.0), px(4.0)));
-                                    chevron.line_to(bounds.origin + point(px(6.0), px(8.0)));
-                                    chevron.line_to(bounds.origin + point(px(10.0), px(4.0)));
-                                    if let Ok(path) = chevron.build() {
-                                        window.paint_path(path, rgb(0xb4b4bc));
-                                    }
-                                },
-                            )
-                            .size(px(12.0))
-                            .flex_shrink_0(),
+                            div()
+                                .h(px(34.0))
+                                .min_w_0()
+                                .flex()
+                                .items_center()
+                                .gap(px(8.0))
+                                .px(px(10.0))
+                                .rounded(px(6.0))
+                                .border_1()
+                                .border_color(rgb(0x222226))
+                                .bg(rgb(0x131316))
+                                .child(
+                                    div()
+                                        .flex_1()
+                                        .min_w_0()
+                                        .text_size(px(13.0))
+                                        .text_color(rgb(0x55555e))
+                                        .text_ellipsis()
+                                        .child(clip.properties.font.clone()),
+                                )
+                                .child(div().flex_shrink_0().text_color(rgb(0x46464e)).child("⌄")),
                         )
+                    })
+                    .when(!panel.locked, |field| {
+                        field.child(FontSelector {
+                            clip_id: clip.id(),
+                            value: clip.properties.font.clone(),
+                            event_bus: panel.event_bus.clone(),
+                        })
                     }),
             )),
         )
@@ -698,5 +693,247 @@ fn parse_hex_color(text: &str) -> Option<u32> {
     match u32::from_str_radix(text, 16) {
         Ok(color) => Some(color),
         Err(_) => None,
+    }
+}
+
+#[derive(IntoElement)]
+struct FontSelector {
+    clip_id: Ulid,
+    value: String,
+    event_bus: Entity<EventBus>,
+}
+
+impl RenderOnce for FontSelector {
+    fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
+        // 字体列表只在弹层打开时保留快照，每次打开重新查询系统。
+        let available =
+            window.use_keyed_state(format!("font-picker-{}", self.clip_id), cx, |_, _| {
+                None::<Vec<String>>
+            });
+        let open = available.clone();
+        let mut field = div().relative().child(
+            div()
+                .id("font-selector")
+                .group("property-font-dropdown")
+                .h(px(34.0))
+                .min_w_0()
+                .flex()
+                .items_center()
+                .gap(px(8.0))
+                .px(px(10.0))
+                .rounded(px(6.0))
+                .border_1()
+                .border_color(rgb(BORDER))
+                .bg(rgb(SURFACE))
+                .hover(|style| style.bg(rgb(0x2a241b)).border_color(rgb(0xf0b75e)))
+                .cursor(CursorStyle::PointingHand)
+                .child(
+                    div()
+                        .flex_1()
+                        .min_w_0()
+                        .text_size(px(13.0))
+                        .text_color(rgb(0xf2f2f4))
+                        .text_ellipsis()
+                        .child(self.value.clone()),
+                )
+                .child(
+                    div()
+                        .flex_shrink_0()
+                        .text_color(rgb(MUTED))
+                        .group_hover("property-font-dropdown", |style| {
+                            style.text_color(rgb(0xf0b75e))
+                        })
+                        .child("⌄"),
+                )
+                .on_mouse_down(MouseButton::Left, move |_, window, cx| {
+                    cx.stop_propagation();
+                    let fonts = cx.text_system().all_font_names();
+                    open.update(cx, |snapshot, cx| {
+                        *snapshot = Some(fonts);
+                        cx.notify();
+                    });
+                    window.refresh();
+                }),
+        );
+        let Some(fonts) = available.read(cx).as_ref() else {
+            return field;
+        };
+        let families = fonts.clone();
+        let return_focus = match window.focused(cx) {
+            Some(handle) => handle,
+            None => cx.focus_handle(),
+        };
+        let search =
+            window.use_keyed_state(format!("font-search-{}", self.clip_id), cx, |_, cx| {
+                TextInput::new_search("font-search", "Search fonts…", return_focus, cx)
+            });
+        let query = search.read(cx).text().to_lowercase();
+        let close = available.clone();
+        let outside = available.clone();
+        let mut list = div()
+            .id("font-family-list")
+            .max_h(px(304.0))
+            .min_h_0()
+            .gap(px(8.0))
+            .overflow_y_scroll()
+            .flex()
+            .flex_col();
+        let mut matches = 0;
+        for family in families {
+            if !family.to_lowercase().contains(&query) {
+                continue;
+            }
+            matches += 1;
+            let selected = family == self.value;
+            let event_bus = self.event_bus.clone();
+            let clip_id = self.clip_id;
+            list = list.child(
+                div()
+                    .id(format!("font-family-{family}"))
+                    .min_h(px(96.0))
+                    .flex_shrink_0()
+                    .flex()
+                    .flex_col()
+                    .rounded(px(7.0))
+                    .border_1()
+                    .border_color(rgb(if selected { 0xf0b75e } else { 0x34343b }))
+                    .bg(rgb(0x19191d))
+                    .cursor(CursorStyle::PointingHand)
+                    .text_color(rgb(0xf2f2f4))
+                    .when(!selected, |card| {
+                        card.hover(|style| style.border_color(rgb(0x8a8a93)))
+                    })
+                    .child(
+                        div()
+                            .h(px(33.0))
+                            .flex_shrink_0()
+                            .px(px(11.0))
+                            .flex()
+                            .items_center()
+                            .gap(px(8.0))
+                            .border_b_1()
+                            .border_color(rgb(if selected { 0x3b3327 } else { 0x34343b }))
+                            .text_size(px(12.0))
+                            .text_color(rgb(if selected { 0xf0b75e } else { 0xb4b4bc }))
+                            .child(
+                                div()
+                                    .min_w_0()
+                                    .flex_1()
+                                    .text_ellipsis()
+                                    .child(family.clone()),
+                            )
+                            .when(selected, |header| header.child("✓")),
+                    )
+                    .child(
+                        div()
+                            .min_w_0()
+                            .flex_1()
+                            .px(px(11.0))
+                            .py(px(12.0))
+                            .flex()
+                            .items_center()
+                            .child(
+                                div()
+                                    .min_w_0()
+                                    .font_family(family.clone())
+                                    .text_size(px(17.0))
+                                    .whitespace_normal()
+                                    .child("你好，世界 · Hello,world"),
+                            ),
+                    )
+                    .on_mouse_down(MouseButton::Left, move |_, _, cx| {
+                        cx.stop_propagation();
+                        event_bus.update(cx, |_, cx| {
+                            cx.emit(AppEvent::Edit(EditAction::SetTextFont {
+                                clip_id,
+                                font: family.clone(),
+                            }))
+                        });
+                    }),
+            );
+        }
+        if matches == 0 {
+            list = list.child(
+                div()
+                    .p(px(8.0))
+                    .text_size(px(12.0))
+                    .text_color(rgb(MUTED))
+                    .child("No matching fonts"),
+            );
+        }
+        let popup = div()
+            .id("font-picker-popup")
+            .p(px(12.0))
+            .flex()
+            .flex_col()
+            .gap(px(10.0))
+            .rounded(px(8.0))
+            .border_1()
+            .border_color(rgb(0x45454d))
+            .bg(rgb(0x202024))
+            .occlude()
+            .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
+            .on_mouse_down_out(move |_, window, cx| {
+                outside.update(cx, |snapshot, cx| {
+                    *snapshot = None;
+                    cx.notify();
+                });
+                window.refresh();
+            })
+            .child(
+                div()
+                    .flex()
+                    .items_center()
+                    .justify_between()
+                    .text_size(px(13.0))
+                    .text_color(rgb(0xf2f2f4))
+                    .child("Font")
+                    .child(
+                        div()
+                            .id("close-font-picker")
+                            .cursor(CursorStyle::PointingHand)
+                            .child("×")
+                            .on_mouse_down(MouseButton::Left, move |_, window, cx| {
+                                cx.stop_propagation();
+                                close.update(cx, |snapshot, cx| {
+                                    *snapshot = None;
+                                    cx.notify();
+                                });
+                                window.refresh();
+                            }),
+                    ),
+            )
+            .child(search)
+            .child(list)
+            .child(
+                div()
+                    .text_size(px(12.0))
+                    .text_color(rgb(MUTED))
+                    .child("Click a font to apply."),
+            );
+        field = field.child(
+            canvas(
+                move |bounds, window, cx| {
+                    // 直接用本帧字体输入框的宽度定位弹层，不存储派生的布局状态。
+                    let mut overlay = anchored()
+                        .anchor(Anchor::TopLeft)
+                        .position(bounds.origin + point(px(0.0), px(-240.0)))
+                        .snap_to_window_with_margin(px(16.0))
+                        .child(
+                            popup
+                                .w(bounds.size.width)
+                                .max_h((window.viewport_size().height - px(32.0)).max(px(0.0))),
+                        )
+                        .into_any_element();
+                    // defer_draw 只延迟预绘制和绘制；动态创建的弹层必须先完成布局。
+                    overlay.layout_as_root(window.viewport_size().into(), window, cx);
+                    window.defer_draw(overlay, point(px(0.0), px(0.0)), 1, None);
+                },
+                |_, (), _, _| {},
+            )
+            .absolute()
+            .inset_0(),
+        );
+        field
     }
 }
