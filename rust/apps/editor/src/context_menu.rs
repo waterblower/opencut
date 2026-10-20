@@ -11,6 +11,7 @@ use crate::timeline_document;
 use crate::timeline_document::resolve_asset_path;
 use crate::track::TrackKind;
 use crate::transcription_window::ClipRange;
+use ::timeline::TimelineEditingState;
 use gpui::prelude::*;
 use gpui::{CursorStyle, MouseButton, MouseDownEvent, div, px, rgb};
 use std::path::PathBuf;
@@ -440,23 +441,19 @@ impl Editor {
         viewport: gpui::Size<gpui::Pixels>,
         cx: &mut Context<Self>,
     ) -> gpui::AnyElement {
-        let source_clip_id = self.timeline.as_ref().and_then(|timeline| {
-            let data = &timeline.editing_state;
-            let track = data.track(menu.track_id)?;
-            if track.locked {
-                return None;
+        // A text clip under the pointer offers "Apply style to track"; empty space offers "Add text".
+        let (on_text_clip, source_clip_id) = match self.timeline.as_ref() {
+            Some(timeline) => {
+                let data = &timeline.editing_state;
+                (
+                    text_clip_at(data, menu.track_id, menu.position).is_some(),
+                    style_source_clip(data, menu.track_id, menu.position),
+                )
             }
-            let source = data.clips_on_track(menu.track_id).find(|clip| {
-                matches!(clip, Clip::Text(_))
-                    && clip.timeline_start() <= menu.position
-                    && menu.position < clip.timeline_end(data.settings.frame_rate)
-            })?;
-            data.clips_on_track(menu.track_id)
-                .any(|clip| matches!(clip, Clip::Text(_)) && clip.id() != source.id())
-                .then_some(source.id())
-        });
+            None => (false, None),
+        };
         let width = 240.0;
-        let height = if source_clip_id.is_some() { 96.0 } else { 56.0 };
+        let height = 56.0;
         let left = menu
             .x
             .clamp(8.0, (f32::from(viewport.width) - width - 8.0).max(8.0));
@@ -499,28 +496,30 @@ impl Editor {
                     .bg(rgb(0x1b1b1e))
                     .shadow_lg()
                     .occlude()
-                    .child(
-                        div()
-                            .id(gpui::SharedString::from(format!(
-                                "add-text-to-track-{}",
-                                menu.track_id
-                            )))
-                            .h(px(40.0))
-                            .px_3()
-                            .flex()
-                            .items_center()
-                            .rounded_md()
-                            .cursor(CursorStyle::PointingHand)
-                            .text_color(rgb(TEXT))
-                            .hover(|style| style.bg(rgb(0x34343a)))
-                            .on_click(cx.listener(move |editor, _, _, cx| {
-                                if let Err(error) = editor.add_text(track_id, position, cx) {
-                                    log::error!("{error:?}");
-                                    cx.notify();
-                                }
-                            }))
-                            .child(div().text_sm().child("Add text")),
-                    )
+                    .when(!on_text_clip, |this| {
+                        this.child(
+                            div()
+                                .id(gpui::SharedString::from(format!(
+                                    "add-text-to-track-{}",
+                                    menu.track_id
+                                )))
+                                .h(px(40.0))
+                                .px_3()
+                                .flex()
+                                .items_center()
+                                .rounded_md()
+                                .cursor(CursorStyle::PointingHand)
+                                .text_color(rgb(TEXT))
+                                .hover(|style| style.bg(rgb(0x34343a)))
+                                .on_click(cx.listener(move |editor, _, _, cx| {
+                                    if let Err(error) = editor.add_text(track_id, position, cx) {
+                                        log::error!("{error:?}");
+                                        cx.notify();
+                                    }
+                                }))
+                                .child(div().text_sm().child("Add text")),
+                        )
+                    })
                     .when_some(source_clip_id, |menu, clip_id| {
                         menu.child(
                             div()
@@ -557,7 +556,7 @@ impl Editor {
         event: &MouseDownEvent,
         cx: &mut Context<Self>,
     ) {
-        let Some(timeline) = self.timeline.as_mut() else {
+        let Some(timeline) = self.timeline.as_ref() else {
             return;
         };
         if !timeline
@@ -574,6 +573,13 @@ impl Editor {
             .editing_state
             .nearest_time(content_x as f64 / timeline.pixels_per_second as f64)
             .max(TimelineFrameIndex::ZERO);
+        let data = &timeline.editing_state;
+        if text_clip_at(data, track_id, position).is_some()
+            && style_source_clip(data, track_id, position).is_none()
+        {
+            // A text clip offers only "Apply style to track", so without it there is no menu.
+            return;
+        }
         self.context_menu = ContextMenu::TextTrack(TextTrackContextMenu {
             track_id,
             position,
@@ -583,4 +589,34 @@ impl Editor {
         cx.stop_propagation();
         cx.notify();
     }
+}
+
+/// The text clip on the track that contains `position`, if any.
+fn text_clip_at(
+    data: &TimelineEditingState,
+    track_id: Ulid,
+    position: TimelineFrameIndex,
+) -> Option<&Clip> {
+    data.clips_on_track(track_id).find(|clip| {
+        matches!(clip, Clip::Text(_))
+            && clip.timeline_start() <= position
+            && position < clip.timeline_end(data.settings.frame_rate)
+    })
+}
+
+/// The text clip whose style "Apply style to track" would copy: the clip under `position`,
+/// on an unlocked track that has other text clips.
+fn style_source_clip(
+    data: &TimelineEditingState,
+    track_id: Ulid,
+    position: TimelineFrameIndex,
+) -> Option<Ulid> {
+    let track = data.track(track_id)?;
+    if track.locked {
+        return None;
+    }
+    let source = text_clip_at(data, track_id, position)?;
+    data.clips_on_track(track_id)
+        .any(|clip| matches!(clip, Clip::Text(_)) && clip.id() != source.id())
+        .then_some(source.id())
 }

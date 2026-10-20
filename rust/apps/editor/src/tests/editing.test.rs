@@ -217,7 +217,7 @@ fn clipboard_paste_rejects_the_complete_selection_on_collision() {
     let rejection = rejection.downcast::<ClipPlacementRejection>().unwrap();
 
     assert_eq!(rejection, ClipPlacementRejection::ExistingClipOverlap);
-    assert_eq!(rejection.message(), "Placement overlaps an existing clip");
+    assert_eq!(rejection.message(), "Clip overlapped");
 }
 
 #[test]

@@ -43,7 +43,7 @@ fn explorer_drop_rejects_incompatible_tracks() {
         .unwrap();
     assert_eq!(
         audio_rejection.message(),
-        "Media is incompatible with the destination track"
+        "Incompatible track"
     );
 
     let video_preview = PreviewDropAsset {
@@ -61,7 +61,7 @@ fn explorer_drop_rejects_incompatible_tracks() {
         .unwrap();
     assert_eq!(
         video_rejection.message(),
-        "Media is incompatible with the destination track"
+        "Incompatible track"
     );
 
     // The same preview becomes valid as soon as its destination is compatible.
