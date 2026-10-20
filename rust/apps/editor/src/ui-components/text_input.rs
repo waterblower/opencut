@@ -1,4 +1,4 @@
-use crate::theme::{BORDER, MUTED, SURFACE, SURFACE_HOVER, TEXT};
+use crate::theme::{ACCENT, BORDER, MUTED, SURFACE, SURFACE_HOVER, TEXT};
 use gpui::prelude::*;
 use gpui::{
     App, Bounds, ClipboardItem, Context, CursorStyle, Element, ElementId, ElementInputHandler,
@@ -90,6 +90,35 @@ enum InputConstraint {
     UnsignedInteger,
     Hex,
     Number,
+}
+
+/// Disabled primary input: no focus handle, text selection, or editing callbacks.
+pub(crate) fn disabled_text_input_view(
+    value: String,
+    prefix: &'static str,
+    suffix: String,
+) -> gpui::Div {
+    div()
+        .h(px(40.0))
+        .min_w_0()
+        .px(px(12.0))
+        .flex()
+        .items_center()
+        .gap(px(6.0))
+        .rounded(px(6.0))
+        .border_1()
+        .border_color(rgb(0x222226))
+        .bg(rgb(0x131316))
+        .font_family("monospace")
+        .text_size(px(13.0))
+        .text_color(rgb(0x55555e))
+        .when(!prefix.is_empty(), |field| {
+            field.child(div().flex_shrink_0().child(prefix))
+        })
+        .child(div().min_w_0().flex_1().text_ellipsis().child(value))
+        .when(!suffix.is_empty(), |field| {
+            field.child(div().flex_shrink_0().text_size(px(11.0)).child(suffix))
+        })
 }
 
 impl TextInput {
@@ -898,7 +927,7 @@ impl Render for TextInput {
             .h(px(if is_property_field {
                 32.0
             } else if is_field {
-                54.0
+                40.0
             } else if is_inline_field {
                 46.0
             } else {
@@ -917,10 +946,15 @@ impl Render for TextInput {
                     .flex()
                     .items_center()
                     .when(is_inline_field, |this| this.px_0())
-                    .when(!is_inline_field, |this| this.px_4())
+                    .when(!is_inline_field && !is_field, |this| this.px_4())
+                    .when(is_field, |this| this.px(px(12.0)))
                     .border_color(rgb(BORDER))
                     .bg(rgb(SURFACE))
-                    .when(is_field, |this| this.rounded_lg().border_1())
+                    .when(is_field, |this| {
+                        this.rounded(px(6.0))
+                            .border_1()
+                            .focus(|style| style.border_color(rgb(ACCENT)))
+                    })
                     .when(!is_field && !is_inline_field, |this| this.border_b_1())
                     .cursor(CursorStyle::IBeam)
                     .on_action(cx.listener(Self::backspace))
@@ -947,8 +981,10 @@ impl Render for TextInput {
                             .flex_1()
                             .overflow_hidden()
                             .font_family("monospace")
-                            .when(is_field || is_inline_field, |this| this.text_base())
-                            .when(is_property_field, |this| this.text_size(px(13.0)))
+                            .when(is_inline_field, |this| this.text_base())
+                            .when(is_property_field || is_field, |this| {
+                                this.text_size(px(13.0))
+                            })
                             .when(!is_field && !is_inline_field, |this| this.text_sm())
                             .text_color(rgb(TEXT))
                             .child(TextInputElement { input: cx.entity() }),

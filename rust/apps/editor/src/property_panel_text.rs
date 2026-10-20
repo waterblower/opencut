@@ -9,7 +9,7 @@ use crate::timeline::FrameRate;
 use crate::timeline_clip::TextClip;
 use crate::track::TrackKind;
 use crate::ui_components::text_area::TextArea;
-use crate::ui_components::text_input::{TextInput, TextInputEvent};
+use crate::ui_components::text_input::{TextInput, TextInputEvent, disabled_text_input_view};
 use gpui::prelude::*;
 use gpui::{
     Anchor, App, BoxShadow, CursorStyle, Entity, Focusable, FontWeight, MouseButton, PathBuilder,
@@ -129,40 +129,11 @@ pub(crate) fn text_clip_view(panel: &TextClipPanel) -> gpui::AnyElement {
                                 .text_color(rgb(MUTED))
                                 .child("Start"),
                         )
-                        .child(
-                            div()
-                                .mt(px(4.0))
-                                .min_h(px(30.0))
-                                .px(px(10.0))
-                                .py(px(6.0))
-                                .rounded(px(6.0))
-                                .bg(rgb(if panel.locked { 0x19191d } else { 0x131316 }))
-                                .flex()
-                                .flex_wrap()
-                                .items_baseline()
-                                .justify_between()
-                                .gap_x(px(4.0))
-                                .font_family("monospace")
-                                .child(
-                                    div()
-                                        .min_w_0()
-                                        .text_size(px(13.0))
-                                        .line_height(px(18.0))
-                                        .text_ellipsis()
-                                        .child(format_property_panel_time(
-                                            frame_rate.seconds(clip.timeline_start),
-                                        )),
-                                )
-                                .child(
-                                    div()
-                                        .min_w_0()
-                                        .text_size(px(11.0))
-                                        .line_height(px(18.0))
-                                        .text_color(rgb(0x55555e))
-                                        .text_ellipsis()
-                                        .child(format!("{} f", i64::from(clip.timeline_start))),
-                                ),
-                        ),
+                        .child(div().mt(px(4.0)).child(disabled_text_input_view(
+                            format_property_panel_time(frame_rate.seconds(clip.timeline_start)),
+                            "",
+                            format!("{} f", i64::from(clip.timeline_start)),
+                        ))),
                 )
                 .child(
                     div()
@@ -174,11 +145,10 @@ pub(crate) fn text_clip_view(panel: &TextClipPanel) -> gpui::AnyElement {
                                 .text_color(rgb(MUTED))
                                 .child("Duration"),
                         )
-                        .child(div().mt(px(4.0)).child(text_value_view(
-                            "",
+                        .child(div().mt(px(4.0)).child(disabled_text_input_view(
                             format!("{:.2}", clip.duration.as_secs_f64()),
-                            "s",
-                            panel.locked,
+                            "",
+                            "s".into(),
                         ))),
                 ),
         )
@@ -282,17 +252,15 @@ pub(crate) fn text_clip_view(panel: &TextClipPanel) -> gpui::AnyElement {
                 .grid()
                 .grid_cols(2)
                 .gap(px(8.0))
-                .child(text_value_view(
-                    "X",
+                .child(disabled_text_input_view(
                     format!("{:.2}", clip.properties.position.x),
-                    "",
-                    panel.locked,
+                    "X",
+                    String::new(),
                 ))
-                .child(text_value_view(
-                    "Y",
+                .child(disabled_text_input_view(
                     format!("{:.2}", clip.properties.position.y),
-                    "",
-                    panel.locked,
+                    "Y",
+                    String::new(),
                 )),
         );
     clip_property_panel_frame_view(
