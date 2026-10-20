@@ -120,4 +120,6 @@
 <polygon points="833,802 934,802 934,832 924,842 823,842 823,812" fill="#00f0ff" fill-opacity="0.06" stroke="#00f0ff" filter="url(#dGlowC)"/>
 <text class="m" x="878.5" y="826.5" font-size="13" font-weight="800" fill="#00f0ff" text-anchor="middle">CANCEL</text>
 </g>
+<text class="s" x="680" y="1048" font-size="12" fill="#8a8a93">Comment: the error is shown as the request returns it, so a missing key currently reads</text>
+<text class="s" x="680" y="1066" font-size="12" fill="#8a8a93">“missing_api_key: an API key is required for transcription”. The text in the window is a sample.</text>
 </svg>
