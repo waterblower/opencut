@@ -581,9 +581,16 @@ impl TimelineEditExt for TimelineEditingState {
                 text_clip.properties.font_size = font_size;
             }
             EditAction::SetTextColor { clip_id, color } => {
-                if let Some(Clip::Text(clip)) = data.clip_mut(clip_id) {
-                    clip.properties.color = color;
+                if data.clip_locked(clip_id) {
+                    return Err(anyhow!("Text clip {clip_id} is on a locked track"));
                 }
+                let Some(clip) = data.clip_mut(clip_id) else {
+                    return Err(anyhow!("Clip {clip_id} was not found"));
+                };
+                let Clip::Text(text_clip) = clip else {
+                    return Err(anyhow!("Clip {clip_id} is not a text clip"));
+                };
+                text_clip.properties.color = color;
             }
             EditAction::ApplyTextStyleToTrack { clip_id, .. } => {
                 let Some(Clip::Text(source)) = data.clip(clip_id) else {

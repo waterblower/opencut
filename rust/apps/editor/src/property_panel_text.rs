@@ -12,7 +12,8 @@ use crate::ui_components::text_area::TextArea;
 use crate::ui_components::text_input::{TextInput, TextInputEvent};
 use gpui::prelude::*;
 use gpui::{
-    App, Entity, Focusable, FontWeight, PathBuilder, Window, canvas, div, point, px, rgb, rgba,
+    Anchor, App, BoxShadow, CursorStyle, Entity, Focusable, FontWeight, MouseButton, PathBuilder,
+    Window, anchored, canvas, deferred, div, point, px, rgb, rgba,
 };
 use timeline::TimelineEditingState;
 use ulid::Ulid;
@@ -236,34 +237,46 @@ pub(crate) fn text_clip_view(panel: &TextClipPanel) -> gpui::AnyElement {
                 .child(style_field_view(
                     "Font color",
                     div()
-                        .h(px(34.0))
-                        .min_w_0()
-                        .flex()
-                        .items_center()
-                        .gap(px(6.0))
-                        .px(px(8.0))
-                        .rounded(px(6.0))
                         .when(!panel.locked, |field| {
-                            field.border_1().border_color(rgb(BORDER))
+                            field.child(FontColorInput {
+                                clip_id: clip.id(),
+                                value: clip.properties.color,
+                                event_bus: panel.event_bus.clone(),
+                            })
                         })
-                        .bg(rgb(if panel.locked { 0x19191d } else { SURFACE }))
-                        .child(
-                            div()
-                                .size(px(16.0))
-                                .flex_shrink_0()
-                                .rounded(px(4.0))
-                                .border_1()
-                                .border_color(rgb(BORDER))
-                                .bg(rgba(clip.properties.color.rotate_left(8))), // ARGB → RGBA。
-                        )
-                        .child(
-                            div()
-                                .min_w_0()
-                                .font_family("monospace")
-                                .text_size(px(13.0))
-                                .text_ellipsis()
-                                .child(color_text),
-                        ),
+                        .when(panel.locked, |field| {
+                            field.child(
+                                div()
+                                    .h(px(34.0))
+                                    .min_w_0()
+                                    .flex()
+                                    .items_center()
+                                    .gap(px(6.0))
+                                    .px(px(8.0))
+                                    .rounded(px(6.0))
+                                    .when(!panel.locked, |field| {
+                                        field.border_1().border_color(rgb(BORDER))
+                                    })
+                                    .bg(rgb(if panel.locked { 0x19191d } else { SURFACE }))
+                                    .child(
+                                        div()
+                                            .size(px(16.0))
+                                            .flex_shrink_0()
+                                            .rounded(px(4.0))
+                                            .border_1()
+                                            .border_color(rgb(BORDER))
+                                            .bg(rgba(clip.properties.color.rotate_left(8))), // ARGB → RGBA。
+                                    )
+                                    .child(
+                                        div()
+                                            .min_w_0()
+                                            .font_family("monospace")
+                                            .text_size(px(13.0))
+                                            .text_ellipsis()
+                                            .child(color_text),
+                                    ),
+                            )
+                        }),
                 )),
         )
         .child(property_panel_divider_view())
@@ -414,5 +427,276 @@ impl RenderOnce for FontSizeInput {
                     .text_color(rgb(MUTED))
                     .child("px"),
             )
+    }
+}
+
+#[derive(IntoElement)]
+struct FontColorInput {
+    clip_id: Ulid,
+    value: u32,
+    event_bus: Entity<EventBus>,
+}
+
+impl RenderOnce for FontColorInput {
+    fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
+        let clip_id = self.clip_id;
+        let value = self.value;
+        let alpha = value & 0xff00_0000;
+        let event_bus = self.event_bus;
+        let input_bus = event_bus.clone();
+        let return_focus = match window.focused(cx) {
+            Some(handle) => handle,
+            None => cx.focus_handle(),
+        };
+        let input =
+            window.use_keyed_state(format!("text-color-{clip_id}-{alpha}"), cx, |window, cx| {
+                let field = TextInput::new_property_hex_field(
+                    format!("{:06X}", value & 0xffffff),
+                    return_focus,
+                    cx,
+                );
+                cx.subscribe(&cx.entity(), move |field, _, _: &TextInputEvent, cx| {
+                    // 未完成的十六进制输入是正常草稿；只提交完整的 RGB，保留原有透明度。
+                    let Some(color) = parse_hex_color(field.text()) else {
+                        return;
+                    };
+                    input_bus.update(cx, |_, cx| {
+                        cx.emit(AppEvent::Edit(EditAction::SetTextColor {
+                            clip_id,
+                            color: alpha | color,
+                        }))
+                    });
+                })
+                .detach();
+                cx.on_blur(&field.focus_handle(cx), window, |_, _, cx| cx.notify())
+                    .detach();
+                field
+            });
+        input.update(cx, |field, cx| {
+            let parsed = parse_hex_color(field.text());
+            if (!field.focus_handle(cx).is_focused(window) || parsed.is_some())
+                && parsed != Some(value & 0xffffff)
+            {
+                field.set_text_silently(format!("{:06X}", value & 0xffffff));
+            }
+        });
+        let open =
+            window.use_keyed_state(format!("text-color-palette-{clip_id}"), cx, |_, _| false);
+        let is_open = *open.read(cx);
+        let toggle = open.clone();
+        let valid = parse_hex_color(input.read(cx).text()).is_some();
+        let mut field = div()
+            .relative()
+            .h(px(34.0))
+            .min_w_0()
+            .flex()
+            .items_center()
+            .gap(px(6.0))
+            .px(px(8.0))
+            .rounded(px(6.0))
+            .border_1()
+            .border_color(rgb(if valid { BORDER } else { 0xff8b8b }))
+            .bg(rgb(SURFACE))
+            .child(
+                div()
+                    .id("font-color-swatch")
+                    .size(px(16.0))
+                    .flex_shrink_0()
+                    .rounded(px(4.0))
+                    .border_1()
+                    .border_color(rgb(BORDER))
+                    .bg(rgba(value.rotate_left(8)))
+                    .cursor(CursorStyle::PointingHand)
+                    .on_mouse_down(MouseButton::Left, move |_, window, cx| {
+                        cx.stop_propagation();
+                        toggle.update(cx, |shown, cx| {
+                            *shown = !*shown;
+                            cx.notify();
+                        });
+                        window.refresh();
+                    }),
+            )
+            .child(div().text_size(px(13.0)).text_color(rgb(MUTED)).child("#"))
+            .child(div().min_w_0().flex_1().child(input.clone()));
+        if is_open {
+            let close = open.clone();
+            let outside = open.clone();
+            let mut palette = div()
+                .id("font-color-palette")
+                .relative()
+                .w(px(248.0))
+                .p(px(15.0))
+                .flex()
+                .flex_col()
+                .gap(px(16.0))
+                .rounded(px(8.0))
+                .border_1()
+                .border_color(rgb(0x45454d))
+                .bg(rgb(0x202024))
+                .occlude()
+                .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
+                .on_mouse_down_out(move |_, window, cx| {
+                    outside.update(cx, |shown, cx| {
+                        *shown = false;
+                        cx.notify();
+                    });
+                    window.refresh();
+                })
+                .child(
+                    div()
+                        .flex()
+                        .justify_between()
+                        .items_center()
+                        .text_size(px(13.0))
+                        .text_color(rgb(0xf2f2f4))
+                        .child("Color families")
+                        .child(
+                            div()
+                                .id("close-color-palette")
+                                .cursor(CursorStyle::PointingHand)
+                                .child("×")
+                                .on_mouse_down(MouseButton::Left, move |_, window, cx| {
+                                    cx.stop_propagation();
+                                    close.update(cx, |shown, cx| {
+                                        *shown = false;
+                                        cx.notify();
+                                    });
+                                    window.refresh();
+                                }),
+                        ),
+                );
+            let colors = [
+                0xffffff, 0xcccccc, 0x999999, 0x666666, 0x333333, 0x000000, 0xff8b8b, 0xf0b75e,
+                0xffe58a, 0x9bdca4, 0x91b8df, 0xb69bdc, 0xe84545, 0xe69324, 0xe5c638, 0x41ac62,
+                0x438fd4, 0x9164ce, 0x8e2828, 0x915617, 0x8a7621, 0x256b3a, 0x285886, 0x58377f,
+            ];
+            let mut grid = div().flex().flex_col().gap(px(8.0));
+            for row in colors.chunks(6) {
+                let mut line = div().flex().gap(px(6.0));
+                for &color in row {
+                    let selected = value & 0xffffff == color;
+                    let select_bus = event_bus.clone();
+                    let select_input = input.clone();
+                    let contrast = if ((color >> 16) & 255) * 299
+                        + ((color >> 8) & 255) * 587
+                        + (color & 255) * 114
+                        > 128000
+                    {
+                        0x17120a
+                    } else {
+                        0xffffff
+                    };
+                    line = line.child(
+                        div()
+                            .id(("preset-color", color as usize))
+                            .size(px(30.0))
+                            .flex_shrink_0()
+                            .rounded(px(4.0))
+                            .flex()
+                            .items_center()
+                            .justify_center()
+                            .bg(rgb(color))
+                            .border_1()
+                            .border_color(rgb(if selected { 0xf2f2f4 } else { 0x45454d }))
+                            .hover(|style| {
+                                style.shadow(vec![
+                                    BoxShadow::new(px(0.0), px(0.0), rgb(0x080809).into())
+                                        .spread_radius(px(4.0)),
+                                    BoxShadow::new(px(0.0), px(0.0), rgb(0xf2f2f4).into())
+                                        .spread_radius(px(3.0)),
+                                    BoxShadow::new(px(0.0), px(0.0), rgb(0x080809).into())
+                                        .spread_radius(px(1.0)),
+                                ])
+                            })
+                            .cursor(CursorStyle::PointingHand)
+                            .text_color(rgb(contrast))
+                            .when(selected, |swatch| swatch.child("✓"))
+                            .on_mouse_down(MouseButton::Left, move |_, window, cx| {
+                                cx.stop_propagation();
+                                select_input.update(cx, |field, cx| {
+                                    field.set_text_silently(format!("{color:06X}"));
+                                    cx.notify();
+                                });
+                                select_bus.update(cx, |_, cx| {
+                                    cx.emit(AppEvent::Edit(EditAction::SetTextColor {
+                                        clip_id,
+                                        color: alpha | color,
+                                    }))
+                                });
+                                window.refresh();
+                            }),
+                    );
+                }
+                grid = grid.child(line);
+            }
+            palette = palette
+                .child(grid)
+                .child(
+                    div()
+                        .text_size(px(11.0))
+                        .text_color(rgb(MUTED))
+                        .child("Neutrals, then light, vivid and dark."),
+                )
+                .child(
+                    div()
+                        .text_size(px(11.0))
+                        .text_color(rgb(MUTED))
+                        .child("Custom color? Edit the hex value."),
+                );
+            palette = palette.child(
+                canvas(
+                    |_, _, _| (),
+                    |bounds, (), window, _| {
+                        let left = bounds.origin + point(px(0.0), px(0.0));
+                        let tip = bounds.origin + point(px(7.0), px(8.0));
+                        let right = bounds.origin + point(px(14.0), px(0.0));
+                        let mut fill = PathBuilder::fill();
+                        fill.move_to(left);
+                        fill.line_to(tip);
+                        fill.line_to(right);
+                        fill.close();
+                        window.paint_path(
+                            fill.build().expect("valid palette pointer triangle"),
+                            rgb(0x202024),
+                        );
+                        let mut outline = PathBuilder::stroke(px(1.0));
+                        outline.move_to(left);
+                        outline.line_to(tip);
+                        outline.line_to(right);
+                        window.paint_path(
+                            outline.build().expect("valid palette pointer outline"),
+                            rgb(0x45454d),
+                        );
+                    },
+                )
+                .absolute()
+                .right(px(96.0))
+                .bottom(px(-7.0))
+                .w(px(14.0))
+                .h(px(8.0)),
+            );
+            field = field.child(
+                div().absolute().right_0().top_0().child(
+                    deferred(
+                        anchored()
+                            .anchor(Anchor::BottomRight)
+                            .offset(point(px(0.0), px(-12.0)))
+                            .child(palette),
+                    )
+                    .with_priority(1),
+                ),
+            );
+        }
+        field
+    }
+}
+
+fn parse_hex_color(text: &str) -> Option<u32> {
+    if text.len() != 6 || !text.bytes().all(|byte| byte.is_ascii_hexdigit()) {
+        return None;
+    }
+    match u32::from_str_radix(text, 16) {
+        Ok(color) => Some(color),
+        Err(_) => None,
     }
 }

@@ -615,6 +615,89 @@ fn text_edits_preserve_timing_without_a_renderer() -> Result<()> {
             .font_size,
         72.5
     );
+    let before_color = timeline
+        .editing_state
+        .clip(clip.id())
+        .unwrap()
+        .text()
+        .unwrap()
+        .clone();
+    edit_timeline(
+        &mut timeline,
+        EditAction::SetTextColor {
+            clip_id: clip.id(),
+            color: 0x80f0b75e,
+        },
+    )?;
+    let recolored = timeline
+        .editing_state
+        .clip(clip.id())
+        .unwrap()
+        .text()
+        .unwrap();
+    assert_eq!(recolored.properties.color, 0x80f0b75e);
+    assert_eq!(recolored.timeline_start, before_color.timeline_start);
+    assert_eq!(recolored.duration, before_color.duration);
+    assert_eq!(
+        recolored.properties.font_size,
+        before_color.properties.font_size
+    );
+    assert_eq!(recolored.properties.text, before_color.properties.text);
+    edit_timeline(&mut timeline, EditAction::Undo)?;
+    assert_eq!(
+        timeline
+            .editing_state
+            .clip(clip.id())
+            .unwrap()
+            .text()
+            .unwrap()
+            .properties
+            .color,
+        before_color.properties.color
+    );
+    edit_timeline(&mut timeline, EditAction::Redo)?;
+    let color_json = serde_json::to_string(&timeline.to_serialize())?;
+    let color_document = serde_json::from_str::<TimelineSerialization>(&color_json)?.editing_state;
+    assert_eq!(
+        color_document
+            .clip(clip.id())
+            .unwrap()
+            .text()
+            .unwrap()
+            .properties
+            .color,
+        0x80f0b75e
+    );
+    assert!(
+        edit_timeline(
+            &mut timeline,
+            EditAction::SetTextColor {
+                clip_id: ulid(999),
+                color: 0xffffffff
+            }
+        )
+        .is_err()
+    );
+    assert_eq!(serde_json::to_string(&timeline.to_serialize())?, color_json);
+    edit_timeline(
+        &mut timeline,
+        EditAction::ToggleTrackLock { track_id: ulid(3) },
+    )?;
+    let locked_json = serde_json::to_string(&timeline.to_serialize())?;
+    assert!(
+        edit_timeline(
+            &mut timeline,
+            EditAction::SetTextColor {
+                clip_id: clip.id(),
+                color: 0xffffffff
+            }
+        )
+        .is_err()
+    );
+    assert_eq!(
+        serde_json::to_string(&timeline.to_serialize())?,
+        locked_json
+    );
     Ok(())
 }
 

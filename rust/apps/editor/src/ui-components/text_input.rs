@@ -88,6 +88,7 @@ enum InputAppearance {
 enum InputConstraint {
     Any,
     UnsignedInteger,
+    Hex,
     Number,
 }
 
@@ -217,6 +218,22 @@ impl TextInput {
         )
     }
 
+    pub(crate) fn new_property_hex_field(
+        content: String,
+        return_focus: FocusHandle,
+        cx: &mut Context<Self>,
+    ) -> Self {
+        Self::new_with_appearance(
+            "property-hex-input",
+            &content,
+            "",
+            InputAppearance::PropertyField,
+            InputConstraint::Hex,
+            return_focus,
+            cx,
+        )
+    }
+
     fn new_with_appearance(
         element_id: &'static str,
         content: &str,
@@ -326,6 +343,11 @@ impl TextInput {
     fn filtered_input(&self, text: &str) -> String {
         match self.constraint {
             InputConstraint::Any => text.to_string(),
+            InputConstraint::Hex => text
+                .chars()
+                .filter(char::is_ascii_hexdigit)
+                .collect::<String>()
+                .to_ascii_uppercase(),
             InputConstraint::UnsignedInteger => text.chars().filter(char::is_ascii_digit).collect(),
             InputConstraint::Number => text
                 .chars()
