@@ -1,6 +1,6 @@
-//! A multiline, wrapping text editor. Enter inserts a newline; Escape gives up focus.
+//! A multiline, wrapping text editor. Enter inserts a newline; Escape returns focus to the caller.
 //!
-//! The caller owns the text: it draws `TextArea::new(id, text)` every frame and receives
+//! The caller owns the text: it draws `TextArea::new(id, text, return_focus)` every frame and receives
 //! each edit through `on_text_change`. Caret, selection, IME and focus are kept in gpui's
 //! per-element state under `id`, so they survive between frames without the caller.
 
@@ -74,6 +74,7 @@ pub(crate) fn bind_keys(cx: &mut App) {
 pub(crate) struct TextArea {
     id: ElementId,
     text: SharedString,
+    return_focus: FocusHandle,
     placeholder: SharedString,
     on_text_change: Option<OnTextChange>,
 }
@@ -82,10 +83,15 @@ pub(crate) struct TextArea {
 impl TextArea {
     /// `id` keys the caret, selection and focus kept between frames; it must be unique
     /// among its siblings.
-    pub(crate) fn new(id: impl Into<ElementId>, text: impl Into<SharedString>) -> Self {
+    pub(crate) fn new(
+        id: impl Into<ElementId>,
+        text: impl Into<SharedString>,
+        return_focus: FocusHandle,
+    ) -> Self {
         Self {
             id: id.into(),
             text: text.into(),
+            return_focus,
             placeholder: SharedString::default(),
             on_text_change: None,
         }
@@ -110,8 +116,10 @@ type OnTextChange = Rc<dyn Fn(&String, &mut Window, &mut App)>;
 
 struct TextAreaState {
     focus_handle: FocusHandle,
-    text: SharedString, // 获得焦点时是正在输入的文本；失去焦点时跟随调用方传入的文本
-    on_text_change: Option<OnTextChange>, // 每帧由 TextArea 重新设置
+    return_focus: FocusHandle,
+    text: SharedString,                   // 包含尚未由调用方确认的输入草稿
+    last_drawn_text: Option<SharedString>, // 上次收到的模型快照，用于识别撤销等外部修改
+    on_text_change: Option<OnTextChange>,  // 每帧由 TextArea 重新设置
     selected_range: Range<usize>,
     selection_reversed: bool,
     marked_range: Option<Range<usize>>,
@@ -122,10 +130,12 @@ struct TextAreaState {
 
 // Private APIs only
 impl TextAreaState {
-    fn new(cx: &mut Context<Self>) -> Self {
+    fn new(return_focus: FocusHandle, cx: &mut Context<Self>) -> Self {
         Self {
             focus_handle: cx.focus_handle().tab_stop(true),
+            return_focus,
             text: "".into(),
+            last_drawn_text: None,
             on_text_change: None,
             selected_range: 0..0,
             selection_reversed: false,
@@ -358,7 +368,7 @@ impl TextAreaState {
     }
 
     fn dismiss(&mut self, _: &Dismiss, window: &mut Window, cx: &mut Context<Self>) {
-        window.blur(cx);
+        self.return_focus.focus(window, cx);
     }
 
     fn notify_text_change(&self, window: &mut Window, cx: &mut Context<Self>) {
@@ -523,7 +533,9 @@ impl EntityInputHandler for TextAreaState {
 
 impl RenderOnce for TextArea {
     fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
-        let state = window.use_keyed_state(self.id.clone(), cx, |_, cx| TextAreaState::new(cx));
+        let state = window.use_keyed_state(self.id.clone(), cx, |_, cx| {
+            TextAreaState::new(self.return_focus.clone(), cx)
+        });
         let focus_handle = state.read(cx).focus_handle.clone();
         div()
             .id(self.id)
@@ -684,15 +696,16 @@ impl Element for TextAreaElement {
         window: &mut Window,
         cx: &mut App,
     ) -> (LayoutId, Self::RequestLayoutState) {
-        // 获得焦点时保留正在输入的文本：调用方的更新可能晚一帧到达，不能用旧文本覆盖它。
+        // 相同的旧快照不能覆盖输入草稿；模型变化（包括撤销/重做）即使聚焦也要同步。
         let focused = self.state.read(cx).focus_handle.is_focused(window);
         let drawn_text = self.text.clone();
         let on_text_change = self.on_text_change.clone();
         self.state.update(cx, |state, _| {
             state.on_text_change = on_text_change;
-            if !focused {
-                state.set_drawn_text(drawn_text);
+            if !focused || state.last_drawn_text.as_ref() != Some(&drawn_text) {
+                state.set_drawn_text(drawn_text.clone());
             }
+            state.last_drawn_text = Some(drawn_text);
         });
         let (text, runs) = shaping_input(self.state.read(cx), &self.placeholder, window);
         let font_size = window.text_style().font_size.to_pixels(window.rem_size());

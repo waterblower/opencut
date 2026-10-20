@@ -60,6 +60,7 @@ pub(crate) fn current_property_panel(editor: &Editor) -> PropertyPanel {
                 &timeline.editing_state,
                 clip,
                 editor.event_bus.clone(),
+                editor.focus_handle.clone(),
             )),
         };
     }

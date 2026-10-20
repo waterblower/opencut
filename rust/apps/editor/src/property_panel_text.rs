@@ -12,8 +12,8 @@ use crate::ui_components::text_area::TextArea;
 use crate::ui_components::text_input::{TextInput, TextInputEvent, disabled_text_input_view};
 use gpui::prelude::*;
 use gpui::{
-    Anchor, App, BoxShadow, CursorStyle, Entity, Focusable, FontWeight, MouseButton, PathBuilder,
-    Window, anchored, canvas, deferred, div, point, px, rgb, rgba,
+    Anchor, App, BoxShadow, CursorStyle, Entity, FocusHandle, Focusable, FontWeight, MouseButton,
+    PathBuilder, Window, anchored, canvas, deferred, div, point, px, rgb, rgba,
 };
 use timeline::TimelineEditingState;
 use ulid::Ulid;
@@ -24,12 +24,14 @@ pub(crate) struct TextClipPanel {
     frame_rate: FrameRate,
     locked: bool, // 片段所在轨道已锁定时内容只读
     event_bus: Entity<EventBus>,
+    return_focus: FocusHandle,
 }
 
 pub(crate) fn text_clip_panel(
     editing_state: &TimelineEditingState,
     clip: &TextClip,
     event_bus: Entity<EventBus>,
+    return_focus: FocusHandle,
 ) -> TextClipPanel {
     let track_name = match editing_state
         .tracks
@@ -45,6 +47,7 @@ pub(crate) fn text_clip_panel(
         frame_rate: editing_state.settings.frame_rate,
         locked: editing_state.clip_locked(clip.id()),
         event_bus,
+        return_focus,
     }
 }
 
@@ -88,16 +91,20 @@ pub(crate) fn text_clip_view(panel: &TextClipPanel) -> gpui::AnyElement {
     } else {
         let clip_id = clip.id();
         let event_bus = panel.event_bus.clone();
-        TextArea::new("text-clip-content", clip.properties.text.clone())
-            .placeholder("Text")
-            .on_text_change(move |text, _, cx| {
-                let event = AppEvent::Edit(EditAction::SetTextContent {
-                    clip_id,
-                    text: text.clone(),
-                });
-                event_bus.update(cx, |_, cx| cx.emit(event));
-            })
-            .into_any_element()
+        TextArea::new(
+            "text-clip-content",
+            clip.properties.text.clone(),
+            panel.return_focus.clone(),
+        )
+        .placeholder("Text")
+        .on_text_change(move |text, _, cx| {
+            let event = AppEvent::Edit(EditAction::SetTextContent {
+                clip_id,
+                text: text.clone(),
+            });
+            event_bus.update(cx, |_, cx| cx.emit(event));
+        })
+        .into_any_element()
     };
     let font_size = if panel.locked {
         text_value_view("", clip.properties.font_size.to_string(), "px", true).h(px(34.0))

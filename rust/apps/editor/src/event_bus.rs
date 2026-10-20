@@ -472,6 +472,7 @@ async fn handle_app_event(
                     &timeline.editing_state,
                     clip,
                     editor.event_bus.clone(),
+                    editor.focus_handle.clone(),
                 ));
                 cx.notify();
                 Ok(())
