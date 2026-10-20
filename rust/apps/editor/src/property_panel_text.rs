@@ -1,3 +1,5 @@
+use crate::edit_action::EditAction;
+use crate::event_bus::{AppEvent, EventBus};
 use crate::property_panel::{
     clip_track_subtitle_view, format_property_panel_time, property_panel_divider_view,
     property_panel_header_view, property_panel_heading_view, readonly_property_panel_view,
@@ -6,19 +8,23 @@ use crate::theme::{BORDER, MUTED, SURFACE};
 use crate::timeline::FrameRate;
 use crate::timeline_clip::TextClip;
 use crate::track::TrackKind;
+use crate::ui_components::text_area::TextArea;
 use gpui::prelude::*;
-use gpui::{FontWeight, PathBuilder, canvas, div, point, px, rgb, rgba};
+use gpui::{Entity, FontWeight, PathBuilder, canvas, div, point, px, rgb, rgba};
 use timeline::TimelineEditingState;
 
 pub(crate) struct TextClipPanel {
     clip: TextClip,
     track_name: String,
     frame_rate: FrameRate,
+    locked: bool, // 片段所在轨道已锁定时内容只读
+    event_bus: Entity<EventBus>,
 }
 
 pub(crate) fn text_clip_panel(
     editing_state: &TimelineEditingState,
     clip: &TextClip,
+    event_bus: Entity<EventBus>,
 ) -> TextClipPanel {
     let track_name = match editing_state
         .tracks
@@ -32,6 +38,8 @@ pub(crate) fn text_clip_panel(
         clip: clip.clone(),
         track_name: track_name.to_owned(),
         frame_rate: editing_state.settings.frame_rate,
+        locked: editing_state.clip_locked(clip.id()),
+        event_bus,
     }
 }
 
@@ -74,27 +82,41 @@ pub(crate) fn text_clip_view(panel: &TextClipPanel) -> gpui::AnyElement {
     } else {
         format!("#{color_rgb:06X}{alpha:02X}")
     };
+    let content_box = if panel.locked {
+        div()
+            .min_h(px(58.0))
+            .px(px(10.0))
+            .py(px(8.0))
+            .rounded(px(6.0))
+            .border_1()
+            .border_color(rgb(BORDER))
+            .bg(rgb(SURFACE))
+            .text_size(px(13.0))
+            .line_height(px(19.0))
+            .children(
+                clip.properties
+                    .text
+                    .lines()
+                    .map(|line| div().min_h(px(19.0)).child(line.to_owned())),
+            )
+            .into_any_element()
+    } else {
+        let clip_id = clip.id();
+        let event_bus = panel.event_bus.clone();
+        TextArea::new("text-clip-content", clip.properties.text.clone())
+            .placeholder("Text")
+            .on_text_change(move |text, _, cx| {
+                let event = AppEvent::Edit(EditAction::SetTextContent {
+                    clip_id,
+                    text: text.clone(),
+                });
+                event_bus.update(cx, |_, cx| cx.emit(event));
+            })
+            .into_any_element()
+    };
     let content = div()
         .child(property_panel_heading_view("CONTENT"))
-        .child(
-            div()
-                .mt(px(12.0))
-                .min_h(px(58.0))
-                .px(px(10.0))
-                .py(px(8.0))
-                .rounded(px(6.0))
-                .border_1()
-                .border_color(rgb(BORDER))
-                .bg(rgb(SURFACE))
-                .text_size(px(13.0))
-                .line_height(px(19.0))
-                .children(
-                    clip.properties
-                        .text
-                        .lines()
-                        .map(|line| div().min_h(px(19.0)).child(line.to_owned())),
-                ),
-        )
+        .child(div().mt(px(12.0)).child(content_box))
         .child(property_panel_divider_view())
         .child(property_panel_heading_view("TIMING"))
         .child(

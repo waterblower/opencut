@@ -443,6 +443,8 @@ async fn handle_app_event(
                         }
                     }
                 }
+                // Undo, redo and other edits can change what the property panel shows.
+                editor.property_panel = current_property_panel(editor);
                 cx.notify();
                 Ok(())
             })?;
@@ -465,8 +467,11 @@ async fn handle_app_event(
                 let Some(Clip::Text(clip)) = timeline.editing_state.clip(clip_id) else {
                     bail!("Text clip {clip_id} no longer exists");
                 };
-                editor.property_panel =
-                    PropertyPanel::TextClip(text_clip_panel(&timeline.editing_state, clip));
+                editor.property_panel = PropertyPanel::TextClip(text_clip_panel(
+                    &timeline.editing_state,
+                    clip,
+                    editor.event_bus.clone(),
+                ));
                 cx.notify();
                 Ok(())
             })?;
