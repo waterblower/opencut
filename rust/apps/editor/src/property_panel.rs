@@ -55,9 +55,11 @@ pub(crate) fn current_property_panel(editor: &Editor) -> PropertyPanel {
             Clip::Audio(clip) => {
                 PropertyPanel::AudioClip(audio_clip_panel(timeline, clip, &editor.waveform_cache))
             }
-            Clip::Text(clip) => {
-                PropertyPanel::TextClip(text_clip_panel(&timeline.editing_state, clip))
-            }
+            Clip::Text(clip) => PropertyPanel::TextClip(text_clip_panel(
+                &timeline.editing_state,
+                clip,
+                editor.event_bus.clone(),
+            )),
         };
     }
 
