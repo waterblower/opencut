@@ -929,7 +929,7 @@
 <text class="s" x="336.0" y="2279" font-size="12" fill="#f0b75e" font-weight="600">ambience-park.wav</text>
 <text class="s" x="336.0" y="2305" font-size="12" fill="#f0b75e" font-weight="400">Release to place · Audio</text>
 <rect x="326.0" y="2180" width="2" height="148" fill="#7bb6ff" fill-opacity="1" />
-<path transform="translate(514 2296)" d="M3 10V6Q3 3 6 3H8V2Q8 0 11 1L13 2Q16 0 18 3Q22 2 23 6L25 11V19Q24 25 19 27H10L2 19Q-1 16 1 14Q3 12 7 16V10Z" fill="#fff" stroke="#080809" stroke-width="1.5" stroke-linejoin="round" /><text class="s" x="331" y="2195" font-size="10" fill="#7bb6ff" font-weight="600">SNAP</text></g>
+<path transform="translate(514 2296)" d="M3 10V6Q3 3 6 3H8V2Q8 0 11 1L13 2Q16 0 18 3Q22 2 23 6L25 11V19Q24 25 19 27H10L2 19Q-1 16 1 14Q3 12 7 16V10Z" fill="#fff" stroke="#080809" stroke-width="1.5" stroke-linejoin="round" /></g>
 <rect x="48.5" y="2152.5" width="555" height="175" fill="none" rx="10" stroke="#2b2b31" />
 </g><g transform="translate(-588 302)"><text class="s" x="636" y="2118" font-size="14" fill="#f2f2f4" font-weight="600">Incompatible track</text>
 <text class="s" x="636" y="2138" font-size="12" fill="#777780" font-weight="400">The clip type does not match the destination track.</text>
@@ -1001,7 +1001,7 @@
 <rect x="854" y="2185" width="280" height="64" fill="url(#preview-rejected-hatch)" rx="6" />
 <rect x="854.75" y="2185.75" width="278.5" height="62.5" fill="none" rx="6" stroke="#ff8b8b" stroke-width="1.5" />
 <text class="s" x="864" y="2205" font-size="12" fill="#ff8b8b" font-weight="600">ambience-park.wav</text>
-<text class="s" x="864" y="2231" font-size="12" fill="#ff8b8b" font-weight="400">Audio requires an audio track</text>
+<text class="s" x="864" y="2231" font-size="12" fill="#ff8b8b" font-weight="400">Incompatible track</text>
 <rect x="854" y="2180" width="1" height="148" fill="#ff8b8b" fill-opacity=".7" />
 <path transform="translate(1102 2224)" d="M0 0V18L5 14 9 23 12 21 8 12H15Z" fill="#fff" stroke="#080809" stroke-width="1.5" stroke-linejoin="round" />
 <circle cx="1120" cy="2244" r="7" fill="#b73b49" stroke="#fff" />
@@ -1080,7 +1080,7 @@
 <rect x="266" y="2561" width="280" height="64" fill="url(#preview-rejected-hatch)" rx="6" />
 <rect x="266.75" y="2561.75" width="278.5" height="62.5" fill="none" rx="6" stroke="#ff8b8b" stroke-width="1.5" />
 <text class="s" x="276" y="2581" font-size="12" fill="#ff8b8b" font-weight="600">ambience-park.wav</text>
-<text class="s" x="276" y="2607" font-size="12" fill="#ff8b8b" font-weight="400">Destination track is locked</text>
+<text class="s" x="276" y="2607" font-size="12" fill="#ff8b8b" font-weight="400">Track is locked</text>
 <rect x="266" y="2482" width="1" height="148" fill="#ff8b8b" fill-opacity=".7" />
 <path transform="translate(514 2600)" d="M0 0V18L5 14 9 23 12 21 8 12H15Z" fill="#fff" stroke="#080809" stroke-width="1.5" stroke-linejoin="round" />
 <circle cx="532" cy="2620" r="7" fill="#b73b49" stroke="#fff" />
@@ -1159,7 +1159,7 @@
 <rect x="854" y="2561" width="280" height="64" fill="url(#preview-rejected-hatch)" rx="6" />
 <rect x="854.75" y="2561.75" width="278.5" height="62.5" fill="none" rx="6" stroke="#ff8b8b" stroke-width="1.5" />
 <text class="s" x="864" y="2581" font-size="12" fill="#ff8b8b" font-weight="600">ambience-park.wav</text>
-<text class="s" x="864" y="2607" font-size="12" fill="#ff8b8b" font-weight="400">Overlaps an existing clip</text>
+<text class="s" x="864" y="2607" font-size="12" fill="#ff8b8b" font-weight="400">Clip overlapped</text>
 <rect x="854" y="2482" width="1" height="148" fill="#ff8b8b" fill-opacity=".7" />
 <path transform="translate(1102 2600)" d="M0 0V18L5 14 9 23 12 21 8 12H15Z" fill="#fff" stroke="#080809" stroke-width="1.5" stroke-linejoin="round" />
 <circle cx="1120" cy="2620" r="7" fill="#b73b49" stroke="#fff" />

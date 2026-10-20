@@ -3,11 +3,11 @@ use crate::asset::IconName;
 use crate::editor::Editor;
 use crate::event_bus::{AppEvent, EventBus};
 use crate::layout::{
-    MIN_MEDIA_PANEL_WIDTH, MIN_PREVIEW_WIDTH, MIN_PROPERTIES_PANEL_WIDTH, MIN_TIMELINE_HEIGHT,
+    MIN_MEDIA_PANEL_WIDTH, MIN_PREVIEW_WIDTH, MIN_PROPERTY_PANEL_WIDTH, MIN_TIMELINE_HEIGHT,
     MIN_UPPER_WORKSPACE_HEIGHT, TOPBAR_HEIGHT,
 };
 use crate::project_picker;
-use crate::properties::properties_panel;
+use crate::property_panel::property_panel_view;
 use crate::settings::settings_modal_view;
 use crate::theme::{BACKGROUND, BORDER, MUTED, PANEL, TEXT};
 use crate::ui_components::cyberpunk_button::{
@@ -184,10 +184,10 @@ impl Editor {
         let constraints = HorizontalSplitConstraints {
             min_left: MIN_MEDIA_PANEL_WIDTH,
             min_center: MIN_PREVIEW_WIDTH,
-            min_right: MIN_PROPERTIES_PANEL_WIDTH,
+            min_right: MIN_PROPERTY_PANEL_WIDTH,
         };
         let widths = self.upper_split_state.read(cx).widths(width, constraints);
-        let properties_panel_view = properties_panel(&self.properties_panel);
+        let right_panel_view = property_panel_view(&self.property_panel);
         HorizontalSplit::new(
             "editor-upper-workspace",
             self.upper_split_state.clone(),
@@ -196,7 +196,7 @@ impl Editor {
             constraints,
             self.explorer_panel(cx),
             self.preview_player(widths.center, preview_height, cx),
-            properties_panel_view,
+            right_panel_view,
         )
         .into_any_element()
     }

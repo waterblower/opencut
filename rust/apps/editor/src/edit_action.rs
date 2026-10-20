@@ -43,6 +43,14 @@ pub(crate) enum EditAction {
         clip_id: Ulid,
         text: String,
     },
+    SetTextFont {
+        clip_id: Ulid,
+        font: String,
+    },
+    SetTextFontSize {
+        clip_id: Ulid,
+        font_size: f64,
+    },
     SetTextColor {
         clip_id: Ulid,
         color: u32, // 大端 ARGB，与 TextClipProperties::color 相同。
@@ -553,14 +561,55 @@ impl TimelineEditExt for TimelineEditingState {
                 }
             }
             EditAction::SetTextContent { clip_id, text } => {
+                ensure!(
+                    !data.clip_locked(clip_id),
+                    "Text clip {clip_id} is on a locked track"
+                );
                 if let Some(Clip::Text(clip)) = data.clip_mut(clip_id) {
                     clip.properties.text = text;
                 }
             }
-            EditAction::SetTextColor { clip_id, color } => {
-                if let Some(Clip::Text(clip)) = data.clip_mut(clip_id) {
-                    clip.properties.color = color;
+            EditAction::SetTextFont { clip_id, font } => {
+                if font.trim().is_empty() {
+                    return Err(anyhow!("Font family must not be empty"));
                 }
+                if data.clip_locked(clip_id) {
+                    return Err(anyhow!("Text clip {clip_id} is on a locked track"));
+                }
+                let Some(clip) = data.clip_mut(clip_id) else {
+                    return Err(anyhow!("Clip {clip_id} was not found"));
+                };
+                let Clip::Text(text_clip) = clip else {
+                    return Err(anyhow!("Clip {clip_id} is not a text clip"));
+                };
+                text_clip.properties.font = font;
+            }
+            EditAction::SetTextFontSize { clip_id, font_size } => {
+                if !font_size.is_finite() || font_size <= 0.0 {
+                    return Err(anyhow!("Font size must be a positive finite number"));
+                }
+                if data.clip_locked(clip_id) {
+                    return Err(anyhow!("Text clip {clip_id} is on a locked track"));
+                }
+                let Some(clip) = data.clip_mut(clip_id) else {
+                    return Err(anyhow!("Clip {clip_id} was not found"));
+                };
+                let Clip::Text(text_clip) = clip else {
+                    return Err(anyhow!("Clip {clip_id} is not a text clip"));
+                };
+                text_clip.properties.font_size = font_size;
+            }
+            EditAction::SetTextColor { clip_id, color } => {
+                if data.clip_locked(clip_id) {
+                    return Err(anyhow!("Text clip {clip_id} is on a locked track"));
+                }
+                let Some(clip) = data.clip_mut(clip_id) else {
+                    return Err(anyhow!("Clip {clip_id} was not found"));
+                };
+                let Clip::Text(text_clip) = clip else {
+                    return Err(anyhow!("Clip {clip_id} is not a text clip"));
+                };
+                text_clip.properties.color = color;
             }
             EditAction::ApplyTextStyleToTrack { clip_id, .. } => {
                 let Some(Clip::Text(source)) = data.clip(clip_id) else {

@@ -458,14 +458,6 @@ impl Editor {
         timeline.save()
     }
 
-    pub(super) fn toggle_track_lock(&mut self, track_id: Ulid) -> Result<()> {
-        let Some(timeline) = self.timeline.as_mut() else {
-            return Ok(());
-        };
-        edit_timeline(timeline, EditAction::ToggleTrackLock { track_id })?;
-        timeline.save()
-    }
-
     pub(super) fn toggle_track_visibility(&mut self, track_id: Ulid) -> Result<()> {
         let Some(timeline) = self.timeline.as_mut() else {
             return Ok(());
@@ -559,8 +551,8 @@ impl Editor {
             timeline.interaction.selected_clip_ids.insert(clip_id);
         }
         timeline.interaction.selected_clip_id = clip_id;
-        self.properties.transform_input_clip_id = None;
-        self.properties.text_input_clip_id = None;
+        self.property_panel_state.transform_input_clip_id = None;
+        self.property_panel_state.text_input_clip_id = None;
     }
 
     pub(super) fn select_all_unlocked_clips(&mut self) {
@@ -574,8 +566,8 @@ impl Editor {
             .iter()
             .find(|clip| timeline.interaction.selected_clip_ids.contains(&clip.id()))
             .map(Clip::id);
-        self.properties.transform_input_clip_id = None;
-        self.properties.text_input_clip_id = None;
+        self.property_panel_state.transform_input_clip_id = None;
+        self.property_panel_state.text_input_clip_id = None;
     }
 
     pub(super) fn toggle_clip_selection(&mut self, clip_id: Ulid) {
@@ -595,8 +587,8 @@ impl Editor {
             timeline.interaction.selected_clip_ids.insert(clip_id);
             timeline.interaction.selected_clip_id = Some(clip_id);
         }
-        self.properties.transform_input_clip_id = None;
-        self.properties.text_input_clip_id = None;
+        self.property_panel_state.transform_input_clip_id = None;
+        self.property_panel_state.text_input_clip_id = None;
     }
 
     pub(super) fn toggle_track_magnet(&mut self) {

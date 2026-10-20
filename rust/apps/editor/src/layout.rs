@@ -1,7 +1,7 @@
 pub(crate) const DEFAULT_MEDIA_PANEL_WIDTH: f32 = 340.0;
-pub(crate) const DEFAULT_PROPERTIES_PANEL_WIDTH: f32 = 280.0;
+pub(crate) const DEFAULT_PROPERTY_PANEL_WIDTH: f32 = 280.0;
 pub(crate) const MIN_MEDIA_PANEL_WIDTH: f32 = 220.0;
-pub(crate) const MIN_PROPERTIES_PANEL_WIDTH: f32 = 240.0;
+pub(crate) const MIN_PROPERTY_PANEL_WIDTH: f32 = 240.0;
 pub(crate) const MIN_PREVIEW_WIDTH: f32 = 320.0;
 pub(crate) const TOPBAR_HEIGHT: f32 = 64.0;
 pub(crate) const DEFAULT_TIMELINE_HEIGHT: f32 = 280.0;

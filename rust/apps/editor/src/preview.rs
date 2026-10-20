@@ -232,10 +232,21 @@ impl Editor {
                 .w(px(width))
                 .h(px(height))
                 .flex()
+                .flex_col()
                 .items_center()
                 .justify_center()
-                .text_color(rgb(MUTED))
-                .child("No preview available")
+                .gap_1()
+                .child(
+                    div()
+                        .text_color(rgb(0xb4b4bc))
+                        .child("No preview available"),
+                )
+                .child(
+                    div()
+                        .text_size(px(13.0))
+                        .text_color(rgb(MUTED))
+                        .child("Select an image, audio, video, or timeline file."),
+                )
                 .into_any_element(),
             PreviewTarget::Timeline { player, .. } => {
                 let picture = self.preview_timeline_picture(player, cx);

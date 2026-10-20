@@ -6,8 +6,8 @@ use crate::explorer_drag::AssetBeingDragged;
 use crate::explorer_file_entry::visible_tree;
 use crate::preview::{PreviewState, PreviewTarget};
 use crate::project_settings::load_project_local_settings;
-use crate::properties::{PropertiesPanel, PropertiesPanelState, current_properties_panel};
-use crate::properties_transform::VideoTransformInputs;
+use crate::property_panel::{PropertyPanel, PropertyPanelState, current_property_panel};
+use crate::property_panel_transform::VideoTransformInputs;
 use crate::timeline::TimelineRuntimeState;
 use crate::ui_components::{HorizontalSplitState, TextInput, VerticalSplitState};
 use crate::waveform;
@@ -30,8 +30,8 @@ pub(crate) struct Editor {
     pub(crate) project_root: PathBuf,
     pub(super) waveform_jobs: HashSet<PathBuf>, // 正在生成波形的素材绝对路径。
     pub(super) waveform_cache: HashMap<PathBuf, Arc<waveform::WaveformData>>, // 键为素材的绝对路径；不同目录的时间线可能用不同相对路径指向同一文件。
-    pub(super) properties: PropertiesPanelState,
-    pub(super) properties_panel: PropertiesPanel, // 点击文件或片段后由事件重建，render 只读它。
+    pub(super) property_panel_state: PropertyPanelState,
+    pub(super) property_panel: PropertyPanel, // 点击文件或片段后由事件重建，render 只读它。
     pub(super) settings_open: bool,
 
     pub(super) focus_handle: FocusHandle,
@@ -95,11 +95,11 @@ impl Editor {
             error_scroll: ScrollHandle::new(),
         };
 
-        let properties = {
+        let property_panel_state = {
             let video_transform_inputs = VideoTransformInputs::new(focus_handle.clone(), cx);
             Self::observe_video_transform_inputs(&video_transform_inputs, cx);
 
-            PropertiesPanelState {
+            PropertyPanelState {
                 transform_inputs: video_transform_inputs,
                 transform_input_clip_id: None,
                 text_input_clip_id: None,
@@ -119,8 +119,8 @@ impl Editor {
             preview,
             waveform_jobs: HashSet::new(),
             waveform_cache: HashMap::new(),
-            properties,
-            properties_panel: PropertiesPanel::None,
+            property_panel_state,
+            property_panel: PropertyPanel::None,
             settings_open: false,
             global_settings_input: None,
             timeline,
@@ -133,7 +133,7 @@ impl Editor {
         if let Some(timeline) = editor.timeline.as_mut() {
             timeline.set_playhead(timeline.playhead());
         }
-        editor.properties_panel = current_properties_panel(&editor);
+        editor.property_panel = current_property_panel(&editor);
 
         // todo:
         // instead of have an async starting here

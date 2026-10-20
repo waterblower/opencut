@@ -1,4 +1,4 @@
-use crate::theme::{BORDER, MUTED, SURFACE, SURFACE_HOVER, TEXT};
+use crate::theme::{ACCENT, BORDER, MUTED, SURFACE, SURFACE_HOVER, TEXT};
 use gpui::prelude::*;
 use gpui::{
     App, Bounds, ClipboardItem, Context, CursorStyle, Element, ElementId, ElementInputHandler,
@@ -81,13 +81,44 @@ enum InputAppearance {
     Search,
     Field,
     InlineField,
+    PropertyField,
 }
 
 #[derive(Clone, Copy, Eq, PartialEq)]
 enum InputConstraint {
     Any,
     UnsignedInteger,
+    Hex,
     Number,
+}
+
+/// Disabled primary input: no focus handle, text selection, or editing callbacks.
+pub(crate) fn disabled_text_input_view(
+    value: String,
+    prefix: &'static str,
+    suffix: String,
+) -> gpui::Div {
+    div()
+        .h(px(40.0))
+        .min_w_0()
+        .px(px(12.0))
+        .flex()
+        .items_center()
+        .gap(px(6.0))
+        .rounded(px(6.0))
+        .border_1()
+        .border_color(rgb(0x222226))
+        .bg(rgb(0x131316))
+        .font_family("monospace")
+        .text_size(px(13.0))
+        .text_color(rgb(0x55555e))
+        .when(!prefix.is_empty(), |field| {
+            field.child(div().flex_shrink_0().child(prefix))
+        })
+        .child(div().min_w_0().flex_1().text_ellipsis().child(value))
+        .when(!suffix.is_empty(), |field| {
+            field.child(div().flex_shrink_0().text_size(px(11.0)).child(suffix))
+        })
 }
 
 impl TextInput {
@@ -195,6 +226,38 @@ impl TextInput {
             placeholder,
             InputAppearance::InlineField,
             InputConstraint::Number,
+            return_focus,
+            cx,
+        )
+    }
+
+    pub(crate) fn new_property_number_field(
+        content: String,
+        return_focus: FocusHandle,
+        cx: &mut Context<Self>,
+    ) -> Self {
+        Self::new_with_appearance(
+            "property-number-input",
+            &content,
+            "",
+            InputAppearance::PropertyField,
+            InputConstraint::Number,
+            return_focus,
+            cx,
+        )
+    }
+
+    pub(crate) fn new_property_hex_field(
+        content: String,
+        return_focus: FocusHandle,
+        cx: &mut Context<Self>,
+    ) -> Self {
+        Self::new_with_appearance(
+            "property-hex-input",
+            &content,
+            "",
+            InputAppearance::PropertyField,
+            InputConstraint::Hex,
             return_focus,
             cx,
         )
@@ -309,6 +372,11 @@ impl TextInput {
     fn filtered_input(&self, text: &str) -> String {
         match self.constraint {
             InputConstraint::Any => text.to_string(),
+            InputConstraint::Hex => text
+                .chars()
+                .filter(char::is_ascii_hexdigit)
+                .collect::<String>()
+                .to_ascii_uppercase(),
             InputConstraint::UnsignedInteger => text.chars().filter(char::is_ascii_digit).collect(),
             InputConstraint::Number => text
                 .chars()
@@ -853,10 +921,13 @@ impl Element for TextInputElement {
 impl Render for TextInput {
     fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let is_field = self.appearance == InputAppearance::Field;
-        let is_inline_field = self.appearance == InputAppearance::InlineField;
+        let is_property_field = self.appearance == InputAppearance::PropertyField;
+        let is_inline_field = self.appearance == InputAppearance::InlineField || is_property_field;
         div()
-            .h(px(if is_field {
-                54.0
+            .h(px(if is_property_field {
+                32.0
+            } else if is_field {
+                40.0
             } else if is_inline_field {
                 46.0
             } else {
@@ -875,10 +946,15 @@ impl Render for TextInput {
                     .flex()
                     .items_center()
                     .when(is_inline_field, |this| this.px_0())
-                    .when(!is_inline_field, |this| this.px_4())
+                    .when(!is_inline_field && !is_field, |this| this.px_4())
+                    .when(is_field, |this| this.px(px(12.0)))
                     .border_color(rgb(BORDER))
                     .bg(rgb(SURFACE))
-                    .when(is_field, |this| this.rounded_lg().border_1())
+                    .when(is_field, |this| {
+                        this.rounded(px(6.0))
+                            .border_1()
+                            .focus(|style| style.border_color(rgb(ACCENT)))
+                    })
                     .when(!is_field && !is_inline_field, |this| this.border_b_1())
                     .cursor(CursorStyle::IBeam)
                     .on_action(cx.listener(Self::backspace))
@@ -905,32 +981,38 @@ impl Render for TextInput {
                             .flex_1()
                             .overflow_hidden()
                             .font_family("monospace")
-                            .when(is_field || is_inline_field, |this| this.text_base())
+                            .when(is_inline_field, |this| this.text_base())
+                            .when(is_property_field || is_field, |this| {
+                                this.text_size(px(13.0))
+                            })
                             .when(!is_field && !is_inline_field, |this| this.text_sm())
                             .text_color(rgb(TEXT))
                             .child(TextInputElement { input: cx.entity() }),
                     )
-                    .when(!is_field && !self.content.is_empty(), |this| {
-                        this.child(
-                            div()
-                                .id("clear-text-input")
-                                .size_5()
-                                .flex_shrink_0()
-                                .flex()
-                                .items_center()
-                                .justify_center()
-                                .rounded_md()
-                                .occlude()
-                                .cursor(CursorStyle::PointingHand)
-                                .text_color(rgb(MUTED))
-                                .hover(|style| style.bg(rgb(SURFACE_HOVER)))
-                                .child("×")
-                                .on_mouse_down(
-                                    MouseButton::Left,
-                                    cx.listener(Self::clear_on_mouse_down),
-                                ),
-                        )
-                    }),
+                    .when(
+                        !is_field && !is_property_field && !self.content.is_empty(),
+                        |this| {
+                            this.child(
+                                div()
+                                    .id("clear-text-input")
+                                    .size_5()
+                                    .flex_shrink_0()
+                                    .flex()
+                                    .items_center()
+                                    .justify_center()
+                                    .rounded_md()
+                                    .occlude()
+                                    .cursor(CursorStyle::PointingHand)
+                                    .text_color(rgb(MUTED))
+                                    .hover(|style| style.bg(rgb(SURFACE_HOVER)))
+                                    .child("×")
+                                    .on_mouse_down(
+                                        MouseButton::Left,
+                                        cx.listener(Self::clear_on_mouse_down),
+                                    ),
+                            )
+                        },
+                    ),
             )
     }
 }

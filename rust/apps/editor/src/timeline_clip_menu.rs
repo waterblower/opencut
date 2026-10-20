@@ -74,7 +74,7 @@ impl Editor {
             },
         )
         .expect("setting video properties cannot be rejected");
-        self.properties.transform_input_clip_id = None;
+        self.property_panel_state.transform_input_clip_id = None;
 
         timeline.save()?;
 
