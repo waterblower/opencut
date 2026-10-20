@@ -51,8 +51,9 @@ cargo check --config .cargo/macos.toml -p editor   # Windows: .cargo/windows.tom
 
 - [Design spec](design/spec.md): user stories and acceptance criteria for the
   editor, including supported files, shortcuts, and project data.
-- [Agent Skill](.agents/skills/opencut-development/SKILL.md):
-  implementation and code review conventions.
+- [Rust style](.agents/skills/opencut-rust-style/SKILL.md): naming, syntax, and source organization.
+- [Architecture](.agents/skills/opencut-architecture/SKILL.md): state, events, execution, and mutation boundaries.
+- [General rules](.agents/skills/opencut-general-rules/SKILL.md): workflow, validation, and general correctness.
 - [Thoughts](thoughts/): essays on the project.
 
 ## Development
