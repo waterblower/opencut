@@ -1,0 +1,748 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="2616" height="1040" viewBox="0 0 2616 1040">
+<style>.s{font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","Helvetica Neue",Arial,sans-serif}.m{font-family:"SF Mono",Menlo,Monaco,Consolas,monospace}</style>
+<defs>
+<clipPath id="c1"><rect x="48" y="198" width="280" height="707" rx="10"/></clipPath>
+<clipPath id="c2"><rect x="48" y="198" width="280" height="707" rx="0"/></clipPath>
+<clipPath id="c3"><rect x="368" y="198" width="280" height="555" rx="10"/></clipPath>
+<clipPath id="c4"><rect x="368" y="198" width="280" height="555" rx="0"/></clipPath>
+<clipPath id="c5"><rect x="688" y="198" width="280" height="555" rx="10"/></clipPath>
+<clipPath id="c6"><rect x="688" y="198" width="280" height="555" rx="0"/></clipPath>
+<clipPath id="c7"><rect x="1008" y="198" width="280" height="555" rx="10"/></clipPath>
+<clipPath id="c8"><rect x="1008" y="198" width="280" height="555" rx="0"/></clipPath>
+<clipPath id="c9"><rect x="48" y="841" width="280" height="555" rx="10"/></clipPath>
+<clipPath id="c10"><rect x="48" y="841" width="280" height="555" rx="0"/></clipPath>
+<clipPath id="c11"><rect x="368" y="841" width="280" height="555" rx="10"/></clipPath>
+<clipPath id="c12"><rect x="368" y="841" width="280" height="555" rx="0"/></clipPath>
+<clipPath id="c13"><rect x="688" y="841" width="280" height="555" rx="10"/></clipPath>
+<clipPath id="c14"><rect x="688" y="841" width="280" height="555" rx="0"/></clipPath>
+<clipPath id="c15"><rect x="1008" y="841" width="280" height="555" rx="10"/></clipPath>
+<clipPath id="c16"><rect x="1008" y="841" width="280" height="555" rx="0"/></clipPath>
+<clipPath id="c17"><rect x="48" y="841" width="280" height="555" rx="10"/></clipPath>
+<clipPath id="c18"><rect x="48" y="841" width="280" height="555" rx="0"/></clipPath>
+<pattern id="locked-panel-stripes" width="8" height="8" patternUnits="userSpaceOnUse"><path d="M-2 2 L2 -2 M0 8 L8 0 M6 10 L10 6" stroke="#676773" stroke-width="2"/></pattern>
+</defs>
+<rect x="0" y="0" width="2616" height="1040" fill="#151518"/>
+<text class="s" x="48" y="60.64" font-size="24" fill="#f2f2f4" font-weight="700">Property Panel · Text clip</text>
+<text class="s" x="48" y="87.04" font-size="14" fill="#777780">Every state of the text clip panel, side by side. Other panels are on the property panel page.</text>
+<rect x="48.5" y="104.5" width="95" height="29" rx="6" fill="#17171a" stroke="#2b2b31" stroke-width="1"/>
+<text class="s" x="58" y="123.32" font-size="12" fill="#777780" font-weight="600">X</text>
+<text class="m" x="73.68" y="123.68" font-size="13" fill="#f2f2f4">0.50</text>
+<text class="s" x="154" y="123.68" font-size="13" fill="#b4b4bc">Editable input</text>
+<rect x="266.86" y="104" width="96" height="30" rx="6" fill="#131316"/>
+<text class="m" x="276.86" y="123.68" font-size="13" fill="#f2f2f4">0:08.00</text>
+<text class="s" x="372.86" y="123.68" font-size="13" fill="#b4b4bc">Read-only value</text>
+<text class="s" x="501.71" y="123.68" font-size="13" fill="#f0b75e">Change…</text>
+<text class="s" x="562.15" y="123.68" font-size="13" fill="#b4b4bc">Action</text>
+<g id="row-text-clip">
+<text class="s" x="48" y="180" font-size="18" fill="#f2f2f4" font-weight="600">Text clip</text>
+<text class="s" x="48" y="204" font-size="12" fill="#777780" font-weight="400">Text, duration, style and position editable</text>
+<text class="s" x="48" y="228" font-size="12" fill="#b4b4bc" font-weight="600">Default</text>
+<g transform="translate(0 50)">
+<rect x="47.5" y="197.5" width="281" height="708" rx="10" fill="#000" opacity="0.35" transform="translate(0 6)"/>
+<g clip-path="url(#c1)">
+<rect x="48" y="198" width="280" height="707" fill="#0d0d0f"/>
+<g clip-path="url(#c2)">
+<rect x="64.5" y="214.5" width="31" height="31" rx="8" fill="#7251a3" stroke="#8261b3" stroke-width="1"/>
+<text class="s" x="80" y="234.32" font-size="12" fill="#ffffff" font-weight="700" text-anchor="middle">T</text>
+<text class="s" x="108" y="227.04" font-size="14" fill="#f2f2f4" font-weight="600">Let's get started</text>
+<text class="s" x="108" y="243.32" font-size="11"><tspan fill="#8a8a93">Text clip · Track: </tspan><tspan fill="#b69bdc">Text 1</tspan></text>
+<rect x="48" y="261" width="280" height="1" fill="#2b2b31"/>
+<text class="s" x="64" y="285.96" font-size="11" fill="#777780" font-weight="600" letter-spacing="0.6">CONTENT</text>
+<rect x="64.5" y="298.5" width="247" height="57" rx="6" fill="#17171a" stroke="#f0b75e" stroke-width="1"/>
+<text class="s" x="74" y="319.68" font-size="13" fill="#f2f2f4">Let's get started</text>
+<rect x="173.02" y="307" width="1.5" height="16" fill="#f0b75e"/>
+<rect x="64" y="372" width="248" height="1" fill="#1f1f24"/>
+<text class="s" x="64" y="395.96" font-size="11" fill="#777780" font-weight="600" letter-spacing="0.6">TIMING</text>
+<text class="s" x="64" y="418.96" font-size="11" fill="#777780">Start</text>
+<text class="s" x="192" y="418.96" font-size="11" fill="#777780">Duration</text>
+<rect x="64" y="424" width="120" height="30" rx="6" fill="#131316"/>
+<text class="m" x="74" y="443.68" font-size="13" fill="#f2f2f4">0:10.03</text>
+<text class="m" x="174" y="442.96" font-size="11" fill="#55555e" text-anchor="end">303 f</text>
+<rect x="192.5" y="424.5" width="119" height="29" rx="6" fill="#17171a" stroke="#2b2b31" stroke-width="1"/>
+<text class="m" x="202" y="443.68" font-size="13" fill="#f2f2f4">2.90</text>
+<text class="s" x="302" y="443.32" font-size="12" fill="#777780" text-anchor="end">s</text>
+<rect x="64" y="470" width="248" height="1" fill="#1f1f24"/>
+<g id="text-clip-style">
+<title>Text style: font, font size, and font color</title>
+<text class="s" x="64" y="493.96" font-size="11" fill="#777780" font-weight="600" letter-spacing="0.6">STYLE</text>
+<text class="s" x="64" y="517" font-size="12" fill="#b4b4bc">Font</text>
+<rect x="64.5" y="526.5" width="247" height="33" rx="6" fill="#17171a" stroke="#2b2b31" stroke-width="1"/>
+<text class="s" x="74" y="548" font-size="13" fill="#f2f2f4">Sans</text>
+<path d="M294 541 l4 4 l4 -4" fill="none" stroke="#777780" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+<text class="s" x="64" y="581" font-size="12" fill="#b4b4bc">Font size</text>
+<text class="s" x="192" y="581" font-size="12" fill="#b4b4bc">Font color</text>
+<rect x="64.5" y="590.5" width="119" height="33" rx="6" fill="#17171a" stroke="#2b2b31" stroke-width="1"/>
+<text class="m" x="74" y="612" font-size="13" fill="#f2f2f4">64</text>
+<text class="s" x="174" y="612" font-size="12" fill="#777780" text-anchor="end">px</text>
+<rect x="192.5" y="590.5" width="119" height="33" rx="6" fill="#17171a" stroke="#2b2b31" stroke-width="1"/>
+<rect x="200.5" y="599.5" width="15" height="15" rx="4" fill="#ffffff" stroke="#2b2b31" stroke-width="1"/>
+<text class="m" x="224" y="612" font-size="13" fill="#777780">#</text>
+<text class="m" x="234" y="612" font-size="13" fill="#f2f2f4">FFFFFF</text>
+</g>
+<g id="text-clip-background-border">
+<title>Background: color and opacity, removable. Border: added on demand; "No border" until then.</title>
+<rect x="64" y="640" width="248" height="1" fill="#1f1f24"/>
+<text class="s" x="64" y="663.96" font-size="11" fill="#777780" font-weight="600" letter-spacing="0.6">BACKGROUND</text>
+<text class="s" x="312" y="664.32" font-size="12" fill="#f0b75e" text-anchor="end">Remove</text>
+<rect x="64.5" y="676.5" width="159" height="29" rx="6" fill="#17171a" stroke="#2b2b31" stroke-width="1"/>
+<rect x="72.5" y="683.5" width="15" height="15" rx="4" fill="#000000" stroke="#2b2b31" stroke-width="1"/>
+<text class="m" x="96" y="695.68" font-size="13" fill="#777780">#</text>
+<text class="m" x="106" y="695.68" font-size="13" fill="#f2f2f4">000000</text>
+<rect x="232.5" y="676.5" width="79" height="29" rx="6" fill="#17171a" stroke="#2b2b31" stroke-width="1"/>
+<text class="m" x="242" y="695.68" font-size="13" fill="#f2f2f4">50</text>
+<text class="s" x="302" y="695.32" font-size="12" fill="#777780" text-anchor="end">%</text>
+<rect x="64" y="722" width="248" height="1" fill="#1f1f24"/>
+<text class="s" x="64" y="745.96" font-size="11" fill="#777780" font-weight="600" letter-spacing="0.6">BORDER</text>
+<text class="s" x="312" y="746.32" font-size="12" fill="#f0b75e" text-anchor="end">Add</text>
+<text class="s" x="64" y="770.32" font-size="12" fill="#55555e">No border</text>
+</g>
+<g transform="translate(0 152)">
+<rect x="64" y="640" width="248" height="1" fill="#1f1f24"/>
+<text class="s" x="64" y="663.96" font-size="11" fill="#777780" font-weight="600" letter-spacing="0.6">POSITION</text>
+<rect x="64.5" y="676.5" width="119" height="29" rx="6" fill="#17171a" stroke="#2b2b31" stroke-width="1"/>
+<text class="s" x="74" y="695.32" font-size="12" fill="#777780" font-weight="600">X</text>
+<text class="m" x="89.68" y="695.68" font-size="13" fill="#f2f2f4">0.50</text>
+<rect x="192.5" y="676.5" width="119" height="29" rx="6" fill="#17171a" stroke="#2b2b31" stroke-width="1"/>
+<text class="s" x="202" y="695.32" font-size="12" fill="#777780" font-weight="600">Y</text>
+<text class="m" x="217.68" y="695.68" font-size="13" fill="#f2f2f4">0.85</text>
+</g>
+</g>
+</g>
+<rect x="48.5" y="198.5" width="279" height="706" rx="10" fill="none" stroke="#2b2b31" stroke-width="1"/>
+
+</g>
+<text class="s" x="368" y="228" font-size="12" fill="#b4b4bc" font-weight="600">Locked track · read-only</text>
+<g transform="translate(320 50)">
+<rect x="47.5" y="197.5" width="281" height="708" rx="10" fill="#000" opacity="0.35" transform="translate(0 6)" />
+<g clip-path="url(#c1)">
+<rect x="48" y="198" width="280" height="707" fill="#0d0d0f" />
+<rect x="48" y="198" width="280" height="64" fill="#242429" /><rect x="48" y="198" width="280" height="5" fill="url(#locked-panel-stripes)" /><rect x="48" y="198" width="5" height="707" fill="url(#locked-panel-stripes)" /><g clip-path="url(#c2)">
+<rect x="64.5" y="214.5" width="31" height="31" rx="8" fill="#33333b" stroke="#62626e" stroke-width="1" />
+<g transform="translate(72 221)" fill="none" stroke="#c9c9cf" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="7" width="14" height="11" rx="2" /><path d="M4 7V4a4 4 0 0 1 8 0v3 M8 11v3" /></g><text class="s" x="108" y="227.04" font-size="14" fill="#f2f2f4" font-weight="600">Let's get started</text>
+<text class="s" x="108" y="243.32" font-size="11"><tspan fill="#8a8a93">Text clip · Track: </tspan><tspan fill="#b69bdc">Text 1</tspan><tspan fill="#8a8a93"> · </tspan><tspan fill="#c9c9cf">Locked</tspan></text>
+<rect x="48" y="261" width="280" height="1" fill="#62626e" />
+<text class="s" x="64" y="285.96" font-size="11" fill="#777780" font-weight="600" letter-spacing="0.6">CONTENT</text>
+<rect x="64" y="298" width="248" height="58" rx="6" fill="#19191d" />
+<text class="s" x="74" y="319.68" font-size="13" fill="#f2f2f4">Let's get started</text>
+<rect x="64" y="372" width="248" height="1" fill="#1f1f24" />
+<text class="s" x="64" y="395.96" font-size="11" fill="#777780" font-weight="600" letter-spacing="0.6">TIMING</text>
+<text class="s" x="64" y="418.96" font-size="11" fill="#777780">Start</text>
+<text class="s" x="192" y="418.96" font-size="11" fill="#777780">Duration</text>
+<rect x="64" y="424" width="120" height="30" rx="6" fill="#19191d" />
+<text class="m" x="74" y="443.68" font-size="13" fill="#f2f2f4">0:10.03</text>
+<text class="m" x="174" y="442.96" font-size="11" fill="#55555e" text-anchor="end">303 f</text>
+<rect x="192" y="424" width="120" height="30" rx="6" fill="#19191d" />
+<text class="m" x="202" y="443.68" font-size="13" fill="#f2f2f4">2.90</text>
+<text class="s" x="302" y="443.32" font-size="12" fill="#777780" text-anchor="end">s</text>
+<rect x="64" y="470" width="248" height="1" fill="#1f1f24" />
+<g id="text-clip-style-locked">
+<title>Text style: font, font size, and font color</title>
+<text class="s" x="64" y="493.96" font-size="11" fill="#777780" font-weight="600" letter-spacing="0.6">STYLE</text>
+<text class="s" x="64" y="517" font-size="12" fill="#b4b4bc">Font</text>
+<rect x="64.5" y="526.5" width="247" height="33" rx="6" fill="#131316" stroke="#222226"/>
+<text class="s" x="74" y="548" font-size="13" fill="#55555e">Sans</text>
+<path d="M294 541 l4 4 l4 -4" fill="none" stroke="#46464e" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+<text class="s" x="64" y="581" font-size="12" fill="#b4b4bc">Font size</text>
+<text class="s" x="192" y="581" font-size="12" fill="#b4b4bc">Font color</text>
+<rect x="64" y="590" width="120" height="34" rx="6" fill="#19191d" />
+<text class="m" x="74" y="612" font-size="13" fill="#f2f2f4">64</text>
+<text class="s" x="174" y="612" font-size="12" fill="#777780" text-anchor="end">px</text>
+<rect x="192" y="590" width="120" height="34" rx="6" fill="#19191d" />
+<rect x="200.5" y="599.5" width="15" height="15" rx="4" fill="#ffffff" stroke="#2b2b31" stroke-width="1" />
+<text class="m" x="224" y="612" font-size="13" fill="#777780">#</text>
+<text class="m" x="234" y="612" font-size="13" fill="#f2f2f4">FFFFFF</text>
+</g>
+<g id="text-clip-background-border">
+<title>Background: color and opacity, removable. Border: added on demand; "No border" until then.</title>
+<rect x="64" y="640" width="248" height="1" fill="#1f1f24"/>
+<text class="s" x="64" y="663.96" font-size="11" fill="#777780" font-weight="600" letter-spacing="0.6">BACKGROUND</text>
+<rect x="64.5" y="676.5" width="159" height="29" rx="6" fill="#19191d"/>
+<rect x="72.5" y="683.5" width="15" height="15" rx="4" fill="#000000" stroke="#2b2b31" stroke-width="1"/>
+<text class="m" x="96" y="695.68" font-size="13" fill="#777780">#</text>
+<text class="m" x="106" y="695.68" font-size="13" fill="#c9c9cf">000000</text>
+<rect x="232.5" y="676.5" width="79" height="29" rx="6" fill="#19191d"/>
+<text class="m" x="242" y="695.68" font-size="13" fill="#c9c9cf">50</text>
+<text class="s" x="302" y="695.32" font-size="12" fill="#777780" text-anchor="end">%</text>
+<rect x="64" y="722" width="248" height="1" fill="#1f1f24"/>
+<text class="s" x="64" y="745.96" font-size="11" fill="#777780" font-weight="600" letter-spacing="0.6">BORDER</text>
+<text class="s" x="64" y="770.32" font-size="12" fill="#55555e">No border</text>
+</g>
+<g transform="translate(0 152)">
+<rect x="64" y="640" width="248" height="1" fill="#1f1f24" />
+<text class="s" x="64" y="663.96" font-size="11" fill="#777780" font-weight="600" letter-spacing="0.6">POSITION</text>
+<rect x="64" y="676" width="120" height="30" rx="6" fill="#19191d" />
+<text class="s" x="74" y="695.32" font-size="12" fill="#777780" font-weight="600">X</text>
+<text class="m" x="89.68" y="695.68" font-size="13" fill="#f2f2f4">0.50</text>
+<rect x="192" y="676" width="120" height="30" rx="6" fill="#19191d" />
+<text class="s" x="202" y="695.32" font-size="12" fill="#777780" font-weight="600">Y</text>
+<text class="m" x="217.68" y="695.68" font-size="13" fill="#f2f2f4">0.85</text>
+</g>
+</g>
+</g>
+<rect x="48.5" y="198.5" width="279" height="706" rx="10" fill="none" stroke="#62626e" stroke-width="1" />
+
+</g>
+<text class="s" x="688" y="228" font-size="12" fill="#b4b4bc" font-weight="600">Hex input · focused</text>
+<g transform="translate(640 50)">
+<rect x="47.5" y="197.5" width="281" height="708" rx="10" fill="#000" opacity="0.35" transform="translate(0 6)"/>
+<g clip-path="url(#c1)">
+<rect x="48" y="198" width="280" height="707" fill="#0d0d0f"/>
+<g clip-path="url(#c2)">
+<rect x="64.5" y="214.5" width="31" height="31" rx="8" fill="#7251a3" stroke="#8261b3" stroke-width="1"/>
+<text class="s" x="80" y="234.32" font-size="12" fill="#ffffff" font-weight="700" text-anchor="middle">T</text>
+<text class="s" x="108" y="227.04" font-size="14" fill="#f2f2f4" font-weight="600">Let's get started</text>
+<text class="s" x="108" y="243.32" font-size="11"><tspan fill="#8a8a93">Text clip · Track: </tspan><tspan fill="#b69bdc">Text 1</tspan></text>
+<rect x="48" y="261" width="280" height="1" fill="#2b2b31"/>
+<text class="s" x="64" y="285.96" font-size="11" fill="#777780" font-weight="600" letter-spacing="0.6">CONTENT</text>
+<rect x="64.5" y="298.5" width="247" height="57" rx="6" fill="#17171a" stroke="#2b2b31" stroke-width="1"/>
+<text class="s" x="74" y="319.68" font-size="13" fill="#f2f2f4">Let's get started</text>
+
+<rect x="64" y="372" width="248" height="1" fill="#1f1f24"/>
+<text class="s" x="64" y="395.96" font-size="11" fill="#777780" font-weight="600" letter-spacing="0.6">TIMING</text>
+<text class="s" x="64" y="418.96" font-size="11" fill="#777780">Start</text>
+<text class="s" x="192" y="418.96" font-size="11" fill="#777780">Duration</text>
+<rect x="64" y="424" width="120" height="30" rx="6" fill="#131316"/>
+<text class="m" x="74" y="443.68" font-size="13" fill="#f2f2f4">0:10.03</text>
+<text class="m" x="174" y="442.96" font-size="11" fill="#55555e" text-anchor="end">303 f</text>
+<rect x="192.5" y="424.5" width="119" height="29" rx="6" fill="#17171a" stroke="#2b2b31" stroke-width="1"/>
+<text class="m" x="202" y="443.68" font-size="13" fill="#f2f2f4">2.90</text>
+<text class="s" x="302" y="443.32" font-size="12" fill="#777780" text-anchor="end">s</text>
+<rect x="64" y="470" width="248" height="1" fill="#1f1f24"/>
+<g id="text-clip-style-hex">
+<title>Text style: font, font size, and font color</title>
+<text class="s" x="64" y="493.96" font-size="11" fill="#777780" font-weight="600" letter-spacing="0.6">STYLE</text>
+<text class="s" x="64" y="517" font-size="12" fill="#b4b4bc">Font</text>
+<rect x="64.5" y="526.5" width="247" height="33" rx="6" fill="#17171a" stroke="#2b2b31" stroke-width="1"/>
+<text class="s" x="74" y="548" font-size="13" fill="#f2f2f4">Sans</text>
+<path d="M294 541 l4 4 l4 -4" fill="none" stroke="#777780" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+<text class="s" x="64" y="581" font-size="12" fill="#b4b4bc">Font size</text>
+<text class="s" x="192" y="581" font-size="12" fill="#b4b4bc">Font color</text>
+<rect x="64.5" y="590.5" width="119" height="33" rx="6" fill="#17171a" stroke="#2b2b31" stroke-width="1"/>
+<text class="m" x="74" y="612" font-size="13" fill="#f2f2f4">64</text>
+<text class="s" x="174" y="612" font-size="12" fill="#777780" text-anchor="end">px</text>
+<rect x="192.5" y="590.5" width="119" height="33" rx="6" fill="#17171a" stroke="#f0b75e" stroke-width="1"/>
+<rect x="200.5" y="599.5" width="15" height="15" rx="4" fill="#ffffff" stroke="#2b2b31" stroke-width="1"/>
+<text class="m" x="224" y="612" font-size="13" fill="#777780">#</text>
+<rect x="233" y="597" width="47" height="19" rx="2" fill="#3a5a8c"/>
+<text class="m" x="234" y="612" font-size="13" fill="#f2f2f4">FFFFFF</text>
+</g>
+<g id="text-clip-background-border">
+<title>Background: color and opacity, removable. Border: added on demand; "No border" until then.</title>
+<rect x="64" y="640" width="248" height="1" fill="#1f1f24"/>
+<text class="s" x="64" y="663.96" font-size="11" fill="#777780" font-weight="600" letter-spacing="0.6">BACKGROUND</text>
+<text class="s" x="312" y="664.32" font-size="12" fill="#f0b75e" text-anchor="end">Remove</text>
+<rect x="64.5" y="676.5" width="159" height="29" rx="6" fill="#17171a" stroke="#2b2b31" stroke-width="1"/>
+<rect x="72.5" y="683.5" width="15" height="15" rx="4" fill="#000000" stroke="#2b2b31" stroke-width="1"/>
+<text class="m" x="96" y="695.68" font-size="13" fill="#777780">#</text>
+<text class="m" x="106" y="695.68" font-size="13" fill="#f2f2f4">000000</text>
+<rect x="232.5" y="676.5" width="79" height="29" rx="6" fill="#17171a" stroke="#2b2b31" stroke-width="1"/>
+<text class="m" x="242" y="695.68" font-size="13" fill="#f2f2f4">50</text>
+<text class="s" x="302" y="695.32" font-size="12" fill="#777780" text-anchor="end">%</text>
+<rect x="64" y="722" width="248" height="1" fill="#1f1f24"/>
+<text class="s" x="64" y="745.96" font-size="11" fill="#777780" font-weight="600" letter-spacing="0.6">BORDER</text>
+<text class="s" x="312" y="746.32" font-size="12" fill="#f0b75e" text-anchor="end">Add</text>
+<text class="s" x="64" y="770.32" font-size="12" fill="#55555e">No border</text>
+</g>
+<g transform="translate(0 152)">
+<rect x="64" y="640" width="248" height="1" fill="#1f1f24"/>
+<text class="s" x="64" y="663.96" font-size="11" fill="#777780" font-weight="600" letter-spacing="0.6">POSITION</text>
+<rect x="64.5" y="676.5" width="119" height="29" rx="6" fill="#17171a" stroke="#2b2b31" stroke-width="1"/>
+<text class="s" x="74" y="695.32" font-size="12" fill="#777780" font-weight="600">X</text>
+<text class="m" x="89.68" y="695.68" font-size="13" fill="#f2f2f4">0.50</text>
+<rect x="192.5" y="676.5" width="119" height="29" rx="6" fill="#17171a" stroke="#2b2b31" stroke-width="1"/>
+<text class="s" x="202" y="695.32" font-size="12" fill="#777780" font-weight="600">Y</text>
+<text class="m" x="217.68" y="695.68" font-size="13" fill="#f2f2f4">0.85</text>
+</g>
+</g>
+</g>
+<rect x="48.5" y="198.5" width="279" height="706" rx="10" fill="none" stroke="#2b2b31" stroke-width="1"/>
+
+</g>
+<text class="s" x="1008" y="228" font-size="12" fill="#b4b4bc" font-weight="600">Color palette · open</text>
+<g transform="translate(960 50)">
+<rect x="47.5" y="197.5" width="281" height="708" rx="10" fill="#000" opacity="0.35" transform="translate(0 6)"/>
+<g clip-path="url(#c1)">
+<rect x="48" y="198" width="280" height="707" fill="#0d0d0f"/>
+<g clip-path="url(#c2)">
+<rect x="64.5" y="214.5" width="31" height="31" rx="8" fill="#7251a3" stroke="#8261b3" stroke-width="1"/>
+<text class="s" x="80" y="234.32" font-size="12" fill="#ffffff" font-weight="700" text-anchor="middle">T</text>
+<text class="s" x="108" y="227.04" font-size="14" fill="#f2f2f4" font-weight="600">Let's get started</text>
+<text class="s" x="108" y="243.32" font-size="11"><tspan fill="#8a8a93">Text clip · Track: </tspan><tspan fill="#b69bdc">Text 1</tspan></text>
+<rect x="48" y="261" width="280" height="1" fill="#2b2b31"/>
+<text class="s" x="64" y="285.96" font-size="11" fill="#777780" font-weight="600" letter-spacing="0.6">CONTENT</text>
+<rect x="64.5" y="298.5" width="247" height="57" rx="6" fill="#17171a" stroke="#2b2b31" stroke-width="1"/>
+<text class="s" x="74" y="319.68" font-size="13" fill="#f2f2f4">Let's get started</text>
+
+<rect x="64" y="372" width="248" height="1" fill="#1f1f24"/>
+<text class="s" x="64" y="395.96" font-size="11" fill="#777780" font-weight="600" letter-spacing="0.6">TIMING</text>
+<text class="s" x="64" y="418.96" font-size="11" fill="#777780">Start</text>
+<text class="s" x="192" y="418.96" font-size="11" fill="#777780">Duration</text>
+<rect x="64" y="424" width="120" height="30" rx="6" fill="#131316"/>
+<text class="m" x="74" y="443.68" font-size="13" fill="#f2f2f4">0:10.03</text>
+<text class="m" x="174" y="442.96" font-size="11" fill="#55555e" text-anchor="end">303 f</text>
+<rect x="192.5" y="424.5" width="119" height="29" rx="6" fill="#17171a" stroke="#2b2b31" stroke-width="1"/>
+<text class="m" x="202" y="443.68" font-size="13" fill="#f2f2f4">2.90</text>
+<text class="s" x="302" y="443.32" font-size="12" fill="#777780" text-anchor="end">s</text>
+<rect x="64" y="470" width="248" height="1" fill="#1f1f24"/>
+<g id="text-clip-style-palette">
+<title>Text style: font, font size, and font color</title>
+<text class="s" x="64" y="493.96" font-size="11" fill="#777780" font-weight="600" letter-spacing="0.6">STYLE</text>
+<text class="s" x="64" y="517" font-size="12" fill="#b4b4bc">Font</text>
+<rect x="64.5" y="526.5" width="247" height="33" rx="6" fill="#17171a" stroke="#2b2b31" stroke-width="1"/>
+<text class="s" x="74" y="548" font-size="13" fill="#f2f2f4">Sans</text>
+<path d="M294 541 l4 4 l4 -4" fill="none" stroke="#777780" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+<text class="s" x="64" y="581" font-size="12" fill="#b4b4bc">Font size</text>
+<text class="s" x="192" y="581" font-size="12" fill="#b4b4bc">Font color</text>
+<rect x="64.5" y="590.5" width="119" height="33" rx="6" fill="#17171a" stroke="#2b2b31" stroke-width="1"/>
+<text class="m" x="74" y="612" font-size="13" fill="#f2f2f4">64</text>
+<text class="s" x="174" y="612" font-size="12" fill="#777780" text-anchor="end">px</text>
+<rect x="192.5" y="590.5" width="119" height="33" rx="6" fill="#17171a" stroke="#2b2b31" stroke-width="1"/>
+<rect x="200.5" y="599.5" width="15" height="15" rx="4" fill="#F0B75E" stroke="#f0b75e" stroke-width="1"/>
+<text class="m" x="224" y="612" font-size="13" fill="#777780">#</text>
+
+<text class="m" x="234" y="612" font-size="13" fill="#f2f2f4">F0B75E</text>
+</g>
+<g id="text-clip-background-border">
+<title>Background: color and opacity, removable. Border: added on demand; "No border" until then.</title>
+<rect x="64" y="640" width="248" height="1" fill="#1f1f24"/>
+<text class="s" x="64" y="663.96" font-size="11" fill="#777780" font-weight="600" letter-spacing="0.6">BACKGROUND</text>
+<text class="s" x="312" y="664.32" font-size="12" fill="#f0b75e" text-anchor="end">Remove</text>
+<rect x="64.5" y="676.5" width="159" height="29" rx="6" fill="#17171a" stroke="#2b2b31" stroke-width="1"/>
+<rect x="72.5" y="683.5" width="15" height="15" rx="4" fill="#000000" stroke="#2b2b31" stroke-width="1"/>
+<text class="m" x="96" y="695.68" font-size="13" fill="#777780">#</text>
+<text class="m" x="106" y="695.68" font-size="13" fill="#f2f2f4">000000</text>
+<rect x="232.5" y="676.5" width="79" height="29" rx="6" fill="#17171a" stroke="#2b2b31" stroke-width="1"/>
+<text class="m" x="242" y="695.68" font-size="13" fill="#f2f2f4">50</text>
+<text class="s" x="302" y="695.32" font-size="12" fill="#777780" text-anchor="end">%</text>
+<rect x="64" y="722" width="248" height="1" fill="#1f1f24"/>
+<text class="s" x="64" y="745.96" font-size="11" fill="#777780" font-weight="600" letter-spacing="0.6">BORDER</text>
+<text class="s" x="312" y="746.32" font-size="12" fill="#f0b75e" text-anchor="end">Add</text>
+<text class="s" x="64" y="770.32" font-size="12" fill="#55555e">No border</text>
+</g>
+<g transform="translate(0 152)">
+<rect x="64" y="640" width="248" height="1" fill="#1f1f24"/>
+<text class="s" x="64" y="663.96" font-size="11" fill="#777780" font-weight="600" letter-spacing="0.6">POSITION</text>
+<rect x="64.5" y="676.5" width="119" height="29" rx="6" fill="#17171a" stroke="#2b2b31" stroke-width="1"/>
+<text class="s" x="74" y="695.32" font-size="12" fill="#777780" font-weight="600">X</text>
+<text class="m" x="89.68" y="695.68" font-size="13" fill="#f2f2f4">0.50</text>
+<rect x="192.5" y="676.5" width="119" height="29" rx="6" fill="#17171a" stroke="#2b2b31" stroke-width="1"/>
+<text class="s" x="202" y="695.32" font-size="12" fill="#777780" font-weight="600">Y</text>
+<text class="m" x="217.68" y="695.68" font-size="13" fill="#f2f2f4">0.85</text>
+</g>
+</g>
+</g>
+<rect x="48.5" y="198.5" width="279" height="706" rx="10" fill="none" stroke="#2b2b31" stroke-width="1"/>
+
+<g id="font-color-palette"><title>B2: 24 preset colors. Choose a swatch to apply and keep exploring. Close only with × or an outside click. Custom hex values remain available in the field.</title>
+<rect x="62" y="292" width="252" height="278" rx="9" fill="#000" opacity=".35"/>
+<rect x="64.5" y="288.5" width="247" height="277" rx="8" fill="#202024" stroke="#45454d"/>
+<text class="s" x="80" y="315" font-size="13" fill="#f2f2f4" font-weight="600">Color families</text>
+<path d="M288 303l8 8m0-8l-8 8" stroke="#8a8a93" stroke-width="1.5"/>
+<rect x="80" y="334" width="30" height="30" rx="4" fill="#FFFFFF" stroke="#45454d"/>
+<rect x="116" y="334" width="30" height="30" rx="4" fill="#CCCCCC" stroke="#45454d"/>
+<rect x="152" y="334" width="30" height="30" rx="4" fill="#999999" stroke="#45454d"/>
+<rect x="188" y="334" width="30" height="30" rx="4" fill="#666666" stroke="#45454d"/>
+<rect x="224" y="334" width="30" height="30" rx="4" fill="#333333" stroke="#45454d"/>
+<rect x="260" y="334" width="30" height="30" rx="4" fill="#000000" stroke="#45454d"/>
+<rect x="80" y="372" width="30" height="30" rx="4" fill="#FF8B8B" stroke="#45454d"/>
+<rect x="116" y="372" width="30" height="30" rx="4" fill="#F0B75E" stroke="#f2f2f4"/>
+<path d="M124 387 l5 5 9-11" fill="none" stroke="#17120a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+<rect x="152" y="372" width="30" height="30" rx="4" fill="#FFE58A" stroke="#45454d"/>
+<rect x="188" y="372" width="30" height="30" rx="4" fill="#9BDCA4" stroke="#45454d"/>
+<rect x="224" y="372" width="30" height="30" rx="4" fill="#91B8DF" stroke="#45454d"/>
+<rect x="260" y="372" width="30" height="30" rx="4" fill="#B69BDC" stroke="#45454d"/>
+<rect x="80" y="410" width="30" height="30" rx="4" fill="#E84545" stroke="#45454d"/>
+<rect x="116" y="410" width="30" height="30" rx="4" fill="#E69324" stroke="#45454d"/>
+<rect x="152" y="410" width="30" height="30" rx="4" fill="#E5C638" stroke="#45454d"/>
+<rect x="188" y="410" width="30" height="30" rx="4" fill="#41AC62" stroke="#45454d"/>
+<rect x="224" y="410" width="30" height="30" rx="4" fill="#438FD4" stroke="#45454d"/>
+<rect x="260" y="410" width="30" height="30" rx="4" fill="#9164CE" stroke="#45454d"/>
+<rect x="80" y="448" width="30" height="30" rx="4" fill="#8E2828" stroke="#45454d"/>
+<rect x="116" y="448" width="30" height="30" rx="4" fill="#915617" stroke="#45454d"/>
+<rect x="152" y="448" width="30" height="30" rx="4" fill="#8A7621" stroke="#45454d"/>
+<rect x="188" y="448" width="30" height="30" rx="4" fill="#256B3A" stroke="#45454d"/>
+<rect x="224" y="448" width="30" height="30" rx="4" fill="#285886" stroke="#45454d"/>
+<rect x="260" y="448" width="30" height="30" rx="4" fill="#58377F" stroke="#45454d"/>
+<text class="s" x="80" y="511" font-size="11" fill="#8a8a93">Neutrals, then light, vivid and dark.</text>
+<text class="s" x="80" y="539" font-size="11" fill="#8a8a93">Custom color? Edit the hex value.</text>
+<path d="M201 564H215L208 573Z" fill="#202024"/>
+<path d="M202 566l6 7 6-7" fill="none" stroke="#45454d"/>
+</g>
+</g>
+<text class="s" x="1328" y="228" font-size="12" fill="#b4b4bc" font-weight="600">Color palette · swatch hover</text>
+<g transform="translate(1280 50)">
+<rect x="47.5" y="197.5" width="281" height="708" rx="10" fill="#000" opacity="0.35" transform="translate(0 6)"/>
+<g clip-path="url(#c1)">
+<rect x="48" y="198" width="280" height="707" fill="#0d0d0f"/>
+<g clip-path="url(#c2)">
+<rect x="64.5" y="214.5" width="31" height="31" rx="8" fill="#7251a3" stroke="#8261b3" stroke-width="1"/>
+<text class="s" x="80" y="234.32" font-size="12" fill="#ffffff" font-weight="700" text-anchor="middle">T</text>
+<text class="s" x="108" y="227.04" font-size="14" fill="#f2f2f4" font-weight="600">Let's get started</text>
+<text class="s" x="108" y="243.32" font-size="11"><tspan fill="#8a8a93">Text clip · Track: </tspan><tspan fill="#b69bdc">Text 1</tspan></text>
+<rect x="48" y="261" width="280" height="1" fill="#2b2b31"/>
+<text class="s" x="64" y="285.96" font-size="11" fill="#777780" font-weight="600" letter-spacing="0.6">CONTENT</text>
+<rect x="64.5" y="298.5" width="247" height="57" rx="6" fill="#17171a" stroke="#2b2b31" stroke-width="1"/>
+<text class="s" x="74" y="319.68" font-size="13" fill="#f2f2f4">Let's get started</text>
+
+<rect x="64" y="372" width="248" height="1" fill="#1f1f24"/>
+<text class="s" x="64" y="395.96" font-size="11" fill="#777780" font-weight="600" letter-spacing="0.6">TIMING</text>
+<text class="s" x="64" y="418.96" font-size="11" fill="#777780">Start</text>
+<text class="s" x="192" y="418.96" font-size="11" fill="#777780">Duration</text>
+<rect x="64" y="424" width="120" height="30" rx="6" fill="#131316"/>
+<text class="m" x="74" y="443.68" font-size="13" fill="#f2f2f4">0:10.03</text>
+<text class="m" x="174" y="442.96" font-size="11" fill="#55555e" text-anchor="end">303 f</text>
+<rect x="192.5" y="424.5" width="119" height="29" rx="6" fill="#17171a" stroke="#2b2b31" stroke-width="1"/>
+<text class="m" x="202" y="443.68" font-size="13" fill="#f2f2f4">2.90</text>
+<text class="s" x="302" y="443.32" font-size="12" fill="#777780" text-anchor="end">s</text>
+<rect x="64" y="470" width="248" height="1" fill="#1f1f24"/>
+<g id="text-clip-style-palette-hover">
+<title>Text style: font, font size, and font color</title>
+<text class="s" x="64" y="493.96" font-size="11" fill="#777780" font-weight="600" letter-spacing="0.6">STYLE</text>
+<text class="s" x="64" y="517" font-size="12" fill="#b4b4bc">Font</text>
+<rect x="64.5" y="526.5" width="247" height="33" rx="6" fill="#17171a" stroke="#2b2b31" stroke-width="1"/>
+<text class="s" x="74" y="548" font-size="13" fill="#f2f2f4">Sans</text>
+<path d="M294 541 l4 4 l4 -4" fill="none" stroke="#777780" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+<text class="s" x="64" y="581" font-size="12" fill="#b4b4bc">Font size</text>
+<text class="s" x="192" y="581" font-size="12" fill="#b4b4bc">Font color</text>
+<rect x="64.5" y="590.5" width="119" height="33" rx="6" fill="#17171a" stroke="#2b2b31" stroke-width="1"/>
+<text class="m" x="74" y="612" font-size="13" fill="#f2f2f4">64</text>
+<text class="s" x="174" y="612" font-size="12" fill="#777780" text-anchor="end">px</text>
+<rect x="192.5" y="590.5" width="119" height="33" rx="6" fill="#17171a" stroke="#2b2b31" stroke-width="1"/>
+<rect x="200.5" y="599.5" width="15" height="15" rx="4" fill="#F0B75E" stroke="#f0b75e" stroke-width="1"/>
+<text class="m" x="224" y="612" font-size="13" fill="#777780">#</text>
+
+<text class="m" x="234" y="612" font-size="13" fill="#f2f2f4">F0B75E</text>
+</g>
+<g id="text-clip-background-border">
+<title>Background: color and opacity, removable. Border: added on demand; "No border" until then.</title>
+<rect x="64" y="640" width="248" height="1" fill="#1f1f24"/>
+<text class="s" x="64" y="663.96" font-size="11" fill="#777780" font-weight="600" letter-spacing="0.6">BACKGROUND</text>
+<text class="s" x="312" y="664.32" font-size="12" fill="#f0b75e" text-anchor="end">Remove</text>
+<rect x="64.5" y="676.5" width="159" height="29" rx="6" fill="#17171a" stroke="#2b2b31" stroke-width="1"/>
+<rect x="72.5" y="683.5" width="15" height="15" rx="4" fill="#000000" stroke="#2b2b31" stroke-width="1"/>
+<text class="m" x="96" y="695.68" font-size="13" fill="#777780">#</text>
+<text class="m" x="106" y="695.68" font-size="13" fill="#f2f2f4">000000</text>
+<rect x="232.5" y="676.5" width="79" height="29" rx="6" fill="#17171a" stroke="#2b2b31" stroke-width="1"/>
+<text class="m" x="242" y="695.68" font-size="13" fill="#f2f2f4">50</text>
+<text class="s" x="302" y="695.32" font-size="12" fill="#777780" text-anchor="end">%</text>
+<rect x="64" y="722" width="248" height="1" fill="#1f1f24"/>
+<text class="s" x="64" y="745.96" font-size="11" fill="#777780" font-weight="600" letter-spacing="0.6">BORDER</text>
+<text class="s" x="312" y="746.32" font-size="12" fill="#f0b75e" text-anchor="end">Add</text>
+<text class="s" x="64" y="770.32" font-size="12" fill="#55555e">No border</text>
+</g>
+<g transform="translate(0 152)">
+<rect x="64" y="640" width="248" height="1" fill="#1f1f24"/>
+<text class="s" x="64" y="663.96" font-size="11" fill="#777780" font-weight="600" letter-spacing="0.6">POSITION</text>
+<rect x="64.5" y="676.5" width="119" height="29" rx="6" fill="#17171a" stroke="#2b2b31" stroke-width="1"/>
+<text class="s" x="74" y="695.32" font-size="12" fill="#777780" font-weight="600">X</text>
+<text class="m" x="89.68" y="695.68" font-size="13" fill="#f2f2f4">0.50</text>
+<rect x="192.5" y="676.5" width="119" height="29" rx="6" fill="#17171a" stroke="#2b2b31" stroke-width="1"/>
+<text class="s" x="202" y="695.32" font-size="12" fill="#777780" font-weight="600">Y</text>
+<text class="m" x="217.68" y="695.68" font-size="13" fill="#f2f2f4">0.85</text>
+</g>
+</g>
+</g>
+<rect x="48.5" y="198.5" width="279" height="706" rx="10" fill="none" stroke="#2b2b31" stroke-width="1"/>
+
+<g id="font-color-palette-hover"><title>B2: 24 preset colors. Choose a swatch to apply and keep exploring. Close only with × or an outside click. Custom hex values remain available in the field.</title>
+<rect x="62" y="292" width="252" height="278" rx="9" fill="#000" opacity=".35"/>
+<rect x="64.5" y="288.5" width="247" height="277" rx="8" fill="#202024" stroke="#45454d"/>
+<text class="s" x="80" y="315" font-size="13" fill="#f2f2f4" font-weight="600">Color families</text>
+<path d="M288 303l8 8m0-8l-8 8" stroke="#8a8a93" stroke-width="1.5"/>
+<rect x="80" y="334" width="30" height="30" rx="4" fill="#FFFFFF" stroke="#45454d"/>
+<rect x="116" y="334" width="30" height="30" rx="4" fill="#CCCCCC" stroke="#45454d"/>
+<rect x="152" y="334" width="30" height="30" rx="4" fill="#999999" stroke="#45454d"/>
+<rect x="188" y="334" width="30" height="30" rx="4" fill="#666666" stroke="#45454d"/>
+<rect x="224" y="334" width="30" height="30" rx="4" fill="#333333" stroke="#45454d"/>
+<rect x="260" y="334" width="30" height="30" rx="4" fill="#000000" stroke="#45454d"/>
+<rect x="80" y="372" width="30" height="30" rx="4" fill="#FF8B8B" stroke="#45454d"/>
+<rect x="116" y="372" width="30" height="30" rx="4" fill="#F0B75E" stroke="#f2f2f4"/>
+<path d="M124 387 l5 5 9-11" fill="none" stroke="#17120a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+<rect x="152" y="372" width="30" height="30" rx="4" fill="#FFE58A" stroke="#45454d"/>
+<rect x="188" y="372" width="30" height="30" rx="4" fill="#9BDCA4" stroke="#45454d"/>
+<rect x="224" y="372" width="30" height="30" rx="4" fill="#91B8DF" stroke="#45454d"/>
+<rect x="222" y="370" width="34" height="34" rx="6" fill="none" stroke="#080809" stroke-width="4"/>
+<rect x="222" y="370" width="34" height="34" rx="6" fill="none" stroke="#f2f2f4" stroke-width="2"/>
+<rect x="260" y="372" width="30" height="30" rx="4" fill="#B69BDC" stroke="#45454d"/>
+<rect x="80" y="410" width="30" height="30" rx="4" fill="#E84545" stroke="#45454d"/>
+<rect x="116" y="410" width="30" height="30" rx="4" fill="#E69324" stroke="#45454d"/>
+<rect x="152" y="410" width="30" height="30" rx="4" fill="#E5C638" stroke="#45454d"/>
+<rect x="188" y="410" width="30" height="30" rx="4" fill="#41AC62" stroke="#45454d"/>
+<rect x="224" y="410" width="30" height="30" rx="4" fill="#438FD4" stroke="#45454d"/>
+<rect x="260" y="410" width="30" height="30" rx="4" fill="#9164CE" stroke="#45454d"/>
+<rect x="80" y="448" width="30" height="30" rx="4" fill="#8E2828" stroke="#45454d"/>
+<rect x="116" y="448" width="30" height="30" rx="4" fill="#915617" stroke="#45454d"/>
+<rect x="152" y="448" width="30" height="30" rx="4" fill="#8A7621" stroke="#45454d"/>
+<rect x="188" y="448" width="30" height="30" rx="4" fill="#256B3A" stroke="#45454d"/>
+<rect x="224" y="448" width="30" height="30" rx="4" fill="#285886" stroke="#45454d"/>
+<rect x="260" y="448" width="30" height="30" rx="4" fill="#58377F" stroke="#45454d"/>
+<text class="s" x="80" y="511" font-size="11" fill="#b4b4bc">Hover highlights · click applies.</text>
+<text class="s" x="80" y="539" font-size="11" fill="#8a8a93">Custom color? Edit the hex value.</text>
+<g transform="translate(242 392) scale(.65)" fill="#f2f2f4" stroke="#080809" stroke-width="1.5" stroke-linejoin="round"><path d="M5 13V2.5a2 2 0 0 1 4 0V9a2 2 0 0 1 4 0v1a2 2 0 0 1 4 0v1a2 2 0 0 1 4 0v7c0 4-2 7-5 9H8L1 17c-2-3 1-5 3-3l1 1Z"/></g>
+<path d="M201 564H215L208 573Z" fill="#202024"/>
+<path d="M202 566l6 7 6-7" fill="none" stroke="#45454d"/>
+</g>
+</g>
+<text class="s" x="1328" y="979" font-size="12" fill="#8a8a93">2 px hover ring · checkmark stays on selection.</text>
+<text class="s" x="1008" y="979" font-size="12" fill="#8a8a93">Select to explore · × / outside closes.</text>
+<text class="s" x="688" y="979" font-size="12" fill="#8a8a93">Fixed # prefix · edit six hex digits only.</text>
+<text class="s" x="1648" y="228" font-size="12" fill="#b4b4bc" font-weight="600">Font selector · preview cards</text>
+<g transform="translate(1600 50)">
+<rect x="47.5" y="197.5" width="281" height="708" rx="10" fill="#000" opacity="0.35" transform="translate(0 6)"/>
+<g clip-path="url(#c1)">
+<rect x="48" y="198" width="280" height="707" fill="#0d0d0f"/>
+<g clip-path="url(#c2)">
+<rect x="64.5" y="214.5" width="31" height="31" rx="8" fill="#7251a3" stroke="#8261b3" stroke-width="1"/>
+<text class="s" x="80" y="234.32" font-size="12" fill="#ffffff" font-weight="700" text-anchor="middle">T</text>
+<text class="s" x="108" y="227.04" font-size="14" fill="#f2f2f4" font-weight="600">Let's get started</text>
+<text class="s" x="108" y="243.32" font-size="11"><tspan fill="#8a8a93">Text clip · Track: </tspan><tspan fill="#b69bdc">Text 1</tspan></text>
+<rect x="48" y="261" width="280" height="1" fill="#2b2b31"/>
+<text class="s" x="64" y="285.96" font-size="11" fill="#777780" font-weight="600" letter-spacing="0.6">CONTENT</text>
+<rect x="64.5" y="298.5" width="247" height="57" rx="6" fill="#17171a" stroke="#2b2b31" stroke-width="1"/>
+<text class="s" x="74" y="319.68" font-size="13" fill="#f2f2f4">Let's get started</text>
+
+<rect x="64" y="372" width="248" height="1" fill="#1f1f24"/>
+<text class="s" x="64" y="395.96" font-size="11" fill="#777780" font-weight="600" letter-spacing="0.6">TIMING</text>
+<text class="s" x="64" y="418.96" font-size="11" fill="#777780">Start</text>
+<text class="s" x="192" y="418.96" font-size="11" fill="#777780">Duration</text>
+<rect x="64" y="424" width="120" height="30" rx="6" fill="#131316"/>
+<text class="m" x="74" y="443.68" font-size="13" fill="#f2f2f4">0:10.03</text>
+<text class="m" x="174" y="442.96" font-size="11" fill="#55555e" text-anchor="end">303 f</text>
+<rect x="192.5" y="424.5" width="119" height="29" rx="6" fill="#17171a" stroke="#2b2b31" stroke-width="1"/>
+<text class="m" x="202" y="443.68" font-size="13" fill="#f2f2f4">2.90</text>
+<text class="s" x="302" y="443.32" font-size="12" fill="#777780" text-anchor="end">s</text>
+<rect x="64" y="470" width="248" height="1" fill="#1f1f24"/>
+<g id="text-clip-style-font">
+<title>Text style: font, font size, and font color</title>
+<text class="s" x="64" y="493.96" font-size="11" fill="#777780" font-weight="600" letter-spacing="0.6">STYLE</text>
+<text class="s" x="64" y="517" font-size="12" fill="#b4b4bc">Font</text>
+<rect x="64.5" y="526.5" width="247" height="33" rx="6" fill="#17171a" stroke="#2b2b31" stroke-width="1"/>
+<text class="s" x="74" y="548" font-size="13" fill="#f2f2f4">PingFang SC</text>
+<path d="M294 541 l4 4 l4 -4" fill="none" stroke="#777780" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+<text class="s" x="64" y="581" font-size="12" fill="#b4b4bc">Font size</text>
+<text class="s" x="192" y="581" font-size="12" fill="#b4b4bc">Font color</text>
+<rect x="64.5" y="590.5" width="119" height="33" rx="6" fill="#17171a" stroke="#2b2b31" stroke-width="1"/>
+<text class="m" x="74" y="612" font-size="13" fill="#f2f2f4">64</text>
+<text class="s" x="174" y="612" font-size="12" fill="#777780" text-anchor="end">px</text>
+<rect x="192.5" y="590.5" width="119" height="33" rx="6" fill="#17171a" stroke="#2b2b31" stroke-width="1"/>
+<rect x="200.5" y="599.5" width="15" height="15" rx="4" fill="#ffffff" stroke="#2b2b31" stroke-width="1"/>
+<text class="m" x="224" y="612" font-size="13" fill="#777780">#</text>
+
+<text class="m" x="234" y="612" font-size="13" fill="#f2f2f4">FFFFFF</text>
+</g>
+<g id="text-clip-background-border">
+<title>Background: color and opacity, removable. Border: added on demand; "No border" until then.</title>
+<rect x="64" y="640" width="248" height="1" fill="#1f1f24"/>
+<text class="s" x="64" y="663.96" font-size="11" fill="#777780" font-weight="600" letter-spacing="0.6">BACKGROUND</text>
+<text class="s" x="312" y="664.32" font-size="12" fill="#f0b75e" text-anchor="end">Remove</text>
+<rect x="64.5" y="676.5" width="159" height="29" rx="6" fill="#17171a" stroke="#2b2b31" stroke-width="1"/>
+<rect x="72.5" y="683.5" width="15" height="15" rx="4" fill="#000000" stroke="#2b2b31" stroke-width="1"/>
+<text class="m" x="96" y="695.68" font-size="13" fill="#777780">#</text>
+<text class="m" x="106" y="695.68" font-size="13" fill="#f2f2f4">000000</text>
+<rect x="232.5" y="676.5" width="79" height="29" rx="6" fill="#17171a" stroke="#2b2b31" stroke-width="1"/>
+<text class="m" x="242" y="695.68" font-size="13" fill="#f2f2f4">50</text>
+<text class="s" x="302" y="695.32" font-size="12" fill="#777780" text-anchor="end">%</text>
+<rect x="64" y="722" width="248" height="1" fill="#1f1f24"/>
+<text class="s" x="64" y="745.96" font-size="11" fill="#777780" font-weight="600" letter-spacing="0.6">BORDER</text>
+<text class="s" x="312" y="746.32" font-size="12" fill="#f0b75e" text-anchor="end">Add</text>
+<text class="s" x="64" y="770.32" font-size="12" fill="#55555e">No border</text>
+</g>
+<g transform="translate(0 152)">
+<rect x="64" y="640" width="248" height="1" fill="#1f1f24"/>
+<text class="s" x="64" y="663.96" font-size="11" fill="#777780" font-weight="600" letter-spacing="0.6">POSITION</text>
+<rect x="64.5" y="676.5" width="119" height="29" rx="6" fill="#17171a" stroke="#2b2b31" stroke-width="1"/>
+<text class="s" x="74" y="695.32" font-size="12" fill="#777780" font-weight="600">X</text>
+<text class="m" x="89.68" y="695.68" font-size="13" fill="#f2f2f4">0.50</text>
+<rect x="192.5" y="676.5" width="119" height="29" rx="6" fill="#17171a" stroke="#2b2b31" stroke-width="1"/>
+<text class="s" x="202" y="695.32" font-size="12" fill="#777780" font-weight="600">Y</text>
+<text class="m" x="217.68" y="695.68" font-size="13" fill="#f2f2f4">0.85</text>
+</g>
+</g>
+</g>
+<rect x="48.5" y="198.5" width="279" height="706" rx="10" fill="none" stroke="#2b2b31" stroke-width="1"/>
+
+</g>
+<g id="font-selector-b3" transform="translate(-280 0)"><title>Font selector: searchable preview cards. Click applies and keeps the picker open. Hover highlights the card without changing the selected font.</title>
+<rect x="1944" y="306" width="248" height="438" rx="8" fill="#202024" stroke="#45454d"/>
+<text class="s" x="1960" y="334" font-size="13" fill="#f2f2f4">Font</text>
+<text class="s" x="2163" y="335" font-size="20" fill="#8a8a93">×</text>
+<rect x="1956" y="348" width="224" height="34" rx="6" fill="#17171a" stroke="#45454d"/>
+<text class="s" x="1968" y="370" font-size="13" fill="#777780">Search fonts…</text>
+<rect x="1956" y="394" width="224" height="96" rx="7" fill="#19191d" stroke="#34343b"/>
+<text class="s" x="1968" y="416" font-size="12" fill="#b4b4bc">Helvetica Neue</text>
+<rect x="1957" y="427" width="222" height="1" rx="0" fill="#34343b" stroke="none"/>
+<text class="s" x="1968" y="464" font-size="17" fill="#f2f2f4" style="font-family:Helvetica Neue">你好，世界 · Hello,world</text>
+<rect x="1956" y="498" width="224" height="96" rx="7" fill="#19191d" stroke="#f0b75e"/>
+<text class="s" x="1968" y="520" font-size="12" fill="#f0b75e">PingFang SC</text>
+<text class="s" x="2155" y="520" font-size="15" fill="#f0b75e">✓</text>
+<rect x="1957" y="531" width="222" height="1" rx="0" fill="#3b3327" stroke="none"/>
+<text class="s" x="1968" y="568" font-size="17" fill="#f2f2f4" style="font-family:PingFang SC">你好，世界 · Hello,world</text>
+<rect x="1956" y="602" width="224" height="96" rx="7" fill="#19191d" stroke="#8a8a93"/>
+<text class="s" x="1968" y="624" font-size="12" fill="#b4b4bc">Songti SC</text>
+<rect x="1957" y="635" width="222" height="1" rx="0" fill="#34343b" stroke="none"/>
+<text class="s" x="1968" y="672" font-size="17" fill="#f2f2f4" style="font-family:Songti SC">你好，世界 · Hello,world</text>
+<rect x="2181" y="394" width="3" height="304" rx="2" fill="#34343b" stroke="none"/>
+<rect x="2181" y="394" width="3" height="65" rx="2" fill="#777780" stroke="none"/>
+<text class="s" x="1960" y="727" font-size="12" fill="#8a8a93">Click a font to apply.</text>
+</g>
+<text class="s" x="1648" y="979" font-size="12" fill="#8a8a93">Floating overlay · click applies and stays open.</text>
+<text class="s" x="1968" y="228" font-size="12" fill="#b4b4bc" font-weight="600">Font dropdown · hover</text>
+<g transform="translate(1920 50)">
+<rect x="47.5" y="197.5" width="281" height="708" rx="10" fill="#000" opacity="0.35" transform="translate(0 6)"/>
+<g clip-path="url(#c1)">
+<rect x="48" y="198" width="280" height="707" fill="#0d0d0f"/>
+<g clip-path="url(#c2)">
+<rect x="64.5" y="214.5" width="31" height="31" rx="8" fill="#7251a3" stroke="#8261b3" stroke-width="1"/>
+<text class="s" x="80" y="234.32" font-size="12" fill="#ffffff" font-weight="700" text-anchor="middle">T</text>
+<text class="s" x="108" y="227.04" font-size="14" fill="#f2f2f4" font-weight="600">Let's get started</text>
+<text class="s" x="108" y="243.32" font-size="11"><tspan fill="#8a8a93">Text clip · Track: </tspan><tspan fill="#b69bdc">Text 1</tspan></text>
+<rect x="48" y="261" width="280" height="1" fill="#2b2b31"/>
+<text class="s" x="64" y="285.96" font-size="11" fill="#777780" font-weight="600" letter-spacing="0.6">CONTENT</text>
+<rect x="64.5" y="298.5" width="247" height="57" rx="6" fill="#17171a" stroke="#2b2b31" stroke-width="1"/>
+<text class="s" x="74" y="319.68" font-size="13" fill="#f2f2f4">Let's get started</text>
+
+<rect x="64" y="372" width="248" height="1" fill="#1f1f24"/>
+<text class="s" x="64" y="395.96" font-size="11" fill="#777780" font-weight="600" letter-spacing="0.6">TIMING</text>
+<text class="s" x="64" y="418.96" font-size="11" fill="#777780">Start</text>
+<text class="s" x="192" y="418.96" font-size="11" fill="#777780">Duration</text>
+<rect x="64" y="424" width="120" height="30" rx="6" fill="#131316"/>
+<text class="m" x="74" y="443.68" font-size="13" fill="#f2f2f4">0:10.03</text>
+<text class="m" x="174" y="442.96" font-size="11" fill="#55555e" text-anchor="end">303 f</text>
+<rect x="192.5" y="424.5" width="119" height="29" rx="6" fill="#17171a" stroke="#2b2b31" stroke-width="1"/>
+<text class="m" x="202" y="443.68" font-size="13" fill="#f2f2f4">2.90</text>
+<text class="s" x="302" y="443.32" font-size="12" fill="#777780" text-anchor="end">s</text>
+<rect x="64" y="470" width="248" height="1" fill="#1f1f24"/>
+<g id="text-clip-style-font-hover">
+<title>Text style: font, font size, and font color</title>
+<text class="s" x="64" y="493.96" font-size="11" fill="#777780" font-weight="600" letter-spacing="0.6">STYLE</text>
+<text class="s" x="64" y="517" font-size="12" fill="#b4b4bc">Font</text>
+<rect x="64.5" y="526.5" width="247" height="33" rx="6" fill="#2a241b" stroke="#f0b75e" stroke-width="1"/>
+<text class="s" x="74" y="548" font-size="13" fill="#f2f2f4">Sans</text>
+<path d="M294 541 l4 4 l4 -4" fill="none" stroke="#f0b75e" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+<text class="s" x="64" y="581" font-size="12" fill="#b4b4bc">Font size</text>
+<text class="s" x="192" y="581" font-size="12" fill="#b4b4bc">Font color</text>
+<rect x="64.5" y="590.5" width="119" height="33" rx="6" fill="#17171a" stroke="#2b2b31" stroke-width="1"/>
+<text class="m" x="74" y="612" font-size="13" fill="#f2f2f4">64</text>
+<text class="s" x="174" y="612" font-size="12" fill="#777780" text-anchor="end">px</text>
+<rect x="192.5" y="590.5" width="119" height="33" rx="6" fill="#17171a" stroke="#2b2b31" stroke-width="1"/>
+<rect x="200.5" y="599.5" width="15" height="15" rx="4" fill="#ffffff" stroke="#2b2b31" stroke-width="1"/>
+<text class="m" x="224" y="612" font-size="13" fill="#777780">#</text>
+
+<text class="m" x="234" y="612" font-size="13" fill="#f2f2f4">FFFFFF</text>
+</g>
+<g id="text-clip-background-border">
+<title>Background: color and opacity, removable. Border: added on demand; "No border" until then.</title>
+<rect x="64" y="640" width="248" height="1" fill="#1f1f24"/>
+<text class="s" x="64" y="663.96" font-size="11" fill="#777780" font-weight="600" letter-spacing="0.6">BACKGROUND</text>
+<text class="s" x="312" y="664.32" font-size="12" fill="#f0b75e" text-anchor="end">Remove</text>
+<rect x="64.5" y="676.5" width="159" height="29" rx="6" fill="#17171a" stroke="#2b2b31" stroke-width="1"/>
+<rect x="72.5" y="683.5" width="15" height="15" rx="4" fill="#000000" stroke="#2b2b31" stroke-width="1"/>
+<text class="m" x="96" y="695.68" font-size="13" fill="#777780">#</text>
+<text class="m" x="106" y="695.68" font-size="13" fill="#f2f2f4">000000</text>
+<rect x="232.5" y="676.5" width="79" height="29" rx="6" fill="#17171a" stroke="#2b2b31" stroke-width="1"/>
+<text class="m" x="242" y="695.68" font-size="13" fill="#f2f2f4">50</text>
+<text class="s" x="302" y="695.32" font-size="12" fill="#777780" text-anchor="end">%</text>
+<rect x="64" y="722" width="248" height="1" fill="#1f1f24"/>
+<text class="s" x="64" y="745.96" font-size="11" fill="#777780" font-weight="600" letter-spacing="0.6">BORDER</text>
+<text class="s" x="312" y="746.32" font-size="12" fill="#f0b75e" text-anchor="end">Add</text>
+<text class="s" x="64" y="770.32" font-size="12" fill="#55555e">No border</text>
+</g>
+<g transform="translate(0 152)">
+<rect x="64" y="640" width="248" height="1" fill="#1f1f24"/>
+<text class="s" x="64" y="663.96" font-size="11" fill="#777780" font-weight="600" letter-spacing="0.6">POSITION</text>
+<rect x="64.5" y="676.5" width="119" height="29" rx="6" fill="#17171a" stroke="#2b2b31" stroke-width="1"/>
+<text class="s" x="74" y="695.32" font-size="12" fill="#777780" font-weight="600">X</text>
+<text class="m" x="89.68" y="695.68" font-size="13" fill="#f2f2f4">0.50</text>
+<rect x="192.5" y="676.5" width="119" height="29" rx="6" fill="#17171a" stroke="#2b2b31" stroke-width="1"/>
+<text class="s" x="202" y="695.32" font-size="12" fill="#777780" font-weight="600">Y</text>
+<text class="m" x="217.68" y="695.68" font-size="13" fill="#f2f2f4">0.85</text>
+</g>
+</g>
+</g>
+<rect x="48.5" y="198.5" width="279" height="706" rx="10" fill="none" stroke="#2b2b31" stroke-width="1"/>
+
+</g>
+<text class="s" x="1968" y="979" font-size="12" fill="#8a8a93">Gold accent · warm fill, gold border and chevron.</text>
+<text class="s" x="2288" y="228" font-size="12" fill="#b4b4bc" font-weight="600">Border · added</text>
+<g transform="translate(2240 50)">
+<rect x="47.5" y="197.5" width="281" height="708" rx="10" fill="#000" opacity="0.35" transform="translate(0 6)"/>
+<g clip-path="url(#c1)">
+<rect x="48" y="198" width="280" height="707" fill="#0d0d0f"/>
+<g clip-path="url(#c2)">
+<rect x="64.5" y="214.5" width="31" height="31" rx="8" fill="#7251a3" stroke="#8261b3" stroke-width="1"/>
+<text class="s" x="80" y="234.32" font-size="12" fill="#ffffff" font-weight="700" text-anchor="middle">T</text>
+<text class="s" x="108" y="227.04" font-size="14" fill="#f2f2f4" font-weight="600">Let's get started</text>
+<text class="s" x="108" y="243.32" font-size="11"><tspan fill="#8a8a93">Text clip · Track: </tspan><tspan fill="#b69bdc">Text 1</tspan></text>
+<rect x="48" y="261" width="280" height="1" fill="#2b2b31"/>
+<text class="s" x="64" y="285.96" font-size="11" fill="#777780" font-weight="600" letter-spacing="0.6">CONTENT</text>
+<rect x="64.5" y="298.5" width="247" height="57" rx="6" fill="#17171a" stroke="#f0b75e" stroke-width="1"/>
+<text class="s" x="74" y="319.68" font-size="13" fill="#f2f2f4">Let's get started</text>
+<rect x="173.02" y="307" width="1.5" height="16" fill="#f0b75e"/>
+<rect x="64" y="372" width="248" height="1" fill="#1f1f24"/>
+<text class="s" x="64" y="395.96" font-size="11" fill="#777780" font-weight="600" letter-spacing="0.6">TIMING</text>
+<text class="s" x="64" y="418.96" font-size="11" fill="#777780">Start</text>
+<text class="s" x="192" y="418.96" font-size="11" fill="#777780">Duration</text>
+<rect x="64" y="424" width="120" height="30" rx="6" fill="#131316"/>
+<text class="m" x="74" y="443.68" font-size="13" fill="#f2f2f4">0:10.03</text>
+<text class="m" x="174" y="442.96" font-size="11" fill="#55555e" text-anchor="end">303 f</text>
+<rect x="192.5" y="424.5" width="119" height="29" rx="6" fill="#17171a" stroke="#2b2b31" stroke-width="1"/>
+<text class="m" x="202" y="443.68" font-size="13" fill="#f2f2f4">2.90</text>
+<text class="s" x="302" y="443.32" font-size="12" fill="#777780" text-anchor="end">s</text>
+<rect x="64" y="470" width="248" height="1" fill="#1f1f24"/>
+<g id="text-clip-style">
+<title>Text style: font, font size, and font color</title>
+<text class="s" x="64" y="493.96" font-size="11" fill="#777780" font-weight="600" letter-spacing="0.6">STYLE</text>
+<text class="s" x="64" y="517" font-size="12" fill="#b4b4bc">Font</text>
+<rect x="64.5" y="526.5" width="247" height="33" rx="6" fill="#17171a" stroke="#2b2b31" stroke-width="1"/>
+<text class="s" x="74" y="548" font-size="13" fill="#f2f2f4">Sans</text>
+<path d="M294 541 l4 4 l4 -4" fill="none" stroke="#777780" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+<text class="s" x="64" y="581" font-size="12" fill="#b4b4bc">Font size</text>
+<text class="s" x="192" y="581" font-size="12" fill="#b4b4bc">Font color</text>
+<rect x="64.5" y="590.5" width="119" height="33" rx="6" fill="#17171a" stroke="#2b2b31" stroke-width="1"/>
+<text class="m" x="74" y="612" font-size="13" fill="#f2f2f4">64</text>
+<text class="s" x="174" y="612" font-size="12" fill="#777780" text-anchor="end">px</text>
+<rect x="192.5" y="590.5" width="119" height="33" rx="6" fill="#17171a" stroke="#2b2b31" stroke-width="1"/>
+<rect x="200.5" y="599.5" width="15" height="15" rx="4" fill="#ffffff" stroke="#2b2b31" stroke-width="1"/>
+<text class="m" x="224" y="612" font-size="13" fill="#777780">#</text>
+<text class="m" x="234" y="612" font-size="13" fill="#f2f2f4">FFFFFF</text>
+</g>
+<g id="text-clip-background-border">
+<title>Border added: color and width in px, removable like the background.</title>
+<rect x="64" y="640" width="248" height="1" fill="#1f1f24"/>
+<text class="s" x="64" y="663.96" font-size="11" fill="#777780" font-weight="600" letter-spacing="0.6">BACKGROUND</text>
+<text class="s" x="312" y="664.32" font-size="12" fill="#f0b75e" text-anchor="end">Remove</text>
+<rect x="64.5" y="676.5" width="159" height="29" rx="6" fill="#17171a" stroke="#2b2b31" stroke-width="1"/>
+<rect x="72.5" y="683.5" width="15" height="15" rx="4" fill="#000000" stroke="#2b2b31" stroke-width="1"/>
+<text class="m" x="96" y="695.68" font-size="13" fill="#777780">#</text>
+<text class="m" x="106" y="695.68" font-size="13" fill="#f2f2f4">000000</text>
+<rect x="232.5" y="676.5" width="79" height="29" rx="6" fill="#17171a" stroke="#2b2b31" stroke-width="1"/>
+<text class="m" x="242" y="695.68" font-size="13" fill="#f2f2f4">50</text>
+<text class="s" x="302" y="695.32" font-size="12" fill="#777780" text-anchor="end">%</text>
+<rect x="64" y="722" width="248" height="1" fill="#1f1f24"/>
+<text class="s" x="64" y="745.96" font-size="11" fill="#777780" font-weight="600" letter-spacing="0.6">BORDER</text>
+<text class="s" x="312" y="746.32" font-size="12" fill="#f0b75e" text-anchor="end">Remove</text>
+<rect x="64.5" y="758.5" width="159" height="29" rx="6" fill="#17171a" stroke="#2b2b31" stroke-width="1"/>
+<rect x="72.5" y="765.5" width="15" height="15" rx="4" fill="#F0B75E" stroke="#2b2b31" stroke-width="1"/>
+<text class="m" x="96" y="777.68" font-size="13" fill="#777780">#</text>
+<text class="m" x="106" y="777.68" font-size="13" fill="#f2f2f4">F0B75E</text>
+<rect x="232.5" y="758.5" width="79" height="29" rx="6" fill="#17171a" stroke="#2b2b31" stroke-width="1"/>
+<text class="m" x="242" y="777.68" font-size="13" fill="#f2f2f4">2</text>
+<text class="s" x="302" y="777.32" font-size="12" fill="#777780" text-anchor="end">px</text>
+</g>
+<g transform="translate(0 164)">
+<rect x="64" y="640" width="248" height="1" fill="#1f1f24"/>
+<text class="s" x="64" y="663.96" font-size="11" fill="#777780" font-weight="600" letter-spacing="0.6">POSITION</text>
+<rect x="64.5" y="676.5" width="119" height="29" rx="6" fill="#17171a" stroke="#2b2b31" stroke-width="1"/>
+<text class="s" x="74" y="695.32" font-size="12" fill="#777780" font-weight="600">X</text>
+<text class="m" x="89.68" y="695.68" font-size="13" fill="#f2f2f4">0.50</text>
+<rect x="192.5" y="676.5" width="119" height="29" rx="6" fill="#17171a" stroke="#2b2b31" stroke-width="1"/>
+<text class="s" x="202" y="695.32" font-size="12" fill="#777780" font-weight="600">Y</text>
+<text class="m" x="217.68" y="695.68" font-size="13" fill="#f2f2f4">0.85</text>
+</g>
+</g>
+</g>
+<rect x="48.5" y="198.5" width="279" height="706" rx="10" fill="none" stroke="#2b2b31" stroke-width="1"/>
+
+</g>
+</g>
+</svg>
