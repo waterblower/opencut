@@ -1,6 +1,7 @@
 //! GPUI views for composed timeline pictures and subtitle layout.
 
 use crate::timeline_decoder::{PreparedLayer, TimelineFrameComposition};
+use gpui::prelude::FluentBuilder;
 use gpui::{AnyElement, IntoElement, ParentElement, Styled, TextAlign, div, img, px, rgb, rgba};
 use std::sync::Arc;
 use timeline::{Clip, TextClipProperties, TimelineEditingState};
@@ -99,8 +100,15 @@ impl TimelineFrameComposition {
 
 /// Shared text layout for picture rendering and editor hit testing.
 pub fn text_layer_element(properties: &TextClipProperties, scale: f32) -> AnyElement {
+    let font_size = properties.font_size as f32 * scale;
     div()
         .flex_shrink_0()
+        .when_some(properties.background, |text, background| {
+            // 背景框的内边距随字号缩放，导出与预览一致。
+            text.bg(rgba(background.rgba()))
+                .px(px(font_size * BACKGROUND_PADDING_X))
+                .py(px(font_size * BACKGROUND_PADDING_Y))
+        })
         .whitespace_nowrap()
         .font_family(properties.font.clone())
         .text_size(px(properties.font_size as f32 * scale))
@@ -110,3 +118,6 @@ pub fn text_layer_element(properties: &TextClipProperties, scale: f32) -> AnyEle
         .child(properties.text.clone())
         .into_any_element()
 }
+
+const BACKGROUND_PADDING_X: f32 = 0.3; // 背景框左右内边距，相对于字号
+const BACKGROUND_PADDING_Y: f32 = 0.1; // 背景框上下内边距，相对于字号
