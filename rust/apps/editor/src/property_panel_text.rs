@@ -4,7 +4,7 @@ use crate::property_panel::{
     clip_property_panel_frame_view, clip_property_panel_header_view, format_property_panel_time,
     property_panel_divider_view, property_panel_heading_view, readonly_property_panel_view,
 };
-use crate::theme::{BORDER, MUTED, SURFACE};
+use crate::theme::{ACCENT, BORDER, MUTED, SURFACE};
 use crate::timeline::FrameRate;
 use crate::timeline_clip::TextClip;
 use crate::track::TrackKind;
@@ -15,7 +15,7 @@ use gpui::{
     Anchor, App, BoxShadow, CursorStyle, Entity, FocusHandle, Focusable, FontWeight, MouseButton,
     PathBuilder, Window, anchored, canvas, deferred, div, point, px, rgb, rgba,
 };
-use timeline::TimelineEditingState;
+use timeline::{TextBackground, TimelineEditingState};
 use ulid::Ulid;
 
 pub(crate) struct TextClipPanel {
@@ -115,6 +115,77 @@ pub(crate) fn text_clip_view(panel: &TextClipPanel) -> gpui::AnyElement {
             event_bus: panel.event_bus.clone(),
         })
     };
+    let background_action = match (panel.locked, clip.properties.background) {
+        (true, _) => None,
+        (false, None) => {
+            let clip_id = clip.id();
+            let event_bus = panel.event_bus.clone();
+            Some(
+                section_action_view("text-background-add", "Add").on_click(move |_, _, cx| {
+                    event_bus.update(cx, |_, cx| {
+                        cx.emit(AppEvent::Edit(EditAction::SetTextBackground {
+                            clip_id,
+                            background: Some(DEFAULT_TEXT_BACKGROUND),
+                        }))
+                    })
+                }),
+            )
+        }
+        (false, Some(_)) => {
+            let clip_id = clip.id();
+            let event_bus = panel.event_bus.clone();
+            Some(
+                section_action_view("text-background-remove", "Remove").on_click(
+                    move |_, _, cx| {
+                        event_bus.update(cx, |_, cx| {
+                            cx.emit(AppEvent::Edit(EditAction::SetTextBackground {
+                                clip_id,
+                                background: None,
+                            }))
+                        })
+                    },
+                ),
+            )
+        }
+    };
+    let background_body = match clip.properties.background {
+        None => empty_section_view("No background"),
+        Some(background) => {
+            let opacity = background_opacity_percent(background.alpha);
+            let opaque_color = 0xff00_0000 | background.rgba() >> 8; // 色块显示完整颜色，不透明度只在百分比里体现
+            let (color, opacity_field) = if panel.locked {
+                (
+                    locked_color_view(opaque_color, format!("#{:06X}", background.rgba() >> 8))
+                        .into_any_element(),
+                    text_value_view("", opacity.to_string(), "%", true)
+                        .h(px(34.0))
+                        .into_any_element(),
+                )
+            } else {
+                (
+                    ColorInput {
+                        clip_id: clip.id(),
+                        value: opaque_color,
+                        target: ColorTarget::Background,
+                        event_bus: panel.event_bus.clone(),
+                    }
+                    .into_any_element(),
+                    BackgroundOpacityInput {
+                        clip_id: clip.id(),
+                        alpha: background.alpha,
+                        event_bus: panel.event_bus.clone(),
+                    }
+                    .into_any_element(),
+                )
+            };
+            div()
+                .mt(px(12.0))
+                .flex()
+                .gap(px(8.0))
+                .child(div().flex_1().min_w_0().child(color))
+                .child(div().w(px(80.0)).flex_shrink_0().child(opacity_field))
+        }
+    };
     let content = div()
         .child(property_panel_heading_view("CONTENT"))
         .child(div().mt(px(12.0)).child(content_box))
@@ -210,47 +281,21 @@ pub(crate) fn text_clip_view(panel: &TextClipPanel) -> gpui::AnyElement {
                     "Font color",
                     div()
                         .when(!panel.locked, |field| {
-                            field.child(FontColorInput {
+                            field.child(ColorInput {
                                 clip_id: clip.id(),
                                 value: clip.properties.color,
+                                target: ColorTarget::Font,
                                 event_bus: panel.event_bus.clone(),
                             })
                         })
                         .when(panel.locked, |field| {
-                            field.child(
-                                div()
-                                    .h(px(34.0))
-                                    .min_w_0()
-                                    .flex()
-                                    .items_center()
-                                    .gap(px(6.0))
-                                    .px(px(8.0))
-                                    .rounded(px(6.0))
-                                    .when(!panel.locked, |field| {
-                                        field.border_1().border_color(rgb(BORDER))
-                                    })
-                                    .bg(rgb(if panel.locked { 0x19191d } else { SURFACE }))
-                                    .child(
-                                        div()
-                                            .size(px(16.0))
-                                            .flex_shrink_0()
-                                            .rounded(px(4.0))
-                                            .border_1()
-                                            .border_color(rgb(BORDER))
-                                            .bg(rgba(clip.properties.color.rotate_left(8))), // ARGB → RGBA。
-                                    )
-                                    .child(
-                                        div()
-                                            .min_w_0()
-                                            .font_family("monospace")
-                                            .text_size(px(13.0))
-                                            .text_ellipsis()
-                                            .child(color_text),
-                                    ),
-                            )
+                            field.child(locked_color_view(clip.properties.color, color_text))
                         }),
                 )),
         )
+        .child(property_panel_divider_view())
+        .child(section_heading_view("BACKGROUND", background_action))
+        .child(background_body)
         .child(property_panel_divider_view())
         .child(property_panel_heading_view("POSITION"))
         .child(
@@ -274,6 +319,97 @@ pub(crate) fn text_clip_view(panel: &TextClipPanel) -> gpui::AnyElement {
         readonly_property_panel_view("text-clip-property-panel", header, content),
         panel.locked,
     )
+}
+
+fn section_heading_view(
+    label: &'static str,
+    action: Option<gpui::Stateful<gpui::Div>>,
+) -> gpui::Div {
+    div()
+        .flex()
+        .items_center()
+        .justify_between()
+        .child(property_panel_heading_view(label))
+        .when_some(action, |heading, action| heading.child(action))
+}
+
+fn section_action_view(id: &'static str, label: &'static str) -> gpui::Stateful<gpui::Div> {
+    div()
+        .id(id)
+        .text_size(px(12.0))
+        .line_height(px(16.0))
+        .text_color(rgb(ACCENT))
+        .cursor(CursorStyle::PointingHand)
+        .child(label)
+}
+
+fn locked_color_view(color: u32, text: String) -> gpui::Div {
+    div()
+        .h(px(34.0))
+        .min_w_0()
+        .flex()
+        .items_center()
+        .gap(px(6.0))
+        .px(px(8.0))
+        .rounded(px(6.0))
+        .bg(rgb(0x19191d))
+        .child(
+            div()
+                .size(px(16.0))
+                .flex_shrink_0()
+                .rounded(px(4.0))
+                .border_1()
+                .border_color(rgb(BORDER))
+                .bg(rgba(color.rotate_left(8))), // ARGB → RGBA。
+        )
+        .child(
+            div()
+                .min_w_0()
+                .font_family("monospace")
+                .text_size(px(13.0))
+                .text_ellipsis()
+                .child(text),
+        )
+}
+
+fn background_opacity_percent(alpha: u8) -> u32 {
+    (u32::from(alpha) * 100 + 127) / 255
+}
+
+const DEFAULT_TEXT_BACKGROUND: TextBackground = TextBackground {
+    red: 0,
+    green: 0,
+    blue: 0,
+    alpha: 128,
+};
+
+#[derive(Clone, Copy)]
+enum ColorTarget {
+    Font,
+    Background,
+}
+
+fn color_edit(target: ColorTarget, clip_id: Ulid, color: u32) -> EditAction {
+    match target {
+        ColorTarget::Font => EditAction::SetTextColor { clip_id, color },
+        ColorTarget::Background => {
+            let [_, red, green, blue] = color.to_be_bytes();
+            EditAction::SetTextBackgroundColor {
+                clip_id,
+                red,
+                green,
+                blue,
+            }
+        }
+    }
+}
+
+fn empty_section_view(text: &'static str) -> gpui::Div {
+    div()
+        .mt(px(8.0))
+        .text_size(px(12.0))
+        .text_color(rgb(0x55555e))
+        .child(text)
 }
 
 fn style_field_view(label: &'static str, value: gpui::Div) -> gpui::Div {
@@ -401,39 +537,39 @@ impl RenderOnce for FontSizeInput {
 }
 
 #[derive(IntoElement)]
-struct FontColorInput {
+struct BackgroundOpacityInput {
     clip_id: Ulid,
-    value: u32,
+    alpha: u8,
     event_bus: Entity<EventBus>,
 }
 
-impl RenderOnce for FontColorInput {
+impl RenderOnce for BackgroundOpacityInput {
     fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
-        let clip_id = self.clip_id;
-        let value = self.value;
-        let alpha = value & 0xff00_0000;
-        let event_bus = self.event_bus;
-        let input_bus = event_bus.clone();
         let return_focus = match window.focused(cx) {
             Some(handle) => handle,
             None => cx.focus_handle(),
         };
-        let input =
-            window.use_keyed_state(format!("text-color-{clip_id}-{alpha}"), cx, |window, cx| {
-                let field = TextInput::new_property_hex_field(
-                    format!("{:06X}", value & 0xffffff),
-                    return_focus,
-                    cx,
-                );
-                cx.subscribe(&cx.entity(), move |field, _, _: &TextInputEvent, cx| {
-                    // 未完成的十六进制输入是正常草稿；只提交完整的 RGB，保留原有透明度。
-                    let Some(color) = parse_hex_color(field.text()) else {
+        let clip_id = self.clip_id;
+        let value = background_opacity_percent(self.alpha);
+        let event_bus = self.event_bus;
+        let input = window.use_keyed_state(
+            format!("text-background-opacity-{clip_id}"),
+            cx,
+            |window, cx| {
+                let field =
+                    TextInput::new_property_number_field(value.to_string(), return_focus, cx);
+                cx.subscribe(&cx.entity(), move |input, _, _: &TextInputEvent, cx| {
+                    let Ok(percent) = input.text().parse::<u32>() else {
                         return;
                     };
-                    input_bus.update(cx, |_, cx| {
-                        cx.emit(AppEvent::Edit(EditAction::SetTextColor {
+                    if percent > 100 {
+                        return;
+                    }
+                    let alpha = ((percent * 255 + 50) / 100) as u8;
+                    event_bus.update(cx, |_, cx| {
+                        cx.emit(AppEvent::Edit(EditAction::SetTextBackgroundAlpha {
                             clip_id,
-                            color: alpha | color,
+                            alpha,
                         }))
                     });
                 })
@@ -441,7 +577,94 @@ impl RenderOnce for FontColorInput {
                 cx.on_blur(&field.focus_handle(cx), window, |_, _, cx| cx.notify())
                     .detach();
                 field
-            });
+            },
+        );
+        input.update(cx, |field, cx| {
+            let focused = field.focus_handle(cx).is_focused(window);
+            let parsed = field.text().parse::<u32>();
+            let valid = matches!(parsed, Ok(percent) if percent <= 100);
+            // 输入中的空值保持原样；失焦或撤销/重做后同步模型值。
+            if (!focused || valid) && parsed.ok() != Some(value) {
+                field.set_text_silently(value.to_string());
+            }
+        });
+        let valid = matches!(input.read(cx).text().parse::<u32>(), Ok(percent) if percent <= 100);
+        div()
+            .h(px(34.0))
+            .min_w_0()
+            .flex()
+            .items_center()
+            .gap(px(6.0))
+            .px(px(10.0))
+            .rounded(px(6.0))
+            .border_1()
+            .border_color(rgb(if valid { BORDER } else { 0xff8b8b }))
+            .bg(rgb(SURFACE))
+            .child(div().min_w_0().flex_1().child(input))
+            .child(
+                div()
+                    .flex_shrink_0()
+                    .text_size(px(12.0))
+                    .text_color(rgb(MUTED))
+                    .child("%"),
+            )
+    }
+}
+
+#[derive(IntoElement)]
+struct ColorInput {
+    clip_id: Ulid,
+    value: u32, // 大端 ARGB；只编辑 RGB，透明度保持不变
+    target: ColorTarget,
+    event_bus: Entity<EventBus>,
+}
+
+impl RenderOnce for ColorInput {
+    fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
+        let clip_id = self.clip_id;
+        let value = self.value;
+        let target = self.target;
+        let (key, swatch_id, palette_id, close_id) = match target {
+            ColorTarget::Font => (
+                "text-color",
+                "font-color-swatch",
+                "font-color-palette",
+                "close-font-color-palette",
+            ),
+            ColorTarget::Background => (
+                "text-background-color",
+                "background-color-swatch",
+                "background-color-palette",
+                "close-background-color-palette",
+            ),
+        };
+        let alpha = value & 0xff00_0000;
+        let event_bus = self.event_bus;
+        let input_bus = event_bus.clone();
+        let return_focus = match window.focused(cx) {
+            Some(handle) => handle,
+            None => cx.focus_handle(),
+        };
+        let input = window.use_keyed_state(format!("{key}-{clip_id}-{alpha}"), cx, |window, cx| {
+            let field = TextInput::new_property_hex_field(
+                format!("{:06X}", value & 0xffffff),
+                return_focus,
+                cx,
+            );
+            cx.subscribe(&cx.entity(), move |field, _, _: &TextInputEvent, cx| {
+                // 未完成的十六进制输入是正常草稿；只提交完整的 RGB，保留原有透明度。
+                let Some(color) = parse_hex_color(field.text()) else {
+                    return;
+                };
+                input_bus.update(cx, |_, cx| {
+                    cx.emit(AppEvent::Edit(color_edit(target, clip_id, alpha | color)))
+                });
+            })
+            .detach();
+            cx.on_blur(&field.focus_handle(cx), window, |_, _, cx| cx.notify())
+                .detach();
+            field
+        });
         input.update(cx, |field, cx| {
             let parsed = parse_hex_color(field.text());
             if (!field.focus_handle(cx).is_focused(window) || parsed.is_some())
@@ -450,8 +673,7 @@ impl RenderOnce for FontColorInput {
                 field.set_text_silently(format!("{:06X}", value & 0xffffff));
             }
         });
-        let open =
-            window.use_keyed_state(format!("text-color-palette-{clip_id}"), cx, |_, _| false);
+        let open = window.use_keyed_state(format!("{key}-palette-{clip_id}"), cx, |_, _| false);
         let is_open = *open.read(cx);
         let toggle = open.clone();
         let valid = parse_hex_color(input.read(cx).text()).is_some();
@@ -469,7 +691,7 @@ impl RenderOnce for FontColorInput {
             .bg(rgb(SURFACE))
             .child(
                 div()
-                    .id("font-color-swatch")
+                    .id(swatch_id)
                     .size(px(16.0))
                     .flex_shrink_0()
                     .rounded(px(4.0))
@@ -492,7 +714,7 @@ impl RenderOnce for FontColorInput {
             let close = open.clone();
             let outside = open.clone();
             let mut palette = div()
-                .id("font-color-palette")
+                .id(palette_id)
                 .relative()
                 .w(px(248.0))
                 .p(px(15.0))
@@ -522,7 +744,7 @@ impl RenderOnce for FontColorInput {
                         .child("Color families")
                         .child(
                             div()
-                                .id("close-color-palette")
+                                .id(close_id)
                                 .cursor(CursorStyle::PointingHand)
                                 .child("×")
                                 .on_mouse_down(MouseButton::Left, move |_, window, cx| {
@@ -588,10 +810,11 @@ impl RenderOnce for FontColorInput {
                                     cx.notify();
                                 });
                                 select_bus.update(cx, |_, cx| {
-                                    cx.emit(AppEvent::Edit(EditAction::SetTextColor {
+                                    cx.emit(AppEvent::Edit(color_edit(
+                                        target,
                                         clip_id,
-                                        color: alpha | color,
-                                    }))
+                                        alpha | color,
+                                    )))
                                 });
                                 window.refresh();
                             }),

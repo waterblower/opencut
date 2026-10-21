@@ -420,7 +420,8 @@ timeline library's 8 tests passed. These are the 2026-10-16 review results.
 **Story:** As a creator, I want properties for the selected object so that I can
 inspect media and adjust a clip without leaving the editor.
 
-Mockup: [property panel](pages/15-property-panel.svg).
+Mockups: [property panel](pages/15-property-panel.svg),
+[text clip panel](pages/15b-property-panel-text-clip.svg).
 
 - [x] The header identifies the selected object. Panels cover text, video, and
   audio clips; timeline, video, audio, image, and subtitle files; and no selection.
