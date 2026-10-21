@@ -296,13 +296,6 @@ pub(crate) fn text_clip_view(panel: &TextClipPanel) -> gpui::AnyElement {
         .child(property_panel_divider_view())
         .child(section_heading_view("BACKGROUND", background_action))
         .child(background_body)
-        // Text clips have no border yet; Add does nothing until it exists.
-        .child(property_panel_divider_view())
-        .child(section_heading_view(
-            "BORDER",
-            (!panel.locked).then(|| section_action_view("text-border-add", "Add")),
-        ))
-        .child(empty_section_view("No border"))
         .child(property_panel_divider_view())
         .child(property_panel_heading_view("POSITION"))
         .child(
