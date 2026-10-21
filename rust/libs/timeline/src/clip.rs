@@ -56,6 +56,7 @@ pub struct TextClipProperties {
     pub font_size: f64,
     /// Text color as big-endian ARGB.
     pub color: u32,
+    pub background: Option<u32>,
     #[serde(flatten, with = "TextPosition")]
     #[cfg_attr(feature = "timeline-schema", schemars(with = "TextPosition"))]
     pub position: gpui::Point<f64>,
@@ -68,6 +69,7 @@ impl Default for TextClipProperties {
             font: "Sans".to_string(),
             font_size: 64.0,
             color: 0xffffffff,
+            background: None,
             position: gpui::point(0.5, 0.5),
         }
     }

@@ -55,6 +55,10 @@ pub(crate) enum EditAction {
         clip_id: Ulid,
         color: u32, // 大端 ARGB，与 TextClipProperties::color 相同。
     },
+    SetTextBackground {
+        clip_id: Ulid,
+        background: Option<u32>, // 大端 ARGB，与 TextClipProperties::background 相同。
+    },
     UpdateTextClipPosition {
         timeline_path: PathBuf,
         clip_id: Ulid,
@@ -610,6 +614,21 @@ impl TimelineEditExt for TimelineEditingState {
                     return Err(anyhow!("Clip {clip_id} is not a text clip"));
                 };
                 text_clip.properties.color = color;
+            }
+            EditAction::SetTextBackground {
+                clip_id,
+                background,
+            } => {
+                if data.clip_locked(clip_id) {
+                    return Err(anyhow!("Text clip {clip_id} is on a locked track"));
+                }
+                let Some(clip) = data.clip_mut(clip_id) else {
+                    return Err(anyhow!("Clip {clip_id} was not found"));
+                };
+                let Clip::Text(text_clip) = clip else {
+                    return Err(anyhow!("Clip {clip_id} is not a text clip"));
+                };
+                text_clip.properties.background = background;
             }
             EditAction::ApplyTextStyleToTrack { clip_id, .. } => {
                 let Some(Clip::Text(source)) = data.clip(clip_id) else {
