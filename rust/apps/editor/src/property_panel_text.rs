@@ -4,7 +4,7 @@ use crate::property_panel::{
     clip_property_panel_frame_view, clip_property_panel_header_view, format_property_panel_time,
     property_panel_divider_view, property_panel_heading_view, readonly_property_panel_view,
 };
-use crate::theme::{BORDER, MUTED, SURFACE};
+use crate::theme::{ACCENT, BORDER, MUTED, SURFACE};
 use crate::timeline::FrameRate;
 use crate::timeline_clip::TextClip;
 use crate::track::TrackKind;
@@ -251,6 +251,13 @@ pub(crate) fn text_clip_view(panel: &TextClipPanel) -> gpui::AnyElement {
                         }),
                 )),
         )
+        // Text clips have no background or border yet; Add does nothing until they exist.
+        .child(property_panel_divider_view())
+        .child(section_heading_view("BACKGROUND", "Add", panel.locked))
+        .child(empty_section_view("No background"))
+        .child(property_panel_divider_view())
+        .child(section_heading_view("BORDER", "Add", panel.locked))
+        .child(empty_section_view("No border"))
         .child(property_panel_divider_view())
         .child(property_panel_heading_view("POSITION"))
         .child(
@@ -274,6 +281,33 @@ pub(crate) fn text_clip_view(panel: &TextClipPanel) -> gpui::AnyElement {
         readonly_property_panel_view("text-clip-property-panel", header, content),
         panel.locked,
     )
+}
+
+/// A section heading with an action on the right; locked clips hide the action.
+fn section_heading_view(label: &'static str, action: &'static str, locked: bool) -> gpui::Div {
+    div()
+        .flex()
+        .items_center()
+        .justify_between()
+        .child(property_panel_heading_view(label))
+        .when(!locked, |heading| {
+            heading.child(
+                div()
+                    .text_size(px(12.0))
+                    .line_height(px(16.0))
+                    .text_color(rgb(ACCENT))
+                    .child(action),
+            )
+        })
+}
+
+/// The gray line a section shows while it has nothing set.
+fn empty_section_view(text: &'static str) -> gpui::Div {
+    div()
+        .mt(px(8.0))
+        .text_size(px(12.0))
+        .text_color(rgb(0x55555e))
+        .child(text)
 }
 
 fn style_field_view(label: &'static str, value: gpui::Div) -> gpui::Div {
