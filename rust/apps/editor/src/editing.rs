@@ -231,14 +231,15 @@ impl ClipClipboard {
 }
 
 impl TimelineRuntimeState {
-    pub(super) fn blade_at_playhead(&mut self) -> Result<()> {
+    /// Splits every clip crossing `position` on unlocked tracks.
+    pub(super) fn blade_at(&mut self, position: TimelineFrameIndex) -> Result<()> {
         let clips_to_split = self
             .editing_state
             .clips
             .iter()
             .filter(|clip| {
-                let local = self.playhead() - clip.timeline_start();
-                let crosses_playhead = local >= TimelineFrameIndex::ONE_FRAME
+                let local = position - clip.timeline_start();
+                let crosses_position = local >= TimelineFrameIndex::ONE_FRAME
                     && local
                         <= clip.frame_length(self.editing_state.settings.frame_rate)
                             - TimelineFrameIndex::ONE_FRAME;
@@ -246,7 +247,7 @@ impl TimelineRuntimeState {
                     .editing_state
                     .track(clip.track_id())
                     .is_some_and(|track| !track.locked);
-                crosses_playhead && track_is_editable
+                crosses_position && track_is_editable
             })
             .cloned()
             .collect::<Vec<_>>();
@@ -258,8 +259,8 @@ impl TimelineRuntimeState {
             .into_iter()
             .flat_map(|clip| {
                 let (left, right) = clip
-                    .split_at(self.playhead(), self.editing_state.settings.frame_rate)
-                    .expect("clips at the playhead must be splittable");
+                    .split_at(position, self.editing_state.settings.frame_rate)
+                    .expect("clips crossing the split position must be splittable");
                 [left, right]
             })
             .collect();

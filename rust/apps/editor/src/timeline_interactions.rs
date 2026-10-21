@@ -321,7 +321,11 @@ impl Editor {
                 let Some(timeline) = self.timeline.as_mut() else {
                     return Ok(());
                 };
-                timeline.blade_at_playhead()?;
+                let Some(position) = timeline.interaction.blade_guide else {
+                    // do nothing: the blade guide appears once the pointer moves over the timeline.
+                    return Ok(());
+                };
+                timeline.blade_at(position)?;
             }
         }
         Ok(())

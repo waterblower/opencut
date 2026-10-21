@@ -383,7 +383,7 @@
 <rect x="636.5" y="576.5" width="555" height="249" rx="10" fill="none" stroke="#2b2b31"/>
 <g transform="translate(0 -350)">
 <text class="s" x="48" y="1242" font-size="14" fill="#f2f2f4" font-weight="600">Blade</text>
-<text class="s" x="48" y="1262" font-size="12" fill="#777780">Blade tool active. Red line follows the pointer; a click splits clips at the playhead.</text>
+<text class="s" x="48" y="1262" font-size="12" fill="#777780">Blade tool active. The red blade guide follows the pointer; a click splits clips at the blade guide.</text>
 <clipPath id="p5"><rect x="48" y="1276" width="556" height="250" rx="10"/></clipPath>
 <rect x="48" y="1282" width="556" height="250" rx="10" fill="#000" opacity="0.35"/>
 <g clip-path="url(#p5)">

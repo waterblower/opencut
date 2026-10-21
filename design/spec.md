@@ -140,8 +140,7 @@ variant. The drop handler currently rejects image files on every track.
 **Story:** As a creator, I want to select and rearrange many clips at once, so
 that restructuring an edit doesn't take one clip at a time.
 
-Mockups: [blade tool](pages/06-editor-blade-tool.svg),
-[timeline editing area](pages/17-timeline-editing-area.svg),
+Mockups: [timeline editing area](pages/17-timeline-editing-area.svg),
 [context menus](pages/11-context-menus.svg).
 
 - [x] Clips are selected by clicking, Command-clicking to add or remove, or drawing
@@ -150,7 +149,7 @@ Mockups: [blade tool](pages/06-editor-blade-tool.svg),
   keep their relative timing. Each operation that changes the timeline is a
   single undo step.
 - [x] The selection tool moves clips within and between compatible tracks.
-- [x] The blade tool splits clips at the playhead.
+- [x] The blade tool splits clips at the blade guide, the red line that follows the pointer.
 - [x] Invalid moves are rejected with visible feedback.
 
 ### Clip placement
