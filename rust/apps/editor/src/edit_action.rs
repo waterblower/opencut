@@ -1,8 +1,8 @@
 use crate::editing::validate_clips_placements;
 use crate::timeline::{TimelineEditorExt, TimelineRuntimeState};
 use ::timeline::{
-    Clip, FrameRate, MediaAsset, TextClipProperties, TimelineEditingState, TimelineFrameIndex,
-    Track, VideoClipProperties, compact_text_sections,
+    Clip, FrameRate, MediaAsset, TextBackground, TextClipProperties, TimelineEditingState,
+    TimelineFrameIndex, Track, VideoClipProperties, compact_text_sections,
 };
 use anyhow::{Result, anyhow, ensure};
 use gpui::{Pixels, Point};
@@ -57,7 +57,17 @@ pub(crate) enum EditAction {
     },
     SetTextBackground {
         clip_id: Ulid,
-        background: Option<u32>, // 大端 ARGB，与 TextClipProperties::background 相同。
+        background: Option<TextBackground>,
+    },
+    SetTextBackgroundColor {
+        clip_id: Ulid,
+        red: u8,
+        green: u8,
+        blue: u8,
+    },
+    SetTextBackgroundAlpha {
+        clip_id: Ulid,
+        alpha: u8,
     },
     UpdateTextClipPosition {
         timeline_path: PathBuf,
@@ -629,6 +639,37 @@ impl TimelineEditExt for TimelineEditingState {
                     return Err(anyhow!("Clip {clip_id} is not a text clip"));
                 };
                 text_clip.properties.background = background;
+            }
+            EditAction::SetTextBackgroundColor {
+                clip_id,
+                red,
+                green,
+                blue,
+            } => {
+                if data.clip_locked(clip_id) {
+                    return Err(anyhow!("Text clip {clip_id} is on a locked track"));
+                }
+                let Some(Clip::Text(text_clip)) = data.clip_mut(clip_id) else {
+                    return Err(anyhow!("Clip {clip_id} is not a text clip"));
+                };
+                let Some(background) = text_clip.properties.background.as_mut() else {
+                    return Err(anyhow!("Text clip {clip_id} has no background"));
+                };
+                background.red = red;
+                background.green = green;
+                background.blue = blue;
+            }
+            EditAction::SetTextBackgroundAlpha { clip_id, alpha } => {
+                if data.clip_locked(clip_id) {
+                    return Err(anyhow!("Text clip {clip_id} is on a locked track"));
+                }
+                let Some(Clip::Text(text_clip)) = data.clip_mut(clip_id) else {
+                    return Err(anyhow!("Clip {clip_id} is not a text clip"));
+                };
+                let Some(background) = text_clip.properties.background.as_mut() else {
+                    return Err(anyhow!("Text clip {clip_id} has no background"));
+                };
+                background.alpha = alpha;
             }
             EditAction::ApplyTextStyleToTrack { clip_id, .. } => {
                 let Some(Clip::Text(source)) = data.clip(clip_id) else {

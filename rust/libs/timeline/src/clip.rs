@@ -47,6 +47,22 @@ impl Default for AudioClipProperties {
     }
 }
 
+#[derive(Clone, Copy, Debug, Deserialize, PartialEq, Serialize)]
+#[serde(into = "TextBackgroundJson", try_from = "TextBackgroundJson")]
+pub struct TextBackground {
+    pub red: u8,
+    pub green: u8,
+    pub blue: u8,
+    pub alpha: u8, // 不透明度，0–255
+}
+
+impl TextBackground {
+    /// 0xRRGGBBAA, the order gpui's `rgba` expects.
+    pub fn rgba(&self) -> u32 {
+        u32::from_be_bytes([self.red, self.green, self.blue, self.alpha])
+    }
+}
+
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
 #[cfg_attr(feature = "timeline-schema", derive(schemars::JsonSchema))]
 #[serde(default)]
@@ -56,7 +72,11 @@ pub struct TextClipProperties {
     pub font_size: f64,
     /// Text color as big-endian ARGB.
     pub color: u32,
-    pub background: Option<u32>,
+    #[cfg_attr(
+        feature = "timeline-schema",
+        schemars(with = "Option<TextBackgroundJson>")
+    )]
+    pub background: Option<TextBackground>,
     #[serde(flatten, with = "TextPosition")]
     #[cfg_attr(feature = "timeline-schema", schemars(with = "TextPosition"))]
     pub position: gpui::Point<f64>,
@@ -399,4 +419,53 @@ struct TextPosition {
 
 fn default_text_position() -> f64 {
     0.5
+}
+
+/// Timeline JSON form of a text background: `{"color": "RRGGBB", "opacity": 0.5}`.
+#[derive(Deserialize, Serialize)]
+#[cfg_attr(feature = "timeline-schema", derive(schemars::JsonSchema))]
+struct TextBackgroundJson {
+    color: String,
+    opacity: f64, // 0–1，保留两位小数，与属性面板的整数百分比一致
+}
+
+impl From<TextBackground> for TextBackgroundJson {
+    fn from(background: TextBackground) -> Self {
+        Self {
+            color: format!(
+                "{:02X}{:02X}{:02X}",
+                background.red, background.green, background.blue
+            ),
+            opacity: (f64::from(background.alpha) / 255.0 * 100.0).round() / 100.0,
+        }
+    }
+}
+
+impl TryFrom<TextBackgroundJson> for TextBackground {
+    type Error = String;
+
+    fn try_from(json: TextBackgroundJson) -> Result<Self, Self::Error> {
+        if json.color.len() != 6 || !json.color.bytes().all(|byte| byte.is_ascii_hexdigit()) {
+            return Err(format!(
+                "background color must be six hex digits RRGGBB, got {:?}",
+                json.color
+            ));
+        }
+        if !(0.0..=1.0).contains(&json.opacity) {
+            return Err(format!(
+                "background opacity must be between 0 and 1, got {}",
+                json.opacity
+            ));
+        }
+        let channel = |index: usize| match u8::from_str_radix(&json.color[index..index + 2], 16) {
+            Ok(value) => value,
+            Err(error) => unreachable!("checked hex digits: {error:?}"),
+        };
+        Ok(Self {
+            red: channel(0),
+            green: channel(2),
+            blue: channel(4),
+            alpha: (json.opacity * 255.0).round() as u8,
+        })
+    }
 }

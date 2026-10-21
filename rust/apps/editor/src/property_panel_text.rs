@@ -15,7 +15,7 @@ use gpui::{
     Anchor, App, BoxShadow, CursorStyle, Entity, FocusHandle, Focusable, FontWeight, MouseButton,
     PathBuilder, Window, anchored, canvas, deferred, div, point, px, rgb, rgba,
 };
-use timeline::TimelineEditingState;
+use timeline::{TextBackground, TimelineEditingState};
 use ulid::Ulid;
 
 pub(crate) struct TextClipPanel {
@@ -151,10 +151,11 @@ pub(crate) fn text_clip_view(panel: &TextClipPanel) -> gpui::AnyElement {
     let background_body = match clip.properties.background {
         None => empty_section_view("No background"),
         Some(background) => {
-            let opacity = background_opacity_percent(background);
+            let opacity = background_opacity_percent(background.alpha);
+            let opaque_color = 0xff00_0000 | background.rgba() >> 8; // 色块显示完整颜色，不透明度只在百分比里体现
             let (color, opacity_field) = if panel.locked {
                 (
-                    locked_color_view(background, format!("#{:06X}", background & 0xffffff))
+                    locked_color_view(opaque_color, format!("#{:06X}", background.rgba() >> 8))
                         .into_any_element(),
                     text_value_view("", opacity.to_string(), "%", true)
                         .h(px(34.0))
@@ -164,14 +165,14 @@ pub(crate) fn text_clip_view(panel: &TextClipPanel) -> gpui::AnyElement {
                 (
                     ColorInput {
                         clip_id: clip.id(),
-                        value: background,
+                        value: opaque_color,
                         target: ColorTarget::Background,
                         event_bus: panel.event_bus.clone(),
                     }
                     .into_any_element(),
                     BackgroundOpacityInput {
                         clip_id: clip.id(),
-                        background,
+                        alpha: background.alpha,
                         event_bus: panel.event_bus.clone(),
                     }
                     .into_any_element(),
@@ -378,11 +379,16 @@ fn locked_color_view(color: u32, text: String) -> gpui::Div {
         )
 }
 
-fn background_opacity_percent(background: u32) -> u32 {
-    ((background >> 24) * 100 + 127) / 255
+fn background_opacity_percent(alpha: u8) -> u32 {
+    (u32::from(alpha) * 100 + 127) / 255
 }
 
-const DEFAULT_TEXT_BACKGROUND: u32 = 0x8000_0000;
+const DEFAULT_TEXT_BACKGROUND: TextBackground = TextBackground {
+    red: 0,
+    green: 0,
+    blue: 0,
+    alpha: 128,
+};
 
 #[derive(Clone, Copy)]
 enum ColorTarget {
@@ -393,10 +399,15 @@ enum ColorTarget {
 fn color_edit(target: ColorTarget, clip_id: Ulid, color: u32) -> EditAction {
     match target {
         ColorTarget::Font => EditAction::SetTextColor { clip_id, color },
-        ColorTarget::Background => EditAction::SetTextBackground {
-            clip_id,
-            background: Some(color),
-        },
+        ColorTarget::Background => {
+            let [_, red, green, blue] = color.to_be_bytes();
+            EditAction::SetTextBackgroundColor {
+                clip_id,
+                red,
+                green,
+                blue,
+            }
+        }
     }
 }
 
@@ -535,7 +546,7 @@ impl RenderOnce for FontSizeInput {
 #[derive(IntoElement)]
 struct BackgroundOpacityInput {
     clip_id: Ulid,
-    background: u32,
+    alpha: u8,
     event_bus: Entity<EventBus>,
 }
 
@@ -546,8 +557,7 @@ impl RenderOnce for BackgroundOpacityInput {
             None => cx.focus_handle(),
         };
         let clip_id = self.clip_id;
-        let background = self.background;
-        let value = background_opacity_percent(background);
+        let value = background_opacity_percent(self.alpha);
         let event_bus = self.event_bus;
         let input = window.use_keyed_state(
             format!("text-background-opacity-{clip_id}"),
@@ -562,11 +572,11 @@ impl RenderOnce for BackgroundOpacityInput {
                     if percent > 100 {
                         return;
                     }
-                    let alpha = (percent * 255 + 50) / 100;
+                    let alpha = ((percent * 255 + 50) / 100) as u8;
                     event_bus.update(cx, |_, cx| {
-                        cx.emit(AppEvent::Edit(EditAction::SetTextBackground {
+                        cx.emit(AppEvent::Edit(EditAction::SetTextBackgroundAlpha {
                             clip_id,
-                            background: Some(alpha << 24 | background & 0xff_ffff),
+                            alpha,
                         }))
                     });
                 })

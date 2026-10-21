@@ -105,7 +105,7 @@ pub fn text_layer_element(properties: &TextClipProperties, scale: f32) -> AnyEle
         .flex_shrink_0()
         .when_some(properties.background, |text, background| {
             // 背景框的内边距随字号缩放，导出与预览一致。
-            text.bg(rgba(background.rotate_left(8)))
+            text.bg(rgba(background.rgba()))
                 .px(px(font_size * BACKGROUND_PADDING_X))
                 .py(px(font_size * BACKGROUND_PADDING_Y))
         })
