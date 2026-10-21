@@ -8,8 +8,8 @@
 **Story:** As a creator, I want to open a folder as a project and use the files
 already in it, so that I don't have to import or copy media.
 
-Mockups: [project picker](pages/01-project-picker.svg),
-[editor without a timeline](pages/02-editor-empty.svg),
+Mockups:
+[project picker](pages/01-project-picker.svg),
 [file Explorer](pages/21-file-explorer.svg),
 [media preview](pages/16-preview-panel.svg),
 [rename dialog](pages/07-dialogs.svg),
@@ -30,12 +30,6 @@ Mockups: [project picker](pages/01-project-picker.svg),
 - [ ] Media can be dragged from the Explorer onto a compatible track.
 - [ ] Waveforms are generated in the background and kept in memory only.
 - [x] Source media is never rewritten.
-
-Review: starting an image drag is implemented, but accepting that image on a
-track is not. The current track design does not define image placement (see
-[Tracks](#3-tracks)). Background waveform generation and memory
-caching are implemented, but the waveform test cannot complete because its media fixture
-`rust/data/tests/super long.mp4` is missing.
 
 Supported file extensions:
 
@@ -65,9 +59,6 @@ Mockups: [new timeline dialog](pages/07-dialogs.svg),
 - [x] A new timeline has no tracks.
 - [x] Every committed edit saves the timeline automatically.
 
-Review: decreasing the frame rate can clamp the old playhead before rescaling
-it, producing the wrong position.
-
 ## 3. Tracks
 
 **Story:** As a creator, I want separate video, image, audio, and text tracks
@@ -88,12 +79,6 @@ Mockup: [timeline editing area](pages/17-timeline-editing-area.svg).
 - [x] Lock, visibility, and mute controls use accent styling when active; hidden
       and muted states use crossed-out icons. Text tracks have no speaker toggle.
       Toggle hover brightens the icon on a gray fill; delete hover turns the icon red.
-
-Review: track controls update the document, but visibility, mute, reordering,
-and deletion do not refresh the open preview. The current design shows Video,
-Audio, and Text tracks only. Image tracks and five-second still placement are
-retained as an unresolved earlier requirement, not an approved fourth track
-variant. The drop handler currently rejects image files on every track.
 
 ## 4. Selecting and editing clips
 
@@ -126,11 +111,6 @@ preview, as shown in the **Clip Placement** section of the timeline design.
       Invalid placements do not show a snap guide; releasing them makes no edit.
 - [x] Feedback updates when the destination changes. Moving clips dim at their
       original positions until release; Explorer drops have no original to dim.
-
-The design also says cancellation restores the original. The cancellation
-gesture is not specified; it needs a design decision before it can be accepted.
-Review: SRT drops do not snap, and rejection wording differs from the examples.
-See [placement differences](code-design-differences.md#d04-subtitle-drop-snapping).
 
 ## 5. Trimming
 
@@ -168,10 +148,6 @@ Mockup: [timeline editing area](pages/17-timeline-editing-area.svg).
       on affected tracks when deleting clips; the mockup shows the control but does
       not explain that behavior.
 - [ ] Playhead, scroll, zoom, and snapping are saved per timeline.
-
-Review: toggling snapping does not save the timeline. Exiting before another
-save loses that change. Empty timelines also have a playhead-clamping defect.
-Left/Right update the editing playhead without seeking the preview player.
 
 ## 7. Workspace layout
 
@@ -232,18 +208,6 @@ exceeds the available space.
 - [ ] Scrub-bar hover thickens the track, reveals a knob, and previews the seek
       target with a light fill. Dragging updates the picture and time.
 
-Review: mixing handles mute and gain in the player's snapshot, but changing
-track mute does not refresh that snapshot. These edits also save without
-refreshing the preview: track controls, paste, duplicate, splitting, Explorer
-drops, applying a transform to a track, adding a text clip from the track menu,
-and renaming media. The video-properties setter also bypasses refresh, but the
-current video property panel displays position and scale as read-only values.
-Undo and redo use the refresh path.
-The shared error view is currently entered for timeline-open failures only.
-Unsupported-file selections retain the previous preview; audio and None layouts
-are incomplete, and scrub hover has no seek-target fill. See the
-[difference register](code-design-differences.md).
-
 ## 9. Subtitles and text
 
 **Story:** As a creator of subtitle-driven videos, I want to generate, place,
@@ -275,10 +239,6 @@ Mockups: [transcription window](pages/14-transcription-window.svg),
       the request error. Start and Cancel use the cyberpunk button variants.
 - [x] Transcription uses MiniMax. The API key is entered under **Settings** in the
       top bar.
-
-Review: Cancel is disabled during Saving, unlike the shared Running design; this
-needs a distinct design state or a behavior decision. A live transcription and
-cancellation run is still pending.
 
 ### Position and style subtitles
 
@@ -317,12 +277,6 @@ Mockup: [export window](pages/13-export-window.svg).
       through 1000 Mbps; an invalid value shows an explanation and disables export.
 - [x] The window shows progress and provides **Stop export**.
 - [x] The window cannot be closed while an export is running.
-
-Review: progress and stop handling are implemented, but an actual export and
-stop run is still pending. The mockup still shows 8 Mbps; the explicit 2 Mbps
-product decision supersedes that example. Choosing a destination, an empty
-timeline, stopping, stopped, finalizing, and failed states exist in code but are
-not illustrated on the export page.
 
 ## 11. Keyboard shortcuts
 
@@ -392,8 +346,3 @@ Mockups: [property panel](pages/15-property-panel.svg),
 - [x] Timeline properties show duration, format, clip/track counts, and location.
       Media-file panels show file details and location; subtitle files show parsed cues
       and guidance for adding them to a text track.
-
-Review: the rendered clip-property controls are static values, including controls
-that visually resemble inputs, sliders, and buttons. The editing interactions
-promised by the design are missing. See
-[properties differences](code-design-differences.md#d01-clip-properties-are-not-editable).
