@@ -73,6 +73,10 @@ Mockup: [timeline editing area](pages/17-timeline-editing-area.svg).
 - [x] Text tracks accept `.srt` files. Dropping one adds one text clip per subtitle,
       offset by the drop position.
 - [x] Locked tracks are excluded from selection shortcuts.
+- [ ] A locked track is covered by neutral diagonal stripes over its header and lane,
+      with a stronger stripe overlay on its clips. Clip colors and the amber lock
+      toggle are otherwise unchanged. Red hatching stays reserved for rejected
+      placements.
 - [x] Each track header shows its kind badge and name, reorder arrows, and delete
       action. Long names truncate before the actions. The first track's up arrow
       and the last track's down arrow are disabled.
