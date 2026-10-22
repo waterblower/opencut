@@ -829,7 +829,10 @@ fn finish_clip_move(
         return;
     };
     timeline.interaction.snap_guide = None;
-    if drag.changed && drag.invalid_reason.is_none() {
+    if !drag.changed {
+        // 没有拖动的点击：只选中被点击的 clip。
+        editor.select_only_clip(Some(drag.anchor_clip_id));
+    } else if drag.invalid_reason.is_none() {
         editor.emit_event(
             cx,
             AppEvent::Edit(EditAction::MoveClips {

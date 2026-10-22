@@ -32,7 +32,7 @@ pub(super) struct ClipMoveItem {
 }
 
 pub(super) struct ClipMoveDrag {
-    anchor_clip_id: Ulid,
+    pub(super) anchor_clip_id: Ulid,
     start_x: f32,
     original_anchor_start: TimelineFrameIndex,
     original_anchor_track_index: usize,
