@@ -432,6 +432,18 @@ async fn handle_app_event(
                 let Some(timeline) = editor.timeline.as_mut() else {
                     return Ok(());
                 };
+                // 播放和 preview 内的 seek 只移动 player；
+                // edit 前把 timeline 的 playhead 同步到 player 的 frame_index。
+                match &editor.preview.target {
+                    PreviewTarget::Timeline { path, player, .. }
+                        if editor.project_root.join(path) == timeline.path =>
+                    {
+                        timeline.set_playhead(player.read(cx).backend().frame_index());
+                    }
+                    _ => {
+                        // do nothing
+                    }
+                }
                 let track_lock_changed = matches!(edit_action, EditAction::ToggleTrackLock { .. });
                 let should_save = edit_timeline(timeline, edit_action)?;
                 if should_save {
