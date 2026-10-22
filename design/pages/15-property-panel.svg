@@ -36,7 +36,7 @@
 <g transform="translate(0 -684)">
 <g id="row-video-clip">
 <text class="s" x="48" y="864" font-size="18" fill="#f2f2f4" font-weight="600">Video clip</text>
-<text class="s" x="48" y="888" font-size="12" fill="#777780" font-weight="400">Transform editable; timing read-only</text>
+<text class="s" x="48" y="888" font-size="12" fill="#777780" font-weight="400">Transform, gain and mute editable; timing read-only</text>
 <text class="s" x="48" y="912" font-size="12" fill="#b4b4bc" font-weight="600">Default</text>
 <g transform="translate(-320 734)">
 <rect x="367.5" y="197.5" width="281" height="556" rx="10" fill="#000" opacity="0.35" transform="translate(0 6)"/>
@@ -85,6 +85,19 @@
 <rect x="548.5" y="530.5" width="83" height="29" rx="6" fill="#17171a" stroke="#2b2b31" stroke-width="1"/>
 <text class="m" x="558" y="549.68" font-size="13" fill="#f2f2f4">100</text>
 <text class="s" x="622" y="549.32" font-size="12" fill="#777780" text-anchor="end">%</text>
+<rect x="384" y="576" width="248" height="1" fill="#1f1f24"/>
+<text class="s" x="384" y="599.96" font-size="11" fill="#777780" font-weight="600" letter-spacing="0.6">AUDIO</text>
+<text class="s" x="384" y="631.68" font-size="13" fill="#777780">Gain</text>
+<rect x="432" y="625" width="104" height="4" rx="2" fill="#2b2b31"/>
+<rect x="509.5" y="622" width="1" height="10" fill="#55555e"/>
+<rect x="432" y="625" width="78" height="4" rx="2" fill="#f0b75e"/>
+<circle cx="510" cy="627" r="7" fill="#f2f2f4" stroke="#0d0d0f" stroke-width="2"/>
+<rect x="548.5" y="612.5" width="83" height="29" rx="6" fill="#17171a" stroke="#2b2b31" stroke-width="1"/>
+<text class="m" x="558" y="631.68" font-size="13" fill="#f2f2f4">0.00</text>
+<text class="s" x="622" y="631.32" font-size="12" fill="#777780" text-anchor="end">dB</text>
+<text class="s" x="384" y="670.68" font-size="13" fill="#777780">Mute clip</text>
+<rect x="598" y="656" width="34" height="20" rx="10" fill="#2b2b31"/>
+<circle cx="608" cy="666" r="7" fill="#777780"/>
 </g>
 </g>
 <rect x="368.5" y="198.5" width="279" height="554" rx="10" fill="none" stroke="#2b2b31" stroke-width="1"/>
@@ -136,10 +149,44 @@
 <rect x="548" y="530" width="84" height="30" rx="6" fill="#19191d" />
 <text class="m" x="558" y="549.68" font-size="13" fill="#f2f2f4">100</text>
 <text class="s" x="622" y="549.32" font-size="12" fill="#777780" text-anchor="end">%</text>
+<rect x="384" y="576" width="248" height="1" fill="#1f1f24" />
+<text class="s" x="384" y="599.96" font-size="11" fill="#777780" font-weight="600" letter-spacing="0.6">AUDIO</text>
+<text class="s" x="384" y="631.68" font-size="13" fill="#777780">Gain</text>
+<rect x="432" y="625" width="104" height="4" rx="2" fill="#2b2b31" />
+<rect x="509.5" y="622" width="1" height="10" fill="#55555e" />
+<rect x="432" y="625" width="78" height="4" rx="2" fill="#55555e" />
+<circle cx="510" cy="627" r="5" fill="#55555e" />
+<rect x="548" y="612" width="84" height="30" rx="6" fill="#19191d" />
+<text class="m" x="558" y="631.68" font-size="13" fill="#f2f2f4">0.00</text>
+<text class="s" x="622" y="631.32" font-size="12" fill="#777780" text-anchor="end">dB</text>
+<text class="s" x="384" y="670.68" font-size="13" fill="#777780">Mute clip</text>
+<rect x="598" y="656" width="34" height="20" rx="10" fill="#2b2b31" opacity="0.5" />
+<circle cx="608" cy="666" r="7" fill="#777780" opacity="0.5" />
 </g>
 </g>
 <rect x="368.5" y="198.5" width="279" height="554" rx="10" fill="none" stroke="#62626e" stroke-width="1" />
 
+</g>
+<text class="s" x="688" y="912" font-size="12" fill="#b4b4bc" font-weight="600">Shared AUDIO section · video and audio clips</text>
+<g transform="translate(320 734)">
+<rect x="367.5" y="197.5" width="281" height="141" rx="10" fill="#000" opacity="0.35" transform="translate(0 6)"/>
+<rect x="368" y="198" width="280" height="140" rx="10" fill="#0d0d0f"/>
+<text class="s" x="384" y="237.96" font-size="11" fill="#777780" font-weight="600" letter-spacing="0.6">AUDIO</text>
+<text class="s" x="384" y="269.68" font-size="13" fill="#777780">Gain</text>
+<rect x="432" y="263" width="104" height="4" rx="2" fill="#2b2b31"/>
+<rect x="509.5" y="260" width="1" height="10" fill="#55555e"/>
+<rect x="432" y="263" width="78" height="4" rx="2" fill="#f0b75e"/>
+<circle cx="510" cy="265" r="7" fill="#f2f2f4" stroke="#0d0d0f" stroke-width="2"/>
+<rect x="548.5" y="250.5" width="83" height="29" rx="6" fill="#17171a" stroke="#2b2b31" stroke-width="1"/>
+<text class="m" x="558" y="269.68" font-size="13" fill="#f2f2f4">0.00</text>
+<text class="s" x="622" y="269.32" font-size="12" fill="#777780" text-anchor="end">dB</text>
+<text class="s" x="384" y="308.68" font-size="13" fill="#777780">Mute clip</text>
+<rect x="598" y="294" width="34" height="20" rx="10" fill="#2b2b31"/>
+<circle cx="608" cy="304" r="7" fill="#777780"/>
+<rect x="368.5" y="198.5" width="279" height="139" rx="10" fill="none" stroke="#2b2b31" stroke-width="1"/>
+<text class="s" x="368" y="364" font-size="12" fill="#777780">One component, used by both panels.</text>
+<text class="s" x="368" y="384" font-size="12" fill="#777780">Gain slider and dB field: −60 to +20 dB.</text>
+<text class="s" x="368" y="404" font-size="12" fill="#777780">Locked tracks keep the layout, read-only.</text>
 </g>
 </g>
 <g id="row-audio-clip">
@@ -175,19 +222,17 @@
 <text class="m" x="942" y="393.96" font-size="11" fill="#55555e" text-anchor="end">450 f</text>
 <rect x="704" y="422" width="248" height="1" fill="#1f1f24"/>
 <text class="s" x="704" y="445.96" font-size="11" fill="#777780" font-weight="600" letter-spacing="0.6">AUDIO</text>
-<rect x="704" y="458" width="248" height="44" rx="6" fill="#131316"/>
-<path d="M704.0 471.7v16.6h2v-16.6zM707.0 472.1v15.8h2v-15.8zM710.0 473.0v14.1h2v-14.1zM713.0 474.0v12.0h2v-12.0zM716.0 474.8v10.4h2v-10.4zM719.0 475.0v10.1h2v-10.1zM722.0 474.3v11.4h2v-11.4zM725.0 472.8v14.4h2v-14.4zM728.0 470.7v18.6h2v-18.6zM731.0 468.5v23.0h2v-23.0zM734.0 466.5v26.9h2v-26.9zM737.0 465.3v29.3h2v-29.3zM740.0 465.1v29.8h2v-29.8zM743.0 465.8v28.3h2v-28.3zM746.0 467.3v25.3h2v-25.3zM749.0 469.2v21.6h2v-21.6zM752.0 471.0v18.0h2v-18.0zM755.0 472.2v15.6h2v-15.6zM758.0 472.7v14.6h2v-14.6zM761.0 472.3v15.3h2v-15.3zM764.0 471.4v17.2h2v-17.2zM767.0 470.2v19.5h2v-19.5zM770.0 469.3v21.4h2v-21.4zM773.0 469.0v22.0h2v-22.0zM776.0 469.5v20.9h2v-20.9zM779.0 470.9v18.1h2v-18.1zM782.0 472.9v14.1h2v-14.1zM785.0 475.1v9.8h2v-9.8zM788.0 477.0v6.0h2v-6.0zM791.0 478.2v3.6h2v-3.6zM794.0 478.4v3.2h2v-3.2zM797.0 477.7v4.7h2v-4.7zM800.0 476.1v7.7h2v-7.7zM803.0 474.3v11.5h2v-11.5zM806.0 472.5v15.1h2v-15.1zM809.0 471.2v17.7h2v-17.7zM812.0 470.6v18.8h2v-18.8zM815.0 470.9v18.2h2v-18.2zM818.0 471.7v16.5h2v-16.5zM821.0 472.9v14.3h2v-14.3zM824.0 473.8v12.4h2v-12.4zM827.0 474.3v11.5h2v-11.5zM830.0 474.0v12.1h2v-12.1zM833.0 472.9v14.1h2v-14.1zM836.0 471.4v17.3h2v-17.3zM839.0 469.6v20.8h2v-20.8zM842.0 468.1v23.8h2v-23.8zM845.0 467.2v25.5h2v-25.5zM848.0 467.2v25.7h2v-25.7zM851.0 468.0v24.1h2v-24.1zM854.0 469.4v21.2h2v-21.2zM857.0 471.2v17.6h2v-17.6zM860.0 472.9v14.1h2v-14.1zM863.0 474.3v11.4h2v-11.4zM866.0 475.0v10.0h2v-10.0zM869.0 475.0v10.0h2v-10.0zM872.0 474.5v11.0h2v-11.0zM875.0 473.7v12.5h2v-12.5zM878.0 473.1v13.9h2v-13.9zM881.0 472.8v14.4h2v-14.4zM884.0 473.1v13.9h2v-13.9zM887.0 473.9v12.2h2v-12.2zM890.0 475.2v9.6h2v-9.6zM893.0 476.7v6.7h2v-6.7zM896.0 477.9v4.1h2v-4.1zM899.0 478.8v2.5h2v-2.5zM902.0 478.8v2.4h2v-2.4zM905.0 478.5v3.0h2v-3.0zM908.0 477.5v4.9h2v-4.9zM911.0 476.3v7.4h2v-7.4zM914.0 475.1v9.9h2v-9.9zM917.0 474.1v11.7h2v-11.7zM920.0 473.7v12.6h2v-12.6zM923.0 473.7v12.5h2v-12.5zM926.0 474.2v11.5h2v-11.5zM929.0 475.0v10.1h2v-10.1zM932.0 475.6v8.7h2v-8.7zM935.0 476.1v7.9h2v-7.9zM938.0 476.1v7.8h2v-7.8zM941.0 475.7v8.6h2v-8.6zM944.0 475.0v10.0h2v-10.0zM947.0 474.1v11.8h2v-11.8z" fill="#69c5cf" fill-opacity="0.8"/>
-<text class="s" x="704" y="537.68" font-size="13" fill="#777780">Gain</text>
-<rect x="752" y="531" width="104" height="4" rx="2" fill="#2b2b31"/>
-<rect x="829.5" y="528" width="1" height="10" fill="#55555e"/>
-<rect x="752" y="531" width="78" height="4" rx="2" fill="#f0b75e"/>
-<circle cx="830" cy="533" r="7" fill="#f2f2f4" stroke="#0d0d0f" stroke-width="2"/>
-<rect x="868.5" y="518.5" width="83" height="29" rx="6" fill="#17171a" stroke="#2b2b31" stroke-width="1"/>
-<text class="m" x="878" y="537.68" font-size="13" fill="#f2f2f4">0.00</text>
-<text class="s" x="942" y="537.32" font-size="12" fill="#777780" text-anchor="end">dB</text>
-<text class="s" x="704" y="576.68" font-size="13" fill="#777780">Mute clip</text>
-<rect x="918" y="562" width="34" height="20" rx="10" fill="#2b2b31"/>
-<circle cx="928" cy="572" r="7" fill="#777780"/>
+<text class="s" x="704" y="477.68" font-size="13" fill="#777780">Gain</text>
+<rect x="752" y="471" width="104" height="4" rx="2" fill="#2b2b31"/>
+<rect x="829.5" y="468" width="1" height="10" fill="#55555e"/>
+<rect x="752" y="471" width="78" height="4" rx="2" fill="#f0b75e"/>
+<circle cx="830" cy="473" r="7" fill="#f2f2f4" stroke="#0d0d0f" stroke-width="2"/>
+<rect x="868.5" y="458.5" width="83" height="29" rx="6" fill="#17171a" stroke="#2b2b31" stroke-width="1"/>
+<text class="m" x="878" y="477.68" font-size="13" fill="#f2f2f4">0.00</text>
+<text class="s" x="942" y="477.32" font-size="12" fill="#777780" text-anchor="end">dB</text>
+<text class="s" x="704" y="516.68" font-size="13" fill="#777780">Mute clip</text>
+<rect x="918" y="502" width="34" height="20" rx="10" fill="#2b2b31"/>
+<circle cx="928" cy="512" r="7" fill="#777780"/>
 </g>
 </g>
 <rect x="688.5" y="198.5" width="279" height="554" rx="10" fill="none" stroke="#2b2b31" stroke-width="1"/>
@@ -222,19 +267,17 @@
 <text class="m" x="942" y="393.96" font-size="11" fill="#55555e" text-anchor="end">450 f</text>
 <rect x="704" y="422" width="248" height="1" fill="#1f1f24" />
 <text class="s" x="704" y="445.96" font-size="11" fill="#777780" font-weight="600" letter-spacing="0.6">AUDIO</text>
-<rect x="704" y="458" width="248" height="44" rx="6" fill="#19191d" />
-<path d="M704.0 471.7v16.6h2v-16.6zM707.0 472.1v15.8h2v-15.8zM710.0 473.0v14.1h2v-14.1zM713.0 474.0v12.0h2v-12.0zM716.0 474.8v10.4h2v-10.4zM719.0 475.0v10.1h2v-10.1zM722.0 474.3v11.4h2v-11.4zM725.0 472.8v14.4h2v-14.4zM728.0 470.7v18.6h2v-18.6zM731.0 468.5v23.0h2v-23.0zM734.0 466.5v26.9h2v-26.9zM737.0 465.3v29.3h2v-29.3zM740.0 465.1v29.8h2v-29.8zM743.0 465.8v28.3h2v-28.3zM746.0 467.3v25.3h2v-25.3zM749.0 469.2v21.6h2v-21.6zM752.0 471.0v18.0h2v-18.0zM755.0 472.2v15.6h2v-15.6zM758.0 472.7v14.6h2v-14.6zM761.0 472.3v15.3h2v-15.3zM764.0 471.4v17.2h2v-17.2zM767.0 470.2v19.5h2v-19.5zM770.0 469.3v21.4h2v-21.4zM773.0 469.0v22.0h2v-22.0zM776.0 469.5v20.9h2v-20.9zM779.0 470.9v18.1h2v-18.1zM782.0 472.9v14.1h2v-14.1zM785.0 475.1v9.8h2v-9.8zM788.0 477.0v6.0h2v-6.0zM791.0 478.2v3.6h2v-3.6zM794.0 478.4v3.2h2v-3.2zM797.0 477.7v4.7h2v-4.7zM800.0 476.1v7.7h2v-7.7zM803.0 474.3v11.5h2v-11.5zM806.0 472.5v15.1h2v-15.1zM809.0 471.2v17.7h2v-17.7zM812.0 470.6v18.8h2v-18.8zM815.0 470.9v18.2h2v-18.2zM818.0 471.7v16.5h2v-16.5zM821.0 472.9v14.3h2v-14.3zM824.0 473.8v12.4h2v-12.4zM827.0 474.3v11.5h2v-11.5zM830.0 474.0v12.1h2v-12.1zM833.0 472.9v14.1h2v-14.1zM836.0 471.4v17.3h2v-17.3zM839.0 469.6v20.8h2v-20.8zM842.0 468.1v23.8h2v-23.8zM845.0 467.2v25.5h2v-25.5zM848.0 467.2v25.7h2v-25.7zM851.0 468.0v24.1h2v-24.1zM854.0 469.4v21.2h2v-21.2zM857.0 471.2v17.6h2v-17.6zM860.0 472.9v14.1h2v-14.1zM863.0 474.3v11.4h2v-11.4zM866.0 475.0v10.0h2v-10.0zM869.0 475.0v10.0h2v-10.0zM872.0 474.5v11.0h2v-11.0zM875.0 473.7v12.5h2v-12.5zM878.0 473.1v13.9h2v-13.9zM881.0 472.8v14.4h2v-14.4zM884.0 473.1v13.9h2v-13.9zM887.0 473.9v12.2h2v-12.2zM890.0 475.2v9.6h2v-9.6zM893.0 476.7v6.7h2v-6.7zM896.0 477.9v4.1h2v-4.1zM899.0 478.8v2.5h2v-2.5zM902.0 478.8v2.4h2v-2.4zM905.0 478.5v3.0h2v-3.0zM908.0 477.5v4.9h2v-4.9zM911.0 476.3v7.4h2v-7.4zM914.0 475.1v9.9h2v-9.9zM917.0 474.1v11.7h2v-11.7zM920.0 473.7v12.6h2v-12.6zM923.0 473.7v12.5h2v-12.5zM926.0 474.2v11.5h2v-11.5zM929.0 475.0v10.1h2v-10.1zM932.0 475.6v8.7h2v-8.7zM935.0 476.1v7.9h2v-7.9zM938.0 476.1v7.8h2v-7.8zM941.0 475.7v8.6h2v-8.6zM944.0 475.0v10.0h2v-10.0zM947.0 474.1v11.8h2v-11.8z" fill="#69c5cf" fill-opacity="0.8" />
-<text class="s" x="704" y="537.68" font-size="13" fill="#777780">Gain</text>
-<rect x="752" y="531" width="104" height="4" rx="2" fill="#2b2b31" />
-<rect x="829.5" y="528" width="1" height="10" fill="#55555e" />
-<rect x="752" y="531" width="78" height="4" rx="2" fill="#55555e" />
-<circle cx="830" cy="533" r="5" fill="#55555e" />
-<rect x="868" y="518" width="84" height="30" rx="6" fill="#19191d" />
-<text class="m" x="878" y="537.68" font-size="13" fill="#f2f2f4">0.00</text>
-<text class="s" x="942" y="537.32" font-size="12" fill="#777780" text-anchor="end">dB</text>
-<text class="s" x="704" y="576.68" font-size="13" fill="#777780">Mute clip</text>
-<rect x="918" y="562" width="34" height="20" rx="10" fill="#2b2b31" opacity="0.5" />
-<circle cx="928" cy="572" r="7" fill="#777780" opacity="0.5" />
+<text class="s" x="704" y="477.68" font-size="13" fill="#777780">Gain</text>
+<rect x="752" y="471" width="104" height="4" rx="2" fill="#2b2b31" />
+<rect x="829.5" y="468" width="1" height="10" fill="#55555e" />
+<rect x="752" y="471" width="78" height="4" rx="2" fill="#55555e" />
+<circle cx="830" cy="473" r="5" fill="#55555e" />
+<rect x="868" y="458" width="84" height="30" rx="6" fill="#19191d" />
+<text class="m" x="878" y="477.68" font-size="13" fill="#f2f2f4">0.00</text>
+<text class="s" x="942" y="477.32" font-size="12" fill="#777780" text-anchor="end">dB</text>
+<text class="s" x="704" y="516.68" font-size="13" fill="#777780">Mute clip</text>
+<rect x="918" y="502" width="34" height="20" rx="10" fill="#2b2b31" opacity="0.5" />
+<circle cx="928" cy="512" r="7" fill="#777780" opacity="0.5" />
 </g>
 </g>
 <rect x="688.5" y="198.5" width="279" height="554" rx="10" fill="none" stroke="#62626e" stroke-width="1" />
