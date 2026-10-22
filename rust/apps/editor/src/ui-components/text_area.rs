@@ -4,7 +4,7 @@
 //! each edit through `on_text_change`. Caret, selection, IME and focus are kept in gpui's
 //! per-element state under `id`, so they survive between frames without the caller.
 
-use crate::theme::{BORDER, MUTED, SURFACE, TEXT};
+use crate::theme::{ACCENT, BORDER, MUTED, SURFACE, TEXT};
 use gpui::prelude::*;
 use gpui::{
     App, AvailableSpace, Bounds, ClipboardItem, Context, CursorStyle, Element, ElementId,
@@ -548,6 +548,7 @@ impl RenderOnce for TextArea {
             .rounded(px(6.0))
             .border_1()
             .border_color(rgb(BORDER))
+            .focus(|style| style.border_color(rgb(ACCENT)))
             .bg(rgb(SURFACE))
             .text_size(px(13.0))
             .line_height(px(19.0))
@@ -594,7 +595,6 @@ impl RenderOnce for TextArea {
 }
 
 const SELECTION_COLOR: u32 = 0x52779a66;
-const CARET_COLOR: u32 = 0xd8d8dc;
 
 /// Wrapped paragraphs of one frame. Paragraphs are separated by `\n` and stacked
 /// without gaps, so visual rows are `line_height` apart across paragraph boundaries.
@@ -761,9 +761,9 @@ impl Element for TextAreaElement {
             let caret = fill(
                 Bounds::new(
                     point(bounds.left() + position.x, bounds.top() + position.y),
-                    size(px(1.0), line_height),
+                    size(px(1.5), line_height),
                 ),
-                rgb(CARET_COLOR),
+                rgb(ACCENT),
             );
             (Some(caret), Vec::new())
         } else {
