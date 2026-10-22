@@ -284,27 +284,29 @@ Mockup: [export window](pages/13-export-window.svg).
 
 ## 11. Keyboard shortcuts
 
-| Status | Shortcut                                | Action                                                                                                                                           |
-| ------ | --------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
-| ☑      | `Space`                                 | Play or pause the preview                                                                                                                        |
-| ☑      | `Left` / `Right`                        | Move the playhead one frame                                                                                                                      |
-| ☑      | `V` / `B`                               | Selection / blade tool                                                                                                                           |
-| ☑      | `Command-click`                         | Add or remove a clip from the selection                                                                                                          |
-| ☑      | `Command-A`                             | Select all clips on unlocked tracks                                                                                                              |
-| ☑      | `]`                                     | Select clips intersecting the mouse position and all clips to its right on unlocked tracks (pointer over timeline)                               |
-| ☐      | `Command-B`                             | Split at the playhead: the selected clips, or every clip crossing the playhead when nothing is selected. Clips on locked tracks are never split. |
-| ☑      | `Backspace` / `Delete`                  | Delete the selected clips                                                                                                                        |
-| ☑      | `Command-D`                             | Duplicate the selected clips                                                                                                                     |
-| ☑      | `Command-C` / `Command-X` / `Command-V` | Copy / cut / paste clips                                                                                                                         |
-| ☑      | `Command-Z` / `Command-Shift-Z`         | Undo / redo                                                                                                                                      |
-| ☑      | `F` / `Esc`                             | Enter / exit fullscreen preview                                                                                                                  |
-| ☑      | `Option-Command-I`                      | Toggle the GPUI inspector                                                                                                                        |
-| ☑      | `Option-Command-R`                      | Reveal the selected entry in Finder                                                                                                              |
-| ☑      | `Control-Shift-Enter`                   | Open the selected entry in its default app                                                                                                       |
+| Status | Shortcut                                | Action                                                                                                                                                                       |
+| ------ | --------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| ☑      | `Space`                                 | Play or pause the preview                                                                                                                                                    |
+| ☑      | `Left` / `Right`                        | Move the playhead one frame                                                                                                                                                  |
+| ☑      | `V` / `B`                               | Selection / blade tool                                                                                                                                                       |
+| ☑      | `Command-click`                         | Add or remove a clip from the selection                                                                                                                                      |
+| ☑      | `Command-A`                             | Select all clips on unlocked tracks                                                                                                                                          |
+| ☑      | `]`                                     | Select clips intersecting the mouse position and all clips to its right on unlocked tracks (pointer over timeline)                                                           |
+| ☐      | `Command-B`                             | Split every clip crossing the cut point: the playhead with the selection tool, the blade guide (mouse position) with the blade tool. Clips on locked tracks are never split. |
+| ☑      | `Backspace` / `Delete`                  | Delete the selected clips                                                                                                                                                    |
+| ☑      | `Command-D`                             | Duplicate the selected clips                                                                                                                                                 |
+| ☑      | `Command-C` / `Command-X` / `Command-V` | Copy / cut / paste clips                                                                                                                                                     |
+| ☑      | `Command-Z` / `Command-Shift-Z`         | Undo / redo                                                                                                                                                                  |
+| ☑      | `F` / `Esc`                             | Enter / exit fullscreen preview                                                                                                                                              |
+| ☑      | `Option-Command-I`                      | Toggle the GPUI inspector                                                                                                                                                    |
+| ☑      | `Option-Command-R`                      | Reveal the selected entry in Finder                                                                                                                                          |
+| ☑      | `Control-Shift-Enter`                   | Open the selected entry in its default app                                                                                                                                   |
 
-Review: Command-B ignores the selection and always splits every clip crossing
-the playhead on unlocked tracks. Left and Right move the editing playhead; they do
-not seek the preview player.
+Review: Command-B ignores the selection and splits every clip crossing the cut
+point on unlocked tracks. With the selection tool the cut point is the playhead;
+with the blade tool it is the blade guide at the mouse position (nothing happens
+until the pointer has moved over the timeline). Left and Right move the editing
+playhead; they do not seek the preview player.
 
 ## 12. Project data and persistence
 
