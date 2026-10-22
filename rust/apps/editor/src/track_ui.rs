@@ -757,7 +757,7 @@ fn preview_drop_asset(
                     .into_any_element(),
             )
         }
-        AssetBeingDragged::V1(asset) => {
+        AssetBeingDragged::Media(asset) => {
             let left =
                 TIMELINE_PADDING + timeline.seconds(preview.start_time) as f32 * pixels_per_second;
             let duration = timeline

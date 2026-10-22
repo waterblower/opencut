@@ -117,7 +117,7 @@ type OnTextChange = Rc<dyn Fn(&String, &mut Window, &mut App)>;
 struct TextAreaState {
     focus_handle: FocusHandle,
     return_focus: FocusHandle,
-    text: SharedString,                   // 包含尚未由调用方确认的输入草稿
+    text: SharedString,                    // 包含尚未由调用方确认的输入草稿
     last_drawn_text: Option<SharedString>, // 上次收到的模型快照，用于识别撤销等外部修改
     on_text_change: Option<OnTextChange>,  // 每帧由 TextArea 重新设置
     selected_range: Range<usize>,
