@@ -193,7 +193,7 @@ impl TimelineBackend {
     }
 
     /// The index of the displayed timeline frame.
-    fn frame_index(&self) -> TimelineFrameIndex {
+    pub fn frame_index(&self) -> TimelineFrameIndex {
         self.displayed.frame_index
     }
 
