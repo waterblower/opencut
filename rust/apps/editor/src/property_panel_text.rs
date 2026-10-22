@@ -523,7 +523,7 @@ impl RenderOnce for FontSizeInput {
             .flex()
             .items_center()
             .gap(px(6.0))
-            .px(px(10.0))
+            .px(px(9.0)) // 加 1px 边框后与只读态一致：内容距外缘 10px。
             .rounded(px(6.0))
             .border_1()
             .border_color(rgb(if valid { BORDER } else { 0xff8b8b }))
@@ -598,7 +598,7 @@ impl RenderOnce for BackgroundOpacityInput {
             .flex()
             .items_center()
             .gap(px(6.0))
-            .px(px(10.0))
+            .px(px(9.0)) // 加 1px 边框后与只读态一致：内容距外缘 10px。
             .rounded(px(6.0))
             .border_1()
             .border_color(rgb(if valid { BORDER } else { 0xff8b8b }))
