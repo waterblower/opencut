@@ -142,6 +142,9 @@ impl Render for Editor {
             .when_some(context_menu, |this, menu| this.child(menu))
             .when_some(rename_dialog, |this, dialog| this.child(dialog))
             .when_some(new_timeline_dialog, |this, dialog| this.child(dialog))
+            .when(self.explorer.trash_timeline_dialog_open, |this| {
+                this.child(self.trash_timeline_dialog_view(cx))
+            })
             .when_some(settings_modal, |this, modal| this.child(modal))
             .when(self.global_settings_input.is_some(), |this| {
                 this.child(self.global_settings_dialog(cx))

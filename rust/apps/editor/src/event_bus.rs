@@ -1,3 +1,4 @@
+use crate::clip_placement::validate_clip_placement;
 use crate::edit_action::{EditAction, edit_timeline};
 use crate::editing::validate_clips_placements;
 use crate::editor::Editor;
@@ -7,7 +8,7 @@ use crate::export_window::{ExportState, ExportWindow};
 use crate::global_settings::GlobalEditorSettings;
 use crate::layout::{RULER_HEIGHT, TIMELINE_PADDING, TRACK_HEIGHT, track_index_at_y};
 use crate::media_probe::probe_asset;
-use crate::model::MediaKind;
+use crate::model::{MediaAsset, MediaKind};
 use crate::preview::{PreviewTarget, timeline_preview_target};
 use crate::preview_events::PreviewEvent;
 use crate::project_settings::{ProjectLocalSettings, save_project_local_settings};
@@ -18,7 +19,9 @@ use crate::property_panel_video_clip::video_clip_panel;
 use crate::property_panel_video_file::VideoFilePanel;
 use crate::srt::{srt_text_clips, write_srt};
 use crate::timeline::{PreviewDropAsset, TimelineFrameIndex, TimelineRuntimeState};
-use crate::timeline_clip::Clip;
+use crate::timeline_clip::{AudioClipProperties, Clip, VideoClip, VideoClipProperties};
+use crate::timeline_document::relative_asset_path;
+use crate::track::TrackKind;
 use crate::transcription_window;
 use crate::transcription_window::{ClipRange, TranscriptionStage, TranscriptionWindow};
 use crate::ui_components::{HorizontalSplitState, VerticalSplitState};
@@ -429,6 +432,18 @@ async fn handle_app_event(
                 let Some(timeline) = editor.timeline.as_mut() else {
                     return Ok(());
                 };
+                // 播放和 preview 内的 seek 只移动 player；
+                // edit 前把 timeline 的 playhead 同步到 player 的 frame_index。
+                match &editor.preview.target {
+                    PreviewTarget::Timeline { path, player, .. }
+                        if editor.project_root.join(path) == timeline.path =>
+                    {
+                        timeline.set_playhead(player.read(cx).backend().frame_index());
+                    }
+                    _ => {
+                        // do nothing
+                    }
+                }
                 let track_lock_changed = matches!(edit_action, EditAction::ToggleTrackLock { .. });
                 let should_save = edit_timeline(timeline, edit_action)?;
                 if should_save {
@@ -535,7 +550,7 @@ async fn handle_app_event(
                                 as f64,
                         );
                         let (start_time, snap_guide) = match &editor.active_asset_drag {
-                            AssetBeingDragged::V1(asset)
+                            AssetBeingDragged::Media(asset)
                                 if matches!(
                                     asset.metadata.kind,
                                     MediaKind::Video | MediaKind::Audio
@@ -551,7 +566,7 @@ async fn handle_app_event(
                                     &HashSet::new(),
                                 )
                             }
-                            AssetBeingDragged::V1(_) | AssetBeingDragged::Srt(_) => {
+                            AssetBeingDragged::Media(_) | AssetBeingDragged::Srt(_) => {
                                 (raw_start, None)
                             }
                             AssetBeingDragged::None => return (None, None),
@@ -604,7 +619,7 @@ async fn handle_app_event(
 
                         let selected_clip_ids = clips.iter().map(Clip::id).collect::<HashSet<_>>();
                         let selected_clip_id = clips.first().map(Clip::id);
-                        edit_timeline(
+                        let should_save = edit_timeline(
                             timeline,
                             EditAction::AddClips {
                                 clips,
@@ -613,9 +628,23 @@ async fn handle_app_event(
                         )?;
                         timeline.interaction.selected_clip_ids = selected_clip_ids;
                         timeline.interaction.selected_clip_id = selected_clip_id;
-                        timeline.save()?;
+                        if should_save {
+                            timeline.save()?;
+                            match editor.preview.target {
+                                PreviewTarget::Timeline { .. } => {
+                                    editor.preview.target = timeline_preview_target(
+                                        timeline,
+                                        &editor.project_root,
+                                        cx,
+                                    )?;
+                                }
+                                _ => {
+                                    // do nothing
+                                }
+                            }
+                        }
                     }
-                    AssetBeingDragged::V1(asset) => {
+                    AssetBeingDragged::Media(asset) => {
                         if !matches!(asset.metadata.kind, MediaKind::Video | MediaKind::Audio) {
                             return Ok(());
                         }
@@ -708,3 +737,115 @@ pub(crate) struct AssetDragMoveEvent {
 }
 
 impl EventEmitter<AppEvent> for EventBus {}
+
+// Private APIs only
+impl Editor {
+    fn place_explorer_asset(
+        &mut self,
+        media_path: PathBuf,
+        track_id: Ulid,
+        start: TimelineFrameIndex,
+        mut asset: MediaAsset,
+        cx: &mut Context<Self>,
+    ) -> Result<()> {
+        let Some(timeline) = self.timeline.as_ref() else {
+            return Ok(());
+        };
+        let duration = timeline
+            .editing_state
+            .nearest_time(asset.duration)
+            .max(TimelineFrameIndex::ONE_FRAME);
+        let track_kind = timeline
+            .editing_state
+            .tracks
+            .iter()
+            .find(|track| track.id == track_id)
+            .map(|track| track.kind);
+        validate_clip_placement(
+            &timeline.editing_state,
+            track_id,
+            asset.kind,
+            duration,
+            start,
+            &HashSet::new(),
+        )?;
+
+        let Some(timeline) = self.timeline.as_mut() else {
+            return Ok(());
+        };
+        let timeline_directory = timeline
+            .path
+            .parent()
+            .context("Timeline path has no parent directory")?;
+        let asset_path = relative_asset_path(timeline_directory, &media_path); // 素材路径相对于时间线文件所在目录。
+        let (asset_id, assets) = if let Some(asset_id) = timeline
+            .editing_state
+            .assets
+            .iter()
+            .find(|existing| existing.path == asset_path)
+            .map(|existing| existing.id)
+        {
+            (asset_id, Vec::new())
+        } else {
+            asset.id = Ulid::generate();
+            asset.path = asset_path;
+            let asset_id = asset.id;
+            (asset_id, vec![asset])
+        };
+        let clip_id = Ulid::generate();
+        let media_clip = match track_kind {
+            Some(TrackKind::Video) => Clip::Video(VideoClip::new(
+                clip_id,
+                track_id,
+                asset_id,
+                start,
+                TimelineFrameIndex::ZERO,
+                duration,
+                VideoClipProperties::default(),
+                AudioClipProperties::default(),
+            )),
+            Some(TrackKind::Audio) => Clip::Audio(timeline::AudioClip::new(
+                clip_id,
+                track_id,
+                asset_id,
+                start,
+                TimelineFrameIndex::ZERO,
+                duration,
+                AudioClipProperties::default(),
+            )),
+            _ => bail!("the drop target is not a media track"),
+        };
+
+        let should_save = edit_timeline(
+            timeline,
+            EditAction::AddClips {
+                clips: vec![media_clip],
+                assets,
+            },
+        )?;
+
+        self.explorer.selected_file = media_path
+            .strip_prefix(&self.project_root)
+            .ok()
+            .map(Path::to_path_buf); // Explorer 的选中项仍相对于项目根目录。
+        self.select_only_clip(Some(clip_id));
+        let Some(timeline) = self.timeline.as_ref() else {
+            return Ok(());
+        };
+        if should_save {
+            timeline.save()?;
+            match self.preview.target {
+                PreviewTarget::Timeline { .. } => {
+                    self.preview.target =
+                        timeline_preview_target(timeline, &self.project_root, cx)?;
+                }
+                _ => {
+                    // do nothing
+                }
+            }
+        }
+
+        self.schedule_active_timeline_waveforms(cx);
+        Ok(())
+    }
+}

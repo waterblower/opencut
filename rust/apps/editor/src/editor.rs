@@ -84,6 +84,7 @@ impl Editor {
                 }),
                 rename_dialog: None,
                 new_timeline_dialog: None,
+                trash_timeline_dialog_open: false,
 
                 last_tree_scan: Instant::now(),
             }

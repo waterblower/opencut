@@ -1,9 +1,9 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1240" height="3428" viewBox="0 0 1240 3428" role="img" aria-labelledby="title description">
+<svg xmlns="http://www.w3.org/2000/svg" width="1240" height="3860" viewBox="0 0 1240 3860" role="img" aria-labelledby="title description">
 <title id="title">Timeline editing area</title>
-<desc id="description">Timeline editing area with toolbar, tracks, blade, trim and marquee selection. Clip Placement defines shared valid, snapped, incompatible, locked and overlapping states for both moving existing clips and dropping assets. Track Header documents header controls and states.</desc>
+<desc id="description">Timeline editing area with toolbar, tracks, blade, trim and marquee selection. Clip Placement defines shared valid, snapped, incompatible, locked and overlapping states for both moving existing clips and dropping assets. Track Header documents header controls and states. Locked Track shows the default and locked track look.</desc>
 <style>.s{font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","Helvetica Neue",Arial,sans-serif}.m{font-family:"SF Mono",Menlo,Monaco,Consolas,monospace}</style>
-<defs><pattern id="preview-rejected-hatch" width="8" height="8" patternUnits="userSpaceOnUse"><path d="M-2 2L2 -2M0 8L8 0M6 10L10 6" stroke="#ff8b8b" stroke-opacity=".22" stroke-width="1"/></pattern></defs>
-<rect width="1240" height="3428" fill="#151518"/>
+<defs><pattern id="preview-rejected-hatch" width="8" height="8" patternUnits="userSpaceOnUse"><path d="M-2 2L2 -2M0 8L8 0M6 10L10 6" stroke="#ff8b8b" stroke-opacity=".22" stroke-width="1"/></pattern><pattern id="lock-hatch-row" width="8" height="8" patternUnits="userSpaceOnUse"><path d="M-2 2L2 -2M0 8L8 0M6 10L10 6" stroke="#ffffff" stroke-opacity=".06" stroke-width="1"/></pattern><pattern id="lock-hatch-clip" width="8" height="8" patternUnits="userSpaceOnUse"><path d="M-2 2L2 -2M0 8L8 0M6 10L10 6" stroke="#ffffff" stroke-opacity=".16" stroke-width="1"/></pattern></defs>
+<rect width="1240" height="3860" fill="#151518"/>
 <text class="s" x="48" y="61" font-size="24" fill="#f2f2f4" font-weight="700">Timeline editing area</text>
 <text class="s" x="48" y="89" font-size="14" fill="#777780">One open timeline. Toolbar, ruler and tracks share one playhead.</text>
 <text class="s" x="48" y="136" font-size="14" fill="#f2f2f4" font-weight="600">Timeline</text>
@@ -383,7 +383,7 @@
 <rect x="636.5" y="576.5" width="555" height="249" rx="10" fill="none" stroke="#2b2b31"/>
 <g transform="translate(0 -350)">
 <text class="s" x="48" y="1242" font-size="14" fill="#f2f2f4" font-weight="600">Blade</text>
-<text class="s" x="48" y="1262" font-size="12" fill="#777780">Blade tool active. Red line follows the pointer; a click splits clips at the playhead.</text>
+<text class="s" x="48" y="1262" font-size="12" fill="#777780">Blade tool active. The red blade guide follows the pointer; a click splits clips at the blade guide.</text>
 <clipPath id="p5"><rect x="48" y="1276" width="556" height="250" rx="10"/></clipPath>
 <rect x="48" y="1282" width="556" height="250" rx="10" fill="#000" opacity="0.35"/>
 <g clip-path="url(#p5)">
@@ -512,7 +512,7 @@
 <rect x="48" y="1303" width="556" height="1" fill="#2b2b31"/>
 <path d="M372.5 1292 q0 -2 2 -2 h8 q2 0 2 2 v5 l-6 5.5 l-6 -5.5 Z" fill="#f0b75e" stroke="#0a0a0c" stroke-width="1" stroke-linejoin="round"/>
 <rect x="378.0" y="1302" width="1" height="2" fill="#f0b75e"/>
-<path d="M493.0 1415h18M502.0 1406v18" stroke="#000" stroke-width="3"/><path d="M494.0 1415h16M502.0 1407v16" stroke="#fff" stroke-width="1"/>
+<path transform="translate(502 1406)" d="M0 0V18L5 14 9 23 12 21 8 12H15Z" fill="#fff" stroke="#080809" stroke-width="1.5" stroke-linejoin="round" />
 </g>
 <rect x="48.5" y="1276.5" width="555" height="249" rx="10" fill="none" stroke="#2b2b31"/>
 <text class="s" x="636" y="1242" font-size="14" fill="#f2f2f4" font-weight="600">Trim</text>
@@ -1419,5 +1419,94 @@
 <g transform="translate(81.0 44.0) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H2v6h4l5 4V5Z"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></g>
 </g></g>
 <rect x="926.5" y="2543.7" width="265.0" height="102.6" rx="10" fill="none" stroke="#2b2b31"/>
+</g>
+<g id="locked-track" transform="translate(0 1440)">
+<rect x="48" y="1976" width="1144" height="1" fill="#2b2b31"/>
+<text class="s" x="48" y="2034" font-size="20" fill="#f2f2f4" font-weight="700">Locked track</text>
+<text class="s" x="48" y="2060" font-size="14" fill="#777780">Locking a track covers its header and lane with neutral diagonal stripes. Clips keep their color.</text>
+<text class="s" x="48" y="2118" font-size="14" fill="#f2f2f4" font-weight="600">Default</text>
+<text class="s" x="48" y="2138" font-size="12" fill="#777780" font-weight="400">Unlocked: the track looks and behaves normally</text>
+<rect x="48" y="2158" width="556" height="73" rx="10" fill="#000" opacity="0.35"/>
+<clipPath id="lt-p0"><rect x="48" y="2152" width="556" height="73" rx="10"/></clipPath>
+<g clip-path="url(#lt-p0)">
+<rect x="48" y="2152" width="556" height="73" fill="#0a0a0c"/>
+<rect x="238" y="2152" width="366" height="73" fill="#0d0d0f"/>
+<rect x="237" y="2152" width="1" height="73" fill="#2b2b31"/>
+<g transform="translate(48 2152)">
+<rect x="12.5" y="12.5" width="17" height="17" rx="5" fill="#294d75" stroke="#395d85"/>
+<text class="s" x="21" y="25" font-size="10" font-weight="700" fill="#ffffff" text-anchor="middle">V</text>
+<text class="s" x="38" y="26" font-size="13" fill="#f2f2f4" font-weight="600">Video 1</text>
+<g transform="translate(117 14) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 7-7 7 7"/><path d="M12 19V5"/></g>
+<g transform="translate(139 14) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14"/><path d="m19 12-7 7-7-7"/></g>
+<g transform="translate(161 14) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v5"/><path d="M14 11v5"/></g>
+<rect x="12.5" y="39.5" width="91" height="23" rx="6" fill="#17171a" stroke="#2b2b31"/>
+<g transform="translate(21 44) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="16" height="11" x="4" y="11" rx="2" ry="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></g>
+<rect x="43" y="45" width="1" height="12" fill="#2b2b31"/>
+<g transform="translate(51 44) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.1 12a10 10 0 0 1 19.8 0 10 10 0 0 1-19.8 0"/><circle cx="12" cy="12" r="3"/></g>
+<rect x="73" y="45" width="1" height="12" fill="#2b2b31"/>
+<g transform="translate(81 44) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H2v6h4l5 4V5Z"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></g>
+</g>
+<clipPath id="lt-c1"><rect x="258" y="2157" width="150" height="64" rx="6"/></clipPath>
+<rect x="258" y="2157" width="150" height="64" rx="6" fill="#294d75"/>
+<g clip-path="url(#lt-c1)">
+<text class="s" x="266" y="2177" font-size="12" fill="#f2f2f4" font-weight="600">interview_a.mp4</text>
+
+</g>
+<rect x="258.5" y="2157.5" width="149" height="63" rx="6" fill="none" stroke="#395d85"/>
+<clipPath id="lt-c2"><rect x="414" y="2157" width="170" height="64" rx="6"/></clipPath>
+<rect x="414" y="2157" width="170" height="64" rx="6" fill="#294d75"/>
+<g clip-path="url(#lt-c2)">
+<text class="s" x="422" y="2177" font-size="12" fill="#f2f2f4" font-weight="600">broll_city.mp4</text>
+
+</g>
+<rect x="414.5" y="2157.5" width="169" height="63" rx="6" fill="none" stroke="#395d85"/>
+</g>
+<rect x="48.5" y="2152.5" width="555" height="72" rx="10" fill="none" stroke="#2b2b31"/>
+<text class="s" x="636" y="2118" font-size="14" fill="#f2f2f4" font-weight="600">Locked</text>
+<text class="s" x="636" y="2138" font-size="12" fill="#777780" font-weight="400">Stripes over the lane, header and clips; lock toggle turns amber</text>
+<rect x="636" y="2158" width="556" height="73" rx="10" fill="#000" opacity="0.35"/>
+<clipPath id="lt-p588"><rect x="636" y="2152" width="556" height="73" rx="10"/></clipPath>
+<g clip-path="url(#lt-p588)">
+<rect x="636" y="2152" width="556" height="73" fill="#0a0a0c"/>
+<rect x="826" y="2152" width="366" height="73" fill="#0d0d0f"/>
+<rect x="825" y="2152" width="1" height="73" fill="#2b2b31"/>
+<rect x="826" y="2152" width="366" height="73" fill="url(#lock-hatch-row)"/>
+<rect x="636" y="2152" width="189" height="73" fill="url(#lock-hatch-row)"/>
+<g transform="translate(636 2152)">
+<rect x="12.5" y="12.5" width="17" height="17" rx="5" fill="#294d75" stroke="#395d85"/>
+<text class="s" x="21" y="25" font-size="10" font-weight="700" fill="#ffffff" text-anchor="middle">V</text>
+<text class="s" x="38" y="26" font-size="13" fill="#f2f2f4" font-weight="600">Video 1</text>
+<g transform="translate(117 14) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 7-7 7 7"/><path d="M12 19V5"/></g>
+<g transform="translate(139 14) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14"/><path d="m19 12-7 7-7-7"/></g>
+<g transform="translate(161 14) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v5"/><path d="M14 11v5"/></g>
+<rect x="12.5" y="39.5" width="91" height="23" rx="6" fill="#17171a" stroke="#2b2b31"/>
+<rect x="14" y="41" width="28" height="20" rx="4" fill="#f0b75e" fill-opacity="0.16"/>
+<g transform="translate(21 44) scale(0.5833)" fill="none" stroke="#f0b75e" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="16" height="11" x="4" y="11" rx="2" ry="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></g>
+<rect x="43" y="45" width="1" height="12" fill="#2b2b31"/>
+<g transform="translate(51 44) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.1 12a10 10 0 0 1 19.8 0 10 10 0 0 1-19.8 0"/><circle cx="12" cy="12" r="3"/></g>
+<rect x="73" y="45" width="1" height="12" fill="#2b2b31"/>
+<g transform="translate(81 44) scale(0.5833)" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H2v6h4l5 4V5Z"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></g>
+</g>
+<clipPath id="lt-c3"><rect x="846" y="2157" width="150" height="64" rx="6"/></clipPath>
+<rect x="846" y="2157" width="150" height="64" rx="6" fill="#294d75"/>
+<g clip-path="url(#lt-c3)">
+<text class="s" x="854" y="2177" font-size="12" fill="#f2f2f4" font-weight="600">interview_a.mp4</text>
+<rect x="846" y="2157" width="150" height="64" fill="url(#lock-hatch-clip)"/>
+</g>
+<rect x="846.5" y="2157.5" width="149" height="63" rx="6" fill="none" stroke="#395d85"/>
+<clipPath id="lt-c4"><rect x="1002" y="2157" width="170" height="64" rx="6"/></clipPath>
+<rect x="1002" y="2157" width="170" height="64" rx="6" fill="#294d75"/>
+<g clip-path="url(#lt-c4)">
+<text class="s" x="1010" y="2177" font-size="12" fill="#f2f2f4" font-weight="600">broll_city.mp4</text>
+<rect x="1002" y="2157" width="170" height="64" fill="url(#lock-hatch-clip)"/>
+</g>
+<rect x="1002.5" y="2157.5" width="169" height="63" rx="6" fill="none" stroke="#395d85"/>
+</g>
+<rect x="636.5" y="2152.5" width="555" height="72" rx="10" fill="none" stroke="#2b2b31"/>
+<text class="s" x="48" y="2290" font-size="14" fill="#f2f2f4" font-weight="600">Locked track behavior</text>
+<text class="s" x="48" y="2320" font-size="13" fill="#777780" font-weight="400">Stripes are neutral white. Red hatching stays reserved for rejected placements.</text>
+<text class="s" x="48" y="2342" font-size="13" fill="#777780" font-weight="400">Clip colors, borders and labels are unchanged; only the stripes and the lock toggle change.</text>
+<text class="s" x="48" y="2364" font-size="13" fill="#777780" font-weight="400">Selection shortcuts skip a locked track, and the blade never splits its clips.</text>
+<text class="s" x="48" y="2386" font-size="13" fill="#777780" font-weight="400">Dropping or moving a clip onto a locked track is rejected with “Track is locked”.</text>
 </g>
 </svg>

@@ -32,7 +32,7 @@ pub(super) struct ClipMoveItem {
 }
 
 pub(super) struct ClipMoveDrag {
-    anchor_clip_id: Ulid,
+    pub(super) anchor_clip_id: Ulid,
     start_x: f32,
     original_anchor_start: TimelineFrameIndex,
     original_anchor_track_index: usize,
@@ -321,7 +321,11 @@ impl Editor {
                 let Some(timeline) = self.timeline.as_mut() else {
                     return Ok(());
                 };
-                timeline.blade_at_playhead()?;
+                let Some(position) = timeline.interaction.blade_guide else {
+                    // do nothing: the blade guide appears once the pointer moves over the timeline.
+                    return Ok(());
+                };
+                timeline.blade_at(position)?;
             }
         }
         Ok(())
@@ -575,11 +579,16 @@ impl Editor {
             .clip(anchor_clip_id)
             .map(|clip| clip.frame_length(timeline.editing_state.settings.frame_rate))
             .unwrap_or(TimelineFrameIndex::ZERO);
-        let (snapped_start, snap_guide) = timeline.snap_clip_start_ignoring(
-            raw_anchor_start,
-            anchor_duration,
-            &timeline.interaction.selected_clip_ids,
-        );
+        // pointer 还没有横向移动时不 snap，单击只选中 clip。
+        let (snapped_start, snap_guide) = if raw_delta == TimelineFrameIndex::ZERO {
+            (raw_anchor_start, None)
+        } else {
+            timeline.snap_clip_start_ignoring(
+                raw_anchor_start,
+                anchor_duration,
+                &timeline.interaction.selected_clip_ids,
+            )
+        };
         let timeline_delta = snapped_start - original_anchor_start;
         let viewport_height = f32::from(window.viewport_size().height);
         let track_top = viewport_height - self.timeline_height(window, cx)
@@ -706,12 +715,13 @@ impl Editor {
     pub(crate) fn seek_to_ruler_click(
         &mut self,
         event: &ClickEvent,
-        _: &mut Window,
+        window: &mut Window,
         cx: &mut Context<Self>,
     ) {
         let Some(timeline) = self.timeline.as_mut() else {
             return;
         };
+        self.focus_handle.focus(window, cx);
         let frame_index = timeline.timeline_position_from_x(event.position().x.into());
         timeline.set_playhead(frame_index);
         if let Err(error) = timeline.save() {

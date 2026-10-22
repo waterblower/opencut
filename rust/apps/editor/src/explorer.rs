@@ -49,6 +49,7 @@ pub(crate) struct ExplorerState {
     pub(crate) selected_file: Option<PathBuf>,
     pub(crate) rename_dialog: Option<RenameDialogState>,
     pub(crate) new_timeline_dialog: Option<NewTimelineDialogState>,
+    pub(crate) trash_timeline_dialog_open: bool, // 确认把当前打开的时间线移到废纸篓。
     pub(crate) last_tree_scan: Instant,
 }
 
@@ -345,102 +346,75 @@ impl Editor {
             .into_any_element()
     }
 
-    pub(super) fn place_explorer_asset(
-        &mut self,
-        media_path: PathBuf,
-        track_id: Ulid,
-        start: TimelineFrameIndex,
-        mut asset: MediaAsset,
-        cx: &mut Context<Self>,
-    ) -> Result<()> {
-        let Some(timeline) = self.timeline.as_ref() else {
-            return Ok(());
-        };
-        let duration = timeline
-            .editing_state
-            .nearest_time(asset.duration)
-            .max(TimelineFrameIndex::ONE_FRAME);
-        let track_kind = timeline
-            .editing_state
-            .tracks
-            .iter()
-            .find(|track| track.id == track_id)
-            .map(|track| track.kind);
-        validate_clip_placement(
-            &timeline.editing_state,
-            track_id,
-            asset.kind,
-            duration,
-            start,
-            &HashSet::new(),
-        )?;
-
-        let Some(timeline) = self.timeline.as_mut() else {
-            return Ok(());
-        };
-        let timeline_directory = timeline
-            .path
-            .parent()
-            .context("Timeline path has no parent directory")?;
-        let asset_path = relative_asset_path(timeline_directory, &media_path); // 素材路径相对于时间线文件所在目录。
-        let (asset_id, assets) = if let Some(asset_id) = timeline
-            .editing_state
-            .assets
-            .iter()
-            .find(|existing| existing.path == asset_path)
-            .map(|existing| existing.id)
-        {
-            (asset_id, Vec::new())
-        } else {
-            asset.id = Ulid::generate();
-            asset.path = asset_path;
-            let asset_id = asset.id;
-            (asset_id, vec![asset])
-        };
-        let clip_id = Ulid::generate();
-        let media_clip = match track_kind {
-            Some(TrackKind::Video) => Clip::Video(VideoClip::new(
-                clip_id,
-                track_id,
-                asset_id,
-                start,
-                TimelineFrameIndex::ZERO,
-                duration,
-                VideoClipProperties::default(),
-                AudioClipProperties::default(),
-            )),
-            Some(TrackKind::Audio) => Clip::Audio(timeline::AudioClip::new(
-                clip_id,
-                track_id,
-                asset_id,
-                start,
-                TimelineFrameIndex::ZERO,
-                duration,
-                AudioClipProperties::default(),
-            )),
-            _ => bail!("the drop target is not a media track"),
+    pub(super) fn trash_timeline_dialog_view(&self, cx: &mut Context<Self>) -> gpui::AnyElement {
+        let timeline_name = match self.timeline.as_ref() {
+            Some(timeline) => timeline
+                .path
+                .file_name()
+                .map(|name| name.to_string_lossy().into_owned())
+                .unwrap_or_default(),
+            None => String::new(),
         };
 
-        edit_timeline(
-            timeline,
-            EditAction::AddClips {
-                clips: vec![media_clip],
-                assets,
-            },
-        )?;
-
-        self.explorer.selected_file = media_path
-            .strip_prefix(&self.project_root)
-            .ok()
-            .map(Path::to_path_buf); // Explorer 的选中项仍相对于项目根目录。
-        self.select_only_clip(Some(clip_id));
-        let Some(timeline) = self.timeline.as_ref() else {
-            return Ok(());
-        };
-        timeline.save()?;
-
-        self.schedule_active_timeline_waveforms(cx);
-        Ok(())
+        div()
+            .id("trash-timeline-dialog-overlay")
+            .absolute()
+            .inset_0()
+            .occlude()
+            .flex()
+            .items_center()
+            .justify_center()
+            .bg(gpui::rgba(0x00000088))
+            .on_mouse_down(
+                MouseButton::Left,
+                cx.listener(|editor, _, _, cx| {
+                    editor.explorer.trash_timeline_dialog_open = false;
+                    cx.notify();
+                }),
+            )
+            .child(
+                div()
+                    .id("trash-timeline-dialog")
+                    .w(px(480.0))
+                    .p_5()
+                    .flex()
+                    .flex_col()
+                    .gap_4()
+                    .rounded_xl()
+                    .border_1()
+                    .border_color(rgb(BORDER))
+                    .bg(rgb(PANEL))
+                    .shadow_lg()
+                    .occlude()
+                    .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
+                    .child(
+                        div()
+                            .text_lg()
+                            .font_weight(gpui::FontWeight::SEMIBOLD)
+                            .child(format!("Move {timeline_name} to Trash?")),
+                    )
+                    .child(
+                        div()
+                            .flex()
+                            .justify_end()
+                            .gap_2()
+                            .child(rename_dialog_button("Cancel", false).on_click(cx.listener(
+                                |editor, _, _, cx| {
+                                    editor.explorer.trash_timeline_dialog_open = false;
+                                    cx.notify();
+                                },
+                            )))
+                            .child(rename_dialog_button("Move to Trash", true).on_click(
+                                cx.listener(|editor, _, _, cx| {
+                                    if let Err(error) = editor.trash_active_timeline(cx) {
+                                        eprintln!("{error:?}");
+                                    }
+                                    cx.notify();
+                                }),
+                            )),
+                    ),
+            )
+            .into_any_element()
     }
 }
 
