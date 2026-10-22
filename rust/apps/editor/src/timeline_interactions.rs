@@ -715,12 +715,13 @@ impl Editor {
     pub(crate) fn seek_to_ruler_click(
         &mut self,
         event: &ClickEvent,
-        _: &mut Window,
+        window: &mut Window,
         cx: &mut Context<Self>,
     ) {
         let Some(timeline) = self.timeline.as_mut() else {
             return;
         };
+        self.focus_handle.focus(window, cx);
         let frame_index = timeline.timeline_position_from_x(event.position().x.into());
         timeline.set_playhead(frame_index);
         if let Err(error) = timeline.save() {
