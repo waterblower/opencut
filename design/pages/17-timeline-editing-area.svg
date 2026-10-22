@@ -512,7 +512,7 @@
 <rect x="48" y="1303" width="556" height="1" fill="#2b2b31"/>
 <path d="M372.5 1292 q0 -2 2 -2 h8 q2 0 2 2 v5 l-6 5.5 l-6 -5.5 Z" fill="#f0b75e" stroke="#0a0a0c" stroke-width="1" stroke-linejoin="round"/>
 <rect x="378.0" y="1302" width="1" height="2" fill="#f0b75e"/>
-<path d="M493.0 1415h18M502.0 1406v18" stroke="#000" stroke-width="3"/><path d="M494.0 1415h16M502.0 1407v16" stroke="#fff" stroke-width="1"/>
+<path transform="translate(502 1406)" d="M0 0V18L5 14 9 23 12 21 8 12H15Z" fill="#fff" stroke="#080809" stroke-width="1.5" stroke-linejoin="round" />
 </g>
 <rect x="48.5" y="1276.5" width="555" height="249" rx="10" fill="none" stroke="#2b2b31"/>
 <text class="s" x="636" y="1242" font-size="14" fill="#f2f2f4" font-weight="600">Trim</text>
