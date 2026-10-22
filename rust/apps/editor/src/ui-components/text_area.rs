@@ -543,8 +543,8 @@ impl RenderOnce for TextArea {
             .track_focus(&focus_handle)
             .w_full()
             .min_h(px(58.0))
-            .px(px(10.0))
-            .py(px(8.0))
+            .px(px(9.0)) // 加 1px 边框后与只读态一致：文字距外缘 10px、距上缘 8px。
+            .py(px(7.0))
             .rounded(px(6.0))
             .border_1()
             .border_color(rgb(BORDER))
