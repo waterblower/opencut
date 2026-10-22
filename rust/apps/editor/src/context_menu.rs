@@ -68,13 +68,16 @@ impl Editor {
         let can_transcribe = !menu.is_directory
             && (is_video_path(&menu.relative_path) || is_audio_path(&menu.relative_path));
         let can_rename = !menu.relative_path.as_os_str().is_empty();
-        let can_trash = can_rename
-            && !self.timeline.as_ref().is_some_and(|timeline| {
-                timeline
-                    .path
-                    .starts_with(self.project_root.join(&menu.relative_path))
-            });
         let absolute_path = self.project_root.join(&menu.relative_path);
+        let is_active_timeline = self
+            .timeline
+            .as_ref()
+            .is_some_and(|timeline| timeline.path == absolute_path);
+        let contains_active_timeline = self
+            .timeline
+            .as_ref()
+            .is_some_and(|timeline| timeline.path.starts_with(&absolute_path));
+        let can_trash = can_rename && (is_active_timeline || !contains_active_timeline);
         let height = 132.0
             + if can_transcribe { 40.0 } else { 0.0 }
             + if can_create_timeline { 40.0 } else { 0.0 }
@@ -227,8 +230,11 @@ impl Editor {
                         this.child(
                             file_menu_item("Move to Trash", "")
                                 .text_color(rgb(ERROR))
-                                .on_click(cx.listener(|editor, _, _, cx| {
-                                    if let Err(error) = editor.trash_selected_file(cx) {
+                                .on_click(cx.listener(move |editor, _, _, cx| {
+                                    if is_active_timeline {
+                                        editor.dismiss_context_menu();
+                                        editor.explorer.trash_timeline_dialog_open = true;
+                                    } else if let Err(error) = editor.trash_selected_file(cx) {
                                         eprintln!("{error}");
                                     }
                                     cx.notify();

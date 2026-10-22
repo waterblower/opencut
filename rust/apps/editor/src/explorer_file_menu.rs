@@ -8,6 +8,7 @@ use crate::explorer::{
 };
 use crate::preview::PreviewTarget;
 use crate::project_settings::{load_project_local_settings, save_project_local_settings};
+use crate::property_panel::current_property_panel;
 use crate::timeline_document;
 use crate::timeline_document::{relative_asset_path, resolve_asset_path};
 use crate::ui_components::TextInput;
@@ -287,6 +288,31 @@ impl Editor {
         self.explorer.search_pending = false;
         self.explorer.refresh_file_tree(&self.project_root)?;
         self.save_explorer_expansion()?;
+        self.schedule_explorer_search(cx);
+        Ok(())
+    }
+
+    pub(crate) fn trash_active_timeline(&mut self, cx: &mut Context<Self>) -> Result<()> {
+        self.explorer.trash_timeline_dialog_open = false;
+        let Some(timeline) = self.timeline.as_ref() else {
+            bail!("No timeline is open to move to Trash.");
+        };
+        let path = timeline.path.clone();
+        let mut new_settings = load_project_local_settings(&self.project_root);
+        new_settings.active_timeline = None;
+        if let Err(error) = move_path_to_trash(&path) {
+            return Err(anyhow!(
+                "Could not move {} to Trash: {error}",
+                path.display()
+            ));
+        }
+        save_project_local_settings(&self.project_root, &new_settings)?;
+
+        self.timeline = None;
+        self.preview.target = PreviewTarget::None;
+        self.property_panel = current_property_panel(self);
+        self.explorer.selected_file = None;
+        self.explorer.refresh_file_tree(&self.project_root)?;
         self.schedule_explorer_search(cx);
         Ok(())
     }

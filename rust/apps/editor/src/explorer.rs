@@ -49,6 +49,7 @@ pub(crate) struct ExplorerState {
     pub(crate) selected_file: Option<PathBuf>,
     pub(crate) rename_dialog: Option<RenameDialogState>,
     pub(crate) new_timeline_dialog: Option<NewTimelineDialogState>,
+    pub(crate) trash_timeline_dialog_open: bool, // 确认把当前打开的时间线移到废纸篓。
     pub(crate) last_tree_scan: Instant,
 }
 
@@ -340,6 +341,77 @@ impl Editor {
                                     cx.notify();
                                 },
                             ))),
+                    ),
+            )
+            .into_any_element()
+    }
+
+    pub(super) fn trash_timeline_dialog_view(&self, cx: &mut Context<Self>) -> gpui::AnyElement {
+        let timeline_name = match self.timeline.as_ref() {
+            Some(timeline) => timeline
+                .path
+                .file_name()
+                .map(|name| name.to_string_lossy().into_owned())
+                .unwrap_or_default(),
+            None => String::new(),
+        };
+
+        div()
+            .id("trash-timeline-dialog-overlay")
+            .absolute()
+            .inset_0()
+            .occlude()
+            .flex()
+            .items_center()
+            .justify_center()
+            .bg(gpui::rgba(0x00000088))
+            .on_mouse_down(
+                MouseButton::Left,
+                cx.listener(|editor, _, _, cx| {
+                    editor.explorer.trash_timeline_dialog_open = false;
+                    cx.notify();
+                }),
+            )
+            .child(
+                div()
+                    .id("trash-timeline-dialog")
+                    .w(px(480.0))
+                    .p_5()
+                    .flex()
+                    .flex_col()
+                    .gap_4()
+                    .rounded_xl()
+                    .border_1()
+                    .border_color(rgb(BORDER))
+                    .bg(rgb(PANEL))
+                    .shadow_lg()
+                    .occlude()
+                    .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
+                    .child(
+                        div()
+                            .text_lg()
+                            .font_weight(gpui::FontWeight::SEMIBOLD)
+                            .child(format!("Move {timeline_name} to Trash?")),
+                    )
+                    .child(
+                        div()
+                            .flex()
+                            .justify_end()
+                            .gap_2()
+                            .child(rename_dialog_button("Cancel", false).on_click(cx.listener(
+                                |editor, _, _, cx| {
+                                    editor.explorer.trash_timeline_dialog_open = false;
+                                    cx.notify();
+                                },
+                            )))
+                            .child(rename_dialog_button("Move to Trash", true).on_click(
+                                cx.listener(|editor, _, _, cx| {
+                                    if let Err(error) = editor.trash_active_timeline(cx) {
+                                        eprintln!("{error:?}");
+                                    }
+                                    cx.notify();
+                                }),
+                            )),
                     ),
             )
             .into_any_element()
