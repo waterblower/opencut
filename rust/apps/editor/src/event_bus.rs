@@ -607,7 +607,7 @@ async fn handle_app_event(
 
                         let selected_clip_ids = clips.iter().map(Clip::id).collect::<HashSet<_>>();
                         let selected_clip_id = clips.first().map(Clip::id);
-                        edit_timeline(
+                        let should_save = edit_timeline(
                             timeline,
                             EditAction::AddClips {
                                 clips,
@@ -616,7 +616,21 @@ async fn handle_app_event(
                         )?;
                         timeline.interaction.selected_clip_ids = selected_clip_ids;
                         timeline.interaction.selected_clip_id = selected_clip_id;
-                        timeline.save()?;
+                        if should_save {
+                            timeline.save()?;
+                            match editor.preview.target {
+                                PreviewTarget::Timeline { .. } => {
+                                    editor.preview.target = timeline_preview_target(
+                                        timeline,
+                                        &editor.project_root,
+                                        cx,
+                                    )?;
+                                }
+                                _ => {
+                                    // do nothing
+                                }
+                            }
+                        }
                     }
                     AssetBeingDragged::Media(asset) => {
                         if !matches!(asset.metadata.kind, MediaKind::Video | MediaKind::Audio) {
@@ -790,7 +804,7 @@ impl Editor {
             _ => bail!("the drop target is not a media track"),
         };
 
-        edit_timeline(
+        let should_save = edit_timeline(
             timeline,
             EditAction::AddClips {
                 clips: vec![media_clip],
@@ -806,7 +820,18 @@ impl Editor {
         let Some(timeline) = self.timeline.as_ref() else {
             return Ok(());
         };
-        timeline.save()?;
+        if should_save {
+            timeline.save()?;
+            match self.preview.target {
+                PreviewTarget::Timeline { .. } => {
+                    self.preview.target =
+                        timeline_preview_target(timeline, &self.project_root, cx)?;
+                }
+                _ => {
+                    // do nothing
+                }
+            }
+        }
 
         self.schedule_active_timeline_waveforms(cx);
         Ok(())
