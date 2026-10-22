@@ -68,9 +68,9 @@ pub(crate) fn text_clip_view(panel: &TextClipPanel) -> gpui::AnyElement {
     let alpha = clip.properties.color >> 24;
     let color_rgb = clip.properties.color & 0x00ff_ffff;
     let color_text = if alpha == 0xff {
-        format!("#{color_rgb:06X}")
+        format!("{color_rgb:06X}")
     } else {
-        format!("#{color_rgb:06X}{alpha:02X}")
+        format!("{color_rgb:06X}{alpha:02X}")
     };
     let content_box = if panel.locked {
         div()
@@ -155,7 +155,7 @@ pub(crate) fn text_clip_view(panel: &TextClipPanel) -> gpui::AnyElement {
             let opaque_color = 0xff00_0000 | background.rgba() >> 8; // 色块显示完整颜色，不透明度只在百分比里体现
             let (color, opacity_field) = if panel.locked {
                 (
-                    locked_color_view(opaque_color, format!("#{:06X}", background.rgba() >> 8))
+                    locked_color_view(opaque_color, format!("{:06X}", background.rgba() >> 8))
                         .into_any_element(),
                     text_value_view("", opacity.to_string(), "%", true)
                         .h(px(34.0))
@@ -349,7 +349,7 @@ fn locked_color_view(color: u32, text: String) -> gpui::Div {
         .min_w_0()
         .flex()
         .items_center()
-        .gap(px(6.0))
+        .gap(px(8.0))
         .px(px(8.0))
         .rounded(px(6.0))
         .bg(rgb(0x19191d))
@@ -365,10 +365,13 @@ fn locked_color_view(color: u32, text: String) -> gpui::Div {
         .child(
             div()
                 .min_w_0()
+                .flex()
+                .items_center()
+                .gap(px(2.0))
                 .font_family("monospace")
                 .text_size(px(13.0))
-                .text_ellipsis()
-                .child(text),
+                .child(div().flex_shrink_0().text_color(rgb(MUTED)).child("#"))
+                .child(div().min_w_0().text_ellipsis().child(text)),
         )
 }
 
@@ -683,8 +686,8 @@ impl RenderOnce for ColorInput {
             .min_w_0()
             .flex()
             .items_center()
-            .gap(px(6.0))
-            .px(px(8.0))
+            .gap(px(8.0))
+            .px(px(7.0)) // 加 1px 边框后与只读态一致：色块距外缘 8px。
             .rounded(px(6.0))
             .border_1()
             .border_color(rgb(if valid { BORDER } else { 0xff8b8b }))
@@ -708,8 +711,23 @@ impl RenderOnce for ColorInput {
                         window.refresh();
                     }),
             )
-            .child(div().text_size(px(13.0)).text_color(rgb(MUTED)).child("#"))
-            .child(div().min_w_0().flex_1().child(input.clone()));
+            .child(
+                div()
+                    .min_w_0()
+                    .flex_1()
+                    .flex()
+                    .items_center()
+                    .gap(px(2.0))
+                    .child(
+                        div()
+                            .flex_shrink_0()
+                            .font_family("monospace")
+                            .text_size(px(13.0))
+                            .text_color(rgb(MUTED))
+                            .child("#"),
+                    )
+                    .child(div().min_w_0().flex_1().child(input.clone())),
+            );
         if is_open {
             let close = open.clone();
             let outside = open.clone();
