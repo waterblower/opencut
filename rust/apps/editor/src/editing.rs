@@ -475,33 +475,6 @@ impl Editor {
         timeline.save()
     }
 
-    pub(super) fn move_track(&mut self, track_id: Ulid, direction: i8) -> Result<()> {
-        let Some(timeline) = self.timeline.as_mut() else {
-            return Ok(());
-        };
-        let Some(index) = timeline
-            .editing_state
-            .tracks
-            .iter()
-            .position(|track| track.id == track_id)
-        else {
-            return Ok(());
-        };
-        let target = if direction < 0 {
-            index.checked_sub(1)
-        } else if index + 1 < timeline.editing_state.tracks.len() {
-            Some(index + 1)
-        } else {
-            None
-        };
-        let Some(target) = target else {
-            return Ok(());
-        };
-
-        edit_timeline(timeline, EditAction::MoveTrack { index, target })?;
-        timeline.save()
-    }
-
     pub(super) fn delete_track(&mut self, track_id: Ulid) -> Result<()> {
         let Some(timeline) = self.timeline.as_mut() else {
             return Ok(());

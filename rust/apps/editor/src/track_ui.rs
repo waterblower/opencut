@@ -99,14 +99,17 @@ impl Editor {
                                     !is_first_track,
                                     TEXT,
                                 )
-                                .on_click(cx.listener(
-                                    move |editor, _, _, cx| {
-                                        if let Err(error) = editor.move_track(track_id, -1) {
-                                            log::error!("{error:?}");
-                                        }
-                                        cx.notify();
-                                    },
-                                )),
+                                .when(!is_first_track, |button| {
+                                    button.on_click(cx.listener(move |editor, _, _, cx| {
+                                        editor.emit_event(
+                                            cx,
+                                            AppEvent::Edit(EditAction::MoveTrack {
+                                                index,
+                                                target: index - 1,
+                                            }),
+                                        );
+                                    }))
+                                }),
                             )
                             .child(
                                 track_action_view(
@@ -115,14 +118,17 @@ impl Editor {
                                     !is_last_track,
                                     TEXT,
                                 )
-                                .on_click(cx.listener(
-                                    move |editor, _, _, cx| {
-                                        if let Err(error) = editor.move_track(track_id, 1) {
-                                            log::error!("{error:?}");
-                                        }
-                                        cx.notify();
-                                    },
-                                )),
+                                .when(!is_last_track, |button| {
+                                    button.on_click(cx.listener(move |editor, _, _, cx| {
+                                        editor.emit_event(
+                                            cx,
+                                            AppEvent::Edit(EditAction::MoveTrack {
+                                                index,
+                                                target: index + 1,
+                                            }),
+                                        );
+                                    }))
+                                }),
                             )
                             .child(
                                 track_action_view(
