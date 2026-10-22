@@ -579,11 +579,16 @@ impl Editor {
             .clip(anchor_clip_id)
             .map(|clip| clip.frame_length(timeline.editing_state.settings.frame_rate))
             .unwrap_or(TimelineFrameIndex::ZERO);
-        let (snapped_start, snap_guide) = timeline.snap_clip_start_ignoring(
-            raw_anchor_start,
-            anchor_duration,
-            &timeline.interaction.selected_clip_ids,
-        );
+        // pointer 还没有横向移动时不 snap，单击只选中 clip。
+        let (snapped_start, snap_guide) = if raw_delta == TimelineFrameIndex::ZERO {
+            (raw_anchor_start, None)
+        } else {
+            timeline.snap_clip_start_ignoring(
+                raw_anchor_start,
+                anchor_duration,
+                &timeline.interaction.selected_clip_ids,
+            )
+        };
         let timeline_delta = snapped_start - original_anchor_start;
         let viewport_height = f32::from(window.viewport_size().height);
         let track_top = viewport_height - self.timeline_height(window, cx)
