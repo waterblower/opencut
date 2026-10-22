@@ -1,6 +1,6 @@
 use super::*;
 use crate::clip_placement::ClipPlacementRejection;
-use crate::explorer_drag::{AssetBeingDragged, AssetBeingDraggedV1};
+use crate::explorer_drag::{AssetBeingDragged, DraggedMedia};
 use crate::model::MediaKind;
 use crate::test_support::{TimelineTestExt, ulid};
 use crate::timeline::PreviewDropAsset;
@@ -31,7 +31,7 @@ fn explorer_drop_rejects_incompatible_tracks() {
     let mut audio_preview = PreviewDropAsset {
         track_id: ulid(1),
         start_time: TimelineFrameIndex::ZERO,
-        asset: AssetBeingDragged::V1(AssetBeingDraggedV1 {
+        asset: AssetBeingDragged::Media(DraggedMedia {
             absolute_path: PathBuf::from("audio.wav"),
             metadata: asset(MediaKind::Audio, true),
         }),
@@ -46,7 +46,7 @@ fn explorer_drop_rejects_incompatible_tracks() {
     let video_preview = PreviewDropAsset {
         track_id: ulid(2),
         start_time: TimelineFrameIndex::ZERO,
-        asset: AssetBeingDragged::V1(AssetBeingDraggedV1 {
+        asset: AssetBeingDragged::Media(DraggedMedia {
             absolute_path: PathBuf::from("silent.mp4"),
             metadata: asset(MediaKind::Video, false),
         }),
@@ -93,7 +93,7 @@ fn explorer_drop_detects_collisions_but_allows_adjacent_clips() {
     let mut preview = PreviewDropAsset {
         track_id: ulid(2),
         start_time: TimelineFrameIndex::from(15),
-        asset: AssetBeingDragged::V1(AssetBeingDraggedV1 {
+        asset: AssetBeingDragged::Media(DraggedMedia {
             absolute_path: PathBuf::from("audio.wav"),
             metadata: MediaAsset {
                 duration: 1.0,

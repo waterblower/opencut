@@ -90,7 +90,7 @@ impl PreviewDropAsset {
     pub(super) fn validate_placement(&self, timeline: &TimelineEditingState) -> Result<()> {
         match &self.asset {
             AssetBeingDragged::None => Err(ClipPlacementRejection::NoPlacements.into()),
-            AssetBeingDragged::V1(asset) => {
+            AssetBeingDragged::Media(asset) => {
                 if asset.metadata.kind == MediaKind::Image {
                     bail!("Image placement is not supported");
                 }

@@ -15,7 +15,7 @@
 <text class="s" x="56" y="269.04" font-size="14" fill="#f2f2f4">Rename</text>
 <text class="s" x="56" y="309.04" font-size="14" fill="#ff8b8b">Move to Trash</text>
 <text class="s" x="347" y="44" font-size="15" fill="#c9c9cf" font-weight="600">Timeline file</text>
-<text class="s" x="347" y="64" font-size="12" fill="#8a8a93">No Move to Trash for the open timeline</text>
+<text class="s" x="347" y="64" font-size="12" fill="#8a8a93">The open timeline asks for confirmation first</text>
 <rect x="347.5" y="80.5" width="266" height="287" rx="8" fill="#1b1b1e" stroke="#2b2b31" stroke-width="1" filter="url(#shadow)"/>
 <text class="s" x="363" y="109.04" font-size="14" fill="#f2f2f4">Settings</text>
 <text class="s" x="363" y="149.04" font-size="14" fill="#f2f2f4">Keep Text Sections</text>

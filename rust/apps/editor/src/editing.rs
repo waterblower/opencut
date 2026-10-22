@@ -231,14 +231,15 @@ impl ClipClipboard {
 }
 
 impl TimelineRuntimeState {
-    pub(super) fn blade_at_playhead(&mut self) -> Result<()> {
+    /// Splits every clip crossing `position` on unlocked tracks.
+    pub(super) fn blade_at(&mut self, position: TimelineFrameIndex) -> Result<()> {
         let clips_to_split = self
             .editing_state
             .clips
             .iter()
             .filter(|clip| {
-                let local = self.playhead() - clip.timeline_start();
-                let crosses_playhead = local >= TimelineFrameIndex::ONE_FRAME
+                let local = position - clip.timeline_start();
+                let crosses_position = local >= TimelineFrameIndex::ONE_FRAME
                     && local
                         <= clip.frame_length(self.editing_state.settings.frame_rate)
                             - TimelineFrameIndex::ONE_FRAME;
@@ -246,7 +247,7 @@ impl TimelineRuntimeState {
                     .editing_state
                     .track(clip.track_id())
                     .is_some_and(|track| !track.locked);
-                crosses_playhead && track_is_editable
+                crosses_position && track_is_editable
             })
             .cloned()
             .collect::<Vec<_>>();
@@ -258,8 +259,8 @@ impl TimelineRuntimeState {
             .into_iter()
             .flat_map(|clip| {
                 let (left, right) = clip
-                    .split_at(self.playhead(), self.editing_state.settings.frame_rate)
-                    .expect("clips at the playhead must be splittable");
+                    .split_at(position, self.editing_state.settings.frame_rate)
+                    .expect("clips crossing the split position must be splittable");
                 [left, right]
             })
             .collect();
@@ -455,90 +456,6 @@ impl Editor {
                 },
             },
         )?;
-        timeline.save()
-    }
-
-    pub(super) fn toggle_track_visibility(&mut self, track_id: Ulid) -> Result<()> {
-        let Some(timeline) = self.timeline.as_mut() else {
-            return Ok(());
-        };
-        edit_timeline(timeline, EditAction::ToggleTrackVisibility { track_id })?;
-        timeline.save()
-    }
-
-    pub(super) fn toggle_track_mute(&mut self, track_id: Ulid) -> Result<()> {
-        let Some(timeline) = self.timeline.as_mut() else {
-            return Ok(());
-        };
-        edit_timeline(timeline, EditAction::ToggleTrackMute { track_id })?;
-        timeline.save()
-    }
-
-    pub(super) fn move_track(&mut self, track_id: Ulid, direction: i8) -> Result<()> {
-        let Some(timeline) = self.timeline.as_mut() else {
-            return Ok(());
-        };
-        let Some(index) = timeline
-            .editing_state
-            .tracks
-            .iter()
-            .position(|track| track.id == track_id)
-        else {
-            return Ok(());
-        };
-        let target = if direction < 0 {
-            index.checked_sub(1)
-        } else if index + 1 < timeline.editing_state.tracks.len() {
-            Some(index + 1)
-        } else {
-            None
-        };
-        let Some(target) = target else {
-            return Ok(());
-        };
-
-        edit_timeline(timeline, EditAction::MoveTrack { index, target })?;
-        timeline.save()
-    }
-
-    pub(super) fn delete_track(&mut self, track_id: Ulid) -> Result<()> {
-        let Some(timeline) = self.timeline.as_mut() else {
-            return Ok(());
-        };
-        let Some(index) = timeline
-            .editing_state
-            .tracks
-            .iter()
-            .position(|track| track.id == track_id)
-        else {
-            return Ok(());
-        };
-        if timeline.editing_state.tracks[index].locked {
-            return Ok(());
-        }
-        edit_timeline(timeline, EditAction::DeleteTrack { track_id })?;
-        let remaining_clip_ids = timeline
-            .editing_state
-            .clips
-            .iter()
-            .map(Clip::id)
-            .collect::<HashSet<_>>();
-        timeline
-            .interaction
-            .selected_clip_ids
-            .retain(|id| remaining_clip_ids.contains(id));
-        if timeline
-            .interaction
-            .selected_clip_id
-            .is_some_and(|id| timeline.editing_state.clip(id).is_none())
-        {
-            timeline.interaction.selected_clip_id = timeline
-                .editing_state
-                .clips
-                .iter()
-                .find(|clip| timeline.interaction.selected_clip_ids.contains(&clip.id()))
-                .map(Clip::id);
-        }
         timeline.save()
     }
 

@@ -464,7 +464,9 @@ pub(crate) fn edit_timeline(
                     should_save: true,
                 }
             }
-            action @ (EditAction::RemoveClips { .. } | EditAction::KeepTextSections) => {
+            action @ (EditAction::RemoveClips { .. }
+            | EditAction::DeleteTrack { .. }
+            | EditAction::KeepTextSections) => {
                 let new_state = timeline.editing_state.edit(action)?;
                 // 后处理：片段可能已删除或裁剪，清空选择。
                 timeline.interaction.selected_clip_ids.clear();

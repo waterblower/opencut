@@ -24,6 +24,8 @@ use ulid::Ulid;
 
 const CLIP_WAVEFORM_HEIGHT: f32 = 80.0;
 const CLIP_WAVEFORM_VISUAL_GAIN: f32 = 2.0;
+const LOCKED_ROW_STRIPES: u32 = 0xffffff0f; // 锁定轨道的轨道行和轨道头：中性白色斜纹，约 6% 不透明度。
+const LOCKED_CLIP_STRIPES: u32 = 0xffffff29; // 锁定轨道上的片段：约 16% 不透明度，比轨道行更明显。
 
 impl Editor {
     pub(super) fn track_header(
@@ -47,6 +49,7 @@ impl Editor {
         };
         div()
             .id(("track-header", index))
+            .relative()
             .h(px(TRACK_HEIGHT))
             .flex_shrink_0()
             .flex()
@@ -56,6 +59,9 @@ impl Editor {
             .px_3()
             .border_b_1()
             .border_color(rgb(BORDER))
+            .when(track.locked, |this| {
+                this.child(diagonal_hatch_view(LOCKED_ROW_STRIPES))
+            })
             .child(
                 div()
                     .flex()
@@ -99,14 +105,17 @@ impl Editor {
                                     !is_first_track,
                                     TEXT,
                                 )
-                                .on_click(cx.listener(
-                                    move |editor, _, _, cx| {
-                                        if let Err(error) = editor.move_track(track_id, -1) {
-                                            log::error!("{error:?}");
-                                        }
-                                        cx.notify();
-                                    },
-                                )),
+                                .when(!is_first_track, |button| {
+                                    button.on_click(cx.listener(move |editor, _, _, cx| {
+                                        editor.emit_event(
+                                            cx,
+                                            AppEvent::Edit(EditAction::MoveTrack {
+                                                index,
+                                                target: index - 1,
+                                            }),
+                                        );
+                                    }))
+                                }),
                             )
                             .child(
                                 track_action_view(
@@ -115,14 +124,17 @@ impl Editor {
                                     !is_last_track,
                                     TEXT,
                                 )
-                                .on_click(cx.listener(
-                                    move |editor, _, _, cx| {
-                                        if let Err(error) = editor.move_track(track_id, 1) {
-                                            log::error!("{error:?}");
-                                        }
-                                        cx.notify();
-                                    },
-                                )),
+                                .when(!is_last_track, |button| {
+                                    button.on_click(cx.listener(move |editor, _, _, cx| {
+                                        editor.emit_event(
+                                            cx,
+                                            AppEvent::Edit(EditAction::MoveTrack {
+                                                index,
+                                                target: index + 1,
+                                            }),
+                                        );
+                                    }))
+                                }),
                             )
                             .child(
                                 track_action_view(
@@ -131,14 +143,14 @@ impl Editor {
                                     true,
                                     ERROR,
                                 )
-                                .on_click(cx.listener(
-                                    move |editor, _, _, cx| {
-                                        if let Err(error) = editor.delete_track(track_id) {
-                                            log::error!("{error:?}");
-                                        }
-                                        cx.notify();
-                                    },
-                                )),
+                                .when(!track.locked, |button| {
+                                    button.on_click(cx.listener(move |editor, _, _, cx| {
+                                        editor.emit_event(
+                                            cx,
+                                            AppEvent::Edit(EditAction::DeleteTrack { track_id }),
+                                        );
+                                    }))
+                                }),
                             ),
                     ),
             )
@@ -175,10 +187,12 @@ impl Editor {
                             )
                             .on_click(cx.listener(
                                 move |editor, _, _, cx| {
-                                    if let Err(error) = editor.toggle_track_visibility(track_id) {
-                                        log::error!("{error:?}");
-                                    }
-                                    cx.notify();
+                                    editor.emit_event(
+                                        cx,
+                                        AppEvent::Edit(EditAction::ToggleTrackVisibility {
+                                            track_id,
+                                        }),
+                                    );
                                 },
                             )),
                         )
@@ -196,10 +210,12 @@ impl Editor {
                                     )
                                     .on_click(cx.listener(
                                         move |editor, _, _, cx| {
-                                            if let Err(error) = editor.toggle_track_mute(track_id) {
-                                                log::error!("{error:?}");
-                                            }
-                                            cx.notify();
+                                            editor.emit_event(
+                                                cx,
+                                                AppEvent::Edit(EditAction::ToggleTrackMute {
+                                                    track_id,
+                                                }),
+                                            );
                                         },
                                     )),
                                 )
@@ -352,6 +368,9 @@ impl Editor {
                     }),
                 )
             })
+            .when(track.locked, |this| {
+                this.child(diagonal_hatch_view(LOCKED_ROW_STRIPES))
+            })
             .children(clips)
             .children(move_previews)
             .when_some(drop_preview, |this, preview| this.child(preview))
@@ -368,6 +387,7 @@ impl Editor {
                     .as_ref()
                     .expect("timeline clips require an active timeline");
                 let clip_id = clip.id();
+                let locked = timeline.editing_state.clip_locked(clip_id);
                 let moving = timeline
                     .interaction
                     .clip_move_drag
@@ -382,6 +402,7 @@ impl Editor {
                     timeline.interaction.selected_clip_ids.contains(&clip_id),
                     moving,
                 )
+                .children(locked.then(|| diagonal_hatch_view(LOCKED_CLIP_STRIPES)))
                 .children(self.clip_trim_handles(clip_id, cx))
                 .on_mouse_down(
                     MouseButton::Left,
@@ -480,6 +501,7 @@ impl Editor {
             .as_ref()
             .expect("timeline clips require an active timeline");
         let clip_id = clip.id();
+        let locked = timeline.editing_state.clip_locked(clip_id);
         let selected = timeline.interaction.selected_clip_ids.contains(&clip_id);
         let moving = timeline
             .interaction
@@ -531,6 +553,7 @@ impl Editor {
                 }),
             )
             .child(content)
+            .children(locked.then(|| diagonal_hatch_view(LOCKED_CLIP_STRIPES)))
             .children(self.clip_trim_handles(clip_id, cx))
             .into_any_element()
     }
@@ -757,7 +780,7 @@ fn preview_drop_asset(
                     .into_any_element(),
             )
         }
-        AssetBeingDragged::V1(asset) => {
+        AssetBeingDragged::Media(asset) => {
             let left =
                 TIMELINE_PADDING + timeline.seconds(preview.start_time) as f32 * pixels_per_second;
             let duration = timeline
@@ -825,47 +848,7 @@ fn clip_placement_preview_view(
         } else {
             CursorStyle::OperationNotAllowed
         })
-        .when(!valid, |view| {
-            view.child(
-                canvas(
-                    |_, _, _| {},
-                    |bounds, (), window, _| {
-                        let height = f32::from(bounds.size.height);
-                        let width = f32::from(bounds.size.width);
-                        let mut hatch = PathBuilder::stroke(px(1.0));
-                        // 只绘制可见区域的斜纹，长素材不会按整段时长生成路径。
-                        let mask = window.content_mask();
-                        let visible_start = f32::from(mask.bounds.left() - bounds.left()).max(0.0);
-                        let visible_end = f32::from(mask.bounds.right() - bounds.left()).min(width);
-                        if visible_end <= visible_start {
-                            return;
-                        }
-                        let mut x = ((visible_start - height) / 8.0).floor() * 8.0;
-                        while x < visible_end {
-                            let from_x = x.max(0.0);
-                            let from_y = height - (from_x - x);
-                            let to_x = (x + height).min(width);
-                            let to_y = height - (to_x - x);
-                            hatch.move_to(point(
-                                bounds.left() + px(from_x),
-                                bounds.top() + px(from_y),
-                            ));
-                            hatch.line_to(point(bounds.left() + px(to_x), bounds.top() + px(to_y)));
-                            x += 8.0;
-                        }
-                        match hatch.build() {
-                            Ok(path) => window.paint_path(path, rgba(0xff8b8b38)),
-                            Err(error) => {
-                                log::error!("Could not draw placement feedback: {error:?}")
-                            }
-                        }
-                    },
-                )
-                .absolute()
-                .inset_0()
-                .size_full(),
-            )
-        })
+        .when(!valid, |view| view.child(diagonal_hatch_view(0xff8b8b38)))
         .child(
             div()
                 .absolute()
@@ -885,4 +868,40 @@ fn clip_placement_preview_view(
                 .child(div().text_xs().text_ellipsis().child(detail)),
         )
         .into_any_element()
+}
+
+fn diagonal_hatch_view(color: u32) -> gpui::AnyElement {
+    canvas(
+        |_, _, _| {},
+        move |bounds, (), window, _| {
+            let height = f32::from(bounds.size.height);
+            let width = f32::from(bounds.size.width);
+            let mut hatch = PathBuilder::stroke(px(1.0));
+            // 只绘制可见区域的斜纹，长素材不会按整段时长生成路径。
+            let mask = window.content_mask();
+            let visible_start = f32::from(mask.bounds.left() - bounds.left()).max(0.0);
+            let visible_end = f32::from(mask.bounds.right() - bounds.left()).min(width);
+            if visible_end <= visible_start {
+                return;
+            }
+            let mut x = ((visible_start - height) / 8.0).floor() * 8.0;
+            while x < visible_end {
+                let from_x = x.max(0.0);
+                let from_y = height - (from_x - x);
+                let to_x = (x + height).min(width);
+                let to_y = height - (to_x - x);
+                hatch.move_to(point(bounds.left() + px(from_x), bounds.top() + px(from_y)));
+                hatch.line_to(point(bounds.left() + px(to_x), bounds.top() + px(to_y)));
+                x += 8.0;
+            }
+            match hatch.build() {
+                Ok(path) => window.paint_path(path, rgba(color)),
+                Err(error) => log::error!("Could not draw diagonal hatch: {error:?}"),
+            }
+        },
+    )
+    .absolute()
+    .inset_0()
+    .size_full()
+    .into_any_element()
 }

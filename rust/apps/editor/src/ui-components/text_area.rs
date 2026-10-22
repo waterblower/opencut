@@ -4,7 +4,7 @@
 //! each edit through `on_text_change`. Caret, selection, IME and focus are kept in gpui's
 //! per-element state under `id`, so they survive between frames without the caller.
 
-use crate::theme::{BORDER, MUTED, SURFACE, TEXT};
+use crate::theme::{ACCENT, BORDER, MUTED, SURFACE, TEXT};
 use gpui::prelude::*;
 use gpui::{
     App, AvailableSpace, Bounds, ClipboardItem, Context, CursorStyle, Element, ElementId,
@@ -117,7 +117,7 @@ type OnTextChange = Rc<dyn Fn(&String, &mut Window, &mut App)>;
 struct TextAreaState {
     focus_handle: FocusHandle,
     return_focus: FocusHandle,
-    text: SharedString,                   // 包含尚未由调用方确认的输入草稿
+    text: SharedString,                    // 包含尚未由调用方确认的输入草稿
     last_drawn_text: Option<SharedString>, // 上次收到的模型快照，用于识别撤销等外部修改
     on_text_change: Option<OnTextChange>,  // 每帧由 TextArea 重新设置
     selected_range: Range<usize>,
@@ -543,11 +543,12 @@ impl RenderOnce for TextArea {
             .track_focus(&focus_handle)
             .w_full()
             .min_h(px(58.0))
-            .px(px(10.0))
-            .py(px(8.0))
+            .px(px(9.0)) // 加 1px 边框后与只读态一致：文字距外缘 10px、距上缘 8px。
+            .py(px(7.0))
             .rounded(px(6.0))
             .border_1()
             .border_color(rgb(BORDER))
+            .focus(|style| style.border_color(rgb(ACCENT)))
             .bg(rgb(SURFACE))
             .text_size(px(13.0))
             .line_height(px(19.0))
@@ -594,7 +595,6 @@ impl RenderOnce for TextArea {
 }
 
 const SELECTION_COLOR: u32 = 0x52779a66;
-const CARET_COLOR: u32 = 0xd8d8dc;
 
 /// Wrapped paragraphs of one frame. Paragraphs are separated by `\n` and stacked
 /// without gaps, so visual rows are `line_height` apart across paragraph boundaries.
@@ -761,9 +761,9 @@ impl Element for TextAreaElement {
             let caret = fill(
                 Bounds::new(
                     point(bounds.left() + position.x, bounds.top() + position.y),
-                    size(px(1.0), line_height),
+                    size(px(1.5), line_height),
                 ),
-                rgb(CARET_COLOR),
+                rgb(ACCENT),
             );
             (Some(caret), Vec::new())
         } else {

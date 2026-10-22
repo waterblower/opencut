@@ -155,7 +155,14 @@ impl Editor {
         let Some(timeline) = self.timeline.as_mut() else {
             return;
         };
-        if let Err(error) = timeline.blade_at_playhead() {
+        let position = match timeline.interaction.active_tool {
+            TimelineTool::Selection => timeline.playhead(),
+            TimelineTool::Blade => match timeline.interaction.blade_guide {
+                Some(position) => position,
+                None => return, // 指针尚未移到时间线上，Blade 参考线还没出现。
+            },
+        };
+        if let Err(error) = timeline.blade_at(position) {
             log::error!("{error:?}");
         }
         cx.notify();

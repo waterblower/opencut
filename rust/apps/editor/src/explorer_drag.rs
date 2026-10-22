@@ -28,7 +28,7 @@ struct ExplorerDropPreview {
 
 #[derive(Clone, Debug)]
 pub(crate) enum AssetBeingDragged {
-    V1(AssetBeingDraggedV1),
+    Media(DraggedMedia),
     Srt(DraggedSRT),
     None,
 }
@@ -38,7 +38,7 @@ impl AssetBeingDragged {
         let x = match entry.kind {
             FileTreeEntryKind::Video | FileTreeEntryKind::Image | FileTreeEntryKind::Audio => {
                 let metadata = probe_asset(&entry.absolute_path)?;
-                Self::V1(AssetBeingDraggedV1 {
+                Self::Media(DraggedMedia {
                     absolute_path: entry.absolute_path.clone(),
                     metadata,
                 })
@@ -61,12 +61,12 @@ impl AssetBeingDragged {
 }
 
 #[derive(Clone, Debug)]
-pub(crate) struct AssetBeingDraggedV1 {
+pub(crate) struct DraggedMedia {
     pub(super) absolute_path: PathBuf,
     pub(super) metadata: MediaAsset,
 }
 
-impl AssetBeingDraggedV1 {
+impl DraggedMedia {
     pub(crate) fn name(&self) -> SharedString {
         self.absolute_path
             .file_name()
@@ -100,7 +100,7 @@ pub(super) struct ExplorerDragView {
 impl Render for ExplorerDragView {
     fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let (kind, name) = match &self.asset {
-            AssetBeingDragged::V1(asset) => (asset.metadata.kind.label(), asset.name()),
+            AssetBeingDragged::Media(asset) => (asset.metadata.kind.label(), asset.name()),
             AssetBeingDragged::Srt(asset) => ("SRT", asset.name()),
             AssetBeingDragged::None => return gpui::Empty.into_any_element(),
         };
