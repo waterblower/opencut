@@ -459,63 +459,6 @@ impl Editor {
         timeline.save()
     }
 
-    pub(super) fn toggle_track_visibility(&mut self, track_id: Ulid) -> Result<()> {
-        let Some(timeline) = self.timeline.as_mut() else {
-            return Ok(());
-        };
-        edit_timeline(timeline, EditAction::ToggleTrackVisibility { track_id })?;
-        timeline.save()
-    }
-
-    pub(super) fn toggle_track_mute(&mut self, track_id: Ulid) -> Result<()> {
-        let Some(timeline) = self.timeline.as_mut() else {
-            return Ok(());
-        };
-        edit_timeline(timeline, EditAction::ToggleTrackMute { track_id })?;
-        timeline.save()
-    }
-
-    pub(super) fn delete_track(&mut self, track_id: Ulid) -> Result<()> {
-        let Some(timeline) = self.timeline.as_mut() else {
-            return Ok(());
-        };
-        let Some(index) = timeline
-            .editing_state
-            .tracks
-            .iter()
-            .position(|track| track.id == track_id)
-        else {
-            return Ok(());
-        };
-        if timeline.editing_state.tracks[index].locked {
-            return Ok(());
-        }
-        edit_timeline(timeline, EditAction::DeleteTrack { track_id })?;
-        let remaining_clip_ids = timeline
-            .editing_state
-            .clips
-            .iter()
-            .map(Clip::id)
-            .collect::<HashSet<_>>();
-        timeline
-            .interaction
-            .selected_clip_ids
-            .retain(|id| remaining_clip_ids.contains(id));
-        if timeline
-            .interaction
-            .selected_clip_id
-            .is_some_and(|id| timeline.editing_state.clip(id).is_none())
-        {
-            timeline.interaction.selected_clip_id = timeline
-                .editing_state
-                .clips
-                .iter()
-                .find(|clip| timeline.interaction.selected_clip_ids.contains(&clip.id()))
-                .map(Clip::id);
-        }
-        timeline.save()
-    }
-
     pub(super) fn select_only_clip(&mut self, clip_id: Option<Ulid>) {
         let Some(timeline) = self.timeline.as_mut() else {
             return;

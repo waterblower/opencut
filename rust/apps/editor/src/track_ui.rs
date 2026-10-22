@@ -137,14 +137,14 @@ impl Editor {
                                     true,
                                     ERROR,
                                 )
-                                .on_click(cx.listener(
-                                    move |editor, _, _, cx| {
-                                        if let Err(error) = editor.delete_track(track_id) {
-                                            log::error!("{error:?}");
-                                        }
-                                        cx.notify();
-                                    },
-                                )),
+                                .when(!track.locked, |button| {
+                                    button.on_click(cx.listener(move |editor, _, _, cx| {
+                                        editor.emit_event(
+                                            cx,
+                                            AppEvent::Edit(EditAction::DeleteTrack { track_id }),
+                                        );
+                                    }))
+                                }),
                             ),
                     ),
             )
@@ -181,10 +181,12 @@ impl Editor {
                             )
                             .on_click(cx.listener(
                                 move |editor, _, _, cx| {
-                                    if let Err(error) = editor.toggle_track_visibility(track_id) {
-                                        log::error!("{error:?}");
-                                    }
-                                    cx.notify();
+                                    editor.emit_event(
+                                        cx,
+                                        AppEvent::Edit(EditAction::ToggleTrackVisibility {
+                                            track_id,
+                                        }),
+                                    );
                                 },
                             )),
                         )
@@ -202,10 +204,12 @@ impl Editor {
                                     )
                                     .on_click(cx.listener(
                                         move |editor, _, _, cx| {
-                                            if let Err(error) = editor.toggle_track_mute(track_id) {
-                                                log::error!("{error:?}");
-                                            }
-                                            cx.notify();
+                                            editor.emit_event(
+                                                cx,
+                                                AppEvent::Edit(EditAction::ToggleTrackMute {
+                                                    track_id,
+                                                }),
+                                            );
                                         },
                                     )),
                                 )
