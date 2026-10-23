@@ -88,16 +88,12 @@
 <rect x="384" y="576" width="248" height="1" fill="#1f1f24"/>
 <text class="s" x="384" y="599.96" font-size="11" fill="#777780" font-weight="600" letter-spacing="0.6">AUDIO</text>
 <text class="s" x="384" y="631.68" font-size="13" fill="#777780">Gain</text>
-<rect x="432" y="625" width="104" height="4" rx="2" fill="#2b2b31"/>
-<rect x="509.5" y="622" width="1" height="10" fill="#55555e"/>
-<rect x="432" y="625" width="78" height="4" rx="2" fill="#f0b75e"/>
-<circle cx="510" cy="627" r="7" fill="#f2f2f4" stroke="#0d0d0f" stroke-width="2"/>
 <rect x="548.5" y="612.5" width="83" height="29" rx="6" fill="#17171a" stroke="#2b2b31" stroke-width="1"/>
 <text class="m" x="558" y="631.68" font-size="13" fill="#f2f2f4">0.00</text>
 <text class="s" x="622" y="631.32" font-size="12" fill="#777780" text-anchor="end">dB</text>
-<text class="s" x="384" y="670.68" font-size="13" fill="#777780">Mute clip</text>
-<rect x="598" y="656" width="34" height="20" rx="10" fill="#2b2b31"/>
-<circle cx="608" cy="666" r="7" fill="#777780"/>
+<g transform="translate(384 658) scale(0.6667)" fill="none" stroke="#c9c9cf" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><path d="M12 19v3"/></g>
+<rect x="598" y="656" width="34" height="20" rx="10" fill="#f0b75e"/>
+<circle cx="622" cy="666" r="7" fill="#0d0d0f"/>
 </g>
 </g>
 <rect x="368.5" y="198.5" width="279" height="554" rx="10" fill="none" stroke="#2b2b31" stroke-width="1"/>
@@ -152,41 +148,47 @@
 <rect x="384" y="576" width="248" height="1" fill="#1f1f24" />
 <text class="s" x="384" y="599.96" font-size="11" fill="#777780" font-weight="600" letter-spacing="0.6">AUDIO</text>
 <text class="s" x="384" y="631.68" font-size="13" fill="#777780">Gain</text>
-<rect x="432" y="625" width="104" height="4" rx="2" fill="#2b2b31" />
-<rect x="509.5" y="622" width="1" height="10" fill="#55555e" />
-<rect x="432" y="625" width="78" height="4" rx="2" fill="#55555e" />
-<circle cx="510" cy="627" r="5" fill="#55555e" />
 <rect x="548" y="612" width="84" height="30" rx="6" fill="#19191d" />
 <text class="m" x="558" y="631.68" font-size="13" fill="#f2f2f4">0.00</text>
 <text class="s" x="622" y="631.32" font-size="12" fill="#777780" text-anchor="end">dB</text>
-<text class="s" x="384" y="670.68" font-size="13" fill="#777780">Mute clip</text>
-<rect x="598" y="656" width="34" height="20" rx="10" fill="#2b2b31" opacity="0.5" />
-<circle cx="608" cy="666" r="7" fill="#777780" opacity="0.5" />
+<g transform="translate(384 658) scale(0.6667)" fill="none" stroke="#c9c9cf" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round" opacity="0.5"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><path d="M12 19v3"/></g>
+<rect x="598" y="656" width="34" height="20" rx="10" fill="#f0b75e" opacity="0.5" />
+<circle cx="622" cy="666" r="7" fill="#0d0d0f" opacity="0.5" />
 </g>
 </g>
 <rect x="368.5" y="198.5" width="279" height="554" rx="10" fill="none" stroke="#62626e" stroke-width="1" />
 
 </g>
-<text class="s" x="688" y="912" font-size="12" fill="#b4b4bc" font-weight="600">Shared AUDIO section · video and audio clips</text>
+<text class="s" x="688" y="912" font-size="12" fill="#b4b4bc" font-weight="600">Shared AUDIO section · unmuted</text>
 <g transform="translate(320 734)">
 <rect x="367.5" y="197.5" width="281" height="141" rx="10" fill="#000" opacity="0.35" transform="translate(0 6)"/>
 <rect x="368" y="198" width="280" height="140" rx="10" fill="#0d0d0f"/>
 <text class="s" x="384" y="237.96" font-size="11" fill="#777780" font-weight="600" letter-spacing="0.6">AUDIO</text>
 <text class="s" x="384" y="269.68" font-size="13" fill="#777780">Gain</text>
-<rect x="432" y="263" width="104" height="4" rx="2" fill="#2b2b31"/>
-<rect x="509.5" y="260" width="1" height="10" fill="#55555e"/>
-<rect x="432" y="263" width="78" height="4" rx="2" fill="#f0b75e"/>
-<circle cx="510" cy="265" r="7" fill="#f2f2f4" stroke="#0d0d0f" stroke-width="2"/>
 <rect x="548.5" y="250.5" width="83" height="29" rx="6" fill="#17171a" stroke="#2b2b31" stroke-width="1"/>
 <text class="m" x="558" y="269.68" font-size="13" fill="#f2f2f4">0.00</text>
 <text class="s" x="622" y="269.32" font-size="12" fill="#777780" text-anchor="end">dB</text>
-<text class="s" x="384" y="308.68" font-size="13" fill="#777780">Mute clip</text>
+<g transform="translate(384 296) scale(0.6667)" fill="none" stroke="#c9c9cf" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><path d="M12 19v3"/></g>
+<rect x="598" y="294" width="34" height="20" rx="10" fill="#f0b75e"/>
+<circle cx="622" cy="304" r="7" fill="#0d0d0f"/>
+<rect x="368.5" y="198.5" width="279" height="139" rx="10" fill="none" stroke="#2b2b31" stroke-width="1"/>
+<text class="s" x="368" y="364" font-size="12" fill="#777780">One component, used by both panels.</text>
+<text class="s" x="368" y="384" font-size="12" fill="#777780">Gain dB field: −96 to +12 dB.</text>
+<text class="s" x="368" y="404" font-size="12" fill="#777780">Locked tracks keep the layout, read-only.</text>
+</g>
+<text class="s" x="1008" y="912" font-size="12" fill="#b4b4bc" font-weight="600">Shared AUDIO section · muted</text>
+<g transform="translate(640 734)">
+<rect x="367.5" y="197.5" width="281" height="141" rx="10" fill="#000" opacity="0.35" transform="translate(0 6)"/>
+<rect x="368" y="198" width="280" height="140" rx="10" fill="#0d0d0f"/>
+<text class="s" x="384" y="237.96" font-size="11" fill="#777780" font-weight="600" letter-spacing="0.6">AUDIO</text>
+<text class="s" x="384" y="269.68" font-size="13" fill="#777780">Gain</text>
+<rect x="548.5" y="250.5" width="83" height="29" rx="6" fill="#17171a" stroke="#2b2b31" stroke-width="1"/>
+<text class="m" x="558" y="269.68" font-size="13" fill="#f2f2f4">0.00</text>
+<text class="s" x="622" y="269.32" font-size="12" fill="#777780" text-anchor="end">dB</text>
+<g transform="translate(384 296) scale(0.6667)" fill="none" stroke="#c9c9cf" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round"><path d="M2 2l20 20"/><path d="M18.89 13.23A7.12 7.12 0 0 0 19 12v-2"/><path d="M5 10v2a7 7 0 0 0 12 5"/><path d="M15 9.34V5a3 3 0 0 0-5.68-1.33"/><path d="M9 9v3a3 3 0 0 0 5.12 2.12"/><path d="M12 19v3"/></g>
 <rect x="598" y="294" width="34" height="20" rx="10" fill="#2b2b31"/>
 <circle cx="608" cy="304" r="7" fill="#777780"/>
 <rect x="368.5" y="198.5" width="279" height="139" rx="10" fill="none" stroke="#2b2b31" stroke-width="1"/>
-<text class="s" x="368" y="364" font-size="12" fill="#777780">One component, used by both panels.</text>
-<text class="s" x="368" y="384" font-size="12" fill="#777780">Gain slider and dB field: −60 to +20 dB.</text>
-<text class="s" x="368" y="404" font-size="12" fill="#777780">Locked tracks keep the layout, read-only.</text>
 </g>
 </g>
 <g id="row-audio-clip">
@@ -223,16 +225,12 @@
 <rect x="704" y="422" width="248" height="1" fill="#1f1f24"/>
 <text class="s" x="704" y="445.96" font-size="11" fill="#777780" font-weight="600" letter-spacing="0.6">AUDIO</text>
 <text class="s" x="704" y="477.68" font-size="13" fill="#777780">Gain</text>
-<rect x="752" y="471" width="104" height="4" rx="2" fill="#2b2b31"/>
-<rect x="829.5" y="468" width="1" height="10" fill="#55555e"/>
-<rect x="752" y="471" width="78" height="4" rx="2" fill="#f0b75e"/>
-<circle cx="830" cy="473" r="7" fill="#f2f2f4" stroke="#0d0d0f" stroke-width="2"/>
 <rect x="868.5" y="458.5" width="83" height="29" rx="6" fill="#17171a" stroke="#2b2b31" stroke-width="1"/>
 <text class="m" x="878" y="477.68" font-size="13" fill="#f2f2f4">0.00</text>
 <text class="s" x="942" y="477.32" font-size="12" fill="#777780" text-anchor="end">dB</text>
-<text class="s" x="704" y="516.68" font-size="13" fill="#777780">Mute clip</text>
-<rect x="918" y="502" width="34" height="20" rx="10" fill="#2b2b31"/>
-<circle cx="928" cy="512" r="7" fill="#777780"/>
+<g transform="translate(704 504) scale(0.6667)" fill="none" stroke="#c9c9cf" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><path d="M12 19v3"/></g>
+<rect x="918" y="502" width="34" height="20" rx="10" fill="#f0b75e"/>
+<circle cx="942" cy="512" r="7" fill="#0d0d0f"/>
 </g>
 </g>
 <rect x="688.5" y="198.5" width="279" height="554" rx="10" fill="none" stroke="#2b2b31" stroke-width="1"/>
@@ -268,16 +266,12 @@
 <rect x="704" y="422" width="248" height="1" fill="#1f1f24" />
 <text class="s" x="704" y="445.96" font-size="11" fill="#777780" font-weight="600" letter-spacing="0.6">AUDIO</text>
 <text class="s" x="704" y="477.68" font-size="13" fill="#777780">Gain</text>
-<rect x="752" y="471" width="104" height="4" rx="2" fill="#2b2b31" />
-<rect x="829.5" y="468" width="1" height="10" fill="#55555e" />
-<rect x="752" y="471" width="78" height="4" rx="2" fill="#55555e" />
-<circle cx="830" cy="473" r="5" fill="#55555e" />
 <rect x="868" y="458" width="84" height="30" rx="6" fill="#19191d" />
 <text class="m" x="878" y="477.68" font-size="13" fill="#f2f2f4">0.00</text>
 <text class="s" x="942" y="477.32" font-size="12" fill="#777780" text-anchor="end">dB</text>
-<text class="s" x="704" y="516.68" font-size="13" fill="#777780">Mute clip</text>
-<rect x="918" y="502" width="34" height="20" rx="10" fill="#2b2b31" opacity="0.5" />
-<circle cx="928" cy="512" r="7" fill="#777780" opacity="0.5" />
+<g transform="translate(704 504) scale(0.6667)" fill="none" stroke="#c9c9cf" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round" opacity="0.5"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><path d="M12 19v3"/></g>
+<rect x="918" y="502" width="34" height="20" rx="10" fill="#f0b75e" opacity="0.5" />
+<circle cx="942" cy="512" r="7" fill="#0d0d0f" opacity="0.5" />
 </g>
 </g>
 <rect x="688.5" y="198.5" width="279" height="554" rx="10" fill="none" stroke="#62626e" stroke-width="1" />
