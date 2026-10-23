@@ -8,10 +8,10 @@
 <text class="s" x="48" y="214" font-size="12" fill="#b4b4bc" font-weight="600" text-anchor="start">Properties tab</text>
 <rect x="47.5" y="229.5" width="281" height="556" rx="10" fill="#000" opacity="0.35" transform="translate(0 6)"/>
 <rect x="48" y="230" width="280" height="555" rx="10" fill="#0d0d0f"/>
-<rect x="64.5" y="246.5" width="31" height="31" rx="8" fill="#f0b75e" stroke="#f0b75e"/>
-<text class="s" x="80" y="265.96" font-size="11" fill="#17120a" font-weight="700" text-anchor="middle">TL</text>
-<text class="s" x="108" y="259" font-size="14" fill="#f2f2f4" font-weight="600" text-anchor="start">edit.timeline</text>
-<text class="s" x="108" y="275.3" font-size="12" fill="#777780" font-weight="400" text-anchor="start">timelines/edit.timeline</text>
+<rect x="60.5" y="242.5" width="31" height="31" rx="8" fill="#f0b75e" stroke="#f0b75e"/>
+<text class="s" x="76" y="261.96" font-size="11" fill="#17120a" font-weight="700" text-anchor="middle">TL</text>
+<text class="s" x="104" y="255" font-size="14" fill="#f2f2f4" font-weight="600" text-anchor="start">edit.timeline</text>
+<text class="s" x="104" y="271.3" font-size="12" fill="#777780" font-weight="400" text-anchor="start">timelines/edit.timeline</text>
 <rect x="187" y="286" width="141" height="30" fill="#1a1a1e"/>
 <rect x="187" y="286" width="141" height="1" fill="#2b2b31"/>
 <rect x="187" y="286" width="1" height="30" fill="#2b2b31"/>
@@ -57,10 +57,10 @@
 <text class="s" x="368" y="214" font-size="12" fill="#b4b4bc" font-weight="600" text-anchor="start">History tab</text>
 <rect x="367.5" y="229.5" width="281" height="556" rx="10" fill="#000" opacity="0.35" transform="translate(0 6)"/>
 <rect x="368" y="230" width="280" height="555" rx="10" fill="#0d0d0f"/>
-<rect x="384.5" y="246.5" width="31" height="31" rx="8" fill="#f0b75e" stroke="#f0b75e"/>
-<text class="s" x="400" y="265.96" font-size="11" fill="#17120a" font-weight="700" text-anchor="middle">TL</text>
-<text class="s" x="428" y="259" font-size="14" fill="#f2f2f4" font-weight="600" text-anchor="start">edit.timeline</text>
-<text class="s" x="428" y="275.3" font-size="12" fill="#777780" font-weight="400" text-anchor="start">timelines/edit.timeline</text>
+<rect x="380.5" y="242.5" width="31" height="31" rx="8" fill="#f0b75e" stroke="#f0b75e"/>
+<text class="s" x="396" y="261.96" font-size="11" fill="#17120a" font-weight="700" text-anchor="middle">TL</text>
+<text class="s" x="424" y="255" font-size="14" fill="#f2f2f4" font-weight="600" text-anchor="start">edit.timeline</text>
+<text class="s" x="424" y="271.3" font-size="12" fill="#777780" font-weight="400" text-anchor="start">timelines/edit.timeline</text>
 <rect x="368" y="286" width="141" height="30" fill="#1a1a1e"/>
 <rect x="368" y="286" width="141" height="1" fill="#2b2b31"/>
 <rect x="368" y="286" width="1" height="30" fill="#2b2b31"/>
