@@ -27,6 +27,7 @@ actions!(
         PasteClips,
         SelectAllUnlockedClips,
         SelectClipsRightOfPointer,
+        SelectClipsLeftOfPointer,
         ActivateSelectionTool,
         ActivateBladeTool,
         ToggleFullscreen,
@@ -66,6 +67,16 @@ pub(crate) fn bind_keys(cx: &mut App) {
         KeyBinding::new(
             "】", // 中文输入法下 ] 键产生的符号
             SelectClipsRightOfPointer,
+            Some(EDITOR_SHORTCUT_CONTEXT),
+        ),
+        KeyBinding::new(
+            "[",
+            SelectClipsLeftOfPointer,
+            Some(EDITOR_SHORTCUT_CONTEXT),
+        ),
+        KeyBinding::new(
+            "【", // 中文输入法下 [ 键产生的符号
+            SelectClipsLeftOfPointer,
             Some(EDITOR_SHORTCUT_CONTEXT),
         ),
         KeyBinding::new("v", ActivateSelectionTool, Some(EDITOR_SHORTCUT_CONTEXT)),
@@ -293,6 +304,48 @@ impl Editor {
             .iter()
             .filter(|clip| timeline.interaction.selected_clip_ids.contains(&clip.id()))
             .min_by_key(|clip| clip.timeline_start())
+            .map(|clip| clip.id());
+        self.property_panel_state.transform_input_clip_id = None;
+        self.property_panel_state.text_input_clip_id = None;
+        cx.notify();
+    }
+
+    pub(crate) fn action_select_clips_left_of_pointer(
+        &mut self,
+        _: &SelectClipsLeftOfPointer,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let Some(timeline) = self.timeline.as_mut() else {
+            return;
+        };
+        let pointer = window.mouse_position();
+        let bounds = timeline.h_scroll.bounds();
+        if !bounds.contains(&pointer) {
+            return;
+        }
+        let content_x = f32::from(pointer.x - bounds.left() - timeline.h_scroll.offset().x)
+            - crate::layout::TIMELINE_PADDING;
+        let cursor_seconds = content_x.max(0.0) as f64 / timeline.pixels_per_second as f64;
+        timeline.interaction.selected_clip_ids = timeline
+            .editing_state
+            .clips
+            .iter()
+            .filter(|clip| {
+                timeline.editing_state.seconds(clip.timeline_start()) < cursor_seconds
+                    && timeline
+                        .editing_state
+                        .track(clip.track_id())
+                        .is_some_and(|track| !track.locked)
+            })
+            .map(|clip| clip.id())
+            .collect();
+        timeline.interaction.selected_clip_id = timeline
+            .editing_state
+            .clips
+            .iter()
+            .filter(|clip| timeline.interaction.selected_clip_ids.contains(&clip.id()))
+            .max_by_key(|clip| clip.timeline_start())
             .map(|clip| clip.id());
         self.property_panel_state.transform_input_clip_id = None;
         self.property_panel_state.text_input_clip_id = None;

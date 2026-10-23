@@ -110,6 +110,7 @@ impl Render for Editor {
             .on_action(cx.listener(Self::action_paste_clips))
             .on_action(cx.listener(Self::action_select_all_unlocked_clips))
             .on_action(cx.listener(Self::action_select_clips_right_of_pointer))
+            .on_action(cx.listener(Self::action_select_clips_left_of_pointer))
             .on_action(cx.listener(Self::action_activate_selection_tool))
             .on_action(cx.listener(Self::action_activate_blade_tool))
             .on_action(cx.listener(Self::action_toggle_fullscreen))
