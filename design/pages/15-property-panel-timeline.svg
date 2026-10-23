@@ -1,10 +1,10 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="560" height="830" viewBox="0 0 560 830">
+<svg xmlns="http://www.w3.org/2000/svg" width="600" height="1600" viewBox="0 0 600 1600">
 <style>.s{font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","Helvetica Neue",Arial,sans-serif}.m{font-family:"SF Mono",Menlo,Monaco,Consolas,monospace}</style>
 <defs>
 <clipPath id="c7"><rect x="1008" y="198" width="280" height="555" rx="10"/></clipPath>
 <clipPath id="c8"><rect x="1008" y="198" width="280" height="555" rx="0"/></clipPath>
 </defs>
-<rect x="0" y="0" width="560" height="830" fill="#151518"/>
+<rect x="0" y="0" width="600" height="1600" fill="#151518"/>
 <text class="s" x="48" y="60.64" font-size="24" fill="#f2f2f4" font-weight="700">Property Panel · Timeline</text>
 <text class="s" x="48" y="87.04" font-size="14" fill="#777780">The timeline panel. Other panels are on the property panel page.</text>
 <g transform="translate(0 -2082)">
@@ -57,4 +57,108 @@
 </g>
 </g>
 </g>
+<g id="row-timeline-history">
+<text class="s" x="48" y="814" font-size="18" fill="#f2f2f4" font-weight="600" text-anchor="start">Timeline file · History tab</text>
+<text class="s" x="48" y="838" font-size="12" fill="#777780" font-weight="400" text-anchor="start">Folder tabs under the file header; the selected tab joins the content.</text>
+<text class="s" x="48" y="886" font-size="12" fill="#b4b4bc" font-weight="600" text-anchor="start">History tab</text>
+<rect x="47.5" y="899.5" width="281" height="556" rx="10" fill="#000" opacity="0.35" transform="translate(0 6)"/>
+<rect x="48" y="900" width="280" height="555" rx="10" fill="#0d0d0f"/>
+<rect x="64.5" y="916.5" width="31" height="31" rx="8" fill="#f0b75e" stroke="#f0b75e"/>
+<text class="s" x="80" y="935.96" font-size="11" fill="#17120a" font-weight="700" text-anchor="middle">TL</text>
+<text class="s" x="108" y="929" font-size="14" fill="#f2f2f4" font-weight="600" text-anchor="start">edit.timeline</text>
+<text class="s" x="108" y="945.3" font-size="12" fill="#777780" font-weight="400" text-anchor="start">timelines/edit.timeline</text>
+<rect x="48" y="956" width="141" height="30" fill="#1a1a1e"/>
+<rect x="48" y="956" width="141" height="1" fill="#2b2b31"/>
+<rect x="48" y="956" width="1" height="30" fill="#2b2b31"/>
+<rect x="188" y="956" width="1" height="30" fill="#2b2b31"/>
+<rect x="48" y="985" width="141" height="1" fill="#2b2b31"/>
+<text class="s" x="118.5" y="976" font-size="12" fill="#777780" font-weight="400" text-anchor="middle">Properties</text>
+<rect x="188" y="956" width="140" height="30" fill="#0d0d0f"/>
+<rect x="188" y="956" width="140" height="1" fill="#2b2b31"/>
+<rect x="188" y="956" width="1" height="30" fill="#2b2b31"/>
+<rect x="327" y="956" width="1" height="30" fill="#2b2b31"/>
+<text class="s" x="258.0" y="976" font-size="12" fill="#f2f2f4" font-weight="600" text-anchor="middle">History</text>
+<rect x="67" y="1011" width="2" height="356" fill="#2b2b31"/>
+<circle cx="68" cy="1011" r="4" fill="#0d0d0f" stroke="#45454d"/>
+<g opacity="0.45">
+<rect x="82" y="1003" width="16" height="16" rx="4" fill="#24656b"/>
+<text class="s" x="90" y="1015" font-size="10" fill="#ffffff" font-weight="700" text-anchor="middle">A</text>
+<text class="s" x="104" y="1015" font-size="12" fill="#f2f2f4" font-weight="400" text-anchor="start">Audio 1</text>
+<text class="s" x="154.0" y="1015" font-size="11" fill="#777780" font-weight="400" text-anchor="start">Muted</text>
+</g>
+<text class="m" x="314" y="1015" font-size="10" fill="#55555e" font-weight="400" text-anchor="end">10:08</text>
+<circle cx="68" cy="1045" r="4" fill="#0d0d0f" stroke="#45454d"/>
+<g opacity="0.45">
+<rect x="82" y="1037" width="16" height="16" rx="4" fill="#7251a3"/>
+<text class="s" x="90" y="1049" font-size="10" fill="#ffffff" font-weight="700" text-anchor="middle">T</text>
+<text class="s" x="104" y="1049" font-size="12" fill="#f2f2f4" font-weight="400" text-anchor="start">Text 2</text>
+<text class="s" x="148.0" y="1049" font-size="11" fill="#777780" font-weight="400" text-anchor="start">Track deleted</text>
+</g>
+<text class="m" x="314" y="1049" font-size="10" fill="#55555e" font-weight="400" text-anchor="end">10:08</text>
+<rect x="54" y="1062" width="268" height="112" rx="6" fill="#2a241b" stroke="#f0b75e"/>
+<circle cx="68" cy="1079" r="5" fill="#f0b75e"/>
+<g>
+<rect x="82" y="1071" width="16" height="16" rx="4" fill="#24656b"/>
+<text class="s" x="90" y="1083" font-size="10" fill="#ffffff" font-weight="700" text-anchor="middle">A</text>
+<text class="s" x="104" y="1083" font-size="12" fill="#f2f2f4" font-weight="600" text-anchor="start">interview</text>
+</g>
+<text class="m" x="314" y="1083" font-size="10" fill="#55555e" font-weight="400" text-anchor="end">10:07</text>
+<text class="s" x="82" y="1112" font-size="11" fill="#777780" font-weight="400" text-anchor="start">Gain</text>
+<rect x="114" y="1100" width="105.0" height="17" rx="4" fill="#17171a" stroke="#2b2b31"/>
+<text class="m" x="120" y="1112" font-size="10" fill="#c9c9cf" font-weight="400" text-anchor="start">0.00 → −3.00 dB</text>
+<text class="s" x="82" y="1138" font-size="11" fill="#777780" font-weight="400" text-anchor="start">Track</text>
+<text class="s" x="308" y="1138" font-size="11" fill="#c9c9cf" font-weight="400" text-anchor="end">Audio 1</text>
+<rect x="178" y="1146" width="130" height="26" rx="6" fill="#17171a" stroke="#2b2b31"/>
+<text class="s" x="243" y="1163" font-size="12" fill="#f2f2f4" font-weight="400" text-anchor="middle">Fork from here…</text>
+<circle cx="68" cy="1197" r="4" fill="#45454d"/>
+<g>
+<rect x="82" y="1189" width="16" height="16" rx="4" fill="#7251a3"/>
+<text class="s" x="90" y="1201" font-size="10" fill="#ffffff" font-weight="700" text-anchor="middle">T</text>
+<text class="s" x="104" y="1201" font-size="12" fill="#f2f2f4" font-weight="400" text-anchor="start">Let's get started</text>
+<text class="s" x="214.0" y="1201" font-size="11" fill="#777780" font-weight="400" text-anchor="start">Font size</text>
+</g>
+<text class="m" x="314" y="1201" font-size="10" fill="#55555e" font-weight="400" text-anchor="end">10:06</text>
+<circle cx="68" cy="1231" r="4" fill="#45454d"/>
+<g>
+<rect x="82" y="1223" width="16" height="16" rx="4" fill="#7251a3"/>
+<text class="s" x="90" y="1235" font-size="10" fill="#ffffff" font-weight="700" text-anchor="middle">T</text>
+<text class="s" x="104" y="1235" font-size="12" fill="#f2f2f4" font-weight="400" text-anchor="start">Let's get started</text>
+<text class="s" x="214.0" y="1235" font-size="11" fill="#777780" font-weight="400" text-anchor="start">Text</text>
+</g>
+<text class="m" x="314" y="1235" font-size="10" fill="#55555e" font-weight="400" text-anchor="end">10:06</text>
+<rect x="54" y="1249" width="268" height="32" rx="6" fill="#202024"/>
+<circle cx="68" cy="1265" r="4" fill="#45454d"/>
+<g>
+<rect x="82" y="1257" width="16" height="16" rx="4" fill="#294d75"/>
+<text class="s" x="90" y="1269" font-size="10" fill="#ffffff" font-weight="700" text-anchor="middle">V</text>
+<text class="s" x="104" y="1269" font-size="12" fill="#f2f2f4" font-weight="400" text-anchor="start">broll-cafe</text>
+<text class="s" x="172.0" y="1269" font-size="11" fill="#777780" font-weight="400" text-anchor="start">Split</text>
+</g>
+<text class="m" x="314" y="1269" font-size="10" fill="#55555e" font-weight="400" text-anchor="end">10:05</text>
+<circle cx="68" cy="1299" r="4" fill="#45454d"/>
+<g>
+<rect x="82" y="1291" width="16" height="16" rx="4" fill="#294d75"/>
+<text class="s" x="90" y="1303" font-size="10" fill="#ffffff" font-weight="700" text-anchor="middle">V</text>
+<text class="s" x="104" y="1303" font-size="12" fill="#f2f2f4" font-weight="400" text-anchor="start">broll-cafe</text>
+<text class="s" x="172.0" y="1303" font-size="11" fill="#777780" font-weight="400" text-anchor="start">Trimmed out</text>
+</g>
+<text class="m" x="314" y="1303" font-size="10" fill="#55555e" font-weight="400" text-anchor="end">10:03</text>
+<circle cx="68" cy="1333" r="4" fill="#45454d"/>
+<g>
+<rect x="82" y="1325" width="16" height="16" rx="4" fill="#294d75"/>
+<text class="s" x="90" y="1337" font-size="10" fill="#ffffff" font-weight="700" text-anchor="middle">V</text>
+<text class="s" x="104" y="1337" font-size="12" fill="#f2f2f4" font-weight="400" text-anchor="start">broll-cafe</text>
+<text class="s" x="172.0" y="1337" font-size="11" fill="#777780" font-weight="400" text-anchor="start">Moved</text>
+</g>
+<text class="m" x="314" y="1337" font-size="10" fill="#55555e" font-weight="400" text-anchor="end">10:03</text>
+<circle cx="68" cy="1367" r="4" fill="#45454d"/>
+<g>
+<rect x="82" y="1359" width="16" height="16" rx="4" fill="#294d75"/>
+<text class="s" x="90" y="1371" font-size="10" fill="#ffffff" font-weight="700" text-anchor="middle">V</text>
+<text class="s" x="104" y="1371" font-size="12" fill="#f2f2f4" font-weight="400" text-anchor="start">broll-cafe</text>
+<text class="s" x="172.0" y="1371" font-size="11" fill="#777780" font-weight="400" text-anchor="start">Added</text>
+</g>
+<text class="m" x="314" y="1371" font-size="10" fill="#55555e" font-weight="400" text-anchor="end">10:02</text>
+<rect x="48.5" y="900.5" width="279" height="554" rx="10" fill="none" stroke="#2b2b31"/>
+</g><!-- /row-timeline-history -->
 </svg>
