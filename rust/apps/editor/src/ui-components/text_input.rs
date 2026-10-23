@@ -87,7 +87,6 @@ enum InputAppearance {
 #[derive(Clone, Copy, Eq, PartialEq)]
 enum InputConstraint {
     Any,
-    UnsignedInteger,
     Hex,
     Number,
 }
@@ -175,42 +174,6 @@ impl TextInput {
         );
         field.masked = true;
         field
-    }
-
-    fn new_integer_field(
-        element_id: &'static str,
-        content: String,
-        placeholder: &'static str,
-        return_focus: FocusHandle,
-        cx: &mut Context<Self>,
-    ) -> Self {
-        Self::new_with_appearance(
-            element_id,
-            &content,
-            placeholder,
-            InputAppearance::Field,
-            InputConstraint::UnsignedInteger,
-            return_focus,
-            cx,
-        )
-    }
-
-    fn new_inline_field(
-        element_id: &'static str,
-        content: String,
-        placeholder: &'static str,
-        return_focus: FocusHandle,
-        cx: &mut Context<Self>,
-    ) -> Self {
-        Self::new_with_appearance(
-            element_id,
-            &content,
-            placeholder,
-            InputAppearance::InlineField,
-            InputConstraint::Any,
-            return_focus,
-            cx,
-        )
     }
 
     pub(crate) fn new_inline_number_field(
@@ -303,12 +266,6 @@ impl TextInput {
         cx.notify();
     }
 
-    fn set_text(&mut self, text: String, cx: &mut Context<Self>) {
-        self.set_text_silently(text);
-        cx.emit(TextInputEvent::Change);
-        cx.notify();
-    }
-
     pub(crate) fn set_text_silently(&mut self, text: String) {
         let cursor = text.len();
         self.content = text.into();
@@ -377,7 +334,6 @@ impl TextInput {
                 .filter(char::is_ascii_hexdigit)
                 .collect::<String>()
                 .to_ascii_uppercase(),
-            InputConstraint::UnsignedInteger => text.chars().filter(char::is_ascii_digit).collect(),
             InputConstraint::Number => text
                 .chars()
                 .filter(|character| character.is_ascii_digit() || matches!(character, '.' | '-'))
