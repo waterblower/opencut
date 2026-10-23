@@ -280,7 +280,7 @@ impl Editor {
                                                         timeline.interaction.active_tool
                                                             == TimelineTool::Blade,
                                                         |this| this.cursor(CursorStyle::Crosshair),
-                                                    )
+                                                    ),
                                             )
                                         },
                                     )

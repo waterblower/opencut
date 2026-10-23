@@ -69,11 +69,7 @@ pub(crate) fn bind_keys(cx: &mut App) {
             SelectClipsRightOfPointer,
             Some(EDITOR_SHORTCUT_CONTEXT),
         ),
-        KeyBinding::new(
-            "[",
-            SelectClipsLeftOfPointer,
-            Some(EDITOR_SHORTCUT_CONTEXT),
-        ),
+        KeyBinding::new("[", SelectClipsLeftOfPointer, Some(EDITOR_SHORTCUT_CONTEXT)),
         KeyBinding::new(
             "【", // 中文输入法下 [ 键产生的符号
             SelectClipsLeftOfPointer,

@@ -39,6 +39,10 @@ pub(crate) enum EditAction {
         clip_ids: Vec<Ulid>,
         properties: VideoClipProperties,
     },
+    SetClipMuted {
+        clip_id: Ulid,
+        muted: bool,
+    },
     SetTextContent {
         clip_id: Ulid,
         text: String,
@@ -575,6 +579,20 @@ impl TimelineEditExt for TimelineEditingState {
                         media.video_properties = properties;
                     }
                 }
+            }
+            EditAction::SetClipMuted { clip_id, muted } => {
+                if data.clip_locked(clip_id) {
+                    return Err(anyhow!("Clip {clip_id} is on a locked track"));
+                }
+                let Some(clip) = data.clip_mut(clip_id) else {
+                    return Err(anyhow!("Clip {clip_id} was not found"));
+                };
+                let audio_properties = match clip {
+                    Clip::Video(clip) => &mut clip.audio_properties,
+                    Clip::Audio(clip) => &mut clip.audio_properties,
+                    Clip::Text(_) => return Err(anyhow!("Clip {clip_id} is a text clip")),
+                };
+                audio_properties.muted = muted;
             }
             EditAction::SetTextContent { clip_id, text } => {
                 ensure!(

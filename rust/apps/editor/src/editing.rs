@@ -301,12 +301,8 @@ impl Editor {
             return Ok(());
         };
         let position = match timeline.interaction.pointer_guide {
-            Some(pointer_position) => {
-                pointer_position
-            }
-            None => {
-                timeline.playhead()
-            }
+            Some(pointer_position) => pointer_position,
+            None => timeline.playhead(),
         };
         let (clips, assets) =
             match clipboard.prepare_paste(&timeline.path, &timeline.editing_state, position) {

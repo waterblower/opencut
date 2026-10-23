@@ -1,5 +1,7 @@
 use crate::asset::IconName;
+use crate::edit_action::EditAction;
 use crate::editor::Editor;
+use crate::event_bus::{AppEvent, EventBus};
 use crate::explorer_file_entry::{is_audio_path, is_image_path, is_srt_path, is_video_path};
 use crate::property_panel_audio_clip::{AudioClipPanel, audio_clip_panel, audio_clip_view};
 use crate::property_panel_audio_file::{AudioFilePanel, audio_file_view};
@@ -18,8 +20,9 @@ use crate::timeline_document;
 use crate::track::TrackKind;
 use gpui::prelude::FluentBuilder;
 use gpui::{
-    Bounds, ContentMask, FontWeight, InteractiveElement, IntoElement, ParentElement, PathBuilder,
-    StatefulInteractiveElement, Styled, canvas, div, point, px, relative, rgb, size, svg,
+    Bounds, ContentMask, Entity, FontWeight, InteractiveElement, IntoElement, ParentElement,
+    PathBuilder, StatefulInteractiveElement, Styled, canvas, div, point, px, relative, rgb, size,
+    svg,
 };
 use std::path::Path;
 use ulid::Ulid;
@@ -50,12 +53,17 @@ pub(crate) fn current_property_panel(editor: &Editor) -> PropertyPanel {
             return PropertyPanel::None;
         };
         return match clip {
-            Clip::Video(clip) => {
-                PropertyPanel::VideoClip(video_clip_panel(&timeline.editing_state, clip))
-            }
-            Clip::Audio(clip) => {
-                PropertyPanel::AudioClip(audio_clip_panel(timeline, clip, &editor.waveform_cache))
-            }
+            Clip::Video(clip) => PropertyPanel::VideoClip(video_clip_panel(
+                &timeline.editing_state,
+                clip,
+                editor.event_bus.clone(),
+            )),
+            Clip::Audio(clip) => PropertyPanel::AudioClip(audio_clip_panel(
+                timeline,
+                clip,
+                &editor.waveform_cache,
+                editor.event_bus.clone(),
+            )),
             Clip::Text(clip) => PropertyPanel::TextClip(text_clip_panel(
                 &timeline.editing_state,
                 clip,
@@ -426,8 +434,10 @@ pub(super) fn slider_view(fraction: f32, reference_fraction: f32, locked: bool) 
 }
 
 pub(super) fn audio_properties_view(
+    clip_id: Ulid,
     audio_properties: &AudioClipProperties,
     locked: bool,
+    event_bus: Entity<EventBus>,
 ) -> gpui::Div {
     let unmuted = !audio_properties.muted;
     div()
@@ -468,11 +478,22 @@ pub(super) fn audio_properties_view(
                 )
                 .child(
                     div()
+                        .id("clip-mute-toggle")
                         .relative()
                         .w(px(34.0))
                         .h(px(20.0))
                         .rounded_full()
                         .bg(rgb(if unmuted { ACCENT } else { BORDER }))
+                        .when(!locked, |toggle| {
+                            toggle.cursor_pointer().on_click(move |_, _, cx| {
+                                event_bus.update(cx, |_, cx| {
+                                    cx.emit(AppEvent::Edit(EditAction::SetClipMuted {
+                                        clip_id,
+                                        muted: unmuted,
+                                    }))
+                                })
+                            })
+                        })
                         .child(
                             div()
                                 .absolute()

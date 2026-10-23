@@ -1,3 +1,4 @@
+use crate::event_bus::EventBus;
 use crate::property_panel::{
     audio_properties_view, clip_property_panel_frame_view, clip_property_panel_header_view,
     property_panel_divider_view, property_panel_heading_view, readonly_property_panel_view,
@@ -9,7 +10,7 @@ use crate::timeline_clip::AudioClip;
 use crate::timeline_document::resolve_asset_path;
 use crate::track::TrackKind;
 use crate::waveform::WaveformData;
-use gpui::{Bounds, ParentElement, Styled, canvas, div, fill, point, px, rgb, rgba, size};
+use gpui::{Bounds, Entity, ParentElement, Styled, canvas, div, fill, point, px, rgb, rgba, size};
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -19,6 +20,7 @@ pub(crate) struct AudioClipPanel {
     asset_name: String,
     track_name: String,
     frame_rate: FrameRate,
+    event_bus: Entity<EventBus>,
     locked: bool,                        // 所在轨道的锁定状态，构造面板时读取。
     waveform: Option<Arc<WaveformData>>, // 构造面板时缓存里还没有波形则为 None
 }
@@ -27,6 +29,7 @@ pub(super) fn audio_clip_panel(
     timeline: &TimelineRuntimeState,
     clip: &AudioClip,
     waveform_cache: &HashMap<PathBuf, Arc<WaveformData>>,
+    event_bus: Entity<EventBus>,
 ) -> AudioClipPanel {
     let asset = timeline.editing_state.asset(clip.asset_id);
     let asset_name = match asset {
@@ -57,6 +60,7 @@ pub(super) fn audio_clip_panel(
         asset_name,
         track_name,
         frame_rate: timeline.editing_state.settings.frame_rate,
+        event_bus,
         locked: timeline.editing_state.clip_locked(clip.id()),
         waveform,
     }
@@ -113,7 +117,15 @@ pub(super) fn audio_clip_view(panel: &AudioClipPanel) -> gpui::AnyElement {
             frame_rate.seconds(clip.source_out),
             panel.locked,
         )))
-        .child(audio_properties_view(&clip.audio_properties, panel.locked).mt(px(16.0)));
+        .child(
+            audio_properties_view(
+                clip.id(),
+                &clip.audio_properties,
+                panel.locked,
+                panel.event_bus.clone(),
+            )
+            .mt(px(16.0)),
+        );
     clip_property_panel_frame_view(
         readonly_property_panel_view("audio-clip-property-panel", header, content),
         panel.locked,
