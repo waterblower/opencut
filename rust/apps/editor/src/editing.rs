@@ -300,9 +300,16 @@ impl Editor {
         let Some(timeline) = self.timeline.as_ref() else {
             return Ok(());
         };
-        let playhead = timeline.playhead();
+        let position = match timeline.interaction.pointer_guide {
+            Some(pointer_position) => {
+                pointer_position
+            }
+            None => {
+                timeline.playhead()
+            }
+        };
         let (clips, assets) =
-            match clipboard.prepare_paste(&timeline.path, &timeline.editing_state, playhead) {
+            match clipboard.prepare_paste(&timeline.path, &timeline.editing_state, position) {
                 Ok(paste) => paste,
                 Err(rejection) => {
                     eprintln!("Cannot paste clips: {rejection}.");
