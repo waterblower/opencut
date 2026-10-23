@@ -382,7 +382,7 @@ impl TimelineRuntimeState {
                 active_tool: TimelineTool::Selection,
                 selected_clip_id,
                 selected_clip_ids,
-                blade_guide: None,
+                pointer_guide: None,
                 snap_guide: None,
                 clip_move_drag: None,
                 marquee_selection: None,

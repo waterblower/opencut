@@ -499,8 +499,12 @@ async fn handle_app_event(
                 let Some(Clip::Video(clip)) = timeline.editing_state.clip(clip_id) else {
                     bail!("Video clip {clip_id} no longer exists");
                 };
-                editor.property_panel =
-                    PropertyPanel::VideoClip(video_clip_panel(&timeline.editing_state, clip));
+                editor.property_panel = PropertyPanel::VideoClip(video_clip_panel(
+                    &timeline.editing_state,
+                    clip,
+                    editor.event_bus.clone(),
+                    editor.focus_handle.clone(),
+                ));
                 cx.notify();
                 Ok(())
             })?;
