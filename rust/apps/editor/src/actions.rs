@@ -173,9 +173,9 @@ impl Editor {
         };
         let position = match timeline.interaction.active_tool {
             TimelineTool::Selection => timeline.playhead(),
-            TimelineTool::Blade => match timeline.interaction.blade_guide {
+            TimelineTool::Blade => match timeline.interaction.pointer_guide {
                 Some(position) => position,
-                None => return, // 指针尚未移到时间线上，Blade 参考线还没出现。
+                None => return, // 指针尚未移到时间线上，pointer_guide 还没出现。
             },
         };
         if let Err(error) = timeline.blade_at(position) {

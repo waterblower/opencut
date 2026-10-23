@@ -198,8 +198,8 @@ impl Editor {
                                 TimelineTool::Blade => CursorStyle::Crosshair,
                                 TimelineTool::Selection => CursorStyle::Arrow,
                             })
-                            .on_mouse_move(cx.listener(Self::update_blade_guide))
-                            .on_hover(cx.listener(Self::update_blade_guide_hover))
+                            .on_mouse_move(cx.listener(Self::update_pointer_guide))
+                            .on_hover(cx.listener(Self::update_pointer_guide_hover))
                             .child(
                                 div()
                                     .relative()
@@ -263,7 +263,7 @@ impl Editor {
                                         )
                                     })
                                     .when_some(
-                                        timeline.interaction.blade_guide,
+                                        timeline.interaction.pointer_guide,
                                         |this, position| {
                                             let guide_left = TIMELINE_PADDING
                                                 + timeline.editing_state.seconds(position) as f32
@@ -276,7 +276,11 @@ impl Editor {
                                                     .left(px(guide_left))
                                                     .w(px(2.0))
                                                     .bg(rgb(ERROR))
-                                                    .cursor(CursorStyle::Crosshair)
+                                                    .when(
+                                                        timeline.interaction.active_tool
+                                                            == TimelineTool::Blade,
+                                                        |this| this.cursor(CursorStyle::Crosshair),
+                                                    )
                                                     .child(
                                                         div()
                                                             .absolute()

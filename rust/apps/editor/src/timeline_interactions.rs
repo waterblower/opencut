@@ -55,7 +55,7 @@ pub(super) struct TimelineInteractionState {
     pub(super) active_tool: TimelineTool,
     pub(super) selected_clip_id: Option<Ulid>,
     pub(super) selected_clip_ids: HashSet<Ulid>,
-    pub(super) blade_guide: Option<TimelineFrameIndex>,
+    pub(super) pointer_guide: Option<TimelineFrameIndex>,
     pub(super) snap_guide: Option<TimelineFrameIndex>,
     pub(super) clip_move_drag: Option<ClipMoveDrag>,
     pub(super) marquee_selection: Option<MarqueeSelection>,
@@ -81,7 +81,6 @@ impl TimelineRuntimeState {
 
     pub(super) fn activate_timeline_tool(&mut self, tool: TimelineTool) {
         self.interaction.active_tool = tool;
-        self.interaction.blade_guide = None;
         self.interaction.clip_move_drag = None;
         self.interaction.marquee_selection = None;
         self.interaction.snap_guide = None;
@@ -209,10 +208,7 @@ impl TimelineRuntimeState {
         let content_x = x - TRACK_HEADER_WIDTH - scroll_x - TIMELINE_PADDING;
         self.editing_state
             .nearest_time(content_x as f64 / self.pixels_per_second as f64)
-            .clamp(
-                TimelineFrameIndex::ZERO,
-                self.editing_state.content_duration(),
-            )
+            .max(TimelineFrameIndex::ZERO)
     }
 }
 
@@ -251,7 +247,7 @@ fn zoom_scroll_offset(
 }
 
 impl Editor {
-    pub(super) fn update_blade_guide(
+    pub(super) fn update_pointer_guide(
         &mut self,
         event: &MouseMoveEvent,
         _: &mut Window,
@@ -260,23 +256,15 @@ impl Editor {
         let Some(timeline) = self.timeline.as_ref() else {
             return;
         };
-        if timeline.interaction.active_tool != TimelineTool::Blade {
-            return;
-        }
-        let position = timeline
-            .timeline_position_from_x(event.position.x.into())
-            .clamp(
-                TimelineFrameIndex::ZERO,
-                timeline.editing_state.content_duration(),
-            );
+        let position = timeline.timeline_position_from_x(event.position.x.into());
         let timeline = self.timeline.as_mut().expect("timeline was checked above");
-        if timeline.interaction.blade_guide != Some(position) {
-            timeline.interaction.blade_guide = Some(position);
+        if timeline.interaction.pointer_guide != Some(position) {
+            timeline.interaction.pointer_guide = Some(position);
             cx.notify();
         }
     }
 
-    pub(super) fn update_blade_guide_hover(
+    pub(super) fn update_pointer_guide_hover(
         &mut self,
         hovered: &bool,
         _: &mut Window,
@@ -286,7 +274,7 @@ impl Editor {
             && self
                 .timeline
                 .as_mut()
-                .is_some_and(|timeline| timeline.interaction.blade_guide.take().is_some())
+                .is_some_and(|timeline| timeline.interaction.pointer_guide.take().is_some())
         {
             cx.notify();
         }
@@ -321,8 +309,8 @@ impl Editor {
                 let Some(timeline) = self.timeline.as_mut() else {
                     return Ok(());
                 };
-                let Some(position) = timeline.interaction.blade_guide else {
-                    // do nothing: the blade guide appears once the pointer moves over the timeline.
+                let Some(position) = timeline.interaction.pointer_guide else {
+                    // do nothing: the pointer guide appears once the pointer moves over the timeline.
                     return Ok(());
                 };
                 timeline.blade_at(position)?;
@@ -722,7 +710,9 @@ impl Editor {
             return;
         };
         self.focus_handle.focus(window, cx);
-        let frame_index = timeline.timeline_position_from_x(event.position().x.into());
+        let frame_index = timeline
+            .timeline_position_from_x(event.position().x.into())
+            .min(timeline.editing_state.content_duration());
         timeline.set_playhead(frame_index);
         if let Err(error) = timeline.save() {
             log::error!("{error:?}");
