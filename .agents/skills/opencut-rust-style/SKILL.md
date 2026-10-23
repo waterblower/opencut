@@ -86,6 +86,29 @@ Also apply the repository [general rules](../opencut-general-rules/SKILL.md).
 
   over `self.start_position_of_video +
   self.start_time_of_system.map_or(Duration::ZERO, |start| start.elapsed())`.
+- When a value depends on a condition, bind it with one `match` expression whose
+  arms produce the value. Do not initialize a default with `let mut` and then
+  overwrite it inside one arm of a later `match` or `if`; that makes the reader
+  track a mutable variable and an empty fallback branch. Prefer:
+
+  ```rust
+  let position = match timeline.interaction.pointer_guide {
+      Some(pointer_position) => pointer_position,
+      None => timeline.playhead(),
+  };
+  ```
+
+  over:
+
+  ```rust
+  let mut position = timeline.playhead();
+  match timeline.interaction.pointer_guide {
+      Some(pointer_position) => position = pointer_position,
+      None => {
+          // do nothing
+      }
+  }
+  ```
 - Prefer an immediately invoked closure with explicit early returns over
   `Option::map` or `Result::map_err` when transforming a value requires multiple
   steps. For example, prefer:
