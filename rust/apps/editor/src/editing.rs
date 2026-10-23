@@ -3,6 +3,7 @@ use crate::clip_placement::{
 };
 use crate::edit_action::{EditAction, edit_timeline};
 use crate::editor::Editor;
+use crate::event_bus::AppEvent;
 use crate::model::MediaAsset;
 use crate::timeline::{
     FrameRate, TimelineEditorExt, TimelineFrameIndex, TimelineRuntimeState, timeline_ranges_overlap,
@@ -324,11 +325,7 @@ impl Editor {
             .or_else(|| clips.first())
             .map(Clip::id);
 
-        edit_timeline(timeline, EditAction::AddClips { clips, assets })?;
-
-        timeline.save()?;
-
-        self.schedule_active_timeline_waveforms(cx);
+        self.emit_event(cx, AppEvent::Edit(EditAction::AddClips { clips, assets }));
         Ok(())
     }
 
