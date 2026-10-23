@@ -1,5 +1,5 @@
 use crate::property_panel::{
-    clip_property_panel_frame_view, clip_property_panel_header_view, property_panel_heading_view,
+    audio_properties_view, clip_property_panel_frame_view, clip_property_panel_header_view, property_panel_heading_view,
     slider_view, timing_card_view, value_field_view,
 };
 use crate::theme::{ACCENT, MUTED, PANEL, TEXT};
@@ -172,7 +172,10 @@ pub(super) fn video_clip_view(panel: &VideoClipPanel) -> gpui::AnyElement {
                             "%",
                             panel.locked,
                         ))),
-                ),
+                )
+                .child(div().h(px(1.0)).my(px(16.0)).bg(rgb(0x1f1f24)))
+                .child(property_panel_heading_view("AUDIO"))
+                .child(audio_properties_view(&clip.audio_properties, panel.locked).mt(px(12.0))),
         )
         .into_any_element();
     clip_property_panel_frame_view(content, panel.locked)

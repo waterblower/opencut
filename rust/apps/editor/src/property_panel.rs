@@ -13,7 +13,7 @@ use crate::property_panel_video_clip::{VideoClipPanel, video_clip_panel, video_c
 use crate::property_panel_video_file::{VideoFilePanel, video_file_view};
 use crate::theme::{ACCENT, BORDER, MUTED, PANEL, SURFACE, TEXT};
 use crate::timeline::{FrameRate, TimelineFrameIndex};
-use crate::timeline_clip::Clip;
+use crate::timeline_clip::{AudioClipProperties, Clip};
 use crate::timeline_document;
 use crate::track::TrackKind;
 use gpui::prelude::FluentBuilder;
@@ -422,6 +422,67 @@ pub(super) fn slider_view(fraction: f32, reference_fraction: f32, locked: bool) 
                 .rounded_full()
                 .bg(rgb(if locked { 0x55555e } else { TEXT }))
                 .when(!locked, |knob| knob.border_2().border_color(rgb(PANEL))),
+        )
+}
+
+pub(super) fn audio_properties_view(
+    audio_properties: &AudioClipProperties,
+    locked: bool,
+) -> gpui::Div {
+    let unmuted = !audio_properties.muted;
+    div()
+        .child(
+            div()
+                .flex()
+                .items_center()
+                .justify_between()
+                .child(
+                    div()
+                        .text_size(px(13.0))
+                        .text_color(rgb(MUTED))
+                        .child("Gain"),
+                )
+                .child(div().w(px(84.0)).flex_shrink_0().child(value_field_view(
+                    "",
+                    format!("{:.2}", audio_properties.gain_db),
+                    "dB",
+                    locked,
+                ))),
+        )
+        .child(
+            div()
+                .mt(px(14.0))
+                .flex()
+                .items_center()
+                .justify_between()
+                .opacity(if locked { 0.5 } else { 1.0 })
+                .child(
+                    svg()
+                        .path(if unmuted {
+                            IconName::Mic.path()
+                        } else {
+                            IconName::MicOff.path()
+                        })
+                        .size(px(16.0))
+                        .text_color(rgb(0xc9c9cf)),
+                )
+                .child(
+                    div()
+                        .relative()
+                        .w(px(34.0))
+                        .h(px(20.0))
+                        .rounded_full()
+                        .bg(rgb(if unmuted { ACCENT } else { BORDER }))
+                        .child(
+                            div()
+                                .absolute()
+                                .top(px(3.0))
+                                .left(px(if unmuted { 17.0 } else { 3.0 }))
+                                .size(px(14.0))
+                                .rounded_full()
+                                .bg(rgb(if unmuted { PANEL } else { MUTED })),
+                        ),
+                ),
         )
 }
 
