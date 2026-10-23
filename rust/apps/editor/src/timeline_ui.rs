@@ -281,14 +281,6 @@ impl Editor {
                                                             == TimelineTool::Blade,
                                                         |this| this.cursor(CursorStyle::Crosshair),
                                                     )
-                                                    .child(
-                                                        div()
-                                                            .absolute()
-                                                            .top_0()
-                                                            .left(px(-4.0))
-                                                            .size_2()
-                                                            .bg(rgb(ERROR)),
-                                                    ),
                                             )
                                         },
                                     )
@@ -349,11 +341,14 @@ impl Editor {
                     )
                     .child(
                         div()
+                            .id("timeline-ruler-pointer-area")
                             .relative()
                             .flex_1()
                             .min_w_0()
                             .h_full()
                             .overflow_hidden()
+                            .on_mouse_move(cx.listener(Self::update_pointer_guide))
+                            .on_hover(cx.listener(Self::update_pointer_guide_hover))
                             .child(
                                 div()
                                     .absolute()
