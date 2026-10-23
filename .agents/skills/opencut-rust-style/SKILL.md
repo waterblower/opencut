@@ -70,6 +70,19 @@ Also apply the repository [general rules](../opencut-general-rules/SKILL.md).
 - Do not shadow variables in the same scope in our code. Give transformed values
   distinct, descriptive names, such as `rotated_pixels` instead of redeclaring
   `pixels`. This applies even when the new value has the same type.
+- Do not use `ensure!`. Write an explicit `if` with an early `return Err(...)` (or
+  `bail!`) so the failing condition and its error are visible as ordinary control
+  flow. Prefer:
+
+  ```rust
+  if data.clip_locked(clip_id) {
+      return Err(anyhow!("Clip {clip_id} is on a locked track"));
+  }
+  ```
+
+  over `ensure!(!data.clip_locked(clip_id), "Clip {clip_id} is on a locked track");`.
+  This applies to new and touched code; do not rewrite existing `ensure!` calls
+  solely to conform.
 - Prefer `let ... else` with an early return when required optional state is
   absent, instead of nesting the remaining control flow inside `if let`.
 - Prefer explicit `match` for `Option`/`Result` branching over `map`, `map_or`,
