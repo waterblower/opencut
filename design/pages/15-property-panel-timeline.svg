@@ -1,0 +1,60 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="560" height="830" viewBox="0 0 560 830">
+<style>.s{font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","Helvetica Neue",Arial,sans-serif}.m{font-family:"SF Mono",Menlo,Monaco,Consolas,monospace}</style>
+<defs>
+<clipPath id="c7"><rect x="1008" y="198" width="280" height="555" rx="10"/></clipPath>
+<clipPath id="c8"><rect x="1008" y="198" width="280" height="555" rx="0"/></clipPath>
+</defs>
+<rect x="0" y="0" width="560" height="830" fill="#151518"/>
+<text class="s" x="48" y="60.64" font-size="24" fill="#f2f2f4" font-weight="700">Property Panel · Timeline</text>
+<text class="s" x="48" y="87.04" font-size="14" fill="#777780">The timeline panel. Other panels are on the property panel page.</text>
+<g transform="translate(0 -2082)">
+<g id="row-timeline-file">
+<text class="s" x="48" y="2232" font-size="18" fill="#f2f2f4" font-weight="600">Timeline file</text>
+<text class="s" x="48" y="2256" font-size="12" fill="#777780" font-weight="400">Active timeline, nothing selected</text>
+<text class="s" x="48" y="2280" font-size="12" fill="#b4b4bc" font-weight="600">Default</text>
+<g transform="translate(-960 2102)">
+<rect x="1007.5" y="197.5" width="281" height="556" rx="10" fill="#000" opacity="0.35" transform="translate(0 6)"/>
+<g clip-path="url(#c7)">
+<rect x="1008" y="198" width="280" height="555" fill="#0d0d0f"/>
+<g clip-path="url(#c8)">
+<rect x="1024.5" y="214.5" width="31" height="31" rx="8" fill="#f0b75e" stroke="#f0b75e" stroke-width="1"/>
+<text class="s" x="1040" y="233.96" font-size="11" fill="#17120a" font-weight="700" text-anchor="middle">TL</text>
+<text class="s" x="1068" y="227.04" font-size="14" fill="#f2f2f4" font-weight="600">edit.timeline</text>
+<text class="s" x="1068" y="243.32" font-size="12" fill="#777780">timelines/edit.timeline</text>
+<rect x="1008" y="261" width="280" height="1" fill="#2b2b31"/>
+<text class="s" x="1024" y="285.96" font-size="11" fill="#777780" font-weight="600" letter-spacing="0.6">DURATION</text>
+<text class="m" x="1024" y="318.64" font-size="24" fill="#f2f2f4" font-weight="600">0:18</text>
+<g transform="translate(0 -24)">
+<rect x="1024" y="358" width="248" height="1" fill="#1f1f24"/>
+<text class="s" x="1024" y="381.96" font-size="11" fill="#777780" font-weight="600" letter-spacing="0.6">FORMAT</text>
+<text class="s" x="1272" y="382.32" font-size="12" fill="#f0b75e" text-anchor="end">Change…</text>
+<text class="s" x="1024" y="412.68" font-size="13" fill="#777780">Frame rate</text>
+<text class="m" x="1272" y="412.68" font-size="13" fill="#f2f2f4" text-anchor="end">30 fps</text>
+<text class="s" x="1024" y="440.68" font-size="13" fill="#777780">Resolution</text>
+<text class="m" x="1272" y="440.68" font-size="13" fill="#f2f2f4" text-anchor="end">1920 × 1080</text>
+<text class="s" x="1024" y="468.68" font-size="13" fill="#777780">Audio rate</text>
+<text class="m" x="1272" y="468.68" font-size="13" fill="#f2f2f4" text-anchor="end">48 kHz</text>
+<rect x="1024" y="486" width="248" height="1" fill="#1f1f24"/>
+<text class="s" x="1024" y="509.96" font-size="11" fill="#777780" font-weight="600" letter-spacing="0.6">CONTENTS</text>
+<text class="s" x="1024" y="540.68" font-size="13" fill="#777780">Clips</text>
+<text class="m" x="1272" y="540.68" font-size="13" fill="#f2f2f4" text-anchor="end">9</text>
+<text class="s" x="1024" y="568.68" font-size="13" fill="#777780">Tracks</text>
+<rect x="1238.5" y="554.5" width="33" height="19" rx="4" fill="#24656b" stroke="#34757b" stroke-width="1"/>
+<text class="s" x="1255" y="567.96" font-size="11" fill="#ffffff" font-weight="600" text-anchor="middle">A 1</text>
+<rect x="1198.5" y="554.5" width="33" height="19" rx="4" fill="#294d75" stroke="#395d85" stroke-width="1"/>
+<text class="s" x="1215" y="567.96" font-size="11" fill="#ffffff" font-weight="600" text-anchor="middle">V 1</text>
+<rect x="1158.5" y="554.5" width="33" height="19" rx="4" fill="#7251a3" stroke="#8261b3" stroke-width="1"/>
+<text class="s" x="1175" y="567.96" font-size="11" fill="#ffffff" font-weight="600" text-anchor="middle">T 1</text>
+<rect x="1024" y="586" width="248" height="1" fill="#1f1f24"/>
+<text class="s" x="1024" y="609.96" font-size="11" fill="#777780" font-weight="600" letter-spacing="0.6">LOCATION</text>
+<text class="m" x="1024" y="632.32" font-size="12" fill="#b4b4bc">/Users/me/market-vlog/</text>
+<text class="m" x="1024" y="650.32" font-size="12" fill="#b4b4bc">timelines/edit.timeline</text>
+</g>
+</g>
+</g>
+<rect x="1008.5" y="198.5" width="279" height="554" rx="10" fill="none" stroke="#2b2b31" stroke-width="1"/>
+
+</g>
+</g>
+</g>
+</svg>
