@@ -7,6 +7,7 @@ use crate::theme::{ACCENT, MUTED, PANEL, TEXT};
 use crate::timeline::FrameRate;
 use crate::timeline_clip::VideoClip;
 use crate::track::TrackKind;
+use gpui::FocusHandle;
 use gpui::prelude::FluentBuilder;
 use gpui::{
     Entity, InteractiveElement, IntoElement, ParentElement, StatefulInteractiveElement, Styled,
@@ -20,6 +21,7 @@ pub(crate) struct VideoClipPanel {
     track_name: String,
     frame_rate: FrameRate,
     event_bus: Entity<EventBus>,
+    return_focus: FocusHandle,
     locked: bool, // 所在轨道的锁定状态，构造面板时读取。
 }
 
@@ -27,6 +29,7 @@ pub(crate) fn video_clip_panel(
     editing_state: &TimelineEditingState,
     clip: &VideoClip,
     event_bus: Entity<EventBus>,
+    return_focus: FocusHandle,
 ) -> VideoClipPanel {
     let asset_name = match editing_state.asset(clip.asset_id) {
         Some(asset) => asset.name.as_str(),
@@ -46,6 +49,7 @@ pub(crate) fn video_clip_panel(
         track_name: track_name.to_owned(),
         frame_rate: editing_state.settings.frame_rate,
         event_bus,
+        return_focus,
         locked: editing_state.clip_locked(clip.id()),
     }
 }
@@ -185,6 +189,7 @@ pub(super) fn video_clip_view(panel: &VideoClipPanel) -> gpui::AnyElement {
                         &clip.audio_properties,
                         panel.locked,
                         panel.event_bus.clone(),
+                        panel.return_focus.clone(),
                     )
                     .mt(px(12.0)),
                 ),

@@ -41,6 +41,7 @@ actions!(
 pub(crate) fn bind_keys(cx: &mut App) {
     ui_components::text_input::bind_keys(cx);
     ui_components::text_area::bind_keys(cx);
+    ui_components::text_input_v2::bind_keys(cx);
     cx.bind_keys([
         KeyBinding::new("space", TogglePlayback, Some(EDITOR_SHORTCUT_CONTEXT)),
         KeyBinding::new("left", StepBackwardFrame, Some(EDITOR_SHORTCUT_CONTEXT)),

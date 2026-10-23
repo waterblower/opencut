@@ -10,6 +10,7 @@ use crate::timeline_clip::AudioClip;
 use crate::timeline_document::resolve_asset_path;
 use crate::track::TrackKind;
 use crate::waveform::WaveformData;
+use gpui::FocusHandle;
 use gpui::{Bounds, Entity, ParentElement, Styled, canvas, div, fill, point, px, rgb, rgba, size};
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -21,6 +22,7 @@ pub(crate) struct AudioClipPanel {
     track_name: String,
     frame_rate: FrameRate,
     event_bus: Entity<EventBus>,
+    return_focus: FocusHandle,
     locked: bool,                        // 所在轨道的锁定状态，构造面板时读取。
     waveform: Option<Arc<WaveformData>>, // 构造面板时缓存里还没有波形则为 None
 }
@@ -30,6 +32,7 @@ pub(super) fn audio_clip_panel(
     clip: &AudioClip,
     waveform_cache: &HashMap<PathBuf, Arc<WaveformData>>,
     event_bus: Entity<EventBus>,
+    return_focus: FocusHandle,
 ) -> AudioClipPanel {
     let asset = timeline.editing_state.asset(clip.asset_id);
     let asset_name = match asset {
@@ -61,6 +64,7 @@ pub(super) fn audio_clip_panel(
         track_name,
         frame_rate: timeline.editing_state.settings.frame_rate,
         event_bus,
+        return_focus,
         locked: timeline.editing_state.clip_locked(clip.id()),
         waveform,
     }
@@ -123,6 +127,7 @@ pub(super) fn audio_clip_view(panel: &AudioClipPanel) -> gpui::AnyElement {
                 &clip.audio_properties,
                 panel.locked,
                 panel.event_bus.clone(),
+                panel.return_focus.clone(),
             )
             .mt(px(16.0)),
         );

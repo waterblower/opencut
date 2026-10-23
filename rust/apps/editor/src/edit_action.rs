@@ -10,6 +10,9 @@ use std::collections::HashSet;
 use std::path::PathBuf;
 use ulid::Ulid;
 
+pub(crate) const MIN_CLIP_GAIN_DB: f64 = -96.0;
+pub(crate) const MAX_CLIP_GAIN_DB: f64 = 12.0;
+
 #[derive(Clone, Debug)]
 pub(crate) enum EditAction {
     TrimClip {
@@ -42,6 +45,10 @@ pub(crate) enum EditAction {
     SetClipMuted {
         clip_id: Ulid,
         muted: bool,
+    },
+    SetClipGain {
+        clip_id: Ulid,
+        gain_db: f64,
     },
     SetTextContent {
         clip_id: Ulid,
@@ -593,6 +600,25 @@ impl TimelineEditExt for TimelineEditingState {
                     Clip::Text(_) => return Err(anyhow!("Clip {clip_id} is a text clip")),
                 };
                 audio_properties.muted = muted;
+            }
+            EditAction::SetClipGain { clip_id, gain_db } => {
+                if !(MIN_CLIP_GAIN_DB..=MAX_CLIP_GAIN_DB).contains(&gain_db) {
+                    return Err(anyhow!(
+                        "Gain {gain_db} dB is outside {MIN_CLIP_GAIN_DB}..{MAX_CLIP_GAIN_DB} dB"
+                    ));
+                }
+                if data.clip_locked(clip_id) {
+                    return Err(anyhow!("Clip {clip_id} is on a locked track"));
+                }
+                let Some(clip) = data.clip_mut(clip_id) else {
+                    return Err(anyhow!("Clip {clip_id} was not found"));
+                };
+                let audio_properties = match clip {
+                    Clip::Video(clip) => &mut clip.audio_properties,
+                    Clip::Audio(clip) => &mut clip.audio_properties,
+                    Clip::Text(_) => return Err(anyhow!("Clip {clip_id} is a text clip")),
+                };
+                audio_properties.gain_db = gain_db;
             }
             EditAction::SetTextContent { clip_id, text } => {
                 ensure!(

@@ -1,5 +1,5 @@
 use crate::asset::IconName;
-use crate::edit_action::EditAction;
+use crate::edit_action::{EditAction, MAX_CLIP_GAIN_DB, MIN_CLIP_GAIN_DB};
 use crate::editor::Editor;
 use crate::event_bus::{AppEvent, EventBus};
 use crate::explorer_file_entry::{is_audio_path, is_image_path, is_srt_path, is_video_path};
@@ -13,18 +13,20 @@ use crate::property_panel_timeline::{TimelinePanel, timeline_panel, timeline_vie
 use crate::property_panel_transform::VideoTransformInputs;
 use crate::property_panel_video_clip::{VideoClipPanel, video_clip_panel, video_clip_view};
 use crate::property_panel_video_file::{VideoFilePanel, video_file_view};
-use crate::theme::{ACCENT, BORDER, MUTED, PANEL, SURFACE, TEXT};
+use crate::theme::{ACCENT, BORDER, ERROR, MUTED, PANEL, SURFACE, TEXT};
 use crate::timeline::{FrameRate, TimelineFrameIndex};
 use crate::timeline_clip::{AudioClipProperties, Clip};
 use crate::timeline_document;
 use crate::track::TrackKind;
+use crate::ui_components::text_input_v2::{InputConstraint, TextInputV2};
 use gpui::prelude::FluentBuilder;
 use gpui::{
-    Bounds, ContentMask, Entity, FontWeight, InteractiveElement, IntoElement, ParentElement,
-    PathBuilder, StatefulInteractiveElement, Styled, canvas, div, point, px, relative, rgb, size,
-    svg,
+    App, AppContext, Bounds, ContentMask, ElementId, Entity, FocusHandle, Focusable, FontWeight,
+    InteractiveElement, IntoElement, ParentElement, PathBuilder, RenderOnce,
+    StatefulInteractiveElement, Styled, Window, canvas, div, point, px, relative, rgb, size, svg,
 };
 use std::path::Path;
+use std::rc::Rc;
 use ulid::Ulid;
 
 pub(crate) enum PropertyPanel {
@@ -57,12 +59,14 @@ pub(crate) fn current_property_panel(editor: &Editor) -> PropertyPanel {
                 &timeline.editing_state,
                 clip,
                 editor.event_bus.clone(),
+                editor.focus_handle.clone(),
             )),
             Clip::Audio(clip) => PropertyPanel::AudioClip(audio_clip_panel(
                 timeline,
                 clip,
                 &editor.waveform_cache,
                 editor.event_bus.clone(),
+                editor.focus_handle.clone(),
             )),
             Clip::Text(clip) => PropertyPanel::TextClip(text_clip_panel(
                 &timeline.editing_state,
@@ -438,6 +442,7 @@ pub(super) fn audio_properties_view(
     audio_properties: &AudioClipProperties,
     locked: bool,
     event_bus: Entity<EventBus>,
+    return_focus: FocusHandle,
 ) -> gpui::Div {
     let unmuted = !audio_properties.muted;
     div()
@@ -452,12 +457,65 @@ pub(super) fn audio_properties_view(
                         .text_color(rgb(MUTED))
                         .child("Gain"),
                 )
-                .child(div().w(px(84.0)).flex_shrink_0().child(value_field_view(
-                    "",
-                    format!("{:.2}", audio_properties.gain_db),
-                    "dB",
-                    locked,
-                ))),
+                .child(div().w(px(84.0)).flex_shrink_0().child(if locked {
+                    value_field_view("", format!("{:.2}", audio_properties.gain_db), "dB", true)
+                        .into_any_element()
+                } else {
+                    let event_bus = event_bus.clone();
+                    div()
+                        .h(px(30.0))
+                        .min_w_0()
+                        .flex()
+                        .items_center()
+                        .gap(px(6.0))
+                        .px(px(9.0)) // 加 1px 边框后与只读态一致：内容距外缘 10px。
+                        .rounded(px(6.0))
+                        .border_1()
+                        .border_color(rgb(BORDER))
+                        .bg(rgb(SURFACE))
+                        .child(
+                            div()
+                                .min_w_0()
+                                .flex_1()
+                                .font_family("monospace")
+                                .text_size(px(13.0))
+                                .text_color(rgb(TEXT))
+                                .child(
+                                    TextInputV2::new(
+                                        format!("clip-gain-{clip_id}"),
+                                        format!("{:.2}", audio_properties.gain_db),
+                                        return_focus,
+                                    )
+                                    .constraint(InputConstraint::Number)
+                                    .on_text_change(
+                                        move |text, _, cx| {
+                                            let Ok(gain_db) = text.parse::<f64>() else {
+                                                return;
+                                            };
+                                            if !(MIN_CLIP_GAIN_DB..=MAX_CLIP_GAIN_DB)
+                                                .contains(&gain_db)
+                                            {
+                                                return;
+                                            }
+                                            event_bus.update(cx, |_, cx| {
+                                                cx.emit(AppEvent::Edit(EditAction::SetClipGain {
+                                                    clip_id,
+                                                    gain_db,
+                                                }))
+                                            })
+                                        },
+                                    ),
+                                ),
+                        )
+                        .child(
+                            div()
+                                .flex_shrink_0()
+                                .text_size(px(12.0))
+                                .text_color(rgb(MUTED))
+                                .child("dB"),
+                        )
+                        .into_any_element()
+                })),
         )
         .child(
             div()
