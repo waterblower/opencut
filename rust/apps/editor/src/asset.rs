@@ -12,6 +12,8 @@ pub(crate) enum IconName {
     Folder,
     Lock,
     Magnet,
+    Mic,
+    MicOff,
     Minus,
     Mute,
     PickerGlow,
@@ -39,6 +41,8 @@ impl IconName {
             Self::Folder => "icons/folder.svg",
             Self::Lock => "icons/lock.svg",
             Self::Magnet => "icons/magnet.svg",
+            Self::Mic => "icons/mic.svg",
+            Self::MicOff => "icons/mic-off.svg",
             Self::Minus => "icons/minus.svg",
             Self::Mute => "icons/mute.svg",
             Self::PickerGlow => "icons/picker-glow.svg",
@@ -78,7 +82,7 @@ impl AssetSource for EditorAssets {
 
 // Private APIs only
 impl IconName {
-    const ALL: [Self; 21] = [
+    const ALL: [Self; 23] = [
         Self::AlertTriangle,
         Self::App,
         Self::ArrowDown,
@@ -88,6 +92,8 @@ impl IconName {
         Self::Folder,
         Self::Lock,
         Self::Magnet,
+        Self::Mic,
+        Self::MicOff,
         Self::Minus,
         Self::Mute,
         Self::PickerGlow,
@@ -113,6 +119,8 @@ impl IconName {
             Self::Folder => include_bytes!("../icons/folder.svg"),
             Self::Lock => include_bytes!("../icons/lock.svg"),
             Self::Magnet => include_bytes!("../icons/magnet.svg"),
+            Self::Mic => include_bytes!("../icons/mic.svg"),
+            Self::MicOff => include_bytes!("../icons/mic-off.svg"),
             Self::Minus => include_bytes!("../icons/minus.svg"),
             Self::Mute => include_bytes!("../icons/mute.svg"),
             Self::PickerGlow => include_bytes!("../icons/picker-glow.svg"),

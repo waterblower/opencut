@@ -1,15 +1,17 @@
+use crate::event_bus::EventBus;
 use crate::property_panel::{
-    clip_property_panel_frame_view, clip_property_panel_header_view, property_panel_heading_view,
-    slider_view, timing_card_view, value_field_view,
+    audio_properties_view, clip_property_panel_frame_view, clip_property_panel_header_view,
+    property_panel_heading_view, slider_view, timing_card_view, value_field_view,
 };
 use crate::theme::{ACCENT, MUTED, PANEL, TEXT};
 use crate::timeline::FrameRate;
 use crate::timeline_clip::VideoClip;
 use crate::track::TrackKind;
+use gpui::FocusHandle;
 use gpui::prelude::FluentBuilder;
 use gpui::{
-    InteractiveElement, IntoElement, ParentElement, StatefulInteractiveElement, Styled, div, px,
-    rgb,
+    Entity, InteractiveElement, IntoElement, ParentElement, StatefulInteractiveElement, Styled,
+    div, px, rgb,
 };
 use timeline::TimelineEditingState;
 
@@ -18,12 +20,16 @@ pub(crate) struct VideoClipPanel {
     asset_name: String,
     track_name: String,
     frame_rate: FrameRate,
+    event_bus: Entity<EventBus>,
+    return_focus: FocusHandle,
     locked: bool, // 所在轨道的锁定状态，构造面板时读取。
 }
 
 pub(crate) fn video_clip_panel(
     editing_state: &TimelineEditingState,
     clip: &VideoClip,
+    event_bus: Entity<EventBus>,
+    return_focus: FocusHandle,
 ) -> VideoClipPanel {
     let asset_name = match editing_state.asset(clip.asset_id) {
         Some(asset) => asset.name.as_str(),
@@ -42,6 +48,8 @@ pub(crate) fn video_clip_panel(
         asset_name: asset_name.to_owned(),
         track_name: track_name.to_owned(),
         frame_rate: editing_state.settings.frame_rate,
+        event_bus,
+        return_focus,
         locked: editing_state.clip_locked(clip.id()),
     }
 }
@@ -172,6 +180,18 @@ pub(super) fn video_clip_view(panel: &VideoClipPanel) -> gpui::AnyElement {
                             "%",
                             panel.locked,
                         ))),
+                )
+                .child(div().h(px(1.0)).my(px(16.0)).bg(rgb(0x1f1f24)))
+                .child(property_panel_heading_view("AUDIO"))
+                .child(
+                    audio_properties_view(
+                        clip.id(),
+                        &clip.audio_properties,
+                        panel.locked,
+                        panel.event_bus.clone(),
+                        panel.return_focus.clone(),
+                    )
+                    .mt(px(12.0)),
                 ),
         )
         .into_any_element();

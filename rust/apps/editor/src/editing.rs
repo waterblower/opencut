@@ -3,6 +3,7 @@ use crate::clip_placement::{
 };
 use crate::edit_action::{EditAction, edit_timeline};
 use crate::editor::Editor;
+use crate::event_bus::AppEvent;
 use crate::model::MediaAsset;
 use crate::timeline::{
     FrameRate, TimelineEditorExt, TimelineFrameIndex, TimelineRuntimeState, timeline_ranges_overlap,
@@ -299,9 +300,12 @@ impl Editor {
         let Some(timeline) = self.timeline.as_ref() else {
             return Ok(());
         };
-        let playhead = timeline.playhead();
+        let position = match timeline.interaction.pointer_guide {
+            Some(pointer_position) => pointer_position,
+            None => timeline.playhead(),
+        };
         let (clips, assets) =
-            match clipboard.prepare_paste(&timeline.path, &timeline.editing_state, playhead) {
+            match clipboard.prepare_paste(&timeline.path, &timeline.editing_state, position) {
                 Ok(paste) => paste,
                 Err(rejection) => {
                     eprintln!("Cannot paste clips: {rejection}.");
@@ -324,11 +328,7 @@ impl Editor {
             .or_else(|| clips.first())
             .map(Clip::id);
 
-        edit_timeline(timeline, EditAction::AddClips { clips, assets })?;
-
-        timeline.save()?;
-
-        self.schedule_active_timeline_waveforms(cx);
+        self.emit_event(cx, AppEvent::Edit(EditAction::AddClips { clips, assets }));
         Ok(())
     }
 

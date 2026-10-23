@@ -10,6 +10,9 @@ use std::collections::HashSet;
 use std::path::PathBuf;
 use ulid::Ulid;
 
+pub(crate) const MIN_CLIP_GAIN_DB: f64 = -96.0;
+pub(crate) const MAX_CLIP_GAIN_DB: f64 = 12.0;
+
 #[derive(Clone, Debug)]
 pub(crate) enum EditAction {
     TrimClip {
@@ -38,6 +41,14 @@ pub(crate) enum EditAction {
     SetVideoProperties {
         clip_ids: Vec<Ulid>,
         properties: VideoClipProperties,
+    },
+    SetClipMuted {
+        clip_id: Ulid,
+        muted: bool,
+    },
+    SetClipGain {
+        clip_id: Ulid,
+        gain_db: f64,
     },
     SetTextContent {
         clip_id: Ulid,
@@ -477,6 +488,20 @@ pub(crate) fn edit_timeline(
                     should_save: true,
                 }
             }
+            EditAction::SetFrameRate { frame_rate } => {
+                let previous = timeline.editing_state.settings.frame_rate;
+                let new_state = timeline
+                    .editing_state
+                    .edit(EditAction::SetFrameRate { frame_rate })?;
+                let new_playhead = match new_state.clips.is_empty() {
+                    true => timeline.playhead(),
+                    false => previous.rescale_nearest(timeline.playhead(), frame_rate),
+                };
+                timeline.record_editing_history();
+                timeline.editing_state = new_state;
+                timeline.set_playhead(new_playhead); // 在新 editing state 生效后设置，按新长度 clamp。
+                return Ok(true);
+            }
             action => {
                 // 其余编辑不需要前处理与后处理：只修改 editing state，记录历史并保存。
                 let new_state = timeline.editing_state.edit(action)?;
@@ -575,6 +600,39 @@ impl TimelineEditExt for TimelineEditingState {
                         media.video_properties = properties;
                     }
                 }
+            }
+            EditAction::SetClipMuted { clip_id, muted } => {
+                if data.clip_locked(clip_id) {
+                    return Err(anyhow!("Clip {clip_id} is on a locked track"));
+                }
+                let Some(clip) = data.clip_mut(clip_id) else {
+                    return Err(anyhow!("Clip {clip_id} was not found"));
+                };
+                let audio_properties = match clip {
+                    Clip::Video(clip) => &mut clip.audio_properties,
+                    Clip::Audio(clip) => &mut clip.audio_properties,
+                    Clip::Text(_) => return Err(anyhow!("Clip {clip_id} is a text clip")),
+                };
+                audio_properties.muted = muted;
+            }
+            EditAction::SetClipGain { clip_id, gain_db } => {
+                if !(MIN_CLIP_GAIN_DB..=MAX_CLIP_GAIN_DB).contains(&gain_db) {
+                    return Err(anyhow!(
+                        "Gain {gain_db} dB is outside {MIN_CLIP_GAIN_DB}..{MAX_CLIP_GAIN_DB} dB"
+                    ));
+                }
+                if data.clip_locked(clip_id) {
+                    return Err(anyhow!("Clip {clip_id} is on a locked track"));
+                }
+                let Some(clip) = data.clip_mut(clip_id) else {
+                    return Err(anyhow!("Clip {clip_id} was not found"));
+                };
+                let audio_properties = match clip {
+                    Clip::Video(clip) => &mut clip.audio_properties,
+                    Clip::Audio(clip) => &mut clip.audio_properties,
+                    Clip::Text(_) => return Err(anyhow!("Clip {clip_id} is a text clip")),
+                };
+                audio_properties.gain_db = gain_db;
             }
             EditAction::SetTextContent { clip_id, text } => {
                 ensure!(

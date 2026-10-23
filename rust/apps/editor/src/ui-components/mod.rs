@@ -4,6 +4,7 @@ mod horizontal_split;
 pub(crate) mod line_button;
 pub(crate) mod text_area;
 pub(crate) mod text_input;
+pub(crate) mod text_input_v2;
 mod vertical_split;
 
 pub(crate) use horizontal_split::{

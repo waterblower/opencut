@@ -1,5 +1,6 @@
-use crate::edit_action::{EditAction, edit_timeline};
+use crate::edit_action::EditAction;
 use crate::editor::Editor;
+use crate::event_bus::AppEvent;
 use crate::preview::{PreviewTarget, timeline_preview_target};
 use crate::theme::{ACCENT, BORDER, MUTED, PANEL, SURFACE, SURFACE_HOVER, TEXT};
 use crate::timeline::{FRAME_RATE_PRESETS, FrameRate};
@@ -147,26 +148,12 @@ fn ui_callback_set_timeline_frame_rate(
     cx: &mut Context<Editor>,
 ) -> Result<()> {
     editor.settings_open = false;
-    let Some(timeline) = editor.timeline.as_mut() else {
+    let Some(timeline) = editor.timeline.as_ref() else {
         bail!("Cannot change frame rate when no timeline is open");
     };
-    let previous = timeline.editing_state.settings.frame_rate;
-    if previous == frame_rate {
+    if timeline.editing_state.settings.frame_rate == frame_rate {
         return Ok(());
     }
-
-    let should_save = edit_timeline(timeline, EditAction::SetFrameRate { frame_rate })?;
-    let has_clips = !timeline.editing_state.clips.is_empty();
-    if has_clips {
-        // 播放头存的是帧号；按旧帧率换算回时间，再取新帧率下最近的帧，与片段的换算方式一致。
-        timeline.set_playhead(previous.rescale_nearest(timeline.playhead(), frame_rate));
-    }
-    if should_save {
-        timeline.save()?;
-    }
-    // 预览播放器持有旧帧率的快照；换成新快照，旧播放器随之释放并停止。
-    if matches!(editor.preview.target, PreviewTarget::Timeline { .. }) {
-        editor.preview.target = timeline_preview_target(timeline, &editor.project_root, cx)?;
-    }
+    editor.emit_event(cx, AppEvent::Edit(EditAction::SetFrameRate { frame_rate }));
     Ok(())
 }
