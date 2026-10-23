@@ -488,6 +488,20 @@ pub(crate) fn edit_timeline(
                     should_save: true,
                 }
             }
+            EditAction::SetFrameRate { frame_rate } => {
+                let previous = timeline.editing_state.settings.frame_rate;
+                let new_state = timeline
+                    .editing_state
+                    .edit(EditAction::SetFrameRate { frame_rate })?;
+                let new_playhead = match new_state.clips.is_empty() {
+                    true => timeline.playhead(),
+                    false => previous.rescale_nearest(timeline.playhead(), frame_rate),
+                };
+                timeline.record_editing_history();
+                timeline.editing_state = new_state;
+                timeline.set_playhead(new_playhead); // 在新 editing state 生效后设置，按新长度 clamp。
+                return Ok(true);
+            }
             action => {
                 // 其余编辑不需要前处理与后处理：只修改 editing state，记录历史并保存。
                 let new_state = timeline.editing_state.edit(action)?;
