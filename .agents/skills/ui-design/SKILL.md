@@ -1,5 +1,5 @@
 ---
-name: opencut-ui-design
+name: ui-design
 description: UI design practice for OpenCut. Use when designing new UI, changing the look of existing UI, or working in design/system and design/pages, before writing any application code for that UI.
 ---
 
@@ -7,7 +7,7 @@ description: UI design practice for OpenCut. Use when designing new UI, changing
 
 Apply these guidelines in the OpenCut repository. Paths are relative to the repository root.
 
-Also apply the repository [general rules](../opencut-general-rules/SKILL.md).
+Also apply the repository [general rules](../general-rules/SKILL.md).
 
 ## Design first
 
