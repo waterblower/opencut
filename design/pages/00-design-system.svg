@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="900" height="1342" viewBox="0 0 900 1342">
-<style>.s{font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","Helvetica Neue",Arial,sans-serif}.m{font-family:"SF Mono",Menlo,Monaco,Consolas,monospace}</style>
+<style>.s{font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","Helvetica Neue",Arial,sans-serif}.m{font-family:"SF Mono",Menlo,Monaco,Consolas,monospace}.f-text{fill:#f2f2f4}.f-muted{fill:#777780}.k-muted{stroke:#777780}.f-dim{fill:#55555e}.f-subtle{fill:#a0a0a8}.f-light{fill:#c9c9cf}.f-border{fill:#2b2b31}.k-border{stroke:#2b2b31}.f-surface{fill:#17171a}.f-accent{fill:#f0b75e}.k-accent{stroke:#f0b75e}.f-accent-bg{fill:#2a241b}.k-grey{stroke:#3a3a40}</style>
 <defs>
 <!-- D · Cyberpunk -->
 <polygon id="dPrimaryShape" points="10,0 128,0 128,30 118,40 0,40 0,10"/>
@@ -16,15 +16,15 @@
 <g transform="translate(0 -540)">
 
 <!-- ============ C · Line ============ -->
-<text class="s" x="40" y="584" font-size="15" fill="#c9c9cf" font-weight="600">C · Line</text>
+<text class="s f-light" x="40" y="584" font-size="15" font-weight="600">C · Line</text>
 <text class="s" x="40" y="604" font-size="12" fill="#8a8a93">A square frame drawn by corner brackets, with mono uppercase labels. Hover opens the brackets; pressing fills the button solid. Secondary is underlined text.</text>
 <rect x="40" y="620" width="820" height="190" rx="10" fill="#0b0b0d"/>
 <text class="s" x="280" y="656" font-size="12" fill="#8a8a93" text-anchor="middle">Default</text>
 <text class="s" x="440" y="656" font-size="12" fill="#8a8a93" text-anchor="middle">Hover</text>
 <text class="s" x="600" y="656" font-size="12" fill="#8a8a93" text-anchor="middle">Pressed</text>
 <text class="s" x="760" y="656" font-size="12" fill="#8a8a93" text-anchor="middle">Disabled</text>
-<text class="s" x="64" y="707" font-size="14" fill="#c9c9cf">Primary</text>
-<text class="s" x="64" y="771" font-size="14" fill="#c9c9cf">Secondary</text>
+<text class="s f-light" x="64" y="707" font-size="14">Primary</text>
+<text class="s f-light" x="64" y="771" font-size="14">Secondary</text>
 <!-- primary -->
 <rect x="216" y="682" width="128" height="40" fill="#c8f25a" fill-opacity="0.05"/>
 <path d="M216.75 692 V682.75 H226 M334 682.75 H343.25 V692 M343.25 712 V721.25 H334 M226 721.25 H216.75 V712" fill="none" stroke="#c8f25a" stroke-width="1.5"/>
@@ -37,29 +37,29 @@
 <rect x="536" y="682" width="128" height="40" fill="#c8f25a"/>
 <text class="m" x="620" y="706.5" font-size="13" font-weight="700" letter-spacing="2" fill="#0b0b0d" text-anchor="end">EXPORT</text>
 <text class="m" x="630" y="706.5" font-size="13" font-weight="700" fill="#0b0b0d">→</text>
-<path d="M696.75 692 V682.75 H706 M814 682.75 H823.25 V692 M823.25 712 V721.25 H814 M706 721.25 H696.75 V712" fill="none" stroke="#3a3a40" stroke-width="1.5"/>
+<path class="k-grey" d="M696.75 692 V682.75 H706 M814 682.75 H823.25 V692 M823.25 712 V721.25 H814 M706 721.25 H696.75 V712" fill="none" stroke-width="1.5"/>
 <text class="m" x="780" y="706.5" font-size="13" font-weight="700" letter-spacing="2" fill="#4f4f56" text-anchor="end">EXPORT</text>
 <text class="m" x="786" y="706.5" font-size="13" font-weight="700" fill="#4f4f56">→</text>
 <!-- secondary -->
-<text class="m" x="281" y="770.5" font-size="13" font-weight="700" letter-spacing="2" fill="#a0a0a8" text-anchor="middle">CANCEL</text>
+<text class="m f-subtle" x="281" y="770.5" font-size="13" font-weight="700" letter-spacing="2" text-anchor="middle">CANCEL</text>
 <rect x="250" y="778" width="60" height="1" fill="#4a4a52"/>
-<text class="m" x="441" y="770.5" font-size="13" font-weight="700" letter-spacing="2" fill="#f2f2f4" text-anchor="middle">CANCEL</text>
-<rect x="392" y="778" width="96" height="1" fill="#f2f2f4"/>
+<text class="m f-text" x="441" y="770.5" font-size="13" font-weight="700" letter-spacing="2" text-anchor="middle">CANCEL</text>
+<rect class="f-text" x="392" y="778" width="96" height="1"/>
 <rect x="536" y="746" width="128" height="40" fill="#ffffff" fill-opacity="0.07"/>
 <text class="m" x="601" y="770.5" font-size="13" font-weight="700" letter-spacing="2" fill="#ffffff" text-anchor="middle">CANCEL</text>
 <rect x="552" y="777.5" width="96" height="2" fill="#ffffff"/>
 <text class="m" x="761" y="770.5" font-size="13" font-weight="700" letter-spacing="2" fill="#46464c" text-anchor="middle">CANCEL</text>
 
 <!-- ============ D · Cyberpunk ============ -->
-<text class="s" x="40" y="854" font-size="15" fill="#c9c9cf" font-weight="600">D · Cyberpunk</text>
+<text class="s f-light" x="40" y="854" font-size="15" font-weight="600">D · Cyberpunk</text>
 <text class="s" x="40" y="874" font-size="12" fill="#8a8a93">Cut top-left and bottom-right corners, neon yellow and cyan, hazard slashes. Hover brightens the border and glow; pressing inverts.</text>
 <rect x="40" y="890" width="820" height="190" rx="10" fill="#0b0b0d"/>
 <text class="s" x="280" y="926" font-size="12" fill="#8a8a93" text-anchor="middle">Default</text>
 <text class="s" x="440" y="926" font-size="12" fill="#8a8a93" text-anchor="middle">Hover</text>
 <text class="s" x="600" y="926" font-size="12" fill="#8a8a93" text-anchor="middle">Pressed</text>
 <text class="s" x="760" y="926" font-size="12" fill="#8a8a93" text-anchor="middle">Disabled</text>
-<text class="s" x="64" y="977" font-size="14" fill="#c9c9cf">Primary</text>
-<text class="s" x="64" y="1041" font-size="14" fill="#c9c9cf">Secondary</text>
+<text class="s f-light" x="64" y="977" font-size="14">Primary</text>
+<text class="s f-light" x="64" y="1041" font-size="14">Secondary</text>
 <!-- primary -->
 <use xlink:href="#dPrimaryShape" x="216" y="952" fill="#fcee0a" filter="url(#dGlowY)"/>
 <use xlink:href="#dSlashes" x="216" y="952" fill="#0a0a0b"/>
@@ -89,29 +89,29 @@
 <text class="m" x="761" y="1040.5" font-size="13" font-weight="800" letter-spacing="2" fill="#34494d" text-anchor="middle">CANCEL</text>
 </g>
 <g id="dropdown-trigger-proposals">
-<text class="s" x="40" y="609" font-size="22" fill="#f2f2f4" font-weight="700">Dropdown trigger</text>
+<text class="s f-text" x="40" y="609" font-size="22" font-weight="700">Dropdown trigger</text>
 <text class="s" x="40" y="638" font-size="12" fill="#8a8a93" font-weight="400">The entire field is clickable. Hover signals that the field can be clicked.</text>
 <g transform="translate(0 -192)">
-<text class="s" x="40" y="872" font-size="15" fill="#c9c9cf" font-weight="600">Gold accent</text>
+<text class="s f-light" x="40" y="872" font-size="15" font-weight="600">Gold accent</text>
 <text class="s" x="40" y="894" font-size="12" fill="#8a8a93" font-weight="400">Hover uses a warm surface, gold border and gold chevron.</text>
 <rect x="40" y="910" width="820" height="118" rx="10" fill="#0b0b0d" stroke="none"/>
 <text class="s" x="90" y="937" font-size="12" fill="#8a8a93" font-weight="400">Default</text>
-<rect x="90" y="959" width="180" height="34" rx="6" fill="#17171a" stroke="#2b2b31"/>
-<text class="s" x="100" y="981" font-size="13" fill="#f2f2f4" font-weight="400">Zapfino</text>
-<path d="M247 973l5 5 5 -5" fill="none" stroke="#777780" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+<rect class="f-surface k-border" x="90" y="959" width="180" height="34" rx="6"/>
+<text class="s f-text" x="100" y="981" font-size="13" font-weight="400">Zapfino</text>
+<path class="k-muted" d="M247 973l5 5 5 -5" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
 <text class="s" x="350" y="937" font-size="12" fill="#8a8a93" font-weight="400">Hover</text>
-<rect x="350" y="959" width="180" height="34" rx="6" fill="#2a241b" stroke="#f0b75e"/>
-<text class="s" x="360" y="981" font-size="13" fill="#f2f2f4" font-weight="400">Zapfino</text>
-<path d="M507 973l5 5 5 -5" fill="none" stroke="#f0b75e" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+<rect class="f-accent-bg k-accent" x="350" y="959" width="180" height="34" rx="6"/>
+<text class="s f-text" x="360" y="981" font-size="13" font-weight="400">Zapfino</text>
+<path class="k-accent" d="M507 973l5 5 5 -5" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
 <text class="s" x="610" y="937" font-size="12" fill="#8a8a93" font-weight="400">Disabled</text>
 <rect x="610" y="959" width="180" height="34" rx="6" fill="#131316" stroke="#222226"/>
-<text class="s" x="620" y="981" font-size="13" fill="#55555e" font-weight="400">Zapfino</text>
+<text class="s f-dim" x="620" y="981" font-size="13" font-weight="400">Zapfino</text>
 <path d="M767 973l5 5 5 -5" fill="none" stroke="#46464e" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
 </g>
 <text class="s" x="40" y="878" font-size="12" fill="#8a8a93">The entire field is clickable · no size change on hover · disabled fields do not respond.</text>
 </g>
 <g id="text-input-default"><title>Text input: primary and secondary states</title>
-<text class="s" x="40" y="966" font-size="22" fill="#f2f2f4">Text Input</text>
+<text class="s f-text" x="40" y="966" font-size="22">Text Input</text>
 <text class="s" x="40" y="994" font-size="12" fill="#8a8a93">Primary uses a bordered field. Secondary uses an underline for a quieter appearance.</text>
 <rect x="40" y="1018" width="820" height="222" rx="10" fill="#0b0b0d"/>
 <text class="s" x="242" y="1048" text-anchor="middle" font-size="12" fill="#8a8a93">Placeholder</text>
@@ -119,32 +119,32 @@
 <text class="s" x="514" y="1048" text-anchor="middle" font-size="12" fill="#8a8a93">Focused</text>
 <text class="s" x="650" y="1048" text-anchor="middle" font-size="12" fill="#8a8a93">Selected</text>
 <text class="s" x="786" y="1048" text-anchor="middle" font-size="12" fill="#8a8a93">Disabled</text>
-<text class="s" x="60" y="1095" font-size="14" fill="#c9c9cf">Primary</text>
-<rect x="180" y="1070" width="124" height="40" rx="6" fill="#17171a" stroke="#2b2b31"/>
-<text class="m" x="192" y="1095" font-size="13" fill="#777780">Enter…</text>
-<rect x="316" y="1070" width="124" height="40" rx="6" fill="#17171a" stroke="#2b2b31"/>
-<text class="m" x="328" y="1095" font-size="13" fill="#f2f2f4">Sample</text>
-<rect x="452" y="1070" width="124" height="40" rx="6" fill="#17171a" stroke="#f0b75e"/>
-<text class="m" x="464" y="1095" font-size="13" fill="#f2f2f4">Sample</text>
+<text class="s f-light" x="60" y="1095" font-size="14">Primary</text>
+<rect class="f-surface k-border" x="180" y="1070" width="124" height="40" rx="6"/>
+<text class="m f-muted" x="192" y="1095" font-size="13">Enter…</text>
+<rect class="f-surface k-border" x="316" y="1070" width="124" height="40" rx="6"/>
+<text class="m f-text" x="328" y="1095" font-size="13">Sample</text>
+<rect class="f-surface k-accent" x="452" y="1070" width="124" height="40" rx="6"/>
+<text class="m f-text" x="464" y="1095" font-size="13">Sample</text>
 <rect x="511" y="1080" width="1" height="20" fill="#d8d8dc"/>
-<rect x="588" y="1070" width="124" height="40" rx="6" fill="#17171a" stroke="#2b2b31"/>
+<rect class="f-surface k-border" x="588" y="1070" width="124" height="40" rx="6"/>
 <rect x="600" y="1080" width="47" height="20" rx="2" fill="#52779a" fill-opacity="0.4"/>
-<text class="m" x="600" y="1095" font-size="13" fill="#f2f2f4">Sample</text>
+<text class="m f-text" x="600" y="1095" font-size="13">Sample</text>
 <rect x="724" y="1070" width="124" height="40" rx="6" fill="#131316" stroke="#222226"/>
-<text class="m" x="736" y="1095" font-size="13" fill="#55555e">Sample</text>
-<text class="s" x="60" y="1187" font-size="14" fill="#c9c9cf">Secondary</text>
-<rect x="180" y="1201" width="124" height="1" fill="#2b2b31"/>
-<text class="m" x="192" y="1187" font-size="13" fill="#777780">Enter…</text>
-<rect x="316" y="1201" width="124" height="1" fill="#2b2b31"/>
-<text class="m" x="328" y="1187" font-size="13" fill="#f2f2f4">Sample</text>
-<rect x="452" y="1201" width="124" height="1" fill="#f0b75e"/>
-<text class="m" x="464" y="1187" font-size="13" fill="#f2f2f4">Sample</text>
+<text class="m f-dim" x="736" y="1095" font-size="13">Sample</text>
+<text class="s f-light" x="60" y="1187" font-size="14">Secondary</text>
+<rect class="f-border" x="180" y="1201" width="124" height="1"/>
+<text class="m f-muted" x="192" y="1187" font-size="13">Enter…</text>
+<rect class="f-border" x="316" y="1201" width="124" height="1"/>
+<text class="m f-text" x="328" y="1187" font-size="13">Sample</text>
+<rect class="f-accent" x="452" y="1201" width="124" height="1"/>
+<text class="m f-text" x="464" y="1187" font-size="13">Sample</text>
 <rect x="511" y="1172" width="1" height="20" fill="#d8d8dc"/>
-<rect x="588" y="1201" width="124" height="1" fill="#2b2b31"/>
+<rect class="f-border" x="588" y="1201" width="124" height="1"/>
 <rect x="600" y="1172" width="47" height="20" rx="2" fill="#52779a" fill-opacity="0.4"/>
-<text class="m" x="600" y="1187" font-size="13" fill="#f2f2f4">Sample</text>
+<text class="m f-text" x="600" y="1187" font-size="13">Sample</text>
 <rect x="724" y="1201" width="124" height="1" fill="#222226"/>
-<text class="m" x="736" y="1187" font-size="13" fill="#55555e">Sample</text>
+<text class="m f-dim" x="736" y="1187" font-size="13">Sample</text>
 <text class="s" x="40" y="1278" font-size="12" fill="#8a8a93">40 px height · 12 px horizontal padding · 13 px monospace text · gold focus accent · blue selection</text>
 <text class="s" x="40" y="1302" font-size="12" fill="#8a8a93">Disabled inputs have no editing, focus, caret or hover response.</text>
 </g>

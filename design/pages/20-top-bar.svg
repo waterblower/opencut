@@ -1,7 +1,7 @@
 <svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="1240" height="426" viewBox="0 0 1240 426" role="img" aria-labelledby="title description">
   <title id="title">Top bar</title>
   <desc id="description">Cyberpunk top bar in two states: timeline open with yellow Export, and no timeline with disabled Export. The OpenCut app icon precedes the app name; secondary actions use cyan cut-corner buttons.</desc>
-  <style>.s{font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","Helvetica Neue",Arial,sans-serif}.m{font-family:"SF Mono",Menlo,Monaco,Consolas,monospace}</style>
+  <style>.s{font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","Helvetica Neue",Arial,sans-serif}.m{font-family:"SF Mono",Menlo,Monaco,Consolas,monospace}.f-text{fill:#f2f2f4}.f-muted{fill:#777780}.f-border{fill:#2b2b31}.k-border{stroke:#2b2b31}.f-panel{fill:#0d0d0f}.f-page{fill:#151518}</style>
   <defs>
     <filter id="shadow" x="-5%" y="-30%" width="110%" height="180%">
       <feDropShadow dx="0" dy="5" stdDeviation="7" flood-color="#000" flood-opacity="0.24" />
@@ -38,20 +38,20 @@
       <path fill="url(#app-gold)" d="M456 244H624C710 244 780 314 780 400V568L672 460V400C672 374 650 352 624 352H564L456 244Z" />
     </g>
   </defs>
-  <rect x="0" y="0" width="1240" height="426" fill="#151518" />
-  <text class="s" x="48" y="61" font-size="24" fill="#f2f2f4" font-weight="700" text-anchor="start">Top bar</text>
-  <text class="s" x="48" y="89" font-size="14" fill="#777780" font-weight="400" text-anchor="start">Timeline identity and workspace actions. Always available above the editor.</text>
-  <text class="s" x="48" y="136" font-size="14" fill="#f2f2f4" font-weight="600" text-anchor="start">Timeline open</text>
-  <text class="s" x="48" y="157" font-size="12" fill="#777780" font-weight="400" text-anchor="start">The timeline filename and autosave status sit beside the app name. All actions are available.</text>
-  <rect x="48" y="170" width="1144" height="64" fill="#0d0d0f" rx="8" filter="url(#shadow)" />
+  <rect class="f-page" x="0" y="0" width="1240" height="426" />
+  <text class="s f-text" x="48" y="61" font-size="24" font-weight="700" text-anchor="start">Top bar</text>
+  <text class="s f-muted" x="48" y="89" font-size="14" font-weight="400" text-anchor="start">Timeline identity and workspace actions. Always available above the editor.</text>
+  <text class="s f-text" x="48" y="136" font-size="14" font-weight="600" text-anchor="start">Timeline open</text>
+  <text class="s f-muted" x="48" y="157" font-size="12" font-weight="400" text-anchor="start">The timeline filename and autosave status sit beside the app name. All actions are available.</text>
+  <rect class="f-panel" x="48" y="170" width="1144" height="64" rx="8" filter="url(#shadow)" />
   <clipPath id="timeline-open">
     <rect x="48" y="170" width="1144" height="64" rx="8" />
   </clipPath>
   <g clip-path="url(#timeline-open)">
-    <rect x="48" y="170" width="1144" height="64" fill="#0d0d0f" />
-    <rect x="48" y="233" width="1144" height="1" fill="#2b2b31" />
-    <text class="s" x="112.0" y="209.2" font-size="20" fill="#f2f2f4" font-weight="700" text-anchor="start">OpenCut</text>
-    <text class="m" x="207.17" y="206.32" font-size="12" fill="#777780" font-weight="400" text-anchor="start">EDITOR · market-vlog.timeline · AUTOSAVED</text>
+    <rect class="f-panel" x="48" y="170" width="1144" height="64" />
+    <rect class="f-border" x="48" y="233" width="1144" height="1" />
+    <text class="s f-text" x="112.0" y="209.2" font-size="20" font-weight="700" text-anchor="start">OpenCut</text>
+    <text class="m f-muted" x="207.17" y="206.32" font-size="12" font-weight="400" text-anchor="start">EDITOR · market-vlog.timeline · AUTOSAVED</text>
     <use transform="translate(64 182) scale(0.0390625)" xlink:href="#app-icon" />
     <g transform="translate(600 182)">
       <use xlink:href="00-design-system.svg#dSecondaryShape" fill="#00f0ff" fill-opacity=".06" stroke="#00f0ff" filter="url(#dGlowC)" />
@@ -71,18 +71,18 @@
       <text x="57" y="24.5" font-size="13" font-weight="800" letter-spacing="2" fill="#0a0a0b" text-anchor="middle" class="m">EXPORT</text>
     </g>
   </g>
-  <rect x="48.5" y="170.5" width="1143" height="63" fill="none" rx="8" stroke="#2b2b31" />
-  <text class="s" x="48" y="280" font-size="14" fill="#f2f2f4" font-weight="600" text-anchor="start">No timeline</text>
-  <text class="s" x="48" y="301" font-size="12" fill="#777780" font-weight="400" text-anchor="start">Export is disabled until a timeline is open. Settings, Open Folder and Projects remain available.</text>
-  <rect x="48" y="314" width="1144" height="64" fill="#0d0d0f" rx="8" filter="url(#shadow)" />
+  <rect class="k-border" x="48.5" y="170.5" width="1143" height="63" fill="none" rx="8" />
+  <text class="s f-text" x="48" y="280" font-size="14" font-weight="600" text-anchor="start">No timeline</text>
+  <text class="s f-muted" x="48" y="301" font-size="12" font-weight="400" text-anchor="start">Export is disabled until a timeline is open. Settings, Open Folder and Projects remain available.</text>
+  <rect class="f-panel" x="48" y="314" width="1144" height="64" rx="8" filter="url(#shadow)" />
   <clipPath id="no-timeline">
     <rect x="48" y="314" width="1144" height="64" rx="8" />
   </clipPath>
   <g clip-path="url(#no-timeline)">
-    <rect x="48" y="314" width="1144" height="64" fill="#0d0d0f" />
-    <rect x="48" y="377" width="1144" height="1" fill="#2b2b31" />
-    <text class="s" x="112.0" y="353.2" font-size="20" fill="#f2f2f4" font-weight="700" text-anchor="start">OpenCut</text>
-    <text class="m" x="207.17" y="350.32" font-size="12" fill="#777780" font-weight="400" text-anchor="start">EDITOR · No timeline · AUTOSAVED</text>
+    <rect class="f-panel" x="48" y="314" width="1144" height="64" />
+    <rect class="f-border" x="48" y="377" width="1144" height="1" />
+    <text class="s f-text" x="112.0" y="353.2" font-size="20" font-weight="700" text-anchor="start">OpenCut</text>
+    <text class="m f-muted" x="207.17" y="350.32" font-size="12" font-weight="400" text-anchor="start">EDITOR · No timeline · AUTOSAVED</text>
     <use transform="translate(64 326) scale(0.0390625)" xlink:href="#app-icon" />
     <g transform="translate(600 326)">
       <use xlink:href="00-design-system.svg#dSecondaryShape" fill="#00f0ff" fill-opacity=".06" stroke="#00f0ff" filter="url(#dGlowC)" />
@@ -102,5 +102,5 @@
       <text x="57" y="24.5" font-size="13" font-weight="800" letter-spacing="2" fill="#57563f" text-anchor="middle" class="m">EXPORT</text>
     </g>
   </g>
-  <rect x="48.5" y="314.5" width="1143" height="63" fill="none" rx="8" stroke="#2b2b31" />
+  <rect class="k-border" x="48.5" y="314.5" width="1143" height="63" fill="none" rx="8" />
 </svg>
