@@ -20,7 +20,7 @@ Also apply the repository [general rules](../general-rules/SKILL.md).
 - Write designs in `design/system`. Pages are SVG written as JSX in
   `design/system/pages/<page>.tsx`. Shared parts live in `design/system/components/`,
   and colours and fonts are defined once in `design/system/theme.ts`.
-- Build with `deno task build` in `design/system`. It writes each page to
+- Build with `deno task build` in `design`. It writes each page to
   `design/pages/<page>.html`. Never edit `design/pages` by hand; it is build output.
 - Commit the built HTML together with its source.
 - Reuse existing components and theme values. When a part repeats, extract it into a
