@@ -1,5 +1,5 @@
 ---
-name: opencut-architecture
+name: architecture
 description: Architecture rules for OpenCut. Use when designing, implementing, or reviewing state ownership, editor events, panel view models, execution models, API boundaries, or mutations.
 ---
 
@@ -7,7 +7,7 @@ description: Architecture rules for OpenCut. Use when designing, implementing, o
 
 Apply these guidelines in the OpenCut repository. Paths are relative to the repository root.
 
-Also apply the repository [general rules](../opencut-general-rules/SKILL.md).
+Also apply the repository [general rules](../general-rules/SKILL.md).
 
 ## State design: derive values instead of duplicating state
 

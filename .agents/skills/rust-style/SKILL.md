@@ -1,5 +1,5 @@
 ---
-name: opencut-rust-style
+name: rust-style
 description: Rust style conventions for OpenCut. Use when writing, refactoring, or reviewing Rust code for naming, imports, visibility, source organization, and explicit control flow.
 ---
 
@@ -7,7 +7,7 @@ description: Rust style conventions for OpenCut. Use when writing, refactoring, 
 
 Apply these guidelines in the OpenCut repository. Paths are relative to the repository root.
 
-Also apply the repository [general rules](../opencut-general-rules/SKILL.md).
+Also apply the repository [general rules](../general-rules/SKILL.md).
 
 ## Naming and source organization
 
