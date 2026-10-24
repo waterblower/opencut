@@ -1,3 +1,4 @@
+import { ClipSubtitle, PropertyPanelHeader } from "../components/property-panel-header.tsx";
 import { COLOR } from "../theme.ts";
 import { FontStyle } from "../components/fonts.tsx";
 import type { Markup } from "@design/jsx/jsx-runtime";
@@ -77,223 +78,205 @@ export default function Page15PropertyPanelTextClipSvg(): Markup {
           <g clip-path="url(#c1)">
             <rect fill={COLOR.panel} x="48" y="198" width="280" height="637" />
             <g clip-path="url(#c2)">
-              <rect
-                x="64.5"
-                y="214.5"
-                width="31"
-                height="31"
-                rx="8"
-                fill="#7251a3"
-                stroke="#8261b3"
-                stroke-width="1"
+              <PropertyPanelHeader
+                x={48}
+                y={198}
+                icon={{ type: "track", kind: "T" }}
+                title={"Let's get started"}
+                subtitle={<ClipSubtitle clipType="Text clip" track="Text 1" kind="T" />}
               />
-              <text
-                class="s"
-                x="80"
-                y="234.32"
-                font-size="12"
-                fill="#ffffff"
-                font-weight="700"
-                text-anchor="middle"
-              >
-                {"T"}
-              </text>
-              <text fill={COLOR.text} class="s" x="108" y="227.04" font-size="14" font-weight="600">
-                {"Let's get started"}
-              </text>
-              <text class="s" x="108" y="243.32" font-size="11">
-                <tspan fill="#8a8a93">{"Text clip · Track: "}</tspan>
-                <tspan fill="#b69bdc">{"Text 1"}</tspan>
-              </text>
-              <rect fill={COLOR.border} x="48" y="261" width="280" height="1" />
-              <text
-                fill={COLOR.muted}
-                class="s"
-                x="64"
-                y="285.96"
-                font-size="11"
-                font-weight="600"
-                letter-spacing="0.6"
-              >
-                {"CONTENT"}
-              </text>
-              <rect
-                fill={COLOR.surface}
-                stroke={COLOR.border}
-                x="64.5"
-                y="298.5"
-                width="247"
-                height="57"
-                rx="6"
-                stroke-width="1"
-              />
-              <text fill={COLOR.text} class="s" x="74" y="319.68" font-size="13">{"Let's get started"}</text>
-              <rect fill={COLOR.divider} x="64" y="372" width="248" height="1" />
-              <text
-                fill={COLOR.muted}
-                class="s"
-                x="64"
-                y="395.96"
-                font-size="11"
-                font-weight="600"
-                letter-spacing="0.6"
-              >
-                {"TIMING"}
-              </text>
-              <text fill={COLOR.muted} class="s" x="64" y="418.96" font-size="11">{"Start"}</text>
-              <text fill={COLOR.muted} class="s" x="192" y="418.96" font-size="11">{"Duration"}</text>
-              <rect x="64" y="424" width="120" height="30" rx="6" fill="#131316" />
-              <text fill={COLOR.text} class="m" x="74" y="443.68" font-size="13">{"0:10.03"}</text>
-              <text fill={COLOR.dim} class="m" x="174" y="442.96" font-size="11" text-anchor="end">
-                {"303 f"}
-              </text>
-              <rect
-                fill={COLOR.surface}
-                stroke={COLOR.border}
-                x="192.5"
-                y="424.5"
-                width="119"
-                height="29"
-                rx="6"
-                stroke-width="1"
-              />
-              <text fill={COLOR.text} class="m" x="202" y="443.68" font-size="13">{"2.90"}</text>
-              <text fill={COLOR.muted} class="s" x="302" y="443.32" font-size="12" text-anchor="end">
-                {"s"}
-              </text>
-              <rect fill={COLOR.divider} x="64" y="470" width="248" height="1" />
-              <g id="text-clip-style">
-                <title>{"Text style: font, font size, and font color"}</title>
+              <g transform="translate(0 -8)">
                 <text
                   fill={COLOR.muted}
                   class="s"
                   x="64"
-                  y="493.96"
+                  y="285.96"
                   font-size="11"
                   font-weight="600"
                   letter-spacing="0.6"
                 >
-                  {"STYLE"}
+                  {"CONTENT"}
                 </text>
-                <text fill={COLOR.soft} class="s" x="64" y="517" font-size="12">{"Font"}</text>
                 <rect
                   fill={COLOR.surface}
                   stroke={COLOR.border}
                   x="64.5"
-                  y="526.5"
+                  y="298.5"
                   width="247"
-                  height="33"
+                  height="57"
                   rx="6"
                   stroke-width="1"
                 />
-                <text fill={COLOR.text} class="s" x="74" y="548" font-size="13">{"Sans"}</text>
-                <path
-                  stroke={COLOR.muted}
-                  d="M294 541 l4 4 l4 -4"
-                  fill="none"
-                  stroke-width="1.5"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                />
-                <text fill={COLOR.soft} class="s" x="64" y="581" font-size="12">{"Font size"}</text>
-                <text fill={COLOR.soft} class="s" x="192" y="581" font-size="12">{"Font color"}</text>
-                <rect
-                  fill={COLOR.surface}
-                  stroke={COLOR.border}
-                  x="64.5"
-                  y="590.5"
-                  width="119"
-                  height="33"
-                  rx="6"
-                  stroke-width="1"
-                />
-                <text fill={COLOR.text} class="m" x="74" y="612" font-size="13">{"64"}</text>
-                <text fill={COLOR.muted} class="s" x="174" y="612" font-size="12" text-anchor="end">
-                  {"px"}
+                <text fill={COLOR.text} class="s" x="74" y="319.68" font-size="13">
+                  {"Let's get started"}
+                </text>
+                <rect fill={COLOR.divider} x="64" y="372" width="248" height="1" />
+                <text
+                  fill={COLOR.muted}
+                  class="s"
+                  x="64"
+                  y="395.96"
+                  font-size="11"
+                  font-weight="600"
+                  letter-spacing="0.6"
+                >
+                  {"TIMING"}
+                </text>
+                <text fill={COLOR.muted} class="s" x="64" y="418.96" font-size="11">{"Start"}</text>
+                <text fill={COLOR.muted} class="s" x="192" y="418.96" font-size="11">{"Duration"}</text>
+                <rect x="64" y="424" width="120" height="30" rx="6" fill="#131316" />
+                <text fill={COLOR.text} class="m" x="74" y="443.68" font-size="13">{"0:10.03"}</text>
+                <text fill={COLOR.dim} class="m" x="174" y="442.96" font-size="11" text-anchor="end">
+                  {"303 f"}
                 </text>
                 <rect
                   fill={COLOR.surface}
                   stroke={COLOR.border}
                   x="192.5"
-                  y="590.5"
-                  width="119"
-                  height="33"
-                  rx="6"
-                  stroke-width="1"
-                />
-                <rect
-                  stroke={COLOR.border}
-                  x="200.5"
-                  y="599.5"
-                  width="15"
-                  height="15"
-                  rx="4"
-                  fill="#ffffff"
-                  stroke-width="1"
-                />
-                <text fill={COLOR.muted} class="m" x="224" y="612" font-size="13">{"#"}</text>
-                <text fill={COLOR.text} class="m" x="234" y="612" font-size="13">{"FFFFFF"}</text>
-              </g>
-              <g id="text-clip-background-border">
-                <title>{"Background: color and opacity, removable."}</title>
-                <rect fill={COLOR.divider} x="64" y="640" width="248" height="1" />
-                <text
-                  fill={COLOR.muted}
-                  class="s"
-                  x="64"
-                  y="663.96"
-                  font-size="11"
-                  font-weight="600"
-                  letter-spacing="0.6"
-                >
-                  {"BACKGROUND"}
-                </text>
-                <text fill={COLOR.accent} class="s" x="312" y="664.32" font-size="12" text-anchor="end">
-                  {"Add"}
-                </text>
-                <text fill={COLOR.dim} class="s" x="64" y="688.32" font-size="12">{"No background"}</text>
-              </g>
-              <g transform="translate(0 82)">
-                <rect fill={COLOR.divider} x="64" y="640" width="248" height="1" />
-                <text
-                  fill={COLOR.muted}
-                  class="s"
-                  x="64"
-                  y="663.96"
-                  font-size="11"
-                  font-weight="600"
-                  letter-spacing="0.6"
-                >
-                  {"POSITION"}
-                </text>
-                <rect
-                  fill={COLOR.surface}
-                  stroke={COLOR.border}
-                  x="64.5"
-                  y="676.5"
+                  y="424.5"
                   width="119"
                   height="29"
                   rx="6"
                   stroke-width="1"
                 />
-                <text fill={COLOR.muted} class="s" x="74" y="695.32" font-size="12" font-weight="600">
-                  {"X"}
+                <text fill={COLOR.text} class="m" x="202" y="443.68" font-size="13">{"2.90"}</text>
+                <text fill={COLOR.muted} class="s" x="302" y="443.32" font-size="12" text-anchor="end">
+                  {"s"}
                 </text>
-                <text fill={COLOR.text} class="m" x="89.68" y="695.68" font-size="13">{"0.50"}</text>
-                <rect
-                  fill={COLOR.surface}
-                  stroke={COLOR.border}
-                  x="192.5"
-                  y="676.5"
-                  width="119"
-                  height="29"
-                  rx="6"
-                  stroke-width="1"
-                />
-                <text fill={COLOR.muted} class="s" x="202" y="695.32" font-size="12" font-weight="600">
-                  {"Y"}
-                </text>
-                <text fill={COLOR.text} class="m" x="217.68" y="695.68" font-size="13">{"0.85"}</text>
+                <rect fill={COLOR.divider} x="64" y="470" width="248" height="1" />
+                <g id="text-clip-style">
+                  <title>{"Text style: font, font size, and font color"}</title>
+                  <text
+                    fill={COLOR.muted}
+                    class="s"
+                    x="64"
+                    y="493.96"
+                    font-size="11"
+                    font-weight="600"
+                    letter-spacing="0.6"
+                  >
+                    {"STYLE"}
+                  </text>
+                  <text fill={COLOR.soft} class="s" x="64" y="517" font-size="12">{"Font"}</text>
+                  <rect
+                    fill={COLOR.surface}
+                    stroke={COLOR.border}
+                    x="64.5"
+                    y="526.5"
+                    width="247"
+                    height="33"
+                    rx="6"
+                    stroke-width="1"
+                  />
+                  <text fill={COLOR.text} class="s" x="74" y="548" font-size="13">{"Sans"}</text>
+                  <path
+                    stroke={COLOR.muted}
+                    d="M294 541 l4 4 l4 -4"
+                    fill="none"
+                    stroke-width="1.5"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  />
+                  <text fill={COLOR.soft} class="s" x="64" y="581" font-size="12">{"Font size"}</text>
+                  <text fill={COLOR.soft} class="s" x="192" y="581" font-size="12">{"Font color"}</text>
+                  <rect
+                    fill={COLOR.surface}
+                    stroke={COLOR.border}
+                    x="64.5"
+                    y="590.5"
+                    width="119"
+                    height="33"
+                    rx="6"
+                    stroke-width="1"
+                  />
+                  <text fill={COLOR.text} class="m" x="74" y="612" font-size="13">{"64"}</text>
+                  <text fill={COLOR.muted} class="s" x="174" y="612" font-size="12" text-anchor="end">
+                    {"px"}
+                  </text>
+                  <rect
+                    fill={COLOR.surface}
+                    stroke={COLOR.border}
+                    x="192.5"
+                    y="590.5"
+                    width="119"
+                    height="33"
+                    rx="6"
+                    stroke-width="1"
+                  />
+                  <rect
+                    stroke={COLOR.border}
+                    x="200.5"
+                    y="599.5"
+                    width="15"
+                    height="15"
+                    rx="4"
+                    fill="#ffffff"
+                    stroke-width="1"
+                  />
+                  <text fill={COLOR.muted} class="m" x="224" y="612" font-size="13">{"#"}</text>
+                  <text fill={COLOR.text} class="m" x="234" y="612" font-size="13">{"FFFFFF"}</text>
+                </g>
+                <g id="text-clip-background-border">
+                  <title>{"Background: color and opacity, removable."}</title>
+                  <rect fill={COLOR.divider} x="64" y="640" width="248" height="1" />
+                  <text
+                    fill={COLOR.muted}
+                    class="s"
+                    x="64"
+                    y="663.96"
+                    font-size="11"
+                    font-weight="600"
+                    letter-spacing="0.6"
+                  >
+                    {"BACKGROUND"}
+                  </text>
+                  <text fill={COLOR.accent} class="s" x="312" y="664.32" font-size="12" text-anchor="end">
+                    {"Add"}
+                  </text>
+                  <text fill={COLOR.dim} class="s" x="64" y="688.32" font-size="12">{"No background"}</text>
+                </g>
+                <g transform="translate(0 82)">
+                  <rect fill={COLOR.divider} x="64" y="640" width="248" height="1" />
+                  <text
+                    fill={COLOR.muted}
+                    class="s"
+                    x="64"
+                    y="663.96"
+                    font-size="11"
+                    font-weight="600"
+                    letter-spacing="0.6"
+                  >
+                    {"POSITION"}
+                  </text>
+                  <rect
+                    fill={COLOR.surface}
+                    stroke={COLOR.border}
+                    x="64.5"
+                    y="676.5"
+                    width="119"
+                    height="29"
+                    rx="6"
+                    stroke-width="1"
+                  />
+                  <text fill={COLOR.muted} class="s" x="74" y="695.32" font-size="12" font-weight="600">
+                    {"X"}
+                  </text>
+                  <text fill={COLOR.text} class="m" x="89.68" y="695.68" font-size="13">{"0.50"}</text>
+                  <rect
+                    fill={COLOR.surface}
+                    stroke={COLOR.border}
+                    x="192.5"
+                    y="676.5"
+                    width="119"
+                    height="29"
+                    rx="6"
+                    stroke-width="1"
+                  />
+                  <text fill={COLOR.muted} class="s" x="202" y="695.32" font-size="12" font-weight="600">
+                    {"Y"}
+                  </text>
+                  <text fill={COLOR.text} class="m" x="217.68" y="695.68" font-size="13">{"0.85"}</text>
+                </g>
               </g>
             </g>
           </g>
@@ -324,163 +307,143 @@ export default function Page15PropertyPanelTextClipSvg(): Markup {
           />
           <g clip-path="url(#c1)">
             <rect fill={COLOR.panel} x="48" y="198" width="280" height="637" />
-            <rect x="48" y="198" width="280" height="64" fill="#242429" />
-            <rect x="48" y="198" width="280" height="5" fill="url(#locked-panel-stripes)" />
-            <rect x="48" y="198" width="5" height="637" fill="url(#locked-panel-stripes)" />
             <g clip-path="url(#c2)">
-              <rect
-                x="64.5"
-                y="214.5"
-                width="31"
-                height="31"
-                rx="8"
-                fill="#33333b"
-                stroke="#62626e"
-                stroke-width="1"
+              <PropertyPanelHeader
+                x={48}
+                y={198}
+                icon={{ type: "locked" }}
+                title={"Let's get started"}
+                subtitle={<ClipSubtitle clipType="Text clip" track="Text 1" kind="T" locked />}
+                locked
               />
-              <g
-                stroke={COLOR.light}
-                transform="translate(72 221)"
-                fill="none"
-                stroke-width="1.5"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-              >
-                <rect x="1" y="7" width="14" height="11" rx="2" />
-                <path d="M4 7V4a4 4 0 0 1 8 0v3 M8 11v3" />
-              </g>
-              <text fill={COLOR.text} class="s" x="108" y="227.04" font-size="14" font-weight="600">
-                {"Let's get started"}
-              </text>
-              <text class="s" x="108" y="243.32" font-size="11">
-                <tspan fill="#8a8a93">{"Text clip · Track: "}</tspan>
-                <tspan fill="#b69bdc">{"Text 1"}</tspan>
-                <tspan fill="#8a8a93">{" · "}</tspan>
-                <tspan fill={COLOR.light}>{"Locked"}</tspan>
-              </text>
-              <rect x="48" y="261" width="280" height="1" fill="#62626e" />
-              <text
-                fill={COLOR.muted}
-                class="s"
-                x="64"
-                y="285.96"
-                font-size="11"
-                font-weight="600"
-                letter-spacing="0.6"
-              >
-                {"CONTENT"}
-              </text>
-              <rect x="64" y="298" width="248" height="58" rx="6" fill="#19191d" />
-              <text fill={COLOR.text} class="s" x="74" y="319.68" font-size="13">{"Let's get started"}</text>
-              <rect fill={COLOR.divider} x="64" y="372" width="248" height="1" />
-              <text
-                fill={COLOR.muted}
-                class="s"
-                x="64"
-                y="395.96"
-                font-size="11"
-                font-weight="600"
-                letter-spacing="0.6"
-              >
-                {"TIMING"}
-              </text>
-              <text fill={COLOR.muted} class="s" x="64" y="418.96" font-size="11">{"Start"}</text>
-              <text fill={COLOR.muted} class="s" x="192" y="418.96" font-size="11">{"Duration"}</text>
-              <rect x="64" y="424" width="120" height="30" rx="6" fill="#19191d" />
-              <text fill={COLOR.text} class="m" x="74" y="443.68" font-size="13">{"0:10.03"}</text>
-              <text fill={COLOR.dim} class="m" x="174" y="442.96" font-size="11" text-anchor="end">
-                {"303 f"}
-              </text>
-              <rect x="192" y="424" width="120" height="30" rx="6" fill="#19191d" />
-              <text fill={COLOR.text} class="m" x="202" y="443.68" font-size="13">{"2.90"}</text>
-              <text fill={COLOR.muted} class="s" x="302" y="443.32" font-size="12" text-anchor="end">
-                {"s"}
-              </text>
-              <rect fill={COLOR.divider} x="64" y="470" width="248" height="1" />
-              <g id="text-clip-style-locked">
-                <title>{"Text style: font, font size, and font color"}</title>
+              <rect x="48" y="198" width="280" height="5" fill="url(#locked-panel-stripes)" />
+              <rect x="48" y="198" width="5" height="637" fill="url(#locked-panel-stripes)" />
+              <g transform="translate(0 -8)">
                 <text
                   fill={COLOR.muted}
                   class="s"
                   x="64"
-                  y="493.96"
+                  y="285.96"
                   font-size="11"
                   font-weight="600"
                   letter-spacing="0.6"
                 >
-                  {"STYLE"}
+                  {"CONTENT"}
                 </text>
-                <text fill={COLOR.soft} class="s" x="64" y="517" font-size="12">{"Font"}</text>
-                <rect x="64.5" y="526.5" width="247" height="33" rx="6" fill="#131316" stroke="#222226" />
-                <text fill={COLOR.dim} class="s" x="74" y="548" font-size="13">{"Sans"}</text>
-                <path
-                  d="M294 541 l4 4 l4 -4"
-                  fill="none"
-                  stroke="#46464e"
-                  stroke-width="1.5"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                />
-                <text fill={COLOR.soft} class="s" x="64" y="581" font-size="12">{"Font size"}</text>
-                <text fill={COLOR.soft} class="s" x="192" y="581" font-size="12">{"Font color"}</text>
-                <rect x="64" y="590" width="120" height="34" rx="6" fill="#19191d" />
-                <text fill={COLOR.text} class="m" x="74" y="612" font-size="13">{"64"}</text>
-                <text fill={COLOR.muted} class="s" x="174" y="612" font-size="12" text-anchor="end">
-                  {"px"}
+                <rect x="64" y="298" width="248" height="58" rx="6" fill="#19191d" />
+                <text fill={COLOR.text} class="s" x="74" y="319.68" font-size="13">
+                  {"Let's get started"}
                 </text>
-                <rect x="192" y="590" width="120" height="34" rx="6" fill="#19191d" />
-                <rect
-                  stroke={COLOR.border}
-                  x="200.5"
-                  y="599.5"
-                  width="15"
-                  height="15"
-                  rx="4"
-                  fill="#ffffff"
-                  stroke-width="1"
-                />
-                <text fill={COLOR.muted} class="m" x="224" y="612" font-size="13">{"#"}</text>
-                <text fill={COLOR.text} class="m" x="234" y="612" font-size="13">{"FFFFFF"}</text>
-              </g>
-              <g id="text-clip-background-border">
-                <title>{"Background: color and opacity, removable."}</title>
-                <rect fill={COLOR.divider} x="64" y="640" width="248" height="1" />
+                <rect fill={COLOR.divider} x="64" y="372" width="248" height="1" />
                 <text
                   fill={COLOR.muted}
                   class="s"
                   x="64"
-                  y="663.96"
+                  y="395.96"
                   font-size="11"
                   font-weight="600"
                   letter-spacing="0.6"
                 >
-                  {"BACKGROUND"}
+                  {"TIMING"}
                 </text>
-                <text fill={COLOR.dim} class="s" x="64" y="688.32" font-size="12">{"No background"}</text>
-              </g>
-              <g transform="translate(0 82)">
-                <rect fill={COLOR.divider} x="64" y="640" width="248" height="1" />
-                <text
-                  fill={COLOR.muted}
-                  class="s"
-                  x="64"
-                  y="663.96"
-                  font-size="11"
-                  font-weight="600"
-                  letter-spacing="0.6"
-                >
-                  {"POSITION"}
+                <text fill={COLOR.muted} class="s" x="64" y="418.96" font-size="11">{"Start"}</text>
+                <text fill={COLOR.muted} class="s" x="192" y="418.96" font-size="11">{"Duration"}</text>
+                <rect x="64" y="424" width="120" height="30" rx="6" fill="#19191d" />
+                <text fill={COLOR.text} class="m" x="74" y="443.68" font-size="13">{"0:10.03"}</text>
+                <text fill={COLOR.dim} class="m" x="174" y="442.96" font-size="11" text-anchor="end">
+                  {"303 f"}
                 </text>
-                <rect x="64" y="676" width="120" height="30" rx="6" fill="#19191d" />
-                <text fill={COLOR.muted} class="s" x="74" y="695.32" font-size="12" font-weight="600">
-                  {"X"}
+                <rect x="192" y="424" width="120" height="30" rx="6" fill="#19191d" />
+                <text fill={COLOR.text} class="m" x="202" y="443.68" font-size="13">{"2.90"}</text>
+                <text fill={COLOR.muted} class="s" x="302" y="443.32" font-size="12" text-anchor="end">
+                  {"s"}
                 </text>
-                <text fill={COLOR.text} class="m" x="89.68" y="695.68" font-size="13">{"0.50"}</text>
-                <rect x="192" y="676" width="120" height="30" rx="6" fill="#19191d" />
-                <text fill={COLOR.muted} class="s" x="202" y="695.32" font-size="12" font-weight="600">
-                  {"Y"}
-                </text>
-                <text fill={COLOR.text} class="m" x="217.68" y="695.68" font-size="13">{"0.85"}</text>
+                <rect fill={COLOR.divider} x="64" y="470" width="248" height="1" />
+                <g id="text-clip-style-locked">
+                  <title>{"Text style: font, font size, and font color"}</title>
+                  <text
+                    fill={COLOR.muted}
+                    class="s"
+                    x="64"
+                    y="493.96"
+                    font-size="11"
+                    font-weight="600"
+                    letter-spacing="0.6"
+                  >
+                    {"STYLE"}
+                  </text>
+                  <text fill={COLOR.soft} class="s" x="64" y="517" font-size="12">{"Font"}</text>
+                  <rect x="64.5" y="526.5" width="247" height="33" rx="6" fill="#131316" stroke="#222226" />
+                  <text fill={COLOR.dim} class="s" x="74" y="548" font-size="13">{"Sans"}</text>
+                  <path
+                    d="M294 541 l4 4 l4 -4"
+                    fill="none"
+                    stroke="#46464e"
+                    stroke-width="1.5"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  />
+                  <text fill={COLOR.soft} class="s" x="64" y="581" font-size="12">{"Font size"}</text>
+                  <text fill={COLOR.soft} class="s" x="192" y="581" font-size="12">{"Font color"}</text>
+                  <rect x="64" y="590" width="120" height="34" rx="6" fill="#19191d" />
+                  <text fill={COLOR.text} class="m" x="74" y="612" font-size="13">{"64"}</text>
+                  <text fill={COLOR.muted} class="s" x="174" y="612" font-size="12" text-anchor="end">
+                    {"px"}
+                  </text>
+                  <rect x="192" y="590" width="120" height="34" rx="6" fill="#19191d" />
+                  <rect
+                    stroke={COLOR.border}
+                    x="200.5"
+                    y="599.5"
+                    width="15"
+                    height="15"
+                    rx="4"
+                    fill="#ffffff"
+                    stroke-width="1"
+                  />
+                  <text fill={COLOR.muted} class="m" x="224" y="612" font-size="13">{"#"}</text>
+                  <text fill={COLOR.text} class="m" x="234" y="612" font-size="13">{"FFFFFF"}</text>
+                </g>
+                <g id="text-clip-background-border">
+                  <title>{"Background: color and opacity, removable."}</title>
+                  <rect fill={COLOR.divider} x="64" y="640" width="248" height="1" />
+                  <text
+                    fill={COLOR.muted}
+                    class="s"
+                    x="64"
+                    y="663.96"
+                    font-size="11"
+                    font-weight="600"
+                    letter-spacing="0.6"
+                  >
+                    {"BACKGROUND"}
+                  </text>
+                  <text fill={COLOR.dim} class="s" x="64" y="688.32" font-size="12">{"No background"}</text>
+                </g>
+                <g transform="translate(0 82)">
+                  <rect fill={COLOR.divider} x="64" y="640" width="248" height="1" />
+                  <text
+                    fill={COLOR.muted}
+                    class="s"
+                    x="64"
+                    y="663.96"
+                    font-size="11"
+                    font-weight="600"
+                    letter-spacing="0.6"
+                  >
+                    {"POSITION"}
+                  </text>
+                  <rect x="64" y="676" width="120" height="30" rx="6" fill="#19191d" />
+                  <text fill={COLOR.muted} class="s" x="74" y="695.32" font-size="12" font-weight="600">
+                    {"X"}
+                  </text>
+                  <text fill={COLOR.text} class="m" x="89.68" y="695.68" font-size="13">{"0.50"}</text>
+                  <rect x="192" y="676" width="120" height="30" rx="6" fill="#19191d" />
+                  <text fill={COLOR.muted} class="s" x="202" y="695.32" font-size="12" font-weight="600">
+                    {"Y"}
+                  </text>
+                  <text fill={COLOR.text} class="m" x="217.68" y="695.68" font-size="13">{"0.85"}</text>
+                </g>
               </g>
             </g>
           </g>
@@ -520,35 +483,13 @@ export default function Page15PropertyPanelTextClipSvg(): Markup {
               <g clip-path="url(#c1)">
                 <rect fill={COLOR.panel} x="48" y="198" width="280" height="637" />
                 <g clip-path="url(#c2)">
-                  <rect
-                    x="64.5"
-                    y="214.5"
-                    width="31"
-                    height="31"
-                    rx="8"
-                    fill="#7251a3"
-                    stroke="#8261b3"
-                    stroke-width="1"
+                  <PropertyPanelHeader
+                    x={48}
+                    y={198}
+                    icon={{ type: "track", kind: "T" }}
+                    title={"Let's get started"}
+                    subtitle={<ClipSubtitle clipType="Text clip" track="Text 1" kind="T" />}
                   />
-                  <text
-                    class="s"
-                    x="80"
-                    y="234.32"
-                    font-size="12"
-                    fill="#ffffff"
-                    font-weight="700"
-                    text-anchor="middle"
-                  >
-                    {"T"}
-                  </text>
-                  <text fill={COLOR.text} class="s" x="108" y="227.04" font-size="14" font-weight="600">
-                    {"Let's get started"}
-                  </text>
-                  <text class="s" x="108" y="243.32" font-size="11">
-                    <tspan fill="#8a8a93">{"Text clip · Track: "}</tspan>
-                    <tspan fill="#b69bdc">{"Text 1"}</tspan>
-                  </text>
-                  <rect fill={COLOR.border} x="48" y="261" width="280" height="1" />
                   <text
                     fill={COLOR.muted}
                     class="s"
@@ -817,35 +758,13 @@ export default function Page15PropertyPanelTextClipSvg(): Markup {
               <g clip-path="url(#c1)">
                 <rect fill={COLOR.panel} x="48" y="198" width="280" height="637" />
                 <g clip-path="url(#c2)">
-                  <rect
-                    x="64.5"
-                    y="214.5"
-                    width="31"
-                    height="31"
-                    rx="8"
-                    fill="#7251a3"
-                    stroke="#8261b3"
-                    stroke-width="1"
+                  <PropertyPanelHeader
+                    x={48}
+                    y={198}
+                    icon={{ type: "track", kind: "T" }}
+                    title={"Let's get started"}
+                    subtitle={<ClipSubtitle clipType="Text clip" track="Text 1" kind="T" />}
                   />
-                  <text
-                    class="s"
-                    x="80"
-                    y="234.32"
-                    font-size="12"
-                    fill="#ffffff"
-                    font-weight="700"
-                    text-anchor="middle"
-                  >
-                    {"T"}
-                  </text>
-                  <text fill={COLOR.text} class="s" x="108" y="227.04" font-size="14" font-weight="600">
-                    {"Let's get started"}
-                  </text>
-                  <text class="s" x="108" y="243.32" font-size="11">
-                    <tspan fill="#8a8a93">{"Text clip · Track: "}</tspan>
-                    <tspan fill="#b69bdc">{"Text 1"}</tspan>
-                  </text>
-                  <rect fill={COLOR.border} x="48" y="261" width="280" height="1" />
                   <text
                     fill={COLOR.muted}
                     class="s"
@@ -1121,35 +1040,13 @@ export default function Page15PropertyPanelTextClipSvg(): Markup {
               <g clip-path="url(#c1)">
                 <rect fill={COLOR.panel} x="48" y="198" width="280" height="637" />
                 <g clip-path="url(#c2)">
-                  <rect
-                    x="64.5"
-                    y="214.5"
-                    width="31"
-                    height="31"
-                    rx="8"
-                    fill="#7251a3"
-                    stroke="#8261b3"
-                    stroke-width="1"
+                  <PropertyPanelHeader
+                    x={48}
+                    y={198}
+                    icon={{ type: "track", kind: "T" }}
+                    title={"Let's get started"}
+                    subtitle={<ClipSubtitle clipType="Text clip" track="Text 1" kind="T" />}
                   />
-                  <text
-                    class="s"
-                    x="80"
-                    y="234.32"
-                    font-size="12"
-                    fill="#ffffff"
-                    font-weight="700"
-                    text-anchor="middle"
-                  >
-                    {"T"}
-                  </text>
-                  <text fill={COLOR.text} class="s" x="108" y="227.04" font-size="14" font-weight="600">
-                    {"Let's get started"}
-                  </text>
-                  <text class="s" x="108" y="243.32" font-size="11">
-                    <tspan fill="#8a8a93">{"Text clip · Track: "}</tspan>
-                    <tspan fill="#b69bdc">{"Text 1"}</tspan>
-                  </text>
-                  <rect fill={COLOR.border} x="48" y="261" width="280" height="1" />
                   <text
                     fill={COLOR.muted}
                     class="s"
@@ -1422,35 +1319,13 @@ export default function Page15PropertyPanelTextClipSvg(): Markup {
               <g clip-path="url(#c1)">
                 <rect fill={COLOR.panel} x="48" y="198" width="280" height="637" />
                 <g clip-path="url(#c2)">
-                  <rect
-                    x="64.5"
-                    y="214.5"
-                    width="31"
-                    height="31"
-                    rx="8"
-                    fill="#7251a3"
-                    stroke="#8261b3"
-                    stroke-width="1"
+                  <PropertyPanelHeader
+                    x={48}
+                    y={198}
+                    icon={{ type: "track", kind: "T" }}
+                    title={"Let's get started"}
+                    subtitle={<ClipSubtitle clipType="Text clip" track="Text 1" kind="T" />}
                   />
-                  <text
-                    class="s"
-                    x="80"
-                    y="234.32"
-                    font-size="12"
-                    fill="#ffffff"
-                    font-weight="700"
-                    text-anchor="middle"
-                  >
-                    {"T"}
-                  </text>
-                  <text fill={COLOR.text} class="s" x="108" y="227.04" font-size="14" font-weight="600">
-                    {"Let's get started"}
-                  </text>
-                  <text class="s" x="108" y="243.32" font-size="11">
-                    <tspan fill="#8a8a93">{"Text clip · Track: "}</tspan>
-                    <tspan fill="#b69bdc">{"Text 1"}</tspan>
-                  </text>
-                  <rect fill={COLOR.border} x="48" y="261" width="280" height="1" />
                   <text
                     fill={COLOR.muted}
                     class="s"
@@ -1781,35 +1656,13 @@ export default function Page15PropertyPanelTextClipSvg(): Markup {
               <g clip-path="url(#c1)">
                 <rect fill={COLOR.panel} x="48" y="198" width="280" height="637" />
                 <g clip-path="url(#c2)">
-                  <rect
-                    x="64.5"
-                    y="214.5"
-                    width="31"
-                    height="31"
-                    rx="8"
-                    fill="#7251a3"
-                    stroke="#8261b3"
-                    stroke-width="1"
+                  <PropertyPanelHeader
+                    x={48}
+                    y={198}
+                    icon={{ type: "track", kind: "T" }}
+                    title={"Let's get started"}
+                    subtitle={<ClipSubtitle clipType="Text clip" track="Text 1" kind="T" />}
                   />
-                  <text
-                    class="s"
-                    x="80"
-                    y="234.32"
-                    font-size="12"
-                    fill="#ffffff"
-                    font-weight="700"
-                    text-anchor="middle"
-                  >
-                    {"T"}
-                  </text>
-                  <text fill={COLOR.text} class="s" x="108" y="227.04" font-size="14" font-weight="600">
-                    {"Let's get started"}
-                  </text>
-                  <text class="s" x="108" y="243.32" font-size="11">
-                    <tspan fill="#8a8a93">{"Text clip · Track: "}</tspan>
-                    <tspan fill="#b69bdc">{"Text 1"}</tspan>
-                  </text>
-                  <rect fill={COLOR.border} x="48" y="261" width="280" height="1" />
                   <text
                     fill={COLOR.muted}
                     class="s"
@@ -2169,35 +2022,13 @@ export default function Page15PropertyPanelTextClipSvg(): Markup {
               <g clip-path="url(#c1)">
                 <rect fill={COLOR.panel} x="48" y="198" width="280" height="637" />
                 <g clip-path="url(#c2)">
-                  <rect
-                    x="64.5"
-                    y="214.5"
-                    width="31"
-                    height="31"
-                    rx="8"
-                    fill="#7251a3"
-                    stroke="#8261b3"
-                    stroke-width="1"
+                  <PropertyPanelHeader
+                    x={48}
+                    y={198}
+                    icon={{ type: "track", kind: "T" }}
+                    title={"Let's get started"}
+                    subtitle={<ClipSubtitle clipType="Text clip" track="Text 1" kind="T" />}
                   />
-                  <text
-                    class="s"
-                    x="80"
-                    y="234.32"
-                    font-size="12"
-                    fill="#ffffff"
-                    font-weight="700"
-                    text-anchor="middle"
-                  >
-                    {"T"}
-                  </text>
-                  <text fill={COLOR.text} class="s" x="108" y="227.04" font-size="14" font-weight="600">
-                    {"Let's get started"}
-                  </text>
-                  <text class="s" x="108" y="243.32" font-size="11">
-                    <tspan fill="#8a8a93">{"Text clip · Track: "}</tspan>
-                    <tspan fill="#b69bdc">{"Text 1"}</tspan>
-                  </text>
-                  <rect fill={COLOR.border} x="48" y="261" width="280" height="1" />
                   <text
                     fill={COLOR.muted}
                     class="s"
@@ -2550,35 +2381,13 @@ export default function Page15PropertyPanelTextClipSvg(): Markup {
               <g clip-path="url(#c1)">
                 <rect fill={COLOR.panel} x="48" y="198" width="280" height="637" />
                 <g clip-path="url(#c2)">
-                  <rect
-                    x="64.5"
-                    y="214.5"
-                    width="31"
-                    height="31"
-                    rx="8"
-                    fill="#7251a3"
-                    stroke="#8261b3"
-                    stroke-width="1"
+                  <PropertyPanelHeader
+                    x={48}
+                    y={198}
+                    icon={{ type: "track", kind: "T" }}
+                    title={"Let's get started"}
+                    subtitle={<ClipSubtitle clipType="Text clip" track="Text 1" kind="T" />}
                   />
-                  <text
-                    class="s"
-                    x="80"
-                    y="234.32"
-                    font-size="12"
-                    fill="#ffffff"
-                    font-weight="700"
-                    text-anchor="middle"
-                  >
-                    {"T"}
-                  </text>
-                  <text fill={COLOR.text} class="s" x="108" y="227.04" font-size="14" font-weight="600">
-                    {"Let's get started"}
-                  </text>
-                  <text class="s" x="108" y="243.32" font-size="11">
-                    <tspan fill="#8a8a93">{"Text clip · Track: "}</tspan>
-                    <tspan fill="#b69bdc">{"Text 1"}</tspan>
-                  </text>
-                  <rect fill={COLOR.border} x="48" y="261" width="280" height="1" />
                   <text
                     fill={COLOR.muted}
                     class="s"
@@ -2858,35 +2667,13 @@ export default function Page15PropertyPanelTextClipSvg(): Markup {
               <g clip-path="url(#c1)">
                 <rect fill={COLOR.panel} x="48" y="198" width="280" height="637" />
                 <g clip-path="url(#c2)">
-                  <rect
-                    x="64.5"
-                    y="214.5"
-                    width="31"
-                    height="31"
-                    rx="8"
-                    fill="#7251a3"
-                    stroke="#8261b3"
-                    stroke-width="1"
+                  <PropertyPanelHeader
+                    x={48}
+                    y={198}
+                    icon={{ type: "track", kind: "T" }}
+                    title={"Let's get started"}
+                    subtitle={<ClipSubtitle clipType="Text clip" track="Text 1" kind="T" />}
                   />
-                  <text
-                    class="s"
-                    x="80"
-                    y="234.32"
-                    font-size="12"
-                    fill="#ffffff"
-                    font-weight="700"
-                    text-anchor="middle"
-                  >
-                    {"T"}
-                  </text>
-                  <text fill={COLOR.text} class="s" x="108" y="227.04" font-size="14" font-weight="600">
-                    {"Let's get started"}
-                  </text>
-                  <text class="s" x="108" y="243.32" font-size="11">
-                    <tspan fill="#8a8a93">{"Text clip · Track: "}</tspan>
-                    <tspan fill="#b69bdc">{"Text 1"}</tspan>
-                  </text>
-                  <rect fill={COLOR.border} x="48" y="261" width="280" height="1" />
                   <text
                     fill={COLOR.muted}
                     class="s"
@@ -3035,7 +2822,9 @@ export default function Page15PropertyPanelTextClipSvg(): Markup {
                     <text fill={COLOR.accent} class="s" x="312" y="664.32" font-size="12" text-anchor="end">
                       {"Add"}
                     </text>
-                    <text fill={COLOR.dim} class="s" x="64" y="688.32" font-size="12">{"No background"}</text>
+                    <text fill={COLOR.dim} class="s" x="64" y="688.32" font-size="12">
+                      {"No background"}
+                    </text>
                   </g>
                   <g transform="translate(0 82)">
                     <rect fill={COLOR.divider} x="64" y="640" width="248" height="1" />
@@ -3119,35 +2908,13 @@ export default function Page15PropertyPanelTextClipSvg(): Markup {
               <g clip-path="url(#c1)">
                 <rect fill={COLOR.panel} x="48" y="198" width="280" height="637" />
                 <g clip-path="url(#c2)">
-                  <rect
-                    x="64.5"
-                    y="214.5"
-                    width="31"
-                    height="31"
-                    rx="8"
-                    fill="#7251a3"
-                    stroke="#8261b3"
-                    stroke-width="1"
+                  <PropertyPanelHeader
+                    x={48}
+                    y={198}
+                    icon={{ type: "track", kind: "T" }}
+                    title={"Let's get started"}
+                    subtitle={<ClipSubtitle clipType="Text clip" track="Text 1" kind="T" />}
                   />
-                  <text
-                    class="s"
-                    x="80"
-                    y="234.32"
-                    font-size="12"
-                    fill="#ffffff"
-                    font-weight="700"
-                    text-anchor="middle"
-                  >
-                    {"T"}
-                  </text>
-                  <text fill={COLOR.text} class="s" x="108" y="227.04" font-size="14" font-weight="600">
-                    {"Let's get started"}
-                  </text>
-                  <text class="s" x="108" y="243.32" font-size="11">
-                    <tspan fill="#8a8a93">{"Text clip · Track: "}</tspan>
-                    <tspan fill="#b69bdc">{"Text 1"}</tspan>
-                  </text>
-                  <rect fill={COLOR.border} x="48" y="261" width="280" height="1" />
                   <text
                     fill={COLOR.muted}
                     class="s"

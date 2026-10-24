@@ -1,3 +1,4 @@
+import { PlainSubtitle, PropertyPanelHeader } from "../components/property-panel-header.tsx";
 import { COLOR } from "../theme.ts";
 import { FontStyle } from "../components/fonts.tsx";
 import type { Markup } from "@design/jsx/jsx-runtime";
@@ -41,24 +42,14 @@ export default function Page15PropertyPanelTimelineSvg(): Markup {
         transform="translate(0 6)"
       />
       <rect fill={COLOR.panel} x="48" y="230" width="280" height="555" rx="10" />
-      <rect fill={COLOR.accent} stroke={COLOR.accent} x="60.5" y="242.5" width="31" height="31" rx="8" />
-      <text class="s" x="76" y="261.96" font-size="11" fill="#17120a" font-weight="700" text-anchor="middle">
-        {"TL"}
-      </text>
-      <text fill={COLOR.text} class="s" x="104" y="255" font-size="14" font-weight="600" text-anchor="start">
-        {"edit.timeline"}
-      </text>
-      <text
-        fill={COLOR.muted}
-        class="s"
-        x="104"
-        y="271.3"
-        font-size="12"
-        font-weight="400"
-        text-anchor="start"
-      >
-        {"timelines/edit.timeline"}
-      </text>
+      <PropertyPanelHeader
+        x={48}
+        y={230}
+        icon={{ type: "timeline" }}
+        title="edit.timeline"
+        subtitle={<PlainSubtitle>timelines/edit.timeline</PlainSubtitle>}
+        divider={false}
+      />
       <rect x="187" y="286" width="141" height="30" fill="#1a1a1e" />
       <rect fill={COLOR.border} x="187" y="286" width="141" height="1" />
       <rect fill={COLOR.border} x="187" y="286" width="1" height="30" />
@@ -244,24 +235,14 @@ export default function Page15PropertyPanelTimelineSvg(): Markup {
         transform="translate(0 6)"
       />
       <rect fill={COLOR.panel} x="368" y="230" width="280" height="555" rx="10" />
-      <rect fill={COLOR.accent} stroke={COLOR.accent} x="380.5" y="242.5" width="31" height="31" rx="8" />
-      <text class="s" x="396" y="261.96" font-size="11" fill="#17120a" font-weight="700" text-anchor="middle">
-        {"TL"}
-      </text>
-      <text fill={COLOR.text} class="s" x="424" y="255" font-size="14" font-weight="600" text-anchor="start">
-        {"edit.timeline"}
-      </text>
-      <text
-        fill={COLOR.muted}
-        class="s"
-        x="424"
-        y="271.3"
-        font-size="12"
-        font-weight="400"
-        text-anchor="start"
-      >
-        {"timelines/edit.timeline"}
-      </text>
+      <PropertyPanelHeader
+        x={368}
+        y={230}
+        icon={{ type: "timeline" }}
+        title="edit.timeline"
+        subtitle={<PlainSubtitle>timelines/edit.timeline</PlainSubtitle>}
+        divider={false}
+      />
       <rect x="368" y="286" width="141" height="30" fill="#1a1a1e" />
       <rect fill={COLOR.border} x="368" y="286" width="141" height="1" />
       <rect fill={COLOR.border} x="368" y="286" width="1" height="30" />

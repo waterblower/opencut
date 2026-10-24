@@ -1,10 +1,16 @@
+import {
+  ClipSubtitle,
+  PlainSubtitle,
+  PROPERTY_PANEL_HEADER_HEIGHT,
+  PropertyPanelHeader,
+} from "../components/property-panel-header.tsx";
 import { COLOR } from "../theme.ts";
 import { FontStyle } from "../components/fonts.tsx";
 import type { Markup } from "@design/jsx/jsx-runtime";
 
 export default function Page15PropertyPanelSvg(): Markup {
   return (
-    <svg xmlns="http://www.w3.org/2000/svg" width="2296" height="4955" viewBox="0 0 2296 4955">
+    <svg xmlns="http://www.w3.org/2000/svg" width="2296" height="5139" viewBox="0 0 2296 5139">
       <FontStyle />
       <defs>
         <g id="icon-mic" fill="none" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round">
@@ -52,7 +58,7 @@ export default function Page15PropertyPanelSvg(): Markup {
           <path d="M-2 2 L2 -2 M0 8 L8 0 M6 10 L10 6" stroke="#676773" stroke-width="2" />
         </pattern>
       </defs>
-      <rect fill={COLOR.page} x="0" y="0" width="2296" height="4955" />
+      <rect fill={COLOR.page} x="0" y="0" width="2296" height="5139" />
       <text fill={COLOR.text} class="s" x="48" y="60.64" font-size="24" font-weight="700">
         {"Property Panel"}
       </text>
@@ -77,7 +83,50 @@ export default function Page15PropertyPanelSvg(): Markup {
       <text fill={COLOR.soft} class="s" x="372.86" y="123.68" font-size="13">{"Read-only value"}</text>
       <text fill={COLOR.accent} class="s" x="501.71" y="123.68" font-size="13">{"Change…"}</text>
       <text fill={COLOR.soft} class="s" x="562.15" y="123.68" font-size="13">{"Action"}</text>
-      <g transform="translate(0 -684)">
+      <g id="row-header">
+        <text fill={COLOR.text} class="s" x="48" y="180" font-size="18" font-weight="600">{"Header"}</text>
+        <text fill={COLOR.muted} class="s" x="48" y="204" font-size="12" font-weight="400">
+          {"Shared by every property panel: 12px around the icon, then a divider."}
+        </text>
+        <HeaderDemo x={48} label="Clip">
+          <PropertyPanelHeader
+            x={48}
+            y={248}
+            icon={{ type: "track", kind: "V" }}
+            title="broll-street.mov"
+            subtitle={<ClipSubtitle clipType="Video clip" track="Video 1" kind="V" />}
+          />
+        </HeaderDemo>
+        <HeaderDemo x={368} label="Clip on a locked track">
+          <PropertyPanelHeader
+            x={368}
+            y={248}
+            icon={{ type: "locked" }}
+            title="broll-street.mov"
+            subtitle={<ClipSubtitle clipType="Video clip" track="Video 1" kind="V" locked />}
+            locked
+          />
+        </HeaderDemo>
+        <HeaderDemo x={688} label="File">
+          <PropertyPanelHeader
+            x={688}
+            y={248}
+            icon={{ type: "file", label: "MP4", labelColor: "#8fb9dd", stroke: "#355b78" }}
+            title="interview.mp4"
+            subtitle={<PlainSubtitle>Video file</PlainSubtitle>}
+          />
+        </HeaderDemo>
+        <HeaderDemo x={1008} label="Timeline">
+          <PropertyPanelHeader
+            x={1008}
+            y={248}
+            icon={{ type: "timeline" }}
+            title="edit.timeline"
+            subtitle={<PlainSubtitle>timelines/edit.timeline</PlainSubtitle>}
+          />
+        </HeaderDemo>
+      </g>
+      <g transform="translate(0 -500)">
         <g id="row-video-clip">
           <text fill={COLOR.text} class="s" x="48" y="864" font-size="18" font-weight="600">
             {"Video clip"}
@@ -100,169 +149,149 @@ export default function Page15PropertyPanelSvg(): Markup {
             <g clip-path="url(#c3)">
               <rect fill={COLOR.panel} x="368" y="198" width="280" height="555" />
               <g clip-path="url(#c4)">
-                <rect
-                  x="384.5"
-                  y="214.5"
-                  width="31"
-                  height="31"
-                  rx="8"
-                  fill="#294d75"
-                  stroke="#395d85"
-                  stroke-width="1"
+                <PropertyPanelHeader
+                  x={368}
+                  y={198}
+                  icon={{ type: "track", kind: "V" }}
+                  title={"broll-street.mov"}
+                  subtitle={<ClipSubtitle clipType="Video clip" track="Video 1" kind="V" />}
                 />
-                <text
-                  class="s"
-                  x="400"
-                  y="234.32"
-                  font-size="12"
-                  fill="#ffffff"
-                  font-weight="700"
-                  text-anchor="middle"
-                >
-                  {"V"}
-                </text>
-                <text fill={COLOR.text} class="s" x="428" y="227.04" font-size="14" font-weight="600">
-                  {"broll-street.mov"}
-                </text>
-                <text class="s" x="428" y="243.32" font-size="11">
-                  <tspan fill="#8a8a93">{"Video clip · Track: "}</tspan>
-                  <tspan fill="#91b8df">{"Video 1"}</tspan>
-                </text>
-                <rect fill={COLOR.border} x="368" y="261" width="280" height="1" />
-                <text
-                  fill={COLOR.muted}
-                  class="s"
-                  x="384"
-                  y="285.96"
-                  font-size="11"
-                  font-weight="600"
-                  letter-spacing="0.6"
-                >
-                  {"TIMING"}
-                </text>
-                <rect x="384" y="298" width="120" height="50" rx="6" fill="#131316" />
-                <text fill={COLOR.muted} class="s" x="394" y="316.96" font-size="11">{"Start"}</text>
-                <text fill={COLOR.text} class="m" x="394" y="336.68" font-size="13">{"0:08.00"}</text>
-                <text fill={COLOR.dim} class="m" x="494" y="335.96" font-size="11" text-anchor="end">
-                  {"240 f"}
-                </text>
-                <rect x="512" y="298" width="120" height="50" rx="6" fill="#131316" />
-                <text fill={COLOR.muted} class="s" x="522" y="316.96" font-size="11">{"Duration"}</text>
-                <text fill={COLOR.text} class="m" x="522" y="336.68" font-size="13">{"0:09.50"}</text>
-                <text fill={COLOR.dim} class="m" x="622" y="335.96" font-size="11" text-anchor="end">
-                  {"285 f"}
-                </text>
-                <rect x="384" y="356" width="120" height="50" rx="6" fill="#131316" />
-                <text fill={COLOR.muted} class="s" x="394" y="374.96" font-size="11">{"Source in"}</text>
-                <text fill={COLOR.text} class="m" x="394" y="394.68" font-size="13">{"0:44.00"}</text>
-                <text fill={COLOR.dim} class="m" x="494" y="393.96" font-size="11" text-anchor="end">
-                  {"1320 f"}
-                </text>
-                <rect x="512" y="356" width="120" height="50" rx="6" fill="#131316" />
-                <text fill={COLOR.muted} class="s" x="522" y="374.96" font-size="11">{"Source out"}</text>
-                <text fill={COLOR.text} class="m" x="522" y="394.68" font-size="13">{"0:53.50"}</text>
-                <text fill={COLOR.dim} class="m" x="622" y="393.96" font-size="11" text-anchor="end">
-                  {"1605 f"}
-                </text>
-                <rect fill={COLOR.divider} x="384" y="422" width="248" height="1" />
-                <text
-                  fill={COLOR.muted}
-                  class="s"
-                  x="384"
-                  y="445.96"
-                  font-size="11"
-                  font-weight="600"
-                  letter-spacing="0.6"
-                >
-                  {"TRANSFORM"}
-                </text>
-                <text fill={COLOR.accent} class="s" x="632" y="446.32" font-size="12" text-anchor="end">
-                  {"Reset"}
-                </text>
-                <text fill={COLOR.muted} class="s" x="384" y="477.68" font-size="13">{"Position"}</text>
-                <rect
-                  fill={COLOR.surface}
-                  stroke={COLOR.border}
-                  x="384.5"
-                  y="484.5"
-                  width="119"
-                  height="29"
-                  rx="6"
-                  stroke-width="1"
-                />
-                <text fill={COLOR.muted} class="s" x="394" y="503.32" font-size="12" font-weight="600">
-                  {"X"}
-                </text>
-                <text fill={COLOR.text} class="m" x="409.68" y="503.68" font-size="13">{"0"}</text>
-                <text fill={COLOR.muted} class="s" x="494" y="503.32" font-size="12" text-anchor="end">
-                  {"px"}
-                </text>
-                <rect
-                  fill={COLOR.surface}
-                  stroke={COLOR.border}
-                  x="512.5"
-                  y="484.5"
-                  width="119"
-                  height="29"
-                  rx="6"
-                  stroke-width="1"
-                />
-                <text fill={COLOR.muted} class="s" x="522" y="503.32" font-size="12" font-weight="600">
-                  {"Y"}
-                </text>
-                <text fill={COLOR.text} class="m" x="537.68" y="503.68" font-size="13">{"0"}</text>
-                <text fill={COLOR.muted} class="s" x="622" y="503.32" font-size="12" text-anchor="end">
-                  {"px"}
-                </text>
-                <text fill={COLOR.muted} class="s" x="384" y="549.68" font-size="13">{"Scale"}</text>
-                <rect fill={COLOR.border} x="432" y="543" width="104" height="4" rx="2" />
-                <rect fill={COLOR.dim} x="483.5" y="540" width="1" height="10" />
-                <rect fill={COLOR.accent} x="432" y="543" width="52" height="4" rx="2" />
-                <circle fill={COLOR.text} stroke={COLOR.panel} cx="484" cy="545" r="7" stroke-width="2" />
-                <rect
-                  fill={COLOR.surface}
-                  stroke={COLOR.border}
-                  x="548.5"
-                  y="530.5"
-                  width="83"
-                  height="29"
-                  rx="6"
-                  stroke-width="1"
-                />
-                <text fill={COLOR.text} class="m" x="558" y="549.68" font-size="13">{"100"}</text>
-                <text fill={COLOR.muted} class="s" x="622" y="549.32" font-size="12" text-anchor="end">
-                  {"%"}
-                </text>
-                <rect fill={COLOR.divider} x="384" y="576" width="248" height="1" />
-                <text
-                  fill={COLOR.muted}
-                  class="s"
-                  x="384"
-                  y="599.96"
-                  font-size="11"
-                  font-weight="600"
-                  letter-spacing="0.6"
-                >
-                  {"AUDIO"}
-                </text>
-                <text fill={COLOR.muted} class="s" x="384" y="631.68" font-size="13">{"Gain"}</text>
-                <rect
-                  fill={COLOR.surface}
-                  stroke={COLOR.border}
-                  x="548.5"
-                  y="612.5"
-                  width="83"
-                  height="29"
-                  rx="6"
-                  stroke-width="1"
-                />
-                <text fill={COLOR.text} class="m" x="558" y="631.68" font-size="13">{"0.00"}</text>
-                <text fill={COLOR.muted} class="s" x="622" y="631.32" font-size="12" text-anchor="end">
-                  {"dB"}
-                </text>
-                <use stroke={COLOR.light} href="#icon-mic" transform="translate(384 658) scale(0.6667)" />
-                <rect fill={COLOR.accent} x="598" y="656" width="34" height="20" rx="10" />
-                <circle fill={COLOR.panel} cx="622" cy="666" r="7" />
+                <g transform="translate(0 -8)">
+                  <text
+                    fill={COLOR.muted}
+                    class="s"
+                    x="384"
+                    y="285.96"
+                    font-size="11"
+                    font-weight="600"
+                    letter-spacing="0.6"
+                  >
+                    {"TIMING"}
+                  </text>
+                  <rect x="384" y="298" width="120" height="50" rx="6" fill="#131316" />
+                  <text fill={COLOR.muted} class="s" x="394" y="316.96" font-size="11">{"Start"}</text>
+                  <text fill={COLOR.text} class="m" x="394" y="336.68" font-size="13">{"0:08.00"}</text>
+                  <text fill={COLOR.dim} class="m" x="494" y="335.96" font-size="11" text-anchor="end">
+                    {"240 f"}
+                  </text>
+                  <rect x="512" y="298" width="120" height="50" rx="6" fill="#131316" />
+                  <text fill={COLOR.muted} class="s" x="522" y="316.96" font-size="11">{"Duration"}</text>
+                  <text fill={COLOR.text} class="m" x="522" y="336.68" font-size="13">{"0:09.50"}</text>
+                  <text fill={COLOR.dim} class="m" x="622" y="335.96" font-size="11" text-anchor="end">
+                    {"285 f"}
+                  </text>
+                  <rect x="384" y="356" width="120" height="50" rx="6" fill="#131316" />
+                  <text fill={COLOR.muted} class="s" x="394" y="374.96" font-size="11">{"Source in"}</text>
+                  <text fill={COLOR.text} class="m" x="394" y="394.68" font-size="13">{"0:44.00"}</text>
+                  <text fill={COLOR.dim} class="m" x="494" y="393.96" font-size="11" text-anchor="end">
+                    {"1320 f"}
+                  </text>
+                  <rect x="512" y="356" width="120" height="50" rx="6" fill="#131316" />
+                  <text fill={COLOR.muted} class="s" x="522" y="374.96" font-size="11">{"Source out"}</text>
+                  <text fill={COLOR.text} class="m" x="522" y="394.68" font-size="13">{"0:53.50"}</text>
+                  <text fill={COLOR.dim} class="m" x="622" y="393.96" font-size="11" text-anchor="end">
+                    {"1605 f"}
+                  </text>
+                  <rect fill={COLOR.divider} x="384" y="422" width="248" height="1" />
+                  <text
+                    fill={COLOR.muted}
+                    class="s"
+                    x="384"
+                    y="445.96"
+                    font-size="11"
+                    font-weight="600"
+                    letter-spacing="0.6"
+                  >
+                    {"TRANSFORM"}
+                  </text>
+                  <text fill={COLOR.accent} class="s" x="632" y="446.32" font-size="12" text-anchor="end">
+                    {"Reset"}
+                  </text>
+                  <text fill={COLOR.muted} class="s" x="384" y="477.68" font-size="13">{"Position"}</text>
+                  <rect
+                    fill={COLOR.surface}
+                    stroke={COLOR.border}
+                    x="384.5"
+                    y="484.5"
+                    width="119"
+                    height="29"
+                    rx="6"
+                    stroke-width="1"
+                  />
+                  <text fill={COLOR.muted} class="s" x="394" y="503.32" font-size="12" font-weight="600">
+                    {"X"}
+                  </text>
+                  <text fill={COLOR.text} class="m" x="409.68" y="503.68" font-size="13">{"0"}</text>
+                  <text fill={COLOR.muted} class="s" x="494" y="503.32" font-size="12" text-anchor="end">
+                    {"px"}
+                  </text>
+                  <rect
+                    fill={COLOR.surface}
+                    stroke={COLOR.border}
+                    x="512.5"
+                    y="484.5"
+                    width="119"
+                    height="29"
+                    rx="6"
+                    stroke-width="1"
+                  />
+                  <text fill={COLOR.muted} class="s" x="522" y="503.32" font-size="12" font-weight="600">
+                    {"Y"}
+                  </text>
+                  <text fill={COLOR.text} class="m" x="537.68" y="503.68" font-size="13">{"0"}</text>
+                  <text fill={COLOR.muted} class="s" x="622" y="503.32" font-size="12" text-anchor="end">
+                    {"px"}
+                  </text>
+                  <text fill={COLOR.muted} class="s" x="384" y="549.68" font-size="13">{"Scale"}</text>
+                  <rect fill={COLOR.border} x="432" y="543" width="104" height="4" rx="2" />
+                  <rect fill={COLOR.dim} x="483.5" y="540" width="1" height="10" />
+                  <rect fill={COLOR.accent} x="432" y="543" width="52" height="4" rx="2" />
+                  <circle fill={COLOR.text} stroke={COLOR.panel} cx="484" cy="545" r="7" stroke-width="2" />
+                  <rect
+                    fill={COLOR.surface}
+                    stroke={COLOR.border}
+                    x="548.5"
+                    y="530.5"
+                    width="83"
+                    height="29"
+                    rx="6"
+                    stroke-width="1"
+                  />
+                  <text fill={COLOR.text} class="m" x="558" y="549.68" font-size="13">{"100"}</text>
+                  <text fill={COLOR.muted} class="s" x="622" y="549.32" font-size="12" text-anchor="end">
+                    {"%"}
+                  </text>
+                  <rect fill={COLOR.divider} x="384" y="576" width="248" height="1" />
+                  <text
+                    fill={COLOR.muted}
+                    class="s"
+                    x="384"
+                    y="599.96"
+                    font-size="11"
+                    font-weight="600"
+                    letter-spacing="0.6"
+                  >
+                    {"AUDIO"}
+                  </text>
+                  <text fill={COLOR.muted} class="s" x="384" y="631.68" font-size="13">{"Gain"}</text>
+                  <rect
+                    fill={COLOR.surface}
+                    stroke={COLOR.border}
+                    x="548.5"
+                    y="612.5"
+                    width="83"
+                    height="29"
+                    rx="6"
+                    stroke-width="1"
+                  />
+                  <text fill={COLOR.text} class="m" x="558" y="631.68" font-size="13">{"0.00"}</text>
+                  <text fill={COLOR.muted} class="s" x="622" y="631.32" font-size="12" text-anchor="end">
+                    {"dB"}
+                  </text>
+                  <use stroke={COLOR.light} href="#icon-mic" transform="translate(384 658) scale(0.6667)" />
+                  <rect fill={COLOR.accent} x="598" y="656" width="34" height="20" rx="10" />
+                  <circle fill={COLOR.panel} cx="622" cy="666" r="7" />
+                </g>
               </g>
             </g>
             <rect
@@ -292,148 +321,126 @@ export default function Page15PropertyPanelSvg(): Markup {
             />
             <g clip-path="url(#c3)">
               <rect fill={COLOR.panel} x="368" y="198" width="280" height="555" />
-              <rect x="368" y="198" width="280" height="64" fill="#242429" />
-              <rect x="368" y="198" width="280" height="5" fill="url(#locked-panel-stripes)" />
-              <rect x="368" y="198" width="5" height="555" fill="url(#locked-panel-stripes)" />
               <g clip-path="url(#c4)">
-                <rect
-                  x="384.5"
-                  y="214.5"
-                  width="31"
-                  height="31"
-                  rx="8"
-                  fill="#33333b"
-                  stroke="#62626e"
-                  stroke-width="1"
+                <PropertyPanelHeader
+                  x={368}
+                  y={198}
+                  icon={{ type: "locked" }}
+                  title={"broll-street.mov"}
+                  subtitle={<ClipSubtitle clipType="Video clip" track="Video 1" kind="V" locked />}
+                  locked
                 />
-                <g
-                  stroke={COLOR.light}
-                  transform="translate(392 221)"
-                  fill="none"
-                  stroke-width="1.5"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                >
-                  <rect x="1" y="7" width="14" height="11" rx="2" />
-                  <path d="M4 7V4a4 4 0 0 1 8 0v3 M8 11v3" />
+                <rect x="368" y="198" width="280" height="5" fill="url(#locked-panel-stripes)" />
+                <rect x="368" y="198" width="5" height="555" fill="url(#locked-panel-stripes)" />
+                <g transform="translate(0 -8)">
+                  <text
+                    fill={COLOR.muted}
+                    class="s"
+                    x="384"
+                    y="285.96"
+                    font-size="11"
+                    font-weight="600"
+                    letter-spacing="0.6"
+                  >
+                    {"TIMING"}
+                  </text>
+                  <rect x="384" y="298" width="120" height="50" rx="6" fill="#19191d" />
+                  <text fill={COLOR.muted} class="s" x="394" y="316.96" font-size="11">{"Start"}</text>
+                  <text fill={COLOR.text} class="m" x="394" y="336.68" font-size="13">{"0:08.00"}</text>
+                  <text fill={COLOR.dim} class="m" x="494" y="335.96" font-size="11" text-anchor="end">
+                    {"240 f"}
+                  </text>
+                  <rect x="512" y="298" width="120" height="50" rx="6" fill="#19191d" />
+                  <text fill={COLOR.muted} class="s" x="522" y="316.96" font-size="11">{"Duration"}</text>
+                  <text fill={COLOR.text} class="m" x="522" y="336.68" font-size="13">{"0:09.50"}</text>
+                  <text fill={COLOR.dim} class="m" x="622" y="335.96" font-size="11" text-anchor="end">
+                    {"285 f"}
+                  </text>
+                  <rect x="384" y="356" width="120" height="50" rx="6" fill="#19191d" />
+                  <text fill={COLOR.muted} class="s" x="394" y="374.96" font-size="11">{"Source in"}</text>
+                  <text fill={COLOR.text} class="m" x="394" y="394.68" font-size="13">{"0:44.00"}</text>
+                  <text fill={COLOR.dim} class="m" x="494" y="393.96" font-size="11" text-anchor="end">
+                    {"1320 f"}
+                  </text>
+                  <rect x="512" y="356" width="120" height="50" rx="6" fill="#19191d" />
+                  <text fill={COLOR.muted} class="s" x="522" y="374.96" font-size="11">{"Source out"}</text>
+                  <text fill={COLOR.text} class="m" x="522" y="394.68" font-size="13">{"0:53.50"}</text>
+                  <text fill={COLOR.dim} class="m" x="622" y="393.96" font-size="11" text-anchor="end">
+                    {"1605 f"}
+                  </text>
+                  <rect fill={COLOR.divider} x="384" y="422" width="248" height="1" />
+                  <text
+                    fill={COLOR.muted}
+                    class="s"
+                    x="384"
+                    y="445.96"
+                    font-size="11"
+                    font-weight="600"
+                    letter-spacing="0.6"
+                  >
+                    {"TRANSFORM"}
+                  </text>
+                  <text fill={COLOR.muted} class="s" x="384" y="477.68" font-size="13">{"Position"}</text>
+                  <rect x="384" y="484" width="120" height="30" rx="6" fill="#19191d" />
+                  <text fill={COLOR.muted} class="s" x="394" y="503.32" font-size="12" font-weight="600">
+                    {"X"}
+                  </text>
+                  <text fill={COLOR.text} class="m" x="409.68" y="503.68" font-size="13">{"0"}</text>
+                  <text fill={COLOR.muted} class="s" x="494" y="503.32" font-size="12" text-anchor="end">
+                    {"px"}
+                  </text>
+                  <rect x="512" y="484" width="120" height="30" rx="6" fill="#19191d" />
+                  <text fill={COLOR.muted} class="s" x="522" y="503.32" font-size="12" font-weight="600">
+                    {"Y"}
+                  </text>
+                  <text fill={COLOR.text} class="m" x="537.68" y="503.68" font-size="13">{"0"}</text>
+                  <text fill={COLOR.muted} class="s" x="622" y="503.32" font-size="12" text-anchor="end">
+                    {"px"}
+                  </text>
+                  <text fill={COLOR.muted} class="s" x="384" y="549.68" font-size="13">{"Scale"}</text>
+                  <rect fill={COLOR.border} x="432" y="543" width="104" height="4" rx="2" />
+                  <rect fill={COLOR.dim} x="483.5" y="540" width="1" height="10" />
+                  <rect fill={COLOR.dim} x="432" y="543" width="52" height="4" rx="2" />
+                  <circle fill={COLOR.dim} cx="484" cy="545" r="5" />
+                  <rect x="548" y="530" width="84" height="30" rx="6" fill="#19191d" />
+                  <text fill={COLOR.text} class="m" x="558" y="549.68" font-size="13">{"100"}</text>
+                  <text fill={COLOR.muted} class="s" x="622" y="549.32" font-size="12" text-anchor="end">
+                    {"%"}
+                  </text>
+                  <rect fill={COLOR.divider} x="384" y="576" width="248" height="1" />
+                  <text
+                    fill={COLOR.muted}
+                    class="s"
+                    x="384"
+                    y="599.96"
+                    font-size="11"
+                    font-weight="600"
+                    letter-spacing="0.6"
+                  >
+                    {"AUDIO"}
+                  </text>
+                  <text fill={COLOR.muted} class="s" x="384" y="631.68" font-size="13">{"Gain"}</text>
+                  <rect x="548" y="612" width="84" height="30" rx="6" fill="#19191d" />
+                  <text fill={COLOR.text} class="m" x="558" y="631.68" font-size="13">{"0.00"}</text>
+                  <text fill={COLOR.muted} class="s" x="622" y="631.32" font-size="12" text-anchor="end">
+                    {"dB"}
+                  </text>
+                  <g
+                    stroke={COLOR.light}
+                    transform="translate(384 658) scale(0.6667)"
+                    fill="none"
+                    stroke-width="2.25"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    opacity="0.5"
+                  >
+                    <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z" />
+                    <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
+                    <path d="M12 19v3" />
+                  </g>
+                  <rect fill={COLOR.accent} x="598" y="656" width="34" height="20" rx="10" opacity="0.5" />
+                  <circle fill={COLOR.panel} cx="622" cy="666" r="7" opacity="0.5" />
                 </g>
-                <text fill={COLOR.text} class="s" x="428" y="227.04" font-size="14" font-weight="600">
-                  {"broll-street.mov"}
-                </text>
-                <text class="s" x="428" y="243.32" font-size="11">
-                  <tspan fill="#8a8a93">{"Video clip · Track: "}</tspan>
-                  <tspan fill="#91b8df">{"Video 1"}</tspan>
-                  <tspan fill="#8a8a93">{" · "}</tspan>
-                  <tspan fill={COLOR.light}>{"Locked"}</tspan>
-                </text>
-                <rect x="368" y="261" width="280" height="1" fill="#62626e" />
-                <text
-                  fill={COLOR.muted}
-                  class="s"
-                  x="384"
-                  y="285.96"
-                  font-size="11"
-                  font-weight="600"
-                  letter-spacing="0.6"
-                >
-                  {"TIMING"}
-                </text>
-                <rect x="384" y="298" width="120" height="50" rx="6" fill="#19191d" />
-                <text fill={COLOR.muted} class="s" x="394" y="316.96" font-size="11">{"Start"}</text>
-                <text fill={COLOR.text} class="m" x="394" y="336.68" font-size="13">{"0:08.00"}</text>
-                <text fill={COLOR.dim} class="m" x="494" y="335.96" font-size="11" text-anchor="end">
-                  {"240 f"}
-                </text>
-                <rect x="512" y="298" width="120" height="50" rx="6" fill="#19191d" />
-                <text fill={COLOR.muted} class="s" x="522" y="316.96" font-size="11">{"Duration"}</text>
-                <text fill={COLOR.text} class="m" x="522" y="336.68" font-size="13">{"0:09.50"}</text>
-                <text fill={COLOR.dim} class="m" x="622" y="335.96" font-size="11" text-anchor="end">
-                  {"285 f"}
-                </text>
-                <rect x="384" y="356" width="120" height="50" rx="6" fill="#19191d" />
-                <text fill={COLOR.muted} class="s" x="394" y="374.96" font-size="11">{"Source in"}</text>
-                <text fill={COLOR.text} class="m" x="394" y="394.68" font-size="13">{"0:44.00"}</text>
-                <text fill={COLOR.dim} class="m" x="494" y="393.96" font-size="11" text-anchor="end">
-                  {"1320 f"}
-                </text>
-                <rect x="512" y="356" width="120" height="50" rx="6" fill="#19191d" />
-                <text fill={COLOR.muted} class="s" x="522" y="374.96" font-size="11">{"Source out"}</text>
-                <text fill={COLOR.text} class="m" x="522" y="394.68" font-size="13">{"0:53.50"}</text>
-                <text fill={COLOR.dim} class="m" x="622" y="393.96" font-size="11" text-anchor="end">
-                  {"1605 f"}
-                </text>
-                <rect fill={COLOR.divider} x="384" y="422" width="248" height="1" />
-                <text
-                  fill={COLOR.muted}
-                  class="s"
-                  x="384"
-                  y="445.96"
-                  font-size="11"
-                  font-weight="600"
-                  letter-spacing="0.6"
-                >
-                  {"TRANSFORM"}
-                </text>
-                <text fill={COLOR.muted} class="s" x="384" y="477.68" font-size="13">{"Position"}</text>
-                <rect x="384" y="484" width="120" height="30" rx="6" fill="#19191d" />
-                <text fill={COLOR.muted} class="s" x="394" y="503.32" font-size="12" font-weight="600">
-                  {"X"}
-                </text>
-                <text fill={COLOR.text} class="m" x="409.68" y="503.68" font-size="13">{"0"}</text>
-                <text fill={COLOR.muted} class="s" x="494" y="503.32" font-size="12" text-anchor="end">
-                  {"px"}
-                </text>
-                <rect x="512" y="484" width="120" height="30" rx="6" fill="#19191d" />
-                <text fill={COLOR.muted} class="s" x="522" y="503.32" font-size="12" font-weight="600">
-                  {"Y"}
-                </text>
-                <text fill={COLOR.text} class="m" x="537.68" y="503.68" font-size="13">{"0"}</text>
-                <text fill={COLOR.muted} class="s" x="622" y="503.32" font-size="12" text-anchor="end">
-                  {"px"}
-                </text>
-                <text fill={COLOR.muted} class="s" x="384" y="549.68" font-size="13">{"Scale"}</text>
-                <rect fill={COLOR.border} x="432" y="543" width="104" height="4" rx="2" />
-                <rect fill={COLOR.dim} x="483.5" y="540" width="1" height="10" />
-                <rect fill={COLOR.dim} x="432" y="543" width="52" height="4" rx="2" />
-                <circle fill={COLOR.dim} cx="484" cy="545" r="5" />
-                <rect x="548" y="530" width="84" height="30" rx="6" fill="#19191d" />
-                <text fill={COLOR.text} class="m" x="558" y="549.68" font-size="13">{"100"}</text>
-                <text fill={COLOR.muted} class="s" x="622" y="549.32" font-size="12" text-anchor="end">
-                  {"%"}
-                </text>
-                <rect fill={COLOR.divider} x="384" y="576" width="248" height="1" />
-                <text
-                  fill={COLOR.muted}
-                  class="s"
-                  x="384"
-                  y="599.96"
-                  font-size="11"
-                  font-weight="600"
-                  letter-spacing="0.6"
-                >
-                  {"AUDIO"}
-                </text>
-                <text fill={COLOR.muted} class="s" x="384" y="631.68" font-size="13">{"Gain"}</text>
-                <rect x="548" y="612" width="84" height="30" rx="6" fill="#19191d" />
-                <text fill={COLOR.text} class="m" x="558" y="631.68" font-size="13">{"0.00"}</text>
-                <text fill={COLOR.muted} class="s" x="622" y="631.32" font-size="12" text-anchor="end">
-                  {"dB"}
-                </text>
-                <g
-                  stroke={COLOR.light}
-                  transform="translate(384 658) scale(0.6667)"
-                  fill="none"
-                  stroke-width="2.25"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  opacity="0.5"
-                >
-                  <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z" />
-                  <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
-                  <path d="M12 19v3" />
-                </g>
-                <rect fill={COLOR.accent} x="598" y="656" width="34" height="20" rx="10" opacity="0.5" />
-                <circle fill={COLOR.panel} cx="622" cy="666" r="7" opacity="0.5" />
               </g>
             </g>
             <rect
@@ -605,100 +612,80 @@ export default function Page15PropertyPanelSvg(): Markup {
             <g clip-path="url(#c5)">
               <rect fill={COLOR.panel} x="688" y="198" width="280" height="555" />
               <g clip-path="url(#c6)">
-                <rect
-                  x="704.5"
-                  y="214.5"
-                  width="31"
-                  height="31"
-                  rx="8"
-                  fill="#24656b"
-                  stroke="#34757b"
-                  stroke-width="1"
+                <PropertyPanelHeader
+                  x={688}
+                  y={198}
+                  icon={{ type: "track", kind: "A" }}
+                  title={"voice-over.m4a"}
+                  subtitle={<ClipSubtitle clipType="Audio clip" track="Audio 1" kind="A" />}
                 />
-                <text
-                  class="s"
-                  x="720"
-                  y="234.32"
-                  font-size="12"
-                  fill="#ffffff"
-                  font-weight="700"
-                  text-anchor="middle"
-                >
-                  {"A"}
-                </text>
-                <text fill={COLOR.text} class="s" x="748" y="227.04" font-size="14" font-weight="600">
-                  {"voice-over.m4a"}
-                </text>
-                <text class="s" x="748" y="243.32" font-size="11">
-                  <tspan fill="#8a8a93">{"Audio clip · Track: "}</tspan>
-                  <tspan fill="#69c5cf">{"Audio 1"}</tspan>
-                </text>
-                <rect fill={COLOR.border} x="688" y="261" width="280" height="1" />
-                <text
-                  fill={COLOR.muted}
-                  class="s"
-                  x="704"
-                  y="285.96"
-                  font-size="11"
-                  font-weight="600"
-                  letter-spacing="0.6"
-                >
-                  {"TIMING"}
-                </text>
-                <rect x="704" y="298" width="120" height="50" rx="6" fill="#131316" />
-                <text fill={COLOR.muted} class="s" x="714" y="316.96" font-size="11">{"Start"}</text>
-                <text fill={COLOR.text} class="m" x="714" y="336.68" font-size="13">{"0:00.00"}</text>
-                <text fill={COLOR.dim} class="m" x="814" y="335.96" font-size="11" text-anchor="end">
-                  {"0 f"}
-                </text>
-                <rect x="832" y="298" width="120" height="50" rx="6" fill="#131316" />
-                <text fill={COLOR.muted} class="s" x="842" y="316.96" font-size="11">{"Duration"}</text>
-                <text fill={COLOR.text} class="m" x="842" y="336.68" font-size="13">{"0:15.00"}</text>
-                <text fill={COLOR.dim} class="m" x="942" y="335.96" font-size="11" text-anchor="end">
-                  {"450 f"}
-                </text>
-                <rect x="704" y="356" width="120" height="50" rx="6" fill="#131316" />
-                <text fill={COLOR.muted} class="s" x="714" y="374.96" font-size="11">{"Source in"}</text>
-                <text fill={COLOR.text} class="m" x="714" y="394.68" font-size="13">{"0:00.00"}</text>
-                <text fill={COLOR.dim} class="m" x="814" y="393.96" font-size="11" text-anchor="end">
-                  {"0 f"}
-                </text>
-                <rect x="832" y="356" width="120" height="50" rx="6" fill="#131316" />
-                <text fill={COLOR.muted} class="s" x="842" y="374.96" font-size="11">{"Source out"}</text>
-                <text fill={COLOR.text} class="m" x="842" y="394.68" font-size="13">{"0:15.00"}</text>
-                <text fill={COLOR.dim} class="m" x="942" y="393.96" font-size="11" text-anchor="end">
-                  {"450 f"}
-                </text>
-                <rect fill={COLOR.divider} x="704" y="422" width="248" height="1" />
-                <text
-                  fill={COLOR.muted}
-                  class="s"
-                  x="704"
-                  y="445.96"
-                  font-size="11"
-                  font-weight="600"
-                  letter-spacing="0.6"
-                >
-                  {"AUDIO"}
-                </text>
-                <text fill={COLOR.muted} class="s" x="704" y="477.68" font-size="13">{"Gain"}</text>
-                <rect
-                  fill={COLOR.surface}
-                  stroke={COLOR.border}
-                  x="868.5"
-                  y="458.5"
-                  width="83"
-                  height="29"
-                  rx="6"
-                  stroke-width="1"
-                />
-                <text fill={COLOR.text} class="m" x="878" y="477.68" font-size="13">{"0.00"}</text>
-                <text fill={COLOR.muted} class="s" x="942" y="477.32" font-size="12" text-anchor="end">
-                  {"dB"}
-                </text>
-                <use stroke={COLOR.light} href="#icon-mic" transform="translate(704 504) scale(0.6667)" />
-                <rect fill={COLOR.accent} x="918" y="502" width="34" height="20" rx="10" />
-                <circle fill={COLOR.panel} cx="942" cy="512" r="7" />
+                <g transform="translate(0 -8)">
+                  <text
+                    fill={COLOR.muted}
+                    class="s"
+                    x="704"
+                    y="285.96"
+                    font-size="11"
+                    font-weight="600"
+                    letter-spacing="0.6"
+                  >
+                    {"TIMING"}
+                  </text>
+                  <rect x="704" y="298" width="120" height="50" rx="6" fill="#131316" />
+                  <text fill={COLOR.muted} class="s" x="714" y="316.96" font-size="11">{"Start"}</text>
+                  <text fill={COLOR.text} class="m" x="714" y="336.68" font-size="13">{"0:00.00"}</text>
+                  <text fill={COLOR.dim} class="m" x="814" y="335.96" font-size="11" text-anchor="end">
+                    {"0 f"}
+                  </text>
+                  <rect x="832" y="298" width="120" height="50" rx="6" fill="#131316" />
+                  <text fill={COLOR.muted} class="s" x="842" y="316.96" font-size="11">{"Duration"}</text>
+                  <text fill={COLOR.text} class="m" x="842" y="336.68" font-size="13">{"0:15.00"}</text>
+                  <text fill={COLOR.dim} class="m" x="942" y="335.96" font-size="11" text-anchor="end">
+                    {"450 f"}
+                  </text>
+                  <rect x="704" y="356" width="120" height="50" rx="6" fill="#131316" />
+                  <text fill={COLOR.muted} class="s" x="714" y="374.96" font-size="11">{"Source in"}</text>
+                  <text fill={COLOR.text} class="m" x="714" y="394.68" font-size="13">{"0:00.00"}</text>
+                  <text fill={COLOR.dim} class="m" x="814" y="393.96" font-size="11" text-anchor="end">
+                    {"0 f"}
+                  </text>
+                  <rect x="832" y="356" width="120" height="50" rx="6" fill="#131316" />
+                  <text fill={COLOR.muted} class="s" x="842" y="374.96" font-size="11">{"Source out"}</text>
+                  <text fill={COLOR.text} class="m" x="842" y="394.68" font-size="13">{"0:15.00"}</text>
+                  <text fill={COLOR.dim} class="m" x="942" y="393.96" font-size="11" text-anchor="end">
+                    {"450 f"}
+                  </text>
+                  <rect fill={COLOR.divider} x="704" y="422" width="248" height="1" />
+                  <text
+                    fill={COLOR.muted}
+                    class="s"
+                    x="704"
+                    y="445.96"
+                    font-size="11"
+                    font-weight="600"
+                    letter-spacing="0.6"
+                  >
+                    {"AUDIO"}
+                  </text>
+                  <text fill={COLOR.muted} class="s" x="704" y="477.68" font-size="13">{"Gain"}</text>
+                  <rect
+                    fill={COLOR.surface}
+                    stroke={COLOR.border}
+                    x="868.5"
+                    y="458.5"
+                    width="83"
+                    height="29"
+                    rx="6"
+                    stroke-width="1"
+                  />
+                  <text fill={COLOR.text} class="m" x="878" y="477.68" font-size="13">{"0.00"}</text>
+                  <text fill={COLOR.muted} class="s" x="942" y="477.32" font-size="12" text-anchor="end">
+                    {"dB"}
+                  </text>
+                  <use stroke={COLOR.light} href="#icon-mic" transform="translate(704 504) scale(0.6667)" />
+                  <rect fill={COLOR.accent} x="918" y="502" width="34" height="20" rx="10" />
+                  <circle fill={COLOR.panel} cx="942" cy="512" r="7" />
+                </g>
               </g>
             </g>
             <rect
@@ -728,109 +715,87 @@ export default function Page15PropertyPanelSvg(): Markup {
             />
             <g clip-path="url(#c5)">
               <rect fill={COLOR.panel} x="688" y="198" width="280" height="555" />
-              <rect x="688" y="198" width="280" height="64" fill="#242429" />
-              <rect x="688" y="198" width="280" height="5" fill="url(#locked-panel-stripes)" />
-              <rect x="688" y="198" width="5" height="555" fill="url(#locked-panel-stripes)" />
               <g clip-path="url(#c6)">
-                <rect
-                  x="704.5"
-                  y="214.5"
-                  width="31"
-                  height="31"
-                  rx="8"
-                  fill="#33333b"
-                  stroke="#62626e"
-                  stroke-width="1"
+                <PropertyPanelHeader
+                  x={688}
+                  y={198}
+                  icon={{ type: "locked" }}
+                  title={"voice-over.m4a"}
+                  subtitle={<ClipSubtitle clipType="Audio clip" track="Audio 1" kind="A" locked />}
+                  locked
                 />
-                <g
-                  stroke={COLOR.light}
-                  transform="translate(712 221)"
-                  fill="none"
-                  stroke-width="1.5"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                >
-                  <rect x="1" y="7" width="14" height="11" rx="2" />
-                  <path d="M4 7V4a4 4 0 0 1 8 0v3 M8 11v3" />
+                <rect x="688" y="198" width="280" height="5" fill="url(#locked-panel-stripes)" />
+                <rect x="688" y="198" width="5" height="555" fill="url(#locked-panel-stripes)" />
+                <g transform="translate(0 -8)">
+                  <text
+                    fill={COLOR.muted}
+                    class="s"
+                    x="704"
+                    y="285.96"
+                    font-size="11"
+                    font-weight="600"
+                    letter-spacing="0.6"
+                  >
+                    {"TIMING"}
+                  </text>
+                  <rect x="704" y="298" width="120" height="50" rx="6" fill="#19191d" />
+                  <text fill={COLOR.muted} class="s" x="714" y="316.96" font-size="11">{"Start"}</text>
+                  <text fill={COLOR.text} class="m" x="714" y="336.68" font-size="13">{"0:00.00"}</text>
+                  <text fill={COLOR.dim} class="m" x="814" y="335.96" font-size="11" text-anchor="end">
+                    {"0 f"}
+                  </text>
+                  <rect x="832" y="298" width="120" height="50" rx="6" fill="#19191d" />
+                  <text fill={COLOR.muted} class="s" x="842" y="316.96" font-size="11">{"Duration"}</text>
+                  <text fill={COLOR.text} class="m" x="842" y="336.68" font-size="13">{"0:15.00"}</text>
+                  <text fill={COLOR.dim} class="m" x="942" y="335.96" font-size="11" text-anchor="end">
+                    {"450 f"}
+                  </text>
+                  <rect x="704" y="356" width="120" height="50" rx="6" fill="#19191d" />
+                  <text fill={COLOR.muted} class="s" x="714" y="374.96" font-size="11">{"Source in"}</text>
+                  <text fill={COLOR.text} class="m" x="714" y="394.68" font-size="13">{"0:00.00"}</text>
+                  <text fill={COLOR.dim} class="m" x="814" y="393.96" font-size="11" text-anchor="end">
+                    {"0 f"}
+                  </text>
+                  <rect x="832" y="356" width="120" height="50" rx="6" fill="#19191d" />
+                  <text fill={COLOR.muted} class="s" x="842" y="374.96" font-size="11">{"Source out"}</text>
+                  <text fill={COLOR.text} class="m" x="842" y="394.68" font-size="13">{"0:15.00"}</text>
+                  <text fill={COLOR.dim} class="m" x="942" y="393.96" font-size="11" text-anchor="end">
+                    {"450 f"}
+                  </text>
+                  <rect fill={COLOR.divider} x="704" y="422" width="248" height="1" />
+                  <text
+                    fill={COLOR.muted}
+                    class="s"
+                    x="704"
+                    y="445.96"
+                    font-size="11"
+                    font-weight="600"
+                    letter-spacing="0.6"
+                  >
+                    {"AUDIO"}
+                  </text>
+                  <text fill={COLOR.muted} class="s" x="704" y="477.68" font-size="13">{"Gain"}</text>
+                  <rect x="868" y="458" width="84" height="30" rx="6" fill="#19191d" />
+                  <text fill={COLOR.text} class="m" x="878" y="477.68" font-size="13">{"0.00"}</text>
+                  <text fill={COLOR.muted} class="s" x="942" y="477.32" font-size="12" text-anchor="end">
+                    {"dB"}
+                  </text>
+                  <g
+                    stroke={COLOR.light}
+                    transform="translate(704 504) scale(0.6667)"
+                    fill="none"
+                    stroke-width="2.25"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    opacity="0.5"
+                  >
+                    <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z" />
+                    <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
+                    <path d="M12 19v3" />
+                  </g>
+                  <rect fill={COLOR.accent} x="918" y="502" width="34" height="20" rx="10" opacity="0.5" />
+                  <circle fill={COLOR.panel} cx="942" cy="512" r="7" opacity="0.5" />
                 </g>
-                <text fill={COLOR.text} class="s" x="748" y="227.04" font-size="14" font-weight="600">
-                  {"voice-over.m4a"}
-                </text>
-                <text class="s" x="748" y="243.32" font-size="11">
-                  <tspan fill="#8a8a93">{"Audio clip · Track: "}</tspan>
-                  <tspan fill="#69c5cf">{"Audio 1"}</tspan>
-                  <tspan fill="#8a8a93">{" · "}</tspan>
-                  <tspan fill={COLOR.light}>{"Locked"}</tspan>
-                </text>
-                <rect x="688" y="261" width="280" height="1" fill="#62626e" />
-                <text
-                  fill={COLOR.muted}
-                  class="s"
-                  x="704"
-                  y="285.96"
-                  font-size="11"
-                  font-weight="600"
-                  letter-spacing="0.6"
-                >
-                  {"TIMING"}
-                </text>
-                <rect x="704" y="298" width="120" height="50" rx="6" fill="#19191d" />
-                <text fill={COLOR.muted} class="s" x="714" y="316.96" font-size="11">{"Start"}</text>
-                <text fill={COLOR.text} class="m" x="714" y="336.68" font-size="13">{"0:00.00"}</text>
-                <text fill={COLOR.dim} class="m" x="814" y="335.96" font-size="11" text-anchor="end">
-                  {"0 f"}
-                </text>
-                <rect x="832" y="298" width="120" height="50" rx="6" fill="#19191d" />
-                <text fill={COLOR.muted} class="s" x="842" y="316.96" font-size="11">{"Duration"}</text>
-                <text fill={COLOR.text} class="m" x="842" y="336.68" font-size="13">{"0:15.00"}</text>
-                <text fill={COLOR.dim} class="m" x="942" y="335.96" font-size="11" text-anchor="end">
-                  {"450 f"}
-                </text>
-                <rect x="704" y="356" width="120" height="50" rx="6" fill="#19191d" />
-                <text fill={COLOR.muted} class="s" x="714" y="374.96" font-size="11">{"Source in"}</text>
-                <text fill={COLOR.text} class="m" x="714" y="394.68" font-size="13">{"0:00.00"}</text>
-                <text fill={COLOR.dim} class="m" x="814" y="393.96" font-size="11" text-anchor="end">
-                  {"0 f"}
-                </text>
-                <rect x="832" y="356" width="120" height="50" rx="6" fill="#19191d" />
-                <text fill={COLOR.muted} class="s" x="842" y="374.96" font-size="11">{"Source out"}</text>
-                <text fill={COLOR.text} class="m" x="842" y="394.68" font-size="13">{"0:15.00"}</text>
-                <text fill={COLOR.dim} class="m" x="942" y="393.96" font-size="11" text-anchor="end">
-                  {"450 f"}
-                </text>
-                <rect fill={COLOR.divider} x="704" y="422" width="248" height="1" />
-                <text
-                  fill={COLOR.muted}
-                  class="s"
-                  x="704"
-                  y="445.96"
-                  font-size="11"
-                  font-weight="600"
-                  letter-spacing="0.6"
-                >
-                  {"AUDIO"}
-                </text>
-                <text fill={COLOR.muted} class="s" x="704" y="477.68" font-size="13">{"Gain"}</text>
-                <rect x="868" y="458" width="84" height="30" rx="6" fill="#19191d" />
-                <text fill={COLOR.text} class="m" x="878" y="477.68" font-size="13">{"0.00"}</text>
-                <text fill={COLOR.muted} class="s" x="942" y="477.32" font-size="12" text-anchor="end">
-                  {"dB"}
-                </text>
-                <g
-                  stroke={COLOR.light}
-                  transform="translate(704 504) scale(0.6667)"
-                  fill="none"
-                  stroke-width="2.25"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  opacity="0.5"
-                >
-                  <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z" />
-                  <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
-                  <path d="M12 19v3" />
-                </g>
-                <rect fill={COLOR.accent} x="918" y="502" width="34" height="20" rx="10" opacity="0.5" />
-                <circle fill={COLOR.panel} cx="942" cy="512" r="7" opacity="0.5" />
               </g>
             </g>
             <rect
@@ -870,76 +835,59 @@ export default function Page15PropertyPanelSvg(): Markup {
               <g clip-path="url(#c9)">
                 <rect fill={COLOR.panel} x="48" y="841" width="280" height="555" />
                 <g clip-path="url(#c10)">
-                  <rect
-                    x="64.5"
-                    y="857.5"
-                    width="31"
-                    height="31"
-                    rx="8"
-                    fill="#131316"
-                    stroke="#355b78"
-                    stroke-width="1"
+                  <PropertyPanelHeader
+                    x={48}
+                    y={841}
+                    icon={{ type: "file", label: "MP4", labelColor: "#8fb9dd", stroke: "#355b78" }}
+                    title={"interview.mp4"}
+                    subtitle={<PlainSubtitle>{"Video file"}</PlainSubtitle>}
                   />
-                  <text
-                    class="m"
-                    x="80"
-                    y="876.24"
-                    font-size="9"
-                    fill="#8fb9dd"
-                    font-weight="600"
-                    text-anchor="middle"
-                  >
-                    {"MP4"}
-                  </text>
-                  <text fill={COLOR.text} class="s" x="108" y="870.04" font-size="14" font-weight="600">
-                    {"interview.mp4"}
-                  </text>
-                  <text fill={COLOR.muted} class="s" x="108" y="886.32" font-size="12">{"Video file"}</text>
-                  <rect fill={COLOR.border} x="48" y="904" width="280" height="1" />
-                  <text
-                    fill={COLOR.muted}
-                    class="s"
-                    x="64"
-                    y="928.96"
-                    font-size="11"
-                    font-weight="600"
-                    letter-spacing="0.6"
-                  >
-                    {"FILE"}
-                  </text>
-                  <text fill={COLOR.muted} class="s" x="64" y="959.68" font-size="13">{"Format"}</text>
-                  <text fill={COLOR.text} class="m" x="312" y="959.68" font-size="13" text-anchor="end">
-                    {"MP4"}
-                  </text>
-                  <text fill={COLOR.muted} class="s" x="64" y="987.68" font-size="13">{"Size"}</text>
-                  <text fill={COLOR.text} class="m" x="312" y="987.68" font-size="13" text-anchor="end">
-                    {"1.2 GB"}
-                  </text>
-                  <rect fill={COLOR.divider} x="64" y="1005" width="248" height="1" />
-                  <text
-                    fill={COLOR.muted}
-                    class="s"
-                    x="64"
-                    y="1028.96"
-                    font-size="11"
-                    font-weight="600"
-                    letter-spacing="0.6"
-                  >
-                    {"LOCATION"}
-                  </text>
-                  <text fill={COLOR.soft} class="m" x="64" y="1051.32" font-size="12">
-                    {"/Users/me/market-vlog/"}
-                  </text>
-                  <text fill={COLOR.soft} class="m" x="64" y="1069.32" font-size="12">
-                    {"media/interview.mp4"}
-                  </text>
-                  <rect fill={COLOR.divider} x="64" y="1091" width="248" height="1" />
-                  <text fill={COLOR.muted} class="s" x="64" y="1121.32" font-size="12">
-                    {"Drag onto a video track to add it"}
-                  </text>
-                  <text fill={COLOR.muted} class="s" x="64" y="1138.32" font-size="12">
-                    {"to the timeline."}
-                  </text>
+                  <g transform="translate(0 -8)">
+                    <text
+                      fill={COLOR.muted}
+                      class="s"
+                      x="64"
+                      y="928.96"
+                      font-size="11"
+                      font-weight="600"
+                      letter-spacing="0.6"
+                    >
+                      {"FILE"}
+                    </text>
+                    <text fill={COLOR.muted} class="s" x="64" y="959.68" font-size="13">{"Format"}</text>
+                    <text fill={COLOR.text} class="m" x="312" y="959.68" font-size="13" text-anchor="end">
+                      {"MP4"}
+                    </text>
+                    <text fill={COLOR.muted} class="s" x="64" y="987.68" font-size="13">{"Size"}</text>
+                    <text fill={COLOR.text} class="m" x="312" y="987.68" font-size="13" text-anchor="end">
+                      {"1.2 GB"}
+                    </text>
+                    <rect fill={COLOR.divider} x="64" y="1005" width="248" height="1" />
+                    <text
+                      fill={COLOR.muted}
+                      class="s"
+                      x="64"
+                      y="1028.96"
+                      font-size="11"
+                      font-weight="600"
+                      letter-spacing="0.6"
+                    >
+                      {"LOCATION"}
+                    </text>
+                    <text fill={COLOR.soft} class="m" x="64" y="1051.32" font-size="12">
+                      {"/Users/me/market-vlog/"}
+                    </text>
+                    <text fill={COLOR.soft} class="m" x="64" y="1069.32" font-size="12">
+                      {"media/interview.mp4"}
+                    </text>
+                    <rect fill={COLOR.divider} x="64" y="1091" width="248" height="1" />
+                    <text fill={COLOR.muted} class="s" x="64" y="1121.32" font-size="12">
+                      {"Drag onto a video track to add it"}
+                    </text>
+                    <text fill={COLOR.muted} class="s" x="64" y="1138.32" font-size="12">
+                      {"to the timeline."}
+                    </text>
+                  </g>
                 </g>
               </g>
               <rect
@@ -978,76 +926,59 @@ export default function Page15PropertyPanelSvg(): Markup {
               <g clip-path="url(#c9)">
                 <rect fill={COLOR.panel} x="48" y="841" width="280" height="555" />
                 <g clip-path="url(#c10)">
-                  <rect
-                    x="64.5"
-                    y="857.5"
-                    width="31"
-                    height="31"
-                    rx="8"
-                    fill="#131316"
-                    stroke="#32725a"
-                    stroke-width="1"
+                  <PropertyPanelHeader
+                    x={48}
+                    y={841}
+                    icon={{ type: "file", label: "M4A", labelColor: "#7fd0ae", stroke: "#32725a" }}
+                    title={"voice-over.m4a"}
+                    subtitle={<PlainSubtitle>{"Audio file"}</PlainSubtitle>}
                   />
-                  <text
-                    class="m"
-                    x="80"
-                    y="876.24"
-                    font-size="9"
-                    fill="#7fd0ae"
-                    font-weight="600"
-                    text-anchor="middle"
-                  >
-                    {"M4A"}
-                  </text>
-                  <text fill={COLOR.text} class="s" x="108" y="870.04" font-size="14" font-weight="600">
-                    {"voice-over.m4a"}
-                  </text>
-                  <text fill={COLOR.muted} class="s" x="108" y="886.32" font-size="12">{"Audio file"}</text>
-                  <rect fill={COLOR.border} x="48" y="904" width="280" height="1" />
-                  <text
-                    fill={COLOR.muted}
-                    class="s"
-                    x="64"
-                    y="928.96"
-                    font-size="11"
-                    font-weight="600"
-                    letter-spacing="0.6"
-                  >
-                    {"FILE"}
-                  </text>
-                  <text fill={COLOR.muted} class="s" x="64" y="959.68" font-size="13">{"Format"}</text>
-                  <text fill={COLOR.text} class="m" x="312" y="959.68" font-size="13" text-anchor="end">
-                    {"M4A"}
-                  </text>
-                  <text fill={COLOR.muted} class="s" x="64" y="987.68" font-size="13">{"Size"}</text>
-                  <text fill={COLOR.text} class="m" x="312" y="987.68" font-size="13" text-anchor="end">
-                    {"12.4 MB"}
-                  </text>
-                  <rect fill={COLOR.divider} x="64" y="1005" width="248" height="1" />
-                  <text
-                    fill={COLOR.muted}
-                    class="s"
-                    x="64"
-                    y="1028.96"
-                    font-size="11"
-                    font-weight="600"
-                    letter-spacing="0.6"
-                  >
-                    {"LOCATION"}
-                  </text>
-                  <text fill={COLOR.soft} class="m" x="64" y="1051.32" font-size="12">
-                    {"/Users/me/market-vlog/"}
-                  </text>
-                  <text fill={COLOR.soft} class="m" x="64" y="1069.32" font-size="12">
-                    {"media/voice-over.m4a"}
-                  </text>
-                  <rect fill={COLOR.divider} x="64" y="1091" width="248" height="1" />
-                  <text fill={COLOR.muted} class="s" x="64" y="1121.32" font-size="12">
-                    {"Drag onto an audio track to add it"}
-                  </text>
-                  <text fill={COLOR.muted} class="s" x="64" y="1138.32" font-size="12">
-                    {"to the timeline."}
-                  </text>
+                  <g transform="translate(0 -8)">
+                    <text
+                      fill={COLOR.muted}
+                      class="s"
+                      x="64"
+                      y="928.96"
+                      font-size="11"
+                      font-weight="600"
+                      letter-spacing="0.6"
+                    >
+                      {"FILE"}
+                    </text>
+                    <text fill={COLOR.muted} class="s" x="64" y="959.68" font-size="13">{"Format"}</text>
+                    <text fill={COLOR.text} class="m" x="312" y="959.68" font-size="13" text-anchor="end">
+                      {"M4A"}
+                    </text>
+                    <text fill={COLOR.muted} class="s" x="64" y="987.68" font-size="13">{"Size"}</text>
+                    <text fill={COLOR.text} class="m" x="312" y="987.68" font-size="13" text-anchor="end">
+                      {"12.4 MB"}
+                    </text>
+                    <rect fill={COLOR.divider} x="64" y="1005" width="248" height="1" />
+                    <text
+                      fill={COLOR.muted}
+                      class="s"
+                      x="64"
+                      y="1028.96"
+                      font-size="11"
+                      font-weight="600"
+                      letter-spacing="0.6"
+                    >
+                      {"LOCATION"}
+                    </text>
+                    <text fill={COLOR.soft} class="m" x="64" y="1051.32" font-size="12">
+                      {"/Users/me/market-vlog/"}
+                    </text>
+                    <text fill={COLOR.soft} class="m" x="64" y="1069.32" font-size="12">
+                      {"media/voice-over.m4a"}
+                    </text>
+                    <rect fill={COLOR.divider} x="64" y="1091" width="248" height="1" />
+                    <text fill={COLOR.muted} class="s" x="64" y="1121.32" font-size="12">
+                      {"Drag onto an audio track to add it"}
+                    </text>
+                    <text fill={COLOR.muted} class="s" x="64" y="1138.32" font-size="12">
+                      {"to the timeline."}
+                    </text>
+                  </g>
                 </g>
               </g>
               <rect
@@ -1086,69 +1017,52 @@ export default function Page15PropertyPanelSvg(): Markup {
               <g clip-path="url(#c11)">
                 <rect fill={COLOR.panel} x="368" y="841" width="280" height="555" />
                 <g clip-path="url(#c12)">
-                  <rect
-                    x="384.5"
-                    y="857.5"
-                    width="31"
-                    height="31"
-                    rx="8"
-                    fill="#131316"
-                    stroke="#665184"
-                    stroke-width="1"
+                  <PropertyPanelHeader
+                    x={368}
+                    y={841}
+                    icon={{ type: "file", label: "PNG", labelColor: "#c3a9e8", stroke: "#665184" }}
+                    title={"logo.png"}
+                    subtitle={<PlainSubtitle>{"Image file"}</PlainSubtitle>}
                   />
-                  <text
-                    class="m"
-                    x="400"
-                    y="876.24"
-                    font-size="9"
-                    fill="#c3a9e8"
-                    font-weight="600"
-                    text-anchor="middle"
-                  >
-                    {"PNG"}
-                  </text>
-                  <text fill={COLOR.text} class="s" x="428" y="870.04" font-size="14" font-weight="600">
-                    {"logo.png"}
-                  </text>
-                  <text fill={COLOR.muted} class="s" x="428" y="886.32" font-size="12">{"Image file"}</text>
-                  <rect fill={COLOR.border} x="368" y="904" width="280" height="1" />
-                  <text
-                    fill={COLOR.muted}
-                    class="s"
-                    x="384"
-                    y="928.96"
-                    font-size="11"
-                    font-weight="600"
-                    letter-spacing="0.6"
-                  >
-                    {"FILE"}
-                  </text>
-                  <text fill={COLOR.muted} class="s" x="384" y="959.68" font-size="13">{"Format"}</text>
-                  <text fill={COLOR.text} class="m" x="632" y="959.68" font-size="13" text-anchor="end">
-                    {"PNG"}
-                  </text>
-                  <text fill={COLOR.muted} class="s" x="384" y="987.68" font-size="13">{"Size"}</text>
-                  <text fill={COLOR.text} class="m" x="632" y="987.68" font-size="13" text-anchor="end">
-                    {"84 KB"}
-                  </text>
-                  <rect fill={COLOR.divider} x="384" y="1005" width="248" height="1" />
-                  <text
-                    fill={COLOR.muted}
-                    class="s"
-                    x="384"
-                    y="1028.96"
-                    font-size="11"
-                    font-weight="600"
-                    letter-spacing="0.6"
-                  >
-                    {"LOCATION"}
-                  </text>
-                  <text fill={COLOR.soft} class="m" x="384" y="1051.32" font-size="12">
-                    {"/Users/me/market-vlog/"}
-                  </text>
-                  <text fill={COLOR.soft} class="m" x="384" y="1069.32" font-size="12">
-                    {"media/logo.png"}
-                  </text>
+                  <g transform="translate(0 -8)">
+                    <text
+                      fill={COLOR.muted}
+                      class="s"
+                      x="384"
+                      y="928.96"
+                      font-size="11"
+                      font-weight="600"
+                      letter-spacing="0.6"
+                    >
+                      {"FILE"}
+                    </text>
+                    <text fill={COLOR.muted} class="s" x="384" y="959.68" font-size="13">{"Format"}</text>
+                    <text fill={COLOR.text} class="m" x="632" y="959.68" font-size="13" text-anchor="end">
+                      {"PNG"}
+                    </text>
+                    <text fill={COLOR.muted} class="s" x="384" y="987.68" font-size="13">{"Size"}</text>
+                    <text fill={COLOR.text} class="m" x="632" y="987.68" font-size="13" text-anchor="end">
+                      {"84 KB"}
+                    </text>
+                    <rect fill={COLOR.divider} x="384" y="1005" width="248" height="1" />
+                    <text
+                      fill={COLOR.muted}
+                      class="s"
+                      x="384"
+                      y="1028.96"
+                      font-size="11"
+                      font-weight="600"
+                      letter-spacing="0.6"
+                    >
+                      {"LOCATION"}
+                    </text>
+                    <text fill={COLOR.soft} class="m" x="384" y="1051.32" font-size="12">
+                      {"/Users/me/market-vlog/"}
+                    </text>
+                    <text fill={COLOR.soft} class="m" x="384" y="1069.32" font-size="12">
+                      {"media/logo.png"}
+                    </text>
+                  </g>
                 </g>
               </g>
               <rect
@@ -1187,90 +1101,71 @@ export default function Page15PropertyPanelSvg(): Markup {
               <g clip-path="url(#c13)">
                 <rect fill={COLOR.panel} x="688" y="841" width="280" height="555" />
                 <g clip-path="url(#c14)">
-                  <rect
-                    x="704.5"
-                    y="857.5"
-                    width="31"
-                    height="31"
-                    rx="8"
-                    fill="#131316"
-                    stroke="#46464e"
-                    stroke-width="1"
+                  <PropertyPanelHeader
+                    x={688}
+                    y={841}
+                    icon={{ type: "file", label: "SRT", labelColor: "#8b8b94", stroke: "#46464e" }}
+                    title={"interview.srt"}
+                    subtitle={<PlainSubtitle>{"Subtitles · 5 cues · 0:16"}</PlainSubtitle>}
                   />
-                  <text
-                    class="m"
-                    x="720"
-                    y="876.24"
-                    font-size="9"
-                    fill="#8b8b94"
-                    font-weight="600"
-                    text-anchor="middle"
-                  >
-                    {"SRT"}
-                  </text>
-                  <text fill={COLOR.text} class="s" x="748" y="870.04" font-size="14" font-weight="600">
-                    {"interview.srt"}
-                  </text>
-                  <text fill={COLOR.muted} class="s" x="748" y="886.32" font-size="12">
-                    {"Subtitles · 5 cues · 0:16"}
-                  </text>
-                  <rect fill={COLOR.border} x="688" y="904" width="280" height="1" />
-                  <text
-                    fill={COLOR.muted}
-                    class="s"
-                    x="704"
-                    y="928.96"
-                    font-size="11"
-                    font-weight="600"
-                    letter-spacing="0.6"
-                  >
-                    {"CUES"}
-                  </text>
-                  <text fill={COLOR.dim} class="m" x="704" y="956.96" font-size="11">{"01"}</text>
-                  <text fill={COLOR.muted} class="m" x="730" y="956.96" font-size="11">
-                    {"0:00.5 → 0:03.2"}
-                  </text>
-                  <text fill={COLOR.text} class="s" x="730" y="976.68" font-size="13">
-                    {"Welcome back to the channel"}
-                  </text>
-                  <rect fill={COLOR.divider} x="730" y="990" width="222" height="1" />
-                  <text fill={COLOR.dim} class="m" x="704" y="1014.96" font-size="11">{"02"}</text>
-                  <text fill={COLOR.muted} class="m" x="730" y="1014.96" font-size="11">
-                    {"0:03.4 → 0:06.8"}
-                  </text>
-                  <text fill={COLOR.text} class="s" x="730" y="1034.68" font-size="13">
-                    {"Today we're walking through"}
-                  </text>
-                  <rect fill={COLOR.divider} x="730" y="1048" width="222" height="1" />
-                  <text fill={COLOR.dim} class="m" x="704" y="1072.96" font-size="11">{"03"}</text>
-                  <text fill={COLOR.muted} class="m" x="730" y="1072.96" font-size="11">
-                    {"0:07.0 → 0:09.6"}
-                  </text>
-                  <text fill={COLOR.text} class="s" x="730" y="1092.68" font-size="13">
-                    {"the old town market"}
-                  </text>
-                  <rect fill={COLOR.divider} x="730" y="1106" width="222" height="1" />
-                  <text fill={COLOR.dim} class="m" x="704" y="1130.96" font-size="11">{"04"}</text>
-                  <text fill={COLOR.muted} class="m" x="730" y="1130.96" font-size="11">
-                    {"0:10.1 → 0:13.0"}
-                  </text>
-                  <text fill={COLOR.text} class="s" x="730" y="1150.68" font-size="13">
-                    {"Let's get started"}
-                  </text>
-                  <rect fill={COLOR.divider} x="730" y="1164" width="222" height="1" />
-                  <text fill={COLOR.dim} class="m" x="704" y="1188.96" font-size="11">{"05"}</text>
-                  <text fill={COLOR.muted} class="m" x="730" y="1188.96" font-size="11">
-                    {"0:13.4 → 0:16.0"}
-                  </text>
-                  <text fill={COLOR.text} class="s" x="730" y="1208.68" font-size="13">
-                    {"First stop: coffee"}
-                  </text>
-                  <text fill={COLOR.muted} class="s" x="704" y="1247.32" font-size="12">
-                    {"Drag onto a text track to add one"}
-                  </text>
-                  <text fill={COLOR.muted} class="s" x="704" y="1264.32" font-size="12">
-                    {"text clip per cue."}
-                  </text>
+                  <g transform="translate(0 -8)">
+                    <text
+                      fill={COLOR.muted}
+                      class="s"
+                      x="704"
+                      y="928.96"
+                      font-size="11"
+                      font-weight="600"
+                      letter-spacing="0.6"
+                    >
+                      {"CUES"}
+                    </text>
+                    <text fill={COLOR.dim} class="m" x="704" y="956.96" font-size="11">{"01"}</text>
+                    <text fill={COLOR.muted} class="m" x="730" y="956.96" font-size="11">
+                      {"0:00.5 → 0:03.2"}
+                    </text>
+                    <text fill={COLOR.text} class="s" x="730" y="976.68" font-size="13">
+                      {"Welcome back to the channel"}
+                    </text>
+                    <rect fill={COLOR.divider} x="730" y="990" width="222" height="1" />
+                    <text fill={COLOR.dim} class="m" x="704" y="1014.96" font-size="11">{"02"}</text>
+                    <text fill={COLOR.muted} class="m" x="730" y="1014.96" font-size="11">
+                      {"0:03.4 → 0:06.8"}
+                    </text>
+                    <text fill={COLOR.text} class="s" x="730" y="1034.68" font-size="13">
+                      {"Today we're walking through"}
+                    </text>
+                    <rect fill={COLOR.divider} x="730" y="1048" width="222" height="1" />
+                    <text fill={COLOR.dim} class="m" x="704" y="1072.96" font-size="11">{"03"}</text>
+                    <text fill={COLOR.muted} class="m" x="730" y="1072.96" font-size="11">
+                      {"0:07.0 → 0:09.6"}
+                    </text>
+                    <text fill={COLOR.text} class="s" x="730" y="1092.68" font-size="13">
+                      {"the old town market"}
+                    </text>
+                    <rect fill={COLOR.divider} x="730" y="1106" width="222" height="1" />
+                    <text fill={COLOR.dim} class="m" x="704" y="1130.96" font-size="11">{"04"}</text>
+                    <text fill={COLOR.muted} class="m" x="730" y="1130.96" font-size="11">
+                      {"0:10.1 → 0:13.0"}
+                    </text>
+                    <text fill={COLOR.text} class="s" x="730" y="1150.68" font-size="13">
+                      {"Let's get started"}
+                    </text>
+                    <rect fill={COLOR.divider} x="730" y="1164" width="222" height="1" />
+                    <text fill={COLOR.dim} class="m" x="704" y="1188.96" font-size="11">{"05"}</text>
+                    <text fill={COLOR.muted} class="m" x="730" y="1188.96" font-size="11">
+                      {"0:13.4 → 0:16.0"}
+                    </text>
+                    <text fill={COLOR.text} class="s" x="730" y="1208.68" font-size="13">
+                      {"First stop: coffee"}
+                    </text>
+                    <text fill={COLOR.muted} class="s" x="704" y="1247.32" font-size="12">
+                      {"Drag onto a text track to add one"}
+                    </text>
+                    <text fill={COLOR.muted} class="s" x="704" y="1264.32" font-size="12">
+                      {"text clip per cue."}
+                    </text>
+                  </g>
                 </g>
               </g>
               <rect
@@ -1360,5 +1255,31 @@ export default function Page15PropertyPanelSvg(): Markup {
         </g>
       </g>
     </svg>
+  );
+}
+
+/// One header on its own, in the top part of a panel frame, with a variant label above.
+function HeaderDemo(props: { x: number; label: string; children: Markup }): Markup {
+  const y = 248;
+  return (
+    <g>
+      <text fill={COLOR.soft} class="s" x={props.x} y={y - 20} font-size="12" font-weight="600">
+        {props.label}
+      </text>
+      <clipPath id={`header-demo-${props.x}`}>
+        <rect x={props.x} y={y} width="280" height={PROPERTY_PANEL_HEADER_HEIGHT} rx="10" />
+      </clipPath>
+      <rect x={props.x} y={y} width="280" height={PROPERTY_PANEL_HEADER_HEIGHT} rx="10" fill={COLOR.panel} />
+      <g clip-path={`url(#header-demo-${props.x})`}>{props.children}</g>
+      <rect
+        x={props.x + 0.5}
+        y={y + 0.5}
+        width="279"
+        height={PROPERTY_PANEL_HEADER_HEIGHT - 1}
+        rx="10"
+        fill="none"
+        stroke={COLOR.border}
+      />
+    </g>
   );
 }
