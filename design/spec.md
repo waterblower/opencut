@@ -9,11 +9,11 @@
 already in it, so that I don't have to import or copy media.
 
 Mockups:
-[project picker](pages/01-project-picker.svg),
-[file Explorer](pages/21-file-explorer.svg),
-[media preview](pages/16-preview-panel.svg),
-[rename dialog](pages/07-dialogs.svg),
-[context menus](pages/11-context-menus.svg).
+[project picker](pages/01-project-picker.html),
+[file Explorer](pages/21-file-explorer.html),
+[media preview](pages/16-preview-panel.html),
+[rename dialog](pages/07-dialogs.html),
+[context menus](pages/11-context-menus.html).
 
 - [x] Any folder can be opened as a project.
 - [x] Supported media appears in a live file tree (the Explorer) without an import
@@ -46,9 +46,9 @@ Supported file extensions:
 that I can keep several versions, move them, and back them up like any other
 file.
 
-Mockups: [new timeline dialog](pages/07-dialogs.svg),
-[timeline settings dialog](pages/07-dialogs.svg),
-[context menus](pages/11-context-menus.svg).
+Mockups: [new timeline dialog](pages/07-dialogs.html),
+[timeline settings dialog](pages/07-dialogs.html),
+[context menus](pages/11-context-menus.html).
 
 - [x] A timeline is a JSON file named `*.timeline` or `*.timeline.json`, anywhere in
       the project.
@@ -64,7 +64,7 @@ Mockups: [new timeline dialog](pages/07-dialogs.svg),
 **Story:** As a creator, I want separate video, image, audio, and text tracks
 that I can organize, so that I can layer footage, stills, sound, and subtitles.
 
-Mockup: [timeline editing area](pages/17-timeline-editing-area.svg).
+Mockup: [timeline editing area](pages/17-timeline-editing-area.html).
 
 - [ ] Tracks can be created, deleted, reordered, hidden, muted, and locked.
 - [x] Video tracks accept video files only.
@@ -89,8 +89,8 @@ Mockup: [timeline editing area](pages/17-timeline-editing-area.svg).
 **Story:** As a creator, I want to select and rearrange many clips at once, so
 that restructuring an edit doesn't take one clip at a time.
 
-Mockups: [timeline editing area](pages/17-timeline-editing-area.svg),
-[context menus](pages/11-context-menus.svg).
+Mockups: [timeline editing area](pages/17-timeline-editing-area.html),
+[context menus](pages/11-context-menus.html).
 
 - [x] Clips are selected by clicking, Command-clicking to add or remove, or drawing
       a selection rectangle.
@@ -121,7 +121,7 @@ preview, as shown in the **Clip Placement** section of the timeline design.
 **Story:** As a creator, I want to drag a clip's edges to change its duration,
 so that I can tighten cuts directly on the timeline.
 
-Mockup: [timeline editing area](pages/17-timeline-editing-area.svg).
+Mockup: [timeline editing area](pages/17-timeline-editing-area.html).
 
 - [x] Either edge of a video, audio, image, or text clip can be dragged.
 - [x] Trimming respects neighboring clips, the source media's length, and a
@@ -137,7 +137,7 @@ as video clips. Dedicated image tracks and Explorer image drops remain open in
 **Story:** As a creator, I want to zoom, scroll, and snap precisely, so that I
 can make frame-accurate edits.
 
-Mockup: [timeline editing area](pages/17-timeline-editing-area.svg).
+Mockup: [timeline editing area](pages/17-timeline-editing-area.html).
 
 - [x] The timeline is frame-based.
 - [x] The timeline supports horizontal zoom, including trackpad pinch, and
@@ -158,9 +158,9 @@ Mockup: [timeline editing area](pages/17-timeline-editing-area.svg).
 **Story:** As a creator, I want to size the panels to my task, so that I can
 give more room to the timeline or the preview as needed.
 
-Mockups: [timeline editing area](pages/17-timeline-editing-area.svg),
-[top bar](pages/20-top-bar.svg),
-[property panel](pages/15-property-panel.svg).
+Mockups: [timeline editing area](pages/17-timeline-editing-area.html),
+[top bar](pages/20-top-bar.html),
+[property panel](pages/15-property-panel.html).
 
 - [x] The media and property panels beside the preview can be resized.
 - [x] Dragging the divider above the timeline resizes the timeline editing area.
@@ -179,16 +179,16 @@ Mockups: [timeline editing area](pages/17-timeline-editing-area.svg),
 Review: the icon, actions, button shapes, colors, and disabled state are present;
 label weight and spacing still differ. The two top-bar cases are **Timeline open**
 and **No timeline**. Button interaction variants are defined in the
-[design system](pages/00-design-system.svg).
+[design system](pages/00-design-system.html).
 
 ## 8. Preview
 
 **Story:** As a creator, I want to play the timeline as it will be exported, so
 that I can judge the edit without exporting.
 
-Mockups: [preview variants](pages/16-preview-panel.svg),
-[video player](pages/18-video-player.svg),
-[fullscreen preview](pages/12-fullscreen-preview.svg).
+Mockups: [preview variants](pages/16-preview-panel.html),
+[video player](pages/18-video-player.html),
+[fullscreen preview](pages/12-fullscreen-preview.html).
 
 The preview design has five states: image, audio, video, error, and none.
 Video covers media playback and rendered timelines. A single error state serves
@@ -220,9 +220,9 @@ recording into a tight, captioned edit.
 
 ### Generate subtitles
 
-Mockups: [transcription window](pages/14-transcription-window.svg),
-[settings dialog](pages/07-dialogs.svg),
-[context menus](pages/11-context-menus.svg).
+Mockups: [transcription window](pages/14-transcription-window.html),
+[settings dialog](pages/07-dialogs.html),
+[context menus](pages/11-context-menus.html).
 
 - [x] Right-clicking an audio or video file and choosing **Generate SRT** opens a
       transcription window.
@@ -246,8 +246,8 @@ Mockups: [transcription window](pages/14-transcription-window.svg),
 
 ### Position and style subtitles
 
-Mockups: [text positioning](pages/05-editor-text-positioning.svg),
-[context menus](pages/11-context-menus.svg).
+Mockups: [text positioning](pages/05-editor-text-positioning.html),
+[context menus](pages/11-context-menus.html).
 
 - [x] Text clips can be selected and dragged directly in the preview.
 - [x] With **Snap on**, dragged text aligns to canvas centers and edges, with
@@ -270,7 +270,7 @@ Mockups: [text positioning](pages/05-editor-text-positioning.svg),
 **Story:** As a creator, I want to export my timeline to a video file, so that
 I can publish it.
 
-Mockup: [export window](pages/13-export-window.svg).
+Mockup: [export window](pages/13-export-window.html).
 
 - [x] The top-right **Export** button opens a separate export window for the active
       timeline.
@@ -339,8 +339,8 @@ timeline library's 8 tests passed. These are the 2026-10-16 review results.
 **Story:** As a creator, I want properties for the selected object so that I can
 inspect media and adjust a clip without leaving the editor.
 
-Mockups: [property panel](pages/15-property-panel.svg),
-[text clip panel](pages/15b-property-panel-text-clip.svg).
+Mockups: [property panel](pages/15-property-panel.html),
+[text clip panel](pages/15-property-panel-text-clip.html).
 
 - [x] The header identifies the selected object. Panels cover text, video, and
       audio clips; timeline, video, audio, image, and subtitle files; and no selection.
