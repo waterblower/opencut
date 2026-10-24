@@ -1,0 +1,305 @@
+import { COLOR } from "../theme.ts";
+import { FontStyle } from "../components/fonts.tsx";
+import type { Markup } from "@design/jsx/jsx-runtime";
+
+export default function Page14TranscriptionWindowSvg(): Markup {
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" width="1320" height="1584" viewBox="0 0 1320 1584">
+      <FontStyle />
+      <defs>
+        <filter id="shadow" x="-20%" y="-20%" width="140%" height="160%">
+          <feDropShadow dx="0" dy="8" stdDeviation="10" flood-color="#000" flood-opacity="0.55" />
+        </filter>
+        <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stop-color="#1b2745" />
+          <stop offset="0.55" stop-color="#7a4a62" />
+          <stop offset="1" stop-color="#e2905c" />
+        </linearGradient>
+        <radialGradient id="sun">
+          <stop offset="0" stop-color="#ffe2a8" />
+          <stop offset="0.45" stop-color="#ffc77a" stop-opacity="0.9" />
+          <stop offset="1" stop-color="#ffb066" stop-opacity="0" />
+        </radialGradient>
+        <linearGradient id="street" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" stop-color="#3a4256" />
+          <stop offset="0.6" stop-color="#8a5a4c" />
+          <stop offset="1" stop-color="#d48a56" />
+        </linearGradient>
+        <clipPath id="c1">
+          <rect x="40" y="80" width="600" height="428" rx="10" />
+        </clipPath>
+        <clipPath id="c2">
+          <rect x="680" y="80" width="600" height="428" rx="10" />
+        </clipPath>
+        <clipPath id="c3">
+          <rect x="40" y="598" width="600" height="428" rx="10" />
+        </clipPath>
+        <clipPath id="c5">
+          <rect x="40" y="1116" width="600" height="428" rx="10" />
+        </clipPath>
+        <clipPath id="c4">
+          <rect x="680" y="598" width="600" height="428" rx="10" />
+        </clipPath>
+        <pattern id="dScanDim" width="4" height="3" patternUnits="userSpaceOnUse">
+          <rect width="4" height="1" fill="#ffffff" fill-opacity="0.05" />
+        </pattern>
+        <filter id="dGlowY" x="-30%" y="-80%" width="160%" height="260%">
+          <feDropShadow dx="0" dy="0" stdDeviation="6" flood-color="#fcee0a" flood-opacity="0.45" />
+        </filter>
+        <filter id="dGlowC" x="-30%" y="-80%" width="160%" height="260%">
+          <feDropShadow dx="0" dy="0" stdDeviation="5" flood-color="#00f0ff" flood-opacity="0.35" />
+        </filter>
+      </defs>
+      <rect x="0" y="0" width="1320" height="1584" fill="#1e1e22" />
+      <text fill={COLOR.light} class="s" x="40" y="44" font-size="15" font-weight="600">{"Ready"}</text>
+      <text class="s" x="40" y="64" font-size="12" fill="#8a8a93">
+        {"Opened from Generate SRT. “MiniMax pricing” opens https://platform.minimax.cn/docs/guides/pricing in the browser"}
+      </text>
+      <rect x="40" y="80" width="600" height="428" rx="10" fill="#080809" filter="url(#shadow)" />
+      <g clip-path="url(#c1)">
+        <rect x="40" y="80" width="600" height="28" fill="#232326" />
+        <rect x="40" y="107" width="600" height="1" fill="#000000" />
+        <circle cx="54" cy="94" r="6" fill="#ff5f57" />
+        <circle cx="74" cy="94" r="6" fill="#febc2e" />
+        <circle cx="94" cy="94" r="6" fill="#28c840" />
+        <rect x="40" y="108" width="600" height="400" fill="#080809" />
+        <text fill={COLOR.text} class="s" x="64" y="151.2" font-size="20">{"Generate SRT"}</text>
+        <text fill={COLOR.text} class="s" x="64" y="188.76" font-size="16">{"interview.mp4"}</text>
+        <text fill={COLOR.accent} class="s" x="64" y="226.76" font-size="16">
+          {"Generate the SRT transcription for interview.mp4"}
+        </text>
+        <text fill={COLOR.text} class="s" x="64" y="264.76" font-size="16">
+          {"Estimated cost: ¥0.52 for 12:34 of audio · "}
+          <tspan fill="#00f0ff" text-decoration="underline">{"MiniMax pricing"}</tspan>
+        </text>
+        <polygon points="74,286 171,286 171,316 161,326 64,326 64,296" fill="#fcee0a" filter="url(#dGlowY)" />
+        <path
+          d="M141 320 L149 292 H152 L144 320Z M148 320 L156 292 H159 L151 320Z M155 320 L163 292 H166 L158 320Z"
+          fill="#0a0a0b"
+        />
+        <text class="m" x="88" y="310.5" font-size="13" font-weight="800" fill="#0a0a0b">{"START"}</text>
+        <polygon
+          points="193,286 294,286 294,316 284,326 183,326 183,296"
+          fill="#00f0ff"
+          fill-opacity="0.06"
+          stroke="#00f0ff"
+          filter="url(#dGlowC)"
+        />
+        <text
+          class="m"
+          x="238.5"
+          y="310.5"
+          font-size="13"
+          font-weight="800"
+          fill="#00f0ff"
+          text-anchor="middle"
+        >
+          {"CANCEL"}
+        </text>
+      </g>
+      <text fill={COLOR.light} class="s" x="40" y="1080" font-size="15" font-weight="600">{"Clip"}</text>
+      <text class="s" x="40" y="1100" font-size="12" fill="#8a8a93">
+        {"Opened from Transcribe the Clip. Writes <source stem>_<clip id>.srt in the project root; subtitle times start at the clip"}
+      </text>
+      <rect x="40" y="1116" width="600" height="428" rx="10" fill="#080809" filter="url(#shadow)" />
+      <g clip-path="url(#c5)">
+        <rect x="40" y="1116" width="600" height="28" fill="#232326" />
+        <rect x="40" y="1143" width="600" height="1" fill="#000000" />
+        <circle cx="54" cy="1130" r="6" fill="#ff5f57" />
+        <circle cx="74" cy="1130" r="6" fill="#febc2e" />
+        <circle cx="94" cy="1130" r="6" fill="#28c840" />
+        <rect x="40" y="1144" width="600" height="400" fill="#080809" />
+        <text fill={COLOR.text} class="s" x="64" y="1187.2" font-size="20">{"Generate SRT"}</text>
+        <text fill={COLOR.text} class="s" x="64" y="1224.76" font-size="16">{"interview.mp4"}</text>
+        <text fill={COLOR.accent} class="s" x="64" y="1262.76" font-size="16">
+          {"Generate the SRT transcription for 0:12–1:05 of interview.mp4"}
+        </text>
+        <text fill={COLOR.text} class="s" x="64" y="1300.76" font-size="16">
+          {"Estimated cost: ¥0.04 for 0:53 of audio · "}
+          <tspan fill="#00f0ff" text-decoration="underline">{"MiniMax pricing"}</tspan>
+        </text>
+        <polygon
+          points="74,1322 171,1322 171,1352 161,1362 64,1362 64,1332"
+          fill="#fcee0a"
+          filter="url(#dGlowY)"
+        />
+        <path
+          d="M141 1356 L149 1328 H152 L144 1356Z M148 1356 L156 1328 H159 L151 1356Z M155 1356 L163 1328 H166 L158 1356Z"
+          fill="#0a0a0b"
+        />
+        <text class="m" x="88" y="1346.5" font-size="13" font-weight="800" fill="#0a0a0b">{"START"}</text>
+        <polygon
+          points="193,1322 294,1322 294,1352 284,1362 183,1362 183,1332"
+          fill="#00f0ff"
+          fill-opacity="0.06"
+          stroke="#00f0ff"
+          filter="url(#dGlowC)"
+        />
+        <text
+          class="m"
+          x="238.5"
+          y="1346.5"
+          font-size="13"
+          font-weight="800"
+          fill="#00f0ff"
+          text-anchor="middle"
+        >
+          {"CANCEL"}
+        </text>
+      </g>
+      <text fill={COLOR.light} class="s" x="680" y="44" font-size="15" font-weight="600">{"Running"}</text>
+      <text class="s" x="680" y="64" font-size="12" fill="#8a8a93">
+        {"Preparing / transcribing / saving"}
+      </text>
+      <rect x="680" y="80" width="600" height="428" rx="10" fill="#080809" filter="url(#shadow)" />
+      <g clip-path="url(#c2)">
+        <rect x="680" y="80" width="600" height="28" fill="#232326" />
+        <rect x="680" y="107" width="600" height="1" fill="#000000" />
+        <circle cx="694" cy="94" r="6" fill="#ff5f57" />
+        <circle cx="714" cy="94" r="6" fill="#febc2e" />
+        <circle cx="734" cy="94" r="6" fill="#28c840" />
+        <rect x="680" y="108" width="600" height="400" fill="#080809" />
+        <text fill={COLOR.text} class="s" x="704" y="151.2" font-size="20">{"Generate SRT"}</text>
+        <text fill={COLOR.text} class="s" x="704" y="188.76" font-size="16">{"interview.mp4"}</text>
+        <text fill={COLOR.accent} class="s" x="704" y="226.76" font-size="16">
+          {"Uploading and transcribing.."}
+        </text>
+        <text fill={COLOR.text} class="s" x="704" y="264.76" font-size="16">{"Elapsed: 0:47"}</text>
+        <text fill={COLOR.muted} class="s" x="704" y="300" font-size="14">
+          {"Cancel stops this local request. A request already sent may continue"}
+        </text>
+        <text fill={COLOR.muted} class="s" x="704" y="320" font-size="14">{"processing on the server."}</text>
+        <polygon
+          points="714,342 811,342 811,372 801,382 704,382 704,352"
+          fill="url(#dScanDim)"
+          stroke="#3a3926"
+        />
+        <path
+          d="M781 376 L789 348 H792 L784 376Z M788 376 L796 348 H799 L791 376Z M795 376 L803 348 H806 L798 376Z"
+          fill="#3a3926"
+        />
+        <text class="m" x="728" y="366.5" font-size="13" font-weight="800" fill="#57563f">{"START"}</text>
+        <polygon
+          points="833,342 934,342 934,372 924,382 823,382 823,352"
+          fill="#00f0ff"
+          fill-opacity="0.06"
+          stroke="#00f0ff"
+          filter="url(#dGlowC)"
+        />
+        <text
+          class="m"
+          x="878.5"
+          y="366.5"
+          font-size="13"
+          font-weight="800"
+          fill="#00f0ff"
+          text-anchor="middle"
+        >
+          {"CANCEL"}
+        </text>
+      </g>
+      <text fill={COLOR.light} class="s" x="40" y="562" font-size="15" font-weight="600">{"Complete"}</text>
+      <text class="s" x="40" y="582" font-size="12" fill="#8a8a93">
+        {"Written to <source name>.srt in the project root"}
+      </text>
+      <rect x="40" y="598" width="600" height="428" rx="10" fill="#080809" filter="url(#shadow)" />
+      <g clip-path="url(#c3)">
+        <rect x="40" y="598" width="600" height="28" fill="#232326" />
+        <rect x="40" y="625" width="600" height="1" fill="#000000" />
+        <circle cx="54" cy="612" r="6" fill="#ff5f57" />
+        <circle cx="74" cy="612" r="6" fill="#febc2e" />
+        <circle cx="94" cy="612" r="6" fill="#28c840" />
+        <rect x="40" y="626" width="600" height="400" fill="#080809" />
+        <text fill={COLOR.text} class="s" x="64" y="669.2" font-size="20">{"Generate SRT"}</text>
+        <text fill={COLOR.text} class="s" x="64" y="706.76" font-size="16">{"interview.mp4"}</text>
+        <text fill={COLOR.accent} class="s" x="64" y="744.76" font-size="16">{"Subtitles saved"}</text>
+        <text fill={COLOR.text} class="s" x="64" y="782.76" font-size="16">
+          {"/Users/me/market-vlog/interview.srt"}
+        </text>
+        <polygon points="74,800 257,800 257,830 247,840 64,840 64,810" fill="#fcee0a" filter="url(#dGlowY)" />
+        <path
+          d="M227 834 L235 806 H238 L230 834Z M234 834 L242 806 H245 L237 834Z M241 834 L249 806 H252 L244 834Z"
+          fill="#0a0a0b"
+        />
+        <text class="m" x="88" y="824.5" font-size="13" font-weight="800" fill="#0a0a0b">
+          {"REVEAL IN FINDER"}
+        </text>
+        <polygon points="74,856 171,856 171,886 161,896 64,896 64,866" fill="#fcee0a" filter="url(#dGlowY)" />
+        <path
+          d="M141 890 L149 862 H152 L144 890Z M148 890 L156 862 H159 L151 890Z M155 890 L163 862 H166 L158 890Z"
+          fill="#0a0a0b"
+        />
+        <text class="m" x="88" y="880.5" font-size="13" font-weight="800" fill="#0a0a0b">{"START"}</text>
+        <polygon
+          points="193,856 294,856 294,886 284,896 183,896 183,866"
+          fill="#00f0ff"
+          fill-opacity="0.06"
+          stroke="#00f0ff"
+          filter="url(#dGlowC)"
+        />
+        <text
+          class="m"
+          x="238.5"
+          y="880.5"
+          font-size="13"
+          font-weight="800"
+          fill="#00f0ff"
+          text-anchor="middle"
+        >
+          {"CANCEL"}
+        </text>
+      </g>
+      <text fill={COLOR.light} class="s" x="680" y="562" font-size="15" font-weight="600">{"Failed"}</text>
+      <text class="s" x="680" y="582" font-size="12" fill="#8a8a93">{"Error message from the request"}</text>
+      <rect x="680" y="598" width="600" height="428" rx="10" fill="#080809" filter="url(#shadow)" />
+      <g clip-path="url(#c4)">
+        <rect x="680" y="598" width="600" height="28" fill="#232326" />
+        <rect x="680" y="625" width="600" height="1" fill="#000000" />
+        <circle cx="694" cy="612" r="6" fill="#ff5f57" />
+        <circle cx="714" cy="612" r="6" fill="#febc2e" />
+        <circle cx="734" cy="612" r="6" fill="#28c840" />
+        <rect x="680" y="626" width="600" height="400" fill="#080809" />
+        <text fill={COLOR.text} class="s" x="704" y="669.2" font-size="20">{"Generate SRT"}</text>
+        <text fill={COLOR.text} class="s" x="704" y="706.76" font-size="16">{"interview.mp4"}</text>
+        <text fill={COLOR.accent} class="s" x="704" y="744.76" font-size="16">{"Transcription failed"}</text>
+        <text fill={COLOR.error} class="s" x="704" y="781.04" font-size="14">
+          {"MiniMax API key is not set. Add it under Settings."}
+        </text>
+        <polygon
+          points="714,802 811,802 811,832 801,842 704,842 704,812"
+          fill="#fcee0a"
+          filter="url(#dGlowY)"
+        />
+        <path
+          d="M781 836 L789 808 H792 L784 836Z M788 836 L796 808 H799 L791 836Z M795 836 L803 808 H806 L798 836Z"
+          fill="#0a0a0b"
+        />
+        <text class="m" x="728" y="826.5" font-size="13" font-weight="800" fill="#0a0a0b">{"START"}</text>
+        <polygon
+          points="833,802 934,802 934,832 924,842 823,842 823,812"
+          fill="#00f0ff"
+          fill-opacity="0.06"
+          stroke="#00f0ff"
+          filter="url(#dGlowC)"
+        />
+        <text
+          class="m"
+          x="878.5"
+          y="826.5"
+          font-size="13"
+          font-weight="800"
+          fill="#00f0ff"
+          text-anchor="middle"
+        >
+          {"CANCEL"}
+        </text>
+      </g>
+      <text class="s" x="680" y="1048" font-size="12" fill="#8a8a93">
+        {"Comment: the error is shown as the request returns it, so a missing key currently reads"}
+      </text>
+      <text class="s" x="680" y="1066" font-size="12" fill="#8a8a93">
+        {"“missing_api_key: an API key is required for transcription”. The text in the window is a sample."}
+      </text>
+    </svg>
+  );
+}
