@@ -7,7 +7,7 @@ description: General project rules for OpenCut. Use when planning, implementing,
 
 Apply these guidelines in the OpenCut repository. Paths are relative to the repository root.
 
-For Rust changes, also apply [Rust style](../opencut-rust-style/SKILL.md). For state, events, execution, or mutation design, also apply [architecture](../opencut-architecture/SKILL.md).
+For Rust changes, also apply [Rust style](../opencut-rust-style/SKILL.md). For state, events, execution, or mutation design, also apply [architecture](../opencut-architecture/SKILL.md). For new UI or visual changes, also apply [UI design](../opencut-ui-design/SKILL.md).
 
 ## Workflow and review
 
