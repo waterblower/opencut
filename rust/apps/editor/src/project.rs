@@ -9,7 +9,6 @@ use anyhow::{Context as _, Result};
 use gpui::PathPromptOptions;
 use gpui::prelude::*;
 use std::path::{Path, PathBuf};
-use std::time::Instant;
 
 impl Editor {
     pub(crate) fn open_project_folder(&mut self, cx: &mut Context<Self>) {
@@ -149,7 +148,6 @@ impl Editor {
             self.explorer.selected_file = new_relative_timeline_path;
             self.dismiss_context_menu();
             self.explorer.file_tree = new_file_tree;
-            self.explorer.last_tree_scan = Instant::now();
             self.schedule_active_timeline_waveforms(cx);
             Ok(())
         })();

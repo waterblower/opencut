@@ -1,9 +1,8 @@
 use crate::context_menu::ContextMenu;
 use crate::editing::ClipClipboard;
 use crate::event_bus::{AppEvent, EventBus};
-use crate::explorer::{ExplorerState, load_explorer_expansion};
+use crate::explorer::ExplorerState;
 use crate::explorer_drag::AssetBeingDragged;
-use crate::explorer_file_entry::visible_tree;
 use crate::preview::{PreviewState, PreviewTarget};
 use crate::project_settings::load_project_local_settings;
 use crate::property_panel::{PropertyPanel, PropertyPanelState, current_property_panel};
@@ -18,7 +17,6 @@ use std::collections::{HashMap, HashSet};
 use std::io::{Error as IoError, ErrorKind};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
-use std::time::{Duration, Instant};
 
 pub(crate) struct Editor {
     // main UI sections
@@ -53,42 +51,18 @@ impl Editor {
         cx: &mut Context<Self>,
     ) -> Self {
         let focus_handle = cx.focus_handle();
-        let explorer = {
-            let explorer_filter = cx.new(|cx| {
-                TextInput::new_search("explorer-filter", "Filter files…", focus_handle.clone(), cx)
-            });
-            cx.observe(&explorer_filter, |editor, _, cx| {
-                editor.schedule_explorer_search(cx);
-                cx.notify();
-            })
-            .detach();
-
-            let explorer_expansion = load_explorer_expansion(&project_root);
-            let expanded_directories = explorer_expansion.expanded_directories;
-            let file_tree = visible_tree(&project_root, &expanded_directories).unwrap_or_default();
-            ExplorerState {
-                file_tree,
-                expanded_directories,
-                root_expanded: explorer_expansion.root_expanded,
-                filter: explorer_filter,
-                search_query: None,
-                search_results: Vec::new(),
-                search_pending: false,
-                scroll: ScrollHandle::new(),
-                selected_file: timeline.as_ref().and_then(|timeline| {
-                    timeline
-                        .path
-                        .strip_prefix(&project_root)
-                        .ok()
-                        .map(Path::to_path_buf)
-                }),
-                rename_dialog: None,
-                new_timeline_dialog: None,
-                trash_timeline_dialog_open: false,
-
-                last_tree_scan: Instant::now(),
-            }
-        };
+        let explorer = ExplorerState::new(
+            &project_root,
+            timeline.as_ref().and_then(|timeline| {
+                timeline
+                    .path
+                    .strip_prefix(&project_root)
+                    .ok()
+                    .map(Path::to_path_buf)
+            }),
+            focus_handle.clone(),
+            cx,
+        );
 
         let preview = PreviewState {
             target: PreviewTarget::None, // 实体创建后由调用方设置
@@ -107,7 +81,6 @@ impl Editor {
             }
         };
 
-        start_updates(cx);
         let project_local_settings = load_project_local_settings(&project_root);
         let mut editor = Self {
             // Entities
@@ -171,28 +144,4 @@ pub(crate) fn load_active_timeline(project_root: &Path) -> Result<Option<Timelin
             Err(error)
         }
     }
-}
-
-fn start_updates(cx: &mut Context<Editor>) {
-    const IDLE_UPDATE_INTERVAL: Duration = Duration::from_millis(100);
-    cx.spawn(async move |editor, cx| {
-        loop {
-            cx.background_executor().timer(IDLE_UPDATE_INTERVAL).await;
-            let result = editor.update(cx, |editor, cx| -> Result<()> {
-                if editor.explorer.last_tree_scan.elapsed() >= Duration::from_secs(1) {
-                    editor.explorer.refresh_file_tree(&editor.project_root)?;
-                    cx.notify();
-                }
-                Ok(())
-            });
-            match result {
-                Ok(Ok(())) => {}
-                Ok(Err(error)) => eprintln!("{error:?}"),
-                Err(_) => {
-                    break;
-                }
-            }
-        }
-    })
-    .detach();
 }
