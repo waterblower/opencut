@@ -10,16 +10,20 @@ use crate::timeline_document::relative_asset_path;
 use crate::track::TrackKind;
 use crate::ui_components::TextInput;
 use anyhow::{Context as _, Result, anyhow, bail};
+use futures::StreamExt;
+use futures::channel::mpsc;
 use gpui::prelude::FluentBuilder;
 use gpui::{
-    AppContext as _, Context, CursorStyle, Entity, InteractiveElement, IntoElement, MouseButton,
-    ParentElement, ScrollHandle, StatefulInteractiveElement, Styled, div, px, rgb,
+    AppContext as _, Context, CursorStyle, Entity, FocusHandle, InteractiveElement, IntoElement,
+    MouseButton, ParentElement, ScrollHandle, StatefulInteractiveElement, Styled, Task, div, px,
+    rgb,
 };
+use notify::{EventKind, RecommendedWatcher, RecursiveMode, Watcher};
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::time::{Duration, Instant};
+use std::time::Duration;
 use ulid::Ulid;
 
 pub(super) struct RenameDialogState {
@@ -30,11 +34,6 @@ pub(super) struct RenameDialogState {
 pub(super) struct NewTimelineDialogState {
     pub(crate) relative_directory: PathBuf,
     pub(crate) input: Entity<TextInput>,
-}
-
-pub(super) struct ExplorerExpansion {
-    pub(super) expanded_directories: HashSet<PathBuf>,
-    pub(super) root_expanded: bool,
 }
 
 pub(crate) struct ExplorerState {
@@ -50,30 +49,7 @@ pub(crate) struct ExplorerState {
     pub(crate) rename_dialog: Option<RenameDialogState>,
     pub(crate) new_timeline_dialog: Option<NewTimelineDialogState>,
     pub(crate) trash_timeline_dialog_open: bool, // 确认把当前打开的时间线移到废纸篓。
-    pub(crate) last_tree_scan: Instant,
-}
-
-pub(super) fn load_explorer_expansion(project_root: &Path) -> ExplorerExpansion {
-    let Ok(contents) = fs::read_to_string(file_explorer_settings_path(project_root)) else {
-        return ExplorerExpansion::default();
-    };
-    let Ok(settings) = serde_json::from_str::<FileExplorerSettings>(&contents) else {
-        return ExplorerExpansion::default();
-    };
-    ExplorerExpansion {
-        expanded_directories: settings
-            .expanded_directories
-            .into_iter()
-            .filter(|path| {
-                !path.as_os_str().is_empty()
-                    && path.is_relative()
-                    && path
-                        .components()
-                        .all(|component| matches!(component, std::path::Component::Normal(_)))
-            })
-            .collect(),
-        root_expanded: settings.root_expanded,
-    }
+    _file_tree_watch: Task<()>,                  // drop 时停止监听项目目录。
 }
 
 #[derive(Deserialize, Serialize)]
@@ -84,18 +60,43 @@ struct FileExplorerSettings {
     root_expanded: bool,
 }
 
-impl Default for ExplorerExpansion {
-    fn default() -> Self {
+impl ExplorerState {
+    /// Loads the saved folder expansion, scans the visible tree and starts watching
+    /// `project_root` for changes. `selected_file` is relative to `project_root`.
+    pub(super) fn new(
+        project_root: &Path,
+        selected_file: Option<PathBuf>,
+        return_focus: FocusHandle,
+        cx: &mut Context<Editor>,
+    ) -> Self {
+        let filter = cx
+            .new(|cx| TextInput::new_search("explorer-filter", "Filter files…", return_focus, cx));
+        cx.observe(&filter, |editor, _, cx| {
+            editor.schedule_explorer_search(cx);
+            cx.notify();
+        })
+        .detach();
+        let expansion = load_explorer_expansion(project_root);
+        let file_tree =
+            visible_tree(project_root, &expansion.expanded_directories).unwrap_or_default();
         Self {
-            expanded_directories: HashSet::new(),
-            root_expanded: true,
+            file_tree,
+            expanded_directories: expansion.expanded_directories,
+            root_expanded: expansion.root_expanded,
+            filter,
+            search_query: None,
+            search_results: Vec::new(),
+            search_pending: false,
+            scroll: ScrollHandle::new(),
+            selected_file,
+            rename_dialog: None,
+            new_timeline_dialog: None,
+            trash_timeline_dialog_open: false,
+            _file_tree_watch: watch_file_tree(project_root.to_path_buf(), cx),
         }
     }
-}
 
-impl ExplorerState {
     pub(super) fn refresh_file_tree(&mut self, project_root: &Path) -> Result<()> {
-        self.last_tree_scan = Instant::now();
         self.file_tree = visible_tree(project_root, &self.expanded_directories)?;
         Ok(())
     }
@@ -551,6 +552,108 @@ fn file_explorer_settings_path(project_root: &Path) -> PathBuf {
 
 fn root_expanded_by_default() -> bool {
     true
+}
+
+struct ExplorerExpansion {
+    expanded_directories: HashSet<PathBuf>,
+    root_expanded: bool,
+}
+
+impl Default for ExplorerExpansion {
+    fn default() -> Self {
+        Self {
+            expanded_directories: HashSet::new(),
+            root_expanded: true,
+        }
+    }
+}
+
+fn load_explorer_expansion(project_root: &Path) -> ExplorerExpansion {
+    let Ok(contents) = fs::read_to_string(file_explorer_settings_path(project_root)) else {
+        return ExplorerExpansion::default();
+    };
+    let Ok(settings) = serde_json::from_str::<FileExplorerSettings>(&contents) else {
+        return ExplorerExpansion::default();
+    };
+    ExplorerExpansion {
+        expanded_directories: settings
+            .expanded_directories
+            .into_iter()
+            .filter(|path| {
+                !path.as_os_str().is_empty()
+                    && path.is_relative()
+                    && path
+                        .components()
+                        .all(|component| matches!(component, std::path::Component::Normal(_)))
+            })
+            .collect(),
+        root_expanded: settings.root_expanded,
+    }
+}
+
+/// Rescans the visible file tree whenever something under `project_root` changes.
+/// The watch lasts as long as the returned task.
+fn watch_file_tree(project_root: PathBuf, cx: &mut Context<Editor>) -> Task<()> {
+    // 一次改动常带来一串事件；等这段时间让它们到齐，再只重扫一次。
+    const EVENT_BATCH_DELAY: Duration = Duration::from_millis(100);
+    let (sender, mut receiver) = mpsc::unbounded::<notify::Result<notify::Event>>();
+    cx.spawn(async move |editor, cx| {
+        let watcher = (|| -> notify::Result<RecommendedWatcher> {
+            let mut watcher = notify::recommended_watcher(move |event| {
+                // 发送失败只说明 task 已结束、接收端已释放，此时不再需要事件。
+                let _ = sender.unbounded_send(event);
+            })?;
+            watcher.watch(&project_root, RecursiveMode::Recursive)?;
+            Ok(watcher)
+        })();
+        let _watcher = match watcher {
+            Ok(watcher) => watcher, // 必须活到 task 结束，否则监听立即停止。
+            Err(error) => {
+                log::error!("Could not watch {}: {error:?}", project_root.display());
+                return;
+            }
+        };
+        while let Some(first_event) = receiver.next().await {
+            cx.background_executor().timer(EVENT_BATCH_DELAY).await;
+            let mut events = vec![first_event];
+            while let Ok(event) = receiver.try_recv() {
+                events.push(event);
+            }
+            for event in &events {
+                match event {
+                    Ok(_) => {
+                        // do nothing
+                    }
+                    Err(error) => {
+                        log::error!("File watch error in {}: {error:?}", project_root.display());
+                    }
+                }
+            }
+            // 读取文件只产生 Access 事件，不改变文件树；出错时无法判断，按已改变处理。
+            let tree_may_have_changed = events.iter().any(|event| match event {
+                Ok(event) => !matches!(event.kind, EventKind::Access(_)),
+                Err(_) => true,
+            });
+            if !tree_may_have_changed {
+                continue;
+            }
+            let result = editor.update(cx, |editor, cx| -> Result<()> {
+                editor.explorer.refresh_file_tree(&editor.project_root)?;
+                cx.notify();
+                Ok(())
+            });
+            match result {
+                Ok(Ok(())) => {
+                    // do nothing
+                }
+                Ok(Err(error)) => log::error!("{error:?}"),
+                Err(error) => {
+                    log::debug!("editor released: {error:?}");
+                    break;
+                }
+            }
+        }
+    })
 }
 
 #[cfg(test)]
