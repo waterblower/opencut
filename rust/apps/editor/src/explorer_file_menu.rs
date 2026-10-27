@@ -194,6 +194,7 @@ impl Editor {
             && let Some(timeline) = self.timeline.as_mut()
         {
             timeline.path = renamed_active_timeline;
+            timeline.refresh_offline_asset_ids()?;
             let mut settings = load_project_local_settings(&self.project_root);
             settings.active_timeline = Some(
                 timeline
