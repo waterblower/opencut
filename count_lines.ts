@@ -1,9 +1,9 @@
-// Count source lines in the Rust project.
+// Count source lines in rust/ and design/.
 //
 // Run from the repository root with `deno task loc`.
 
 const SOURCE_EXTENSIONS = [
-  "c", "cc", "cpp", "h", "hpp", "js", "jsx", "m", "mm", "py", "rs", "sh", "ts", "tsx", "zig",
+  "c", "cc", "cpp", "css", "h", "hpp", "js", "jsx", "m", "mm", "py", "rs", "sh", "ts", "tsx", "zig",
 ];
 
 const SKIPPED_DIRECTORIES = [
@@ -26,17 +26,19 @@ interface Count {
   largeFiles: string[];
 }
 
-const root = decodeURIComponent(new URL("../", import.meta.url).pathname).replace(/\/$/, "");
+const root = decodeURIComponent(new URL("./", import.meta.url).pathname).replace(/\/$/, "");
 const counts = new Map<string, Count>();
 
 try {
-  await countDirectory(root, counts);
+  for (const directory of ["rust", "design"]) {
+    await countDirectory(`${root}/${directory}`, counts);
+  }
 } catch (error) {
   console.error(`Could not count ${root}: ${error}`);
   Deno.exit(1);
 }
 
-console.log(`Source lines under ${root}\n`);
+console.log(`Source lines in rust/ and design/ under ${root}\n`);
 printCounts(root, counts);
 
 function printCounts(root: string, counts: Map<string, Count>) {
