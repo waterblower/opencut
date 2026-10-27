@@ -356,3 +356,6 @@ Mockups: [property panel](pages/15-property-panel.html),
 # Appendix
 
 1. able to apply all properties to other clips in the same track, not just the transforms as positions.
+
+2. when medias are missing when loading a timeline, the program should not exit. The timeline clips should be properly displayed with missing clips indicated.
+   Right click on the missing clips, the user is able to open a missing media dialog like in [./pages/19-missing-media-dialog.tsx].
