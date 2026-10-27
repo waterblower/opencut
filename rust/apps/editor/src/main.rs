@@ -63,6 +63,7 @@ mod transcription_window;
 mod ui_components;
 mod waveform;
 
+use crate::preview::timeline_preview_target;
 use anyhow::{Context as _, Result};
 use asset::EditorAssets;
 use editor::{Editor, load_active_timeline};
@@ -73,9 +74,10 @@ use gpui::{
     size,
 };
 use gpui_platform::application;
-use preview::{PreviewTarget, timeline_preview_target};
+use preview::PreviewTarget;
 use std::io::Write as _;
 use std::path::PathBuf;
+
 #[cfg(target_os = "macos")]
 use {
     objc2_app_kit::{NSApplication, NSImage},
