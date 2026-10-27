@@ -1,10 +1,10 @@
 use crate::editing::validate_clips_placements;
-use crate::timeline::{TimelineEditorExt, TimelineRuntimeState};
+use crate::timeline::{TimelineEditorExt, TimelineRuntimeState, offline_asset_ids};
 use ::timeline::{
     AudioClipProperties, Clip, FrameRate, MediaAsset, TextBackground, TextClipProperties,
     TimelineEditingState, TimelineFrameIndex, Track, VideoClipProperties, compact_text_sections,
 };
-use anyhow::{Result, anyhow, ensure};
+use anyhow::{Context as _, Result, anyhow, ensure};
 use gpui::{Pixels, Point};
 use std::collections::HashSet;
 use std::path::PathBuf;
@@ -521,8 +521,9 @@ pub(crate) fn edit_timeline(
     if outcome.record_history {
         timeline.record_editing_history();
     }
-    timeline.editing_state = outcome.new_state;
     timeline.set_playhead(timeline.playhead());
+    timeline.offline_asset_ids = offline_asset_ids(&timeline.path, &outcome.new_state)?;
+    timeline.editing_state = outcome.new_state;
     Ok(outcome.should_save)
 }
 
