@@ -17,12 +17,15 @@ Also apply the repository [general rules](../general-rules/SKILL.md).
 
 ## Where design work happens
 
-- Write designs in `design/system`. Pages are SVG written as JSX in
-  `design/system/pages/<page>.tsx`. Shared parts live in `design/system/components/`,
-  and colours and fonts are defined once in `design/system/theme.ts`.
+- Write designs in `design/system/pages/<page>.tsx`. Prefer normal HTML JSX with
+  Tailwind utilities for layout and styling; this maps more closely to GPUI semantics
+  and keeps the source concise. Pages do not have to be SVG. Migrate existing SVG
+  layouts gradually as requested; keep SVG where it is useful, such as icon assets.
+  Shared parts live in `design/system/components/`, and colours and fonts are defined
+  once in `design/system/theme.ts`.
 - Build with `deno task build` in `design`. It writes each page to
   `design/pages/<page>.html`. Never edit `design/pages` by hand; it is build output.
-- Commit the built HTML together with its source.
+- Commit the source only. `design/pages/` is ignored generated output.
 - Reuse existing components and theme values. When a part repeats, extract it into a
   component instead of copying it. Use the theme's colours instead of literal values.
 - Use a page from `design/system/pages/` as a template for the page structure, title,

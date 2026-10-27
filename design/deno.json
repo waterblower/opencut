@@ -4,7 +4,8 @@
         "jsxImportSource": "@design/jsx"
     },
     "imports": {
-        "@design/jsx/jsx-runtime": "./system/jsx/jsx-runtime.ts"
+        "@design/jsx/jsx-runtime": "./system/jsx/jsx-runtime.ts",
+        "tailwindcss": "npm:tailwindcss@4.1.18"
     },
     "tasks": {
         "build": "deno run --allow-read --allow-write system/build.ts"

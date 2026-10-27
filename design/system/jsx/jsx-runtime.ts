@@ -12,6 +12,23 @@ export type Child = Markup | string | number | boolean | null | undefined | Chil
 type Props = Record<string, unknown> & { children?: Child };
 type Component = (props: Props) => Markup;
 
+const voidElements = new Set([
+  "area",
+  "base",
+  "br",
+  "col",
+  "embed",
+  "hr",
+  "img",
+  "input",
+  "link",
+  "meta",
+  "param",
+  "source",
+  "track",
+  "wbr",
+]);
+
 export function jsx(type: string | Component, props: Props): Markup {
   if (typeof type === "function") return type(props);
   const { children, ...attributes } = props;
@@ -19,9 +36,8 @@ export function jsx(type: string | Component, props: Props): Markup {
     .filter(([, value]) => value !== undefined && value !== null && value !== false)
     .map(([name, value]) => ` ${name}="${escape(String(value))}"`)
     .join("");
-  const content = renderChildren(children);
-  if (content === "") return new Markup(`<${type}${attributeText}/>`);
-  return new Markup(`<${type}${attributeText}>${content}</${type}>`);
+  if (voidElements.has(type)) return new Markup(`<${type}${attributeText}>`);
+  return new Markup(`<${type}${attributeText}>${renderChildren(children)}</${type}>`);
 }
 
 export const jsxs = jsx;

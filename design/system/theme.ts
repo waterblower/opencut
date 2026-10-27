@@ -17,6 +17,11 @@ export const COLOR = {
   accentSoft: "#f3c47e",
   grey: "#3a3a40",
   error: "#ff8b8b",
+  cyberCyan: "#00f0ff",
+  cyberYellow: "#fcee0a",
+  cyberInk: "#0a0a0b",
+  cyberDisabledBorder: "#3a3926",
+  cyberDisabledText: "#57563f",
 } as const;
 
 export type TrackKind = "T" | "V" | "A";
