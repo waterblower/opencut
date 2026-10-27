@@ -10,7 +10,6 @@ members = [
     "apps/editor",
     "apps/player",
     "examples",
-    "scripts",
 ]
 exclude = ["vendor"]
 

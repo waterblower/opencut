@@ -63,9 +63,8 @@ cargo check --config .cargo/macos.toml -p editor   # Windows: .cargo/windows.tom
 cargo test-mac # Windows: cargo test-win
 cargo check --config .cargo/macos.toml --all-targets --all-features
 cargo clippy --config .cargo/macos.toml --all-features
-cargo loc
 ```
 
-`cargo loc` reports the project's Rust line count. Use `.cargo/windows.toml` on
-Windows. Plain `cargo test` loads no platform configuration; use `test-mac` or
-`test-win` for the editor and its native media dependencies.
+Use `.cargo/windows.toml` on Windows. Plain `cargo test` loads no platform
+configuration; use `test-mac` or `test-win` for the editor and its native media
+dependencies.

@@ -14,7 +14,6 @@ mp3-mac = "run --config .cargo/macos.toml -p examples --bin mp3"
 mp3-win = "run --config .cargo/windows.toml -p examples --bin mp3"
 2win-mac = "run --config .cargo/macos.toml --quiet -p examples --bin 2windows"
 2win-win = "run --config .cargo/windows.toml --quiet -p examples --bin 2windows"
-loc = "run --quiet -p scripts --bin loc"
 
 
 [build]
