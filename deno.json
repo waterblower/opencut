@@ -1,7 +1,14 @@
 {
-  "workspace": ["./design"],
-  "tasks": {
-    "loc": "deno run --allow-read count_lines.ts",
-    "design": "deno task --cwd design build"
-  }
+    "workspace": ["./design"],
+    "tasks": {
+        "loc": "deno run --allow-read count_lines.ts",
+        "design": "deno task --cwd design build"
+    },
+    "fmt": {
+        "lineWidth": 123,
+        "indentWidth": 2,
+        "include": ["design/"],
+        "exclude": ["**/*.md"],
+        "nextControlFlowPosition": "nextLine"
+    }
 }

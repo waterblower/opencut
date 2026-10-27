@@ -128,7 +128,15 @@ function MissingFilesDialog(props: { x: number; y: number }): Markup {
       <text fill={COLOR.muted} class="s" x={x + 20} y={y + 72} font-size="14">
         {"Clips that use them stay on the timeline, shown as offline."}
       </text>
-      <rect x={x + 20.5} y={y + 90.5} width={width - 41} height="71" rx="8" fill={COLOR.surface} stroke={COLOR.border} />
+      <rect
+        x={x + 20.5}
+        y={y + 90.5}
+        width={width - 41}
+        height="71"
+        rx="8"
+        fill={COLOR.surface}
+        stroke={COLOR.border}
+      />
       {files.map((file, index) => (
         <g>
           <WarningIcon x={x + 34} y={y + 104 + index * 30} />
@@ -151,7 +159,9 @@ function TimelineStrip(props: { x: number; y: number }): Markup {
       <rect x={x} y={y} width="640" height="80" rx="8" fill={COLOR.panel} />
       <rect x={x + 8} y={y + 8} width="200" height="64" rx="6" fill="#294d75" />
       <rect x={x + 8.5} y={y + 8.5} width="199" height="63" rx="6" fill="none" stroke="#395d85" />
-      <text fill={COLOR.text} class="s" x={x + 16} y={y + 60} font-size="12" font-weight="600">{"broll-street.mov"}</text>
+      <text fill={COLOR.text} class="s" x={x + 16} y={y + 60} font-size="12" font-weight="600">
+        {"broll-street.mov"}
+      </text>
       <rect x={x + 210} y={y + 8} width="260" height="64" rx="6" fill={OFFLINE_FILL} />
       <rect
         x={x + 210.5}
@@ -168,7 +178,9 @@ function TimelineStrip(props: { x: number; y: number }): Markup {
       <text fill={COLOR.text} class="s" x={x + 238} y={y + 59} font-size="12" font-weight="600">
         {"2026-08-20 18-36-50.mp4"}
       </text>
-      <text fill={COLOR.error} class="s" x={x + 218} y={y + 30} font-size="11" font-weight="600">{"Media offline"}</text>
+      <text fill={COLOR.error} class="s" x={x + 218} y={y + 30} font-size="11" font-weight="600">
+        {"Media offline"}
+      </text>
       <rect x={x + 472} y={y + 8} width="160" height="64" rx="6" fill="#294d75" />
       <rect x={x + 472.5} y={y + 8.5} width="159" height="63" rx="6" fill="none" stroke="#395d85" />
       <text fill={COLOR.text} class="s" x={x + 480} y={y + 60} font-size="12" font-weight="600">{"interview.mp4"}</text>
@@ -225,7 +237,9 @@ function OfflinePropertyPanel(props: { x: number; y: number }): Markup {
       </text>
       <text fill={COLOR.accent} class="s" x={x + 264} y={top + 24} font-size="12" text-anchor="end">{"Relink…"}</text>
       <WarningIcon x={x + 16} y={top + 42} />
-      <text fill={COLOR.error} class="s" x={x + 36} y={top + 54} font-size="13" font-weight="600">{"File not found"}</text>
+      <text fill={COLOR.error} class="s" x={x + 36} y={top + 54} font-size="13" font-weight="600">
+        {"File not found"}
+      </text>
       <text fill={COLOR.soft} class="m" x={x + 16} y={top + 80} font-size="12">{"/Users/me/Movies/OpenCut Dev"}</text>
       <text fill={COLOR.soft} class="m" x={x + 16} y={top + 98} font-size="12">{"Logs/timelines/2026-08-20"}</text>
       <text fill={COLOR.soft} class="m" x={x + 16} y={top + 116} font-size="12">{"18-36-50.mp4"}</text>
