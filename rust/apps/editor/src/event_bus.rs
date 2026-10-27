@@ -11,6 +11,7 @@ use crate::media_probe::probe_asset;
 use crate::model::{MediaAsset, MediaKind};
 use crate::preview::{PreviewTarget, timeline_preview_target};
 use crate::preview_events::PreviewEvent;
+
 use crate::project_settings::{ProjectLocalSettings, save_project_local_settings};
 use crate::property_panel::{PropertyPanel, current_property_panel};
 use crate::property_panel_srt_file::srt_file_panel;
@@ -668,6 +669,14 @@ async fn handle_app_event(
         }
         AppEvent::TimelineSeek { frame_index } => {
             editor.update(cx, |editor, cx| -> Result<()> {
+                let Some(timeline) = editor.timeline.as_ref() else {
+                    return Err(anyhow!("TimelineSeek arrived while no timeline is open"));
+                };
+                if timeline.has_offline_clips() {
+                    editor.preview.target = PreviewTarget::None;
+                    cx.notify();
+                    return Ok(());
+                }
                 match &editor.preview.target {
                     PreviewTarget::Timeline { player, .. } => {
                         player.update(cx, |player, cx| {
@@ -679,9 +688,6 @@ async fn handle_app_event(
                         })?;
                     }
                     _ => {
-                        let Some(timeline) = editor.timeline.as_ref() else {
-                            return Err(anyhow!("TimelineSeek arrived while no timeline is open"));
-                        };
                         let relative_path = match timeline.path.strip_prefix(&editor.project_root) {
                             Ok(relative_path) => relative_path.to_path_buf(),
                             Err(_) => timeline.path.clone(),
