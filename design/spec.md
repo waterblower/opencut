@@ -352,3 +352,7 @@ Mockups: [property panel](pages/15-property-panel.html),
 - [x] Timeline properties show duration, format, clip/track counts, and location.
       Media-file panels show file details and location; subtitle files show parsed cues
       and guidance for adding them to a text track.
+
+# Appendix
+
+1. able to apply all properties to other clips in the same track, not just the transforms as positions.

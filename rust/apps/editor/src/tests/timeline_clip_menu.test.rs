@@ -64,10 +64,10 @@ fn finds_changed_visual_clips_on_the_same_unlocked_track() {
     let audio = clip(23, 2, 12);
     project.clips = vec![source, target, unchanged, audio];
 
-    let (properties, targets) = transform_targets(&project, ulid(20)).unwrap();
+    let (properties, _, targets) = clip_property_targets(&project, ulid(20)).unwrap();
     assert_eq!(properties.position_x, 120.0);
     assert_eq!(targets, vec![1]);
 
     project.track_mut(ulid(1)).unwrap().locked = true;
-    assert!(transform_targets(&project, ulid(20)).is_none());
+    assert!(clip_property_targets(&project, ulid(20)).is_none());
 }

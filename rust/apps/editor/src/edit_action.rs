@@ -1,8 +1,8 @@
 use crate::editing::validate_clips_placements;
 use crate::timeline::{TimelineEditorExt, TimelineRuntimeState};
 use ::timeline::{
-    Clip, FrameRate, MediaAsset, TextBackground, TextClipProperties, TimelineEditingState,
-    TimelineFrameIndex, Track, VideoClipProperties, compact_text_sections,
+    AudioClipProperties, Clip, FrameRate, MediaAsset, TextBackground, TextClipProperties,
+    TimelineEditingState, TimelineFrameIndex, Track, VideoClipProperties, compact_text_sections,
 };
 use anyhow::{Result, anyhow, ensure};
 use gpui::{Pixels, Point};
@@ -41,6 +41,11 @@ pub(crate) enum EditAction {
     SetVideoProperties {
         clip_ids: Vec<Ulid>,
         properties: VideoClipProperties,
+    },
+    SetVideoClipProperties {
+        clip_ids: Vec<Ulid>,
+        video_properties: VideoClipProperties,
+        audio_properties: AudioClipProperties,
     },
     SetClipMuted {
         clip_id: Ulid,
@@ -598,6 +603,20 @@ impl TimelineEditExt for TimelineEditingState {
                         && let Some(media) = clip.video_mut()
                     {
                         media.video_properties = properties;
+                    }
+                }
+            }
+            EditAction::SetVideoClipProperties {
+                clip_ids,
+                video_properties,
+                audio_properties,
+            } => {
+                for clip in &mut data.clips {
+                    if clip_ids.contains(&clip.id())
+                        && let Clip::Video(media) = clip
+                    {
+                        media.video_properties = video_properties;
+                        media.audio_properties = audio_properties;
                     }
                 }
             }

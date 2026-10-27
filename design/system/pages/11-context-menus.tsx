@@ -130,7 +130,7 @@ export default function Page11ContextMenusSvg(): Markup {
       <text fill={COLOR.text} class="s" x="363" y="596.04" font-size="14">{"Copy Path"}</text>
       <text fill={COLOR.light} class="s" x="40" y="738" font-size="15" font-weight="600">{"Video clip"}</text>
       <text class="s" x="40" y="758" font-size="12" fill="#8a8a93">
-        {"Apply Transforms is disabled with nothing to apply to"}
+        {"Copies transform, gain and mute; disabled with nothing to apply to"}
       </text>
       <rect
         stroke={COLOR.border}
@@ -145,13 +145,13 @@ export default function Page11ContextMenusSvg(): Markup {
       />
       <text fill={COLOR.text} class="s" x="56" y="803.04" font-size="14">{"Transcribe the Clip"}</text>
       <text fill={COLOR.text} class="s" x="56" y="843.04" font-size="14">
-        {"Apply Transforms to All Other Clips"}
+        {"Apply Properties to All Other Clips"}
       </text>
       <text fill={COLOR.light} class="s" x="371" y="738" font-size="15" font-weight="600">
         {"Audio clip"}
       </text>
       <text class="s" x="371" y="758" font-size="12" fill="#8a8a93">
-        {"Apply Transforms is always disabled"}
+        {"Apply Properties is always disabled"}
       </text>
       <rect
         stroke={COLOR.border}
@@ -166,7 +166,7 @@ export default function Page11ContextMenusSvg(): Markup {
       />
       <text fill={COLOR.text} class="s" x="387" y="803.04" font-size="14">{"Transcribe the Clip"}</text>
       <text fill={COLOR.muted} class="s" x="387" y="843.04" font-size="14">
-        {"Apply Transforms to All Other Clips"}
+        {"Apply Properties to All Other Clips"}
       </text>
       <text fill={COLOR.light} class="s" x="702" y="738" font-size="15" font-weight="600">{"Text clip"}</text>
       <text class="s" x="702" y="758" font-size="12" fill="#8a8a93">

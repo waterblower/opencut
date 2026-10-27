@@ -6,7 +6,7 @@ use crate::layout::{TIMELINE_PADDING, TRACK_HEADER_WIDTH};
 use crate::theme::{BORDER, ERROR, MUTED, TEXT};
 use crate::timeline::TimelineFrameIndex;
 use crate::timeline_clip::Clip;
-use crate::timeline_clip_menu::transform_targets;
+use crate::timeline_clip_menu::clip_property_targets;
 use crate::timeline_document;
 use crate::timeline_document::resolve_asset_path;
 use crate::track::TrackKind;
@@ -306,8 +306,8 @@ impl Editor {
         let enabled = self
             .timeline
             .as_ref()
-            .and_then(|timeline| transform_targets(&timeline.editing_state, menu.clip_id))
-            .is_some_and(|(_, targets)| !targets.is_empty());
+            .and_then(|timeline| clip_property_targets(&timeline.editing_state, menu.clip_id))
+            .is_some_and(|(_, _, targets)| !targets.is_empty());
         let clip_id = menu.clip_id;
 
         div()
@@ -384,7 +384,7 @@ impl Editor {
                     )
                     .child(
                         div()
-                            .id("apply-transform-to-track-clips")
+                            .id("apply-properties-to-track-clips")
                             .h(px(40.0))
                             .px_3()
                             .flex()
@@ -399,14 +399,11 @@ impl Editor {
                             .when(enabled, |this| {
                                 this.hover(|style| style.bg(rgb(0x34343a)))
                                     .on_click(cx.listener(|editor, _, _, cx| {
-                                        if let Err(error) = editor.apply_transform_to_track_clips()
-                                        {
-                                            log::error!("{error:?}");
-                                        }
+                                        editor.apply_properties_to_track_clips(cx);
                                         cx.notify();
                                     }))
                             })
-                            .child(div().text_sm().child("Apply Transforms to All Other Clips")),
+                            .child(div().text_sm().child("Apply Properties to All Other Clips")),
                     ),
             )
             .into_any_element()
