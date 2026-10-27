@@ -385,7 +385,9 @@ impl Editor {
             .as_ref()
             .expect("timeline clips require an active timeline");
         if timeline.clip_is_offline(clip) {
-            let asset_id = clip.asset_id().expect("offline clips reference a media asset");
+            let asset_id = clip
+                .asset_id()
+                .expect("offline clips reference a media asset");
             let asset = timeline
                 .editing_state
                 .asset(asset_id)
