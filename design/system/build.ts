@@ -2,6 +2,7 @@
 // Run with: deno task build
 
 import type { Markup } from "./jsx/jsx-runtime.ts";
+import { COLOR } from "./theme.ts";
 
 const pagesDirectory = new URL("./pages/", import.meta.url);
 const distDirectory = new URL("../pages/", import.meta.url);
@@ -21,7 +22,7 @@ for (const fileName of pageFiles) {
 <head>
 <meta charset="utf-8">
 <title>${name}</title>
-<style>body{margin:0}svg{display:block}</style>
+<style>body{margin:0;background:${COLOR.page}}svg{display:block}</style>
 </head>
 <body>
 ${page().html}

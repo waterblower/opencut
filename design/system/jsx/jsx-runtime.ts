@@ -8,7 +8,7 @@ export class Markup {
   }
 }
 
-type Child = Markup | string | number | boolean | null | undefined | Child[];
+export type Child = Markup | string | number | boolean | null | undefined | Child[];
 type Props = Record<string, unknown> & { children?: Child };
 type Component = (props: Props) => Markup;
 
