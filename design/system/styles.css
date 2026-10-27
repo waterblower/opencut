@@ -1,5 +1,6 @@
 @theme {
   --shadow-panel: 0 5px 14px rgb(0 0 0 / 24%);
+  --shadow-popover: 0 6px 20px rgb(0 0 0 / 35%);
   --drop-shadow-cyber-cyan: 0 0 5px color-mix(in srgb, var(--color-cyber-cyan) 35%, transparent);
   --drop-shadow-cyber-yellow: 0 0 6px color-mix(in srgb, var(--color-cyber-yellow) 45%, transparent);
 }
