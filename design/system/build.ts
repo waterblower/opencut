@@ -48,7 +48,7 @@ for (const fileName of pageFiles) {
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>${name}</title>
 <style>${css}</style>
-<style>body{margin:0;background:${COLOR.page}}svg{display:block}</style>
+<style>body{margin:0;background:#fefefe}svg{display:block}</style>
 </head>
 <body>
 ${markup}
