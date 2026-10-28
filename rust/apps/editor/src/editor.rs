@@ -3,6 +3,7 @@ use crate::editing::ClipClipboard;
 use crate::event_bus::{AppEvent, EventBus};
 use crate::explorer::ExplorerState;
 use crate::explorer_drag::AssetBeingDragged;
+use crate::missing_media_dialog::MissingMediaDialog;
 use crate::preview::{PreviewState, PreviewTarget};
 use crate::project_settings::load_project_local_settings;
 use crate::property_panel::{PropertyPanel, PropertyPanelState, current_property_panel};
@@ -41,6 +42,7 @@ pub(crate) struct Editor {
     pub(super) upper_split_state: Entity<HorizontalSplitState>,
     pub(super) workspace_split_state: Entity<VerticalSplitState>,
     pub(crate) global_settings_input: Option<Entity<TextInput>>,
+    pub(crate) missing_media_dialog: Option<MissingMediaDialog>,
 }
 
 impl Editor {
@@ -97,6 +99,7 @@ impl Editor {
             property_panel: PropertyPanel::None,
             settings_open: false,
             global_settings_input: None,
+            missing_media_dialog: None,
             timeline,
             clipboard: None,
 

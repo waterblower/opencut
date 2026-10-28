@@ -6,6 +6,7 @@ use crate::layout::{
     MIN_MEDIA_PANEL_WIDTH, MIN_PREVIEW_WIDTH, MIN_PROPERTY_PANEL_WIDTH, MIN_TIMELINE_HEIGHT,
     MIN_UPPER_WORKSPACE_HEIGHT, TOPBAR_HEIGHT,
 };
+use crate::missing_media_dialog::missing_media_dialog_view;
 use crate::project_picker;
 use crate::property_panel::property_panel_view;
 use crate::settings::settings_modal_view;
@@ -79,6 +80,10 @@ impl Render for Editor {
             .new_timeline_dialog
             .as_ref()
             .map(|_| self.new_timeline_dialog(cx));
+        let missing_media_dialog = self
+            .missing_media_dialog
+            .as_ref()
+            .map(|dialog| missing_media_dialog_view(dialog, self.event_bus.clone()));
         let settings_modal = if self.settings_open
             && let Some(timeline) = self.timeline.as_ref()
         {
@@ -146,6 +151,7 @@ impl Render for Editor {
             .when(self.explorer.trash_timeline_dialog_open, |this| {
                 this.child(self.trash_timeline_dialog_view(cx))
             })
+            .when_some(missing_media_dialog, |this, dialog| this.child(dialog))
             .when_some(settings_modal, |this, modal| this.child(modal))
             .when(self.global_settings_input.is_some(), |this| {
                 this.child(self.global_settings_dialog(cx))

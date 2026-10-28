@@ -8,6 +8,7 @@ use crate::export_window::{ExportState, ExportWindow};
 use crate::global_settings::GlobalEditorSettings;
 use crate::layout::{RULER_HEIGHT, TIMELINE_PADDING, TRACK_HEIGHT, track_index_at_y};
 use crate::media_probe::probe_asset;
+use crate::missing_media_dialog::missing_media_dialog;
 use crate::model::{MediaAsset, MediaKind};
 use crate::preview::{PreviewTarget, timeline_preview_target};
 use crate::preview_events::PreviewEvent;
@@ -56,6 +57,14 @@ pub(crate) enum AppEvent {
         control: Arc<ExportControl>,
     },
     Preview(PreviewEvent),
+    /// The user chose Relink Media… on an offline clip.
+    RelinkMediaRequested,
+    /// The user chose Relink media for one missing file in the dialog.
+    RelinkMediaFileChosen {
+        asset_id: Ulid,
+    },
+    /// The user dismissed the missing media dialog.
+    MissingMediaDialogClosed,
     SwitchProject {
         project_path: PathBuf,
     },
@@ -382,6 +391,26 @@ async fn handle_app_event(
                 })?;
             }
         },
+        AppEvent::RelinkMediaRequested => {
+            editor.update(cx, |editor, cx| -> Result<()> {
+                let timeline = editor
+                    .timeline
+                    .as_ref()
+                    .context("Relink Media… needs an open timeline")?;
+                editor.missing_media_dialog = Some(missing_media_dialog(timeline));
+                cx.notify();
+                Ok(())
+            })?;
+        }
+        AppEvent::RelinkMediaFileChosen { asset_id } => {
+            log::info!("Relink media chosen for asset {asset_id}");
+        }
+        AppEvent::MissingMediaDialogClosed => {
+            editor.update(cx, |editor, cx| {
+                editor.missing_media_dialog = None;
+                cx.notify();
+            });
+        }
         AppEvent::SwitchProject { .. }
         | AppEvent::OpenTranscribeWindow { .. }
         | AppEvent::Transcribe { .. }

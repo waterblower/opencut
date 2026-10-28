@@ -21,6 +21,7 @@ mod global_settings_dialog;
 mod gpui_inspector;
 mod layout;
 mod media_probe;
+mod missing_media_dialog;
 mod model;
 mod preview;
 mod preview_events;

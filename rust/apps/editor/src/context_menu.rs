@@ -366,7 +366,7 @@ impl Editor {
                         this.child(file_menu_item("Relink Media…", "").on_click(cx.listener(
                             move |editor, _, _, cx| {
                                 editor.dismiss_context_menu();
-                                log::info!("Relink Media… chosen for offline clip {clip_id}");
+                                editor.emit_event(cx, AppEvent::RelinkMediaRequested);
                                 cx.notify();
                             },
                         )))
