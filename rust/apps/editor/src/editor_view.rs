@@ -1,12 +1,12 @@
 use crate::actions::EDITOR_KEY_CONTEXT;
 use crate::asset::IconName;
+use crate::dialog_missing_media::missing_media_dialog_view;
 use crate::editor::Editor;
 use crate::event_bus::{AppEvent, EventBus};
 use crate::layout::{
     MIN_MEDIA_PANEL_WIDTH, MIN_PREVIEW_WIDTH, MIN_PROPERTY_PANEL_WIDTH, MIN_TIMELINE_HEIGHT,
     MIN_UPPER_WORKSPACE_HEIGHT, TOPBAR_HEIGHT,
 };
-use crate::missing_media_dialog::missing_media_dialog_view;
 use crate::project_picker;
 use crate::property_panel::property_panel_view;
 use crate::settings::settings_modal_view;
