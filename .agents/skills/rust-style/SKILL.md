@@ -1,6 +1,6 @@
 ---
 name: rust-style
-description: Rust style conventions for OpenCut. Use when writing, refactoring, or reviewing Rust code for naming, imports, visibility, source organization, and explicit control flow.
+description: Rust style conventions for OpenCut. Use when writing, refactoring, or reviewing Rust code for naming, imports, visibility, source organization, control flow, early returns, and error handling.
 ---
 
 # Rust style
@@ -92,7 +92,6 @@ Also apply the [general rules](../general-rules/SKILL.md).
     // not: let mut position = timeline.playhead(); then `position = …` in a later match
     ```
 
-- Log errors with debug formatting: `{error:?}`.
 - Don't use `_` in a `match` or `if let … else` when it stands for a single remaining
   case. Name it, so adding a case forces a revisit.
 
@@ -121,8 +120,7 @@ Also apply the [general rules](../general-rules/SKILL.md).
     ```
 
 - When building a value takes several steps, use an immediately invoked closure with
-  early returns, not `Option::map` or `Result::map_err` chains. Convert errors explicitly
-  inside it.
+  early returns, and convert errors explicitly inside it.
 
     ```rust
     let timeline = (|| {
@@ -137,3 +135,16 @@ Also apply the [general rules](../general-rules/SKILL.md).
     })();
     // not: active_timeline.map(|(path, data)| TimelineRuntimeState::new(path, build_state(&data).unwrap()))
     ```
+
+## Errors and correctness
+
+- Never silently ignore abnormal situations. When an operation needs an object to exist,
+  or to have a certain type or state, return an explicit error if it doesn't; e.g. editing
+  a clip fails if the clip is missing or the wrong kind. Check with early error returns
+  (see Early returns); don't hide failures behind `if let`, `continue`, fallback values or
+  `Ok(())`. Absence and no-ops are fine only when they are the intended behaviour, not a
+  way to suppress an unexpected failure.
+- Don't put source file names or line numbers in error messages by default (including
+  `file!()` and `line!()`). Describe the failed operation and its relevant inputs instead.
+- Log errors with debug formatting: `{error:?}`.
+- Don't call deprecated functions or methods.
