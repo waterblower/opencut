@@ -413,14 +413,27 @@ async fn handle_app_event(
                     prompt: Some("Relink media".into()),
                 })
             });
+            #[rustfmt::skip]
             let media_path = match selection.await {
-                Ok(Ok(Some(paths))) => paths.into_iter().next(),
-                Ok(Ok(None)) => None, // 用户取消
-                Ok(Err(error)) => return Err(error.context("choosing a file to relink")),
-                Err(error) => return Err(anyhow!("file picker closed unexpectedly: {error}")),
-            };
-            let Some(media_path) = media_path else {
-                return Ok(());
+                Ok(Ok(Some(paths))) => {
+                    match paths.into_iter().next() {
+                        Some(path) => {
+                            path
+                        }
+                        None => {
+                            bail!("The file picker returned no path")
+                        }
+                    }
+                }
+                Ok(Ok(None)) => {
+                    return Ok(()); // 用户取消
+                }
+                Ok(Err(error)) => {
+                    return Err(error.context("choosing a file to relink"));
+                }
+                Err(error) => {
+                    return Err(anyhow!("file picker closed unexpectedly: {error}"));
+                }
             };
             let path = editor.update(cx, |editor, _| -> Result<PathBuf> {
                 let timeline = editor
