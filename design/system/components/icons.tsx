@@ -1,7 +1,21 @@
 import type { Markup } from "@design/jsx/jsx-runtime";
 
 /// Lucide stroke icons used by the timeline, drawn 14px wide in `color`.
-export type IconName = "arrow-up" | "arrow-down" | "trash" | "lock" | "eye" | "eye-off" | "volume" | "volume-off";
+export type IconName =
+  | "arrow-up"
+  | "arrow-down"
+  | "trash"
+  | "lock"
+  | "eye"
+  | "eye-off"
+  | "volume"
+  | "volume-off"
+  | "pointer"
+  | "scissors"
+  | "plus"
+  | "minus"
+  | "snap"
+  | "magnet";
 
 const PATHS: Record<IconName, Markup> = {
   "arrow-up": (
@@ -57,6 +71,39 @@ const PATHS: Record<IconName, Markup> = {
       <path d="M11 5 6 9H2v6h4l5 4V5Z" />
       <path d="m22 9-6 6" />
       <path d="m16 9 6 6" />
+    </g>
+  ),
+  pointer: (
+    <path d="M4.037 4.688a.495.495 0 0 1 .651-.651l16 6.5a.5.5 0 0 1-.063.947l-6.124 1.58a2 2 0 0 0-1.438 1.435l-1.579 6.126a.5.5 0 0 1-.947.063z" />
+  ),
+  scissors: (
+    <g>
+      <circle cx="6" cy="6" r="3" />
+      <path d="M8.12 8.12 12 12" />
+      <path d="M20 4 8.12 15.88" />
+      <circle cx="6" cy="18" r="3" />
+      <path d="M14.8 14.8 20 20" />
+    </g>
+  ),
+  plus: (
+    <g>
+      <path d="M5 12h14" />
+      <path d="M12 5v14" />
+    </g>
+  ),
+  minus: <path d="M5 12h14" />,
+  snap: (
+    <g>
+      <path d="M12 3v18" />
+      <rect x="3" y="8" width="6" height="8" rx="1" />
+      <rect x="15" y="8" width="6" height="8" rx="1" />
+    </g>
+  ),
+  magnet: (
+    <g>
+      <path d="m6 15-4-4 6.75-6.77a7.79 7.79 0 0 1 11 11L13 22l-4-4 6.39-6.36a2.14 2.14 0 0 0-3-3L6 15" />
+      <path d="m5 8 4 4" />
+      <path d="m12 15 4 4" />
     </g>
   ),
 };

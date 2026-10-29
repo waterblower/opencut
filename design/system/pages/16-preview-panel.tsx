@@ -1,333 +1,120 @@
-import { COLOR } from "../theme.ts";
-import { FontStyle } from "../components/fonts.tsx";
-import type { Markup } from "@design/jsx/jsx-runtime";
+import { Scene } from "../components/scene.tsx";
+import type { Child, Markup } from "@design/jsx/jsx-runtime";
 
-export default function Page16PreviewPanelSvg(): Markup {
+export default function PreviewPanelPage(): Markup {
   return (
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      xmlns:xlink="http://www.w3.org/1999/xlink"
-      width="1240"
-      height="1480"
-      viewBox="0 0 1240 1480"
-      role="img"
-      aria-labelledby="title description"
-    >
-      <title id="title">{"Preview panel variants"}</title>
-      <desc id="description">
-        {"Five preview states: image, video, audio, none, and error. The error state identifies the selected file and displays a multiline error string."}
-      </desc>
-      <FontStyle />
-      <defs>
-        <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0" stop-color="#1b2745" />
-          <stop offset="0.55" stop-color="#7a4a62" />
-          <stop offset="1" stop-color="#e2905c" />
-        </linearGradient>
-        <radialGradient id="sun">
-          <stop offset="0" stop-color="#ffe2a8" />
-          <stop offset="0.45" stop-color="#ffc77a" stop-opacity="0.9" />
-          <stop offset="1" stop-color="#ffb066" stop-opacity="0" />
-        </radialGradient>
-        <linearGradient id="street" x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0" stop-color="#3a4256" />
-          <stop offset="0.6" stop-color="#8a5a4c" />
-          <stop offset="1" stop-color="#d48a56" />
-        </linearGradient>
-        <clipPath id="scene-clip">
-          <rect width="1920" height="1080" />
-        </clipPath>
-        <g id="scene" clip-path="url(#scene-clip)">
-          <rect width="1920" height="1080" fill="url(#sky)" />
-          <circle cx="1340" cy="610" r="300" fill="url(#sun)" />
-          <path
-            d="M0 640 C 260 560 480 600 700 560 S 1160 520 1400 590 S 1760 560 1920 600 L1920 1080 L0 1080Z"
-            fill="#4a3e5e"
-          />
-          <rect x="40" y="470" width="150" height="610" fill="#251f33" />
-          <rect x="58" y="500" width="14" height="20" fill={COLOR.accentSoft} opacity="0.8" />
-          <rect x="160" y="500" width="14" height="20" fill={COLOR.accentSoft} opacity="0.8" />
-          <rect x="126" y="546" width="14" height="20" fill={COLOR.accentSoft} opacity="0.8" />
-          <rect x="92" y="592" width="14" height="20" fill={COLOR.accentSoft} opacity="0.8" />
-          <rect x="160" y="592" width="14" height="20" fill={COLOR.accentSoft} opacity="0.8" />
-          <rect x="58" y="638" width="14" height="20" fill={COLOR.accentSoft} opacity="0.8" />
-          <rect x="126" y="638" width="14" height="20" fill={COLOR.accentSoft} opacity="0.8" />
-          <rect x="92" y="684" width="14" height="20" fill={COLOR.accentSoft} opacity="0.8" />
-          <rect x="200" y="410" width="120" height="670" fill="#251f33" />
-          <rect x="218" y="440" width="14" height="20" fill={COLOR.accentSoft} opacity="0.8" />
-          <rect x="286" y="486" width="14" height="20" fill={COLOR.accentSoft} opacity="0.8" />
-          <rect x="252" y="532" width="14" height="20" fill={COLOR.accentSoft} opacity="0.8" />
-          <rect x="218" y="578" width="14" height="20" fill={COLOR.accentSoft} opacity="0.8" />
-          <rect x="286" y="578" width="14" height="20" fill={COLOR.accentSoft} opacity="0.8" />
-          <rect x="252" y="624" width="14" height="20" fill={COLOR.accentSoft} opacity="0.8" />
-          <rect x="218" y="670" width="14" height="20" fill={COLOR.accentSoft} opacity="0.8" />
-          <rect x="330" y="520" width="170" height="560" fill="#251f33" />
-          <rect x="348" y="550" width="14" height="20" fill={COLOR.accentSoft} opacity="0.8" />
-          <rect x="450" y="550" width="14" height="20" fill={COLOR.accentSoft} opacity="0.8" />
-          <rect x="416" y="596" width="14" height="20" fill={COLOR.accentSoft} opacity="0.8" />
-          <rect x="382" y="642" width="14" height="20" fill={COLOR.accentSoft} opacity="0.8" />
-          <rect x="450" y="642" width="14" height="20" fill={COLOR.accentSoft} opacity="0.8" />
-          <rect x="348" y="688" width="14" height="20" fill={COLOR.accentSoft} opacity="0.8" />
-          <rect x="416" y="688" width="14" height="20" fill={COLOR.accentSoft} opacity="0.8" />
-          <rect x="510" y="360" width="110" height="720" fill="#251f33" />
-          <rect x="528" y="390" width="14" height="20" fill={COLOR.accentSoft} opacity="0.8" />
-          <rect x="596" y="436" width="14" height="20" fill={COLOR.accentSoft} opacity="0.8" />
-          <rect x="562" y="482" width="14" height="20" fill={COLOR.accentSoft} opacity="0.8" />
-          <rect x="528" y="528" width="14" height="20" fill={COLOR.accentSoft} opacity="0.8" />
-          <rect x="596" y="528" width="14" height="20" fill={COLOR.accentSoft} opacity="0.8" />
-          <rect x="562" y="574" width="14" height="20" fill={COLOR.accentSoft} opacity="0.8" />
-          <rect x="528" y="620" width="14" height="20" fill={COLOR.accentSoft} opacity="0.8" />
-          <rect x="596" y="666" width="14" height="20" fill={COLOR.accentSoft} opacity="0.8" />
-          <rect x="630" y="450" width="160" height="630" fill="#251f33" />
-          <rect x="648" y="480" width="14" height="20" fill={COLOR.accentSoft} opacity="0.8" />
-          <rect x="750" y="480" width="14" height="20" fill={COLOR.accentSoft} opacity="0.8" />
-          <rect x="716" y="526" width="14" height="20" fill={COLOR.accentSoft} opacity="0.8" />
-          <rect x="682" y="572" width="14" height="20" fill={COLOR.accentSoft} opacity="0.8" />
-          <rect x="750" y="572" width="14" height="20" fill={COLOR.accentSoft} opacity="0.8" />
-          <rect x="648" y="618" width="14" height="20" fill={COLOR.accentSoft} opacity="0.8" />
-          <rect x="716" y="618" width="14" height="20" fill={COLOR.accentSoft} opacity="0.8" />
-          <rect x="682" y="664" width="14" height="20" fill={COLOR.accentSoft} opacity="0.8" />
-          <rect x="800" y="300" width="90" height="780" fill="#251f33" />
-          <rect x="818" y="330" width="14" height="20" fill={COLOR.accentSoft} opacity="0.8" />
-          <rect x="852" y="422" width="14" height="20" fill={COLOR.accentSoft} opacity="0.8" />
-          <rect x="818" y="468" width="14" height="20" fill={COLOR.accentSoft} opacity="0.8" />
-          <rect x="852" y="514" width="14" height="20" fill={COLOR.accentSoft} opacity="0.8" />
-          <rect x="818" y="560" width="14" height="20" fill={COLOR.accentSoft} opacity="0.8" />
-          <rect x="852" y="652" width="14" height="20" fill={COLOR.accentSoft} opacity="0.8" />
-          <rect x="818" y="698" width="14" height="20" fill={COLOR.accentSoft} opacity="0.8" />
-          <rect x="900" y="420" width="180" height="660" fill="#251f33" />
-          <rect x="918" y="450" width="14" height="20" fill={COLOR.accentSoft} opacity="0.8" />
-          <rect x="1020" y="450" width="14" height="20" fill={COLOR.accentSoft} opacity="0.8" />
-          <rect x="986" y="496" width="14" height="20" fill={COLOR.accentSoft} opacity="0.8" />
-          <rect x="1054" y="496" width="14" height="20" fill={COLOR.accentSoft} opacity="0.8" />
-          <rect x="952" y="542" width="14" height="20" fill={COLOR.accentSoft} opacity="0.8" />
-          <rect x="1020" y="542" width="14" height="20" fill={COLOR.accentSoft} opacity="0.8" />
-          <rect x="918" y="588" width="14" height="20" fill={COLOR.accentSoft} opacity="0.8" />
-          <rect x="986" y="588" width="14" height="20" fill={COLOR.accentSoft} opacity="0.8" />
-          <rect x="952" y="634" width="14" height="20" fill={COLOR.accentSoft} opacity="0.8" />
-          <rect x="1054" y="634" width="14" height="20" fill={COLOR.accentSoft} opacity="0.8" />
-          <rect x="918" y="680" width="14" height="20" fill={COLOR.accentSoft} opacity="0.8" />
-          <rect x="1020" y="680" width="14" height="20" fill={COLOR.accentSoft} opacity="0.8" />
-          <rect x="1090" y="500" width="140" height="580" fill="#251f33" />
-          <rect x="1108" y="530" width="14" height="20" fill={COLOR.accentSoft} opacity="0.8" />
-          <rect x="1176" y="576" width="14" height="20" fill={COLOR.accentSoft} opacity="0.8" />
-          <rect x="1142" y="622" width="14" height="20" fill={COLOR.accentSoft} opacity="0.8" />
-          <rect x="1108" y="668" width="14" height="20" fill={COLOR.accentSoft} opacity="0.8" />
-          <rect x="1176" y="668" width="14" height="20" fill={COLOR.accentSoft} opacity="0.8" />
-          <rect x="1240" y="560" width="120" height="520" fill="#251f33" />
-          <rect x="1258" y="590" width="14" height="20" fill={COLOR.accentSoft} opacity="0.8" />
-          <rect x="1326" y="636" width="14" height="20" fill={COLOR.accentSoft} opacity="0.8" />
-          <rect x="1292" y="682" width="14" height="20" fill={COLOR.accentSoft} opacity="0.8" />
-          <rect x="1370" y="470" width="150" height="610" fill="#251f33" />
-          <rect x="1388" y="500" width="14" height="20" fill={COLOR.accentSoft} opacity="0.8" />
-          <rect x="1490" y="500" width="14" height="20" fill={COLOR.accentSoft} opacity="0.8" />
-          <rect x="1456" y="546" width="14" height="20" fill={COLOR.accentSoft} opacity="0.8" />
-          <rect x="1422" y="592" width="14" height="20" fill={COLOR.accentSoft} opacity="0.8" />
-          <rect x="1490" y="592" width="14" height="20" fill={COLOR.accentSoft} opacity="0.8" />
-          <rect x="1388" y="638" width="14" height="20" fill={COLOR.accentSoft} opacity="0.8" />
-          <rect x="1456" y="638" width="14" height="20" fill={COLOR.accentSoft} opacity="0.8" />
-          <rect x="1422" y="684" width="14" height="20" fill={COLOR.accentSoft} opacity="0.8" />
-          <rect x="1530" y="380" width="110" height="700" fill="#251f33" />
-          <rect x="1548" y="410" width="14" height="20" fill={COLOR.accentSoft} opacity="0.8" />
-          <rect x="1616" y="456" width="14" height="20" fill={COLOR.accentSoft} opacity="0.8" />
-          <rect x="1582" y="502" width="14" height="20" fill={COLOR.accentSoft} opacity="0.8" />
-          <rect x="1548" y="548" width="14" height="20" fill={COLOR.accentSoft} opacity="0.8" />
-          <rect x="1616" y="548" width="14" height="20" fill={COLOR.accentSoft} opacity="0.8" />
-          <rect x="1582" y="594" width="14" height="20" fill={COLOR.accentSoft} opacity="0.8" />
-          <rect x="1548" y="640" width="14" height="20" fill={COLOR.accentSoft} opacity="0.8" />
-          <rect x="1616" y="686" width="14" height="20" fill={COLOR.accentSoft} opacity="0.8" />
-          <rect x="1650" y="500" width="170" height="580" fill="#251f33" />
-          <rect x="1668" y="530" width="14" height="20" fill={COLOR.accentSoft} opacity="0.8" />
-          <rect x="1770" y="530" width="14" height="20" fill={COLOR.accentSoft} opacity="0.8" />
-          <rect x="1736" y="576" width="14" height="20" fill={COLOR.accentSoft} opacity="0.8" />
-          <rect x="1702" y="622" width="14" height="20" fill={COLOR.accentSoft} opacity="0.8" />
-          <rect x="1770" y="622" width="14" height="20" fill={COLOR.accentSoft} opacity="0.8" />
-          <rect x="1668" y="668" width="14" height="20" fill={COLOR.accentSoft} opacity="0.8" />
-          <rect x="1736" y="668" width="14" height="20" fill={COLOR.accentSoft} opacity="0.8" />
-          <rect x="1830" y="430" width="120" height="650" fill="#251f33" />
-          <rect x="1848" y="460" width="14" height="20" fill={COLOR.accentSoft} opacity="0.8" />
-          <rect x="1916" y="506" width="14" height="20" fill={COLOR.accentSoft} opacity="0.8" />
-          <rect x="1882" y="552" width="14" height="20" fill={COLOR.accentSoft} opacity="0.8" />
-          <rect x="1848" y="598" width="14" height="20" fill={COLOR.accentSoft} opacity="0.8" />
-          <rect x="1916" y="598" width="14" height="20" fill={COLOR.accentSoft} opacity="0.8" />
-          <rect x="1882" y="644" width="14" height="20" fill={COLOR.accentSoft} opacity="0.8" />
-          <rect x="1848" y="690" width="14" height="20" fill={COLOR.accentSoft} opacity="0.8" />
-          <path d="M0 820 L1920 760 L1920 1080 L0 1080Z" fill="url(#street)" />
-          <path
-            d="M0 900 L1920 840"
-            stroke="#f2c38a"
-            stroke-width="5"
-            stroke-dasharray="60 50"
-            opacity="0.5"
-          />
-          <path d="M150 700 l300 -20 l20 70 l-340 20Z" fill="#c4553f" />
-          <rect x="160" y="770" width="12" height="150" fill="#1d1824" />
-          <rect x="450" y="750" width="12" height="150" fill="#1d1824" />
-          <path d="M570 700 l300 -20 l20 70 l-340 20Z" fill="#e0a24a" />
-          <rect x="580" y="770" width="12" height="150" fill="#1d1824" />
-          <rect x="870" y="750" width="12" height="150" fill="#1d1824" />
-          <path d="M990 700 l300 -20 l20 70 l-340 20Z" fill="#3f7f86" />
-          <rect x="1000" y="770" width="12" height="150" fill="#1d1824" />
-          <rect x="1290" y="750" width="12" height="150" fill="#1d1824" />
-          <path d="M1410 700 l300 -20 l20 70 l-340 20Z" fill="#c4553f" />
-          <rect x="1420" y="770" width="12" height="150" fill="#1d1824" />
-          <rect x="1710" y="750" width="12" height="150" fill="#1d1824" />
-          <circle cx="960" cy="560" r="78" fill="#1a1520" />
-          <path d="M800 1080 C 800 760 860 660 960 660 C 1060 660 1120 760 1120 1080Z" fill="#1a1520" />
-        </g>
-        <clipPath id="panel-clip">
-          <rect width="556" height="360" rx="10" />
-        </clipPath>
-      </defs>
-      <rect fill={COLOR.page} width="1240" height="1480" />
-      <text fill={COLOR.text} class="s" x="48" y="61" font-size="24" font-weight="700">
-        {"Preview panel"}
-      </text>
-      <text fill={COLOR.muted} class="s" x="48" y="89" font-size="14">
-        {"One preview at a time. Content and controls follow the selected source."}
-      </text>
-      <text fill={COLOR.soft} class="m" x="48" y="117" font-size="11">
-        {"IMAGE  /  AUDIO  /  VIDEO  /  ERROR  /  NONE"}
-      </text>
-      <g transform="translate(48 190)">
-        <text fill={COLOR.text} class="s" x="0" y="-34" font-size="14" font-weight="600">{"Image"}</text>
-        <text fill={COLOR.muted} class="s" x="0" y="-14" font-size="12">
-          {"Still image · fit within the panel"}
-        </text>
-        <rect x="0" y="6" width="556" height="360" rx="10" fill="#000" />
-        <g clip-path="url(#panel-clip)">
-          <rect x="0" y="0" width="556" height="360" rx="0" fill="#080808" />
-          <use xlink:href="#scene" transform="translate(0 23.625) scale(0.2895833333)" />
-        </g>
-        <rect stroke={COLOR.border} x="0.5" y="0.5" width="555" height="359" rx="10" fill="none" />
-      </g>
-      <g transform="translate(636 190)">
-        <text fill={COLOR.text} class="s" x="0" y="-34" font-size="14" font-weight="600">{"Video"}</text>
-        <text fill={COLOR.muted} class="s" x="0" y="-14" font-size="12">
-          {"Media file or rendered timeline · playback controls"}
-        </text>
-        <rect x="0" y="6" width="556" height="360" rx="10" fill="#000" />
-        <g clip-path="url(#panel-clip)">
-          <rect x="0" y="0" width="556" height="360" rx="0" fill="#080808" />
-          <use xlink:href="#scene" transform="translate(46.889 0) scale(0.2407407407)" />
-          <rect x="0" y="260" width="556" height="20" rx="0" fill="#303030" />
-          <rect x="0" y="260" width="124.21" height="20" rx="0" fill="#dba34b" />
-          <text class="s" x="24" y="326" font-size="16" fill="#eeeeee">{"Play"}</text>
-          <text class="s" x="80" y="326" font-size="16" fill="#eeeeee">{"0:21 / 1:34"}</text>
-          <text fill={COLOR.soft} class="s" x="206" y="326" font-size="14">{"media/broll-street.mov"}</text>
-        </g>
-        <rect stroke={COLOR.border} x="0.5" y="0.5" width="555" height="359" rx="10" fill="none" />
-      </g>
-      <g transform="translate(48 630)">
-        <text fill={COLOR.text} class="s" x="0" y="-34" font-size="14" font-weight="600">{"Audio"}</text>
-        <text fill={COLOR.muted} class="s" x="0" y="-14" font-size="12">
-          {"Audio file · playback controls"}
-        </text>
-        <rect x="0" y="6" width="556" height="360" rx="10" fill="#000" />
-        <g clip-path="url(#panel-clip)">
-          <rect x="0" y="0" width="556" height="360" rx="0" fill="#080808" />
-          <rect x="250" y="48" width="56" height="56" rx="12" fill="#142320" stroke="#29473d" />
-          <path
-            d="M273 85 V64 L289 60 V81 M273 69 L289 65"
-            fill="none"
-            stroke="#7fd0ae"
-            stroke-width="2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          />
-          <ellipse cx="269" cy="85" rx="4" ry="3" fill="#7fd0ae" />
-          <ellipse cx="285" cy="81" rx="4" ry="3" fill="#7fd0ae" />
-          <text
-            fill={COLOR.text}
-            class="s"
-            x="278"
-            y="140"
-            font-size="18"
-            font-weight="600"
-            text-anchor="middle"
-          >
-            {"voice-over.m4a"}
-          </text>
-          <text fill={COLOR.muted} class="m" x="278" y="165" font-size="12" text-anchor="middle">
-            {"media/voice-over.m4a"}
-          </text>
-          <rect x="0" y="260" width="556" height="20" rx="0" fill="#303030" />
-          <rect x="0" y="260" width="222.4" height="20" rx="0" fill="#dba34b" />
-          <text class="s" x="24" y="326" font-size="16" fill="#eeeeee">{"Play"}</text>
-          <text class="s" x="80" y="326" font-size="16" fill="#eeeeee">{"0:06 / 0:15"}</text>
-          <text fill={COLOR.soft} class="s" x="206" y="326" font-size="14">{"voice-over.m4a"}</text>
-        </g>
-        <rect stroke={COLOR.border} x="0.5" y="0.5" width="555" height="359" rx="10" fill="none" />
-      </g>
-      <g transform="translate(636 630)">
-        <text fill={COLOR.text} class="s" x="0" y="-34" font-size="14" font-weight="600">{"None"}</text>
-        <text fill={COLOR.muted} class="s" x="0" y="-14" font-size="12">
-          {"Nothing selected, or the selected file has no preview"}
-        </text>
-        <rect x="0" y="6" width="556" height="360" rx="10" fill="#000" />
-        <g clip-path="url(#panel-clip)">
-          <rect x="0" y="0" width="556" height="360" rx="0" fill="#080808" />
-          <rect stroke={COLOR.dim} x="256" y="109" width="44" height="34" rx="5" fill="none" />
-          <path
-            stroke={COLOR.dim}
-            d="M262 136 L273 125 L280 132 L286 126 L294 136"
-            fill="none"
-            stroke-width="1.5"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          />
-          <circle fill={COLOR.dim} cx="286" cy="119" r="3" />
-          <text fill={COLOR.soft} class="s" x="278" y="184" font-size="16" text-anchor="middle">
-            {"No preview available"}
-          </text>
-          <text fill={COLOR.muted} class="s" x="278" y="210" font-size="13" text-anchor="middle">
-            {"Select an image, audio, video, or timeline file."}
-          </text>
-        </g>
-        <rect stroke={COLOR.border} x="0.5" y="0.5" width="555" height="359" rx="10" fill="none" />
-      </g>
-      <g transform="translate(48 1070)">
-        <text fill={COLOR.text} class="s" x="0" y="-34" font-size="14" font-weight="600">{"Error"}</text>
-        <text fill={COLOR.muted} class="s" x="0" y="-14" font-size="12">
-          {"Selected file and error string · shared by all preview sources"}
-        </text>
-        <rect x="0" y="6" width="556" height="360" rx="10" fill="#000" />
-        <g clip-path="url(#panel-clip)">
-          <rect x="0" y="0" width="556" height="360" fill="#080808" />
-          <rect x="32" y="32" width="40" height="40" rx="10" fill="#2b171a" />
-          <path
-            d="M52 42 L63 61 H41 Z"
-            fill="none"
-            stroke="#ed8585"
-            stroke-width="1.5"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          />
-          <path
-            d="M52 49 V54"
-            fill="none"
-            stroke="#ed8585"
-            stroke-width="1.5"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          />
-          <circle cx="52" cy="58" r="1" fill="#ed8585" />
-          <text fill={COLOR.text} class="s" x="88" y="49" font-size="18" font-weight="600">
-            {"Unable to preview file"}
-          </text>
-          <text fill={COLOR.soft} class="m" x="88" y="71" font-size="12">
-            {"timelines/devlog 7.timeline.json"}
-          </text>
-          <rect x="32" y="104" width="492" height="192" rx="6" fill="#151113" stroke="#463033" />
-          <text class="m" x="48" y="134" font-size="13" fill="#e6b3b3">
-            <tspan x="48" dy="0">{"Failed to load timeline."}</tspan>
-            <tspan x="48" dy="24">{"Could not open media file:"}</tspan>
-            <tspan x="48" dy="24">{"timelines/2026-09-01 12-36-13.mp4"}</tspan>
-            <tspan x="48" dy="24">{"No such file or directory."}</tspan>
-          </text>
-        </g>
-        <rect stroke={COLOR.border} x="0.5" y="0.5" width="555" height="359" rx="10" fill="none" />
-      </g>
-    </svg>
+    <main class="w-[1240px] bg-[#f4f4f6] px-12 pt-[38px] pb-12 font-sans text-[#1b1b1e]">
+      <h1 class="text-2xl leading-8 font-bold">Preview panel</h1>
+      <p class="mt-2 text-sm leading-5 text-[#55555e]">
+        One preview at a time. Content and controls follow the selected source.
+      </p>
+      <p class="mt-2 font-mono text-[11px] leading-4 text-[#55555e]">IMAGE / AUDIO / VIDEO / ERROR / NONE</p>
+      <div class="mt-[43px] grid grid-cols-[556px_556px] gap-x-8 gap-y-8">
+        <Figure title="Image" caption="Still image · fit within the panel">
+          <Scene width={556} class="absolute top-[23.6px] left-0" />
+        </Figure>
+        <Figure title="Video" caption="Media file or rendered timeline · playback controls">
+          <Scene width={462.2} class="absolute top-0 left-[46.9px]" />
+          <Controls progress={124.21} time="0:21 / 1:34" source="media/broll-street.mov" />
+        </Figure>
+        <Figure title="Audio" caption="Audio file · playback controls">
+          <div class="absolute top-12 left-[250px] grid size-14 place-items-center rounded-xl border border-[#29473d] bg-[#142320]">
+            <svg width="56" height="56" viewBox="250 48 56 56" class="col-start-1 row-start-1">
+              <path
+                d="M273 85 V64 L289 60 V81 M273 69 L289 65"
+                fill="none"
+                stroke="#7fd0ae"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              />
+              <ellipse cx="269" cy="85" rx="4" ry="3" fill="#7fd0ae" />
+              <ellipse cx="285" cy="81" rx="4" ry="3" fill="#7fd0ae" />
+            </svg>
+          </div>
+          <p class="absolute inset-x-0 top-[124.5px] text-center text-lg leading-none font-semibold text-text">
+            voice-over.m4a
+          </p>
+          <p class="absolute inset-x-0 top-[154.7px] text-center font-mono text-xs leading-none text-muted">
+            media/voice-over.m4a
+          </p>
+          <Controls progress={222.4} time="0:06 / 0:15" source="voice-over.m4a" />
+        </Figure>
+        <Figure title="None" caption="Nothing selected, or the selected file has no preview">
+          <svg class="absolute top-[109px] left-[256px]" width="44" height="34" viewBox="0 0 44 34">
+            <rect x="0.5" y="0.5" width="43" height="33" rx="5" fill="none" stroke="#55555e" />
+            <path
+              d="M6 27 L17 16 L24 23 L30 17 L38 27"
+              fill="none"
+              stroke="#55555e"
+              stroke-width="1.5"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            />
+            <circle cx="30" cy="10" r="3" fill="#55555e" />
+          </svg>
+          <p class="absolute inset-x-0 top-[170px] text-center text-base leading-none text-soft">
+            No preview available
+          </p>
+          <p class="absolute inset-x-0 top-[198.8px] text-center text-[13px] leading-none text-muted">
+            Select an image, audio, video, or timeline file.
+          </p>
+        </Figure>
+        <Figure title="Error" caption="Selected file and error string · shared by all preview sources">
+          <div class="absolute top-8 left-8 grid size-10 place-items-center rounded-[10px] bg-[#2b171a]">
+            <svg width="40" height="40" viewBox="32 32 40 40">
+              <path
+                d="M52 42 L63 61 H41 Z M52 49 V54"
+                fill="none"
+                stroke="#ed8585"
+                stroke-width="1.5"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              />
+              <circle cx="52" cy="58" r="1" fill="#ed8585" />
+            </svg>
+          </div>
+          <p class="absolute top-[33.5px] left-[88px] text-lg leading-none font-semibold text-text">
+            Unable to preview file
+          </p>
+          <p class="absolute top-[61px] left-[88px] font-mono text-xs leading-none text-soft">
+            timelines/devlog 7.timeline.json
+          </p>
+          <div class="absolute top-[104px] left-8 h-48 w-[492px] rounded-md border border-[#463033] bg-[#151113] px-[15px] pt-[12.7px] font-mono text-[13px] leading-6 text-[#e6b3b3]">
+            <p>Failed to load timeline.</p>
+            <p>Could not open media file:</p>
+            <p>timelines/2026-09-01 12-36-13.mp4</p>
+            <p>No such file or directory.</p>
+          </div>
+        </Figure>
+      </div>
+    </main>
+  );
+}
+
+/// A 556×360 preview panel under a heading. Children are positioned from the panel's top-left.
+function Figure(props: { title: string; caption: string; children: Child }): Markup {
+  return (
+    <figure>
+      <h2 class="text-sm leading-5 font-semibold">{props.title}</h2>
+      <p class="mt-[3px] text-xs leading-4 text-[#55555e]">{props.caption}</p>
+      <div class="relative mt-2.5 h-[360px] w-[556px] overflow-hidden rounded-[10px] border border-border bg-[#080808] shadow-[0_6px_0_#000] text-text">
+        {props.children}
+      </div>
+    </figure>
+  );
+}
+
+/// The playback bar and the row under it: label, elapsed time and source.
+function Controls(props: { progress: number; time: string; source: string }): Markup {
+  return (
+    <>
+      <div class="absolute top-[260px] h-5 w-full bg-[#303030]">
+        <div class="h-5 bg-[#dba34b]" style={`width:${props.progress}px`} />
+      </div>
+      <span class="absolute top-[312.2px] left-6 text-base leading-none text-[#eeeeee]">Play</span>
+      <span class="absolute top-[312.2px] left-20 text-base leading-none text-[#eeeeee]">{props.time}</span>
+      <span class="absolute top-[314px] left-[206px] text-sm leading-none text-soft">{props.source}</span>
+    </>
   );
 }

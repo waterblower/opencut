@@ -1,7 +1,6 @@
 import type { Child, Markup } from "@design/jsx/jsx-runtime";
 
-/// A waveform path drawn for a clip whose top-left corner was at (`x`, `y`).
-export type Waveform = { x: number; y: number; d: string };
+import type { Waveform } from "./waveform-samples.ts";
 
 const CLIP = {
   text: { fill: "bg-[#7251a3]", border: "border-[#8261b3]" },
@@ -15,6 +14,7 @@ function ClipFrame(props: {
   kind: keyof typeof CLIP;
   width: number;
   selected?: boolean;
+  locked?: boolean;
   children?: Child;
 }): Markup {
   const colors = CLIP[props.kind];
@@ -26,6 +26,7 @@ function ClipFrame(props: {
       style={`width:${props.width}px`}
     >
       {props.children}
+      {props.locked && <div class="hatch-lock-clip absolute inset-0" />}
     </div>
   );
 }
@@ -50,9 +51,9 @@ function ClipWaveform(props: { waveform: Waveform; width: number }): Markup {
     <svg
       aria-hidden="true"
       class="absolute -top-px -left-px"
-      width={props.width}
+      width={waveform.width}
       height="64"
-      viewBox={`${waveform.x} ${waveform.y} ${props.width} 64`}
+      viewBox={`0 0 ${waveform.width} 64`}
     >
       <path d={waveform.d} stroke="#69c5cf" stroke-opacity="0.82" stroke-width="2" fill="none" />
     </svg>
@@ -68,11 +69,20 @@ export function TextClip(props: { width: number; name: string; selected?: boolea
 }
 
 /// A video clip: the waveform of its audio, if it has any, under the name at the bottom.
-export function VideoClip(props: { width: number; name: string; waveform?: Waveform; selected?: boolean }): Markup {
+export function VideoClip(
+  props: {
+    width: number;
+    name: string;
+    waveform?: Waveform;
+    selected?: boolean;
+    locked?: boolean;
+    labelTop?: boolean; // the name at the top instead of the bottom
+  },
+): Markup {
   return (
-    <ClipFrame kind="video" width={props.width} selected={props.selected}>
+    <ClipFrame kind="video" width={props.width} selected={props.selected} locked={props.locked}>
       {props.waveform && <ClipWaveform waveform={props.waveform} width={props.width} />}
-      <ClipName name={props.name} bottom />
+      <ClipName name={props.name} bottom={!props.labelTop} />
     </ClipFrame>
   );
 }
@@ -88,5 +98,24 @@ export function AudioClip(props: { width: number; name: string; waveform: Wavefo
         Audio
       </span>
     </ClipFrame>
+  );
+}
+
+/// An existing audio clip seen beside the one being placed, with a plain 11-12px label.
+export function NeighborClip(
+  props: { width: number; name: string; size: number; left: number; baseline: number },
+): Markup {
+  return (
+    <div
+      class="relative h-16 overflow-hidden rounded-md border border-[#34757b] bg-[#24656b]"
+      style={`width:${props.width}px`}
+    >
+      <span
+        class="absolute leading-none whitespace-nowrap text-[#c8d8e8]"
+        style={`left:${props.left - 1}px;top:${props.baseline - props.size * 0.8605 - 1}px;font-size:${props.size}px`}
+      >
+        {props.name}
+      </span>
+    </div>
   );
 }

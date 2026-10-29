@@ -1,184 +1,117 @@
-import { COLOR } from "../theme.ts";
-import { FontStyle } from "../components/fonts.tsx";
-import type { Markup } from "@design/jsx/jsx-runtime";
+import { Window } from "../components/window.tsx";
+import type { Child, Markup } from "@design/jsx/jsx-runtime";
 
-export default function Page13ExportWindowSvg(): Markup {
+export default function ExportWindowPage(): Markup {
   return (
-    <svg xmlns="http://www.w3.org/2000/svg" width="1240" height="1326" viewBox="0 0 1240 1326">
-      <FontStyle />
-      <defs>
-        <filter id="shadow" x="-20%" y="-20%" width="140%" height="160%">
-          <feDropShadow dx="0" dy="8" stdDeviation="10" flood-color="#000" flood-opacity="0.55" />
-        </filter>
-        <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0" stop-color="#1b2745" />
-          <stop offset="0.55" stop-color="#7a4a62" />
-          <stop offset="1" stop-color="#e2905c" />
-        </linearGradient>
-        <radialGradient id="sun">
-          <stop offset="0" stop-color="#ffe2a8" />
-          <stop offset="0.45" stop-color="#ffc77a" stop-opacity="0.9" />
-          <stop offset="1" stop-color="#ffb066" stop-opacity="0" />
-        </radialGradient>
-        <linearGradient id="street" x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0" stop-color="#3a4256" />
-          <stop offset="0.6" stop-color="#8a5a4c" />
-          <stop offset="1" stop-color="#d48a56" />
-        </linearGradient>
-        <clipPath id="c1">
-          <rect x="40" y="80" width="560" height="548" rx="10" />
-        </clipPath>
-        <clipPath id="c2">
-          <rect x="640" y="80" width="560" height="548" rx="10" />
-        </clipPath>
-        <clipPath id="c3">
-          <rect x="40" y="718" width="560" height="548" rx="10" />
-        </clipPath>
-        <clipPath id="c4">
-          <rect x="640" y="718" width="560" height="548" rx="10" />
-        </clipPath>
-      </defs>
-      <rect x="0" y="0" width="1240" height="1326" fill="#1e1e22" />
-      <text fill={COLOR.light} class="s" x="40" y="44" font-size="15" font-weight="600">{"Idle"}</text>
-      <text class="s" x="40" y="64" font-size="12" fill="#8a8a93">{"Before export"}</text>
-      <rect x="40" y="80" width="560" height="548" rx="10" fill="#080809" filter="url(#shadow)" />
-      <g clip-path="url(#c1)">
-        <rect x="40" y="80" width="560" height="28" fill="#232326" />
-        <rect x="40" y="107" width="560" height="1" fill="#000000" />
-        <circle cx="54" cy="94" r="6" fill="#ff5f57" />
-        <circle cx="74" cy="94" r="6" fill="#febc2e" />
-        <circle cx="94" cy="94" r="6" fill="#28c840" />
-        <rect x="40" y="108" width="560" height="520" fill="#080809" />
-        <text fill={COLOR.text} class="s" x="64" y="151.2" font-size="20">{"Export timeline"}</text>
-        <text fill={COLOR.text} class="s" x="64" y="188.76" font-size="16">{"edit.timeline"}</text>
-        <text fill={COLOR.muted} class="s" x="64" y="225.04" font-size="14">
-          {"1920 × 1080 · 30/1 fps · MP4 / H.264"}
-        </text>
-        <text fill={COLOR.text} class="s" x="64" y="278.76" font-size="16">{"Video bitrate (Mbps)"}</text>
-        <rect
-          fill={COLOR.surface}
-          stroke={COLOR.border}
-          x="227.7"
-          y="246.5"
-          width="139"
-          height="53"
-          rx="8"
-          stroke-width="1"
-        />
-        <text fill={COLOR.text} class="m" x="243.2" y="278.76" font-size="16">{"8"}</text>
-        <text fill={COLOR.muted} class="s" x="64" y="330" font-size="14">
-          {"Exports the timeline as it was when this window opened. Existing files are"}
-        </text>
-        <text fill={COLOR.muted} class="s" x="64" y="350" font-size="14">{"not replaced."}</text>
-        <rect fill={COLOR.accent} x="64" y="372" width="126.72" height="40" rx="6" />
-        <text class="s" x="80" y="397.76" font-size="16" fill="#080809">{"Export MP4…"}</text>
-      </g>
-      <text fill={COLOR.light} class="s" x="640" y="44" font-size="15" font-weight="600">{"Running"}</text>
-      <text class="s" x="640" y="64" font-size="12" fill="#8a8a93">{"Window cannot be closed"}</text>
-      <rect x="640" y="80" width="560" height="548" rx="10" fill="#080809" filter="url(#shadow)" />
-      <g clip-path="url(#c2)">
-        <rect x="640" y="80" width="560" height="28" fill="#232326" />
-        <rect x="640" y="107" width="560" height="1" fill="#000000" />
-        <circle cx="654" cy="94" r="6" fill="#ff5f57" />
-        <circle cx="674" cy="94" r="6" fill="#febc2e" />
-        <circle cx="694" cy="94" r="6" fill="#28c840" />
-        <rect x="640" y="108" width="560" height="520" fill="#080809" />
-        <text fill={COLOR.text} class="s" x="664" y="151.2" font-size="20">{"Export timeline"}</text>
-        <text fill={COLOR.text} class="s" x="664" y="188.76" font-size="16">{"edit.timeline"}</text>
-        <text fill={COLOR.muted} class="s" x="664" y="225.04" font-size="14">
-          {"1920 × 1080 · 30/1 fps · MP4 / H.264"}
-        </text>
-        <text fill={COLOR.text} class="s" x="664" y="278.76" font-size="16">{"Video bitrate (Mbps)"}</text>
-        <text fill={COLOR.text} class="s" x="827.2" y="278.76" font-size="16">{"8"}</text>
-        <text fill={COLOR.muted} class="s" x="664" y="330" font-size="14">
-          {"Exports the timeline as it was when this window opened. Existing files are"}
-        </text>
-        <text fill={COLOR.muted} class="s" x="664" y="350" font-size="14">{"not replaced."}</text>
-        <rect fill={COLOR.muted} x="664" y="372" width="126.72" height="40" rx="6" />
-        <text class="s" x="680" y="397.76" font-size="16" fill="#080809">{"Export MP4…"}</text>
-        <text fill={COLOR.text} class="s" x="664" y="444.76" font-size="16">
-          {"Exporting: 42% · 227 / 540 frames"}
-        </text>
-        <rect fill={COLOR.muted} x="664" y="458" width="512" height="8" />
-        <rect fill={COLOR.accent} x="664" y="458" width="215.04" height="8" />
-        <rect fill={COLOR.muted} x="664" y="474" width="115.2" height="40" rx="6" />
-        <text fill={COLOR.text} class="s" x="680" y="499.76" font-size="16">{"Stop export"}</text>
-      </g>
-      <text fill={COLOR.light} class="s" x="40" y="682" font-size="15" font-weight="600">{"Complete"}</text>
-      <text class="s" x="40" y="702" font-size="12" fill="#8a8a93">{"After a finished export"}</text>
-      <rect x="40" y="718" width="560" height="548" rx="10" fill="#080809" filter="url(#shadow)" />
-      <g clip-path="url(#c3)">
-        <rect x="40" y="718" width="560" height="28" fill="#232326" />
-        <rect x="40" y="745" width="560" height="1" fill="#000000" />
-        <circle cx="54" cy="732" r="6" fill="#ff5f57" />
-        <circle cx="74" cy="732" r="6" fill="#febc2e" />
-        <circle cx="94" cy="732" r="6" fill="#28c840" />
-        <rect x="40" y="746" width="560" height="520" fill="#080809" />
-        <text fill={COLOR.text} class="s" x="64" y="789.2" font-size="20">{"Export timeline"}</text>
-        <text fill={COLOR.text} class="s" x="64" y="826.76" font-size="16">{"edit.timeline"}</text>
-        <text fill={COLOR.muted} class="s" x="64" y="863.04" font-size="14">
-          {"1920 × 1080 · 30/1 fps · MP4 / H.264"}
-        </text>
-        <text fill={COLOR.text} class="s" x="64" y="916.76" font-size="16">{"Video bitrate (Mbps)"}</text>
-        <rect
-          fill={COLOR.surface}
-          stroke={COLOR.border}
-          x="227.7"
-          y="884.5"
-          width="139"
-          height="53"
-          rx="8"
-          stroke-width="1"
-        />
-        <text fill={COLOR.text} class="m" x="243.2" y="916.76" font-size="16">{"8"}</text>
-        <text fill={COLOR.muted} class="s" x="64" y="968" font-size="14">
-          {"Exports the timeline as it was when this window opened. Existing files are"}
-        </text>
-        <text fill={COLOR.muted} class="s" x="64" y="988" font-size="14">{"not replaced."}</text>
-        <rect fill={COLOR.accent} x="64" y="1010" width="126.72" height="40" rx="6" />
-        <text class="s" x="80" y="1035.76" font-size="16" fill="#080809">{"Export MP4…"}</text>
-        <text fill={COLOR.text} class="s" x="64" y="1082.76" font-size="16">{"Export complete."}</text>
-      </g>
-      <text fill={COLOR.light} class="s" x="640" y="682" font-size="15" font-weight="600">
-        {"Invalid bitrate"}
-      </text>
-      <text class="s" x="640" y="702" font-size="12" fill="#8a8a93">{"Export disabled"}</text>
-      <rect x="640" y="718" width="560" height="548" rx="10" fill="#080809" filter="url(#shadow)" />
-      <g clip-path="url(#c4)">
-        <rect x="640" y="718" width="560" height="28" fill="#232326" />
-        <rect x="640" y="745" width="560" height="1" fill="#000000" />
-        <circle cx="654" cy="732" r="6" fill="#ff5f57" />
-        <circle cx="674" cy="732" r="6" fill="#febc2e" />
-        <circle cx="694" cy="732" r="6" fill="#28c840" />
-        <rect x="640" y="746" width="560" height="520" fill="#080809" />
-        <text fill={COLOR.text} class="s" x="664" y="789.2" font-size="20">{"Export timeline"}</text>
-        <text fill={COLOR.text} class="s" x="664" y="826.76" font-size="16">{"edit.timeline"}</text>
-        <text fill={COLOR.muted} class="s" x="664" y="863.04" font-size="14">
-          {"1920 × 1080 · 30/1 fps · MP4 / H.264"}
-        </text>
-        <text fill={COLOR.text} class="s" x="664" y="916.76" font-size="16">{"Video bitrate (Mbps)"}</text>
-        <rect
-          fill={COLOR.surface}
-          stroke={COLOR.border}
-          x="827.7"
-          y="884.5"
-          width="139"
-          height="53"
-          rx="8"
-          stroke-width="1"
-        />
-        <text fill={COLOR.text} class="m" x="843.2" y="916.76" font-size="16">{"0"}</text>
-        <rect fill={COLOR.accent} x="853.8" y="901" width="1.5" height="20" />
-        <text fill={COLOR.error} class="s" x="664" y="969.04" font-size="14">
-          {"Enter a bitrate between 0.1 and 1000 Mbps."}
-        </text>
-        <text fill={COLOR.muted} class="s" x="664" y="1004" font-size="14">
-          {"Exports the timeline as it was when this window opened. Existing files are"}
-        </text>
-        <text fill={COLOR.muted} class="s" x="664" y="1024" font-size="14">{"not replaced."}</text>
-        <rect fill={COLOR.muted} x="664" y="1046" width="126.72" height="40" rx="6" />
-        <text class="s" x="680" y="1071.76" font-size="16" fill="#080809">{"Export MP4…"}</text>
-      </g>
-    </svg>
+    <main class="grid w-[1240px] grid-cols-[560px_560px] gap-x-10 gap-y-[38px] bg-[#f4f4f6] px-10 pt-7 pb-[60px] font-sans">
+      <Figure title="Idle" caption="Before export">
+        <ExportBody>
+          <BitrateRow>
+            <ValueField value="8" />
+          </BitrateRow>
+          <Help class="mt-[15px]" />
+          <ExportButton />
+        </ExportBody>
+      </Figure>
+      <Figure title="Running" caption="Window cannot be closed">
+        <ExportBody>
+          <BitrateRow>
+            <span>8</span>
+          </BitrateRow>
+          <Help class="mt-[15px]" />
+          <ExportButton disabled />
+          <p class="mt-[19px] text-base leading-none">Exporting: 42% · 227 / 540 frames</p>
+          <div class="mt-[11px] h-2 w-[512px] bg-muted">
+            <div class="h-2 w-[215.04px] bg-accent" />
+          </div>
+          <button type="button" class="mt-2 h-10 w-[115.2px] rounded-md bg-muted text-base leading-none">
+            Stop export
+          </button>
+        </ExportBody>
+      </Figure>
+      <Figure title="Complete" caption="After a finished export">
+        <ExportBody>
+          <BitrateRow>
+            <ValueField value="8" />
+          </BitrateRow>
+          <Help class="mt-[15px]" />
+          <ExportButton />
+          <p class="mt-[19px] text-base leading-none">Export complete.</p>
+        </ExportBody>
+      </Figure>
+      <Figure title="Invalid bitrate" caption="Export disabled">
+        <ExportBody>
+          <BitrateRow>
+            <ValueField value="0" caret />
+          </BitrateRow>
+          <p class="mt-4 text-sm leading-5 text-error">Enter a bitrate between 0.1 and 1000 Mbps.</p>
+          <Help class="mt-[15px]" />
+          <ExportButton disabled />
+        </ExportBody>
+      </Figure>
+    </main>
+  );
+}
+
+function Figure(props: { title: string; caption: string; children: Child }): Markup {
+  return (
+    <figure>
+      <h2 class="text-[15px] leading-5 font-semibold text-[#1b1b1e]">{props.title}</h2>
+      <p class="mt-[3px] text-xs leading-4 text-[#55555e]">{props.caption}</p>
+      <div class="mt-3">{props.children}</div>
+    </figure>
+  );
+}
+
+/// The shared top of the export window: title, file name and format summary.
+function ExportBody(props: { children: Child }): Markup {
+  return (
+    <Window width={560} height={548}>
+      <div class="px-6 pt-[26px]">
+        <h3 class="text-xl leading-none">Export timeline</h3>
+        <p class="mt-[21px] text-base leading-none">edit.timeline</p>
+        <p class="mt-[22px] text-sm leading-none text-muted">1920 × 1080 · 30/1 fps · MP4 / H.264</p>
+        {props.children}
+      </div>
+    </Window>
+  );
+}
+
+function BitrateRow(props: { children: Child }): Markup {
+  return (
+    <div class="mt-[19px] flex h-[54px] items-center text-base leading-none">
+      <span class="w-[163.7px] shrink-0">Video bitrate (Mbps)</span>
+      {props.children}
+    </div>
+  );
+}
+
+function ValueField(props: { value: string; caret?: boolean }): Markup {
+  return (
+    <div class="flex h-[54px] w-[140px] items-center rounded-lg border border-border bg-surface px-[15px] font-mono text-base leading-none">
+      <span>{props.value}</span>
+      {props.caret ? <span class="ml-[0.7px] h-5 w-[1.5px] bg-accent" /> : null}
+    </div>
+  );
+}
+
+function Help(props: { class: string }): Markup {
+  return (
+    <p class={`text-sm leading-5 text-muted ${props.class}`}>
+      Exports the timeline as it was when this window opened. Existing files are<br />not replaced.
+    </p>
+  );
+}
+
+function ExportButton(props: { disabled?: boolean }): Markup {
+  return (
+    <button
+      type="button"
+      class={`mt-[17px] h-10 rounded-md px-4 text-base leading-none text-[#080809] ${
+        props.disabled ? "bg-muted" : "bg-accent"
+      }`}
+    >
+      Export MP4…
+    </button>
   );
 }

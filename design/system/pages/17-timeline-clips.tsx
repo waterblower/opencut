@@ -1,6 +1,6 @@
 import { WarningIcon } from "../components/warning-icon.tsx";
 import { AudioClip, TextClip, VideoClip } from "../components/timeline-clip.tsx";
-import { AUDIO_WAVEFORM, VIDEO_WAVEFORM } from "../components/waveform-samples.ts";
+import { INTERVIEW_A_WIDE, MUSIC_BED } from "../components/waveform-samples.ts";
 import type { Markup } from "@design/jsx/jsx-runtime";
 
 export default function Page17TimelineClips(): Markup {
@@ -19,10 +19,10 @@ export default function Page17TimelineClips(): Markup {
               <TextClip width={160} name="Let's get started" />
             </ClipVariant>
             <ClipVariant title="Video clip">
-              <VideoClip width={348} name="interview-a.mov" waveform={VIDEO_WAVEFORM} />
+              <VideoClip width={348} name="interview-a.mov" waveform={INTERVIEW_A_WIDE} />
             </ClipVariant>
             <ClipVariant title="Selected">
-              <VideoClip width={348} name="interview-a.mov" waveform={VIDEO_WAVEFORM} selected />
+              <VideoClip width={348} name="interview-a.mov" waveform={INTERVIEW_A_WIDE} selected />
             </ClipVariant>
           </div>
           <div class="flex items-start gap-10">
@@ -30,7 +30,7 @@ export default function Page17TimelineClips(): Markup {
               <VideoClip width={168} name="broll-street.mov" />
             </ClipVariant>
             <ClipVariant title="Audio clip">
-              <AudioClip width={348} name="music-bed.m4a" waveform={AUDIO_WAVEFORM} />
+              <AudioClip width={348} name="music-bed.m4a" waveform={MUSIC_BED} />
             </ClipVariant>
           </div>
         </div>
