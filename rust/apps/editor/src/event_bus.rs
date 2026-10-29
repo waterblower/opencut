@@ -890,8 +890,6 @@ impl Editor {
     }
 }
 
-/// Applies an edit to the open timeline, saves it, and rebuilds what depends on it: the
-/// preview player, the property panel and the missing media dialog.
 fn handle_app_event_edit(
     editor: &Entity<Editor>,
     edit_action: EditAction,
@@ -929,9 +927,7 @@ fn handle_app_event_edit(
                 }
             }
         }
-        // Undo, redo and other edits can change what the property panel shows.
         editor.property_panel = current_property_panel(editor);
-        // Relinking and undo can change which files are missing.
         match (&editor.missing_media_dialog, editor.timeline.as_ref()) {
             (Some(_), Some(timeline)) => {
                 let dialog = missing_media_dialog(timeline);
