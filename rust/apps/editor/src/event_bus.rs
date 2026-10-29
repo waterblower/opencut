@@ -422,7 +422,7 @@ async fn handle_app_event(
             let Some(media_path) = media_path else {
                 return Ok(());
             };
-            editor.update(cx, |editor, cx| -> Result<()> {
+            let path = editor.update(cx, |editor, _| -> Result<PathBuf> {
                 let timeline = editor
                     .timeline
                     .as_ref()
@@ -431,15 +431,15 @@ async fn handle_app_event(
                     .path
                     .parent()
                     .context("Timeline path has no parent directory")?;
-                let path = relative_asset_path(timeline_directory, &media_path);
-                editor.emit_event(
-                    cx,
-                    AppEvent::Edit(EditAction::UpdateAssetPaths {
-                        paths: vec![(asset_id, path)],
-                    }),
-                );
-                Ok(())
+                Ok(relative_asset_path(timeline_directory, &media_path))
             })?;
+            handle_app_event_edit(
+                &editor,
+                EditAction::UpdateAssetPaths {
+                    paths: vec![(asset_id, path)],
+                },
+                cx,
+            )?;
         }
         AppEvent::MissingMediaDialogClosed => {
             editor.update(cx, |editor, cx| {
