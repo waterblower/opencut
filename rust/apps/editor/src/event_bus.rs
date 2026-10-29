@@ -494,58 +494,7 @@ async fn handle_app_event(
             })?;
         }
         AppEvent::Edit(edit_action) => {
-            editor.update(cx, |editor, cx| -> Result<()> {
-                let Some(timeline) = editor.timeline.as_mut() else {
-                    return Ok(());
-                };
-                // 播放和 preview 内的 seek 只移动 player；
-                // edit 前把 timeline 的 playhead 同步到 player 的 frame_index。
-                match &editor.preview.target {
-                    PreviewTarget::Timeline { path, player, .. }
-                        if editor.project_root.join(path) == timeline.path =>
-                    {
-                        timeline.set_playhead(player.read(cx).backend().frame_index());
-                    }
-                    _ => {
-                        // do nothing
-                    }
-                }
-                let track_lock_changed = matches!(edit_action, EditAction::ToggleTrackLock { .. });
-                let should_save = edit_timeline(timeline, edit_action)?;
-                if should_save {
-                    timeline.save()?;
-                    // 预览播放器持有编辑前的快照；编辑提交后按新状态重建。
-                    // 有 offline clip 时 preview 是 None；relink 之后要重建回 timeline。
-                    match editor.preview.target {
-                        PreviewTarget::Timeline { .. } | PreviewTarget::None
-                            if !track_lock_changed =>
-                        {
-                            editor.preview.target =
-                                timeline_preview_target(timeline, &editor.project_root, cx)?;
-                        }
-                        _ => {
-                            // do nothing
-                        }
-                    }
-                }
-                // Undo, redo and other edits can change what the property panel shows.
-                editor.property_panel = current_property_panel(editor);
-                // Relinking and undo can change which files are missing.
-                match (&editor.missing_media_dialog, editor.timeline.as_ref()) {
-                    (Some(_), Some(timeline)) => {
-                        let dialog = missing_media_dialog(timeline);
-                        editor.missing_media_dialog = match dialog.files.is_empty() {
-                            true => None,
-                            false => Some(dialog),
-                        };
-                    }
-                    _ => {
-                        // do nothing
-                    }
-                }
-                cx.notify();
-                Ok(())
-            })?;
+            handle_app_event_edit(&editor, edit_action, cx)?;
         }
         AppEvent::DragStarted(asset) => {
             editor.update(cx, |editor, cx| {
@@ -939,4 +888,63 @@ impl Editor {
         self.schedule_active_timeline_waveforms(cx);
         Ok(())
     }
+}
+
+/// Applies an edit to the open timeline, saves it, and rebuilds what depends on it: the
+/// preview player, the property panel and the missing media dialog.
+fn handle_app_event_edit(
+    editor: &Entity<Editor>,
+    edit_action: EditAction,
+    cx: &mut AsyncApp,
+) -> Result<()> {
+    editor.update(cx, |editor, cx| -> Result<()> {
+        let Some(timeline) = editor.timeline.as_mut() else {
+            return Ok(());
+        };
+        // 播放和 preview 内的 seek 只移动 player；
+        // edit 前把 timeline 的 playhead 同步到 player 的 frame_index。
+        match &editor.preview.target {
+            PreviewTarget::Timeline { path, player, .. }
+                if editor.project_root.join(path) == timeline.path =>
+            {
+                timeline.set_playhead(player.read(cx).backend().frame_index());
+            }
+            _ => {
+                // do nothing
+            }
+        }
+        let track_lock_changed = matches!(edit_action, EditAction::ToggleTrackLock { .. });
+        let should_save = edit_timeline(timeline, edit_action)?;
+        if should_save {
+            timeline.save()?;
+            // 预览播放器持有编辑前的快照；编辑提交后按新状态重建。
+            // 有 offline clip 时 preview 是 None；relink 之后要重建回 timeline。
+            match editor.preview.target {
+                PreviewTarget::Timeline { .. } | PreviewTarget::None if !track_lock_changed => {
+                    editor.preview.target =
+                        timeline_preview_target(timeline, &editor.project_root, cx)?;
+                }
+                _ => {
+                    // do nothing
+                }
+            }
+        }
+        // Undo, redo and other edits can change what the property panel shows.
+        editor.property_panel = current_property_panel(editor);
+        // Relinking and undo can change which files are missing.
+        match (&editor.missing_media_dialog, editor.timeline.as_ref()) {
+            (Some(_), Some(timeline)) => {
+                let dialog = missing_media_dialog(timeline);
+                editor.missing_media_dialog = match dialog.files.is_empty() {
+                    true => None,
+                    false => Some(dialog),
+                };
+            }
+            _ => {
+                // do nothing
+            }
+        }
+        cx.notify();
+        Ok(())
+    })
 }
