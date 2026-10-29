@@ -1,557 +1,124 @@
-import { COLOR } from "../theme.ts";
-import { FontStyle } from "../components/fonts.tsx";
-import type { Markup } from "@design/jsx/jsx-runtime";
+import { PlaybackIcon, VideoPlayer } from "../components/video-player.tsx";
+import type { Child, Markup } from "@design/jsx/jsx-runtime";
 
-export default function Page18VideoPlayerSvg(): Markup {
+export default function VideoPlayerPage(): Markup {
   return (
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      xmlns:xlink="http://www.w3.org/1999/xlink"
-      width="1240"
-      height="2478"
-      viewBox="0 0 1240 2478"
-      role="img"
-      aria-labelledby="title description"
-    >
-      <title id="title">{"Video player"}</title>
-      <desc id="description">
-        {"Video player states: paused, playing, scrub bar hover, scrubbing, ended, before the first frame, timeline playback, a narrow panel, and the playback button states."}
-      </desc>
-      <FontStyle />
-      <defs>
-        <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0" stop-color="#1b2745" />
-          <stop offset="0.55" stop-color="#7a4a62" />
-          <stop offset="1" stop-color="#e2905c" />
-        </linearGradient>
-        <radialGradient id="sun">
-          <stop offset="0" stop-color="#ffe2a8" />
-          <stop offset="0.45" stop-color="#ffc77a" stop-opacity="0.9" />
-          <stop offset="1" stop-color="#ffb066" stop-opacity="0" />
-        </radialGradient>
-        <linearGradient id="street" x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0" stop-color="#3a4256" />
-          <stop offset="0.6" stop-color="#8a5a4c" />
-          <stop offset="1" stop-color="#d48a56" />
-        </linearGradient>
-        <clipPath id="scene-clip">
-          <rect width="1920" height="1080" />
-        </clipPath>
-        <g id="scene" clip-path="url(#scene-clip)">
-          <rect width="1920" height="1080" fill="url(#sky)" />
-          <circle cx="1340" cy="610" r="300" fill="url(#sun)" />
-          <path
-            d="M0 640 C 260 560 480 600 700 560 S 1160 520 1400 590 S 1760 560 1920 600 L1920 1080 L0 1080Z"
-            fill="#4a3e5e"
-          />
-          <rect x="40" y="470" width="150" height="610" fill="#251f33" />
-          <rect x="58" y="500" width="14" height="20" fill={COLOR.accentSoft} opacity="0.8" />
-          <rect x="160" y="500" width="14" height="20" fill={COLOR.accentSoft} opacity="0.8" />
-          <rect x="126" y="546" width="14" height="20" fill={COLOR.accentSoft} opacity="0.8" />
-          <rect x="92" y="592" width="14" height="20" fill={COLOR.accentSoft} opacity="0.8" />
-          <rect x="160" y="592" width="14" height="20" fill={COLOR.accentSoft} opacity="0.8" />
-          <rect x="58" y="638" width="14" height="20" fill={COLOR.accentSoft} opacity="0.8" />
-          <rect x="126" y="638" width="14" height="20" fill={COLOR.accentSoft} opacity="0.8" />
-          <rect x="92" y="684" width="14" height="20" fill={COLOR.accentSoft} opacity="0.8" />
-          <rect x="200" y="410" width="120" height="670" fill="#251f33" />
-          <rect x="218" y="440" width="14" height="20" fill={COLOR.accentSoft} opacity="0.8" />
-          <rect x="286" y="486" width="14" height="20" fill={COLOR.accentSoft} opacity="0.8" />
-          <rect x="252" y="532" width="14" height="20" fill={COLOR.accentSoft} opacity="0.8" />
-          <rect x="218" y="578" width="14" height="20" fill={COLOR.accentSoft} opacity="0.8" />
-          <rect x="286" y="578" width="14" height="20" fill={COLOR.accentSoft} opacity="0.8" />
-          <rect x="252" y="624" width="14" height="20" fill={COLOR.accentSoft} opacity="0.8" />
-          <rect x="218" y="670" width="14" height="20" fill={COLOR.accentSoft} opacity="0.8" />
-          <rect x="330" y="520" width="170" height="560" fill="#251f33" />
-          <rect x="348" y="550" width="14" height="20" fill={COLOR.accentSoft} opacity="0.8" />
-          <rect x="450" y="550" width="14" height="20" fill={COLOR.accentSoft} opacity="0.8" />
-          <rect x="416" y="596" width="14" height="20" fill={COLOR.accentSoft} opacity="0.8" />
-          <rect x="382" y="642" width="14" height="20" fill={COLOR.accentSoft} opacity="0.8" />
-          <rect x="450" y="642" width="14" height="20" fill={COLOR.accentSoft} opacity="0.8" />
-          <rect x="348" y="688" width="14" height="20" fill={COLOR.accentSoft} opacity="0.8" />
-          <rect x="416" y="688" width="14" height="20" fill={COLOR.accentSoft} opacity="0.8" />
-          <rect x="510" y="360" width="110" height="720" fill="#251f33" />
-          <rect x="528" y="390" width="14" height="20" fill={COLOR.accentSoft} opacity="0.8" />
-          <rect x="596" y="436" width="14" height="20" fill={COLOR.accentSoft} opacity="0.8" />
-          <rect x="562" y="482" width="14" height="20" fill={COLOR.accentSoft} opacity="0.8" />
-          <rect x="528" y="528" width="14" height="20" fill={COLOR.accentSoft} opacity="0.8" />
-          <rect x="596" y="528" width="14" height="20" fill={COLOR.accentSoft} opacity="0.8" />
-          <rect x="562" y="574" width="14" height="20" fill={COLOR.accentSoft} opacity="0.8" />
-          <rect x="528" y="620" width="14" height="20" fill={COLOR.accentSoft} opacity="0.8" />
-          <rect x="596" y="666" width="14" height="20" fill={COLOR.accentSoft} opacity="0.8" />
-          <rect x="630" y="450" width="160" height="630" fill="#251f33" />
-          <rect x="648" y="480" width="14" height="20" fill={COLOR.accentSoft} opacity="0.8" />
-          <rect x="750" y="480" width="14" height="20" fill={COLOR.accentSoft} opacity="0.8" />
-          <rect x="716" y="526" width="14" height="20" fill={COLOR.accentSoft} opacity="0.8" />
-          <rect x="682" y="572" width="14" height="20" fill={COLOR.accentSoft} opacity="0.8" />
-          <rect x="750" y="572" width="14" height="20" fill={COLOR.accentSoft} opacity="0.8" />
-          <rect x="648" y="618" width="14" height="20" fill={COLOR.accentSoft} opacity="0.8" />
-          <rect x="716" y="618" width="14" height="20" fill={COLOR.accentSoft} opacity="0.8" />
-          <rect x="682" y="664" width="14" height="20" fill={COLOR.accentSoft} opacity="0.8" />
-          <rect x="800" y="300" width="90" height="780" fill="#251f33" />
-          <rect x="818" y="330" width="14" height="20" fill={COLOR.accentSoft} opacity="0.8" />
-          <rect x="852" y="422" width="14" height="20" fill={COLOR.accentSoft} opacity="0.8" />
-          <rect x="818" y="468" width="14" height="20" fill={COLOR.accentSoft} opacity="0.8" />
-          <rect x="852" y="514" width="14" height="20" fill={COLOR.accentSoft} opacity="0.8" />
-          <rect x="818" y="560" width="14" height="20" fill={COLOR.accentSoft} opacity="0.8" />
-          <rect x="852" y="652" width="14" height="20" fill={COLOR.accentSoft} opacity="0.8" />
-          <rect x="818" y="698" width="14" height="20" fill={COLOR.accentSoft} opacity="0.8" />
-          <rect x="900" y="420" width="180" height="660" fill="#251f33" />
-          <rect x="918" y="450" width="14" height="20" fill={COLOR.accentSoft} opacity="0.8" />
-          <rect x="1020" y="450" width="14" height="20" fill={COLOR.accentSoft} opacity="0.8" />
-          <rect x="986" y="496" width="14" height="20" fill={COLOR.accentSoft} opacity="0.8" />
-          <rect x="1054" y="496" width="14" height="20" fill={COLOR.accentSoft} opacity="0.8" />
-          <rect x="952" y="542" width="14" height="20" fill={COLOR.accentSoft} opacity="0.8" />
-          <rect x="1020" y="542" width="14" height="20" fill={COLOR.accentSoft} opacity="0.8" />
-          <rect x="918" y="588" width="14" height="20" fill={COLOR.accentSoft} opacity="0.8" />
-          <rect x="986" y="588" width="14" height="20" fill={COLOR.accentSoft} opacity="0.8" />
-          <rect x="952" y="634" width="14" height="20" fill={COLOR.accentSoft} opacity="0.8" />
-          <rect x="1054" y="634" width="14" height="20" fill={COLOR.accentSoft} opacity="0.8" />
-          <rect x="918" y="680" width="14" height="20" fill={COLOR.accentSoft} opacity="0.8" />
-          <rect x="1020" y="680" width="14" height="20" fill={COLOR.accentSoft} opacity="0.8" />
-          <rect x="1090" y="500" width="140" height="580" fill="#251f33" />
-          <rect x="1108" y="530" width="14" height="20" fill={COLOR.accentSoft} opacity="0.8" />
-          <rect x="1176" y="576" width="14" height="20" fill={COLOR.accentSoft} opacity="0.8" />
-          <rect x="1142" y="622" width="14" height="20" fill={COLOR.accentSoft} opacity="0.8" />
-          <rect x="1108" y="668" width="14" height="20" fill={COLOR.accentSoft} opacity="0.8" />
-          <rect x="1176" y="668" width="14" height="20" fill={COLOR.accentSoft} opacity="0.8" />
-          <rect x="1240" y="560" width="120" height="520" fill="#251f33" />
-          <rect x="1258" y="590" width="14" height="20" fill={COLOR.accentSoft} opacity="0.8" />
-          <rect x="1326" y="636" width="14" height="20" fill={COLOR.accentSoft} opacity="0.8" />
-          <rect x="1292" y="682" width="14" height="20" fill={COLOR.accentSoft} opacity="0.8" />
-          <rect x="1370" y="470" width="150" height="610" fill="#251f33" />
-          <rect x="1388" y="500" width="14" height="20" fill={COLOR.accentSoft} opacity="0.8" />
-          <rect x="1490" y="500" width="14" height="20" fill={COLOR.accentSoft} opacity="0.8" />
-          <rect x="1456" y="546" width="14" height="20" fill={COLOR.accentSoft} opacity="0.8" />
-          <rect x="1422" y="592" width="14" height="20" fill={COLOR.accentSoft} opacity="0.8" />
-          <rect x="1490" y="592" width="14" height="20" fill={COLOR.accentSoft} opacity="0.8" />
-          <rect x="1388" y="638" width="14" height="20" fill={COLOR.accentSoft} opacity="0.8" />
-          <rect x="1456" y="638" width="14" height="20" fill={COLOR.accentSoft} opacity="0.8" />
-          <rect x="1422" y="684" width="14" height="20" fill={COLOR.accentSoft} opacity="0.8" />
-          <rect x="1530" y="380" width="110" height="700" fill="#251f33" />
-          <rect x="1548" y="410" width="14" height="20" fill={COLOR.accentSoft} opacity="0.8" />
-          <rect x="1616" y="456" width="14" height="20" fill={COLOR.accentSoft} opacity="0.8" />
-          <rect x="1582" y="502" width="14" height="20" fill={COLOR.accentSoft} opacity="0.8" />
-          <rect x="1548" y="548" width="14" height="20" fill={COLOR.accentSoft} opacity="0.8" />
-          <rect x="1616" y="548" width="14" height="20" fill={COLOR.accentSoft} opacity="0.8" />
-          <rect x="1582" y="594" width="14" height="20" fill={COLOR.accentSoft} opacity="0.8" />
-          <rect x="1548" y="640" width="14" height="20" fill={COLOR.accentSoft} opacity="0.8" />
-          <rect x="1616" y="686" width="14" height="20" fill={COLOR.accentSoft} opacity="0.8" />
-          <rect x="1650" y="500" width="170" height="580" fill="#251f33" />
-          <rect x="1668" y="530" width="14" height="20" fill={COLOR.accentSoft} opacity="0.8" />
-          <rect x="1770" y="530" width="14" height="20" fill={COLOR.accentSoft} opacity="0.8" />
-          <rect x="1736" y="576" width="14" height="20" fill={COLOR.accentSoft} opacity="0.8" />
-          <rect x="1702" y="622" width="14" height="20" fill={COLOR.accentSoft} opacity="0.8" />
-          <rect x="1770" y="622" width="14" height="20" fill={COLOR.accentSoft} opacity="0.8" />
-          <rect x="1668" y="668" width="14" height="20" fill={COLOR.accentSoft} opacity="0.8" />
-          <rect x="1736" y="668" width="14" height="20" fill={COLOR.accentSoft} opacity="0.8" />
-          <rect x="1830" y="430" width="120" height="650" fill="#251f33" />
-          <rect x="1848" y="460" width="14" height="20" fill={COLOR.accentSoft} opacity="0.8" />
-          <rect x="1916" y="506" width="14" height="20" fill={COLOR.accentSoft} opacity="0.8" />
-          <rect x="1882" y="552" width="14" height="20" fill={COLOR.accentSoft} opacity="0.8" />
-          <rect x="1848" y="598" width="14" height="20" fill={COLOR.accentSoft} opacity="0.8" />
-          <rect x="1916" y="598" width="14" height="20" fill={COLOR.accentSoft} opacity="0.8" />
-          <rect x="1882" y="644" width="14" height="20" fill={COLOR.accentSoft} opacity="0.8" />
-          <rect x="1848" y="690" width="14" height="20" fill={COLOR.accentSoft} opacity="0.8" />
-          <path d="M0 820 L1920 760 L1920 1080 L0 1080Z" fill="url(#street)" />
-          <path
-            d="M0 900 L1920 840"
-            stroke="#f2c38a"
-            stroke-width="5"
-            stroke-dasharray="60 50"
-            opacity="0.5"
-          />
-          <path d="M150 700 l300 -20 l20 70 l-340 20Z" fill="#c4553f" />
-          <rect x="160" y="770" width="12" height="150" fill="#1d1824" />
-          <rect x="450" y="750" width="12" height="150" fill="#1d1824" />
-          <path d="M570 700 l300 -20 l20 70 l-340 20Z" fill="#e0a24a" />
-          <rect x="580" y="770" width="12" height="150" fill="#1d1824" />
-          <rect x="870" y="750" width="12" height="150" fill="#1d1824" />
-          <path d="M990 700 l300 -20 l20 70 l-340 20Z" fill="#3f7f86" />
-          <rect x="1000" y="770" width="12" height="150" fill="#1d1824" />
-          <rect x="1290" y="750" width="12" height="150" fill="#1d1824" />
-          <path d="M1410 700 l300 -20 l20 70 l-340 20Z" fill="#c4553f" />
-          <rect x="1420" y="770" width="12" height="150" fill="#1d1824" />
-          <rect x="1710" y="750" width="12" height="150" fill="#1d1824" />
-          <circle cx="960" cy="560" r="78" fill="#1a1520" />
-          <path d="M800 1080 C 800 760 860 660 960 660 C 1060 660 1120 760 1120 1080Z" fill="#1a1520" />
-        </g>
-      </defs>
-      <rect fill={COLOR.page} width="1240" height="2478" />
-      <text fill={COLOR.text} class="s" x="48" y="61" font-size="24" font-weight="700">{"Video player"}</text>
-      <text fill={COLOR.muted} class="s" x="48" y="89" font-size="14">
-        {"Plays a media file or a rendered timeline. Controls sit below the picture, never over it."}
-      </text>
-      <text fill={COLOR.text} class="s" x="48" y="156" font-size="14" font-weight="600">{"Paused"}</text>
-      <text fill={COLOR.muted} class="s" x="48" y="176" font-size="12">
-        {"Primary button plays; time and file name follow"}
-      </text>
-      <clipPath id="p0">
-        <rect x="48" y="190" width="556" height="377" rx="10" />
-      </clipPath>
-      <rect x="48" y="196" width="556" height="377" rx="10" fill="#000" opacity="0.35" />
-      <g clip-path="url(#p0)">
-        <rect x="48" y="190" width="556" height="313" fill="#080808" />
-        <use xlink:href="#scene" transform="translate(48 190) scale(0.289583)" />
-        <rect fill={COLOR.panel} x="48" y="503" width="556" height="64" />
-        <rect fill={COLOR.divider} x="48" y="503" width="556" height="1" />
-        <rect fill={COLOR.border} x="64" y="517.0" width="524" height="4" rx="2.0" />
-        <rect fill={COLOR.accent} x="64" y="517.0" width="117.1" height="4" rx="2.0" />
-        <circle fill={COLOR.text} cx="76" cy="547" r="12" />
-        <path
-          fill={COLOR.panel}
-          stroke={COLOR.panel}
-          d="M74 543.5 L79.5 547 L74 550.5 Z"
-          stroke-width="1"
-          stroke-linejoin="round"
-        />
-        <text fill={COLOR.text} class="m" x="98" y="551.5" font-size="13">
-          {"0:21"}
-          <tspan fill={COLOR.muted}>{" / 1:34"}</tspan>
-        </text>
-        <text fill={COLOR.muted} class="s" x="588" y="551" font-size="12" text-anchor="end">
-          {"broll-street.mov"}
-        </text>
-      </g>
-      <rect stroke={COLOR.border} x="48.5" y="190.5" width="555" height="376" rx="10" fill="none" />
-      <text fill={COLOR.text} class="s" x="636" y="156" font-size="14" font-weight="600">{"Playing"}</text>
-      <text fill={COLOR.muted} class="s" x="636" y="176" font-size="12">{"Button switches to pause"}</text>
-      <clipPath id="p1">
-        <rect x="636" y="190" width="556" height="377" rx="10" />
-      </clipPath>
-      <rect x="636" y="196" width="556" height="377" rx="10" fill="#000" opacity="0.35" />
-      <g clip-path="url(#p1)">
-        <rect x="636" y="190" width="556" height="313" fill="#080808" />
-        <use xlink:href="#scene" transform="translate(636 190) scale(0.289583)" />
-        <rect fill={COLOR.panel} x="636" y="503" width="556" height="64" />
-        <rect fill={COLOR.divider} x="636" y="503" width="556" height="1" />
-        <rect fill={COLOR.border} x="652" y="517.0" width="524" height="4" rx="2.0" />
-        <rect fill={COLOR.accent} x="652" y="517.0" width="267.6" height="4" rx="2.0" />
-        <circle fill={COLOR.text} cx="664" cy="547" r="12" />
-        <rect fill={COLOR.panel} x="661" y="543" width="2.2" height="8" rx="0.8" />
-        <rect fill={COLOR.panel} x="664.8" y="543" width="2.2" height="8" rx="0.8" />
-        <text fill={COLOR.text} class="m" x="686" y="551.5" font-size="13">
-          {"0:48"}
-          <tspan fill={COLOR.muted}>{" / 1:34"}</tspan>
-        </text>
-        <text fill={COLOR.muted} class="s" x="1176" y="551" font-size="12" text-anchor="end">
-          {"broll-street.mov"}
-        </text>
-      </g>
-      <rect stroke={COLOR.border} x="636.5" y="190.5" width="555" height="376" rx="10" fill="none" />
-      <text fill={COLOR.text} class="s" x="48" y="633" font-size="14" font-weight="600">
-        {"Hover on scrub bar"}
-      </text>
-      <text fill={COLOR.muted} class="s" x="48" y="653" font-size="12">
-        {"Track thickens, knob appears; light fill previews the seek target"}
-      </text>
-      <clipPath id="p2">
-        <rect x="48" y="667" width="556" height="377" rx="10" />
-      </clipPath>
-      <rect x="48" y="673" width="556" height="377" rx="10" fill="#000" opacity="0.35" />
-      <g clip-path="url(#p2)">
-        <rect x="48" y="667" width="556" height="313" fill="#080808" />
-        <use xlink:href="#scene" transform="translate(48 667) scale(0.289583)" />
-        <rect fill={COLOR.panel} x="48" y="980" width="556" height="64" />
-        <rect fill={COLOR.divider} x="48" y="980" width="556" height="1" />
-        <rect fill={COLOR.border} x="64" y="993.0" width="524" height="6" rx="3.0" />
-        <rect x="64" y="993.0" width="272.5" height="6" rx="3.0" fill="#ffffff" fill-opacity="0.14" />
-        <rect fill={COLOR.accent} x="64" y="993.0" width="117.1" height="6" rx="3.0" />
-        <circle fill={COLOR.text} stroke={COLOR.panel} cx="181.1" cy="996" r="6" stroke-width="2" />
-        <circle fill={COLOR.text} cx="76" cy="1024" r="12" />
-        <path
-          fill={COLOR.panel}
-          stroke={COLOR.panel}
-          d="M74 1020.5 L79.5 1024 L74 1027.5 Z"
-          stroke-width="1"
-          stroke-linejoin="round"
-        />
-        <text fill={COLOR.text} class="m" x="98" y="1028.5" font-size="13">
-          {"0:21"}
-          <tspan fill={COLOR.muted}>{" / 1:34"}</tspan>
-        </text>
-        <text fill={COLOR.muted} class="s" x="588" y="1028" font-size="12" text-anchor="end">
-          {"broll-street.mov"}
-        </text>
-        <g transform="translate(330.48 1003)">
-          <path
-            d="M5 9 V2.6 a1.7 1.7 0 0 1 3.4 0 V8 V6.8 a1.6 1.6 0 0 1 3.2 0 V8.6 V7.6 a1.6 1.6 0 0 1 3.2 0 V9.6 V8.8 a1.6 1.6 0 0 1 3.2 0 V14 c0 4 -2.5 6 -6.5 6 h-1 c-2.6 0 -4 -1.4 -5.2 -3.4 L2.2 13 a1.6 1.6 0 0 1 2.8 -1.6 Z"
-            fill="#fff"
-            stroke="#000"
-            stroke-width="1"
-            stroke-linejoin="round"
-          />
-        </g>
-      </g>
-      <rect stroke={COLOR.border} x="48.5" y="667.5" width="555" height="376" rx="10" fill="none" />
-      <text fill={COLOR.text} class="s" x="636" y="633" font-size="14" font-weight="600">{"Scrubbing"}</text>
-      <text fill={COLOR.muted} class="s" x="636" y="653" font-size="12">
-        {"Picture and time follow the knob while dragging"}
-      </text>
-      <clipPath id="p3">
-        <rect x="636" y="667" width="556" height="377" rx="10" />
-      </clipPath>
-      <rect x="636" y="673" width="556" height="377" rx="10" fill="#000" opacity="0.35" />
-      <g clip-path="url(#p3)">
-        <rect x="636" y="667" width="556" height="313" fill="#080808" />
-        <use xlink:href="#scene" transform="translate(636 667) scale(0.289583)" />
-        <rect fill={COLOR.panel} x="636" y="980" width="556" height="64" />
-        <rect fill={COLOR.divider} x="636" y="980" width="556" height="1" />
-        <rect fill={COLOR.border} x="652" y="993.0" width="524" height="6" rx="3.0" />
-        <rect fill={COLOR.accent} x="652" y="993.0" width="351.2" height="6" rx="3.0" />
-        <circle fill={COLOR.accent} cx="1003.2" cy="996" r="12" fill-opacity="0.18" />
-        <circle fill={COLOR.text} stroke={COLOR.panel} cx="1003.2" cy="996" r="7" stroke-width="2" />
-        <circle fill={COLOR.text} cx="664" cy="1024" r="12" />
-        <path
-          fill={COLOR.panel}
-          stroke={COLOR.panel}
-          d="M662 1020.5 L667.5 1024 L662 1027.5 Z"
-          stroke-width="1"
-          stroke-linejoin="round"
-        />
-        <text fill={COLOR.text} class="m" x="686" y="1028.5" font-size="13">
-          {"1:03"}
-          <tspan fill={COLOR.muted}>{" / 1:34"}</tspan>
-        </text>
-        <text fill={COLOR.muted} class="s" x="1176" y="1028" font-size="12" text-anchor="end">
-          {"broll-street.mov"}
-        </text>
-        <g transform="translate(1002.1914893617022 1000)">
-          <path
-            d="M5 9 V4.5 a1.6 1.6 0 0 1 3.2 0 V8 V3.2 a1.6 1.6 0 0 1 3.2 0 V8 V4 a1.6 1.6 0 0 1 3.2 0 V9 V6.4 a1.6 1.6 0 0 1 3.2 0 V13 c0 4 -2.5 6.5 -6.5 6.5 h-1 c-2.6 0 -4 -1.4 -5.2 -3.4 L2.2 12 a1.6 1.6 0 0 1 2.8 -1.6 Z"
-            fill="#fff"
-            stroke="#000"
-            stroke-width="1"
-            stroke-linejoin="round"
-          />
-        </g>
-      </g>
-      <rect stroke={COLOR.border} x="636.5" y="667.5" width="555" height="376" rx="10" fill="none" />
-      <text fill={COLOR.text} class="s" x="48" y="1110" font-size="14" font-weight="600">{"Ended"}</text>
-      <text fill={COLOR.muted} class="s" x="48" y="1130" font-size="12">
-        {"Bar full; button replays from the start"}
-      </text>
-      <clipPath id="p4">
-        <rect x="48" y="1144" width="556" height="377" rx="10" />
-      </clipPath>
-      <rect x="48" y="1150" width="556" height="377" rx="10" fill="#000" opacity="0.35" />
-      <g clip-path="url(#p4)">
-        <rect x="48" y="1144" width="556" height="313" fill="#080808" />
-        <use xlink:href="#scene" transform="translate(48 1144) scale(0.289583)" />
-        <rect fill={COLOR.panel} x="48" y="1457" width="556" height="64" />
-        <rect fill={COLOR.divider} x="48" y="1457" width="556" height="1" />
-        <rect fill={COLOR.border} x="64" y="1471.0" width="524" height="4" rx="2.0" />
-        <rect fill={COLOR.accent} x="64" y="1471.0" width="524.0" height="4" rx="2.0" />
-        <circle fill={COLOR.text} cx="76" cy="1501" r="12" />
-        <g
-          stroke={COLOR.panel}
-          transform="translate(71 1496) scale(0.4167)"
-          fill="none"
-          stroke-width="3.2"
-          stroke-linecap="round"
-          stroke-linejoin="round"
+    <main class="w-[1240px] bg-[#f4f4f6] px-12 pt-[38px] pb-[60px] font-sans text-[#1b1b1e]">
+      <h1 class="text-2xl leading-8 font-bold">Video player</h1>
+      <p class="mt-2 text-sm leading-5 text-[#55555e]">
+        Plays a media file or a rendered timeline. Controls sit below the picture, never over it.
+      </p>
+      <div class="mt-[40px] grid grid-cols-[556px_556px] gap-x-8 gap-y-[51px]">
+        <Figure title="Paused" caption="Primary button plays; time and file name follow">
+          <VideoPlayer width={556} icon="play" progress={117.1} time="0:21" total="1:34" file="broll-street.mov" />
+        </Figure>
+        <Figure title="Playing" caption="Button switches to pause">
+          <VideoPlayer width={556} icon="pause" progress={267.6} time="0:48" total="1:34" file="broll-street.mov" />
+        </Figure>
+        <Figure
+          title="Hover on scrub bar"
+          caption="Track thickens, knob appears; light fill previews the seek target"
         >
-          <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
-          <path d="M3 3v5h5" />
-        </g>
-        <text fill={COLOR.text} class="m" x="98" y="1505.5" font-size="13">
-          {"1:34"}
-          <tspan fill={COLOR.muted}>{" / 1:34"}</tspan>
-        </text>
-        <text fill={COLOR.muted} class="s" x="588" y="1505" font-size="12" text-anchor="end">
-          {"broll-street.mov"}
-        </text>
-      </g>
-      <rect stroke={COLOR.border} x="48.5" y="1144.5" width="555" height="376" rx="10" fill="none" />
-      <text fill={COLOR.text} class="s" x="636" y="1110" font-size="14" font-weight="600">
-        {"Before the first frame"}
-      </text>
-      <text fill={COLOR.muted} class="s" x="636" y="1130" font-size="12">
-        {"Picture stays black until a frame is decoded"}
-      </text>
-      <clipPath id="p5">
-        <rect x="636" y="1144" width="556" height="377" rx="10" />
-      </clipPath>
-      <rect x="636" y="1150" width="556" height="377" rx="10" fill="#000" opacity="0.35" />
-      <g clip-path="url(#p5)">
-        <rect x="636" y="1144" width="556" height="313" fill="#080808" />
-        <rect fill={COLOR.panel} x="636" y="1457" width="556" height="64" />
-        <rect fill={COLOR.divider} x="636" y="1457" width="556" height="1" />
-        <rect fill={COLOR.border} x="652" y="1471.0" width="524" height="4" rx="2.0" />
-        <circle fill={COLOR.text} cx="664" cy="1501" r="12" />
-        <path
-          fill={COLOR.panel}
-          stroke={COLOR.panel}
-          d="M662 1497.5 L667.5 1501 L662 1504.5 Z"
-          stroke-width="1"
-          stroke-linejoin="round"
-        />
-        <text fill={COLOR.text} class="m" x="686" y="1505.5" font-size="13">
-          {"0:00"}
-          <tspan fill={COLOR.muted}>{" / 1:34"}</tspan>
-        </text>
-        <text fill={COLOR.muted} class="s" x="1176" y="1505" font-size="12" text-anchor="end">
-          {"broll-street.mov"}
-        </text>
-      </g>
-      <rect stroke={COLOR.border} x="636.5" y="1144.5" width="555" height="376" rx="10" fill="none" />
-      <text fill={COLOR.text} class="s" x="48" y="1587" font-size="14" font-weight="600">{"Timeline"}</text>
-      <text fill={COLOR.muted} class="s" x="48" y="1607" font-size="12">
-        {"Rendered timeline with subtitles; same controls"}
-      </text>
-      <clipPath id="p6">
-        <rect x="48" y="1621" width="556" height="377" rx="10" />
-      </clipPath>
-      <rect x="48" y="1627" width="556" height="377" rx="10" fill="#000" opacity="0.35" />
-      <g clip-path="url(#p6)">
-        <rect x="48" y="1621" width="556" height="313" fill="#080808" />
-        <use xlink:href="#scene" transform="translate(48 1621) scale(0.289583)" />
-        <text
-          class="s"
-          x="326.0"
-          y="1896.44"
-          font-size="25"
-          font-weight="600"
-          fill="#ffffff"
-          text-anchor="middle"
-          stroke="#000"
-          stroke-opacity="0.55"
-          stroke-width="3.0"
-          paint-order="stroke"
-        >
-          {"Let's get started"}
-        </text>
-        <rect fill={COLOR.panel} x="48" y="1934" width="556" height="64" />
-        <rect fill={COLOR.divider} x="48" y="1934" width="556" height="1" />
-        <rect fill={COLOR.border} x="64" y="1948.0" width="524" height="4" rx="2.0" />
-        <rect fill={COLOR.accent} x="64" y="1948.0" width="349.3" height="4" rx="2.0" />
-        <circle fill={COLOR.text} cx="76" cy="1978" r="12" />
-        <rect fill={COLOR.panel} x="73" y="1974" width="2.2" height="8" rx="0.8" />
-        <rect fill={COLOR.panel} x="76.8" y="1974" width="2.2" height="8" rx="0.8" />
-        <text fill={COLOR.text} class="m" x="98" y="1982.5" font-size="13">
-          {"0:12"}
-          <tspan fill={COLOR.muted}>{" / 0:18"}</tspan>
-        </text>
-        <text fill={COLOR.muted} class="s" x="588" y="1982" font-size="12" text-anchor="end">
-          {"devlog 7.timeline"}
-        </text>
-      </g>
-      <rect stroke={COLOR.border} x="48.5" y="1621.5" width="555" height="376" rx="10" fill="none" />
-      <text fill={COLOR.text} class="s" x="636" y="1587" font-size="14" font-weight="600">
-        {"Narrow panel"}
-      </text>
-      <text fill={COLOR.muted} class="s" x="636" y="1607" font-size="12">
-        {"File name truncates first; time and button keep their size"}
-      </text>
-      <clipPath id="pn">
-        <rect x="636" y="1621" width="360" height="266" rx="10" />
-      </clipPath>
-      <rect x="636" y="1627" width="360" height="266" rx="10" fill="#000" opacity="0.35" />
-      <g clip-path="url(#pn)">
-        <rect x="636" y="1621" width="360" height="202" fill="#080808" />
-        <use xlink:href="#scene" transform="translate(636 1621) scale(0.187500)" />
-        <rect fill={COLOR.panel} x="636" y="1823" width="360" height="64" />
-        <rect fill={COLOR.divider} x="636" y="1823" width="360" height="1" />
-        <rect fill={COLOR.border} x="652" y="1837.0" width="328" height="4" rx="2.0" />
-        <rect fill={COLOR.accent} x="652" y="1837.0" width="73.3" height="4" rx="2.0" />
-        <circle fill={COLOR.text} cx="664" cy="1867" r="12" />
-        <path
-          fill={COLOR.panel}
-          stroke={COLOR.panel}
-          d="M662 1863.5 L667.5 1867 L662 1870.5 Z"
-          stroke-width="1"
-          stroke-linejoin="round"
-        />
-        <text fill={COLOR.text} class="m" x="686" y="1871.5" font-size="13">
-          {"0:21"}
-          <tspan fill={COLOR.muted}>{" / 1:34"}</tspan>
-        </text>
-        <text fill={COLOR.muted} class="s" x="980" y="1871" font-size="12" text-anchor="end">
-          {"interview-camera-a-take-03…"}
-        </text>
-      </g>
-      <rect stroke={COLOR.border} x="636.5" y="1621.5" width="359" height="265" rx="10" fill="none" />
-      <rect fill={COLOR.border} x="48" y="2098" width="1144" height="1" />
-      <text fill={COLOR.text} class="s" x="48" y="2156" font-size="20" font-weight="700">
-        {"Playback button"}
-      </text>
-      <text fill={COLOR.muted} class="s" x="48" y="2182" font-size="14">
-        {"24px circle. The icon shows what a click does."}
-      </text>
-      <rect x="48" y="2220" width="480" height="204" rx="10" fill="#000" opacity="0.35" />
-      <rect fill={COLOR.panel} stroke={COLOR.border} x="48.5" y="2214.5" width="479" height="203" rx="10" />
-      <text
-        fill={COLOR.muted}
-        class="s"
-        x="64"
-        y="2237"
-        font-size="11"
-        font-weight="600"
-        letter-spacing="0.6"
-      >
-        {"ICON"}
-      </text>
-      <text
-        fill={COLOR.muted}
-        class="s"
-        x="144"
-        y="2237"
-        font-size="11"
-        font-weight="600"
-        letter-spacing="0.6"
-      >
-        {"STATE"}
-      </text>
-      <text
-        fill={COLOR.muted}
-        class="s"
-        x="248"
-        y="2237"
-        font-size="11"
-        font-weight="600"
-        letter-spacing="0.6"
-      >
-        {"WHEN"}
-      </text>
-      <rect fill={COLOR.divider} x="48" y="2250" width="480" height="1" />
-      <g transform="translate(82 2278.0) scale(1.5)">
-        <circle fill={COLOR.text} cx="0" cy="0" r="12" />
-        <path
-          fill={COLOR.panel}
-          stroke={COLOR.panel}
-          d="M-2 -3.5 L3.5 0 L-2 3.5 Z"
-          stroke-width="1"
-          stroke-linejoin="round"
-        />
-      </g>
-      <text fill={COLOR.text} class="s" x="144" y="2282.5" font-size="13" font-weight="600">{"Play"}</text>
-      <text fill={COLOR.muted} class="s" x="248" y="2282.5" font-size="13">
-        {"Paused, or before the first frame"}
-      </text>
-      <rect fill={COLOR.divider} x="48" y="2306" width="480" height="1" />
-      <g transform="translate(82 2334.0) scale(1.5)">
-        <circle fill={COLOR.text} cx="0" cy="0" r="12" />
-        <rect fill={COLOR.panel} x="-3" y="-4" width="2.2" height="8" rx="0.8" />
-        <rect fill={COLOR.panel} x="0.8" y="-4" width="2.2" height="8" rx="0.8" />
-      </g>
-      <text fill={COLOR.text} class="s" x="144" y="2338.5" font-size="13" font-weight="600">{"Pause"}</text>
-      <text fill={COLOR.muted} class="s" x="248" y="2338.5" font-size="13">{"Playing"}</text>
-      <rect fill={COLOR.divider} x="48" y="2362" width="480" height="1" />
-      <g transform="translate(82 2390.0) scale(1.5)">
-        <circle fill={COLOR.text} cx="0" cy="0" r="12" />
-        <g
-          stroke={COLOR.panel}
-          transform="translate(-5 -5) scale(0.4167)"
-          fill="none"
-          stroke-width="3.2"
-          stroke-linecap="round"
-          stroke-linejoin="round"
-        >
-          <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
-          <path d="M3 3v5h5" />
-        </g>
-      </g>
-      <text fill={COLOR.text} class="s" x="144" y="2394.5" font-size="13" font-weight="600">{"Replay"}</text>
-      <text fill={COLOR.muted} class="s" x="248" y="2394.5" font-size="13">{"Ended"}</text>
-    </svg>
+          <VideoPlayer
+            width={556}
+            icon="play"
+            progress={117.1}
+            seek={272.5}
+            knob="hover"
+            hand={{ left: 282.5, top: 336 }}
+            time="0:21"
+            total="1:34"
+            file="broll-street.mov"
+          />
+        </Figure>
+        <Figure title="Scrubbing" caption="Picture and time follow the knob while dragging">
+          <VideoPlayer
+            width={556}
+            icon="play"
+            progress={351.2}
+            knob="drag"
+            hand={{ left: 366.2, top: 333, grab: true }}
+            time="1:03"
+            total="1:34"
+            file="broll-street.mov"
+          />
+        </Figure>
+        <Figure title="Ended" caption="Bar full; button replays from the start">
+          <VideoPlayer width={556} icon="replay" progress={524} time="1:34" total="1:34" file="broll-street.mov" />
+        </Figure>
+        <Figure title="Before the first frame" caption="Picture stays black until a frame is decoded">
+          <VideoPlayer
+            width={556}
+            icon="play"
+            progress={0}
+            picture={false}
+            time="0:00"
+            total="1:34"
+            file="broll-street.mov"
+          />
+        </Figure>
+        <Figure title="Timeline" caption="Rendered timeline with subtitles; same controls">
+          <VideoPlayer
+            width={556}
+            icon="pause"
+            progress={349.3}
+            caption="Let's get started"
+            time="0:12"
+            total="0:18"
+            file="devlog 7.timeline"
+          />
+        </Figure>
+        <Figure title="Narrow panel" caption="File name truncates first; time and button keep their size">
+          <VideoPlayer
+            width={360}
+            icon="play"
+            progress={73.3}
+            time="0:21"
+            total="1:34"
+            file="interview-camera-a-take-03…"
+          />
+        </Figure>
+      </div>
+      <section class="mt-[100px] border-t border-border pt-[37px]">
+        <h2 class="text-xl leading-7 font-bold">Playback button</h2>
+        <p class="mt-[3px] text-sm leading-5 text-[#55555e]">24px circle. The icon shows what a click does.</p>
+        <table class="mt-[27px] w-[480px] rounded-[10px] border border-border bg-panel text-[13px] leading-none text-text shadow-[0_6px_0_rgb(0_0_0/0.35)]">
+          <thead>
+            <tr class="h-9 border-b border-divider text-[11px] font-semibold tracking-[0.6px] text-muted">
+              <th class="w-20 pl-4 text-left font-semibold">ICON</th>
+              <th class="w-[104px] text-left font-semibold">STATE</th>
+              <th class="text-left font-semibold">WHEN</th>
+            </tr>
+          </thead>
+          <tbody>
+            <Row icon="play" state="Play" when="Paused, or before the first frame" />
+            <Row icon="pause" state="Pause" when="Playing" />
+            <Row icon="replay" state="Replay" when="Ended" last />
+          </tbody>
+        </table>
+      </section>
+    </main>
+  );
+}
+
+function Figure(props: { title: string; caption: string; children: Child }): Markup {
+  return (
+    <figure>
+      <h2 class="text-sm leading-5 font-semibold">{props.title}</h2>
+      <p class="mt-[5px] text-xs leading-4 text-[#55555e]">{props.caption}</p>
+      <div class="mt-2">{props.children}</div>
+    </figure>
+  );
+}
+
+function Row(props: { icon: "play" | "pause" | "replay"; state: string; when: string; last?: boolean }): Markup {
+  return (
+    <tr class={`h-14 ${props.last ? "" : "border-b border-divider"}`}>
+      <td class="pl-4">
+        <PlaybackIcon icon={props.icon} class="size-9" />
+      </td>
+      <td class="font-semibold">{props.state}</td>
+      <td class="text-muted">{props.when}</td>
+    </tr>
   );
 }
