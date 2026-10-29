@@ -1,17 +1,13 @@
 {
-    "compilerOptions": {
-        "jsx": "react-jsx",
-        "jsxImportSource": "@design/jsx"
-    },
-    "imports": {
-        "@design/jsx/jsx-runtime": "./system/jsx/jsx-runtime.ts"
-    },
-    "tasks": {
-        "build": "deno run --allow-read --allow-write system/build.ts"
-    },
-    "fmt": {
-        "lineWidth": 123,
-        "include": ["system/"],
-        "indentWidth": 2
-    }
+  "compilerOptions": {
+    "jsx": "react-jsx",
+    "jsxImportSource": "@design/jsx"
+  },
+  "imports": {
+    "@design/jsx/jsx-runtime": "./system/jsx/jsx-runtime.ts",
+    "tailwindcss": "npm:tailwindcss@4.1.18"
+  },
+  "tasks": {
+    "build": "deno run --allow-read --allow-write system/build.ts"
+  }
 }

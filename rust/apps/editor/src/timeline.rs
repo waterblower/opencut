@@ -6,16 +6,17 @@ use crate::model::MediaKind;
 use crate::preview_text::PreviewTextDrag;
 use crate::srt::srt_text_clips;
 use crate::timeline_clip::Clip;
+use crate::timeline_document::resolve_asset_path;
 use crate::timeline_interactions::{TimelineInteractionState, TimelineTool};
 use crate::track::TrackKind;
 use ::timeline::TimelineEditingState;
 pub(crate) use ::timeline::{FrameRate, TimelineFrameIndex};
-use anyhow::{Context as _, Result, bail, ensure};
+use anyhow::{Context as _, Result, bail};
 use gpui::ScrollHandle;
 use gpui::prelude::*;
 use player_ui::timeline_player::TimelinePlayer;
 use std::collections::{HashMap, HashSet};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use ulid::Ulid;
 
 pub(super) const FRAME_RATE_PRESETS: [(FrameRate, &str); 8] = [
@@ -45,6 +46,7 @@ pub(crate) struct TimelineRuntimeState {
     pub(super) undo_stack: Vec<TimelineEditingState>,
     pub(super) redo_stack: Vec<TimelineEditingState>,
     pub(super) preview_drop_asset: Option<PreviewDropAsset>,
+    pub(crate) offline_asset_ids: HashSet<Ulid>,
 }
 
 pub(crate) trait TimelinePlayerExt: Sized {
@@ -363,10 +365,13 @@ impl TimelineEditorExt for TimelineEditingState {
 }
 impl TimelineRuntimeState {
     pub(super) fn new(path: PathBuf, editing_state: TimelineEditingState) -> Result<Self> {
-        ensure!(path.is_absolute(), "Timeline path must be absolute");
+        if !path.is_absolute() {
+            bail!("Timeline path must be absolute");
+        }
         editing_state.validate()?;
         let selected_clip_id = editing_state.clips.first().map(Clip::id);
         let selected_clip_ids = selected_clip_id.into_iter().collect();
+        let offline_asset_ids = offline_asset_ids(&path, &editing_state)?;
 
         Ok(Self {
             clip_trim_drag: None,
@@ -391,7 +396,30 @@ impl TimelineRuntimeState {
             redo_stack: Vec::new(),
             preview_drop_asset: None,
             text_drag: None,
+            offline_asset_ids,
         })
+    }
+
+    pub(crate) fn refresh_offline_asset_ids(&mut self) -> Result<()> {
+        let new_offline_asset_ids = offline_asset_ids(&self.path, &self.editing_state)?;
+        self.offline_asset_ids = new_offline_asset_ids;
+        Ok(())
+    }
+
+    pub(super) fn clip_is_offline(&self, clip: &Clip) -> bool {
+        match clip.asset_id() {
+            Some(asset_id) => self.offline_asset_ids.contains(&asset_id),
+            None => false,
+        }
+    }
+
+    pub(crate) fn has_offline_clips(&self) -> bool {
+        for clip in &self.editing_state.clips {
+            if self.clip_is_offline(clip) {
+                return true;
+            }
+        }
+        false
     }
 
     pub(crate) fn playhead(&self) -> TimelineFrameIndex {
@@ -439,6 +467,24 @@ impl FrameRateLabel for FrameRate {
         }
     }
 }
+/// Assets whose files do not exist. Asset paths resolve against the timeline file's directory.
+pub(super) fn offline_asset_ids(
+    timeline_path: &Path,
+    editing_state: &TimelineEditingState,
+) -> Result<HashSet<Ulid>> {
+    let timeline_directory = timeline_path
+        .parent()
+        .context("Timeline path has no parent directory")?;
+    let mut missing_asset_ids = HashSet::new();
+    for asset in &editing_state.assets {
+        let asset_path = resolve_asset_path(timeline_directory, &asset.path);
+        if !asset_path.exists() {
+            missing_asset_ids.insert(asset.id);
+        }
+    }
+    Ok(missing_asset_ids)
+}
+
 #[cfg(test)]
 #[path = "tests/timeline.test.rs"]
 mod tests;

@@ -3,6 +3,7 @@ use crate::edit_action::{EditAction, edit_timeline};
 use crate::editor::Editor;
 use crate::explorer_file_entry::{FileTreeEntry, FileTreeEntryKind, search_tree, visible_tree};
 use crate::model::MediaAsset;
+use crate::preview::{PreviewTarget, timeline_preview_target};
 use crate::theme::{ACCENT, BORDER, MUTED, PANEL, SURFACE, TEXT};
 use crate::timeline::TimelineFrameIndex;
 use crate::timeline_clip::{AudioClipProperties, Clip, VideoClip, VideoClipProperties};
@@ -639,6 +640,28 @@ fn watch_file_tree(project_root: PathBuf, cx: &mut Context<Editor>) -> Task<()> 
             }
             let result = editor.update(cx, |editor, cx| -> Result<()> {
                 editor.explorer.refresh_file_tree(&editor.project_root)?;
+                // 素材文件可能被移走或放回；offline 状态变了就按新状态重建 preview。
+                match editor.timeline.as_mut() {
+                    Some(timeline) => {
+                        let previous_offline_asset_ids = timeline.offline_asset_ids.clone();
+                        timeline.refresh_offline_asset_ids()?;
+                        // 有 offline clip 时 preview 是 None；文件找回后要重建回 timeline。
+                        match &editor.preview.target {
+                            PreviewTarget::Timeline { .. } | PreviewTarget::None
+                                if timeline.offline_asset_ids != previous_offline_asset_ids =>
+                            {
+                                editor.preview.target =
+                                    timeline_preview_target(timeline, &editor.project_root, cx)?;
+                            }
+                            _ => {
+                                // do nothing
+                            }
+                        }
+                    }
+                    None => {
+                        // do nothing
+                    }
+                }
                 cx.notify();
                 Ok(())
             });

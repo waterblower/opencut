@@ -1,5 +1,6 @@
 use crate::actions::EDITOR_KEY_CONTEXT;
 use crate::asset::IconName;
+use crate::dialog_missing_media::missing_media_dialog_view;
 use crate::editor::Editor;
 use crate::event_bus::{AppEvent, EventBus};
 use crate::layout::{
@@ -79,6 +80,10 @@ impl Render for Editor {
             .new_timeline_dialog
             .as_ref()
             .map(|_| self.new_timeline_dialog(cx));
+        let missing_media_dialog = self
+            .missing_media_dialog
+            .as_ref()
+            .map(|dialog| missing_media_dialog_view(dialog, self.event_bus.clone()));
         let settings_modal = if self.settings_open
             && let Some(timeline) = self.timeline.as_ref()
         {
@@ -146,6 +151,7 @@ impl Render for Editor {
             .when(self.explorer.trash_timeline_dialog_open, |this| {
                 this.child(self.trash_timeline_dialog_view(cx))
             })
+            .when_some(missing_media_dialog, |this, dialog| this.child(dialog))
             .when_some(settings_modal, |this, modal| this.child(modal))
             .when(self.global_settings_input.is_some(), |this| {
                 this.child(self.global_settings_dialog(cx))

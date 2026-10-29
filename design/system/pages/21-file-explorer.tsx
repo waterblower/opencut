@@ -1,764 +1,213 @@
-import { COLOR } from "../theme.ts";
-import { FontStyle } from "../components/fonts.tsx";
 import type { Markup } from "@design/jsx/jsx-runtime";
 
-export default function Page21FileExplorerSvg(): Markup {
+type ExplorerState = "media-hover" | "timeline-hover" | "context-menu";
+type CursorKind = "grab" | "default";
+
+const videos = [
+  { name: "broll-cafe.mp4", extension: "MP4", size: "31.9 MB" },
+  { name: "broll-street.mov", extension: "MOV", size: "87.6 MB" },
+  { name: "broll-station.mp4", extension: "MP4", size: "42.1 MB" },
+];
+
+const menuItems = [
+  { label: "Generate SRT" },
+  { label: "Reveal in Finder", shortcut: "⌥⌘R", hovered: true },
+  { label: "Open in Default App", shortcut: "⌃⇧↵" },
+  { label: "Copy Path" },
+  { label: "Rename" },
+  { label: "Move to Trash", destructive: true },
+];
+
+export default function Page21FileExplorer(): Markup {
+  return (
+    <main class="w-[1240px] bg-page px-12 pt-10 pb-12 font-sans text-text">
+      <h1 class="text-2xl leading-7 font-bold">File Explorer</h1>
+      <p class="mt-2 text-sm leading-5 text-muted">
+        File hover reflects drag support. Context menus keep their source row visible.
+      </p>
+      <div class="mt-6 grid grid-cols-2 gap-8">
+        <section aria-labelledby="draggable-hover">
+          <h2 id="draggable-hover" class="text-sm leading-5 font-semibold">Draggable · hover</h2>
+          <p class="mt-1 text-xs leading-[18px] text-muted">
+            Video, audio, images and SRT files use the open hand.
+          </p>
+          <div class="mt-2">
+            <Explorer state="media-hover" />
+          </div>
+        </section>
+        <section aria-labelledby="not-draggable-hover">
+          <h2 id="not-draggable-hover" class="text-sm leading-5 font-semibold">Not draggable · hover</h2>
+          <p class="mt-1 text-xs leading-[18px] text-muted">
+            Timeline files, folders and unsupported files use the arrow.
+          </p>
+          <div class="mt-2">
+            <Explorer state="timeline-hover" />
+          </div>
+        </section>
+      </div>
+      <hr class="mt-9 border-border" />
+      <section class="mt-6" aria-labelledby="context-menu-open">
+        <h2 id="context-menu-open" class="text-sm leading-5 font-semibold">Context menu open</h2>
+        <p class="mt-1 text-xs leading-[18px] text-muted">
+          Keep the source row highlighted, even after the pointer moves into the menu.
+        </p>
+        <div class="mt-4 grid grid-cols-2 gap-8">
+          <Explorer state="context-menu" />
+          <aside class="pt-7">
+            <h3 class="text-base leading-6 font-semibold">The menu belongs to broll-street.mov</h3>
+            <p class="mt-3 text-[13px] leading-5 text-subtle">
+              The same hover background stays on that row while<br />
+              the menu is open. Moving through menu items does<br />
+              not transfer the highlight to another file.
+            </p>
+            <div class="mt-24 ml-[212px] space-y-8">
+              <div>
+                <h3 class="text-sm leading-5 font-semibold">On dismissal</h3>
+                <p class="mt-3 text-xs leading-5 text-muted">
+                  Clear the temporary highlight.<br />
+                  Keep it only if the pointer is still<br />
+                  over the source row.
+                </p>
+              </div>
+              <div>
+                <h3 class="text-sm leading-5 font-semibold">Selection stays separate</h3>
+                <p class="mt-3 text-xs leading-5 text-muted">
+                  Opening a menu does not select a file<br />
+                  or change the active timeline.
+                </p>
+              </div>
+            </div>
+          </aside>
+        </div>
+      </section>
+    </main>
+  );
+}
+
+function Explorer({ state }: { state: ExplorerState }): Markup {
+  const menuOpen = state === "context-menu";
+  return (
+    <div class="relative">
+      <div
+        class={`overflow-hidden rounded-[10px] bg-panel shadow-popover outline-1 -outline-offset-1 outline-border ${
+          menuOpen ? "h-[428px]" : "h-[324px]"
+        }`}
+      >
+        <div class="flex h-[38px] cursor-default items-center border-b border-border bg-surface px-4 font-mono text-sm text-muted">
+          Filter files…
+        </div>
+        <ul aria-label="Project files">
+          <FolderRow name="market-vlog" expanded root />
+          <FolderRow name="media" expanded />
+          {videos.map((video) => (
+            <FileRow
+              {...video}
+              highlighted={video.name === "broll-street.mov" && state !== "timeline-hover"}
+              cursor={video.name === "broll-street.mov" && state === "media-hover" ? "grab" : undefined}
+            />
+          ))}
+          <FolderRow name="audio" />
+          <FileRow
+            name="timeline-1.timeline"
+            extension="TL"
+            active
+            highlighted={state === "timeline-hover"}
+            cursor={state === "timeline-hover" ? "default" : undefined}
+          />
+        </ul>
+      </div>
+      {menuOpen && <FileContextMenu />}
+    </div>
+  );
+}
+
+function FolderRow({ name, expanded = false, root = false }: {
+  name: string;
+  expanded?: boolean;
+  root?: boolean;
+}): Markup {
+  return (
+    <li class={`flex h-[38px] cursor-default items-center gap-2 pr-3 ${root ? "pl-3" : "pl-7"}`}>
+      <span aria-hidden="true" class="w-3.5 text-[13px] text-muted">{expanded ? "▾" : "▸"}</span>
+      <span class={`font-mono text-sm ${root ? "font-semibold" : "text-subtle"}`}>{name}</span>
+    </li>
+  );
+}
+
+function FileRow({ name, extension, size, active = false, highlighted = false, cursor }: {
+  name: string;
+  extension: string;
+  size?: string;
+  active?: boolean;
+  highlighted?: boolean;
+  cursor?: CursorKind;
+}): Markup {
+  const background = highlighted ? "bg-hover" : active ? "bg-active-timeline" : "";
+  return (
+    <li
+      class={`relative flex h-[38px] items-center gap-2 pr-3 ${
+        active ? "cursor-default pl-[26px]" : "cursor-grab pl-[42px]"
+      } ${background}`}
+    >
+      <span
+        class={`flex h-[18px] w-[38px] shrink-0 items-center justify-center rounded-[3px] border text-[11px] font-semibold ${
+          active ? "border-accent-border text-accent" : "border-video-badge-border text-video-badge-text"
+        }`}
+      >
+        {extension}
+      </span>
+      <span class={`min-w-0 flex-1 truncate font-mono text-sm ${active ? "font-semibold" : ""}`}>{name}</span>
+      {active
+        ? (
+          <span class="flex h-5 w-[60px] items-center justify-center rounded-[3px] border border-accent-border bg-accent-background font-mono text-[11px] font-semibold text-accent">
+            ACTIVE
+          </span>
+        )
+        : <span class="font-mono text-xs text-dim">{size}</span>}
+      {cursor && <Cursor kind={cursor} class="absolute top-1 left-[72%]" />}
+    </li>
+  );
+}
+
+function FileContextMenu(): Markup {
+  return (
+    <ul
+      aria-label="File actions for broll-street.mov"
+      class="absolute top-[190px] left-[calc(100%_-_104px)] z-10 w-[300px] rounded-lg border border-border bg-menu p-[3px] shadow-popover"
+    >
+      {menuItems.map(({ label, shortcut, hovered, destructive }) => (
+        <li>
+          <button
+            type="button"
+            class={`relative flex h-10 w-full cursor-default items-center justify-between rounded-md px-3 text-sm ${
+              hovered ? "bg-menu-hover" : ""
+            } ${destructive ? "text-error" : "text-text"}`}
+          >
+            <span>{label}</span>
+            {shortcut && <kbd class="font-mono text-sm text-muted">{shortcut}</kbd>}
+            {hovered && <Cursor kind="default" class="absolute top-5 left-[184px]" />}
+          </button>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+// Cursor illustrations are icons; the panels, rows and menu use HTML layout.
+function Cursor({ kind, class: className }: { kind: CursorKind; class: string }): Markup {
   return (
     <svg
-      xmlns="http://www.w3.org/2000/svg"
-      width="1240"
-      height="1090"
-      viewBox="0 0 1240 1090"
-      role="img"
-      aria-labelledby="title description"
+      aria-hidden="true"
+      viewBox="-2 -2 34 34"
+      class={`pointer-events-none size-8 fill-text stroke-cursor-outline ${className}`}
+      stroke-width="1.5"
+      stroke-linejoin="round"
     >
-      <title id="title">{"File Explorer"}</title>
-      <desc id="description">
-        {"File Explorer design proposal: draggable media uses an open-hand cursor, while timeline files, folders, the project root and unsupported files use the standard arrow. Draggable types are video, audio, images and SRT. Both variants keep the same full-row hover highlight. A context menu retains its source-row highlight until dismissal, independently of selection and the active timeline."}
-      </desc>
-      <FontStyle />
-      <defs>
-        <filter id="shadow" x="-15%" y="-15%" width="130%" height="145%">
-          <feDropShadow dx="0" dy="6" stdDeviation="10" flood-color="#000" flood-opacity=".35" />
-        </filter>
-      </defs>
-      <rect fill={COLOR.page} x="0" y="0" width="1240" height="1090" />
-      <text fill={COLOR.text} class="s" x="48" y="61" font-size="24" font-weight="700" text-anchor="start">
-        {"File Explorer"}
-      </text>
-      <text fill={COLOR.muted} class="s" x="48" y="89" font-size="14" font-weight="400" text-anchor="start">
-        {"File hover reflects drag support. Context menus keep their source row visible."}
-      </text>
-      <text fill={COLOR.text} class="s" x="48" y="136" font-size="14" font-weight="600" text-anchor="start">
-        {"Draggable · hover"}
-      </text>
-      <text fill={COLOR.muted} class="s" x="48" y="157" font-size="12" font-weight="400" text-anchor="start">
-        {"Video, audio, images and SRT files use the open hand."}
-      </text>
-      <text fill={COLOR.text} class="s" x="636" y="136" font-size="14" font-weight="600" text-anchor="start">
-        {"Not draggable · hover"}
-      </text>
-      <text fill={COLOR.muted} class="s" x="636" y="157" font-size="12" font-weight="400" text-anchor="start">
-        {"Timeline files, folders and unsupported files use the arrow."}
-      </text>
-      <rect fill={COLOR.panel} x="48" y="170" width="556" height="324" rx="10" filter="url(#shadow)" />
-      <clipPath id="browsing">
-        <rect x="48" y="170" width="556" height="324" rx="10" />
-      </clipPath>
-      <g clip-path="url(#browsing)">
-        <rect fill={COLOR.surface} x="48" y="170" width="556" height="38" />
-        <rect fill={COLOR.border} x="48" y="207" width="556" height="1" />
-        <rect fill={COLOR.hover} x="48" y="322" width="556" height="38" />
-        <text
-          fill={COLOR.muted}
-          class="m"
-          x="64"
-          y="194"
-          font-size="14"
-          font-weight="400"
-          text-anchor="start"
-        >
-          {"Filter files…"}
-        </text>
-        <text
-          fill={COLOR.muted}
-          class="s"
-          x="60"
-          y="232"
-          font-size="13"
-          font-weight="400"
-          text-anchor="start"
-        >
-          {"▾"}
-        </text>
-        <text fill={COLOR.text} class="m" x="82" y="232" font-size="14" font-weight="600" text-anchor="start">
-          {"market-vlog"}
-        </text>
-        <text
-          fill={COLOR.muted}
-          class="s"
-          x="76"
-          y="270"
-          font-size="13"
-          font-weight="400"
-          text-anchor="start"
-        >
-          {"▾"}
-        </text>
-        <text
-          fill={COLOR.subtle}
-          class="m"
-          x="98"
-          y="270"
-          font-size="14"
-          font-weight="400"
-          text-anchor="start"
-        >
-          {"media"}
-        </text>
-        <rect x="90.5" y="294.5" width="37" height="17" fill="none" rx="3" stroke="#355b78" />
-        <text
-          class="s"
-          x="109"
-          y="307.5"
-          font-size="11"
-          fill="#8fb9dd"
-          font-weight="600"
-          text-anchor="middle"
-        >
-          {"MP4"}
-        </text>
-        <text
-          fill={COLOR.text}
-          class="m"
-          x="136"
-          y="308"
-          font-size="14"
-          font-weight="400"
-          text-anchor="start"
-        >
-          {"broll-cafe.mp4"}
-        </text>
-        <text fill={COLOR.dim} class="m" x="592" y="308" font-size="12" font-weight="400" text-anchor="end">
-          {"31.9 MB"}
-        </text>
-        <rect x="90.5" y="332.5" width="37" height="17" fill="none" rx="3" stroke="#355b78" />
-        <text
-          class="s"
-          x="109"
-          y="345.5"
-          font-size="11"
-          fill="#8fb9dd"
-          font-weight="600"
-          text-anchor="middle"
-        >
-          {"MOV"}
-        </text>
-        <text
-          fill={COLOR.text}
-          class="m"
-          x="136"
-          y="346"
-          font-size="14"
-          font-weight="400"
-          text-anchor="start"
-        >
-          {"broll-street.mov"}
-        </text>
-        <text fill={COLOR.dim} class="m" x="592" y="346" font-size="12" font-weight="400" text-anchor="end">
-          {"87.6 MB"}
-        </text>
-        <rect x="90.5" y="370.5" width="37" height="17" fill="none" rx="3" stroke="#355b78" />
-        <text
-          class="s"
-          x="109"
-          y="383.5"
-          font-size="11"
-          fill="#8fb9dd"
-          font-weight="600"
-          text-anchor="middle"
-        >
-          {"MP4"}
-        </text>
-        <text
-          fill={COLOR.text}
-          class="m"
-          x="136"
-          y="384"
-          font-size="14"
-          font-weight="400"
-          text-anchor="start"
-        >
-          {"broll-station.mp4"}
-        </text>
-        <text fill={COLOR.dim} class="m" x="592" y="384" font-size="12" font-weight="400" text-anchor="end">
-          {"42.1 MB"}
-        </text>
-        <text
-          fill={COLOR.muted}
-          class="s"
-          x="76"
-          y="422"
-          font-size="13"
-          font-weight="400"
-          text-anchor="start"
-        >
-          {"▸"}
-        </text>
-        <text
-          fill={COLOR.subtle}
-          class="m"
-          x="98"
-          y="422"
-          font-size="14"
-          font-weight="400"
-          text-anchor="start"
-        >
-          {"audio"}
-        </text>
-        <rect x="48" y="436" width="556" height="38" fill="#211a0f" />
-        <rect x="74.5" y="446.5" width="37" height="17" fill="none" rx="3" stroke="#8a652d" />
-        <text
-          fill={COLOR.accent}
-          class="s"
-          x="93"
-          y="459.5"
-          font-size="11"
-          font-weight="600"
-          text-anchor="middle"
-        >
-          {"TL"}
-        </text>
-        <text
-          fill={COLOR.text}
-          class="m"
-          x="120"
-          y="460"
-          font-size="14"
-          font-weight="600"
-          text-anchor="start"
-        >
-          {"timeline-1.timeline"}
-        </text>
-        <rect fill={COLOR.accentBackground} x="532" y="445" width="60" height="20" rx="3" stroke="#8a652d" />
-        <text
-          fill={COLOR.accent}
-          class="m"
-          x="562"
-          y="459"
-          font-size="11"
-          font-weight="600"
-          text-anchor="middle"
-        >
-          {"ACTIVE"}
-        </text>
-      </g>
-      <rect stroke={COLOR.border} x="48.5" y="170.5" width="555" height="323" fill="none" rx="10" />
-      <rect fill={COLOR.panel} x="636" y="170" width="556" height="324" rx="10" filter="url(#shadow)" />
-      <clipPath id="hover">
-        <rect x="636" y="170" width="556" height="324" rx="10" />
-      </clipPath>
-      <g clip-path="url(#hover)">
-        <rect fill={COLOR.surface} x="636" y="170" width="556" height="38" />
-        <rect fill={COLOR.border} x="636" y="207" width="556" height="1" />
-        <text
-          fill={COLOR.muted}
-          class="m"
-          x="652"
-          y="194"
-          font-size="14"
-          font-weight="400"
-          text-anchor="start"
-        >
-          {"Filter files…"}
-        </text>
-        <text
-          fill={COLOR.muted}
-          class="s"
-          x="648"
-          y="232"
-          font-size="13"
-          font-weight="400"
-          text-anchor="start"
-        >
-          {"▾"}
-        </text>
-        <text
-          fill={COLOR.text}
-          class="m"
-          x="670"
-          y="232"
-          font-size="14"
-          font-weight="600"
-          text-anchor="start"
-        >
-          {"market-vlog"}
-        </text>
-        <text
-          fill={COLOR.muted}
-          class="s"
-          x="664"
-          y="270"
-          font-size="13"
-          font-weight="400"
-          text-anchor="start"
-        >
-          {"▾"}
-        </text>
-        <text
-          fill={COLOR.subtle}
-          class="m"
-          x="686"
-          y="270"
-          font-size="14"
-          font-weight="400"
-          text-anchor="start"
-        >
-          {"media"}
-        </text>
-        <rect x="678.5" y="294.5" width="37" height="17" fill="none" rx="3" stroke="#355b78" />
-        <text
-          class="s"
-          x="697"
-          y="307.5"
-          font-size="11"
-          fill="#8fb9dd"
-          font-weight="600"
-          text-anchor="middle"
-        >
-          {"MP4"}
-        </text>
-        <text
-          fill={COLOR.text}
-          class="m"
-          x="724"
-          y="308"
-          font-size="14"
-          font-weight="400"
-          text-anchor="start"
-        >
-          {"broll-cafe.mp4"}
-        </text>
-        <text fill={COLOR.dim} class="m" x="1180" y="308" font-size="12" font-weight="400" text-anchor="end">
-          {"31.9 MB"}
-        </text>
-        <rect x="678.5" y="332.5" width="37" height="17" fill="none" rx="3" stroke="#355b78" />
-        <text
-          class="s"
-          x="697"
-          y="345.5"
-          font-size="11"
-          fill="#8fb9dd"
-          font-weight="600"
-          text-anchor="middle"
-        >
-          {"MOV"}
-        </text>
-        <text
-          fill={COLOR.text}
-          class="m"
-          x="724"
-          y="346"
-          font-size="14"
-          font-weight="400"
-          text-anchor="start"
-        >
-          {"broll-street.mov"}
-        </text>
-        <text fill={COLOR.dim} class="m" x="1180" y="346" font-size="12" font-weight="400" text-anchor="end">
-          {"87.6 MB"}
-        </text>
-        <rect x="678.5" y="370.5" width="37" height="17" fill="none" rx="3" stroke="#355b78" />
-        <text
-          class="s"
-          x="697"
-          y="383.5"
-          font-size="11"
-          fill="#8fb9dd"
-          font-weight="600"
-          text-anchor="middle"
-        >
-          {"MP4"}
-        </text>
-        <text
-          fill={COLOR.text}
-          class="m"
-          x="724"
-          y="384"
-          font-size="14"
-          font-weight="400"
-          text-anchor="start"
-        >
-          {"broll-station.mp4"}
-        </text>
-        <text fill={COLOR.dim} class="m" x="1180" y="384" font-size="12" font-weight="400" text-anchor="end">
-          {"42.1 MB"}
-        </text>
-        <text
-          fill={COLOR.muted}
-          class="s"
-          x="664"
-          y="422"
-          font-size="13"
-          font-weight="400"
-          text-anchor="start"
-        >
-          {"▸"}
-        </text>
-        <text
-          fill={COLOR.subtle}
-          class="m"
-          x="686"
-          y="422"
-          font-size="14"
-          font-weight="400"
-          text-anchor="start"
-        >
-          {"audio"}
-        </text>
-        <rect fill={COLOR.hover} x="636" y="436" width="556" height="38" />
-        <rect x="662.5" y="446.5" width="37" height="17" fill="none" rx="3" stroke="#8a652d" />
-        <text
-          fill={COLOR.accent}
-          class="s"
-          x="681"
-          y="459.5"
-          font-size="11"
-          font-weight="600"
-          text-anchor="middle"
-        >
-          {"TL"}
-        </text>
-        <text
-          fill={COLOR.text}
-          class="m"
-          x="708"
-          y="460"
-          font-size="14"
-          font-weight="600"
-          text-anchor="start"
-        >
-          {"timeline-1.timeline"}
-        </text>
-        <rect fill={COLOR.accentBackground} x="1120" y="445" width="60" height="20" rx="3" stroke="#8a652d" />
-        <text
-          fill={COLOR.accent}
-          class="m"
-          x="1150"
-          y="459"
-          font-size="11"
-          font-weight="600"
-          text-anchor="middle"
-        >
-          {"ACTIVE"}
-        </text>
-      </g>
-      <rect stroke={COLOR.border} x="636.5" y="170.5" width="555" height="323" fill="none" rx="10" />
       <path
-        fill={COLOR.text}
-        id="open-hand-cursor"
-        transform="translate(449 327)"
-        d="M7 15 3 11C1 9-1 12 1 15L7 24Q9 28 13 28H19Q24 27 25 22L28 9Q29 6 26 6Q24 6 24 9L22 16 23 4Q23 1 21 1Q18 1 18 4L17 14V2Q17-1 14-1Q12-1 12 2V14L10 5Q9 2 7 3Q5 4 6 7Z"
-        stroke="#080809"
-        stroke-width="1.5"
-        stroke-linejoin="round"
+        d={kind === "grab"
+          ? "M7 15 3 11C1 9-1 12 1 15L7 24Q9 28 13 28H19Q24 27 25 22L28 9Q29 6 26 6Q24 6 24 9L22 16 23 4Q23 1 21 1Q18 1 18 4L17 14V2Q17-1 14-1Q12-1 12 2V14L10 5Q9 2 7 3Q5 4 6 7Z"
+          : "M0 0V20L5.5 15.5 10 25 14 23 9.5 13.5 17 13Z"}
       />
-      <path
-        fill={COLOR.text}
-        transform="translate(1040 446)"
-        d="M0 0V20L5.5 15.5 10 25 14 23 9.5 13.5 17 13Z"
-        stroke="#080809"
-        stroke-width="1.5"
-        stroke-linejoin="round"
-      />
-      <rect fill={COLOR.border} x="48" y="530" width="1144" height="1" />
-      <text fill={COLOR.text} class="s" x="48" y="570" font-size="14" font-weight="600" text-anchor="start">
-        {"Context menu open"}
-      </text>
-      <text fill={COLOR.muted} class="s" x="48" y="591" font-size="12" font-weight="400" text-anchor="start">
-        {"Keep the source row highlighted, even after the pointer moves into the menu."}
-      </text>
-      <rect fill={COLOR.panel} x="48" y="614" width="556" height="428" rx="10" filter="url(#shadow)" />
-      <clipPath id="context-open">
-        <rect x="48" y="614" width="556" height="428" rx="10" />
-      </clipPath>
-      <g clip-path="url(#context-open)">
-        <rect fill={COLOR.surface} x="48" y="614" width="556" height="38" />
-        <rect fill={COLOR.border} x="48" y="651" width="556" height="1" />
-        <text
-          fill={COLOR.muted}
-          class="m"
-          x="64"
-          y="638"
-          font-size="14"
-          font-weight="400"
-          text-anchor="start"
-        >
-          {"Filter files…"}
-        </text>
-        <text
-          fill={COLOR.muted}
-          class="s"
-          x="60"
-          y="676"
-          font-size="13"
-          font-weight="400"
-          text-anchor="start"
-        >
-          {"▾"}
-        </text>
-        <text fill={COLOR.text} class="m" x="82" y="676" font-size="14" font-weight="600" text-anchor="start">
-          {"market-vlog"}
-        </text>
-        <text
-          fill={COLOR.muted}
-          class="s"
-          x="76"
-          y="714"
-          font-size="13"
-          font-weight="400"
-          text-anchor="start"
-        >
-          {"▾"}
-        </text>
-        <text
-          fill={COLOR.subtle}
-          class="m"
-          x="98"
-          y="714"
-          font-size="14"
-          font-weight="400"
-          text-anchor="start"
-        >
-          {"media"}
-        </text>
-        <rect x="90.5" y="738.5" width="37" height="17" fill="none" rx="3" stroke="#355b78" />
-        <text
-          class="s"
-          x="109"
-          y="751.5"
-          font-size="11"
-          fill="#8fb9dd"
-          font-weight="600"
-          text-anchor="middle"
-        >
-          {"MP4"}
-        </text>
-        <text
-          fill={COLOR.text}
-          class="m"
-          x="136"
-          y="752"
-          font-size="14"
-          font-weight="400"
-          text-anchor="start"
-        >
-          {"broll-cafe.mp4"}
-        </text>
-        <text fill={COLOR.dim} class="m" x="592" y="752" font-size="12" font-weight="400" text-anchor="end">
-          {"31.9 MB"}
-        </text>
-        <rect fill={COLOR.hover} x="48" y="766" width="556" height="38" />
-        <rect x="90.5" y="776.5" width="37" height="17" fill="none" rx="3" stroke="#355b78" />
-        <text
-          class="s"
-          x="109"
-          y="789.5"
-          font-size="11"
-          fill="#8fb9dd"
-          font-weight="600"
-          text-anchor="middle"
-        >
-          {"MOV"}
-        </text>
-        <text
-          fill={COLOR.text}
-          class="m"
-          x="136"
-          y="790"
-          font-size="14"
-          font-weight="400"
-          text-anchor="start"
-        >
-          {"broll-street.mov"}
-        </text>
-        <text fill={COLOR.dim} class="m" x="592" y="790" font-size="12" font-weight="400" text-anchor="end">
-          {"87.6 MB"}
-        </text>
-        <rect x="90.5" y="814.5" width="37" height="17" fill="none" rx="3" stroke="#355b78" />
-        <text
-          class="s"
-          x="109"
-          y="827.5"
-          font-size="11"
-          fill="#8fb9dd"
-          font-weight="600"
-          text-anchor="middle"
-        >
-          {"MP4"}
-        </text>
-        <text
-          fill={COLOR.text}
-          class="m"
-          x="136"
-          y="828"
-          font-size="14"
-          font-weight="400"
-          text-anchor="start"
-        >
-          {"broll-station.mp4"}
-        </text>
-        <text fill={COLOR.dim} class="m" x="592" y="828" font-size="12" font-weight="400" text-anchor="end">
-          {"42.1 MB"}
-        </text>
-        <text
-          fill={COLOR.muted}
-          class="s"
-          x="76"
-          y="866"
-          font-size="13"
-          font-weight="400"
-          text-anchor="start"
-        >
-          {"▸"}
-        </text>
-        <text
-          fill={COLOR.subtle}
-          class="m"
-          x="98"
-          y="866"
-          font-size="14"
-          font-weight="400"
-          text-anchor="start"
-        >
-          {"audio"}
-        </text>
-        <rect x="48" y="880" width="556" height="38" fill="#211a0f" />
-        <rect x="74.5" y="890.5" width="37" height="17" fill="none" rx="3" stroke="#8a652d" />
-        <text
-          fill={COLOR.accent}
-          class="s"
-          x="93"
-          y="903.5"
-          font-size="11"
-          font-weight="600"
-          text-anchor="middle"
-        >
-          {"TL"}
-        </text>
-        <text
-          fill={COLOR.text}
-          class="m"
-          x="120"
-          y="904"
-          font-size="14"
-          font-weight="600"
-          text-anchor="start"
-        >
-          {"timeline-1.timeline"}
-        </text>
-        <rect fill={COLOR.accentBackground} x="532" y="889" width="60" height="20" rx="3" stroke="#8a652d" />
-        <text
-          fill={COLOR.accent}
-          class="m"
-          x="562"
-          y="903"
-          font-size="11"
-          font-weight="600"
-          text-anchor="middle"
-        >
-          {"ACTIVE"}
-        </text>
-      </g>
-      <rect stroke={COLOR.border} x="48.5" y="614.5" width="555" height="427" fill="none" rx="10" />
-      <rect
-        stroke={COLOR.border}
-        x="500"
-        y="804"
-        width="300"
-        height="248"
-        fill="#1b1b1e"
-        rx="8"
-        filter="url(#shadow)"
-      />
-      <rect x="504" y="848" width="292" height="40" fill="#34343a" rx="6" />
-      <text fill={COLOR.text} class="s" x="516" y="833" font-size="14" font-weight="400" text-anchor="start">
-        {"Generate SRT"}
-      </text>
-      <text fill={COLOR.text} class="s" x="516" y="873" font-size="14" font-weight="400" text-anchor="start">
-        {"Reveal in Finder"}
-      </text>
-      <text fill={COLOR.muted} class="m" x="784" y="873" font-size="14" font-weight="400" text-anchor="end">
-        {"⌥⌘R"}
-      </text>
-      <text fill={COLOR.text} class="s" x="516" y="913" font-size="14" font-weight="400" text-anchor="start">
-        {"Open in Default App"}
-      </text>
-      <text fill={COLOR.muted} class="m" x="784" y="913" font-size="14" font-weight="400" text-anchor="end">
-        {"⌃⇧↵"}
-      </text>
-      <text fill={COLOR.text} class="s" x="516" y="953" font-size="14" font-weight="400" text-anchor="start">
-        {"Copy Path"}
-      </text>
-      <text fill={COLOR.text} class="s" x="516" y="993" font-size="14" font-weight="400" text-anchor="start">
-        {"Rename"}
-      </text>
-      <text
-        fill={COLOR.error}
-        class="s"
-        x="516"
-        y="1033"
-        font-size="14"
-        font-weight="400"
-        text-anchor="start"
-      >
-        {"Move to Trash"}
-      </text>
-      <path
-        fill={COLOR.text}
-        transform="translate(691 869)"
-        d="M0 0V20L5.5 15.5 10 25 14 23 9.5 13.5 17 13Z"
-        stroke="#080809"
-        stroke-width="1.5"
-        stroke-linejoin="round"
-      />
-      <text fill={COLOR.text} class="s" x="636" y="656" font-size="16" font-weight="600" text-anchor="start">
-        {"The menu belongs to broll-street.mov"}
-      </text>
-      <text
-        fill={COLOR.subtle}
-        class="s"
-        x="636"
-        y="686"
-        font-size="13"
-        font-weight="400"
-        text-anchor="start"
-      >
-        {"The same hover background stays on that row while"}
-      </text>
-      <text
-        fill={COLOR.subtle}
-        class="s"
-        x="636"
-        y="706"
-        font-size="13"
-        font-weight="400"
-        text-anchor="start"
-      >
-        {"the menu is open. Moving through menu items does"}
-      </text>
-      <text
-        fill={COLOR.subtle}
-        class="s"
-        x="636"
-        y="726"
-        font-size="13"
-        font-weight="400"
-        text-anchor="start"
-      >
-        {"not transfer the highlight to another file."}
-      </text>
-      <text fill={COLOR.text} class="s" x="848" y="844" font-size="14" font-weight="600" text-anchor="start">
-        {"On dismissal"}
-      </text>
-      <text fill={COLOR.muted} class="s" x="848" y="870" font-size="12" font-weight="400" text-anchor="start">
-        {"Clear the temporary highlight."}
-      </text>
-      <text fill={COLOR.muted} class="s" x="848" y="890" font-size="12" font-weight="400" text-anchor="start">
-        {"Keep it only if the pointer is still"}
-      </text>
-      <text fill={COLOR.muted} class="s" x="848" y="910" font-size="12" font-weight="400" text-anchor="start">
-        {"over the source row."}
-      </text>
-      <text fill={COLOR.text} class="s" x="848" y="950" font-size="14" font-weight="600" text-anchor="start">
-        {"Selection stays separate"}
-      </text>
-      <text fill={COLOR.muted} class="s" x="848" y="976" font-size="12" font-weight="400" text-anchor="start">
-        {"Opening a menu does not select a file"}
-      </text>
-      <text fill={COLOR.muted} class="s" x="848" y="996" font-size="12" font-weight="400" text-anchor="start">
-        {"or change the active timeline."}
-      </text>
     </svg>
   );
 }

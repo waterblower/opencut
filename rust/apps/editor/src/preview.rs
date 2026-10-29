@@ -46,6 +46,9 @@ pub(crate) fn timeline_preview_target<T: 'static>(
     project_root: &Path,
     cx: &mut Context<T>,
 ) -> Result<PreviewTarget> {
+    if timeline.has_offline_clips() {
+        return Ok(PreviewTarget::None);
+    }
     let path = timeline.path.strip_prefix(project_root)?.to_path_buf();
     let timeline_player =
         TimelinePlayer::from_runtime_state(timeline).context("creating timeline player")?;

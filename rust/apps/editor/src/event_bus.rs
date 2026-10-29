@@ -1,4 +1,5 @@
 use crate::clip_placement::validate_clip_placement;
+use crate::dialog_missing_media::missing_media_dialog;
 use crate::edit_action::{EditAction, edit_timeline};
 use crate::editing::validate_clips_placements;
 use crate::editor::Editor;
@@ -11,6 +12,7 @@ use crate::media_probe::probe_asset;
 use crate::model::{MediaAsset, MediaKind};
 use crate::preview::{PreviewTarget, timeline_preview_target};
 use crate::preview_events::PreviewEvent;
+
 use crate::project_settings::{ProjectLocalSettings, save_project_local_settings};
 use crate::property_panel::{PropertyPanel, current_property_panel};
 use crate::property_panel_srt_file::srt_file_panel;
@@ -29,7 +31,9 @@ use crate::{OpenProject, open_editor_window, quit_after_last_window};
 use anyhow::{Context as _, Result, anyhow, bail};
 use engine::export::{ExportCompletion, ExportControl, ExportOption, export_timeline};
 use gpui::prelude::*;
-use gpui::{AsyncApp, Bounds, Entity, EventEmitter, MouseMoveEvent, Pixels, WeakEntity};
+use gpui::{
+    AsyncApp, Bounds, Entity, EventEmitter, MouseMoveEvent, PathPromptOptions, Pixels, WeakEntity,
+};
 use player_ui::Seeker;
 use player_ui::timeline_player::TimelinePlayer;
 use std::collections::HashSet;
@@ -55,6 +59,14 @@ pub(crate) enum AppEvent {
         control: Arc<ExportControl>,
     },
     Preview(PreviewEvent),
+    /// The user chose Relink Media… on an offline clip.
+    RelinkMediaRequested,
+    /// The user chose Relink media for one missing file in the dialog.
+    RelinkMediaFileChosen {
+        asset_id: Ulid,
+    },
+    /// The user dismissed the missing media dialog.
+    MissingMediaDialogClosed,
     SwitchProject {
         project_path: PathBuf,
     },
@@ -381,6 +393,73 @@ async fn handle_app_event(
                 })?;
             }
         },
+        AppEvent::RelinkMediaRequested => {
+            editor.update(cx, |editor, cx| -> Result<()> {
+                let timeline = editor
+                    .timeline
+                    .as_ref()
+                    .context("Relink Media… needs an open timeline")?;
+                editor.missing_media_dialog = Some(missing_media_dialog(timeline));
+                cx.notify();
+                Ok(())
+            })?;
+        }
+        AppEvent::RelinkMediaFileChosen { asset_id } => {
+            let selection = cx.update(|cx| {
+                cx.prompt_for_paths(PathPromptOptions {
+                    files: true,
+                    directories: false,
+                    multiple: false,
+                    prompt: Some("Relink media".into()),
+                })
+            });
+            #[rustfmt::skip]
+            let media_path = match selection.await {
+                Ok(Ok(Some(paths))) => {
+                    match paths.into_iter().next() {
+                        Some(path) => {
+                            path
+                        }
+                        None => {
+                            bail!("The file picker returned no path")
+                        }
+                    }
+                }
+                Ok(Ok(None)) => {
+                    return Ok(()); // 用户取消
+                }
+                Ok(Err(error)) => {
+                    return Err(error.context("choosing a file to relink"));
+                }
+                Err(error) => {
+                    return Err(anyhow!("file picker closed unexpectedly: {error}"));
+                }
+            };
+            let path = editor.update(cx, |editor, _| -> Result<PathBuf> {
+                let timeline = editor
+                    .timeline
+                    .as_ref()
+                    .context("Relink media needs an open timeline")?;
+                let timeline_directory = timeline
+                    .path
+                    .parent()
+                    .context("Timeline path has no parent directory")?;
+                Ok(relative_asset_path(timeline_directory, &media_path))
+            })?;
+            handle_app_event_edit(
+                &editor,
+                EditAction::UpdateAssetPaths {
+                    paths: vec![(asset_id, path)],
+                },
+                cx,
+            )?;
+        }
+        AppEvent::MissingMediaDialogClosed => {
+            editor.update(cx, |editor, cx| {
+                editor.missing_media_dialog = None;
+                cx.notify();
+            });
+        }
         AppEvent::SwitchProject { .. }
         | AppEvent::OpenTranscribeWindow { .. }
         | AppEvent::Transcribe { .. }
@@ -428,42 +507,7 @@ async fn handle_app_event(
             })?;
         }
         AppEvent::Edit(edit_action) => {
-            editor.update(cx, |editor, cx| -> Result<()> {
-                let Some(timeline) = editor.timeline.as_mut() else {
-                    return Ok(());
-                };
-                // 播放和 preview 内的 seek 只移动 player；
-                // edit 前把 timeline 的 playhead 同步到 player 的 frame_index。
-                match &editor.preview.target {
-                    PreviewTarget::Timeline { path, player, .. }
-                        if editor.project_root.join(path) == timeline.path =>
-                    {
-                        timeline.set_playhead(player.read(cx).backend().frame_index());
-                    }
-                    _ => {
-                        // do nothing
-                    }
-                }
-                let track_lock_changed = matches!(edit_action, EditAction::ToggleTrackLock { .. });
-                let should_save = edit_timeline(timeline, edit_action)?;
-                if should_save {
-                    timeline.save()?;
-                    // 预览播放器持有编辑前的快照；编辑提交后按新状态重建。
-                    match editor.preview.target {
-                        PreviewTarget::Timeline { .. } if !track_lock_changed => {
-                            editor.preview.target =
-                                timeline_preview_target(timeline, &editor.project_root, cx)?;
-                        }
-                        _ => {
-                            // do nothing
-                        }
-                    }
-                }
-                // Undo, redo and other edits can change what the property panel shows.
-                editor.property_panel = current_property_panel(editor);
-                cx.notify();
-                Ok(())
-            })?;
+            handle_app_event_edit(&editor, edit_action, cx)?;
         }
         AppEvent::DragStarted(asset) => {
             editor.update(cx, |editor, cx| {
@@ -668,6 +712,14 @@ async fn handle_app_event(
         }
         AppEvent::TimelineSeek { frame_index } => {
             editor.update(cx, |editor, cx| -> Result<()> {
+                let Some(timeline) = editor.timeline.as_ref() else {
+                    return Err(anyhow!("TimelineSeek arrived while no timeline is open"));
+                };
+                if timeline.has_offline_clips() {
+                    editor.preview.target = PreviewTarget::None;
+                    cx.notify();
+                    return Ok(());
+                }
                 match &editor.preview.target {
                     PreviewTarget::Timeline { player, .. } => {
                         player.update(cx, |player, cx| {
@@ -679,9 +731,6 @@ async fn handle_app_event(
                         })?;
                     }
                     _ => {
-                        let Some(timeline) = editor.timeline.as_ref() else {
-                            return Err(anyhow!("TimelineSeek arrived while no timeline is open"));
-                        };
                         let relative_path = match timeline.path.strip_prefix(&editor.project_root) {
                             Ok(relative_path) => relative_path.to_path_buf(),
                             Err(_) => timeline.path.clone(),
@@ -852,4 +901,59 @@ impl Editor {
         self.schedule_active_timeline_waveforms(cx);
         Ok(())
     }
+}
+
+fn handle_app_event_edit(
+    editor: &Entity<Editor>,
+    edit_action: EditAction,
+    cx: &mut AsyncApp,
+) -> Result<()> {
+    editor.update(cx, |editor, cx| -> Result<()> {
+        let Some(timeline) = editor.timeline.as_mut() else {
+            return Ok(());
+        };
+        // 播放和 preview 内的 seek 只移动 player；
+        // edit 前把 timeline 的 playhead 同步到 player 的 frame_index。
+        match &editor.preview.target {
+            PreviewTarget::Timeline { path, player, .. }
+                if editor.project_root.join(path) == timeline.path =>
+            {
+                timeline.set_playhead(player.read(cx).backend().frame_index());
+            }
+            _ => {
+                // do nothing
+            }
+        }
+        let track_lock_changed = matches!(edit_action, EditAction::ToggleTrackLock { .. });
+        let should_save = edit_timeline(timeline, edit_action)?;
+        if should_save {
+            timeline.save()?;
+            // 预览播放器持有编辑前的快照；编辑提交后按新状态重建。
+            // 有 offline clip 时 preview 是 None；relink 之后要重建回 timeline。
+            match editor.preview.target {
+                PreviewTarget::Timeline { .. } | PreviewTarget::None if !track_lock_changed => {
+                    editor.preview.target =
+                        timeline_preview_target(timeline, &editor.project_root, cx)?;
+                }
+                _ => {
+                    // do nothing
+                }
+            }
+        }
+        editor.property_panel = current_property_panel(editor);
+        match (&editor.missing_media_dialog, editor.timeline.as_ref()) {
+            (Some(_), Some(timeline)) => {
+                let dialog = missing_media_dialog(timeline);
+                editor.missing_media_dialog = match dialog.files.is_empty() {
+                    true => None,
+                    false => Some(dialog),
+                };
+            }
+            _ => {
+                // do nothing
+            }
+        }
+        cx.notify();
+        Ok(())
+    })
 }

@@ -278,7 +278,10 @@ fn select_all_excludes_clips_on_locked_tracks() {
 fn edits_do_not_require_source_media_or_a_playback_backend() -> Result<()> {
     let mut data = TimelineEditingState::with_test_tracks();
     data.assets.push(audio_asset(100));
+    data.assets[0].path = PathBuf::from(format!("missing-{}.mp3", Ulid::generate()));
     let mut timeline = TimelineRuntimeState::new(std::path::absolute("test.timeline.json")?, data)?;
+    assert!(timeline.offline_asset_ids.contains(&ulid(100)));
+    assert!(!timeline.has_offline_clips()); // 未被片段引用的缺失素材不阻止预览。
     edit_timeline(
         &mut timeline,
         EditAction::AddClips {
@@ -286,6 +289,7 @@ fn edits_do_not_require_source_media_or_a_playback_backend() -> Result<()> {
             assets: Vec::new(),
         },
     )?;
+    assert!(timeline.has_offline_clips());
     edit_timeline(
         &mut timeline,
         EditAction::MoveClips {
@@ -316,6 +320,15 @@ fn edits_do_not_require_source_media_or_a_playback_backend() -> Result<()> {
         120
     );
     assert_eq!(i64::from(timeline.editing_state.content_duration()), 150);
+    assert!(timeline.has_offline_clips());
+    edit_timeline(
+        &mut timeline,
+        EditAction::RemoveClips {
+            clip_ids: HashSet::from([ulid(10), ulid(11)]),
+            close_track_gaps: false,
+        },
+    )?;
+    assert!(!timeline.has_offline_clips());
     Ok(())
 }
 

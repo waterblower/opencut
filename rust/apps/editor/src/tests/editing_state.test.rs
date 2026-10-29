@@ -6,6 +6,7 @@ use ::timeline::{
 };
 use anyhow::Result;
 use gpui::{point, px};
+use std::path::PathBuf;
 use std::time::Duration;
 use ulid::Ulid;
 
@@ -122,6 +123,28 @@ fn persistence_captures_selected_state() -> Result<()> {
         Some(Ulid::from(2_u128))
     );
     assert!(restored.preview_drop_asset.is_none());
+    let root_path = timeline.path.ancestors().last().unwrap().to_path_buf();
+    let invalid_root =
+        TimelineRuntimeState::from_serialize(timeline.to_serialize(), root_path.clone());
+    let Err(root_error) = invalid_root else {
+        panic!("a root path cannot identify a timeline file");
+    };
+    assert_eq!(
+        root_error.to_string(),
+        "Timeline path has no parent directory"
+    );
+    timeline.offline_asset_ids.insert(Ulid::from(100_u128));
+    assert!(!timeline.has_offline_clips()); // 文本片段不依赖素材文件。
+    let previous_offline_asset_ids = timeline.offline_asset_ids.clone();
+    for invalid_path in [root_path, PathBuf::new()] {
+        timeline.path = invalid_path;
+        let refresh_error = timeline.refresh_offline_asset_ids().unwrap_err();
+        assert_eq!(
+            refresh_error.to_string(),
+            "Timeline path has no parent directory"
+        );
+        assert_eq!(timeline.offline_asset_ids, previous_offline_asset_ids);
+    }
     assert!(
         TimelineRuntimeState::from_serialize(timeline.to_serialize(), "relative.json".into())
             .is_err()

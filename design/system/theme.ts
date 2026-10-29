@@ -17,6 +17,18 @@ export const COLOR = {
   accentSoft: "#f3c47e",
   grey: "#3a3a40",
   error: "#ff8b8b",
+  videoBadgeBorder: "#355b78",
+  videoBadgeText: "#8fb9dd",
+  accentBorder: "#8a652d",
+  activeTimeline: "#211a0f",
+  menu: "#1b1b1e",
+  menuHover: "#34343a",
+  cursorOutline: "#080809",
+  cyberCyan: "#00f0ff",
+  cyberYellow: "#fcee0a",
+  cyberInk: "#0a0a0b",
+  cyberDisabledBorder: "#3a3926",
+  cyberDisabledText: "#57563f",
 } as const;
 
 export type TrackKind = "T" | "V" | "A";

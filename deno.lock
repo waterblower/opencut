@@ -1,0 +1,21 @@
+{
+  "version": "5",
+  "specifiers": {
+    "npm:tailwindcss@4.1.18": "4.1.18"
+  },
+  "npm": {
+    "tailwindcss@4.1.18": {
+      "integrity": "sha512-4+Z+0yiYyEtUVCScyfHCxOYP06L5Ne+JiHhY2IjR2KWMIWhJOYZKLSGZaP5HkZ8+bY0cxfzwDE5uOmzFXyIwxw==",
+      "tarball": "https://registry.npmmirror.com/tailwindcss/-/tailwindcss-4.1.18.tgz"
+    }
+  },
+  "workspace": {
+    "members": {
+      "design": {
+        "dependencies": [
+          "npm:tailwindcss@4.1.18"
+        ]
+      }
+    }
+  }
+}
