@@ -1,10 +1,10 @@
 use crate::editing::validate_clips_placements;
-use crate::timeline::{TimelineEditorExt, TimelineRuntimeState};
+use crate::timeline::{TimelineEditorExt, TimelineRuntimeState, offline_asset_ids};
 use ::timeline::{
-    Clip, FrameRate, MediaAsset, TextBackground, TextClipProperties, TimelineEditingState,
-    TimelineFrameIndex, Track, VideoClipProperties, compact_text_sections,
+    AudioClipProperties, Clip, FrameRate, MediaAsset, TextBackground, TextClipProperties,
+    TimelineEditingState, TimelineFrameIndex, Track, VideoClipProperties, compact_text_sections,
 };
-use anyhow::{Result, anyhow, ensure};
+use anyhow::{Context as _, Result, anyhow, ensure};
 use gpui::{Pixels, Point};
 use std::collections::HashSet;
 use std::path::PathBuf;
@@ -41,6 +41,11 @@ pub(crate) enum EditAction {
     SetVideoProperties {
         clip_ids: Vec<Ulid>,
         properties: VideoClipProperties,
+    },
+    SetVideoClipProperties {
+        clip_ids: Vec<Ulid>,
+        video_properties: VideoClipProperties,
+        audio_properties: AudioClipProperties,
     },
     SetClipMuted {
         clip_id: Ulid,
@@ -516,8 +521,9 @@ pub(crate) fn edit_timeline(
     if outcome.record_history {
         timeline.record_editing_history();
     }
-    timeline.editing_state = outcome.new_state;
     timeline.set_playhead(timeline.playhead());
+    timeline.offline_asset_ids = offline_asset_ids(&timeline.path, &outcome.new_state)?;
+    timeline.editing_state = outcome.new_state;
     Ok(outcome.should_save)
 }
 
@@ -598,6 +604,20 @@ impl TimelineEditExt for TimelineEditingState {
                         && let Some(media) = clip.video_mut()
                     {
                         media.video_properties = properties;
+                    }
+                }
+            }
+            EditAction::SetVideoClipProperties {
+                clip_ids,
+                video_properties,
+                audio_properties,
+            } => {
+                for clip in &mut data.clips {
+                    if clip_ids.contains(&clip.id())
+                        && let Clip::Video(media) = clip
+                    {
+                        media.video_properties = video_properties;
+                        media.audio_properties = audio_properties;
                     }
                 }
             }

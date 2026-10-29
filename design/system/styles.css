@@ -1,0 +1,21 @@
+@theme {
+  --shadow-panel: 0 5px 14px rgb(0 0 0 / 24%);
+  --shadow-popover: 0 6px 20px rgb(0 0 0 / 35%);
+  --shadow-menu: 0 8px 20px rgb(0 0 0 / 55%);
+  --drop-shadow-cyber-cyan: 0 0 5px color-mix(in srgb, var(--color-cyber-cyan) 35%, transparent);
+  --drop-shadow-cyber-yellow: 0 0 6px color-mix(in srgb, var(--color-cyber-yellow) 45%, transparent);
+}
+
+@layer components {
+  .cut-corners {
+    clip-path: polygon(10px 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%, 0 10px);
+  }
+
+  .cut-corners-inset {
+    clip-path: polygon(9.5px 0, 100% 0, 100% calc(100% - 9.5px), calc(100% - 9.5px) 100%, 0 100%, 0 9.5px);
+  }
+
+  .scanlines {
+    background-image: repeating-linear-gradient(0deg, rgb(255 255 255 / 5%) 0 1px, transparent 1px 3px);
+  }
+}

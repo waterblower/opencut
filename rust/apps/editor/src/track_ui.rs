@@ -6,7 +6,9 @@ use crate::explorer_drag::AssetBeingDragged;
 use crate::layout::{TIMELINE_PADDING, TRACK_HEIGHT};
 use crate::model::MediaKind;
 use crate::srt::srt_text_clips;
-use crate::theme::{ACCENT, BORDER, CLIP_BLUE, ERROR, MUTED, SURFACE, SURFACE_HOVER, TEXT};
+use crate::theme::{
+    ACCENT, BORDER, CLIP_BLUE, CLIP_OFFLINE, ERROR, MUTED, SURFACE, SURFACE_HOVER, TEXT,
+};
 use crate::timeline::{PreviewDropAsset, TimelineFrameIndex};
 use crate::timeline_clip::{Clip, text_clip_component};
 use crate::timeline_document::resolve_asset_path;
@@ -378,6 +380,26 @@ impl Editor {
     }
 
     fn timeline_clip(&self, clip: &Clip, cx: &mut Context<Self>) -> gpui::AnyElement {
+        let timeline = self
+            .timeline
+            .as_ref()
+            .expect("timeline clips require an active timeline");
+        if timeline.clip_is_offline(clip) {
+            let asset_id = clip
+                .asset_id()
+                .expect("offline clips reference a media asset");
+            let asset = timeline
+                .editing_state
+                .asset(asset_id)
+                .expect("validated clips reference an existing asset");
+            return self.timeline_clip_frame(
+                clip,
+                CLIP_OFFLINE,
+                offline_clip_content_view(asset.name.clone()).into_any_element(),
+                cx,
+            );
+        }
+
         match clip {
             Clip::Video(_) => self.video_clip(clip, cx),
             Clip::Audio(_) => self.audio_clip(clip, cx),
@@ -503,6 +525,7 @@ impl Editor {
         let clip_id = clip.id();
         let locked = timeline.editing_state.clip_locked(clip_id);
         let selected = timeline.interaction.selected_clip_ids.contains(&clip_id);
+        let offline = timeline.clip_is_offline(clip);
         let moving = timeline
             .interaction
             .clip_move_drag
@@ -530,7 +553,14 @@ impl Editor {
             .overflow_hidden()
             .rounded_md()
             .border_1()
-            .border_color(rgb(if selected { ACCENT } else { color + 0x101010 }))
+            .border_color(if selected {
+                rgb(ACCENT)
+            } else if offline {
+                rgba((ERROR << 8) | 0xb3)
+            } else {
+                rgb(color + 0x101010)
+            })
+            .when(offline, |this| this.border_dashed())
             .bg(rgb(color))
             .opacity(if moving { 0.3 } else { 1.0 })
             .cursor(match timeline.interaction.active_tool {
@@ -557,6 +587,49 @@ impl Editor {
             .children(self.clip_trim_handles(clip_id, cx))
             .into_any_element()
     }
+}
+
+fn offline_clip_content_view(name: String) -> gpui::Div {
+    div()
+        .absolute()
+        .inset_0()
+        .p_2()
+        .flex()
+        .flex_col()
+        .justify_between()
+        .font_weight(gpui::FontWeight::SEMIBOLD)
+        .child(
+            div()
+                .text_size(px(11.0))
+                .text_color(rgb(ERROR))
+                .whitespace_nowrap()
+                .text_ellipsis()
+                .child("Media offline"),
+        )
+        .child(
+            div()
+                .min_w_0()
+                .flex()
+                .items_center()
+                .gap(px(6.0))
+                .child(
+                    gpui::svg()
+                        .path(IconName::Warning.path())
+                        .size(px(14.0))
+                        .flex_shrink_0()
+                        .text_color(rgb(ERROR)),
+                )
+                .child(
+                    div()
+                        .min_w_0()
+                        .flex_1()
+                        .text_xs()
+                        .text_color(rgb(TEXT))
+                        .whitespace_nowrap()
+                        .text_ellipsis()
+                        .child(name),
+                ),
+        )
 }
 
 fn timeline_clip_waveform(

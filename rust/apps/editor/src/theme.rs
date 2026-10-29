@@ -9,3 +9,4 @@ pub(crate) const ACCENT: u32 = 0xf0b75e;
 pub(crate) const ERROR: u32 = 0xff8b8b;
 pub(crate) const LINK: u32 = 0x00f0ff;
 pub(crate) const CLIP_BLUE: u32 = 0x294d75;
+pub(crate) const CLIP_OFFLINE: u32 = 0x2a1a1c;

@@ -19,6 +19,7 @@ doc.md
 /zig/vendor/ffmpeg
 /zig/zig-pkg
 /rust/target
+/design/pages/
 data/
 rust/vendor/ffmpeg*
 /rust/vendor/gstreamer/

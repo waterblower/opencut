@@ -3,10 +3,11 @@ use crate::editor::Editor;
 use crate::event_bus::AppEvent;
 use crate::explorer_file_entry::{is_audio_path, is_video_path};
 use crate::layout::{TIMELINE_PADDING, TRACK_HEADER_WIDTH};
+use crate::model::MediaKind;
 use crate::theme::{BORDER, ERROR, MUTED, TEXT};
 use crate::timeline::TimelineFrameIndex;
 use crate::timeline_clip::Clip;
-use crate::timeline_clip_menu::transform_targets;
+use crate::timeline_clip_menu::clip_property_targets;
 use crate::timeline_document;
 use crate::timeline_document::resolve_asset_path;
 use crate::track::TrackKind;
@@ -295,8 +296,25 @@ impl Editor {
         viewport: gpui::Size<gpui::Pixels>,
         cx: &mut Context<Self>,
     ) -> gpui::AnyElement {
+        // 素材找不到时只能 Relink；其余项禁用
+        let (offline, image) = match self.timeline.as_ref().and_then(|timeline| {
+            let asset_id = timeline.editing_state.clip(menu.clip_id)?.asset_id()?;
+            let image = timeline
+                .editing_state
+                .asset(asset_id)
+                .is_some_and(|asset| asset.kind == MediaKind::Image);
+            Some((timeline.offline_asset_ids.contains(&asset_id), image))
+        }) {
+            Some(media) => media,
+            None => (false, false),
+        };
+        let item_count = match (offline, image) {
+            (true, true) => 2,
+            (true, false) => 3,
+            (false, _) => 2,
+        };
         let width = 292.0;
-        let height = 96.0;
+        let height = 16.0 + 40.0 * item_count as f32;
         let left = menu
             .x
             .clamp(8.0, (f32::from(viewport.width) - width - 8.0).max(8.0));
@@ -306,8 +324,9 @@ impl Editor {
         let enabled = self
             .timeline
             .as_ref()
-            .and_then(|timeline| transform_targets(&timeline.editing_state, menu.clip_id))
-            .is_some_and(|(_, targets)| !targets.is_empty());
+            .and_then(|timeline| clip_property_targets(&timeline.editing_state, menu.clip_id))
+            .is_some_and(|(_, _, targets)| !targets.is_empty())
+            && !offline;
         let clip_id = menu.clip_id;
 
         div()
@@ -343,48 +362,62 @@ impl Editor {
                     .bg(rgb(0x1b1b1e))
                     .shadow_lg()
                     .occlude()
-                    .child(
-                        file_menu_item("Transcribe the Clip", "").on_click(cx.listener(
+                    .when(offline, |this| {
+                        this.child(file_menu_item("Relink Media…", "").on_click(cx.listener(
                             move |editor, _, _, cx| {
                                 editor.dismiss_context_menu();
+                                editor.emit_event(cx, AppEvent::RelinkMediaRequested);
                                 cx.notify();
-                                let Some(timeline) = editor.timeline.as_ref() else {
-                                    return;
-                                };
-                                let state = &timeline.editing_state;
-                                let Some(clip) = state.clip(clip_id) else {
-                                    return;
-                                };
-                                let (Some(asset_id), Some(source_in), Some(source_out)) =
-                                    (clip.asset_id(), clip.source_in(), clip.source_out())
-                                else {
-                                    return;
-                                };
-                                let Some(asset) = state.asset(asset_id) else {
-                                    return;
-                                };
-                                let Some(timeline_directory) = timeline.path.parent() else {
-                                    return;
-                                };
-                                let event = AppEvent::OpenTranscribeWindow {
-                                    audio_source_path: resolve_asset_path(
-                                        timeline_directory,
-                                        &asset.path,
-                                    ),
-                                    clip: Some(ClipRange {
-                                        clip_id,
-                                        start: state.position_at_frame(source_in),
-                                        end: state.position_at_frame(source_out),
-                                    }),
-                                    project_root: editor.project_root.clone(),
-                                };
-                                editor.emit_event(cx, event);
                             },
-                        )),
-                    )
+                        )))
+                    })
+                    .when(offline && !image, |this| {
+                        this.child(disabled_menu_item("Transcribe the Clip"))
+                    })
+                    .when(!offline, |this| {
+                        this.child(
+                            file_menu_item("Transcribe the Clip", "").on_click(cx.listener(
+                                move |editor, _, _, cx| {
+                                    editor.dismiss_context_menu();
+                                    cx.notify();
+                                    let Some(timeline) = editor.timeline.as_ref() else {
+                                        return;
+                                    };
+                                    let state = &timeline.editing_state;
+                                    let Some(clip) = state.clip(clip_id) else {
+                                        return;
+                                    };
+                                    let (Some(asset_id), Some(source_in), Some(source_out)) =
+                                        (clip.asset_id(), clip.source_in(), clip.source_out())
+                                    else {
+                                        return;
+                                    };
+                                    let Some(asset) = state.asset(asset_id) else {
+                                        return;
+                                    };
+                                    let Some(timeline_directory) = timeline.path.parent() else {
+                                        return;
+                                    };
+                                    let event = AppEvent::OpenTranscribeWindow {
+                                        audio_source_path: resolve_asset_path(
+                                            timeline_directory,
+                                            &asset.path,
+                                        ),
+                                        clip: Some(ClipRange {
+                                            clip_id,
+                                            start: state.position_at_frame(source_in),
+                                            end: state.position_at_frame(source_out),
+                                        }),
+                                        project_root: editor.project_root.clone(),
+                                    };
+                                    editor.emit_event(cx, event);
+                                },
+                            )),
+                        )
+                    })
                     .child(
                         div()
-                            .id("apply-transform-to-track-clips")
+                            .id("apply-properties-to-track-clips")
                             .h(px(40.0))
                             .px_3()
                             .flex()
@@ -399,14 +432,11 @@ impl Editor {
                             .when(enabled, |this| {
                                 this.hover(|style| style.bg(rgb(0x34343a)))
                                     .on_click(cx.listener(|editor, _, _, cx| {
-                                        if let Err(error) = editor.apply_transform_to_track_clips()
-                                        {
-                                            log::error!("{error:?}");
-                                        }
+                                        editor.apply_properties_to_track_clips(cx);
                                         cx.notify();
                                     }))
                             })
-                            .child(div().text_sm().child("Apply Transforms to All Other Clips")),
+                            .child(div().text_sm().child("Apply Properties to All Other Clips")),
                     ),
             )
             .into_any_element()
@@ -625,4 +655,17 @@ fn style_source_clip(
     data.clips_on_track(track_id)
         .any(|clip| matches!(clip, Clip::Text(_)) && clip.id() != source.id())
         .then_some(source.id())
+}
+
+fn disabled_menu_item(label: &'static str) -> gpui::Stateful<gpui::Div> {
+    div()
+        .id(label)
+        .h(px(40.0))
+        .px_3()
+        .flex()
+        .items_center()
+        .rounded_md()
+        .cursor(CursorStyle::Arrow)
+        .text_color(rgb(MUTED))
+        .child(div().text_sm().child(label))
 }
