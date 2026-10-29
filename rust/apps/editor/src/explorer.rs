@@ -645,8 +645,9 @@ fn watch_file_tree(project_root: PathBuf, cx: &mut Context<Editor>) -> Task<()> 
                     Some(timeline) => {
                         let previous_offline_asset_ids = timeline.offline_asset_ids.clone();
                         timeline.refresh_offline_asset_ids()?;
+                        // 有 offline clip 时 preview 是 None；文件找回后要重建回 timeline。
                         match &editor.preview.target {
-                            PreviewTarget::Timeline { .. }
+                            PreviewTarget::Timeline { .. } | PreviewTarget::None
                                 if timeline.offline_asset_ids != previous_offline_asset_ids =>
                             {
                                 editor.preview.target =

@@ -515,8 +515,11 @@ async fn handle_app_event(
                 if should_save {
                     timeline.save()?;
                     // 预览播放器持有编辑前的快照；编辑提交后按新状态重建。
+                    // 有 offline clip 时 preview 是 None；relink 之后要重建回 timeline。
                     match editor.preview.target {
-                        PreviewTarget::Timeline { .. } if !track_lock_changed => {
+                        PreviewTarget::Timeline { .. } | PreviewTarget::None
+                            if !track_lock_changed =>
+                        {
                             editor.preview.target =
                                 timeline_preview_target(timeline, &editor.project_root, cx)?;
                         }
