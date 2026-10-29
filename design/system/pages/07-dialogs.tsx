@@ -1,330 +1,80 @@
-import { COLOR } from "../theme.ts";
-import { FontStyle } from "../components/fonts.tsx";
-import type { Markup } from "@design/jsx/jsx-runtime";
+import {
+  Dialog,
+  DialogButton,
+  DialogButtons,
+  DialogField,
+  DialogHeader,
+  DialogOption,
+  DialogTextButton,
+} from "../components/dialog.tsx";
+import type { Child, Markup } from "@design/jsx/jsx-runtime";
 
-export default function Page07DialogsSvg(): Markup {
+const FRAME_RATES = ["23.976 fps", "24 fps", "25 fps", "29.97 fps", "30 fps", "50 fps", "59.94 fps", "60 fps"];
+
+export default function DialogsPage(): Markup {
   return (
-    <svg xmlns="http://www.w3.org/2000/svg" width="1080" height="922" viewBox="0 0 1080 922">
-      <FontStyle />
-      <defs>
-        <filter id="shadow" x="-20%" y="-20%" width="140%" height="160%">
-          <feDropShadow dx="0" dy="8" stdDeviation="10" flood-color="#000" flood-opacity="0.55" />
-        </filter>
-      </defs>
-      <g transform="translate(-440 -324)">
-        <rect
-          fill={COLOR.panel}
-          stroke={COLOR.border}
-          x="480.5"
-          y="364.5"
-          width="479"
-          height="227"
-          rx="12"
-          stroke-width="1"
-          filter="url(#shadow)"
-        />
-        <text fill={COLOR.text} class="s" x="500" y="403.48" font-size="18" font-weight="600">
-          {"New timeline"}
-        </text>
-        <text fill={COLOR.muted} class="s" x="500" y="441.04" font-size="14">
-          {"In timelines · saved as .timeline (JSON)"}
-        </text>
-        <rect
-          fill={COLOR.surface}
-          stroke={COLOR.border}
-          x="500.5"
-          y="462.5"
-          width="439"
-          height="53"
-          rx="8"
-          stroke-width="1"
-        />
-        <text fill={COLOR.text} class="m" x="516" y="494.76" font-size="16">{"final-cut"}</text>
-        <rect fill={COLOR.accent} x="603.4" y="479" width="1.5" height="20" />
-        <rect
-          fill={COLOR.accent}
-          stroke={COLOR.accent}
-          x="861.78"
-          y="532.5"
-          width="77.72"
-          height="39"
-          rx="8"
-          stroke-width="1"
-        />
-        <text class="s" x="900.64" y="557.76" font-size="16" fill="#17120a" text-anchor="middle">
-          {"Create"}
-        </text>
-        <rect
-          fill={COLOR.surface}
-          stroke={COLOR.border}
-          x="772.66"
-          y="532.5"
-          width="80.12"
-          height="39"
-          rx="8"
-          stroke-width="1"
-        />
-        <text fill={COLOR.text} class="s" x="812.72" y="557.76" font-size="16" text-anchor="middle">
-          {"Cancel"}
-        </text>
-      </g>
-      <g transform="translate(80 -342)">
-        <rect
-          fill={COLOR.panel}
-          stroke={COLOR.border}
-          x="480.5"
-          y="382.5"
-          width="479"
-          height="191"
-          rx="12"
-          stroke-width="1"
-          filter="url(#shadow)"
-        />
-        <text fill={COLOR.text} class="s" x="500" y="421.48" font-size="18" font-weight="600">
-          {"Rename broll-street.mov"}
-        </text>
-        <rect
-          fill={COLOR.surface}
-          stroke={COLOR.border}
-          x="500.5"
-          y="444.5"
-          width="439"
-          height="53"
-          rx="8"
-          stroke-width="1"
-        />
-        <text fill={COLOR.text} class="m" x="516" y="476.76" font-size="16">{"broll-old-town.mov"}</text>
-        <rect fill={COLOR.accent} x="689.8" y="461" width="1.5" height="20" />
-        <rect
-          fill={COLOR.accent}
-          stroke={COLOR.accent}
-          x="850.1"
-          y="514.5"
-          width="89.4"
-          height="39"
-          rx="8"
-          stroke-width="1"
-        />
-        <text class="s" x="894.8" y="539.76" font-size="16" fill="#17120a" text-anchor="middle">
-          {"Rename"}
-        </text>
-        <rect
-          fill={COLOR.surface}
-          stroke={COLOR.border}
-          x="760.98"
-          y="514.5"
-          width="80.12"
-          height="39"
-          rx="8"
-          stroke-width="1"
-        />
-        <text fill={COLOR.text} class="s" x="801.04" y="539.76" font-size="16" text-anchor="middle">
-          {"Cancel"}
-        </text>
-      </g>
-      <g transform="translate(-450 19)">
-        <rect
-          fill={COLOR.panel}
-          stroke={COLOR.border}
-          x="490.5"
-          y="289.5"
-          width="459"
-          height="377"
-          rx="12"
-          stroke-width="1"
-          filter="url(#shadow)"
-        />
-        <rect fill={COLOR.border} x="491" y="346" width="458" height="1" />
-        <text fill={COLOR.text} class="s" x="510" y="324.48" font-size="18" font-weight="600">
-          {"Timeline Settings"}
-        </text>
-        <rect fill={COLOR.hover} x="898" y="302" width="32" height="32" rx="6" />
-        <text fill={COLOR.text} class="s" x="914" y="323.76" font-size="16" text-anchor="middle">{"×"}</text>
-        <text fill={COLOR.muted} class="s" x="510" y="379" font-size="12" font-weight="600">
-          {"TIMELINE FRAME RATE"}
-        </text>
-        <rect
-          fill={COLOR.surface}
-          stroke={COLOR.border}
-          x="510.5"
-          y="399.5"
-          width="205"
-          height="43"
-          rx="8"
-          stroke-width="1"
-        />
-        <text fill={COLOR.text} class="s" x="522" y="426.76" font-size="16">{"23.976 fps"}</text>
-        <circle fill={COLOR.rail} cx="700.0" cy="421.0" r="4" />
-        <rect
-          fill={COLOR.surface}
-          stroke={COLOR.border}
-          x="724.5"
-          y="399.5"
-          width="205"
-          height="43"
-          rx="8"
-          stroke-width="1"
-        />
-        <text fill={COLOR.text} class="s" x="736" y="426.76" font-size="16">{"24 fps"}</text>
-        <circle fill={COLOR.rail} cx="914.0" cy="421.0" r="4" />
-        <rect
-          fill={COLOR.surface}
-          stroke={COLOR.border}
-          x="510.5"
-          y="451.5"
-          width="205"
-          height="43"
-          rx="8"
-          stroke-width="1"
-        />
-        <text fill={COLOR.text} class="s" x="522" y="478.76" font-size="16">{"25 fps"}</text>
-        <circle fill={COLOR.rail} cx="700.0" cy="473.0" r="4" />
-        <rect
-          fill={COLOR.surface}
-          stroke={COLOR.border}
-          x="724.5"
-          y="451.5"
-          width="205"
-          height="43"
-          rx="8"
-          stroke-width="1"
-        />
-        <text fill={COLOR.text} class="s" x="736" y="478.76" font-size="16">{"29.97 fps"}</text>
-        <circle fill={COLOR.rail} cx="914.0" cy="473.0" r="4" />
-        <rect
-          fill={COLOR.accentBackground}
-          stroke={COLOR.accent}
-          x="510.5"
-          y="503.5"
-          width="205"
-          height="43"
-          rx="8"
-          stroke-width="1"
-        />
-        <text fill={COLOR.text} class="s" x="522" y="530.76" font-size="16">{"30 fps"}</text>
-        <circle fill={COLOR.accent} cx="700.0" cy="525.0" r="4" />
-        <rect
-          fill={COLOR.surface}
-          stroke={COLOR.border}
-          x="724.5"
-          y="503.5"
-          width="205"
-          height="43"
-          rx="8"
-          stroke-width="1"
-        />
-        <text fill={COLOR.text} class="s" x="736" y="530.76" font-size="16">{"50 fps"}</text>
-        <circle fill={COLOR.rail} cx="914.0" cy="525.0" r="4" />
-        <rect
-          fill={COLOR.surface}
-          stroke={COLOR.border}
-          x="510.5"
-          y="555.5"
-          width="205"
-          height="43"
-          rx="8"
-          stroke-width="1"
-        />
-        <text fill={COLOR.text} class="s" x="522" y="582.76" font-size="16">{"59.94 fps"}</text>
-        <circle fill={COLOR.rail} cx="700.0" cy="577.0" r="4" />
-        <rect
-          fill={COLOR.surface}
-          stroke={COLOR.border}
-          x="724.5"
-          y="555.5"
-          width="205"
-          height="43"
-          rx="8"
-          stroke-width="1"
-        />
-        <text fill={COLOR.text} class="s" x="736" y="582.76" font-size="16">{"60 fps"}</text>
-        <circle fill={COLOR.rail} cx="914.0" cy="577.0" r="4" />
-        <text fill={COLOR.muted} class="s" x="510" y="627" font-size="12">
-          {"Existing edit points keep their elapsed time and snap to the nearest"}
-        </text>
-        <text fill={COLOR.muted} class="s" x="510" y="643" font-size="12">{"frame in the new rate."}</text>
-      </g>
-      <g transform="translate(70 -35)">
-        <rect
-          fill={COLOR.panel}
-          stroke={COLOR.border}
-          x="490.5"
-          y="343.5"
-          width="459"
-          height="269"
-          rx="12"
-          stroke-width="1"
-          filter="url(#shadow)"
-        />
-        <text fill={COLOR.text} class="s" x="510" y="381.48" font-size="18">{"Settings"}</text>
-        <text fill={COLOR.text} class="s" x="510" y="418.04" font-size="14">{"MiniMax API key"}</text>
-        <rect
-          fill={COLOR.surface}
-          stroke={COLOR.border}
-          x="510.5"
-          y="439.5"
-          width="419"
-          height="53"
-          rx="8"
-          stroke-width="1"
-        />
-        <rect x="526" y="455" width="220.8" height="22" fill="#3a5a8c" opacity="0.9" />
-        <text fill={COLOR.text} class="m" x="526" y="471.76" font-size="16">{"•••••••••••••••••••••••"}</text>
-        <text fill={COLOR.muted} class="s" x="510" y="521" font-size="12">
-          {"Saved in global settings for all projects. Used to send audio to MiniMax"}
-        </text>
-        <text fill={COLOR.muted} class="s" x="510" y="537" font-size="12">{"for SRT generation."}</text>
-        <rect fill={COLOR.surface} x="869.84" y="557" width="60.16" height="36" rx="6" />
-        <text fill={COLOR.text} class="s" x="899.92" y="580.76" font-size="16" text-anchor="middle">
-          {"Save"}
-        </text>
-        <rect fill={COLOR.surface} x="788.72" y="557" width="73.12" height="36" rx="6" />
-        <text fill={COLOR.text} class="s" x="825.28" y="580.76" font-size="16" text-anchor="middle">
-          {"Cancel"}
-        </text>
-      </g>
-      <g>
-        <rect
-          fill={COLOR.panel}
-          stroke={COLOR.border}
-          x="40.5"
-          y="746.5"
-          width="479"
-          height="135"
-          rx="12"
-          stroke-width="1"
-          filter="url(#shadow)"
-        />
-        <text fill={COLOR.text} class="s" x="60" y="785.48" font-size="18" font-weight="600">
-          {"Move 测试.timeline to Trash?"}
-        </text>
-        <rect
-          fill={COLOR.accent}
-          stroke={COLOR.accent}
-          x="361.5"
-          y="822.5"
-          width="138"
-          height="39"
-          rx="8"
-          stroke-width="1"
-        />
-        <text class="s" x="430.5" y="847.76" font-size="16" fill="#17120a" text-anchor="middle">
-          {"Move to Trash"}
-        </text>
-        <rect
-          fill={COLOR.surface}
-          stroke={COLOR.border}
-          x="272.38"
-          y="822.5"
-          width="80.12"
-          height="39"
-          rx="8"
-          stroke-width="1"
-        />
-        <text fill={COLOR.text} class="s" x="312.44" y="847.76" font-size="16" text-anchor="middle">
-          {"Cancel"}
-        </text>
-      </g>
-    </svg>
+    <main class="relative h-[922px] w-[1080px] bg-[#f4f4f6] font-sans">
+      <At left={40} top={40}>
+        <Dialog width={480} title="New timeline">
+          <p class="mt-[23px] text-sm leading-none text-muted">In timelines · saved as .timeline (JSON)</p>
+          <DialogField class="mt-[19px]" value="final-cut" />
+          <DialogButtons class="mt-4">
+            <DialogButton label="Cancel" />
+            <DialogButton label="Create" primary />
+          </DialogButtons>
+        </Dialog>
+      </At>
+      <At left={560} top={40}>
+        <Dialog width={480} title="Rename broll-street.mov">
+          <DialogField class="mt-5" value="broll-old-town.mov" />
+          <DialogButtons class="mt-4">
+            <DialogButton label="Cancel" />
+            <DialogButton label="Rename" primary />
+          </DialogButtons>
+        </Dialog>
+      </At>
+      <At left={40} top={308}>
+        <section
+          role="dialog"
+          class="w-[460px] rounded-xl border border-border bg-panel pb-[19px] text-text shadow-menu"
+        >
+          <DialogHeader title="Timeline Settings" />
+          <div class="px-[19px]">
+            <p class="mt-[22px] text-xs leading-none font-semibold text-muted">TIMELINE FRAME RATE</p>
+            <div class="mt-[18px] grid grid-cols-2 gap-2">
+              {FRAME_RATES.map((rate) => <DialogOption label={rate} selected={rate === "30 fps"} />)}
+            </div>
+            <p class="mt-4 text-xs leading-4 text-muted">
+              Existing edit points keep their elapsed time and snap to the nearest frame in the new rate.
+            </p>
+          </div>
+        </section>
+      </At>
+      <At left={560} top={308}>
+        <Dialog width={460} title="Settings" plainTitle>
+          <p class="mt-[22px] text-sm leading-none">MiniMax API key</p>
+          <DialogField class="mt-[19px]" value="•••••••••••••••••••••••" selected />
+          <p class="mt-4 text-xs leading-4 text-muted">
+            Saved in global settings for all projects. Used to send audio to MiniMax for SRT generation.
+          </p>
+          <DialogButtons class="mt-4">
+            <DialogTextButton label="Cancel" />
+            <DialogTextButton label="Save" />
+          </DialogButtons>
+        </Dialog>
+      </At>
+      <At left={40} top={746}>
+        <Dialog width={480} title="Move 测试.timeline to Trash?">
+          <DialogButtons class="mt-[34px]">
+            <DialogButton label="Cancel" />
+            <DialogButton label="Move to Trash" primary />
+          </DialogButtons>
+        </Dialog>
+      </At>
+    </main>
   );
+}
+
+function At(props: { left: number; top: number; children: Child }): Markup {
+  return <div class="absolute" style={`left:${props.left}px;top:${props.top}px`}>{props.children}</div>;
 }

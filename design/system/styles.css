@@ -19,3 +19,31 @@
     background-image: repeating-linear-gradient(0deg, rgb(255 255 255 / 5%) 0 1px, transparent 1px 3px);
   }
 }
+
+/* Diagonal stripes, the same 8px tile the old drawings used. `--hx` and `--hy` shift the tile
+   so stripes line up across neighbouring elements. */
+@layer components {
+  .hatch-rejected,
+  .hatch-lock-row,
+  .hatch-lock-clip,
+  .hatch-panel-lock {
+    background-position: var(--hx, 0) var(--hy, 0);
+    background-size: 8px 8px;
+  }
+
+  .hatch-rejected {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='8'%3E%3Cpath d='M-2 2L2 -2M0 8L8 0M6 10L10 6' stroke='%23ff8b8b' stroke-opacity='.22' stroke-width='1'/%3E%3C/svg%3E");
+  }
+
+  .hatch-panel-lock {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='8'%3E%3Cpath d='M-2 2L2 -2M0 8L8 0M6 10L10 6' stroke='%23676773' stroke-width='2'/%3E%3C/svg%3E");
+  }
+
+  .hatch-lock-row {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='8'%3E%3Cpath d='M-2 2L2 -2M0 8L8 0M6 10L10 6' stroke='%23fff' stroke-opacity='.06' stroke-width='1'/%3E%3C/svg%3E");
+  }
+
+  .hatch-lock-clip {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='8'%3E%3Cpath d='M-2 2L2 -2M0 8L8 0M6 10L10 6' stroke='%23fff' stroke-opacity='.16' stroke-width='1'/%3E%3C/svg%3E");
+  }
+}
