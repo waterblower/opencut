@@ -31,7 +31,9 @@ use crate::{OpenProject, open_editor_window, quit_after_last_window};
 use anyhow::{Context as _, Result, anyhow, bail};
 use engine::export::{ExportCompletion, ExportControl, ExportOption, export_timeline};
 use gpui::prelude::*;
-use gpui::{AsyncApp, Bounds, Entity, EventEmitter, MouseMoveEvent, Pixels, WeakEntity};
+use gpui::{
+    AsyncApp, Bounds, Entity, EventEmitter, MouseMoveEvent, PathPromptOptions, Pixels, WeakEntity,
+};
 use player_ui::Seeker;
 use player_ui::timeline_player::TimelinePlayer;
 use std::collections::HashSet;
@@ -403,7 +405,41 @@ async fn handle_app_event(
             })?;
         }
         AppEvent::RelinkMediaFileChosen { asset_id } => {
-            log::info!("Relink media chosen for asset {asset_id}");
+            let selection = cx.update(|cx| {
+                cx.prompt_for_paths(PathPromptOptions {
+                    files: true,
+                    directories: false,
+                    multiple: false,
+                    prompt: Some("Relink media".into()),
+                })
+            });
+            let media_path = match selection.await {
+                Ok(Ok(Some(paths))) => paths.into_iter().next(),
+                Ok(Ok(None)) => None, // 用户取消
+                Ok(Err(error)) => return Err(error.context("choosing a file to relink")),
+                Err(error) => return Err(anyhow!("file picker closed unexpectedly: {error}")),
+            };
+            let Some(media_path) = media_path else {
+                return Ok(());
+            };
+            editor.update(cx, |editor, cx| -> Result<()> {
+                let timeline = editor
+                    .timeline
+                    .as_ref()
+                    .context("Relink media needs an open timeline")?;
+                let timeline_directory = timeline
+                    .path
+                    .parent()
+                    .context("Timeline path has no parent directory")?;
+                let path = relative_asset_path(timeline_directory, &media_path);
+                editor.emit_event(
+                    cx,
+                    AppEvent::Edit(EditAction::UpdateAssetPaths {
+                        paths: vec![(asset_id, path)],
+                    }),
+                );
+                Ok(())
+            })?;
         }
         AppEvent::MissingMediaDialogClosed => {
             editor.update(cx, |editor, cx| {
@@ -491,6 +527,19 @@ async fn handle_app_event(
                 }
                 // Undo, redo and other edits can change what the property panel shows.
                 editor.property_panel = current_property_panel(editor);
+                // Relinking and undo can change which files are missing.
+                match (&editor.missing_media_dialog, editor.timeline.as_ref()) {
+                    (Some(_), Some(timeline)) => {
+                        let dialog = missing_media_dialog(timeline);
+                        editor.missing_media_dialog = match dialog.files.is_empty() {
+                            true => None,
+                            false => Some(dialog),
+                        };
+                    }
+                    _ => {
+                        // do nothing
+                    }
+                }
                 cx.notify();
                 Ok(())
             })?;
