@@ -313,7 +313,12 @@ impl Editor {
                     .map(|asset| resolve_asset_path(timeline_directory, &asset.path)),
             );
         }
-        self.schedule_waveforms(paths, cx);
+        self.emit_event(
+            cx,
+            AppEvent::WaveformsGeneration {
+                paths: paths.into_iter().collect(),
+            },
+        );
     }
 
     pub(super) fn schedule_active_timeline_waveforms(&mut self, cx: &mut Context<Self>) {
@@ -336,26 +341,7 @@ impl Editor {
             .filter(|asset| asset.has_audio && referenced_assets.contains(&asset.id))
             .map(|asset| resolve_asset_path(timeline_directory, &asset.path))
             .collect::<Vec<_>>();
-        self.schedule_waveforms(paths, cx);
-    }
-
-    fn schedule_waveforms(
-        &mut self,
-        paths: impl IntoIterator<Item = PathBuf>,
-        cx: &mut Context<Self>,
-    ) {
-        let mut paths = paths
-            .into_iter()
-            .filter(|path| {
-                !self.waveform_cache.contains_key(path) && !self.waveform_jobs.contains(path)
-            })
-            .collect::<Vec<_>>();
-        if paths.is_empty() {
-            return;
-        }
-        paths.sort();
-        self.waveform_jobs.extend(paths.iter().cloned());
-        self.emit_event(cx, AppEvent::WaveformsNeeded { paths });
+        self.emit_event(cx, AppEvent::WaveformsGeneration { paths });
     }
 }
 

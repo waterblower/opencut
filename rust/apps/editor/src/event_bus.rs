@@ -109,7 +109,7 @@ pub(crate) enum AppEvent {
     SrtFileSelected {
         path: PathBuf, // 相对于项目根目录
     },
-    WaveformsNeeded {
+    WaveformsGeneration {
         paths: Vec<PathBuf>, // 素材的绝对路径
     },
 }
@@ -464,8 +464,22 @@ async fn handle_app_event(
                 cx,
             )?;
         }
-        AppEvent::WaveformsNeeded { paths } => {
-            for media_path in paths {
+        AppEvent::WaveformsGeneration { paths } => {
+            // 跳过已缓存或正在生成的素材，其余记为生成中。
+            let new_paths = editor.update(cx, |editor, _| {
+                let mut new_paths = paths
+                    .into_iter()
+                    .filter(|path| {
+                        !editor.waveform_cache.contains_key(path)
+                            && !editor.waveform_jobs.contains(path)
+                    })
+                    .collect::<Vec<_>>();
+                new_paths.sort();
+                new_paths.dedup();
+                editor.waveform_jobs.extend(new_paths.iter().cloned());
+                new_paths
+            });
+            for media_path in new_paths {
                 let source = media_path.clone();
                 let result = cx
                     .background_executor()
