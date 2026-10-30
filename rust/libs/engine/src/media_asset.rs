@@ -1,25 +1,56 @@
-use crate::explorer_file_entry::{is_audio_path, is_image_path, is_video_path};
-use crate::model::{DEFAULT_IMAGE_CLIP_DURATION, MediaAsset, MediaKind};
-use crate::timeline::FrameRate;
+//! Reads a media file into a `MediaAsset`: its kind, duration, size, frame rate and codec.
 use anyhow::{Context as _, Result, bail};
 use ffmpeg::media::Type;
 use ffmpeg::{codec, format};
 use ffmpeg_next as ffmpeg;
 use std::fs;
 use std::path::Path;
+use timeline::{FrameRate, MediaAsset, MediaKind};
 use ulid::Ulid;
 
-pub(super) fn probe_asset(path: &Path) -> Result<MediaAsset> {
-    let asset = if is_image_path(path) {
-        probe_image(path, Ulid::from(0))
+pub fn probe_media_asset(path: &Path, image_duration: f64) -> Result<MediaAsset> {
+    if is_image_path(path) {
+        probe_image(path, Ulid::from(0), image_duration)
     } else if is_audio_path(path) {
         probe_audio(path, Ulid::from(0))
     } else if is_video_path(path) {
         probe_video(path, Ulid::from(0))
     } else {
         bail!("unsupported media file: {}", path.display());
-    }?;
-    Ok(asset)
+    }
+}
+
+pub fn is_image_path(path: &Path) -> bool {
+    path.extension()
+        .and_then(|extension| extension.to_str())
+        .is_some_and(|extension| {
+            matches!(
+                extension.to_ascii_lowercase().as_str(),
+                "jpg" | "jpeg" | "png" | "gif" | "webp" | "bmp" | "ico"
+            )
+        })
+}
+
+pub fn is_video_path(path: &Path) -> bool {
+    path.extension()
+        .and_then(|extension| extension.to_str())
+        .is_some_and(|extension| {
+            matches!(
+                extension.to_ascii_lowercase().as_str(),
+                "mp4" | "mov" | "m4v" | "mkv" | "webm" | "avi"
+            )
+        })
+}
+
+pub fn is_audio_path(path: &Path) -> bool {
+    path.extension()
+        .and_then(|extension| extension.to_str())
+        .is_some_and(|extension| {
+            matches!(
+                extension.to_ascii_lowercase().as_str(),
+                "aac" | "flac" | "m4a" | "mp3" | "ogg" | "wav"
+            )
+        })
 }
 
 fn probe_video(path: &Path, id: Ulid) -> Result<MediaAsset> {
@@ -60,8 +91,8 @@ fn probe_video(path: &Path, id: Ulid) -> Result<MediaAsset> {
     })
 }
 
-fn probe_image(path: &Path, id: Ulid) -> Result<MediaAsset> {
-    let (width, height) = image::image_dimensions(path)
+fn probe_image(path: &Path, id: Ulid, duration: f64) -> Result<MediaAsset> {
+    let (width, height) = ::image::image_dimensions(path)
         .with_context(|| format!("could not inspect {}", path.display()))?;
     let codec = path
         .extension()
@@ -74,7 +105,7 @@ fn probe_image(path: &Path, id: Ulid) -> Result<MediaAsset> {
         kind: MediaKind::Image,
         path: canonical_path(path),
         name: media_name(path),
-        duration: DEFAULT_IMAGE_CLIP_DURATION,
+        duration,
         width,
         height,
         framerate: 0.0,

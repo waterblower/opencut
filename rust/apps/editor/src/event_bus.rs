@@ -8,8 +8,7 @@ use crate::explorer_file_entry::select_preview_file;
 use crate::export_window::{ExportState, ExportWindow};
 use crate::global_settings::GlobalEditorSettings;
 use crate::layout::{RULER_HEIGHT, TIMELINE_PADDING, TRACK_HEIGHT, track_index_at_y};
-use crate::media_probe::probe_asset;
-use crate::model::{MediaAsset, MediaKind};
+use crate::model::{DEFAULT_IMAGE_CLIP_DURATION, MediaAsset, MediaKind};
 use crate::preview::{PreviewTarget, timeline_preview_target};
 use crate::preview_events::PreviewEvent;
 
@@ -27,10 +26,11 @@ use crate::track::TrackKind;
 use crate::transcription_window;
 use crate::transcription_window::{ClipRange, TranscriptionStage, TranscriptionWindow};
 use crate::ui_components::{HorizontalSplitState, VerticalSplitState};
-use ::waveform::generate_waveform;
 use crate::{OpenProject, open_editor_window, quit_after_last_window};
+use ::waveform::generate_waveform;
 use anyhow::{Context as _, Result, anyhow, bail};
 use engine::export::{ExportCompletion, ExportControl, ExportOption, export_timeline};
+use engine::media_asset::probe_media_asset;
 use gpui::prelude::*;
 use gpui::{
     AsyncApp, Bounds, Entity, EventEmitter, MouseMoveEvent, PathPromptOptions, Pixels, WeakEntity,
@@ -173,7 +173,7 @@ pub(crate) async fn handle_event(
         } => {
             let audio_duration = match clip {
                 Some(range) => range.end.saturating_sub(range.start).as_secs_f64(),
-                None => match probe_asset(&source_path) {
+                None => match probe_media_asset(&source_path, DEFAULT_IMAGE_CLIP_DURATION) {
                     Ok(asset) => asset.duration,
                     Err(error) => {
                         log::error!("Could not open transcription window: {error:?}");

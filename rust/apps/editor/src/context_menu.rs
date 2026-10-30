@@ -1,7 +1,6 @@
 use crate::edit_action::EditAction;
 use crate::editor::Editor;
 use crate::event_bus::AppEvent;
-use crate::explorer_file_entry::{is_audio_path, is_video_path};
 use crate::layout::{TIMELINE_PADDING, TRACK_HEADER_WIDTH};
 use crate::model::MediaKind;
 use crate::theme::{BORDER, ERROR, MUTED, TEXT};
@@ -13,6 +12,7 @@ use crate::timeline_document::resolve_asset_path;
 use crate::track::TrackKind;
 use crate::transcription_window::ClipRange;
 use ::timeline::TimelineEditingState;
+use engine::media_asset::{is_audio_path, is_video_path};
 use gpui::prelude::*;
 use gpui::{CursorStyle, MouseButton, MouseDownEvent, div, px, rgb};
 use std::path::PathBuf;

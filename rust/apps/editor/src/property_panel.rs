@@ -2,7 +2,7 @@ use crate::asset::IconName;
 use crate::edit_action::{EditAction, MAX_CLIP_GAIN_DB, MIN_CLIP_GAIN_DB};
 use crate::editor::Editor;
 use crate::event_bus::{AppEvent, EventBus};
-use crate::explorer_file_entry::{is_audio_path, is_image_path, is_srt_path, is_video_path};
+use crate::explorer_file_entry::is_srt_path;
 use crate::property_panel_audio_clip::{AudioClipPanel, audio_clip_panel, audio_clip_view};
 use crate::property_panel_audio_file::{AudioFilePanel, audio_file_view};
 use crate::property_panel_empty::empty_panel_view;
@@ -19,6 +19,7 @@ use crate::timeline_clip::{AudioClipProperties, Clip};
 use crate::timeline_document;
 use crate::track::TrackKind;
 use crate::ui_components::text_input_v2::{InputConstraint, TextInputV2};
+use engine::media_asset::{is_audio_path, is_image_path, is_video_path};
 use gpui::prelude::FluentBuilder;
 use gpui::{
     App, AppContext, Bounds, ContentMask, ElementId, Entity, FocusHandle, Focusable, FontWeight,
