@@ -317,17 +317,18 @@ impl Editor {
         cx: &mut Context<Self>,
     ) -> gpui::AnyElement {
         // 素材找不到时只能 Relink；其余项禁用
-        let (offline, image) = match self.timeline.as_ref().and_then(|timeline| {
-            let asset_id = timeline.editing_state.clip(menu.clip_id)?.asset_id()?;
-            let image = timeline
-                .editing_state
-                .asset(asset_id)
-                .is_some_and(|asset| matches!(asset, timeline::Asset::Image(_)));
-            Some((timeline.offline_asset_ids.contains(&asset_id), image))
-        }) {
-            Some(media) => media,
-            None => (false, false),
-        };
+        let (offline, image) = self
+            .timeline
+            .as_ref()
+            .and_then(|timeline| {
+                let asset_id = timeline.editing_state.clip(menu.clip_id)?.asset_id()?;
+                let image = timeline
+                    .editing_state
+                    .asset(asset_id)
+                    .is_some_and(|asset| matches!(asset, timeline::Asset::Image(_)));
+                Some((timeline.offline_asset_ids.contains(&asset_id), image))
+            })
+            .unwrap_or_default();
         let item_count = match (offline, image) {
             (true, true) => 2,
             (true, false) => 3,
@@ -421,7 +422,7 @@ impl Editor {
                                     let event = AppEvent::OpenTranscribeWindow {
                                         audio_source_path: resolve_asset_path(
                                             timeline_directory,
-                                            &asset.path(),
+                                            asset.path(),
                                         ),
                                         clip: Some(ClipRange {
                                             clip_id,

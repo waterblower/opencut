@@ -58,14 +58,14 @@ pub(crate) fn edit(command: TimelineCommand) -> Result<Value> {
     };
     if input_directory != output_directory {
         for asset in &mut compacted.assets {
-            if asset.path.is_absolute() {
+            if asset.path().is_absolute() {
                 continue;
             }
-            let absolute = input_directory.join(&asset.path);
+            let absolute = input_directory.join(asset.path());
             let base = output_directory.components().collect::<Vec<_>>();
             let target = absolute.components().collect::<Vec<_>>();
             if base.first() != target.first() {
-                asset.path = absolute;
+                asset.set_path(absolute);
                 continue;
             }
             let shared = base
@@ -80,7 +80,7 @@ pub(crate) fn edit(command: TimelineCommand) -> Result<Value> {
             for component in &target[shared..] {
                 relative.push(component);
             }
-            asset.path = relative;
+            asset.set_path(relative);
         }
     }
     let after_frames = compacted.content_duration();

@@ -607,7 +607,7 @@ impl EntityInputHandler for TextInput {
         self.content = format!(
             "{}{}{}",
             &self.content[..range.start],
-            &new_text,
+            new_text,
             &self.content[range.end..]
         )
         .into();
@@ -636,7 +636,7 @@ impl EntityInputHandler for TextInput {
         self.content = format!(
             "{}{}{}",
             &self.content[..range.start],
-            &new_text,
+            new_text,
             &self.content[range.end..]
         )
         .into();

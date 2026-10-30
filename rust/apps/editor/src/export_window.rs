@@ -114,7 +114,7 @@ impl ExportWindow {
         cx.spawn(async move |view, cx| {
             let selection_result = selection.await;
             let _ = view.update(cx, |view, cx| {
-                let result = (|| -> anyhow::Result<Option<PathBuf>> { Ok(selection_result??) })();
+                let result = (|| -> anyhow::Result<Option<PathBuf>> { selection_result? })();
                 match result {
                     Ok(Some(path)) => {
                         let control = Arc::new(ExportControl::default());

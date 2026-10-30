@@ -317,8 +317,7 @@ impl Resampler {
         let mut pointer = pcm.as_mut_ptr().cast::<u8>();
         // SAFETY: interleaved f32 output capacity covers capacity sample frames;
         // input planes belong to the borrowed native frame and are never mutated.
-        let written =
-            unsafe { ffi::swr_convert(self.context, &mut pointer, capacity, data, samples) };
+        let written = unsafe { ffi::swr_convert(self.context, &pointer, capacity, data, samples) };
         if written < 0 {
             return Err(FfmpegError::from(written)).context("resampling audio");
         }

@@ -6,7 +6,7 @@ use crate::timeline_decoder::{TimelineDecoder, TimelineFrameComposition};
 use anyhow::{Context as _, Result, bail};
 use std::{
     path::{Path, PathBuf},
-    sync::Arc,
+    rc::Rc,
     time::{Duration, Instant},
 };
 use timeline::{FrameRate, TimelineEditingState, TimelineFrameIndex};
@@ -18,7 +18,7 @@ pub struct TimelineBackend {
     timeline: TimelineEditingState,
     timeline_directory: PathBuf,
     decoder: TimelineDecoder,
-    displayed: Arc<TimelineFrameComposition>,    // 当前展示的合成帧；图像在准备时转换，渲染时不解码。
+    displayed: Rc<TimelineFrameComposition>,    // 当前展示的合成帧；图像在准备时转换，渲染时不解码。
     clock: PlaybackClock,
     playing: bool,
 }
@@ -68,7 +68,7 @@ impl TimelineBackend {
             timeline,
             timeline_directory: timeline_directory.to_owned(),
             decoder,
-            displayed: Arc::new(frame),
+            displayed: Rc::new(frame),
             clock: PlaybackClock {
                 start_position: Duration::ZERO,
                 start_time: None,
@@ -208,8 +208,8 @@ impl TimelineBackend {
     }
 
     /// The displayed frame. Older snapshots remain valid after seeking or dropping this backend.
-    pub fn preview_frame(&self) -> Arc<TimelineFrameComposition> {
-        Arc::clone(&self.displayed)
+    pub fn preview_frame(&self) -> Rc<TimelineFrameComposition> {
+        Rc::clone(&self.displayed)
     }
 
     fn last_frame(&self) -> TimelineFrameIndex {
@@ -218,7 +218,7 @@ impl TimelineBackend {
     }
 
     fn show(&mut self, frame: TimelineFrameComposition) {
-        self.displayed = Arc::new(frame);
+        self.displayed = Rc::new(frame);
     }
 }
 

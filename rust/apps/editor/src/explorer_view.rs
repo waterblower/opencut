@@ -85,7 +85,7 @@ impl Editor {
                 .collect::<Vec<_>>()
         };
 
-        let d = div()
+        div()
             .id("editor-media-panel")
             .w_full()
             .h_full()
@@ -123,7 +123,6 @@ impl Editor {
                             .children(entries),
                     ),
             )
-            .into_any_element();
-        return d;
+            .into_any_element()
     }
 }

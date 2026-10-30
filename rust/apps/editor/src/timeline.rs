@@ -236,12 +236,11 @@ impl TimelineEditorExt for TimelineEditingState {
             {
                 cursor += 1;
             }
-            if let Some(&(other_track, other_start, other_end)) = existing.get(cursor) {
-                if other_track == track_id
-                    && timeline_ranges_overlap(start, end, other_start, other_end)
-                {
-                    return Err(ClipPlacementRejection::ExistingClipOverlap.into());
-                }
+            if let Some(&(other_track, other_start, other_end)) = existing.get(cursor)
+                && other_track == track_id
+                && timeline_ranges_overlap(start, end, other_start, other_end)
+            {
+                return Err(ClipPlacementRejection::ExistingClipOverlap.into());
             }
         }
         Ok(())
@@ -476,7 +475,7 @@ pub(super) fn offline_asset_ids(
         .context("Timeline path has no parent directory")?;
     let mut missing_asset_ids = HashSet::new();
     for asset in &editing_state.assets {
-        let asset_path = resolve_asset_path(timeline_directory, &asset.path());
+        let asset_path = resolve_asset_path(timeline_directory, asset.path());
         if !asset_path.exists() {
             missing_asset_ids.insert(asset.id());
         }

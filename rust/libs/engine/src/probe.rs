@@ -210,7 +210,7 @@ pub fn probe(path: &Path) -> Result<Probe> {
 
 pub fn assets(assets: &[Asset], base: &Path) -> Result<()> {
     for (i, asset) in assets.iter().enumerate() {
-        let path = base.join(&asset.path());
+        let path = base.join(asset.path());
         probe(&path).context(format!("/assets/{i}/path ({})", path.display()))?;
     }
     Ok(())

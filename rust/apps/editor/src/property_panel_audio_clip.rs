@@ -49,13 +49,9 @@ pub(super) fn audio_clip_panel(
         None => "Unknown track".to_owned(),
     };
     let waveform = (|| {
-        let Some(asset) = asset else {
-            return None;
-        };
-        let Some(timeline_directory) = timeline.path.parent() else {
-            return None;
-        };
-        let media_path = resolve_asset_path(timeline_directory, &asset.path()); // 波形缓存以素材的绝对路径为键。
+        let asset = asset?;
+        let timeline_directory = timeline.path.parent()?;
+        let media_path = resolve_asset_path(timeline_directory, asset.path()); // 波形缓存以素材的绝对路径为键。
         waveform_cache.get(&media_path).cloned()
     })();
     AudioClipPanel {

@@ -95,7 +95,7 @@ impl ProjectPicker {
             }
             match result {
                 Ok(Some(root)) => {
-                    let _ = cx.update(|cx| {
+                    cx.update(|cx| {
                         if let Err(error) = open_project(cx, root, event_bus) {
                             log::error!("Could not open project folder: {error:?}");
                             let _ = picker.update(cx, |picker, cx| {
@@ -126,6 +126,10 @@ impl ProjectPicker {
 
 impl Render for ProjectPicker {
     fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        #[expect(
+            clippy::manual_map,
+            reason = "Project Rust style requires explicit Option control flow"
+        )]
         let notice = if self.choosing {
             None
         } else {

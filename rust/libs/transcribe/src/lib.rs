@@ -93,7 +93,7 @@ pub async fn transcribe_response(path: &Path, api_key: &str, options: &Options) 
         let duration = duration.as_secs_f64();
         return Err(anyhow!(
             "audio_too_long: {} at {}:{}",
-            format!(
+            format_args!(
                 "audio duration is {duration:.6} seconds; transcription accepts at most {} seconds",
                 MAX_TRANSCRIPTION_DURATION.as_secs()
             ),
@@ -111,7 +111,7 @@ pub async fn transcribe_wav(wav: Vec<u8>, api_key: &str, options: &Options) -> R
     if api_key.trim().is_empty() {
         bail!("missing_api_key: an API key is required for transcription");
     }
-    if wav.len() <= 44 || wav.len() % 2 != 0 {
+    if wav.len() <= 44 || !wav.len().is_multiple_of(2) {
         bail!("invalid WAV data");
     }
     let header = wav[..44].to_vec();
@@ -169,7 +169,7 @@ async fn transcribe_wav_response(wav: Vec<u8>, api_key: &str, options: &Options)
             line!()
         );
     }
-    if wav.len() <= 44 || wav.len() % 2 != 0 {
+    if wav.len() <= 44 || !wav.len().is_multiple_of(2) {
         bail!("invalid WAV data at {}:{}", file!(), line!());
     }
     let header = wav[..44].to_vec();
@@ -187,7 +187,7 @@ async fn transcribe_wav_response(wav: Vec<u8>, api_key: &str, options: &Options)
         let duration = audio_bytes as f64 / (16_000.0 * 2.0);
         return Err(anyhow!(
             "audio_too_long: {} at {}:{}",
-            format!(
+            format_args!(
                 "audio duration is {duration:.6} seconds; transcription accepts at most {} seconds",
                 MAX_TRANSCRIPTION_DURATION.as_secs()
             ),
@@ -327,7 +327,7 @@ async fn request(
             .unwrap_or("unavailable");
         return Err(anyhow!(
             "transcription_api: {} at {}:{}",
-            format!(
+            format_args!(
                 "HTTP {status}: {} (request_id: {})",
                 message.replace(api_key, "[redacted]"),
                 request_id.replace(api_key, "[redacted]")

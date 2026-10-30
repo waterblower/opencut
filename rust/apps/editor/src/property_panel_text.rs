@@ -930,10 +930,7 @@ fn parse_hex_color(text: &str) -> Option<u32> {
     if text.len() != 6 || !text.bytes().all(|byte| byte.is_ascii_hexdigit()) {
         return None;
     }
-    match u32::from_str_radix(text, 16) {
-        Ok(color) => Some(color),
-        Err(_) => None,
-    }
+    u32::from_str_radix(text, 16).ok()
 }
 
 #[derive(IntoElement)]

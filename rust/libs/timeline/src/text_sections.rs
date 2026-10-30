@@ -34,11 +34,11 @@ fn text_sections(
         if end <= start {
             continue;
         }
-        if let Some(last) = sections.last_mut() {
-            if start <= last.1 {
-                last.1 = last.1.max(end);
-                continue;
-            }
+        if let Some(last) = sections.last_mut()
+            && start <= last.1
+        {
+            last.1 = last.1.max(end);
+            continue;
         }
         sections.push((start, end));
     }

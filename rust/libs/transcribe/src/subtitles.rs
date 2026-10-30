@@ -126,7 +126,7 @@ fn timestamp_ms(timestamp: &str) -> Result<u64> {
     {
         return Err(anyhow!(
             "invalid_srt: {} at {}:{}",
-            format!("invalid timestamp: {timestamp}"),
+            format_args!("invalid timestamp: {timestamp}"),
             file!(),
             line!()
         ));
@@ -144,7 +144,7 @@ fn timestamp_ms(timestamp: &str) -> Result<u64> {
     if minutes >= 60 || seconds >= 60 {
         return Err(anyhow!(
             "invalid_srt: {} at {}:{}",
-            format!("invalid timestamp: {timestamp}"),
+            format_args!("invalid timestamp: {timestamp}"),
             file!(),
             line!()
         ));
@@ -155,7 +155,7 @@ fn timestamp_ms(timestamp: &str) -> Result<u64> {
     else {
         return Err(anyhow!(
             "invalid_srt: {} at {}:{}",
-            format!("timestamp overflow: {timestamp}"),
+            format_args!("timestamp overflow: {timestamp}"),
             file!(),
             line!()
         ));
