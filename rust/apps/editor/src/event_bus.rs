@@ -467,25 +467,24 @@ async fn handle_app_event(
                 },
                 cx,
             )?;
-            editor.update(cx, |editor, cx| {
-                editor.schedule_active_timeline_waveforms(cx);
-            });
+            let paths = editor.update(cx, |editor, _| -> Result<Vec<PathBuf>> {
+                let timeline = editor
+                    .timeline
+                    .as_ref()
+                    .context("Relink media needs an open timeline")?;
+                let timeline_directory = timeline
+                    .path
+                    .parent()
+                    .context("Timeline path has no parent directory")?;
+                Ok(timeline_waveform_paths(&timeline.editing_state, timeline_directory))
+            })?;
+            generate_waveforms(&editor, paths, cx).await;
         }
         AppEvent::GenerationWaveformForTimeline {
             timeline,
             timeline_directory,
         } => {
-            let referenced_assets = timeline
-                .clips
-                .iter()
-                .filter_map(|clip| clip.asset_id())
-                .collect::<HashSet<_>>();
-            let paths = timeline
-                .assets
-                .iter()
-                .filter(|asset| asset.has_audio() && referenced_assets.contains(&asset.id()))
-                .map(|asset| resolve_asset_path(&timeline_directory, asset.path()))
-                .collect::<Vec<_>>();
+            let paths = timeline_waveform_paths(&timeline, &timeline_directory);
             generate_waveforms(&editor, paths, cx).await;
         }
         AppEvent::WaveformsGeneration { paths } => {
@@ -1027,4 +1026,21 @@ async fn generate_waveforms(editor: &Entity<Editor>, paths: Vec<PathBuf>, cx: &m
             cx.notify();
         });
     }
+}
+
+fn timeline_waveform_paths(
+    timeline: &TimelineEditingState,
+    timeline_directory: &Path,
+) -> Vec<PathBuf> {
+    let referenced_assets = timeline
+        .clips
+        .iter()
+        .filter_map(|clip| clip.asset_id())
+        .collect::<HashSet<_>>();
+    timeline
+        .assets
+        .iter()
+        .filter(|asset| asset.has_audio() && referenced_assets.contains(&asset.id()))
+        .map(|asset| resolve_asset_path(timeline_directory, asset.path()))
+        .collect()
 }
