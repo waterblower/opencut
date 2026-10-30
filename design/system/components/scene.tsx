@@ -3,9 +3,8 @@ import type { Markup } from "@design/jsx/jsx-runtime";
 
 /// The sample 1920×1080 frame used as video content in mock-ups: a dusk city street with a
 /// silhouette in front. It scales to `width`; the height follows the 16:9 ratio.
-/// `caption` is the white subtitle near the bottom.
 /// The gradient ids are shared, so every scene on a page reuses the first definitions.
-export function Scene(props: { width: number; caption?: string; class?: string }): Markup {
+export function Scene(props: { width: number; class?: string }): Markup {
   return (
     <svg
       xmlns="http://www.w3.org/2000/svg"
@@ -167,19 +166,6 @@ export function Scene(props: { width: number; caption?: string; class?: string }
       <rect x="1710" y="750" width="12" height="150" fill="#1d1824" />
       <circle cx="960" cy="560" r="78" fill="#1a1520" />
       <path d="M800 1080 C 800 760 860 660 960 660 C 1060 660 1120 760 1120 1080Z" fill="#1a1520" />
-      {props.caption === undefined ? null : (
-        <text
-          x="960"
-          y="941.04"
-          font-size="64"
-          font-weight="500"
-          fill="#ffffff"
-          text-anchor="middle"
-          class="font-sans"
-        >
-          {props.caption}
-        </text>
-      )}
     </svg>
   );
 }

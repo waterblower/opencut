@@ -1,4 +1,5 @@
 import { Scene } from "./scene.tsx";
+import { Subtitle } from "./subtitle.tsx";
 import type { Markup } from "@design/jsx/jsx-runtime";
 
 export type PlayerIcon = "play" | "pause" | "replay";
@@ -69,30 +70,9 @@ export function VideoPlayer(props: {
       style={`width:${props.width}px;height:${pictureHeight + 64}px`}
     >
       {props.picture === false ? null : <Scene width={props.width} class="absolute top-0 left-0" />}
-      {props.caption === undefined ? null : (
-        <svg
-          class="absolute top-0 left-0"
-          width={props.width}
-          height={pictureHeight}
-          viewBox={`0 0 ${props.width} ${pictureHeight}`}
-        >
-          <text
-            class="font-sans"
-            x={props.width / 2}
-            y="275.44"
-            font-size="25"
-            font-weight="600"
-            fill="#ffffff"
-            text-anchor="middle"
-            stroke="#000"
-            stroke-opacity="0.55"
-            stroke-width="3"
-            paint-order="stroke"
-          >
-            {props.caption}
-          </text>
-        </svg>
-      )}
+      {props.caption === undefined
+        ? null
+        : <Subtitle text={props.caption} size={25} weight={600} baseline={275.44} outlined />}
       <div
         class="absolute inset-x-0 h-16 border-t border-divider bg-panel"
         style={`top:${pictureHeight}px`}
@@ -138,23 +118,16 @@ export function VideoPlayer(props: {
           {props.file}
         </span>
       </div>
-      {props.hand === undefined ? null : (
-        <svg
-          class="absolute"
-          style={`left:${props.hand.left}px;top:${props.hand.top}px`}
-          width="22"
-          height="22"
-          viewBox="0 0 22 22"
-        >
-          <path
-            d={props.hand.grab ? HAND_GRAB : HAND_UP}
-            fill="#fff"
-            stroke="#000"
-            stroke-width="1"
-            stroke-linejoin="round"
-          />
-        </svg>
-      )}
+      {props.hand === undefined ? null : <HandCursor left={props.hand.left} top={props.hand.top} grab={props.hand.grab} />}
     </div>
+  );
+}
+
+/// A hand cursor at (`left`, `top`) from the panel's top-left corner; closed while dragging.
+function HandCursor(props: { left: number; top: number; grab?: boolean }): Markup {
+  return (
+    <svg class="absolute" style={`left:${props.left}px;top:${props.top}px`} width="22" height="22" viewBox="0 0 22 22">
+      <path d={props.grab ? HAND_GRAB : HAND_UP} fill="#fff" stroke="#000" stroke-width="1" stroke-linejoin="round" />
+    </svg>
   );
 }

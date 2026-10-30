@@ -1,4 +1,4 @@
-import { AppIcon } from "../components/app-icon.tsx";
+import { AppIcon } from "../components/icons/app-icon.tsx";
 import { Window } from "../components/window.tsx";
 import type { Child, Markup } from "@design/jsx/jsx-runtime";
 

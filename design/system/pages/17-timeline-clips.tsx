@@ -1,4 +1,4 @@
-import { WarningIcon } from "../components/warning-icon.tsx";
+import { WarningIcon } from "../components/icons/warning-icon.tsx";
 import { AudioClip, TextClip, VideoClip } from "../components/timeline-clip.tsx";
 import { INTERVIEW_A_WIDE, MUSIC_BED } from "../components/waveform-samples.ts";
 import type { Markup } from "@design/jsx/jsx-runtime";
