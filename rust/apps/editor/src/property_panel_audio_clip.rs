@@ -147,7 +147,11 @@ fn audio_waveform_view(
         .h(px(44.0))
         .overflow_hidden()
         .rounded(px(6.0))
-        .bg(rgb(if locked { 0x19191d } else { 0x131316 }))
+        .bg(rgb(if locked {
+            0x19191d
+        } else {
+            0x131316
+        }))
         .child(
             canvas(
                 move |bounds, _, _| match &waveform {

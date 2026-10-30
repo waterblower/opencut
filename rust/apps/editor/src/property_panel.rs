@@ -198,8 +198,16 @@ pub(crate) fn clip_property_panel_header_view(
         .flex_shrink_0()
         .rounded(px(8.0))
         .border_1()
-        .border_color(rgb(if locked { 0x62626e } else { border }))
-        .bg(rgb(if locked { 0x33333b } else { background }))
+        .border_color(rgb(if locked {
+            0x62626e
+        } else {
+            border
+        }))
+        .bg(rgb(if locked {
+            0x33333b
+        } else {
+            background
+        }))
         .flex()
         .items_center()
         .justify_center()
@@ -365,7 +373,11 @@ pub(super) fn timing_card_view(
         .px(px(10.0))
         .py(px(8.0))
         .rounded(px(6.0))
-        .bg(rgb(if locked { 0x19191d } else { 0x131316 }))
+        .bg(rgb(if locked {
+            0x19191d
+        } else {
+            0x131316
+        }))
         .child(
             div()
                 .text_size(px(11.0))
@@ -414,7 +426,11 @@ pub(super) fn slider_view(fraction: f32, reference_fraction: f32, locked: bool) 
                 .h_full()
                 .w(relative(fraction))
                 .rounded_full()
-                .bg(rgb(if locked { 0x55555e } else { ACCENT })),
+                .bg(rgb(if locked {
+                    0x55555e
+                } else {
+                    ACCENT
+                })),
         )
         .child(
             div()
@@ -429,11 +445,27 @@ pub(super) fn slider_view(fraction: f32, reference_fraction: f32, locked: bool) 
             div()
                 .absolute()
                 .left(relative(fraction))
-                .ml(px(if locked { -5.0 } else { -7.0 }))
-                .top(px(if locked { -3.0 } else { -5.0 }))
-                .size(px(if locked { 10.0 } else { 14.0 }))
+                .ml(px(if locked {
+                    -5.0
+                } else {
+                    -7.0
+                }))
+                .top(px(if locked {
+                    -3.0
+                } else {
+                    -5.0
+                }))
+                .size(px(if locked {
+                    10.0
+                } else {
+                    14.0
+                }))
                 .rounded_full()
-                .bg(rgb(if locked { 0x55555e } else { TEXT }))
+                .bg(rgb(if locked {
+                    0x55555e
+                } else {
+                    TEXT
+                }))
                 .when(!locked, |knob| knob.border_2().border_color(rgb(PANEL))),
         )
 }
@@ -524,7 +556,11 @@ pub(super) fn audio_properties_view(
                 .flex()
                 .items_center()
                 .justify_between()
-                .opacity(if locked { 0.5 } else { 1.0 })
+                .opacity(if locked {
+                    0.5
+                } else {
+                    1.0
+                })
                 .child(
                     svg()
                         .path(if unmuted {
@@ -542,7 +578,11 @@ pub(super) fn audio_properties_view(
                         .w(px(34.0))
                         .h(px(20.0))
                         .rounded_full()
-                        .bg(rgb(if unmuted { ACCENT } else { BORDER }))
+                        .bg(rgb(if unmuted {
+                            ACCENT
+                        } else {
+                            BORDER
+                        }))
                         .when(!locked, |toggle| {
                             toggle.cursor_pointer().on_click(move |_, _, cx| {
                                 event_bus.update(cx, |_, cx| {
@@ -557,10 +597,18 @@ pub(super) fn audio_properties_view(
                             div()
                                 .absolute()
                                 .top(px(3.0))
-                                .left(px(if unmuted { 17.0 } else { 3.0 }))
+                                .left(px(if unmuted {
+                                    17.0
+                                } else {
+                                    3.0
+                                }))
                                 .size(px(14.0))
                                 .rounded_full()
-                                .bg(rgb(if unmuted { PANEL } else { MUTED })),
+                                .bg(rgb(if unmuted {
+                                    PANEL
+                                } else {
+                                    MUTED
+                                })),
                         ),
                 ),
         )
@@ -581,7 +629,11 @@ pub(super) fn value_field_view(
         .px(px(10.0))
         .rounded(px(6.0))
         .when(!locked, |field| field.border_1().border_color(rgb(BORDER)))
-        .bg(rgb(if locked { 0x19191d } else { SURFACE }))
+        .bg(rgb(if locked {
+            0x19191d
+        } else {
+            SURFACE
+        }))
         .text_size(px(12.0))
         .when(!label.is_empty(), |field| {
             field.child(

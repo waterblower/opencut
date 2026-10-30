@@ -1,8 +1,8 @@
 use crate::editor::Editor;
 use crate::explorer_file_entry::{FileTreeEntry, FileTreeEntryKind, is_srt_path};
-use ::timeline::{Asset, MediaKind};
 use crate::theme::ACCENT;
 use crate::timeline::TimelineFrameIndex;
+use ::timeline::{Asset, MediaKind};
 use ::transcribe::SRT;
 use anyhow::Result;
 use engine::media_asset::probe_media_asset;

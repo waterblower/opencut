@@ -281,7 +281,11 @@ impl Render for ProjectPicker {
                     .child(
                         div()
                             .id("choose-project")
-                            .mt(px(if has_notice { 20.0 } else { 28.0 }))
+                            .mt(px(if has_notice {
+                                20.0
+                            } else {
+                                28.0
+                            }))
                             .h(px(40.0))
                             .flex_shrink_0()
                             .flex()

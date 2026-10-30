@@ -4,7 +4,6 @@ use crate::editor::Editor;
 use crate::event_bus::AppEvent;
 use crate::explorer_drag::AssetBeingDragged;
 use crate::layout::{TIMELINE_PADDING, TRACK_HEIGHT};
-use ::timeline::MediaKind;
 use crate::srt::srt_text_clips;
 use crate::theme::{
     ACCENT, BORDER, CLIP_BLUE, CLIP_OFFLINE, ERROR, MUTED, SURFACE, SURFACE_HOVER, TEXT,
@@ -14,6 +13,7 @@ use crate::timeline_clip::{Clip, text_clip_component};
 use crate::timeline_document::resolve_asset_path;
 use crate::timeline_interactions::TimelineTool;
 use crate::track::{Track, TrackKind};
+use ::timeline::MediaKind;
 use ::timeline::TimelineEditingState;
 use gpui::prelude::*;
 use gpui::{
@@ -561,7 +561,11 @@ impl Editor {
             })
             .when(offline, |this| this.border_dashed())
             .bg(rgb(color))
-            .opacity(if moving { 0.3 } else { 1.0 })
+            .opacity(if moving {
+                0.3
+            } else {
+                1.0
+            })
             .cursor(match timeline.interaction.active_tool {
                 TimelineTool::Selection => CursorStyle::PointingHand,
                 TimelineTool::Blade => CursorStyle::Crosshair,
@@ -754,7 +758,11 @@ fn track_action_view(
             gpui::svg()
                 .path(icon.path())
                 .size(px(14.0))
-                .text_color(rgb(if enabled { MUTED } else { 0x3a3a40 }))
+                .text_color(rgb(if enabled {
+                    MUTED
+                } else {
+                    0x3a3a40
+                }))
                 .when(enabled, |svg| {
                     svg.group_hover("track-action", |style| style.text_color(rgb(hover_color)))
                 }),
@@ -788,7 +796,11 @@ fn track_toggle_view(
             gpui::svg()
                 .path(icon.path())
                 .size(px(14.0))
-                .text_color(rgb(if active { ACCENT } else { MUTED }))
+                .text_color(rgb(if active {
+                    ACCENT
+                } else {
+                    MUTED
+                }))
                 .when(!active, |svg| {
                     svg.group_hover("track-toggle", |style| style.text_color(rgb(TEXT)))
                 }),
@@ -898,7 +910,11 @@ fn clip_placement_preview_view(
     invalid_reason: Option<&str>,
 ) -> gpui::AnyElement {
     let valid = invalid_reason.is_none();
-    let feedback_color = if valid { ACCENT } else { ERROR };
+    let feedback_color = if valid {
+        ACCENT
+    } else {
+        ERROR
+    };
     let detail = match invalid_reason {
         Some(reason) => reason.to_string(),
         None => format!("Release to place · {}", kind.label()),
@@ -914,7 +930,11 @@ fn clip_placement_preview_view(
         .rounded_md()
         .border_1()
         .border_color(rgb(feedback_color))
-        .bg(rgba(if valid { 0xf0b75e24 } else { 0x321b20e6 }))
+        .bg(rgba(if valid {
+            0xf0b75e24
+        } else {
+            0x321b20e6
+        }))
         .cursor(if valid {
             CursorStyle::ClosedHand
         } else {

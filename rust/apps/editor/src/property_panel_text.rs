@@ -78,7 +78,11 @@ pub(crate) fn text_clip_view(panel: &TextClipPanel) -> gpui::AnyElement {
             .px(px(10.0))
             .py(px(8.0))
             .rounded(px(6.0))
-            .bg(rgb(if panel.locked { 0x19191d } else { 0x131316 }))
+            .bg(rgb(if panel.locked {
+                0x19191d
+            } else {
+                0x131316
+            }))
             .text_size(px(13.0))
             .line_height(px(19.0))
             .children(
@@ -443,7 +447,11 @@ fn text_value_view(
         .px(px(10.0))
         .rounded(px(6.0))
         .when(!locked, |field| field.border_1().border_color(rgb(BORDER)))
-        .bg(rgb(if locked { 0x19191d } else { SURFACE }))
+        .bg(rgb(if locked {
+            0x19191d
+        } else {
+            SURFACE
+        }))
         .text_size(px(12.0))
         .when(!label.is_empty(), |field| {
             field.child(
@@ -526,7 +534,11 @@ impl RenderOnce for FontSizeInput {
             .px(px(9.0)) // 加 1px 边框后与只读态一致：内容距外缘 10px。
             .rounded(px(6.0))
             .border_1()
-            .border_color(rgb(if valid { BORDER } else { 0xff8b8b }))
+            .border_color(rgb(if valid {
+                BORDER
+            } else {
+                0xff8b8b
+            }))
             .bg(rgb(SURFACE))
             .child(div().min_w_0().flex_1().child(input))
             .child(
@@ -601,7 +613,11 @@ impl RenderOnce for BackgroundOpacityInput {
             .px(px(9.0)) // 加 1px 边框后与只读态一致：内容距外缘 10px。
             .rounded(px(6.0))
             .border_1()
-            .border_color(rgb(if valid { BORDER } else { 0xff8b8b }))
+            .border_color(rgb(if valid {
+                BORDER
+            } else {
+                0xff8b8b
+            }))
             .bg(rgb(SURFACE))
             .child(div().min_w_0().flex_1().child(input))
             .child(
@@ -690,7 +706,11 @@ impl RenderOnce for ColorInput {
             .px(px(7.0)) // 加 1px 边框后与只读态一致：色块距外缘 8px。
             .rounded(px(6.0))
             .border_1()
-            .border_color(rgb(if valid { BORDER } else { 0xff8b8b }))
+            .border_color(rgb(if valid {
+                BORDER
+            } else {
+                0xff8b8b
+            }))
             .bg(rgb(SURFACE))
             .child(
                 div()
@@ -807,7 +827,11 @@ impl RenderOnce for ColorInput {
                             .justify_center()
                             .bg(rgb(color))
                             .border_1()
-                            .border_color(rgb(if selected { 0xf2f2f4 } else { 0x45454d }))
+                            .border_color(rgb(if selected {
+                                0xf2f2f4
+                            } else {
+                                0x45454d
+                            }))
                             .hover(|style| {
                                 style.shadow(vec![
                                     BoxShadow::new(px(0.0), px(0.0), rgb(0x080809).into())
@@ -1012,7 +1036,11 @@ impl RenderOnce for FontSelector {
                     .flex_col()
                     .rounded(px(7.0))
                     .border_1()
-                    .border_color(rgb(if selected { 0xf0b75e } else { 0x34343b }))
+                    .border_color(rgb(if selected {
+                        0xf0b75e
+                    } else {
+                        0x34343b
+                    }))
                     .bg(rgb(0x19191d))
                     .cursor(CursorStyle::PointingHand)
                     .text_color(rgb(0xf2f2f4))
@@ -1028,9 +1056,17 @@ impl RenderOnce for FontSelector {
                             .items_center()
                             .gap(px(8.0))
                             .border_b_1()
-                            .border_color(rgb(if selected { 0x3b3327 } else { 0x34343b }))
+                            .border_color(rgb(if selected {
+                                0x3b3327
+                            } else {
+                                0x34343b
+                            }))
                             .text_size(px(12.0))
-                            .text_color(rgb(if selected { 0xf0b75e } else { 0xb4b4bc }))
+                            .text_color(rgb(if selected {
+                                0xf0b75e
+                            } else {
+                                0xb4b4bc
+                            }))
                             .child(
                                 div()
                                     .min_w_0()

@@ -2,7 +2,6 @@ use crate::edit_action::EditAction;
 use crate::editor::Editor;
 use crate::event_bus::AppEvent;
 use crate::layout::{TIMELINE_PADDING, TRACK_HEADER_WIDTH};
-use ::timeline::MediaKind;
 use crate::theme::{BORDER, ERROR, MUTED, TEXT};
 use crate::timeline::TimelineFrameIndex;
 use crate::timeline_clip::Clip;
@@ -11,6 +10,7 @@ use crate::timeline_document;
 use crate::timeline_document::resolve_asset_path;
 use crate::track::TrackKind;
 use crate::transcription_window::ClipRange;
+use ::timeline::MediaKind;
 use ::timeline::TimelineEditingState;
 use engine::media_asset::{is_audio_path, is_video_path};
 use gpui::prelude::*;
@@ -80,11 +80,31 @@ impl Editor {
             .is_some_and(|timeline| timeline.path.starts_with(&absolute_path));
         let can_trash = can_rename && (is_active_timeline || !contains_active_timeline);
         let height = 132.0
-            + if can_transcribe { 40.0 } else { 0.0 }
-            + if can_create_timeline { 40.0 } else { 0.0 }
-            + if is_timeline_file { 80.0 } else { 0.0 }
-            + if can_rename { 40.0 } else { 0.0 }
-            + if can_trash { 40.0 } else { 0.0 };
+            + if can_transcribe {
+                40.0
+            } else {
+                0.0
+            }
+            + if can_create_timeline {
+                40.0
+            } else {
+                0.0
+            }
+            + if is_timeline_file {
+                80.0
+            } else {
+                0.0
+            }
+            + if can_rename {
+                40.0
+            } else {
+                0.0
+            }
+            + if can_trash {
+                40.0
+            } else {
+                0.0
+            };
         let left = menu
             .x
             .clamp(8.0, (f32::from(viewport.width) - width - 8.0).max(8.0));
@@ -428,7 +448,11 @@ impl Editor {
                             } else {
                                 CursorStyle::Arrow
                             })
-                            .text_color(rgb(if enabled { TEXT } else { MUTED }))
+                            .text_color(rgb(if enabled {
+                                TEXT
+                            } else {
+                                MUTED
+                            }))
                             .when(enabled, |this| {
                                 this.hover(|style| style.bg(rgb(0x34343a)))
                                     .on_click(cx.listener(|editor, _, _, cx| {

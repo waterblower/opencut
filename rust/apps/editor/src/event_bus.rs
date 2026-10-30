@@ -8,9 +8,9 @@ use crate::explorer_file_entry::select_preview_file;
 use crate::export_window::{ExportState, ExportWindow};
 use crate::global_settings::GlobalEditorSettings;
 use crate::layout::{RULER_HEIGHT, TIMELINE_PADDING, TRACK_HEIGHT, track_index_at_y};
-use ::timeline::{Asset, MediaKind, TimelineEditingState};
 use crate::preview::{PreviewTarget, timeline_preview_target};
 use crate::preview_events::PreviewEvent;
+use ::timeline::{Asset, MediaKind, TimelineEditingState};
 
 use crate::project_settings::{ProjectLocalSettings, save_project_local_settings};
 use crate::property_panel::{PropertyPanel, current_property_panel};
@@ -476,7 +476,10 @@ async fn handle_app_event(
                     .path
                     .parent()
                     .context("Timeline path has no parent directory")?;
-                Ok(timeline_waveform_paths(&timeline.editing_state, timeline_directory))
+                Ok(timeline_waveform_paths(
+                    &timeline.editing_state,
+                    timeline_directory,
+                ))
             })?;
             generate_waveforms(&editor, paths, cx).await;
         }
@@ -1000,8 +1003,7 @@ async fn generate_waveforms(editor: &Entity<Editor>, paths: Vec<PathBuf>, cx: &m
         let mut new_paths = paths
             .into_iter()
             .filter(|path| {
-                !editor.waveform_cache.contains_key(path)
-                    && !editor.waveform_jobs.contains(path)
+                !editor.waveform_cache.contains_key(path) && !editor.waveform_jobs.contains(path)
             })
             .collect::<Vec<_>>();
         new_paths.sort();

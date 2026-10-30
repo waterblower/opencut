@@ -4,13 +4,13 @@ use crate::clip_placement::{
 use crate::edit_action::{EditAction, edit_timeline};
 use crate::editor::Editor;
 use crate::event_bus::AppEvent;
-use ::timeline::Asset;
 use crate::timeline::{
     FrameRate, TimelineEditorExt, TimelineFrameIndex, TimelineRuntimeState, timeline_ranges_overlap,
 };
 use crate::timeline_clip::{Clip, ClipEditingExt};
 use crate::timeline_document::{relative_asset_path, resolve_asset_path};
 use crate::track::{Track, TrackKind};
+use ::timeline::Asset;
 use ::timeline::TimelineEditingState;
 use anyhow::Result;
 use gpui::prelude::*;
@@ -590,7 +590,11 @@ fn unlocked_clip_ids(timeline: &TimelineEditingState) -> HashSet<Ulid> {
 }
 
 fn plural_suffix(count: usize) -> &'static str {
-    if count == 1 { "" } else { "s" }
+    if count == 1 {
+        ""
+    } else {
+        "s"
+    }
 }
 
 #[cfg(test)]

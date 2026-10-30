@@ -197,8 +197,11 @@ impl Editor {
                             _ => None,
                         },
                         |this, expanded| {
-                            this.text_color(rgb(MUTED))
-                                .child(if expanded { "▾" } else { "▸" })
+                            this.text_color(rgb(MUTED)).child(if expanded {
+                                "▾"
+                            } else {
+                                "▸"
+                            })
                         },
                     )
                     .when(
