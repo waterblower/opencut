@@ -27,7 +27,7 @@ use crate::track::TrackKind;
 use crate::transcription_window;
 use crate::transcription_window::{ClipRange, TranscriptionStage, TranscriptionWindow};
 use crate::ui_components::{HorizontalSplitState, VerticalSplitState};
-use crate::waveform::generate_waveform;
+use ::waveform::generate_waveform;
 use crate::{OpenProject, open_editor_window, quit_after_last_window};
 use anyhow::{Context as _, Result, anyhow, bail};
 use engine::export::{ExportCompletion, ExportControl, ExportOption, export_timeline};

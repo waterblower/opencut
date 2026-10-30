@@ -6,6 +6,7 @@ members = [
     "libs/engine",
     "libs/transcribe",
     "libs/player-ui",
+    "libs/waveform",
     "apps/cli",
     "apps/editor",
     "apps/player",
@@ -24,6 +25,7 @@ engine = { path = "libs/engine" }
 transcribe = { path = "libs/transcribe" }
 media-backend = { path = "libs/media-backend" }
 player-ui = { path = "libs/player-ui" }
+waveform = { path = "libs/waveform" }
 
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "fs", "time"] }
 reqwest = { version = "=0.12.24", default-features = false, features = ["multipart", "rustls-tls"] }

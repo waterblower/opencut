@@ -14,7 +14,6 @@ use crate::timeline_clip::{Clip, text_clip_component};
 use crate::timeline_document::resolve_asset_path;
 use crate::timeline_interactions::TimelineTool;
 use crate::track::{Track, TrackKind};
-use crate::waveform;
 use ::timeline::TimelineEditingState;
 use gpui::prelude::*;
 use gpui::{
@@ -633,7 +632,7 @@ fn offline_clip_content_view(name: String) -> gpui::Div {
 }
 
 fn timeline_clip_waveform(
-    waveform: Arc<waveform::WaveformData>,
+    waveform: Arc<::waveform::WaveformData>,
     source_start: f64,
     source_end: f64,
 ) -> gpui::AnyElement {

@@ -1630,6 +1630,7 @@ dependencies = [
  "transcribe",
  "ulid",
  "unicode-segmentation",
+ "waveform",
 ]
 
 [[package]]
@@ -7016,6 +7017,14 @@ dependencies = [
  "js-sys",
  "wasm-bindgen",
  "web-sys",
+]
+
+[[package]]
+name = "waveform"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "ffmpeg-next",
 ]
 
 [[package]]

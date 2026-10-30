@@ -9,7 +9,7 @@ use crate::timeline::{FrameRate, TimelineRuntimeState};
 use crate::timeline_clip::AudioClip;
 use crate::timeline_document::resolve_asset_path;
 use crate::track::TrackKind;
-use crate::waveform::WaveformData;
+use ::waveform::WaveformData;
 use gpui::FocusHandle;
 use gpui::{Bounds, Entity, ParentElement, Styled, canvas, div, fill, point, px, rgb, rgba, size};
 use std::collections::HashMap;

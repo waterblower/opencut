@@ -12,6 +12,7 @@ engine.workspace = true
 timeline.workspace = true
 transcribe.workspace = true
 player-ui.workspace = true
+waveform.workspace = true
 anyhow.workspace = true
 env_logger.workspace = true
 ffmpeg-next.workspace = true
