@@ -282,7 +282,7 @@ pub fn mix_timeline_audio(
             .find(|track| track.id == clip.track_id())
             .context("Missing audio track")?;
         let asset = timeline.asset(asset_id).context("Missing audio asset")?;
-        if track.muted || audio_properties.muted || !asset.has_audio {
+        if track.muted || audio_properties.muted || !asset.has_audio() {
             continue;
         }
         let clip_start = i64::try_from(fps.audio_samples(clip.timeline_start(), rate))?;
@@ -303,13 +303,13 @@ pub fn mix_timeline_audio(
         }
         let key = AudioReaderKey {
             track_id: track.id,
-            asset_id: asset.id,
+            asset_id: asset.id(),
         };
         let reader = match readers.entry(key) {
             Entry::Occupied(entry) => entry.into_mut(),
             Entry::Vacant(entry) => {
                 let open_started = Instant::now();
-                let path = timeline_directory.join(&asset.path);
+                let path = timeline_directory.join(&asset.path());
                 let mut backend = AudioBackend::open(&path)
                     .context(format!("Opening timeline audio {}", path.display()))?;
                 backend
@@ -444,7 +444,7 @@ fn validate_export(
         Ok(_) => {
             let target = fs::canonicalize(output).context("Resolving export output")?;
             for asset in &timeline.editing_state.assets {
-                if fs::canonicalize(option.project_root.join(&asset.path))
+                if fs::canonicalize(option.project_root.join(&asset.path()))
                     .is_ok_and(|source| source == target)
                 {
                     bail!(
@@ -465,8 +465,8 @@ fn validate_export(
     }
     ids.clear();
     for asset in &data.assets {
-        if !ids.insert(asset.id) {
-            bail!("Duplicate export asset {}", asset.id);
+        if !ids.insert(asset.id()) {
+            bail!("Duplicate export asset {}", asset.id());
         }
     }
     ids.clear();
@@ -489,10 +489,10 @@ fn validate_export(
                 let asset = data
                     .assets
                     .iter()
-                    .find(|asset| asset.id == media.asset_id)
+                    .find(|asset| asset.id() == media.asset_id)
                     .context("Export clip references a missing asset")?;
 
-                if track.kind != TrackKind::Video || asset.kind == MediaKind::Audio {
+                if track.kind != TrackKind::Video || asset.kind() == MediaKind::Audio {
                     bail!(
                         "Video clip {} requires a video track and visual asset",
                         media.id()
@@ -526,10 +526,10 @@ fn validate_export(
                 let asset = data
                     .assets
                     .iter()
-                    .find(|asset| asset.id == media.asset_id)
+                    .find(|asset| asset.id() == media.asset_id)
                     .context("Export clip references a missing asset")?;
 
-                if track.kind != TrackKind::Audio || asset.kind == MediaKind::Image {
+                if track.kind != TrackKind::Audio || matches!(asset, timeline::Asset::Image(_)) {
                     bail!(
                         "Audio clip {} requires an audio track and audio or video asset",
                         media.id()

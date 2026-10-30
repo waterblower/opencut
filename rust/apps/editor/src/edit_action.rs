@@ -1,7 +1,7 @@
 use crate::editing::validate_clips_placements;
 use crate::timeline::{TimelineEditorExt, TimelineRuntimeState, offline_asset_ids};
 use ::timeline::{
-    AudioClipProperties, Clip, FrameRate, MediaAsset, TextBackground, TextClipProperties,
+    Asset, AudioClipProperties, Clip, FrameRate, TextBackground, TextClipProperties,
     TimelineEditingState, TimelineFrameIndex, Track, VideoClipProperties, compact_text_sections,
 };
 use anyhow::{Context as _, Result, anyhow, ensure};
@@ -22,7 +22,7 @@ pub(crate) enum EditAction {
     },
     AddClips {
         clips: Vec<Clip>,
-        assets: Vec<MediaAsset>,
+        assets: Vec<Asset>,
     },
     RemoveClips {
         clip_ids: HashSet<Ulid>,
@@ -203,12 +203,12 @@ pub(crate) fn edit_timeline(
                     let asset = data
                         .asset(asset_id)
                         .ok_or_else(|| anyhow!("Source media not found"))?;
-                    is_image = asset.kind == timeline::MediaKind::Image;
+                    is_image = matches!(asset, timeline::Asset::Image(_));
                     if drag.start_edge && !is_image {
                         minimum = minimum.max(start - original.source_in().unwrap());
                     } else if !drag.start_edge && !is_image {
                         let source_limit = TimelineFrameIndex::from(
-                            (asset.duration * frame_rate.frames_per_second()).floor() as i64,
+                            (asset.duration().unwrap_or(0.0) * frame_rate.frames_per_second()).floor() as i64,
                         );
                         maximum = maximum.min(
                             end + source_limit.max(original.source_out().unwrap())
@@ -810,8 +810,9 @@ impl TimelineEditExt for TimelineEditingState {
             EditAction::SetFrameRate { frame_rate } => data.set_frame_rate(frame_rate),
             EditAction::UpdateAssetPaths { paths } => {
                 for (asset_id, path) in paths {
-                    if let Some(asset) = data.assets.iter_mut().find(|asset| asset.id == asset_id) {
-                        asset.path = path;
+                    if let Some(asset) = data.assets.iter_mut().find(|asset| asset.id() == asset_id)
+                    {
+                        asset.set_path(path);
                     }
                 }
             }

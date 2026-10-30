@@ -53,7 +53,11 @@ impl Editor {
                     .w(px(14.0))
                     .flex_shrink_0()
                     .text_color(rgb(MUTED))
-                    .child(if show_root_contents { "▾" } else { "▸" }),
+                    .child(if show_root_contents {
+                        "▾"
+                    } else {
+                        "▸"
+                    }),
             )
             .child(
                 div()

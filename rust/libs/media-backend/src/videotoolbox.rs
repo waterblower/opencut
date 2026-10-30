@@ -85,7 +85,11 @@ impl VideoToolboxDecoder {
         let pixel_format = output_pixel_format(parameters)?;
         // lengthSizeMinusOne: low two bits of byte 4 (avcC) or byte 21 (hvcC).
         let hevc = parameters.codec_id == ffi::AVCodecID::AV_CODEC_ID_HEVC;
-        let length_offset = if hevc { 21 } else { 4 };
+        let length_offset = if hevc {
+            21
+        } else {
+            4
+        };
         let Some(length_byte) = extradata.get(length_offset) else {
             bail!("video {atom} configuration is truncated");
         };

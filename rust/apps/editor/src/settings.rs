@@ -28,8 +28,16 @@ pub(crate) fn settings_modal_view(
                 .justify_between()
                 .rounded_lg()
                 .border_1()
-                .border_color(rgb(if active { ACCENT } else { BORDER }))
-                .bg(rgb(if active { 0x2a241b } else { SURFACE }))
+                .border_color(rgb(if active {
+                    ACCENT
+                } else {
+                    BORDER
+                }))
+                .bg(rgb(if active {
+                    0x2a241b
+                } else {
+                    SURFACE
+                }))
                 .cursor(CursorStyle::PointingHand)
                 .hover(|style| style.bg(rgb(SURFACE_HOVER)))
                 .child(label)

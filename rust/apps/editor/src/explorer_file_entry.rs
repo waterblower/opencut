@@ -7,6 +7,7 @@ use crate::preview::PreviewTarget;
 use crate::preview_events::PreviewEvent;
 use crate::theme::{ACCENT, MUTED, PANEL, SURFACE_HOVER, TEXT};
 use anyhow::{Result, anyhow};
+use engine::media_asset::{is_audio_path, is_image_path, is_video_path};
 use gpui::prelude::*;
 use gpui::{AsyncApp, CursorStyle, Entity, MouseButton, MouseDownEvent, div, px, rgb};
 use std::collections::HashSet;
@@ -196,8 +197,11 @@ impl Editor {
                             _ => None,
                         },
                         |this, expanded| {
-                            this.text_color(rgb(MUTED))
-                                .child(if expanded { "▾" } else { "▸" })
+                            this.text_color(rgb(MUTED)).child(if expanded {
+                                "▾"
+                            } else {
+                                "▸"
+                            })
                         },
                     )
                     .when(
@@ -443,39 +447,6 @@ fn file_tree_entry(
         kind,
         size_bytes,
     }
-}
-
-pub(crate) fn is_image_path(path: &Path) -> bool {
-    path.extension()
-        .and_then(|extension| extension.to_str())
-        .is_some_and(|extension| {
-            matches!(
-                extension.to_ascii_lowercase().as_str(),
-                "jpg" | "jpeg" | "png" | "gif" | "webp" | "bmp" | "ico"
-            )
-        })
-}
-
-pub(crate) fn is_video_path(path: &Path) -> bool {
-    path.extension()
-        .and_then(|extension| extension.to_str())
-        .is_some_and(|extension| {
-            matches!(
-                extension.to_ascii_lowercase().as_str(),
-                "mp4" | "mov" | "m4v" | "mkv" | "webm" | "avi"
-            )
-        })
-}
-
-pub(crate) fn is_audio_path(path: &Path) -> bool {
-    path.extension()
-        .and_then(|extension| extension.to_str())
-        .is_some_and(|extension| {
-            matches!(
-                extension.to_ascii_lowercase().as_str(),
-                "aac" | "flac" | "m4a" | "mp3" | "ogg" | "wav"
-            )
-        })
 }
 
 pub(crate) fn is_srt_path(path: &Path) -> bool {

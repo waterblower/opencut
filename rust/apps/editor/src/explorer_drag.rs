@@ -1,11 +1,11 @@
 use crate::editor::Editor;
 use crate::explorer_file_entry::{FileTreeEntry, FileTreeEntryKind, is_srt_path};
-use crate::media_probe::probe_asset;
-use crate::model::{MediaAsset, MediaKind};
 use crate::theme::ACCENT;
 use crate::timeline::TimelineFrameIndex;
+use ::timeline::{Asset, MediaKind};
 use ::transcribe::SRT;
 use anyhow::Result;
+use engine::media_asset::probe_media_asset;
 use gpui::{
     Context, CursorStyle, IntoElement, ParentElement, Render, SharedString, Styled, WeakEntity,
     Window, canvas, div, px, rgb,
@@ -37,7 +37,7 @@ impl AssetBeingDragged {
     pub(crate) fn from_file_entry(entry: &FileTreeEntry) -> Result<Self> {
         let x = match entry.kind {
             FileTreeEntryKind::Video | FileTreeEntryKind::Image | FileTreeEntryKind::Audio => {
-                let metadata = probe_asset(&entry.absolute_path)?;
+                let metadata = probe_media_asset(&entry.absolute_path)?;
                 Self::Media(DraggedMedia {
                     absolute_path: entry.absolute_path.clone(),
                     metadata,
@@ -63,7 +63,7 @@ impl AssetBeingDragged {
 #[derive(Clone, Debug)]
 pub(crate) struct DraggedMedia {
     pub(super) absolute_path: PathBuf,
-    pub(super) metadata: MediaAsset,
+    pub(super) metadata: Asset,
 }
 
 impl DraggedMedia {
@@ -100,7 +100,7 @@ pub(super) struct ExplorerDragView {
 impl Render for ExplorerDragView {
     fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let (kind, name) = match &self.asset {
-            AssetBeingDragged::Media(asset) => (asset.metadata.kind.label(), asset.name()),
+            AssetBeingDragged::Media(asset) => (asset.metadata.kind().label(), asset.name()),
             AssetBeingDragged::Srt(asset) => ("SRT", asset.name()),
             AssetBeingDragged::None => return gpui::Empty.into_any_element(),
         };

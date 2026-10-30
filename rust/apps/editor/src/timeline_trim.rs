@@ -45,7 +45,11 @@ impl Editor {
             .into_iter()
             .map(|start_edge| {
                 div()
-                    .id(if start_edge { "trim-start" } else { "trim-end" })
+                    .id(if start_edge {
+                        "trim-start"
+                    } else {
+                        "trim-end"
+                    })
                     .absolute()
                     .top_0()
                     .bottom_0()

@@ -101,14 +101,14 @@ impl TimelineDecoder {
                         let asset = timeline
                             .asset(media.asset_id)
                             .context("Validated clip references a missing asset")?;
-                        let asset_path = self.timeline_directory.join(&asset.path);
-                        match asset.kind {
+                        let asset_path = self.timeline_directory.join(&asset.path());
+                        match asset.kind() {
                             MediaKind::Video => {
                                 #[cfg(target_os = "macos")]
                                 {
                                     let key = ReaderKey {
                                         track_id: track.id,
-                                        asset_id: asset.id,
+                                        asset_id: asset.id(),
                                     };
                                     #[rustfmt::skip]
                                     let reader = match self.readers.entry(key) {
@@ -141,7 +141,7 @@ impl TimelineDecoder {
                                 bail!("Timeline video requires macOS: {}", asset_path.display());
                             }
                             MediaKind::Image => {
-                                let image = match self.images.entry(asset.id) {
+                                let image = match self.images.entry(asset.id()) {
                                     Entry::Occupied(entry) => Arc::clone(entry.get()),
                                     Entry::Vacant(entry) => {
                                         let load_started = Instant::now();

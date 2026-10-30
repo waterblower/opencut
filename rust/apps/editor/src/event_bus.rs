@@ -8,10 +8,9 @@ use crate::explorer_file_entry::select_preview_file;
 use crate::export_window::{ExportState, ExportWindow};
 use crate::global_settings::GlobalEditorSettings;
 use crate::layout::{RULER_HEIGHT, TIMELINE_PADDING, TRACK_HEIGHT, track_index_at_y};
-use crate::media_probe::probe_asset;
-use crate::model::{MediaAsset, MediaKind};
 use crate::preview::{PreviewTarget, timeline_preview_target};
 use crate::preview_events::PreviewEvent;
+use ::timeline::{Asset, MediaKind, TimelineEditingState};
 
 use crate::project_settings::{ProjectLocalSettings, save_project_local_settings};
 use crate::property_panel::{PropertyPanel, current_property_panel};
@@ -22,14 +21,16 @@ use crate::property_panel_video_file::VideoFilePanel;
 use crate::srt::{srt_text_clips, write_srt};
 use crate::timeline::{PreviewDropAsset, TimelineFrameIndex, TimelineRuntimeState};
 use crate::timeline_clip::{AudioClipProperties, Clip, VideoClip, VideoClipProperties};
-use crate::timeline_document::relative_asset_path;
+use crate::timeline_document::{relative_asset_path, resolve_asset_path};
 use crate::track::TrackKind;
 use crate::transcription_window;
 use crate::transcription_window::{ClipRange, TranscriptionStage, TranscriptionWindow};
 use crate::ui_components::{HorizontalSplitState, VerticalSplitState};
 use crate::{OpenProject, open_editor_window, quit_after_last_window};
+use ::waveform::generate_waveform;
 use anyhow::{Context as _, Result, anyhow, bail};
 use engine::export::{ExportCompletion, ExportControl, ExportOption, export_timeline};
+use engine::media_asset::probe_media_asset;
 use gpui::prelude::*;
 use gpui::{
     AsyncApp, Bounds, Entity, EventEmitter, MouseMoveEvent, PathPromptOptions, Pixels, WeakEntity,
@@ -67,6 +68,10 @@ pub(crate) enum AppEvent {
     },
     /// The user dismissed the missing media dialog.
     MissingMediaDialogClosed,
+    GenerationWaveformForTimeline {
+        timeline: TimelineEditingState,
+        timeline_directory: PathBuf,
+    },
     SwitchProject {
         project_path: PathBuf,
     },
@@ -108,6 +113,9 @@ pub(crate) enum AppEvent {
     SrtFileSelected {
         path: PathBuf, // 相对于项目根目录
     },
+    WaveformsGeneration {
+        paths: Vec<PathBuf>, // 素材的绝对路径
+    },
 }
 
 pub(crate) async fn handle_event(
@@ -116,7 +124,7 @@ pub(crate) async fn handle_event(
     event_bus: Entity<EventBus>,
     event: AppEvent,
 ) {
-    eprintln!("handle_event: {:?}", event);
+    log::debug!("handle_event: {event:?}");
     match event {
         AppEvent::ExportTimeline {
             timeline_path,
@@ -169,8 +177,8 @@ pub(crate) async fn handle_event(
         } => {
             let audio_duration = match clip {
                 Some(range) => range.end.saturating_sub(range.start).as_secs_f64(),
-                None => match probe_asset(&source_path) {
-                    Ok(asset) => asset.duration,
+                None => match probe_media_asset(&source_path) {
+                    Ok(asset) => asset.duration().unwrap_or(0.0),
                     Err(error) => {
                         log::error!("Could not open transcription window: {error:?}");
                         return;
@@ -337,6 +345,12 @@ pub(crate) async fn handle_event(
                     Err(error) => panic!("could not open editor window: {error:?}"),
                 };
                 project.close_subscription = Some(cx.on_window_closed(quit_after_last_window));
+                if let Err(error) = project
+                    .window
+                    .update(cx, |editor, _, cx| editor.schedule_project_waveforms(cx))
+                {
+                    panic!("could not reach the editor: {error}");
+                }
                 true
             });
             if !switched {
@@ -453,6 +467,31 @@ async fn handle_app_event(
                 },
                 cx,
             )?;
+            let paths = editor.update(cx, |editor, _| -> Result<Vec<PathBuf>> {
+                let timeline = editor
+                    .timeline
+                    .as_ref()
+                    .context("Relink media needs an open timeline")?;
+                let timeline_directory = timeline
+                    .path
+                    .parent()
+                    .context("Timeline path has no parent directory")?;
+                Ok(timeline_waveform_paths(
+                    &timeline.editing_state,
+                    timeline_directory,
+                ))
+            })?;
+            generate_waveforms(&editor, paths, cx).await;
+        }
+        AppEvent::GenerationWaveformForTimeline {
+            timeline,
+            timeline_directory,
+        } => {
+            let paths = timeline_waveform_paths(&timeline, &timeline_directory);
+            generate_waveforms(&editor, paths, cx).await;
+        }
+        AppEvent::WaveformsGeneration { paths } => {
+            generate_waveforms(&editor, paths, cx).await;
         }
         AppEvent::MissingMediaDialogClosed => {
             editor.update(cx, |editor, cx| {
@@ -600,13 +639,13 @@ async fn handle_app_event(
                         let (start_time, snap_guide) = match &editor.active_asset_drag {
                             AssetBeingDragged::Media(asset)
                                 if matches!(
-                                    asset.metadata.kind,
+                                    asset.metadata.kind(),
                                     MediaKind::Video | MediaKind::Audio
                                 ) =>
                             {
                                 let duration = timeline
                                     .editing_state
-                                    .nearest_time(asset.metadata.duration)
+                                    .nearest_time(asset.metadata.duration().unwrap_or(0.0))
                                     .max(TimelineFrameIndex::ONE_FRAME);
                                 timeline.snap_clip_start_ignoring(
                                     raw_start,
@@ -693,7 +732,7 @@ async fn handle_app_event(
                         }
                     }
                     AssetBeingDragged::Media(asset) => {
-                        if !matches!(asset.metadata.kind, MediaKind::Video | MediaKind::Audio) {
+                        if !matches!(asset.metadata.kind(), MediaKind::Video | MediaKind::Audio) {
                             return Ok(());
                         }
                         editor.place_explorer_asset(
@@ -798,7 +837,7 @@ impl Editor {
         media_path: PathBuf,
         track_id: Ulid,
         start: TimelineFrameIndex,
-        mut asset: MediaAsset,
+        mut asset: Asset,
         cx: &mut Context<Self>,
     ) -> Result<()> {
         let Some(timeline) = self.timeline.as_ref() else {
@@ -806,7 +845,7 @@ impl Editor {
         };
         let duration = timeline
             .editing_state
-            .nearest_time(asset.duration)
+            .nearest_time(asset.duration().unwrap_or(0.0))
             .max(TimelineFrameIndex::ONE_FRAME);
         let track_kind = timeline
             .editing_state
@@ -817,7 +856,7 @@ impl Editor {
         validate_clip_placement(
             &timeline.editing_state,
             track_id,
-            asset.kind,
+            asset.kind(),
             duration,
             start,
             &HashSet::new(),
@@ -835,14 +874,14 @@ impl Editor {
             .editing_state
             .assets
             .iter()
-            .find(|existing| existing.path == asset_path)
-            .map(|existing| existing.id)
+            .find(|existing| existing.path() == &asset_path)
+            .map(|existing| existing.id())
         {
             (asset_id, Vec::new())
         } else {
-            asset.id = Ulid::generate();
-            asset.path = asset_path;
-            let asset_id = asset.id;
+            asset.set_id(Ulid::generate());
+            asset.set_path(asset_path);
+            let asset_id = asset.id();
             (asset_id, vec![asset])
         };
         let clip_id = Ulid::generate();
@@ -956,4 +995,54 @@ fn handle_app_event_edit(
         cx.notify();
         Ok(())
     })
+}
+
+async fn generate_waveforms(editor: &Entity<Editor>, paths: Vec<PathBuf>, cx: &mut AsyncApp) {
+    // 跳过已缓存或正在生成的素材，其余记为生成中。
+    let new_paths = editor.update(cx, |editor, _| {
+        let mut new_paths = paths
+            .into_iter()
+            .filter(|path| {
+                !editor.waveform_cache.contains_key(path) && !editor.waveform_jobs.contains(path)
+            })
+            .collect::<Vec<_>>();
+        new_paths.sort();
+        new_paths.dedup();
+        editor.waveform_jobs.extend(new_paths.iter().cloned());
+        new_paths
+    });
+    for media_path in new_paths {
+        let source = media_path.clone();
+        let result = cx
+            .background_executor()
+            .spawn(async move { generate_waveform(&source) })
+            .await;
+        editor.update(cx, |editor, cx| {
+            editor.waveform_jobs.remove(&media_path);
+            match result {
+                Ok(waveform) => {
+                    editor.waveform_cache.insert(media_path, Arc::new(waveform));
+                }
+                Err(error) => log::error!("Waveform: {error:?}"),
+            }
+            cx.notify();
+        });
+    }
+}
+
+fn timeline_waveform_paths(
+    timeline: &TimelineEditingState,
+    timeline_directory: &Path,
+) -> Vec<PathBuf> {
+    let referenced_assets = timeline
+        .clips
+        .iter()
+        .filter_map(|clip| clip.asset_id())
+        .collect::<HashSet<_>>();
+    timeline
+        .assets
+        .iter()
+        .filter(|asset| asset.has_audio() && referenced_assets.contains(&asset.id()))
+        .map(|asset| resolve_asset_path(timeline_directory, asset.path()))
+        .collect()
 }

@@ -1,6 +1,6 @@
-use crate::model::MediaKind;
 use crate::timeline::{TimelineFrameIndex, timeline_ranges_overlap};
 use crate::track::TrackKind;
+use ::timeline::MediaKind;
 use ::timeline::TimelineEditingState;
 use anyhow::Result;
 use gpui::prelude::*;
