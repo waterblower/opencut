@@ -463,6 +463,9 @@ async fn handle_app_event(
                 },
                 cx,
             )?;
+            editor.update(cx, |editor, cx| {
+                editor.schedule_active_timeline_waveforms(cx);
+            });
         }
         AppEvent::WaveformsGeneration { paths } => {
             // 跳过已缓存或正在生成的素材，其余记为生成中。
