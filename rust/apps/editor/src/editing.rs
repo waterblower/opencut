@@ -4,7 +4,7 @@ use crate::clip_placement::{
 use crate::edit_action::{EditAction, edit_timeline};
 use crate::editor::Editor;
 use crate::event_bus::AppEvent;
-use crate::model::MediaAsset;
+use ::timeline::Asset;
 use crate::timeline::{
     FrameRate, TimelineEditorExt, TimelineFrameIndex, TimelineRuntimeState, timeline_ranges_overlap,
 };
@@ -23,7 +23,7 @@ pub(super) struct ClipClipboard {
     source_timeline: PathBuf,
     source_frame_rate: FrameRate,
     clips: Vec<Clip>,
-    assets: Vec<MediaAsset>,
+    assets: Vec<Asset>,
     tracks: Vec<(Ulid, TrackKind, usize)>,
     selection_start: TimelineFrameIndex,
     primary_index: Option<usize>,
@@ -52,7 +52,7 @@ impl ClipClipboard {
         let assets = timeline
             .assets
             .iter()
-            .filter(|asset| asset_ids.contains(&asset.id))
+            .filter(|asset| asset_ids.contains(&asset.id()))
             .cloned()
             .collect::<Vec<_>>();
         if assets.len() != asset_ids.len() {
@@ -136,7 +136,7 @@ impl ClipClipboard {
         destination_path: &std::path::Path,
         destination: &TimelineEditingState,
         position: TimelineFrameIndex,
-    ) -> Result<(Vec<Clip>, Vec<MediaAsset>)> {
+    ) -> Result<(Vec<Clip>, Vec<Asset>)> {
         let mut clips = self.clips_at(position, destination.settings.frame_rate);
         let same_timeline = self.source_timeline == destination_path;
 
@@ -169,12 +169,12 @@ impl ClipClipboard {
             }
         }
 
-        let mut new_assets: Vec<MediaAsset> = Vec::new();
+        let mut new_assets: Vec<Asset> = Vec::new();
         if same_timeline {
             if self
                 .assets
                 .iter()
-                .any(|asset| destination.asset(asset.id).is_none())
+                .any(|asset| destination.asset(asset.id()).is_none())
             {
                 return Err(ClipPlacementRejection::MissingAsset.into());
             }
@@ -184,31 +184,31 @@ impl ClipClipboard {
             let destination_directory = destination_path.parent().unwrap_or(Path::new(""));
             let mut asset_ids = HashMap::new();
             for source_asset in &self.assets {
-                let destination_asset_path = if source_asset.path.is_absolute() {
-                    source_asset.path.clone()
+                let destination_asset_path = if source_asset.path().is_absolute() {
+                    source_asset.path().clone()
                 } else {
-                    let media_path = resolve_asset_path(source_directory, &source_asset.path);
+                    let media_path = resolve_asset_path(source_directory, &source_asset.path());
                     relative_asset_path(destination_directory, &media_path)
                 };
                 let destination_asset_id = destination
                     .assets
                     .iter()
-                    .find(|asset| asset.path == destination_asset_path)
+                    .find(|asset| asset.path() == &destination_asset_path)
                     .or_else(|| {
                         new_assets
                             .iter()
-                            .find(|asset| asset.path == destination_asset_path)
+                            .find(|asset| asset.path() == &destination_asset_path)
                     })
-                    .map(|asset| asset.id)
+                    .map(|asset| asset.id())
                     .unwrap_or_else(|| {
                         let mut asset = source_asset.clone();
-                        asset.id = Ulid::generate();
-                        asset.path = destination_asset_path.clone();
-                        let id = asset.id;
+                        asset.set_id(Ulid::generate());
+                        asset.set_path(destination_asset_path.clone());
+                        let id = asset.id();
                         new_assets.push(asset);
                         id
                     });
-                asset_ids.insert(source_asset.id, destination_asset_id);
+                asset_ids.insert(source_asset.id(), destination_asset_id);
             }
             for clip in &mut clips {
                 let asset_id = match clip {
@@ -532,7 +532,7 @@ pub(super) fn validate_clips_placements(
                 validate_clip_placement(
                     timeline,
                     clip.track_id,
-                    asset.kind,
+                    asset.kind(),
                     clip.source_out - clip.source_in,
                     clip.timeline_start,
                     &HashSet::new(),
@@ -545,7 +545,7 @@ pub(super) fn validate_clips_placements(
                 validate_clip_placement(
                     timeline,
                     clip.track_id,
-                    asset.kind,
+                    asset.kind(),
                     clip.source_out - clip.source_in,
                     clip.timeline_start,
                     &HashSet::new(),

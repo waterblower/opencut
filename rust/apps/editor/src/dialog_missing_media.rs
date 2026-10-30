@@ -24,18 +24,18 @@ pub(crate) fn missing_media_dialog(timeline: &TimelineRuntimeState) -> MissingMe
         .editing_state
         .assets
         .iter()
-        .filter(|asset| timeline.offline_asset_ids.contains(&asset.id))
+        .filter(|asset| timeline.offline_asset_ids.contains(&asset.id()))
         .map(|asset| MissingMediaFile {
-            asset_id: asset.id,
-            name: match asset.path.file_name() {
+            asset_id: asset.id(),
+            name: match asset.path().file_name() {
                 Some(name) => name.to_string_lossy().into_owned(),
-                None => asset.path.display().to_string(),
+                None => asset.path().display().to_string(),
             },
             clip_count: timeline
                 .editing_state
                 .clips
                 .iter()
-                .filter(|clip| clip.asset_id() == Some(asset.id))
+                .filter(|clip| clip.asset_id() == Some(asset.id()))
                 .count(),
         })
         .filter(|file| file.clip_count > 0)

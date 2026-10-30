@@ -2,7 +2,7 @@ use crate::clip_placement::{ClipPlacementRejection, validate_clip_placement};
 use crate::editing::validate_clips_placements;
 use crate::explorer_drag::AssetBeingDragged;
 use crate::layout::DEFAULT_TIMELINE_PIXELS_PER_SECOND;
-use crate::model::MediaKind;
+use ::timeline::MediaKind;
 use crate::preview_text::PreviewTextDrag;
 use crate::srt::srt_text_clips;
 use crate::timeline_clip::Clip;
@@ -93,16 +93,16 @@ impl PreviewDropAsset {
         match &self.asset {
             AssetBeingDragged::None => Err(ClipPlacementRejection::NoPlacements.into()),
             AssetBeingDragged::Media(asset) => {
-                if asset.metadata.kind == MediaKind::Image {
+                if matches!(asset.metadata, timeline::Asset::Image(_)) {
                     bail!("Image placement is not supported");
                 }
                 let duration = timeline
-                    .nearest_time(asset.metadata.duration)
+                    .nearest_time(asset.metadata.duration().unwrap_or(0.0))
                     .max(TimelineFrameIndex::ONE_FRAME);
                 validate_clip_placement(
                     timeline,
                     self.track_id,
-                    asset.metadata.kind,
+                    asset.metadata.kind(),
                     duration,
                     self.start_time,
                     &HashSet::new(),
@@ -162,7 +162,7 @@ impl TimelineEditorExt for TimelineEditingState {
         let assets = self
             .assets
             .iter()
-            .map(|asset| (asset.id, asset))
+            .map(|asset| (asset.id(), asset))
             .collect::<HashMap<_, _>>();
         let mut proposed = Vec::with_capacity(placements.len());
         for &(clip_id, track_id, start) in placements {
@@ -187,7 +187,7 @@ impl TimelineEditorExt for TimelineEditingState {
                     let asset = assets
                         .get(&media.asset_id)
                         .ok_or(ClipPlacementRejection::MissingAsset)?;
-                    if asset.kind == MediaKind::Audio {
+                    if asset.kind() == MediaKind::Audio {
                         return Err(ClipPlacementRejection::IncompatibleAsset.into());
                     }
                     TrackKind::Video
@@ -196,7 +196,7 @@ impl TimelineEditorExt for TimelineEditingState {
                     let asset = assets
                         .get(&media.asset_id)
                         .ok_or(ClipPlacementRejection::MissingAsset)?;
-                    if asset.kind == MediaKind::Image {
+                    if matches!(asset, timeline::Asset::Image(_)) {
                         return Err(ClipPlacementRejection::IncompatibleAsset.into());
                     }
                     TrackKind::Audio
@@ -292,10 +292,10 @@ impl TimelineEditorExt for TimelineEditingState {
                 || match (track.map(|track| track.kind), clip) {
                     (Some(TrackKind::Text), Clip::Text(_)) => false,
                     (Some(TrackKind::Video), Clip::Video(clip)) => {
-                        !self.assets.iter().any(|asset| asset.id == clip.asset_id)
+                        !self.assets.iter().any(|asset| asset.id() == clip.asset_id)
                     }
                     (Some(TrackKind::Audio), Clip::Audio(clip)) => {
-                        !self.assets.iter().any(|asset| asset.id == clip.asset_id)
+                        !self.assets.iter().any(|asset| asset.id() == clip.asset_id)
                     }
                     (Some(_), _) => true,
                     (None, _) => true,
@@ -322,15 +322,14 @@ impl TimelineEditorExt for TimelineEditingState {
                 Clip::Audio(clip) => (clip.asset_id, &mut clip.source_in, &mut clip.source_out),
                 Clip::Text(_) => continue,
             };
-            if let Some(asset) = self.assets.iter().find(|asset| asset.id == asset_id) {
-                if asset.kind == MediaKind::Image {
-                    // An image has no time-based source to exhaust. Its five-second
-                    // asset duration is only the initial clip length, not a maximum.
+            if let Some(asset) = self.assets.iter().find(|asset| asset.id() == asset_id) {
+                if matches!(asset, timeline::Asset::Image(_)) {
+                    // An image has no time-based source to exhaust.
                     *source_in = (*source_in).max(TimelineFrameIndex::ZERO);
                     *source_out = (*source_out).max(*source_in + TimelineFrameIndex::ONE_FRAME);
                 } else {
                     let asset_duration = frame_rate
-                        .nearest(asset.duration)
+                        .nearest(asset.duration().unwrap_or(0.0))
                         .max(TimelineFrameIndex::ONE_FRAME);
                     let maximum_in = (asset_duration - TimelineFrameIndex::ONE_FRAME)
                         .max(TimelineFrameIndex::ZERO);
@@ -477,9 +476,9 @@ pub(super) fn offline_asset_ids(
         .context("Timeline path has no parent directory")?;
     let mut missing_asset_ids = HashSet::new();
     for asset in &editing_state.assets {
-        let asset_path = resolve_asset_path(timeline_directory, &asset.path);
+        let asset_path = resolve_asset_path(timeline_directory, &asset.path());
         if !asset_path.exists() {
-            missing_asset_ids.insert(asset.id);
+            missing_asset_ids.insert(asset.id());
         }
     }
     Ok(missing_asset_ids)

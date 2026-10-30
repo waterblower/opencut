@@ -1,4 +1,4 @@
-use crate::model::MediaKind;
+use ::timeline::MediaKind;
 use crate::timeline::{TimelineFrameIndex, timeline_ranges_overlap};
 use crate::track::TrackKind;
 use ::timeline::TimelineEditingState;

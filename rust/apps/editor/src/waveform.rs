@@ -37,8 +37,8 @@ impl Editor {
                 editing_state
                     .assets
                     .into_iter()
-                    .filter(|asset| asset.has_audio && referenced_assets.contains(&asset.id))
-                    .map(|asset| resolve_asset_path(timeline_directory, &asset.path)),
+                    .filter(|asset| asset.has_audio() && referenced_assets.contains(&asset.id()))
+                    .map(|asset| resolve_asset_path(timeline_directory, &asset.path())),
             );
         }
         self.emit_event(
@@ -66,8 +66,8 @@ impl Editor {
             .editing_state
             .assets
             .iter()
-            .filter(|asset| asset.has_audio && referenced_assets.contains(&asset.id))
-            .map(|asset| resolve_asset_path(timeline_directory, &asset.path))
+            .filter(|asset| asset.has_audio() && referenced_assets.contains(&asset.id()))
+            .map(|asset| resolve_asset_path(timeline_directory, &asset.path()))
             .collect::<Vec<_>>();
         self.emit_event(cx, AppEvent::WaveformsGeneration { paths });
     }

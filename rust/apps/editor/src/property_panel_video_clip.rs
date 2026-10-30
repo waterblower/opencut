@@ -32,7 +32,7 @@ pub(crate) fn video_clip_panel(
     return_focus: FocusHandle,
 ) -> VideoClipPanel {
     let asset_name = match editing_state.asset(clip.asset_id) {
-        Some(asset) => asset.name.as_str(),
+        Some(asset) => asset.name().as_str(),
         None => "Missing media",
     };
     let track_name = match editing_state

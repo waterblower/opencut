@@ -2,7 +2,7 @@ use crate::clip_placement::validate_clip_placement;
 use crate::edit_action::{EditAction, edit_timeline};
 use crate::editor::Editor;
 use crate::explorer_file_entry::{FileTreeEntry, FileTreeEntryKind, search_tree, visible_tree};
-use crate::model::MediaAsset;
+use ::timeline::Asset;
 use crate::preview::{PreviewTarget, timeline_preview_target};
 use crate::theme::{ACCENT, BORDER, MUTED, PANEL, SURFACE, TEXT};
 use crate::timeline::TimelineFrameIndex;

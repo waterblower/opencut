@@ -2,7 +2,7 @@ use crate::edit_action::EditAction;
 use crate::editor::Editor;
 use crate::event_bus::AppEvent;
 use crate::layout::{TIMELINE_PADDING, TRACK_HEADER_WIDTH};
-use crate::model::MediaKind;
+use ::timeline::MediaKind;
 use crate::theme::{BORDER, ERROR, MUTED, TEXT};
 use crate::timeline::TimelineFrameIndex;
 use crate::timeline_clip::Clip;
@@ -302,7 +302,7 @@ impl Editor {
             let image = timeline
                 .editing_state
                 .asset(asset_id)
-                .is_some_and(|asset| asset.kind == MediaKind::Image);
+                .is_some_and(|asset| matches!(asset, timeline::Asset::Image(_)));
             Some((timeline.offline_asset_ids.contains(&asset_id), image))
         }) {
             Some(media) => media,
@@ -401,7 +401,7 @@ impl Editor {
                                     let event = AppEvent::OpenTranscribeWindow {
                                         audio_source_path: resolve_asset_path(
                                             timeline_directory,
-                                            &asset.path,
+                                            &asset.path(),
                                         ),
                                         clip: Some(ClipRange {
                                             clip_id,

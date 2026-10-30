@@ -21,7 +21,6 @@ mod global_settings;
 mod global_settings_dialog;
 mod gpui_inspector;
 mod layout;
-mod model;
 mod preview;
 mod preview_events;
 mod preview_image;

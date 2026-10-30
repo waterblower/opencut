@@ -4,7 +4,7 @@ use crate::editor::Editor;
 use crate::event_bus::AppEvent;
 use crate::explorer_drag::AssetBeingDragged;
 use crate::layout::{TIMELINE_PADDING, TRACK_HEIGHT};
-use crate::model::MediaKind;
+use ::timeline::MediaKind;
 use crate::srt::srt_text_clips;
 use crate::theme::{
     ACCENT, BORDER, CLIP_BLUE, CLIP_OFFLINE, ERROR, MUTED, SURFACE, SURFACE_HOVER, TEXT,
@@ -303,7 +303,7 @@ impl Editor {
                                         .asset_id()
                                         .and_then(|id| timeline.editing_state.asset(id))
                                     {
-                                        Some(asset) => SharedString::from(asset.name.clone()),
+                                        Some(asset) => SharedString::from(asset.name().clone()),
                                         None => SharedString::from("Missing media"),
                                     };
                                     (
@@ -394,7 +394,7 @@ impl Editor {
             return self.timeline_clip_frame(
                 clip,
                 CLIP_OFFLINE,
-                offline_clip_content_view(asset.name.clone()).into_any_element(),
+                offline_clip_content_view(asset.name().clone()).into_any_element(),
                 cx,
             );
         }
@@ -447,13 +447,13 @@ impl Editor {
         let media = clip.video().expect("video tracks contain video clips");
         let asset = timeline.editing_state.asset(media.asset_id);
         let name = asset
-            .map(|asset| asset.name.clone())
+            .map(|asset| asset.name().clone())
             .unwrap_or_else(|| "Missing media".to_string());
 
         let waveform = (|| {
             let asset = asset?;
             let timeline_directory = timeline.path.parent()?;
-            let media_path = resolve_asset_path(timeline_directory, &asset.path); // 波形缓存以素材的绝对路径为键。
+            let media_path = resolve_asset_path(timeline_directory, &asset.path()); // 波形缓存以素材的绝对路径为键。
             self.waveform_cache.get(&media_path).cloned()
         })();
         let source_start = timeline.editing_state.seconds(media.source_in);
@@ -478,17 +478,17 @@ impl Editor {
         let media = clip.audio().expect("audio tracks contain audio clips");
         let asset = timeline.editing_state.asset(media.asset_id);
         let name = asset
-            .map(|asset| asset.name.clone())
+            .map(|asset| asset.name().clone())
             .unwrap_or_else(|| "Missing media".to_string());
         let waveform = (|| {
             let asset = asset?;
             let timeline_directory = timeline.path.parent()?;
-            let media_path = resolve_asset_path(timeline_directory, &asset.path); // 波形缓存以素材的绝对路径为键。
+            let media_path = resolve_asset_path(timeline_directory, &asset.path()); // 波形缓存以素材的绝对路径为键。
             self.waveform_cache.get(&media_path).cloned()
         })();
         let source_start = timeline.editing_state.seconds(media.source_in);
         let source_end = timeline.editing_state.seconds(media.source_out);
-        let detail = if asset.is_some_and(|asset| asset.has_audio) {
+        let detail = if asset.is_some_and(|asset| asset.has_audio()) {
             "Audio".to_string()
         } else {
             format!(
@@ -856,13 +856,13 @@ fn preview_drop_asset(
             let left =
                 TIMELINE_PADDING + timeline.seconds(preview.start_time) as f32 * pixels_per_second;
             let duration = timeline
-                .nearest_time(asset.metadata.duration)
+                .nearest_time(asset.metadata.duration().unwrap_or(0.0))
                 .max(TimelineFrameIndex::ONE_FRAME);
             let width = (timeline.seconds(duration) as f32 * pixels_per_second).max(4.0);
             Some(clip_placement_preview_view(
                 "asset-placement",
                 asset.name(),
-                PlacementKind::Media(asset.metadata.kind),
+                PlacementKind::Media(asset.metadata.kind()),
                 left,
                 width,
                 invalid_reason.as_deref(),

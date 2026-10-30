@@ -36,7 +36,7 @@ pub(super) fn audio_clip_panel(
 ) -> AudioClipPanel {
     let asset = timeline.editing_state.asset(clip.asset_id);
     let asset_name = match asset {
-        Some(asset) => asset.name.clone(),
+        Some(asset) => asset.name().clone(),
         None => "Missing media".to_owned(),
     };
     let track_name = match timeline
@@ -55,7 +55,7 @@ pub(super) fn audio_clip_panel(
         let Some(timeline_directory) = timeline.path.parent() else {
             return None;
         };
-        let media_path = resolve_asset_path(timeline_directory, &asset.path); // 波形缓存以素材的绝对路径为键。
+        let media_path = resolve_asset_path(timeline_directory, &asset.path()); // 波形缓存以素材的绝对路径为键。
         waveform_cache.get(&media_path).cloned()
     })();
     AudioClipPanel {
