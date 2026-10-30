@@ -146,7 +146,11 @@ fn decimal(value: &str) -> Result<(i128, i128)> {
             line!()
         ));
     }
-    let places = if parts.len() == 2 { parts[1].len() } else { 0 };
+    let places = if parts.len() == 2 {
+        parts[1].len()
+    } else {
+        0
+    };
     let digits = value.replace('.', "");
     Ok((
         digits

@@ -10,7 +10,6 @@ use crate::property_panel::{PropertyPanel, PropertyPanelState, current_property_
 use crate::property_panel_transform::VideoTransformInputs;
 use crate::timeline::TimelineRuntimeState;
 use crate::ui_components::{HorizontalSplitState, TextInput, VerticalSplitState};
-use crate::waveform;
 use anyhow::Result;
 use gpui::prelude::*;
 use gpui::{Entity, FocusHandle, ScrollHandle};
@@ -28,7 +27,7 @@ pub(crate) struct Editor {
     // other
     pub(crate) project_root: PathBuf,
     pub(super) waveform_jobs: HashSet<PathBuf>, // 正在生成波形的素材绝对路径。
-    pub(super) waveform_cache: HashMap<PathBuf, Arc<waveform::WaveformData>>, // 键为素材的绝对路径；不同目录的时间线可能用不同相对路径指向同一文件。
+    pub(super) waveform_cache: HashMap<PathBuf, Arc<::waveform::WaveformData>>, // 键为素材的绝对路径；不同目录的时间线可能用不同相对路径指向同一文件。
     pub(super) property_panel_state: PropertyPanelState,
     pub(super) property_panel: PropertyPanel, // 点击文件或片段后由事件重建，render 只读它。
     pub(super) settings_open: bool,
@@ -111,13 +110,6 @@ impl Editor {
             timeline.set_playhead(timeline.playhead());
         }
         editor.property_panel = current_property_panel(&editor);
-
-        // todo:
-        // instead of have an async starting here
-        // with a sync signature, so that we increase indirect
-        // we should submit an event to compute waveforms
-        // and update the UI using real async functions
-        editor.schedule_project_waveforms(cx);
         editor
     }
 

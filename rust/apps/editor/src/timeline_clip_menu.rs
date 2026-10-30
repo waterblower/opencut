@@ -2,9 +2,9 @@ use crate::context_menu::ContextMenu;
 use crate::edit_action::EditAction;
 use crate::editor::Editor;
 use crate::event_bus::AppEvent;
-use crate::model::MediaKind;
 use crate::timeline_clip::{AudioClipProperties, VideoClipProperties};
 use crate::track::TrackKind;
+use ::timeline::MediaKind;
 use ::timeline::TimelineEditingState;
 use gpui::prelude::*;
 use ulid::Ulid;
@@ -19,7 +19,7 @@ pub(super) fn clip_property_targets(
     let source_media = source.video()?;
     let track = timeline.track(source.track_id())?;
     let source_asset = timeline.asset(source_media.asset_id)?;
-    if track.locked || track.kind != TrackKind::Video || source_asset.kind == MediaKind::Audio {
+    if track.locked || track.kind != TrackKind::Video || source_asset.kind() == MediaKind::Audio {
         return None;
     }
     let video_properties = source_media.video_properties;
@@ -32,7 +32,7 @@ pub(super) fn clip_property_targets(
         .filter(|(_, clip)| {
             clip.video()
                 .and_then(|clip| timeline.asset(clip.asset_id))
-                .is_some_and(|asset| asset.kind != MediaKind::Audio)
+                .is_some_and(|asset| asset.kind() != MediaKind::Audio)
         })
         .filter(|(_, clip)| {
             clip.video().is_some_and(|clip| {

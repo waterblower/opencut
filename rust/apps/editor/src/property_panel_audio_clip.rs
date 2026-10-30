@@ -9,7 +9,7 @@ use crate::timeline::{FrameRate, TimelineRuntimeState};
 use crate::timeline_clip::AudioClip;
 use crate::timeline_document::resolve_asset_path;
 use crate::track::TrackKind;
-use crate::waveform::WaveformData;
+use ::waveform::WaveformData;
 use gpui::FocusHandle;
 use gpui::{Bounds, Entity, ParentElement, Styled, canvas, div, fill, point, px, rgb, rgba, size};
 use std::collections::HashMap;
@@ -36,7 +36,7 @@ pub(super) fn audio_clip_panel(
 ) -> AudioClipPanel {
     let asset = timeline.editing_state.asset(clip.asset_id);
     let asset_name = match asset {
-        Some(asset) => asset.name.clone(),
+        Some(asset) => asset.name().clone(),
         None => "Missing media".to_owned(),
     };
     let track_name = match timeline
@@ -55,7 +55,7 @@ pub(super) fn audio_clip_panel(
         let Some(timeline_directory) = timeline.path.parent() else {
             return None;
         };
-        let media_path = resolve_asset_path(timeline_directory, &asset.path); // 波形缓存以素材的绝对路径为键。
+        let media_path = resolve_asset_path(timeline_directory, &asset.path()); // 波形缓存以素材的绝对路径为键。
         waveform_cache.get(&media_path).cloned()
     })();
     AudioClipPanel {
@@ -147,7 +147,11 @@ fn audio_waveform_view(
         .h(px(44.0))
         .overflow_hidden()
         .rounded(px(6.0))
-        .bg(rgb(if locked { 0x19191d } else { 0x131316 }))
+        .bg(rgb(if locked {
+            0x19191d
+        } else {
+            0x131316
+        }))
         .child(
             canvas(
                 move |bounds, _, _| match &waveform {

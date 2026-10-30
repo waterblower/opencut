@@ -2,7 +2,6 @@ use crate::clip_placement::validate_clip_placement;
 use crate::edit_action::{EditAction, edit_timeline};
 use crate::editor::Editor;
 use crate::explorer_file_entry::{FileTreeEntry, FileTreeEntryKind, search_tree, visible_tree};
-use crate::model::MediaAsset;
 use crate::preview::{PreviewTarget, timeline_preview_target};
 use crate::theme::{ACCENT, BORDER, MUTED, PANEL, SURFACE, TEXT};
 use crate::timeline::TimelineFrameIndex;
@@ -10,6 +9,7 @@ use crate::timeline_clip::{AudioClipProperties, Clip, VideoClip, VideoClipProper
 use crate::timeline_document::relative_asset_path;
 use crate::track::TrackKind;
 use crate::ui_components::TextInput;
+use ::timeline::Asset;
 use anyhow::{Context as _, Result, anyhow, bail};
 use futures::StreamExt;
 use futures::channel::mpsc;
@@ -430,9 +430,21 @@ fn rename_dialog_button(label: &'static str, primary: bool) -> gpui::Stateful<gp
         .justify_center()
         .rounded_lg()
         .border_1()
-        .border_color(rgb(if primary { ACCENT } else { BORDER }))
-        .bg(rgb(if primary { ACCENT } else { SURFACE }))
-        .text_color(rgb(if primary { 0x17120a } else { TEXT }))
+        .border_color(rgb(if primary {
+            ACCENT
+        } else {
+            BORDER
+        }))
+        .bg(rgb(if primary {
+            ACCENT
+        } else {
+            SURFACE
+        }))
+        .text_color(rgb(if primary {
+            0x17120a
+        } else {
+            TEXT
+        }))
         .cursor(CursorStyle::PointingHand)
         .hover(|style| style.opacity(0.85))
         .child(label)

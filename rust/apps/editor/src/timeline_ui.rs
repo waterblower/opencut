@@ -476,7 +476,11 @@ impl Editor {
                     .bottom_0()
                     .h(px(height))
                     .border_l_1()
-                    .border_color(rgb(if emphasized { 0x5a5a62 } else { 0x3a3a40 }))
+                    .border_color(rgb(if emphasized {
+                        0x5a5a62
+                    } else {
+                        0x3a3a40
+                    }))
             });
         let tick_step = ruler_tick_step(duration, timeline.pixels_per_second);
         let tick_count = (duration / tick_step).ceil() as usize + 1;
@@ -767,7 +771,11 @@ fn toolbar_segment_item_view(
     icon: IconName,
     active: bool,
 ) -> gpui::Stateful<gpui::Div> {
-    let color = if active { ACCENT } else { MUTED };
+    let color = if active {
+        ACCENT
+    } else {
+        MUTED
+    };
     div()
         .id(id)
         .h(px(24.0))

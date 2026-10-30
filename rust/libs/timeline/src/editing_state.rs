@@ -1,6 +1,6 @@
 //! Timeline editing content and queries shared by the editor and CLI.
 
-use crate::{Clip, MediaAsset, MediaKind, TimelineFrameIndex, TimelineSettings, Track, TrackKind};
+use crate::{Asset, Clip, MediaKind, TimelineFrameIndex, TimelineSettings, Track, TrackKind};
 use anyhow::{Result, bail};
 use serde::{Deserialize, Serialize};
 use std::{collections::HashSet, time::Duration};
@@ -12,15 +12,15 @@ use ulid::Ulid;
 #[serde(default)]
 pub struct TimelineEditingState {
     pub settings: TimelineSettings,
-    pub assets: Vec<MediaAsset>,
+    pub assets: Vec<Asset>,
     #[serde(alias = "layers")]
     pub tracks: Vec<Track>,
     pub clips: Vec<Clip>,
 }
 
 impl TimelineEditingState {
-    pub fn asset(&self, id: Ulid) -> Option<&MediaAsset> {
-        self.assets.iter().find(|asset| asset.id == id)
+    pub fn asset(&self, id: Ulid) -> Option<&Asset> {
+        self.assets.iter().find(|asset| asset.id() == id)
     }
     pub fn clip(&self, id: Ulid) -> Option<&Clip> {
         self.clips.iter().find(|clip| clip.id() == id)
@@ -133,8 +133,8 @@ impl TimelineEditingState {
         }
         let mut asset_ids = HashSet::new();
         for asset in &self.assets {
-            if !asset_ids.insert(asset.id) {
-                bail!("Duplicate timeline asset {}", asset.id);
+            if !asset_ids.insert(asset.id()) {
+                bail!("Duplicate timeline asset {}", asset.id());
             }
         }
         let mut clip_ids = HashSet::new();
@@ -166,8 +166,8 @@ impl TimelineEditingState {
                             media.asset_id
                         );
                     };
-                    if asset.kind == MediaKind::Audio {
-                        bail!("Clip {} references audio asset {}", media.id(), asset.id);
+                    if asset.kind() == MediaKind::Audio {
+                        bail!("Clip {} references audio asset {}", media.id(), asset.id());
                     }
                     if media.source_in < TimelineFrameIndex::ZERO {
                         bail!("Clip {} has a negative source trim", media.id());
@@ -205,11 +205,11 @@ impl TimelineEditingState {
                             audio.asset_id
                         );
                     };
-                    if asset.kind == MediaKind::Image {
+                    if matches!(asset, crate::Asset::Image(_)) {
                         bail!(
                             "Audio clip {} references image asset {}",
                             audio.id(),
-                            asset.id
+                            asset.id()
                         );
                     }
                     if audio.source_in < TimelineFrameIndex::ZERO {

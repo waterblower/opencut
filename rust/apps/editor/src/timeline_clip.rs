@@ -79,9 +79,17 @@ pub(super) fn text_clip_component(
         .overflow_hidden()
         .rounded_md()
         .border_1()
-        .border_color(rgb(if selected { ACCENT } else { 0x8261b3 }))
+        .border_color(rgb(if selected {
+            ACCENT
+        } else {
+            0x8261b3
+        }))
         .bg(rgb(0x7251a3))
-        .opacity(if moving { 0.3 } else { 1.0 })
+        .opacity(if moving {
+            0.3
+        } else {
+            1.0
+        })
         .child(
             div()
                 .absolute()

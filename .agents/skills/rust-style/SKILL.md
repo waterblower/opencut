@@ -24,6 +24,9 @@ Also apply the [general rules](../general-rules/SKILL.md).
 - Import anyhow helpers explicitly and use them unqualified: `anyhow!`, `bail!`, `Result`,
   `Error`. Alias on conflict. Don't edit vendored code to enforce this.
 - Never use `#[serde(rename_all = "snake_case")]`.
+- Preserve Rust enum variant capitalization in JSON. Never add Serde aliases solely
+  to accommodate different case conventions (for example, `#[serde(alias = "video")]`
+  for `Video`).
 - Use the smallest visibility that works: private, then `pub(super)`, `pub(crate)`, `pub`.
   `pub` is only for items another crate uses. This applies to fields, enum variants and
   re-exports too.

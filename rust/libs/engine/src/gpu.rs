@@ -237,7 +237,11 @@ fn create_pool((width, height): (usize, usize)) -> Result<CVPixelBufferPool> {
 // Neither this transform nor the output shader performs HDR tone mapping.
 fn color_transform(kr: f32, kb: f32, bits: u32, full_range: bool) -> [[f32; 4]; 3] {
     let kg = 1.0 - kr - kb;
-    let code_scale = if bits == 10 { 65535.0 / 64.0 } else { 255.0 };
+    let code_scale = if bits == 10 {
+        65535.0 / 64.0
+    } else {
+        255.0
+    };
     let level_scale = (1_u32 << (bits - 8)) as f32;
     let maximum = ((1_u32 << bits) - 1) as f32;
     let (black, y_range, uv_range) = if full_range {
