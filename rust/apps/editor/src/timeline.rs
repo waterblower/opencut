@@ -426,8 +426,9 @@ impl TimelineRuntimeState {
 
     /// Moves the editing playhead to `frame_index`, clamped to the last frame of the content.
     pub(crate) fn set_playhead(&mut self, frame_index: TimelineFrameIndex) {
-        let last_frame_index =
-            self.editing_state.content_duration() - TimelineFrameIndex::ONE_FRAME;
+        let last_frame_index = (self.editing_state.content_duration()
+            - TimelineFrameIndex::ONE_FRAME)
+            .max(TimelineFrameIndex::ZERO);
         if frame_index < TimelineFrameIndex::ZERO {
             self.playhead = TimelineFrameIndex::ZERO;
         } else if frame_index > last_frame_index {

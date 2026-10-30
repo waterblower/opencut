@@ -1,17 +1,15 @@
 use super::*;
 use crate::clip_placement::ClipPlacementRejection;
 use crate::explorer_drag::{AssetBeingDragged, DraggedMedia};
-use crate::model::MediaKind;
 use crate::test_support::{TimelineTestExt, ulid};
 use crate::timeline::PreviewDropAsset;
 use crate::timeline_clip::AudioClip;
-use ::timeline::TimelineEditingState;
+use ::timeline::{Asset, MediaAsset, MediaKind, TimelineEditingState};
 use std::path::Path;
 
-fn asset(kind: MediaKind, has_audio: bool) -> MediaAsset {
-    MediaAsset {
+fn asset(kind: MediaKind, has_audio: bool) -> Asset {
+    let media = MediaAsset {
         id: ulid(10),
-        kind,
         path: PathBuf::from("media.mp4"),
         name: "Media".to_string(),
         duration: 10.0,
@@ -22,6 +20,11 @@ fn asset(kind: MediaKind, has_audio: bool) -> MediaAsset {
         frame_rate_denominator: 1,
         codec: "test".to_string(),
         has_audio,
+    };
+    match kind {
+        MediaKind::Audio => Asset::Audio(media),
+        MediaKind::Video => Asset::Video(media),
+        MediaKind::Image => panic!("drop tests require time-based media"),
     }
 }
 
@@ -95,9 +98,12 @@ fn explorer_drop_detects_collisions_but_allows_adjacent_clips() {
         start_time: TimelineFrameIndex::from(15),
         asset: AssetBeingDragged::Media(DraggedMedia {
             absolute_path: PathBuf::from("audio.wav"),
-            metadata: MediaAsset {
-                duration: 1.0,
-                ..asset(MediaKind::Audio, true)
+            metadata: {
+                let Asset::Audio(mut media) = asset(MediaKind::Audio, true) else {
+                    panic!("expected audio asset");
+                };
+                media.duration = 1.0;
+                Asset::Audio(media)
             },
         }),
     };

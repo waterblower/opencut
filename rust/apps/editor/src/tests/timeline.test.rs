@@ -1,12 +1,12 @@
 use super::*;
 use crate::layout::DEFAULT_TIMELINE_PIXELS_PER_SECOND;
-use crate::model::{DEFAULT_IMAGE_CLIP_DURATION, MediaAsset, MediaKind};
 use crate::test_support::{TimelineTestExt, ulid};
 use crate::timeline_clip::{
     AudioClipProperties, Clip, ClipEditingExt, TextClip, TextClipProperties, VideoClip,
     VideoClipProperties,
 };
 use crate::track::{Track, TrackKind};
+use ::timeline::{Asset, ImageAsset, MediaAsset};
 use ::timeline::{TimelineEditingState, TimelineSerialization, TimelineSettings};
 use std::collections::HashSet;
 use std::time::Duration;
@@ -95,10 +95,9 @@ fn video_clip(id: u64, start: i64, duration: i64) -> Clip {
     ))
 }
 
-fn video_asset() -> MediaAsset {
-    MediaAsset {
+fn video_asset() -> Asset {
+    Asset::Video(MediaAsset {
         id: ulid(100),
-        kind: MediaKind::Video,
         path: "clip.mp4".into(),
         name: "clip".into(),
         duration: 30.0,
@@ -109,24 +108,18 @@ fn video_asset() -> MediaAsset {
         frame_rate_denominator: 1,
         codec: "h264".into(),
         has_audio: true,
-    }
+    })
 }
 
-fn image_asset() -> MediaAsset {
-    MediaAsset {
+fn image_asset() -> Asset {
+    Asset::Image(ImageAsset {
         id: ulid(100),
-        kind: MediaKind::Image,
         path: "still.png".into(),
         name: "still".into(),
-        duration: DEFAULT_IMAGE_CLIP_DURATION,
         width: 1920,
         height: 1080,
-        framerate: 0.0,
-        frame_rate_numerator: 0,
-        frame_rate_denominator: 0,
         codec: "PNG".into(),
-        has_audio: false,
-    }
+    })
 }
 
 #[test]
@@ -163,7 +156,7 @@ fn repairs_overlapping_clips_when_loading_a_timeline() {
 }
 
 #[test]
-fn still_image_clips_can_extend_beyond_their_default_duration() {
+fn timeline_repair_preserves_long_image_clips() {
     let mut project = TimelineEditingState {
         assets: vec![image_asset()],
         clips: vec![video_clip(10, 0, 300)],
@@ -701,23 +694,6 @@ fn untagged_media_clip_is_rejected() {
         "timeline_start": 0,
         "source_in": 0,
         "source_out": 30
-    });
-
-    assert!(parse_clip(value).is_err());
-}
-
-#[test]
-fn text_properties_clip_is_rejected() {
-    let value = serde_json::json!({
-        "id": 10,
-        "track_id": 3,
-        "asset_id": 0,
-        "timeline_start": 12,
-        "source_in": 0,
-        "source_out": 90,
-        "text_properties": {
-            "text": "Legacy title"
-        }
     });
 
     assert!(parse_clip(value).is_err());

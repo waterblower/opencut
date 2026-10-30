@@ -518,12 +518,13 @@ pub(crate) fn edit_timeline(
             }
         };
 
+    let new_offline_asset_ids = offline_asset_ids(&timeline.path, &outcome.new_state)?;
     if outcome.record_history {
         timeline.record_editing_history();
     }
-    timeline.set_playhead(timeline.playhead());
-    timeline.offline_asset_ids = offline_asset_ids(&timeline.path, &outcome.new_state)?;
+    timeline.offline_asset_ids = new_offline_asset_ids;
     timeline.editing_state = outcome.new_state;
+    timeline.set_playhead(timeline.playhead());
     Ok(outcome.should_save)
 }
 

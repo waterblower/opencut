@@ -1,7 +1,6 @@
 use super::*;
 use crate::clip_placement::ClipPlacementRejection;
 use crate::edit_action::{EditAction, edit_timeline};
-use crate::model::{MediaAsset, MediaKind};
 use crate::test_support::{TimelineTestExt, ulid};
 use crate::timeline::{FrameRate, TimelineEditorExt, TimelineFrameIndex, TimelineRuntimeState};
 use crate::timeline_clip::{
@@ -9,16 +8,15 @@ use crate::timeline_clip::{
     VideoClipProperties,
 };
 use crate::track::{Track, TrackKind};
-use ::timeline::{TimelineEditingState, TimelineSerialization};
+use ::timeline::{Asset, MediaAsset, TimelineEditingState, TimelineSerialization};
 use std::collections::HashSet;
 use std::path::PathBuf;
 use std::time::Duration;
 use ulid::Ulid;
 
-fn audio_asset(id: u64) -> MediaAsset {
-    MediaAsset {
+fn audio_asset(id: u64) -> Asset {
+    Asset::Audio(MediaAsset {
         id: ulid(id),
-        kind: MediaKind::Audio,
         path: PathBuf::from("audio.mp3"),
         name: "Audio".to_string(),
         duration: 10.0,
@@ -29,7 +27,7 @@ fn audio_asset(id: u64) -> MediaAsset {
         frame_rate_denominator: 0,
         codec: "mp3".to_string(),
         has_audio: true,
-    }
+    })
 }
 
 fn audio_clip(id: u64, start: i64, duration: i64) -> Clip {
@@ -47,8 +45,10 @@ fn audio_clip(id: u64, start: i64, duration: i64) -> Clip {
 #[test]
 fn audio_clips_from_video_assets_cannot_move_to_video_tracks() {
     let mut project = TimelineEditingState::with_test_tracks();
-    let mut asset = audio_asset(100);
-    asset.kind = MediaKind::Video;
+    let Asset::Audio(media) = audio_asset(100) else {
+        panic!("expected audio asset");
+    };
+    let asset = Asset::Video(media);
     project.assets.push(asset);
     project.clips = vec![audio_clip(10, 0, 30), audio_clip(11, 30, 30)];
     let selected = HashSet::from([ulid(10), ulid(11)]);
@@ -167,12 +167,12 @@ fn clipboard_remaps_tracks_and_assets_between_timelines() {
         .unwrap();
 
     assert_eq!(assets.len(), 1);
-    assert_eq!(assets[0].path, PathBuf::from("audio.mp3"));
-    assert_ne!(assets[0].id, ulid(100));
+    assert_eq!(assets[0].path(), &PathBuf::from("audio.mp3"));
+    assert_ne!(assets[0].id(), ulid(100));
     assert_eq!(clips[0].track_id(), ulid(202));
     assert_eq!(clips[1].track_id(), ulid(202));
-    assert_eq!(clips[0].asset_id().unwrap(), assets[0].id);
-    assert_eq!(clips[1].asset_id().unwrap(), assets[0].id);
+    assert_eq!(clips[0].asset_id().unwrap(), assets[0].id());
+    assert_eq!(clips[1].asset_id().unwrap(), assets[0].id());
     assert_eq!(clips[0].timeline_start(), TimelineFrameIndex::from(100));
     assert_eq!(clips[1].timeline_start(), TimelineFrameIndex::from(120));
 }
@@ -193,7 +193,7 @@ fn clipboard_reuses_existing_destination_assets() {
     let mut destination = TimelineEditingState::with_test_tracks();
     destination.tracks[1].id = ulid(202);
     let mut existing_asset = audio_asset(300);
-    existing_asset.path = PathBuf::from("audio.mp3");
+    existing_asset.set_path(PathBuf::from("audio.mp3"));
     destination.assets.push(existing_asset);
     let (clips, assets) = clipboard
         .prepare_paste(
@@ -278,7 +278,7 @@ fn select_all_excludes_clips_on_locked_tracks() {
 fn edits_do_not_require_source_media_or_a_playback_backend() -> Result<()> {
     let mut data = TimelineEditingState::with_test_tracks();
     data.assets.push(audio_asset(100));
-    data.assets[0].path = PathBuf::from(format!("missing-{}.mp3", Ulid::generate()));
+    data.assets[0].set_path(PathBuf::from(format!("missing-{}.mp3", Ulid::generate())));
     let mut timeline = TimelineRuntimeState::new(std::path::absolute("test.timeline.json")?, data)?;
     assert!(timeline.offline_asset_ids.contains(&ulid(100)));
     assert!(!timeline.has_offline_clips()); // 未被片段引用的缺失素材不阻止预览。
@@ -436,8 +436,10 @@ fn splitting_trimming_and_ripple_deletion_update_the_model() -> Result<()> {
 #[test]
 fn track_controls_and_properties_work_without_preview() -> Result<()> {
     let mut data = TimelineEditingState::with_test_tracks();
-    let mut asset = audio_asset(100);
-    asset.kind = MediaKind::Video;
+    let Asset::Audio(media) = audio_asset(100) else {
+        panic!("expected audio asset");
+    };
+    let asset = Asset::Video(media);
     data.assets.push(asset);
     data.clips = vec![Clip::Video(timeline::VideoClip::new(
         ulid(10),
