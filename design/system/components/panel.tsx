@@ -1,4 +1,7 @@
+import { raw } from "@design/jsx/jsx-runtime";
 import type { Child, Markup } from "@design/jsx/jsx-runtime";
+
+const LOCK_ICON = raw(Deno.readTextFileSync(new URL("./icons/lock.svg", import.meta.url)));
 
 export type PanelTrackKind = "V" | "A" | "T";
 
@@ -113,19 +116,7 @@ function HeaderIcon(props: { icon: PanelIcon }): Markup {
     case "locked":
       return (
         <span class={`${base} border-[#62626e] bg-[#33333b]`}>
-          <svg
-            width="16"
-            height="18"
-            viewBox="0 0 16 18"
-            fill="none"
-            stroke="#c9c9cf"
-            stroke-width="1.5"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          >
-            <rect x="1" y="7" width="14" height="11" rx="2" />
-            <path d="M4 7V4a4 4 0 0 1 8 0v3 M8 11v3" />
-          </svg>
+          {LOCK_ICON}
         </span>
       );
     case "file":
@@ -237,36 +228,7 @@ export function MuteToggle(props: { muted?: boolean; locked?: boolean }): Markup
   const fade = props.locked ? "opacity-50" : "";
   return (
     <div class="flex h-5 items-center justify-between">
-      <svg
-        class={fade}
-        width="16"
-        height="16"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="#c9c9cf"
-        stroke-width="2.25"
-        stroke-linecap="round"
-        stroke-linejoin="round"
-      >
-        {props.muted
-          ? (
-            <>
-              <path d="M2 2l20 20" />
-              <path d="M18.89 13.23A7.12 7.12 0 0 0 19 12v-2" />
-              <path d="M5 10v2a7 7 0 0 0 12 5" />
-              <path d="M15 9.34V5a3 3 0 0 0-5.68-1.33" />
-              <path d="M9 9v3a3 3 0 0 0 5.12 2.12" />
-              <path d="M12 19v3" />
-            </>
-          )
-          : (
-            <>
-              <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z" />
-              <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
-              <path d="M12 19v3" />
-            </>
-          )}
-      </svg>
+      <MicIcon muted={props.muted} class={fade} />
       <span
         class={`flex h-5 w-[34px] items-center rounded-full px-[3px] ${fade} ${
           props.muted ? "bg-border" : "justify-end bg-accent"
@@ -275,5 +237,41 @@ export function MuteToggle(props: { muted?: boolean; locked?: boolean }): Markup
         <span class={`size-3.5 rounded-full ${props.muted ? "bg-muted" : "bg-panel"}`} />
       </span>
     </div>
+  );
+}
+
+/// A microphone, struck through when muted.
+function MicIcon(props: { muted?: boolean; class: string }): Markup {
+  return (
+    <svg
+      class={props.class}
+      width="16"
+      height="16"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="#c9c9cf"
+      stroke-width="2.25"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+    >
+      {props.muted
+        ? (
+          <>
+            <path d="M2 2l20 20" />
+            <path d="M18.89 13.23A7.12 7.12 0 0 0 19 12v-2" />
+            <path d="M5 10v2a7 7 0 0 0 12 5" />
+            <path d="M15 9.34V5a3 3 0 0 0-5.68-1.33" />
+            <path d="M9 9v3a3 3 0 0 0 5.12 2.12" />
+            <path d="M12 19v3" />
+          </>
+        )
+        : (
+          <>
+            <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z" />
+            <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
+            <path d="M12 19v3" />
+          </>
+        )}
+    </svg>
   );
 }

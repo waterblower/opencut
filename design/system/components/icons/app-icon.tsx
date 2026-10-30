@@ -1,4 +1,4 @@
-import { COLOR } from "../theme.ts";
+import { COLOR } from "../../theme.ts";
 import type { Markup } from "@design/jsx/jsx-runtime";
 
 /// The OpenCut app icon: a dark rounded tile with a folded-corner "C" in white and gold.

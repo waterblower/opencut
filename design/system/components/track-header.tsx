@@ -1,5 +1,5 @@
 import { COLOR } from "../theme.ts";
-import { Icon, type IconName } from "./icons.tsx";
+import { Icon, type IconName } from "./icons/icons.tsx";
 import type { Markup } from "@design/jsx/jsx-runtime";
 
 export type TrackKind = "V" | "A" | "T";

@@ -1,4 +1,4 @@
-import { COLOR } from "../theme.ts";
+import { COLOR } from "../../theme.ts";
 import type { Markup } from "@design/jsx/jsx-runtime";
 
 export function WarningIcon(props: { x: number; y: number; size?: number }): Markup {

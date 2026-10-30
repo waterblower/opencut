@@ -1,4 +1,4 @@
-import { WarningIcon } from "../components/warning-icon.tsx";
+import { WarningIcon } from "../components/icons/warning-icon.tsx";
 import type { Markup } from "@design/jsx/jsx-runtime";
 
 export default function MissingMediaDialogPage(): Markup {
