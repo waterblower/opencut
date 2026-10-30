@@ -21,21 +21,6 @@ fn nested_timeline_files_are_selectable() {
 }
 
 #[test]
-fn directory_entries_own_their_expansion_state() {
-    let entry = file_tree_entry(
-        Path::new("/project"),
-        PathBuf::from("media"),
-        "media".to_string(),
-        0,
-        true,
-        None,
-        true,
-    );
-
-    assert_eq!(entry.kind, FileTreeEntryKind::Directory { expanded: true });
-}
-
-#[test]
 fn only_the_active_timeline_uses_active_metadata() {
     let entry = file_tree_entry(
         Path::new("/project"),

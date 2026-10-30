@@ -1,14 +1,13 @@
 use super::*;
-use crate::model::{MediaAsset, MediaKind};
 use crate::test_support::{TimelineTestExt, ulid};
 use crate::timeline::TimelineFrameIndex;
 use crate::timeline_clip::{AudioClipProperties, Clip, VideoClip, VideoClipProperties};
 use ::timeline::TimelineEditingState;
+use ::timeline::{Asset, ImageAsset, MediaAsset, MediaKind};
 
-fn asset(id: u64, kind: MediaKind) -> MediaAsset {
-    MediaAsset {
+fn asset(id: u64, kind: MediaKind) -> Asset {
+    let media = MediaAsset {
         id: ulid(id),
-        kind,
         path: format!("asset-{id}").into(),
         name: format!("Asset {id}"),
         duration: 1.0,
@@ -19,6 +18,18 @@ fn asset(id: u64, kind: MediaKind) -> MediaAsset {
         frame_rate_denominator: 1,
         codec: "test".into(),
         has_audio: kind != MediaKind::Image,
+    };
+    match kind {
+        MediaKind::Video => Asset::Video(media),
+        MediaKind::Audio => Asset::Audio(media),
+        MediaKind::Image => Asset::Image(ImageAsset {
+            id: media.id,
+            path: media.path,
+            name: media.name,
+            width: media.width,
+            height: media.height,
+            codec: media.codec,
+        }),
     }
 }
 

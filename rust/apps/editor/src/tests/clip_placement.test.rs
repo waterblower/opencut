@@ -1,5 +1,4 @@
 use super::*;
-use crate::model::MediaKind;
 use crate::test_support::{TimelineTestExt, ulid};
 use crate::timeline::TimelineFrameIndex;
 use crate::timeline_clip::{AudioClip, AudioClipProperties, Clip, VideoClipProperties};

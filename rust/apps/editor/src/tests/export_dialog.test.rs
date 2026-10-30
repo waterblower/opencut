@@ -26,13 +26,7 @@ fn offers_hardware_and_software_encoders_with_distinct_labels() {
 
 #[test]
 fn formats_export_duration() {
-    assert_eq!(format_export_duration(Duration::from_secs(1)), "1 second");
-    assert_eq!(
-        format_export_duration(Duration::from_secs(42)),
-        "42 seconds"
-    );
-    assert_eq!(
-        format_export_duration(Duration::from_secs(128)),
-        "2 min 8 seconds"
-    );
+    for (seconds, expected) in [(1, "1 second"), (42, "42 seconds"), (128, "2 min 8 seconds")] {
+        assert_eq!(format_export_duration(Duration::from_secs(seconds)), expected);
+    }
 }
