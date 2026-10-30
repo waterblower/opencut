@@ -27,6 +27,7 @@ use crate::track::TrackKind;
 use crate::transcription_window;
 use crate::transcription_window::{ClipRange, TranscriptionStage, TranscriptionWindow};
 use crate::ui_components::{HorizontalSplitState, VerticalSplitState};
+use crate::waveform::generate_waveform;
 use crate::{OpenProject, open_editor_window, quit_after_last_window};
 use anyhow::{Context as _, Result, anyhow, bail};
 use engine::export::{ExportCompletion, ExportControl, ExportOption, export_timeline};
@@ -108,6 +109,9 @@ pub(crate) enum AppEvent {
     SrtFileSelected {
         path: PathBuf, // 相对于项目根目录
     },
+    WaveformsNeeded {
+        paths: Vec<PathBuf>, // 素材的绝对路径
+    },
 }
 
 pub(crate) async fn handle_event(
@@ -116,7 +120,7 @@ pub(crate) async fn handle_event(
     event_bus: Entity<EventBus>,
     event: AppEvent,
 ) {
-    eprintln!("handle_event: {:?}", event);
+    log::debug!("handle_event: {event:?}");
     match event {
         AppEvent::ExportTimeline {
             timeline_path,
@@ -337,6 +341,12 @@ pub(crate) async fn handle_event(
                     Err(error) => panic!("could not open editor window: {error:?}"),
                 };
                 project.close_subscription = Some(cx.on_window_closed(quit_after_last_window));
+                if let Err(error) = project
+                    .window
+                    .update(cx, |editor, _, cx| editor.schedule_project_waveforms(cx))
+                {
+                    panic!("could not reach the editor: {error}");
+                }
                 true
             });
             if !switched {
@@ -453,6 +463,25 @@ async fn handle_app_event(
                 },
                 cx,
             )?;
+        }
+        AppEvent::WaveformsNeeded { paths } => {
+            for media_path in paths {
+                let source = media_path.clone();
+                let result = cx
+                    .background_executor()
+                    .spawn(async move { generate_waveform(&source) })
+                    .await;
+                editor.update(cx, |editor, cx| {
+                    editor.waveform_jobs.remove(&media_path);
+                    match result {
+                        Ok(waveform) => {
+                            editor.waveform_cache.insert(media_path, Arc::new(waveform));
+                        }
+                        Err(error) => log::error!("Waveform: {error:?}"),
+                    }
+                    cx.notify();
+                });
+            }
         }
         AppEvent::MissingMediaDialogClosed => {
             editor.update(cx, |editor, cx| {

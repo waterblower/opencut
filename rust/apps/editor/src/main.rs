@@ -157,6 +157,8 @@ fn open_project(cx: &mut App, project_root: PathBuf, event_bus: Entity<EventBus>
             .detach();
     })
     .detach();
+    // 订阅建立之后再触发，否则 WaveformsNeeded 事件没有处理者。
+    window.update(cx, |editor, _, cx| editor.schedule_project_waveforms(cx))?;
     return Ok(());
 }
 

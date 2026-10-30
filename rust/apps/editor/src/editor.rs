@@ -111,13 +111,6 @@ impl Editor {
             timeline.set_playhead(timeline.playhead());
         }
         editor.property_panel = current_property_panel(&editor);
-
-        // todo:
-        // instead of have an async starting here
-        // with a sync signature, so that we increase indirect
-        // we should submit an event to compute waveforms
-        // and update the UI using real async functions
-        editor.schedule_project_waveforms(cx);
         editor
     }
 

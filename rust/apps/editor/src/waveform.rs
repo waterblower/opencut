@@ -1,4 +1,5 @@
 use crate::editor::Editor;
+use crate::event_bus::AppEvent;
 use crate::timeline_document::{project_timeline_files, resolve_asset_path};
 use ::timeline::TimelineSerialization;
 use anyhow::{Result, anyhow};
@@ -90,7 +91,7 @@ impl WaveformData {
     }
 }
 
-fn generate_waveform(source: &Path) -> Result<WaveformData> {
+pub(super) fn generate_waveform(source: &Path) -> Result<WaveformData> {
     ffmpeg::init().map_err(|error| anyhow!("could not initialize FFmpeg: {error}"))?;
     let mut input = format::input(source)
         .map_err(|error| anyhow!("could not open {}: {error}", source.display()))?;
@@ -354,41 +355,7 @@ impl Editor {
         }
         paths.sort();
         self.waveform_jobs.extend(paths.iter().cloned());
-        let project_root = self.project_root.clone();
-        cx.spawn(async move |editor, cx| {
-            for media_path in paths {
-                if editor.update(cx, |_, _| ()).is_err() {
-                    break;
-                }
-                let source = media_path.clone();
-                let result = cx
-                    .background_executor()
-                    .spawn(async move { generate_waveform(&source) })
-                    .await;
-                let current_project = editor
-                    .update(cx, |editor, cx| {
-                        if editor.project_root != project_root {
-                            return false;
-                        }
-                        editor.waveform_jobs.remove(&media_path);
-                        match result {
-                            Ok(waveform) => {
-                                editor
-                                    .waveform_cache
-                                    .insert(media_path.clone(), Arc::new(waveform));
-                            }
-                            Err(error) => eprintln!("Waveform: {error}"),
-                        }
-                        cx.notify();
-                        true
-                    })
-                    .unwrap_or(false);
-                if !current_project {
-                    break;
-                }
-            }
-        })
-        .detach();
+        self.emit_event(cx, AppEvent::WaveformsNeeded { paths });
     }
 }
 
