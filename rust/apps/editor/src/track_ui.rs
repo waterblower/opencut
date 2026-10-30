@@ -453,7 +453,7 @@ impl Editor {
         let waveform = (|| {
             let asset = asset?;
             let timeline_directory = timeline.path.parent()?;
-            let media_path = resolve_asset_path(timeline_directory, &asset.path()); // 波形缓存以素材的绝对路径为键。
+            let media_path = resolve_asset_path(timeline_directory, asset.path()); // 波形缓存以素材的绝对路径为键。
             self.waveform_cache.get(&media_path).cloned()
         })();
         let source_start = timeline.editing_state.seconds(media.source_in);
@@ -483,7 +483,7 @@ impl Editor {
         let waveform = (|| {
             let asset = asset?;
             let timeline_directory = timeline.path.parent()?;
-            let media_path = resolve_asset_path(timeline_directory, &asset.path()); // 波形缓存以素材的绝对路径为键。
+            let media_path = resolve_asset_path(timeline_directory, asset.path()); // 波形缓存以素材的绝对路径为键。
             self.waveform_cache.get(&media_path).cloned()
         })();
         let source_start = timeline.editing_state.seconds(media.source_in);

@@ -44,15 +44,15 @@ fn load_settings(path: &std::path::Path) -> Result<GlobalEditorSettings> {
 }
 
 fn save_settings(path: &std::path::Path, settings: &GlobalEditorSettings) -> Result<()> {
-    if let Some(directory) = path.parent() {
-        if let Err(error) = fs::create_dir_all(directory) {
-            bail!(
-                "could not create {}: {error} at {}:{}",
-                directory.display(),
-                file!(),
-                line!()
-            );
-        }
+    if let Some(directory) = path.parent()
+        && let Err(error) = fs::create_dir_all(directory)
+    {
+        bail!(
+            "could not create {}: {error} at {}:{}",
+            directory.display(),
+            file!(),
+            line!()
+        );
     }
     let json = match serde_json::to_string_pretty(settings) {
         Ok(json) => json,
@@ -62,7 +62,7 @@ fn save_settings(path: &std::path::Path, settings: &GlobalEditorSettings) -> Res
             line!()
         ),
     };
-    if let Err(error) = fs::write(&path, format!("{json}\n")) {
+    if let Err(error) = fs::write(path, format!("{json}\n")) {
         bail!(
             "could not write {}: {error} at {}:{}",
             path.display(),

@@ -90,7 +90,7 @@ impl ParseTime for FrameRate {
             ));
         };
         let value = (scaled + d / 2) / d;
-        Ok(i64::try_from(value).context(format!("invalid_time at {}:{}", file!(), line!()))?)
+        i64::try_from(value).context(format!("invalid_time at {}:{}", file!(), line!()))
     }
 }
 

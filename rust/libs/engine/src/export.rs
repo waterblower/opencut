@@ -309,7 +309,7 @@ pub fn mix_timeline_audio(
             Entry::Occupied(entry) => entry.into_mut(),
             Entry::Vacant(entry) => {
                 let open_started = Instant::now();
-                let path = timeline_directory.join(&asset.path());
+                let path = timeline_directory.join(asset.path());
                 let mut backend = AudioBackend::open(&path)
                     .context(format!("Opening timeline audio {}", path.display()))?;
                 backend
@@ -444,7 +444,7 @@ fn validate_export(
         Ok(_) => {
             let target = fs::canonicalize(output).context("Resolving export output")?;
             for asset in &timeline.editing_state.assets {
-                if fs::canonicalize(option.project_root.join(&asset.path()))
+                if fs::canonicalize(option.project_root.join(asset.path()))
                     .is_ok_and(|source| source == target)
                 {
                     bail!(

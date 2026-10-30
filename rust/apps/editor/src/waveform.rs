@@ -38,7 +38,7 @@ impl Editor {
                     .assets
                     .into_iter()
                     .filter(|asset| asset.has_audio() && referenced_assets.contains(&asset.id()))
-                    .map(|asset| resolve_asset_path(timeline_directory, &asset.path())),
+                    .map(|asset| resolve_asset_path(timeline_directory, asset.path())),
             );
         }
         self.emit_event(

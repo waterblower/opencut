@@ -79,10 +79,10 @@ pub(crate) fn summary(doc: &TimelineEditingState) -> Value {
         let used: Vec<_> = doc
             .clips
             .iter()
-            .filter(|c| c.asset_id().is_some_and(|id| id == asset.id))
+            .filter(|c| c.asset_id().is_some_and(|id| id == asset.id()))
             .map(|c| c.id())
             .collect();
-        assets.push(json!({"id": asset.id, "path": asset.path, "clips": used}));
+        assets.push(json!({"id": asset.id(), "path": asset.path(), "clips": used}));
     }
     json!({"frames": i64::from(doc.content_duration()), "duration_s": fps.seconds(doc.content_duration()), "settings": {"width": doc.settings.width, "height": doc.settings.height, "audio_sample_rate": doc.settings.audio_sample_rate, "frame_rate": {"numerator": fps.numerator, "denominator": fps.denominator}}, "tracks": tracks, "clips": clips, "assets": assets})
 }

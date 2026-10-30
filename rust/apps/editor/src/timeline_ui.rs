@@ -374,10 +374,10 @@ impl Editor {
             .timeline
             .as_ref()
             .expect("timeline view requires timeline state");
-        if let PreviewTarget::Timeline { path, player, .. } = &self.preview.target {
-            if self.project_root.join(path) == timeline.path {
-                return player.read(cx).backend().position().as_secs_f64();
-            }
+        if let PreviewTarget::Timeline { path, player, .. } = &self.preview.target
+            && self.project_root.join(path) == timeline.path
+        {
+            return player.read(cx).backend().position().as_secs_f64();
         }
         timeline.editing_state.seconds(timeline.playhead())
     }
@@ -871,10 +871,9 @@ fn pinch_timeline(
     if matches!(
         event.phase,
         gpui::TouchPhase::Ended | gpui::TouchPhase::Cancelled
-    ) {
-        if let Err(error) = timeline.save() {
-            log::error!("Could not save timeline zoom: {error:?}");
-        }
+    ) && let Err(error) = timeline.save()
+    {
+        log::error!("Could not save timeline zoom: {error:?}");
     }
     if timeline.pixels_per_second != previous_zoom {
         cx.notify();

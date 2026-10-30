@@ -187,7 +187,7 @@ impl ClipClipboard {
                 let destination_asset_path = if source_asset.path().is_absolute() {
                     source_asset.path().clone()
                 } else {
-                    let media_path = resolve_asset_path(source_directory, &source_asset.path());
+                    let media_path = resolve_asset_path(source_directory, source_asset.path());
                     relative_asset_path(destination_directory, &media_path)
                 };
                 let destination_asset_id = destination

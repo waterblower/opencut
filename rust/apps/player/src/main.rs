@@ -103,7 +103,7 @@ fn main() -> Result<()> {
         .expect("failed to create the player window");
         cx.activate(true);
     });
-    return Ok(());
+    Ok(())
 }
 
 actions!(opencut, [TogglePlayback]);

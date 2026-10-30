@@ -142,9 +142,7 @@ impl Editor {
                 .editing_state
                 .assets
                 .iter()
-                .filter_map(|asset| {
-                    renamed_asset_path(&asset.path()).map(|path| (asset.id(), path))
-                })
+                .filter_map(|asset| renamed_asset_path(asset.path()).map(|path| (asset.id(), path)))
                 .collect();
             edit_timeline(timeline, EditAction::UpdateAssetPaths { paths })?;
             for snapshot in timeline
@@ -153,7 +151,7 @@ impl Editor {
                 .chain(timeline.redo_stack.iter_mut())
             {
                 for asset in &mut snapshot.assets {
-                    if let Some(path) = renamed_asset_path(&asset.path()) {
+                    if let Some(path) = renamed_asset_path(asset.path()) {
                         asset.set_path(path);
                     }
                 }

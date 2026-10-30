@@ -263,7 +263,7 @@ pub(crate) async fn handle_event(
                             })
                             .await
                             .context("Audio preparation task failed")??;
-                        let _ = view.update(cx, |view, cx| {
+                        view.update(cx, |view, cx| {
                             view.stage = TranscriptionStage::Transcribing;
                             cx.notify();
                         })?;
@@ -281,7 +281,7 @@ pub(crate) async fn handle_event(
                             })
                             .await
                             .context("Transcription task failed")??;
-                        let _ = view.update(cx, |view, cx| {
+                        view.update(cx, |view, cx| {
                             view.stage = TranscriptionStage::Saving;
                             cx.notify();
                         })?;

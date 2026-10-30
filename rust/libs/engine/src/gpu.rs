@@ -107,8 +107,8 @@ impl GpuResources {
             unsafe { !CVPixelBufferGetIOSurface(source.as_concrete_TypeRef()).is_null() };
         if !has_surface
             || source.get_plane_count() != 2
-            || dimensions.0 % 2 != 0
-            || dimensions.1 % 2 != 0
+            || !dimensions.0.is_multiple_of(2)
+            || !dimensions.1.is_multiple_of(2)
         {
             bail!(
                 "Unsupported VideoToolbox surface: io_surface={has_surface}, planes={}, size={dimensions:?}",

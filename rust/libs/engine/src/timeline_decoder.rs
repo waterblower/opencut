@@ -101,7 +101,7 @@ impl TimelineDecoder {
                         let asset = timeline
                             .asset(media.asset_id)
                             .context("Validated clip references a missing asset")?;
-                        let asset_path = self.timeline_directory.join(&asset.path());
+                        let asset_path = self.timeline_directory.join(asset.path());
                         match asset.kind() {
                             MediaKind::Video => {
                                 #[cfg(target_os = "macos")]

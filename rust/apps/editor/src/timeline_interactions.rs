@@ -515,12 +515,12 @@ impl Editor {
             original_anchor_track_index,
             placements: items
                 .iter()
-                .filter_map(|item| {
-                    Some((
+                .map(|item| {
+                    (
                         item.clip_id,
                         item.original_track_id,
                         item.original_timeline_start,
-                    ))
+                    )
                 })
                 .collect(),
             items,

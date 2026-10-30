@@ -66,7 +66,7 @@ impl Render for Example {
 }
 
 fn button(text: &'static str) -> gpui::Stateful<gpui::Div> {
-    let button = div()
+    div()
         .id(text)
         .h_10()
         .px_4()
@@ -88,6 +88,5 @@ fn button(text: &'static str) -> gpui::Stateful<gpui::Div> {
                 .border_color(hsla(0.0, 0.0, 0.32, 1.0))
         })
         .active(|style| style.bg(hsla(0.0, 0.0, 0.08, 1.0)).shadow_none())
-        .child(text);
-    return button;
+        .child(text)
 }

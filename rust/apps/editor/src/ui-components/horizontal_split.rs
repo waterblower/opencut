@@ -107,6 +107,10 @@ pub(crate) struct HorizontalSplit {
 }
 
 impl HorizontalSplit {
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "Split layout takes its state, sizing, and both child elements"
+    )]
     pub(crate) fn new(
         id: &'static str,
         state: Entity<HorizontalSplitState>,
