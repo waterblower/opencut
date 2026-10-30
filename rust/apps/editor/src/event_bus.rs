@@ -8,7 +8,7 @@ use crate::explorer_file_entry::select_preview_file;
 use crate::export_window::{ExportState, ExportWindow};
 use crate::global_settings::GlobalEditorSettings;
 use crate::layout::{RULER_HEIGHT, TIMELINE_PADDING, TRACK_HEIGHT, track_index_at_y};
-use ::timeline::{Asset, MediaKind};
+use ::timeline::{Asset, MediaKind, TimelineEditingState};
 use crate::preview::{PreviewTarget, timeline_preview_target};
 use crate::preview_events::PreviewEvent;
 
@@ -21,7 +21,7 @@ use crate::property_panel_video_file::VideoFilePanel;
 use crate::srt::{srt_text_clips, write_srt};
 use crate::timeline::{PreviewDropAsset, TimelineFrameIndex, TimelineRuntimeState};
 use crate::timeline_clip::{AudioClipProperties, Clip, VideoClip, VideoClipProperties};
-use crate::timeline_document::relative_asset_path;
+use crate::timeline_document::{relative_asset_path, resolve_asset_path};
 use crate::track::TrackKind;
 use crate::transcription_window;
 use crate::transcription_window::{ClipRange, TranscriptionStage, TranscriptionWindow};
@@ -68,6 +68,10 @@ pub(crate) enum AppEvent {
     },
     /// The user dismissed the missing media dialog.
     MissingMediaDialogClosed,
+    GenerationWaveformForTimeline {
+        timeline: TimelineEditingState,
+        timeline_directory: PathBuf,
+    },
     SwitchProject {
         project_path: PathBuf,
     },
@@ -467,38 +471,25 @@ async fn handle_app_event(
                 editor.schedule_active_timeline_waveforms(cx);
             });
         }
+        AppEvent::GenerationWaveformForTimeline {
+            timeline,
+            timeline_directory,
+        } => {
+            let referenced_assets = timeline
+                .clips
+                .iter()
+                .filter_map(|clip| clip.asset_id())
+                .collect::<HashSet<_>>();
+            let paths = timeline
+                .assets
+                .iter()
+                .filter(|asset| asset.has_audio() && referenced_assets.contains(&asset.id()))
+                .map(|asset| resolve_asset_path(&timeline_directory, asset.path()))
+                .collect::<Vec<_>>();
+            generate_waveforms(&editor, paths, cx).await;
+        }
         AppEvent::WaveformsGeneration { paths } => {
-            // 跳过已缓存或正在生成的素材，其余记为生成中。
-            let new_paths = editor.update(cx, |editor, _| {
-                let mut new_paths = paths
-                    .into_iter()
-                    .filter(|path| {
-                        !editor.waveform_cache.contains_key(path)
-                            && !editor.waveform_jobs.contains(path)
-                    })
-                    .collect::<Vec<_>>();
-                new_paths.sort();
-                new_paths.dedup();
-                editor.waveform_jobs.extend(new_paths.iter().cloned());
-                new_paths
-            });
-            for media_path in new_paths {
-                let source = media_path.clone();
-                let result = cx
-                    .background_executor()
-                    .spawn(async move { generate_waveform(&source) })
-                    .await;
-                editor.update(cx, |editor, cx| {
-                    editor.waveform_jobs.remove(&media_path);
-                    match result {
-                        Ok(waveform) => {
-                            editor.waveform_cache.insert(media_path, Arc::new(waveform));
-                        }
-                        Err(error) => log::error!("Waveform: {error:?}"),
-                    }
-                    cx.notify();
-                });
-            }
+            generate_waveforms(&editor, paths, cx).await;
         }
         AppEvent::MissingMediaDialogClosed => {
             editor.update(cx, |editor, cx| {
@@ -1002,4 +993,38 @@ fn handle_app_event_edit(
         cx.notify();
         Ok(())
     })
+}
+
+async fn generate_waveforms(editor: &Entity<Editor>, paths: Vec<PathBuf>, cx: &mut AsyncApp) {
+    // 跳过已缓存或正在生成的素材，其余记为生成中。
+    let new_paths = editor.update(cx, |editor, _| {
+        let mut new_paths = paths
+            .into_iter()
+            .filter(|path| {
+                !editor.waveform_cache.contains_key(path)
+                    && !editor.waveform_jobs.contains(path)
+            })
+            .collect::<Vec<_>>();
+        new_paths.sort();
+        new_paths.dedup();
+        editor.waveform_jobs.extend(new_paths.iter().cloned());
+        new_paths
+    });
+    for media_path in new_paths {
+        let source = media_path.clone();
+        let result = cx
+            .background_executor()
+            .spawn(async move { generate_waveform(&source) })
+            .await;
+        editor.update(cx, |editor, cx| {
+            editor.waveform_jobs.remove(&media_path);
+            match result {
+                Ok(waveform) => {
+                    editor.waveform_cache.insert(media_path, Arc::new(waveform));
+                }
+                Err(error) => log::error!("Waveform: {error:?}"),
+            }
+            cx.notify();
+        });
+    }
 }

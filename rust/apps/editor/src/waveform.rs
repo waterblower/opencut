@@ -54,21 +54,16 @@ impl Editor {
             return;
         };
         let Some(timeline_directory) = timeline.path.parent() else {
+            log::error!(
+                "Cannot schedule waveforms: timeline path {} has no parent directory",
+                timeline.path.display()
+            );
             return;
         };
-        let referenced_assets = timeline
-            .editing_state
-            .clips
-            .iter()
-            .filter_map(|clip| clip.asset_id())
-            .collect::<HashSet<_>>();
-        let paths = timeline
-            .editing_state
-            .assets
-            .iter()
-            .filter(|asset| asset.has_audio() && referenced_assets.contains(&asset.id()))
-            .map(|asset| resolve_asset_path(timeline_directory, &asset.path()))
-            .collect::<Vec<_>>();
-        self.emit_event(cx, AppEvent::WaveformsGeneration { paths });
+        let event = AppEvent::GenerationWaveformForTimeline {
+            timeline: timeline.editing_state.clone(),
+            timeline_directory: timeline_directory.to_path_buf(),
+        };
+        self.emit_event(cx, event);
     }
 }
