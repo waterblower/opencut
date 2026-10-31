@@ -26,7 +26,7 @@ interface Count {
   largeFiles: string[];
 }
 
-const root = decodeURIComponent(new URL("./", import.meta.url).pathname).replace(/\/$/, "");
+const root = decodeURIComponent(new URL("../", import.meta.url).pathname).replace(/\/$/, "");
 const counts = new Map<string, Count>();
 
 try {
