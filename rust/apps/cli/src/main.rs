@@ -162,10 +162,6 @@ async fn run(command: Command, api_key: Option<&str>) -> Result<Value> {
                 )),
             }
         }
-        Command::Schema { .. } => Ok(serde_json::to_value(schemars::schema_for!(
-            TimelineSerialization
-        ))
-        .context(format!("serialization_error at {}:{}", file!(), line!()))?),
         Command::Validate { timeline } => {
             let doc = TimelineSerialization::load(&timeline)?.editing_state;
             let base = document::asset_base(&timeline)?;

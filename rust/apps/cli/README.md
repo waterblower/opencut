@@ -13,7 +13,6 @@ From the Rust directory, `cargo cli` runs with the vendored FFmpeg environment:
 ```sh
 cargo cli --help
 cargo cli probe /path/to/media.mp4 --json
-cargo cli schema --json
 cargo cli validate scenes/episode.timeline.json --json
 cargo cli probe scenes/episode.timeline.json --json
 ```
@@ -108,8 +107,7 @@ to check those files. The separate `inspect` command has been removed.
 
 ## Shared timeline contract
 
-The authoritative schema is generated from the actual shared Rust types by
-`opencut schema`. See the [complete example](../../libs/timeline/tests/fixtures/shared.timeline.json).
+See the [complete example](../../libs/timeline/tests/fixtures/shared.timeline.json).
 
 - Root fields are `editing_state` and `view_state`. Editing state contains
   `settings`, `assets`, `tracks`, and `clips`.

@@ -4376,7 +4376,6 @@ dependencies = [
  "engine",
  "gpui_platform",
  "image",
- "schemars",
  "serde_json",
  "timeline",
  "tokio",
