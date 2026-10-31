@@ -4,7 +4,7 @@
 # relinked through @rpath, so the app runs without the vendored FFmpeg or Homebrew.
 set -euo pipefail
 
-rust_root="$(cd -- "$(dirname -- "$0")" && pwd)"
+rust_root="$(cd -- "$(dirname -- "$0")/.." && pwd)"
 cd -- "$rust_root"
 
 ffmpeg_dir="$rust_root/vendor/ffmpeg-8.1.2"

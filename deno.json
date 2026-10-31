@@ -1,7 +1,7 @@
 {
     "workspace": ["./design"],
     "tasks": {
-        "loc": "deno run --allow-read count_lines.ts",
+        "loc": "deno run --allow-read scripts/count_lines.ts",
         "design": "deno task --cwd design build"
     },
     "fmt": {
