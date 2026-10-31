@@ -43,11 +43,6 @@ pub(crate) enum Command {
     Probe { file: PathBuf },
     /// Check document semantics and referenced media; stop if a media file cannot be probed.
     Validate { timeline: PathBuf },
-    /// Print the authoritative timeline JSON Schema.
-    Schema {
-        #[arg(long, default_value = "json-schema", value_parser = ["json-schema"])]
-        format: String,
-    },
 }
 
 #[derive(clap::Args)]
