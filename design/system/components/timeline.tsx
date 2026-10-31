@@ -1,10 +1,8 @@
 import { COLOR } from "../theme.ts";
-import { Icon, type IconName } from "./icons/icons.tsx";
+import { Icon, type IconName } from "./icon.tsx";
 import { type ToggleState, TrackHeader, type TrackKind } from "./track-header.tsx";
 import { raw } from "@design/jsx/jsx-runtime";
 import type { Child, Markup } from "@design/jsx/jsx-runtime";
-
-const PLAYHEAD_FLAG = raw(Deno.readTextFileSync(new URL("./icons/playhead-flag.svg", import.meta.url)));
 
 export const HEADER_WIDTH = 190;
 export const ROW_HEIGHT = 74;
@@ -214,7 +212,14 @@ function PlayheadLine(props: { x: number }): Markup {
 function PlayheadFlag(props: { x: number; top: number }): Markup {
   return (
     <div>
-      <span class="absolute" style={`left:${props.x - 6}px;top:${props.top + 13}px`}>{PLAYHEAD_FLAG}</span>
+      <Icon
+        name="playhead"
+        color={COLOR.accent}
+        width={12}
+        height={13}
+        class="absolute"
+        style={`left:${props.x - 5.5}px;top:${props.top + 14}px`}
+      />
       <div class="absolute h-0.5 w-px bg-accent" style={`left:${props.x}px;top:${props.top + 26}px`} />
     </div>
   );

@@ -213,7 +213,7 @@ fn open_editor_window(
 fn set_dock_icon() -> Result<()> {
     let main_thread = MainThreadMarker::new().context("Dock icon requires the main thread")?;
     let tree = resvg::usvg::Tree::from_data(
-        include_bytes!("../icons/app-icon.svg"),
+        include_bytes!("../../../../icons/app-icon.svg"),
         &resvg::usvg::Options::default(),
     )
     .context("parsing the application icon SVG")?;

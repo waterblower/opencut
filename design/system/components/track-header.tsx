@@ -1,5 +1,5 @@
 import { COLOR } from "../theme.ts";
-import { Icon, type IconName } from "./icons/icons.tsx";
+import { Icon, type IconName } from "./icon.tsx";
 import type { Markup } from "@design/jsx/jsx-runtime";
 
 export type TrackKind = "V" | "A" | "T";
@@ -31,7 +31,7 @@ export function TrackHeader(props: {
     { state: props.visibility ?? "off", icon: "eye", activeIcon: "eye-off" },
     ...(props.kind === "T"
       ? []
-      : [{ state: props.mute ?? "off", icon: "volume" as IconName, activeIcon: "volume-off" as IconName }]),
+      : [{ state: props.mute ?? "off", icon: "unmute" as IconName, activeIcon: "mute" as IconName }]),
   ];
   const badge = BADGE[props.kind];
   return (
