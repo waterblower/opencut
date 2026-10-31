@@ -1,19 +1,11 @@
-use crate::clip_placement::validate_clip_placement;
-use crate::edit_action::{EditAction, edit_timeline};
 use crate::editor::Editor;
 use crate::explorer_file_entry::{FileTreeEntry, FileTreeEntryKind, search_tree, visible_tree};
 use crate::preview::{PreviewTarget, timeline_preview_target};
 use crate::theme::{ACCENT, BORDER, MUTED, PANEL, SURFACE, TEXT};
-use crate::timeline::TimelineFrameIndex;
-use crate::timeline_clip::{AudioClipProperties, Clip, VideoClip, VideoClipProperties};
-use crate::timeline_document::relative_asset_path;
-use crate::track::TrackKind;
 use crate::ui_components::TextInput;
-use ::timeline::Asset;
-use anyhow::{Context as _, Result, anyhow, bail};
+use anyhow::{Result, anyhow, bail};
 use futures::StreamExt;
 use futures::channel::mpsc;
-use gpui::prelude::FluentBuilder;
 use gpui::{
     AppContext as _, Context, CursorStyle, Entity, FocusHandle, InteractiveElement, IntoElement,
     MouseButton, ParentElement, ScrollHandle, StatefulInteractiveElement, Styled, Task, div, px,
@@ -25,7 +17,6 @@ use std::collections::HashSet;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
-use ulid::Ulid;
 
 pub(super) struct RenameDialogState {
     pub(crate) relative_path: PathBuf,

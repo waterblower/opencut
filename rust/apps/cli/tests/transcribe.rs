@@ -1,7 +1,15 @@
 use ::transcribe::audio::extract_audio_as_wav;
 #[path = "../src/document.rs"]
+#[allow(
+    dead_code,
+    reason = "these tests use only part of the CLI's document module"
+)]
 pub mod document;
 #[path = "../src/transcribe.rs"]
+#[allow(
+    unused_imports,
+    reason = "these tests use only part of the CLI's transcribe module"
+)]
 pub mod transcribe;
 use serde_json::{Value, json};
 use std::{

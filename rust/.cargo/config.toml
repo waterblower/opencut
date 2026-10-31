@@ -2,8 +2,20 @@
 cli = "run --config .cargo/cli.toml --quiet -p opencut --"
 editor-mac = "run --config .cargo/macos.toml -p editor"
 editor-win = "run --config .cargo/windows.toml -p editor"
-test-mac = ["test", "--config", ".cargo/macos.toml", "--config", "env.RUST_TEST_THREADS=\"1\""]
-test-win = ["test", "--config", ".cargo/windows.toml", "--config", "env.RUST_TEST_THREADS=\"1\""]
+test-mac = [
+    "test",
+    "--config",
+    ".cargo/macos.toml",
+    "--config",
+    "env.RUST_TEST_THREADS=\"1\"",
+]
+test-win = [
+    "test",
+    "--config",
+    ".cargo/windows.toml",
+    "--config",
+    "env.RUST_TEST_THREADS=\"1\"",
+]
 player-mac = "run --config .cargo/cli.toml -p player --"
 player-win = "run --config .cargo/ffmpeg-windows.toml -p player --"
 build-editor-mac = "build --config .cargo/macos.toml -p editor"
@@ -18,4 +30,3 @@ mp3-win = "run --config .cargo/windows.toml -p examples --bin mp3"
 
 [build]
 target-dir = "target"
-rustflags = ["-A", "unused"]

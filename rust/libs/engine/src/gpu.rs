@@ -10,8 +10,7 @@ use core_video::{
     metal_texture::{CVMetalTextureGetTexture, CVMetalTextureKeys},
     metal_texture_cache::CVMetalTextureCache,
     pixel_buffer::{
-        CVPixelBuffer, CVPixelBufferKeys, CVPixelBufferRef,
-        kCVPixelFormatType_420YpCbCr8BiPlanarFullRange,
+        CVPixelBuffer, CVPixelBufferKeys, kCVPixelFormatType_420YpCbCr8BiPlanarFullRange,
         kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange,
         kCVPixelFormatType_420YpCbCr10BiPlanarFullRange,
         kCVPixelFormatType_420YpCbCr10BiPlanarVideoRange,
@@ -19,7 +18,7 @@ use core_video::{
     pixel_buffer_io_surface::CVPixelBufferGetIOSurface,
     pixel_buffer_pool::CVPixelBufferPool,
 };
-use ffmpeg_next::{format::Pixel, util::color};
+use ffmpeg_next::util::color;
 use media_backend::VideoFrame;
 use metal::{
     CommandQueue, CompileOptions, ComputePipelineState, Device, MTLCommandBufferStatus,

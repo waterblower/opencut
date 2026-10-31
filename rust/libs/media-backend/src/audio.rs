@@ -314,7 +314,7 @@ impl Resampler {
         let capacity = capacity.max(32);
         let channels = output.channel_layout.len();
         let mut pcm = vec![0_f32; capacity as usize * channels];
-        let mut pointer = pcm.as_mut_ptr().cast::<u8>();
+        let pointer = pcm.as_mut_ptr().cast::<u8>();
         // SAFETY: interleaved f32 output capacity covers capacity sample frames;
         // input planes belong to the borrowed native frame and are never mutated.
         let written = unsafe { ffi::swr_convert(self.context, &pointer, capacity, data, samples) };

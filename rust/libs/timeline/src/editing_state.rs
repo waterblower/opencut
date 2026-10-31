@@ -89,10 +89,6 @@ impl TimelineEditingState {
         }
         self.audio_duration(clip.source_time_at(timeline_position).unwrap_or_default())
     }
-    fn source_start_seconds(&self, clip: &Clip) -> f64 {
-        self.source_position_at(clip, clip.timeline_start())
-            .as_secs_f64()
-    }
     pub fn ceil_time(&self, seconds: f64) -> TimelineFrameIndex {
         self.settings.frame_rate.ceil(seconds)
     }

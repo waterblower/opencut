@@ -21,7 +21,6 @@ use gpui::{
     div, fill, point, px, rgb, rgba, size,
 };
 use std::sync::Arc;
-use ulid::Ulid;
 
 const CLIP_WAVEFORM_HEIGHT: f32 = 80.0;
 const CLIP_WAVEFORM_VISUAL_GAIN: f32 = 2.0;

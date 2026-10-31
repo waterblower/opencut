@@ -91,7 +91,7 @@ cp "$ffmpeg_dir"/COPYING.* "$ffmpeg_dir/LICENSE.md" "$contents/Resources/FFmpeg/
 
 iconset="$(mktemp -d)/AppIcon.iconset"
 mkdir -p "$iconset"
-qlmanage -t -s 1024 -o "$(dirname -- "$iconset")" apps/editor/icons/app-icon.svg >/dev/null
+qlmanage -t -s 1024 -o "$(dirname -- "$iconset")" ../icons/app-icon.svg >/dev/null
 icon_png="$(dirname -- "$iconset")/app-icon.svg.png"
 for size in 16 32 128 256 512; do
     sips -z "$size" "$size" "$icon_png" --out "$iconset/icon_${size}x${size}.png" >/dev/null

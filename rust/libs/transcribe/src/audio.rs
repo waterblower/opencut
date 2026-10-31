@@ -264,48 +264,6 @@ impl AudioReader {
         })
     }
 
-    fn read(&mut self, start: i64, count: usize) -> Result<Vec<[f32; 2]>> {
-        if self.next_sample.is_none() && start > self.rate as i64 {
-            let seek = ((start as f64 / self.rate as f64 - 1.0 + self.origin)
-                * ffmpeg::ffi::AV_TIME_BASE as f64) as i64;
-            match self.input.seek(seek, ..seek) {
-                Ok(value) => value,
-                Err(error) => {
-                    return Err(anyhow!(
-                        "seek_failure: {} at {}:{}",
-                        error,
-                        file!(),
-                        line!()
-                    ));
-                }
-            };
-            self.decoder.flush();
-        }
-        let mut result = vec![[0.0; 2]; count];
-        for (i, target) in (start..start + count as i64).enumerate() {
-            loop {
-                while !self.queue.is_empty() && self.queue_start < target {
-                    self.queue.pop_front();
-                    self.queue_start += 1;
-                }
-                if self.queue_start == target && !self.queue.is_empty() {
-                    result[i] = self.queue.pop_front().unwrap();
-                    self.queue_start += 1;
-                    break;
-                }
-                if self.queue_start > target || self.drained {
-                    break;
-                }
-                let delay = match self.resampler.delay() {
-                    Some(delay) => delay.output,
-                    None => 0,
-                };
-                self.advance(delay)?;
-            }
-        }
-        Ok(result)
-    }
-
     fn advance(&mut self, delay: i64) -> Result<()> {
         loop {
             let mut decoded = ffmpeg::frame::Audio::empty();

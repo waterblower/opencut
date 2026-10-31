@@ -4,7 +4,6 @@ use crate::property_panel::{
     property_panel_divider_view, property_panel_heading_view, readonly_property_panel_view,
     timing_card_view,
 };
-use crate::theme::{ACCENT, BORDER, MUTED, PANEL};
 use crate::timeline::{FrameRate, TimelineRuntimeState};
 use crate::timeline_clip::AudioClip;
 use crate::timeline_document::resolve_asset_path;

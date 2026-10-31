@@ -589,14 +589,6 @@ fn unlocked_clip_ids(timeline: &TimelineEditingState) -> HashSet<Ulid> {
         .collect()
 }
 
-fn plural_suffix(count: usize) -> &'static str {
-    if count == 1 {
-        ""
-    } else {
-        "s"
-    }
-}
-
 #[cfg(test)]
 #[path = "tests/editing.test.rs"]
 mod tests;

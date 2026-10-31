@@ -183,10 +183,6 @@ impl TimelineBackend {
         })
     }
 
-    fn frame_size(&self) -> (u32, u32) {
-        (self.timeline.settings.width, self.timeline.settings.height)
-    }
-
     pub fn duration(&self) -> Duration {
         self.timeline
             .position_at_frame(self.timeline.content_duration())

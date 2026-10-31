@@ -13,7 +13,6 @@ use ::timeline::TimelineEditingState;
 pub(crate) use ::timeline::{FrameRate, TimelineFrameIndex};
 use anyhow::{Context as _, Result, bail};
 use gpui::ScrollHandle;
-use gpui::prelude::*;
 use player_ui::timeline_player::TimelinePlayer;
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};

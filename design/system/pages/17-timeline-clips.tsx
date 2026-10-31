@@ -1,4 +1,4 @@
-import { WarningIcon } from "../components/icons/warning-icon.tsx";
+import { Icon } from "../components/icon.tsx";
 import { AudioClip, TextClip, VideoClip } from "../components/timeline-clip.tsx";
 import { INTERVIEW_A_WIDE, MUSIC_BED } from "../components/waveform-samples.ts";
 import type { Markup } from "@design/jsx/jsx-runtime";
@@ -62,9 +62,7 @@ function OfflineClipStrip({ contextMenu = false }: { contextMenu?: boolean }): M
       <div class="relative flex w-[260px] shrink-0 flex-col justify-between rounded-md border border-dashed border-error/70 bg-[#2a1a1c] p-[7px]">
         <span class="text-[11px] leading-4 text-error">Media offline</span>
         <div class="flex items-center gap-1.5 leading-4">
-          <svg aria-hidden="true" class="size-3.5 shrink-0" viewBox="0 0 14 14">
-            <WarningIcon x={0} y={0} />
-          </svg>
+          <Icon name="alert-triangle" color="#ff8b8b" class="shrink-0" />
           <span>2026-08-20 18-36-50.mp4</span>
         </div>
         {contextMenu && (

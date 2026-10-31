@@ -1,7 +1,7 @@
 import type { Markup } from "@design/jsx/jsx-runtime";
 
 const appIcon = "data:image/svg+xml," + encodeURIComponent(
-  Deno.readTextFileSync(new URL("../../../rust/apps/editor/icons/app-icon.svg", import.meta.url)),
+  Deno.readTextFileSync(new URL("../../../icons/app-icon.svg", import.meta.url)),
 );
 
 export default function Page20TopBar(): Markup {

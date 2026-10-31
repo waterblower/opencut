@@ -9,7 +9,6 @@ use crate::preview::PreviewTarget;
 use crate::timeline::{TimelineEditorExt, TimelineFrameIndex, TimelineRuntimeState};
 use crate::timeline_clip::Clip;
 use anyhow::Result;
-use gpui::prelude::*;
 use gpui::{
     ClickEvent, Context, MouseDownEvent, MouseMoveEvent, MouseUpEvent, ScrollWheelEvent,
     TouchPhase, Window, px,

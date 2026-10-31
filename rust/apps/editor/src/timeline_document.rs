@@ -1,5 +1,5 @@
 use ::timeline::TimelineSerialization;
-use anyhow::{Context as _, Result, anyhow};
+use anyhow::{Result, anyhow};
 use std::fs;
 use std::path::{Component, Path, PathBuf};
 

@@ -1,7 +1,6 @@
 use crate::edit_action::EditAction;
 use crate::editor::Editor;
 use crate::event_bus::AppEvent;
-use crate::preview::{PreviewTarget, timeline_preview_target};
 use crate::theme::{ACCENT, BORDER, MUTED, PANEL, SURFACE, SURFACE_HOVER, TEXT};
 use crate::timeline::{FRAME_RATE_PRESETS, FrameRate};
 use ::timeline::TimelineEditingState;

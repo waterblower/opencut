@@ -13,7 +13,7 @@ use crate::property_panel_timeline::{TimelinePanel, timeline_panel, timeline_vie
 use crate::property_panel_transform::VideoTransformInputs;
 use crate::property_panel_video_clip::{VideoClipPanel, video_clip_panel, video_clip_view};
 use crate::property_panel_video_file::{VideoFilePanel, video_file_view};
-use crate::theme::{ACCENT, BORDER, ERROR, MUTED, PANEL, SURFACE, TEXT};
+use crate::theme::{ACCENT, BORDER, MUTED, PANEL, SURFACE, TEXT};
 use crate::timeline::{FrameRate, TimelineFrameIndex};
 use crate::timeline_clip::{AudioClipProperties, Clip};
 use crate::timeline_document;
@@ -22,12 +22,11 @@ use crate::ui_components::text_input_v2::{InputConstraint, TextInputV2};
 use engine::media_asset::{is_audio_path, is_image_path, is_video_path};
 use gpui::prelude::FluentBuilder;
 use gpui::{
-    App, AppContext, Bounds, ContentMask, ElementId, Entity, FocusHandle, Focusable, FontWeight,
-    InteractiveElement, IntoElement, ParentElement, PathBuilder, RenderOnce,
-    StatefulInteractiveElement, Styled, Window, canvas, div, point, px, relative, rgb, size, svg,
+    Bounds, ContentMask, Entity, FocusHandle, FontWeight, InteractiveElement, IntoElement,
+    ParentElement, PathBuilder, StatefulInteractiveElement, Styled, canvas, div, point, px,
+    relative, rgb, size, svg,
 };
 use std::path::Path;
-use std::rc::Rc;
 use ulid::Ulid;
 
 pub(crate) enum PropertyPanel {
