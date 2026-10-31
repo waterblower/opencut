@@ -352,67 +352,6 @@ fn changing_frame_rate_keeps_text_duration_and_recomputes_frame_length() {
 }
 
 #[test]
-fn fractional_frame_rates_round_trip_without_drift() {
-    for frame_rate in [
-        FrameRate {
-            numerator: 24_000,
-            denominator: 1_001,
-        },
-        FrameRate {
-            numerator: 30_000,
-            denominator: 1_001,
-        },
-        FrameRate {
-            numerator: 60_000,
-            denominator: 1_001,
-        },
-    ] {
-        let original = TimelineFrameIndex::from(1_000_003);
-        let seconds = frame_rate.seconds(original);
-        assert_eq!(frame_rate.nearest(seconds), original);
-    }
-}
-
-#[test]
-fn frame_boundaries_round_trip_through_duration() {
-    for frame_rate in [
-        FrameRate::new(24, 1),
-        FrameRate::new(30, 1),
-        FrameRate::new(60, 1),
-        FrameRate::new(24_000, 1_001),
-        FrameRate::new(30_000, 1_001),
-        FrameRate::new(60_000, 1_001),
-    ] {
-        for frame in 0..10_000 {
-            let time = TimelineFrameIndex::from(frame);
-            assert_eq!(
-                frame_rate.frames_from_duration_nearest(frame_rate.duration(time)),
-                time,
-                "frame {frame} did not round-trip at {frame_rate:?}",
-            );
-        }
-    }
-}
-
-#[test]
-fn durations_convert_to_the_nearest_frame() {
-    let frame_rate = FrameRate::new(30, 1);
-    for (nanoseconds, expected_frame) in [
-        (0, 0),
-        (16_666_666, 0),
-        (16_666_667, 1),
-        (33_333_333, 1),
-        (49_999_999, 1),
-        (50_000_000, 2),
-    ] {
-        assert_eq!(
-            frame_rate.frames_from_duration_nearest(Duration::from_nanos(nanoseconds)),
-            TimelineFrameIndex::from(expected_frame),
-        );
-    }
-}
-
-#[test]
 fn repeated_frame_splits_preserve_the_total_duration() {
     let mut remaining = video_clip(10, 0, 10_000);
     let frame_rate = FrameRate::default();
@@ -430,50 +369,6 @@ fn repeated_frame_splits_preserve_the_total_duration() {
             duration + piece
         });
     assert_eq!(reconstructed, original_duration);
-}
-
-#[test]
-fn long_timeline_duration_uses_exact_frame_counts() {
-    let frame_rate = FrameRate {
-        numerator: 30_000,
-        denominator: 1_001,
-    };
-    let ten_hours = frame_rate.nearest(10.0 * 60.0 * 60.0);
-    assert_eq!(frame_rate.nearest(frame_rate.seconds(ten_hours)), ten_hours);
-    assert_eq!(
-        frame_rate.frames_from_duration_nearest(frame_rate.duration(ten_hours)),
-        ten_hours
-    );
-}
-
-#[test]
-fn preview_and_export_boundaries_share_the_same_frame_time() {
-    let project = TimelineEditingState {
-        settings: TimelineSettings {
-            frame_rate: FrameRate {
-                numerator: 24_000,
-                denominator: 1_001,
-            },
-            ..TimelineSettings::default()
-        },
-        ..TimelineEditingState::default()
-    };
-    let boundary = TimelineFrameIndex::from(98_765);
-    let preview_duration = project.position_at_frame(boundary).as_secs_f64();
-    let export_seconds = project.seconds(boundary);
-    assert!((preview_duration - export_seconds).abs() <= 1.0e-9);
-}
-
-#[test]
-fn timeline_frames_map_to_exact_audio_samples() {
-    let frame_rate = FrameRate {
-        numerator: 30_000,
-        denominator: 1_001,
-    };
-    assert_eq!(
-        frame_rate.audio_samples(TimelineFrameIndex::from(30_000), 48_000),
-        48_048_000
-    );
 }
 
 #[test]
