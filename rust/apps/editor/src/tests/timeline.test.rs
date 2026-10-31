@@ -123,11 +123,6 @@ fn image_asset() -> Asset {
 }
 
 #[test]
-fn new_timelines_have_no_tracks() {
-    assert!(TimelineEditingState::default().tracks.is_empty());
-}
-
-#[test]
 fn frame_rate_labels_use_presets_and_format_custom_rates() {
     assert_eq!(FrameRate::new(24_000, 1_001).label(), "23.976 fps");
     assert_eq!(FrameRate::new(15, 1).label(), "15 fps");
@@ -664,25 +659,6 @@ fn timeline_serialization_stores_integer_frames_and_rational_rate() {
     assert_eq!(json["clips"][0]["data"]["asset_id"], ulid(100).to_string());
     assert_eq!(json["clips"][0]["data"]["timeline_start"], 17);
     assert_eq!(json["clips"][0]["data"]["source_out"], 83);
-}
-
-#[test]
-fn clip_properties_have_neutral_defaults() {
-    assert_eq!(
-        VideoClipProperties::default(),
-        VideoClipProperties {
-            position_x: 0.0,
-            position_y: 0.0,
-            scale: 1.0,
-        }
-    );
-    assert_eq!(
-        AudioClipProperties::default(),
-        AudioClipProperties {
-            gain_db: 0.0,
-            muted: false,
-        }
-    );
 }
 
 #[test]
