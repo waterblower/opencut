@@ -5,8 +5,8 @@ use crate::video_player::{PlaybackState, VideoPlayer};
 #[cfg(target_os = "macos")]
 use gpui::surface;
 use gpui::{
-    Bounds, ClickEvent, Context, CursorStyle, DragMoveEvent, MouseButton, MouseUpEvent, ObjectFit,
-    Render, Window, div, prelude::*, px, rgb,
+    Bounds, ClickEvent, Context, DragMoveEvent, MouseButton, MouseUpEvent, ObjectFit, Render,
+    Window, div, prelude::*, rgb,
 };
 use std::{cell::Cell, rc::Rc, time::Duration};
 

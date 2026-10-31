@@ -7,8 +7,8 @@ use crate::progress_bar::{
 };
 use crate::timeline_player::TimelinePlayer;
 use gpui::{
-    AnyElement, AvailableSpace, Bounds, ClickEvent, Context, CursorStyle, DragMoveEvent, Entity,
-    Window, canvas, div, prelude::*, px, rgb,
+    AnyElement, AvailableSpace, Bounds, ClickEvent, Context, DragMoveEvent, Entity, Window, canvas,
+    div, prelude::*, rgb,
 };
 use std::{cell::Cell, rc::Rc};
 

@@ -1,4 +1,4 @@
-import { AppIcon } from "../components/icons/app-icon.tsx";
+import { Icon } from "../components/icon.tsx";
 import { Window } from "../components/window.tsx";
 import type { Child, Markup } from "@design/jsx/jsx-runtime";
 
@@ -54,7 +54,7 @@ function Picker(props: { raised?: boolean; children: Child }): Markup {
       <div class="relative h-[380px]">
         <div class="absolute top-[-32px] left-[30px] h-[300px] w-[500px] rounded-[50%] bg-[radial-gradient(closest-side,rgb(240_183_94/0.10),transparent)]" />
         <div class={`relative flex flex-col items-center ${props.raised ? "pt-[42.4px]" : "pt-[52.4px]"}`}>
-          <AppIcon size={73.14} />
+          <Icon name="app-icon" width={73.14} height={73.14} />
           <h3 class="mt-[17.5px] text-[26px] leading-none font-bold">OpenCut</h3>
           <p class="mt-[13px] text-sm leading-none text-muted">
             Open any folder as a project. Your media stays where it is.
@@ -66,9 +66,6 @@ function Picker(props: { raised?: boolean; children: Child }): Markup {
   );
 }
 
-const FOLDER_PATH =
-  "M0.5 1.5 a1.5 1.5 0 0 1 1.5 -1.5 h4 l1.8 2 h6.2 a1.5 1.5 0 0 1 1.5 1.5 v7 a1.5 1.5 0 0 1 -1.5 1.5 h-12 a1.5 1.5 0 0 1 -1.5 -1.5 z";
-
 function OpenButton(props: { class?: string }): Markup {
   return (
     <button
@@ -77,16 +74,7 @@ function OpenButton(props: { class?: string }): Markup {
         props.class ?? ""
       }`}
     >
-      <svg class="absolute top-[14px] left-[13px]" width="16" height="14" viewBox="-1 -1 16 14">
-        <path
-          d={FOLDER_PATH}
-          transform="translate(1 0)"
-          fill="none"
-          stroke="#17120a"
-          stroke-width="1.6"
-          stroke-linejoin="round"
-        />
-      </svg>
+      <Icon name="folder" color="#17120a" width={16} height={16} class="absolute top-3 left-[13px]" />
       <span class="absolute top-[13px] left-10">Open Folder…</span>
     </button>
   );
@@ -98,10 +86,7 @@ function ChoosingButton(): Markup {
       type="button"
       class="relative mt-[31px] h-10 w-[171.36px] rounded-lg border border-border bg-surface text-[15px] leading-none font-semibold text-muted"
     >
-      <svg class="absolute top-[12px] left-[13.5px]" width="14" height="14" viewBox="-7 -7 14 14">
-        <circle r="6" fill="none" stroke="#777780" stroke-opacity="0.3" stroke-width="2" />
-        <path d="M0 -6 a6 6 0 0 1 6 6" fill="none" stroke="#777780" stroke-width="2" stroke-linecap="round" />
-      </svg>
+      <Icon name="spinner" color="#777780" width={16} height={16} class="absolute top-[11px] left-[12.5px]" />
       <span class="absolute top-[12px] left-[38.5px]">Choosing folder…</span>
     </button>
   );
@@ -116,11 +101,7 @@ function Notice(props: { tone: "warning" | "error"; title: string; detail: strin
         warning ? "border-[#4a3a20] bg-[#1c170f]" : "border-[#5a2a2c] bg-[#1f1213]"
       }`}
     >
-      <svg class="absolute top-[10px] left-[10px]" width="16" height="16" viewBox="-8 -8 16 16">
-        <circle r="7" fill="none" stroke={color} stroke-width="1.6" />
-        <path d="M0 -3.5 v4" stroke={color} stroke-width="1.6" stroke-linecap="round" />
-        <circle cy="3.6" r="0.9" fill={color} />
-      </svg>
+      <Icon name="warning" color={color} width={16} height={16} class="absolute top-2.5 left-2.5" />
       <p class="absolute top-[11.5px] left-[33px] text-[13px] leading-none font-semibold" style={`color:${color}`}>
         {props.title}
       </p>

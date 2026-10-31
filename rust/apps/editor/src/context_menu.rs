@@ -10,7 +10,6 @@ use crate::timeline_document;
 use crate::timeline_document::resolve_asset_path;
 use crate::track::TrackKind;
 use crate::transcription_window::ClipRange;
-use ::timeline::MediaKind;
 use ::timeline::TimelineEditingState;
 use engine::media_asset::{is_audio_path, is_video_path};
 use gpui::prelude::*;

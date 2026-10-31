@@ -1,5 +1,5 @@
 use crate::{Seeker, WaitUntilPlaying, audio_output::AudioOutput};
-use anyhow::{Context as _, Result, bail};
+use anyhow::{Context as _, Result};
 #[cfg(target_os = "macos")]
 use core_video::pixel_buffer::CVPixelBuffer;
 #[cfg(target_os = "macos")]

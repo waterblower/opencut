@@ -4,7 +4,7 @@ use ::timeline::{
     Asset, AudioClipProperties, Clip, FrameRate, TextBackground, TextClipProperties,
     TimelineEditingState, TimelineFrameIndex, Track, VideoClipProperties, compact_text_sections,
 };
-use anyhow::{Context as _, Result, anyhow, ensure};
+use anyhow::{Result, anyhow, ensure};
 use gpui::{Pixels, Point};
 use std::collections::HashSet;
 use std::path::PathBuf;
@@ -32,6 +32,10 @@ pub(crate) enum EditAction {
         removed_clips: HashSet<Ulid>,
         added_clips: Vec<Clip>,
     },
+    #[cfg_attr(
+        not(test),
+        allow(dead_code, reason = "only tests construct this variant")
+    )]
     UpdateClip {
         clip: Clip,
     },
@@ -95,6 +99,10 @@ pub(crate) enum EditAction {
         clip_id: Ulid,
         project_root: PathBuf,
     },
+    #[cfg_attr(
+        not(test),
+        allow(dead_code, reason = "only tests construct this variant")
+    )]
     SetTextProperties {
         clip_id: Ulid,
         properties: TextClipProperties,

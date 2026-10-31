@@ -1,4 +1,4 @@
-import { WarningIcon } from "../components/icons/warning-icon.tsx";
+import { Icon } from "../components/icon.tsx";
 import type { Markup } from "@design/jsx/jsx-runtime";
 
 export default function MissingMediaDialogPage(): Markup {
@@ -25,9 +25,7 @@ export default function MissingMediaDialogPage(): Markup {
           <ul class="mt-5 divide-y divide-border rounded-lg border border-border bg-surface px-3">
             {files.map((file) => (
               <li class="flex items-center gap-3 py-4">
-                <svg aria-hidden="true" class="size-3.5 shrink-0" viewBox="0 0 14 14">
-                  <WarningIcon x={0} y={0} />
-                </svg>
+                <Icon name="alert-triangle" color="#ff8b8b" class="shrink-0" />
                 <div class="min-w-0 flex-1">
                   <p class="font-mono text-xs leading-5 break-all">{file.name}</p>
                   <p class="mt-1 text-xs text-muted">{file.clips}</p>

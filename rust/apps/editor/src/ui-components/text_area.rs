@@ -10,7 +10,7 @@ use gpui::{
     App, AvailableSpace, Bounds, ClipboardItem, Context, CursorStyle, Element, ElementId,
     ElementInputHandler, Entity, EntityInputHandler, FocusHandle, GlobalElementId, IntoElement,
     KeyBinding, LayoutId, MouseButton, MouseDownEvent, MouseMoveEvent, MouseUpEvent, PaintQuad,
-    Pixels, Point, SharedString, Size, Style, TextRun, UTF16Selection, UnderlineStyle, Window,
+    Pixels, Point, SharedString, Style, TextRun, UTF16Selection, UnderlineStyle, Window,
     WrappedLine, actions, div, fill, point, px, rgb, rgba, size,
 };
 use std::ops::Range;
