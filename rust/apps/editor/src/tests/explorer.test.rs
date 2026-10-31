@@ -2,8 +2,8 @@ use super::*;
 use crate::clip_placement::ClipPlacementRejection;
 use crate::explorer_drag::{AssetBeingDragged, DraggedMedia};
 use crate::test_support::{TimelineTestExt, ulid};
-use crate::timeline::PreviewDropAsset;
-use crate::timeline_clip::AudioClip;
+use crate::timeline::{PreviewDropAsset, TimelineFrameIndex};
+use crate::timeline_clip::{AudioClip, AudioClipProperties, Clip};
 use ::timeline::{Asset, MediaAsset, MediaKind, TimelineEditingState};
 use std::path::Path;
 

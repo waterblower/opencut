@@ -1,5 +1,3 @@
-#![allow(dead_code)]
-
 mod actions;
 mod asset;
 mod clip_placement;

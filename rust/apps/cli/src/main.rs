@@ -2,10 +2,8 @@ use anyhow::{Context as _, Error, Result, anyhow};
 use timeline::TimelineSerialization;
 mod args;
 mod document;
-mod error;
 mod export;
 mod subtitles;
-mod time;
 mod timeline_edit;
 mod transcribe;
 

@@ -134,7 +134,7 @@ pub fn export_timeline(
             fs::remove_file(output_path).context("Removing stopped export output")?;
             return Ok(ExportCompletion::Stopped);
         }
-        let mut export_frame = || -> Result<()> {
+        let export_frame = || -> Result<()> {
             let started = Instant::now();
             // Video Handling
             {
@@ -151,11 +151,8 @@ pub fn export_timeline(
 
                     window.refresh();
                     let arena = window.draw(cx);
-                    let capture_started = Instant::now();
                     let image = window.render_to_image();
-                    let capture_elapsed = capture_started.elapsed();
                     arena.clear(cx);
-                    // eprintln!("Export frame {i}: window.render_to_image={capture_elapsed:?}");
                     image
                 })??;
                 let rendered = Instant::now();

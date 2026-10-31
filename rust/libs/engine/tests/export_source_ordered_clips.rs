@@ -1,6 +1,6 @@
 //! End-to-end export benchmark for 100 half-second clips in source order.
 #![cfg(target_os = "macos")]
-use anyhow::{Context as _, Result, ensure};
+use anyhow::{Result, ensure};
 use engine::export::{ExportCompletion, ExportControl, ExportOption, export_timeline};
 use std::{fs, path::PathBuf, sync::Arc, time::Instant};
 use timeline::TimelineSerialization;

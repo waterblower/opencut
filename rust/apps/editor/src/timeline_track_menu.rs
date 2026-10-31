@@ -2,7 +2,7 @@ use crate::edit_action::{EditAction, edit_timeline};
 use crate::editor::Editor;
 use crate::timeline::TimelineFrameIndex;
 use crate::timeline_clip::{Clip, TextClip, TextClipProperties};
-use crate::track::{Track, TrackKind};
+use crate::track::TrackKind;
 use ::timeline::TimelineEditingState;
 use anyhow::{Result, bail};
 use gpui::prelude::*;
@@ -80,6 +80,7 @@ fn text_clip_at(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::track::Track;
 
     #[test]
     fn rejects_text_when_the_position_is_inside_an_existing_clip() {

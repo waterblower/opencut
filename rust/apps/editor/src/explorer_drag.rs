@@ -1,8 +1,7 @@
 use crate::editor::Editor;
 use crate::explorer_file_entry::{FileTreeEntry, FileTreeEntryKind, is_srt_path};
 use crate::theme::ACCENT;
-use crate::timeline::TimelineFrameIndex;
-use ::timeline::{Asset, MediaKind};
+use ::timeline::Asset;
 use ::transcribe::SRT;
 use anyhow::Result;
 use engine::media_asset::probe_media_asset;
@@ -12,19 +11,6 @@ use gpui::{
 };
 use std::fs::read_to_string;
 use std::path::PathBuf;
-use ulid::Ulid;
-
-#[derive(Clone, Debug)]
-struct ExplorerDropPreview {
-    kind: MediaKind,
-    absolute_path: PathBuf,
-    name: String,
-    track_id: Ulid,
-    raw_start: TimelineFrameIndex,
-    start: TimelineFrameIndex,
-    duration: TimelineFrameIndex,
-    invalid_reason: Option<String>,
-}
 
 #[derive(Clone, Debug)]
 pub(crate) enum AssetBeingDragged {

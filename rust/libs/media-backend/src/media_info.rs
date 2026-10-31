@@ -24,7 +24,9 @@ pub struct VideoInfo {
 #[derive(Clone, Debug)]
 pub(crate) struct AudioInfo {
     pub(crate) stream_index: usize,
+    #[allow(dead_code, reason = "unread, but filling it in validates the stream")]
     pub(crate) sample_rate: u32,
+    #[allow(dead_code, reason = "unread, but filling it in validates the stream")]
     pub(crate) channels: u16,
 }
 

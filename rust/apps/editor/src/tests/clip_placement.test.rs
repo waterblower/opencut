@@ -1,7 +1,7 @@
 use super::*;
 use crate::test_support::{TimelineTestExt, ulid};
 use crate::timeline::TimelineFrameIndex;
-use crate::timeline_clip::{AudioClip, AudioClipProperties, Clip, VideoClipProperties};
+use crate::timeline_clip::{AudioClip, AudioClipProperties, Clip};
 use ::timeline::TimelineEditingState;
 use anyhow::Result;
 use std::collections::HashSet;

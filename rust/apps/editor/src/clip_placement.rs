@@ -3,7 +3,6 @@ use crate::track::TrackKind;
 use ::timeline::MediaKind;
 use ::timeline::TimelineEditingState;
 use anyhow::Result;
-use gpui::prelude::*;
 use std::collections::HashSet;
 use ulid::Ulid;
 
