@@ -14,6 +14,7 @@ From the Rust directory, `cargo cli` runs with the vendored FFmpeg environment:
 cargo cli --help
 cargo cli probe /path/to/media.mp4 --json
 cargo cli validate scenes/episode.timeline.json --json
+cargo cli resize video.mp4 360p -o video-360p.mp4
 cargo cli probe scenes/episode.timeline.json --json
 ```
 

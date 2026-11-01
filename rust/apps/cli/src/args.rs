@@ -43,6 +43,34 @@ pub(crate) enum Command {
     Probe { file: PathBuf },
     /// Check document semantics and referenced media; stop if a media file cannot be probed.
     Validate { timeline: PathBuf },
+    /// Write a lower-resolution copy of a video, with the same timing and audio (macOS).
+    Resize(ResizeArgs),
+}
+
+#[derive(clap::Args)]
+pub(crate) struct ResizeArgs {
+    /// Source video.
+    pub(crate) video: PathBuf,
+    /// Output height; the width keeps the source aspect ratio.
+    #[arg(value_enum)]
+    pub(crate) resolution: Resolution,
+    /// Output MP4 file; must not already exist unless --overwrite is given.
+    #[arg(short, long)]
+    pub(crate) output: PathBuf,
+    /// H.264 target bitrate in kbps; defaults to 800 for 360p and 400 for 240p.
+    #[arg(long, short, value_parser = clap::value_parser!(u64).range(1..=i64::MAX as u64 / 1_000))]
+    pub(crate) bitrate: Option<u64>,
+    /// Replace an existing output file; the source is never replaced.
+    #[arg(long)]
+    pub(crate) overwrite: bool,
+}
+
+#[derive(Clone, Copy, clap::ValueEnum)]
+pub(crate) enum Resolution {
+    #[value(name = "360p")]
+    P360,
+    #[value(name = "240p")]
+    P240,
 }
 
 #[derive(clap::Args)]

@@ -7,7 +7,7 @@ mod subtitles;
 mod timeline_edit;
 mod transcribe;
 
-use args::{Args, Command};
+use args::{Args, Command, Resolution};
 use clap::Parser;
 use engine::probe;
 use serde_json::{Value, json};
@@ -161,6 +161,22 @@ async fn run(command: Command, api_key: Option<&str>) -> Result<Value> {
                     line!()
                 )),
             }
+        }
+        Command::Resize(args) => {
+            let (height, default_kbps) = match args.resolution {
+                Resolution::P360 => (360, 800),
+                Resolution::P240 => (240, 400),
+            };
+            let (width, height) = engine::resize::resize_video(
+                &args.video,
+                &args.output,
+                &engine::resize::ResizeOption {
+                    height,
+                    video_bitrate: args.bitrate.unwrap_or(default_kbps) * 1_000,
+                    overwrite: args.overwrite,
+                },
+            )?;
+            Ok(json!({"path": args.output, "width": width, "height": height}))
         }
         Command::Validate { timeline } => {
             let doc = TimelineSerialization::load(&timeline)?.editing_state;

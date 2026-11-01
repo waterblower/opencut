@@ -4,6 +4,7 @@ mod export_encoder;
 mod image;
 pub mod media_asset;
 pub mod probe;
+pub mod resize;
 pub mod timeline_backend;
 pub mod timeline_decoder;
 pub mod timeline_view;
