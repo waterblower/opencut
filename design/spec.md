@@ -359,3 +359,10 @@ Mockups: [property panel](pages/15-property-panel.html),
 
 2. when medias are missing when loading a timeline, the program should not exit. The timeline clips should be properly displayed with missing clips indicated.
    - Right click on the missing clips, the user is able to open a missing media dialog like in [./pages/19-missing-media-dialog.tsx].
+
+3. The user can right click on a file, a clip, a timeline and `open terminal`. OpenCut will open the terminal at the location of the file/resource and automatically make the OpenCut cli available in the terminal, with shell auto-completion.
+   这样会很强大，因为我可以同时获得GUI，CLI，以及Agent的好处。可以让我快速测试agentic editing的ideal workflow是什么
+
+4. 选中多个 clip 一起拖动时，吸附（snap guide）应该以整个选择为单位。不管抓哪个，都用整段的最左边缘和最右边缘去吸附，参考线也显示在整段的对齐边缘上。
+
+5. 视觉上显示的playhead位置，就必须是所有state的位置。
