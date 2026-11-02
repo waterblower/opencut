@@ -33,7 +33,6 @@ pub(super) struct ClipMoveItem {
 pub(super) struct ClipMoveDrag {
     pub(super) anchor_clip_id: Ulid,
     start_x: f32,
-    original_anchor_start: TimelineFrameIndex,
     original_anchor_track_index: usize,
     pub(super) items: Vec<ClipMoveItem>,
     pub(super) placements: Vec<(Ulid, Ulid, TimelineFrameIndex)>,
@@ -510,7 +509,6 @@ impl Editor {
         timeline.interaction.clip_move_drag = Some(ClipMoveDrag {
             anchor_clip_id: clip_id,
             start_x: f32::from(event.position.x) - f32::from(timeline.h_scroll.offset().x),
-            original_anchor_start: anchor.timeline_start(),
             original_anchor_track_index,
             placements: items
                 .iter()
@@ -544,9 +542,7 @@ impl Editor {
         let Some(drag) = timeline.interaction.clip_move_drag.as_ref() else {
             return;
         };
-        let anchor_clip_id = drag.anchor_clip_id;
         let start_x = drag.start_x;
-        let original_anchor_start = drag.original_anchor_start;
         let original_anchor_track_index = drag.original_anchor_track_index;
         let items = &drag.items;
         let raw_delta = timeline.editing_state.settings.frame_rate.delta(
@@ -559,24 +555,26 @@ impl Editor {
             .map(|item| item.original_timeline_start)
             .min()
             .unwrap_or(TimelineFrameIndex::ZERO);
-        let raw_anchor_start = original_anchor_start
+        let latest_end = items
+            .iter()
+            .filter_map(|item| timeline.editing_state.clip(item.clip_id))
+            .map(|clip| clip.timeline_end(timeline.editing_state.settings.frame_rate))
+            .max()
+            .unwrap_or(earliest_start);
+        // 吸附把被选中的 clips 当作一整段：用整段的起点和终点，而不是被抓住的那个 clip。
+        let raw_selection_start = earliest_start
             + TimelineFrameIndex::from(i64::from(raw_delta).max(-i64::from(earliest_start)));
-        let anchor_duration = timeline
-            .editing_state
-            .clip(anchor_clip_id)
-            .map(|clip| clip.frame_length(timeline.editing_state.settings.frame_rate))
-            .unwrap_or(TimelineFrameIndex::ZERO);
         // pointer 还没有横向移动时不 snap，单击只选中 clip。
         let (snapped_start, snap_guide) = if raw_delta == TimelineFrameIndex::ZERO {
-            (raw_anchor_start, None)
+            (raw_selection_start, None)
         } else {
             timeline.snap_clip_start_ignoring(
-                raw_anchor_start,
-                anchor_duration,
+                raw_selection_start,
+                latest_end - earliest_start,
                 &timeline.interaction.selected_clip_ids,
             )
         };
-        let timeline_delta = snapped_start - original_anchor_start;
+        let timeline_delta = snapped_start - earliest_start;
         let viewport_height = f32::from(window.viewport_size().height);
         let track_top = viewport_height - self.timeline_height(window, cx)
             + TIMELINE_HEADER_HEIGHT
