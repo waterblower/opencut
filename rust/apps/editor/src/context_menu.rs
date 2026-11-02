@@ -258,7 +258,7 @@ impl Editor {
                                     } else {
                                         editor.emit_event(
                                             cx,
-                                            AppEvent::MoveToTrashChosen {
+                                            AppEvent::MoveToTrash {
                                                 relative_path: trash_relative_path.clone(),
                                             },
                                         );

@@ -3,6 +3,7 @@ use crate::dialog_missing_media::missing_media_dialog;
 use crate::edit_action::{EditAction, edit_timeline};
 use crate::editing::validate_clips_placements;
 use crate::editor::Editor;
+use crate::explorer::move_path_to_trash;
 use crate::explorer_drag::AssetBeingDragged;
 use crate::explorer_file_entry::select_preview_file;
 use crate::export_window::{ExportState, ExportWindow};
@@ -72,7 +73,7 @@ pub(crate) enum AppEvent {
     /// The user dismissed the missing media dialog.
     MissingMediaDialogClosed,
     /// The user chose Move to Trash for a file or folder in the explorer.
-    MoveToTrashChosen {
+    MoveToTrash {
         relative_path: PathBuf, // 相对于项目根目录
     },
     /// The user confirmed moving the open timeline to Trash.
@@ -530,9 +531,39 @@ async fn handle_app_event(
                 cx.notify();
             });
         }
-        AppEvent::MoveToTrashChosen { relative_path } => {
+        AppEvent::MoveToTrash { relative_path } => {
             editor.update(cx, |editor, cx| -> Result<()> {
-                editor.trash_file(&relative_path, cx)?;
+                // The project root is the workspace itself, not an entry within it.
+                if relative_path.as_os_str().is_empty() {
+                    bail!("The project folder cannot be moved to Trash here.");
+                }
+                let path = editor.project_root.join(&relative_path);
+                if editor
+                    .timeline
+                    .as_ref()
+                    .is_some_and(|timeline| timeline.path.starts_with(&path))
+                {
+                    bail!("The active timeline cannot be moved to Trash.");
+                }
+                let display_name = path
+                    .file_name()
+                    .map(|name| name.to_string_lossy().into_owned())
+                    .unwrap_or_else(|| relative_path.display().to_string());
+                if let Err(error) = move_path_to_trash(&path) {
+                    return Err(anyhow!("Could not move {display_name} to Trash: {error}"));
+                }
+                editor
+                    .explorer
+                    .expanded_directories
+                    .retain(|directory| !directory.starts_with(&relative_path));
+                editor.explorer.selected_file = None;
+                editor.property_panel = current_property_panel(editor);
+                editor.explorer.search_query = None;
+                editor.explorer.search_results.clear();
+                editor.explorer.search_pending = false;
+                editor.explorer.refresh_file_tree(&editor.project_root)?;
+                editor.save_explorer_expansion()?;
+                editor.schedule_explorer_search(cx);
                 cx.notify();
                 Ok(())
             })?;

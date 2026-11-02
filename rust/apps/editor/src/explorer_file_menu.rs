@@ -253,46 +253,6 @@ impl Editor {
         cx.open_with_system(&path);
     }
 
-    /// Moves a file or folder, relative to the project root, to the system Trash.
-    pub(crate) fn trash_file(
-        &mut self,
-        relative_path: &Path,
-        cx: &mut Context<Self>,
-    ) -> Result<()> {
-        // The project root is the workspace itself, not an entry within it.
-        if relative_path.as_os_str().is_empty() {
-            bail!("The project folder cannot be moved to Trash here.");
-        }
-        if self.timeline.as_ref().is_some_and(|timeline| {
-            timeline
-                .path
-                .starts_with(self.project_root.join(relative_path))
-        }) {
-            bail!("The active timeline cannot be moved to Trash.");
-        }
-
-        let path = self.project_root.join(relative_path);
-        let display_name = path
-            .file_name()
-            .map(|name| name.to_string_lossy().into_owned())
-            .unwrap_or_else(|| relative_path.display().to_string());
-        if let Err(error) = move_path_to_trash(&path) {
-            return Err(anyhow!("Could not move {display_name} to Trash: {error}"));
-        }
-        self.explorer
-            .expanded_directories
-            .retain(|directory| !directory.starts_with(relative_path));
-        self.explorer.selected_file = None;
-        self.property_panel = current_property_panel(self);
-        self.explorer.search_query = None;
-        self.explorer.search_results.clear();
-        self.explorer.search_pending = false;
-        self.explorer.refresh_file_tree(&self.project_root)?;
-        self.save_explorer_expansion()?;
-        self.schedule_explorer_search(cx);
-        Ok(())
-    }
-
     pub(crate) fn trash_active_timeline(&mut self, cx: &mut Context<Self>) -> Result<()> {
         let Some(timeline) = self.timeline.as_ref() else {
             bail!("No timeline is open to move to Trash.");
