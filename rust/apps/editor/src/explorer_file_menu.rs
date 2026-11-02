@@ -311,8 +311,9 @@ impl Editor {
 
         self.timeline = None;
         self.preview.target = PreviewTarget::None;
-        self.property_panel = current_property_panel(self);
+        // 先清除选中项再重建属性面板：选中的仍是刚移走的时间线，面板会要求它存在。
         self.explorer.selected_file = None;
+        self.property_panel = current_property_panel(self);
         self.explorer.refresh_file_tree(&self.project_root)?;
         self.schedule_explorer_search(cx);
         Ok(())
