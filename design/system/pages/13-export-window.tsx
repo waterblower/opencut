@@ -19,6 +19,7 @@ export default function ExportWindowPage(): Markup {
           <BitrateRow>
             <ValueField value="8" />
           </BitrateRow>
+          <ErrorSlot />
           <TrackList tracks={UNCHECKED_TRACKS} />
           <Help class="mt-[15px]" />
           <ExportButton />
@@ -29,6 +30,7 @@ export default function ExportWindowPage(): Markup {
           <BitrateRow>
             <span>8</span>
           </BitrateRow>
+          <ErrorSlot />
           <TrackList tracks={TEXT_TRACKS} locked />
           <Help class="mt-[15px]" />
           <ExportButton disabled />
@@ -46,6 +48,7 @@ export default function ExportWindowPage(): Markup {
           <BitrateRow>
             <ValueField value="8" />
           </BitrateRow>
+          <ErrorSlot />
           <TrackList tracks={UNCHECKED_TRACKS} />
           <Help class="mt-[15px]" />
           <ExportButton />
@@ -57,7 +60,7 @@ export default function ExportWindowPage(): Markup {
           <BitrateRow>
             <ValueField value="0" caret />
           </BitrateRow>
-          <p class="mt-4 text-sm leading-5 text-error">Enter a bitrate between 0.1 and 1000 Mbps.</p>
+          <ErrorSlot message="Enter a bitrate between 0.1 and 1000 Mbps." />
           <TrackList tracks={UNCHECKED_TRACKS} />
           <Help class="mt-[15px]" />
           <ExportButton disabled />
@@ -68,6 +71,7 @@ export default function ExportWindowPage(): Markup {
           <BitrateRow>
             <ValueField value="8" />
           </BitrateRow>
+          <ErrorSlot />
           <TrackList tracks={TEXT_TRACKS} />
           <Help class="mt-[15px]" />
           <ExportButton />
@@ -78,6 +82,7 @@ export default function ExportWindowPage(): Markup {
           <BitrateRow>
             <ValueField value="8" />
           </BitrateRow>
+          <ErrorSlot />
           <TrackList tracks={[]} />
           <Help class="mt-[15px]" />
           <ExportButton />
@@ -90,7 +95,7 @@ export default function ExportWindowPage(): Markup {
 /// The shared top of the export window: title, file name and format summary.
 function ExportBody(props: { children: Child }): Markup {
   return (
-    <Window width={560} height={740}>
+    <Window width={560} height={784}>
       <div class="px-6 pt-[26px]">
         <h3 class="text-xl leading-none">Export timeline</h3>
         <p class="mt-[21px] text-base leading-none">edit.timeline</p>
@@ -111,6 +116,11 @@ function BitrateRow(props: { children: Child }): Markup {
 }
 
 /// The text tracks of the timeline, one checkbox row each.
+/// The line under the bitrate field, always taking its space so a message does not move what follows.
+function ErrorSlot(props: { message?: string }): Markup {
+  return <p class="mt-4 mb-2 h-5 text-sm leading-5 text-error">{props.message}</p>;
+}
+
 function TrackList(props: { tracks: { name: string; checked: boolean }[]; locked?: boolean }): Markup {
   const color = TRACK_KIND_COLOR.T;
   return (
