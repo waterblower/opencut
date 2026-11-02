@@ -153,7 +153,7 @@ impl ExportWindow {
                             document: view.document.clone(),
                             output_path: path.with_extension("mp4"),
                             video_bitrate,
-                            overwrite: false,
+                            overwrite: true,
                             subtitle_track_ids,
                             export_window: cx.entity().downgrade(),
                             control: control.clone(),

@@ -174,7 +174,7 @@ pub(crate) async fn handle_event(
                                 let srt = text_track_to_srt(&document.editing_state, track.id)?;
                                 let srt_path = output_path
                                     .with_file_name(format!("{output_stem}_{}.srt", track.name));
-                                srt.write_to(&srt_path, false)?;
+                                srt.write_to(&srt_path, overwrite)?;
                             }
                         }
                     }
