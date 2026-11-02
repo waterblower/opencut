@@ -18,7 +18,7 @@ use crate::property_panel_srt_file::srt_file_panel;
 use crate::property_panel_text::text_clip_panel;
 use crate::property_panel_video_clip::video_clip_panel;
 use crate::property_panel_video_file::VideoFilePanel;
-use crate::srt::{srt_text_clips, text_track_to_srt, write_srt};
+use crate::srt::{srt_text_clips, text_track_to_srt};
 use crate::timeline::{PreviewDropAsset, TimelineFrameIndex, TimelineRuntimeState};
 use crate::timeline_clip::{AudioClipProperties, Clip, VideoClip, VideoClipProperties};
 use crate::timeline_document::{relative_asset_path, resolve_asset_path};
@@ -174,7 +174,7 @@ pub(crate) async fn handle_event(
                                 let srt = text_track_to_srt(&document.editing_state, track.id)?;
                                 let srt_path = output_path
                                     .with_file_name(format!("{output_stem}_{}.srt", track.name));
-                                srt.write_to(&srt_path)?;
+                                srt.write_to(&srt_path, false)?;
                             }
                         }
                     }
@@ -311,7 +311,7 @@ pub(crate) async fn handle_event(
                         })?;
                         cx.background_executor()
                             .spawn(async move {
-                                write_srt(&srt_path, &srt)?;
+                                srt.write_to(&srt_path, true)?;
                                 Ok(srt_path)
                             })
                             .await

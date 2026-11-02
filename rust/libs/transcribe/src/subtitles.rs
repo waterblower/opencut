@@ -56,11 +56,15 @@ impl SRT {
         Ok(Self { subtitles })
     }
 
-    /// Writes a new file; an existing file is an error.
-    pub fn write_to(&self, path: &Path) -> Result<()> {
-        let mut file = std::fs::OpenOptions::new()
-            .write(true)
-            .create_new(true)
+    /// Writes the file at `path`. An existing file is replaced if `replace` is set, otherwise it is an error.
+    pub fn write_to(&self, path: &Path, replace: bool) -> Result<()> {
+        let mut options = std::fs::OpenOptions::new();
+        options.write(true);
+        match replace {
+            true => options.create(true).truncate(true),
+            false => options.create_new(true),
+        };
+        let mut file = options
             .open(path)
             .with_context(|| format!("Creating {}", path.display()))?;
         file.write_all(self.to_string().as_bytes())

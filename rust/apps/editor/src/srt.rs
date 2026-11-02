@@ -4,20 +4,7 @@ use crate::track::TrackKind;
 use ::timeline::TimelineEditingState;
 use ::transcribe::{SRT, Subtitle};
 use anyhow::{Result, bail};
-use std::path::Path;
 use ulid::Ulid;
-
-pub(crate) fn write_srt(path: &Path, srt: &SRT) -> Result<()> {
-    if !path.is_absolute() {
-        bail!(
-            "SRT output path must be absolute at {}:{}",
-            file!(),
-            line!()
-        );
-    }
-    std::fs::write(path, srt.to_string())?;
-    Ok(())
-}
 
 pub(crate) fn srt_text_clips(srt: &SRT, frame_rate: FrameRate) -> Vec<TextClip> {
     let mut clips = Vec::with_capacity(srt.subtitles.len());

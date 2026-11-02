@@ -28,14 +28,16 @@ fn writes_utf8_subtitles_to_the_exact_absolute_path_and_overwrites() {
     let text = "1\n00:00:00,100 --> 00:00:01,000\n你好 hello\n";
     let mut srt = SRT::from_string(text).unwrap();
     let path = directory.path.join("chosen-name.srt");
-    write_srt(&path, &srt).unwrap();
+    srt.write_to(&path, true).unwrap();
     assert_eq!(fs::read_to_string(&path).unwrap(), srt.to_string());
     srt.subtitles[0].text = "replacement".into();
-    write_srt(&path, &srt).unwrap();
+    srt.write_to(&path, true).unwrap();
     assert_eq!(fs::read_to_string(&path).unwrap(), srt.to_string());
     assert_eq!(fs::read_dir(&directory.path).unwrap().count(), 1);
-    assert!(write_srt(Path::new("relative.srt"), &srt).is_err());
-    assert!(write_srt(&directory.path.join("missing/output.srt"), &srt).is_err());
+    assert!(
+        srt.write_to(&directory.path.join("missing/output.srt"), true)
+            .is_err()
+    );
 }
 
 struct TestDirectory {
