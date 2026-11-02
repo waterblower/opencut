@@ -1,4 +1,5 @@
 import { Checkbox } from "../components/panel.tsx";
+import { Figure } from "../components/figure.tsx";
 import { Window } from "../components/window.tsx";
 import { TRACK_KIND_COLOR } from "../theme.ts";
 import type { Child, Markup } from "@design/jsx/jsx-runtime";
@@ -12,7 +13,7 @@ const UNCHECKED_TRACKS = TEXT_TRACKS.map((track) => ({ ...track, checked: false 
 
 export default function ExportWindowPage(): Markup {
   return (
-    <main class="grid w-[1240px] grid-cols-[560px_560px] gap-x-10 gap-y-[38px] bg-[#f4f4f6] px-10 pt-7 pb-[60px] font-sans">
+    <main class="grid w-[1240px] grid-cols-[560px_560px] gap-x-10 gap-y-[38px] bg-sheet px-10 pt-7 pb-[60px] font-sans">
       <Figure title="Idle" caption="Before export; no text track is checked, so no .srt file is saved">
         <ExportBody>
           <BitrateRow>
@@ -83,16 +84,6 @@ export default function ExportWindowPage(): Markup {
         </ExportBody>
       </Figure>
     </main>
-  );
-}
-
-function Figure(props: { title: string; caption: string; children: Child }): Markup {
-  return (
-    <figure>
-      <h2 class="text-[15px] leading-5 font-semibold text-[#1b1b1e]">{props.title}</h2>
-      <p class="mt-[3px] text-xs leading-4 text-[#55555e]">{props.caption}</p>
-      <div class="mt-3">{props.children}</div>
-    </figure>
   );
 }
 

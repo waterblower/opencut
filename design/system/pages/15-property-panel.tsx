@@ -16,9 +16,9 @@ const COLUMN = "grid grid-cols-[280px_280px_280px_280px] gap-x-10";
 
 export default function PropertyPanelPage(): Markup {
   return (
-    <main class="w-[1336px] bg-[#f4f4f6] px-12 pt-9 pb-[60px] font-sans text-[#1b1b1e]">
+    <main class="w-[1336px] bg-sheet px-12 pt-9 pb-[60px] font-sans text-ink">
       <h1 class="text-2xl leading-8 font-bold">Property Panel</h1>
-      <p class="mt-2 text-sm leading-5 text-[#55555e]">One panel type per row. Compare its variants side by side.</p>
+      <p class="mt-2 text-sm leading-5 text-dim">One panel type per row. Compare its variants side by side.</p>
       <Legend />
       <Section title="Header" caption="Shared by every property panel: 12px around the icon, then a divider." first>
         <Variant label="Clip">
@@ -139,7 +139,7 @@ export default function PropertyPanelPage(): Markup {
       <Section title="Nothing selected" caption="No timeline open">
         <Variant label="Empty state">
           <PanelCard height={555}>
-            <div class="absolute top-[223.5px] left-[116px] grid size-12 place-items-center rounded-xl border border-border bg-[#131316]">
+            <div class="absolute top-[223.5px] left-[116px] grid size-12 place-items-center rounded-xl border border-border bg-well">
               <svg
                 width="20"
                 height="22"
@@ -168,7 +168,7 @@ export default function PropertyPanelPage(): Markup {
 /// The three kinds of cell used in panels: editable input, read-only value and action.
 function Legend(): Markup {
   return (
-    <div class="mt-3 flex items-center gap-x-6 text-[13px] leading-none text-[#55555e]">
+    <div class="mt-3 flex items-center gap-x-6 text-[13px] leading-none text-dim">
       <div class="flex items-center gap-2.5">
         <span class="flex h-[30px] w-[96px] items-center rounded-md border border-border bg-surface px-[9px] text-text">
           <span class="w-[15.7px] text-xs font-semibold text-muted">X</span>
@@ -177,7 +177,7 @@ function Legend(): Markup {
         Editable input
       </div>
       <div class="flex items-center gap-2.5">
-        <span class="flex h-[30px] w-24 items-center rounded-md bg-[#131316] px-2.5 font-mono text-text">0:08.00</span>
+        <span class="flex h-[30px] w-24 items-center rounded-md bg-well px-2.5 font-mono text-text">0:08.00</span>
         Read-only value
       </div>
       <div class="flex items-center gap-2.5">
@@ -192,7 +192,7 @@ function Section(props: { title: string; caption: string; first?: boolean; child
   return (
     <section class={props.first ? "mt-[27px]" : "mt-[42px]"}>
       <h2 class="text-lg leading-6 font-semibold">{props.title}</h2>
-      <p class="mt-2 text-xs leading-4 text-[#55555e]">{props.caption}</p>
+      <p class="mt-2 text-xs leading-4 text-dim">{props.caption}</p>
       <div class={`mt-[6px] ${COLUMN}`}>{props.children}</div>
     </section>
   );
@@ -201,7 +201,7 @@ function Section(props: { title: string; caption: string; first?: boolean; child
 function Variant(props: { label: string; children: Child }): Markup {
   return (
     <div>
-      <p class="text-xs leading-4 font-semibold text-[#55555e]">{props.label}</p>
+      <p class="text-xs leading-4 font-semibold text-dim">{props.label}</p>
       <div class="mt-4">{props.children}</div>
     </div>
   );
@@ -209,7 +209,7 @@ function Variant(props: { label: string; children: Child }): Markup {
 
 function Notes(): Markup {
   return (
-    <div class="mt-6 text-xs leading-5 text-[#55555e]">
+    <div class="mt-6 text-xs leading-5 text-dim">
       <p>One component, used by both panels.</p>
       <p>Gain dB field: −96 to +12 dB.</p>
       <p>Locked tracks keep the layout, read-only.</p>

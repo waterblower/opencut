@@ -80,7 +80,7 @@ export default function Page00DesignSystemTailwind(): Markup {
                   state === "Hover"
                     ? "bg-accent-background outline-accent"
                     : state === "Disabled"
-                    ? "bg-[#131316] outline-[#222226]"
+                    ? "bg-well outline-[#222226]"
                     : "bg-surface outline-border"
                 }`}
               >
@@ -333,7 +333,7 @@ function InputExample({ kind, state }: { kind: "Primary" | "Secondary"; state: t
         kind === "Primary"
           ? `rounded-md outline-[1px] outline-offset-[-0.5px] ${
             disabled
-              ? "bg-[#131316] outline-[#222226]"
+              ? "bg-well outline-[#222226]"
               : state === "Focused"
               ? "bg-surface outline-accent"
               : "bg-surface outline-border"

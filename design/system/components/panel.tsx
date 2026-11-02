@@ -120,7 +120,7 @@ function HeaderIcon(props: { icon: PanelIcon }): Markup {
     case "file":
       return (
         <span
-          class={`${base} bg-[#131316] font-mono text-[9px] leading-none font-semibold`}
+          class={`${base} bg-well font-mono text-[9px] leading-none font-semibold`}
           style={`border-color:${icon.border};color:${icon.labelColor}`}
         >
           {icon.label}
@@ -176,7 +176,7 @@ export function Pair(props: { name: string; value: string }): Markup {
 /// A read-only timing value: a caption, a mono time and its frame count.
 export function TimingCell(props: { name: string; time: string; frames: string; locked?: boolean }): Markup {
   return (
-    <div class={`relative h-[50px] rounded-md ${props.locked ? "bg-[#19191d]" : "bg-[#131316]"}`}>
+    <div class={`relative h-[50px] rounded-md ${props.locked ? "bg-[#19191d]" : "bg-well"}`}>
       <span class="absolute top-[9.5px] left-2.5 text-[11px] leading-none text-muted">{props.name}</span>
       <span class="absolute top-[27.9px] left-2.5 font-mono text-[13px] leading-none">{props.time}</span>
       <span class="absolute top-[28.8px] right-2.5 font-mono text-[11px] leading-none text-dim">{props.frames}</span>

@@ -3,13 +3,13 @@ import type { Child, Markup } from "@design/jsx/jsx-runtime";
 
 export default function TimelineTrackPage(): Markup {
   return (
-    <main class="w-[1240px] px-12 pt-10 pb-12 font-sans text-[#1b1b1e]">
+    <main class="w-[1240px] px-12 pt-10 pb-12 font-sans text-ink">
       <h1 class="text-2xl leading-7 font-bold">Timeline Track</h1>
-      <p class="mt-2 text-sm leading-5 text-[#55555e]">Parts of a timeline track.</p>
+      <p class="mt-2 text-sm leading-5 text-dim">Parts of a timeline track.</p>
 
-      <section class="mt-[34px] border-t border-[#d9d9de] pt-9">
+      <section class="mt-[34px] border-t border-rule pt-9">
         <h2 class="text-xl leading-7 font-bold">Track header</h2>
-        <p class="mt-1 text-sm leading-5 text-[#55555e]">
+        <p class="mt-1 text-sm leading-5 text-dim">
           Kind badge and name, then reorder and delete. State toggles below.
         </p>
         <div class="mt-7 space-y-8">
@@ -74,7 +74,7 @@ function Variant(props: { title: string; caption: string; children: Markup }): M
   return (
     <div class="row-span-3 grid grid-rows-subgrid">
       <h3 class="text-sm leading-5 font-semibold">{props.title}</h3>
-      <p class="mt-0.5 text-xs leading-4 text-[#55555e]">{props.caption}</p>
+      <p class="mt-0.5 text-xs leading-4 text-dim">{props.caption}</p>
       <div class="mt-3">
         <TrackHeaderCard>{props.children}</TrackHeaderCard>
       </div>

@@ -1,4 +1,5 @@
 import { COLOR } from "../theme.ts";
+import { Section } from "../components/figure.tsx";
 import { AudioClip, NeighborClip, TextClip, VideoClip } from "../components/timeline-clip.tsx";
 import {
   At,
@@ -26,13 +27,13 @@ const PAIR: TrackSpec[] = [
 
 export default function TimelineEditingAreaPage(): Markup {
   return (
-    <main class="w-[1240px] px-12 pt-10 pb-12 font-sans text-[#1b1b1e]">
+    <main class="w-[1240px] px-12 pt-10 pb-12 font-sans text-ink">
       <h1 class="text-2xl leading-7 font-bold">Timeline editing area</h1>
-      <p class="mt-2 text-sm leading-5 text-[#55555e]">
+      <p class="mt-2 text-sm leading-5 text-dim">
         One open timeline. Toolbar, ruler and tracks share one playhead.
       </p>
 
-      <Section title="Timeline" description="The toolbar, ruler and tracks, and the states a timeline can be in.">
+      <Section gap={10} title="Timeline" description="The toolbar, ruler and tracks, and the states a timeline can be in.">
         <Figure title="Default" caption="Selection tool · one selected clip">
           <MainTimeline />
         </Figure>
@@ -111,6 +112,7 @@ export default function TimelineEditingAreaPage(): Markup {
       </Section>
 
       <Section
+        gap={10}
         title="Clip Placement"
         description="One placement preview for dragging an asset or moving an existing clip. The destination determines its state."
       >
@@ -215,6 +217,7 @@ export default function TimelineEditingAreaPage(): Markup {
       </Section>
 
       <Section
+        gap={10}
         title="Locked track"
         description="Locking a track covers its header and lane with neutral diagonal stripes. Clips keep their color."
       >
@@ -341,16 +344,6 @@ function LockedTrackClips(props: { locked?: boolean }): Markup {
 
 // Page layout ---------------------------------------------------------------------------
 
-function Section(props: { title: string; description: string; children: Child }): Markup {
-  return (
-    <section class="mt-12 border-t border-[#d9d9de] pt-8">
-      <h2 class="text-xl leading-7 font-bold">{props.title}</h2>
-      <p class="mt-1 text-sm leading-5 text-[#55555e]">{props.description}</p>
-      <div class="mt-6 space-y-10">{props.children}</div>
-    </section>
-  );
-}
-
 /// Two figures side by side: 556px each with 32px between.
 function Row(props: { children: Child }): Markup {
   return <div class="grid grid-cols-[556px_556px] items-start gap-x-8">{props.children}</div>;
@@ -361,7 +354,7 @@ function Figure(props: { title: string; caption: string; children: Child }): Mar
     <figure>
       <figcaption>
         <h3 class="text-sm leading-5 font-semibold">{props.title}</h3>
-        <p class="mt-0.5 text-xs leading-4 text-[#55555e]">{props.caption}</p>
+        <p class="mt-0.5 text-xs leading-4 text-dim">{props.caption}</p>
       </figcaption>
       <div class="mt-3">{props.children}</div>
     </figure>
@@ -372,7 +365,7 @@ function Notes(props: { title: string; children: Child }): Markup {
   return (
     <div>
       <h3 class="text-sm leading-5 font-semibold">{props.title}</h3>
-      <div class="mt-3 max-w-[556px] space-y-2 text-[13px] leading-[22px] text-[#55555e]">{props.children}</div>
+      <div class="mt-3 max-w-[556px] space-y-2 text-[13px] leading-[22px] text-dim">{props.children}</div>
     </div>
   );
 }

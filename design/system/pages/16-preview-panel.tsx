@@ -3,12 +3,12 @@ import type { Child, Markup } from "@design/jsx/jsx-runtime";
 
 export default function PreviewPanelPage(): Markup {
   return (
-    <main class="w-[1240px] bg-[#f4f4f6] px-12 pt-[38px] pb-12 font-sans text-[#1b1b1e]">
+    <main class="w-[1240px] bg-sheet px-12 pt-[38px] pb-12 font-sans text-ink">
       <h1 class="text-2xl leading-8 font-bold">Preview panel</h1>
-      <p class="mt-2 text-sm leading-5 text-[#55555e]">
+      <p class="mt-2 text-sm leading-5 text-dim">
         One preview at a time. Content and controls follow the selected source.
       </p>
-      <p class="mt-2 font-mono text-[11px] leading-4 text-[#55555e]">IMAGE / AUDIO / VIDEO / ERROR / NONE</p>
+      <p class="mt-2 font-mono text-[11px] leading-4 text-dim">IMAGE / AUDIO / VIDEO / ERROR / NONE</p>
       <div class="mt-[43px] grid grid-cols-[556px_556px] gap-x-8 gap-y-8">
         <Figure title="Image" caption="Still image · fit within the panel">
           <Scene width={556} class="absolute top-[23.6px] left-0" />
@@ -97,7 +97,7 @@ function Figure(props: { title: string; caption: string; children: Child }): Mar
   return (
     <figure>
       <h2 class="text-sm leading-5 font-semibold">{props.title}</h2>
-      <p class="mt-[3px] text-xs leading-4 text-[#55555e]">{props.caption}</p>
+      <p class="mt-[3px] text-xs leading-4 text-dim">{props.caption}</p>
       <div class="relative mt-2.5 h-[360px] w-[556px] overflow-hidden rounded-[10px] border border-border bg-[#080808] shadow-[0_6px_0_#000] text-text">
         {props.children}
       </div>
