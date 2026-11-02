@@ -43,9 +43,13 @@ impl Editor {
 
         let metadata = file_entry_metadata(entry, active_timeline);
         let draggable = match entry.kind {
-            FileTreeEntryKind::Video | FileTreeEntryKind::Image | FileTreeEntryKind::Audio => true,
-            FileTreeEntryKind::Other => is_srt_path(&entry.absolute_path),
-            FileTreeEntryKind::Directory { .. } | FileTreeEntryKind::Timeline => false,
+            FileTreeEntryKind::Video
+            | FileTreeEntryKind::Image
+            | FileTreeEntryKind::Audio
+            | FileTreeEntryKind::Srt => true,
+            FileTreeEntryKind::Directory { .. }
+            | FileTreeEntryKind::Timeline
+            | FileTreeEntryKind::Other => false,
         };
 
         let event_bus = self.event_bus.clone();
@@ -131,7 +135,7 @@ impl Editor {
                                 },
                             );
                         }
-                        FileTreeEntryKind::Other if is_srt_path(&path) => {
+                        FileTreeEntryKind::Srt => {
                             editor.emit_event(
                                 cx,
                                 AppEvent::Preview(PreviewEvent::SelectFile(path.clone())),
@@ -269,6 +273,7 @@ pub(crate) enum FileTreeEntryKind {
     Video,
     Image,
     Audio,
+    Srt,
     Timeline,
     Other,
 }
@@ -437,6 +442,8 @@ fn file_tree_entry(
         FileTreeEntryKind::Image
     } else if is_audio_path(&relative_path) {
         FileTreeEntryKind::Audio
+    } else if is_srt_path(&relative_path) {
+        FileTreeEntryKind::Srt
     } else {
         FileTreeEntryKind::Other
     };
@@ -503,6 +510,7 @@ fn file_entry_metadata(entry: &FileTreeEntry, active_timeline: bool) -> Option<S
         FileTreeEntryKind::Video
         | FileTreeEntryKind::Image
         | FileTreeEntryKind::Audio
+        | FileTreeEntryKind::Srt
         | FileTreeEntryKind::Timeline
         | FileTreeEntryKind::Other => entry.size_bytes.map(format_file_size),
     }
