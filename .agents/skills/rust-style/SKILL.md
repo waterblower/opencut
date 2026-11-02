@@ -1,6 +1,6 @@
 ---
 name: rust-style
-description: General Rust style conventions for OpenCut. Use when writing, refactoring, or reviewing Rust code for naming, imports, visibility, source organization, control flow, early returns, and error handling.
+description: General Rust style conventions. Use when writing, refactoring, or reviewing Rust code for naming, imports, visibility, source organization, control flow, early returns, and error handling.
 ---
 
 # Rust style
