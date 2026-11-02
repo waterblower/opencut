@@ -1,7 +1,7 @@
 //! GPUI views for composed timeline pictures and subtitle layout.
 
 use crate::timeline_decoder::{PreparedLayer, TimelineFrameComposition};
-use crate::video_surface::{video_surface_size, video_surface_view};
+use crate::video_surface::{retired_surfaces_release_view, video_surface_size, video_surface_view};
 use gpui::prelude::FluentBuilder;
 use gpui::{
     AnyElement, IntoElement, ObjectFit, ParentElement, Styled, TextAlign, div, img, px, rgb, rgba,
@@ -24,7 +24,8 @@ impl TimelineFrameComposition {
             .items_center()
             .justify_center()
             .overflow_hidden()
-            .bg(rgb(0));
+            .bg(rgb(0))
+            .child(retired_surfaces_release_view()); // 无视频层（如缩放为 0、片段结束）时也回收旧帧。
         let scale = (width / self.width as f32).min(height / self.height as f32);
         if !scale.is_finite() || scale <= 0.0 {
             return root.into_any_element();

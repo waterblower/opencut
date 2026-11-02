@@ -36,10 +36,9 @@ impl CpuSurface {
         Arc::clone(&self.image.image)
     }
 
-    /// The image to paint. Once painted, dropping the surface must free its atlas tile.
-    pub(crate) fn image_to_paint(&self) -> Arc<RenderImage> {
+    /// Call from the painting lifecycle, so dropping the surface frees its atlas tile.
+    pub(crate) fn mark_painted(&self) {
         self.image.painted.store(true, Ordering::Relaxed);
-        self.image()
     }
 }
 

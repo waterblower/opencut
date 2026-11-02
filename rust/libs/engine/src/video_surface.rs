@@ -37,21 +37,37 @@ pub fn video_surface_view(surface: &VideoSurface, object_fit: ObjectFit) -> AnyE
         .size_full()
         .into_any_element();
     #[cfg(not(target_os = "macos"))]
-    div()
-        .relative()
-        .size_full()
-        .child(
-            img(surface.image_to_paint())
-                .object_fit(object_fit)
-                .size_full(),
-        )
-        // 先前帧已不再显示；在本窗口绘制前释放它们的图集块。
-        .child(
-            canvas(
-                |_, window, cx| release_retired_surfaces(window, cx),
-                |_, _, _, _| {},
+    {
+        let painted = surface.clone();
+        div()
+            .relative()
+            .size_full()
+            .child(img(surface.image()).object_fit(object_fit).size_full())
+            // 只有进入绘制树的元素才会 prepaint；构造后被丢弃的视图不算已绘制。
+            .child(
+                canvas(
+                    move |_, window, cx| {
+                        painted.mark_painted();
+                        release_retired_surfaces(window, cx);
+                    },
+                    |_, _, _, _| {},
+                )
+                .absolute(),
             )
-            .absolute(),
-        )
-        .into_any_element()
+            .into_any_element()
+    }
+}
+
+/// Frees atlas tiles of video frames no longer shown, even when no video element is
+/// visible this frame. Add it to any view that shows timeline pictures.
+pub fn retired_surfaces_release_view() -> AnyElement {
+    #[cfg(target_os = "macos")]
+    return gpui::Empty.into_any_element();
+    #[cfg(not(target_os = "macos"))]
+    canvas(
+        |_, window, cx| release_retired_surfaces(window, cx),
+        |_, _, _, _| {},
+    )
+    .absolute()
+    .into_any_element()
 }
