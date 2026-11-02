@@ -508,6 +508,7 @@ pub(crate) fn explorer_file_badge(entry: &FileTreeEntry) -> gpui::Div {
         FileTreeEntryKind::Video => (extension, 0x8fb9dd, 0x355b78),
         FileTreeEntryKind::Audio => (extension, 0x7fd0ae, 0x32725a),
         FileTreeEntryKind::Image => (extension, 0xc3a9e8, 0x665184),
+        FileTreeEntryKind::Srt => (extension, 0xf4b99f, 0x8c5a46),
         FileTreeEntryKind::Directory { .. } | FileTreeEntryKind::Other => {
             (extension, 0x8b8b94, 0x46464e)
         }
@@ -522,8 +523,8 @@ pub(crate) fn explorer_file_badge(entry: &FileTreeEntry) -> gpui::Div {
         .rounded_sm()
         .border_1()
         .border_color(rgb(border))
-        .font_family("monospace")
-        .text_xs()
+        .text_size(px(11.0))
+        .font_weight(gpui::FontWeight::SEMIBOLD)
         .text_color(rgb(text))
         .child(extension)
 }

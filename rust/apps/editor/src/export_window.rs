@@ -1,15 +1,19 @@
 use crate::editor::Editor;
 use crate::event_bus::{AppEvent, EventBus};
-use crate::theme::{ACCENT, BACKGROUND, ERROR, MUTED, TEXT};
+use crate::theme::{ACCENT, BACKGROUND, BORDER, ERROR, MUTED, SURFACE, TEXT};
+use crate::track::TrackKind;
 use crate::ui_components::TextInput;
 use anyhow::{Result, ensure};
 use engine::export::ExportControl;
 use gpui::prelude::*;
-use gpui::{Bounds, Context, Entity, Window, WindowBounds, WindowOptions, div, px, rgb, size};
+use gpui::{
+    Bounds, Context, Entity, FontWeight, Window, WindowBounds, WindowOptions, div, px, rgb, size,
+};
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
 use timeline::TimelineSerialization;
+use ulid::Ulid;
 
 impl Editor {
     pub(crate) fn open_export_window(
@@ -25,8 +29,19 @@ impl Editor {
             "The active timeline changed before opening export"
         );
         let document = timeline.to_serialize();
+        let subtitle_tracks = document
+            .editing_state
+            .tracks
+            .iter()
+            .filter(|track| track.kind == TrackKind::Text)
+            .map(|track| SubtitleTrack {
+                track_id: track.id,
+                name: track.name.clone(),
+                checked: false,
+            })
+            .collect::<Vec<_>>();
         let event_bus = self.event_bus.clone();
-        let bounds = Bounds::centered(None, size(px(560.0), px(520.0)), cx);
+        let bounds = Bounds::centered(None, size(px(560.0), px(756.0)), cx);
         cx.open_window(
             WindowOptions {
                 window_bounds: Some(WindowBounds::Windowed(bounds)),
@@ -46,6 +61,7 @@ impl Editor {
                         timeline_path,
                         state: ExportState::Idle,
                         bitrate_input,
+                        subtitle_tracks,
                     }
                 });
                 let weak_view = view.downgrade();
@@ -66,6 +82,13 @@ pub(crate) struct ExportWindow {
     timeline_path: PathBuf,
     pub(crate) state: ExportState,
     bitrate_input: Entity<TextInput>,
+    subtitle_tracks: Vec<SubtitleTrack>,
+}
+
+struct SubtitleTrack {
+    track_id: Ulid,
+    name: String,
+    checked: bool, // 勾选的文字轨道各导出一个 .srt 文件。
 }
 
 pub(crate) enum ExportState {
@@ -104,6 +127,12 @@ impl ExportWindow {
         let Some(directory) = self.timeline_path.parent() else {
             return;
         };
+        let subtitle_track_ids = self
+            .subtitle_tracks
+            .iter()
+            .filter(|track| track.checked)
+            .map(|track| track.track_id)
+            .collect::<Vec<_>>();
         let suggested_name = self.timeline_path.with_extension("mp4");
         let selection = cx.prompt_for_new_path(
             directory,
@@ -124,7 +153,8 @@ impl ExportWindow {
                             document: view.document.clone(),
                             output_path: path.with_extension("mp4"),
                             video_bitrate,
-                            overwrite: false,
+                            overwrite: true,
+                            subtitle_track_ids,
                             export_window: cx.entity().downgrade(),
                             control: control.clone(),
                         };
@@ -159,6 +189,65 @@ impl ExportWindow {
             });
         })
         .detach();
+    }
+}
+
+// Private APIs only
+impl ExportWindow {
+    fn subtitle_tracks_view(&self, locked: bool, cx: &mut Context<Self>) -> impl IntoElement {
+        div()
+            .flex()
+            .flex_col()
+            .gap_2()
+            .when(locked, |view| view.opacity(0.5))
+            .child("Export subtitles")
+            .when(self.subtitle_tracks.is_empty(), |view| {
+                view.child(div().text_sm().text_color(rgb(MUTED)).child("No text tracks in this timeline."))
+            })
+            .children(self.subtitle_tracks.iter().enumerate().map(|(index, track)| {
+                div()
+                    .id(("export-subtitle-track", index))
+                    .flex()
+                    .items_center()
+                    .gap_3()
+                    .when(!locked, |row| {
+                        row.cursor_pointer().on_click(cx.listener(move |view, _, _, cx| {
+                            view.subtitle_tracks[index].checked = !view.subtitle_tracks[index].checked;
+                            cx.notify();
+                        }))
+                    })
+                    .child(
+                        div()
+                            .size(px(16.0))
+                            .flex_shrink_0()
+                            .rounded(px(4.0))
+                            .flex()
+                            .items_center()
+                            .justify_center()
+                            .text_size(px(12.0))
+                            .font_weight(FontWeight::BOLD)
+                            .text_color(rgb(BACKGROUND))
+                            .when(track.checked, |checkbox| checkbox.bg(rgb(ACCENT)).child("✓"))
+                            .when(!track.checked, |checkbox| {
+                                checkbox.bg(rgb(SURFACE)).border_1().border_color(rgb(BORDER))
+                            }),
+                    )
+                    .child(
+                        div()
+                            .size(px(16.0))
+                            .flex_shrink_0()
+                            .rounded(px(4.0))
+                            .bg(rgb(0x7a5fb0))
+                            .flex()
+                            .items_center()
+                            .justify_center()
+                            .text_size(px(10.0))
+                            .font_weight(FontWeight::BOLD)
+                            .text_color(rgb(0xe3d4ff))
+                            .child("T"),
+                    )
+                    .child(track.name.clone())
+            }))
     }
 }
 
@@ -198,8 +287,12 @@ impl Render for ExportWindow {
                 } else {
                     div().w(px(140.0)).child(self.bitrate_input.clone()).into_any_element()
                 }))
-            .when(!valid_bitrate, |view| view.child(
-                div().text_sm().text_color(rgb(ERROR)).child("Enter a bitrate between 0.1 and 1000 Mbps."),
+            .child(div().h(px(20.0)).text_sm().text_color(rgb(ERROR)).when(!valid_bitrate, |view| {
+                view.child("Enter a bitrate between 0.1 and 1000 Mbps.")
+            }))
+            .child(self.subtitle_tracks_view(
+                matches!(self.state, ExportState::Choosing | ExportState::Running(_)),
+                cx,
             ))
             .child(div().text_sm().text_color(rgb(MUTED)).child(
                 "Exports the timeline as it was when this window opened. Existing files are not replaced.",

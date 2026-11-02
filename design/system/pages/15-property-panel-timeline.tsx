@@ -3,22 +3,22 @@ import type { Child, Markup } from "@design/jsx/jsx-runtime";
 
 export default function PropertyPanelTimelinePage(): Markup {
   return (
-    <main class="w-[688px] bg-[#f4f4f6] px-12 pt-[38px] pb-[60px] font-sans text-[#1b1b1e]">
+    <main class="w-[688px] bg-sheet px-12 pt-[38px] pb-[60px] font-sans text-ink">
       <h1 class="text-2xl leading-8 font-bold">Property Panel · Timeline</h1>
-      <p class="mt-2 text-sm leading-5 text-[#55555e]">
+      <p class="mt-2 text-sm leading-5 text-dim">
         The timeline panel and its two tabs. Other panels are on the property panel page.
       </p>
       <h2 class="mt-[43px] text-lg leading-6 font-semibold">Timeline file</h2>
-      <p class="mt-1 text-xs leading-4 text-[#55555e]">Active timeline, nothing selected</p>
+      <p class="mt-1 text-xs leading-4 text-dim">Active timeline, nothing selected</p>
       <div class="mt-5 grid grid-cols-[280px_280px] gap-x-10">
         <figure>
-          <figcaption class="text-xs leading-4 font-semibold text-[#55555e]">Properties tab</figcaption>
+          <figcaption class="text-xs leading-4 font-semibold text-dim">Properties tab</figcaption>
           <div class="mt-2.5">
             <PropertiesTab />
           </div>
         </figure>
         <figure>
-          <figcaption class="text-xs leading-4 font-semibold text-[#55555e]">History tab</figcaption>
+          <figcaption class="text-xs leading-4 font-semibold text-dim">History tab</figcaption>
           <div class="mt-2.5">
             <HistoryTab />
           </div>

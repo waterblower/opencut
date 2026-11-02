@@ -3,9 +3,9 @@ import type { Child, Markup } from "@design/jsx/jsx-runtime";
 
 export default function VideoPlayerPage(): Markup {
   return (
-    <main class="w-[1240px] bg-[#f4f4f6] px-12 pt-[38px] pb-[60px] font-sans text-[#1b1b1e]">
+    <main class="w-[1240px] bg-sheet px-12 pt-[38px] pb-[60px] font-sans text-ink">
       <h1 class="text-2xl leading-8 font-bold">Video player</h1>
-      <p class="mt-2 text-sm leading-5 text-[#55555e]">
+      <p class="mt-2 text-sm leading-5 text-dim">
         Plays a media file or a rendered timeline. Controls sit below the picture, never over it.
       </p>
       <div class="mt-[40px] grid grid-cols-[556px_556px] gap-x-8 gap-y-[51px]">
@@ -81,7 +81,7 @@ export default function VideoPlayerPage(): Markup {
       </div>
       <section class="mt-[100px] border-t border-border pt-[37px]">
         <h2 class="text-xl leading-7 font-bold">Playback button</h2>
-        <p class="mt-[3px] text-sm leading-5 text-[#55555e]">24px circle. The icon shows what a click does.</p>
+        <p class="mt-[3px] text-sm leading-5 text-dim">24px circle. The icon shows what a click does.</p>
         <table class="mt-[27px] w-[480px] rounded-[10px] border border-border bg-panel text-[13px] leading-none text-text shadow-[0_6px_0_rgb(0_0_0/0.35)]">
           <thead>
             <tr class="h-9 border-b border-divider text-[11px] font-semibold tracking-[0.6px] text-muted">
@@ -105,7 +105,7 @@ function Figure(props: { title: string; caption: string; children: Child }): Mar
   return (
     <figure>
       <h2 class="text-sm leading-5 font-semibold">{props.title}</h2>
-      <p class="mt-[5px] text-xs leading-4 text-[#55555e]">{props.caption}</p>
+      <p class="mt-[5px] text-xs leading-4 text-dim">{props.caption}</p>
       <div class="mt-2">{props.children}</div>
     </figure>
   );

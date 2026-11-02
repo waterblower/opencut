@@ -1,19 +1,21 @@
 import { CyberButton } from "../components/cyber-button.tsx";
+import { Figure } from "../components/figure.tsx";
 import { Window } from "../components/window.tsx";
 import type { Child, Markup } from "@design/jsx/jsx-runtime";
 
 export default function TranscriptionWindowPage(): Markup {
   return (
-    <main class="grid w-[1320px] grid-cols-[600px_600px] gap-x-10 gap-y-9 bg-[#f4f4f6] px-10 pt-7 pb-12 font-sans">
+    <main class="grid w-[1320px] grid-cols-[600px_600px] gap-x-10 gap-y-9 bg-sheet px-10 pt-7 pb-12 font-sans">
       <Figure
         title="Ready"
+        captionClass="max-w-[600px]"
         caption="Opened from Generate SRT. “MiniMax pricing” opens https://platform.minimax.cn/docs/guides/pricing in the browser"
       >
         <Body status="Generate the SRT transcription for interview.mp4" line={<Cost cost="¥0.52" audio="12:34" />}>
           <StartCancel />
         </Body>
       </Figure>
-      <Figure title="Running" caption="Preparing / transcribing / saving">
+      <Figure title="Running" captionClass="max-w-[600px]" caption="Preparing / transcribing / saving">
         <Body status="Uploading and transcribing.." line={<p class="mt-[22px]">Elapsed: 0:47</p>}>
           <p class="mt-[18px] max-w-[470px] text-sm leading-5 text-muted">
             Cancel stops this local request. A request already sent may continue processing on the server.
@@ -21,7 +23,7 @@ export default function TranscriptionWindowPage(): Markup {
           <StartCancel disabled class="mt-[17px]" />
         </Body>
       </Figure>
-      <Figure title="Complete" caption="Written to <source name>.srt in the project root">
+      <Figure title="Complete" captionClass="max-w-[600px]" caption="Written to <source name>.srt in the project root">
         <Body status="Subtitles saved" line={<p class="mt-[22px]">market-vlog/interview.srt</p>}>
           <div class="mt-[15px]">
             <CyberButton width={193} variant="primary" label="REVEAL IN FINDER" />
@@ -29,12 +31,12 @@ export default function TranscriptionWindowPage(): Markup {
           <StartCancel class="mt-4" />
         </Body>
       </Figure>
-      <Figure title="Failed" caption="Error message from the request">
+      <Figure title="Failed" captionClass="max-w-[600px]" caption="Error message from the request">
         <Body status="Transcription failed">
           <p class="mt-[22px] text-sm leading-none text-error">MiniMax API key is not set. Add it under Settings.</p>
           <StartCancel class="mt-[19px]" />
         </Body>
-        <p class="mt-3 max-w-[540px] text-xs leading-[18px] text-[#55555e]">
+        <p class="mt-3 max-w-[540px] text-xs leading-[18px] text-dim">
           Comment: the error is shown as the request returns it, so a missing key currently reads “missing_api_key: an API
           key is required for transcription”. The text in the window is a sample.
         </p>
@@ -51,16 +53,6 @@ export default function TranscriptionWindowPage(): Markup {
         </Body>
       </Figure>
     </main>
-  );
-}
-
-function Figure(props: { title: string; caption: string; children: Child }): Markup {
-  return (
-    <figure>
-      <h2 class="text-[15px] leading-5 font-semibold text-[#1b1b1e]">{props.title}</h2>
-      <p class="mt-[3px] max-w-[600px] text-xs leading-4 text-[#55555e]">{props.caption}</p>
-      <div class="mt-3">{props.children}</div>
-    </figure>
   );
 }
 

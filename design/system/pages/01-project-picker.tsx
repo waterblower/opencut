@@ -4,9 +4,9 @@ import type { Child, Markup } from "@design/jsx/jsx-runtime";
 
 export default function ProjectPickerPage(): Markup {
   return (
-    <main class="w-[1256px] bg-[#f4f4f6] px-12 pt-10 pb-12 font-sans text-[#1b1b1e]">
+    <main class="w-[1256px] bg-sheet px-12 pt-10 pb-12 font-sans text-ink">
       <h1 class="text-2xl leading-8 font-bold">Project picker</h1>
-      <p class="mt-1 text-sm leading-5 text-[#55555e]">
+      <p class="mt-1 text-sm leading-5 text-dim">
         Shown at launch when there is no project to restore. Window 560 × 380.
       </p>
       <div class="mt-[38px] grid grid-cols-[560px_560px] gap-x-10 gap-y-[34px]">
@@ -41,7 +41,7 @@ function Figure(props: { title: string; caption: string; children: Child }): Mar
   return (
     <figure>
       <h2 class="text-sm leading-5 font-semibold">{props.title}</h2>
-      <p class="mt-0.5 text-xs leading-4 text-[#55555e]">{props.caption}</p>
+      <p class="mt-0.5 text-xs leading-4 text-dim">{props.caption}</p>
       <div class="mt-3">{props.children}</div>
     </figure>
   );

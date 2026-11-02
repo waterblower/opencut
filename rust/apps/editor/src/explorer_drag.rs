@@ -1,5 +1,5 @@
 use crate::editor::Editor;
-use crate::explorer_file_entry::{FileTreeEntry, FileTreeEntryKind, is_srt_path};
+use crate::explorer_file_entry::{FileTreeEntry, FileTreeEntryKind};
 use crate::theme::ACCENT;
 use ::timeline::Asset;
 use ::transcribe::SRT;
@@ -29,11 +29,10 @@ impl AssetBeingDragged {
                     metadata,
                 })
             }
-            FileTreeEntryKind::Directory { .. } | FileTreeEntryKind::Timeline => Self::None,
-            FileTreeEntryKind::Other => {
-                if !is_srt_path(&entry.absolute_path) {
-                    return Ok(Self::None);
-                }
+            FileTreeEntryKind::Directory { .. }
+            | FileTreeEntryKind::Timeline
+            | FileTreeEntryKind::Other => Self::None,
+            FileTreeEntryKind::Srt => {
                 let text = read_to_string(&entry.absolute_path)?;
                 let srt = SRT::from_string(&text)?;
                 Self::Srt(DraggedSRT {

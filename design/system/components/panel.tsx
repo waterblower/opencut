@@ -120,7 +120,7 @@ function HeaderIcon(props: { icon: PanelIcon }): Markup {
     case "file":
       return (
         <span
-          class={`${base} bg-[#131316] font-mono text-[9px] leading-none font-semibold`}
+          class={`${base} bg-well font-mono text-[9px] leading-none font-semibold`}
           style={`border-color:${icon.border};color:${icon.labelColor}`}
         >
           {icon.label}
@@ -176,7 +176,7 @@ export function Pair(props: { name: string; value: string }): Markup {
 /// A read-only timing value: a caption, a mono time and its frame count.
 export function TimingCell(props: { name: string; time: string; frames: string; locked?: boolean }): Markup {
   return (
-    <div class={`relative h-[50px] rounded-md ${props.locked ? "bg-[#19191d]" : "bg-[#131316]"}`}>
+    <div class={`relative h-[50px] rounded-md ${props.locked ? "bg-[#19191d]" : "bg-well"}`}>
       <span class="absolute top-[9.5px] left-2.5 text-[11px] leading-none text-muted">{props.name}</span>
       <span class="absolute top-[27.9px] left-2.5 font-mono text-[13px] leading-none">{props.time}</span>
       <span class="absolute top-[28.8px] right-2.5 font-mono text-[11px] leading-none text-dim">{props.frames}</span>
@@ -221,19 +221,52 @@ export function Slider(props: { fill: number; locked?: boolean }): Markup {
   );
 }
 
-/// The mute switch row: a microphone on the left and a 34×20 toggle on the right.
+/// A 34×20 switch: the knob sits on the right over the accent when on.
+export function Switch(props: { on: boolean; class?: string }): Markup {
+  return (
+    <span
+      class={`flex h-5 w-[34px] items-center rounded-full px-[3px] ${props.class ?? ""} ${
+        props.on ? "justify-end bg-accent" : "bg-border"
+      }`}
+    >
+      <span class={`size-3.5 rounded-full ${props.on ? "bg-panel" : "bg-muted"}`} />
+    </span>
+  );
+}
+
+/// A 16×16 checkbox: accent fill with a dark check mark when checked.
+export function Checkbox(props: { checked: boolean; class?: string }): Markup {
+  return (
+    <span
+      class={`flex size-4 shrink-0 items-center justify-center rounded-[4px] ${props.class ?? ""} ${
+        props.checked ? "bg-accent" : "border border-border bg-surface"
+      }`}
+    >
+      {props.checked
+        ? (
+          <svg width="16" height="16" viewBox="0 0 16 16">
+            <path
+              d="M4.5 8.5 L7 11 L11.5 5.5"
+              fill="none"
+              stroke="#0d0d0f"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            />
+          </svg>
+        )
+        : null}
+    </span>
+  );
+}
+
+/// The mute switch row: a microphone on the left and a switch on the right.
 export function MuteToggle(props: { muted?: boolean; locked?: boolean }): Markup {
   const fade = props.locked ? "opacity-50" : "";
   return (
     <div class="flex h-5 items-center justify-between">
       <Icon name={props.muted ? "mic-off" : "mic"} color="#c9c9cf" width={16} height={16} class={fade} />
-      <span
-        class={`flex h-5 w-[34px] items-center rounded-full px-[3px] ${fade} ${
-          props.muted ? "bg-border" : "justify-end bg-accent"
-        }`}
-      >
-        <span class={`size-3.5 rounded-full ${props.muted ? "bg-muted" : "bg-panel"}`} />
-      </span>
+      <Switch on={!props.muted} class={fade} />
     </div>
   );
 }

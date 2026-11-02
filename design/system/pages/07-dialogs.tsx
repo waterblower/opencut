@@ -13,7 +13,7 @@ const FRAME_RATES = ["23.976 fps", "24 fps", "25 fps", "29.97 fps", "30 fps", "5
 
 export default function DialogsPage(): Markup {
   return (
-    <main class="relative h-[922px] w-[1080px] bg-[#f4f4f6] font-sans">
+    <main class="relative h-[922px] w-[1080px] bg-sheet font-sans">
       <At left={40} top={40}>
         <Dialog width={480} title="New timeline">
           <p class="mt-[23px] text-sm leading-none text-muted">In timelines · saved as .timeline (JSON)</p>

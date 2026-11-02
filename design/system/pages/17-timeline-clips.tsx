@@ -5,12 +5,12 @@ import type { Markup } from "@design/jsx/jsx-runtime";
 
 export default function Page17TimelineClips(): Markup {
   return (
-    <main class="w-[1240px] px-12 pt-10 pb-12 font-sans text-[#1b1b1e]">
+    <main class="w-[1240px] px-12 pt-10 pb-12 font-sans text-ink">
       <h1 class="text-2xl leading-7 font-bold">Timeline Clips</h1>
-      <p class="mt-2 text-sm leading-5 text-[#55555e]">Clip states in the timeline.</p>
-      <section id="clips" aria-labelledby="clips-title" class="mt-[34px] border-t border-[#d9d9de] pt-9">
+      <p class="mt-2 text-sm leading-5 text-dim">Clip states in the timeline.</p>
+      <section id="clips" aria-labelledby="clips-title" class="mt-[34px] border-t border-rule pt-9">
         <h2 id="clips-title" class="text-xl leading-7 font-bold">Clips</h2>
-        <p class="mt-1 text-sm leading-5 text-[#55555e]">
+        <p class="mt-1 text-sm leading-5 text-dim">
           Each track kind has its own clip colour; selection turns the border amber.
         </p>
         <div class="mt-7 space-y-8">
@@ -35,16 +35,16 @@ export default function Page17TimelineClips(): Markup {
           </div>
         </div>
       </section>
-      <section id="offline-clip" aria-labelledby="offline-clip-title" class="mt-12 border-t border-[#d9d9de] pt-9">
+      <section id="offline-clip" aria-labelledby="offline-clip-title" class="mt-12 border-t border-rule pt-9">
         <h2 id="offline-clip-title" class="text-xl leading-7 font-bold">Offline Clip</h2>
-        <p class="mt-1 text-sm leading-5 text-[#55555e]">An offline clip keeps its place, length and name.</p>
+        <p class="mt-1 text-sm leading-5 text-dim">An offline clip keeps its place, length and name.</p>
         <div class="mt-7 grid grid-cols-2 gap-8">
           <div>
             <h3 class="text-sm leading-5 font-semibold">Default</h3>
             <OfflineClipStrip />
           </div>
         </div>
-        <div class="mt-7 space-y-1 text-[13px] leading-[18px] text-[#55555e]">
+        <div class="mt-7 space-y-1 text-[13px] leading-[18px] text-dim">
           <p>Dark red fill, dashed error border and a warning icon mark the offline clip.</p>
           <p>Selecting it shows Relink… in its property panel.</p>
         </div>
