@@ -1,7 +1,16 @@
-import type { Markup } from "@design/jsx/jsx-runtime";
+import type { Child, Markup } from "@design/jsx/jsx-runtime";
 
-type ExplorerState = "media-hover" | "timeline-hover" | "context-menu";
+type ExplorerState = "media-hover" | "timeline-hover";
 type CursorKind = "grab" | "default";
+type BadgeKind = "video" | "audio" | "image" | "srt" | "other";
+
+const BADGE_CLASS: Record<BadgeKind, string> = {
+  video: "border-video-badge-border text-video-badge-text",
+  audio: "border-audio-badge-border text-audio-badge-text",
+  image: "border-image-badge-border text-image-badge-text",
+  srt: "border-srt-badge-border text-srt-badge-text",
+  other: "border-other-badge-border text-other-badge-text",
+};
 
 const videos = [
   { name: "broll-cafe.mp4", extension: "MP4", size: "31.9 MB" },
@@ -9,22 +18,11 @@ const videos = [
   { name: "broll-station.mp4", extension: "MP4", size: "42.1 MB" },
 ];
 
-const menuItems = [
-  { label: "Generate SRT" },
-  { label: "Reveal in Finder", shortcut: "⌥⌘R", hovered: true },
-  { label: "Open in Default App", shortcut: "⌃⇧↵" },
-  { label: "Copy Path" },
-  { label: "Rename" },
-  { label: "Move to Trash", destructive: true },
-];
-
 export default function Page21FileExplorer(): Markup {
   return (
     <main class="w-[1240px] bg-page px-12 pt-10 pb-12 font-sans text-text">
       <h1 class="text-2xl leading-7 font-bold">File Explorer</h1>
-      <p class="mt-2 text-sm leading-5 text-muted">
-        File hover reflects drag support. Context menus keep their source row visible.
-      </p>
+      <p class="mt-2 text-sm leading-5 text-muted">File hover reflects drag support.</p>
       <div class="mt-6 grid grid-cols-2 gap-8">
         <section aria-labelledby="draggable-hover">
           <h2 id="draggable-hover" class="text-sm leading-5 font-semibold">Draggable · hover</h2>
@@ -46,38 +44,36 @@ export default function Page21FileExplorer(): Markup {
         </section>
       </div>
       <hr class="mt-9 border-border" />
-      <section class="mt-6" aria-labelledby="context-menu-open">
-        <h2 id="context-menu-open" class="text-sm leading-5 font-semibold">Context menu open</h2>
+      <section class="mt-6" aria-labelledby="file-entries">
+        <h2 id="file-entries" class="text-sm leading-5 font-semibold">File entries</h2>
         <p class="mt-1 text-xs leading-[18px] text-muted">
-          Keep the source row highlighted, even after the pointer moves into the menu.
+          Each kind of entry on its own. Gray is only for files OpenCut does not support.
         </p>
-        <div class="mt-4 grid grid-cols-2 gap-8">
-          <Explorer state="context-menu" />
-          <aside class="pt-7">
-            <h3 class="text-base leading-6 font-semibold">The menu belongs to broll-street.mov</h3>
-            <p class="mt-3 text-[13px] leading-5 text-subtle">
-              The same hover background stays on that row while<br />
-              the menu is open. Moving through menu items does<br />
-              not transfer the highlight to another file.
-            </p>
-            <div class="mt-24 ml-[212px] space-y-8">
-              <div>
-                <h3 class="text-sm leading-5 font-semibold">On dismissal</h3>
-                <p class="mt-3 text-xs leading-5 text-muted">
-                  Clear the temporary highlight.<br />
-                  Keep it only if the pointer is still<br />
-                  over the source row.
-                </p>
-              </div>
-              <div>
-                <h3 class="text-sm leading-5 font-semibold">Selection stays separate</h3>
-                <p class="mt-3 text-xs leading-5 text-muted">
-                  Opening a menu does not select a file<br />
-                  or change the active timeline.
-                </p>
-              </div>
-            </div>
-          </aside>
+        <div class="mt-4 grid grid-cols-3 gap-x-8 gap-y-6">
+          <Entry title="Video" caption="Open hand · drag to a track">
+            <FileRow name="broll-cafe.mp4" extension="MP4" size="31.9 MB" standalone />
+          </Entry>
+          <Entry title="Audio" caption="Open hand · drag to a track">
+            <FileRow name="voice-over.m4a" extension="M4A" size="4.2 MB" badge="audio" standalone />
+          </Entry>
+          <Entry title="Image" caption="Open hand · drag to a track">
+            <FileRow name="title-card.png" extension="PNG" size="860 KB" badge="image" standalone />
+          </Entry>
+          <Entry title="Subtitles" caption="Open hand · drag to a track">
+            <FileRow name="interview.srt" extension="SRT" size="2 KB" badge="srt" standalone />
+          </Entry>
+          <Entry title="Timeline · active" caption="Arrow · the open timeline is tinted and tagged">
+            <FileRow name="timeline-1.timeline" extension="TL" active standalone />
+          </Entry>
+          <Entry title="Unsupported file" caption="Arrow · cannot be dragged">
+            <FileRow name="notes.txt" extension="TXT" size="1 KB" badge="other" standalone />
+          </Entry>
+          <Entry title="Folder · expanded" caption="Arrow">
+            <FolderRow name="media" expanded standalone />
+          </Entry>
+          <Entry title="Folder · collapsed" caption="Arrow">
+            <FolderRow name="audio" standalone />
+          </Entry>
         </div>
       </section>
     </main>
@@ -85,73 +81,91 @@ export default function Page21FileExplorer(): Markup {
 }
 
 function Explorer({ state }: { state: ExplorerState }): Markup {
-  const menuOpen = state === "context-menu";
   return (
-    <div class="relative">
-      <div
-        class={`overflow-hidden rounded-[10px] bg-panel shadow-popover outline-1 -outline-offset-1 outline-border ${
-          menuOpen ? "h-[428px]" : "h-[324px]"
-        }`}
-      >
-        <div class="flex h-[38px] cursor-default items-center border-b border-border bg-surface px-4 font-mono text-sm text-muted">
-          Filter files…
-        </div>
-        <ul aria-label="Project files">
-          <FolderRow name="market-vlog" expanded root />
-          <FolderRow name="media" expanded />
-          {videos.map((video) => (
-            <FileRow
-              {...video}
-              highlighted={video.name === "broll-street.mov" && state !== "timeline-hover"}
-              cursor={video.name === "broll-street.mov" && state === "media-hover" ? "grab" : undefined}
-            />
-          ))}
-          <FolderRow name="audio" />
-          <FileRow
-            name="timeline-1.timeline"
-            extension="TL"
-            active
-            highlighted={state === "timeline-hover"}
-            cursor={state === "timeline-hover" ? "default" : undefined}
-          />
-        </ul>
+    <div class="h-[400px] overflow-hidden rounded-[10px] bg-panel shadow-popover outline-1 -outline-offset-1 outline-border">
+      <div class="flex h-[38px] cursor-default items-center border-b border-border bg-surface px-4 font-mono text-sm text-muted">
+        Filter files…
       </div>
-      {menuOpen && <FileContextMenu />}
+      <ul aria-label="Project files">
+        <FolderRow name="market-vlog" expanded root />
+        <FolderRow name="media" expanded />
+        {videos.map((video) => (
+          <FileRow
+            {...video}
+            highlighted={video.name === "broll-street.mov" && state === "media-hover"}
+            cursor={video.name === "broll-street.mov" && state === "media-hover" ? "grab" : undefined}
+          />
+        ))}
+        <FileRow name="interview.srt" extension="SRT" size="2 KB" badge="srt" />
+        <FileRow name="notes.txt" extension="TXT" size="1 KB" badge="other" />
+        <FolderRow name="audio" />
+        <FileRow
+          name="timeline-1.timeline"
+          extension="TL"
+          active
+          highlighted={state === "timeline-hover"}
+          cursor={state === "timeline-hover" ? "default" : undefined}
+        />
+      </ul>
     </div>
   );
 }
 
-function FolderRow({ name, expanded = false, root = false }: {
+/// One entry on its own: a title, a caption and the row in a small panel.
+function Entry(props: { title: string; caption: string; children: Child }): Markup {
+  return (
+    <figure>
+      <h3 class="text-sm leading-5 font-semibold">{props.title}</h3>
+      <p class="mt-0.5 text-xs leading-4 text-muted">{props.caption}</p>
+      <ul class="mt-2 overflow-hidden rounded-[10px] bg-panel outline-1 -outline-offset-1 outline-border">
+        {props.children}
+      </ul>
+    </figure>
+  );
+}
+
+function FolderRow({ name, expanded = false, root = false, standalone = false }: {
   name: string;
   expanded?: boolean;
   root?: boolean;
+  standalone?: boolean;
 }): Markup {
   return (
-    <li class={`flex h-[38px] cursor-default items-center gap-2 pr-3 ${root ? "pl-3" : "pl-7"}`}>
+    <li class={`flex h-[38px] cursor-default items-center gap-2 pr-3 ${root || standalone ? "pl-3" : "pl-7"}`}>
       <span aria-hidden="true" class="w-3.5 text-[13px] text-muted">{expanded ? "▾" : "▸"}</span>
       <span class={`font-mono text-sm ${root ? "font-semibold" : "text-subtle"}`}>{name}</span>
     </li>
   );
 }
 
-function FileRow({ name, extension, size, active = false, highlighted = false, cursor }: {
+function FileRow({
+  name,
+  extension,
+  size,
+  badge = "video",
+  active = false,
+  highlighted = false,
+  standalone = false,
+  cursor,
+}: {
   name: string;
   extension: string;
+  badge?: BadgeKind;
   size?: string;
   active?: boolean;
   highlighted?: boolean;
+  /// Shown on its own rather than indented in the tree.
+  standalone?: boolean;
   cursor?: CursorKind;
 }): Markup {
   const background = highlighted ? "bg-hover" : active ? "bg-active-timeline" : "";
+  const indent = standalone ? "pl-3" : active ? "pl-[26px]" : "pl-[42px]";
+  const pointer = active || badge === "other" ? "cursor-default" : "cursor-grab";
   return (
-    <li
-      class={`relative flex h-[38px] items-center gap-2 pr-3 ${
-        active ? "cursor-default pl-[26px]" : "cursor-grab pl-[42px]"
-      } ${background}`}
-    >
+    <li class={`relative flex h-[38px] items-center gap-2 pr-3 ${indent} ${pointer} ${background}`}>
       <span
         class={`flex h-[18px] w-[38px] shrink-0 items-center justify-center rounded-[3px] border text-[11px] font-semibold ${
-          active ? "border-accent-border text-accent" : "border-video-badge-border text-video-badge-text"
+          active ? "border-accent-border text-accent" : BADGE_CLASS[badge]
         }`}
       >
         {extension}
@@ -169,31 +183,7 @@ function FileRow({ name, extension, size, active = false, highlighted = false, c
   );
 }
 
-function FileContextMenu(): Markup {
-  return (
-    <ul
-      aria-label="File actions for broll-street.mov"
-      class="absolute top-[190px] left-[calc(100%_-_104px)] z-10 w-[300px] rounded-lg border border-border bg-menu p-[3px] shadow-popover"
-    >
-      {menuItems.map(({ label, shortcut, hovered, destructive }) => (
-        <li>
-          <button
-            type="button"
-            class={`relative flex h-10 w-full cursor-default items-center justify-between rounded-md px-3 text-sm ${
-              hovered ? "bg-menu-hover" : ""
-            } ${destructive ? "text-error" : "text-text"}`}
-          >
-            <span>{label}</span>
-            {shortcut && <kbd class="font-mono text-sm text-muted">{shortcut}</kbd>}
-            {hovered && <Cursor kind="default" class="absolute top-5 left-[184px]" />}
-          </button>
-        </li>
-      ))}
-    </ul>
-  );
-}
-
-// Cursor illustrations are icons; the panels, rows and menu use HTML layout.
+// Cursor illustrations are icons; the panels and rows use HTML layout.
 function Cursor({ kind, class: className }: { kind: CursorKind; class: string }): Markup {
   return (
     <svg
