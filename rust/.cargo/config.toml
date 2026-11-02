@@ -1,5 +1,6 @@
 [alias]
 cli = "run --config .cargo/cli.toml --quiet -p opencut --"
+cli-win = "run --config .cargo/ffmpeg-windows.toml --quiet -p opencut --"
 editor-mac = "run --config .cargo/macos.toml -p editor"
 editor-win = "run --config .cargo/windows.toml -p editor"
 test-mac = [

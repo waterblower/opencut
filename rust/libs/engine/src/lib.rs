@@ -13,3 +13,5 @@ pub mod video_surface;
 mod cpu;
 #[cfg(target_os = "macos")]
 pub mod gpu;
+#[cfg(target_os = "windows")]
+mod offscreen_windows;

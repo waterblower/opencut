@@ -1673,12 +1673,14 @@ dependencies = [
  "media-backend",
  "metal",
  "objc",
+ "raw-window-handle",
  "resvg 0.45.1",
  "serde",
  "serde_json",
  "smallvec",
  "timeline",
  "ulid",
+ "windows 0.62.2",
 ]
 
 [[package]]
@@ -4362,7 +4364,6 @@ dependencies = [
  "anyhow",
  "clap",
  "engine",
- "gpui_platform",
  "image",
  "serde_json",
  "timeline",

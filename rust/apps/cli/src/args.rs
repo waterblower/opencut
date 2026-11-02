@@ -21,7 +21,7 @@ pub(crate) enum Command {
         #[command(subcommand)]
         command: TimelineCommand,
     },
-    /// Export a timeline to MP4 with H.264 video and stereo AAC audio (macOS).
+    /// Export a timeline to MP4 with H.264 video and stereo AAC audio (macOS, Windows).
     Export(ExportArgs),
     /// Transcribe audio/video with MiniMax (MINIMAX_API_KEY).
     Transcribe {

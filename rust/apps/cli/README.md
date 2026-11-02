@@ -8,7 +8,8 @@ application module; the shared FFmpeg engine lives in `libs/engine`.
 
 ## Build and run
 
-From the Rust directory, `cargo cli` runs with the vendored FFmpeg environment:
+From the Rust directory, `cargo cli` (Windows: `cargo cli-win`) runs with the vendored
+FFmpeg environment:
 
 ```sh
 cargo cli --help
@@ -35,7 +36,7 @@ bash rust/scripts/cargo-cli.sh build -p opencut
 The wrapper links the existing `rust/vendor/ffmpeg-8.1.2` libraries. It never builds
 FFmpeg or invokes Python. Timeline export uses GPUI through the shared engine.
 
-## Export timelines (macOS)
+## Export timelines (macOS, Windows)
 
 ```sh
 cargo cli export /project/episode.timeline.json -o episode.mp4
@@ -46,7 +47,9 @@ Exports the complete timeline synchronously to MP4 with H.264 video and stereo
 AAC audio, using the timeline's dimensions, frame rate, and audio sample rate.
 `--project-root` overrides the timeline directory when resolving relative asset
 paths. `--bitrate` is in kbps (1 kbps = 1,000 bits per second) and defaults to 8,000.
-The command requires macOS Metal and VideoToolbox services. Existing output files
+macOS renders with Metal and encodes with VideoToolbox. Windows renders with
+DirectX in a window that is never shown and encodes with the vendored FFmpeg's
+software `libx264`. Existing output files
 require `--overwrite`; source media cannot be replaced. On success, stdout
 reports the output path and frame count.
 

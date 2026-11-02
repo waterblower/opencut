@@ -29,7 +29,9 @@ use crate::ui_components::{HorizontalSplitState, VerticalSplitState};
 use crate::{OpenProject, open_editor_window, quit_after_last_window};
 use ::waveform::generate_waveform;
 use anyhow::{Context as _, Result, anyhow, bail};
-use engine::export::{ExportCompletion, ExportControl, ExportOption, export_timeline};
+use engine::export::{
+    ExportCompletion, ExportControl, ExportOption, export_text_system, export_timeline,
+};
 use engine::media_asset::probe_media_asset;
 use gpui::prelude::*;
 use gpui::{
@@ -138,8 +140,7 @@ pub(crate) async fn handle_event(
             control,
         } => {
             // macOS 平台必须在主线程创建；线程安全的文字系统交给导出线程。
-            let platform_text_system =
-                cx.update(|_| gpui_platform::current_platform(true).text_system());
+            let platform_text_system = cx.update(|_| export_text_system());
             let result = cx
                 .background_executor()
                 .spawn(async move {
