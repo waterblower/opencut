@@ -482,8 +482,39 @@ pub(crate) fn move_path_to_trash(path: &std::path::Path) -> Result<()> {
         .map_err(|error| anyhow!("{error}"))
 }
 
-#[cfg(not(target_os = "macos"))]
-fn move_path_to_trash(_path: &std::path::Path) -> Result<()> {
+#[cfg(target_os = "windows")]
+pub(crate) fn move_path_to_trash(path: &std::path::Path) -> Result<()> {
+    use std::os::windows::ffi::OsStrExt;
+    use windows::Win32::UI::Shell::{
+        FO_DELETE, FOF_ALLOWUNDO, FOF_NOCONFIRMATION, FOF_NOERRORUI, FOF_SILENT, SHFILEOPSTRUCTW,
+        SHFileOperationW,
+    };
+    use windows::core::PCWSTR;
+
+    let path = std::path::absolute(path)?;
+    // pFrom 是以双 NUL 结尾的路径列表。
+    let mut from: Vec<u16> = path.as_os_str().encode_wide().collect();
+    from.extend([0, 0]);
+    let flags = FOF_ALLOWUNDO | FOF_NOCONFIRMATION | FOF_NOERRORUI | FOF_SILENT;
+    let mut operation = SHFILEOPSTRUCTW {
+        wFunc: FO_DELETE,
+        pFrom: PCWSTR(from.as_ptr()),
+        fFlags: flags.0 as u16,
+        ..Default::default()
+    };
+    // SAFETY: `from` outlives the call and is double-NUL terminated.
+    let status = unsafe { SHFileOperationW(&mut operation) };
+    if status != 0 {
+        bail!("moving to the Recycle Bin failed with code {status:#x}");
+    }
+    if operation.fAnyOperationsAborted.as_bool() {
+        bail!("moving to the Recycle Bin was aborted");
+    }
+    Ok(())
+}
+
+#[cfg(not(any(target_os = "macos", target_os = "windows")))]
+pub(crate) fn move_path_to_trash(_path: &std::path::Path) -> Result<()> {
     Err(anyhow!(
         "moving files to the system Trash is not supported on this platform"
     ))

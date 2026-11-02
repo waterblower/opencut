@@ -199,7 +199,10 @@ pub fn export_timeline(
         #[cfg(target_os = "macos")]
         objc::rc::autoreleasepool(export_frame)?;
         #[cfg(not(target_os = "macos"))]
-        export_frame()?;
+        {
+            let mut run_export_frame = export_frame;
+            run_export_frame()?;
+        }
         control.completed_frames.store(i + 1, Ordering::Relaxed);
     }
     if control.stop_requested() {

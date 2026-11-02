@@ -4,7 +4,9 @@ if (-not $env:FFMPEG_DIR) { $env:FFMPEG_DIR = Join-Path $rustRoot 'vendor/ffmpeg
 $env:Path = "$env:FFMPEG_DIR\bin;$env:Path"
 Set-Location -LiteralPath $rustRoot
 if ($args.Count -gt 0 -and $args[0] -eq '--exec') {
-    $executable, $programArguments = $args[1..($args.Count - 1)]
+    $executable = $args[1]
+    # @() keeps a single argument an array; splatting a bare string passes each character.
+    $programArguments = @($args | Select-Object -Skip 2)
     & $executable @programArguments
     exit $LASTEXITCODE
 }

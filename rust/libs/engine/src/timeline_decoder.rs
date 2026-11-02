@@ -2,13 +2,9 @@
 //! same track share one video reader, which keeps decoding forward and only seeks on
 //! backward or distant jumps.
 
-#[cfg(target_os = "macos")]
-use crate::gpu::GpuResources;
 use crate::image::load_image;
+use crate::video_surface::{SurfaceConverter, VideoSurface};
 use anyhow::{Context as _, Result, bail};
-#[cfg(target_os = "macos")]
-use core_video::pixel_buffer::CVPixelBuffer;
-#[cfg(target_os = "macos")]
 use ffmpeg_next::format;
 use gpui::RenderImage;
 use image::{Frame, RgbaImage};
@@ -37,10 +33,9 @@ pub struct TimelineFrameComposition {
 }
 
 pub enum PreparedLayer {
-    #[cfg(target_os = "macos")]
     VideoFrame {
         clip_id: Ulid,
-        frame: CVPixelBuffer, // GPU surface；源帧未变化时复用。
+        frame: VideoSurface, // 转换后的画面；源帧未变化时复用。
         properties: VideoClipProperties,
     },
     Image {
@@ -55,7 +50,6 @@ pub enum PreparedLayer {
 
 pub(crate) struct TimelineDecoder {
     timeline_directory: PathBuf,
-    #[cfg(target_os = "macos")]
     readers: HashMap<ReaderKey, VideoReader>, // 同轨道同素材的片段共用一个读取器并顺序前进；不释放。
     images: HashMap<Ulid, Arc<RenderImage>>,
 }
@@ -64,7 +58,6 @@ impl TimelineDecoder {
     pub(crate) fn new(timeline_directory: &Path) -> Self {
         Self {
             timeline_directory: timeline_directory.to_owned(),
-            #[cfg(target_os = "macos")]
             readers: HashMap::new(),
             images: HashMap::new(),
         }
@@ -104,41 +97,36 @@ impl TimelineDecoder {
                         let asset_path = self.timeline_directory.join(asset.path());
                         match asset.kind() {
                             MediaKind::Video => {
-                                #[cfg(target_os = "macos")]
-                                {
-                                    let key = ReaderKey {
-                                        track_id: track.id,
-                                        asset_id: asset.id(),
-                                    };
-                                    #[rustfmt::skip]
-                                    let reader = match self.readers.entry(key) {
-                                        Entry::Occupied(entry) => {
-                                            entry.into_mut()
-                                        },
-                                        Entry::Vacant(entry) => {
-                                            entry.insert(
-                                                VideoReader::open(&asset_path).context(format!(
-                                                    "Opening timeline video '{}'",
-                                                    asset_path.display()
-                                                ))?,
-                                            )
-                                        },
-                                    };
-                                    let source = timeline.source_position_at(clip, position);
-                                    let frame = reader.picture_at(source).context(format!(
-                                        "Preparing timeline clip {} from {} at {:.6}s",
-                                        media.id(),
-                                        asset_path.display(),
-                                        source.as_secs_f64(),
-                                    ))?;
-                                    layers.push(PreparedLayer::VideoFrame {
-                                        clip_id: media.id(),
-                                        frame,
-                                        properties: media.video_properties,
-                                    });
-                                }
-                                #[cfg(not(target_os = "macos"))]
-                                bail!("Timeline video requires macOS: {}", asset_path.display());
+                                let key = ReaderKey {
+                                    track_id: track.id,
+                                    asset_id: asset.id(),
+                                };
+                                #[rustfmt::skip]
+                                let reader = match self.readers.entry(key) {
+                                    Entry::Occupied(entry) => {
+                                        entry.into_mut()
+                                    },
+                                    Entry::Vacant(entry) => {
+                                        entry.insert(
+                                            VideoReader::open(&asset_path).context(format!(
+                                                "Opening timeline video '{}'",
+                                                asset_path.display()
+                                            ))?,
+                                        )
+                                    },
+                                };
+                                let source = timeline.source_position_at(clip, position);
+                                let frame = reader.picture_at(source).context(format!(
+                                    "Preparing timeline clip {} from {} at {:.6}s",
+                                    media.id(),
+                                    asset_path.display(),
+                                    source.as_secs_f64(),
+                                ))?;
+                                layers.push(PreparedLayer::VideoFrame {
+                                    clip_id: media.id(),
+                                    frame,
+                                    properties: media.video_properties,
+                                });
                             }
                             MediaKind::Image => {
                                 let image = match self.images.entry(asset.id()) {
@@ -184,22 +172,19 @@ impl TimelineDecoder {
 
 /// One reader per track and asset: a track shows at most one clip at a time, so clips
 /// sharing a key never need two source positions in the same frame.
-#[cfg(target_os = "macos")]
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
 struct ReaderKey {
     track_id: Ulid,
     asset_id: Ulid,
 }
 
-#[cfg(target_os = "macos")]
 struct VideoReader {
-    gpu: GpuResources,
+    converter: SurfaceConverter,
     decoder: VideoDecoder,
-    next: Option<VideoFrame>,            // 已解码、尚未到展示时间的帧。
-    shown: Option<(i64, CVPixelBuffer)>, // (源 PTS 微秒, GPU surface)。
+    next: Option<VideoFrame>,           // 已解码、尚未到展示时间的帧。
+    shown: Option<(i64, VideoSurface)>, // (源 PTS 微秒, 转换后的画面)。
 }
 
-#[cfg(target_os = "macos")]
 impl VideoReader {
     fn open(path: &Path) -> Result<Self> {
         let started = Instant::now();
@@ -213,21 +198,21 @@ impl VideoReader {
             metadata.origin_microseconds,
         )?;
         let decoder_opened = Instant::now();
-        let gpu = GpuResources::new((
+        let converter = SurfaceConverter::new((
             metadata.video.width as usize,
             metadata.video.height as usize,
         ))?;
-        let gpu_created = Instant::now();
+        let converter_created = Instant::now();
         eprintln!(
-            "[clip-switch] open reader {}: probe={:?}, decoder_open={:?}, gpu_resources={:?}, total={:?}",
+            "[clip-switch] open reader {}: probe={:?}, decoder_open={:?}, converter={:?}, total={:?}",
             path.display(),
             probed.duration_since(started),
             decoder_opened.duration_since(probed),
-            gpu_created.duration_since(decoder_opened),
-            gpu_created.duration_since(started),
+            converter_created.duration_since(decoder_opened),
+            converter_created.duration_since(started),
         );
         Ok(Self {
-            gpu,
+            converter,
             decoder,
             next: None,
             shown: None,
@@ -235,7 +220,7 @@ impl VideoReader {
     }
 
     /// Latest frame at or before the source position; converts only when the frame changes.
-    fn picture_at(&mut self, source: Duration) -> Result<CVPixelBuffer> {
+    fn picture_at(&mut self, source: Duration) -> Result<VideoSurface> {
         let target = i64::try_from(source.as_micros()).unwrap_or(i64::MAX);
         let mut selected = None;
         let continues = self.shown.as_ref().is_some_and(|(shown, _)| {
@@ -268,7 +253,7 @@ impl VideoReader {
         }
         let decoded = Instant::now();
         if let Some(frame) = selected {
-            let surface = self.gpu.convert(&frame)?;
+            let surface = self.converter.convert(&frame)?;
             self.shown = Some((frame.timestamp.0, surface));
         }
         let converted = Instant::now();

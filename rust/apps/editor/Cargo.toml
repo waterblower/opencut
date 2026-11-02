@@ -32,3 +32,6 @@ gpui = { workspace = true, features = ["inspector"] }
 [target.'cfg(target_os = "macos")'.dependencies]
 objc2-app-kit = { workspace = true, features = ["NSApplication", "NSImage"] }
 objc2-foundation = { workspace = true, features = ["NSData"] }
+
+[target.'cfg(target_os = "windows")'.dependencies]
+windows = { version = "0.62", features = ["Win32_UI_Shell"] }
