@@ -1,6 +1,8 @@
 use crate::timeline::{FrameRate, TimelineFrameIndex};
 use crate::timeline_clip::{TextClip, TextClipProperties};
-use ::transcribe::SRT;
+use crate::track::TrackKind;
+use ::timeline::TimelineEditingState;
+use ::transcribe::{SRT, Subtitle};
 use anyhow::{Result, bail};
 use std::path::Path;
 use ulid::Ulid;
@@ -34,6 +36,34 @@ pub(crate) fn srt_text_clips(srt: &SRT, frame_rate: FrameRate) -> Vec<TextClip> 
         ));
     }
     clips
+}
+
+pub(crate) fn text_track_to_srt(state: &TimelineEditingState, track_id: Ulid) -> Result<SRT> {
+    let Some(track) = state.track(track_id) else {
+        bail!("Track {track_id} does not exist");
+    };
+    if track.kind != TrackKind::Text {
+        bail!("Track {} is not a text track", track.name);
+    }
+    let frame_rate = state.settings.frame_rate;
+    let mut subtitles = Vec::new();
+    for clip in state.clips_on_track(track_id) {
+        let Some(text_clip) = clip.text() else {
+            bail!(
+                "Clip {} on text track {} is not a text clip",
+                clip.id(),
+                track.name
+            );
+        };
+        let start = frame_rate.duration(text_clip.timeline_start);
+        subtitles.push(Subtitle {
+            text: text_clip.properties.text.clone(),
+            start,
+            end: start + text_clip.duration,
+        });
+    }
+    subtitles.sort_by_key(|subtitle| subtitle.start);
+    Ok(SRT { subtitles })
 }
 
 #[cfg(test)]

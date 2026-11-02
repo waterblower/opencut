@@ -18,7 +18,7 @@ use crate::property_panel_srt_file::srt_file_panel;
 use crate::property_panel_text::text_clip_panel;
 use crate::property_panel_video_clip::video_clip_panel;
 use crate::property_panel_video_file::VideoFilePanel;
-use crate::srt::{srt_text_clips, write_srt};
+use crate::srt::{srt_text_clips, text_track_to_srt, write_srt};
 use crate::timeline::{PreviewDropAsset, TimelineFrameIndex, TimelineRuntimeState};
 use crate::timeline_clip::{AudioClipProperties, Clip, VideoClip, VideoClipProperties};
 use crate::timeline_document::{relative_asset_path, resolve_asset_path};
@@ -56,6 +56,7 @@ pub(crate) enum AppEvent {
         output_path: PathBuf,
         video_bitrate: u64,
         overwrite: bool,
+        subtitle_track_ids: Vec<Ulid>,
         export_window: WeakEntity<ExportWindow>,
         control: Arc<ExportControl>,
     },
@@ -132,6 +133,7 @@ pub(crate) async fn handle_event(
             output_path,
             video_bitrate,
             overwrite,
+            subtitle_track_ids,
             export_window,
             control,
         } => {
@@ -144,7 +146,7 @@ pub(crate) async fn handle_event(
                     let directory = timeline_path
                         .parent()
                         .context("Timeline path has no parent directory")?;
-                    export_timeline(
+                    let completion = export_timeline(
                         &document,
                         &output_path,
                         &ExportOption {
@@ -154,7 +156,29 @@ pub(crate) async fn handle_event(
                         },
                         platform_text_system,
                         &control,
-                    )
+                    )?;
+                    match completion {
+                        ExportCompletion::Stopped => {
+                            return Ok(completion); // 停止的导出不留下字幕文件
+                        }
+                        ExportCompletion::Completed => {
+                            let output_stem = output_path
+                                .file_stem()
+                                .context("Export path has no file name")?
+                                .to_string_lossy();
+                            let tracks = &document.editing_state.tracks;
+                            for track in tracks
+                                .iter()
+                                .filter(|track| subtitle_track_ids.contains(&track.id))
+                            {
+                                let srt = text_track_to_srt(&document.editing_state, track.id)?;
+                                let srt_path = output_path
+                                    .with_file_name(format!("{output_stem}_{}.srt", track.name));
+                                srt.write_to(&srt_path)?;
+                            }
+                        }
+                    }
+                    anyhow::Ok(completion)
                 })
                 .await;
             let state = match result {

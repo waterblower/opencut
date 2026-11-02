@@ -1,5 +1,7 @@
 use super::is_western_language;
-use anyhow::{Result, anyhow, bail};
+use anyhow::{Context as _, Result, anyhow, bail};
+use std::io::Write;
+use std::path::Path;
 use std::{fmt, time::Duration};
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
@@ -52,6 +54,18 @@ impl SRT {
             subtitles.push(Subtitle { text, start, end });
         }
         Ok(Self { subtitles })
+    }
+
+    /// Writes a new file; an existing file is an error.
+    pub fn write_to(&self, path: &Path) -> Result<()> {
+        let mut file = std::fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(path)
+            .with_context(|| format!("Creating {}", path.display()))?;
+        file.write_all(self.to_string().as_bytes())
+            .with_context(|| format!("Writing {}", path.display()))?;
+        Ok(())
     }
 }
 
