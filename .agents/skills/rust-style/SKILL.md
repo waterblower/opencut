@@ -1,28 +1,21 @@
 ---
 name: rust-style
-description: Rust style conventions for OpenCut. Use when writing, refactoring, or reviewing Rust code for naming, imports, visibility, source organization, control flow, early returns, and error handling.
+description: General Rust style conventions for OpenCut. Use when writing, refactoring, or reviewing Rust code for naming, imports, visibility, source organization, control flow, early returns, and error handling.
 ---
 
 # Rust style
 
 Apply these guidelines in the OpenCut repository. Paths are relative to the repository root.
-Also apply the [general rules](../general-rules/SKILL.md).
+Also apply the [general rules](../general-rules/SKILL.md) and the project-specific
+[OpenCut conventions](../opencut-conventions/SKILL.md) (GPUI, timeline,
+vendored code, comments).
 
 ## Naming and source organization
 
-- Prefix GPUI action handlers (registered with `.on_action(cx.listener(Self::action_xxx))`)
-  with `action_`.
-- Prefix helpers called only from UI callbacks with `ui_callback_`, e.g.
-  `ui_callback_set_timeline_frame_rate`. The callback may capture values and pass them in.
-  Don't wrap such a helper in an `action_` function just to rename it. Business logic uses
-  neither prefix.
-- Suffix new functions that return GPUI elements (`AnyElement`, `impl IntoElement`, or a
-  concrete element) with `_view`. Don't rename existing functions unless asked. Required
-  trait methods are exempt.
 - Don't use `super::` paths. Import items by full path at the top of the file and use
   unqualified names. Use an alias or a qualified name only to resolve a conflict.
 - Import anyhow helpers explicitly and use them unqualified: `anyhow!`, `bail!`, `Result`,
-  `Error`. Alias on conflict. Don't edit vendored code to enforce this.
+  `Error`. Alias on conflict.
 - Never use `#[serde(rename_all = "snake_case")]`.
 - Preserve Rust enum variant capitalization in JSON. Never add Serde aliases solely
   to accommodate different case conventions (for example, `#[serde(alias = "video")]`
@@ -37,23 +30,15 @@ Also apply the [general rules](../general-rules/SKILL.md).
 
     ```rust
     // Public APIs only
-    impl VideoPlayer {
-        pub fn duration(&self) -> Duration { ... }
+    impl Cache {
+        pub fn len(&self) -> usize { ... }
     }
 
     // Private APIs only
-    impl VideoPlayer {
-        fn seek_video(&mut self, position: Duration) -> Result<()> { ... }
+    impl Cache {
+        fn evict(&mut self, key: &Key) -> Result<()> { ... }
     }
     ```
-
-- Explain easily confused state in short Chinese comments to the right of the code, with
-  aligned comment columns: sources of truth vs derived values, time positions vs
-  durations, decoder EOF vs finished playback. Keep intentional formatting and existing
-  `#[rustfmt::skip]` annotations.
-- Never call a frame index just `frame`; it could mean the picture or its position.
-  Name indexes `frame_index` (or `…_frame_index`, typed `TimelineFrameIndex`) and frame
-  data `frame` or `picture`.
 
 ## Explicit control flow
 
@@ -64,10 +49,10 @@ Also apply the [general rules](../general-rules/SKILL.md).
   existing `ensure!` calls just for this.
 
     ```rust
-    if data.clip_locked(clip_id) {
-        return Err(anyhow!("Clip {clip_id} is on a locked track"));
+    if store.is_read_only(key) {
+        return Err(anyhow!("Key {key} is read-only"));
     }
-    // not: ensure!(!data.clip_locked(clip_id), "Clip {clip_id} is on a locked track");
+    // not: ensure!(!store.is_read_only(key), "Key {key} is read-only");
     ```
 
 - Don't shadow variables in the same scope, even with the same type. Give each
@@ -77,22 +62,22 @@ Also apply the [general rules](../general-rules/SKILL.md).
   transformations are fine.
 
     ```rust
-    match self.start_time {
-        Some(start) => self.start_position + start.elapsed(),
-        None => self.start_position,
+    match self.started_at {
+        Some(started_at) => self.offset + started_at.elapsed(),
+        None => self.offset,
     }
-    // not: self.start_position + self.start_time.map_or(Duration::ZERO, |start| start.elapsed())
+    // not: self.offset + self.started_at.map_or(Duration::ZERO, |started_at| started_at.elapsed())
     ```
 
 - Bind a conditional value with one `match` whose arms produce it, not a `let mut`
   default overwritten in one arm later.
 
     ```rust
-    let position = match pointer_guide {
-        Some(pointer_position) => pointer_position,
-        None => timeline.playhead(),
+    let limit = match override_limit {
+        Some(override_limit) => override_limit,
+        None => config.default_limit(),
     };
-    // not: let mut position = timeline.playhead(); then `position = …` in a later match
+    // not: let mut limit = config.default_limit(); then `limit = …` in a later match
     ```
 
 - Don't use `_` in a `match` or `if let … else` when it stands for a single remaining
@@ -108,7 +93,7 @@ Also apply the [general rules](../general-rules/SKILL.md).
   check it again afterwards.
 
     ```rust
-    let media_path = match selection.await {
+    let input_path = match prompt.await {
         Ok(Ok(Some(paths))) => {
             /* the chosen path */
         }
@@ -116,34 +101,34 @@ Also apply the [general rules](../general-rules/SKILL.md).
             return Ok(()); // the user cancelled
         }
         Err(error) => {
-            return Err(anyhow!("file picker failed: {error}"));
+            return Err(anyhow!("prompt failed: {error}"));
         }
     };
-    // not: `Ok(Ok(None)) => None`, then `let Some(media_path) = media_path else { return Ok(()) };`
+    // not: `Ok(Ok(None)) => None`, then `let Some(input_path) = input_path else { return Ok(()) };`
     ```
 
 - When building a value takes several steps, use an immediately invoked closure with
   early returns, and convert errors explicitly inside it.
 
     ```rust
-    let timeline = (|| {
-        let Some((path, data)) = active_timeline else {
+    let session = (|| {
+        let Some((path, data)) = saved_session else {
             return None;
         };
-        let state = match build_state(&data) {
+        let state = match parse_state(&data) {
             Ok(state) => state,
-            Err(error) => panic!("could not build timeline: {error}"),
+            Err(error) => panic!("could not parse session: {error}"),
         };
-        Some(TimelineRuntimeState::new(path, state))
+        Some(Session::new(path, state))
     })();
-    // not: active_timeline.map(|(path, data)| TimelineRuntimeState::new(path, build_state(&data).unwrap()))
+    // not: saved_session.map(|(path, data)| Session::new(path, parse_state(&data).unwrap()))
     ```
 
 ## Errors and correctness
 
 - Never silently ignore abnormal situations. When an operation needs an object to exist,
-  or to have a certain type or state, return an explicit error if it doesn't; e.g. editing
-  a clip fails if the clip is missing or the wrong kind. Check with early error returns
+  or to have a certain type or state, return an explicit error if it doesn't; e.g. updating
+  a record fails if the record is missing or the wrong kind. Check with early error returns
   (see Early returns); don't hide failures behind `if let`, `continue`, fallback values or
   `Ok(())`. Absence and no-ops are fine only when they are the intended behaviour, not a
   way to suppress an unexpected failure.
