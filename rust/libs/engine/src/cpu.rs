@@ -15,18 +15,31 @@ use gpui::{App, RenderImage, Window};
 use image::{Frame, RgbaImage};
 use media_backend::VideoFrame;
 use smallvec::smallvec;
-use std::{cell::RefCell, sync::Arc};
+use std::{
+    cell::RefCell,
+    sync::{
+        Arc,
+        atomic::{AtomicBool, Ordering},
+    },
+};
 
-/// A converted picture. Clones share one GPUI image; when the last clone drops, the image
-/// waits for [`release_retired_surfaces`] to free its sprite atlas tile.
+/// A converted picture. Clones share one GPUI image. When the last clone drops, a painted
+/// image waits for [`release_retired_surfaces`] to free its sprite atlas tile; an image
+/// that was never painted has no tile and is freed at once.
 #[derive(Clone)]
 pub struct CpuSurface {
     image: Arc<RetireOnDrop>,
 }
 
 impl CpuSurface {
-    pub fn image(&self) -> Arc<RenderImage> {
-        Arc::clone(&self.image.0)
+    pub(crate) fn image(&self) -> Arc<RenderImage> {
+        Arc::clone(&self.image.image)
+    }
+
+    /// The image to paint. Once painted, dropping the surface must free its atlas tile.
+    pub(crate) fn image_to_paint(&self) -> Arc<RenderImage> {
+        self.image.painted.store(true, Ordering::Relaxed);
+        self.image()
     }
 }
 
@@ -78,23 +91,24 @@ impl CpuResources {
         // 输出行可能带对齐填充，逐行拷贝成紧密排列。
         let row_bytes = width as usize * 4;
         let stride = output.stride(0);
-        let mut pixels = Vec::with_capacity(row_bytes * height as usize);
+        let mut bytes = Vec::with_capacity(row_bytes * height as usize);
         for row in output.data(0).chunks(stride).take(height as usize) {
-            pixels.extend_from_slice(&row[..row_bytes]);
+            bytes.extend_from_slice(&row[..row_bytes]);
         }
-        let pixels = RgbaImage::from_raw(width, height, pixels)
+        let pixels = RgbaImage::from_raw(width, height, bytes)
             .context("BGRA frame size does not match its dimensions")?;
         Ok(CpuSurface {
-            image: Arc::new(RetireOnDrop(Arc::new(RenderImage::new(smallvec![
-                Frame::new(pixels)
-            ])))),
+            image: Arc::new(RetireOnDrop {
+                image: Arc::new(RenderImage::new(smallvec![Frame::new(pixels)])),
+                painted: AtomicBool::new(false),
+            }),
         })
     }
 }
 
 /// Frees atlas tiles of surfaces dropped on this thread. Call while painting in the
 /// window that showed them.
-pub fn release_retired_surfaces(window: &mut Window, cx: &mut App) {
+pub(crate) fn release_retired_surfaces(window: &mut Window, cx: &mut App) {
     let retired = RETIRED.take();
     for image in retired {
         cx.drop_image(image, Some(window));
@@ -102,15 +116,23 @@ pub fn release_retired_surfaces(window: &mut Window, cx: &mut App) {
 }
 
 thread_local! {
-    // 已无人持有、等待从图集释放的图像；GPUI 不会自动回收 Arc<RenderImage> 的图集块。
+    // 已绘制、已无人持有、等待从图集释放的图像；GPUI 不会自动回收 Arc<RenderImage> 的图集块。
+    // 只有绘制会入队，而绘制也会清空队列；窗口最小化不绘制时队列不会增长。
     static RETIRED: RefCell<Vec<Arc<RenderImage>>> = const { RefCell::new(Vec::new()) };
 }
 
-struct RetireOnDrop(Arc<RenderImage>);
+#[rustfmt::skip]
+struct RetireOnDrop {
+    image: Arc<RenderImage>,
+    painted: AtomicBool, // 交给过绘制，图集里可能有它的图块；未绘制的图像没有图块。
+}
 
 impl Drop for RetireOnDrop {
     fn drop(&mut self) {
-        let image = Arc::clone(&self.0);
+        if !self.painted.load(Ordering::Relaxed) {
+            return;
+        }
+        let image = Arc::clone(&self.image);
         // 只在线程退出、RETIRED 已销毁时失败；此时窗口和图集已一并释放，无需回收。
         let _ = RETIRED.try_with(|retired| retired.borrow_mut().push(image));
     }

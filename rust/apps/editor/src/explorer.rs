@@ -486,16 +486,32 @@ pub(crate) fn move_path_to_trash(path: &std::path::Path) -> Result<()> {
 pub(crate) fn move_path_to_trash(path: &std::path::Path) -> Result<()> {
     use std::os::windows::ffi::OsStrExt;
     use windows::Win32::UI::Shell::{
-        FO_DELETE, FOF_ALLOWUNDO, FOF_NOCONFIRMATION, FOF_NOERRORUI, FOF_SILENT, SHFILEOPSTRUCTW,
-        SHFileOperationW,
+        FO_DELETE, FOF_ALLOWUNDO, FOF_NOCONFIRMATION, FOF_NOERRORUI, FOF_SILENT,
+        FOF_WANTNUKEWARNING, SHFILEOPSTRUCTW, SHFileOperationW,
     };
     use windows::core::PCWSTR;
 
-    let path = std::path::absolute(path)?;
+    let absolute_path = std::path::absolute(path)?;
+    let wide: Vec<u16> = absolute_path.as_os_str().encode_wide().collect();
+    // 工程目录经 canonicalize 后带 \\?\ 前缀，SHFileOperationW 不接受，需还原为普通路径。
+    let verbatim: Vec<u16> = r"\\?\".encode_utf16().collect();
+    let verbatim_unc: Vec<u16> = r"\\?\UNC\".encode_utf16().collect();
+    let mut from: Vec<u16> = if wide.starts_with(&verbatim_unc) {
+        [
+            r"\\".encode_utf16().collect(),
+            wide[verbatim_unc.len()..].to_vec(),
+        ]
+        .concat()
+    } else if wide.starts_with(&verbatim) {
+        wide[verbatim.len()..].to_vec()
+    } else {
+        wide
+    };
     // pFrom 是以双 NUL 结尾的路径列表。
-    let mut from: Vec<u16> = path.as_os_str().encode_wide().collect();
     from.extend([0, 0]);
-    let flags = FOF_ALLOWUNDO | FOF_NOCONFIRMATION | FOF_NOERRORUI | FOF_SILENT;
+    // 无法放入回收站时（如网络驱动器、超大文件）先询问用户，不静默永久删除；拒绝即中止。
+    let flags =
+        FOF_ALLOWUNDO | FOF_WANTNUKEWARNING | FOF_NOCONFIRMATION | FOF_NOERRORUI | FOF_SILENT;
     let mut operation = SHFILEOPSTRUCTW {
         wFunc: FO_DELETE,
         pFrom: PCWSTR(from.as_ptr()),

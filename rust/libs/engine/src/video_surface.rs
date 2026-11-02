@@ -40,7 +40,11 @@ pub fn video_surface_view(surface: &VideoSurface, object_fit: ObjectFit) -> AnyE
     div()
         .relative()
         .size_full()
-        .child(img(surface.image()).object_fit(object_fit).size_full())
+        .child(
+            img(surface.image_to_paint())
+                .object_fit(object_fit)
+                .size_full(),
+        )
         // 先前帧已不再显示；在本窗口绘制前释放它们的图集块。
         .child(
             canvas(
