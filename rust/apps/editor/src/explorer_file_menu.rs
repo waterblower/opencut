@@ -253,13 +253,12 @@ impl Editor {
         cx.open_with_system(&path);
     }
 
-    pub(crate) fn trash_selected_file(&mut self, cx: &mut Context<Self>) -> Result<()> {
-        let ContextMenu::File(menu) = &self.context_menu else {
-            return Ok(());
-        };
-        let relative_path = menu.relative_path.clone();
-        self.dismiss_context_menu();
-
+    /// Moves a file or folder, relative to the project root, to the system Trash.
+    pub(crate) fn trash_file(
+        &mut self,
+        relative_path: &Path,
+        cx: &mut Context<Self>,
+    ) -> Result<()> {
         // The project root is the workspace itself, not an entry within it.
         if relative_path.as_os_str().is_empty() {
             bail!("The project folder cannot be moved to Trash here.");
@@ -267,12 +266,12 @@ impl Editor {
         if self.timeline.as_ref().is_some_and(|timeline| {
             timeline
                 .path
-                .starts_with(self.project_root.join(&relative_path))
+                .starts_with(self.project_root.join(relative_path))
         }) {
             bail!("The active timeline cannot be moved to Trash.");
         }
 
-        let path = self.project_root.join(&relative_path);
+        let path = self.project_root.join(relative_path);
         let display_name = path
             .file_name()
             .map(|name| name.to_string_lossy().into_owned())
@@ -282,8 +281,9 @@ impl Editor {
         }
         self.explorer
             .expanded_directories
-            .retain(|directory| !directory.starts_with(&relative_path));
+            .retain(|directory| !directory.starts_with(relative_path));
         self.explorer.selected_file = None;
+        self.property_panel = current_property_panel(self);
         self.explorer.search_query = None;
         self.explorer.search_results.clear();
         self.explorer.search_pending = false;
@@ -294,7 +294,6 @@ impl Editor {
     }
 
     pub(crate) fn trash_active_timeline(&mut self, cx: &mut Context<Self>) -> Result<()> {
-        self.explorer.trash_timeline_dialog_open = false;
         let Some(timeline) = self.timeline.as_ref() else {
             bail!("No timeline is open to move to Trash.");
         };

@@ -1,4 +1,5 @@
 use crate::editor::Editor;
+use crate::event_bus::AppEvent;
 use crate::explorer_file_entry::{FileTreeEntry, FileTreeEntryKind, search_tree, visible_tree};
 use crate::preview::{PreviewTarget, timeline_preview_target};
 use crate::theme::{ACCENT, BORDER, MUTED, PANEL, SURFACE, TEXT};
@@ -399,9 +400,8 @@ impl Editor {
                             )))
                             .child(rename_dialog_button("Move to Trash", true).on_click(
                                 cx.listener(|editor, _, _, cx| {
-                                    if let Err(error) = editor.trash_active_timeline(cx) {
-                                        eprintln!("{error:?}");
-                                    }
+                                    editor.explorer.trash_timeline_dialog_open = false;
+                                    editor.emit_event(cx, AppEvent::ActiveTimelineTrashConfirmed);
                                     cx.notify();
                                 }),
                             )),

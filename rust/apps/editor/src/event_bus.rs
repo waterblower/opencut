@@ -71,6 +71,12 @@ pub(crate) enum AppEvent {
     },
     /// The user dismissed the missing media dialog.
     MissingMediaDialogClosed,
+    /// The user chose Move to Trash for a file or folder in the explorer.
+    MoveToTrashChosen {
+        relative_path: PathBuf, // 相对于项目根目录
+    },
+    /// The user confirmed moving the open timeline to Trash.
+    ActiveTimelineTrashConfirmed,
     GenerationWaveformForTimeline {
         timeline: TimelineEditingState,
         timeline_directory: PathBuf,
@@ -523,6 +529,20 @@ async fn handle_app_event(
                 editor.missing_media_dialog = None;
                 cx.notify();
             });
+        }
+        AppEvent::MoveToTrashChosen { relative_path } => {
+            editor.update(cx, |editor, cx| -> Result<()> {
+                editor.trash_file(&relative_path, cx)?;
+                cx.notify();
+                Ok(())
+            })?;
+        }
+        AppEvent::ActiveTimelineTrashConfirmed => {
+            editor.update(cx, |editor, cx| -> Result<()> {
+                editor.trash_active_timeline(cx)?;
+                cx.notify();
+                Ok(())
+            })?;
         }
         AppEvent::SwitchProject { .. }
         | AppEvent::OpenTranscribeWindow { .. }
