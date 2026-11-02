@@ -1,23 +1,34 @@
+import { Checkbox } from "../components/panel.tsx";
 import { Window } from "../components/window.tsx";
+import { TRACK_KIND_COLOR } from "../theme.ts";
 import type { Child, Markup } from "@design/jsx/jsx-runtime";
+
+const TEXT_TRACKS = [
+  { name: "Subtitles EN", checked: true },
+  { name: "Subtitles ZH", checked: true },
+  { name: "Titles", checked: false },
+];
+const UNCHECKED_TRACKS = TEXT_TRACKS.map((track) => ({ ...track, checked: false }));
 
 export default function ExportWindowPage(): Markup {
   return (
     <main class="grid w-[1240px] grid-cols-[560px_560px] gap-x-10 gap-y-[38px] bg-[#f4f4f6] px-10 pt-7 pb-[60px] font-sans">
-      <Figure title="Idle" caption="Before export">
+      <Figure title="Idle" caption="Before export; no text track is checked, so no .srt file is saved">
         <ExportBody>
           <BitrateRow>
             <ValueField value="8" />
           </BitrateRow>
+          <TrackList tracks={UNCHECKED_TRACKS} />
           <Help class="mt-[15px]" />
           <ExportButton />
         </ExportBody>
       </Figure>
-      <Figure title="Running" caption="Window cannot be closed">
+      <Figure title="Running" caption="Window cannot be closed; the text track list is locked">
         <ExportBody>
           <BitrateRow>
             <span>8</span>
           </BitrateRow>
+          <TrackList tracks={TEXT_TRACKS} locked />
           <Help class="mt-[15px]" />
           <ExportButton disabled />
           <p class="mt-[19px] text-base leading-none">Exporting: 42% · 227 / 540 frames</p>
@@ -34,6 +45,7 @@ export default function ExportWindowPage(): Markup {
           <BitrateRow>
             <ValueField value="8" />
           </BitrateRow>
+          <TrackList tracks={UNCHECKED_TRACKS} />
           <Help class="mt-[15px]" />
           <ExportButton />
           <p class="mt-[19px] text-base leading-none">Export complete.</p>
@@ -45,8 +57,29 @@ export default function ExportWindowPage(): Markup {
             <ValueField value="0" caret />
           </BitrateRow>
           <p class="mt-4 text-sm leading-5 text-error">Enter a bitrate between 0.1 and 1000 Mbps.</p>
+          <TrackList tracks={UNCHECKED_TRACKS} />
           <Help class="mt-[15px]" />
           <ExportButton disabled />
+        </ExportBody>
+      </Figure>
+      <Figure title="Text tracks checked" caption="Each checked text track is saved as its own .srt file next to the MP4">
+        <ExportBody>
+          <BitrateRow>
+            <ValueField value="8" />
+          </BitrateRow>
+          <TrackList tracks={TEXT_TRACKS} />
+          <Help class="mt-[15px]" />
+          <ExportButton />
+        </ExportBody>
+      </Figure>
+      <Figure title="No text tracks" caption="The list is empty, so no .srt file is saved">
+        <ExportBody>
+          <BitrateRow>
+            <ValueField value="8" />
+          </BitrateRow>
+          <TrackList tracks={[]} />
+          <Help class="mt-[15px]" />
+          <ExportButton />
         </ExportBody>
       </Figure>
     </main>
@@ -66,7 +99,7 @@ function Figure(props: { title: string; caption: string; children: Child }): Mar
 /// The shared top of the export window: title, file name and format summary.
 function ExportBody(props: { children: Child }): Markup {
   return (
-    <Window width={560} height={548}>
+    <Window width={560} height={740}>
       <div class="px-6 pt-[26px]">
         <h3 class="text-xl leading-none">Export timeline</h3>
         <p class="mt-[21px] text-base leading-none">edit.timeline</p>
@@ -82,6 +115,30 @@ function BitrateRow(props: { children: Child }): Markup {
     <div class="mt-[19px] flex h-[54px] items-center text-base leading-none">
       <span class="w-[163.7px] shrink-0">Video bitrate (Mbps)</span>
       {props.children}
+    </div>
+  );
+}
+
+/// The text tracks of the timeline, one checkbox row each.
+function TrackList(props: { tracks: { name: string; checked: boolean }[]; locked?: boolean }): Markup {
+  const color = TRACK_KIND_COLOR.T;
+  return (
+    <div class={`mt-1 flex flex-col ${props.locked ? "opacity-50" : ""}`}>
+      <p class="mb-1 text-base leading-none">Export subtitles</p>
+      {props.tracks.length === 0
+        ? <p class="h-9 text-sm leading-9 text-muted">No text tracks in this timeline.</p>
+        : props.tracks.map((track) => (
+          <div class="flex h-9 items-center gap-3 text-base leading-none">
+            <Checkbox checked={track.checked} />
+            <span
+              class="flex size-4 items-center justify-center rounded-[4px] text-[10px] leading-none font-bold"
+              style={`background:${color.fill};color:${color.text}`}
+            >
+              T
+            </span>
+            <span>{track.name}</span>
+          </div>
+        ))}
     </div>
   );
 }
