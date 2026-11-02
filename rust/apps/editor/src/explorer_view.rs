@@ -108,6 +108,13 @@ impl Editor {
                             .flex()
                             .flex_col()
                             .py_2()
+                            // 空白处右键与项目根目录行一样：打开项目根目录的菜单。
+                            .on_mouse_down(
+                                MouseButton::Right,
+                                cx.listener(|editor, event: &MouseDownEvent, _, cx| {
+                                    editor.show_file_context_menu(PathBuf::new(), true, event, cx);
+                                }),
+                            )
                             .child(root_row)
                             .when(show_root_contents && entries.is_empty(), |this| {
                                 this.child(div().p_4().text_sm().text_color(rgb(MUTED)).child(
