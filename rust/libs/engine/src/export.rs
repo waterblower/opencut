@@ -59,6 +59,13 @@ pub enum ExportCompletion {
     Stopped,
 }
 
+/// The text system to pass to [`export_timeline`]. Call on the main thread.
+pub fn export_text_system() -> Arc<dyn gpui::PlatformTextSystem> {
+    // Windows 的 headless 平台只有 NoopTextSystem；完整平台才创建 DirectWrite。
+    let headless = !cfg!(target_os = "windows");
+    gpui_platform::current_platform(headless).text_system()
+}
+
 /// The platform text system must be initialized on the main thread before exporting on a worker.
 pub fn export_timeline(
     timeline_serialization: &TimelineSerialization,
@@ -88,11 +95,13 @@ pub fn export_timeline(
     // ----------------------------------|
     // creating the headless GPUI window |
     // ----------------------------------|
-    let mut cx = HeadlessAppContext::with_platform(
-        platform_text_system,
-        Arc::new(()),
-        gpui_platform::current_headless_renderer,
-    );
+    // GPUI 只为 Metal 提供离屏渲染器；Windows 用从不显示的 DirectX 窗口代替。
+    #[cfg(target_os = "windows")]
+    let renderer_factory = crate::offscreen_windows::offscreen_renderer;
+    #[cfg(not(target_os = "windows"))]
+    let renderer_factory = gpui_platform::current_headless_renderer;
+    let mut cx =
+        HeadlessAppContext::with_platform(platform_text_system, Arc::new(()), renderer_factory);
     let window = cx
         .open_window(
             size(
@@ -199,7 +208,10 @@ pub fn export_timeline(
         #[cfg(target_os = "macos")]
         objc::rc::autoreleasepool(export_frame)?;
         #[cfg(not(target_os = "macos"))]
-        export_frame()?;
+        {
+            let mut run_export_frame = export_frame;
+            run_export_frame()?;
+        }
         control.completed_frames.store(i + 1, Ordering::Relaxed);
     }
     if control.stop_requested() {
@@ -396,8 +408,8 @@ fn validate_export(
     output: &Path,
     option: &ExportOption,
 ) -> Result<()> {
-    if !cfg!(target_os = "macos") {
-        bail!("Timeline export currently requires macOS");
+    if !cfg!(any(target_os = "macos", target_os = "windows")) {
+        bail!("Timeline export currently requires macOS or Windows");
     }
     let data = &timeline.editing_state;
     let settings = data.settings;

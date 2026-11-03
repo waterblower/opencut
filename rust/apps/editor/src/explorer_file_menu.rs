@@ -3,8 +3,7 @@ use crate::context_menu::{ContextMenu, FileContextMenu};
 use crate::edit_action::{EditAction, edit_timeline};
 use crate::editor::Editor;
 use crate::explorer::{
-    NewTimelineDialogState, RenameDialogState, move_path_to_trash, remap_relative_path,
-    renamed_relative_path,
+    NewTimelineDialogState, RenameDialogState, remap_relative_path, renamed_relative_path,
 };
 use crate::preview::PreviewTarget;
 use crate::project_settings::{load_project_local_settings, save_project_local_settings};
@@ -15,6 +14,7 @@ use crate::ui_components::TextInput;
 use anyhow::{Context as _, Result, anyhow, bail};
 use gpui::Window;
 use gpui::prelude::*;
+use platform_fs::move_to_trash;
 use std::path::{Path, PathBuf};
 
 impl Editor {
@@ -253,55 +253,14 @@ impl Editor {
         cx.open_with_system(&path);
     }
 
-    pub(crate) fn trash_selected_file(&mut self, cx: &mut Context<Self>) -> Result<()> {
-        let ContextMenu::File(menu) = &self.context_menu else {
-            return Ok(());
-        };
-        let relative_path = menu.relative_path.clone();
-        self.dismiss_context_menu();
-
-        // The project root is the workspace itself, not an entry within it.
-        if relative_path.as_os_str().is_empty() {
-            bail!("The project folder cannot be moved to Trash here.");
-        }
-        if self.timeline.as_ref().is_some_and(|timeline| {
-            timeline
-                .path
-                .starts_with(self.project_root.join(&relative_path))
-        }) {
-            bail!("The active timeline cannot be moved to Trash.");
-        }
-
-        let path = self.project_root.join(&relative_path);
-        let display_name = path
-            .file_name()
-            .map(|name| name.to_string_lossy().into_owned())
-            .unwrap_or_else(|| relative_path.display().to_string());
-        if let Err(error) = move_path_to_trash(&path) {
-            return Err(anyhow!("Could not move {display_name} to Trash: {error}"));
-        }
-        self.explorer
-            .expanded_directories
-            .retain(|directory| !directory.starts_with(&relative_path));
-        self.explorer.selected_file = None;
-        self.explorer.search_query = None;
-        self.explorer.search_results.clear();
-        self.explorer.search_pending = false;
-        self.explorer.refresh_file_tree(&self.project_root)?;
-        self.save_explorer_expansion()?;
-        self.schedule_explorer_search(cx);
-        Ok(())
-    }
-
     pub(crate) fn trash_active_timeline(&mut self, cx: &mut Context<Self>) -> Result<()> {
-        self.explorer.trash_timeline_dialog_open = false;
         let Some(timeline) = self.timeline.as_ref() else {
             bail!("No timeline is open to move to Trash.");
         };
         let path = timeline.path.clone();
         let mut new_settings = load_project_local_settings(&self.project_root);
         new_settings.active_timeline = None;
-        if let Err(error) = move_path_to_trash(&path) {
+        if let Err(error) = move_to_trash(&path) {
             return Err(anyhow!(
                 "Could not move {} to Trash: {error}",
                 path.display()
@@ -311,8 +270,9 @@ impl Editor {
 
         self.timeline = None;
         self.preview.target = PreviewTarget::None;
-        self.property_panel = current_property_panel(self);
+        // 先清除选中项再重建属性面板：选中的仍是刚移走的时间线，面板会要求它存在。
         self.explorer.selected_file = None;
+        self.property_panel = current_property_panel(self);
         self.explorer.refresh_file_tree(&self.project_root)?;
         self.schedule_explorer_search(cx);
         Ok(())

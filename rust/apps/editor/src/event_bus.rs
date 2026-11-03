@@ -29,12 +29,15 @@ use crate::ui_components::{HorizontalSplitState, VerticalSplitState};
 use crate::{OpenProject, open_editor_window, quit_after_last_window};
 use ::waveform::generate_waveform;
 use anyhow::{Context as _, Result, anyhow, bail};
-use engine::export::{ExportCompletion, ExportControl, ExportOption, export_timeline};
+use engine::export::{
+    ExportCompletion, ExportControl, ExportOption, export_text_system, export_timeline,
+};
 use engine::media_asset::probe_media_asset;
 use gpui::prelude::*;
 use gpui::{
     AsyncApp, Bounds, Entity, EventEmitter, MouseMoveEvent, PathPromptOptions, Pixels, WeakEntity,
 };
+use platform_fs::move_to_trash;
 use player_ui::Seeker;
 use player_ui::timeline_player::TimelinePlayer;
 use std::collections::HashSet;
@@ -69,6 +72,12 @@ pub(crate) enum AppEvent {
     },
     /// The user dismissed the missing media dialog.
     MissingMediaDialogClosed,
+    /// The user chose Move to Trash for a file or folder in the explorer.
+    MoveToTrash {
+        relative_path: PathBuf, // 相对于项目根目录
+    },
+    /// The user confirmed moving the open timeline to Trash.
+    ActiveTimelineTrashConfirmed,
     GenerationWaveformForTimeline {
         timeline: TimelineEditingState,
         timeline_directory: PathBuf,
@@ -138,8 +147,7 @@ pub(crate) async fn handle_event(
             control,
         } => {
             // macOS 平台必须在主线程创建；线程安全的文字系统交给导出线程。
-            let platform_text_system =
-                cx.update(|_| gpui_platform::current_platform(true).text_system());
+            let platform_text_system = cx.update(|_| export_text_system());
             let result = cx
                 .background_executor()
                 .spawn(async move {
@@ -522,6 +530,50 @@ async fn handle_app_event(
                 editor.missing_media_dialog = None;
                 cx.notify();
             });
+        }
+        AppEvent::MoveToTrash { relative_path } => {
+            editor.update(cx, |editor, cx| -> Result<()> {
+                // The project root is the workspace itself, not an entry within it.
+                if relative_path.as_os_str().is_empty() {
+                    bail!("The project folder cannot be moved to Trash here.");
+                }
+                let path = editor.project_root.join(&relative_path);
+                if editor
+                    .timeline
+                    .as_ref()
+                    .is_some_and(|timeline| timeline.path.starts_with(&path))
+                {
+                    bail!("The active timeline cannot be moved to Trash.");
+                }
+                let display_name = path
+                    .file_name()
+                    .map(|name| name.to_string_lossy().into_owned())
+                    .unwrap_or_else(|| relative_path.display().to_string());
+                if let Err(error) = move_to_trash(&path) {
+                    return Err(anyhow!("Could not move {display_name} to Trash: {error}"));
+                }
+                editor
+                    .explorer
+                    .expanded_directories
+                    .retain(|directory| !directory.starts_with(&relative_path));
+                editor.explorer.selected_file = None;
+                editor.property_panel = current_property_panel(editor);
+                editor.explorer.search_query = None;
+                editor.explorer.search_results.clear();
+                editor.explorer.search_pending = false;
+                editor.explorer.refresh_file_tree(&editor.project_root)?;
+                editor.save_explorer_expansion()?;
+                editor.schedule_explorer_search(cx);
+                cx.notify();
+                Ok(())
+            })?;
+        }
+        AppEvent::ActiveTimelineTrashConfirmed => {
+            editor.update(cx, |editor, cx| -> Result<()> {
+                editor.trash_active_timeline(cx)?;
+                cx.notify();
+                Ok(())
+            })?;
         }
         AppEvent::SwitchProject { .. }
         | AppEvent::OpenTranscribeWindow { .. }

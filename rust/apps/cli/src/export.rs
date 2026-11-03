@@ -19,7 +19,7 @@ pub(crate) fn export(args: ExportArgs) -> Result<Value> {
             video_bitrate: args.bitrate * 1_000,
             overwrite: args.overwrite,
         },
-        gpui_platform::current_platform(true).text_system(),
+        engine::export::export_text_system(),
         &ExportControl::default(),
     )?;
     Ok(json!({"path": args.output, "frames": document.frame_count()}))

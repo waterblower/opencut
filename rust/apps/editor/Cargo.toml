@@ -13,6 +13,7 @@ timeline.workspace = true
 transcribe.workspace = true
 player-ui.workspace = true
 waveform.workspace = true
+platform-fs.workspace = true
 anyhow.workspace = true
 env_logger.workspace = true
 futures.workspace = true

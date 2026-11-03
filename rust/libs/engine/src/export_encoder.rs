@@ -4,6 +4,12 @@ use image::RgbaImage;
 use std::path::Path;
 use timeline::TimelineSettings;
 
+#[cfg(target_os = "macos")]
+const H264_ENCODER: &str = "h264_videotoolbox";
+/// Software encoding, so export does not depend on the GPU vendor.
+#[cfg(not(target_os = "macos"))]
+const H264_ENCODER: &str = "libx264";
+
 pub(crate) struct ExportEncoder {
     output: ffmpeg::format::context::Output,
     video: ffmpeg::encoder::Video,
@@ -18,8 +24,8 @@ impl ExportEncoder {
             .format()
             .flags()
             .contains(ffmpeg::format::Flags::GLOBAL_HEADER);
-        let codec = ffmpeg::encoder::find_by_name("h264_videotoolbox")
-            .context("H.264 VideoToolbox encoder is unavailable")?;
+        let codec = ffmpeg::encoder::find_by_name(H264_ENCODER)
+            .context(format!("H.264 encoder {H264_ENCODER} is unavailable"))?;
         let mut video = ffmpeg::codec::context::Context::new_with_codec(codec)
             .encoder()
             .video()?;
@@ -47,8 +53,14 @@ impl ExportEncoder {
         if global {
             video.set_flags(ffmpeg::codec::Flags::GLOBAL_HEADER);
         }
-        let mut options = ffmpeg::Dictionary::new();
-        options.set("allow_sw", "1");
+        #[cfg(target_os = "macos")]
+        let options = {
+            let mut options = ffmpeg::Dictionary::new();
+            options.set("allow_sw", "1");
+            options
+        };
+        #[cfg(not(target_os = "macos"))]
+        let options = ffmpeg::Dictionary::new();
         let video = video
             .open_with(options)
             .context("Opening H.264 export encoder")?;

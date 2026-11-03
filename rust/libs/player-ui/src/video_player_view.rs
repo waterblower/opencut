@@ -2,8 +2,7 @@ use crate::Seeker;
 use crate::playback_row::{PlaybackIcon, playback_button_view, playback_row_view};
 use crate::progress_bar::{ProgressBarDrag, progress, progress_bar, seek_position};
 use crate::video_player::{PlaybackState, VideoPlayer};
-#[cfg(target_os = "macos")]
-use gpui::surface;
+use engine::video_surface::video_surface_view;
 use gpui::{
     Bounds, ClickEvent, Context, DragMoveEvent, MouseButton, MouseUpEvent, ObjectFit, Render,
     Window, div, prelude::*, rgb,
@@ -48,14 +47,7 @@ impl Render for VideoPlayer {
                     .min_h_0()
                     .overflow_hidden()
                     .when_some(self.displayed.as_ref(), |this, (frame, _, _)| {
-                        #[cfg(target_os = "macos")]
-                        let content = surface(frame.clone())
-                            .object_fit(ObjectFit::Contain)
-                            .size_full()
-                            .into_any_element();
-                        #[cfg(not(target_os = "macos"))]
-                        let content: gpui::AnyElement = match *frame {};
-                        this.child(content)
+                        this.child(video_surface_view(frame, ObjectFit::Contain))
                     }),
             )
             .child(

@@ -1,5 +1,6 @@
 [alias]
 cli = "run --config .cargo/cli.toml --quiet -p opencut --"
+cli-win = "run --config .cargo/ffmpeg-windows.toml --quiet -p opencut --"
 editor-mac = "run --config .cargo/macos.toml -p editor"
 editor-win = "run --config .cargo/windows.toml -p editor"
 test-mac = [
@@ -22,10 +23,6 @@ build-editor-mac = "build --config .cargo/macos.toml -p editor"
 build-editor-win = "build --config .cargo/windows.toml -p editor"
 build-player-mac = "build --config .cargo/cli.toml -p player"
 build-player-win = "build --config .cargo/ffmpeg-windows.toml -p player"
-mp3-mac = "run --config .cargo/macos.toml -p examples --bin mp3"
-mp3-win = "run --config .cargo/windows.toml -p examples --bin mp3"
-2win-mac = "run --config .cargo/macos.toml --quiet -p examples --bin 2windows"
-2win-win = "run --config .cargo/windows.toml --quiet -p examples --bin 2windows"
 
 
 [build]

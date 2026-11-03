@@ -1,0 +1,73 @@
+//! A decoded video picture ready for GPUI: a Metal-converted CoreVideo buffer on macOS,
+//! a software-converted BGRA image elsewhere.
+
+use gpui::{AnyElement, IntoElement, ObjectFit, Styled};
+#[cfg(not(target_os = "macos"))]
+use {
+    crate::cpu::release_retired_surfaces,
+    gpui::{ParentElement, StyledImage, canvas, div, img},
+};
+
+#[cfg(target_os = "macos")]
+pub use crate::gpu::GpuResources as SurfaceConverter;
+#[cfg(target_os = "macos")]
+pub type VideoSurface = core_video::pixel_buffer::CVPixelBuffer;
+
+#[cfg(not(target_os = "macos"))]
+pub use crate::cpu::CpuResources as SurfaceConverter;
+#[cfg(not(target_os = "macos"))]
+pub type VideoSurface = crate::cpu::CpuSurface;
+
+/// Picture size in pixels.
+pub fn video_surface_size(surface: &VideoSurface) -> (f32, f32) {
+    #[cfg(target_os = "macos")]
+    return (surface.get_width() as f32, surface.get_height() as f32);
+    #[cfg(not(target_os = "macos"))]
+    {
+        let size = surface.image().size(0);
+        (size.width.0 as f32, size.height.0 as f32)
+    }
+}
+
+/// Fills its parent with the picture.
+pub fn video_surface_view(surface: &VideoSurface, object_fit: ObjectFit) -> AnyElement {
+    #[cfg(target_os = "macos")]
+    return gpui::surface(surface.clone())
+        .object_fit(object_fit)
+        .size_full()
+        .into_any_element();
+    #[cfg(not(target_os = "macos"))]
+    {
+        let painted = surface.clone();
+        div()
+            .relative()
+            .size_full()
+            .child(img(surface.image()).object_fit(object_fit).size_full())
+            // 只有进入绘制树的元素才会 prepaint；构造后被丢弃的视图不算已绘制。
+            .child(
+                canvas(
+                    move |_, window, cx| {
+                        painted.mark_painted();
+                        release_retired_surfaces(window, cx);
+                    },
+                    |_, _, _, _| {},
+                )
+                .absolute(),
+            )
+            .into_any_element()
+    }
+}
+
+/// Frees atlas tiles of video frames no longer shown, even when no video element is
+/// visible this frame. Add it to any view that shows timeline pictures.
+pub fn retired_surfaces_release_view() -> AnyElement {
+    #[cfg(target_os = "macos")]
+    return gpui::Empty.into_any_element();
+    #[cfg(not(target_os = "macos"))]
+    canvas(
+        |_, window, cx| release_retired_surfaces(window, cx),
+        |_, _, _, _| {},
+    )
+    .absolute()
+    .into_any_element()
+}

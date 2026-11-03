@@ -1,4 +1,5 @@
 use crate::editor::Editor;
+use crate::event_bus::AppEvent;
 use crate::explorer_file_entry::{FileTreeEntry, FileTreeEntryKind, search_tree, visible_tree};
 use crate::preview::{PreviewTarget, timeline_preview_target};
 use crate::theme::{ACCENT, BORDER, MUTED, PANEL, SURFACE, TEXT};
@@ -399,9 +400,8 @@ impl Editor {
                             )))
                             .child(rename_dialog_button("Move to Trash", true).on_click(
                                 cx.listener(|editor, _, _, cx| {
-                                    if let Err(error) = editor.trash_active_timeline(cx) {
-                                        eprintln!("{error:?}");
-                                    }
+                                    editor.explorer.trash_timeline_dialog_open = false;
+                                    editor.emit_event(cx, AppEvent::ActiveTimelineTrashConfirmed);
                                     cx.notify();
                                 }),
                             )),
@@ -467,26 +467,6 @@ pub(crate) fn remap_relative_path(
         .ok()
         .filter(|suffix| !suffix.as_os_str().is_empty())
         .map(|suffix| new_path.join(suffix))
-}
-
-#[cfg(target_os = "macos")]
-pub(crate) fn move_path_to_trash(path: &std::path::Path) -> Result<()> {
-    use objc2_foundation::{NSFileManager, NSString, NSURL};
-
-    let path = path
-        .to_str()
-        .ok_or_else(|| anyhow!("the path is not valid UTF-8"))?;
-    let url = NSURL::fileURLWithPath(&NSString::from_str(path));
-    NSFileManager::defaultManager()
-        .trashItemAtURL_resultingItemURL_error(&url, None)
-        .map_err(|error| anyhow!("{error}"))
-}
-
-#[cfg(not(target_os = "macos"))]
-fn move_path_to_trash(_path: &std::path::Path) -> Result<()> {
-    Err(anyhow!(
-        "moving files to the system Trash is not supported on this platform"
-    ))
 }
 
 pub(crate) fn explorer_file_badge(entry: &FileTreeEntry) -> gpui::Div {

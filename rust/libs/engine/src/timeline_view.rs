@@ -1,8 +1,11 @@
 //! GPUI views for composed timeline pictures and subtitle layout.
 
 use crate::timeline_decoder::{PreparedLayer, TimelineFrameComposition};
+use crate::video_surface::{retired_surfaces_release_view, video_surface_size, video_surface_view};
 use gpui::prelude::FluentBuilder;
-use gpui::{AnyElement, IntoElement, ParentElement, Styled, TextAlign, div, img, px, rgb, rgba};
+use gpui::{
+    AnyElement, IntoElement, ObjectFit, ParentElement, Styled, TextAlign, div, img, px, rgb, rgba,
+};
 use std::sync::Arc;
 use timeline::{Clip, TextClipProperties, TimelineEditingState};
 
@@ -21,7 +24,8 @@ impl TimelineFrameComposition {
             .items_center()
             .justify_center()
             .overflow_hidden()
-            .bg(rgb(0));
+            .bg(rgb(0))
+            .child(retired_surfaces_release_view()); // 无视频层（如缩放为 0、片段结束）时也回收旧帧。
         let scale = (width / self.width as f32).min(height / self.height as f32);
         if !scale.is_finite() || scale <= 0.0 {
             return root.into_any_element();
@@ -36,15 +40,17 @@ impl TimelineFrameComposition {
             .h(px(canvas_height));
         for layer in &self.layers {
             let (content, source_width, source_height, properties) = match layer {
-                #[cfg(target_os = "macos")]
                 PreparedLayer::VideoFrame {
                     frame, properties, ..
-                } => (
-                    gpui::surface(frame.clone()).size_full().into_any_element(),
-                    frame.get_width() as f32,
-                    frame.get_height() as f32,
-                    properties,
-                ),
+                } => {
+                    let (width, height) = video_surface_size(frame);
+                    (
+                        video_surface_view(frame, ObjectFit::Contain),
+                        width,
+                        height,
+                        properties,
+                    )
+                }
                 PreparedLayer::Image {
                     image, properties, ..
                 } => {

@@ -27,8 +27,9 @@ pub struct VideoFrame {
     /// The picture VideoToolbox decoded.
     #[cfg(target_os = "macos")]
     pub pixel_buffer: CVPixelBuffer,
+    /// The picture FFmpeg decoded.
     #[cfg(not(target_os = "macos"))]
-    native: Video,
+    pub native: Video,
     pub timestamp: MediaTime,
     pub duration: Option<Duration>,
     /// YUV-to-RGB matrix the picture was encoded with.
