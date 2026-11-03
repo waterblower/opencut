@@ -1,19 +1,24 @@
-use crate::event_bus::EventBus;
+use crate::edit_action::EditAction;
+use crate::event_bus::{AppEvent, EventBus};
 use crate::property_panel::{
     audio_properties_view, clip_property_panel_frame_view, clip_property_panel_header_view,
     property_panel_heading_view, slider_view, timing_card_view, value_field_view,
 };
-use crate::theme::{ACCENT, MUTED, PANEL, TEXT};
+use crate::theme::{ACCENT, BORDER, MUTED, PANEL, SURFACE, TEXT};
 use crate::timeline::FrameRate;
 use crate::timeline_clip::VideoClip;
 use crate::track::TrackKind;
-use gpui::FocusHandle;
+use crate::ui_components::text_input_v2::{InputConstraint, TextInputV2};
 use gpui::prelude::FluentBuilder;
+use gpui::{AppContext, FocusHandle};
+use gpui::{Bounds, DragMoveEvent, Empty, Pixels, canvas};
 use gpui::{
     Entity, InteractiveElement, IntoElement, ParentElement, StatefulInteractiveElement, Styled,
     div, px, rgb,
 };
+use std::{cell::Cell, rc::Rc};
 use timeline::TimelineEditingState;
+use ulid::Ulid;
 
 pub(crate) struct VideoClipPanel {
     clip: VideoClip,
@@ -173,13 +178,56 @@ pub(super) fn video_clip_view(panel: &VideoClipPanel) -> gpui::AnyElement {
                                 .text_color(rgb(MUTED))
                                 .child("Scale"),
                         )
-                        .child(slider_view(scale_fraction, 0.5, panel.locked))
-                        .child(div().w(px(84.0)).flex_shrink_0().child(value_field_view(
-                            "",
-                            trimmed_number(scale_percent),
-                            "%",
-                            panel.locked,
-                        ))),
+                        .child(scale_slider_view(panel, scale_fraction))
+                        .child(div().w(px(84.0)).flex_shrink_0().child(if panel.locked {
+                            value_field_view("", trimmed_number(scale_percent), "%", true)
+                                .into_any_element()
+                        } else {
+                            let event_bus = panel.event_bus.clone();
+                            let clip_id = clip.id();
+                            div()
+                                .h(px(30.0))
+                                .flex()
+                                .items_center()
+                                .gap(px(6.0))
+                                .px(px(9.0))
+                                .rounded(px(6.0))
+                                .border_1()
+                                .border_color(rgb(BORDER))
+                                .bg(rgb(SURFACE))
+                                .child(
+                                    div().flex_1().min_w_0().text_size(px(13.0)).child(
+                                        TextInputV2::new(
+                                            format!("clip-scale-{clip_id}"),
+                                            trimmed_number(scale_percent),
+                                            panel.return_focus.clone(),
+                                        )
+                                        .constraint(InputConstraint::Number)
+                                        .on_text_change(
+                                            move |text, _, cx| {
+                                                let Ok(percent) = text.parse::<f64>() else {
+                                                    return;
+                                                };
+                                                if !percent.is_finite()
+                                                    || !(0.0..=10000.0).contains(&percent)
+                                                {
+                                                    return;
+                                                }
+                                                event_bus.update(cx, |_, cx| {
+                                                    cx.emit(AppEvent::Edit(
+                                                        EditAction::SetClipScale {
+                                                            clip_id,
+                                                            scale: percent / 100.0,
+                                                        },
+                                                    ))
+                                                });
+                                            },
+                                        ),
+                                    ),
+                                )
+                                .child(div().text_size(px(12.0)).text_color(rgb(MUTED)).child("%"))
+                                .into_any_element()
+                        })),
                 )
                 .child(div().h(px(1.0)).my(px(16.0)).bg(rgb(0x1f1f24)))
                 .child(property_panel_heading_view("AUDIO"))
@@ -204,4 +252,63 @@ fn trimmed_number(value: f64) -> String {
         .trim_end_matches('0')
         .trim_end_matches('.')
         .to_owned()
+}
+
+struct ScaleDrag;
+
+fn scale_slider_view(panel: &VideoClipPanel, fraction: f32) -> impl IntoElement {
+    let bounds = Rc::new(Cell::new(Bounds::<Pixels>::default()));
+    let measured_bounds = bounds.clone();
+    let drag_bounds = bounds.clone();
+    let click_bus = panel.event_bus.clone();
+    let drag_bus = panel.event_bus.clone();
+    let clip_id = panel.clip.id();
+    div()
+        .id("clip-scale-slider")
+        .relative()
+        .flex_1()
+        .min_w_0()
+        .h(px(20.0))
+        .flex()
+        .items_center()
+        .child(
+            canvas(move |area, _, _| measured_bounds.set(area), |_, _, _, _| {})
+                .absolute()
+                .size_full(),
+        )
+        .child(slider_view(fraction, 0.5, panel.locked))
+        .when(!panel.locked, |slider| {
+            slider
+                .cursor_pointer()
+                .on_click(move |event, _, cx| {
+                    ui_callback_scale(clip_id, event.position().x, bounds.get(), &click_bus, cx);
+                })
+                .on_drag(ScaleDrag, |_, _, _, cx| cx.new(|_| Empty))
+                .on_drag_move::<ScaleDrag>(move |event: &DragMoveEvent<ScaleDrag>, _, cx| {
+                    ui_callback_scale(
+                        clip_id,
+                        event.event.position.x,
+                        drag_bounds.get(),
+                        &drag_bus,
+                        cx,
+                    );
+                })
+        })
+}
+
+fn ui_callback_scale(
+    clip_id: Ulid,
+    x: Pixels,
+    bounds: Bounds<Pixels>,
+    event_bus: &Entity<EventBus>,
+    cx: &mut gpui::App,
+) {
+    let width = f32::from(bounds.size.width);
+    if width <= 0.0 {
+        return;
+    }
+    let scale = f64::from((f32::from(x - bounds.origin.x) / width).clamp(0.0, 1.0)) * 2.0;
+    event_bus.update(cx, |_, cx| {
+        cx.emit(AppEvent::Edit(EditAction::SetClipScale { clip_id, scale }))
+    });
 }

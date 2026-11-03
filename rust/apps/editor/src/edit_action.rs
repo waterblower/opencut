@@ -51,6 +51,10 @@ pub(crate) enum EditAction {
         video_properties: VideoClipProperties,
         audio_properties: AudioClipProperties,
     },
+    SetClipScale {
+        clip_id: Ulid,
+        scale: f64,
+    },
     SetClipMuted {
         clip_id: Ulid,
         muted: bool,
@@ -629,6 +633,18 @@ impl TimelineEditExt for TimelineEditingState {
                         media.audio_properties = audio_properties;
                     }
                 }
+            }
+            EditAction::SetClipScale { clip_id, scale } => {
+                if !scale.is_finite() || !(0.0..=100.0).contains(&scale) {
+                    return Err(anyhow!("Clip scale must be between 0 and 100"));
+                }
+                if data.clip_locked(clip_id) {
+                    return Err(anyhow!("Clip {clip_id} is on a locked track"));
+                }
+                let Some(Clip::Video(clip)) = data.clip_mut(clip_id) else {
+                    return Err(anyhow!("Video clip {clip_id} was not found"));
+                };
+                clip.video_properties.scale = scale;
             }
             EditAction::SetClipMuted { clip_id, muted } => {
                 if data.clip_locked(clip_id) {
