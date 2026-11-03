@@ -10,7 +10,7 @@ use crate::timeline::{TimelineEditorExt, TimelineFrameIndex, TimelineRuntimeStat
 use crate::timeline_clip::Clip;
 use anyhow::Result;
 use gpui::{
-    ClickEvent, Context, MouseDownEvent, MouseMoveEvent, MouseUpEvent, ScrollWheelEvent,
+    Context, MouseDownEvent, MouseMoveEvent, MouseUpEvent, ScrollWheelEvent,
     TouchPhase, Window, px,
 };
 use std::collections::HashSet;
@@ -696,10 +696,9 @@ impl Editor {
         }
     }
 
-    /// Moves the editing playhead to the frame under a click on the ruler.
-    pub(crate) fn seek_to_ruler_click(
+    pub(super) fn ui_callback_seek_ruler(
         &mut self,
-        event: &ClickEvent,
+        position_x: f32,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
@@ -708,7 +707,7 @@ impl Editor {
         };
         self.focus_handle.focus(window, cx);
         let frame_index = timeline
-            .timeline_position_from_x(event.position().x.into())
+            .timeline_position_from_x(position_x)
             .min(timeline.editing_state.content_duration());
         timeline.set_playhead(frame_index);
         if let Err(error) = timeline.save() {

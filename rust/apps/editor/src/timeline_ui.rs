@@ -16,12 +16,14 @@ use crate::timeline_interactions::{MarqueeSelection, TimelineTool};
 use crate::track::TrackKind;
 use gpui::prelude::*;
 use gpui::{
-    CursorStyle, DragMoveEvent, MouseButton, MouseDownEvent, MouseUpEvent, Window, div, px, rgb,
+    CursorStyle, DragMoveEvent, Empty, MouseButton, MouseDownEvent, MouseUpEvent, Window, div, px, rgb,
     rgba, svg,
 };
 
 // 捏合增量倍率；越大缩放越灵敏。It's fun to be PI.
 const TIMELINE_PINCH_SENSITIVITY: f32 = std::f32::consts::PI;
+
+struct RulerDrag;
 
 const MAX_RULER_TICKS: usize = 240;
 const MIN_RULER_LABEL_SPACING: f32 = 72.0;
@@ -504,7 +506,15 @@ impl Editor {
         div()
             .id("timeline-ruler")
             .on_pinch(cx.listener(pinch_timeline))
-            .on_click(cx.listener(Self::seek_to_ruler_click))
+            .on_click(cx.listener(|editor, event: &gpui::ClickEvent, window, cx| {
+                editor.ui_callback_seek_ruler(event.position().x.into(), window, cx);
+            }))
+            .on_drag(RulerDrag, |_, _, _, cx| cx.new(|_| Empty))
+            .on_drag_move(cx.listener(
+                |editor, event: &DragMoveEvent<RulerDrag>, window, cx| {
+                    editor.ui_callback_seek_ruler(event.event.position.x.into(), window, cx);
+                },
+            ))
             .relative()
             .w_full()
             .h(px(RULER_HEIGHT))
