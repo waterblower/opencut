@@ -3,7 +3,6 @@ use crate::dialog_missing_media::missing_media_dialog;
 use crate::edit_action::{EditAction, edit_timeline};
 use crate::editing::validate_clips_placements;
 use crate::editor::Editor;
-use crate::explorer::move_path_to_trash;
 use crate::explorer_drag::AssetBeingDragged;
 use crate::explorer_file_entry::select_preview_file;
 use crate::export_window::{ExportState, ExportWindow};
@@ -38,6 +37,7 @@ use gpui::prelude::*;
 use gpui::{
     AsyncApp, Bounds, Entity, EventEmitter, MouseMoveEvent, PathPromptOptions, Pixels, WeakEntity,
 };
+use platform_fs::move_to_trash;
 use player_ui::Seeker;
 use player_ui::timeline_player::TimelinePlayer;
 use std::collections::HashSet;
@@ -549,7 +549,7 @@ async fn handle_app_event(
                     .file_name()
                     .map(|name| name.to_string_lossy().into_owned())
                     .unwrap_or_else(|| relative_path.display().to_string());
-                if let Err(error) = move_path_to_trash(&path) {
+                if let Err(error) = move_to_trash(&path) {
                     return Err(anyhow!("Could not move {display_name} to Trash: {error}"));
                 }
                 editor

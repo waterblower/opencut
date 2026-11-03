@@ -3,8 +3,7 @@ use crate::context_menu::{ContextMenu, FileContextMenu};
 use crate::edit_action::{EditAction, edit_timeline};
 use crate::editor::Editor;
 use crate::explorer::{
-    NewTimelineDialogState, RenameDialogState, move_path_to_trash, remap_relative_path,
-    renamed_relative_path,
+    NewTimelineDialogState, RenameDialogState, remap_relative_path, renamed_relative_path,
 };
 use crate::preview::PreviewTarget;
 use crate::project_settings::{load_project_local_settings, save_project_local_settings};
@@ -15,6 +14,7 @@ use crate::ui_components::TextInput;
 use anyhow::{Context as _, Result, anyhow, bail};
 use gpui::Window;
 use gpui::prelude::*;
+use platform_fs::move_to_trash;
 use std::path::{Path, PathBuf};
 
 impl Editor {
@@ -260,7 +260,7 @@ impl Editor {
         let path = timeline.path.clone();
         let mut new_settings = load_project_local_settings(&self.project_root);
         new_settings.active_timeline = None;
-        if let Err(error) = move_path_to_trash(&path) {
+        if let Err(error) = move_to_trash(&path) {
             return Err(anyhow!(
                 "Could not move {} to Trash: {error}",
                 path.display()

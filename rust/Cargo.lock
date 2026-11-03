@@ -1620,6 +1620,7 @@ dependencies = [
  "notify",
  "objc2-app-kit 0.3.2",
  "objc2-foundation 0.3.2",
+ "platform-fs",
  "player-ui",
  "resvg 0.45.1",
  "serde",
@@ -1630,7 +1631,6 @@ dependencies = [
  "ulid",
  "unicode-segmentation",
  "waveform",
- "windows 0.62.2",
 ]
 
 [[package]]
@@ -4573,6 +4573,15 @@ name = "pkg-config"
 version = "0.3.33"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "19f132c84eca552bf34cab8ec81f1c1dcc229b811638f9d283dceabe58c5569e"
+
+[[package]]
+name = "platform-fs"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "objc2-foundation 0.3.2",
+ "windows 0.62.2",
+]
 
 [[package]]
 name = "player"
