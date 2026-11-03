@@ -27,6 +27,7 @@ use gpui::{
     relative, rgb, size, svg,
 };
 use std::path::Path;
+use std::time::{Duration, Instant};
 use ulid::Ulid;
 
 pub(crate) enum PropertyPanel {
@@ -577,11 +578,6 @@ pub(super) fn audio_properties_view(
                         .w(px(34.0))
                         .h(px(20.0))
                         .rounded_full()
-                        .bg(rgb(if unmuted {
-                            ACCENT
-                        } else {
-                            BORDER
-                        }))
                         .when(!locked, |toggle| {
                             toggle.cursor_pointer().on_click(move |_, _, cx| {
                                 event_bus.update(cx, |_, cx| {
@@ -592,23 +588,7 @@ pub(super) fn audio_properties_view(
                                 })
                             })
                         })
-                        .child(
-                            div()
-                                .absolute()
-                                .top(px(3.0))
-                                .left(px(if unmuted {
-                                    17.0
-                                } else {
-                                    3.0
-                                }))
-                                .size(px(14.0))
-                                .rounded_full()
-                                .bg(rgb(if unmuted {
-                                    PANEL
-                                } else {
-                                    MUTED
-                                })),
-                        ),
+                        .child(switch_motion_view(clip_id, unmuted)),
                 ),
         )
 }
@@ -764,4 +744,68 @@ fn clip_track_subtitle_view(kind: TrackKind, track_name: &str, locked: bool) -> 
                     .child("· Locked"),
             )
         })
+}
+
+// 动画状态只保存视觉过渡；功能开关状态由属性面板提供。
+struct SwitchMotion {
+    clip_id: Ulid,
+    from: f32,
+    target: f32,
+    started_at: Instant,
+}
+
+impl SwitchMotion {
+    fn position(&self, now: Instant) -> f32 {
+        let elapsed = now.duration_since(self.started_at).as_secs_f32() / 0.18;
+        let progress = 1.0 - (1.0 - elapsed.min(1.0)).powi(3);
+        self.from + (self.target - self.from) * progress
+    }
+}
+
+fn switch_motion_view(clip_id: Ulid, on: bool) -> impl IntoElement {
+    canvas(
+        move |_, window, cx| {
+            let now = Instant::now();
+            let target = if on { 1.0 } else { 0.0 };
+            let state = window.use_keyed_state("clip-switch-motion", cx, |_, _| SwitchMotion {
+                clip_id,
+                from: target,
+                target,
+                started_at: now,
+            });
+            state.update(cx, |motion, _| {
+                if motion.clip_id != clip_id {
+                    *motion = SwitchMotion { clip_id, from: target, target, started_at: now };
+                } else if motion.target != target {
+                    motion.from = motion.position(now);
+                    motion.target = target;
+                    motion.started_at = now;
+                }
+                let position = motion.position(now);
+                if motion.from != motion.target
+                    && now.duration_since(motion.started_at) < Duration::from_millis(180)
+                {
+                    window.request_animation_frame();
+                }
+                position
+            })
+        },
+        |bounds, position, window, _| {
+            window.paint_quad(gpui::fill(bounds, switch_color(BORDER, ACCENT, position)).corner_radii(px(10.0)));
+            let knob = Bounds::new(
+                bounds.origin + point(px(3.0 + 14.0 * position), px(3.0)),
+                size(px(14.0), px(14.0)),
+            );
+            window.paint_quad(gpui::fill(knob, switch_color(MUTED, PANEL, position)).corner_radii(px(7.0)));
+        },
+    ).size_full()
+}
+
+fn switch_color(from: u32, to: u32, position: f32) -> gpui::Rgba {
+    let channel = |shift: u32| {
+        let start = ((from >> shift) & 255u32) as f32;
+        let end = ((to >> shift) & 255u32) as f32;
+        (start + (end - start) * position).round() as u32
+    };
+    rgb((channel(16) << 16) | (channel(8) << 8) | channel(0))
 }
