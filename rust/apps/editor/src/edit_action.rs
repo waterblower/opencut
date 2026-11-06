@@ -3,6 +3,7 @@ use crate::timeline::{TimelineEditorExt, TimelineRuntimeState, offline_asset_ids
 use ::timeline::{
     Asset, AudioClipProperties, Clip, FrameRate, TextBackground, TextClipProperties,
     TimelineEditingState, TimelineFrameIndex, Track, VideoClipProperties, compact_text_sections,
+    remove_gaps,
 };
 use anyhow::{Result, anyhow, ensure};
 use gpui::{Pixels, Point};
@@ -140,6 +141,7 @@ pub(crate) enum EditAction {
         timeline: TimelineEditingState,
     },
     KeepTextSections,
+    RemoveGaps,
     Undo,
     Redo,
 }
@@ -557,6 +559,9 @@ impl TimelineEditExt for TimelineEditingState {
             }
             EditAction::KeepTextSections => {
                 data = compact_text_sections(self)?;
+            }
+            EditAction::RemoveGaps => {
+                data = remove_gaps(self);
             }
             EditAction::AddClips { clips, assets } => {
                 data.assets.extend(assets);
