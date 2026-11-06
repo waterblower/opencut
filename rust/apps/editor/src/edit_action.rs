@@ -3,6 +3,7 @@ use crate::timeline::{TimelineEditorExt, TimelineRuntimeState, offline_asset_ids
 use ::timeline::{
     Asset, AudioClipProperties, Clip, FrameRate, TextBackground, TextClipProperties,
     TimelineEditingState, TimelineFrameIndex, Track, VideoClipProperties, compact_text_sections,
+    remove_gaps,
 };
 use anyhow::{Result, anyhow, ensure};
 use gpui::{Pixels, Point};
@@ -50,6 +51,10 @@ pub(crate) enum EditAction {
         clip_ids: Vec<Ulid>,
         video_properties: VideoClipProperties,
         audio_properties: AudioClipProperties,
+    },
+    SetClipScale {
+        clip_id: Ulid,
+        scale: f64,
     },
     SetClipMuted {
         clip_id: Ulid,
@@ -136,6 +141,7 @@ pub(crate) enum EditAction {
         timeline: TimelineEditingState,
     },
     KeepTextSections,
+    RemoveGaps,
     Undo,
     Redo,
 }
@@ -554,6 +560,9 @@ impl TimelineEditExt for TimelineEditingState {
             EditAction::KeepTextSections => {
                 data = compact_text_sections(self)?;
             }
+            EditAction::RemoveGaps => {
+                data = remove_gaps(self);
+            }
             EditAction::AddClips { clips, assets } => {
                 data.assets.extend(assets);
                 validate_clips_placements(&data, &clips)?;
@@ -629,6 +638,18 @@ impl TimelineEditExt for TimelineEditingState {
                         media.audio_properties = audio_properties;
                     }
                 }
+            }
+            EditAction::SetClipScale { clip_id, scale } => {
+                if !scale.is_finite() || !(0.0..=100.0).contains(&scale) {
+                    return Err(anyhow!("Clip scale must be between 0 and 100"));
+                }
+                if data.clip_locked(clip_id) {
+                    return Err(anyhow!("Clip {clip_id} is on a locked track"));
+                }
+                let Some(Clip::Video(clip)) = data.clip_mut(clip_id) else {
+                    return Err(anyhow!("Video clip {clip_id} was not found"));
+                };
+                clip.video_properties.scale = scale;
             }
             EditAction::SetClipMuted { clip_id, muted } => {
                 if data.clip_locked(clip_id) {

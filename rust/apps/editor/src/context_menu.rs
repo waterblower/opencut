@@ -91,7 +91,7 @@ impl Editor {
                 0.0
             }
             + if is_timeline_file {
-                80.0
+                120.0
             } else {
                 0.0
             }
@@ -214,6 +214,21 @@ impl Editor {
                                 },
                             )),
                         )
+                    })
+                    .when(is_timeline_file, |this| {
+                        let timeline_path = menu.relative_path.clone();
+                        this.child(file_menu_item("Remove Gaps", "").on_click(cx.listener(
+                            move |editor, _, _, cx| {
+                                editor.dismiss_context_menu();
+                                cx.notify();
+                                if let Err(error) = editor.open_timeline(timeline_path.clone(), cx)
+                                {
+                                    log::error!("Could not open timeline: {error:?}");
+                                    return;
+                                }
+                                editor.emit_event(cx, AppEvent::Edit(EditAction::RemoveGaps));
+                            },
+                        )))
                     })
                     .child(
                         file_menu_item("Reveal in Finder", "⌥⌘R").on_click(cx.listener(

@@ -1040,12 +1040,28 @@ fn handle_app_event_edit(
             }
         }
         let track_lock_changed = matches!(edit_action, EditAction::ToggleTrackLock { .. });
+        let mute_change = match &edit_action {
+            EditAction::SetClipMuted { clip_id, muted } => Some((*clip_id, *muted)),
+            _ => None,
+        };
         let should_save = edit_timeline(timeline, edit_action)?;
         if should_save {
             timeline.save()?;
             // 预览播放器持有编辑前的快照；编辑提交后按新状态重建。
             // 有 offline clip 时 preview 是 None；relink 之后要重建回 timeline。
             match editor.preview.target {
+                PreviewTarget::Timeline {
+                    ref player,
+                    ref path,
+                    ..
+                } if mute_change.is_some() && editor.project_root.join(path) == timeline.path => {
+                    let (clip_id, muted) = mute_change.expect("mute change was checked");
+                    player.update(cx, |player, cx| {
+                        let result = player.set_clip_muted(clip_id, muted);
+                        cx.notify();
+                        result
+                    })?;
+                }
                 PreviewTarget::Timeline { .. } | PreviewTarget::None if !track_lock_changed => {
                     editor.preview.target =
                         timeline_preview_target(timeline, &editor.project_root, cx)?;

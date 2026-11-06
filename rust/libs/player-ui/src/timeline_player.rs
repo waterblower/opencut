@@ -11,6 +11,7 @@ use gpui::{Context, Task, Window};
 use media_backend::{AudioSamples, MediaTime};
 use std::{collections::HashMap, path::Path, time::Duration};
 use timeline::TimelineEditingState;
+use ulid::Ulid;
 
 const AUDIO_LEAD: Duration = Duration::from_millis(500); // 混音领先播放时钟的时长；低于输出队列的 1 秒上限。
 
@@ -49,6 +50,13 @@ impl TimelinePlayer {
 
     pub fn backend_mut(&mut self) -> &mut TimelineBackend {
         &mut self.backend
+    }
+
+    /// Applies mute changes without reopening the player. The next playback step remixes audio.
+    pub fn set_clip_muted(&mut self, clip_id: Ulid, muted: bool) -> Result<()> {
+        self.backend.set_clip_muted(clip_id, muted)?;
+        self.audio_output.set_playing(false)?;
+        Ok(())
     }
 
     /// Seeks to `position` on the next frame. Requests arriving before then only replace the
