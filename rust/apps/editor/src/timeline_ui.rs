@@ -16,8 +16,8 @@ use crate::timeline_interactions::{MarqueeSelection, TimelineTool};
 use crate::track::TrackKind;
 use gpui::prelude::*;
 use gpui::{
-    CursorStyle, DragMoveEvent, Empty, MouseButton, MouseDownEvent, MouseUpEvent, Window, div, px, rgb,
-    rgba, svg,
+    CursorStyle, DragMoveEvent, Empty, MouseButton, MouseDownEvent, MouseUpEvent, Window, div, px,
+    rgb, rgba, svg,
 };
 
 // 捏合增量倍率；越大缩放越灵敏。It's fun to be PI.
@@ -510,11 +510,11 @@ impl Editor {
                 editor.ui_callback_seek_ruler(event.position().x.into(), window, cx);
             }))
             .on_drag(RulerDrag, |_, _, _, cx| cx.new(|_| Empty))
-            .on_drag_move(cx.listener(
-                |editor, event: &DragMoveEvent<RulerDrag>, window, cx| {
+            .on_drag_move(
+                cx.listener(|editor, event: &DragMoveEvent<RulerDrag>, window, cx| {
                     editor.ui_callback_seek_ruler(event.event.position.x.into(), window, cx);
-                },
-            ))
+                }),
+            )
             .relative()
             .w_full()
             .h(px(RULER_HEIGHT))

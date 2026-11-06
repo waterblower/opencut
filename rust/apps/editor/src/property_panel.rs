@@ -766,7 +766,11 @@ fn switch_motion_view(clip_id: Ulid, on: bool) -> impl IntoElement {
     canvas(
         move |_, window, cx| {
             let now = Instant::now();
-            let target = if on { 1.0 } else { 0.0 };
+            let target = if on {
+                1.0
+            } else {
+                0.0
+            };
             let state = window.use_keyed_state("clip-switch-motion", cx, |_, _| SwitchMotion {
                 clip_id,
                 from: target,
@@ -775,7 +779,12 @@ fn switch_motion_view(clip_id: Ulid, on: bool) -> impl IntoElement {
             });
             state.update(cx, |motion, _| {
                 if motion.clip_id != clip_id {
-                    *motion = SwitchMotion { clip_id, from: target, target, started_at: now };
+                    *motion = SwitchMotion {
+                        clip_id,
+                        from: target,
+                        target,
+                        started_at: now,
+                    };
                 } else if motion.target != target {
                     motion.from = motion.position(now);
                     motion.target = target;
@@ -791,14 +800,19 @@ fn switch_motion_view(clip_id: Ulid, on: bool) -> impl IntoElement {
             })
         },
         |bounds, position, window, _| {
-            window.paint_quad(gpui::fill(bounds, switch_color(BORDER, ACCENT, position)).corner_radii(px(10.0)));
+            window.paint_quad(
+                gpui::fill(bounds, switch_color(BORDER, ACCENT, position)).corner_radii(px(10.0)),
+            );
             let knob = Bounds::new(
                 bounds.origin + point(px(3.0 + 14.0 * position), px(3.0)),
                 size(px(14.0), px(14.0)),
             );
-            window.paint_quad(gpui::fill(knob, switch_color(MUTED, PANEL, position)).corner_radii(px(7.0)));
+            window.paint_quad(
+                gpui::fill(knob, switch_color(MUTED, PANEL, position)).corner_radii(px(7.0)),
+            );
         },
-    ).size_full()
+    )
+    .size_full()
 }
 
 fn switch_color(from: u32, to: u32, position: f32) -> gpui::Rgba {

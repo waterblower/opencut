@@ -9,8 +9,8 @@ use std::{
     rc::Rc,
     time::{Duration, Instant},
 };
-use ulid::Ulid;
 use timeline::{Clip, FrameRate, TimelineEditingState, TimelineFrameIndex};
+use ulid::Ulid;
 
 pub const MAX_CONTROL_WAIT: Duration = Duration::from_millis(100); // 暂停时轮询间隔；限制控制响应延迟。
 
@@ -84,7 +84,10 @@ impl TimelineBackend {
 
     /// Updates audio mixing state without decoding video or replacing the playback clock.
     pub fn set_clip_muted(&mut self, clip_id: Ulid, muted: bool) -> Result<()> {
-        let clip = self.timeline.clip_mut(clip_id).context("Muted clip is missing from preview")?;
+        let clip = self
+            .timeline
+            .clip_mut(clip_id)
+            .context("Muted clip is missing from preview")?;
         let properties = match clip {
             Clip::Video(clip) => &mut clip.audio_properties,
             Clip::Audio(clip) => &mut clip.audio_properties,

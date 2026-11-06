@@ -202,52 +202,69 @@ impl ExportWindow {
             .when(locked, |view| view.opacity(0.5))
             .child("Export subtitles")
             .when(self.subtitle_tracks.is_empty(), |view| {
-                view.child(div().text_sm().text_color(rgb(MUTED)).child("No text tracks in this timeline."))
+                view.child(
+                    div()
+                        .text_sm()
+                        .text_color(rgb(MUTED))
+                        .child("No text tracks in this timeline."),
+                )
             })
-            .children(self.subtitle_tracks.iter().enumerate().map(|(index, track)| {
-                div()
-                    .id(("export-subtitle-track", index))
-                    .flex()
-                    .items_center()
-                    .gap_3()
-                    .when(!locked, |row| {
-                        row.cursor_pointer().on_click(cx.listener(move |view, _, _, cx| {
-                            view.subtitle_tracks[index].checked = !view.subtitle_tracks[index].checked;
-                            cx.notify();
-                        }))
-                    })
-                    .child(
+            .children(
+                self.subtitle_tracks
+                    .iter()
+                    .enumerate()
+                    .map(|(index, track)| {
                         div()
-                            .size(px(16.0))
-                            .flex_shrink_0()
-                            .rounded(px(4.0))
+                            .id(("export-subtitle-track", index))
                             .flex()
                             .items_center()
-                            .justify_center()
-                            .text_size(px(12.0))
-                            .font_weight(FontWeight::BOLD)
-                            .text_color(rgb(BACKGROUND))
-                            .when(track.checked, |checkbox| checkbox.bg(rgb(ACCENT)).child("✓"))
-                            .when(!track.checked, |checkbox| {
-                                checkbox.bg(rgb(SURFACE)).border_1().border_color(rgb(BORDER))
-                            }),
-                    )
-                    .child(
-                        div()
-                            .size(px(16.0))
-                            .flex_shrink_0()
-                            .rounded(px(4.0))
-                            .bg(rgb(0x7a5fb0))
-                            .flex()
-                            .items_center()
-                            .justify_center()
-                            .text_size(px(10.0))
-                            .font_weight(FontWeight::BOLD)
-                            .text_color(rgb(0xe3d4ff))
-                            .child("T"),
-                    )
-                    .child(track.name.clone())
-            }))
+                            .gap_3()
+                            .when(!locked, |row| {
+                                row.cursor_pointer()
+                                    .on_click(cx.listener(move |view, _, _, cx| {
+                                        view.subtitle_tracks[index].checked =
+                                            !view.subtitle_tracks[index].checked;
+                                        cx.notify();
+                                    }))
+                            })
+                            .child(
+                                div()
+                                    .size(px(16.0))
+                                    .flex_shrink_0()
+                                    .rounded(px(4.0))
+                                    .flex()
+                                    .items_center()
+                                    .justify_center()
+                                    .text_size(px(12.0))
+                                    .font_weight(FontWeight::BOLD)
+                                    .text_color(rgb(BACKGROUND))
+                                    .when(track.checked, |checkbox| {
+                                        checkbox.bg(rgb(ACCENT)).child("✓")
+                                    })
+                                    .when(!track.checked, |checkbox| {
+                                        checkbox
+                                            .bg(rgb(SURFACE))
+                                            .border_1()
+                                            .border_color(rgb(BORDER))
+                                    }),
+                            )
+                            .child(
+                                div()
+                                    .size(px(16.0))
+                                    .flex_shrink_0()
+                                    .rounded(px(4.0))
+                                    .bg(rgb(0x7a5fb0))
+                                    .flex()
+                                    .items_center()
+                                    .justify_center()
+                                    .text_size(px(10.0))
+                                    .font_weight(FontWeight::BOLD)
+                                    .text_color(rgb(0xe3d4ff))
+                                    .child("T"),
+                            )
+                            .child(track.name.clone())
+                    }),
+            )
     }
 }
 

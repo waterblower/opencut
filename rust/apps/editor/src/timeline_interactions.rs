@@ -10,8 +10,7 @@ use crate::timeline::{TimelineEditorExt, TimelineFrameIndex, TimelineRuntimeStat
 use crate::timeline_clip::Clip;
 use anyhow::Result;
 use gpui::{
-    Context, MouseDownEvent, MouseMoveEvent, MouseUpEvent, ScrollWheelEvent,
-    TouchPhase, Window, px,
+    Context, MouseDownEvent, MouseMoveEvent, MouseUpEvent, ScrollWheelEvent, TouchPhase, Window, px,
 };
 use std::collections::HashSet;
 use ulid::Ulid;
