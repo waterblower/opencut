@@ -9,7 +9,7 @@ use crate::timeline_clip_menu::clip_property_targets;
 use crate::timeline_document;
 use crate::timeline_document::resolve_asset_path;
 use crate::track::TrackKind;
-use crate::transcription_window::ClipRange;
+use crate::transcription_window::{ClipRange, TranscriptionScope};
 use ::timeline::TimelineEditingState;
 use engine::media_asset::{is_audio_path, is_video_path};
 use gpui::prelude::*;
@@ -168,7 +168,7 @@ impl Editor {
                                     cx,
                                     AppEvent::OpenTranscribeWindow {
                                         audio_source_path: source_path.clone(),
-                                        clip: None,
+                                        scope: TranscriptionScope::File,
                                         project_root: project_root.clone(),
                                     },
                                 );
@@ -191,6 +191,24 @@ impl Editor {
                                     editor.settings_open = true;
                                 }
                                 cx.notify();
+                            },
+                        )))
+                    })
+                    .when(is_timeline_file, |this| {
+                        let timeline_path = self.project_root.join(&menu.relative_path);
+                        let project_root = self.project_root.clone();
+                        this.child(file_menu_item("Generate SRT", "").on_click(cx.listener(
+                            move |editor, _, _, cx| {
+                                editor.dismiss_context_menu();
+                                cx.notify();
+                                editor.emit_event(
+                                    cx,
+                                    AppEvent::OpenTranscribeWindow {
+                                        audio_source_path: timeline_path.clone(),
+                                        scope: TranscriptionScope::Timeline,
+                                        project_root: project_root.clone(),
+                                    },
+                                );
                             },
                         )))
                     })
@@ -444,7 +462,7 @@ impl Editor {
                                             timeline_directory,
                                             asset.path(),
                                         ),
-                                        clip: Some(ClipRange {
+                                        scope: TranscriptionScope::Clip(ClipRange {
                                             clip_id,
                                             start: state.position_at_frame(source_in),
                                             end: state.position_at_frame(source_out),

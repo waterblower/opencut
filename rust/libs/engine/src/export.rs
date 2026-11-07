@@ -354,6 +354,43 @@ pub fn mix_timeline_audio(
     Ok(mixed)
 }
 
+/// Mixes the whole timeline, from frame zero to the latest clip end, into mono 16-bit PCM at
+/// `rate`.
+pub fn mix_timeline_audio_mono(
+    timeline: &TimelineEditingState,
+    timeline_directory: &Path,
+    rate: u32,
+) -> Result<Vec<i16>> {
+    let frame_count = timeline.content_duration().max(TimelineFrameIndex::ZERO);
+    let total_samples = i64::try_from(
+        timeline
+            .settings
+            .frame_rate
+            .audio_samples(frame_count, rate),
+    )
+    .context("Timeline audio sample count exceeds i64")?;
+    let mut readers = HashMap::new();
+    let mut pcm = Vec::with_capacity(usize::try_from(total_samples)?);
+    let mut position = 0_i64;
+    while position < total_samples {
+        let count = (total_samples - position).min(i64::from(rate)) as usize;
+        let samples = mix_timeline_audio(
+            timeline,
+            timeline_directory,
+            &mut readers,
+            position,
+            count,
+            rate,
+        )?;
+        for [left, right] in samples {
+            let mono = (left + right) * 0.5;
+            pcm.push((mono * i16::MAX as f32).round() as i16);
+        }
+        position += count as i64;
+    }
+    Ok(pcm)
+}
+
 impl AudioReader {
     /// Reads source samples `start..start + count` at `rate`. Continues decoding when `start`
     /// lies at most one second past the pending block, as video readers do; otherwise seeks.
