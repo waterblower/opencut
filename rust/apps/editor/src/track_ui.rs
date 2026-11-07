@@ -20,6 +20,7 @@ use gpui::{
     Bounds, CursorStyle, ElementId, MouseButton, MouseDownEvent, PathBuilder, SharedString, canvas,
     div, fill, point, px, rgb, rgba, size,
 };
+use std::collections::HashMap;
 use std::sync::Arc;
 
 const CLIP_WAVEFORM_HEIGHT: f32 = 80.0;
@@ -267,6 +268,12 @@ impl Editor {
                 .as_ref()
                 .filter(|drag| drag.changed)
                 .map(|drag| {
+                    let clips_by_id = timeline
+                        .editing_state
+                        .clips
+                        .iter()
+                        .map(|clip| (clip.id(), clip))
+                        .collect::<HashMap<_, _>>();
                     drag.placements
                         .iter()
                         .filter(|(_, track_id, _)| *track_id == track.id)
@@ -274,7 +281,7 @@ impl Editor {
                             if viewport_width <= 0.0 {
                                 return true;
                             }
-                            let Some(clip) = timeline.editing_state.clip(*clip_id) else {
+                            let Some(clip) = clips_by_id.get(clip_id) else {
                                 return false;
                             };
                             let left = TIMELINE_PADDING
@@ -288,10 +295,7 @@ impl Editor {
                             left <= visible_right && left + width >= visible_left
                         })
                         .map(|(clip_id, _, start)| {
-                            let clip = timeline
-                                .editing_state
-                                .clip(*clip_id)
-                                .expect("moving clip exists");
+                            let clip = clips_by_id.get(clip_id).expect("moving clip exists");
                             let (name, kind) = match clip {
                                 Clip::Text(text) => (
                                     SharedString::from(text.properties.text.clone()),
@@ -401,29 +405,31 @@ impl Editor {
         match clip {
             Clip::Video(_) => self.video_clip(clip, cx),
             Clip::Audio(_) => self.audio_clip(clip, cx),
-            Clip::Text(clip) => {
+            Clip::Text(text_clip) => {
                 let timeline = self
                     .timeline
                     .as_ref()
                     .expect("timeline clips require an active timeline");
-                let clip_id = clip.id();
-                let locked = timeline.editing_state.clip_locked(clip_id);
+                let clip_id = text_clip.id();
+                let locked = timeline
+                    .editing_state
+                    .track(text_clip.track_id)
+                    .is_some_and(|track| track.locked);
+                let selected = timeline.interaction.selected_clip_ids.contains(&clip_id);
                 let moving = timeline
                     .interaction
                     .clip_move_drag
                     .as_ref()
-                    .is_some_and(|drag| {
-                        drag.changed && drag.items.iter().any(|item| item.clip_id == clip_id)
-                    });
+                    .is_some_and(|drag| drag.changed && selected); // 拖动的正是全部选中的 clips
                 text_clip_component(
-                    clip.clone(),
+                    text_clip.clone(),
                     timeline.editing_state.settings.frame_rate,
                     timeline.pixels_per_second,
-                    timeline.interaction.selected_clip_ids.contains(&clip_id),
+                    selected,
                     moving,
                 )
                 .children(locked.then(|| diagonal_hatch_view(LOCKED_CLIP_STRIPES)))
-                .children(self.clip_trim_handles(clip_id, cx))
+                .children(self.clip_trim_handles(clip, locked, cx))
                 .on_mouse_down(
                     MouseButton::Left,
                     cx.listener(move |editor, event, _, cx| {
@@ -521,16 +527,17 @@ impl Editor {
             .as_ref()
             .expect("timeline clips require an active timeline");
         let clip_id = clip.id();
-        let locked = timeline.editing_state.clip_locked(clip_id);
+        let locked = timeline
+            .editing_state
+            .track(clip.track_id())
+            .is_some_and(|track| track.locked);
         let selected = timeline.interaction.selected_clip_ids.contains(&clip_id);
         let offline = timeline.clip_is_offline(clip);
         let moving = timeline
             .interaction
             .clip_move_drag
             .as_ref()
-            .is_some_and(|drag| {
-                drag.changed && drag.items.iter().any(|item| item.clip_id == clip_id)
-            });
+            .is_some_and(|drag| drag.changed && selected); // 拖动的正是全部选中的 clips
         let left = TIMELINE_PADDING
             + timeline.editing_state.seconds(clip.timeline_start()) as f32
                 * timeline.pixels_per_second;
@@ -593,7 +600,7 @@ impl Editor {
             )
             .child(content)
             .children(locked.then(|| diagonal_hatch_view(LOCKED_CLIP_STRIPES)))
-            .children(self.clip_trim_handles(clip_id, cx))
+            .children(self.clip_trim_handles(clip, locked, cx))
             .into_any_element()
     }
 }

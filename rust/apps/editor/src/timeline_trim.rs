@@ -8,7 +8,6 @@ use crate::timeline_clip::Clip;
 use crate::timeline_interactions::TimelineTool;
 use gpui::prelude::*;
 use gpui::{Context, CursorStyle, MouseButton, MouseMoveEvent, MouseUpEvent, Window, div, px, rgb};
-use ulid::Ulid;
 
 pub(crate) struct ClipTrimDrag {
     pub(crate) original: Clip, // 拖动起点快照；每次移动都从这里计算，避免累计误差。
@@ -21,25 +20,22 @@ pub(crate) struct ClipTrimDrag {
 impl Editor {
     pub(crate) fn clip_trim_handles(
         &self,
-        clip_id: Ulid,
+        clip: &Clip,
+        locked: bool,
         cx: &mut Context<Self>,
     ) -> Vec<gpui::AnyElement> {
         let Some(timeline) = self.timeline.as_ref() else {
             return Vec::new();
         };
-        if timeline.interaction.active_tool != TimelineTool::Selection
-            || timeline.editing_state.clip_locked(clip_id)
-        {
+        if timeline.interaction.active_tool != TimelineTool::Selection || locked {
             return Vec::new();
         }
-        let Some(clip) = timeline.editing_state.clip(clip_id) else {
-            return Vec::new();
-        };
-        let width = (timeline
+        let clip_id = clip.id();
+        let width = timeline
             .editing_state
             .seconds(clip.frame_length(timeline.editing_state.settings.frame_rate))
             as f32
-            * timeline.pixels_per_second);
+            * timeline.pixels_per_second;
         if width < MIN_TRIM_CLIP_WIDTH {
             return Vec::new();
         }
