@@ -3,7 +3,7 @@ use crate::edit_action::EditAction;
 use crate::editor::Editor;
 use crate::event_bus::AppEvent;
 use crate::explorer_drag::AssetBeingDragged;
-use crate::layout::{TIMELINE_PADDING, TRACK_HEIGHT};
+use crate::layout::{THIN_CLIP_WIDTH, TIMELINE_PADDING, TRACK_HEIGHT};
 use crate::srt::srt_text_clips;
 use crate::theme::{
     ACCENT, BORDER, CLIP_BLUE, CLIP_OFFLINE, ERROR, MUTED, SURFACE, SURFACE_HOVER, TEXT,
@@ -255,7 +255,7 @@ impl Editor {
                     .seconds(clip.frame_length(timeline.editing_state.settings.frame_rate))
                     as f32
                     * timeline.pixels_per_second)
-                    .max(4.0);
+                    .max(1.0);
                 left <= visible_right && left + width >= visible_left
             })
             .map(|clip| self.timeline_clip(clip, cx))
@@ -284,7 +284,7 @@ impl Editor {
                                 clip.frame_length(timeline.editing_state.settings.frame_rate),
                             ) as f32
                                 * timeline.pixels_per_second)
-                                .max(4.0);
+                                .max(1.0);
                             left <= visible_right && left + width >= visible_left
                         })
                         .map(|(clip_id, _, start)| {
@@ -322,7 +322,7 @@ impl Editor {
                                 clip.frame_length(timeline.editing_state.settings.frame_rate),
                             ) as f32
                                 * timeline.pixels_per_second)
-                                .max(4.0);
+                                .max(1.0);
                             clip_placement_preview_view(
                                 SharedString::from(format!("clip-placement-{clip_id}")),
                                 name,
@@ -539,7 +539,8 @@ impl Editor {
             .seconds(clip.frame_length(timeline.editing_state.settings.frame_rate))
             as f32
             * timeline.pixels_per_second)
-            .max(4.0);
+            .max(1.0);
+        let thin = width < THIN_CLIP_WIDTH;
 
         div()
             .id(gpui::SharedString::from(format!("timeline-clip-{clip_id}")))
@@ -549,17 +550,23 @@ impl Editor {
             .w(px(width))
             .h(px(TRACK_HEIGHT - 10.0))
             .overflow_hidden()
-            .rounded_md()
-            .border_1()
-            .border_color(if selected {
-                rgb(ACCENT)
-            } else if offline {
-                rgba((ERROR << 8) | 0xb3)
-            } else {
-                rgb(color + 0x101010)
+            .when(!thin, |this| {
+                this.rounded_md()
+                    .border_1()
+                    .border_color(if selected {
+                        rgb(ACCENT)
+                    } else if offline {
+                        rgba((ERROR << 8) | 0xb3)
+                    } else {
+                        rgb(color + 0x101010)
+                    })
+                    .when(offline, |this| this.border_dashed())
             })
-            .when(offline, |this| this.border_dashed())
-            .bg(rgb(color))
+            .bg(rgb(if thin && selected {
+                ACCENT
+            } else {
+                color
+            }))
             .opacity(if moving {
                 0.3
             } else {
@@ -844,7 +851,7 @@ fn preview_drop_asset(
                     let width = (timeline.seconds(clip.frame_length(timeline.settings.frame_rate))
                         as f32
                         * pixels_per_second)
-                        .max(4.0);
+                        .max(1.0);
                     clip_placement_preview_view(
                         ("srt-placement", index),
                         SharedString::from(clip.properties.text),
@@ -869,7 +876,7 @@ fn preview_drop_asset(
             let duration = timeline
                 .nearest_time(asset.metadata.duration().unwrap_or(0.0))
                 .max(TimelineFrameIndex::ONE_FRAME);
-            let width = (timeline.seconds(duration) as f32 * pixels_per_second).max(4.0);
+            let width = (timeline.seconds(duration) as f32 * pixels_per_second).max(1.0);
             Some(clip_placement_preview_view(
                 "asset-placement",
                 asset.name(),

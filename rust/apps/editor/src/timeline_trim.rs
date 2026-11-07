@@ -1,6 +1,7 @@
 use crate::edit_action::EditAction;
 use crate::editor::Editor;
 use crate::event_bus::AppEvent;
+use crate::layout::MIN_TRIM_CLIP_WIDTH;
 use crate::preview::PreviewTarget;
 use crate::theme::ACCENT;
 use crate::timeline_clip::Clip;
@@ -38,8 +39,10 @@ impl Editor {
             .editing_state
             .seconds(clip.frame_length(timeline.editing_state.settings.frame_rate))
             as f32
-            * timeline.pixels_per_second)
-            .max(4.0);
+            * timeline.pixels_per_second);
+        if width < MIN_TRIM_CLIP_WIDTH {
+            return Vec::new();
+        }
         let handle_width = (width / 2.0).min(6.0);
         [true, false]
             .into_iter()

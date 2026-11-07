@@ -113,8 +113,7 @@ impl TimelineRuntimeState {
                         .editing_state
                         .seconds(clip.frame_length(self.editing_state.settings.frame_rate))
                         as f32
-                        * self.pixels_per_second)
-                        .max(4.0);
+                        * self.pixels_per_second);
                 if clip_left <= right
                     && clip_right >= left
                     && clip_top <= bottom
