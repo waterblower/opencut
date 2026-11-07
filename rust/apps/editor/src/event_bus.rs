@@ -24,13 +24,14 @@ use crate::timeline_clip::{AudioClipProperties, Clip, VideoClip, VideoClipProper
 use crate::timeline_document::{relative_asset_path, resolve_asset_path};
 use crate::track::TrackKind;
 use crate::transcription_window;
-use crate::transcription_window::{ClipRange, TranscriptionStage, TranscriptionWindow};
+use crate::transcription_window::{TranscriptionScope, TranscriptionStage, TranscriptionWindow};
 use crate::ui_components::{HorizontalSplitState, VerticalSplitState};
 use crate::{OpenProject, open_editor_window, quit_after_last_window};
 use ::waveform::generate_waveform;
 use anyhow::{Context as _, Result, anyhow, bail};
 use engine::export::{
     ExportCompletion, ExportControl, ExportOption, export_text_system, export_timeline,
+    mix_timeline_audio_mono,
 };
 use engine::media_asset::probe_media_asset;
 use gpui::prelude::*;
@@ -86,14 +87,14 @@ pub(crate) enum AppEvent {
         project_path: PathBuf,
     },
     OpenTranscribeWindow {
-        audio_source_path: PathBuf, // 含音轨的音频或视频文件的绝对路径。
-        clip: Option<ClipRange>,    // 从时间线片段打开时只转写该片段的源区间。
+        audio_source_path: PathBuf, // 音频、视频或时间线文件的绝对路径。
+        scope: TranscriptionScope,
         project_root: PathBuf,
     },
-    /// Transcribe the audio or video file at this absolute path, or only `clip`'s part of it.
+    /// Transcribe the file at this absolute path within `scope`.
     Transcribe {
         source_path: PathBuf,
-        clip: Option<ClipRange>,
+        scope: TranscriptionScope,
         project_root: PathBuf,
         window: WeakEntity<TranscriptionWindow>,
     },
@@ -204,13 +205,27 @@ pub(crate) async fn handle_event(
         }
         AppEvent::OpenTranscribeWindow {
             audio_source_path: source_path,
-            clip,
+            scope,
             project_root,
         } => {
-            let audio_duration = match clip {
-                Some(range) => range.end.saturating_sub(range.start).as_secs_f64(),
-                None => match probe_media_asset(&source_path) {
+            let audio_duration = match scope {
+                TranscriptionScope::Clip(range) => {
+                    range.end.saturating_sub(range.start).as_secs_f64()
+                }
+                TranscriptionScope::File => match probe_media_asset(&source_path) {
                     Ok(asset) => asset.duration().unwrap_or(0.0),
+                    Err(error) => {
+                        log::error!("Could not open transcription window: {error:?}");
+                        return;
+                    }
+                },
+                TranscriptionScope::Timeline => match TimelineSerialization::load(&source_path) {
+                    Ok(document) => document
+                        .editing_state
+                        .settings
+                        .frame_rate
+                        .duration(TimelineFrameIndex::from(document.frame_count()))
+                        .as_secs_f64(),
                     Err(error) => {
                         log::error!("Could not open transcription window: {error:?}");
                         return;
@@ -220,7 +235,7 @@ pub(crate) async fn handle_event(
             if let Err(error) = cx.update(|cx| {
                 transcription_window::open(
                     source_path,
-                    clip,
+                    scope,
                     audio_duration,
                     project_root,
                     event_bus,
@@ -232,7 +247,7 @@ pub(crate) async fn handle_event(
         }
         AppEvent::Transcribe {
             source_path,
-            clip,
+            scope,
             project_root,
             window,
         } => {
@@ -265,9 +280,13 @@ pub(crate) async fn handle_event(
                             .file_stem()
                             .context("Transcription source has no filename")?
                             .to_string_lossy();
-                        let file_name = match clip {
-                            Some(range) => format!("{stem}_{}.srt", range.clip_id),
-                            None => format!("{stem}.srt"),
+                        let file_name = match scope {
+                            TranscriptionScope::Clip(range) => {
+                                format!("{stem}_{}.srt", range.clip_id)
+                            }
+                            TranscriptionScope::File | TranscriptionScope::Timeline => {
+                                format!("{stem}.srt")
+                            }
                         };
                         let srt_path = project_root.join(file_name);
                         let (wav, api_key) = cx
@@ -278,16 +297,33 @@ pub(crate) async fn handle_event(
                                         "Transcribing audio with MiniMax: {}",
                                         source_path.display()
                                     );
-                                    let wav = match clip {
-                                        Some(range) => {
+                                    let wav = match scope {
+                                        TranscriptionScope::Clip(range) => {
                                             transcribe::audio::extract_audio_range_as_wav(
                                                 &source_path,
                                                 range.start,
                                                 range.end,
                                             )?
                                         }
-                                        None => {
+                                        TranscriptionScope::File => {
                                             transcribe::audio::extract_audio_as_wav(&source_path)?
+                                        }
+                                        TranscriptionScope::Timeline => {
+                                            let document =
+                                                TimelineSerialization::load(&source_path)?;
+                                            let timeline_directory = source_path
+                                                .parent()
+                                                .context("Timeline path has no parent directory")?;
+                                            let pcm = mix_timeline_audio_mono(
+                                                &document.editing_state,
+                                                timeline_directory,
+                                                16_000,
+                                            )?;
+                                            let mut wav = vec![0_u8; 44];
+                                            for sample in pcm {
+                                                wav.extend_from_slice(&sample.to_le_bytes());
+                                            }
+                                            transcribe::audio::write_wav_header(wav)?
                                         }
                                     };
                                     Ok::<_, anyhow::Error>((wav, settings.minimax_api_key))

@@ -13,10 +13,10 @@ use std::path::PathBuf;
 use std::time::{Duration, Instant};
 use ulid::Ulid;
 
-/// An existing window for the same file and clip is focused instead of opening another.
+/// An existing window for the same file and scope is focused instead of opening another.
 pub(crate) fn open(
     source_path: PathBuf,
-    clip: Option<ClipRange>,
+    scope: TranscriptionScope,
     audio_duration: f64,
     project_root: PathBuf,
     event_bus: Entity<EventBus>,
@@ -28,16 +28,13 @@ pub(crate) fn open(
         };
         let view = window.entity(cx)?;
         let existing = view.read(cx);
-        let existing_clip_id = existing.clip.map(|range| range.clip_id);
-        if existing.source_path != source_path
-            || existing_clip_id != clip.map(|range| range.clip_id)
-        {
+        if existing.source_path != source_path || existing.scope.clip_id() != scope.clip_id() {
             continue;
         }
         window.update(cx, |_, window, _| window.activate_window())?;
         view.update(cx, |view, _| {
             if !view.stage.is_running() {
-                view.clip = clip;
+                view.scope = scope;
                 view.audio_duration = audio_duration;
                 view.project_root = project_root;
                 view.event_bus = event_bus;
@@ -55,7 +52,7 @@ pub(crate) fn open(
         |window, cx| {
             let view = cx.new(|_| TranscriptionWindow {
                 source_path,
-                clip,
+                scope,
                 audio_duration,
                 project_root,
                 event_bus,
@@ -74,6 +71,14 @@ pub(crate) fn open(
     handle.entity(cx)
 }
 
+/// What part of `source_path` a transcription window transcribes.
+#[derive(Clone, Copy, Debug)]
+pub(crate) enum TranscriptionScope {
+    File,            // 整个音频或视频文件
+    Clip(ClipRange), // 时间线片段使用的源区间
+    Timeline,        // source_path 是时间线文件，转写其混音
+}
+
 /// The part of a source file that one timeline clip uses.
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct ClipRange {
@@ -84,8 +89,8 @@ pub(crate) struct ClipRange {
 
 pub(crate) struct TranscriptionWindow {
     source_path: PathBuf,
-    clip: Option<ClipRange>, // None 表示转写整个源文件
-    audio_duration: f64,     // 要转写的音频时长（秒），用于估算费用
+    scope: TranscriptionScope,
+    audio_duration: f64, // 要转写的音频时长（秒），用于估算费用
     project_root: PathBuf,
     event_bus: Entity<EventBus>,
     pub(crate) stage: TranscriptionStage,
@@ -102,6 +107,16 @@ pub(crate) enum TranscriptionStage {
     Saving,
     Complete(PathBuf),
     Failed(String),
+}
+
+// Public APIs only
+impl TranscriptionScope {
+    pub(crate) fn clip_id(self) -> Option<Ulid> {
+        match self {
+            Self::Clip(range) => Some(range.clip_id),
+            Self::File | Self::Timeline => None,
+        }
+    }
 }
 
 impl TranscriptionStage {
@@ -123,13 +138,15 @@ impl Render for TranscriptionWindow {
             .to_string_lossy()
             .into_owned();
         let status = match &stage {
-            TranscriptionStage::Idle => match self.clip {
-                Some(range) => format!(
+            TranscriptionStage::Idle => match self.scope {
+                TranscriptionScope::Clip(range) => format!(
                     "Generate the SRT transcription for {}–{} of {file_name}",
                     format_time(range.start.as_secs_f64(), false),
                     format_time(range.end.as_secs_f64(), false),
                 ),
-                None => format!("Generate the SRT transcription for {file_name}"),
+                TranscriptionScope::File | TranscriptionScope::Timeline => {
+                    format!("Generate the SRT transcription for {file_name}")
+                }
             },
             TranscriptionStage::Cancelled => "Cancelled".to_string(),
             TranscriptionStage::Preparing => "Preparing audio".to_string(),
@@ -172,7 +189,7 @@ impl Render for TranscriptionWindow {
                     .when(!running, |button| button.on_click(cx.listener(|view, _, _, cx| {
                         let event = AppEvent::Transcribe {
                             source_path: view.source_path.clone(),
-                            clip: view.clip,
+                            scope: view.scope,
                             project_root: view.project_root.clone(),
                             window: cx.entity().downgrade(),
                         };

@@ -130,7 +130,7 @@ pub(crate) fn chunk(audio_samples: &[u8], max_size: Duration) -> Result<Vec<&[u8
 }
 
 /// Complete a mono 16 kHz PCM WAV buffer with 44 reserved header bytes.
-pub(crate) fn write_wav_header(mut wav: Vec<u8>) -> Result<Vec<u8>> {
+pub fn write_wav_header(mut wav: Vec<u8>) -> Result<Vec<u8>> {
     const RATE: u32 = 16_000;
     if wav.len() < 44
         || wav.len() - 44 > (u32::MAX - 36) as usize

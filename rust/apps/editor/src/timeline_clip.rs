@@ -1,10 +1,11 @@
-use crate::layout::{TIMELINE_PADDING, TRACK_HEIGHT};
+use crate::layout::{THIN_CLIP_WIDTH, TIMELINE_PADDING, TRACK_HEIGHT};
 use crate::theme::ACCENT;
 use crate::timeline::{FrameRate, TimelineFrameIndex};
 pub(crate) use ::timeline::{
     AudioClip, AudioClipProperties, Clip, TextClip, TextClipProperties, VideoClip,
     VideoClipProperties,
 };
+use gpui::prelude::FluentBuilder as _;
 use gpui::{
     InteractiveElement, IntoElement, ParentElement, StatefulInteractiveElement, Styled, div, px,
     rgb,
@@ -67,7 +68,8 @@ pub(super) fn text_clip_component(
     let left =
         TIMELINE_PADDING + frame_rate.seconds(clip.timeline_start) as f32 * pixels_per_second;
     let width =
-        (frame_rate.seconds(clip.frame_length(frame_rate)) as f32 * pixels_per_second).max(4.0);
+        (frame_rate.seconds(clip.frame_length(frame_rate)) as f32 * pixels_per_second).max(1.0);
+    let thin = width < THIN_CLIP_WIDTH;
 
     div()
         .id(gpui::SharedString::from(format!("timeline-clip-{clip_id}")))
@@ -77,14 +79,18 @@ pub(super) fn text_clip_component(
         .w(px(width))
         .h(px(TRACK_HEIGHT - 10.0))
         .overflow_hidden()
-        .rounded_md()
-        .border_1()
-        .border_color(rgb(if selected {
+        .when(!thin, |this| {
+            this.rounded_md().border_1().border_color(rgb(if selected {
+                ACCENT
+            } else {
+                0x8261b3
+            }))
+        })
+        .bg(rgb(if thin && selected {
             ACCENT
         } else {
-            0x8261b3
+            0x7251a3
         }))
-        .bg(rgb(0x7251a3))
         .opacity(if moving {
             0.3
         } else {

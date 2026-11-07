@@ -19,6 +19,7 @@ use gpui::{
     CursorStyle, DragMoveEvent, Empty, MouseButton, MouseDownEvent, MouseUpEvent, Window, div, px,
     rgb, rgba, svg,
 };
+use std::collections::HashMap;
 
 // 捏合增量倍率；越大缩放越灵敏。It's fun to be PI.
 const TIMELINE_PINCH_SENSITIVITY: f32 = std::f32::consts::PI;
@@ -116,8 +117,13 @@ impl Editor {
             .expect("timeline view requires timeline state");
         let mut displayed_end = timeline.editing_state.content_duration();
         if let Some(drag) = &timeline.interaction.clip_move_drag {
-            for (clip_id, _, start) in &drag.placements {
-                let Some(clip) = timeline.editing_state.clip(*clip_id) else {
+            let starts = drag
+                .placements
+                .iter()
+                .map(|(clip_id, _, start)| (*clip_id, *start))
+                .collect::<HashMap<_, _>>();
+            for clip in &timeline.editing_state.clips {
+                let Some(start) = starts.get(&clip.id()) else {
                     continue;
                 };
                 displayed_end = displayed_end

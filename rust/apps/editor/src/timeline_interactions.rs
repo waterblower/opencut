@@ -113,8 +113,7 @@ impl TimelineRuntimeState {
                         .editing_state
                         .seconds(clip.frame_length(self.editing_state.settings.frame_rate))
                         as f32
-                        * self.pixels_per_second)
-                        .max(4.0);
+                        * self.pixels_per_second);
                 if clip_left <= right
                     && clip_right >= left
                     && clip_top <= bottom
@@ -464,17 +463,18 @@ impl Editor {
             return Ok(());
         };
         let items = timeline
-            .selected_clip_ids_in_timeline_order()
-            .into_iter()
-            .filter_map(|selected_id| {
-                let clip = timeline.editing_state.clip(selected_id)?;
+            .editing_state
+            .clips
+            .iter()
+            .filter(|clip| timeline.interaction.selected_clip_ids.contains(&clip.id()))
+            .filter_map(|clip| {
                 let original_track_index = timeline
                     .editing_state
                     .tracks
                     .iter()
                     .position(|track| track.id == clip.track_id())?;
                 Some(ClipMoveItem {
-                    clip_id: selected_id,
+                    clip_id: clip.id(),
                     original_timeline_start: clip.timeline_start(),
                     original_track_id: clip.track_id(),
                     original_track_index,
@@ -554,9 +554,11 @@ impl Editor {
             .map(|item| item.original_timeline_start)
             .min()
             .unwrap_or(TimelineFrameIndex::ZERO);
-        let latest_end = items
+        let latest_end = timeline
+            .editing_state
+            .clips
             .iter()
-            .filter_map(|item| timeline.editing_state.clip(item.clip_id))
+            .filter(|clip| timeline.interaction.selected_clip_ids.contains(&clip.id()))
             .map(|clip| clip.timeline_end(timeline.editing_state.settings.frame_rate))
             .max()
             .unwrap_or(earliest_start);
